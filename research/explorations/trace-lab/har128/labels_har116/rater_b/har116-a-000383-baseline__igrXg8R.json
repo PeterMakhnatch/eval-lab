@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "I'll insert the new code with CRLF endings to match the file's dominant style.",
+      "ref": "head#37"
+    },
+    {
+      "quote": "def _MarketDataRequest(self,kargs):",
+      "ref": "head#37"
+    },
+    {
+      "quote": "compile OK",
+      "ref": "head#38"
+    }
+  ],
+  "first_failure": {
+    "quote": "def _MarketDataRequest(self,kargs):",
+    "ref": "head#37",
+    "what": "Inserted _MarketDataRequest with flat NoMDEntryTypes/MDEntryType and NoRelatedSym/Symbol fields instead of quickfix repeating groups (bug persisted to final diff)."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "n_episodes 95 (<121), n_input 2438052 (~2.5M), TrialBudgetExhaustedError; reward 0. No mark_task_complete in trajectory. Final agent.diff adds genMarketDataID/_MarketDataRequest/subscribe/unsubscribe but groups are flat so verifier fails with FieldNotFound 267 and SubscriptionRequestType '\\x01' vs '1'. Model later diagnosed binary/group bugs in dbg steps but budget hit before any fix.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-000383-baseline__igrXg8R"
+}

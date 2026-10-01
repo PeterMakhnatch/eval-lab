@@ -1,0 +1,90 @@
+{
+ "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix-r2/har116-a-002256-loopfix-r2__5oQwkeW",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix-r2",
+ "task": "mimo-v2.6-rl/format-code-task-002256",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#15",
+   "head#20",
+   "head#21"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 18,
+  "step_ref": "head#18",
+  "tag": "tool_use",
+  "attribution": "unclear",
+  "rule_id": "R-TOOL-01U",
+  "evidence_step_refs": [
+   "head#18"
+  ],
+  "recovered": true,
+  "note": "rejected turn, cause json_invalid; attribution unclear"
+ },
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [],
+  "note": "scored pass with no outcome-relevant failure"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#15",
+  "prompts": 2,
+  "confirmed": true,
+  "turns_after_first_prompt": 6,
+  "prompt_tokens_after_first_prompt": 44257,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [],
+  "identical": null,
+  "confirmation": null,
+  "in_loops": null,
+  "all_steps": {
+   "prompt": 103908,
+   "completion": 2984,
+   "steps": 20,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": null,
+  "result_input_tokens": 103908
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 16,
+  "states": {
+   "prompt": 16
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

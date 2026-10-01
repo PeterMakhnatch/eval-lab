@@ -1,0 +1,31 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "skip validation entirely (return/continue), since we can't resolve the string.",
+      "ref": "head#87"
+    },
+    {
+      "quote": "cat src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py && cat test/unit/rules/resources/stepfunctions/test_state_machine_definition.py",
+      "ref": "head#83"
+    }
+  ],
+  "first_failure": {
+    "quote": "skip validation entirely (return/continue), since we can't resolve the string.",
+    "ref": "head#87",
+    "what": "Correctly diagnosed the intrinsic-function skip but deferred the edit to keep hunting helpers and never wrote the fix before budget out (diff empty)."
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "n_episodes 102 (<121), n_input 2476358 (~2.5M), TrialBudgetExhaustedError; reward 0; agent.diff empty; no mark_task_complete. Verifier: 11 passed, 1 failed ('Using a function' {'Definition': {'Fn::Join': ...}} still yields StartAt/States errors). Model had the 2-line is_function answer at step 87 but spent steps 88-102 on FUNCTIONS/helper archaeology without editing.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-000495-baseline__DiGmEPC"
+}

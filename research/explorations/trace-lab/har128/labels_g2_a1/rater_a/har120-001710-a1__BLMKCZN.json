@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Let me explore the repository first.",
+      "ref": "head#2"
+    },
+    {
+      "quote": "sed -n '74,84p' /workspace/repo/pbxproj/PBXGenericObject.py",
+      "ref": "head#80"
+    },
+    {
+      "quote": "sed -n '74,84p' /workspace/repo/pbxproj/PBXGenericObject.py",
+      "ref": "head#95"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed -n '74,84p' /workspace/repo/pbxproj/PBXGenericObject.py",
+    "ref": "head#80",
+    "what": "entered terminal run of identical read-only seds with no edit ever attempted; loop-broke from here"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#80",
+    "head#95"
+  ],
+  "notes": "reward 0.0; 6/6 hidden duplicate-safe-add_file tests fail on unmodified code (agent.diff empty, apply.log shows no agent patch, trajectory has zero writes). 94 episodes; LoopBreakStop: 'repetition was still going 94 calls in, 15 after the nudge at call 79', detector normalized_command_run. Model read add_file fully then drifted to PBXGenericObject print formatting.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-001710-a1__BLMKCZN"
+}

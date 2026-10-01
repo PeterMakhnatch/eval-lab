@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "pip download soupsieve==1.9.1 --no-deps -d /tmp/sv 2>&1 | tail -2; ls /tmp/sv 2>/dev/null",
+      "ref": "head#8"
+    },
+    {
+      "quote": "269:def escape(ident):",
+      "ref": "head#9"
+    },
+    {
+      "quote": "Analysis: All tests pass (619 passed, 4 skipped) and the docs look good.",
+      "ref": "head#45"
+    },
+    {
+      "quote": "The implementation is complete. All changes are in place and verified",
+      "ref": "head#75"
+    }
+  ],
+  "first_failure": {
+    "quote": "Saved /tmp/sv/soupsieve-1.9.1-py2.py3-none-any.whl",
+    "ref": "head#8",
+    "what": "fetched upstream soupsieve 1.9.1 wheel containing the reference escape() implementation"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 1 (22 passed), n_episodes 75, ~2.42M input tokens, TrialBudgetExhaustedError. Final diff matches upstream escape/uord; agent's own TestEscape added to visible tests (reset by verifier). Single malformed completion attempt at head#75, no 10-turn repeat.",
+  "off_limits_opened": false,
+  "pass_copied": true,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": false,
+    "cut_step_id": 75,
+    "reason": "passing escape()/uord() copied from soupsieve 1.9.1 wheel fetched mid-run"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-000927-original__kvyP9fr"
+}

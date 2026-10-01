@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "I'll insert the new methods after `advanceDecline` (line 1133, before `holidays` at line 1134).",
+      "ref": "head#43"
+    },
+    {
+      "quote": "calls `/corporates-corporateActions` with `index=segment.upper()`",
+      "ref": "head#64"
+    },
+    {
+      "quote": "Differing items: {'query': {'index': ['EQUITIES']}} != {'query': {'index': ['equities']}}",
+      "ref": "head#104"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete?",
+      "ref": "head#64"
+    },
+    {
+      "quote": "echo \"complete\"",
+      "ref": "head#102"
+    },
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#104"
+    }
+  ],
+  "first_failure": {
+    "quote": "I'll insert the new methods after `advanceDecline` (line 1133, before `holidays` at line 1134).",
+    "ref": "head#43",
+    "what": "inserted actions/announcements/etc copying advanceDecline index.upper(); spec wants lowercase passthrough"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#64",
+    "head#104"
+  ],
+  "notes": "instruction uppercases only symbol/dept_code, not index/segment; 5 fails all EQUITIES/SME vs equities/sme",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000552-a1__WdaAJgE"
+}

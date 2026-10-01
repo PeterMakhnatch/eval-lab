@@ -1,0 +1,54 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Now I'll implement the fix. Replace `urlsplit` with a manual split that handles the absolute-form URI correctly",
+      "ref": "head#22"
+    },
+    {
+      "quote": "scheme = netloc = query = fragment = ''",
+      "ref": "head#22"
+    },
+    {
+      "quote": "if uri.startswith(b'//'):",
+      "ref": "head#22"
+    },
+    {
+      "quote": "AssertionError: '' != 'a=1&b=2'",
+      "ref": "head#22"
+    },
+    {
+      "quote": "AssertionError: '' != 'localhost:8080'",
+      "ref": "head#22"
+    },
+    {
+      "quote": "pip download waitress==1.4.1 --no-deps -d /tmp/wtr 2>&1 | tail -2",
+      "ref": "head#13"
+    },
+    {
+      "quote": "ERROR: Could not find a version that satisfies the requirement waitress==1.4.1 (from versions: none)",
+      "ref": "head#13"
+    }
+  ],
+  "first_failure": {
+    "quote": "scheme = netloc = query = fragment = ''",
+    "ref": "head#22",
+    "what": "replaced split_uri with buggy manual parser that drops query/fragment and breaks absolute URLs"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#20",
+    "head#86"
+  ],
+  "notes": "Buggy manual split_uri passes basic //testing path but fails query/fragment ('' != 'a=1&b=2', '#frag' != 'frag') and regresses absolute URLs ('' != 'localhost:8080'); 6 verifier failures. Dozens of near-identical PYEOF edit attempts pre/post fix. pip download failed (PyPI blocked in leakclosed) so no upstream copy.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-000226-leakclosed__K9ddjiP"
+}

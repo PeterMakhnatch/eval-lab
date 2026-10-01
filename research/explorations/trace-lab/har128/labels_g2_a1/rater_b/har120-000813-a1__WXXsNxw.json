@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "LoopBreakStop: loop break: the repetition was still going 69 calls in, 15 after the nudge at call 54",
+      "ref": "head#70"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete? ... include \"task_complete\": true in your JSON response again.",
+      "ref": "head#31"
+    },
+    {
+      "quote": "The implementation is complete and verified. The `django_recaptcha/client.py` module has been created...",
+      "ref": "head#33"
+    },
+    {
+      "quote": "response = opener.open(url, data, timeout=timeout)",
+      "ref": "head#7"
+    },
+    {
+      "quote": "TypeError: install_response.<locals>.FakeOpener.open() got multiple values for argument 'timeout'",
+      "ref": "head#N/A verifier"
+    },
+    {
+      "quote": "11 failed (all TypeError in opener.open)",
+      "ref": "head#N/A verifier"
+    }
+  ],
+  "first_failure": {
+    "quote": "cat > /workspace/repo/django_recaptcha/client.py <<'EOF' ... response = opener.open(url, data, timeout=timeout)",
+    "ref": "head#7",
+    "what": "Created client.py passing raw url+data to opener.open instead of Request with headers"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#32",
+    "head#70"
+  ],
+  "notes": "Reward 0 (11/11 fail). Bug present from creation at head#7, never fixed; model verified only with own flawed mock, never ran hidden tests. After mark_task_complete at 31, harness asked for re-confirmation and model looped claims/re-checks.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-000813-a1__WXXsNxw"
+}

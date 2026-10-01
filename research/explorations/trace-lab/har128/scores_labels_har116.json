@@ -1,0 +1,4544 @@
+{
+  "rater_a_vs_rater_b": {
+    "stop_reason": {
+      "agree": 40,
+      "n": 40,
+      "ci95": [
+        0.9123754607496077,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 33,
+      "n": 40,
+      "ci95": [
+        0.6804970794560755,
+        0.9125469700311694
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": 33,
+          "other": 37,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": 17,
+          "other": 17,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": 8,
+          "other": 87,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": 13,
+          "other": 12,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": 77,
+          "other": 77,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": 31,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": 21,
+          "other": 21,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": 22,
+          "other": 23,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": 29,
+          "other": 29,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": 31,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": 48,
+          "other": 48,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": 39,
+          "other": 39,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": 4,
+          "other": 4,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": 29,
+          "other": 39,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": 9,
+          "other": 9,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": 7,
+          "other": 31,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": 7,
+          "other": 56,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": 22,
+          "other": 22,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": 11,
+          "other": 8,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": 28,
+          "other": 28,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": 6,
+          "other": 8,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": 18,
+          "other": 25,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": 5,
+          "other": 6,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": 44,
+          "other": 44,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": null,
+          "other": null,
+          "match": true
+        }
+      ]
+    },
+    "blame": {
+      "agree": 40,
+      "n": 40,
+      "ci95": [
+        0.9123754607496077,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        }
+      ]
+    },
+    "loop_present": {
+      "agree": 35,
+      "n": 40,
+      "ci95": [
+        0.7388757932976187,
+        0.9454058022645873
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 35,
+      "n": 40,
+      "ci95": [
+        0.7388757932976187,
+        0.9454058022645873
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": "completion-claim",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": "completion-claim",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": "repetition",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        }
+      ]
+    },
+    "loop_onset": {
+      "agree": 13,
+      "n": 16,
+      "ci95": [
+        0.5699064013154177,
+        0.9340852122641324
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": 18,
+          "other": 50,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": 48,
+          "other": 48,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": 57,
+          "other": 57,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": 34,
+          "other": 49,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": 78,
+          "other": 48,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": 55,
+          "other": 56,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": 39,
+          "other": 39,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": 46,
+          "other": 45,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": 66,
+          "other": 66,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": 17,
+          "other": 17,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": 54,
+          "other": 56,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": 20,
+          "other": 23,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": 11,
+          "other": 8,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": 28,
+          "other": 28,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": 44,
+          "other": 44,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": 36,
+          "other": 36,
+          "match": true
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 9,
+      "n": 9,
+      "ci95": [
+        0.7008472464490407,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": false,
+          "other": false,
+          "match": true
+        }
+      ]
+    }
+  },
+  "docent_opus_vs_agreed": {
+    "stop_reason": {
+      "agree": 28,
+      "n": 40,
+      "ci95": [
+        0.545696893456796,
+        0.8192532908430471
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 27,
+      "n": 33,
+      "ci95": [
+        0.656114329507048,
+        0.9138934877430174
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": 17,
+          "other": 54,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": 13,
+          "other": 38,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": 77,
+          "other": 77,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": 31,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": 21,
+          "other": 21,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": 22,
+          "other": 22,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": 29,
+          "other": 24,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": 31,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": 48,
+          "other": 8,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": 39,
+          "other": 39,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": 4,
+          "other": 4,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": 9,
+          "other": 17,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": 1,
+          "other": 1,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": 22,
+          "other": 22,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": 28,
+          "other": 15,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": 6,
+          "other": 8,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": 5,
+          "other": 6,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": 44,
+          "other": 44,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": null,
+          "other": null,
+          "match": true
+        }
+      ]
+    },
+    "blame": {
+      "agree": 40,
+      "n": 40,
+      "ci95": [
+        0.9123754607496077,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        }
+      ]
+    },
+    "loop_present": {
+      "agree": 32,
+      "n": 35,
+      "ci95": [
+        0.7762040092883747,
+        0.970418168994703
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 32,
+      "n": 35,
+      "ci95": [
+        0.7762040092883747,
+        0.970418168994703
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "none",
+          "other": "completion-claim",
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        }
+      ]
+    },
+    "loop_onset": {
+      "agree": 11,
+      "n": 13,
+      "ci95": [
+        0.5776482949136899,
+        0.9567427368172621
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": 48,
+          "other": 49,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": 57,
+          "other": 58,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": 55,
+          "other": 56,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": 39,
+          "other": 45,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": 46,
+          "other": 43,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": 66,
+          "other": 59,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": 17,
+          "other": 18,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": 54,
+          "other": 57,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": 20,
+          "other": 23,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": 11,
+          "other": 8,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": 28,
+          "other": 30,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": 44,
+          "other": 44,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": 36,
+          "other": 36,
+          "match": true
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 9,
+      "n": 9,
+      "ci95": [
+        0.7008472464490407,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": false,
+          "other": false,
+          "match": true
+        }
+      ]
+    }
+  },
+  "evallab_vs_agreed": {
+    "stop_reason": {
+      "agree": 40,
+      "n": 40,
+      "ci95": [
+        0.9123754607496077,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 8,
+      "n": 33,
+      "ci95": [
+        0.12831561346647294,
+        0.4102494868549029
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": 17,
+          "other": 7,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": null,
+          "other": 6,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": 13,
+          "other": 12,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": null,
+          "other": 9,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": 77,
+          "other": 12,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": 31,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": 21,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": 22,
+          "other": 22,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": 29,
+          "other": 15,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": 31,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": 48,
+          "other": 8,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": 39,
+          "other": 39,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": 4,
+          "other": 4,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": null,
+          "other": 18,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": null,
+          "other": 3,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": 9,
+          "other": 9,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": null,
+          "other": 12,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": 22,
+          "other": 15,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": 28,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": 6,
+          "other": 8,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": 5,
+          "other": 11,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": 44,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": null,
+          "other": 24,
+          "match": false
+        }
+      ]
+    },
+    "blame": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 40,
+      "rows": []
+    },
+    "loop_present": {
+      "agree": 27,
+      "n": 35,
+      "ci95": [
+        0.6098236221989801,
+        0.879342632538209
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 35,
+      "rows": []
+    },
+    "loop_onset": {
+      "agree": 6,
+      "n": 10,
+      "ci95": [
+        0.3126695474501864,
+        0.8318224187964902
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": 48,
+          "other": 50,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": 57,
+          "other": 59,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": 55,
+          "other": 56,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": 46,
+          "other": 68,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": 66,
+          "other": 77,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": 20,
+          "other": 23,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": 11,
+          "other": 14,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": 28,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": 44,
+          "other": 53,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": 36,
+          "other": 43,
+          "match": false
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 8,
+      "n": 9,
+      "ci95": [
+        0.5649937852319399,
+        0.9801096286728695
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": false,
+          "other": false,
+          "match": true
+        }
+      ]
+    }
+  },
+  "scout_vs_agreed": {
+    "stop_reason": {
+      "agree": 40,
+      "n": 40,
+      "ci95": [
+        0.9123754607496077,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 2,
+      "n": 33,
+      "ci95": [
+        0.016780530429070947,
+        0.19606581717798194
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": 17,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": null,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": 13,
+          "other": 51,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": 77,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": 31,
+          "other": 36,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": 21,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": 22,
+          "other": 31,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": 29,
+          "other": 73,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": 31,
+          "other": 14,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": 48,
+          "other": 8,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": 39,
+          "other": 39,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": 4,
+          "other": 7,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": null,
+          "other": 18,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": null,
+          "other": 3,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": 9,
+          "other": 17,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": null,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": 1,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": 22,
+          "other": 26,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": 28,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": 6,
+          "other": 66,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": 5,
+          "other": 71,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": 44,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": null,
+          "other": 42,
+          "match": false
+        }
+      ]
+    },
+    "blame": {
+      "agree": 26,
+      "n": 29,
+      "ci95": [
+        0.7361455275293085,
+        0.9641857596186989
+      ],
+      "not_expressed": 11,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-baseline__mBFMKax",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-original__kvyP9fr",
+          "rater": "model",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "har116-b-002308-leakclosed__idknFAu",
+          "rater": "model",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "har116-b-002308-original__oYziU3z",
+          "rater": "model",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        }
+      ]
+    },
+    "loop_present": {
+      "agree": 26,
+      "n": 35,
+      "ci95": [
+        0.5793037572935127,
+        0.8583713127344985
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000383-baseline__igrXg8R",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000383-loopfix__wgujpBQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000495-baseline__DiGmEPC",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000495-loopfix__rXR8je7",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-a-000587-loopfix__X5SAhvg",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001161-baseline__DwYZaia",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001161-loopfix__WxP98h8",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-baseline__cK5qZMf",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001181-loopfix__Cd9chGm",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-baseline__9jhqCTW",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix__rw7cJJ4",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001896-loopfix__n5p224u",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-baseline__uRsPnvZ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002256-loopfix__5Xu6dgc",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-baseline__xZqrQkD",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002391-loopfix__KMAky2p",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-loopfix__oHC4HdZ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-leakclosed__UsngzaQ",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 35,
+      "rows": []
+    },
+    "loop_onset": {
+      "agree": 2,
+      "n": 11,
+      "ci95": [
+        0.05136660067100063,
+        0.4769861375782448
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har116-a-000587-baseline__Vuxk2nX",
+          "rater": 48,
+          "other": 51,
+          "match": true
+        },
+        {
+          "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+          "rater": 55,
+          "other": 14,
+          "match": false
+        },
+        {
+          "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+          "rater": 39,
+          "other": 45,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+          "rater": 66,
+          "other": 5,
+          "match": false
+        },
+        {
+          "trial": "har116-a-002864-baseline__LnaWDq6",
+          "rater": 17,
+          "other": 25,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000146-original__JT6tRiN",
+          "rater": 54,
+          "other": 59,
+          "match": true
+        },
+        {
+          "trial": "har116-b-000226-leakclosed__K9ddjiP",
+          "rater": 20,
+          "other": 26,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000226-original__JTEerfm",
+          "rater": 11,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+          "rater": 28,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-leakclosed__X7nGHNs",
+          "rater": 44,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har116-b-002402-original__PCgLbp7",
+          "rater": 36,
+          "other": 42,
+          "match": false
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 9,
+      "rows": []
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "malformed XML tool-call instead of required JSON analysis/plan/commands",
+      "ref": "head#39"
+    },
+    {
+      "quote": "No valid JSON found in response, nothing executed, repeated identically",
+      "ref": "head#40"
+    },
+    {
+      "quote": "identical parse-error tool-call still repeating at final step",
+      "ref": "head#95"
+    },
+    {
+      "quote": "empty agent.diff, 16 failed 2 passed, fallback never wired in",
+      "ref": "head#95"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError, n_episodes 95, loop_break fired false",
+      "ref": "head#95"
+    }
+  ],
+  "first_failure": {
+    "quote": "malformed XML tool-call instead of required JSON analysis/plan/commands",
+    "ref": "head#39",
+    "what": "emitted malformed tool-call starting terminal parse-error loop, nothing executed"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#39",
+    "head#95"
+  ],
+  "notes": "57 identical parse-error turns with zero execution; early read-only exploration never produced code.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001896-loopfix-r2__Wmwi4NK"
+}

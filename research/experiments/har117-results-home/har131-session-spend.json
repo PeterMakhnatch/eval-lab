@@ -1,0 +1,466 @@
+{
+  "captured_at": "2026-10-01T06:06:09.531456+00:00",
+  "schema": "evallab.session_spend/v1",
+  "sessions": [
+    {
+      "billing_rows": [
+        {
+          "cost_usd": 1.53380886,
+          "description": "evallab-mimo-v26-9b",
+          "environment": "main",
+          "interval_start": "2026-10-01 00:00:00+00:00",
+          "object_id": "ap-i1jDXiUmYYzX3k11Tpww83",
+          "reported_at": "2026-10-01 02:23:10.006236+00:00",
+          "resolution": "d",
+          "resource": ""
+        }
+      ],
+      "deployment": {
+        "commit": "8fc6389",
+        "time_deployed": "2026-09-30 20:01:27-04:00"
+      },
+      "members": [
+        {
+          "daytona_estimate_usd": 0.055519386466049994,
+          "job_id": "6957d010-14ff-4125-aebd-b002c84d664d",
+          "job_name": "har116-a-000383-baseline",
+          "lab_metadata_sha256": "39f03ef2c085d428dea21f9166fcb8c3893f7e6a014b8709cc35dd56e6f8b436",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FVZ1MJ1AK08R96AWH372",
+          "trial_wall_seconds": 865.461987
+        },
+        {
+          "daytona_estimate_usd": 0.0025003329166500003,
+          "job_id": "cbdefc3a-a48b-4185-814e-a10a96d7651e",
+          "job_name": "har116-a-000383-loopfix",
+          "lab_metadata_sha256": "e12f8fb446b32debf396eeb0232f8b55e54ee78a9532ce7095bd2620bc68f9b0",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FWEZVQZB76Y1T7SWA2W1",
+          "trial_wall_seconds": 38.976351
+        },
+        {
+          "daytona_estimate_usd": 0.047556515799000006,
+          "job_id": "32abdff7-c3d5-4e40-ae43-cc5bdc2be78c",
+          "job_name": "har116-a-000495-baseline",
+          "lab_metadata_sha256": "19df6b1bc91105bb64aaf3f303c1b9ab05fd384b8c0a65b6435b334e27154753",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FWXCJ66X6268G8ZARESD",
+          "trial_wall_seconds": 741.33306
+        },
+        {
+          "daytona_estimate_usd": 0.01010425476055,
+          "job_id": "9d3843d7-8f83-4634-a6b0-512f0e11a21c",
+          "job_name": "har116-a-000495-loopfix",
+          "lab_metadata_sha256": "7689c10f73f3743aa661fdeb44606c15eaf5884aeaa24f15a48d257f37994ff2",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FXBP13TTQN6AGGG8FHYX",
+          "trial_wall_seconds": 157.509817
+        },
+        {
+          "daytona_estimate_usd": 0.0524743203603,
+          "job_id": "0982d91d-73ba-435e-9c0c-a58f22ffcd1e",
+          "job_name": "har116-a-000587-baseline",
+          "lab_metadata_sha256": "30e36fe3ced24f154f2a6c2cdffc0b3fd5b00abcdc8f4b708f5282e0270967e5",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FXT1M83S27PM4X3907RT",
+          "trial_wall_seconds": 817.994082
+        },
+        {
+          "daytona_estimate_usd": 0.00124093588275,
+          "job_id": "0b10e771-7af4-4f29-b1e0-3996135dcae4",
+          "job_name": "har116-a-000587-loopfix",
+          "lab_metadata_sha256": "3b18bf8411abde1431d135ca04417cb83a02a545f418488ca1538e1b7112b68c",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FY8P8E5B02BH76FNT44D",
+          "trial_wall_seconds": 19.344285
+        },
+        {
+          "daytona_estimate_usd": 0.037255123790400003,
+          "job_id": "c1791d11-ba52-4b0b-bf5e-c3d6325398c5",
+          "job_name": "har116-a-001161-baseline",
+          "lab_metadata_sha256": "fd6f4e083934b57390af4a5a36052d8323b34f83049aecd9e80660177551fa8c",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FYQ51DSK24HRPN7SM40N",
+          "trial_wall_seconds": 580.750176
+        },
+        {
+          "daytona_estimate_usd": 0.00834348082825,
+          "job_id": "d5b9fa9a-4f2e-4d9d-9084-cba68f52b595",
+          "job_name": "har116-a-001161-loopfix",
+          "lab_metadata_sha256": "9a63f86eec5302537a03eafc70c0a7cb88e0be6682054fc1442297f8b2808e6d",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FZ68DRTC9E1FPH6QRGHH",
+          "trial_wall_seconds": 130.062055
+        },
+        {
+          "daytona_estimate_usd": 0.031514633455900005,
+          "job_id": "a6a2bad2-5d86-4c7b-81d7-b175e39f6aea",
+          "job_name": "har116-a-001181-baseline",
+          "lab_metadata_sha256": "4483434c30b1ecf3147d8b2915d15aa5d0d51a3fe447de43ec59a194e9b49a35",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9FZN32608KGGGZF0HMCDQ",
+          "trial_wall_seconds": 491.264746
+        },
+        {
+          "daytona_estimate_usd": 0.00132945608285,
+          "job_id": "51f2ea16-2153-42a6-aa89-04ceef3c8258",
+          "job_name": "har116-a-001181-loopfix",
+          "lab_metadata_sha256": "86dfa110b9ed8341a29c16f6ef53752efb3191f2b65d8902fe3d10f9a4917c18",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G03FBGZZXF7D33Q0SK9H",
+          "trial_wall_seconds": 20.724179
+        },
+        {
+          "daytona_estimate_usd": 0.03979441256435,
+          "job_id": "abd963a0-a74a-41c1-92d6-d62ecf081397",
+          "job_name": "har116-a-001832-baseline",
+          "lab_metadata_sha256": "437ca1f4e5f19fac01f72ff12e1ce8971dca257ffac4d233c895681d9b1d203a",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G0JDZVQH9BNC5R9JYTJ8",
+          "trial_wall_seconds": 620.333789
+        },
+        {
+          "daytona_estimate_usd": 0.0012498965472000003,
+          "job_id": "e604aaab-b1b1-4307-b743-e3fa7388c716",
+          "job_name": "har116-a-001832-loopfix",
+          "lab_metadata_sha256": "2023d034c09000376862b253c5d6b3a0287f280226895cbba88aa898599dc78e",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G11GGA6J6KZJMMTBB52X",
+          "trial_wall_seconds": 19.483968
+        },
+        {
+          "daytona_estimate_usd": 0.08879585451035,
+          "job_id": "9c494b57-9ccd-4e4f-8990-de3ae98109e5",
+          "job_name": "har116-a-001896-baseline",
+          "lab_metadata_sha256": "6923b1e06ce82fe67bbf6d50454783ab811bc6a3a5522c1fd72f327dfb4d8c70",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G1G9GZZXZ1DSXFR7P6Y6",
+          "trial_wall_seconds": 1384.191029
+        },
+        {
+          "daytona_estimate_usd": 0.00130490934195,
+          "job_id": "1dceb200-c786-428c-8741-1179bef34fc4",
+          "job_name": "har116-a-001896-loopfix",
+          "lab_metadata_sha256": "23cd7562d03a7c8ba584fbc565533670caea9bb1650792288de1bcd0f9d1f1c7",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G1Z4XXR34GFD0R9PMZW9",
+          "trial_wall_seconds": 20.341533
+        },
+        {
+          "daytona_estimate_usd": 0.0107320363472,
+          "job_id": "c8e6d2d0-975c-4a74-9899-87cd4dfacb4c",
+          "job_name": "har116-a-002256-baseline",
+          "lab_metadata_sha256": "cda38cf7e4e90dece9c00710967b633fa0f7504b0866e662fac23b6bb9ff7f03",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G2DYWTK8JGAVS1BQ2KRB",
+          "trial_wall_seconds": 167.295968
+        },
+        {
+          "daytona_estimate_usd": 0.0012478465697999999,
+          "job_id": "d0b38ebf-8b61-47f5-b3b8-1a7ee646901b",
+          "job_name": "har116-a-002256-loopfix",
+          "lab_metadata_sha256": "f774bc1fb63c39554934e9f82965f4cde4380873be30fb0b6875063e4dc1b537",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G2WQ2E0S9BCMJFGX83WA",
+          "trial_wall_seconds": 19.452012
+        },
+        {
+          "daytona_estimate_usd": 0.04715210823305,
+          "job_id": "c8bbf880-dde6-4b23-8801-8842da5ffad7",
+          "job_name": "har116-a-002391-baseline",
+          "lab_metadata_sha256": "c09256ade119983ee81ef09a493e711a094d136c4670d8e236db0138571e39ad",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G3B6AQV2YRR8DBN4Q1VH",
+          "trial_wall_seconds": 735.028967
+        },
+        {
+          "daytona_estimate_usd": 0.00319811440595,
+          "job_id": "ce10d190-3bcf-425e-8a99-54651bc6bf3a",
+          "job_name": "har116-a-002391-loopfix",
+          "lab_metadata_sha256": "058cd7827c9a629ee37f128d3ec16319f84fb09ed0fd84beddbb83398564f5e7",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G3T3TFKF4CWEB7FZ8GTT",
+          "trial_wall_seconds": 49.853693
+        },
+        {
+          "daytona_estimate_usd": 0.05126093068,
+          "job_id": "e16bb6b2-6d48-4657-9639-17dd487b4cd1",
+          "job_name": "har116-a-002864-baseline",
+          "lab_metadata_sha256": "a5f163026cc6ccb17d1e3f072115e015d1857165ae91cd76cec096608bf25cd0",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G4937W9WDSHYX072FESC",
+          "trial_wall_seconds": 799.0792
+        },
+        {
+          "daytona_estimate_usd": 0.001201546179,
+          "job_id": "e7894020-3cb4-4517-b403-5fc61e0c2e40",
+          "job_name": "har116-a-002864-loopfix",
+          "lab_metadata_sha256": "a6139bf556decb55006f74c49c9e6a863f0e736cc7db4e689c8c1e2a8a59b0ea",
+          "repository_commit": "8fc6389b998c705edfb6c1f131a2a7805581a15b",
+          "spec_id": "01M3T9G4QR9CRGAWZWN44XD0AY",
+          "trial_wall_seconds": 18.73026
+        }
+      ],
+      "session_id": "ap-i1jDXiUmYYzX3k11Tpww83",
+      "teardown": {
+        "app": "evallab-mimo-v26-9b",
+        "completed_spec_ids": [
+          "01M3T9FVZ1MJ1AK08R96AWH372",
+          "01M3T9FWEZVQZB76Y1T7SWA2W1",
+          "01M3T9FWXCJ66X6268G8ZARESD",
+          "01M3T9FXBP13TTQN6AGGG8FHYX",
+          "01M3T9FXT1M83S27PM4X3907RT",
+          "01M3T9FY8P8E5B02BH76FNT44D",
+          "01M3T9FYQ51DSK24HRPN7SM40N",
+          "01M3T9FZ68DRTC9E1FPH6QRGHH",
+          "01M3T9FZN32608KGGGZF0HMCDQ",
+          "01M3T9G03FBGZZXF7D33Q0SK9H",
+          "01M3T9G0JDZVQH9BNC5R9JYTJ8",
+          "01M3T9G11GGA6J6KZJMMTBB52X",
+          "01M3T9G1G9GZZXZ1DSXFR7P6Y6",
+          "01M3T9G1Z4XXR34GFD0R9PMZW9",
+          "01M3T9G2DYWTK8JGAVS1BQ2KRB",
+          "01M3T9G2WQ2E0S9BCMJFGX83WA",
+          "01M3T9G3B6AQV2YRR8DBN4Q1VH",
+          "01M3T9G3T3TFKF4CWEB7FZ8GTT",
+          "01M3T9G4937W9WDSHYX072FESC",
+          "01M3T9G4QR9CRGAWZWN44XD0AY"
+        ],
+        "recorded_at": "2026-10-01T01:45:38.218672+00:00"
+      }
+    },
+    {
+      "billing_rows": [
+        {
+          "cost_usd": 1.67625561,
+          "description": "evallab-mimo-v26-9b",
+          "environment": "main",
+          "interval_start": "2026-10-01 00:00:00+00:00",
+          "object_id": "ap-yXxcAQPhR4WRVkUd4thsUc",
+          "reported_at": "2026-10-01 02:23:10.006236+00:00",
+          "resolution": "d",
+          "resource": ""
+        }
+      ],
+      "deployment": {
+        "commit": "a87e01a",
+        "time_deployed": "2026-09-30 21:46:13-04:00"
+      },
+      "members": [
+        {
+          "daytona_estimate_usd": 0.0258795936612,
+          "job_id": "649f285a-363c-4666-aa77-5fa6cf4cd87c",
+          "job_name": "har116-a-000383-loopfix-r2",
+          "lab_metadata_sha256": "d03e34f2dd34ecd3423d65a12c2029a5711a1062de307449795021e37bd46eaa",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7RRY1KPDT2T2KNKMGHZS",
+          "trial_wall_seconds": 403.423128
+        },
+        {
+          "daytona_estimate_usd": 0.0417271914426,
+          "job_id": "c2484d66-867e-4edc-a0ec-db205c7991f9",
+          "job_name": "har116-a-000495-loopfix-r2",
+          "lab_metadata_sha256": "3c2c7d356fb3d016b244763c277f23ec50a743a8979f1f4db8ba10feaf9c4f06",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7S9AWZ3DHD723ZMAN7Q1",
+          "trial_wall_seconds": 650.462844
+        },
+        {
+          "daytona_estimate_usd": 0.0521744709435,
+          "job_id": "cd3037b3-2a7a-4e75-9851-2f74b4c2cfa7",
+          "job_name": "har116-a-000587-loopfix-r2",
+          "lab_metadata_sha256": "a305659feea40c5112254b4ca613038564d6772c1429695c49a9d99e5abda0c7",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7SR6TDZMGYCME22PKDFG",
+          "trial_wall_seconds": 813.31989
+        },
+        {
+          "daytona_estimate_usd": 0.0337786505384,
+          "job_id": "94b3dff8-af1a-4d46-9df4-a21be1771be4",
+          "job_name": "har116-a-001161-loopfix-r2",
+          "lab_metadata_sha256": "ec7d3de65292b9470000e22aeff1bf623cbe122fb0da48df1ce18a1696da3545",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7T78YH9F95EFXB5W8Z10",
+          "trial_wall_seconds": 526.557296
+        },
+        {
+          "daytona_estimate_usd": 0.065543831955,
+          "job_id": "b34847bd-21a9-404b-a34d-782d08f790f9",
+          "job_name": "har116-a-001181-loopfix-r2",
+          "lab_metadata_sha256": "ac0833a666ca9bc840a28e40a14d45ae640d7fafa3c6ebeb51de7f4d2d118270",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7TPAFV05CBJPTJW62A3B",
+          "trial_wall_seconds": 1021.7277
+        },
+        {
+          "daytona_estimate_usd": 0.03080124690175,
+          "job_id": "9aee3762-7911-4980-ad4f-b532dc2aff82",
+          "job_name": "har116-a-001832-loopfix-r2",
+          "lab_metadata_sha256": "076bb28579280d0bc9af5419c1c74ae9add3c975227754351cfa500842952f4d",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7V59VSMBP4B7WM0ZZZHT",
+          "trial_wall_seconds": 480.1441449999999
+        },
+        {
+          "daytona_estimate_usd": 0.03933617391080001,
+          "job_id": "55892a26-93b8-475d-a350-6862e3e0cace",
+          "job_name": "har116-a-001896-loopfix-r2",
+          "lab_metadata_sha256": "4ccec364d6450343a3cb0b7568f56af5bb8883a82e75b65130fb89b193f2c006",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7VMN0YH49XDS35H0PWT1",
+          "trial_wall_seconds": 613.190552
+        },
+        {
+          "daytona_estimate_usd": 0.02640285860375,
+          "job_id": "9b44d76c-2dae-420a-a286-4c14d7d3b7fa",
+          "job_name": "har116-a-002256-loopfix-r2",
+          "lab_metadata_sha256": "4d185d356a9043d1566ce993212dba2ca957c286f06649f563824ae15eff12a0",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7W4KKMX8D7P4E5HMFNP0",
+          "trial_wall_seconds": 411.580025
+        },
+        {
+          "daytona_estimate_usd": 0.06353464221555,
+          "job_id": "cb389f84-e07a-4b6b-940a-e2587190dc64",
+          "job_name": "har116-a-002391-loopfix-r2",
+          "lab_metadata_sha256": "d6fb2225633dbcbb0513a6e1643b5dce26839436f288e458a10126c6368412df",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7WKMKFPE81SE0XJFVKHH",
+          "trial_wall_seconds": 990.407517
+        },
+        {
+          "daytona_estimate_usd": 0.023959658318600002,
+          "job_id": "5d90b50e-a649-4231-8eb4-b699f0e07866",
+          "job_name": "har116-a-002864-loopfix-r2",
+          "lab_metadata_sha256": "5405cdb2bfc9cda583ac9ded6d5358648a4c0a7e52209ebb1d04b882f14d478e",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3TJ7X35Q9PMZ39Y2J4W0ECD",
+          "trial_wall_seconds": 373.494284
+        },
+        {
+          "daytona_estimate_usd": 0.05586884140995,
+          "job_id": "24af1ec8-24b9-4dd3-91d0-ef85ef85c24f",
+          "job_name": "har116-b-000146-leakclosed",
+          "lab_metadata_sha256": "033bf0ea2996a7bc3c2318c2c4b0cc28ed6eaa3afe54966d565f244ff5a943a6",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G562FTPMQ3C78FPCGE1N",
+          "trial_wall_seconds": 870.909453
+        },
+        {
+          "daytona_estimate_usd": 0.06145213287510001,
+          "job_id": "011a91c6-c551-412d-956b-da7e702d9565",
+          "job_name": "har116-b-000146-original",
+          "lab_metadata_sha256": "f45574f16ac8a7f911ae6c280f70db134c3bc57a3092a7f62baf43461e81e2fe",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G5MR2ASG3ANWHWF7WWRP",
+          "trial_wall_seconds": 957.944394
+        },
+        {
+          "daytona_estimate_usd": 0.0658083907889,
+          "job_id": "faf35b08-8ed4-4a70-994b-ca8f5b6f35b4",
+          "job_name": "har116-b-000226-leakclosed",
+          "lab_metadata_sha256": "5945e971089264759a9591bedfd43b2f8e07770007376054146742ce88dc0d92",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G63R500PW4D8F1S9A66H",
+          "trial_wall_seconds": 1025.851766
+        },
+        {
+          "daytona_estimate_usd": 0.044454774515399996,
+          "job_id": "96910994-7bb5-4710-9715-0fa392f28d85",
+          "job_name": "har116-b-000226-original",
+          "lab_metadata_sha256": "66b02e32aaad3a1c87b2456cc31ed9ce7098bbde58a72474c9fb5a1230a2dfd2",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G6JF8MVNFWD8VSBQXN6V",
+          "trial_wall_seconds": 692.981676
+        },
+        {
+          "daytona_estimate_usd": 0.03538551097945,
+          "job_id": "c87468bc-11dd-491f-9860-755409244a1e",
+          "job_name": "har116-b-000927-leakclosed",
+          "lab_metadata_sha256": "47c16688934520f7d72a5a19d1511f2da46456e686cbca1887044f8b03b54254",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G719X0XTD6N0PPH8B8JR",
+          "trial_wall_seconds": 551.605783
+        },
+        {
+          "daytona_estimate_usd": 0.08128698449124999,
+          "job_id": "ea38d29a-0964-4ff1-ae44-a39505353552",
+          "job_name": "har116-b-000927-original",
+          "lab_metadata_sha256": "2cc5f0a5ade6051f710eebefe1912144124c465abeef63c9d2233d80d1ff2058",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G7G30DP242BMQGMG0JGT",
+          "trial_wall_seconds": 1267.139275
+        },
+        {
+          "daytona_estimate_usd": 0.115707263907,
+          "job_id": "7837360b-04b1-4fa4-aaa4-2e3cc237df83",
+          "job_name": "har116-b-002308-leakclosed",
+          "lab_metadata_sha256": "329d0fe3df31125d6991dbeb7053c52eccb3818a8832a934cfa454f2a1cd642b",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G7Z5TD5APNKXGM7A10ST",
+          "trial_wall_seconds": 1803.6985799999998
+        },
+        {
+          "daytona_estimate_usd": 0.12473925731935,
+          "job_id": "c52d3e32-0245-4349-946c-be0fadbca390",
+          "job_name": "har116-b-002308-original",
+          "lab_metadata_sha256": "91c6e65a52f9a402d7e4696bbb48bd5bc7da3bb76c0b2a69294d2a23125446d9",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G8EDFVDMEQD7RR7KX77F",
+          "trial_wall_seconds": 1944.493489
+        },
+        {
+          "daytona_estimate_usd": 0.04472882119845,
+          "job_id": "c3528ca0-59e1-4485-8664-0378d369a04d",
+          "job_name": "har116-b-002402-leakclosed",
+          "lab_metadata_sha256": "438da97b18d4bd10bc33fe8e44844fa7132c0e1546fbcaf6da8c4082bae810b4",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G8Y7T4Y2XVNM0M1DABV7",
+          "trial_wall_seconds": 697.253643
+        },
+        {
+          "daytona_estimate_usd": 0.07150663219,
+          "job_id": "4344c276-cb9b-4502-b7de-0eec0c69ecb9",
+          "job_name": "har116-b-002402-original",
+          "lab_metadata_sha256": "8a8601fc7e75045c62d37f94a24ca62d0d42ad4586fc114d80d760abc83232a3",
+          "repository_commit": "a87e01afed2115a54f741f8daf723166659d40a1",
+          "spec_id": "01M3T9G9E0K5QP18QAA60CCVG0",
+          "trial_wall_seconds": 1114.6786
+        }
+      ],
+      "session_id": "ap-yXxcAQPhR4WRVkUd4thsUc",
+      "teardown": {
+        "app": "evallab-mimo-v26-9b",
+        "completed_spec_ids": [
+          "01M3T9G562FTPMQ3C78FPCGE1N",
+          "01M3T9G5MR2ASG3ANWHWF7WWRP",
+          "01M3T9G63R500PW4D8F1S9A66H",
+          "01M3T9G6JF8MVNFWD8VSBQXN6V",
+          "01M3T9G719X0XTD6N0PPH8B8JR",
+          "01M3T9G7G30DP242BMQGMG0JGT",
+          "01M3T9G7Z5TD5APNKXGM7A10ST",
+          "01M3T9G8EDFVDMEQD7RR7KX77F",
+          "01M3T9G8Y7T4Y2XVNM0M1DABV7",
+          "01M3T9G9E0K5QP18QAA60CCVG0",
+          "01M3TJ7RRY1KPDT2T2KNKMGHZS",
+          "01M3TJ7S9AWZ3DHD723ZMAN7Q1",
+          "01M3TJ7SR6TDZMGYCME22PKDFG",
+          "01M3TJ7T78YH9F95EFXB5W8Z10",
+          "01M3TJ7TPAFV05CBJPTJW62A3B",
+          "01M3TJ7V59VSMBP4B7WM0ZZZHT",
+          "01M3TJ7VMN0YH49XDS35H0PWT1",
+          "01M3TJ7W4KKMX8D7P4E5HMFNP0",
+          "01M3TJ7WKMKFPE81SE0XJFVKHH",
+          "01M3TJ7X35Q9PMZ39Y2J4W0ECD"
+        ],
+        "recorded_at": "2026-10-01T02:22:31.696787+00:00"
+      }
+    }
+  ],
+  "sources": {
+    "allocation_policy": "Accounting allocation by full-session recorded trial wall time; not measured per-job GPU utilization.",
+    "billing": "catalog:modal_billing_rows; resolution=d; reported_at=2026-10-01T02:23:10.006236+00:00",
+    "daytona": "evallab.spend_day.query_daytona_rows(2026-10-01); existing list-price estimates",
+    "deployments": "modal app history <session_id> --json (read-only)"
+  }
+}

@@ -26,7 +26,6 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from evallab.execution_contracts import (
-    MIMO_SELFHOSTED_NATIVE_MODEL,
     is_mimo_selfhosted_model,
     new_ulid,
 )
@@ -410,8 +409,3 @@ def _describe_daytona_sandboxes(sandboxes: object) -> str:
             f"; daytona sandboxes: {matched} job-matched / {managed} harbor-managed / {total} total"
         )
     return f"; daytona sandboxes: {managed} harbor-managed / {total} total"
-
-
-#: Catalog match for self-hosted MiMo trials: the queue selector carries a
-#: ``selfhosted/`` prefix, but ingested trials record the native model id.
-SELFHOSTED_CATALOG_MODELS = (MIMO_SELFHOSTED_NATIVE_MODEL, "selfhosted/")

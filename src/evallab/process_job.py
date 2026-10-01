@@ -27,6 +27,11 @@ beyond wiring:
   library (``discover_trajectory_parts`` + ``stitch_steps`` +
   ``coverage_record``). Token sums and step counts here come from its
   stitched unique steps.
+* proxy usage: ``tokens_proxy`` comes only from the validated, settled
+  ledger, never Harbor's native totals. A job-level ledger is attributable
+  to a trial only when the job has exactly one trial; otherwise trial
+  usage stays unknown. ``tokens_native`` preserves Harbor's independent
+  counters, and ``tokens_steps`` remains the stitched-step sum.
 * detectors: :func:`evallab.trial_diagnosis.diagnose_trial` (failure-mode
   taxonomy), :func:`evallab.traj.outline_trajectory` (loop suspicion,
   error counts), and :mod:`evallab.probe03` (Traces probe-03 first-failure
@@ -349,7 +354,7 @@ def _process_trial(
     else:
         taint = []
 
-    # Stop reason / tokens / proxy totals from the probe-03 analysis.
+    # Stop reason and behavioral findings from the probe-03 analysis.
     if analysis is not None:
         stop_reason = analysis["stop_reason"]
         first_failure = analysis["first_failure"]
@@ -371,10 +376,6 @@ def _process_trial(
             for run in analysis["runs"]
         ]
         secondaries = list(analysis["secondaries"])
-        tokens_proxy = {
-            "input_tokens": analysis["tokens_result"]["input"],
-            "output_tokens": analysis["tokens_result"]["output"],
-        }
         shape_counts = dict(analysis["shape_counts"])
         acceptance = {
             "counts": dict(analysis["acc_counts"]),
@@ -403,7 +404,6 @@ def _process_trial(
         wedge = None
         identical = []
         secondaries = []
-        tokens_proxy = {"input_tokens": None, "output_tokens": None}
         shape_counts = {}
         acceptance = {}
         rejection_causes = {}
@@ -430,8 +430,13 @@ def _process_trial(
         "reward_source": reward_source,
         "stop_reason": stop_reason,
         "tokens_steps": tokens_steps,
-        "tokens_proxy": tokens_proxy,
-        "tokens_attempted_proxy": None,  # filled at job level (ledger split)
+        "tokens_native": {
+            "input_tokens": agent_result.get("n_input_tokens"),
+            "output_tokens": agent_result.get("n_output_tokens"),
+            "source": "result.json#agent_result",
+        },
+        "tokens_proxy": None,  # attached once the job ledger's scope is known
+        "tokens_attempted_proxy": None,  # attributable ledger ceiling, never a split
         "cost_usd": None,  # filled at job level (ledger split)
         "cost_attempted_usd": None,  # filled at job level (ledger split)
         "cost_source": "proxy_ledger_x_pinned_price",
@@ -517,19 +522,76 @@ def _process_trial(
 
         flags.extend(_token_flow_flags(token_flow))
     record["flags"] = flags
-    try:
-        from evallab.trial_decision import build_decision
+    # The decision page is attached in process_job after counts land, via
+    # _attach_decision: one clean path with the real counts field, never a
+    # provisional page built without it. Direct _process_trial callers get
+    # decision None until attached.
+    record["grader_evidence"] = (analysis or {}).get("grader_evidence") if analysis else None
+    record["decision"] = None
+    return record
 
-        decision = build_decision(
+
+def _job_task_identity(job_dir: Path) -> dict[str, Any | None]:
+    """Canonical task identity for counts, read once per job.
+
+    ``experiment-spec.json`` carries the optional ``task_id`` (explicit
+    canonical identity; avoids variant display-name aliases) and
+    ``task_package_digest``. Either may be absent on older jobs: counts
+    then keeps its legacy policy and reports the ledger unmatched.
+    """
+    spec = _read_json(job_dir / "experiment-spec.json") or {}
+    digest = spec.get("task_package_digest")
+    task_id = spec.get("task_id")
+    return {
+        "task_id": task_id.strip() if isinstance(task_id, str) and task_id.strip() else None,
+        "task_package_digest": digest.strip()
+        if isinstance(digest, str) and digest.strip()
+        else None,
+    }
+
+
+def _attach_trial_counts(
+    record: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    label_root: Path | None,
+    task_identity: dict[str, Any | None],
+) -> dict[str, Any]:
+    """Attach counts with the canonical task identity (HAR-131 cutover)."""
+    from evallab.counts import attach_counts
+
+    return attach_counts(
+        record,
+        result,
+        label_root=label_root,
+        package_digest=task_identity.get("task_package_digest"),
+        task_id=task_identity.get("task_id"),
+    )
+
+
+def _attach_decision(record: dict[str, Any], trial_dir: Path) -> None:
+    """Build the trial-decision page in place, after counts are attached."""
+    from evallab.trial_decision import build_decision
+
+    try:
+        record["decision"] = build_decision(
             trial_dir,
-            reward=reward,
-            scored=scored,
-            outcome=outcome_failure if isinstance(outcome_failure, dict) else None,
-            first_failure=first_failure if isinstance(first_failure, dict) else None,
-            grader_evidence=(analysis or {}).get("grader_evidence") if analysis else None,
-            taint=taint,
-            token_flow=token_flow if isinstance(token_flow, dict) else None,
-            stop_reason=stop_reason,
+            reward=record.get("reward"),
+            scored=bool(record.get("scored")),
+            outcome=record.get("outcome_failure")
+            if isinstance(record.get("outcome_failure"), dict)
+            else None,
+            first_failure=record.get("first_failure")
+            if isinstance(record.get("first_failure"), dict)
+            else None,
+            grader_evidence=record.get("grader_evidence")
+            if isinstance(record.get("grader_evidence"), dict)
+            else None,
+            taint=record.get("taint") if isinstance(record.get("taint"), list) else [],
+            token_flow=record.get("token_flow")
+            if isinstance(record.get("token_flow"), dict)
+            else None,
+            stop_reason=record.get("stop_reason"),
             calls=record.get("agent_steps"),
             tokens=record.get("tokens_proxy")
             if isinstance(record.get("tokens_proxy"), dict)
@@ -538,11 +600,9 @@ def _process_trial(
         )
         decision_error = None
     except Exception as exc:  # noqa: BLE001 -- one bad trial must not kill the job
-        decision = None
+        record["decision"] = None
         decision_error = f"{type(exc).__name__}: {exc}"
-    record["decision"] = decision
     record["errors"]["decision"] = decision_error
-    return record
 
 
 def _jsonable(value: Any) -> Any:
@@ -621,18 +681,16 @@ def _counts_line(record: dict[str, Any]) -> str:
 
 def _tokens_line(record: dict[str, Any]) -> str:
     steps = record.get("tokens_steps") or {}
+    native = record.get("tokens_native") or {}
     proxy = record.get("tokens_proxy") or {}
-    used = steps.get("total_tokens")
-    attempted = record.get("tokens_attempted_proxy")
     return (
-        f"- tokens: used `{used}` (steps sum"
-        + (
-            f" {steps.get('prompt_tokens')}/{steps.get('completion_tokens')}"
-            if used is not None
-            else f"; {steps.get('reason')}"
-        )
-        + f"; proxy {proxy.get('input_tokens')}/{proxy.get('output_tokens')})"
-        f" vs attempted `{attempted}` (ledger split)"
+        f"- tokens: step sum `{steps.get('total_tokens')}` "
+        f"({steps.get('prompt_tokens')}/{steps.get('completion_tokens')}); "
+        f"Harbor native `{native.get('input_tokens')}/{native.get('output_tokens')}`; "
+        f"proxy-settled `{proxy.get('input_tokens')}/{proxy.get('output_tokens')}` "
+        f"({proxy.get('attribution')}; {proxy.get('reason') or proxy.get('path')}); "
+        f"attempted ceiling `{record.get('tokens_attempted_proxy')}` "
+        "(settled usage plus unresolved reservations; same attribution)"
     )
 
 
@@ -643,7 +701,10 @@ def _cost_line(record: dict[str, Any]) -> str:
     line += f"; {reason}" if reason else ""
     line += ")"
     if estimate is not None:
-        line += f"; self-hosted time estimate `${estimate:.4f}`"
+        line += (
+            f"; self-hosted time estimate `${estimate:.4f}` "
+            "(shared GPU, not additive; see `evallab spend day`)"
+        )
     elif estimate_reason:
         line += f"; estimate unavailable: {estimate_reason}"
     return line
@@ -670,6 +731,35 @@ def _job_ledger_block(job_dir: Path) -> dict[str, Any]:
         except ValueError as exc:
             totals = {"error": f"proxy ledger unreadable: {exc}"}
     return {"block": block, "totals": totals}
+
+
+def _trial_proxy_tokens(totals: dict[str, Any], n_trials: int) -> dict[str, Any]:
+    """Attribute settled job usage without pretending it was metered per trial."""
+    tokens: dict[str, Any] = {
+        "input_tokens": None,
+        "output_tokens": None,
+        "total_tokens": None,
+        "source": "proxy_settled_ledger",
+        "path": "lab-metadata.json#provider_usage",
+        "scope": "job",
+        "attribution": "unavailable",
+        "reason": None,
+    }
+    used = totals.get("used")
+    if not isinstance(used, dict):
+        tokens["reason"] = totals.get("error") or "proxy ledger missing"
+    elif n_trials != 1:
+        tokens["reason"] = (
+            f"job ledger covers {n_trials} trials without per-trial attribution"
+        )
+    else:
+        tokens.update(
+            input_tokens=used["input_tokens"],
+            output_tokens=used["output_tokens"],
+            total_tokens=used["total_tokens"],
+            attribution="single_trial",
+        )
+    return tokens
 
 
 def _selfhosted_estimate(
@@ -704,9 +794,43 @@ def _selfhosted_estimate(
     return estimate, None
 
 
+def _session_spend_suffix(summary: dict[str, Any]) -> str | None:
+    """Allocated billed-GPU + Daytona estimate suffix, or None without receipt.
+
+    Prefers the billed-session allocation when present. An unknown Daytona
+    estimate renders the GPU share plus unknown sandbox: never a false full
+    total and never a fallback to the legacy wall-time estimate.
+    """
+    allocation = summary.get("session_spend")
+    if not isinstance(allocation, dict):
+        return None
+    modal = allocation.get("modal_allocated_usd")
+    if not isinstance(modal, (int, float)):
+        return None
+    daytona = allocation.get("daytona_estimate_usd")
+    total = allocation.get("total_usd")
+    provenance = f"{allocation.get('allocation_basis')}; session {allocation.get('session_id')}"
+    if isinstance(total, (int, float)) and isinstance(daytona, (int, float)):
+        return (
+            f"; session spend `${total:.4f}` (billed GPU share `${modal:.4f}`"
+            f" + Daytona estimate `${daytona:.4f}`; {provenance})"
+        )
+    return (
+        f"; session spend: billed GPU share `${modal:.4f}`, sandbox unknown"
+        f" ({provenance})"
+    )
+
+
 def _render_job_markdown(report: dict[str, Any]) -> str:
     """Short markdown job report with the per-trial summary table."""
     summary = report.get("summary") or {}
+    allocated = _session_spend_suffix(summary)
+    legacy_estimate = (
+        f"; self-hosted time estimate `${summary.get('cost_estimate_usd', 0):.4f}`"
+        " (shared GPU, not additive; see `evallab spend day`)"
+        if allocated is None and summary.get("cost_estimate_usd") is not None
+        else ""
+    )
     lines = [
         f"# Job report: `{report['job_name']}`",
         "",
@@ -717,14 +841,10 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"fail {summary.get('n_counted_fail')}, "
         f"excluded {summary.get('n_excluded')} ({summary.get('excluded_reasons') or {}})",
         f"- stop reasons: {summary.get('stop_reasons') or 'none'}",
-        f"- tokens: used `{summary.get('tokens_used')}` "
-        f"vs attempted `{summary.get('tokens_attempted')}`",
+        f"- tokens: step-sum used `{summary.get('tokens_used')}` "
+        f"vs attributable attempted ceiling `{summary.get('tokens_attempted')}`",
         f"- cost: `{summary.get('cost_usd')}` ({summary.get('cost_source')})"
-        + (
-            f"; self-hosted time estimate `${summary.get('cost_estimate_usd', 0):.4f}`"
-            if summary.get("cost_estimate_usd") is not None
-            else ""
-        ),
+        + (allocated if allocated is not None else legacy_estimate),
         f"- ingest: {summary.get('ingest')}",
         "",
         "| trial | reward | verdict | stop reason | tokens used/attempted | cost | flags |",
@@ -752,6 +872,7 @@ def process_job(
     publish: bool = True,
     results_home: str | Path | None = None,
     pr_lookup: Any = None,
+    session_spend: str | Path | None = None,
 ) -> dict[str, Any]:
     """Process a landed Harbor job directory.
 
@@ -760,14 +881,40 @@ def process_job(
     ``ingest`` is False. Returns the JSON-serializable job report. A
     missing catalog raises nothing: the ingest outcome (or skip) is
     recorded in the report.
+
+    ``session_spend`` is an optional billed-session receipt
+    (``evallab.session_spend/v1`` JSON). When given, the receipt is
+    loaded and validated via
+    :func:`evallab.spend_day.session_spend_for_job` BEFORE any report
+    is written or any publication replaced, and the computed allocation
+    is stored in ``report['summary']['session_spend']``. Settled proxy
+    cost/tokens are never overwritten and no per-trial GPU share is
+    invented. Without a receipt the legacy shared-GPU estimate keeps
+    its non-additive label. Reprocessing after the bills land requires
+    passing the receipt again: allocation is post-session accounting,
+    not automatic pre-bill metering.
     """
     job_path = Path(job_dir).resolve()
     if not job_path.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
+    allocation: dict[str, Any] | None = None
+    if session_spend is not None:
+        from evallab.spend_day import session_spend_for_job
+
+        receipt = Path(session_spend).expanduser()
+        allocation = session_spend_for_job(job_path, receipt)
+        if not isinstance(allocation, dict):
+            raise ValueError(f"Invalid session spend allocation for {job_path} from {receipt}")
     out_dir = Path(output_dir).resolve() if output_dir is not None else job_path / "processed"
+    if publish:
+        from evallab.results_home import results_root
+
+        home = Path(results_home).resolve() if results_home is not None else results_root().resolve()
+        if out_dir.is_relative_to(home):
+            raise ValueError("Processed report input must be outside the results home when publishing")
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_root = Path(root).resolve() if root is not None else job_path.parent
-    from evallab.counts import attach_counts, find_label_root, summarize_counts
+    from evallab.counts import find_label_root, summarize_counts
 
     label_root = find_label_root(repo_root) or find_label_root(job_path)
 
@@ -783,9 +930,11 @@ def process_job(
     attempted_output = (totals.get("attempted") or {}).get("output_tokens")
 
     trial_reports: list[dict[str, Any]] = []
+    task_identity = _job_task_identity(job_path)
     for trial_path in trials:
         record = _process_trial(trial_path, job_path, nop_runs_dir=nop_runs_dir)
         trial_result = _read_json(trial_path / "result.json") or {}
+        record["tokens_proxy"] = _trial_proxy_tokens(totals, len(trials))
         # Job ledger split across trials (same convention as
         # database.trial_cost_columns: daily sums still equal the ledger).
         record["cost_usd"] = job_cost / n_trials if isinstance(job_cost, (int, float)) else None
@@ -793,32 +942,33 @@ def process_job(
             job_attempted / n_trials if isinstance(job_attempted, (int, float)) else None
         )
         record["cost_reason"] = block.get("reason")
-        # Attempted (ceiling footprint): settled used tokens plus the
-        # unresolved-reservation extra, split across trials. The gate spends
-        # used + attempted; a fully reconciled job attempts what it used.
+        # Attempted ceiling includes settled usage and unresolved reservations.
+        # Like settled tokens, a job ledger is attributable only for one trial.
         used_input = (totals.get("used") or {}).get("input_tokens")
         used_output = (totals.get("used") or {}).get("output_tokens")
         if (
-            isinstance(used_input, int)
+            n_trials == 1
+            and isinstance(used_input, int)
             and isinstance(used_output, int)
             and isinstance(attempted_input, int)
             and isinstance(attempted_output, int)
         ):
             record["tokens_attempted_proxy"] = (
                 used_input + used_output + attempted_input + attempted_output
-            ) // n_trials
+            )
         estimate, estimate_reason = _selfhosted_estimate(record, trial_result)
         record["cost_estimate_usd"] = estimate
         record["cost_estimate_reason"] = (
-            "excludes sandbox and warm periods; time-based only"
+            "shared GPU, not additive; excludes sandbox and warm periods; "
+            "see evallab spend day"
             if estimate is not None
             else estimate_reason
         )
-        record["counts"] = attach_counts(record, trial_result, label_root=label_root)
-        if isinstance(record.get("decision"), dict):
-            from evallab.trial_decision import render_counts
-
-            record["decision"]["counts"] = render_counts(record["counts"])
+        record["task_package_digest"] = task_identity.get("task_package_digest")
+        record["counts"] = _attach_trial_counts(
+            record, trial_result, label_root=label_root, task_identity=task_identity
+        )
+        _attach_decision(record, trial_path)
         trial_reports.append(record)
         trial_file = out_dir / f"trial-{trial_path.name}.json"
         trial_file.write_text(
@@ -919,9 +1069,15 @@ def process_job(
             "excluded_reasons": counts_summary["excluded_reasons"],
         },
     }
-    # The job report lands in processed/ BEFORE the publish copies the tree:
+    if allocation is not None:
+        # Computed job-scope value only: settled proxy cost/tokens above
+        # are untouched and no per-trial GPU share is invented.
+        report["summary"]["session_spend"] = allocation
+    # The job report lands in out_dir BEFORE the publish copies the tree:
     # publish_job snapshots the source, so publishing first would copy a
     # processed/ without job.json and the INDEX row would read "unprocessed".
+    # With a custom output_dir the fresh out_dir pages are passed as the
+    # processed report root, so the published snapshot shows the new outcome.
     report["results_home"] = None
     (out_dir / "job.json").write_text(
         json.dumps(_jsonable(report), indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -935,6 +1091,7 @@ def process_job(
             root=results_home,
             repo_root=Path(root).resolve() if root is not None else None,
             pr_lookup=pr_lookup,
+            processed_report_root=out_dir,
         )
         report["results_home"] = published["published"]
         (out_dir / "job.json").write_text(

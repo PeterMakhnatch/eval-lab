@@ -42,12 +42,36 @@
 |---|---|
 | `copied_fix` | `reward >= 1.0` and upstream package download detector fired |
 | `pass_tainted` | `reward >= 1.0` and upstream fetch or verifier guard reject |
-| `task_not_usable` | Hand label (`broken`, `suspect`, `discarded`, `review`, `unchecked`) or census row (`broken_environment`, `grader_suspect`, `unknown`) |
+| `task_not_usable` | Digest-matched canonical ledger status `review`, `discarded` or `unchecked`; without a match, the legacy hand/census exclusion policy below |
 | `infra` | Not scored, verifier reward missing, or proxy 502 / bad gateway |
 
 - Upstream fetch on a failure stays `counted_fail` (flagged `upstream_fetch`, decisive=false).
 - A budget exhaustion on a scored trial stays `counted_fail`.
 - Diagnostic judgments (`first_failure`, blame, loops) carry `accuracy: null` and never exclude.
+
+### Task-version binding (HAR-131)
+
+`process-job` supplies the retained `experiment-spec.json` task ID and
+`task_package_digest`. A row in `python-task-ledger/ledger.csv` is authoritative
+only when its `run_digest` matches that exact package. A matched `review`,
+`discarded` or `unchecked` row excludes it. The validated-variant rule from
+HAR-127/#600 is retained: a validated same-task repair can lift the original
+package's census exclusion. Hand exclusions still apply even when the ledger
+row says `usable`; candidate or wrong-task variants do not lift the exclusion.
+
+For historical jobs with no digest, a different digest, or no ledger row, the
+existing policy is unchanged: hand `broken`/`suspect`/`discarded`/`review`/`unchecked`
+or census `broken_environment`/`grader_suspect`/`unknown` excludes, with the
+validated-variant exception above. Missing evidence alone is not a ledger status
+and does not invent a new exclusion.
+
+`counts.task_status` reports the applied `status` (null without a match), the
+unapplied `ledger_status`, task and package identities, `digest_match`, the CSV
+SHA-256, source path and supporting evidence. A mismatched current ledger is not
+proof that an old run used a repaired or usable task. The page renders this
+binding rather than claiming every task is unchecked. Rollups below retain their
+historical measurement; regenerate before using them as current cohort counts.
+
 
 ---
 

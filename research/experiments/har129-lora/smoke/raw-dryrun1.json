@@ -1,0 +1,137 @@
+[
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-000495-loopfix-r2/har116-a-000495-loopfix-r2__42F3G5T/agent/trajectory.json",
+  "lora_base": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && git -C /testbed log --oneline -5</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>grep -rn \"DefinitionString\" /testbed/src --include=*.py | head -30</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me explore the testbed to understand the codebase and find the relevant code.",
+   "finish_reason": "stop",
+   "completion_tokens": 110,
+   "seconds": 1.5
+  },
+  "lora_adapter": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:dryrun1",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && git -C /testbed log --oneline -5</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>grep -rn \"DefinitionString\" /testbed/src --include=*.py | head -30</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me explore the testbed to understand the codebase and find the relevant code.",
+   "finish_reason": "stop",
+   "completion_tokens": 110,
+   "seconds": 1.7
+  },
+  "production": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && git -C /testbed log --oneline -5</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>grep -rn \"DefinitionString\" /testbed/src --include=*.py | head -30</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me explore the testbed to understand the codebase and find the relevant code.",
+   "finish_reason": "stop",
+   "completion_tokens": 110,
+   "seconds": 1.7
+  }
+ },
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-000587-loopfix-r2/har116-a-000587-loopfix-r2__RmCmzbQ/agent/trajectory.json",
+  "lora_base": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && cat /testbed/pottery/__init__.py</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>ls /testbed/pottery /testbed/tests 2>/dev/null</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me explore the repository structure first.",
+   "finish_reason": "stop",
+   "completion_tokens": 95,
+   "seconds": 1.3
+  },
+  "lora_adapter": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:dryrun1",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && cat /testbed/pottery/__init__.py</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>ls /testbed/pottery /testbed/tests 2>/dev/null</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me explore the repository structure first.",
+   "finish_reason": "stop",
+   "completion_tokens": 95,
+   "seconds": 1.5
+  },
+  "production": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && cat /testbed/pottery/__init__.py</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>ls /testbed/pottery /testbed/tests 2>/dev/null</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me explore the repository structure first.",
+   "finish_reason": "stop",
+   "completion_tokens": 95,
+   "seconds": 1.3
+  }
+ },
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-002256-loopfix-r2/har116-a-002256-loopfix-r2__5oQwkeW/agent/trajectory.json",
+  "lora_base": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && grep -n \"def full\" -A 5 /testbed/persistqueue/queue.py</parameter></function></tool_call>",
+   "reasoning": "Let me look at the repo.",
+   "finish_reason": "stop",
+   "completion_tokens": 51,
+   "seconds": 1.2
+  },
+  "lora_adapter": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:dryrun1",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && grep -n \"def full\" -r /testbed/persistqueue</parameter></function></tool_call>",
+   "reasoning": "Let's look at the repo.",
+   "finish_reason": "stop",
+   "completion_tokens": 46,
+   "seconds": 0.8
+  },
+  "production": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>ls /testbed && grep -n \"def full\" -A 5 /testbed/persistqueue/queue.py</parameter></function></tool_call>",
+   "reasoning": "Let me look at the repo.",
+   "finish_reason": "stop",
+   "completion_tokens": 51,
+   "seconds": 1.7
+  }
+ },
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/agent/trajectory.json",
+  "lora_base": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>find /workspace/repo -type f -name \"*.py\" | head -50 && echo \"---\" && ls /workspace/repo</parameter></function></tool_call><tool_call><function=bash><parameter=command>grep -rn \"class Auditor\" /workspace/repo --include=\"*.py\" | head</parameter></function></tool_call>",
+   "reasoning": "Let me explore the repository first.",
+   "finish_reason": "stop",
+   "completion_tokens": 89,
+   "seconds": 1.2
+  },
+  "lora_adapter": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:dryrun1",
+   "content": "<tool_call><function=bash><parameter=command>find /workspace/repo -type f -name \"*.py\" | head -50 && echo \"---\" && ls /workspace/repo</parameter></function></tool_call><tool_call><function=bash><parameter=command>grep -rn \"class Auditor\" /workspace/repo --include=\"*.py\" | head</parameter></function></tool_call>",
+   "reasoning": "Let me explore the repository first.",
+   "finish_reason": "stop",
+   "completion_tokens": 89,
+   "seconds": 1.3
+  },
+  "production": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>find /workspace/repo -type f -name \"*.py\" | head -50 && echo \"---\" && ls /workspace/repo</parameter></function></tool_call><tool_call><function=bash><parameter=command>grep -rn \"class Auditor\" /workspace/repo --include=\"*.py\" | head</parameter></function></tool_call>",
+   "reasoning": "Let me explore the repository first.",
+   "finish_reason": "stop",
+   "completion_tokens": 89,
+   "seconds": 1.2
+  }
+ },
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-002864-loopfix-r2/har116-a-002864-loopfix-r2__CWRe7mJ/agent/trajectory.json",
+  "lora_base": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>cd /testbed && git log --oneline -3 && ls</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>cd /testbed && grep -rn \"JSON_QUERY\\|JsonQuery\" sqlglot/parser.py | head -30</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me look at the repository and understand the issue.",
+   "finish_reason": "stop",
+   "completion_tokens": 106,
+   "seconds": 1.4
+  },
+  "lora_adapter": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:dryrun1",
+   "content": "<tool_call><function=bash><parameter=command>cd /testbed && git log --oneline -3 && ls</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>cd /testbed && grep -rn \"JSON_QUERY\\|JsonQuery\" sqlglot/parser.py | head -30</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me look at the repository and understand the issue.",
+   "finish_reason": "stop",
+   "completion_tokens": 106,
+   "seconds": 1.6
+  },
+  "production": {
+   "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+   "content": "<tool_call><function=bash><parameter=command>cd /testbed && git log --oneline -3 && ls</parameter><parameter=duration>0.1</parameter></function></tool_call><tool_call><function=bash><parameter=command>cd /testbed && grep -rn \"JSON_QUERY\\|JsonQuery\" sqlglot/parser.py | head -30</parameter><parameter=duration>0.1</parameter></function></tool_call>",
+   "reasoning": "Let me look at the repository and understand the issue.",
+   "finish_reason": "stop",
+   "completion_tokens": 106,
+   "seconds": 1.4
+  }
+ }
+]

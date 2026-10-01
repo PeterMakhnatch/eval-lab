@@ -1,7 +1,7 @@
 {
   "contract": "evallab.sft_terminus/1",
   "counts": {
-    "conversations": 3,
+    "conversations": 4,
     "trials_selected": 3,
     "trials_excluded": 0,
     "duplicates": 0,
@@ -77,9 +77,27 @@
       "message_count": 2,
       "character_count": 64,
       "copied_context_messages": 0
+    },
+    {
+      "conversation_id": "fixture004",
+      "root": "fixture",
+      "trial": "trial-001",
+      "job": "fixture-job",
+      "task_id": "fixture-task-1",
+      "model": "synthetic-fixture",
+      "reward": 1.0,
+      "session_id": null,
+      "segment": "main",
+      "continuation_index": 0,
+      "trajectory_name": "trajectory.json",
+      "trajectory_sha256": "sha256:fixture",
+      "message_count": 6,
+      "character_count": 1024,
+      "copied_context_messages": 0,
+      "loss": "last"
     }
   ],
   "duplicates": {},
   "trials": [],
-  "conversations_sha256": "sha256:7aea9a36026269f9b97495e34e491473888259be8628beb2c3dfd3a8404c90ab"
+  "conversations_sha256": "sha256:200c665ceffad43def053f31d9bce58caf4f84b6c3901444633b96a6f7813939"
 }

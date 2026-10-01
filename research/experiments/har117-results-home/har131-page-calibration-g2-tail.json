@@ -1,7 +1,7 @@
 {
   "schema": "har131.page_loop_calibration/v1",
   "cohort": "HAR-128 G2 tail: 3 HAR-120 trials",
-  "generated_at": "2026-10-01T10:55:59.089022+00:00",
+  "generated_at": "2026-10-01T12:28:00.310305+00:00",
   "labels_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-g2/research/explorations/trace-lab/har128/labels_g2_tail",
   "labels_frozen_at": "2026-10-01T10:21:18Z",
   "labels_manifest_sha256": "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50",
@@ -51,7 +51,7 @@
       "page_matches": false,
       "abstention_reason": null,
       "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000838-a2-r2/processed/trial-har120-000838-a2-r2__XnnRuwu.json",
-      "report_sha256": "2def638937e7010229b8ebd5fb9ff87a9de4ca600b2fb9f7c9e629b2130e9865"
+      "report_sha256": "15e38c0cdace6772eec1aefd01eda7c271c158880ddfc33c154ba9692454b249"
     },
     {
       "trial": "har120-001269-a2-r2__93WpuaE",
@@ -62,7 +62,7 @@
       "page_matches": true,
       "abstention_reason": null,
       "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001269-a2-r2/processed/trial-har120-001269-a2-r2__93WpuaE.json",
-      "report_sha256": "33ba86c68bfffbaeaba4728d1719284460e2a4b29dac9b6d7b67bc072ab0b3ef"
+      "report_sha256": "cff4ede76cd4f5bfb9308c103feba81e8ac6689fae7ad2d38adbd02d5f86dc1a"
     },
     {
       "trial": "har120-002555-a1-r2__Uki9j6d",
@@ -73,7 +73,7 @@
       "page_matches": false,
       "abstention_reason": null,
       "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002555-a1-r2/processed/trial-har120-002555-a1-r2__Uki9j6d.json",
-      "report_sha256": "e07a2789a0c80349f1de48ed952524f021d9922c81bf9d61cabd2e763c8a0658"
+      "report_sha256": "6c8f3a174598417aa1cba13c7694ee8e6c69c2b639fea0169140c4324a52b651"
     }
   ],
   "heldout": "G2 tail freeze: analysis and calibration only, never training reflection",

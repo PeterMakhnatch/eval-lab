@@ -3,12 +3,13 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Literal, LiteralString, cast
+from typing import Any, Literal, LiteralString, cast, overload
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
 from psycopg.types.json import Jsonb
 
+from evallab.execution_contracts import selfhosted_warmup_503_neutral
 from evallab.ledger import build_cost_block
 from evallab.results import JobRecord, TrialRecord, duration_seconds
 from evallab.runner import transient_provider_exception
@@ -66,20 +67,49 @@ def _exception_type(result: dict[str, Any]) -> str | None:
 AGENT_STOP_EXCEPTIONS = frozenset({"AgentTimeoutError", "TrialBudgetExhaustedError"})
 
 
+#: A quiet-failure trial: ``(exception_type, primary_reward)`` suffices for the
+#: legacy rules; the full form adds ``(finished_at, model_name)`` so the guard
+#: can tell self-hosted warm-up 503s from a real outage.
+ShortHarnessTrial = tuple[str | None, float | None]
+FullHarnessTrial = tuple[str | None, float | None, datetime | str | None, str | None]
+
+
+@overload
 def count_consecutive_harness_failures(
-    trials: Iterable[tuple[str | None, float | None]],
+    trials: Iterable[ShortHarnessTrial], *, warm_at: None = None
+) -> int: ...
+@overload
+def count_consecutive_harness_failures(
+    trials: Iterable[ShortHarnessTrial | FullHarnessTrial],
+    *,
+    warm_at: datetime | None = None,
+) -> int: ...
+def count_consecutive_harness_failures(
+    trials: Iterable[tuple[Any, ...]],
+    *,
+    warm_at: datetime | None = None,
 ) -> int:
     """Count the latest uninterrupted run of harness failures, newest first.
 
-    Each trial is ``(exception_type, primary_reward)``. Provider capacity
-    (``transient_harness``) is neutral noise. A trial the verifier scored after
-    the agent ran out of time or hit a trial ceiling ran end to end: the stop
-    is the agent's outcome, not a broken harness, so it ends the run like a
-    clean trial.
+    Each trial is ``(exception_type, primary_reward)`` or
+    ``(exception_type, primary_reward, finished_at, model_name)``. Provider
+    capacity (``transient_harness``) is neutral noise, as is a
+    ``ServiceUnavailableError`` on the ``mimo_selfhosted`` route that finished
+    inside the grace window after the recorded deploy/warm event ``warm_at``.
+    A trial the verifier scored after the agent ran out of time or hit a
+    trial ceiling ran end to end: the stop is the agent's outcome, not a
+    broken harness, so it ends the run like a clean trial.
     """
     count = 0
-    for exception_type, reward in trials:
+    for item in trials:
+        exception_type, reward = item[0], item[1]
+        finished_at = item[2] if len(item) > 2 else None
+        model_name = item[3] if len(item) > 3 else None
         if exception_type == "transient_harness":
+            continue
+        if warm_at is not None and selfhosted_warmup_503_neutral(
+            exception_type, model_name, finished_at, warm_at
+        ):
             continue
         if exception_type is None or (
             exception_type in AGENT_STOP_EXCEPTIONS and reward is not None
@@ -443,20 +473,27 @@ def daily_cost_usd(database_url: str, day: date) -> float:
     return float(row[0]) if row else 0.0
 
 
-def consecutive_harness_failures(database_url: str) -> int:
-    """Count the most recent uninterrupted run of infrastructure exceptions."""
+def consecutive_harness_failures(database_url: str, *, warm_at: datetime | None = None) -> int:
+    """Count the most recent uninterrupted run of infrastructure exceptions.
+
+    ``warm_at`` opens the grace window after a recorded Modal deploy/warm: a
+    ``ServiceUnavailableError`` on the ``mimo_selfhosted`` route that finished
+    inside it is cold-start noise, not a counted failure.
+    """
     with psycopg.connect(database_url, connect_timeout=2) as connection:
         rows = connection.execute(
             """
-            SELECT exception_type, primary_reward
+            SELECT exception_type, primary_reward, finished_at, model_name
             FROM trials
             ORDER BY finished_at DESC NULLS LAST, id DESC
             LIMIT 100
             """
         ).fetchall()
-    return count_consecutive_harness_failures(
-        (exception_type, reward) for (exception_type, reward) in rows
+    trials = (
+        (exception_type, reward, finished_at, model_name)
+        for (exception_type, reward, finished_at, model_name) in rows
     )
+    return count_consecutive_harness_failures(trials, warm_at=warm_at)
 
 
 def digest_trials(database_url: str, day: date) -> list[tuple[Any, ...]]:

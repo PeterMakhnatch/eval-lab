@@ -2049,6 +2049,19 @@ def _db_init_command(
     return 0
 
 
+def _modal_record_warm_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Record a deploy/warm smoke pass; the round script runs this after smoke."""
+    del harbor
+    from evallab.modal_ops import record_selfhosted_warm
+
+    queue = DirectoryQueue(root / "queue")
+    event = record_selfhosted_warm(queue, actor=args.actor, reason_code=args.reason_code)
+    print(f"recorded {event.event} at {event.occurred_at.isoformat()}")
+    return 0
+
+
 def _modal_billing_reconcile_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -5051,6 +5064,17 @@ def parser() -> argparse.ArgumentParser:
     modal_billing.add_argument("--database-url")
     modal_billing.add_argument("--json", action="store_true")
     modal_billing.set_defaults(func=_modal_billing_reconcile_command)
+    modal_warm = modal_commands.add_parser(
+        "record-warm",
+        help="Record a Modal deploy/warm-smoke pass for the quiet-failure guard",
+    )
+    modal_warm.add_argument("--actor", default="operator", help="Who ran the deploy and smoke")
+    modal_warm.add_argument(
+        "--reason-code",
+        default="deploy_or_warm_smoke_passed",
+        help="Warm reason recorded in queue/events.jsonl",
+    )
+    modal_warm.set_defaults(func=_modal_record_warm_command)
 
     spend = commands.add_parser("spend", help="Lab spend accounting and daily ledgers")
     spend_commands = spend.add_subparsers(dest="spend_command", required=True)

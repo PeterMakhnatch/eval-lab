@@ -2662,8 +2662,20 @@ class Executor:
             ) from exc
 
     def _catalog_harness_failures(self) -> int:
+        from evallab.modal_ops import latest_selfhosted_warm_at
+
+        # A missing or unreadable warm log fails closed (None): without a
+        # recorded deploy/warm, self-hosted 503s count as outages. The read
+        # stays outside the catalog guard so a corrupt events line cannot
+        # masquerade as catalog unavailability.
         try:
-            return database.consecutive_harness_failures(database_url_from_environment())
+            warm_at = latest_selfhosted_warm_at(self.queue.events_path)
+        except Exception:
+            warm_at = None
+        try:
+            return database.consecutive_harness_failures(
+                database_url_from_environment(), warm_at=warm_at
+            )
         except Exception as exc:
             raise RuntimeError(
                 "cannot enforce failure policy because the catalog is unavailable"

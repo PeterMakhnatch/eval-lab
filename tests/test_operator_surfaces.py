@@ -305,7 +305,7 @@ def test_submit_prints_the_bare_spec_id_approve_wants(
     # otherwise see `cannot enforce cost policy because the catalog is
     # unavailable` and exit 2. Pin both to a clean, admitting state.
     monkeypatch.setattr(queue_database, "daily_cost_usd", lambda url, day: 0.0)
-    monkeypatch.setattr(queue_database, "consecutive_harness_failures", lambda url: 0)
+    monkeypatch.setattr(queue_database, "consecutive_harness_failures", lambda url, warm_at=None: 0)
     shutil.copytree(ROOT / "policy", tmp_path / "policy")
     shutil.copytree(ROOT / "library/tasks/event-summary", tmp_path / "library/tasks/event-summary")
     spec = tmp_path / "spec.json"

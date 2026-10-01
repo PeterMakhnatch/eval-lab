@@ -20,7 +20,7 @@ import urllib.parse
 from collections.abc import Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -479,6 +479,48 @@ MIMO_SELFHOSTED_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProx
 #:   16 GiB × $0.00000222/s = $0.127872/h
 #: Modal bills CPU and memory on top of the GPU.
 MIMO_SELFHOSTED_SERVER_USD_PER_HOUR = 2.814912
+#: Grace window after a recorded Modal deploy or warm smoke during which a
+#: ``ServiceUnavailableError`` (HTTP 503) on the ``mimo_selfhosted`` route is
+#: treated as cold-start noise rather than an outage. Measured cold starts run
+#: 140-235 s, so 10 minutes (~2.5x the worst observed start) covers one cold
+#: start plus the smoke probe and first-trial ramp, while a genuine outage
+#: still trips the quiet-failure quarantine once 503s continue past the window.
+MIMO_SELFHOSTED_WARM_GRACE_MINUTES = 10
+
+
+def selfhosted_warmup_503_neutral(
+    exception_type: str | None,
+    model_name: str | None,
+    finished_at: datetime | str | None,
+    warm_at: datetime | None,
+    *,
+    grace_minutes: int = MIMO_SELFHOSTED_WARM_GRACE_MINUTES,
+) -> bool:
+    """Whether a 503 is warm-up noise the quiet-failure guard must skip.
+
+    True only when every bound holds: the trial failed with
+    ``ServiceUnavailableError`` on the ``mimo_selfhosted`` route and finished
+    between a recorded deploy/warm event and the end of its grace window. Any
+    other exception, any other route, a missing warm event, or a finish past
+    the window returns False so the guard still counts it.
+    """
+    if exception_type != "ServiceUnavailableError":
+        return False
+    if not is_mimo_selfhosted_model(model_name):
+        return False
+    if warm_at is None or finished_at is None:
+        return False
+    if isinstance(finished_at, str):
+        try:
+            finished = datetime.fromisoformat(finished_at.replace("Z", "+00:00"))
+        except ValueError:
+            return False
+    else:
+        finished = finished_at
+    if finished.tzinfo is None:
+        finished = finished.replace(tzinfo=UTC)
+    start = warm_at if warm_at.tzinfo is not None else warm_at.replace(tzinfo=UTC)
+    return start <= finished <= start + timedelta(minutes=grace_minutes)
 
 
 def parse_mimo_selfhosted_model(model: str | None) -> str:

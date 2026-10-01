@@ -1,0 +1,42 @@
+HAR-129 item 5: throughput and cost per run
+trials=40 window=2026-10-01T00:06:49.693091Z..2026-10-01T02:22:30.018216Z
+job --n-concurrent values: [1]; observed peak concurrent trials=20, time-weighted mean=3.0
+trial wall s: mean=623 median=617 max=1944
+  outcome LoopBreakStop: n=3 wall mean=566 median=480 llm mean=224 mean_out_tok=11979
+  outcome ModuleNotFoundError: n=10 wall mean=49 median=21 llm mean=2 mean_out_tok=101
+  outcome TrialBudgetExhaustedError: n=22 wall mean=920 median=809 llm mean=368 mean_out_tok=21303
+  outcome none: n=5 wall mean=495 median=412 llm mean=118 mean_out_tok=6298
+LLM time s: mean=234; tool/sandbox time s: mean=349 (agent_exec minus sum(api_request_times))
+decode batches=4185 prefill=2387; gen tok/s overall mean=236; queue>0 batch share=0.0000; KV full-token-usage max=0.42
+gen tok/s by batch size (mean): bs=1: 78 (n=1555), bs=2: 162 (n=503), bs=3: 224 (n=498), bs=4: 279 (n=408), bs=5: 326 (n=370), bs=6: 380 (n=245), bs=7: 429 (n=147), bs=8: 537 (n=121), bs=9: 534 (n=94), bs=10: 577 (n=52), bs=11: 646 (n=61), bs=12: 733 (n=46), bs=13: 741 (n=43), bs=14: 788 (n=22), bs=15: 833 (n=13), bs=16: 707 (n=5), bs=18: 525 (n=2)
+fit G(bs)=bs/(a+b*bs) over CUDA-graph batches (bs<=16): a=0.0122s b=0.00046s -> per-request 79 tok/s at bs=1; eager batches excluded
+Modal billed=$3.2398 -> server cost/run=$0.0810 (40 runs, rate $2.814912/h)
+Daytona sandbox: storage floor (10 GiB override, 5 GiB billable @ $0.000108/GiB-h, 0.17 h wall)=$0.0001/trial; CPU/RAM unknown from telemetry [INFERENCE needed]
+  [INFERENCE] 2vCPU/4GiB sandbox ~$0.0287/trial at mean wall
+  [INFERENCE] 4vCPU/8GiB sandbox ~$0.0574/trial at mean wall
+cost-optimal concurrency model: W(C) = tool + out/r_req(C), size-biased Poisson(bs_mean(C))
+KV ceiling: usage(C) ~= (0.17+0.39*C)*21660tok/745569tok -> usage 0.9 at C~80 [INFERENCE: linear running-req(C), same mix]
+tail calibration: empirical P(bs>16|conc>=18) = 0.0032 (617 batches, 7 min); Poisson(bs_mean(20)=7.9) predicts 0.0033 [INFERENCE above C=20]
+C  bs_mean  P(bs>16)  r_req  W(s)  server$/run  kv_use  regime/binding
+1  0.6     0.0000    77       523    0.4086       0.02    -
+4  1.7     0.0000    74       530    0.1035       0.05    -
+8  3.3     0.0000    71       539    0.0527       0.09    -
+12 4.8     0.0000    67       548    0.0357       0.14    -
+16 6.4     0.0003    64       558    0.0273       0.18    -
+20 7.9     0.0033    61       568    0.0222       0.23    -
+24 9.4     0.0169    58       579    0.0188       0.27    graph+eager-mix[INFERENCE]
+32 12.5    0.1331    51       612    0.0149       0.36    graph+eager-mix[INFERENCE]
+40 15.6    0.3974    42       672    0.0131       0.45    graph+eager-mix[INFERENCE]
+48 18.7    0.6861    32       764    0.0124       0.54    eager[INFERENCE]
+grid minimum server $/run at C=48 of this grid [INFERENCE: eager-mix regime]; G2 at C=20 calibrates bs_mean and P(bs>16) directly
+recommendation (provisional): default C=20 (largest grid C with P(bs>16)<0.01: server $0.0222/run, W=568s, P(bs>16)=0.0033); cost keeps falling to C=48 but that rides the eager-mix [INFERENCE] tail with W ballooning; revisit upward once G2 confirms the regression at C=20. Raising --cuda-graph-max-bs-decode is a serving change to production's launch command, out of scope
+sanity r_req(1)=77 vs measured bs=1 per-request 78 (ratio 0.99; PASS within ±10%)
+sanity outcome LoopBreakStop: W(18.7)=512s vs wall mean 566s (ratio 0.91; PASS within ±15%)
+sanity outcome ModuleNotFoundError: W(8.3)=4s vs wall mean 49s (ratio 0.09; FAIL outside ±15%)
+sanity outcome TrialBudgetExhaustedError: W(12.4)=828s vs wall mean 920s (ratio 0.90; PASS within ±15%)
+sanity outcome none: W(17.2)=448s vs wall mean 495s (ratio 0.91; PASS within ±15%)
+GPU comparison (Modal list $/s 2026-10-01; server total adds 4 CPU + 16 GiB; throughput scale [INFERENCE]):
+  A100-80GB: gpu $2.4984/h -> server $2.8149/h
+  A100-40GB: gpu $2.0988/h -> server $2.4153/h
+  H100: gpu $3.9492/h -> server $4.2657/h
+  L40S: gpu $1.9512/h -> server $2.2677/h

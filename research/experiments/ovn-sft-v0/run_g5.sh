@@ -195,10 +195,12 @@ MODAL_BASELINE=$(app_cost || echo 0)
   || die "$APP already billed \$$MODAL_BASELINE today, at or over the \$$MODAL_APP_DAY_LIMIT_USD app-day limit"
 DEPLOYED_EPOCH=$(date +%s)
 log "deploy $APP (cold start)"
-DEPLOY_OUT=$(EVALLAB_MIMO_LORA_ADAPTER="$ADAPTER" EVALLAB_MIMO_LORA_NAME="$ADAPTER_NAME" \
+# COLUMNS keeps Modal's rich output from wrapping the endpoint URL across lines.
+DEPLOY_OUT=$(COLUMNS=1000 EVALLAB_MIMO_LORA_ADAPTER="$ADAPTER" EVALLAB_MIMO_LORA_NAME="$ADAPTER_NAME" \
   "${MODAL[@]}" deploy tools/modal-mimo-serve/serve_lora.py 2>&1) || die "deploy failed: $DEPLOY_OUT"
+echo "$DEPLOY_OUT" >"$OUT/deploy.txt"
 URL=$(awk 'match($0, /https:\/\/[A-Za-z0-9.-]+\.modal\.direct/) {print substr($0, RSTART, RLENGTH); exit}' <<<"$DEPLOY_OUT")
-[ -n "$URL" ] || die "no modal.direct URL in deploy output"
+[ -n "$URL" ] || die "no modal.direct URL in deploy output (see $OUT/deploy.txt)"
 manifest endpoint "{\"url\": \"$URL\", \"deployed_at\": \"$(date -u +%FT%TZ)\"}"
 for _ in $(seq 1 60); do
   [ "$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/health")" = 200 ] && break

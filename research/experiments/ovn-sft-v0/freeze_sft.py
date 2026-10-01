@@ -12,22 +12,29 @@ Steps, all with existing tools:
    kept;
 3. export again at that stride into ``--out`` (the frozen set);
 4. ``fidelity.py`` on it (prompt and completion tokens, plus a byte compare
-   against ``--capture`` files when given); any failing row aborts the
-   freeze;
-5. write ``data_card.md`` and ``freeze.json`` (stride rule, token totals,
+   of each captured trial against its own delivered calls, linked by
+   ``g3_capture.split_capture``); any failing row aborts the freeze;
+5. capture health: every row of a ``captured`` trial must be identical to its
+   own delivered call (no call backing two rows), its link must not be
+   ambiguous and no captured call may be unassigned; per-trial link
+   completeness goes into ``freeze.json``;
+6. ``reconstructed_validated`` trials need ``--qualification``: the file the
+   selection recorded (same sha256), and the same producer digests
+   (exporter, checker, linker, tokenizer files, library versions);
+7. write ``data_card.md`` and ``freeze.json`` (stride rule, token totals,
    per-source and per-task counts, every exclusion with its reason, and the
    sha256 of ``conversations.jsonl``, ``manifest.json`` and the selection).
 
 Usage (from the checkout root):
     uv run python research/experiments/ovn-sft-v0/freeze_sft.py \\
         --selection DIR/selection.json --exclusions DIR/selection_exclusions.json \\
-        --root LABEL=JOB_DIR ... --tokenizer TOKDIR --out OUT [--capture calls.jsonl ...]
+        --root LABEL=JOB_DIR ... --tokenizer TOKDIR --out OUT \\
+        [--capture-dir CAPTURE_DIR --capture-job JOB_DIR ...] [--qualification QUAL.json]
 """
 
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import shutil
 import subprocess
@@ -35,15 +42,14 @@ import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from g3_capture import check_fidelity, producer, sha256, split_capture, witness  # noqa: E402
+
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 SPLIT = ROOT / "research/experiments/har81-mimo-sft/split.json"
 TARGET_TOKENS = 2_000_000
 CAP_TOKENS = 2_500_000
-
-
-def sha256(path: Path) -> str:
-    return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def export(roots: list[str], selection: Path, stride: int, out: Path) -> dict:
@@ -83,10 +89,17 @@ def call_tokens(manifest: dict) -> dict[str, list[tuple[int, int]]]:
 
 
 def kept_tokens(calls: dict[str, list[tuple[int, int]]], stride: int) -> int:
+    """Tokens the exporter keeps at ``stride``: it strides over each
+    conversation's eligible calls (the stride-1 rows, copied context already
+    left out) by position and always keeps the last one."""
     total = 0
     for turns in calls.values():
-        last = max(index for index, _ in turns)
-        total += sum(t for index, t in turns if index % stride == stride - 1 or index == last)
+        ordered = [tokens for _, tokens in sorted(turns)]
+        total += sum(
+            tokens
+            for position, tokens in enumerate(ordered)
+            if position % stride == stride - 1 or position == len(ordered) - 1
+        )
     return total
 
 
@@ -96,7 +109,11 @@ def main() -> None:
     parser.add_argument("--exclusions", type=Path, required=True)
     parser.add_argument("--root", action="append", required=True)
     parser.add_argument("--tokenizer", type=Path, required=True)
-    parser.add_argument("--capture", type=Path, action="append", default=[])
+    parser.add_argument("--capture-dir", type=Path, help="evallab capture serve output")
+    parser.add_argument(
+        "--capture-job", type=Path, action="append", default=[], help="every job using it"
+    )
+    parser.add_argument("--qualification", type=Path)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
 
@@ -108,31 +125,51 @@ def main() -> None:
         raise SystemExit(f"stride {stride} keeps {planned} tokens, above the {CAP_TOKENS} cap")
     manifest = export(args.root, args.selection, stride, args.out)
 
-    fidelity = [
-        "uv",
-        "run",
-        "--no-project",
-        "--with",
-        "transformers",
-        "--with",
-        "jinja2",
-        "python",
-        str(HERE / "fidelity.py"),
-        str(args.out),
-        "--tokenizer",
-        str(args.tokenizer),
-        "--gate-target",
-        "--show",
-        "3",
-    ]
-    for capture in args.capture:
-        fidelity += ["--capture", str(capture)]
-    subprocess.run(fidelity, check=True, capture_output=True)
-    summary = json.loads((args.out / "fidelity.json").read_text())["summary"]
+    selection = json.loads(args.selection.read_text())
+    sources = Counter(t["source"] for t in selection["trials"])
+    qualification = None
+    if sources["reconstructed_validated"]:
+        if args.qualification is None or sha256(args.qualification) != selection.get(
+            "qualification"
+        ):
+            raise SystemExit("reconstructed_validated trials need the selection's qualification")
+        qualification = json.loads(args.qualification.read_text())
+        if not qualification["admit_reconstructed"]:
+            raise SystemExit("the qualification does not admit reconstructed trials")
+        if qualification["producer"] != producer(args.tokenizer):
+            raise SystemExit("producer digests differ from the qualified reconstructor")
+
+    capture = None
+    if args.capture_dir is not None:
+        capture = split_capture(
+            args.capture_dir, args.capture_job, args.out.with_name(args.out.name + ".capture")
+        )
+    checked = check_fidelity(args.out, args.tokenizer, capture, show=3)
+    summary = checked["summary"]
     if summary["failing_rows"]:
         raise SystemExit(f"fidelity failed on {len(summary['failing_rows'])} rows; not frozen")
 
-    selection = json.loads(args.selection.read_text())
+    trial_of = {c["conversation_id"]: Path(c["trial"]).name for c in manifest["conversations"]}
+    results_by_trial = defaultdict(list)
+    for info, result in zip(manifest["rows"], checked["rows"], strict=True):
+        results_by_trial[trial_of[info["conversation_id"]]].append(result)
+    capture_links = {}
+    for t in selection["trials"]:
+        if t["source"] != "captured":
+            continue
+        entry = (capture or {"trials": {}})["trials"].get(t["trial"])
+        cover = witness(results_by_trial[t["trial"]], entry)
+        capture_links[t["trial"]] = cover
+        if (
+            entry is None
+            or cover["rows_identical"] != cover["rows"]
+            or not cover["one_call_per_row"]
+            or cover["link_ambiguous"]
+        ):
+            raise SystemExit(f"captured trial {t['trial']} fails capture health: {cover}")
+    if capture is not None and capture["unassigned"]:
+        raise SystemExit(f"{len(capture['unassigned'])} captured calls are unassigned")
+
     source_of = {(t["job"], t["trial"]): t["source"] for t in selection["trials"]}
     conv = {c["conversation_id"]: c for c in manifest["conversations"]}
     rows = manifest["rows"]
@@ -166,6 +203,10 @@ def main() -> None:
             max(row_tokens),
         ],
         "fidelity": summary,
+        "capture_links": capture_links,
+        "calls_unassigned": capture["unassigned"] if capture else None,
+        "producer": producer(args.tokenizer),
+        "qualification": sha256(args.qualification) if qualification else None,
         "sha256": {
             "conversations.jsonl": sha256(args.out / "conversations.jsonl"),
             "manifest.json": sha256(args.out / "manifest.json"),

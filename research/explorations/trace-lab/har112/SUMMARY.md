@@ -16,7 +16,15 @@ HAR-111's checker (v2) failed the gate. Its wrong "broken" calls were all names 
 4. **Repo on demand.** The repo is only needed when a sample flags a not-inferable name or string. Model samples are cached under `<out>/raw/`, so re-judging never re-spends.
 5. **Cascade, pre-registered before the holdout.** Sample 1 decides unless it says broken after the repo filter. In that case, samples 2 and 3 run and the label is the median.
 
-Frozen at 2026-09-30T07:57:55Z ([`checker_v3.sha256`](checker_v3.sha256): v3 code, the extractor, and the HAR-111 modules it imports), before any holdout scoring. The one later change is a lint fix to `repo_extract.py` for `make check`: it removed an unused import and renamed a loop variable, with no change in behaviour. The manifest lists both the as-run hash (`repo_extract.py.as_run`) and the committed one.
+Frozen at 2026-09-30T07:57:55Z ([`checker_v3.sha256`](checker_v3.sha256): v3 code, the extractor, and the HAR-111 modules it imports), before any holdout scoring. The original receipt describes the later `repo_extract.py` change as lint-only (unused import removal and loop-variable rename). The manifest records both the as-run hash (`repo_extract.py.as_run`) and the committed one.
+
+**HAR-132 provenance limit:** the blob matching the recorded as-run extractor
+hash `a55494be81ebb2dfdc40865165c7165b377209343248099f99482495073b6204`
+was not found in the inspected checkout or PR #570 revisions. The committed
+extractor hash and frozen label/scorer hashes verify, and the scores and pool
+export reproduce; the claimed as-run-to-committed code equivalence cannot be
+independently byte-verified from those retained sources. The freeze manifest
+is unchanged.
 
 Disclosure: the rater agents' one-line label lists for 6 of the 8 batches (one of them partial) reached me a few minutes before this freeze. I made no checker change between seeing them and freezing. The last change, the broken-only cascade, went in before any holdout label existed.
 
@@ -48,9 +56,14 @@ Disclosure: the rater agents' one-line label lists for 6 of the 8 batches (one o
 **Run-to-run stability (measured after the gate).** The pool run later re-labelled the same 40 tasks with fresh samples from the same frozen checker.
 - The two runs agree on 30/40 labels.
 - The second run made 5 broken calls, 2 on hand-sound tasks (000204, 000234): 40%.
-- Across both runs: 11 broken calls, 3 on hand-sound (27%).
+- Across both runs: 11 broken **call instances**, 3 on hand-sound (27%); these are not counts of distinct tasks.
 - So the gate pass is real but marginal. At T=0.7, the one-sample-unless-broken cascade leaves label noise near the 25% line.
-- Only 000234 is flagged broken in both runs. Both raters call it sound, because the missing method names (`get_chain_id`, `get_full_shard_id`) follow the repo's `get_shard_id` convention. The checker treats any unstated new name as not_inferable. That is the main remaining mismatch between checker and rubric (see v2.1 below).
+- Four tasks are flagged broken in both runs: 000234, 000323, 000566 and
+  001248. **Among hand-sound tasks**, only 000234 is broken in both. Both
+  raters call it sound, because the missing method names (`get_chain_id`,
+  `get_full_shard_id`) follow the repo's `get_shard_id` convention. The checker
+  treats any unstated new name as not_inferable. That is the main remaining
+  mismatch between checker and rubric (see v2.1 below).
 
 **Ablation, on the same cached samples, without the repo filter (`label_without_repo`):**
 - 10 broken calls, 4 of them on hand-sound tasks (000234, 001768, 002425, 002445): 40% wrong. That fails the gate.

@@ -28,34 +28,49 @@ CLAIM_LOOP_MIN_TURNS = 10
 CLAIM_LOOP_MIN_FRACTION = 0.5
 COUNTED_VERDICTS = frozenset({"counted_pass", "counted_fail", "excluded"})
 #: Page-predictor calibration against the frozen HAR-119 part-2 labels.
-#: Loop kind only: it is the one page judgment with a frozen out-of-sample
-#: cohort. First failure and blame have no page-measured calibration (the
-#: page field is null on 11/12 of the cohort for the former; the raters are
-#: a near-constant model prior for the latter). Reproduce with
+#: Loop kind, first failure and blame are measured with the frozen scorer
+#: semantics (kind/presence exact; first failure within +/-2 steps; blame
+#: exact under the frozen literal map). A null page field is an abstention
+#: with explicit coverage, not a silent drop. Reproduce with
 #: research/explorations/trace-lab/har119/score_page.py, which refuses to
 #: run when the frozen labels change and reports unavailable when the
 #: trial directories are missing.
 PAGE_CALIBRATION = {
     "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+    "predictor_functions": {
+        "names": [
+            "trial_decision.classify_loop_kind",
+            "trial_decision._claim_bearing",
+            "token_flow._loop_onset",
+        ],
+        "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+    },
     "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
     "frozen_at": "2026-10-01T00:00:02Z",
     "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f",
     "in_sample": False,
     "rater_agreement_loop_kind": {"agree": 11, "n": 12},
     "rater_agreement_loop_present": {"agree": 11, "n": 12},
+    "rater_agreement_first_failure": {"agree": 9, "n": 12},
+    "rater_agreement_blame": {"agree": 11, "n": 12},
     "page_vs_agreed_loop_kind": {"agree": 7, "n": 11},
     "page_vs_agreed_loop_present": {"agree": 7, "n": 11},
     "eligible_n": 11,
     "excluded_rater_disagreement": 1,
     "abstentions": 0,
     "page_vs_loop_rule_kind": {"agree": 12, "n": 12},
-    "first_failure": "unavailable: page field null on 11/12 of the cohort; nothing to score",
-    "blame": "opinion with no page-measured calibration on this cohort",
+    "page_vs_agreed_first_failure": {"agree": 1, "n": 9},
+    "first_failure_coverage": {"expressed": 1, "of": 12, "abstentions": 11},
+    "page_vs_agreed_blame": {"agree": 11, "n": 11},
+    "blame_abstentions": 0,
+    "grader_alignment": "opinion with no page-measured calibration on this cohort",
     "method": "research/explorations/trace-lab/har119/score_page.py",
     "artifact": "research/explorations/trace-lab/har119/page_scores.json",
     "limits": (
-        "Out-of-sample for the loop rule; n=11 agreed cells; loop kind/presence only. "
-        "No page calibration for first failure, blame, or grader alignment: those stay opinions."
+        "Out-of-sample for the loop rule. Loop kind: n=11 agreed cells. "
+        "First failure: n=9 agreed cells with page coverage 1/12 (11 abstentions). "
+        "Blame 11/11 is uninformative on this cohort: the raters say model on every "
+        "failure, so a constant prior scores the same. Grader alignment stays opinion."
     ),
 }
 
@@ -99,14 +114,13 @@ def build_decision(
         taint_status = "not_a_pass"
     edit = (token_flow or {}).get("last_useful_edit") if isinstance(token_flow, dict) else None
     edit = edit if isinstance(edit, dict) else None
-    has_records = trial.is_dir() and (
-        (trial / "verifier" / "result.json").is_file()
-        or (trial / "agent" / "trajectory.json").is_file()
-        or (trial / "result.json").is_file()
-    )
+    # Negative nop evidence needs verifier-side records: agent-only
+    # trajectories never show whether setup failed, so without the
+    # verifier result the shape stays unknown.
+    has_verifier_records = trial.is_dir() and (trial / "verifier" / "result.json").is_file()
     nop = _nop_same_crash(
         grader_evidence if isinstance(grader_evidence, dict) else None,
-        has_records=has_records,
+        has_verifier_records=has_verifier_records,
     )
     fetched = _fetched_fix(fetches)
     loop = classify_loop_kind(trial, stop_reason, token_flow if isinstance(token_flow, dict) else None)
@@ -403,20 +417,21 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
         _calibration_line(agreement),
         (
             f"- First failure: `{first.get('rule_id')}` at `{first.get('step')}`. "
-            "Opinion; page calibration unavailable."
+            + _field_calibration(agreement, "page_vs_agreed_first_failure", "first_failure_coverage")
             if first
-            else "- First failure: none recorded. Opinion; page calibration unavailable."
+            else "- First failure: none recorded. "
+            + _field_calibration(agreement, "page_vs_agreed_first_failure", "first_failure_coverage")
         ),
         (
             f"- Blame: probe-03 `{blame.get('attribution')}` (`{blame.get('rule_id')}`), "
             f"page reading `{blame.get('whose')}`. "
-            "Opinion; no page-measured calibration on the frozen cohort."
+            + _field_calibration(agreement, "page_vs_agreed_blame", None)
         ),
         (
             f"- Loop kind: `{loop.get('kind')}`. "
             f"{loop.get('claim_bearing_turns')} of {loop.get('turns_after_prompt')} "
             "turns after the confirm prompt claimed completion. "
-            "Opinion; measured 7/11 vs agreed rater cells (see calibration)."
+            + _field_calibration(agreement, "page_vs_agreed_loop_kind", None)
         ),
         (
             f"- Grader alignment: `{align.get('answer')}`. {align.get('why') or ''} "
@@ -479,6 +494,25 @@ def _calibration_line(agreement: dict[str, Any]) -> str:
         f"{'no' if agreement.get('in_sample') else 'yes'}. "
         f"Method: {agreement.get('method')}. {agreement.get('limits')}"
     )
+def _field_calibration(
+    agreement: dict[str, Any], score_key: str, coverage_key: str | None
+) -> str:
+    """One judgment's measured error rate plus its coverage, from PAGE_CALIBRATION."""
+    if not isinstance(agreement, dict):
+        return "Opinion; calibration unavailable."
+    score = agreement.get(score_key) or {}
+    if not isinstance(score, dict) or score.get("n") is None:
+        return "Opinion; calibration unavailable."
+    text = f"Opinion; page `{score.get('agree')}/{score.get('n')}` vs agreed rater cells"
+    if coverage_key:
+        coverage = agreement.get(coverage_key) or {}
+        text += (
+            f" (coverage {coverage.get('expressed')}/{coverage.get('of')}, "
+            f"{coverage.get('abstentions')} abstentions)"
+        )
+    if score_key == "page_vs_agreed_blame":
+        text += " (uninformative: raters near-constant model)"
+    return text + "."
 
 
 def compare_hand_key(decision: dict[str, Any], hand_row: dict[str, Any]) -> dict[str, Any]:
@@ -596,20 +630,23 @@ def _taint_reasons(fetches: list[dict[str, Any]], guards: list[dict[str, Any]]) 
 
 
 def _nop_same_crash(
-    grader_evidence: dict[str, Any] | None, *, has_records: bool = False
+    grader_evidence: dict[str, Any] | None, *, has_verifier_records: bool = False
 ) -> dict[str, Any]:
     if not grader_evidence:
-        if not has_records:
+        if not has_verifier_records:
             return {
                 "answer": "unknown",
-                "reason": "No trial records were readable, so the setup/import shape is unconfirmed.",
+                "reason": (
+                    "No verifier records were readable, so the setup/import shape "
+                    "is unconfirmed; agent-only trajectories never show it."
+                ),
                 "nop_trial": None,
             }
         return {
             "answer": "not_this_shape",
             "reason": (
-                "Probe-03 recorded no setup/import crash evidence on the readable records, "
-                "so a same-crash comparison does not apply."
+                "Probe-03 recorded no setup/import crash evidence on the readable "
+                "verifier records, so a same-crash comparison does not apply."
             ),
             "nop_trial": None,
         }

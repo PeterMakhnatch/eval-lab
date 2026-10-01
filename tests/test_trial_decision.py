@@ -220,6 +220,18 @@ def test_counts_field_is_rendered_and_never_computed() -> None:
     assert rendered["task_ledger"]["status"] == "unknown"
 
 
+def test_page_calibration_measures_fields_with_coverage() -> None:
+    assert PAGE_CALIBRATION["page_vs_agreed_loop_kind"] == {"agree": 7, "n": 11}
+    assert PAGE_CALIBRATION["page_vs_agreed_first_failure"] == {"agree": 1, "n": 9}
+    assert PAGE_CALIBRATION["first_failure_coverage"] == {
+        "expressed": 1,
+        "of": 12,
+        "abstentions": 11,
+    }
+    assert PAGE_CALIBRATION["page_vs_agreed_blame"] == {"agree": 11, "n": 11}
+    assert PAGE_CALIBRATION["blame_abstentions"] == 0
+    assert PAGE_CALIBRATION["in_sample"] is False
+    assert len(PAGE_CALIBRATION["predictor_functions"]["sha256"]) == 64
 def test_counts_task_status_renders_match_and_mismatch() -> None:
     matched = render_task_ledger(
         {
@@ -272,12 +284,6 @@ def test_counts_task_status_renders_match_and_mismatch() -> None:
     assert "not matched" in (mismatched["reason"] or "")
 
 
-def test_page_calibration_is_loop_kind_only() -> None:
-    assert PAGE_CALIBRATION["page_vs_agreed_loop_kind"] == {"agree": 7, "n": 11}
-    assert PAGE_CALIBRATION["eligible_n"] == 11
-    assert PAGE_CALIBRATION["abstentions"] == 0
-    assert PAGE_CALIBRATION["in_sample"] is False
-    assert "unavailable" in PAGE_CALIBRATION["first_failure"]
 
 
 def test_echo_task_complete_is_a_completion_claim_loop(tmp_path: Path) -> None:

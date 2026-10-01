@@ -1,6 +1,13 @@
 {
   "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
-  "predictor_code_sha256": "009aa54e88afc0d6a60fd4be103c9810d6cf84401f88d8b2fa1f47ac624cd144",
+  "predictor_functions": {
+    "names": [
+      "trial_decision.classify_loop_kind",
+      "trial_decision._claim_bearing",
+      "token_flow._loop_onset"
+    ],
+    "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+  },
   "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
   "in_sample": false,
   "frozen_at": "2026-10-01T00:00:02Z",
@@ -165,6 +172,164 @@
       }
     ]
   },
+  "rater_agreement_first_failure": {
+    "agree": 9,
+    "n": 12,
+    "not_expressed": 0,
+    "rows": [
+      {
+        "trial": "har110-001181-plain__AnjbfwU",
+        "rater": 19,
+        "other": 11,
+        "match": false
+      },
+      {
+        "trial": "har110-000495-plain__mDTBFAW",
+        "rater": 84,
+        "other": 84,
+        "match": true
+      },
+      {
+        "trial": "har110-001161-plain__RZ8qyUu",
+        "rater": 27,
+        "other": 27,
+        "match": true
+      },
+      {
+        "trial": "har110-000587-plain__5NNxU35",
+        "rater": 16,
+        "other": 16,
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+        "rater": 21,
+        "other": 22,
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "rater": 8,
+        "other": 8,
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+        "rater": 6,
+        "other": 12,
+        "match": false
+      },
+      {
+        "trial": "har110-000495-seed__dimG2yD",
+        "rater": 11,
+        "other": 9,
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+        "rater": null,
+        "other": null,
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002391-cfe31418__MvXkrso",
+        "rater": 7,
+        "other": 8,
+        "match": true
+      },
+      {
+        "trial": "har110-001161-gepa__kLkGSnR",
+        "rater": 47,
+        "other": 82,
+        "match": false
+      },
+      {
+        "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+        "rater": 30,
+        "other": 31,
+        "match": true
+      }
+    ]
+  },
+  "rater_agreement_blame": {
+    "agree": 11,
+    "n": 12,
+    "not_expressed": 0,
+    "rows": [
+      {
+        "trial": "har110-001181-plain__AnjbfwU",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-000495-plain__mDTBFAW",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-001161-plain__RZ8qyUu",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-000587-plain__5NNxU35",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+        "rater": "model",
+        "other": "none",
+        "match": false
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-000495-seed__dimG2yD",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+        "rater": "none",
+        "other": "none",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002391-cfe31418__MvXkrso",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-001161-gepa__kLkGSnR",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+        "rater": "model",
+        "other": "model",
+        "match": true
+      }
+    ]
+  },
   "page_vs_agreed_loop_kind": {
     "agree": 7,
     "n": 11,
@@ -309,6 +474,156 @@
       }
     ]
   },
+  "page_vs_agreed_first_failure": {
+    "agree": 1,
+    "n": 9,
+    "rows": [
+      {
+        "trial": "har110-000495-plain__mDTBFAW",
+        "rater": 84,
+        "page": null,
+        "match": false
+      },
+      {
+        "trial": "har110-001161-plain__RZ8qyUu",
+        "rater": 27,
+        "page": null,
+        "match": false
+      },
+      {
+        "trial": "har110-000587-plain__5NNxU35",
+        "rater": 16,
+        "page": null,
+        "match": false
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+        "rater": 21,
+        "page": null,
+        "match": false
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "rater": 8,
+        "page": 5,
+        "match": false
+      },
+      {
+        "trial": "har110-000495-seed__dimG2yD",
+        "rater": 11,
+        "page": null,
+        "match": false
+      },
+      {
+        "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+        "rater": null,
+        "page": null,
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002391-cfe31418__MvXkrso",
+        "rater": 7,
+        "page": null,
+        "match": false
+      },
+      {
+        "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+        "rater": 30,
+        "page": null,
+        "match": false
+      }
+    ]
+  },
+  "first_failure_coverage": {
+    "expressed": 1,
+    "of": 12,
+    "abstentions": 11
+  },
+  "page_vs_agreed_blame": {
+    "agree": 11,
+    "n": 11,
+    "abstained": 0,
+    "rows": [
+      {
+        "trial": "har110-001181-plain__AnjbfwU",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-000495-plain__mDTBFAW",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-001161-plain__RZ8qyUu",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-000587-plain__5NNxU35",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-000495-seed__dimG2yD",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+        "rater": "none",
+        "page": "none",
+        "raw_attribution": "n/a",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002391-cfe31418__MvXkrso",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-001161-gepa__kLkGSnR",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+        "rater": "model",
+        "page": "model",
+        "raw_attribution": "model",
+        "match": true
+      }
+    ]
+  },
+  "blame_abstentions": 0,
   "eligible_n": 11,
   "excluded_rater_disagreement": 1,
   "abstentions": 0,
@@ -316,11 +631,7 @@
     "agree": 12,
     "n": 12
   },
-  "page_first_failure_expressed": {
-    "n": 1,
-    "of": 12
-  },
-  "generated_at": "2026-10-01T04:19:15.046560+00:00",
+  "generated_at": "2026-10-01T04:31:28.731007+00:00",
   "page_rows": {
     "har110-001181-plain__AnjbfwU": {
       "loop_kind": "repetition",
@@ -328,7 +639,10 @@
       "turns_after_prompt": 0,
       "claim_bearing_turns": 0,
       "first_prompt_step": null,
-      "loop_onset_step": 58
+      "loop_onset_step": 58,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "har110-000495-plain__mDTBFAW": {
       "loop_kind": "repetition",
@@ -336,7 +650,10 @@
       "turns_after_prompt": 0,
       "claim_bearing_turns": 0,
       "first_prompt_step": null,
-      "loop_onset_step": 46
+      "loop_onset_step": 46,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "har110-001161-plain__RZ8qyUu": {
       "loop_kind": "none",
@@ -344,7 +661,10 @@
       "turns_after_prompt": 0,
       "claim_bearing_turns": 0,
       "first_prompt_step": null,
-      "loop_onset_step": null
+      "loop_onset_step": null,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "har110-000587-plain__5NNxU35": {
       "loop_kind": "repetition",
@@ -352,7 +672,10 @@
       "turns_after_prompt": 0,
       "claim_bearing_turns": 0,
       "first_prompt_step": null,
-      "loop_onset_step": 66
+      "loop_onset_step": 66,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "gepa-terminus-2-format-code-task__CFCbfps": {
       "loop_kind": "completion-claim",
@@ -360,7 +683,10 @@
       "turns_after_prompt": 12,
       "claim_bearing_turns": 9,
       "first_prompt_step": 87,
-      "loop_onset_step": null
+      "loop_onset_step": null,
+      "first_failure": null,
+      "blame": "none",
+      "raw_attribution": "n/a"
     },
     "gepa-terminus-2-format-code-task__X2dMzMw": {
       "loop_kind": "none",
@@ -368,7 +694,10 @@
       "turns_after_prompt": 110,
       "claim_bearing_turns": 1,
       "first_prompt_step": 11,
-      "loop_onset_step": null
+      "loop_onset_step": null,
+      "first_failure": 5,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "gepa-terminus-2-format-code-task__8FqvKUU": {
       "loop_kind": "completion-claim",
@@ -376,7 +705,10 @@
       "turns_after_prompt": 52,
       "claim_bearing_turns": 49,
       "first_prompt_step": 36,
-      "loop_onset_step": 43
+      "loop_onset_step": 43,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "har110-000495-seed__dimG2yD": {
       "loop_kind": "repetition",
@@ -384,7 +716,10 @@
       "turns_after_prompt": 0,
       "claim_bearing_turns": 0,
       "first_prompt_step": null,
-      "loop_onset_step": 85
+      "loop_onset_step": 85,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "har110-dev-002864-cfe31418__g7pfCqC": {
       "loop_kind": "none",
@@ -392,7 +727,10 @@
       "turns_after_prompt": 1,
       "claim_bearing_turns": 1,
       "first_prompt_step": 12,
-      "loop_onset_step": null
+      "loop_onset_step": null,
+      "first_failure": null,
+      "blame": "none",
+      "raw_attribution": "n/a"
     },
     "har110-dev-002391-cfe31418__MvXkrso": {
       "loop_kind": "repetition",
@@ -400,7 +738,10 @@
       "turns_after_prompt": 0,
       "claim_bearing_turns": 0,
       "first_prompt_step": null,
-      "loop_onset_step": 59
+      "loop_onset_step": 59,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "har110-001161-gepa__kLkGSnR": {
       "loop_kind": "repetition",
@@ -408,7 +749,10 @@
       "turns_after_prompt": 0,
       "claim_bearing_turns": 0,
       "first_prompt_step": null,
-      "loop_onset_step": 8
+      "loop_onset_step": 8,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     },
     "har110-dev-000383-cfe31418__L7nGNNi": {
       "loop_kind": "repetition",
@@ -416,7 +760,10 @@
       "turns_after_prompt": 0,
       "claim_bearing_turns": 0,
       "first_prompt_step": null,
-      "loop_onset_step": 31
+      "loop_onset_step": 31,
+      "first_failure": null,
+      "blame": "model",
+      "raw_attribution": "model"
     }
   }
 }

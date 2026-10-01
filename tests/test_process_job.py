@@ -172,23 +172,3 @@ def test_process_job_decision_renders_counts_single_path(tmp_path: Path) -> None
     assert record["decision"] is None
 
 
-def test_attach_trial_counts_forwards_identity_when_supported(monkeypatch) -> None:
-    """The canonical task identity reaches counts once counts accepts it."""
-    from evallab import counts as counts_module
-    from evallab import process_job as process_job_module
-
-    seen: dict = {}
-
-    def fake_attach(record, result, *, label_root, task_package_digest=None, task_id=None):
-        seen["digest"] = task_package_digest
-        seen["task_id"] = task_id
-        return {"schema": "evallab.counts/v1", "verdict": "counted_fail", "reasons": []}
-
-    monkeypatch.setattr(counts_module, "attach_counts", fake_attach)
-    monkeypatch.setattr(process_job_module, "_COUNTS_KWARGS_CACHE", {})
-    identity = {"task_id": "task001618", "task_package_digest": "sha256:abc"}
-    out = process_job_module._attach_trial_counts(
-        {}, {}, label_root=None, task_identity=identity
-    )
-    assert out["verdict"] == "counted_fail"
-    assert seen == {"digest": "sha256:abc", "task_id": "task001618"}

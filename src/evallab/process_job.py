@@ -545,30 +545,6 @@ def _job_task_identity(job_dir: Path) -> dict[str, Any | None]:
     }
 
 
-_COUNTS_KWARGS_CACHE: dict[str, bool] = {}
-
-
-def _counts_accepts(name: str) -> bool:
-    """Whether ``counts.attach_counts`` takes ``name``.
-
-    The parent ships the ``task_id``/``task_package_digest`` keywords
-    separately; the probe keeps this wiring working on trees that predate
-    them (legacy policy, ledger explicitly unmatched).
-    """
-    if name not in _COUNTS_KWARGS_CACHE:
-        try:
-            import inspect
-
-            from evallab import counts as _counts_module
-
-            params = inspect.signature(_counts_module.attach_counts).parameters
-            for key in ("task_package_digest", "task_id"):
-                _COUNTS_KWARGS_CACHE[key] = key in params
-        except (ImportError, ValueError, TypeError):
-            _COUNTS_KWARGS_CACHE.setdefault(name, False)
-    return _COUNTS_KWARGS_CACHE.get(name, False)
-
-
 def _attach_trial_counts(
     record: dict[str, Any],
     result: dict[str, Any],
@@ -576,14 +552,16 @@ def _attach_trial_counts(
     label_root: Path | None,
     task_identity: dict[str, Any | None],
 ) -> dict[str, Any]:
-    """Attach counts, passing the canonical task identity when supported."""
+    """Attach counts with the canonical task identity (HAR-131 cutover)."""
     from evallab.counts import attach_counts
 
-    kwargs: dict[str, Any] = {}
-    for key in ("task_package_digest", "task_id"):
-        if _counts_accepts(key):
-            kwargs[key] = task_identity.get(key)
-    return attach_counts(record, result, label_root=label_root, **kwargs)
+    return attach_counts(
+        record,
+        result,
+        label_root=label_root,
+        package_digest=task_identity.get("task_package_digest"),
+        task_id=task_identity.get("task_id"),
+    )
 
 
 def _attach_decision(record: dict[str, Any], trial_dir: Path) -> None:

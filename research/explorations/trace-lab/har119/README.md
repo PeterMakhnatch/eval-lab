@@ -101,10 +101,11 @@ Scout's bulky intermediates (normalized trials, probe-03 rows, Scout databases, 
 
 ## Page calibration (trial_decision/v3, HAR-131)
 
-The generated trial pages now carry the loop-kind measurement of the exact
-predictor they ship (`trial_decision.classify_loop_kind`), not the frozen
-part-1 rule's number: `score_page.py` runs the live page function on the 12
-frozen trial directories and scores it against the frozen labels.
+The generated trial pages now carry measurements of the exact page fields
+they ship (`classify_loop_kind` plus the actual first-failure and blame
+fields), not the frozen part-1 rule's number: `score_page.py` runs the live
+page functions on the 12 frozen trial directories and scores them against
+the frozen labels with the frozen scorer semantics.
 
 - **Page loop kind vs agreed rater cells: 7/11** (eligible 11, 1 excluded on
   rater disagreement, 0 abstentions). Same misses as the part-1 rule: it
@@ -112,11 +113,18 @@ frozen trial directories and scores it against the frozen labels.
   echo loop.
 - **Page vs frozen part-1 rule: 12/12 kind agreement** on this cohort (same
   rule; the page uses live `token_flow` instead of the frozen HAR-114 rows).
-- **Rater agreement: 11/12** on kind and presence.
-- **First failure: unavailable for the page** (page field null on 11/12;
-  nothing to score). **Blame and grader alignment: opinions**, no
-  page-measured calibration on this cohort.
-- Limits: out-of-sample for the loop rule, n=11 agreed cells, kind only.
+- **Rater agreement: 11/12** on kind and presence, 9/12 on first failure,
+  11/12 on blame.
+- **Page first failure vs agreed: 1/9** under the frozen ±2-step rule, with
+  explicit coverage **1/12 (11 abstentions)** — the page field is null
+  almost everywhere, so this is a coverage limit, not a scored skill.
+- **Page blame vs agreed: 11/11** (0 abstentions, frozen literal map) —
+  uninformative on this cohort: the raters say `model` on every failure, so
+  a constant prior scores the same. Grader alignment stays opinion.
+- Predictor identity is the sha256 of the three deciding function sources
+  (`classify_loop_kind`, `_claim_bearing`, `token_flow._loop_onset`), never
+  the whole module that also carries the embedded constants.
+- Limits: out-of-sample for the loop rule; small agreed cells throughout.
 
 Rerun (cwd = repo root; refuses on changed labels, reports UNAVAILABLE when
 trial directories are missing):

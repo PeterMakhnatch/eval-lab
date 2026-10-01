@@ -194,6 +194,14 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   `2.8149 x trial_hours / concurrency + sandbox_usd`. With zero rates the
   proxy's cost ceiling cannot trip; its request and token ceilings still
   bound the run.
+  `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129` (HAR-129) is the
+  same route on the LoRA-enabled twin server
+  (`tools/modal-mimo-serve/serve_lora.py`, pointed at by the same upstream
+  variable). It selects the `har129` SFT adapter through SGLang's
+  `base:adapter` model name and gets the same forced generation_config and
+  `(0, 0)` prices. Only the adapter names in
+  `execution_contracts.MIMO_SELFHOSTED_ADAPTERS` are admitted, and a reply
+  echoing the base id fails the run's model-identity check.
 
 - `openrouter-metered/xiaomi/mimo-v2.6-flash` (HAR-104) — MiMo-V2.6-Flash via
   OpenRouter's OpenAI-compatible endpoint, pinned to

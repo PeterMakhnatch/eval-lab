@@ -216,13 +216,20 @@ PROVIDERS: dict[str, Any] = {
         "limit_env_prefix": "EVALLAB_MIMO_SELFHOSTED",
         "model_prefix": "selfhosted/",
         "allowed_models_env": None,
-        "default_allowed_models": frozenset({"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"}),
+        # The base and its admitted LoRA adapter names (SGLang ``base:adapter``),
+        # mirroring execution_contracts.MIMO_SELFHOSTED_NATIVE_MODELS.
+        "default_allowed_models": frozenset(
+            {"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B", "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"}
+        ),
         "flat_input_price_env": None,
         "flat_output_price_env": None,
         # Self-hosted tokens have no per-token price. Modal bills the server
         # container by time, and the lab accounts it with
         # mimo_selfhosted_trial_cost_usd, not with this ledger.
-        "model_prices": {"XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B": (0, 0)},
+        "model_prices": {
+            "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B": (0, 0),
+            "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129": (0, 0),
+        },
         "expected_base_env": None,
         "checkpoint_models": False,
         # Base passthrough; the MiMo branch below forces the generation_config

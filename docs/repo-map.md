@@ -99,7 +99,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:e82082d67fc4d25286d8455b859ebafbb4f3f887c27decf61bd0075cb379ac48
+    digest: sha256:a97d9cbacc36b65db7c47964ab997dfed47e957ca5b2cf356bbf65084f1918cc
   - path: src/evallab/explorer.py
     digest: sha256:31820b8d3d4ec1894970e9907dffa829a4ca69088aeed6c7334b3800da6b7484
   - path: src/evallab/fetch.py
@@ -281,9 +281,9 @@ inputs:
   - path: src/evallab/mini_observation_masking.py
     digest: sha256:332e2a92b2db066699d7b4582992e40d710f884146705a9699dfa8ec24d17883
   - path: src/evallab/modal_billing.py
-    digest: sha256:dd98bdf2af329e8c1adaff8570061398ff9905e98d0cc291e72dcfda29edb493
+    digest: sha256:969441dc10762c21dd729a85725c2d78a5c000976bc86ea83b7a4185e853864f
   - path: src/evallab/modal_ops.py
-    digest: sha256:89b909e6d54b8d8dcf399644635c70370e5072060018384eadec75f04fa900d3
+    digest: sha256:0b18ab439fc17061d46594d53fc365d7c2eb3acb2fcc6c125a6243e706236137
   - path: src/evallab/model_capture.py
     digest: sha256:aca6cb4b6eb38d9cc3efbba4eb126e69fc01e0d94af4b2414d468e1472122a44
   - path: src/evallab/modeladapter.py
@@ -367,7 +367,7 @@ inputs:
   - path: src/evallab/run_preflight.py
     digest: sha256:c6f34f15c3d8fc8a30ee5b09abda23195d983340d77ea7af2b05bc27c6d37624
   - path: src/evallab/runner.py
-    digest: sha256:3a5c902c7e776ed4e6d9004ee11564a7732bd06a35969a30d1a3d3e9210d5423
+    digest: sha256:d66a387930fc82eed9fa4ff187c86c169e43ce7fb338474ea06d59a2719fd02d
   - path: src/evallab/schemas/__init__.py
     digest: sha256:b6e0a6aea01d7ee73e8555adbc046e63c1cd5d343a08e1d15090bb9e90720294
   - path: src/evallab/screen.py

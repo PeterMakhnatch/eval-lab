@@ -3889,6 +3889,7 @@ def _process_job_command(
             ingest=not args.no_ingest,
             publish=not args.no_publish,
             nop_runs_dir=args.nop_runs_dir,
+            session_spend=args.session_spend,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -6062,6 +6063,17 @@ def parser() -> argparse.ArgumentParser:
         help="Runs root holding same-task nop/qual trials for the grader cross-check",
     )
     process_job_parser.add_argument("--json", action="store_true", help="Emit report as JSON")
+    process_job_parser.add_argument(
+        "--session-spend",
+        type=Path,
+        default=None,
+        help=(
+            "Billed-session receipt JSON (evallab.session_spend/v1) for the "
+            "allocated GPU share. Reprocessing after the bills land requires "
+            "passing the receipt again; without it the legacy shared-GPU "
+            "estimate keeps its non-additive label."
+        ),
+    )
     process_job_parser.set_defaults(func=_process_job_command)
     process_job_parser.add_argument(
         "--no-publish",

@@ -257,12 +257,21 @@ The raw reward, canonical counts, report path and byte digest remain in the
 evaluation receipt. Do not combine this rule with `upstream_fetch_zero`:
 canonical counts exclude fetch-based passes only after an exact upstream
 artifact is saved/listed and then observed unpacked or read, with recorded,
-target-bound evidence. Bare success summaries and exit code 0 do not suffice.
+target-bound evidence. A pip `Successfully downloaded` line naming the exact
+pinned artifact is save evidence, but still needs later bound unpack/read.
+Package-only success summaries and exit code 0 do not suffice.
 Directory spelling is normalized; failed or unknown attempts remain visible
 as non-deciding flags, even on a native pass. Preexisting local image mirrors
 are addressed by task/variant usability, not successful-fetch counts. The legacy opt-in
 `upstream_fetch_zero` objective deliberately retains its separate **any-attempt**
 policy; an attempted fetch still zeros that objective regardless of outcome.
+
+Capped terminal observations can use retained in-trial output only when
+re-capping the saved bytes exactly reproduces the recorded observation.
+The evidence includes its path and SHA-256; all command and fresh-unpack
+guards still apply. Reading an old directory is not proof of this download.
+This post-G5 reader enhancement is prospective: the original G5 primary
+counts stay frozen, and its retrospective replay is labelled sensitivity.
 
 `LabEvaluator.import_seed_evaluation(job_dir, example)` imports a finished,
 retained single-trial stock job for the exact empty instruction seed. It requires

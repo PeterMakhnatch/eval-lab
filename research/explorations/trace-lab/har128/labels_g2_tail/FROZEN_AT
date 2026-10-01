@@ -1,0 +1,3 @@
+2026-10-01T10:21:18Z
+guide RATER_GUIDE_v2.md sha256 13fe391e3a2c0cea72ab8b810f4202c3942e41db52861e9cb16e8fd6151d7cfb
+3 late G2 re-run trials (000838-a2-r2, 001269-a2-r2, 002555-a1-r2). Raters: blind scout agents G4A and G4B; neither reports opening off-limits files. No tool output for these runs was read before this freeze. Tools were not run on them: Docent's free weekly quota is exhausted.

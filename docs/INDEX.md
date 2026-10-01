@@ -13,9 +13,9 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:25d9127a8e0746e3cba0a8b61cc758740a6d2fcf58272c160b2267919e1a9e56
+    digest: sha256:fb81d9eb4a8ac2899df9a548fa8baa8b166a4cb20ed65bc463132dbcd0b484e4
   - path: docs/SYSTEM-TOUR.md
-    digest: sha256:b4020d2da184e6c5dd3cf7538c7fc9b481f19f8a753666ed22091753d48c9a95
+    digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
   - path: docs/SYSTEM.md
     digest: sha256:27d716de9252ceb013a6927e91167ccc29fdd933cbd12206aa4c621826483c0d
   - path: docs/WHERE-DOES-THIS-GO.md

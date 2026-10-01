@@ -117,6 +117,16 @@ def _validate_manifest(manifest: dict[str, Any]) -> dict[str, str]:
     _require(len(expected) == TASK_COUNT, "duplicate_task_rows", "Duplicate frozen training task")
     _require(len({row["task_id"] for row in held_out}) == len(held_out), "malformed_manifest", "Duplicate held-out task")
     _check_disjoint(tasks, held_out)
+    if "seed_exclusions" in manifest:
+        admission = manifest["seed_exclusions"]
+        _require(isinstance(admission, dict), "invalid_seed_exclusion", "Seed exclusions need an explicit admission ruling")
+        for key in ("approved_by", "declared_at", "source_ref"):
+            _require(isinstance(admission.get(key), str) and bool(admission[key].strip()), "invalid_seed_exclusion", f"Missing exclusion ruling {key}")
+        _freeze_time({"frozen_at": admission["declared_at"]})
+        excluded = _row_map(admission.get("rows"), expected, seed=True)
+        _require(bool(excluded) and all(row["counts"]["verdict"] == "excluded" for row in excluded.values()), "invalid_seed_exclusion", "Only canonical excluded repeat-1 seeds may be dropped")
+        expected = {task_id: digest for task_id, digest in expected.items() if task_id not in excluded}
+        _require(bool(expected), "invalid_seed_exclusion", "Seed exclusions cannot empty the gate")
     return expected
 
 
@@ -195,7 +205,11 @@ def select_candidate(manifest: dict[str, Any], seed_rows: list[dict[str, Any]], 
         _require(candidate_id not in seen_ids, "duplicate_candidate_ids", "Duplicate candidate digest")
         seen_ids.add(candidate_id)
         _require(isinstance(candidate.get("candidate_path"), str) and bool(candidate["candidate_path"]), "malformed_candidate", "Candidate bytes must have a recorded path")
-        frozen_at = _freeze_time(candidate).isoformat()
+        freeze_time = _freeze_time(candidate)
+        if "seed_exclusions" in manifest:
+            declared_at = _freeze_time({"frozen_at": manifest["seed_exclusions"]["declared_at"]})
+            _require(declared_at <= freeze_time, "late_seed_exclusion", "Seed exclusions must be declared before candidate freeze")
+        frozen_at = freeze_time.isoformat()
         summary = _summary(_row_map(candidate.get("rows"), expected, seed=False), expected)
         paired_complete = seed["complete_countable_coverage"] and summary["complete_countable_coverage"]
         pass_delta = summary["counted_passes"] - seed["counted_passes"] if paired_complete else None
@@ -228,6 +242,7 @@ def select_candidate(manifest: dict[str, Any], seed_rows: list[dict[str, Any]], 
         "schema_version": SELECTION_SCHEMA_VERSION, "manifest_digest": _json_digest(manifest),
         "status": "promoted" if best is not None else "seed_retained", "decision": decision,
         "winner": best["candidate_id"] if best is not None else "seed", "promoted": best is not None,
+        "gate_task_ids": list(expected), "seed_exclusions": manifest.get("seed_exclusions"),
         "seed": seed, "candidates": summaries,
     }
 

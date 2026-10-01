@@ -469,7 +469,7 @@ inputs:
   - path: src/evallab/trial_diagnosis.py
     digest: sha256:a18ebcf16da5a0c7094c5c28519df7e5d3308e30d483695633c8a4a89f39f575
   - path: src/evallab/trial_treatment.py
-    digest: sha256:66726bdfffeba3750e05290a3cb0d3e0fdfccf318f58ee260e95ecba8360e08e
+    digest: sha256:932748bb92147c7a6c240d9e40ad1baae5b028ade560ee69abc8c93a05fc0d5b
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/upstream_fetch.py

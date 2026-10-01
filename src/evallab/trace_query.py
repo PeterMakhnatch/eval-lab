@@ -270,19 +270,22 @@ def _manifest_job_candidates(published_dir_name: str, provenance: dict[str, Any]
         candidates.append(published_dir_name)
     return candidates
 
-def _parse_sha_manifest(manifest_path: Path) -> dict[str, str]:
-    """Parse ``<sha256>  <relpath>`` manifest lines into {relpath: sha256}."""
+def _parse_sha_manifest(manifest_path: Path, root: Path) -> dict[str, str]:
+    """Verify every declared frozen file, including missing files, before loading."""
     entries: dict[str, str] = {}
-    try:
-        for line in manifest_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            parts = line.split()
-            if len(parts) >= 2:
-                entries[parts[1]] = parts[0]
-    except OSError:
-        pass
+    for line in manifest_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        parts = line.split(maxsplit=1)
+        if len(parts) != 2 or len(parts[0]) != 64:
+            raise ValueError(f"Malformed frozen-label manifest: {manifest_path}")
+        digest, relative = parts
+        target = (root / relative).resolve()
+        if relative in entries or not target.is_relative_to(root.resolve()):
+            raise ValueError(f"Invalid frozen-label manifest member: {relative}")
+        if not target.is_file() or _file_sha256(target) != digest:
+            raise ValueError(f"Frozen-label hash mismatch or missing file: {target}")
+        entries[relative] = digest
     return entries
 
 
@@ -291,11 +294,10 @@ def _load_frozen_labels(
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str], dict[str, Any]]:
     """Load frozen rater and hand labels verified against their manifests.
 
-    Only files whose sha256 matches the manifest entry are ingested; tampered,
-    truncated, or rotated files are excluded and reported in the verification
-    record. Heuristic ``behavior_labels`` parquet rows are NEVER merged here:
-    ``labels_json`` carries frozen rater entries only (the parquet stays
-    independently queryable via the attached z3 views).
+    Every declared file must still match the freeze; a corrupt or incomplete
+    freeze aborts instead of silently changing calibration denominators.
+    Heuristic ``behavior_labels`` parquet rows are NEVER merged here:
+    ``labels_json`` carries frozen rater entries only.
     """
     del derived_root
     labels_by_trial: dict[str, list[dict[str, Any]]] = {}
@@ -309,8 +311,8 @@ def _load_frozen_labels(
     if har119_manifest.is_file():
         manifest_hashes["har119"] = _file_sha256(har119_manifest)
         har119_report["manifest"] = str(har119_manifest.relative_to(repo_root))
-        expected = _parse_sha_manifest(har119_manifest)
         labels_base = har119_dir / "labels"
+        expected = _parse_sha_manifest(har119_manifest, labels_base)
         for rater in ("rater_a", "rater_b"):
             rater_dir = labels_base / rater
             if not rater_dir.is_dir():
@@ -365,8 +367,8 @@ def _load_frozen_labels(
     if har109_manifest.is_file():
         manifest_hashes["har109"] = _file_sha256(har109_manifest)
         har109_report["manifest"] = str(har109_manifest.relative_to(repo_root))
-        expected = _parse_sha_manifest(har109_manifest)
         hand_dir = har109_dir / "hand"
+        expected = _parse_sha_manifest(har109_manifest, hand_dir)
         if hand_dir.is_dir():
             for label_file in sorted(hand_dir.glob("*.json")):
                 rel = label_file.name
@@ -396,7 +398,7 @@ def _load_frozen_labels(
                     "stop_reason": data.get("stop_reason"),
                     "task_verdict": data.get("task_verdict"),
                     "upstream_fetch": data.get("upstream_fetch"),
-                    "provenance": "human_hand",
+                    "provenance": "frozen_hand",
                     "has_erratum": bool(erratum),
                     "source_file": str(label_file.relative_to(repo_root)),
                     "source_sha256": digest,
@@ -405,6 +407,9 @@ def _load_frozen_labels(
     else:
         har109_report["manifest"] = "missing"
     verification["har109"] = har109_report
+    for cohort, report in verification.items():
+        if report["failed"]:
+            raise ValueError(f"Invalid frozen labels for {cohort}: {report['failed']}")
 
     return labels_by_trial, manifest_hashes, verification
 
@@ -423,7 +428,7 @@ def _extract_commands_from_step(step: dict[str, Any]) -> tuple[str | None, str |
     3. Model-proposed commands parsed from message text -> ``reconstructed``.
     4. Otherwise (None, None, 0): no command content, honestly absent.
     """
-    from evallab.probe03 import _proposed_commands, layer_status
+    from evallab.probe03 import AGENT_SOURCES, _proposed_commands, layer_status
 
     layer = layer_status(step)
     if layer is not None:
@@ -477,6 +482,9 @@ def _extract_commands_from_step(step: dict[str, Any]) -> tuple[str | None, str |
                 return "; ".join(cmds), "recorded", len(calls)
             return None, None, 0
 
+    # System/user prompts contain command-format examples, not agent proposals.
+    if str(step.get("source") or "").lower() not in AGENT_SOURCES:
+        return None, None, 0
     proposed = _proposed_commands(str(step.get("message") or ""))
     proposed = [cmd.strip() for cmd in proposed if str(cmd).strip()]
     if proposed:
@@ -672,46 +680,18 @@ def _build_trial_row(
         if isinstance(processed_data.get("agent_steps"), int):
             agent_steps = processed_data["agent_steps"]
 
-        # Tokens resolution per Research-Harbor priority:
-        # Stable tokens_proxy fields: source='proxy_settled_ledger', attribution='single_trial'.
-        # Missing/invalid ledger or multi-trial means numeric None; never native fallback/equal division.
+        # Consume the validated processor attribution, not unvalidated metadata
+        # totals or Harbor-native counters. Missing/legacy reports stay unknown.
         t_proxy = processed_data.get("tokens_proxy")
-        if isinstance(t_proxy, dict) and t_proxy.get("source") == "proxy_settled_ledger":
-            if t_proxy.get("attribution") == "single_trial":
-                p_in = t_proxy.get("input_tokens")
-                p_out = t_proxy.get("output_tokens")
-                input_tokens = int(p_in) if isinstance(p_in, int) else None
-                output_tokens = int(p_out) if isinstance(p_out, int) else None
-        else:
-            # Check single-trial job settled ledger
-            n_tot = job_data.get("n_total_trials")
-            is_single = int(n_tot) == 1 if isinstance(n_tot, int) else False
-            if not is_single:
-                stats = job_data.get("stats") or {}
-                is_single = int(stats.get("n_completed_trials") or 0) == 1
-            if is_single:
-                # Read from processed job.json or lab-metadata.json
-                job_proc_file = None
-                for base in search_dirs:
-                    cand = base / "processed" / "job.json"
-                    if cand.is_file():
-                        job_proc_file = cand
-                        break
-                job_proc = _safe_read_json(job_proc_file) if job_proc_file else {}
-                ledger_used = (job_proc.get("ledger") or {}).get("totals", {}).get("used") or {}
-                if not ledger_used:
-                    lab_meta_file = None
-                    for base in search_dirs:
-                        cand = base / "lab-metadata.json"
-                        if cand.is_file():
-                            lab_meta_file = cand
-                            break
-                    lab_meta = _safe_read_json(lab_meta_file) if lab_meta_file else {}
-                    ledger_used = (lab_meta.get("provider_usage") or {}).get("totals") or {}
-                p_in = ledger_used.get("input_tokens")
-                p_out = ledger_used.get("output_tokens")
-                input_tokens = int(p_in) if isinstance(p_in, int) else None
-                output_tokens = int(p_out) if isinstance(p_out, int) else None
+        if (
+            isinstance(t_proxy, dict)
+            and t_proxy.get("source") == "proxy_settled_ledger"
+            and t_proxy.get("attribution") == "single_trial"
+        ):
+            p_in = t_proxy.get("input_tokens")
+            p_out = t_proxy.get("output_tokens")
+            input_tokens = int(p_in) if isinstance(p_in, int) else None
+            output_tokens = int(p_out) if isinstance(p_out, int) else None
         # Counts
         counts = processed_data.get("counts")
         if isinstance(counts, dict) and counts.get("verdict"):
@@ -739,7 +719,6 @@ def _build_trial_row(
                 if isinstance(ff, dict):
                     first_failure_ref = ff.get("step")
 
-            outcome = decision.get("did") or {}
             outcome_rule = decision.get("rule_id")
             outcome_attribution = decision.get("attribution")
             if not loop_kind and decision.get("loop_kind"):
@@ -896,28 +875,6 @@ def _build_trial_row(
     if trajectory_available:
         step_evidence_source = "stitched"
 
-    if not steps_rows:
-        # Sentinel trial-only no-step marker row
-        steps_rows.append(
-            {
-                "job_id": job_id,
-                "trial_id": trial_id,
-                "document_id": "no_steps",
-                "step_id": -1,
-                "source_path": "none",
-                "source_sha256": "",
-                "source": "trial_no_steps",
-                "timestamp": None,
-                "is_copied_context": False,
-                "prompt_tokens": None,
-                "completion_tokens": None,
-                "tool_call_count": 0,
-                "command_text": None,
-                "command_provenance": None,
-                "observation_excerpt": None,
-                "step_ref": "no_steps",
-            }
-        )
 
     # Source job dir from provenance if available
     source_job_dir = provenance_data.get("source_path") or str(job_dir)
@@ -1090,7 +1047,7 @@ def connect_trace_query(
     all_trial_rows = list(trials_by_id.values())
     all_step_rows: list[dict[str, Any]] = []
 
-    for key, s_list in steps_by_trial_id.items():
+    for s_list in steps_by_trial_id.values():
         all_step_rows.extend(s_list)
 
     for r in all_trial_rows:
@@ -1107,13 +1064,10 @@ def connect_trace_query(
         arm_key = r["arm"] or "unknown"
         by_arm[arm_key] = by_arm.get(arm_key, 0) + 1
 
-        corpus_hasher.update(
-            f"{r['job_id']}:{r['trial_id']}:{r['raw_reward']}:{r['stop_reason']}:{r['counts_verdict']}:{r['counts_reasons_json']}:{r['labels_json']}\n".encode()
-        )
 
     total_duplicated = sum(st.get("duplicated_steps", 0) for st in stitch_by_trial_id.values())
     total_copied = sum(st.get("copied_context_steps", 0) for st in stitch_by_trial_id.values())
-    coverage = {
+    coverage: dict[str, Any] = {
         "discovered_jobs": len(discovered_jobs),
         "discovered_trials": len(all_trial_rows),
         "discovered_steps": len(all_step_rows),
@@ -1125,7 +1079,6 @@ def connect_trace_query(
         "projections_skipped": projections_skipped,
         "label_manifest_hashes": manifest_hashes,
         "label_verification": label_verification,
-        "corpus_digest": f"sha256:{corpus_hasher.hexdigest()}",
         "by_card": by_card,
         "by_arm": by_arm,
     }
@@ -1140,8 +1093,8 @@ def connect_trace_query(
 
     try:
         _attach_z3(conn, droot)
-    except Exception:
-        pass
+    except (OSError, duckdb.Error) as exc:
+        coverage["parquet_errors"] = [str(exc)]
 
     # Prefer recorded Parquet trial_facts task digests where the job sources
     # carry none (arm_id is NULL throughout the shared store, so only the
@@ -1160,8 +1113,21 @@ def connect_trace_query(
                 borrowed = digest_by_id.get((row["job_id"], row["trial_id"]))
                 if borrowed:
                     row["task_package_digest"] = str(borrowed)
-    except Exception:
-        pass
+    except duckdb.Error as exc:
+        coverage.setdefault("parquet_errors", []).append(str(exc))
+
+    # Bind every consumed projection field, including step source hashes and
+    # Parquet-supplied package identities, not only outcome/label summaries.
+    for kind, rows in (("trial", all_trial_rows), ("step", all_step_rows)):
+        for row in sorted(
+            rows,
+            key=lambda item: (item["job_id"], item["trial_id"], item.get("step_ref", "")),
+        ):
+            corpus_hasher.update(
+                json.dumps([kind, row], sort_keys=True, separators=(",", ":")).encode()
+            )
+            corpus_hasher.update(b"\n")
+    coverage["corpus_digest"] = f"sha256:{corpus_hasher.hexdigest()}"
 
     trials_arrow = pa.Table.from_pylist(all_trial_rows, schema=TRIALS_ARROW_SCHEMA)
     steps_arrow = pa.Table.from_pylist(all_step_rows, schema=STEPS_ARROW_SCHEMA)

@@ -1,4 +1,4 @@
-"""Consumer-boundary tests for the HAR-131 failure atlas (provisional).
+"""Consumer-boundary tests for the HAR-131 failure atlas.
 
 These pin the atlas contract, not current corpus numbers: eligibility,
 counts_verdict as sole counted authority, raw-verified exemplars, frozen-only
@@ -9,16 +9,20 @@ tmp corpora only.
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import sys
 from pathlib import Path
 
-import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]
-                       / "research/explorations/trace-lab/failure-atlas"))
-
-import build as atlas_build
+_builder_path = (
+    Path(__file__).resolve().parents[1]
+    / "research/explorations/trace-lab/failure-atlas/build.py"
+)
+_builder_spec = importlib.util.spec_from_file_location("har131_atlas_build_test", _builder_path)
+assert _builder_spec is not None and _builder_spec.loader is not None
+atlas_build = importlib.util.module_from_spec(_builder_spec)
+sys.modules[_builder_spec.name] = atlas_build
+_builder_spec.loader.exec_module(atlas_build)
 
 
 def _trial(**overrides):
@@ -168,8 +172,8 @@ def _write_minimal_job(root: Path, job_name: str, trial_name: str, *,
 def test_consumer_boundary_on_throwaway_corpus(tmp_path):
     """Atlas consumes the real view surface on a synthetic 2-trial corpus."""
     import shutil
-    tq = pytest.importorskip("evallab.trace_query", reason="needs parent trace_query integration")
-    connect_trace_query = tq.connect_trace_query
+
+    from evallab.trace_query import connect_trace_query
 
     repo = tmp_path / "repo"
     real_sql = Path(atlas_build.__file__).parents[4] / "sql" / "trace_queries.sql"
@@ -195,12 +199,12 @@ def test_consumer_boundary_on_throwaway_corpus(tmp_path):
         repo_root=repo, results_home=tmp_path, job_dirs=[d1, d2])
     try:
         cols = [d[0] for d in conn.execute("SELECT * FROM v_trace_trials").description]
-        trials = [dict(zip(cols, r)) for r in
+        trials = [dict(zip(cols, r, strict=True)) for r in
                   conn.execute("SELECT * FROM v_trace_trials").fetchall()]
         scols = [d[0] for d in conn.execute("SELECT * FROM v_trace_steps").description]
         steps_by_trial: dict = {}
         for r in conn.execute("SELECT * FROM v_trace_steps").fetchall():
-            row = dict(zip(scols, r))
+            row = dict(zip(scols, r, strict=True))
             steps_by_trial.setdefault((row["job_id"], row["trial_id"]), []).append(row)
     finally:
         conn.close()
@@ -211,7 +215,6 @@ def test_consumer_boundary_on_throwaway_corpus(tmp_path):
     page_scores = json.loads((har119 / "page_scores.json").read_text())
     atlas = atlas_build.build_atlas(trials, steps_by_trial, coverage, repo,
                                     ledger, freeze, page_scores, None)
-    assert atlas["status"] == "provisional"
     assert atlas["corpus"]["n_eligible"] == 2
     budget = next(c for c in atlas["categories"]
                   if c["id"] == "recorded-budget-stop")
@@ -222,7 +225,6 @@ def test_consumer_boundary_on_throwaway_corpus(tmp_path):
 
 
 def test_empty_corpus_aborts_without_fallback(tmp_path, capsys):
-    pytest.importorskip("evallab.trace_query", reason="needs parent trace_query integration")
 
     empty = tmp_path / "empty-job"
     empty.mkdir()

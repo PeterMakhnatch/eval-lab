@@ -10,7 +10,8 @@ WITH categorized AS (
         report_path,
         CASE
             WHEN raw_reward >= 1.0 AND counts_reasons_json LIKE '%copied_fix%' THEN 'copied_pass'
-            WHEN raw_reward >= 1.0 AND (counts_reasons_json LIKE '%pass_tainted%' OR counts_reasons_json LIKE '%task_not_usable%') THEN 'tainted_pass'
+            WHEN raw_reward >= 1.0 AND counts_reasons_json LIKE '%pass_tainted%' THEN 'tainted_pass'
+            WHEN counts_verdict = 'excluded' AND counts_reasons_json LIKE '%task_not_usable%' THEN 'task_not_usable'
             WHEN loop_kind = 'completion-claim' THEN 'completion_claim_loop'
             WHEN loop_kind = 'repetition' THEN 'repetition_loop'
             WHEN (stop_reason LIKE '%ceiling%' OR stop_reason LIKE '%budget%') AND first_edit_step IS NULL THEN 'budget_stop_no_edit'

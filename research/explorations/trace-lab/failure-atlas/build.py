@@ -1,13 +1,13 @@
 """Conservative source-grounded failure atlas consumer (HAR-131).
 
-Reads the transient trace-query views (owned by the query worker) and emits
+Reads the transient trace-query views and emits
 a small reproducible atlas: ``atlas.json`` + ``README.md``.
 
 Every number is computed from current view rows. ``counts_verdict`` is the
 sole counted authority; unknown stays unknown. Import/connect errors fail
 visibly -- there is no fallback ingestor and no hardcoded stats.
 
-Usage (after the parent integrates ``evallab.trace_query``)::
+Usage::
 
     PYTHONPATH=src python research/explorations/trace-lab/failure-atlas/build.py \
         --repo-root . --out-dir research/explorations/trace-lab/failure-atlas
@@ -460,18 +460,18 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
 
     return {
         "atlas": "har131-failure-atlas",
-        "status": "provisional",
+        "status": "recorded_snapshot",
         "status_reasons": [
-            "Query dependency e27ccb7d is under independent-review fix; view arm/split/continuation/label fields are provisional.",
-            "Published counts/pages are stale for HAR-81/85/90/104/110; parent reprocesses post-PR609 and rebuilds counts.",
-            "No finished atlas claim until the query fix and the parent report refresh land; parent verifies the final corpus.",
+            f"Missing processed reports: {coverage.get('missing_processed', 0)}.",
+            f"Missing canonical counts: {coverage.get('missing_counts', 0)}.",
+            "Coverage and calibration limits apply; this is not a causal attribution study.",
         ],
-        "generated_at_utc": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+        "generated_at_utc": datetime.datetime.now(datetime.UTC).isoformat(timespec="seconds"),
         "repo_head": repo_head,
         "atlas_input_digest": f"sha256:{input_hasher.hexdigest()}",
         "source_hashes": {
             "trace_query_py": trace_query_sha,
-            "trace_query_note": "Runtime dependency owned by the query worker; exercised here as a local copy of review-fix commit ed727120 pending parent integration.",
+            "trace_query_note": "Transient query surface over recorded evidence; implementation bytes are hashed here.",
             "ledger_csv": ledger["sha256"],
             "page_scores_json": _optional_sha(repo_root / "research/explorations/trace-lab/har119/page_scores.json"),
             "har119_manifest": freeze.get("manifest_sha256"),
@@ -504,7 +504,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
         "reflection": reflection,
         "refresh": {
             "command": "PYTHONPATH=src python research/explorations/trace-lab/failure-atlas/build.py --repo-root . --out-dir research/explorations/trace-lab/failure-atlas",
-            "notes": "Re-run after the parent reprocesses stale counts/pages (post-PR609) and integrates evallab.trace_query; frequencies, exemplars and hashes update deterministically. New publishes appear on the next connection.",
+            "notes": "Re-run after recorded reports or frozen labels change; frequencies, exemplars and input hashes are recomputed. New publishes appear on the next connection.",
         },
     }
 
@@ -546,14 +546,12 @@ def reflection_status(g2_bindings: object, eligible: list, steps_by_trial: dict)
 
 def render_readme(atlas: dict) -> str:
     lines = [
-        "# HAR-131 failure atlas (inspection-only, PROVISIONAL)",
+        "# HAR-131 failure atlas (inspection-only)",
         "",
         f"Generated {atlas['generated_at_utc']} from current trace-query rows. "
-        "PROVISIONAL: the query surface is under independent-review fix and "
-        "published counts/pages are stale pending the parent reprocess -- no finished "
-        "atlas claim until the fix and parent refresh land. Every number below is "
-        "computed from current rows; unknown stays unknown and `counts_verdict` is the "
-        "sole counted authority. Overlapping patterns are not an exhaustive causal partition.",
+        "Every number below is computed from recorded inputs; unknown stays unknown "
+        "and `counts_verdict` is the sole counted authority. Overlapping patterns "
+        "are not an exhaustive causal partition.",
         "",
         "## Corpus",
         "",
@@ -565,8 +563,8 @@ def render_readme(atlas: dict) -> str:
         f"- Coverage: missing_processed={atlas['provenance']['coverage'].get('missing_processed')}, "
         f"missing_counts={atlas['provenance']['coverage'].get('missing_counts')}, "
         f"missing_atif={atlas['provenance']['coverage'].get('missing_atif')}",
-        "- Published counts/pages are stale for HAR-81/85/90/104/110 (counts only on HAR-116); "
-        "parent reprocesses post-PR609 -- re-run the refresh command in atlas.json.",
+        "- Missing evidence is retained explicitly. Rebuild after report or label refreshes; "
+        "do not interpret missing counts or labels as clean outcomes.",
         f"- Frozen labels independently re-verified ({atlas['provenance']['har119_freeze'].get('checked')} files "
         f"ok={atlas['provenance']['har119_freeze'].get('files_ok')}); heuristic label rows dropped: "
         f"{atlas['provenance'].get('heuristic_labels_dropped')}.",
@@ -658,7 +656,7 @@ def main(argv: list | None = None) -> int:
     def _rows(sql: str) -> list:
         cursor = conn.execute(sql)
         columns = [d[0] for d in cursor.description]
-        return [dict(zip(columns, row)) for row in cursor.fetchall()]
+        return [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
 
     try:
         views = {r[0] for r in conn.execute(

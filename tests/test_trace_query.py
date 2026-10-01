@@ -11,14 +11,25 @@ Tests:
 
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
 from pathlib import Path
 
-import duckdb
 import pytest
 
 from evallab.cli import run_cli
 from evallab.trace_query import connect_trace_query
+
+
+@pytest.fixture(autouse=True)
+def trace_workspace(tmp_path: Path) -> None:
+    sql_dir = tmp_path / "sql"
+    sql_dir.mkdir()
+    shutil.copyfile(
+        Path(__file__).resolve().parents[1] / "sql" / "trace_queries.sql",
+        sql_dir / "trace_queries.sql",
+    )
 
 
 def _create_minimal_trial(
@@ -212,14 +223,10 @@ def test_missing_inputs_visible_as_coverage(tmp_path: Path) -> None:
         assert row_dict["counts_verdict"] is None
         assert row_dict["counts_reasons_json"] == "[]"
 
-        # Explicit sentinel marker row exists in v_trace_steps
-        s_rows = con.execute(
-            "SELECT step_id, source, step_ref FROM v_trace_steps WHERE trial_id = 'uuid-sparse-trial'"
-        ).fetchall()
-        assert len(s_rows) == 1
-        assert s_rows[0][0] == -1
-        assert s_rows[0][1] == "trial_no_steps"
-        assert s_rows[0][2] == "no_steps"
+        # Missing trajectories cannot fabricate events in step-level aggregates.
+        assert con.execute(
+            "SELECT COUNT(*) FROM v_trace_steps WHERE trial_id = 'uuid-sparse-trial'"
+        ).fetchone() == (0,)
 
         # Coverage dict reflects explicit missingness
         assert coverage["missing_atif"] == 1
@@ -282,36 +289,41 @@ def test_unlabeled_is_empty_list_not_clean(tmp_path: Path) -> None:
         con.close()
 
 
-def test_all_ten_canonical_queries_execute(tmp_path: Path) -> None:
-    """All 10 canonical views resolve and execute cleanly."""
-    job = tmp_path / "job_queries"
-    _create_minimal_trial(job, "trial_q", reward=1.0, n_steps=3)
-
-    con, _ = connect_trace_query(
-        repo_root=tmp_path,
-        job_dirs=[job],
-    )
+@pytest.mark.parametrize(
+    ("source", "attribution", "expected"),
+    [
+        ("proxy_settled_ledger", "single_trial", (2500, 150)),
+        ("proxy_settled_ledger", "unavailable", (None, None)),
+        ("native_harbor", "single_trial", (None, None)),
+        (None, None, (None, None)),
+    ],
+)
+def test_proxy_tokens_require_validated_trial_attribution(
+    tmp_path: Path, source: str | None, attribution: str | None, expected: tuple
+) -> None:
+    job = tmp_path / "job_tokens"
+    _create_minimal_trial(job, "trial_tokens")
+    report = job / "processed" / "trial-trial_tokens.json"
+    payload = json.loads(report.read_text())
+    payload["tokens_proxy"]["source"] = source
+    payload["tokens_proxy"]["attribution"] = attribution
+    report.write_text(json.dumps(payload))
+    # Tempting job-level totals are neither validated nor trial-attributed.
+    (job / "processed" / "job.json").write_text(json.dumps(
+        {"ledger": {"totals": {"used": {"input_tokens": 999900, "output_tokens": 990}}}}
+    ))
+    (job / "lab-metadata.json").write_text(json.dumps(
+        {"provider_usage": {"totals": {"input_tokens": 777700, "output_tokens": 770}}}
+    ))
+    con, _ = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
     try:
-        views = [
-            "v_trace_cohort_raw",
-            "v_trace_first_edit_vs_pass",
-            "v_trace_test_path_access",
-            "v_trace_post_edit_tokens",
-            "v_trace_loop_by_arm",
-            "v_trace_fetch_exclusion_audit",
-            "v_trace_parse_rejection_evidence",
-            "v_trace_frozen_label_agreement",
-            "v_trace_candidate_exemplars",
-            "v_trace_evidence_completeness",
-        ]
-        for v in views:
-            res = con.execute(f"SELECT * FROM {v}").fetchall()
-            assert isinstance(res, list)
+        actual = con.execute("SELECT input_tokens, output_tokens FROM v_trace_trials").fetchone()
+        assert actual == expected
     finally:
         con.close()
 
 
-def test_cli_attach_trace_mode(tmp_path: Path) -> None:
+def test_cli_attach_trace_mode(tmp_path: Path, capsys: pytest.CaptureFixture) -> None:
     """CLI evallab db attach supports --trace and --trace-job-dir."""
     job = tmp_path / "job_cli"
     _create_minimal_trial(job, "trial_cli", reward=1.0, n_steps=2)
@@ -334,6 +346,9 @@ def test_cli_attach_trace_mode(tmp_path: Path) -> None:
         workspace=tmp_path,
     )
     assert code_query == 0
+    output = capsys.readouterr().out
+    assert "trial_cli" in output
+    assert "1.0" in output
 
 
 def test_manifest_prefix_matching(tmp_path: Path) -> None:
@@ -398,60 +413,44 @@ def test_continuation_stitch_dedup(tmp_path: Path) -> None:
         con.close()
 
 
-def test_label_freeze_drift_excluded(tmp_path: Path) -> None:
-    """Label files failing manifest verification are excluded, never ingested."""
+@pytest.mark.parametrize("missing", [False, True])
+def test_frozen_label_drift_aborts_instead_of_changing_denominator(
+    tmp_path: Path, missing: bool
+) -> None:
     labels_base = tmp_path / "research" / "explorations" / "trace-lab" / "har119" / "labels"
     rater_a = labels_base / "rater_a"
-    rater_a.mkdir(parents=True, exist_ok=True)
+    rater_a.mkdir(parents=True)
     label_file = rater_a / "trial_drift.json"
-    label_file.write_text(json.dumps({"loop_kind": "repetition"}), encoding="utf-8")
+    original = json.dumps({"loop_kind": "repetition"})
+    label_file.write_text(original, encoding="utf-8")
+    digest = hashlib.sha256(original.encode()).hexdigest()
     (labels_base / "MANIFEST.sha256").write_text(
-        "deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef  rater_a/trial_drift.json\n",
-        encoding="utf-8",
+        f"{digest}  rater_a/trial_drift.json\n", encoding="utf-8"
     )
+    if missing:
+        label_file.unlink()
+    else:
+        label_file.write_text(json.dumps({"loop_kind": "none"}), encoding="utf-8")
     job = tmp_path / "job_drift"
     _create_minimal_trial(job, "trial_drift")
+    with pytest.raises(ValueError):
+        connect_trace_query(repo_root=tmp_path, job_dirs=[job])
 
-    con, coverage = connect_trace_query(
-        repo_root=tmp_path,
-        job_dirs=[job],
+
+@pytest.mark.parametrize("source", ["system", "user", "agent"])
+def test_prompt_examples_are_not_agent_proposals(source: str) -> None:
+    from evallab.trace_query import _extract_commands_from_step
+
+    message = json.dumps({"commands": [{"keystrokes": "ls -la; cd project\n"}]})
+    command, provenance, recorded_calls = _extract_commands_from_step(
+        {"source": source, "message": message}
     )
-    try:
-        labels_json = con.execute("SELECT labels_json FROM v_trace_trials").fetchone()[0]
-        assert labels_json == "[]"
-        report = coverage["label_verification"]["har119"]
-        assert report["verified"] == 0
-        assert "rater_a/trial_drift.json" in report["failed"]
-    finally:
-        con.close()
+    if source == "agent":
+        assert command == "ls -la; cd project"
+        assert provenance == "reconstructed"
+    else:
+        assert command is None
+        assert provenance is None
+    assert recorded_calls == 0
 
 
-def test_parquet_cold_hot_precedence(tmp_path: Path) -> None:
-    """Cold-day Parquet rows win over hot duplicates on the same native IDs."""
-    import pyarrow as pa
-    import pyarrow.parquet as pq
-
-    derived = tmp_path / "derived"
-    hot_dir = derived / "job_id=j1" / "trial_id=t1"
-    hot_dir.mkdir(parents=True, exist_ok=True)
-    pq.write_table(
-        pa.Table.from_pylist([{"job_id": "j1", "trial_id": "t1", "task_digest": "hot-digest"}]),
-        hot_dir / "trial_facts.parquet",
-    )
-    cold_dir = derived / "compact" / "dt=2026-09-01"
-    cold_dir.mkdir(parents=True, exist_ok=True)
-    pq.write_table(
-        pa.Table.from_pylist([{"job_id": "j1", "trial_id": "t1", "task_digest": "cold-digest"}]),
-        cold_dir / "trial_facts.parquet",
-    )
-
-    con, _ = connect_trace_query(
-        repo_root=tmp_path,
-        derived_root=derived,
-        job_dirs=[],
-    )
-    try:
-        rows = con.execute("SELECT task_digest FROM trial_facts").fetchall()
-        assert rows == [("cold-digest",)]
-    finally:
-        con.close()

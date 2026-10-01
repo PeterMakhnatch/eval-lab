@@ -106,6 +106,33 @@ def _wait_ready(process: subprocess.Popen[bytes], api_key: str) -> None:
     raise TimeoutError("sglang did not become healthy in 18 minutes")
 
 
+def sglang_command(api_key: str) -> list[str]:
+    """The SGLang launch command; ``serve_lora.py`` reuses it unchanged."""
+    return [
+        "python3",
+        "-m",
+        "sglang.launch_server",
+        "--model-path",
+        str(MODEL_DIR),
+        "--served-model-name",
+        MODEL_ID,
+        "--reasoning-parser",
+        "mimo",
+        "--context-length",
+        str(CONTEXT_LENGTH),
+        # Capture decode CUDA graphs only for the batch sizes one trial lane
+        # uses (v0.5.20 split --cuda-graph-max-bs into decode/prefill).
+        "--cuda-graph-max-bs-decode",
+        "16",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        str(PORT),
+        "--api-key",
+        api_key,
+    ]
+
+
 @app.server(
     image=image,
     gpu=GPU,
@@ -131,29 +158,7 @@ class MimoServer:
                 f"weights missing at {MODEL_DIR}; run serve.py::download_weights first"
             )
         api_key = os.environ["SGLANG_API_KEY"]
-        command = [
-            "python3",
-            "-m",
-            "sglang.launch_server",
-            "--model-path",
-            str(MODEL_DIR),
-            "--served-model-name",
-            MODEL_ID,
-            "--reasoning-parser",
-            "mimo",
-            "--context-length",
-            str(CONTEXT_LENGTH),
-            # Capture decode CUDA graphs only for the batch sizes one trial lane
-            # uses (v0.5.20 split --cuda-graph-max-bs into decode/prefill).
-            "--cuda-graph-max-bs-decode",
-            "16",
-            "--host",
-            "0.0.0.0",
-            "--port",
-            str(PORT),
-            "--api-key",
-            api_key,
-        ]
+        command = sglang_command(api_key)
         self.process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
         assert self.process.stdout is not None
         threading.Thread(

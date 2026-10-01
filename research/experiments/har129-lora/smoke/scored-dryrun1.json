@@ -1,0 +1,92 @@
+[
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-000495-loopfix-r2/har116-a-000495-loopfix-r2__42F3G5T/agent/trajectory.json",
+  "validity": {
+   "lora_base": "normalized",
+   "lora_adapter": "normalized",
+   "production": "normalized"
+  },
+  "finish_reason": {
+   "lora_base": "stop",
+   "lora_adapter": "stop",
+   "production": "stop"
+  },
+  "content_identical": true,
+  "reasoning_identical": true,
+  "content_diff": null,
+  "reasoning_diff": null,
+  "adapter_differs_from_base": false
+ },
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-000587-loopfix-r2/har116-a-000587-loopfix-r2__RmCmzbQ/agent/trajectory.json",
+  "validity": {
+   "lora_base": "normalized",
+   "lora_adapter": "normalized",
+   "production": "normalized"
+  },
+  "finish_reason": {
+   "lora_base": "stop",
+   "lora_adapter": "stop",
+   "production": "stop"
+  },
+  "content_identical": true,
+  "reasoning_identical": true,
+  "content_diff": null,
+  "reasoning_diff": null,
+  "adapter_differs_from_base": false
+ },
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-002256-loopfix-r2/har116-a-002256-loopfix-r2__5oQwkeW/agent/trajectory.json",
+  "validity": {
+   "lora_base": "normalized",
+   "lora_adapter": "normalized",
+   "production": "normalized"
+  },
+  "finish_reason": {
+   "lora_base": "stop",
+   "lora_adapter": "stop",
+   "production": "stop"
+  },
+  "content_identical": true,
+  "reasoning_identical": true,
+  "content_diff": null,
+  "reasoning_diff": null,
+  "adapter_differs_from_base": true
+ },
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt/agent/trajectory.json",
+  "validity": {
+   "lora_base": "normalized",
+   "lora_adapter": "normalized",
+   "production": "normalized"
+  },
+  "finish_reason": {
+   "lora_base": "stop",
+   "lora_adapter": "stop",
+   "production": "stop"
+  },
+  "content_identical": true,
+  "reasoning_identical": true,
+  "content_diff": null,
+  "reasoning_diff": null,
+  "adapter_differs_from_base": false
+ },
+ {
+  "source": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har116-live/runs/har116-a-002864-loopfix-r2/har116-a-002864-loopfix-r2__CWRe7mJ/agent/trajectory.json",
+  "validity": {
+   "lora_base": "normalized",
+   "lora_adapter": "normalized",
+   "production": "normalized"
+  },
+  "finish_reason": {
+   "lora_base": "stop",
+   "lora_adapter": "stop",
+   "production": "stop"
+  },
+  "content_identical": true,
+  "reasoning_identical": true,
+  "content_diff": null,
+  "reasoning_diff": null,
+  "adapter_differs_from_base": false
+ }
+]

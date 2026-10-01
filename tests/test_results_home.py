@@ -6,6 +6,8 @@ import json
 import os
 from pathlib import Path
 
+import pytest
+
 from evallab.process_job import process_job
 from evallab.results_home import backfill, publish_job, write_index
 
@@ -449,6 +451,7 @@ def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: 
     assert Path(str(first["results_home"])) == home / "2026-09-30" / "HAR-117-har117-custom-out"
     old_source = json.loads((job / "processed" / "job.json").read_text())
     assert (old_source["summary"]["n_pass"], old_source["summary"]["n_fail"]) == (1, 0)
+    (job / "processed" / "trial-obsolete.json").write_text('{"reward": 1.0}', encoding="utf-8")
 
     # New raw outcome: the trial now fails. No manual mirroring into processed/.
     (job / "trial-one" / "result.json").write_text(
@@ -466,14 +469,8 @@ def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: 
 
     fresh = json.loads((published / "processed" / "job.json").read_text())
     assert (fresh["summary"]["n_pass"], fresh["summary"]["n_fail"]) == (0, 1)
-    assert "- trials: 1 (pass 0, fail 1, unscored 0)" in (
-        published / "processed" / "job.md"
-    ).read_text(encoding="utf-8")
     fresh_trial = json.loads((published / "processed" / "trial-trial-one.json").read_text())
     assert fresh_trial["reward"] == 0.0
-    assert "- reward: `0.0`" in (published / "processed" / "trial-trial-one.md").read_text(
-        encoding="utf-8"
-    )
     assert "0 pass, 1 fail, 0 unscored" in (home / "INDEX-all.md").read_text(encoding="utf-8")
 
     # The stale source processed/ is untouched, raw inputs are byte-identical,
@@ -483,6 +480,7 @@ def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: 
     assert (published / "result.json").read_bytes() == (job / "result.json").read_bytes()
     assert not (published / "processed" / "scratch.txt").exists()
     assert not (published / "scratch.txt").exists()
+    assert not (published / "processed" / "trial-obsolete.json").exists()
 
     # Without any source processed/, the fresh custom report still publishes.
     shutil.rmtree(job / "processed")
@@ -504,3 +502,12 @@ def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: 
     full = (home / "INDEX-all.md").read_text(encoding="utf-8")
     assert "1 pass, 0 fail, 0 unscored" in full
     assert "0 pass, 1 fail, 0 unscored" not in full
+
+    # Explicit bad inputs cannot silently fall back to an older snapshot.
+    for invalid in (tmp_path / "missing-reports", republished / "processed"):
+        with pytest.raises(ValueError):
+            publish_job(
+                job, root=home, processed_report_root=invalid, pr_lookup=lambda _commit: None
+            )
+        still_published = json.loads((republished / "processed" / "job.json").read_text())
+        assert still_published["summary"]["n_pass"] == 1

@@ -74,9 +74,11 @@ checkout that has moved on, so it cannot reconstruct them. The runner now
 saves that snapshot into `lab-metadata.json` and `repository-provenance/`
 inside the job directory. Publish copies it verbatim. When process-job writes
 its reports to a custom `output_dir`, publish still snapshots the raw job
-directory but overlays exactly the freshly written `job`/`trial` report pages
-onto the published `processed/` copy, so the published tree and INDEX show the
-new outcome instead of a stale source `processed/`.
+directory but takes `processed/` exclusively from the newly written
+`job`/`trial` report pages, excluding obsolete source pages and unrelated
+out-dir files. The published tree and INDEX therefore show the new outcome.
+The explicit report directory must exist outside the results home; invalid
+inputs fail before the existing publication is replaced.
 
 ## Publish-time only
 
@@ -129,6 +131,16 @@ input/output is **2,410,295 / 7,444**, while its 89 settled ledger calls
 sum to **2,423,707 / 11,540**. The permanent regression fixture retains the
 actual accounting fields plus hashes of the original metadata and result.
 Raw source artifacts are not rewritten during reprocessing.
+
+## Shared-GPU estimates
+
+A self-hosted `cost_estimate_usd` is a per-trial wall-time estimate, not a
+metered share of the common server. Overlapping jobs must not be summed as
+though each owned the GPU. Until a billed-session allocation is available,
+both pages and INDEX label these values **shared GPU, not additive** and
+direct the reader to `evallab spend day`. The existing Modal billing and
+Daytona estimate authorities remain separate; no zero-priced proxy ledger
+is presented as free GPU serving.
 
 ## Backfill
 

@@ -339,7 +339,7 @@ inputs:
   - path: src/evallab/results.py
     digest: sha256:4ba7d3de34e765fc5f9f1cc8e8b8cccfb4cab3503abbcab50eeecc6a66fb171d
   - path: src/evallab/results_home.py
-    digest: sha256:8623531e5534fd303cd9e45d20f26651729a2d7fb575e8a27a2339aedbd5667c
+    digest: sha256:c01c958084e58498982493288a0184579a9f22824c4e26859ebe8beb404009a7
   - path: src/evallab/rlm/__init__.py
     digest: sha256:72ec828d553f09b8218b61f95eee8873ec978e227c040adad6d5281fd8acfb45
   - path: src/evallab/rlm/bench/__init__.py

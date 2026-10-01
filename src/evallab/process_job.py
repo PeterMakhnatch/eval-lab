@@ -701,7 +701,10 @@ def _cost_line(record: dict[str, Any]) -> str:
     line += f"; {reason}" if reason else ""
     line += ")"
     if estimate is not None:
-        line += f"; self-hosted time estimate `${estimate:.4f}`"
+        line += (
+            f"; self-hosted time estimate `${estimate:.4f}` "
+            "(shared GPU, not additive; see `evallab spend day`)"
+        )
     elif estimate_reason:
         line += f"; estimate unavailable: {estimate_reason}"
     return line
@@ -809,6 +812,7 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"- cost: `{summary.get('cost_usd')}` ({summary.get('cost_source')})"
         + (
             f"; self-hosted time estimate `${summary.get('cost_estimate_usd', 0):.4f}`"
+            " (shared GPU, not additive; see `evallab spend day`)"
             if summary.get("cost_estimate_usd") is not None
             else ""
         ),
@@ -899,7 +903,8 @@ def process_job(
         estimate, estimate_reason = _selfhosted_estimate(record, trial_result)
         record["cost_estimate_usd"] = estimate
         record["cost_estimate_reason"] = (
-            "excludes sandbox and warm periods; time-based only"
+            "shared GPU, not additive; excludes sandbox and warm periods; "
+            "see evallab spend day"
             if estimate is not None
             else estimate_reason
         )

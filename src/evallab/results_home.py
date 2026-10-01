@@ -374,12 +374,14 @@ def _copy_file(source: Path, dest: Path) -> None:
     shutil.copyfile(source, dest)
 
 
-def _copy_tree(source: Path, dest: Path) -> int:
+def _copy_tree(source: Path, dest: Path, *, skip_processed: bool = False) -> int:
     """Byte-copy a job tree. Returns the number of files copied."""
     copied = 0
     for dirpath, dirnames, filenames in os.walk(source, followlinks=False):
         current = Path(dirpath)
         dirnames[:] = [name for name in dirnames if name not in _SKIP_DIR_NAMES]
+        if skip_processed and current == source:
+            dirnames[:] = [name for name in dirnames if name != "processed"]
         relative = current.relative_to(source)
         for name in filenames:
             origin = current / name
@@ -463,7 +465,13 @@ def publish_job(
     source = Path(job_dir).resolve()
     if not source.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
-    home = Path(root) if root is not None else results_root()
+    home = (Path(root) if root is not None else results_root()).resolve()
+    report_root = Path(processed_report_root).resolve() if processed_report_root is not None else None
+    if report_root is not None and not report_root.is_dir():
+        raise ValueError(f"Not a processed report directory: {processed_report_root}")
+    if report_root is not None and report_root.is_relative_to(home):
+        raise ValueError("Processed report input must be outside the results home when publishing")
+    custom_reports = report_root is not None and report_root != source / "processed"
     provenance = build_provenance(source, repo_root=repo_root, pr_lookup=pr_lookup, capture=capture)
     card = provenance["card"] or "unknown"
     day = _job_date(source, provenance)
@@ -473,19 +481,18 @@ def publish_job(
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    copied = _copy_tree(source, dest)
-    if processed_report_root is not None:
-        report_root = Path(processed_report_root)
-        if report_root.is_dir():
-            processed_dest = dest / "processed"
-            processed_dest.mkdir(parents=True, exist_ok=True)
-            for child in sorted(report_root.iterdir()):
-                if child.is_symlink() or not child.is_file():
-                    continue
-                if not _is_processed_report_file(child.name):
-                    continue
-                _copy_file(child, processed_dest / child.name)
-                copied += 1
+    copied = _copy_tree(source, dest, skip_processed=custom_reports)
+    if custom_reports:
+        assert report_root is not None
+        processed_dest = dest / "processed"
+        processed_dest.mkdir(parents=True, exist_ok=True)
+        for child in sorted(report_root.iterdir()):
+            if child.is_symlink() or not child.is_file():
+                continue
+            if not _is_processed_report_file(child.name):
+                continue
+            _copy_file(child, processed_dest / child.name)
+            copied += 1
     (dest / "provenance.json").write_text(
         json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -561,7 +568,10 @@ def _spend(published: Path) -> str:
         return f"${cost:.4f}"
     estimate = summary.get("cost_estimate_usd")
     if isinstance(estimate, (int, float)):
-        return f"~${estimate:.4f} estimated"
+        return (
+            f"~${estimate:.4f} shared GPU, not additive; "
+            "see `evallab spend day`"
+        )
     reason = summary.get("cost_reason")
     if isinstance(reason, str) and reason:
         return "None (unknown)"

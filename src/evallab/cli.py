@@ -2143,6 +2143,83 @@ def _spend_day_command(
         print(render_ledger(ledger))
     return 0
 
+
+def _spend_check_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Pre-launch spend-cap check: settled(window) + in-flight + candidate vs cap."""
+    del harbor
+    from evallab.spend_day import (
+        REASON_CAP_UNVERIFIED,
+        REASON_CEILING_EXCEEDED,
+        REASON_STALE_MODAL,
+        REASON_UNRATABLE_SPEC,
+        check_launch,
+        day_window_now,
+        decision_to_dict,
+        parse_launch_since,
+        render_decision,
+        sibling_worktree_roots,
+    )
+
+    if args.candidate_usd < 0:
+        print(f"invalid --candidate-usd: {args.candidate_usd!r} (must be >= 0)", file=sys.stderr)
+        return 2
+    try:
+        window_start, window_end = (
+            (parse_launch_since(args.since), datetime.now(UTC)) if args.since else day_window_now()
+        )
+    except ValueError as exc:
+        print(f"{exc}", file=sys.stderr)
+        return 2
+    if window_end <= window_start:
+        print(
+            f"invalid window: --since {args.since!r} is not before now ({window_end.isoformat()})",
+            file=sys.stderr,
+        )
+        return 2
+    if args.cap_usd is not None:
+        cap_usd = args.cap_usd
+        if cap_usd <= 0:
+            print(f"invalid --cap-usd: {cap_usd!r} (must be > 0)", file=sys.stderr)
+            return 2
+    else:
+        try:
+            cap_usd = load_policy(root / "policy/standing-approvals.yaml").daily_cost_ceiling_usd
+        except ValueError as exc:
+            print(f"spend check: policy unreadable ({exc}); refusing unverified", file=sys.stderr)
+            return 2
+    queue_root = args.queue_root if args.queue_root is not None else root / "queue"
+    url = database_url_from_environment(args.database_url)
+    extra_roots = sibling_worktree_roots(root)
+    decision = check_launch(
+        repo_root=root,
+        queue_root=queue_root,
+        database_url=url,
+        window_start=window_start,
+        window_end=window_end,
+        candidate_usd=args.candidate_usd,
+        cap_usd=cap_usd,
+        extra_roots=extra_roots,
+        allow_stale_modal=getattr(args, "allow_stale_modal", False),
+    )
+    if args.json:
+        print(json.dumps(decision_to_dict(decision), indent=2, sort_keys=True))
+    else:
+        print(render_decision(decision))
+    if decision.allowed:
+        return 0
+    if decision.reason_code == REASON_CEILING_EXCEEDED:
+        return 3
+    if decision.reason_code in (
+        REASON_CAP_UNVERIFIED,
+        REASON_UNRATABLE_SPEC,
+        REASON_STALE_MODAL,
+    ):
+        return 2
+    return 2
+
+
 def _db_list_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4940,6 +5017,44 @@ def parser() -> argparse.ArgumentParser:
     spend_day.add_argument("--database-url", help="Override catalog PostgreSQL URL")
     spend_day.add_argument("--json", action="store_true", help="Emit ledger as JSON")
     spend_day.set_defaults(func=_spend_day_command)
+    spend_check = spend_commands.add_parser(
+        "check",
+        help="Pre-launch spend-cap check: settled(window) + in-flight + candidate vs cap",
+    )
+    spend_check.add_argument(
+        "--candidate-usd",
+        type=float,
+        required=True,
+        metavar="FLOAT",
+        help="Estimated cost of the candidate launch in USD (must be >= 0)",
+    )
+    spend_check.add_argument(
+        "--cap-usd",
+        type=float,
+        default=None,
+        metavar="FLOAT",
+        help="Spend cap in USD (default: policy daily_cost_ceiling_usd)",
+    )
+    spend_check.add_argument(
+        "--since",
+        default=None,
+        metavar="ISO8601",
+        help="Window start as ISO-8601 UTC (window end is now; default: current UTC day)",
+    )
+    spend_check.add_argument(
+        "--queue-root",
+        type=Path,
+        default=None,
+        help="Queue directory holding running/approved specs (default: <repo>/queue)",
+    )
+    spend_check.add_argument("--database-url", help="Override catalog PostgreSQL URL")
+    spend_check.add_argument("--json", action="store_true", help="Emit decision as JSON")
+    spend_check.add_argument(
+        "--allow-stale-modal",
+        action="store_true",
+        help="Allow launch despite stale Modal billing rows (downgrades refusal to warning)",
+    )
+    spend_check.set_defaults(func=_spend_check_command)
 
     lineage = commands.add_parser(
         "lineage", help="Trace recursive lineage of generated artifacts back to Z1"

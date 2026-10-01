@@ -40,8 +40,17 @@ anything else lands in ``unattributed`` and is never guessed.
 Model-ledger dollars attribute to the day the job finished;
 ``spend.jsonl`` rows attribute to the day of their own timestamp.
 
-This module never touches the runner or queue, never spends, and only
-reads the catalog plus ledger files.
+Window ledgers generalize the day to any half-open UTC window
+[start, end): a day is the special case [day 00:00, next day 00:00).
+Overlap rules per source (documented where implemented):
+Modal billing rows are hourly, so a row counts whole when its
+``interval_start`` hour falls in the window; Daytona trials contribute
+the seconds of their wall interval overlapping the window;
+``spend.jsonl`` rows count when their ``ts`` is in the window while
+per-job proxy ledgers count whole on the day their job finished.
+The pre-launch check (``check_launch``) additionally reads the queue's
+``running``/``approved`` specs read-only to reserve in-flight spend;
+this module still never spends, never writes, and never launches.
 """
 
 from __future__ import annotations
@@ -51,7 +60,7 @@ import json
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
-from datetime import UTC, date, datetime, time
+from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -160,16 +169,30 @@ def parse_dt(value: Any) -> datetime | None:
     return None
 
 
-def day_overlap_seconds(start: datetime, end: datetime, day: date) -> float:
-    """Seconds of ``[start, end)`` falling inside the UTC ``day``.
+def _coerce_utc(value: datetime) -> datetime:
+    """Treat a naive datetime as UTC; pass aware datetimes through."""
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
-    Intervals crossing midnight split across the two days; callers sum
-    the per-day slices so the day portions always add up to the whole.
+
+def window_overlap_seconds(
+    start: datetime, end: datetime, window_start: datetime, window_end: datetime
+) -> float:
+    """Seconds of ``[start, end)`` falling inside ``[window_start, window_end)``.
+
+    Naive bounds are treated as UTC (matching ``parse_dt``). Slice
+    portions across adjacent windows always add up to the whole interval.
     """
-    day_start = datetime.combine(day, time.min, tzinfo=UTC)
-    day_end = day_start + _one_day()
-    overlap = (min(end, day_end) - max(start, day_start)).total_seconds()
+    overlap = (
+        min(_coerce_utc(end), _coerce_utc(window_end))
+        - max(_coerce_utc(start), _coerce_utc(window_start))
+    ).total_seconds()
     return max(0.0, overlap)
+
+
+def day_to_window(day: date) -> tuple[datetime, datetime]:
+    """Half-open UTC window ``[day 00:00, day+1 00:00)`` for a calendar day."""
+    start = datetime.combine(day, time.min, tzinfo=UTC)
+    return start, start + _one_day()
 
 
 def _one_day() -> Any:
@@ -215,28 +238,30 @@ def model_usd_from_provider_usage(provider_usage: Any) -> tuple[float | None, st
 
 
 def aggregate_spend_jsonl_calls(
-    calls: Iterable[Mapping[str, Any]], day: date
+    calls: Iterable[Mapping[str, Any]], window_start: datetime, window_end: datetime
 ) -> tuple[float, int, int]:
-    """Sum ``cost_usd`` for calls whose ``ts`` falls on ``day``.
+    """Sum ``cost_usd`` for calls whose ``ts`` falls in ``[window_start, window_end)``.
 
-    Returns ``(usd, in_day, out_of_day)``; rows without a parsable
+    Returns ``(usd, in_window, out_of_window)``; rows without a parsable
     timestamp never contribute dollars.
     """
     total = 0.0
-    in_day = 0
-    out_of_day = 0
+    in_window = 0
+    out_of_window = 0
+    window_start = _coerce_utc(window_start)
+    window_end = _coerce_utc(window_end)
     for call in calls:
         stamp = parse_dt(call.get("ts"))
-        if stamp is None or stamp.date() != day:
-            out_of_day += 1
+        if stamp is None or not (window_start <= stamp < window_end):
+            out_of_window += 1
             continue
         cost = call.get("cost_usd")
         if isinstance(cost, (int, float)) and not isinstance(cost, bool):
             total += float(cost)
-            in_day += 1
+            in_window += 1
         else:
-            out_of_day += 1
-    return total, in_day, out_of_day
+            out_of_window += 1
+    return total, in_window, out_of_window
 
 
 def backend_is_daytona(*configs: Any) -> bool:
@@ -322,6 +347,67 @@ def cap_status(total_usd: float, cap_usd: float) -> tuple[bool, float, float]:
     return over, max(0.0, total_usd - cap_usd), cap_usd - total_usd
 
 
+@dataclass(frozen=True)
+class WindowLedger:
+    """Full ledger for a half-open UTC window ``[start, end)``.
+
+    Same shape as :class:`DayLedger` but bounded by datetimes instead of
+    a calendar day; a day ledger is the special case covering
+    [day 00:00, next day 00:00) UTC.
+    """
+
+    start: datetime
+    end: datetime
+    rows: tuple[SpendRow, ...]
+    per_source: dict[str, float]
+    per_card: dict[str, float]
+    total_usd: float
+    cap_usd: float
+    over_cap: bool
+    over_by_usd: float
+    headroom_usd: float
+    notes: tuple[str, ...] = field(default_factory=tuple)
+
+
+def _accumulate_totals(
+    rows: tuple[SpendRow, ...],
+) -> tuple[dict[str, float], dict[str, float], float]:
+    """Shared per-source/per-card/total fold for day and window ledgers."""
+    per_source: dict[str, float] = {}
+    per_card: dict[str, float] = {}
+    for row in rows:
+        per_source[row.source] = per_source.get(row.source, 0.0) + row.usd
+        per_card[row.card] = per_card.get(row.card, 0.0) + row.usd
+    return per_source, per_card, sum(row.usd for row in rows)
+
+
+def summarize_window(
+    start: datetime,
+    end: datetime,
+    rows: Iterable[SpendRow],
+    *,
+    cap_usd: float = DEFAULT_CAP_USD,
+    notes: Iterable[str] = (),
+) -> WindowLedger:
+    """Build the window ledger: per-source/card totals plus cap arithmetic."""
+    ordered = tuple(rows)
+    per_source, per_card, total = _accumulate_totals(ordered)
+    over, over_by, headroom = cap_status(total, cap_usd)
+    return WindowLedger(
+        start=_coerce_utc(start),
+        end=_coerce_utc(end),
+        rows=ordered,
+        per_source=per_source,
+        per_card=per_card,
+        total_usd=total,
+        cap_usd=cap_usd,
+        over_cap=over,
+        over_by_usd=over_by,
+        headroom_usd=headroom,
+        notes=tuple(notes),
+    )
+
+
 def summarize_day(
     day: date,
     rows: Iterable[SpendRow],
@@ -331,12 +417,7 @@ def summarize_day(
 ) -> DayLedger:
     """Build the day ledger: per-source/card totals plus cap arithmetic."""
     ordered = tuple(rows)
-    per_source: dict[str, float] = {}
-    per_card: dict[str, float] = {}
-    for row in ordered:
-        per_source[row.source] = per_source.get(row.source, 0.0) + row.usd
-        per_card[row.card] = per_card.get(row.card, 0.0) + row.usd
-    total = sum(row.usd for row in ordered)
+    per_source, per_card, total = _accumulate_totals(ordered)
     over, over_by, headroom = cap_status(total, cap_usd)
     return DayLedger(
         day=day,
@@ -410,22 +491,41 @@ def render_ledger(ledger: DayLedger) -> str:
 # ---------------------------------------------------------------------------
 
 
-def query_modal_day(database_url: str, day: date) -> tuple[SpendRow | None, str]:
-    """Billed Modal row for one day, or (None, note) when the table is empty."""
+#: Modal rows lag real usage: warn when the latest fetched billing hour
+#: is older than this versus now (the catalog may undercount tonight).
+MODAL_STALE_AFTER_HOURS = 4.0
+
+#: Refusal when Modal billing rows are stale and launch is not allowed despite staleness.
+REASON_STALE_MODAL = "stale_modal_billing"
+
+
+def query_modal_rows(
+    database_url: str, window_start: datetime, window_end: datetime
+) -> tuple[SpendRow | None, str]:
+    """Billed Modal rows whose hour starts in ``[window_start, window_end)``.
+
+    Modal billing rows are hourly (``interval_start``): a row counts whole
+    when its hour starts inside the window, even if that hour extends
+    past the window end. Hour granularity is exact for whole UTC days and
+    approximate to the hour for arbitrary windows.
+    """
     import psycopg
 
+    window_start = _coerce_utc(window_start)
+    window_end = _coerce_utc(window_end)
     with psycopg.connect(database_url) as connection:
         row = connection.execute(
             """
             SELECT coalesce(sum(cost_usd), 0), count(*), max(reported_at)
             FROM modal_billing_rows
-            WHERE (interval_start AT TIME ZONE 'UTC')::date = %s
+            WHERE interval_start >= %s AND interval_start < %s
             """,
-            (day.isoformat(),),
+            (window_start, window_end),
         ).fetchone()
     total, count, reported_at = row if row is not None else (0.0, 0, None)
+    label = f"{window_start.isoformat()}..{window_end.isoformat()}"
     if int(count) == 0:
-        return None, f"modal: no billing rows for {day.isoformat()} in modal_billing_rows"
+        return None, f"modal: no billing rows with hour starting in {label} in modal_billing_rows"
     return (
         SpendRow(
             source="modal",
@@ -435,36 +535,76 @@ def query_modal_day(database_url: str, day: date) -> tuple[SpendRow | None, str]
             basis=BASIS_BILLED,
             evidence=f"catalog:modal_billing_rows:{int(count)} rows",
         ),
-        f"modal: billed ${float(total):.4f} across {int(count)} rows"
+        f"modal: billed ${float(total):.4f} across {int(count)} hourly rows in {label}"
         + (f" (last reported {reported_at})" if reported_at else ""),
     )
 
 
-def query_model_job_rows(database_url: str, day: date) -> tuple[list[SpendRow], list[str]]:
-    """Settled per-job model dollars for jobs finished on ``day``.
+def query_modal_latest_interval(database_url: str) -> datetime | None:
+    """Newest Modal billing ``interval_start`` in the catalog, if any."""
+    import psycopg
 
-    Jobs are attributed whole to their finish day. Ledgers with no
-    settled dollars (no calls, unreadable, or the zero-priced
-    self-hosted route) contribute no row and are counted in the notes.
+    with psycopg.connect(database_url) as connection:
+        row = connection.execute("SELECT max(interval_start) FROM modal_billing_rows").fetchone()
+    latest = row[0] if row is not None else None
+    if isinstance(latest, datetime):
+        return latest if latest.tzinfo is not None else latest.replace(tzinfo=UTC)
+    parsed = parse_dt(latest)
+    return parsed
+
+
+def query_model_job_rows(
+    database_url: str, window_start: datetime, window_end: datetime
+) -> tuple[list[SpendRow], list[str]]:
+    """Settled per-job model dollars for jobs finished in ``[window_start, window_end)``.
+
+    Finish time is resolved in UTC:
+    1. From ``lab_metadata["finished_at"]`` (Harbor's aware UTC finish time).
+    2. Fallback: ``jobs.finished_at`` (Harbor's naive local timestamp).
+       Explicit documented rule: naive local timestamps are recorded in the
+       host timezone (``America/New_York``), converted here to aware UTC.
+    Jobs whose finish time cannot be established in UTC are counted as
+    unfinished/unattributable. Settled proxy ledgers attribute whole to the
+    job finish time (they are not split across windows).
     """
     import psycopg
 
+    window_start = _coerce_utc(window_start)
+    window_end = _coerce_utc(window_end)
     with psycopg.connect(database_url) as connection:
         rows = connection.execute(
             """
             SELECT job_name, evidence_path, id, finished_at, lab_metadata
             FROM jobs
-            WHERE substr(finished_at, 1, 10) = %s
-            """,
-            (day.isoformat(),),
+            WHERE finished_at IS NOT NULL
+            """
         ).fetchall()
     spend_rows: list[SpendRow] = []
     without_settled = 0
     selfhosted_zero = 0
     unfinished = 0
-    for job_name, evidence_path, job_id, finished_at, lab_metadata in rows:
-        if not isinstance(finished_at, str) or not finished_at:
+    for job_name, evidence_path, job_id, finished_at_raw, lab_metadata in rows:
+        finished = None
+        if isinstance(lab_metadata, dict) and lab_metadata.get("finished_at"):
+            finished = parse_dt(lab_metadata.get("finished_at"))
+        if finished is None and finished_at_raw:
+            if isinstance(finished_at_raw, str) and not (
+                "+" in finished_at_raw or finished_at_raw.endswith("Z")
+            ):
+                try:
+                    import zoneinfo
+
+                    tz = zoneinfo.ZoneInfo("America/New_York")
+                    naive = datetime.fromisoformat(finished_at_raw.strip())
+                    finished = naive.replace(tzinfo=tz).astimezone(UTC)
+                except Exception:
+                    finished = parse_dt(finished_at_raw)
+            else:
+                finished = parse_dt(finished_at_raw)
+        if finished is None:
             unfinished += 1
+            continue
+        if not (window_start <= finished < window_end):
             continue
         provider_usage = (
             lab_metadata.get("provider_usage") if isinstance(lab_metadata, dict) else None
@@ -510,14 +650,26 @@ def _spend_jsonl_files(roots: Iterable[Path]) -> list[Path]:
 
 
 def collect_spend_jsonl_rows(
-    repo_root: Path, day: date, *, extra_roots: Iterable[Path] = ()
+    repo_root: Path,
+    window_start: datetime,
+    window_end: datetime,
+    *,
+    extra_roots: Iterable[Path] = (),
+    label: str | None = None,
 ) -> tuple[list[SpendRow], list[str]]:
-    """Aggregate experiment ``spend.jsonl`` ledgers for ``day``.
+    """Aggregate experiment ``spend.jsonl`` ledgers for ``[window_start, window_end)``.
 
     Ledgers are discovered under the repo root and (read-only) sibling
     worktree checkouts; byte-identical rows shared across checkouts
     count once. One row per ledger file keeps the ledger compact.
+    ``spend.jsonl`` rows count when their own ``ts`` timestamp falls in
+    the window.
     """
+    window_start = _coerce_utc(window_start)
+    window_end = _coerce_utc(window_end)
+    caption = (
+        label if label is not None else f"{window_start.isoformat()}..{window_end.isoformat()}"
+    )
     roots = [repo_root, *[r for r in extra_roots if r != repo_root]]
     files = _spend_jsonl_files(roots)
     seen: set[str] = set()
@@ -550,13 +702,13 @@ def collect_spend_jsonl_rows(
                 continue
             seen.add(digest)
             calls.append(record)
-        total, in_day, _ = aggregate_spend_jsonl_calls(calls, day)
+        total, in_window, _ = aggregate_spend_jsonl_calls(calls, window_start, window_end)
         try:
             rel = path.relative_to(repo_root)
             evidence = str(rel)
         except ValueError:
             evidence = str(path)
-        if in_day:
+        if in_window:
             spend_rows.append(
                 SpendRow(
                     source="model",
@@ -564,14 +716,14 @@ def collect_spend_jsonl_rows(
                     job=path.parent.name,
                     usd=total,
                     basis=BASIS_LEDGER,
-                    evidence=f"{evidence}:{in_day} unique rows",
+                    evidence=f"{evidence}:{in_window} unique rows",
                 )
             )
         if bad:
             notes.append(f"model: {bad} unparsable lines in {evidence}")
     notes.append(
         f"model: {len(files)} spend.jsonl ledgers scanned, "
-        f"{len(spend_rows)} contribute to {day.isoformat()}, "
+        f"{len(spend_rows)} contribute to {caption}, "
         f"{duplicates} duplicate rows across checkouts ignored"
     )
     return spend_rows, notes
@@ -594,16 +746,22 @@ def _read_task_toml_env(task_path: Any) -> dict[str, Any]:
     return dict(env) if isinstance(env, Mapping) else {}
 
 
-def query_daytona_rows(database_url: str, day: date) -> tuple[list[SpendRow], list[str]]:
-    """Daytona sandbox estimates: trial wall time on ``day`` x rate card.
+def query_daytona_rows(
+    database_url: str, window_start: datetime, window_end: datetime
+) -> tuple[list[SpendRow], list[str]]:
+    """Daytona sandbox estimates: trial wall time in the window x rate card.
 
-    Each trial contributes its overlap with the UTC day (midnight
-    crossings split). Per-job rows aggregate trial slices; every dollar
-    here is basis ``estimate`` from the Daytona list-price card.
+    Each trial contributes the seconds of its wall interval overlapping
+    ``[window_start, window_end)`` (intervals crossing a boundary split).
+    Per-job rows aggregate trial slices; every dollar here is basis
+    ``estimate`` from the Daytona list-price card.
     """
     import psycopg
 
     from evallab.task_qualification import estimate_cost_usd
+
+    window_start = _coerce_utc(window_start)
+    window_end = _coerce_utc(window_end)
 
     with psycopg.connect(database_url) as connection:
         trials = connection.execute(
@@ -617,7 +775,7 @@ def query_daytona_rows(database_url: str, day: date) -> tuple[list[SpendRow], li
         ).fetchall()
     per_job_usd: dict[str, float] = {}
     per_job_meta: dict[str, dict[str, Any]] = {}
-    trials_in_day = 0
+    trials_in_window = 0
     skipped_time = 0
     skipped_backend = 0
     unrated = 0
@@ -640,7 +798,7 @@ def query_daytona_rows(database_url: str, day: date) -> tuple[list[SpendRow], li
         if started is None or finished is None or finished <= started:
             skipped_time += 1
             continue
-        portion = day_overlap_seconds(started, finished, day)
+        portion = window_overlap_seconds(started, finished, window_start, window_end)
         if portion <= 0:
             continue
         if not backend_is_daytona(job_config, trial_config, trial_lock):
@@ -674,8 +832,8 @@ def query_daytona_rows(database_url: str, day: date) -> tuple[list[SpendRow], li
             and not isinstance(duration_seconds, bool)
             and duration_seconds > 0
         ):
-            # Scale catalog duration to the day slice when the trial
-            # spans midnight: the slice keeps its share of wall time.
+            # Scale catalog duration to the window slice when the trial
+            # crosses a window boundary: the slice keeps its share of wall time.
             wall = (finished - started).total_seconds()
             if wall > 0:
                 seconds = float(duration_seconds) * portion / wall
@@ -689,7 +847,7 @@ def query_daytona_rows(database_url: str, day: date) -> tuple[list[SpendRow], li
         if usd is None:
             unrated += 1
             continue
-        trials_in_day += 1
+        trials_in_window += 1
         key = job_name if isinstance(job_name, str) else str(trial_name)
         per_job_usd[key] = per_job_usd.get(key, 0.0) + float(usd)
         meta = per_job_meta.setdefault(
@@ -715,7 +873,7 @@ def query_daytona_rows(database_url: str, day: date) -> tuple[list[SpendRow], li
         for key, usd in sorted(per_job_usd.items())
     ]
     notes = [
-        f"daytona: {trials_in_day} trial slices across {len(spend_rows)} jobs "
+        f"daytona: {trials_in_window} trial slices across {len(spend_rows)} jobs "
         f"(rate measured {measured}, family fallback {fallback}); "
         f"{unrated} slices unratable, {skipped_backend} non-daytona, "
         f"{skipped_time} missing time"
@@ -724,30 +882,127 @@ def query_daytona_rows(database_url: str, day: date) -> tuple[list[SpendRow], li
 
 
 def sibling_worktree_roots(repo_root: Path) -> list[Path]:
-    """Other ``.worktrees/*`` checkouts beside this one (read-only)."""
-    roots: list[Path] = []
-    worktrees = repo_root / ".worktrees"
+    """Other worktrees beside this one across the entire repository (read-only).
+
+    Resolves the primary checkout via ``git rev-parse --git-common-dir``,
+    then adds worktrees from ``git worktree list --porcelain`` and scans
+    ``<primary>/.worktrees/*``. When run from a linked worktree, this
+    discovers the primary checkout and all sibling worktrees; when run
+    from the primary checkout, it discovers all worktrees under
+    ``.worktrees``. The caller's own checkout is always excluded.
+    """
+    import subprocess
+
+    roots: set[Path] = set()
+    repo_root = Path(repo_root).resolve()
+
     try:
-        candidates = sorted(p for p in worktrees.iterdir() if p.is_dir())
-    except OSError:
-        return []
-    for candidate in candidates:
-        # Skip our own checkout: same directory, not a sibling.
-        try:
-            if candidate.resolve() == repo_root.resolve():
-                continue
-        except OSError:
-            continue
-        roots.append(candidate)
-    # Primary checkout may also hold ledgers outside any worktree root.
-    primary = worktrees.parent
-    if primary.is_dir() and primary not in roots:
-        try:
-            if primary.resolve() != repo_root.resolve():
-                roots.append(primary)
-        except OSError:
-            pass
-    return roots
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--git-common-dir"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        common_dir = Path(proc.stdout.strip())
+        if not common_dir.is_absolute():
+            common_dir = (repo_root / common_dir).resolve()
+        else:
+            common_dir = common_dir.resolve()
+        primary_root = common_dir.parent
+    except Exception:
+        primary_root = repo_root
+
+    try:
+        proc = subprocess.run(
+            ["git", "-C", str(repo_root), "worktree", "list", "--porcelain"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        for line in proc.stdout.splitlines():
+            if line.startswith("worktree "):
+                wt_path = Path(line.removeprefix("worktree ").strip())
+                if wt_path.is_dir():
+                    roots.add(wt_path.resolve())
+    except Exception:
+        pass
+
+    if primary_root.is_dir():
+        roots.add(primary_root.resolve())
+        wt_dir = primary_root / ".worktrees"
+        if wt_dir.is_dir():
+            try:
+                for child in wt_dir.iterdir():
+                    if child.is_dir():
+                        roots.add(child.resolve())
+            except OSError:
+                pass
+
+    return sorted(p for p in roots if p != repo_root)
+
+
+def build_window_ledger(
+    repo_root: Path,
+    window_start: datetime,
+    window_end: datetime,
+    *,
+    database_url: str,
+    cap_usd: float = DEFAULT_CAP_USD,
+    extra_roots: Iterable[Path] = (),
+    label: str | None = None,
+    staleness_now: datetime | None = None,
+    include_window_preamble: bool = True,
+) -> WindowLedger:
+    """Assemble the full window ledger from all three sources (read-only).
+
+    ``label`` names the window in notes (defaults to the ISO range).
+    When ``staleness_now`` is given, a note is added if the newest Modal
+    billing hour is older than :data:`MODAL_STALE_AFTER_HOURS` versus
+    ``staleness_now`` — Modal rows lag, so a stale catalog undercounts
+    tonight; the note says so instead of silently reporting a low total.
+    """
+    window_start = _coerce_utc(window_start)
+    window_end = _coerce_utc(window_end)
+    caption = (
+        label if label is not None else f"{window_start.isoformat()}..{window_end.isoformat()}"
+    )
+    rows: list[SpendRow] = []
+    notes: list[str] = []
+    if include_window_preamble:
+        notes.append(f"window: settled spend in {caption} (half-open [start, end))")
+        notes.append(
+            "window granularity: modal rows count whole when their hour starts in the window; "
+            "daytona trials contribute overlapping wall seconds; spend.jsonl rows count by "
+            "their own ts; per-job proxy ledgers count whole on the job finish day"
+        )
+    modal_row, modal_note = query_modal_rows(database_url, window_start, window_end)
+    notes.append(modal_note)
+    if modal_row is not None:
+        rows.append(modal_row)
+    if staleness_now is not None:
+        latest = query_modal_latest_interval(database_url)
+        if latest is None:
+            notes.append("modal: no billing rows in the catalog at all; settled modal is unknown")
+        else:
+            age_hours = (_coerce_utc(staleness_now) - latest).total_seconds() / 3600.0
+            if age_hours > MODAL_STALE_AFTER_HOURS:
+                notes.append(
+                    f"modal: billing rows are stale (latest hour {latest.isoformat()}, "
+                    f"{age_hours:.1f}h old vs now); modal rows lag, so settled spend "
+                    "may undercount tonight"
+                )
+    model_job_rows, model_notes = query_model_job_rows(database_url, window_start, window_end)
+    rows.extend(model_job_rows)
+    notes.extend(model_notes)
+    jsonl_rows, jsonl_notes = collect_spend_jsonl_rows(
+        repo_root, window_start, window_end, extra_roots=extra_roots
+    )
+    rows.extend(jsonl_rows)
+    notes.extend(jsonl_notes)
+    daytona_rows, daytona_notes = query_daytona_rows(database_url, window_start, window_end)
+    rows.extend(daytona_rows)
+    notes.extend(daytona_notes)
+    return summarize_window(window_start, window_end, rows, cap_usd=cap_usd, notes=notes)
 
 
 def build_day_ledger(
@@ -758,20 +1013,589 @@ def build_day_ledger(
     cap_usd: float = DEFAULT_CAP_USD,
     extra_roots: Iterable[Path] = (),
 ) -> DayLedger:
-    """Assemble the full day ledger from all three sources (read-only)."""
-    rows: list[SpendRow] = []
+    """Assemble the full day ledger from all three sources (read-only).
+
+    A day is the special case of :func:`build_window_ledger` covering
+    [day 00:00, next day 00:00) UTC.
+    """
+    start, end = day_to_window(day)
+    window = build_window_ledger(
+        repo_root,
+        start,
+        end,
+        database_url=database_url,
+        cap_usd=cap_usd,
+        extra_roots=extra_roots,
+        label=day.isoformat(),
+        include_window_preamble=False,
+    )
+    return summarize_day(day, window.rows, cap_usd=cap_usd, notes=window.notes)
+
+
+# ---------------------------------------------------------------------------
+# Pre-launch spend-cap check (HAR-129; HAR-122 proposal §2-§5).
+# ---------------------------------------------------------------------------
+#
+# Committed(window) = Settled(window) + InFlight + candidate, where
+# Settled is the window ledger above and InFlight reserves one ceiling
+# per queued spec in ``running``/``approved`` states:
+# ``max(cost_limit_usd, est_cost_usd)``. The check fails closed: an
+# unreachable catalog is never treated as $0, and a cloud (non-docker)
+# queued spec with no positive ``est_cost_usd`` refuses as unratable.
+# A total strictly greater than the cap refuses; exactly-at-cap allows.
+
+#: Refusal when committed spend exceeds the cap (CLI exit 3).
+REASON_CEILING_EXCEEDED = "daily_cost_ceiling_exceeded"
+#: Fail-closed when the catalog is unreachable (CLI exit 2). Never $0.
+REASON_CAP_UNVERIFIED = "daily_cap_unverified"
+#: Fail-closed when a queued cloud spec cannot be rated (CLI exit 2).
+REASON_UNRATABLE_SPEC = "unratable_cost_spec"
+
+#: Queue states whose specs hold reserved spend against the cap.
+IN_FLIGHT_STATES = ("running", "approved")
+
+
+class SpendUnverified(Exception):
+    """Fail-closed signal: spend cannot be established, so no launch."""
+
+    def __init__(self, reason_code: str, message: str) -> None:
+        super().__init__(message)
+        self.reason_code = reason_code
+
+
+@dataclass(frozen=True)
+class InFlightItem:
+    """One queued spec's reservation against the cap."""
+
+    spec_id: str | None
+    name: str
+    state: str
+    environment: str
+    est_cost_usd: float
+    cost_limit_usd: float | None
+    reservation_usd: float
+
+
+@dataclass(frozen=True)
+class UnratableSpec:
+    """A queued cloud spec with no usable cost estimate (fail closed)."""
+
+    spec_id: str | None
+    name: str
+    state: str
+    environment: str
+    reason: str
+
+
+@dataclass(frozen=True)
+class LaunchDecision:
+    """Verdict of the pre-launch spend-cap check for one candidate."""
+
+    allowed: bool
+    reason_code: str | None
+    window_start: datetime
+    window_end: datetime
+    settled_usd: float
+    per_source_usd: dict[str, float]
+    per_basis_usd: dict[str, float]
+    in_flight_usd: float
+    in_flight_count: int
+    in_flight: tuple[InFlightItem, ...]
+    unratable: tuple[UnratableSpec, ...]
+    candidate_usd: float
+    committed_usd: float
+    cap_usd: float
+    headroom_usd: float
+    notes: tuple[str, ...] = field(default_factory=tuple)
+
+
+def parse_launch_since(value: str) -> datetime:
+    """Parse a ``--since`` ISO-8601 timestamp to an aware UTC datetime."""
+    parsed = parse_dt(value)
+    if parsed is None:
+        raise ValueError(f"invalid --since: {value!r} (expected ISO-8601)")
+    return parsed
+
+
+def day_window_now(now: datetime | None = None) -> tuple[datetime, datetime]:
+    """Current UTC day window ``[today 00:00, now)`` for the default check."""
+    current = _coerce_utc(now) if now is not None else datetime.now(UTC)
+    start = datetime.combine(current.date(), time.min, tzinfo=UTC)
+    return start, current
+
+
+def is_cloud_environment(environment: str | None) -> bool:
+    """True for non-Docker spec environments (cloud or remote backends).
+
+    Mirrors the queue's ``cloud_or_remote_environment`` gate: anything
+    that is not local ``docker`` burns provider infrastructure, so its
+    cost must be rated before launch.
+    """
+    return (environment or "docker") != "docker"
+
+
+def reservation_for_spec(spec: Any) -> float:
+    """In-flight reservation for one queued spec: ``max(cost_limit, est)``.
+
+    Reserves the authorized upper ceiling while the job executes so
+    concurrent jobs cannot oversubscribe the remaining headroom. A
+    missing ``cost_limit_usd`` falls back to the estimate; both missing
+    reserves $0 (local controls genuinely cost nothing).
+    """
+    est = getattr(spec, "est_cost_usd", 0.0)
+    est_usd = float(est) if isinstance(est, (int, float)) and not isinstance(est, bool) else 0.0
+    limit = getattr(spec, "cost_limit_usd", None)
+    limit_usd = (
+        float(limit) if isinstance(limit, (int, float)) and not isinstance(limit, bool) else None
+    )
+    candidates = [est_usd] + ([limit_usd] if limit_usd is not None else [])
+    return max(candidates) if candidates else 0.0
+
+
+def collect_in_flight(
+    queue_root: Path,
+) -> tuple[list[InFlightItem], list[UnratableSpec], list[str]]:
+    """Reserve in-flight spend for every queued ``running``/``approved`` spec.
+
+    Read-only: opens the queue with ``create=False`` and never writes.
+    A missing queue directory holds no specs (empty, with a note). Any
+    unreadable or invalid spec file raises :class:`SpendUnverified` —
+    a reservation we cannot read is spend we cannot bound.
+
+    A queued cloud (non-docker) spec with no positive ``est_cost_usd``
+    is unratable: ``est_cost_usd`` defaults to ``0.0`` (no estimate
+    recorded), and remote environments require an explicit estimate at
+    prepare time, so zero means the infra cost is unknown, not free.
+    """
+    from evallab.queue import DirectoryQueue
+
+    if not Path(queue_root).is_dir():
+        return [], [], [f"in-flight: no queue directory at {queue_root}; reserving $0"]
+    queue = DirectoryQueue(Path(queue_root), create=False)
+    items: list[InFlightItem] = []
+    unratable: list[UnratableSpec] = []
     notes: list[str] = []
-    modal_row, modal_note = query_modal_day(database_url, day)
-    notes.append(modal_note)
-    if modal_row is not None:
-        rows.append(modal_row)
-    model_job_rows, model_notes = query_model_job_rows(database_url, day)
-    rows.extend(model_job_rows)
-    notes.extend(model_notes)
-    jsonl_rows, jsonl_notes = collect_spend_jsonl_rows(repo_root, day, extra_roots=extra_roots)
-    rows.extend(jsonl_rows)
-    notes.extend(jsonl_notes)
-    daytona_rows, daytona_notes = query_daytona_rows(database_url, day)
-    rows.extend(daytona_rows)
-    notes.extend(daytona_notes)
-    return summarize_day(day, rows, cap_usd=cap_usd, notes=notes)
+    for state in IN_FLIGHT_STATES:
+        try:
+            records = queue.list_specs(state)  # type: ignore[arg-type]
+        except Exception as exc:
+            raise SpendUnverified(
+                REASON_CAP_UNVERIFIED,
+                f"in-flight: cannot list queue/{state}: {type(exc).__name__}: {exc}",
+            ) from exc
+        for path, spec in records:
+            try:
+                reservation = reservation_for_spec(spec)
+            except Exception as exc:
+                raise SpendUnverified(
+                    REASON_CAP_UNVERIFIED,
+                    f"in-flight: cannot rate queued spec {path.name}: {type(exc).__name__}: {exc}",
+                ) from exc
+            est = getattr(spec, "est_cost_usd", 0.0)
+            est_ok = isinstance(est, (int, float)) and not isinstance(est, bool) and est > 0
+            if is_cloud_environment(getattr(spec, "environment", "docker")) and not est_ok:
+                unratable.append(
+                    UnratableSpec(
+                        spec_id=getattr(spec, "spec_id", None),
+                        name=getattr(spec, "name", path.stem),
+                        state=state,
+                        environment=str(getattr(spec, "environment", "docker")),
+                        reason=(
+                            "cloud spec records no positive est_cost_usd; "
+                            "its infrastructure cost is unknown, not free"
+                        ),
+                    )
+                )
+            items.append(
+                InFlightItem(
+                    spec_id=getattr(spec, "spec_id", None),
+                    name=getattr(spec, "name", path.stem),
+                    state=state,
+                    environment=str(getattr(spec, "environment", "docker")),
+                    est_cost_usd=float(est) if isinstance(est, (int, float)) else 0.0,
+                    cost_limit_usd=getattr(spec, "cost_limit_usd", None),
+                    reservation_usd=reservation,
+                )
+            )
+    notes.append(
+        f"in-flight: {len(items)} queued spec(s) in running/approved reserve "
+        f"${sum(item.reservation_usd for item in items):.4f}"
+    )
+    return items, unratable, notes
+
+
+def decide_launch(
+    *,
+    window_start: datetime,
+    window_end: datetime,
+    settled_usd: float,
+    per_source_usd: dict[str, float] | None = None,
+    per_basis_usd: dict[str, float] | None = None,
+    in_flight_usd: float = 0.0,
+    in_flight_count: int = 0,
+    in_flight: Iterable[InFlightItem] = (),
+    unratable: Iterable[UnratableSpec] = (),
+    candidate_usd: float = 0.0,
+    cap_usd: float = DEFAULT_CAP_USD,
+    notes: Iterable[str] = (),
+) -> LaunchDecision:
+    """Pure commit-vs-cap verdict: ``settled + in-flight + candidate``.
+
+    Refusal is strict: a committed total *greater than* the cap refuses
+    with ``daily_cost_ceiling_exceeded``; exactly-at-cap allows (the cap
+    is a ceiling to stay within, not below).
+    """
+    if candidate_usd < 0:
+        raise ValueError(f"candidate_usd must be >= 0, got {candidate_usd!r}")
+    flight = tuple(in_flight)
+    bad = tuple(unratable)
+    committed = settled_usd + in_flight_usd + candidate_usd
+    over, _, headroom = cap_status(committed, cap_usd)
+    return LaunchDecision(
+        allowed=not over,
+        reason_code=REASON_CEILING_EXCEEDED if over else None,
+        window_start=_coerce_utc(window_start),
+        window_end=_coerce_utc(window_end),
+        settled_usd=settled_usd,
+        per_source_usd=dict(per_source_usd or {}),
+        per_basis_usd=dict(per_basis_usd or {}),
+        in_flight_usd=in_flight_usd,
+        in_flight_count=in_flight_count,
+        in_flight=flight,
+        unratable=bad,
+        candidate_usd=candidate_usd,
+        committed_usd=committed,
+        cap_usd=cap_usd,
+        headroom_usd=headroom,
+        notes=tuple(notes),
+    )
+
+
+def unverified_decision(
+    *,
+    reason_code: str,
+    message: str,
+    window_start: datetime,
+    window_end: datetime,
+    candidate_usd: float,
+    cap_usd: float,
+    settled_usd: float = 0.0,
+    per_source_usd: dict[str, float] | None = None,
+    per_basis_usd: dict[str, float] | None = None,
+    in_flight_usd: float = 0.0,
+    in_flight_count: int = 0,
+    in_flight: Iterable[InFlightItem] = (),
+    unratable: Iterable[UnratableSpec] = (),
+    notes: Iterable[str] = (),
+) -> LaunchDecision:
+    """Fail-closed verdict: never allowed, never assumed $0."""
+    return LaunchDecision(
+        allowed=False,
+        reason_code=reason_code,
+        window_start=_coerce_utc(window_start),
+        window_end=_coerce_utc(window_end),
+        settled_usd=settled_usd,
+        per_source_usd=dict(per_source_usd or {}),
+        per_basis_usd=dict(per_basis_usd or {}),
+        in_flight_usd=in_flight_usd,
+        in_flight_count=in_flight_count,
+        in_flight=tuple(in_flight),
+        unratable=tuple(unratable),
+        candidate_usd=candidate_usd,
+        committed_usd=settled_usd + in_flight_usd + candidate_usd,
+        cap_usd=cap_usd,
+        headroom_usd=cap_usd - (settled_usd + in_flight_usd + candidate_usd),
+        notes=(message, *tuple(notes)),
+    )
+
+
+def check_launch(
+    *,
+    repo_root: Path,
+    queue_root: Path,
+    database_url: str,
+    window_start: datetime,
+    window_end: datetime,
+    candidate_usd: float,
+    cap_usd: float = DEFAULT_CAP_USD,
+    extra_roots: Iterable[Path] = (),
+    now: datetime | None = None,
+    allow_stale_modal: bool = False,
+    modal_refresher: Any | None = None,
+) -> LaunchDecision:
+    """Pre-launch spend-cap check for one candidate (read-only).
+
+    ``Committed = Settled(window) + InFlight + candidate``. Returns a
+    :class:`LaunchDecision` the CLI prints and a later dispatch hook can
+    call: ``allowed`` launches, ``daily_cost_ceiling_exceeded`` refuses,
+    anything else fails closed:
+    - ``daily_cap_unverified`` when the catalog or queue cannot be read (never $0).
+    - ``unratable_cost_spec`` when a queued cloud spec has no estimate.
+    - ``stale_modal_billing`` when the latest stored Modal interval is stale (>4h)
+      and the window extends past it, unless ``allow_stale_modal=True``.
+    """
+    if candidate_usd < 0:
+        raise ValueError(f"candidate_usd must be >= 0, got {candidate_usd!r}")
+    window_start = _coerce_utc(window_start)
+    window_end = _coerce_utc(window_end)
+    effective_now = _coerce_utc(now) if now is not None else datetime.now(UTC)
+    try:
+        flight, unratable, flight_notes = collect_in_flight(queue_root)
+    except SpendUnverified as exc:
+        return unverified_decision(
+            reason_code=exc.reason_code,
+            message=f"REFUSAL: {exc.reason_code} ({exc})",
+            window_start=window_start,
+            window_end=window_end,
+            candidate_usd=candidate_usd,
+            cap_usd=cap_usd,
+        )
+    flight_usd = sum(item.reservation_usd for item in flight)
+
+    # -----------------------------------------------------------------------
+    # Modal freshness: check whether the catalog's newest billing interval is
+    # older than MODAL_STALE_AFTER_HOURS (4h) while the requested window extends
+    # past it. If stale, refresh using the reconcile fetch path before computing.
+    # -----------------------------------------------------------------------
+    try:
+        latest = query_modal_latest_interval(database_url)
+    except Exception as exc:
+        return unverified_decision(
+            reason_code=REASON_CAP_UNVERIFIED,
+            message=(
+                f"REFUSAL: {REASON_CAP_UNVERIFIED} "
+                f"(catalog unreachable: {type(exc).__name__}: {exc}); "
+                "settled spend is unknown, never $0"
+            ),
+            window_start=window_start,
+            window_end=window_end,
+            candidate_usd=candidate_usd,
+            cap_usd=cap_usd,
+            in_flight_usd=flight_usd,
+            in_flight_count=len(flight),
+            in_flight=flight,
+            unratable=unratable,
+            notes=flight_notes,
+        )
+
+    modal_is_stale = (
+        latest is None
+        or (effective_now - latest).total_seconds() / 3600.0 > MODAL_STALE_AFTER_HOURS
+    ) and (latest is None or window_end > latest)
+
+    refresh_note: str | None = None
+    if modal_is_stale:
+        start_day = window_start.date()
+        end_day = (window_end - timedelta(microseconds=1)).date() + timedelta(days=1)
+        try:
+            if modal_refresher is not None:
+                modal_refresher(start_day, end_day)
+            else:
+                from evallab.modal_billing import refresh_modal_billing
+
+                refresh_modal_billing(
+                    database_url,
+                    start=start_day,
+                    end=end_day,
+                    repo_root=repo_root,
+                    resolution="h",
+                )
+            latest = query_modal_latest_interval(database_url)
+        except Exception as exc:
+            refresh_note = f"modal refresh failed ({type(exc).__name__}: {exc})"
+
+        modal_is_stale = (
+            latest is None
+            or (effective_now - latest).total_seconds() / 3600.0 > MODAL_STALE_AFTER_HOURS
+        ) and (latest is None or window_end > latest)
+
+    stale_warning: str | None = None
+    if modal_is_stale or refresh_note:
+        stale_hour_str = latest.isoformat() if latest else "none"
+        if not allow_stale_modal:
+            refusal_msg = (
+                f"REFUSAL: {REASON_STALE_MODAL} "
+                f"(latest Modal hour {stale_hour_str} is older than {MODAL_STALE_AFTER_HOURS:g}h vs now; "
+                "modal rows lag, so spend cannot be verified tonight; "
+                "pass --allow-stale-modal to override)"
+            )
+            extra_notes = list(flight_notes)
+            if refresh_note:
+                extra_notes.append(f"modal: {refresh_note}")
+            extra_notes.append(
+                "modal: reporting lag: Modal billing reports lag real-time execution; "
+                "the current hour is partial and unsettled runtime may not yet be reflected."
+            )
+            return unverified_decision(
+                reason_code=REASON_STALE_MODAL,
+                message=refusal_msg,
+                window_start=window_start,
+                window_end=window_end,
+                candidate_usd=candidate_usd,
+                cap_usd=cap_usd,
+                in_flight_usd=flight_usd,
+                in_flight_count=len(flight),
+                in_flight=flight,
+                unratable=unratable,
+                notes=extra_notes,
+            )
+        stale_warning = (
+            f"modal: billing rows are stale (latest hour {stale_hour_str}); "
+            "allowed despite staleness (--allow-stale-modal recorded)"
+        )
+
+    try:
+        ledger = build_window_ledger(
+            Path(repo_root),
+            window_start,
+            window_end,
+            database_url=database_url,
+            cap_usd=cap_usd,
+            extra_roots=extra_roots,
+        )
+    except Exception as exc:
+        return unverified_decision(
+            reason_code=REASON_CAP_UNVERIFIED,
+            message=(
+                f"REFUSAL: {REASON_CAP_UNVERIFIED} "
+                f"(catalog unreachable: {type(exc).__name__}: {exc}); "
+                "settled spend is unknown, never $0"
+            ),
+            window_start=window_start,
+            window_end=window_end,
+            candidate_usd=candidate_usd,
+            cap_usd=cap_usd,
+            in_flight_usd=flight_usd,
+            in_flight_count=len(flight),
+            in_flight=flight,
+            unratable=unratable,
+            notes=flight_notes,
+        )
+    per_basis: dict[str, float] = {}
+    for row in ledger.rows:
+        per_basis[row.basis] = per_basis.get(row.basis, 0.0) + row.usd
+    dynamic_notes: list[str] = list(ledger.notes)
+    if stale_warning:
+        dynamic_notes.append(stale_warning)
+    if refresh_note:
+        dynamic_notes.append(f"modal: {refresh_note}")
+    dynamic_notes.append(
+        "modal: reporting lag: Modal billing reports lag real-time execution; "
+        "the current hour is partial and unsettled runtime may not yet be reflected."
+    )
+    notes = (*dynamic_notes, *flight_notes)
+    if unratable:
+        names = ", ".join(
+            f"{spec.name} ({spec.environment}, queue/{spec.state})" for spec in unratable
+        )
+        return unverified_decision(
+            reason_code=REASON_UNRATABLE_SPEC,
+            message=(
+                f"REFUSAL: {REASON_UNRATABLE_SPEC} "
+                f"({len(unratable)} queued cloud spec(s) with no cost estimate: {names})"
+            ),
+            window_start=window_start,
+            window_end=window_end,
+            candidate_usd=candidate_usd,
+            cap_usd=cap_usd,
+            settled_usd=ledger.total_usd,
+            per_source_usd=dict(ledger.per_source),
+            per_basis_usd=per_basis,
+            in_flight_usd=flight_usd,
+            in_flight_count=len(flight),
+            in_flight=flight,
+            unratable=unratable,
+            notes=notes,
+        )
+    return decide_launch(
+        window_start=window_start,
+        window_end=window_end,
+        settled_usd=ledger.total_usd,
+        per_source_usd=dict(ledger.per_source),
+        per_basis_usd=per_basis,
+        in_flight_usd=flight_usd,
+        in_flight_count=len(flight),
+        in_flight=flight,
+        candidate_usd=candidate_usd,
+        cap_usd=cap_usd,
+        notes=notes,
+    )
+
+
+def decision_to_dict(decision: LaunchDecision) -> dict[str, Any]:
+    """JSON-serializable view of a launch decision (``--json`` output)."""
+    return {
+        "allowed": decision.allowed,
+        "reason_code": decision.reason_code,
+        "window_start": decision.window_start.isoformat(),
+        "window_end": decision.window_end.isoformat(),
+        "settled_usd": decision.settled_usd,
+        "per_source_usd": dict(sorted(decision.per_source_usd.items())),
+        "per_basis_usd": dict(sorted(decision.per_basis_usd.items())),
+        "in_flight_usd": decision.in_flight_usd,
+        "in_flight_count": decision.in_flight_count,
+        "in_flight": [
+            {
+                "spec_id": item.spec_id,
+                "name": item.name,
+                "state": item.state,
+                "environment": item.environment,
+                "est_cost_usd": item.est_cost_usd,
+                "cost_limit_usd": item.cost_limit_usd,
+                "reservation_usd": item.reservation_usd,
+            }
+            for item in decision.in_flight
+        ],
+        "unratable": [
+            {
+                "spec_id": spec.spec_id,
+                "name": spec.name,
+                "state": spec.state,
+                "environment": spec.environment,
+                "reason": spec.reason,
+            }
+            for spec in decision.unratable
+        ],
+        "candidate_usd": decision.candidate_usd,
+        "committed_usd": decision.committed_usd,
+        "cap_usd": decision.cap_usd,
+        "headroom_usd": decision.headroom_usd,
+        "notes": list(decision.notes),
+    }
+
+
+def render_decision(decision: LaunchDecision) -> str:
+    """Human-readable pre-launch verdict with billed/estimate/ledger split."""
+    lines = [
+        f"spend check [{decision.window_start.isoformat()}..{decision.window_end.isoformat()})",
+        f"settled: ${decision.settled_usd:.4f} "
+        f"(billed ${decision.per_basis_usd.get(BASIS_BILLED, 0.0):.4f}, "
+        f"estimate ${decision.per_basis_usd.get(BASIS_ESTIMATE, 0.0):.4f}, "
+        f"ledger ${decision.per_basis_usd.get(BASIS_LEDGER, 0.0):.4f})",
+        f"in-flight: ${decision.in_flight_usd:.4f} "
+        f"({decision.in_flight_count} queued spec(s) in running/approved)",
+    ]
+    for item in decision.in_flight:
+        lines.append(
+            f"  - {item.name} [{item.state}/{item.environment}]: "
+            f"reservation ${item.reservation_usd:.4f} "
+            f"(max(cost_limit {item.cost_limit_usd}, est {item.est_cost_usd:.4f}))"
+        )
+    lines.append(f"candidate: ${decision.candidate_usd:.4f}")
+    lines.append(f"cap: ${decision.cap_usd:.2f}")
+    lines.append(
+        f"committed (settled + in-flight + candidate): ${decision.committed_usd:.4f} "
+        f"vs cap ${decision.cap_usd:.2f}: headroom ${decision.headroom_usd:.4f}"
+    )
+    if decision.allowed:
+        lines.append("VERDICT: ALLOWED — launch would stay within cap")
+    elif decision.reason_code == REASON_CEILING_EXCEEDED:
+        lines.append(
+            f"REFUSAL: {REASON_CEILING_EXCEEDED} — committed "
+            f"${decision.committed_usd:.4f} exceeds cap ${decision.cap_usd:.2f}"
+        )
+    else:
+        lines.append(f"REFUSAL: {decision.reason_code} — launch is unverified, failing closed")
+    for note in decision.notes:
+        lines.append(f"note: {note}")
+    return "\n".join(lines)

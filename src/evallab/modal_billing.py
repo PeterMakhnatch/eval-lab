@@ -97,9 +97,25 @@ def aggregate_daily(rows: list[BillingRow]) -> dict[date, float]:
 
 
 def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution: str) -> int:
-    """Upsert fetched rows into the catalog. Returns the row count."""
+    """Upsert fetched rows into the catalog. Returns the row count.
+
+    When hourly rows are stored (``resolution="h"``), older day-level rows
+    (``resolution="d"``) covering the same UTC dates are removed first so
+    queries over hourly intervals never double-count against daily rows.
+    """
     with psycopg.connect(database_url) as connection:
         connection.execute(BILLING_TABLE_DDL)
+        if resolution == "h" and rows:
+            days = {row.interval_start.date() for row in rows}
+            for target_day in days:
+                connection.execute(
+                    """
+                    DELETE FROM modal_billing_rows
+                    WHERE resolution = 'd'
+                      AND (interval_start AT TIME ZONE 'UTC')::date = %s
+                    """,
+                    (target_day,),
+                )
         for row in rows:
             connection.execute(
                 """
@@ -123,6 +139,51 @@ def store_billing_rows(database_url: str, rows: list[BillingRow], *, resolution:
                 ),
             )
     return len(rows)
+
+
+def refresh_modal_billing(
+    database_url: str,
+    *,
+    start: date,
+    end: date,
+    repo_root: Any | None = None,
+    runner: Any | None = None,
+    resolution: str = "h",
+) -> int:
+    """Fetch Modal billing rows (read-only) and upsert them into the catalog.
+
+    Reuses ``modal_default_runner``, ``normalize_report_rows``, and
+    ``store_billing_rows``. Returns the count of stored rows.
+    Raises ``RuntimeError`` if the runner fails or returns unreadable output.
+    """
+    import json
+    from pathlib import Path
+
+    from evallab.modal_ops import default_runner
+
+    run = runner or default_runner(Path(repo_root) if repo_root else Path.cwd())
+    completed = run(
+        [
+            "billing",
+            "report",
+            "--start",
+            start.isoformat(),
+            "--end",
+            end.isoformat(),
+            "--resolution",
+            resolution,
+            "--json",
+        ]
+    )
+    if completed.returncode != 0:
+        err = getattr(completed, "stderr", "") or f"exit code {completed.returncode}"
+        raise RuntimeError(f"modal billing report failed: {err[-500:]}")
+    try:
+        payload = json.loads(completed.stdout)
+    except Exception as exc:
+        raise RuntimeError(f"modal billing report unreadable: {exc}") from exc
+    rows = normalize_report_rows(payload, resolution=resolution)
+    return store_billing_rows(database_url, rows, resolution=resolution)
 
 
 def lab_selfhosted_daily(database_url: str, day: date) -> tuple[float | None, int, int, str | None]:

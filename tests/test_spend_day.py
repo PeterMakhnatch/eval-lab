@@ -13,6 +13,7 @@ Covers:
 from __future__ import annotations
 
 import json
+import sys
 from datetime import UTC, date, datetime
 from pathlib import Path
 
@@ -29,12 +30,15 @@ from evallab.spend_day import (
     card_for_job,
     card_for_ledger_path,
     collect_spend_jsonl_rows,
-    day_overlap_seconds,
+    day_to_window,
     dedupe_records,
     model_usd_from_provider_usage,
     parse_day,
+    query_model_job_rows,
+    sibling_worktree_roots,
     summarize_day,
     trial_daytona_resources,
+    window_overlap_seconds,
 )
 
 # ---------------------------------------------------------------------------
@@ -44,18 +48,19 @@ from evallab.spend_day import (
 
 def test_utc_day_boundary_split_exact_slices() -> None:
     target_day = date(2026, 9, 30)
+    target_window = day_to_window(target_day)
 
     # 1. Trial entirely within 2026-09-30 (10:00 to 11:30 = 90 min = 5400s)
     t_start = datetime(2026, 9, 30, 10, 0, tzinfo=UTC)
     t_end = datetime(2026, 9, 30, 11, 30, tzinfo=UTC)
-    assert day_overlap_seconds(t_start, t_end, target_day) == pytest.approx(5400.0)
+    assert window_overlap_seconds(t_start, t_end, *target_window) == pytest.approx(5400.0)
 
     # 2. Trial crossing midnight: starts 2026-09-29 23:30, ends 2026-09-30 01:00 (90 min total)
     c_start = datetime(2026, 9, 29, 23, 30, tzinfo=UTC)
     c_end = datetime(2026, 9, 30, 1, 0, tzinfo=UTC)
     # 2026-09-29 gets 30 min (1800s); 2026-09-30 gets 60 min (3600s)
-    overlap_prev = day_overlap_seconds(c_start, c_end, date(2026, 9, 29))
-    overlap_curr = day_overlap_seconds(c_start, c_end, date(2026, 9, 30))
+    overlap_prev = window_overlap_seconds(c_start, c_end, *day_to_window(date(2026, 9, 29)))
+    overlap_curr = window_overlap_seconds(c_start, c_end, *target_window)
     assert overlap_prev == pytest.approx(1800.0)
     assert overlap_curr == pytest.approx(3600.0)
     assert overlap_prev + overlap_curr == pytest.approx((c_end - c_start).total_seconds())
@@ -63,13 +68,15 @@ def test_utc_day_boundary_split_exact_slices() -> None:
     # 3. Trial crossing next midnight: starts 2026-09-30 23:00, ends 2026-10-01 02:00
     n_start = datetime(2026, 9, 30, 23, 0, tzinfo=UTC)
     n_end = datetime(2026, 10, 1, 2, 0, tzinfo=UTC)
-    assert day_overlap_seconds(n_start, n_end, target_day) == pytest.approx(3600.0)
-    assert day_overlap_seconds(n_start, n_end, date(2026, 10, 1)) == pytest.approx(7200.0)
+    assert window_overlap_seconds(n_start, n_end, *target_window) == pytest.approx(3600.0)
+    assert window_overlap_seconds(
+        n_start, n_end, *day_to_window(date(2026, 10, 1))
+    ) == pytest.approx(7200.0)
 
     # 4. Trial completely outside the target day
     o_start = datetime(2026, 9, 28, 12, 0, tzinfo=UTC)
     o_end = datetime(2026, 9, 28, 13, 0, tzinfo=UTC)
-    assert day_overlap_seconds(o_start, o_end, target_day) == 0.0
+    assert window_overlap_seconds(o_start, o_end, *target_window) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +115,12 @@ def test_collect_spend_jsonl_dedupes_across_sibling_checkouts(tmp_path: Path) ->
     ledger1.write_text(f"{row1}\n{row2}\n", encoding="utf-8")
     ledger2.write_text(f"{row1}\n{row2}\n", encoding="utf-8")
 
-    rows, notes = collect_spend_jsonl_rows(main_dir, target_day, extra_roots=[sibling_dir])
+    rows, notes = collect_spend_jsonl_rows(
+        main_dir,
+        *day_to_window(target_day),
+        extra_roots=[sibling_dir],
+        label=target_day.isoformat(),
+    )
     # The two identical files should produce only 1 spend row with total $0.008, not doubled to $0.016
     assert len(rows) == 1
     assert rows[0].card == "HAR-111"
@@ -393,3 +405,180 @@ def test_spend_day_cli_argument_parser() -> None:
 
     with pytest.raises(ValueError):
         parse_day("invalid-date")
+
+
+# ---------------------------------------------------------------------------
+# 9. HAR-122 regression tests: sibling worktree discovery & UTC finish times
+# ---------------------------------------------------------------------------
+
+
+def test_sibling_worktree_roots_discovers_from_linked_worktree(tmp_path: Path) -> None:
+    """Linked worktrees must discover siblings through git common-dir (HAR-122)."""
+    import subprocess
+
+    primary = tmp_path / "repo-primary"
+    primary.mkdir()
+    subprocess.run(["git", "init", "-b", "main", str(primary)], check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(primary),
+            "-c",
+            "user.name=t",
+            "-c",
+            "user.email=t@e",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "init",
+        ],
+        check=True,
+        capture_output=True,
+    )
+    linked = tmp_path / "repo-worktree-a"
+    sibling = tmp_path / "repo-worktree-b"
+    subprocess.run(
+        ["git", "-C", str(primary), "worktree", "add", "-b", "branch-a", str(linked)],
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "-C", str(primary), "worktree", "add", "-b", "branch-b", str(sibling)],
+        check=True,
+        capture_output=True,
+    )
+
+    # Ledger with $25 in the sibling worktree
+    ledger = sibling / "research/experiments/exp1/spend.jsonl"
+    ledger.parent.mkdir(parents=True)
+    ledger.write_text(json.dumps({"ts": "2026-10-01T05:00:00Z", "cost_usd": 25.0}) + "\n")
+
+    # Discovery from the LINKED worktree must find the sibling
+    roots = sibling_worktree_roots(linked)
+    assert sibling.resolve() in [r.resolve() for r in roots]
+    assert primary.resolve() in [r.resolve() for r in roots]
+    assert linked.resolve() not in [r.resolve() for r in roots]
+
+    # Collecting spend from the linked worktree discovers the $25 sibling ledger
+    window = (datetime(2026, 10, 1, 0, 0, tzinfo=UTC), datetime(2026, 10, 2, 0, 0, tzinfo=UTC))
+    rows, _ = collect_spend_jsonl_rows(linked, *window, extra_roots=roots)
+    assert sum(r.usd for r in rows) == pytest.approx(25.0)
+
+
+def test_model_job_rows_grouped_by_utc_finish_time_har53(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Jobs must be grouped by UTC finish time, not naive local time (HAR-122).
+
+    HAR-53 fixture: local 2026-09-15T20:02 EDT is UTC 2026-09-16T00:02.
+    The token dollars must land on 2026-09-16, never 2026-09-15.
+    """
+    import types
+
+    class _FakeCursor:
+        def fetchall(self):
+            # One job with local finished_at 20:02 on 09-15, but lab_metadata finished_at 00:02 on 09-16 UTC
+            return [
+                (
+                    "har53-job",
+                    "runs/har53",
+                    "job-53",
+                    "2026-09-15T20:02:00",
+                    {
+                        "finished_at": "2026-09-16T00:02:00+00:00",
+                        "provider_usage": {
+                            "schema_version": 2,
+                            "pricing": {
+                                "input_cost_micros_per_million": 1,
+                                "output_cost_micros_per_million": 1,
+                            },
+                            "totals": {
+                                "requests": 1,
+                                "input_tokens": 1000,
+                                "output_tokens": 500,
+                                "total_tokens": 1500,
+                                "cost_micros": 50000,
+                            },
+                            "attempted": {
+                                "requests": 0,
+                                "input_tokens": 0,
+                                "output_tokens": 0,
+                                "total_tokens": 0,
+                                "cost_micros": 0,
+                            },
+                            "unresolved_requests": 0,
+                            "calls": [
+                                {
+                                    "state": "reconciled",
+                                    "call_id": 1,
+                                    "input_tokens": 1000,
+                                    "output_tokens": 500,
+                                    "cost_micros": 50000,
+                                }
+                            ],
+                        },
+                    },
+                ),
+                # Second job: naive local only (lab_metadata lacks finished_at)
+                (
+                    "har53-naive-only",
+                    "runs/har53-naive",
+                    "job-53-naive",
+                    "2026-09-15T20:02:00",
+                    {
+                        "provider_usage": {
+                            "schema_version": 2,
+                            "pricing": {
+                                "input_cost_micros_per_million": 1,
+                                "output_cost_micros_per_million": 1,
+                            },
+                            "totals": {
+                                "requests": 1,
+                                "input_tokens": 1000,
+                                "output_tokens": 500,
+                                "total_tokens": 1500,
+                                "cost_micros": 30000,
+                            },
+                            "attempted": {
+                                "requests": 0,
+                                "input_tokens": 0,
+                                "output_tokens": 0,
+                                "total_tokens": 0,
+                                "cost_micros": 0,
+                            },
+                            "unresolved_requests": 0,
+                            "calls": [
+                                {
+                                    "state": "reconciled",
+                                    "call_id": 1,
+                                    "input_tokens": 1000,
+                                    "output_tokens": 500,
+                                    "cost_micros": 30000,
+                                }
+                            ],
+                        },
+                    },
+                ),
+            ]
+
+    class _FakeConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, *args):
+            return _FakeCursor()
+
+    fake_psycopg = types.ModuleType("psycopg")
+    fake_psycopg.connect = lambda url: _FakeConn()
+    monkeypatch.setitem(sys.modules, "psycopg", fake_psycopg)
+
+    # Querying for 2026-09-16 UTC must find both jobs (both land on 2026-09-16 UTC)
+    rows_16, _ = query_model_job_rows("postgresql://fake/db", *day_to_window(date(2026, 9, 16)))
+    assert len(rows_16) == 2
+    assert sum(r.usd for r in rows_16) == pytest.approx(0.08)
+
+    # Querying for 2026-09-15 UTC must find zero jobs
+    rows_15, _ = query_model_job_rows("postgresql://fake/db", *day_to_window(date(2026, 9, 15)))
+    assert len(rows_15) == 0

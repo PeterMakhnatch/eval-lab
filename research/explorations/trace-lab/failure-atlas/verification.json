@@ -1,0 +1,100 @@
+{
+  "verified_at_utc": "2026-10-01T08:00:59.043480+00:00",
+  "atlas_sha256": "292aee54ea435a189ebb858f619f5654069bd6b22873972039c523976078e6f6",
+  "readme_sha256": "a5bcb0de382cf848fd9bd70114ef6d37ef02a1352361a0b81b7cf6c57cd33e9b",
+  "query_results_sha256": "618a3bcf811eceab0f834b75e48e5cc87771e39da0d2e9e8e3bc049c63e98092",
+  "corpus_digest": "sha256:4ec47b8b3d7b6cb62c042405144b7020137979bea822d2e0481b0dff8ae544c1",
+  "verified_refs": [
+    {
+      "category": "recorded-budget-stop",
+      "trial": "gepa-terminus-2-format-code-task__7RJJeFg",
+      "step_ref": "head#76",
+      "source_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
+      "selection": "highest native step_id context; not a causal or chronological assertion"
+    },
+    {
+      "category": "recorded-budget-stop",
+      "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+      "step_ref": "head#88",
+      "source_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
+      "selection": "highest native step_id context; not a causal or chronological assertion"
+    },
+    {
+      "category": "completion-claim-loop",
+      "trial": "gepa-terminus-2-format-code-task__7RJJeFg",
+      "step_ref": "head#42",
+      "source_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
+      "selection": "loop-onset opinion head#42"
+    },
+    {
+      "category": "completion-claim-loop",
+      "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+      "step_ref": "head#43",
+      "source_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
+      "selection": "loop-onset opinion head#43"
+    },
+    {
+      "category": "repetition-loop",
+      "trial": "gepa-terminus-2-format-code-task__bo5YsYL",
+      "step_ref": "head#25",
+      "source_sha256": "sha256:a9114a61e1fe99a939461f517d6c1602a0da1326e1fe8c5eb2bc3c1e70f77f7a",
+      "selection": "loop-onset opinion head#25"
+    },
+    {
+      "category": "repetition-loop",
+      "trial": "har104-d-001896__MDkTErY",
+      "step_ref": "head#33",
+      "source_sha256": "sha256:3c231fa870acc5c0bae11a9c1eea98f3a21f898ce9d28f9fa259ae961014520e",
+      "selection": "loop-onset opinion head#33"
+    },
+    {
+      "category": "counts-excluded-copied-pass",
+      "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+      "step_ref": "head#20",
+      "source_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
+      "selection": "upstream-fetch detector evidence head#20"
+    },
+    {
+      "category": "counts-excluded-copied-pass",
+      "trial": "har104-d-000226__JCDfZFi",
+      "step_ref": "head#4",
+      "source_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
+      "selection": "upstream-fetch detector evidence head#4"
+    },
+    {
+      "category": "counts-excluded-infra",
+      "trial": "har110-dev-002256-cfe31418__uDRp4Vb",
+      "step_ref": "head#15",
+      "source_sha256": "sha256:ab599e4c39fb5de053cfabd2574054ab62c25a1c013a08e582d4d1c433fb006d",
+      "selection": "loop-onset opinion head#15"
+    },
+    {
+      "category": "counts-excluded-infra",
+      "trial": "har116-a-000383-loopfix__wgujpBQ",
+      "step_ref": "head#1",
+      "source_sha256": "sha256:896e4fed468429b0a48fc0d0ad71d8f92099bebe318efe99e09c37fa879fd7ea",
+      "selection": "median real non-copied step (no recorded ref resolved)"
+    },
+    {
+      "category": "recorded-upstream-fetch-signal",
+      "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+      "step_ref": "head#20",
+      "source_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
+      "selection": "upstream-fetch detector evidence head#20"
+    },
+    {
+      "category": "recorded-upstream-fetch-signal",
+      "trial": "har104-d-000226__JCDfZFi",
+      "step_ref": "head#4",
+      "source_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
+      "selection": "upstream-fetch detector evidence head#4"
+    }
+  ],
+  "n_queries_exercised": 10,
+  "loop_frozen_agreement": {
+    "agree": 7,
+    "eligible": 11
+  },
+  "scope": "All-recorded inspection atlas. Not a proposer input; separate gated reflection remains unavailable without authorized bindings.",
+  "native_trial_manifest_verified": 90
+}

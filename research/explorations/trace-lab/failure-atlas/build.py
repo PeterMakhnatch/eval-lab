@@ -251,23 +251,32 @@ def _ordered_real_steps(steps: list) -> list:
 
 
 def pick_exemplar_step(trial: dict, steps: list, judgments: dict, taint: list,
-                       prefer_last: bool = False) -> tuple[dict, str]:
+                       prefer_last: bool = False, prefer_taint: bool = False) -> tuple[dict, str]:
     """Deterministic step pick; refs must resolve to a real view step (raw check is separate)."""
     ordered = _ordered_real_steps(steps)
-    fresh = [s for s in ordered if not s.get("is_copied_context")] or ordered
+    fresh = [s for s in ordered if not s.get("is_copied_context")]
     fresh_by_ref = {s.get("step_ref"): s for s in fresh}
+    if prefer_last and fresh:
+        return fresh[-1], "highest native step_id context; not a causal or chronological assertion"
+    if prefer_taint:
+        for flag in taint:
+            if isinstance(flag, dict) and flag.get("kind") == "upstream_fetch":
+                ref = flag.get("evidence")
+                if ref in fresh_by_ref:
+                    return fresh_by_ref[ref], f"upstream-fetch detector evidence {ref}"
     candidates: list[tuple[dict | None, str]] = []
     loop = judgments.get("loop_kind") or {}
     if isinstance(loop, dict) and loop.get("loop_onset_step") is not None:
-        ref = f"head#{loop['loop_onset_step']}"
-        candidates.append((fresh_by_ref.get(ref), f"loop_onset {ref}"))
+        matches = [s for s in fresh if s.get("step_id") == loop["loop_onset_step"]]
+        if len(matches) == 1:
+            candidates.append((matches[0], f"loop-onset opinion {matches[0]['step_ref']}"))
     ff = judgments.get("first_failure")
     ff_ref = (ff or {}).get("step") if isinstance(ff, dict) else None
     if ff_ref is None and trial.get("first_failure_ref"):
         ff_ref = trial["first_failure_ref"]
     if _step_number(ff_ref) is not None:
-        ref = f"head#{_step_number(ff_ref)}"
-        candidates.append((fresh_by_ref.get(ref), f"first_failure {ref}"))
+        ref = str(ff_ref)
+        candidates.append((fresh_by_ref.get(ref), f"first-failure opinion {ref}"))
     for entry in taint:
         if isinstance(entry, dict) and entry.get("evidence"):
             ref = str(entry["evidence"])
@@ -276,8 +285,6 @@ def pick_exemplar_step(trial: dict, steps: list, judgments: dict, taint: list,
     for step, how in candidates:
         if step is not None and (step.get("command_text") or step.get("observation_excerpt")):
             return step, how
-    if prefer_last and fresh:
-        return fresh[-1], "last real non-copied step (budget tail)"
     if fresh:
         return fresh[len(fresh) // 2], "median real non-copied step (no recorded ref resolved)"
     return ordered[len(ordered) // 2], "median real step (only copied context available)"
@@ -289,8 +296,8 @@ FROZEN_LABEL_COHORTS = {"har109", "har119", "har128-sft-pass"}
 def summarize_labels(trial: dict) -> tuple[list, int]:
     """Frozen entries only (har109/har119 raters, har128-sft-pass adjudication).
 
-    Heuristic rows are dropped and counted. Summaries carry cohort, rater,
-    provenance and label scope only -- never the full adjudicated label text.
+    Heuristic rows are dropped. The inspection atlas retains structured judgments;
+    the separately constructed proposer payload never receives these labels.
     """
     out, dropped = [], 0
     for entry in _parse_json_list(trial.get("labels_json")):
@@ -303,6 +310,20 @@ def summarize_labels(trial: dict) -> tuple[list, int]:
                    "provenance": entry.get("provenance")}
         if entry.get("label_scope"):
             summary["label_scope"] = entry.get("label_scope")
+        summary["source_file"] = entry.get("source_file")
+        summary["source_sha256"] = entry.get("source_sha256")
+        for field in ("loop_kind", "pass_copied", "blame", "stop_reason",
+                      "task_verdict", "completion_confirmed"):
+            if field in entry:
+                summary[field] = entry[field]
+        if entry.get("cohort") == "har128-sft-pass":
+            label = entry.get("label") or {}
+            summary["adjudication"] = {
+                field: label.get(field) for field in (
+                    "clean", "genuine", "cut_step_id", "ends_with_completion",
+                    "format_warning_steps_kept",
+                )
+            }
         out.append(summary)
     return out, dropped
 
@@ -349,11 +370,20 @@ def verify_step_raw(trial: dict, step: dict) -> dict:
     return result
 
 
-def build_exemplar(trial: dict, steps: list, prefer_last: bool = False) -> dict:
+def build_exemplar(trial: dict, steps: list, prefer_last: bool = False,
+                   prefer_taint: bool = False) -> dict:
     judgments = _parse_json_dict(trial.get("decision_judgments_json"))
     taint = _parse_json_list(trial.get("taint_json"))
-    step, how = pick_exemplar_step(trial, steps, judgments, taint, prefer_last=prefer_last)
+    step, how = pick_exemplar_step(
+        trial, steps, judgments, taint, prefer_last=prefer_last, prefer_taint=prefer_taint
+    )
     labels, _ = summarize_labels(trial)
+    trial_dir = Path(trial["source_trial_dir"]) if trial.get("source_trial_dir") else None
+    raw_path = trial_dir / step["source_path"] if trial_dir and step.get("source_path") else None
+    step_link = (
+        f"{raw_path.as_uri()}#step_id={step['step_id']}"
+        if raw_path and raw_path.is_absolute() else None
+    )
     return {
         "trial_name": trial.get("trial_name"),
         "job_name": trial.get("job_name"),
@@ -367,6 +397,8 @@ def build_exemplar(trial: dict, steps: list, prefer_last: bool = False) -> dict:
         "loop_kind": trial.get("loop_kind"),
         "outcome_rule": trial.get("outcome_rule"),
         "step_ref": step.get("step_ref"),
+        "step_link": step_link,
+        "result_link": (trial_dir / "result.json").as_uri() if trial_dir and trial_dir.is_absolute() else None,
         "source_path": step.get("source_path"),
         "source_sha256": step.get("source_sha256"),
         "source_trial_dir": trial.get("source_trial_dir"),
@@ -381,16 +413,18 @@ def build_exemplar(trial: dict, steps: list, prefer_last: bool = False) -> dict:
 
 
 def select_exemplars(matching: list, steps_by_trial: dict, limit: int = 2,
-                     prefer_last: bool = False) -> list:
+                     prefer_last: bool = False, prefer_taint: bool = False) -> list:
     """First `limit` RAW-VERIFIED exemplars (by trial_name); unverified refs are skipped, never padded."""
     exemplars = []
     for trial in sorted(matching, key=lambda t: t.get("trial_name") or ""):
         if len(exemplars) == limit:
             break
         steps = steps_by_trial.get((trial.get("job_id"), trial.get("trial_id")), [])
-        if not _ordered_real_steps(steps):
+        if not any(not step.get("is_copied_context") for step in _ordered_real_steps(steps)):
             continue
-        candidate = build_exemplar(trial, steps, prefer_last=prefer_last)
+        candidate = build_exemplar(
+            trial, steps, prefer_last=prefer_last, prefer_taint=prefer_taint
+        )
         if candidate["raw_verification"]["verified"]:
             exemplars.append(candidate)
     return exemplars
@@ -408,14 +442,14 @@ CATEGORY_DEFS = [
         "id": "completion-claim-loop",
         "kind": "opinion",
         "predicate": "decision loop_kind.kind == 'completion-claim' (producer rule HAR-119)",
-        "denominator": "eligible trials with loop_kind non-null (decision v2 present)",
+        "denominator": "eligible trials with a recorded loop-kind prediction",
         "lever_hypothesis": "Prompt/harness completion discipline (e.g. confirm-then-stop); causal evidence absent.",
     },
     {
         "id": "repetition-loop",
         "kind": "opinion",
         "predicate": "decision loop_kind.kind == 'repetition' (producer rule HAR-119)",
-        "denominator": "eligible trials with loop_kind non-null (decision v2 present)",
+        "denominator": "eligible trials with a recorded loop-kind prediction",
         "lever_hypothesis": "Harness loop-break / output-cap or agent stuckness recovery; causal evidence absent.",
     },
     {
@@ -435,7 +469,7 @@ CATEGORY_DEFS = [
     {
         "id": "recorded-upstream-fetch-signal",
         "kind": "fact-signal",
-        "predicate": "processed taint contains an upstream_fetch entry (recorded command, NOT proof of copying)",
+        "predicate": "processed taint contains an upstream_fetch detector entry; command provenance is separate, not proof of execution or copying",
         "denominator": "eligible trials with processed_available (taint lives in processed reports)",
         "lever_hypothesis": "Fetch command != fetched solution; treat as audit signal only.",
     },
@@ -603,8 +637,11 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
     for cat in CATEGORY_DEFS:
         denom = denominator_for(cat["id"], eligible)
         matching = [t for t in denom if match_category(cat["id"], t)]
-        exemplars = select_exemplars(matching, steps_by_trial,
-                                     prefer_last=(cat["id"] == "recorded-budget-stop"))
+        exemplars = select_exemplars(
+            matching, steps_by_trial,
+            prefer_last=(cat["id"] == "recorded-budget-stop"),
+            prefer_taint=(cat["id"] in {"counts-excluded-copied-pass", "recorded-upstream-fetch-signal"}),
+        )
         categories.append({
             **cat,
             "n": len(matching),
@@ -612,7 +649,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             "excluded_from_denominator": len(eligible) - len(denom),
             "trial_names": sorted(t.get("trial_name") for t in matching),
             "exemplars": exemplars,
-            "generalized": len(exemplars) >= 2,
+            "exemplar_coverage_met": len(exemplars) >= 2,
             "opinion_limits": opinion_limits if cat["kind"] in ("opinion",) else None,
         })
 
@@ -621,7 +658,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
     if discarded:
         rare_cases.append({
             "id": "ledger-discarded-task",
-            "note": "Trial(s) on ledger-discarded (authoritatively task-broken) tasks; n<2 stays a rare case, never a generalized category.",
+            "note": "Canonical ledger-discarded task identities are task-health exclusions, not pooled model failures.",
             "trial_names": sorted(t.get("trial_name") for t in discarded),
             "exemplars": select_exemplars(discarded, steps_by_trial, limit=2),
         })
@@ -707,8 +744,41 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             "eligible_predicate": "model_name matches MiMo-V2.6-Distill-Qwen-9B AND task family format-code-task-NNNNNN (recorded identity, ledger corroborates family=Python)",
             "n_discovered": len(trials),
             "n_eligible": len(eligible),
+            "trials": [
+                {
+                    "job_id": t["job_id"], "trial_id": t["trial_id"],
+                    "job_name": t["job_name"], "trial_name": t["trial_name"],
+                    "task_name": t["task_name"], "task_id": task_id_of(t),
+                    "task_package_digest": t.get("task_package_digest"),
+                    "card": t.get("card"), "arm": t.get("arm"),
+                    "recorded_split": t.get("split"),
+                    "ledger_split": (ledger["by_task"].get(task_id_of(t)) or {}).get("split"),
+                    "ledger_status": t.get("_ledger_status"),
+                    "ledger_project": (ledger["by_task"].get(task_id_of(t)) or {}).get("project"),
+                    "counts_verdict": t.get("counts_verdict"),
+                    "raw_reward": t.get("raw_reward"), "scored": t.get("scored"),
+                    "category_membership": [
+                        c["id"] for c in CATEGORY_DEFS if match_category(c["id"], t)
+                    ],
+                    "source_trial_dir": t.get("source_trial_dir"),
+                    "report_path": t.get("report_path"),
+                    "input_hashes": {
+                        "native_result": _optional_sha(Path(t["source_trial_dir"]) / "result.json"),
+                        "processed_report": _optional_sha(Path(t["report_path"])) if t.get("report_path") else None,
+                        "atif": [
+                            {"source_path": path, "sha256": digest}
+                            for path, digest in sorted({
+                                (step["source_path"], step["source_sha256"])
+                                for step in steps_by_trial.get((t["job_id"], t["trial_id"]), [])
+                            })
+                        ],
+                    },
+                }
+                for t in sorted(eligible, key=lambda item: (item["job_id"], item["trial_id"]))
+            ],
             "excluded_rows": [
-                {"trial_name": t.get("trial_name"), "card": t.get("card"),
+                {"job_id": t.get("job_id"), "trial_id": t.get("trial_id"),
+                 "trial_name": t.get("trial_name"), "card": t.get("card"),
                  "task_name": t.get("task_name"), "model_name": t.get("model_name"),
                  "reason": t.get("exclusion_reason")}
                 for t in sorted(excluded_rows, key=lambda t: t.get("trial_name") or "")
@@ -877,12 +947,15 @@ def render_readme(atlas: dict) -> str:
         f"- Frozen labels independently re-verified ({atlas['provenance']['har119_freeze'].get('checked')} files "
         f"ok={atlas['provenance']['har119_freeze'].get('files_ok')}); heuristic label rows dropped: "
         f"{atlas['provenance'].get('heuristic_labels_dropped')}.",
+        "- Step links open retained local ATIF files and name the raw step_id. Verification "
+        "checks file bytes and reference existence, not causal responsibility. Context-only "
+        "anchors and page-opinion anchors remain explicitly labelled.",
         "",
         "## Patterns (frequency | eligible denominator | N, current view only)",
         "",
     ]
     for cat in atlas["categories"]:
-        flag = "generalized" if cat["generalized"] else "RARE (fewer than 2 raw-verified step-linked exemplars)"
+        flag = "two verified exemplars" if cat["exemplar_coverage_met"] else "insufficient step-linked exemplars"
         lines.append(f"### {cat['id']} [{cat['kind']}; {flag}]")
         lines.append(f"- {cat['n']}/{cat['denominator_n']} ({cat['denominator']})")
         lines.append(f"- Predicate: `{cat['predicate']}`")
@@ -894,8 +967,17 @@ def render_readme(atlas: dict) -> str:
         for ex in cat["exemplars"]:
             verified = ex.get("raw_verification", {}).get("verified")
             lines.append(
-                f"- `{ex['trial_name']}` {ex['step_ref']} ({ex['source_path']}, "
-                f"{ex.get('evidence_kind')}, raw-verified={verified}) :: {(ex['command_text'] or ex['observation_excerpt'] or '')[:120]}")
+                f"- [`{ex['trial_name']}` / {ex['step_ref']}](<{ex.get('step_link') or ''}>) "
+                f"({ex.get('evidence_kind')}, reference-verified={verified}). "
+                f"Selection: {ex.get('step_selection')}. "
+                f"[Native result](<{ex.get('result_link') or ''}>)."
+            )
+            excerpt = (ex["command_text"] or ex["observation_excerpt"] or "")[:120]
+            if excerpt:
+                fence = "`" * max(3, 1 + max((len(s) for s in re.findall(r"`+", excerpt)), default=0))
+                lines.extend([f"{fence}text", excerpt, fence])
+            else:
+                lines.append("  Setup-context anchor only; no recorded command or observation at this step.")
         lines.append(f"- Lever (hypothesis): {cat['lever_hypothesis']}")
         lines.append("")
     lines += [
@@ -1063,7 +1145,7 @@ def main(argv: list | None = None) -> int:
           f"excluded={len(atlas['corpus']['excluded_rows'])}")
     for cat in atlas["categories"]:
         print(f"{cat['id']}: {cat['n']}/{cat['denominator_n']} exemplars={len(cat['exemplars'])} "
-              f"generalized={cat['generalized']}")
+              f"exemplar_coverage_met={cat['exemplar_coverage_met']}")
     print(f"reflection={atlas['reflection']['status']} "
           f"payload_file={atlas['reflection'].get('payload_file')}")
     print(f"wrote {out_dir / 'atlas.json'} and {out_dir / 'README.md'}")

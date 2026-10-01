@@ -106,8 +106,11 @@ silently recode unscored attempts as failures.
 
 Coverage separates trajectory-file existence, actual observed steps,
 processed/counts availability and frozen-label availability. First-edit
-detector measurements require existing, unambiguously matched trial-feature
-Parquet; a missing metric is not a no-edit result. Post-edit shares use a
+detector measurements reuse source-hash-matched `traj_features` Parquet. When
+no stored feature exists, the existing read-only `traj.outline_trajectory`
+producer computes it from the explicitly scoped trial directory without writing
+a store. Stale or conflicting stored values remain unknown. A missing metric
+is not a no-edit result. Post-edit shares use a
 complete ordinal-matched native step-metric population for both numerator and
 denominator, independently for input/output, never settled proxy totals or
 mixed-source producer shares. Edit signals do not prove persisted useful work.

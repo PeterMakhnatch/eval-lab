@@ -522,3 +522,29 @@ def test_first_edit_feature_requires_unambiguous_current_source(tmp_path: Path, 
         assert (measured, first_edit) == ((True, 1) if state == "current" else (False, None))
     finally:
         con.close()
+
+
+def test_first_edit_reader_accepts_explicit_job_outside_data_checkout(tmp_path: Path) -> None:
+    data_root = tmp_path / "data-checkout"
+    data_root.mkdir()
+    job = tmp_path / "published-results" / "job"
+    trial = _create_minimal_trial(job, "trial_external")
+    result_path = trial / "result.json"
+    result = json.loads(result_path.read_text())
+    result["config"] = {"job_id": "job-uuid-1"}
+    result_path.write_text(json.dumps(result))
+    trajectory_path = trial / "agent/trajectory.json"
+    trajectory = json.loads(trajectory_path.read_text())
+    trajectory["steps"][0]["tool_calls"] = [
+        {"function_name": "write_file", "arguments": {"path": "/testbed/f.py", "content": "x = 1"}}
+    ]
+    trajectory_path.write_text(json.dumps(trajectory))
+    con, _ = connect_trace_query(repo_root=data_root, job_dirs=[job])
+    try:
+        measured, step = con.execute(
+            "SELECT first_edit_measure_available, first_edit_step FROM v_trace_trials"
+        ).fetchone()
+        assert measured is True
+        assert step == 1
+    finally:
+        con.close()

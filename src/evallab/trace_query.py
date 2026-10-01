@@ -1161,13 +1161,20 @@ def connect_trace_query(
 
     # Reuse the existing edit-action feature, bound to the current ATIF bytes.
     # Duplicate historical projections cannot arbitrarily choose a first edit.
+    features_by_id: dict[tuple[str, str], set[tuple[str, int | None]]] = {}
+    head_hashes_by_id = {
+        key: {
+            step["source_sha256"].removeprefix("sha256:")
+            for step in steps if step["source_path"] == "agent/trajectory.json"
+        }
+        for key, steps in steps_by_trial_id.items()
+    }
     try:
         feature_rows = conn.execute(
             "SELECT job_id, trial_id, source_sha256, step_to_first_edit "
             "FROM traj_features WHERE status = 'featured' "
             "AND unavailable_reason IS NULL AND agent_step_count > 0"
         ).fetchall()
-        features_by_id: dict[tuple[str, str], set[tuple[str, int | None]]] = {}
         for feature_job, feature_trial, digest, first_edit in feature_rows:
             if digest:
                 features_by_id.setdefault((str(feature_job), str(feature_trial)), set()).add(
@@ -1175,11 +1182,7 @@ def connect_trace_query(
                 )
         for row in all_trial_rows:
             key = (row["job_id"], row["trial_id"])
-            head_hashes = {
-                step["source_sha256"].removeprefix("sha256:")
-                for step in steps_by_trial_id[key]
-                if step["source_path"] == "agent/trajectory.json"
-            }
+            head_hashes = head_hashes_by_id[key]
             matches = {
                 feature for feature in features_by_id.get(key, set())
                 if feature[0] in head_hashes
@@ -1191,6 +1194,31 @@ def connect_trace_query(
                 row["first_edit_evidence_source"] = f"traj_features@{digest}"
     except duckdb.Error as exc:
         coverage.setdefault("parquet_errors", []).append(str(exc))
+
+    # When no stored feature exists, use the same read-only outline producer
+    # that process-job already uses. No new detector or persisted feature store.
+    from evallab.traj import outline_trajectory
+
+    for row in all_trial_rows:
+        key = (row["job_id"], row["trial_id"])
+        if key in features_by_id or not row["trajectory_available"]:
+            continue
+        try:
+            trial_path = Path(row["source_trial_dir"])
+            outline = outline_trajectory(
+                trial_path, repo_root=root, explicit_runs_root=trial_path.parent
+            )
+        except (OSError, ValueError) as exc:
+            coverage.setdefault("first_edit_errors", {})[f"{key[0]}/{key[1]}"] = str(exc)
+            continue
+        if (
+            outline.status == "featured" and outline.agent_steps > 0
+            and (outline.job_id, outline.trial_id) == key
+            and outline.source_sha256 in head_hashes_by_id[key]
+        ):
+            row["first_edit_step"] = outline.step_to_first_edit
+            row["first_edit_measure_available"] = True
+            row["first_edit_evidence_source"] = f"traj.outline_trajectory@{outline.source_sha256}"
 
     # Bind every consumed projection field, including step source hashes and
     # Parquet-supplied package identities, not only outcome/label summaries.

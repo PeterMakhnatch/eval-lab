@@ -29,11 +29,11 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:8e437f7f76b2147c8478d3ba17a31fd1a5a8bb07680c9b9ab02723d0a6f5632e
   - path: docs/attach-surface.md
-    digest: sha256:24568c07fd8448f019f046f95811b1edd0913638f70bb35b6299f6f8c3d926b1
+    digest: sha256:f25d3359de4679c08f86887b991cadcab0bf2e386ebb61d5325d63a1fd09e315
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
-    digest: sha256:105ecb8bfedc934b8a04c824f3a0383b3c2a3ea57530dd6fb1f49cbd5968f356
+    digest: sha256:5b28343b180aa00c52789fb3cf238348c6d8887add328344c1be9861cbb7e957
   - path: docs/canaries.md
     digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
   - path: docs/catalog-tables.md

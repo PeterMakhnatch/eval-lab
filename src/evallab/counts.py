@@ -3,7 +3,9 @@
 ``reward`` is never rewritten. ``counts`` says whether that reward may be
 quoted as a model result. Only deterministic facts exclude a trial:
 
-- ``copied_fix``: a pass with confirmed upstream acquisition
+- ``copied_fix``: a pass with confirmed upstream acquisition, or whose added
+  lines match code read from outside the base checkout
+  (:mod:`evallab.copy_check`, ``copied_code``)
 - ``pass_tainted``: HAR-100, a pass with confirmed acquisition or a guard reject
 - ``task_not_usable``: census or hand label says the task cannot be read.
   The census labels a task's original package; a trial that ran a
@@ -63,14 +65,16 @@ def classify_counts(
     attempts = [flag for flag in taint_flags if flag.get("kind") == "upstream_fetch"]
     fetches = [flag for flag in attempts if confirmed_fetch(flag)]
     guards = [flag for flag in taint_flags if flag.get("kind") == "guard_reject"]
+    copies = [flag for flag in taint_flags if flag.get("kind") == "copied_code"]
     passed = _passed(reward, scored)
     failed = scored and isinstance(reward, (int, float)) and not isinstance(reward, bool) and float(reward) < 1.0
 
     reasons: list[str] = []
     evidence: list[dict[str, Any]] = []
-    if passed and fetches:
+    if passed and (fetches or copies):
         reasons.append("copied_fix")
         evidence.extend(_fetch_evidence("copied_fix", fetches))
+        evidence.extend(_copy_evidence(copies))
     if passed and (fetches or guards):
         reasons.append("pass_tainted")
         evidence.extend(_taint_evidence(fetches, guards))
@@ -452,6 +456,26 @@ def _fetch_evidence(
             "observations": flag["outcome_evidence"],
         }
         for flag in fetches
+    ]
+
+
+def _copy_evidence(copies: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            **_evidence(
+                "copied_fix",
+                detector="copy_check",
+                step=(flag.get("source_steps") or [{}])[0].get("step"),
+                command=(flag.get("source_steps") or [{}])[0].get("command"),
+                excerpt=f"{flag.get('matched_lines')} of {flag.get('added_lines')} added lines "
+                "match code read from outside the base checkout",
+                path="verifier/agent.diff",
+            ),
+            "rule": flag.get("rule"),
+            "source_steps": flag.get("source_steps") or [],
+            "examples": flag.get("examples") or [],
+        }
+        for flag in copies
     ]
 
 

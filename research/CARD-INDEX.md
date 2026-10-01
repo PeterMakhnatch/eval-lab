@@ -4,7 +4,9 @@ Committed navigation, not live execution status: this index maps each
 HAR card to its committed folder(s) and principal committed artifact
 under `research/explorations/` and `research/experiments/` at
 2026-10-01 (includes the committed overnight outputs: HAR-78 report,
-HAR-116 results). Current run state lives in Linear and the results
+HAR-116 results, HAR-120/HAR-126 data-batch generator, HAR-126 telemetry
+guide, HAR-127/HAR-133 frozen eval set and preregistration, HAR-129 dry-run
+receipt and parity smoke). Current run state lives in Linear and the results
 home (`~/Developer/eval-lab-results/`); a setup document below does
 not mean nothing ran. No mass moves were made and no findings were
 rewritten; the "artifact" column names only the static committed type.
@@ -45,9 +47,13 @@ rewritten; the "artifact" column names only the static committed type.
 | [HAR-117](https://linear.app/petermakhnatch/issue/HAR-117) | [research/experiments/har117-results-home/](experiments/har117-results-home/) | [PROVENANCE.md](experiments/har117-results-home/PROVENANCE.md) + [SYNC-RESEARCH.md](experiments/har117-results-home/SYNC-RESEARCH.md) | result report |
 | [HAR-119](https://linear.app/petermakhnatch/issue/HAR-119) | [research/explorations/trace-lab/har119/](explorations/trace-lab/har119/) | [README.md](explorations/trace-lab/har119/README.md) + [scores.md](explorations/trace-lab/har119/scores.md) (+ [RATER_GUIDE.md](explorations/trace-lab/har119/RATER_GUIDE.md)) | result report |
 | [HAR-120](https://linear.app/petermakhnatch/issue/HAR-120) | [research/experiments/python-task-ledger/](experiments/python-task-ledger/) | [README.md](experiments/python-task-ledger/README.md) + [ledger.csv](experiments/python-task-ledger/ledger.csv) | evidence bundle |
+| [HAR-120](https://linear.app/petermakhnatch/issue/HAR-120) / [HAR-126](https://linear.app/petermakhnatch/issue/HAR-126) | [research/experiments/har120-data-batch/](experiments/har120-data-batch/) | [README.md](experiments/har120-data-batch/README.md) + [make_specs.py](experiments/har120-data-batch/make_specs.py) (G2 spec generator; reads the HAR-127 frozen eval list for repo-overlap drops) | setup document |
 | [HAR-122](https://linear.app/petermakhnatch/issue/HAR-122) | [research/experiments/har122-egress-lock/](experiments/har122-egress-lock/) | [README.md](experiments/har122-egress-lock/README.md) (egress-lock probe) | result report |
 | [HAR-122](https://linear.app/petermakhnatch/issue/HAR-122) | [research/experiments/har122-spend-day/](experiments/har122-spend-day/) | [README.md](experiments/har122-spend-day/README.md) + [2026-09-29.json](experiments/har122-spend-day/2026-09-29.json); [PROPOSAL.md](experiments/har122-spend-day/PROPOSAL.md) | evidence bundle + proposal document |
 | [HAR-125](https://linear.app/petermakhnatch/issue/HAR-125) | [research/experiments/reef/](experiments/reef/) | [README.md](experiments/reef/README.md) (program pointer) | setup document |
+| [HAR-126](https://linear.app/petermakhnatch/issue/HAR-126) | [research/experiments/har126-telemetry/](experiments/har126-telemetry/) | [README.md](experiments/har126-telemetry/README.md) (sampler/extractor guide + HAR-116 round-2 baseline; supports HAR-129 throughput analysis) | setup document |
+| [HAR-127](https://linear.app/petermakhnatch/issue/HAR-127) / [HAR-133](https://linear.app/petermakhnatch/issue/HAR-133) | [research/experiments/ovn-sft-v0/](experiments/ovn-sft-v0/) | [PREREG.md](experiments/ovn-sft-v0/PREREG.md) + [eval_tasks.csv](experiments/ovn-sft-v0/eval_tasks.csv) (+ [contamination.json](experiments/ovn-sft-v0/contamination.json), [select_eval.py](experiments/ovn-sft-v0/select_eval.py)) (frozen 20-task eval set + contamination audit) | evidence bundle + preregistration document |
+| [HAR-129](https://linear.app/petermakhnatch/issue/HAR-129) | [research/experiments/har129-lora/](experiments/har129-lora/) | [README.md](experiments/har129-lora/README.md) + [dryrun/receipt.json](experiments/har129-lora/dryrun/receipt.json) (+ [dryrun/export-manifest.json](experiments/har129-lora/dryrun/export-manifest.json), [smoke/scored-dryrun1.json](experiments/har129-lora/smoke/scored-dryrun1.json)) (dry-run receipt + serving parity smoke) | evidence bundle |
 | — | [research/explorations/harbor-021/](explorations/harbor-021/) | [EXPLORATIONS.md](explorations/EXPLORATIONS.md) (pre-HAR adopt/skip ranking) | result report |
 | — | [research/explorations/](explorations/) | [pstack-agent-standards-2026-08.md](explorations/pstack-agent-standards-2026-08.md) (completed 2026-08-27) | result report |
 | — | [research/explorations/trace-lab/](explorations/trace-lab/) support: `normalize/`, `viewers/`, `2026-09-29-system-state/`, `LANDSCAPE.md` | [viewers/NOTES.md](explorations/trace-lab/viewers/NOTES.md), [system-state README](explorations/trace-lab/2026-09-29-system-state/README.md), [LANDSCAPE.md](explorations/trace-lab/LANDSCAPE.md) | analysis tool / evidence bundle / result report |

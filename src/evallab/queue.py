@@ -1797,23 +1797,27 @@ class Executor:
                     if isinstance(failure_error, ExecutionFailure)
                     else "execution_failed"
                 )
+                deferred = reason_code in {"daytona_usage_limit", "daytona_usage_unavailable"}
                 failure = PolicyDecision(
                     admitted=False,
                     reason_code=reason_code,
                     message=(
-                        "execution failed; inspect the immutable job evidence and logs "
+                        str(failure_error)
+                        if deferred
+                        else "execution failed; inspect the immutable job evidence and logs "
                         f"({type(failure_error).__name__})"
                     ),
                 )
                 failed = self.queue.transition(
                     running,
-                    "failed",
+                    "waiting" if deferred else "failed",
                     actor="executor",
-                    event="dispatch_failed",
+                    event="dispatch_deferred" if deferred else "dispatch_failed",
                     reason_code=failure.reason_code,
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
-                self._report_progress(f"failed {spec.name} ({failure.reason_code}); state: failed")
+                state = "waiting" if deferred else "failed"
+                self._report_progress(f"{state} {spec.name} ({failure.reason_code}); state: {state}")
             else:
                 failure = self._settle_post_run(
                     job_dir,

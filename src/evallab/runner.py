@@ -1874,6 +1874,9 @@ def _write_run_metadata(
             "uv": tool_version("uv"),
         },
     }
+    admission_path = request.jobs_dir / ".executor" / f"{request.name}.daytona-usage.json"
+    if request.environment == "daytona" and admission_path.is_file():
+        metadata["daytona_admission"] = json.loads(admission_path.read_text(encoding="utf-8"))
     if request.provenance is not None:
         metadata["experiment"] = request.provenance.model_dump(mode="json")
     if request.experiment_spec is not None:
@@ -2182,6 +2185,42 @@ def _harness_execution_settings(
     return settings
 
 
+def _check_daytona_admission(request: RunRequest) -> dict[str, Any] | None:
+    if request.environment != "daytona":
+        return None
+    from evallab.daytona_guard import AdmissionRefused, DaytonaGuard, GuardUnavailable
+
+    try:
+        guard = DaytonaGuard()
+        with (request.task / "task.toml").open("rb") as handle:
+            environment = tomllib.load(handle).get("environment", {})
+        observed = guard.observe()
+        caps = observed["per_sandbox_limits"]
+        cpu = environment.get("cpus")
+        memory_mb = environment.get("memory_mb")
+        storage_mb = request.override_storage_mb
+        if storage_mb is None:
+            storage_mb = environment.get("storage_mb")
+        resources = {
+            "cpu": cpu if cpu is not None else caps["cpu"],
+            "memory_gib": memory_mb // 1024 if memory_mb is not None else caps["memory_gib"],
+            "disk_gib": storage_mb // 1024 if storage_mb is not None else caps["disk_gib"],
+            "gpu": environment.get("gpus") or 0,
+        }
+        snapshot = guard.check(resources, count=min(request.attempts, request.concurrency))
+        snapshot["allocation_basis"] = (
+            "declared task resources; omitted dimensions reserve verified per-sandbox maximum"
+        )
+        return snapshot
+    except AdmissionRefused as error:
+        raise ExecutionFailure("daytona_usage_limit", str(error)) from error
+    except (GuardUnavailable, OSError, ValueError, TypeError, KeyError) as error:
+        detail = str(error) if isinstance(error, GuardUnavailable) else type(error).__name__
+        raise ExecutionFailure(
+            "daytona_usage_unavailable", f"Daytona admission refused: {detail}"
+        ) from error
+
+
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request)
     if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
@@ -2204,6 +2243,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         raise FileExistsError(
             f"Refusing to reuse existing job directory: {job_dir}. Choose a new explicit run name."
         )
+    daytona_admission = _check_daytona_admission(request)
 
     request.jobs_dir.mkdir(parents=True, exist_ok=True)
     staging_dir = request.jobs_dir / ".exec-stage" / request.name
@@ -2291,6 +2331,12 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             staged_request = replace(staged_request, skill=staged_toolbox)
 
         _write_network_adaptation(request, adaptation)
+        if daytona_admission is not None:
+            persist_private_bytes(
+                request.jobs_dir / ".executor" / f"{request.name}.daytona-usage.json",
+                (json.dumps(daytona_admission, indent=2) + "\n").encode(),
+                secrets=(),
+            )
 
         harbor_command = build_command(staged_request)
         command = subscription_command(staged_request, harbor_command, repo_root=_RUNTIME_ROOT)

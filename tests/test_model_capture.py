@@ -958,6 +958,13 @@ class _RecordingStub(BaseHTTPRequestHandler):
         self.close_connection = True
 
 
+class _StubServer(ThreadingHTTPServer):
+    """Fake upstream with a real server's listen backlog (Modal's edge is not 5)."""
+
+    daemon_threads = True
+    request_queue_size = 256
+
+
 def _raw_post(port: int, path: str, raw: bytes, headers: dict[str, str]) -> bytes:
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}{path}", data=raw, headers=headers, method="POST"
@@ -981,7 +988,7 @@ def test_capture_passthrough_byte_identical_under_parallel_tokens(
     import concurrent.futures
 
     _RecordingStub.received = []
-    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
+    stub = _StubServer(("127.0.0.1", 0), _RecordingStub)
     threading.Thread(target=stub.serve_forever, daemon=True).start()
     server, recorder, _manifest = serve_capture(
         upstream=f"http://127.0.0.1:{stub.server_address[1]}",
@@ -1068,6 +1075,46 @@ def test_capture_passthrough_byte_identical_under_parallel_tokens(
     assert plain["assistant_texts"] == ["done"]
     streamed = next(r for r in records if r["response_sse"])
     assert streamed["assistant_texts"] == ["hello"]
+
+
+def test_capture_survives_a_connect_burst_beyond_the_default_backlog(tmp_path: Path) -> None:
+    """A round's trials all reach the one capture server at once; none may be reset.
+
+    socketserver's default listen backlog (5) reset connections under the
+    20-way G2 burst on CI. 64 simultaneous POSTs must all get the upstream reply.
+    """
+    import concurrent.futures
+
+    _RecordingStub.received = []
+    stub = _StubServer(("127.0.0.1", 0), _RecordingStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    server, recorder, _manifest = serve_capture(
+        upstream=f"http://127.0.0.1:{stub.server_address[1]}",
+        out_dir=tmp_path / "cap",
+        bind="127.0.0.1",
+        port=0,
+    )
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    raw = json.dumps({"model": "stub", "messages": [{"role": "user", "content": "x"}]}).encode()
+    headers = {"Content-Type": "application/json"}
+    start = threading.Barrier(64)
+
+    def _one(index: int) -> bytes:
+        start.wait()
+        return _raw_post(
+            server.server_address[1], f"/t/01BURST{index:02d}/v1/chat/completions", raw, headers
+        )
+
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=64) as pool:
+            responses = list(pool.map(_one, range(64)))
+    finally:
+        server.shutdown()
+        stub.shutdown()
+        recorder.close()
+    assert len(responses) == 64
+    assert all(b'"done"' in response for response in responses)
+    assert len(_RecordingStub.received) == 64
 
 
 def test_mimo_secret_proxy_stamps_token_and_stays_byte_identical(

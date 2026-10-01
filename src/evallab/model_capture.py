@@ -742,6 +742,10 @@ class CaptureProxyServer(ThreadingHTTPServer):
 
     daemon_threads = True
     allow_reuse_address = True
+    # socketserver's default listen backlog is 5. One capture server fronts
+    # every trial of a round (20 in parallel for G2), and a burst of connects
+    # beyond the backlog is reset by the kernel (ConnectionResetError on CI).
+    request_queue_size = 256
 
     def __init__(
         self,

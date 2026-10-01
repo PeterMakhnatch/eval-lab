@@ -163,8 +163,10 @@ any publication replaced: a stale or wrong receipt fails the run and the
 previous publication stands. Raw job inputs are never rewritten.
 
 The `evallab.session_spend/v1` receipt binds native job/spec identities and
-the exact metadata bytes to complete teardown membership. It retains Modal
-billing rows and deployment provenance separately from the Daytona estimate.
+the exact metadata bytes to complete session membership. When an app spans
+several ticks, membership includes earlier terminal dispatch batches and the
+final teardown batch; the raw teardown's own member list is retained separately.
+Modal billing rows and deployment history remain distinct from the Daytona estimate.
 Overlapping hourly/daily billing intervals are rejected rather than added.
 The allocation is an accounting policy, **not measured per-job GPU use**.
 
@@ -181,6 +183,67 @@ publication over all 40 actual jobs, using their raw metadata rather than new
 trials. Both session sums differ from the source total by less than 0.01%
 (display rounding), within the requested ±10%. This receipt excludes other
 cards' sandbox spend, later G4 apps, and overlapping hourly copies of bills.
+
+
+## Closed G2/C1 live correction (HAR-131)
+
+The [live publication receipt](har131-g2-live-publication.json) binds the
+protected-merged counts amendment `f1cf94c9` (#661), the Data usability
+downgrade (#660), and the existing page-calibration implementation (#659).
+All 64 physical G2 jobs and seven C1 jobs were reprocessed and published.
+The 18 refused G2 specs remain `not_run`, not fabricated zero outcomes.
+
+- G2 changes from the original audited **7 pass / 29 fail / 28 excluded**
+  to **8 / 28 / 28**. Failed downloads no longer exclude 001870's raw pass.
+  The leaked 001269 image is excluded through its exact-digest discarded
+  ledger row, not a new local-copy detector; its attempt-1 failure therefore
+  leaves the counted denominator too. Successful acquisitions on 000341,
+  001373 and 002356 remain excluded with bound artifact-use evidence.
+- C1 remains **3 counted pass / 4 counted fail**. It is included here to close
+  the shared serving-pool accounting, not to rerun its experiment.
+- **284 raw-fact checks** cover reward, independently settled proxy input,
+  proxy output and task identity across the 71 jobs. Invalid usage stays
+  unknown. All **5,180 raw source files** match their pre-publication hashes.
+  The frozen G3 manifest, conversation file and capture hashes still match;
+  no SFT selection, training or native outcome was changed.
+- A final census found three older HAR-116 pages with raw `LoopBreakStop`
+  still displayed as unknown. Only those pages were refreshed: **267 more
+  raw files and 12 fact checks**, with rewards, counts, settled tokens, loop
+  predictions and their existing cost allocations unchanged. All **23**
+  recorded loop-break trials in the completed cohorts now display
+  `loop_break` in both the top-level report and decision facts.
+
+The [complete session inputs](har131-g2-session-spend.json) use the existing
+wall-time-share helper and billed rows, not a new price model:
+
+| Closed app pool | Members | Billed Modal | Daytona estimate | Combined source | Actual INDEX sum |
+|---|---:|---:|---:|---:|---:|
+| `ap-6MVKRrBnozowbUzD1yL5NE` | 42 | $3.82356653 | $1.13861708 | $4.96218361 | $4.9621 |
+| `ap-KbuSWoJK3ywOHMpZhGq8v3` | 29 | $2.82701718 | $1.30350860 | $4.13052578 | $4.1305 |
+| Total | 71 | $6.65058371 | $2.44212569 | $9.09270940 | $9.0926 |
+
+Both display errors are below **0.002%**, within ±10%. Failed attempts,
+redeployments, startup, warm and idle costs remain in the pools. The first
+pool includes the earlier smoke's shared overhead. Its final teardown lists
+only 22 jobs; the other 20 are bound through earlier terminal queue events.
+The second teardown lists seven C1 jobs; 22 earlier G2 jobs complete that pool.
+Those unions are explicitly derived, never represented as raw teardown lists.
+Only non-overlapping daily bills are allocated; the matching hourly totals
+are cross-checks, not additional spend.
+
+The resulting accounting shares are **G2 $8.22166825 / C1 $0.87104114**.
+They differ from the G2 report's coarse hourly-bucket partition, not from
+the underlying billed total. These are accounting allocations plus sandbox
+estimates, not measured per-job GPU utilization. The two existing HAR-116
+INDEX sums also remain within ±10% of both their frozen bills and the later
+hourly reference (largest later-reference difference: 1.053%).
+
+The refreshed frozen-cohort score receipts still measure **28/35**
+(HAR-116), **12/17** (G2 attempt 1), **10/16** (G2 re-run), and **1/3**
+(G2 tail), all with zero page abstentions. The studies remain separate
+agent-rater measurements; none changes a counts verdict. The republished
+pages expose these limits and preserve native execution provenance,
+including any recorded uncommitted-code badge.
 
 ## Backfill
 

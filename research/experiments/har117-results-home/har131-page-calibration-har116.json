@@ -1,8 +1,8 @@
 {
   "schema": "har131.page_loop_calibration/v1",
   "cohort": "HAR-128 part 2: 40 HAR-116 trials",
-  "generated_at": "2026-10-01T09:15:42.907088+00:00",
-  "labels_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-part2/research/explorations/trace-lab/har128/labels_har116",
+  "generated_at": "2026-10-01T12:28:00.005055+00:00",
+  "labels_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-g2/research/explorations/trace-lab/har128/labels_har116",
   "labels_frozen_at": "2026-10-01T07:57:30Z",
   "labels_manifest_sha256": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
   "results_home": "/Users/petermakhnatch/Developer/eval-lab-results",
@@ -15,7 +15,7 @@
     ],
     "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
   },
-  "scorer_sha256": "527fc72677687b340b14577109f82e227e8f5cdbf76e5660cba4ac1163996049",
+  "scorer_sha256": "c052edcca32ca083adbaafe2b5b7f38699d5649b6d9d6028778b7f8f60321950",
   "in_sample": false,
   "rater_agreement": {
     "agree": 35,
@@ -62,7 +62,7 @@
       "page_matches": true,
       "abstention_reason": null,
       "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix-r2/processed/trial-har116-a-000383-loopfix-r2__cNEHjBa.json",
-      "report_sha256": "b76eb226c75d0f7f54d4d07ca19d4989e1cbf8182ff2b13990d2b55269b05cd5"
+      "report_sha256": "42e60fe9c5aeb06f35aafae3477813959bbc385d5e648eabe9e19a039205a32c"
     },
     {
       "trial": "har116-a-000383-loopfix__wgujpBQ",
@@ -128,7 +128,7 @@
       "page_matches": true,
       "abstention_reason": null,
       "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix-r2/processed/trial-har116-a-000587-loopfix-r2__RmCmzbQ.json",
-      "report_sha256": "cf587aaf979dacc27f1c187960e51a08b0cd17fe6731748dc064cf0380ca600f"
+      "report_sha256": "1e38c87e8e8a23841fc6b84a9455232466b10ce6d1832cc73879c1f25ef722b4"
     },
     {
       "trial": "har116-a-000587-loopfix__X5SAhvg",
@@ -227,7 +227,7 @@
       "page_matches": true,
       "abstention_reason": null,
       "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix-r2/processed/trial-har116-a-001832-loopfix-r2__RL4Q8AX.json",
-      "report_sha256": "048a1371c476971afb6e2be18feb8c4b28a9a853701764ea70939e9c19b65d0d"
+      "report_sha256": "4bb721a3d574bec4a4c9876cae4b1b83ef192f91d10b78697449785c7613b537"
     },
     {
       "trial": "har116-a-001832-loopfix__rw7cJJ4",

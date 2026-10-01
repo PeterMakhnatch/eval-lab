@@ -95,6 +95,12 @@ def test_parse_mimo_accepts_exact_selector() -> None:
         "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B ",
         " selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
         "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B@extra",
+        # Only the admitted adapter names: no other, empty, padded or chained suffix.
+        "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har130",
+        "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:",
+        "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129 ",
+        "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129:x",
+        "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:HAR129",
         "SELFHOSTED/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
         "tinker/Qwen/Qwen3.6-35B-A3B",
         "zai/glm-5.3-flash",
@@ -106,6 +112,18 @@ def test_parse_mimo_accepts_exact_selector() -> None:
 def test_parse_mimo_rejects_anything_else(selector: Any) -> None:
     with pytest.raises(ValueError, match="must be exactly"):
         parse_mimo_selfhosted_model(selector)
+
+
+def test_parse_mimo_accepts_the_admitted_adapter() -> None:
+    # SGLang's ``base:adapter`` name selects the LoRA adapter on the
+    # LoRA-enabled server; it is the native id sent upstream.
+    assert parse_mimo_selfhosted_model(f"{MIMO_SELFHOSTED_MODEL_SELECTOR}:har129") == (
+        f"{MIMO_SELFHOSTED_NATIVE_MODEL}:har129"
+    )
+
+
+def test_validate_request_accepts_the_adapter_selector(tmp_path: Path) -> None:
+    validate_request(_terminus_request(tmp_path, f"{MIMO_SELFHOSTED_MODEL_SELECTOR}:har129"))
 
 
 def _terminus_request(tmp_path: Path, model: str, **overrides: Any) -> RunRequest:
@@ -776,6 +794,47 @@ def test_mimo_proxy_rejects_unknown_models_with_null_pricing(
         process.wait(10)
 
 
+def test_mimo_proxy_forwards_the_adapter_name_at_zero_price(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    try:
+        endpoint = f"{url}/v1/chat/completions"
+        status, body = _post(
+            endpoint,
+            {
+                "model": f"{MIMO_SELFHOSTED_MODEL_SELECTOR}:har129",
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 100,
+                "temperature": 1.0,
+            },
+            capability=CAPABILITY_SENTINEL,
+        )
+        assert status == 200, body
+        forwarded = _MimoUpstream.seen[0]
+        # The adapter arm gets the same enforced generation_config as the base.
+        assert forwarded["model"] == f"{MIMO_SELFHOSTED_NATIVE_MODEL}:har129"
+        assert forwarded["temperature"] == 0.6
+        assert forwarded["chat_template_kwargs"] == {"enable_thinking": True}
+        status, _ = _post(
+            endpoint,
+            {"model": f"{MIMO_SELFHOSTED_MODEL_SELECTOR}:har130", "messages": []},
+            capability=CAPABILITY_SENTINEL,
+        )
+        assert status == 403
+        assert len(_MimoUpstream.seen) == 1
+        usage = json.loads(usage_path.read_text())
+        assert [call["requested_model"] for call in usage["calls"]] == [
+            f"{MIMO_SELFHOSTED_MODEL_SELECTOR}:har129"
+        ]
+        assert usage["totals"]["cost_micros"] == 0
+    finally:
+        process.terminate()
+        process.wait(10)
+
+
 # ---------------------------------------------------------------------------
 # 4. Adapter binding (Harbor surface stubbed; adapter logic is real)
 # ---------------------------------------------------------------------------
@@ -993,6 +1052,20 @@ def test_mimo_trial_cost_rejects_bad_inputs(hours: float, concurrency: Any, sand
 )
 def test_mimo_returned_model_identity(returned: str, accepted: bool) -> None:
     allowed = runner_module._accepted_returned_models(MIMO_SELFHOSTED_MODEL_SELECTOR)
+    assert (returned in allowed) is accepted
+
+
+@pytest.mark.parametrize(
+    "returned,accepted",
+    [
+        (f"{MIMO_SELFHOSTED_NATIVE_MODEL}:har129", True),
+        # An adapter-arm call answered by the base model is an arm mix-up.
+        (MIMO_SELFHOSTED_NATIVE_MODEL, False),
+        (f"{MIMO_SELFHOSTED_NATIVE_MODEL}:har130", False),
+    ],
+)
+def test_adapter_returned_model_identity(returned: str, accepted: bool) -> None:
+    allowed = runner_module._accepted_returned_models(f"{MIMO_SELFHOSTED_MODEL_SELECTOR}:har129")
     assert (returned in allowed) is accepted
 
 

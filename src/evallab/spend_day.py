@@ -1552,11 +1552,22 @@ def check_launch(
     #    note both. Never skip catalog bills just because live fetch succeeded.
     # 4. Live fetch failure -> unverified (exit 2) unless --allow-stale-modal.
     # -----------------------------------------------------------------------
-    cached_modal_row: SpendRow | None = None
     try:
         cached_modal_row, _ = query_modal_rows(database_url, window_start, window_end)
-    except Exception:
-        cached_modal_row = None
+    except Exception as exc:
+        # An unreadable cache is unknown spend, never $0 (even with
+        # --allow-stale-modal, which only admits a readable stale cache).
+        return unverified_decision(
+            reason_code=REASON_CAP_UNVERIFIED,
+            message=(
+                f"REFUSAL: {REASON_CAP_UNVERIFIED} (modal billing cache unreadable, "
+                f"spend unknown, never $0: {type(exc).__name__}: {exc})"
+            ),
+            window_start=window_start,
+            window_end=window_end,
+            candidate_usd=candidate_usd,
+            cap_usd=cap_usd,
+        )
 
     cached_modal_usd = cached_modal_row.usd if cached_modal_row is not None else 0.0
 

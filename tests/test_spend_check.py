@@ -551,6 +551,7 @@ def test_unratable_spec_fails_closed_with_ledger_shown(
             cap_usd=30.0,
         ),
     )
+    monkeypatch.setattr("evallab.spend_day.query_modal_rows", lambda *a, **k: (None, []))
     decision = check_launch(
         repo_root=tmp_path,
         queue_root=queue_root,
@@ -678,6 +679,7 @@ def test_cli_allowed_refused_and_unratable_exits(
         )
 
     monkeypatch.setattr("evallab.spend_day.build_window_ledger", _settled_two_dollars)
+    monkeypatch.setattr("evallab.spend_day.query_modal_rows", lambda *a, **k: (None, []))
 
     def _check(candidate: str, *extra: str) -> int:
         return _run_check(
@@ -1102,6 +1104,7 @@ def test_defect5_modal_live_fetch_failure_fails_closed_unless_allow_stale(
         raise RuntimeError("network timeout")
 
     # 1. Without allow_stale_modal: refuses with REASON_STALE_MODAL
+    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
     refused = check_launch(
         repo_root=tmp_path,
         queue_root=tmp_path / "queue",
@@ -1118,7 +1121,6 @@ def test_defect5_modal_live_fetch_failure_fails_closed_unless_allow_stale(
     assert any("live Modal billing fetch failed" in n for n in refused.notes)
 
     # 2. With allow_stale_modal=True: falls back to catalog cache (reads $25 daily row)
-    monkeypatch.setattr(psycopg, "connect", lambda url: conn)
     allowed_override = check_launch(
         repo_root=tmp_path,
         queue_root=tmp_path / "queue",
@@ -1133,6 +1135,45 @@ def test_defect5_modal_live_fetch_failure_fails_closed_unless_allow_stale(
     assert allowed_override.allowed
     assert allowed_override.settled_usd == pytest.approx(25.0)
     assert any("fell back to catalog cache" in n for n in allowed_override.notes)
+
+
+def test_unreadable_modal_cache_fails_closed_even_with_allow_stale(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An unreadable billing cache is unknown spend: unverified, never $0."""
+    import psycopg
+
+    class _NoModalTable:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def execute(self, sql: str, params: tuple = ()):
+            if "modal_billing_rows" in sql:
+                raise psycopg.errors.InsufficientPrivilege("permission denied")
+            return _FakeResult([])
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: _NoModalTable())
+
+    def _failing_fetch(start: date, end: date):
+        raise RuntimeError("network timeout")
+
+    for allow_stale in (False, True):
+        decision = check_launch(
+            repo_root=tmp_path,
+            queue_root=tmp_path / "queue",
+            database_url="postgresql://fake/db",
+            window_start=datetime(2026, 10, 1, 1, 0, tzinfo=UTC),
+            window_end=datetime(2026, 10, 1, 3, 0, tzinfo=UTC),
+            candidate_usd=5.0,
+            cap_usd=30.0,
+            modal_refresher=_failing_fetch,
+            allow_stale_modal=allow_stale,
+        )
+        assert not decision.allowed
+        assert decision.reason_code == REASON_CAP_UNVERIFIED
 
 
 def test_defect6_modal_pure_upsert_storage(

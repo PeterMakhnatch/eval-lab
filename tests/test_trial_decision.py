@@ -102,7 +102,7 @@ def test_page_names_the_grader_gap_and_the_fetch(tmp_path: Path) -> None:
     assert "### Facts" in page
     assert "### Judgments" in page
     assert "Opinions. Do not treat these as facts." in page
-    assert "Verdict: `pending`" in page
+    assert "Verdict: `counted_fail`" in page
     assert "Does the grader test that? no" in page
     assert FETCH in page
     assert "not this shape" in page

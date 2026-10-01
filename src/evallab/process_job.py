@@ -813,6 +813,10 @@ def process_job(
             else estimate_reason
         )
         record["counts"] = attach_counts(record, trial_result, label_root=label_root)
+        if isinstance(record.get("decision"), dict):
+            from evallab.trial_decision import render_counts
+
+            record["decision"]["counts"] = render_counts(record["counts"])
         trial_reports.append(record)
         trial_file = out_dir / f"trial-{trial_path.name}.json"
         trial_file.write_text(

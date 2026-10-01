@@ -374,12 +374,14 @@ def _copy_file(source: Path, dest: Path) -> None:
     shutil.copyfile(source, dest)
 
 
-def _copy_tree(source: Path, dest: Path) -> int:
+def _copy_tree(source: Path, dest: Path, *, skip_processed: bool = False) -> int:
     """Byte-copy a job tree. Returns the number of files copied."""
     copied = 0
     for dirpath, dirnames, filenames in os.walk(source, followlinks=False):
         current = Path(dirpath)
         dirnames[:] = [name for name in dirnames if name not in _SKIP_DIR_NAMES]
+        if skip_processed and current == source:
+            dirnames[:] = [name for name in dirnames if name != "processed"]
         relative = current.relative_to(source)
         for name in filenames:
             origin = current / name
@@ -428,6 +430,13 @@ def _destination(home: Path, day: str, card: str, source: Path) -> tuple[Path, s
     return own, other
 
 
+def _is_processed_report_file(name: str) -> bool:
+    """Report pages process-job writes, never unrelated out-dir contents."""
+    if name in ("job.json", "job.md"):
+        return True
+    return name.startswith("trial-") and (name.endswith(".json") or name.endswith(".md"))
+
+
 def publish_job(
     job_dir: str | Path,
     *,
@@ -437,17 +446,32 @@ def publish_job(
     capture: str = "run-time",
     primary_checkout: Path | None = None,
     rewrite_index: bool = True,
+    processed_report_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Publish one job into the results home. Idempotent.
 
     A second call with the same provenance replaces the published tree with
     an identical one and rewrites the index, so a retried process-job does
     not duplicate or drift.
+
+    ``processed_report_root`` points at the freshly written report directory
+    when process-job used a custom ``output_dir``: those report pages
+    replace the snapshotted ``processed/`` copy, so the published tree shows
+    the new outcome instead of the stale source ``processed/``. Only
+    ``job.json``/``job.md`` and ``trial-*.json``/``trial-*.md`` pages are
+    overlaid; nothing else is taken from that directory. Raw job inputs and
+    provenance still come from ``job_dir``.
     """
     source = Path(job_dir).resolve()
     if not source.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
-    home = Path(root) if root is not None else results_root()
+    home = (Path(root) if root is not None else results_root()).resolve()
+    report_root = Path(processed_report_root).resolve() if processed_report_root is not None else None
+    if report_root is not None and not report_root.is_dir():
+        raise ValueError(f"Not a processed report directory: {processed_report_root}")
+    if report_root is not None and report_root.is_relative_to(home):
+        raise ValueError("Processed report input must be outside the results home when publishing")
+    custom_reports = report_root is not None and report_root != source / "processed"
     provenance = build_provenance(source, repo_root=repo_root, pr_lookup=pr_lookup, capture=capture)
     card = provenance["card"] or "unknown"
     day = _job_date(source, provenance)
@@ -457,7 +481,18 @@ def publish_job(
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    copied = _copy_tree(source, dest)
+    copied = _copy_tree(source, dest, skip_processed=custom_reports)
+    if custom_reports:
+        assert report_root is not None
+        processed_dest = dest / "processed"
+        processed_dest.mkdir(parents=True, exist_ok=True)
+        for child in sorted(report_root.iterdir()):
+            if child.is_symlink() or not child.is_file():
+                continue
+            if not _is_processed_report_file(child.name):
+                continue
+            _copy_file(child, processed_dest / child.name)
+            copied += 1
     (dest / "provenance.json").write_text(
         json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -489,21 +524,85 @@ def _reward_summary(published: Path) -> str:
     return f"{passed} pass, {failed} fail, {unscored} unscored"
 
 
+def _counts_summary(published: Path) -> str:
+    """Counted verdicts from ``evallab.counts`` stored in the job report.
+
+    Reads only the stored ``summary`` (``n_counted_pass``/``n_counted_fail``/
+    ``n_excluded``/``excluded_reasons``), so the INDEX matches the canonical
+    report even for multi-trial jobs. Reports that predate counts have none
+    of these fields and render ``counts unknown``, never ``0``.
+    """
+    report = _read_json(published / "processed" / "job.json")
+    if report is None:
+        return "counts unknown"
+    summary = _as_dict(report.get("summary"))
+    counted_pass = summary.get("n_counted_pass")
+    counted_fail = summary.get("n_counted_fail")
+    n_excluded = summary.get("n_excluded")
+    if not (
+        isinstance(counted_pass, int)
+        and isinstance(counted_fail, int)
+        and isinstance(n_excluded, int)
+    ):
+        return "counts unknown"
+    reasons = summary.get("excluded_reasons")
+    detail = ""
+    if isinstance(reasons, dict) and reasons:
+        parts = [
+            f"{key}: {reasons[key]}"
+            for key in sorted(reasons)
+            if isinstance(reasons[key], int)
+        ]
+        if parts:
+            detail = f" ({', '.join(parts)})"
+    return f"{counted_pass} counted pass, {counted_fail} counted fail, {n_excluded} excluded{detail}"
+
+
 def _spend(published: Path) -> str:
     report = _read_json(published / "processed" / "job.json")
     if report is None:
         return "None (no processed report)"
     summary = _as_dict(report.get("summary"))
+    allocated = _session_spend_cell(summary.get("session_spend"))
+    if allocated is not None:
+        return allocated
     cost = summary.get("cost_usd")
     if isinstance(cost, (int, float)):
         return f"${cost:.4f}"
     estimate = summary.get("cost_estimate_usd")
     if isinstance(estimate, (int, float)):
-        return f"~${estimate:.4f} estimated"
+        return (
+            f"~${estimate:.4f} shared GPU, not additive; "
+            "see `evallab spend day`"
+        )
     reason = summary.get("cost_reason")
     if isinstance(reason, str) and reason:
         return "None (unknown)"
     return "None (unknown)"
+
+
+def _session_spend_cell(allocation: Any) -> str | None:
+    """Allocated billed-GPU + Daytona estimate INDEX cell, or None.
+
+    Prefers the billed-session allocation when present. An unknown Daytona
+    estimate renders the GPU share plus unknown sandbox: never a false full
+    total and never a fallback to the legacy wall-time estimate.
+    """
+    if not isinstance(allocation, dict):
+        return None
+    modal = allocation.get("modal_allocated_usd")
+    if not isinstance(modal, (int, float)):
+        return None
+    session = allocation.get("session_id")
+    daytona = allocation.get("daytona_estimate_usd")
+    total = allocation.get("total_usd")
+    if isinstance(total, (int, float)) and isinstance(daytona, (int, float)):
+        return (
+            f"${total:.4f} session "
+            f"(billed GPU ${modal:.4f} + Daytona est ${daytona:.4f}; "
+            f"{allocation.get('allocation_basis')}; session {session})"
+        )
+    return f"${modal:.4f} billed GPU share + sandbox unknown (session {session})"
 
 
 def _tasks_cell(provenance: dict[str, Any]) -> str:
@@ -660,6 +759,7 @@ def _entry(published: Path, provenance: dict[str, Any], docs: dict[str, str]) ->
         "job": published.name,
         "tasks": _tasks_cell(provenance),
         "reward": _reward_summary(published),
+        "counts": _counts_summary(published),
         "spend": _spend(published),
         "agent": agent or "unknown",
         "agent_short": _agent_short(agent) or "unknown",
@@ -677,7 +777,7 @@ def _agent_row(entry: dict[str, Any]) -> str:
     return (
         f"| {entry['day']} | {entry['job']}{entry['mark']} | {entry['tasks']} "
         f"| {entry['agent_short']} | {entry['model']} | {entry['reward']} "
-        f"| {entry['spend']} | [run]({entry['run']}) | [report]({entry['report']}) "
+        f"| {entry['counts']} | {entry['spend']} | [run]({entry['run']}) | [report]({entry['report']}) "
         f"| {entry['doc']} | `{entry['short_commit']}` |"
     )
 
@@ -685,7 +785,7 @@ def _agent_row(entry: dict[str, Any]) -> str:
 def _routine_row(entry: dict[str, Any]) -> str:
     return (
         f"| {entry['card']}{entry['mark']} | {entry['day']} | {entry['tasks']} "
-        f"| {entry['reward']} | {entry['spend']} | [run]({entry['run']}) "
+        f"| {entry['reward']} | {entry['counts']} | {entry['spend']} | [run]({entry['run']}) "
         f"| [report]({entry['report']}) | {entry['doc']} | `{entry['short_commit']}` |"
     )
 
@@ -733,6 +833,8 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
         "recorded agent) collapse to one line per card below; the full list is",
         "[INDEX-all.md](INDEX-all.md). A job marked **uncommitted code** ran",
         "from a dirty checkout; its `uncommitted.diff` is the change.",
+        "Reward (raw) is the verifier pass/fail; Counted is the `evallab.counts`",
+        "verdict (`counts unknown` when the report predates counts).",
         "",
         f"## Agent runs ({len(agent_runs)})",
         "",
@@ -743,9 +845,9 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
             lines.append(f"### {card} ({len(group)})")
             lines.append("")
             lines.append(
-                "| Date | Job | Tasks | Agent | Model | Reward | Spend | Run | Report | Research | Commit |"
+                "| Date | Job | Tasks | Agent | Model | Reward (raw) | Counted | Spend | Run | Report | Research | Commit |"
             )
-            lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
+            lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
             lines.extend(_agent_row(entry) for entry in group)
             lines.append("")
     else:
@@ -782,9 +884,9 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
         all_lines.append(f"## {card} ({len(group)})")
         all_lines.append("")
         all_lines.append(
-            "| Card | Date | Tasks | Reward | Spend | Run | Report | Research | Commit |"
+            "| Card | Date | Tasks | Reward (raw) | Counted | Spend | Run | Report | Research | Commit |"
         )
-        all_lines.append("|---|---|---|---|---|---|---|---|---|")
+        all_lines.append("|---|---|---|---|---|---|---|---|---|---|")
         all_lines.extend(_routine_row(entry) for entry in group)
         all_lines.append("")
     (home / "INDEX-all.md").write_text("\n".join(all_lines), encoding="utf-8")

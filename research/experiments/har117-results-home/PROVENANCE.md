@@ -72,7 +72,13 @@ path, the uncommitted diff and its sha256, and the names of untracked files.
 Commit and diff have to be taken when the job runs. A later publish reads a
 checkout that has moved on, so it cannot reconstruct them. The runner now
 saves that snapshot into `lab-metadata.json` and `repository-provenance/`
-inside the job directory. Publish copies it verbatim.
+inside the job directory. Publish copies it verbatim. When process-job writes
+its reports to a custom `output_dir`, publish still snapshots the raw job
+directory but takes `processed/` exclusively from the newly written
+`job`/`trial` report pages, excluding obsolete source pages and unrelated
+out-dir files. The published tree and INDEX therefore show the new outcome.
+The explicit report directory must exist outside the results home; invalid
+inputs fail before the existing publication is replaced.
 
 ## Publish-time only
 
@@ -86,6 +92,95 @@ inside the job directory. Publish copies it verbatim.
 - **The research doc link.** A search of the primary checkout for a
   `research/**` doc whose path contains the card slug. Absent when none
   matches.
+
+## INDEX reward columns
+
+Each INDEX row keeps two verdicts side by side. `Reward (raw)` is the
+verifier pass/fail/unscored from the job report and never changes. `Counted`
+is the `evallab.counts` verdict stored in the same report summary
+(`n_counted_pass` / `n_counted_fail` / `n_excluded` / `excluded_reasons`), so
+the INDEX matches the canonical report. A raw pass excluded as `copied_fix`
+reads as a raw pass and a counted exclusion on the same row. Reports that
+predate counts have none of those fields and render `counts unknown`, never
+`0`.
+
+## Token facts and attribution
+
+Processed trial pages use **proxy-settled** input/output tokens from
+`lab-metadata.json#provider_usage`, validated through `ledger.split_usage`.
+They never substitute Harbor's native counters or divide a job's usage
+equally among trials. A single-trial job permits attribution of the job
+ledger; a multi-trial job has unknown per-trial proxy usage unless a
+per-trial meter exists. The complete job ledger remains in `job.json`.
+Missing or invalid ledgers stay unknown, not zero.
+
+The report keeps three distinct measurements:
+
+- `tokens_proxy`: settled usage with `source`, `scope`, `attribution`, and
+  an unavailable-data reason where needed. Decision token facts use this.
+- `tokens_native`: Harbor's `result.json#agent_result` counters.
+- `tokens_steps`: the stitched-step sum. Existing `tokens_used` summary
+  fields retain this step-sum meaning; they are **not** settled proxy totals.
+
+`tokens_attempted_proxy` is the settled usage plus unresolved reservations,
+with the same single-trial attribution requirement, not an equal split.
+It is a ceiling footprint, not an additional settled usage measurement.
+
+HAR-116 `har116-a-001181-baseline` demonstrates the distinction: native
+input/output is **2,410,295 / 7,444**, while its 89 settled ledger calls
+sum to **2,423,707 / 11,540**. The permanent regression fixture retains the
+actual accounting fields plus hashes of the original metadata and result.
+Raw source artifacts are not rewritten during reprocessing.
+
+## Shared-GPU estimates
+
+A self-hosted `cost_estimate_usd` is a per-trial wall-time estimate, not a
+metered share of the common server. Overlapping jobs must not be summed as
+though each owned the GPU. Until a billed-session allocation is available,
+both pages and INDEX label these values **shared GPU, not additive** and
+direct the reader to `evallab spend day`. The existing Modal billing and
+Daytona estimate authorities remain separate; no zero-priced proxy ledger
+is presented as free GPU serving.
+
+## Billed-session allocation
+
+Once the Modal bill for a shared-GPU session lands, reprocessing the job
+with `evallab process-job --session-spend <receipt>` replaces the
+non-additive estimate in the job report and INDEX row with its allocated
+share: billed GPU pool split by recorded trial wall time over the complete
+session membership, plus the existing per-job Daytona estimate
+(`report['summary']['session_spend']`, basis
+`billed_modal_wall_time_share_plus_daytona_estimate` with the session id).
+Settled proxy cost and tokens are untouched and no per-trial GPU share is
+invented. An unknown Daytona estimate renders the GPU share plus unknown
+sandbox, never a full total and never the legacy wall-time estimate.
+
+Bill-before-allocation boundary: metering happens before the bill and
+allocation only after it, so ordinary landing pages stay non-additive
+until the billed receipt arrives, and reprocessing requires passing the
+receipt again. The receipt is validated before any report is written or
+any publication replaced: a stale or wrong receipt fails the run and the
+previous publication stands. Raw job inputs are never rewritten.
+
+The `evallab.session_spend/v1` receipt binds native job/spec identities and
+the exact metadata bytes to complete teardown membership. It retains Modal
+billing rows and deployment provenance separately from the Daytona estimate.
+Overlapping hourly/daily billing intervals are rejected rather than added.
+The allocation is an accounting policy, **not measured per-job GPU use**.
+
+The [HAR-116 receipt](har131-session-spend.json) covers two 20-job sessions:
+
+| Session | Billed Modal | Daytona estimate | Combined target | Displayed sum |
+|---|---:|---:|---:|---:|
+| `ap-i1jDXiUmYYzX3k11Tpww83` | $1.53380886 | $0.49377610 | $2.02758496 | $2.0277 |
+| `ap-yXxcAQPhR4WRVkUd4thsUc` | $1.67625561 | $1.10407693 | $2.78033254 | $2.7805 |
+| Total | $3.21006447 | $1.59785302 | $4.80791749 | $4.8082 |
+
+The [runtime proof](har131-spend-proof.json) records an isolated results-home
+publication over all 40 actual jobs, using their raw metadata rather than new
+trials. Both session sums differ from the source total by less than 0.01%
+(display rounding), within the requested ±10%. This receipt excludes other
+cards' sandbox spend, later G4 apps, and overlapping hourly copies of bills.
 
 ## Backfill
 

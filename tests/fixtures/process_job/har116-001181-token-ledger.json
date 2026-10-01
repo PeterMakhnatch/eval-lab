@@ -1,0 +1,926 @@
+{
+  "agent_result": {
+    "n_input_tokens": 2410295,
+    "n_output_tokens": 7444
+  },
+  "provider_usage": {
+    "attempted": {
+      "cost_micros": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "requests": 0
+    },
+    "calls": [
+      {
+        "call_id": 1,
+        "cost_micros": 0,
+        "input_tokens": 997,
+        "output_tokens": 83,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 2288,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 2,
+        "cost_micros": 0,
+        "input_tokens": 2392,
+        "output_tokens": 80,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 4742,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 3,
+        "cost_micros": 0,
+        "input_tokens": 3027,
+        "output_tokens": 29,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 5742,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 4,
+        "cost_micros": 0,
+        "input_tokens": 5552,
+        "output_tokens": 86,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 11132,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 5,
+        "cost_micros": 0,
+        "input_tokens": 6224,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 12160,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 6,
+        "cost_micros": 0,
+        "input_tokens": 7457,
+        "output_tokens": 43,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 14821,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 7,
+        "cost_micros": 0,
+        "input_tokens": 7899,
+        "output_tokens": 43,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 15752,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 8,
+        "cost_micros": 0,
+        "input_tokens": 8305,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 16627,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 9,
+        "cost_micros": 0,
+        "input_tokens": 8728,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 17569,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 10,
+        "cost_micros": 0,
+        "input_tokens": 9929,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 19926,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 11,
+        "cost_micros": 0,
+        "input_tokens": 10630,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 21395,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 12,
+        "cost_micros": 0,
+        "input_tokens": 11036,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 22211,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 13,
+        "cost_micros": 0,
+        "input_tokens": 11417,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 23105,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 14,
+        "cost_micros": 0,
+        "input_tokens": 12356,
+        "output_tokens": 65,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 24941,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 15,
+        "cost_micros": 0,
+        "input_tokens": 13412,
+        "output_tokens": 4096,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 26965,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 16,
+        "cost_micros": 0,
+        "input_tokens": 13496,
+        "output_tokens": 36,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 27151,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 17,
+        "cost_micros": 0,
+        "input_tokens": 13765,
+        "output_tokens": 3401,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 27608,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 18,
+        "cost_micros": 0,
+        "input_tokens": 14436,
+        "output_tokens": 50,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 28734,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 19,
+        "cost_micros": 0,
+        "input_tokens": 14829,
+        "output_tokens": 61,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 29447,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 20,
+        "cost_micros": 0,
+        "input_tokens": 15933,
+        "output_tokens": 51,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 31513,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 21,
+        "cost_micros": 0,
+        "input_tokens": 16203,
+        "output_tokens": 116,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 31913,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 22,
+        "cost_micros": 0,
+        "input_tokens": 16573,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 32573,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 23,
+        "cost_micros": 0,
+        "input_tokens": 17254,
+        "output_tokens": 138,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 34051,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 24,
+        "cost_micros": 0,
+        "input_tokens": 18117,
+        "output_tokens": 68,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 35257,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 25,
+        "cost_micros": 0,
+        "input_tokens": 18497,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 36092,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 26,
+        "cost_micros": 0,
+        "input_tokens": 19055,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 37276,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 27,
+        "cost_micros": 0,
+        "input_tokens": 19348,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 37763,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 28,
+        "cost_micros": 0,
+        "input_tokens": 20018,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 39067,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 29,
+        "cost_micros": 0,
+        "input_tokens": 20457,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 39974,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 30,
+        "cost_micros": 0,
+        "input_tokens": 20849,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 40705,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 31,
+        "cost_micros": 0,
+        "input_tokens": 21321,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 41652,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 32,
+        "cost_micros": 0,
+        "input_tokens": 21722,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 42427,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 33,
+        "cost_micros": 0,
+        "input_tokens": 22098,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 43120,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 34,
+        "cost_micros": 0,
+        "input_tokens": 22573,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 44114,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 35,
+        "cost_micros": 0,
+        "input_tokens": 23507,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 46012,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 36,
+        "cost_micros": 0,
+        "input_tokens": 24241,
+        "output_tokens": 44,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 47448,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 37,
+        "cost_micros": 0,
+        "input_tokens": 24579,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 48014,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 38,
+        "cost_micros": 0,
+        "input_tokens": 24939,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 48734,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 39,
+        "cost_micros": 0,
+        "input_tokens": 25827,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 50421,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 40,
+        "cost_micros": 0,
+        "input_tokens": 26215,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 51185,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 41,
+        "cost_micros": 0,
+        "input_tokens": 27029,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 52816,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 42,
+        "cost_micros": 0,
+        "input_tokens": 27948,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 54671,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 43,
+        "cost_micros": 0,
+        "input_tokens": 28391,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 55609,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 44,
+        "cost_micros": 0,
+        "input_tokens": 29201,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 57243,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 45,
+        "cost_micros": 0,
+        "input_tokens": 29643,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 58195,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 46,
+        "cost_micros": 0,
+        "input_tokens": 30378,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 59701,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 47,
+        "cost_micros": 0,
+        "input_tokens": 30839,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 60545,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 48,
+        "cost_micros": 0,
+        "input_tokens": 31258,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 61297,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 49,
+        "cost_micros": 0,
+        "input_tokens": 31724,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 62189,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 50,
+        "cost_micros": 0,
+        "input_tokens": 32372,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 63401,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 51,
+        "cost_micros": 0,
+        "input_tokens": 32848,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 64299,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 52,
+        "cost_micros": 0,
+        "input_tokens": 33327,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 65164,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 53,
+        "cost_micros": 0,
+        "input_tokens": 33743,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 65944,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 54,
+        "cost_micros": 0,
+        "input_tokens": 34226,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 66838,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 55,
+        "cost_micros": 0,
+        "input_tokens": 34543,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 67377,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 56,
+        "cost_micros": 0,
+        "input_tokens": 34843,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 67886,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 57,
+        "cost_micros": 0,
+        "input_tokens": 35143,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 68413,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 58,
+        "cost_micros": 0,
+        "input_tokens": 35416,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 68887,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 59,
+        "cost_micros": 0,
+        "input_tokens": 35652,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 69274,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 60,
+        "cost_micros": 0,
+        "input_tokens": 35933,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 69769,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 61,
+        "cost_micros": 0,
+        "input_tokens": 36192,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 70211,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 62,
+        "cost_micros": 0,
+        "input_tokens": 36466,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 70647,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 63,
+        "cost_micros": 0,
+        "input_tokens": 36781,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 71182,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 64,
+        "cost_micros": 0,
+        "input_tokens": 37038,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 71603,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 65,
+        "cost_micros": 0,
+        "input_tokens": 37307,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 72045,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 66,
+        "cost_micros": 0,
+        "input_tokens": 37572,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 72477,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 67,
+        "cost_micros": 0,
+        "input_tokens": 37826,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 72867,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 68,
+        "cost_micros": 0,
+        "input_tokens": 38047,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 73222,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 69,
+        "cost_micros": 0,
+        "input_tokens": 38327,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 73706,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 70,
+        "cost_micros": 0,
+        "input_tokens": 38612,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 74178,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 71,
+        "cost_micros": 0,
+        "input_tokens": 39210,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 75213,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 72,
+        "cost_micros": 0,
+        "input_tokens": 39493,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 75684,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 73,
+        "cost_micros": 0,
+        "input_tokens": 39783,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 76176,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 74,
+        "cost_micros": 0,
+        "input_tokens": 40041,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 76605,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 75,
+        "cost_micros": 0,
+        "input_tokens": 40291,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 77005,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 76,
+        "cost_micros": 0,
+        "input_tokens": 40522,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 77383,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 77,
+        "cost_micros": 0,
+        "input_tokens": 40764,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 77785,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 78,
+        "cost_micros": 0,
+        "input_tokens": 41010,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 78215,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 79,
+        "cost_micros": 0,
+        "input_tokens": 41263,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 78654,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 80,
+        "cost_micros": 0,
+        "input_tokens": 41542,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 79119,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 81,
+        "cost_micros": 0,
+        "input_tokens": 41811,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 79558,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 82,
+        "cost_micros": 0,
+        "input_tokens": 42047,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 79929,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 83,
+        "cost_micros": 0,
+        "input_tokens": 42286,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 80303,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 84,
+        "cost_micros": 0,
+        "input_tokens": 42525,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 80678,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 85,
+        "cost_micros": 0,
+        "input_tokens": 42754,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 81068,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 86,
+        "cost_micros": 0,
+        "input_tokens": 42981,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 81433,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 87,
+        "cost_micros": 0,
+        "input_tokens": 43276,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 81955,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 88,
+        "cost_micros": 0,
+        "input_tokens": 43688,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 82748,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      },
+      {
+        "call_id": 89,
+        "cost_micros": 0,
+        "input_tokens": 44582,
+        "output_tokens": 42,
+        "reserved_cost_micros": 0,
+        "reserved_input_tokens": 84437,
+        "reserved_output_tokens": 4096,
+        "state": "reconciled"
+      }
+    ],
+    "pricing": {
+      "input_cost_micros_per_million": 0,
+      "output_cost_micros_per_million": 0
+    },
+    "schema_version": 2,
+    "totals": {
+      "cost_micros": 0,
+      "input_tokens": 2423707,
+      "output_tokens": 11540,
+      "requests": 89,
+      "total_tokens": 2435247
+    },
+    "unresolved_requests": 0
+  },
+  "source": {
+    "job": "har116-a-001181-baseline",
+    "lab_metadata_sha256": "4483434c30b1ecf3147d8b2915d15aa5d0d51a3fe447de43ec59a194e9b49a35",
+    "projection": "Actual HAR-116 counter fields; model bodies, identifiers unrelated to accounting, and timings omitted.",
+    "result_sha256": "2c99bfc4f8ed733712d0c40c8bcfcb9f4566079e867253e98d1665212e4942b5",
+    "trial": "har116-a-001181-baseline__cK5qZMf"
+  }
+}

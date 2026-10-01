@@ -209,13 +209,16 @@ G5 identities never enter the historical pattern denominator, even without the
 cohort argument. The four HAR-116/G2 calibration receipts remain separate,
 hash-bound studies; their accuracy is not transferred to G5.
 
-The [actual consumer proof](../research/experiments/har117-results-home/har131-g5-atlas-consumer-proof.json)
-records a 249-trial live query: 152 eligible non-G5 trials and 13 bound G5
-trials (seven stock, six GEPA, no tuned native outcome). All 13 match the
-independent raw-fact audit. This is an explicitly partial observation, not the
-final G5 atlas or a paired treatment comparison. The CLI emitted no reflection
-payload. The existing committed atlas/README/verification bundle remains its
-earlier pinned historical snapshot until the final run-data refresh.
+The [initial consumer proof](../research/experiments/har117-results-home/har131-g5-atlas-consumer-proof.json)
+preserves the earlier 249-trial smoke with only 13 bound G5 outcomes. The
+current [atlas bundle](../research/explorations/trace-lab/failure-atlas/README.md)
+instead covers 296 recorded trials: 212 Python-eligible, including 152
+historical and all 60 frozen G5 cells, with 84 exclusions retained. All ten
+saved queries ran, and 38 chosen step references passed raw-file hash and
+step-identity checks. Five eligible historical trials lack ATIF bytes
+(four null-count HAR-104 trials and one infra-excluded HAR-120 trial); none
+is a G5 cell or an exemplar. The integrated CLI reproduces the bundle's input
+digest and all 60 native verdict/identity bindings, with no reflection payload.
 
 The [original-attempt publication receipt](../research/experiments/har117-results-home/har131-g5-original-publication.json)
 separately freezes all 60 original G5 jobs: 6 counted passes, 49 counted failures

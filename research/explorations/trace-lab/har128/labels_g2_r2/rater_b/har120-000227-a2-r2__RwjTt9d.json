@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted (n_episodes 97, n_input_tokens 2435135)",
+      "ref": "result.json"
+    },
+    {
+      "quote": "loop_break: fired true, nudge_call 10, detector normalized_command_run, stop_call null, model_next sed -n 120,200p /testbed/src/waitress/task.py",
+      "ref": "result.json"
+    },
+    {
+      "quote": "sed -n 120,200p /testbed/src/waitress/task.py",
+      "ref": "head#12"
+    },
+    {
+      "quote": "FAILED tests/test_task.py::TestWSGITask::test_head_http11_too_few_bytes_does_not_close \u2014 AssertionError: True != False",
+      "ref": "verifier/test-stdout.txt"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed -n 120,200p /testbed/src/waitress/task.py",
+    "ref": "head#12",
+    "what": "settled into overlapping-window sed re-reads (loop detector nudged on this exact command); never edited code, ran tests, or reproduced in any of 97 steps"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "low",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "All 97 steps are sed/grep reads across task.py, channel.py, parser.py and tests; zero edits (agent.diff carries no code hunks), zero test runs, zero completion attempts. The single nudge is treated as a normalization artifact of sed-window reads because reads kept covering new files/regions and the harness never stopped the run.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000227-a2-r2__RwjTt9d"
+}

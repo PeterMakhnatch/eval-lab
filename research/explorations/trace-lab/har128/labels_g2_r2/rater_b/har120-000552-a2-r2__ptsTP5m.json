@@ -1,0 +1,50 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Are you sure you want to mark the task as complete? ... include \"task_complete\": true in your JSON response again.",
+      "ref": "head#30"
+    },
+    {
+      "quote": "ast.parse(src); print('syntax OK') ... && echo COMPLETE",
+      "ref": "head#32"
+    },
+    {
+      "quote": "message empty; keystrokes echo COMPLETE (repeated head#33 through head#55)",
+      "ref": "head#33"
+    },
+    {
+      "quote": "loop_break: fired true, nudge_call 39, detector normalized_command_run, stop_call 54, model_next echo COMPLETE; exception LoopBreakStop",
+      "ref": "result.json"
+    },
+    {
+      "quote": "9 passed in 40.65s",
+      "ref": "verifier/test-stdout.txt"
+    },
+    {
+      "quote": "All 7 methods present: True",
+      "ref": "head#31"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#33",
+    "head#55"
+  ],
+  "notes": "Earned pass: fix authored in-run via /tmp/patch.py heredoc. No pip/curl/wget/clone, no site-packages reads, no hidden-test access; only git command was git log --oneline | head -5 (HEAD history headlines, not beyond-HEAD objects). Loop tail is completion claims (echo COMPLETE), not plain repetition.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 32,
+    "reason": "genuine authored fix, 9/9 hidden tests pass; keep through final syntax verification + first COMPLETE signal at head#32, drop echo-COMPLETE loop (head#33-55); kept steps have no 5+ identical/empty repeats, no test access, no tampering"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-000552-a2-r2__ptsTP5m"
+}

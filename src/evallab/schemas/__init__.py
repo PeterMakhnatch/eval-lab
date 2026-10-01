@@ -472,6 +472,11 @@ class ExperimentSpec(ContractModel):
             raise ValueError("paths must stay relative to the repository")
         return value
 
+    @field_validator("jobs_dir")
+    @classmethod
+    def jobs_dir_is_a_readable_root(cls, value: str) -> str:
+        return validated_jobs_dir(value)
+
     @field_validator("linear_card")
     @classmethod
     def linear_card_is_explicit(cls, value: str | None) -> str | None:

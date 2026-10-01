@@ -73,8 +73,9 @@ ledger and 20% reserve; trial pages preserve dated capacity evidence and keep
 pressure correlation distinct from a confirmed provider cause. Capture servers
 bind isolated ephemeral endpoints and automatically link their own runs.
 Explicit `linear_card` provenance and frozen exact-name G5 bindings resolve
-Daytona attribution; Modal bills remain separate app residuals without complete
-window/card evidence. See [execution tiers](execution-tiers.md#shared-daytona-capacity-admission-har-144),
+Daytona attribution while preserving writable job-root validation; Modal bills
+remain separate app residuals without complete window/card evidence.
+See [execution tiers](execution-tiers.md#shared-daytona-capacity-admission-har-144),
 [capture](model-capture.md), and [spend](lora-sft-runbook.md).
 
 The usable analysis corpus is the `status = 'featured'` slice, not the full

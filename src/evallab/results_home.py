@@ -489,6 +489,40 @@ def _reward_summary(published: Path) -> str:
     return f"{passed} pass, {failed} fail, {unscored} unscored"
 
 
+def _counts_summary(published: Path) -> str:
+    """Counted verdicts from ``evallab.counts`` stored in the job report.
+
+    Reads only the stored ``summary`` (``n_counted_pass``/``n_counted_fail``/
+    ``n_excluded``/``excluded_reasons``), so the INDEX matches the canonical
+    report even for multi-trial jobs. Reports that predate counts have none
+    of these fields and render ``counts unknown``, never ``0``.
+    """
+    report = _read_json(published / "processed" / "job.json")
+    if report is None:
+        return "counts unknown"
+    summary = _as_dict(report.get("summary"))
+    counted_pass = summary.get("n_counted_pass")
+    counted_fail = summary.get("n_counted_fail")
+    n_excluded = summary.get("n_excluded")
+    if not (
+        isinstance(counted_pass, int)
+        and isinstance(counted_fail, int)
+        and isinstance(n_excluded, int)
+    ):
+        return "counts unknown"
+    reasons = summary.get("excluded_reasons")
+    detail = ""
+    if isinstance(reasons, dict) and reasons:
+        parts = [
+            f"{key}: {reasons[key]}"
+            for key in sorted(reasons)
+            if isinstance(reasons[key], int)
+        ]
+        if parts:
+            detail = f" ({', '.join(parts)})"
+    return f"{counted_pass} counted pass, {counted_fail} counted fail, {n_excluded} excluded{detail}"
+
+
 def _spend(published: Path) -> str:
     report = _read_json(published / "processed" / "job.json")
     if report is None:
@@ -660,6 +694,7 @@ def _entry(published: Path, provenance: dict[str, Any], docs: dict[str, str]) ->
         "job": published.name,
         "tasks": _tasks_cell(provenance),
         "reward": _reward_summary(published),
+        "counts": _counts_summary(published),
         "spend": _spend(published),
         "agent": agent or "unknown",
         "agent_short": _agent_short(agent) or "unknown",
@@ -677,7 +712,7 @@ def _agent_row(entry: dict[str, Any]) -> str:
     return (
         f"| {entry['day']} | {entry['job']}{entry['mark']} | {entry['tasks']} "
         f"| {entry['agent_short']} | {entry['model']} | {entry['reward']} "
-        f"| {entry['spend']} | [run]({entry['run']}) | [report]({entry['report']}) "
+        f"| {entry['counts']} | {entry['spend']} | [run]({entry['run']}) | [report]({entry['report']}) "
         f"| {entry['doc']} | `{entry['short_commit']}` |"
     )
 
@@ -685,7 +720,7 @@ def _agent_row(entry: dict[str, Any]) -> str:
 def _routine_row(entry: dict[str, Any]) -> str:
     return (
         f"| {entry['card']}{entry['mark']} | {entry['day']} | {entry['tasks']} "
-        f"| {entry['reward']} | {entry['spend']} | [run]({entry['run']}) "
+        f"| {entry['reward']} | {entry['counts']} | {entry['spend']} | [run]({entry['run']}) "
         f"| [report]({entry['report']}) | {entry['doc']} | `{entry['short_commit']}` |"
     )
 
@@ -733,6 +768,8 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
         "recorded agent) collapse to one line per card below; the full list is",
         "[INDEX-all.md](INDEX-all.md). A job marked **uncommitted code** ran",
         "from a dirty checkout; its `uncommitted.diff` is the change.",
+        "Reward (raw) is the verifier pass/fail; Counted is the `evallab.counts`",
+        "verdict (`counts unknown` when the report predates counts).",
         "",
         f"## Agent runs ({len(agent_runs)})",
         "",
@@ -743,9 +780,9 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
             lines.append(f"### {card} ({len(group)})")
             lines.append("")
             lines.append(
-                "| Date | Job | Tasks | Agent | Model | Reward | Spend | Run | Report | Research | Commit |"
+                "| Date | Job | Tasks | Agent | Model | Reward (raw) | Counted | Spend | Run | Report | Research | Commit |"
             )
-            lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
+            lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|")
             lines.extend(_agent_row(entry) for entry in group)
             lines.append("")
     else:
@@ -782,9 +819,9 @@ def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
         all_lines.append(f"## {card} ({len(group)})")
         all_lines.append("")
         all_lines.append(
-            "| Card | Date | Tasks | Reward | Spend | Run | Report | Research | Commit |"
+            "| Card | Date | Tasks | Reward (raw) | Counted | Spend | Run | Report | Research | Commit |"
         )
-        all_lines.append("|---|---|---|---|---|---|---|---|---|")
+        all_lines.append("|---|---|---|---|---|---|---|---|---|---|")
         all_lines.extend(_routine_row(entry) for entry in group)
         all_lines.append("")
     (home / "INDEX-all.md").write_text("\n".join(all_lines), encoding="utf-8")

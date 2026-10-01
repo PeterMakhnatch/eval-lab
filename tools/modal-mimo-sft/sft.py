@@ -673,36 +673,21 @@ sft_volume = modal.Volume.from_name(SFT_VOLUME, create_if_missing=True)
 app = modal.App(APP_NAME)
 
 
-@app.function(
-    image=train_image,
-    gpu="A100-80GB",
-    cpu=4.0,
-    memory=16 * 1024,
-    volumes={WEIGHTS_MOUNT: weights_volume, SFT_MOUNT: sft_volume},
-    timeout=6 * 3600,
-)
-def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict[str, Any]:
-    """LoRA SFT on one A100-80GB; writes adapter + receipt to the SFT volume."""
-    import time
+def selected_token_loss_trainer_class() -> type:
+    """``SFTTrainer`` whose loss never builds full-sequence logits (imports TRL lazily).
 
+    The stock loss materializes [sequence, 248320] logits: about 26 GB in
+    bf16 at 52K tokens before the fp32 upcast, more than an A100-80GB has
+    left. Here only the hidden states of trained positions reach lm_head, in
+    checkpointed chunks, so peak logits memory is one chunk. The loss is the
+    same token-mean cross-entropy over label != -100 positions.
+    """
     import torch
     import torch.nn.functional as F
-    from datasets import Dataset
-    from peft import LoraConfig, TaskType
     from torch.utils.checkpoint import checkpoint
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    from trl import SFTConfig, SFTTrainer
+    from trl import SFTTrainer
 
     class SelectedTokenLossTrainer(SFTTrainer):
-        """Cross-entropy over assistant tokens only, without full-sequence logits.
-
-        The stock loss materializes [sequence, 248320] logits: about 26 GB in
-        bf16 at 52K tokens before the fp32 upcast, more than an A100-80GB has
-        left. Here only the hidden states of trained positions reach lm_head,
-        in checkpointed chunks, so peak logits memory is one chunk. The loss is
-        the same token-mean cross-entropy over label != -100 positions.
-        """
-
         def compute_loss(self, model, inputs, return_outputs=False, num_items_in_batch=None):
             base = model.get_base_model() if hasattr(model, "get_base_model") else model
             labels = inputs["labels"][:, 1:]
@@ -726,6 +711,104 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
             denominator = num_items_in_batch if num_items_in_batch is not None else targets.numel()
             loss = total / denominator
             return (loss, None) if return_outputs else loss
+
+    return SelectedTokenLossTrainer
+
+
+def build_trainer(
+    model: Any,
+    tokenizer: Any,
+    rows: list[dict[str, Any]],
+    config: dict[str, Any],
+    *,
+    output_dir: Path,
+    bf16: bool = True,
+) -> Any:
+    """The exact trainer ``train_remote`` runs, from pre-rendered rows."""
+    from datasets import Dataset
+    from peft import LoraConfig, TaskType
+    from trl import SFTConfig
+
+    peft_config = LoraConfig(
+        r=int(config["lora_rank"]),
+        lora_alpha=int(config["lora_alpha"]),
+        lora_dropout=float(config["lora_dropout"]),
+        bias="none",
+        task_type=TaskType.CAUSAL_LM,
+        target_modules=list(config["target_modules"]),
+    )
+    args = SFTConfig(
+        output_dir=str(output_dir),
+        max_length=int(config["max_length"]),
+        truncation_mode="keep_start",
+        packing=False,
+        per_device_train_batch_size=int(config["per_device_batch"]),
+        gradient_accumulation_steps=int(config["grad_accum_steps"]),
+        num_train_epochs=float(config["num_epochs"]),
+        learning_rate=float(config["learning_rate"]),
+        lr_scheduler_type=str(config["lr_scheduler"]),
+        warmup_ratio=float(config["warmup_ratio"]),
+        bf16=bf16,
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={"use_reentrant": False},
+        logging_steps=1,
+        save_strategy="no",
+        seed=int(config["seed"]),
+        report_to="none",
+    )
+    trainer = selected_token_loss_trainer_class()(
+        model=model,
+        args=args,
+        train_dataset=Dataset.from_list(rows),
+        processing_class=tokenizer,
+        peft_config=peft_config,
+    )
+    # compute_loss already divides by the accumulated token count.
+    trainer.model_accepts_loss_kwargs = True
+    return trainer
+
+
+def collated_label_check(trainer: Any, rows: list[dict[str, Any]]) -> dict[str, int]:
+    """Prove the loss sees exactly the rendered masks, through TRL's own pipeline.
+
+    TRL folds ``assistant_masks`` into ``labels`` while preparing the dataset
+    and drops the column, so the prepared rows are compared with the rows we
+    rendered: same count and order, identical ``input_ids``, and collated
+    labels (``!= -100``) equal to our mask at every position. Any difference
+    (a dropped, reordered or truncated row, or a shifted label) raises.
+    """
+    prepared = trainer.train_dataset
+    if len(prepared) != len(rows):
+        raise RuntimeError(f"TRL prepared {len(prepared)} rows from {len(rows)}")
+    check = {"rows": 0, "label_tokens": 0, "mask_tokens": 0, "mismatched_rows": 0}
+    for example, row in zip(prepared, rows, strict=True):
+        batch = trainer.data_collator([example])
+        labelled = (batch["labels"][0] != -100).tolist()
+        masked = [bool(bit) for bit in row["assistant_masks"]]
+        check["rows"] += 1
+        check["label_tokens"] += sum(labelled)
+        check["mask_tokens"] += sum(masked)
+        if list(example["input_ids"]) != row["input_ids"] or labelled != masked:
+            check["mismatched_rows"] += 1
+    if check["mismatched_rows"]:
+        raise RuntimeError(f"collated labels differ from rendered masks: {check}")
+    return check
+
+
+@app.function(
+    image=train_image,
+    gpu="A100-80GB",
+    cpu=4.0,
+    memory=16 * 1024,
+    volumes={WEIGHTS_MOUNT: weights_volume, SFT_MOUNT: sft_volume},
+    timeout=6 * 3600,
+)
+def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict[str, Any]:
+    """LoRA SFT on one A100-80GB; writes adapter + receipt to the SFT volume."""
+    import time
+
+    import torch
+    from transformers import AutoModelForCausalLM, AutoTokenizer
 
     started = time.monotonic()
 
@@ -755,7 +838,6 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
         rows.append({"input_ids": rendered.input_ids, "assistant_masks": rendered.mask})
     if not rows:
         raise RuntimeError("no trainable conversations after masking/truncation")
-    dataset = Dataset.from_list(rows)
 
     model, loading = AutoModelForCausalLM.from_pretrained(
         BASE_DIR,
@@ -768,56 +850,8 @@ def train_remote(export_rel: str, run_name: str, config: dict[str, Any]) -> dict
     if loading.get("missing_keys"):
         raise RuntimeError(f"base weights missing for {sorted(loading['missing_keys'])[:5]}")
     model.config.use_cache = False
-    peft_config = LoraConfig(
-        r=int(config["lora_rank"]),
-        lora_alpha=int(config["lora_alpha"]),
-        lora_dropout=float(config["lora_dropout"]),
-        bias="none",
-        task_type=TaskType.CAUSAL_LM,
-        target_modules=list(config["target_modules"]),
-    )
-    args = SFTConfig(
-        output_dir=str(out_dir / "adapter"),
-        max_length=int(config["max_length"]),
-        truncation_mode="keep_start",
-        packing=False,
-        per_device_train_batch_size=int(config["per_device_batch"]),
-        gradient_accumulation_steps=int(config["grad_accum_steps"]),
-        num_train_epochs=float(config["num_epochs"]),
-        learning_rate=float(config["learning_rate"]),
-        lr_scheduler_type=str(config["lr_scheduler"]),
-        warmup_ratio=float(config["warmup_ratio"]),
-        bf16=True,
-        gradient_checkpointing=True,
-        gradient_checkpointing_kwargs={"use_reentrant": False},
-        logging_steps=1,
-        save_strategy="no",
-        seed=int(config["seed"]),
-        report_to="none",
-    )
-    trainer = SelectedTokenLossTrainer(
-        model=model,
-        args=args,
-        train_dataset=dataset,
-        processing_class=tokenizer,
-        peft_config=peft_config,
-    )
-    # compute_loss already divides by the accumulated token count.
-    trainer.model_accepts_loss_kwargs = True
-    # Audit what the loss actually sees: TRL's own collator must turn exactly
-    # the template's assistant positions into labels and nothing else.
-    label_check = {"rows": 0, "label_tokens": 0, "mask_tokens": 0, "mismatched_rows": 0}
-    for example in trainer.train_dataset:
-        batch = trainer.data_collator([example])
-        labelled = (batch["labels"][0] != -100).tolist()
-        masked = [bool(bit) for bit in example["assistant_masks"]]
-        label_check["rows"] += 1
-        label_check["label_tokens"] += sum(labelled)
-        label_check["mask_tokens"] += sum(masked)
-        if labelled != masked:
-            label_check["mismatched_rows"] += 1
-    if label_check["mismatched_rows"]:
-        raise RuntimeError(f"collated labels differ from assistant masks: {label_check}")
+    trainer = build_trainer(model, tokenizer, rows, config, output_dir=out_dir / "adapter")
+    label_check = collated_label_check(trainer, rows)
     torch.cuda.reset_peak_memory_stats()
     train_started = time.monotonic()
     trainer.train()

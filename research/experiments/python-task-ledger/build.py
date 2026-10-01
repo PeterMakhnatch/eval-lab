@@ -202,7 +202,11 @@ def triage(row: dict, checker: dict | None, hand: dict[str, str]) -> None:
         if checker is not None:
             judges["checker"] = checker["label"]
         broken = sorted(judge for judge, label in judges.items() if label == "broken")
-        summary = f"{len(broken)} of {len(judges)} judges say broken ({', '.join(broken)})"
+        raters = ", ".join(f"{r}={label}" for r, label in sorted(judges.items()) if r != "checker")
+        summary = (
+            f"{len(broken)} of {len(judges)} judges say broken (hand raters: {raters}; "
+            f"HAR-112 checker: {judges.get('checker', 'none')})"
+        )
         if 2 * len(broken) > len(judges):
             row["status"], row["reason"] = "discarded", summary
         else:

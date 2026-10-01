@@ -40,7 +40,7 @@ usage() { sed -n '2,30p' "$0"; exit 2; }
 
 SPECS_DIR="" ADAPTER="" ADAPTER_NAME="har129" CANDIDATE_USD="" CAP_USD="35"
 PARALLEL="20" LABEL="g5" ACTOR="" MODAL_APP_DAY_LIMIT_USD="" GEPA_CANDIDATE="" GEPA_SHA256=""
-PORT="8472" DRY_RUN=0 ROUND_CAP_USD="" MODAL_RATE_USD_PER_H="2.8149" RESUME_NAMES=""
+PORT="8472" DRY_RUN=0 ROUND_CAP_USD="" MODAL_RATE_USD_PER_H="2.8149" RESUME_NAMES="" PRIOR_SPEND_USD="0"
 while [ $# -gt 0 ]; do
   case "$1" in
     --specs-dir) SPECS_DIR=$2; shift 2 ;;
@@ -58,6 +58,7 @@ while [ $# -gt 0 ]; do
     --port) PORT=$2; shift 2 ;;
     --round-cap-usd) ROUND_CAP_USD=$2; shift 2 ;;
     --resume-names) RESUME_NAMES=$2; shift 2 ;;
+    --prior-spend-usd) PRIOR_SPEND_USD=$2; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown argument: $1" >&2; usage ;;
@@ -296,6 +297,7 @@ log "capture pid $CAPTURE_PID on :$PORT, sampler pid $SAMPLER_PID, watchdog pid 
 # (the lab's drain teardown never targets the LoRA app, so nothing stops it between waves)
 TOTAL_WAVES=$(echo "$WAVES" | awk 'END{print NR}')
 WAVES_DONE=0
+PREV_SPENT=0
 for wave in $WAVES; do
   position=$(basename "$wave" .txt)
   if [ "$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/health")" != 200 ]; then
@@ -319,27 +321,29 @@ for wave in $WAVES; do
   # verifier reward and an exception outside AGENT_STOP_EXCEPTIONS) and no
   # refusal: PREREG's serial-per-task order. A nonzero tick also stops the round.
   advance=0
-  "$PY" research/experiments/ovn-sft-v0/g5_wave_outcome.py "$wave" "$started" >"$OUT/$position-outcome.json" || advance=$?
+  "$PY" research/experiments/ovn-sft-v0/g5_wave_outcome.py "$wave" "$started" --specs-dir "$SPECS_DIR" \
+    --capture "$CAPDIR/calls.jsonl" >"$OUT/$position-outcome.json" || advance=$?
   verdict=$(cat "$OUT/$position-outcome.json")
   manifest "$position" "{\"started\": \"$started\", \"finished\": \"$finished\", \"tick_status\": $tick_status, \"outcome\": $verdict}"
   log "$position done (tick exit $tick_status): $verdict"
   [ "$tick_status" = 0 ] || die "$position: tick exited $tick_status; later waves not ticked"
-  [ "$advance" = 0 ] || die "$position: not every spec is terminal, or 3+ infra failures, or a dispatch refusal; later waves not ticked"
+  [ "$advance" = 0 ] || die "$position: a spec is not terminal, 3+ infra failures, a dispatch refusal, or a captured call on a model outside this wave's specs; later waves not ticked"
   WAVES_DONE=$((WAVES_DONE + 1))
-  # Before the next wave: reconcile, then refuse if this round's own spend plus a
-  # next wave costing the round's average so far would pass --round-cap-usd.
-  # Round spend counts only this round: Modal = max(billed delta on $APP since
-  # deploy, wall hours since deploy x MODAL_RATE_USD_PER_H) because billing lags
-  # and max_containers=1; Daytona = this round's trial lifetimes x the rate card.
+  # Before the next wave: reconcile, then refuse if spend so far (--prior-spend-usd
+  # from earlier segments of the same round + this run's own spend) plus the cost
+  # of the LAST completed wave would pass --round-cap-usd.
+  # This run's spend: Modal = max(billed delta on $APP since before deploy, wall
+  # hours since deploy x MODAL_RATE_USD_PER_H) because billing lags and
+  # max_containers=1; Daytona = this run's trial lifetimes x the rate card.
   # (`spend check --since` sums ALL lab spend in the window, other lanes included.)
   if [ -n "$ROUND_CAP_USD" ] && [ "$WAVES_DONE" -lt "$TOTAL_WAVES" ]; then
     "$EVALLAB" modal billing-reconcile --for "$DAY" >"$OUT/billing-reconcile-$position.txt" 2>&1 || log "billing reconcile after $position failed"
     billed=$(app_cost || echo 0)
-    "$PY" - "$OUT/ids.txt" "$DEPLOYED_EPOCH" "$billed" "$MODAL_BASELINE" "$MODAL_RATE_USD_PER_H" "$WAVES_DONE" "$ROUND_CAP_USD" \
-      >"$OUT/budget-after-$position.json" <<'EOF' || die "round spend plus a projected next wave would pass the \$$ROUND_CAP_USD round cap ($(cat "$OUT/budget-after-$position.json")); later waves not ticked"
+    "$PY" - "$OUT/ids.txt" "$DEPLOYED_EPOCH" "$billed" "$MODAL_BASELINE" "$MODAL_RATE_USD_PER_H" "$PREV_SPENT" "$PRIOR_SPEND_USD" "$ROUND_CAP_USD" \
+      >"$OUT/budget-after-$position.json" <<'EOF' || die "round spend plus the last wave's cost would pass the \$$ROUND_CAP_USD round cap ($(cat "$OUT/budget-after-$position.json")); later waves not ticked"
 import glob, json, sys, time
 from datetime import datetime
-ids, deployed, billed, baseline, rate, done, cap = sys.argv[1:8]
+ids, deployed, billed, baseline, rate, prev, prior, cap = sys.argv[1:9]
 modal = max(float(billed) - float(baseline), (time.time() - float(deployed)) / 3600 * float(rate))
 daytona_seconds = 0.0
 for line in open(ids):
@@ -351,13 +355,15 @@ for line in open(ids):
             daytona_seconds += (end - start).total_seconds()
 daytona = daytona_seconds / 3600 * 0.23094
 spent = modal + daytona
-next_wave = spent / int(done)
-out = {"modal_usd": round(modal, 4), "daytona_usd": round(daytona, 4), "round_usd": round(spent, 4),
-       "projected_next_wave_usd": round(next_wave, 4), "round_cap_usd": float(cap),
-       "allowed": spent + next_wave <= float(cap)}
+last_wave = spent - float(prev)
+total = float(prior) + spent
+out = {"modal_usd": modal, "daytona_usd": daytona, "this_run_usd": spent, "prior_segments_usd": float(prior),
+       "round_total_usd": total, "last_wave_usd": last_wave, "round_cap_usd": float(cap),
+       "allowed": total + last_wave <= float(cap)}
 print(json.dumps(out))
 sys.exit(0 if out["allowed"] else 1)
 EOF
+    PREV_SPENT=$("$PY" -c "import json,sys; print(json.load(open(sys.argv[1]))['this_run_usd'])" "$OUT/budget-after-$position.json")
     log "$position budget: $(cat "$OUT/budget-after-$position.json")"
   fi
 done

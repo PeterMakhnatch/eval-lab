@@ -152,6 +152,9 @@ class SegmentConversion:
     assistant_step_ids: list[int | None] = field(default_factory=list)
     assistant_prompt_tokens: list[int | None] = field(default_factory=list)
     assistant_completion_tokens: list[int | None] = field(default_factory=list)
+    #: Assistant turns replayed from before a summarization handoff
+    #: (``is_copied_context``): history for the continuing model, never a target.
+    assistant_copied: list[bool] = field(default_factory=list)
 
     @property
     def agent_messages(self) -> int:
@@ -494,6 +497,7 @@ def convert_segment(
     assistant_step_ids: list[int | None] = []
     assistant_prompt_tokens: list[int | None] = []
     assistant_completion_tokens: list[int | None] = []
+    assistant_copied: list[bool] = []
     for position, step in enumerate(steps):
         if not isinstance(step, dict):
             ignored.append("malformed_step")
@@ -548,6 +552,7 @@ def convert_segment(
                 reasoning_messages += 1
             block: list[dict[str, Any]] = [{"role": "assistant", "content": content}]
             assistant_reasonings.append(reasoning if isinstance(reasoning, str) else "")
+            assistant_copied.append(bool(step.get("is_copied_context")))
             assistant_step_ids.append(
                 step.get("step_id") if isinstance(step.get("step_id"), int) else None
             )
@@ -604,6 +609,7 @@ def convert_segment(
         assistant_step_ids=assistant_step_ids,
         assistant_prompt_tokens=assistant_prompt_tokens,
         assistant_completion_tokens=assistant_completion_tokens,
+        assistant_copied=assistant_copied,
     )
 
 
@@ -1012,6 +1018,15 @@ def export_conversations(
                 trial_reasons.append("no_agent_steps")
                 continue
             trial_reasons.extend(_scan_student_text(conversion.messages))
+            if per_turn_stride is not None:
+                # Per-turn targets carry reasoning_content: scan it as student text too.
+                trial_reasons.extend(
+                    _scan_student_text(
+                        {"role": "assistant", "content": reasoning}
+                        for reasoning in conversion.assistant_reasonings
+                        if reasoning
+                    )
+                )
             _validate_conversation(conversion.messages)
             session_id = payload.get("session_id")
             trial_conversations.append(
@@ -1133,11 +1148,13 @@ def write_export(
                     if msg.get("role") == "assistant"
                 ]
                 total_asst = len(asst_positions)
+                copied = conversation.conversion.assistant_copied
+                eligible = [
+                    i for i in range(total_asst) if not (i < len(copied) and copied[i])
+                ]
                 kept_turn_indices = sorted(
-                    set(
-                        [i for i in range(total_asst) if i % stride == stride - 1]
-                        + ([total_asst - 1] if total_asst > 0 else [])
-                    )
+                    {eligible[p] for p in range(len(eligible)) if p % stride == stride - 1}
+                    | ({eligible[-1]} if eligible else set())
                 )
                 conv_entry["turn_rows"] = kept_turn_indices
 

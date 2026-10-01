@@ -47,9 +47,16 @@ same tests as HAR-113's nop.
   package or the runner's staging, and Harbor restores the baseline before verification.
   The environment option changes neither and stays on through grading.
 
-Enable it with `--environment-kwarg egress_lock=true` on `harbor run`. The lab's queue does
-not emit it yet: the runner is being changed for HAR-116, and HAR-116 and HAR-120 decide
-whether to adopt this. Their environment is unchanged.
+Enable it with `--environment-kwarg egress_lock=true` on `harbor run`. Since
+HAR-140 the lab's queue passes it by default for every MiMo run on Daytona (a
+MiMo-family model or a MiMo-dataset task, including the model-free `nop` /
+`oracle` census runs dispatched by the HAR-113/HAR-115 census tooling through
+`evallab submit/approve/tick`, which need no new flag); an explicit
+`egress_lock: true` in the spec is also accepted. A MiMo Daytona run that
+cannot be locked (compose task, task phase network policies, an agent or model
+proxy needing network from inside the sandbox, or explicit `egress_lock=false`)
+is refused at dispatch. Each trial records the outcome in `egress-lock.json`,
+and `egress_lock` is part of the trial treatment key.
 
 ## Proof (no model, 2026-09-30)
 

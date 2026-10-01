@@ -78,6 +78,7 @@ NO_MODEL_AGENTS = frozenset({"nop", "oracle"})
 KEY_FIELDS = (
     "task_version_digest",
     "backend",
+    "egress_lock",
     "agent",
     "harbor_version",
     "model",
@@ -294,6 +295,33 @@ def _agent_identity(
     return (path if isinstance(path, str) else None, info if isinstance(info, str) else None)
 
 
+def _egress_lock_value(trial_dir: Path) -> tuple[bool | None, str]:
+    """The trial's egress-lock treatment value (HAR-140).
+
+    True when ``egress-lock.json`` requests the lock (including legacy v1
+    lock records, which only exist when the lock was applied), False when it
+    records an unlocked trial or is absent: the lock was opt-in and off by
+    default before HAR-140, and no run used it, so a trial without the file
+    ran unlocked. A failed lock (requested but not applied) reads True: the
+    trial ran under the locked treatment and ended as infra.
+    """
+    try:
+        payload = json.loads((trial_dir / "egress-lock.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False, "trial egress-lock.json absent (pre-HAR-140 default unlocked)"
+    if not isinstance(payload, dict):
+        return False, "trial egress-lock.json unreadable (pre-HAR-140 default unlocked)"
+    if isinstance(payload.get("requested"), bool):
+        if bool(payload["requested"]):
+            return True, "trial egress-lock.json requested"
+        return False, "trial egress-lock.json requested"
+    if payload.get("network_block_all") is True:
+        return True, "trial egress-lock.json (legacy v1 lock record)"
+    if payload.get("applied") is False:
+        return False, "trial egress-lock.json applied"
+    return False, "trial egress-lock.json unreadable (pre-HAR-140 default unlocked)"
+
+
 def _requested_thinking(kwargs: Mapping[str, Any], llm: Mapping[str, Any]) -> str:
     body = _dict(llm.get("extra_body"))
     template = _dict(llm.get("chat_template_kwargs")) or _dict(body.get("chat_template_kwargs"))
@@ -379,6 +407,8 @@ def collect_treatment(job_dir: Path, trial_dir: Path, sources: CommitSources) ->
         ),
         "trial config/lock environment",
     )
+    egress_value, egress_source = _egress_lock_value(trial_dir)
+    t.set("egress_lock", egress_value, egress_source)
     agent_path, agent_name = _agent_identity(config, result)
     t.set("agent", agent_path, "trial config.json agent")
     harbor = _dict(lab.get("tools")).get("harbor")

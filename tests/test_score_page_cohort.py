@@ -180,3 +180,57 @@ def test_symlink_member_cannot_escape_frozen_root(tmp_path: Path) -> None:
     with pytest.raises(SystemExit):
         _score(labels=labels, home=tmp_path / "home", out=out, trials=1)
     assert not out.exists()
+
+
+def test_named_cohorts_have_distinct_metadata() -> None:
+    specs = score_page.PUBLISHED_COHORTS
+    assert set(specs) == {"har128-har116", "har128-g2-a1"}
+    assert score_page.PUBLISHED_COHORT_DEFAULT == "har128-har116"
+    har116, g2 = specs["har128-har116"], specs["har128-g2-a1"]
+    assert har116["cohort"] != g2["cohort"]
+    assert har116["expected_manifest_sha256"] != g2["expected_manifest_sha256"]
+    assert len(har116["expected_manifest_sha256"]) == 64
+    assert len(g2["expected_manifest_sha256"]) == 64
+    assert har116["output"] != g2["output"]
+    assert (har116["expected_files"], har116["expected_trials"]) == (80, 40)
+    assert (g2["expected_files"], g2["expected_trials"]) == (40, 20)
+
+
+def test_default_cohort_resolves_to_current_har116_behavior() -> None:
+    spec = score_page.resolve_published_cohort(None)
+    assert spec["name"] == "har128-har116"
+    assert spec["cohort"] == score_page.HAR128_COHORT
+    assert spec["expected_manifest_sha256"] == score_page.HAR128_MANIFEST_SHA256
+    with pytest.raises(SystemExit):
+        score_page.resolve_published_cohort("no-such-study")
+
+
+def test_cohort_description_flows_to_receipt_not_hardcoded_study(tmp_path: Path) -> None:
+    labels = _write_labels(
+        tmp_path / "labels",
+        {
+            "hit": ("none", "none"),
+            "gone": ("none", "none"),
+            "split": ("none", "repetition"),
+        },
+    )
+    home = tmp_path / "home"
+    _write_report(home, "hit", "none")
+    payload = score_page.score_published_cohort(
+        labels_root=labels,
+        results_home=home,
+        output=tmp_path / "o.json",
+        expected_files=6,
+        expected_trials=3,
+        expected_manifest_sha256=_manifest_sha(labels),
+        cohort="STUDY UNDER TEST",
+        heldout="heldout under test",
+        limit="limit under test",
+    )
+    assert payload["cohort"] == "STUDY UNDER TEST"
+    assert payload["heldout"] == "heldout under test"
+    assert payload["limit"] == "limit under test"
+    assert payload["rater_agreement"] == {"agree": 2, "n": 3}
+    assert payload["disagreements"] == 1
+    assert payload["page_vs_agreed"] == {"agree": 1, "n": 2}
+    assert payload["page_abstentions"] == 1

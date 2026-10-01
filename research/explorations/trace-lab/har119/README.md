@@ -173,3 +173,31 @@ The receipt carries scores and report hashes only, never trial content.
 - Raters are blind scout agents, not humans; rater A on one trial reports
   `off_limits_opened`. The three 001181 trials are globally held out:
   analysis/calibration only, never training reflection.
+
+### Third cohort: published G2 attempt-1 pages vs frozen HAR-128 G2 labels (HAR-131)
+
+The same strict path scores a second published study without pooling: `--cohort`
+selects the named study (`har128-har116` by default, `har128-g2-a1` for G2).
+Each cohort carries its own freeze identity, receipt, and denominator; no entry
+borrows other-field numbers it did not measure.
+
+```
+uv run python research/explorations/trace-lab/har119/score_page.py \
+  --published-cohort --cohort har128-g2-a1 --results-home ~/Developer/eval-lab-results
+```
+
+`--labels` defaults to the merged
+`research/explorations/trace-lab/har128/labels_g2_a1` freeze (40 files, 20 trials);
+`--output` defaults to
+`research/experiments/har117-results-home/har131-page-calibration-g2-a1.json`.
+The receipt carries scores and report hashes only, never trial content.
+
+- **Page loop kind vs agreed rater cells: 12/17** (17 agreed of 20,
+  3 excluded on rater disagreement, 0 abstentions). Per-kind: none 5/5,
+  repetition 4/6, completion-claim 3/6.
+- **Rater agreement: 17/20** on loop kind.
+- This cohort calibrates **loop kind only**: it carries no first-failure or
+  blame numbers, and its denominator is never pooled with the 7/11 or 28/35 above.
+- Raters are blind scout agents A (G2A1-4) / B (G2B1-4), not humans; none reports
+  opening off-limits files. The 001181 held-out note stays scoped to the HAR-116
+  cohort, not G2. All score receipts are inspection-only, never training reflection.

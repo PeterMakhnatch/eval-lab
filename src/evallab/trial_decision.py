@@ -67,12 +67,11 @@ PAGE_CALIBRATION = {
     #: predictor on later frozen cohorts. Each entry stands alone with its
     #: own denominator: never pooled with the HAR-119 cohort above, and no
     #: entry borrows first-failure/blame numbers it did not measure.
-    #: Reproduce the HAR-128 entry with
-    #: research/explorations/trace-lab/har119/score_page.py --labels
-    #: research/explorations/trace-lab/har128/labels_har116 --results-home
-    #: <eval-lab-results> --output
-    #: research/experiments/har117-results-home/har131-page-calibration-har116.json,
-    #: which refuses to run when the frozen labels change and records a
+    #: Reproduce a named entry with
+    #: research/explorations/trace-lab/har119/score_page.py --published-cohort
+    #: --cohort <har128-har116|har128-g2-a1> --results-home
+    #: <eval-lab-results> (each entry records its own labels/output), which
+    #: refuses to run when the frozen labels change and records a
     #: missing/unknown page prediction as an explicit abstention.
     "additional_loop_calibrations": [
         {
@@ -111,7 +110,44 @@ PAGE_CALIBRATION = {
                 "Denominators stay per-cohort, never pooled. The artifact exports "
                 "scores and report hashes only, not trial content."
             ),
-        }
+        },
+        {
+            "cohort": "HAR-128 G2 attempt 1: 20 HAR-120 trials",
+            "frozen_at": "2026-10-01T09:14:45Z",
+            "labels": "research/explorations/trace-lab/har128/labels_g2_a1",
+            "labels_manifest_sha256": "f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674",
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "in_sample": False,
+            "rater_agreement_loop_kind": {"agree": 17, "n": 20},
+            "excluded_rater_disagreement": 3,
+            "page_vs_agreed_loop_kind": {"agree": 12, "n": 17},
+            "abstentions": 0,
+            "loop_kind_confusion": {
+                "none": {"agree": 5, "n": 5},
+                "repetition": {"agree": 4, "n": 6},
+                "completion-claim": {"agree": 3, "n": 6},
+            },
+            "method": (
+                "research/explorations/trace-lab/har119/score_page.py --published-cohort "
+                "--cohort har128-g2-a1 --results-home "
+                "<eval-lab-results> --output "
+                "research/experiments/har117-results-home/har131-page-calibration-g2-a1.json"
+            ),
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-a1.json",
+            "heldout": (
+                "G2 attempt-1 frozen cohort only: analysis and "
+                "calibration only, never training reflection"
+            ),
+            "limits": (
+                "Loop kind only: this cohort carries no first-failure/blame calibration. "
+                "Blind scout-agent raters A (G2A1-4) / B (G2B1-4), not human ground truth; "
+                "no reported off-limits openings. "
+                "Denominators stay per-cohort, never pooled. The artifact exports "
+                "scores and report hashes only, not trial content; inspection only, "
+                "never training reflection."
+            ),
+        },
     ],
     "grader_alignment": "opinion with no page-measured calibration on this cohort",
     "method": "research/explorations/trace-lab/har119/score_page.py",

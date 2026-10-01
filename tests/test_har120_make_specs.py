@@ -3,8 +3,13 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import shutil
 import sys
+from contextlib import suppress
 from pathlib import Path
+
+import pytest
 
 EXP = Path("research/experiments/har120-data-batch/make_specs.py")
 
@@ -102,3 +107,115 @@ def test_eval_list_header_only_drops_nothing(tmp_path: Path) -> None:
     path = tmp_path / "eval.csv"
     path.write_text("task,digest,repo,image_mib\n")
     assert MAKE.load_eval_list(path) == []
+
+
+PLACEHOLDER_TREE = Path("research/experiments/har116-loopfix-leak/harness-loopfix")
+_CHECK_TASK = "format-code-task-001234"
+_CHECK_PACKAGE = "sha256:" + "ab" * 32
+_CHECK_VERIFIER = "sha256:" + "cd" * 32
+
+
+class _Digests:
+    def __init__(self, package: str, verifier: str) -> None:
+        self.package = package
+        self.verifier = verifier
+
+
+@pytest.fixture
+def check_setup(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    """A minimal valid check() setup: one kept task, real tree and route.
+
+    The staged dir lives in the generator's real gitignored tasks/ dir
+    (check() resolves task dirs against it) and is removed afterwards; the
+    specs go to a tmp dir.
+    """
+    tasks = MAKE.TASKS
+    tasks.mkdir(exist_ok=True)
+    staged_dir = tasks / _CHECK_TASK
+    staged_dir.mkdir(exist_ok=True)
+    monkeypatch.setattr(
+        MAKE,
+        "compute_task_digests",
+        lambda _dest: _Digests(_CHECK_PACKAGE, _CHECK_VERIFIER),
+    )
+    try:
+        kept = [
+            {
+                "task_id": _CHECK_TASK,
+                "project": "thing",
+                "run": "original",
+                "run_digest": _CHECK_PACKAGE,
+            }
+        ]
+        route = MAKE._route(MAKE.BASE_SPEC)
+        tree = MAKE._tree(PLACEHOLDER_TREE, None)
+        out_dir = tmp_path / "specs"
+        out_dir.mkdir()
+        task_rel = staged_dir.relative_to(MAKE.REPO).as_posix()
+        for attempt in (1, 2):
+            name = MAKE.spec_name(_CHECK_TASK, attempt)
+            MAKE._write(
+                out_dir,
+                name,
+                MAKE._spec(
+                    name,
+                    _CHECK_TASK,
+                    task_rel,
+                    _CHECK_PACKAGE,
+                    _CHECK_VERIFIER,
+                    tree[0],
+                    tree[1],
+                    route,
+                ),
+            )
+        staged = {_CHECK_TASK: {"package_digest": _CHECK_PACKAGE, "verifier": _CHECK_VERIFIER}}
+        MAKE.write_cohort(out_dir, kept, staged, [], tree)
+        yield out_dir, kept, route, tree
+    finally:
+        shutil.rmtree(staged_dir, ignore_errors=True)
+        with suppress(OSError):
+            tasks.rmdir()
+
+
+def _rewrite_spec(out_dir: Path, stem: str, **overrides) -> None:
+    path = out_dir / f"{stem}.json"
+    doc = json.loads(path.read_text())
+    doc.update(overrides)
+    path.write_text(json.dumps(doc, indent=2) + "\n")
+
+
+def test_check_accepts_matching_specs(check_setup, capsys) -> None:
+    out_dir, kept, route, tree = check_setup
+    assert MAKE.check(out_dir, kept, [], route, tree) == 0
+
+
+def test_check_refuses_spec_with_wrong_tree_digest(check_setup, capsys) -> None:
+    out_dir, kept, route, tree = check_setup
+    _rewrite_spec(
+        out_dir, MAKE.spec_name(_CHECK_TASK, 1), harness_tree_sha256="sha256:" + "ef" * 32
+    )
+    assert MAKE.check(out_dir, kept, [], route, tree) == 1
+    assert "harness digest" in capsys.readouterr().out
+
+
+def test_check_refuses_spec_with_wrong_tree_path(check_setup, capsys) -> None:
+    out_dir, kept, route, tree = check_setup
+    _rewrite_spec(out_dir, MAKE.spec_name(_CHECK_TASK, 1), harness_tree_path="research/other/tree")
+    assert MAKE.check(out_dir, kept, [], route, tree) == 1
+    assert "harness path" in capsys.readouterr().out
+
+
+def test_check_refuses_spec_with_task_id_off_its_row(check_setup, capsys) -> None:
+    out_dir, kept, route, tree = check_setup
+    _rewrite_spec(out_dir, MAKE.spec_name(_CHECK_TASK, 1), task_id="format-code-task-009999")
+    assert MAKE.check(out_dir, kept, [], route, tree) == 1
+    assert "task_id" in capsys.readouterr().out
+
+
+def test_check_refuses_spec_with_digest_off_its_row(check_setup, capsys) -> None:
+    out_dir, kept, route, tree = check_setup
+    _rewrite_spec(
+        out_dir, MAKE.spec_name(_CHECK_TASK, 1), task_package_digest="sha256:" + "ef" * 32
+    )
+    assert MAKE.check(out_dir, kept, [], route, tree) == 1
+    assert "package digest" in capsys.readouterr().out

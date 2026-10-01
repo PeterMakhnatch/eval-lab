@@ -157,10 +157,7 @@ def load_eval_gate(repo_root: Path, eval_tasks: Path | None = None) -> dict | No
     must never pretend authority.
     """
     rel = str(eval_tasks) if eval_tasks else DEFAULT_EVAL_TASKS
-    if eval_tasks and eval_tasks.is_absolute():
-        path = eval_tasks
-    else:
-        path = repo_root / rel
+    path = eval_tasks if eval_tasks and eval_tasks.is_absolute() else repo_root / rel
     if not path.is_file():
         return None
     with path.open(encoding="utf-8") as handle:
@@ -192,10 +189,7 @@ def load_eval_gate(repo_root: Path, eval_tasks: Path | None = None) -> dict | No
 def load_training_proposal(repo_root: Path, proposal: Path | None = None) -> dict | None:
     """Approved HAR120 training proposal, provenance only (never a selector)."""
     rel = str(proposal) if proposal else DEFAULT_TRAINING_PROPOSAL
-    if proposal and proposal.is_absolute():
-        path = proposal
-    else:
-        path = repo_root / rel
+    path = proposal if proposal and proposal.is_absolute() else repo_root / rel
     if not path.is_file():
         return None
     task_ids = set()

@@ -225,6 +225,23 @@ def test_missing_inputs_visible_as_coverage(tmp_path: Path) -> None:
         con.close()
 
 
+def test_stale_processed_reward_cannot_promote_an_unscored_native_trial(tmp_path: Path) -> None:
+    job = tmp_path / "job_stale"
+    _create_minimal_trial(job, "trial_stale", reward=None)
+    report = job / "processed/trial-trial_stale.json"
+    stale = json.loads(report.read_text())
+    stale["reward"] = 1.0
+    stale["scored"] = True
+    report.write_text(json.dumps(stale))
+    con, _ = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+    try:
+        assert con.execute("SELECT raw_reward, scored FROM v_trace_trials").fetchone() == (
+            None, False
+        )
+    finally:
+        con.close()
+
+
 def test_trial_vs_step_grain_isolation(tmp_path: Path) -> None:
     """Trial aggregations are not corrupted by joined steps."""
     job = tmp_path / "job_multistep"
@@ -476,3 +493,32 @@ def test_prompt_examples_are_not_agent_proposals(source: str) -> None:
     assert recorded_calls == 0
 
 
+@pytest.mark.parametrize("state", ["current", "stale", "conflicting"])
+def test_first_edit_feature_requires_unambiguous_current_source(tmp_path: Path, state: str) -> None:
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    job = tmp_path / "job_features"
+    trial = _create_minimal_trial(job, "trial_features")
+    digest = hashlib.sha256((trial / "agent/trajectory.json").read_bytes()).hexdigest()
+    feature = {
+        "job_id": "job-uuid-1", "trial_id": "trial-uuid-1",
+        "source_sha256": "0" * 64 if state == "stale" else digest,
+        "status": "featured", "unavailable_reason": None,
+        "agent_step_count": 3, "step_to_first_edit": 1,
+    }
+    features = [feature]
+    if state == "conflicting":
+        features.append({**feature, "step_to_first_edit": 2})
+    derived = tmp_path / "derived"
+    partition = derived / "job_id=job-uuid-1/trial_id=trial-uuid-1"
+    partition.mkdir(parents=True)
+    pq.write_table(pa.Table.from_pylist(features), partition / "traj_features.parquet")
+    con, _ = connect_trace_query(repo_root=tmp_path, derived_root=derived, job_dirs=[job])
+    try:
+        measured, first_edit = con.execute(
+            "SELECT first_edit_measure_available, first_edit_step FROM v_trace_trials"
+        ).fetchone()
+        assert (measured, first_edit) == ((True, 1) if state == "current" else (False, None))
+    finally:
+        con.close()

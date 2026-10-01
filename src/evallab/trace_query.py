@@ -69,12 +69,17 @@ TRIALS_ARROW_SCHEMA = pa.schema(
         pa.field("taint_json", pa.string(), nullable=True),
         pa.field("diagnosis_json", pa.string(), nullable=True),
         pa.field("outline_json", pa.string(), nullable=True),
+        pa.field("shape_counts_json", pa.string(), nullable=True),
+        pa.field("acceptance_json", pa.string(), nullable=True),
+        pa.field("rejection_causes_json", pa.string(), nullable=True),
         pa.field("loop_kind", pa.string(), nullable=True),
         pa.field("first_failure_ref", pa.string(), nullable=True),
         pa.field("outcome_rule", pa.string(), nullable=True),
         pa.field("outcome_attribution", pa.string(), nullable=True),
         pa.field("last_edit_step", pa.int64(), nullable=True),
         pa.field("first_edit_step", pa.int64(), nullable=True),
+        pa.field("first_edit_evidence_source", pa.string(), nullable=True),
+        pa.field("first_edit_measure_available", pa.bool_(), nullable=False),
         pa.field("tokens_after_last_edit_input", pa.int64(), nullable=True),
         pa.field("tokens_after_last_edit_output", pa.int64(), nullable=True),
         pa.field("source_job_dir", pa.string(), nullable=False),
@@ -711,9 +716,6 @@ def _build_trial_row(
     tokens_after_last_edit_output = None
 
     if processed_data:
-        if processed_data.get("reward") is not None and raw_reward is None:
-            raw_reward = float(processed_data["reward"])
-            scored = bool(processed_data.get("scored", True))
         if processed_data.get("stop_reason"):
             stop_reason = str(processed_data["stop_reason"])
         if isinstance(processed_data.get("agent_steps"), int):
@@ -795,9 +797,6 @@ def _build_trial_row(
             diagnosis_json = json.dumps(processed_data["diagnosis"])
         if processed_data.get("outline"):
             outline_json = json.dumps(processed_data["outline"])
-            ol = processed_data["outline"]
-            if isinstance(ol, dict) and isinstance(ol.get("step_to_first_edit"), int):
-                first_edit_step = ol["step_to_first_edit"]
 
     # 3. Trajectory and steps extraction via canonical stitching.
     # stitch_steps merges continuation parts into unique steps without
@@ -953,6 +952,8 @@ def _build_trial_row(
         "outcome_attribution": outcome_attribution,
         "last_edit_step": last_edit_step,
         "first_edit_step": first_edit_step,
+        "first_edit_evidence_source": None,
+        "first_edit_measure_available": False,
         "tokens_after_last_edit_input": tokens_after_last_edit_input,
         "tokens_after_last_edit_output": tokens_after_last_edit_output,
         "source_job_dir": source_job_dir,
@@ -965,6 +966,9 @@ def _build_trial_row(
         "step_evidence_source": step_evidence_source,
         "labels_json": json.dumps(labels),
     }
+    for field in ("shape_counts", "acceptance", "rejection_causes"):
+        value = processed_data.get(field) if processed_data is not None else None
+        trial_row[f"{field}_json"] = json.dumps(value) if value is not None else None
 
     return trial_row, steps_rows, stitch_stats
 
@@ -1152,6 +1156,39 @@ def connect_trace_query(
                 borrowed = digest_by_id.get((row["job_id"], row["trial_id"]))
                 if borrowed:
                     row["task_package_digest"] = str(borrowed)
+    except duckdb.Error as exc:
+        coverage.setdefault("parquet_errors", []).append(str(exc))
+
+    # Reuse the existing edit-action feature, bound to the current ATIF bytes.
+    # Duplicate historical projections cannot arbitrarily choose a first edit.
+    try:
+        feature_rows = conn.execute(
+            "SELECT job_id, trial_id, source_sha256, step_to_first_edit "
+            "FROM traj_features WHERE status = 'featured' "
+            "AND unavailable_reason IS NULL AND agent_step_count > 0"
+        ).fetchall()
+        features_by_id: dict[tuple[str, str], set[tuple[str, int | None]]] = {}
+        for feature_job, feature_trial, digest, first_edit in feature_rows:
+            if digest:
+                features_by_id.setdefault((str(feature_job), str(feature_trial)), set()).add(
+                    (str(digest).removeprefix("sha256:"), first_edit)
+                )
+        for row in all_trial_rows:
+            key = (row["job_id"], row["trial_id"])
+            head_hashes = {
+                step["source_sha256"].removeprefix("sha256:")
+                for step in steps_by_trial_id[key]
+                if step["source_path"] == "agent/trajectory.json"
+            }
+            matches = {
+                feature for feature in features_by_id.get(key, set())
+                if feature[0] in head_hashes
+            }
+            if len(matches) == 1:
+                digest, first_edit = matches.pop()
+                row["first_edit_step"] = first_edit
+                row["first_edit_measure_available"] = True
+                row["first_edit_evidence_source"] = f"traj_features@{digest}"
     except duckdb.Error as exc:
         coverage.setdefault("parquet_errors", []).append(str(exc))
 

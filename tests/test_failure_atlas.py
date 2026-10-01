@@ -162,22 +162,23 @@ def test_gepa_gate_fail_closed():
 
 def test_g2_bindings_validation_rejects_file():
     good = ("format-code-task-000495", DIG_GOOD)
-    allowed, error = atlas_build.validate_g2_bindings([dict(zip(("task", "package_digest"), good))])
+    binding = {"task": good[0], "package_digest": good[1]}
+    allowed, error = atlas_build.validate_g2_bindings([binding])
     assert error is None and allowed == {good}
     # one malformed entry fails the entire file, loudly
     _, error = atlas_build.validate_g2_bindings(
-        [dict(zip(("task", "package_digest"), good)), {"task": "format-code-task-000495"}])
+        [binding, {"task": "format-code-task-000495"}])
     assert error is not None and "indices [1]" in error
     _, error = atlas_build.validate_g2_bindings(
-        [dict(zip(("task", "package_digest"), good)), {"task": "candidate-1", "package_digest": DIG_GOOD}])
+        [binding, {"task": "candidate-1", "package_digest": DIG_GOOD}])
     assert error is not None
     _, error = atlas_build.validate_g2_bindings(
-        [dict(zip(("task", "package_digest"), good)),
+        [binding,
          {"task": "format-code-task-000495", "package_digest": 123}])
     assert error is not None
     # duplicates are explicit, not silently deduped
     _, error = atlas_build.validate_g2_bindings(
-        [dict(zip(("task", "package_digest"), good)), dict(zip(("task", "package_digest"), good))])
+        [binding, binding])
     assert error is not None and "duplicate" in error
     assert atlas_build.validate_g2_bindings([])[1] is not None
 

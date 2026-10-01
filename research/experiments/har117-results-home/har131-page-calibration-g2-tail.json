@@ -1,0 +1,81 @@
+{
+  "schema": "har131.page_loop_calibration/v1",
+  "cohort": "HAR-128 G2 tail: 3 HAR-120 trials",
+  "generated_at": "2026-10-01T10:55:59.089022+00:00",
+  "labels_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-g2/research/explorations/trace-lab/har128/labels_g2_tail",
+  "labels_frozen_at": "2026-10-01T10:21:18Z",
+  "labels_manifest_sha256": "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50",
+  "results_home": "/Users/petermakhnatch/Developer/eval-lab-results",
+  "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+  "predictor_functions": {
+    "names": [
+      "trial_decision.classify_loop_kind",
+      "trial_decision._claim_bearing",
+      "token_flow._loop_onset"
+    ],
+    "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+  },
+  "scorer_sha256": "c052edcca32ca083adbaafe2b5b7f38699d5649b6d9d6028778b7f8f60321950",
+  "in_sample": false,
+  "rater_agreement": {
+    "agree": 3,
+    "n": 3
+  },
+  "disagreements": 0,
+  "page_vs_agreed": {
+    "agree": 1,
+    "n": 3
+  },
+  "page_abstentions": 0,
+  "loop_kind_confusion": {
+    "none": {
+      "agree": 0,
+      "n": 0
+    },
+    "repetition": {
+      "agree": 0,
+      "n": 0
+    },
+    "completion-claim": {
+      "agree": 1,
+      "n": 3
+    }
+  },
+  "rows": [
+    {
+      "trial": "har120-000838-a2-r2__XnnRuwu",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000838-a2-r2/processed/trial-har120-000838-a2-r2__XnnRuwu.json",
+      "report_sha256": "2def638937e7010229b8ebd5fb9ff87a9de4ca600b2fb9f7c9e629b2130e9865"
+    },
+    {
+      "trial": "har120-001269-a2-r2__93WpuaE",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "completion-claim",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001269-a2-r2/processed/trial-har120-001269-a2-r2__93WpuaE.json",
+      "report_sha256": "33ba86c68bfffbaeaba4728d1719284460e2a4b29dac9b6d7b67bc072ab0b3ef"
+    },
+    {
+      "trial": "har120-002555-a1-r2__Uki9j6d",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002555-a1-r2/processed/trial-har120-002555-a1-r2__Uki9j6d.json",
+      "report_sha256": "e07a2789a0c80349f1de48ed952524f021d9922c81bf9d61cabd2e763c8a0658"
+    }
+  ],
+  "heldout": "G2 tail freeze: analysis and calibration only, never training reflection",
+  "limit": "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind scout-agent raters G4A/G4B, not human ground truth; neither reports off-limits openings. Loop kind only; no first-failure/blame calibration. Tiny cohort: three trials, all agreed labels completion-claim. Denominators stay per-cohort, never pooled. Scores and report hashes only, not trial content; never training reflection."
+}

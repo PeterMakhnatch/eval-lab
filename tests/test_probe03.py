@@ -66,6 +66,26 @@ def test_ceiling_loop_trial_stop_runs_and_reward(tmp_path: Path) -> None:
     assert analysis["first_failure"] is None
 
 
+def test_native_loop_break_preserves_scored_verifier_outcome(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    job.mkdir()
+    for reward in (0.0, 1.0):
+        trial = _write_trial(
+            job, f"loop-break-{reward}", n_loop=12, reward=reward, ceiling=False
+        )
+        result_path = trial / "result.json"
+        result = json.loads(result_path.read_text())
+        result["exception_info"] = {
+            "exception_type": "LoopBreakStop",
+            "exception_message": "loop break after the nudge grace interval",
+        }
+        result_path.write_text(json.dumps(result))
+
+        analysis = probe03.analyze_trial_core(trial, job)
+        assert analysis["stop_reason"] == "loop_break"
+        assert (analysis["reward"], analysis["scored"]) == (reward, True)
+
+
 def test_distinct_steps_are_no_run(tmp_path: Path) -> None:
     job = tmp_path / "job"
     job.mkdir()

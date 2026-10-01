@@ -1827,25 +1827,41 @@ def run_capture_smoke(
     out_dir: str | Path,
     key_env: str = SMOKE_KEY_ENV,
     max_tokens: int = 64,
+    model: str | None = None,
 ) -> dict[str, Any]:
     """Send one Terminus-shaped chat call via secret proxy -> capture -> upstream.
 
     The secret proxy is configured exactly as :func:`evallab.runner.run_experiment`
     configures it for the ``mimo_selfhosted`` route (same ``_terminus_proxy_env``
-    inputs, ``EVALLAB_MODEL_CAPTURE=1``, job attempt id as route token). The
+    inputs, ``EVALLAB_MODEL_CAPTURE=1``, job attempt id as route token): the
+    requested selector is strictly parsed, so the #604 adapter admission
+    applies and an unknown suffix is refused before anything starts. The
     provider key comes from ``key_env`` and never reaches the record or the
-    returned summary. Raises :class:`SmokeError` on any failure.
+    returned summary. The upstream's echoed model must be one the runner
+    accepts for the requested selector (an adapter request echoing the base
+    id fails, per the runner's identity rule). Raises :class:`SmokeError`
+    on any failure.
     """
     from evallab.execution_contracts import (
         CAPTURE_ENABLED_ENV,
         MIMO_SELFHOSTED_MODEL_SELECTOR,
-        MIMO_SELFHOSTED_NATIVE_MODEL,
         MIMO_SELFHOSTED_PROXY_PROVIDER,
         MIMO_SELFHOSTED_UPSTREAM_ENV,
         ProxyTrialLimits,
         materialize_mimo_selfhosted_secret_file,
+        parse_mimo_selfhosted_model,
     )
-    from evallab.runner import _start_terminus_proxy, _stop_terminus_proxy
+    from evallab.runner import (
+        _accepted_returned_models,
+        _start_terminus_proxy,
+        _stop_terminus_proxy,
+    )
+
+    selector = model if model is not None else MIMO_SELFHOSTED_MODEL_SELECTOR
+    try:
+        native = parse_mimo_selfhosted_model(selector)
+    except ValueError as exc:
+        raise SmokeError(f"smoke model refused: {exc}") from exc
 
     key = os.environ.get(key_env)
     if not key:
@@ -1884,10 +1900,10 @@ def run_capture_smoke(
             ),
             timeout_seconds=300.0,
             work_dir=work_dir,
-            mimo_native=MIMO_SELFHOSTED_NATIVE_MODEL,
+            mimo_native=native,
         )
         body = {
-            "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+            "model": selector,
             "messages": [{"role": "user", "content": "smoke ping"}],
             "max_tokens": max_tokens,
         }
@@ -1922,6 +1938,9 @@ def run_capture_smoke(
         record = records[0]
         if record.get("route_token") != token:
             raise SmokeError("captured call carries the wrong route token")
+        echoed = record.get("model")
+        if echoed not in _accepted_returned_models(selector):
+            raise SmokeError(f"echoed model {echoed!r} does not match requested {selector!r}")
         blob = json.dumps(record)
         for secret in (key, capability):
             if secret and secret in blob:

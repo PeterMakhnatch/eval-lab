@@ -1,0 +1,46 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "while isinstance(target, (ast.Subscript, ast.Attribute)):",
+      "ref": "head#27"
+    },
+    {
+      "quote": "The task is complete.",
+      "ref": "head#30"
+    },
+    {
+      "quote": "echo \"task complete\"",
+      "ref": "head#31"
+    },
+    {
+      "quote": "mark_task_complete",
+      "ref": "head#63"
+    },
+    {
+      "quote": "echo done",
+      "ref": "head#121"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#31",
+    "head#121"
+  ],
+  "notes": "TrialBudgetExhaustedError with n_episodes 121 (at 120-request limit), input 2.27M < 2.5M. Git reads were ancestors (fad37df0, 2022 fix for other issue), not the fix. Added visible regression test only.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 30,
+    "reason": "independently derived fix, no upstream fetch or hidden-test access, no 5+ repeat run in steps 1-30"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "request_ceiling",
+  "trial": "har120-002416-a1-r2__ccd9JcE"
+}

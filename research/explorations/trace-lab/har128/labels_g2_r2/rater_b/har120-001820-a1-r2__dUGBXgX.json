@@ -1,0 +1,47 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "using a `String` field with `validate.OneOf` over the literal values",
+      "ref": "head#16"
+    },
+    {
+      "quote": "return marshmallow.fields.String(",
+      "ref": "verifier/agent.diff"
+    },
+    {
+      "quote": "marshmallow.exceptions.ValidationError: {'n': ['Not a valid string.']}",
+      "ref": "verifier/test_output.log"
+    },
+    {
+      "quote": "Analysis: All 41 tests pass.",
+      "ref": "head#25"
+    },
+    {
+      "quote": "The diff was already shown above. The task is complete.",
+      "ref": "head#32"
+    },
+    {
+      "quote": "exception_info: null, verifier ran, reward 0.0",
+      "ref": "result.json"
+    }
+  ],
+  "first_failure": {
+    "quote": "using a `String` field with `validate.OneOf` over the literal values",
+    "ref": "head#16",
+    "what": "Mapped every Literal to marshmallow String+OneOf, so non-string literals (Literal[1,2,3]) fail deserialization; only string literals were ever tested"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Reward 0 (1 failure: int literal coerced to String). Harness accepted second mark_task_complete (head#33); clean finish, no loop. Model also edited visible tests/test_field_for_schema.py and CHANGELOG, but hidden int-literal test still fails.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har120-001820-a1-r2__dUGBXgX"
+}

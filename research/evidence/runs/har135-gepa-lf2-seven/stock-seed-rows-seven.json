@@ -1,0 +1,473 @@
+[
+  {
+    "attempt": 1,
+    "counts": {
+      "evidence": [],
+      "flags": [],
+      "judgments": [
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": "model",
+          "label": "blame",
+          "value": "R-COMP-03"
+        },
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": null,
+          "label": "loop_kind",
+          "value": "identical_loop"
+        }
+      ],
+      "raw_reward": 0.0,
+      "reasons": [],
+      "schema": "evallab.counts/v1",
+      "scored": true,
+      "task_status": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-000803",
+          "library/task-variants/mimo-v2.6-rl__format-code-task-000803/ac99a511015a.json",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-000803"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-000803",
+        "reason": "status=usable; nop sound, leak closed",
+        "run_digest": "sha256:ac99a511015a2c31ae7cb56577154096de4df9ca2f40d655450f215cdcb4f740",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-000803",
+        "trial_digest": "sha256:ac99a511015a2c31ae7cb56577154096de4df9ca2f40d655450f215cdcb4f740"
+      },
+      "verdict": "counted_fail"
+    },
+    "counts_sha256": "sha256:b126fc41193d81bc78a4b1547b32075e387d0b001e2d2d2cd2f01dcc8f7bd134",
+    "receipt_paths": {
+      "counts_report": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1/processed/trial-har120-000803-a1__xWzxKCn.json",
+      "job_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1/config.json",
+      "job_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1/lock.json",
+      "job_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1/result.json",
+      "lab_metadata": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1/lab-metadata.json",
+      "trial_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1/har120-000803-a1__xWzxKCn/config.json",
+      "trial_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1/har120-000803-a1__xWzxKCn/lock.json",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1/har120-000803-a1__xWzxKCn/result.json"
+    },
+    "repeat": 1,
+    "retained_native_job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-000803-a1",
+    "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000803-a1",
+    "task_id": "format-code-task-000803",
+    "task_package_digest": "sha256:ac99a511015a2c31ae7cb56577154096de4df9ca2f40d655450f215cdcb4f740",
+    "trial_id": "8cc70fcd-47e8-47d5-8c20-710ed2ed3fe1",
+    "trial_name": "har120-000803-a1__xWzxKCn",
+    "usage": {
+      "input_tokens": 580852,
+      "output_tokens": 6332
+    }
+  },
+  {
+    "attempt": 1,
+    "counts": {
+      "evidence": [],
+      "flags": [],
+      "judgments": [
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": "model",
+          "label": "blame",
+          "value": "R-REC-01"
+        },
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": null,
+          "label": "loop_kind",
+          "value": "identical_loop"
+        }
+      ],
+      "raw_reward": 0.0,
+      "reasons": [],
+      "schema": "evallab.counts/v1",
+      "scored": true,
+      "task_status": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-001897",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001897"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001897",
+        "reason": "status=usable; nop sound",
+        "run_digest": "sha256:e9f28b6db44e81fdd174c04c0a42e5535466c9d19176c4f63c8f510419e8b3cc",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-001897",
+        "trial_digest": "sha256:e9f28b6db44e81fdd174c04c0a42e5535466c9d19176c4f63c8f510419e8b3cc"
+      },
+      "verdict": "counted_fail"
+    },
+    "counts_sha256": "sha256:a1df459d6d228a509706dab94ed3818f9a0d9d6a9db8dfbe6b0d6c95b1c53b4e",
+    "receipt_paths": {
+      "counts_report": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1/processed/trial-har120-001897-a1__6AyLy9W.json",
+      "job_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1/config.json",
+      "job_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1/lock.json",
+      "job_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1/result.json",
+      "lab_metadata": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1/lab-metadata.json",
+      "trial_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1/har120-001897-a1__6AyLy9W/config.json",
+      "trial_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1/har120-001897-a1__6AyLy9W/lock.json",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1/har120-001897-a1__6AyLy9W/result.json"
+    },
+    "repeat": 1,
+    "retained_native_job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001897-a1",
+    "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001897-a1",
+    "task_id": "format-code-task-001897",
+    "task_package_digest": "sha256:e9f28b6db44e81fdd174c04c0a42e5535466c9d19176c4f63c8f510419e8b3cc",
+    "trial_id": "982505ca-763a-4dd2-aac8-a1ede3023e12",
+    "trial_name": "har120-001897-a1__6AyLy9W",
+    "usage": {
+      "input_tokens": 1501027,
+      "output_tokens": 27897
+    }
+  },
+  {
+    "attempt": 1,
+    "counts": {
+      "evidence": [],
+      "flags": [],
+      "judgments": [
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": "model",
+          "label": "first_failure",
+          "value": "R-TOOL-02"
+        },
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": "n/a",
+          "label": "blame",
+          "value": "R-NONE-01"
+        },
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": null,
+          "label": "loop_kind",
+          "value": "identical_loop"
+        }
+      ],
+      "raw_reward": 1.0,
+      "reasons": [],
+      "schema": "evallab.counts/v1",
+      "scored": true,
+      "task_status": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-002938",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-002938"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-002938",
+        "reason": "status=usable; nop sound",
+        "run_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-002938",
+        "trial_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562"
+      },
+      "verdict": "counted_pass"
+    },
+    "counts_sha256": "sha256:e6e809b5b2dd0425dbbcd936945814c448d6fd4bd1eaf0560eb3f8abc8de900a",
+    "receipt_paths": {
+      "counts_report": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1/processed/trial-har120-002938-a1__UpSjiuM.json",
+      "job_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1/config.json",
+      "job_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1/lock.json",
+      "job_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1/result.json",
+      "lab_metadata": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1/lab-metadata.json",
+      "trial_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1/har120-002938-a1__UpSjiuM/config.json",
+      "trial_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1/har120-002938-a1__UpSjiuM/lock.json",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1/har120-002938-a1__UpSjiuM/result.json"
+    },
+    "repeat": 1,
+    "retained_native_job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002938-a1",
+    "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002938-a1",
+    "task_id": "format-code-task-002938",
+    "task_package_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562",
+    "trial_id": "477f4399-7579-4109-a5fb-9805ec669403",
+    "trial_name": "har120-002938-a1__UpSjiuM",
+    "usage": {
+      "input_tokens": 485421,
+      "output_tokens": 4929
+    }
+  },
+  {
+    "attempt": 1,
+    "counts": {
+      "evidence": [],
+      "flags": [],
+      "judgments": [
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": "model",
+          "label": "blame",
+          "value": "R-REC-01"
+        },
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": null,
+          "label": "loop_kind",
+          "value": "identical_loop"
+        }
+      ],
+      "raw_reward": 0.0,
+      "reasons": [],
+      "schema": "evallab.counts/v1",
+      "scored": true,
+      "task_status": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-001710",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001710"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001710",
+        "reason": "status=usable; nop sound",
+        "run_digest": "sha256:361303219639ff24b77317f1a21fa72999bd13e1e2013ba18024e9e16c2e3d91",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-001710",
+        "trial_digest": "sha256:361303219639ff24b77317f1a21fa72999bd13e1e2013ba18024e9e16c2e3d91"
+      },
+      "verdict": "counted_fail"
+    },
+    "counts_sha256": "sha256:a5eb80f029b01fe8eea174fc55edd3c445c2319a90866be556e502320623a7c4",
+    "receipt_paths": {
+      "counts_report": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1/processed/trial-har120-001710-a1__BLMKCZN.json",
+      "job_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1/config.json",
+      "job_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1/lock.json",
+      "job_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1/result.json",
+      "lab_metadata": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1/lab-metadata.json",
+      "trial_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1/har120-001710-a1__BLMKCZN/config.json",
+      "trial_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1/har120-001710-a1__BLMKCZN/lock.json",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1/har120-001710-a1__BLMKCZN/result.json"
+    },
+    "repeat": 1,
+    "retained_native_job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001710-a1",
+    "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001710-a1",
+    "task_id": "format-code-task-001710",
+    "task_package_digest": "sha256:361303219639ff24b77317f1a21fa72999bd13e1e2013ba18024e9e16c2e3d91",
+    "trial_id": "35304602-de90-4ba2-8f02-516dbd751e6c",
+    "trial_name": "har120-001710-a1__BLMKCZN",
+    "usage": {
+      "input_tokens": 2082993,
+      "output_tokens": 5648
+    }
+  },
+  {
+    "attempt": 1,
+    "counts": {
+      "evidence": [],
+      "flags": [],
+      "judgments": [
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": "model",
+          "label": "blame",
+          "value": "R-REC-01"
+        },
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": null,
+          "label": "loop_kind",
+          "value": "identical_loop"
+        }
+      ],
+      "raw_reward": 0.0,
+      "reasons": [],
+      "schema": "evallab.counts/v1",
+      "scored": true,
+      "task_status": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-001399",
+          "library/task-variants/mimo-v2.6-rl__format-code-task-001399/f8ea9d7813eb.json",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001399"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001399",
+        "reason": "status=usable; nop sound, leak closed",
+        "run_digest": "sha256:f8ea9d7813ebe8488f5286188616463e195612abe2284e069f09951d3c8a9405",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-001399",
+        "trial_digest": "sha256:f8ea9d7813ebe8488f5286188616463e195612abe2284e069f09951d3c8a9405"
+      },
+      "verdict": "counted_fail"
+    },
+    "counts_sha256": "sha256:da7a6e946141d22ebd3f55827a4b66462d5dedf12fd55f6a298877cbdbcfdac9",
+    "receipt_paths": {
+      "counts_report": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1/processed/trial-har120-001399-a1__fwLaw2U.json",
+      "job_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1/config.json",
+      "job_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1/lock.json",
+      "job_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1/result.json",
+      "lab_metadata": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1/lab-metadata.json",
+      "trial_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1/har120-001399-a1__fwLaw2U/config.json",
+      "trial_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1/har120-001399-a1__fwLaw2U/lock.json",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1/har120-001399-a1__fwLaw2U/result.json"
+    },
+    "repeat": 1,
+    "retained_native_job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001399-a1",
+    "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001399-a1",
+    "task_id": "format-code-task-001399",
+    "task_package_digest": "sha256:f8ea9d7813ebe8488f5286188616463e195612abe2284e069f09951d3c8a9405",
+    "trial_id": "7424984e-73eb-45f1-8d7f-314761ff0f33",
+    "trial_name": "har120-001399-a1__fwLaw2U",
+    "usage": {
+      "input_tokens": 1758425,
+      "output_tokens": 17294
+    }
+  },
+  {
+    "attempt": 1,
+    "counts": {
+      "evidence": [],
+      "flags": [],
+      "judgments": [
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": "model",
+          "label": "blame",
+          "value": "R-REC-01"
+        },
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": null,
+          "label": "loop_kind",
+          "value": "identical_loop"
+        }
+      ],
+      "raw_reward": 0.0,
+      "reasons": [],
+      "schema": "evallab.counts/v1",
+      "scored": true,
+      "task_status": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-002680",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-002680"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-002680",
+        "reason": "status=usable; nop sound",
+        "run_digest": "sha256:205818a003ea443311e98770c8da6aeebfa5c04f71f4b72511f9f6d663cd6606",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-002680",
+        "trial_digest": "sha256:205818a003ea443311e98770c8da6aeebfa5c04f71f4b72511f9f6d663cd6606"
+      },
+      "verdict": "counted_fail"
+    },
+    "counts_sha256": "sha256:6eeaba29369d29d7fdb259f9048dcdf872a2a33fb8a5716adec2216a76a4ab92",
+    "receipt_paths": {
+      "counts_report": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1/processed/trial-har120-002680-a1__Ci4bEkf.json",
+      "job_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1/config.json",
+      "job_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1/lock.json",
+      "job_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1/result.json",
+      "lab_metadata": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1/lab-metadata.json",
+      "trial_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1/har120-002680-a1__Ci4bEkf/config.json",
+      "trial_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1/har120-002680-a1__Ci4bEkf/lock.json",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1/har120-002680-a1__Ci4bEkf/result.json"
+    },
+    "repeat": 1,
+    "retained_native_job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-002680-a1",
+    "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002680-a1",
+    "task_id": "format-code-task-002680",
+    "task_package_digest": "sha256:205818a003ea443311e98770c8da6aeebfa5c04f71f4b72511f9f6d663cd6606",
+    "trial_id": "53114429-a1fc-468e-ba64-409e4625d00e",
+    "trial_name": "har120-002680-a1__Ci4bEkf",
+    "usage": {
+      "input_tokens": 2458142,
+      "output_tokens": 17377
+    }
+  },
+  {
+    "attempt": 1,
+    "counts": {
+      "evidence": [],
+      "flags": [],
+      "judgments": [
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": "model",
+          "label": "blame",
+          "value": "R-REC-01"
+        },
+        {
+          "accuracy": null,
+          "accuracy_note": "display only; HAR-119 pending; never decides",
+          "attribution": null,
+          "label": "loop_kind",
+          "value": "identical_loop"
+        }
+      ],
+      "raw_reward": 0.0,
+      "reasons": [],
+      "schema": "evallab.counts/v1",
+      "scored": true,
+      "task_status": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-001661",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001661"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001661",
+        "reason": "status=usable; nop sound",
+        "run_digest": "sha256:7281bec0244739c8c679d5ae2252ca13dcfd8d442b5993c4cb1347dbd7a78f7c",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-001661",
+        "trial_digest": "sha256:7281bec0244739c8c679d5ae2252ca13dcfd8d442b5993c4cb1347dbd7a78f7c"
+      },
+      "verdict": "counted_fail"
+    },
+    "counts_sha256": "sha256:d0e6e4fb6722c6a0b069f124e547beb563289411d68f29ad4189c80bcf014a33",
+    "receipt_paths": {
+      "counts_report": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1/processed/trial-har120-001661-a1__xdRDCYr.json",
+      "job_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1/config.json",
+      "job_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1/lock.json",
+      "job_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1/result.json",
+      "lab_metadata": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1/lab-metadata.json",
+      "trial_config": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1/har120-001661-a1__xdRDCYr/config.json",
+      "trial_lock": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1/har120-001661-a1__xdRDCYr/lock.json",
+      "trial_result": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1/har120-001661-a1__xdRDCYr/result.json"
+    },
+    "repeat": 1,
+    "retained_native_job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har135-gepa-lf2-20261001/runs/har135-g2-seeds/har120-001661-a1",
+    "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001661-a1",
+    "task_id": "format-code-task-001661",
+    "task_package_digest": "sha256:7281bec0244739c8c679d5ae2252ca13dcfd8d442b5993c4cb1347dbd7a78f7c",
+    "trial_id": "65685955-910c-4f92-afbc-e81c03eb5151",
+    "trial_name": "har120-001661-a1__xdRDCYr",
+    "usage": {
+      "input_tokens": 1189308,
+      "output_tokens": 17722
+    }
+  }
+]

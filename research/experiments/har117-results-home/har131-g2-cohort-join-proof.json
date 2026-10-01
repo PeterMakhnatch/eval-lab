@@ -1,0 +1,140 @@
+{
+  "schema": "har131.g2_frozen_cohort_runtime/v1",
+  "status": "candidate_native_query_not_live_republication",
+  "source_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har131-g2-cohorts",
+  "label_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har128-g2",
+  "input_sha256": "57d6478f8d0657d592f6701b11fa1911e7278921a62acfe28cee6947a1c2da45",
+  "native_trials": 64,
+  "unique_native_trials": 64,
+  "cohorts": [
+    {
+      "card": "HAR-120",
+      "cohort": "har128-g2-a1",
+      "n_total": 64,
+      "n_agreed": 17,
+      "eligibleN": 17,
+      "n_match": 12,
+      "n_prediction_abstention": 0
+    },
+    {
+      "card": "HAR-120",
+      "cohort": "har128-g2-r2",
+      "n_total": 64,
+      "n_agreed": 16,
+      "eligibleN": 16,
+      "n_match": 10,
+      "n_prediction_abstention": 0
+    },
+    {
+      "card": "HAR-120",
+      "cohort": "har128-g2-tail",
+      "n_total": 64,
+      "n_agreed": 3,
+      "eligibleN": 3,
+      "n_match": 1,
+      "n_prediction_abstention": 0
+    }
+  ],
+  "cohort_trials_in_input": {
+    "har128-g2-r2": 19,
+    "har128-g2-a1": 20,
+    "har128-g2-tail": 3
+  },
+  "denominator_note": "SQL n_total is the selected card-wide native population, not the frozen study denominator; cohorts remain separate.",
+  "coverage": {
+    "discovered_jobs": 64,
+    "discovered_trials": 64,
+    "discovered_steps": 3171,
+    "stitched_duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "missing_processed": 0,
+    "missing_counts": 0,
+    "missing_atif": 1,
+    "projections_skipped": {},
+    "label_manifest_hashes": {
+      "har119": "262e3596f43876ebe200c6892bd0e123bd16c503c650d6c8038a351079848fe6",
+      "har128-har116": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+      "har128-g2-a1": "f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674",
+      "har128-g2-r2": "ddc1f2ad8bf52dc762067a367f7383b990164174b1732c108fb788167597f2ff",
+      "har128-g2-tail": "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50",
+      "har109": "8a4e68ce777706bbd8cabc382829d2cf031df8f73e3ed8e817609844e574d96b",
+      "har128-sft-pass": "46cf1834ff0585f2196f8586522b6d7f8003cf5ce856c9cc0a1f9654ab4494e9"
+    },
+    "label_verification": {
+      "har119": {
+        "verified": 24,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har119/labels/MANIFEST.sha256"
+      },
+      "har128-har116": {
+        "verified": 80,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har128/labels_har116/MANIFEST.sha256"
+      },
+      "har128-g2-a1": {
+        "verified": 40,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har128/labels_g2_a1/MANIFEST.sha256"
+      },
+      "har128-g2-r2": {
+        "verified": 38,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har128/labels_g2_r2/MANIFEST.sha256"
+      },
+      "har128-g2-tail": {
+        "verified": 6,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har128/labels_g2_tail/MANIFEST.sha256"
+      },
+      "har109": {
+        "verified": 10,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har109/hand_labels.sha256"
+      },
+      "har128-sft-pass": {
+        "verified": 1,
+        "rows": 9,
+        "failed": [],
+        "manifest": "research/explorations/trace-lab/har128/sft_gate/labels.sha256",
+        "declared": [
+          "labels.jsonl"
+        ],
+        "batches": {
+          "labels": {
+            "source_file": "research/explorations/trace-lab/har128/sft_gate/labels.jsonl",
+            "source_sha256": "ddf5a5dcd05453bec1fe9f295389d58508205eb35ddb203b47df8c54cb0120f5",
+            "rows": 9
+          }
+        },
+        "undeclared": [
+          "labels_g2_a1.jsonl",
+          "labels_g2_r2.jsonl",
+          "labels_g2_tail.jsonl"
+        ]
+      }
+    },
+    "by_card": {
+      "HAR-120": 64
+    },
+    "by_arm": {
+      "unknown": 64
+    },
+    "parquet_errors": [
+      "Binder Error: Referenced column \"job_id\" not found in FROM clause!\nCandidate bindings: \"col0\"\n\nLINE 1: SELECT job_id, trial_id, task_digest FROM trial_facts\n               ^",
+      "Binder Error: Referenced column \"status\" not found in FROM clause!\nCandidate bindings: \"col0\"\n\nLINE 1: ..., source_sha256, step_to_first_edit FROM traj_features WHERE status = 'featured' AND unavailable_reason IS NULL AND agen...\n                                                                        ^"
+    ],
+    "corpus_digest": "sha256:2c836b9d1cb00bf82a5bd6388c535575be872eb42efd8e673fc66b167968e200"
+  },
+  "source_hashes": {
+    "src/evallab/trace_query.py": "c3ce22181c2a48b3177939e56f03259f1142b83c79babbaf126666bb41ba101f",
+    "src/evallab/trial_decision.py": "971328fc54b0688b68e099bf57a6a7b0a3afa934b5834973e761b88c3b2ad6ae",
+    "sql/trace_queries.sql": "de9a86d2f674aa7906deabd57aecddd98e2c397a5055ed5f2a8600e11c33ccb8",
+    "research/explorations/trace-lab/har119/score_page.py": "c052edcca32ca083adbaafe2b5b7f38699d5649b6d9d6028778b7f8f60321950"
+  },
+  "observed_at_utc": "2026-10-01T11:02:49.610775+00:00",
+  "limitations": [
+    "G2 pass-gate batches are still undeclared by their producer manifest and therefore not admitted to the join.",
+    "Counts in these existing pages predate the successful-fetch amendment; this receipt measures loop opinions only.",
+    "Raters are blind scout agents, not human ground truth. Cohorts are not pooled."
+  ]
+}

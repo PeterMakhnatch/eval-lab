@@ -82,4 +82,48 @@ $ uv run evallab db attach --query "SELECT j.job_name, COUNT(*) AS trials FROM z
 [('smoke-oracle-8ya566yyqwms', 1), ...]
 ```
 
+
+### Trace Query Mode (HAR-131)
+
+Trace mode queries existing Harbor cohorts in memory without PostgreSQL or
+network dependencies. The commands below are invocation examples, not receipts
+for an executed cohort or its coverage:
+
+```sh
+uv run evallab db attach --trace --zones
+uv run evallab db attach --trace --query "SELECT card, arm, n_total, n_scored, n_unscored, raw_pass_rate_all_attempts, raw_pass_rate_scored, n_counts_unknown FROM v_trace_cohort_raw"
+
+# Restrict the attachment to a specific existing job directory:
+uv run evallab db attach --trace-job-dir ~/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-original --zones
+```
+
+Trace mode exposes `v_trace_trials`, real ATIF-only `v_trace_steps`, and ten
+canonical views defined once in `sql/trace_queries.sql`; files under
+`sql/trace-queries/` select those views. Native identity is `(job_id, trial_id)`.
+Counts alone decides countability: absent or invalid verdicts are unknown.
+Scored raw pass rates exclude unscored attempts; all-attempt pass yields do not
+silently recode unscored attempts as failures.
+
+Coverage separates trajectory-file existence, actual observed steps,
+processed/counts availability and frozen-label availability. First-edit
+detector measurements reuse source-hash-matched `traj_features` Parquet. When
+no stored feature exists, the existing read-only `traj.outline_trajectory`
+producer computes it from the explicitly scoped trial directory without writing
+a store. Stale or conflicting stored values remain unknown. A missing metric
+is not a no-edit result. Post-edit shares use a
+complete ordinal-matched native step-metric population for both numerator and
+denominator, independently for input/output, never settled proxy totals or
+mixed-source producer shares. Edit signals do not prove persisted useful work.
+
+Shape classification, acceptance counts/provenance, recorded rejection
+agreement and rejection-cause classification are separate evidence. Acceptance
+and provenance marginals cannot reveal the full recorded-rejection count.
+Decision loop predictions and first-failure anchors are opinions, not recorded
+actions or countability. Frozen-loop accuracy requires at least two distinct
+valid agreeing HAR-119 raters, one unambiguous cohort, and a recognized
+prediction; disagreement and prediction abstention remain separate.
+HAR-109 hand labels and HAR-128 pass-cleanliness labels provide coverage only,
+not compatible multi-rater loop ground truth. Exemplar paths/refs/hashes link
+only uniquely resolved actual ATIF steps and retain opinion provenance.
+See `sql/README.md` for the detailed query contracts and focused check commands.
 `--zones` exits non-zero only when zero zones attach.

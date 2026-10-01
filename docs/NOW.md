@@ -9,12 +9,11 @@ audience:
 
 # Where the lab is now
 
-Ten-minute orientation for incoming agents. Binding rules stay in `AGENTS.md`,
-`agents/CHECKS.md`, and `agents/WORKFLOW.md`. This file is the current-state
-map, not a second copy of those contracts.
-
-Orientation revised 2026-09-06. Live presence comes from the pickup counter and
-Git/PR metadata; scientific availability requires a named corpus and exact ref.
+Start with [SYSTEM.md](SYSTEM.md) for the current pipeline, then use the scoped
+routes below. Binding rules stay in `AGENTS.md`, `agents/CHECKS.md`, and
+`agents/WORKFLOW.md`; this orientation does not grant execution permission.
+Linear owns live assignments and approvals; Git/PR metadata identifies source.
+Scientific availability still requires a named corpus and exact revision.
 
 ## What we are building
 
@@ -26,7 +25,7 @@ Three product layers, in this order:
 | **Data pipeline** | ATIF → facts → Parquet features | `src/evallab/evidence/`, `storage/`, `interpretation/feature_registry.py` |
 | **Research analysis** | Questions over those tables | `research/analysis/`, `sql/`, `src/evallab/cohort.py`, `curve.py` |
 
-**Harbor-native synthetic benchmarks are now.** They are measurement tasks on
+**Harbor-native synthetic benchmark packages.** These are measurement tasks on
 the platform, not a training stack. Three construct families are merged on
 main as benchmark packages under `library/benchmarks/`:
 
@@ -36,11 +35,11 @@ main as benchmark packages under `library/benchmarks/`:
 | B | MCP-FuncDAG tool composition | `library/benchmarks/mcp-funcdag-v1` (#263, shared substrate #268) |
 | C | MCP single-fault recovery | `library/benchmarks/mcp-recovery-v1` (#261) |
 
-**Training scope & integration-spine distinction:** Offline trajectory-training *design*
-(selection recipes, held-out freeze specifications, quarantine design, deterministic S0
-fixtures) is authorized, but **no** paid API calls, GPU compute, model registration, or
-training runs are authorized. Do not start a trainer, submit training jobs, or launch
-unattended optimization loops.
+**Training and execution scope:** Software availability does not authorize a run.
+Use the current assigned Linear card and Peter's explicit approval for any paid
+API calls, GPU compute, training, model registration or unattended optimization.
+Preserve that card's model, data split, harness, spend ceiling and validity gates;
+neither this orientation nor a merged PR expands them.
 
 **Integration-spine vs. Main availability:** Work merged to the integration branch
 (`integrate/spine-batch1`) is NOT automatically available on `main`. Status reporting must
@@ -106,8 +105,8 @@ the verification gates in `agents/CHECKS.md`.
 
 Use targeted lookup for a missing concept or symbol. Read `docs/research/` and
 `agents/archive/` only when historical evidence is needed, not as default context.
-`research/inbox/board.md` owns the pull/backlog protocol; `claims/` holds pickup
-records. `agents/missions/ACTIVE.md` is a navigation link to those sources.
+Linear owns the current pull/backlog protocol. `research/inbox/board.md` and
+`claims/` preserve historical pickup records; `agents/missions/ACTIVE.md` is navigation.
 
 ## Live writers — do not collide
 

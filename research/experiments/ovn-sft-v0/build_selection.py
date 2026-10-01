@@ -9,8 +9,10 @@ A trial is selected when all of these hold:
 2. its task is ``train`` in the sealed split
    (``../har81-mimo-sft/split.json``, ``c3df70a5…``; it agrees with the
    ledger on all 1,180 Python tasks) and ``usable`` in the Python task ledger;
-3. Traces (HAR-128) labelled it ``clean``; its ``cut_step_id``/``cut_file``
-   come from that label;
+3. Traces (HAR-128) labelled it ``clean`` and its kept window ends with the
+   model's own completion (``ends_with_completion``: a window cut before a
+   loop-break or budget stop would teach stopping mid-task); its
+   ``cut_step_id``/``cut_file`` come from that label;
 4. its source is admissible: proxy-captured, or ``reconstructed`` only when
    ``--allow-reconstructed`` (Research-Harbor's scope decision on HAR-127);
 5. at most ``MAX_PER_TASK`` per task: captured before reconstructed, then
@@ -108,6 +110,8 @@ def main() -> None:
                 reason = "traces:unlabelled"
             elif labels[key].get("clean") is not True:
                 reason = f"traces:not_clean ({labels[key].get('reason')})"
+            elif labels[key].get("ends_with_completion") is not True:
+                reason = "traces:no_completion_in_kept_window"
             elif job.name not in args.captured and not args.allow_reconstructed:
                 reason = "source:reconstructed_not_allowed"
             if reason is not None:

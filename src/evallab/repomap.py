@@ -770,13 +770,18 @@ def discover_stores(src_dir: Path, root: Path) -> list[StoreRecord]:
 
     parquet_writers_default = tuple(sorted(writers_by_hint["parquet"]))
     stores.append(
-        StoreRecord("parquet", "derived root", "derived/parquet/", parquet_writers_default)
+        StoreRecord(
+            "parquet",
+            "live derived root",
+            "<primary>-state/derived/parquet/",
+            parquet_writers_default,
+        )
     )
     stores.append(
         StoreRecord(
             "parquet",
             "job partitions",
-            "derived/parquet/job_id=*/trial_id=*/",
+            "<live-parquet-root>/job_id=*/trial_id=*/",
             parquet_writers_default,
         )
     )
@@ -785,7 +790,7 @@ def discover_stores(src_dir: Path, root: Path) -> list[StoreRecord]:
         basename = Path(name).name
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*\.parquet", basename):
             continue
-        location = name if "/" in name else f"derived/parquet/**/{basename}"
+        location = name if "/" in name else f"<live-parquet-root>/**/{basename}"
         existing = parquet_by_name.get(basename)
         if existing is None:
             parquet_by_name[basename] = (location, set(writers))

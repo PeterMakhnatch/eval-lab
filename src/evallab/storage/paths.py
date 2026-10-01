@@ -17,12 +17,10 @@ _ANNOUNCED: set[tuple[str, str]] = set()
 def runtime_output_root(repo_root: Path) -> Path:
     """Return the shared external runtime state directory for a checkout.
 
-    The live derived store and generated reports live outside source so an
-    ordinary nightly/digest/status/lessons run never dirties the tracked
-    tree. Every linked worktree resolves through the primary checkout, so
-    all trees share one rebuildable projection of the single catalog.
-    Explicit paths and existing ``EVALLAB_DERIVED_ROOT`` overrides retain
-    precedence; this is only the default home.
+    Default Parquet and report writes stay outside source. Linked worktrees
+    share the primary checkout's live store; location alone never authorizes
+    deletion of retained evidence or judgments. Explicit paths and existing
+    ``EVALLAB_DERIVED_ROOT`` overrides retain precedence.
     """
     shared = shared_checkout_root(repo_root)
     return shared.parent / f"{shared.name}-state"
@@ -92,12 +90,11 @@ def resolve_runs_roots(repo_root: Path, runs_root: Path | None = None) -> list[P
 class DerivedRootResolution:
     """Where the derived Parquet root came from, and whose tree it belongs to.
 
-    The lab keeps one derived store per machine because it is a rebuildable
-    projection of the single PostgreSQL catalog: a per-worktree copy would
-    disagree with the catalog every worktree shares. Sharing is therefore kept,
-    but it is never implied — `implicit` marks a resolution that crossed outside
-    the invoking checkout without anybody naming it, and `describe()` is the
-    line an operator reads instead of guessing.
+    Linked worktrees share a default store rather than silently creating
+    divergent projections. That store can also contain retained judgments;
+    it is not a blanket disposable cache. ``implicit`` marks a resolution
+    outside the invoking checkout without an absolute path being selected,
+    and ``describe()`` explains the resolved location.
     """
 
     path: Path
@@ -114,6 +111,8 @@ class DerivedRootResolution:
     def describe(self) -> str:
         if not self.is_foreign:
             return f"{self.path} (this checkout, {self.origin})"
+        if not self.implicit:
+            return f"{self.path} (outside this checkout, {self.origin})"
         if self.path.is_relative_to(self.base_root):
             return f"{self.path} (shared, owned by {self.base_root}, {self.origin})"
         return f"{self.path} (shared runtime state derived from {self.base_root}, {self.origin})"

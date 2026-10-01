@@ -7,6 +7,11 @@ flags, and token-flow's last useful edit. ``rule_id`` and ``attribution``
 are the probe-03 fields the frozen hand keys use. ``whose`` is a reading
 of that rule for the page: ``R-ENV-02`` is the task, even though probe-03
 attributes that rule to the harness.
+
+Facts are observed signals copied from the records. Every judgment,
+including grader alignment and loop kind, is an opinion; only loop kind
+carries a measured error rate (PAGE_CALIBRATION, HAR-119 frozen cohort).
+``counts`` is rendered from the HAR-78 field and never computed here.
 """
 
 from __future__ import annotations
@@ -15,25 +20,42 @@ import json
 from pathlib import Path
 from typing import Any
 
-DECISION_SCHEMA = "trial_decision/v2"
+DECISION_SCHEMA = "trial_decision/v3"
 _EXCERPT_CHARS = 400
 #: HAR-119 published rule: 10 turns after the first confirm prompt, and at
 #: least half of those turns claim completion. Not a new detector.
 CLAIM_LOOP_MIN_TURNS = 10
 CLAIM_LOOP_MIN_FRACTION = 0.5
 COUNTED_VERDICTS = frozenset({"counted_pass", "counted_fail", "excluded"})
-#: In-sample only. Replaced after measurement against the HAR-109 keys.
-JUDGMENT_AGREEMENT = {
-    "source": "HAR-109 hand labels, in-sample",
-    "n": 10,
-    "out_of_sample": "pending HAR-119 part 2; those labels are not frozen",
-    "first_failure_within_2": "3/10 (30%)",
-    "blame_exact": "8/10 (80%)",
-    "loop_kind": "not measured; HAR-119 part 2 labels are not frozen",
-    "note": (
-        "First failure within +-2 steps: 3/10 (compare Who&When benchmark best: 14.2%, "
-        "arXiv 2505.00212). Blame under stated mapping: 8/10 (2 misses are leaked passes "
-        "graded 1.0 by the verifier). In-sample numbers from HAR-109."
+#: Page-predictor calibration against the frozen HAR-119 part-2 labels.
+#: Loop kind only: it is the one page judgment with a frozen out-of-sample
+#: cohort. First failure and blame have no page-measured calibration (the
+#: page field is null on 11/12 of the cohort for the former; the raters are
+#: a near-constant model prior for the latter). Reproduce with
+#: research/explorations/trace-lab/har119/score_page.py, which refuses to
+#: run when the frozen labels change and reports unavailable when the
+#: trial directories are missing.
+PAGE_CALIBRATION = {
+    "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+    "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
+    "frozen_at": "2026-10-01T00:00:02Z",
+    "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f",
+    "in_sample": False,
+    "rater_agreement_loop_kind": {"agree": 11, "n": 12},
+    "rater_agreement_loop_present": {"agree": 11, "n": 12},
+    "page_vs_agreed_loop_kind": {"agree": 7, "n": 11},
+    "page_vs_agreed_loop_present": {"agree": 7, "n": 11},
+    "eligible_n": 11,
+    "excluded_rater_disagreement": 1,
+    "abstentions": 0,
+    "page_vs_loop_rule_kind": {"agree": 12, "n": 12},
+    "first_failure": "unavailable: page field null on 11/12 of the cohort; nothing to score",
+    "blame": "opinion with no page-measured calibration on this cohort",
+    "method": "research/explorations/trace-lab/har119/score_page.py",
+    "artifact": "research/explorations/trace-lab/har119/page_scores.json",
+    "limits": (
+        "Out-of-sample for the loop rule; n=11 agreed cells; loop kind/presence only. "
+        "No page calibration for first failure, blame, or grader alignment: those stay opinions."
     ),
 }
 
@@ -53,7 +75,7 @@ def build_decision(
     tokens: dict[str, Any] | None = None,
     counts: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build the ``trial_decision/v2`` page for one trial directory."""
+    """Build the ``trial_decision/v3`` page for one trial directory."""
     from evallab import probe03
 
     trial = Path(trial_dir)
@@ -77,10 +99,19 @@ def build_decision(
         taint_status = "not_a_pass"
     edit = (token_flow or {}).get("last_useful_edit") if isinstance(token_flow, dict) else None
     edit = edit if isinstance(edit, dict) else None
-    nop = _nop_same_crash(grader_evidence if isinstance(grader_evidence, dict) else None)
+    has_records = trial.is_dir() and (
+        (trial / "verifier" / "result.json").is_file()
+        or (trial / "agent" / "trajectory.json").is_file()
+        or (trial / "result.json").is_file()
+    )
+    nop = _nop_same_crash(
+        grader_evidence if isinstance(grader_evidence, dict) else None,
+        has_records=has_records,
+    )
     fetched = _fetched_fix(fetches)
     loop = classify_loop_kind(trial, stop_reason, token_flow if isinstance(token_flow, dict) else None)
     whose = _whose(rule_id, attribution)
+    rendered_counts = render_counts(counts)
     return {
         "schema": DECISION_SCHEMA,
         "reward": reward,
@@ -88,7 +119,7 @@ def build_decision(
         "rule_id": rule_id,
         "attribution": attribution,
         "whose": whose,
-        "counts": render_counts(counts),
+        "counts": rendered_counts,
         "facts": {
             "stop_reason": stop_reason,
             "calls": calls,
@@ -99,17 +130,12 @@ def build_decision(
             ],
             "verifier_message": _verifier_message(trial),
             "nop_same_crash": nop,
-            "task_ledger": {
-                "status": "unchecked",
-                "reason": "No task ledger was passed to this page. HAR-115's ledger is not read here.",
-            },
             "instruction_excerpt": _excerpt(instruction),
-            "grader_tests_asked": grader_tests,
             "grader_gap": grader_gap,
         },
         "judgments": {
             "label": "opinion",
-            "agreement": dict(JUDGMENT_AGREEMENT),
+            "agreement": dict(PAGE_CALIBRATION),
             "first_failure": (
                 None
                 if first is None
@@ -126,6 +152,10 @@ def build_decision(
                 "note": outcome.get("note"),
             },
             "loop_kind": loop,
+            "grader_alignment": {
+                "answer": grader_tests,
+                "why": grader_gap,
+            },
         },
         "asked": {
             "instruction_present": instruction is not None,
@@ -170,6 +200,10 @@ def render_counts(counts: dict[str, Any] | None) -> dict[str, Any]:
             "verdict": None,
             "reasons": [],
             "evidence": [],
+            "task_ledger": {
+                "status": "unavailable",
+                "reason": "Counts are pending, so task usability is unknown.",
+            },
             "note": (
                 "Pending. HAR-78 has not written counts on this record. "
                 "This page does not decide whether the result counts."
@@ -180,7 +214,61 @@ def render_counts(counts: dict[str, Any] | None) -> dict[str, Any]:
         "verdict": counts.get("verdict"),
         "reasons": list(counts.get("reasons") or []),
         "evidence": list(counts.get("evidence") or []),
+        "task_ledger": render_task_ledger(counts),
         "note": "Rendered from the HAR-78 counts field. Not computed here.",
+    }
+
+
+def render_task_ledger(counts: dict[str, Any]) -> dict[str, Any]:
+    """Display-only read of the counts ``task_status`` block.
+
+    Never infers usable: a missing block, or a block with no matched
+    status, renders as unknown, and a digest mismatch says the ledger
+    was not matched while the legacy verdict stands.
+    """
+    status = counts.get("task_status")
+    if isinstance(status, dict):
+        rendered: dict[str, Any] = {
+            "status": status.get("status"),
+            "ledger_status": status.get("ledger_status"),
+            "source": status.get("source"),
+            "path": status.get("path"),
+            "source_sha256": status.get("source_sha256"),
+            "task_id": status.get("task_id"),
+            "run_digest": status.get("run_digest"),
+            "trial_digest": status.get("trial_digest"),
+            "digest_match": status.get("digest_match"),
+            "reason": status.get("reason"),
+            "evidence": status.get("evidence"),
+        }
+        if rendered["digest_match"] is False:
+            rendered["reason"] = (
+                (str(rendered["reason"] or "") + " " if rendered.get("reason") else "")
+                + "Ledger row not matched to this run; the legacy counts verdict stands."
+            ).strip()
+        if rendered["status"] is None and rendered["digest_match"] is not True:
+            rendered["status"] = "unknown"
+            if not rendered.get("reason"):
+                rendered["reason"] = (
+                    "No task-status signal matched this run; "
+                    "absence is not a usable label."
+                )
+        return rendered
+    legacy = [
+        item
+        for item in (counts.get("evidence") or [])
+        if isinstance(item, dict) and item.get("reason") == "task_not_usable"
+    ]
+    if legacy:
+        return {
+            "status": "not_usable",
+            "source": "legacy",
+            "reason": "Legacy counts evidence marks the task not usable.",
+            "evidence": legacy,
+        }
+    return {
+        "status": "unknown",
+        "reason": "No task-status signal was provided; absence is not a usable label.",
     }
 
 
@@ -246,7 +334,7 @@ def _claim_bearing(step: dict) -> bool:
 
 
 def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
-    """Facts first, then the pending-or-rendered verdict, then opinions."""
+    """Facts (observed signals), then the counts verdict, then opinions."""
     if not decision:
         return ["## Decision", "", "Unavailable. The composer did not run.", ""]
     facts = decision.get("facts") or {}
@@ -258,10 +346,14 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
     blame = judgments.get("blame") or {}
     first = judgments.get("first_failure") or {}
     loop = judgments.get("loop_kind") or {}
+    align = judgments.get("grader_alignment") or {}
     tokens = facts.get("tokens") or {}
+    tainted = decision.get("pass_tainted") or {}
+    fetch = decision.get("fetched_fix") or {}
+    ledger = counts.get("task_ledger") or {}
     fetch_line = (
         "; ".join(f"`{item.get('step')}` `{item.get('command')}`" for item in fetches)
-        or "no"
+        or "no fetch command observed"
     )
     lines = [
         "## Decision",
@@ -270,10 +362,17 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
         "",
         str(counts.get("note") or "Pending."),
         f"Verdict: `{counts.get('verdict') or 'pending'}`.",
+        f"Reasons: {_backticked(counts.get('reasons'))}.",
+        f"Evidence: {_evidence_line(counts.get('evidence'))}.",
+        (
+            f"Task ledger: `{ledger.get('status')}`"
+            + (f" ({ledger.get('source')})" if ledger.get("source") else "")
+            + (f". {ledger.get('reason')}" if ledger.get("reason") else "")
+        ),
         "",
         "### Facts",
         "",
-        "Copied from the trial records. Not a reading of why it failed.",
+        "Observed signals copied from the trial records. Not a reading of why it failed.",
         f"- Stop reason: `{facts.get('stop_reason')}`.",
         f"- Calls: `{facts.get('calls')}`.",
         (
@@ -282,7 +381,7 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
             if isinstance(tokens, dict)
             else "- Tokens: not on the record."
         ),
-        f"- Fetched outside code: {fetch_line}.",
+        f"- Fetch commands observed: {fetch_line}.",
         f"- Verifier: reward `{decision.get('reward')}`"
         + (
             f"; `{str(facts.get('verifier_message'))[:180]}`."
@@ -293,44 +392,93 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
             f"- Nop crash the same way: {_answer_words(nop.get('answer'))}. "
             f"{nop.get('reason')}"
         ),
-        (
-            f"- Task ledger: `{(facts.get('task_ledger') or {}).get('status')}`. "
-            f"{(facts.get('task_ledger') or {}).get('reason') or ''}"
-        ),
         "- What the task asked: "
         + (facts.get("instruction_excerpt") or "instruction not located."),
-        (
-            f"- Does the grader test that? {facts.get('grader_tests_asked')}. "
-            + (facts.get("grader_gap") or "No named grader gap.")
-        ),
+        "- Grader signal (literal checks only, not a semantic verdict): "
+        + (facts.get("grader_gap") or "no signal."),
         "",
         "### Judgments",
         "",
         "Opinions. Do not treat these as facts.",
-        (
-            f"Measured agreement: {agreement.get('source')}, n={agreement.get('n')}. "
-            f"Out of sample: {agreement.get('out_of_sample')}."
-        ),
+        _calibration_line(agreement),
         (
             f"- First failure: `{first.get('rule_id')}` at `{first.get('step')}`. "
-            f"In-sample within ±2 steps: `{agreement.get('first_failure_within_2')}`."
+            "Opinion; page calibration unavailable."
             if first
-            else "- First failure: none recorded."
+            else "- First failure: none recorded. Opinion; page calibration unavailable."
         ),
         (
             f"- Blame: probe-03 `{blame.get('attribution')}` (`{blame.get('rule_id')}`), "
             f"page reading `{blame.get('whose')}`. "
-            f"In-sample exact match under the stated mapping: `{agreement.get('blame_exact')}`."
+            "Opinion; no page-measured calibration on the frozen cohort."
         ),
         (
             f"- Loop kind: `{loop.get('kind')}`. "
             f"{loop.get('claim_bearing_turns')} of {loop.get('turns_after_prompt')} "
             "turns after the confirm prompt claimed completion. "
-            f"Agreement: {agreement.get('loop_kind')}."
+            "Opinion; measured 7/11 vs agreed rater cells (see calibration)."
+        ),
+        (
+            f"- Grader alignment: `{align.get('answer')}`. {align.get('why') or ''} "
+            "Opinion: a nonzero test count alone never means the grader tests the instruction."
+        ),
+        (
+            f"- Upstream fetch: command observed at `{fetch.get('step')}`. "
+            "Whether it supplied the graded fix is unjudged: a fetch is a signal, not proof."
+            if fetch.get("fetched")
+            else "- Upstream fetch: no fetch command observed."
+        ),
+        (
+            f"- Pass taint: `{tainted.get('status')}` "
+            f"({', '.join(tainted.get('reasons') or []) or 'no reasons'}). "
+            "A flag for counts, not a ruling."
         ),
         "",
     ]
     return lines
+
+
+def _backticked(values: Any) -> str:
+    items = [f"`{value}`" for value in (values or []) if value is not None]
+    return ", ".join(items) or "none"
+
+
+def _evidence_line(evidence: Any) -> str:
+    if not isinstance(evidence, list) or not evidence:
+        return "none"
+    parts = []
+    for item in evidence:
+        if not isinstance(item, dict):
+            continue
+        bits = [str(item.get("reason") or "evidence"), str(item.get("detector") or "unknown")]
+        if item.get("step") is not None:
+            bits.append(f"step {item.get('step')}")
+        if item.get("command"):
+            bits.append(f"`{str(item.get('command'))[:80]}`")
+        elif item.get("excerpt"):
+            bits.append(str(item.get("excerpt"))[:80])
+        if item.get("path"):
+            bits.append(str(item.get("path")))
+        parts.append(" ".join(bits))
+    return "; ".join(parts) or "none"
+
+
+def _calibration_line(agreement: dict[str, Any]) -> str:
+    if not isinstance(agreement, dict) or not agreement.get("predictor"):
+        return "Calibration: unavailable for this page."
+    kind = agreement.get("page_vs_agreed_loop_kind") or {}
+    rater = agreement.get("rater_agreement_loop_kind") or {}
+    return (
+        f"Calibration: {agreement.get('predictor')}; cohort {agreement.get('cohort')} "
+        f"(frozen {agreement.get('frozen_at')}); page loop kind "
+        f"`{kind.get('agree')}/{kind.get('n')}` vs agreed rater cells "
+        f"(eligible {agreement.get('eligible_n')}, "
+        f"{agreement.get('excluded_rater_disagreement')} excluded on rater disagreement, "
+        f"{agreement.get('abstentions')} abstentions); rater agreement "
+        f"`{rater.get('agree')}/{rater.get('n')}`; out-of-sample: "
+        f"{'no' if agreement.get('in_sample') else 'yes'}. "
+        f"Method: {agreement.get('method')}. {agreement.get('limits')}"
+    )
 
 
 def compare_hand_key(decision: dict[str, Any], hand_row: dict[str, Any]) -> dict[str, Any]:
@@ -398,33 +546,18 @@ def _grader_gap(
         return (
             f"no named gap; verifier ran {total} tests"
             + (f", {fails} failed" if isinstance(fails, int) else "")
-            + ". Not a semantic certificate.",
-            "yes",
+            + ". A nonzero test count alone never means the grader tests the instruction.",
+            "unknown",
         )
     return "verifier passage has no test count and no named gap", "unknown"
 
 
-def _ended(text: Any) -> str:
-    sentence = str(text).strip()
-    if not sentence:
-        return "No outcome note."
-    if sentence[-1] not in ".!?":
-        sentence += "."
-    return sentence
 
 
 def _answer_words(answer: Any) -> str:
     return str(answer or "unknown").replace("_", " ")
 
 
-def _step_sentence(did: dict[str, Any]) -> str:
-    step = did.get("step")
-    refs = [ref for ref in (did.get("evidence_steps") or []) if ref]
-    if step:
-        return f" Step `{step}`."
-    if refs:
-        return f" Evidence steps: {', '.join(f'`{ref}`' for ref in refs[:4])}."
-    return " No outcome step."
 
 
 def _verifier_message(trial: Path) -> str:
@@ -462,11 +595,22 @@ def _taint_reasons(fetches: list[dict[str, Any]], guards: list[dict[str, Any]]) 
     return reasons
 
 
-def _nop_same_crash(grader_evidence: dict[str, Any] | None) -> dict[str, Any]:
+def _nop_same_crash(
+    grader_evidence: dict[str, Any] | None, *, has_records: bool = False
+) -> dict[str, Any]:
     if not grader_evidence:
+        if not has_records:
+            return {
+                "answer": "unknown",
+                "reason": "No trial records were readable, so the setup/import shape is unconfirmed.",
+                "nop_trial": None,
+            }
         return {
             "answer": "not_this_shape",
-            "reason": "This trial's verifier did not fail at setup or import.",
+            "reason": (
+                "Probe-03 recorded no setup/import crash evidence on the readable records, "
+                "so a same-crash comparison does not apply."
+            ),
             "nop_trial": None,
         }
     confirm = grader_evidence.get("nop_control_confirms")
@@ -484,44 +628,17 @@ def _nop_same_crash(grader_evidence: dict[str, Any] | None) -> dict[str, Any]:
 
 def _fetched_fix(fetches: list[dict[str, Any]]) -> dict[str, Any]:
     if not fetches:
-        return {"fetched": False, "step": None, "command": None, "kind": None}
+        return {"fetched": False, "step": None, "command": None, "kind": None, "note": None}
     first = fetches[0]
     return {
         "fetched": True,
         "step": first.get("evidence"),
         "command": first.get("command"),
         "kind": first.get("rule"),
+        "note": (
+            "A fetch command was observed. Whether it supplied the graded fix is unjudged: "
+            "a fetch is a signal, not proof."
+        ),
     }
 
 
-def _edit_sentence(did: dict[str, Any]) -> str:
-    step = did.get("last_edit_step")
-    if step is None:
-        return ""
-    excerpt = did.get("last_edit_excerpt")
-    sentence = f" Last useful edit: step `{step}`"
-    if excerpt:
-        sentence += f" (`{excerpt}`)"
-    return sentence + "."
-
-
-def _taint_sentence(tainted: dict[str, Any]) -> str:
-    status = tainted.get("status")
-    if status == "candidate":
-        reasons = ", ".join(tainted.get("reasons") or []) or "unnamed"
-        return (
-            f"candidate ({reasons}). A pass with a fetch or a guard reject. "
-            "Not a coordinator ruling."
-        )
-    if status == "clean":
-        return "no. The pass has no fetch and no guard reject."
-    return "not a pass, so there is nothing to exclude from training."
-
-
-def _fetch_sentence(fetch: dict[str, Any]) -> str:
-    if not fetch.get("fetched"):
-        return "Fetched the fix: no."
-    return (
-        f"Fetched the fix: yes, step `{fetch.get('step')}`, "
-        f"`{fetch.get('command')}`."
-    )

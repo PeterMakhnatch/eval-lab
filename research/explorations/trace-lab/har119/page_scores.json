@@ -1,0 +1,422 @@
+{
+  "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+  "predictor_code_sha256": "009aa54e88afc0d6a60fd4be103c9810d6cf84401f88d8b2fa1f47ac624cd144",
+  "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
+  "in_sample": false,
+  "frozen_at": "2026-10-01T00:00:02Z",
+  "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f",
+  "labels_manifest_sha256": "262e3596f43876ebe200c6892bd0e123bd16c503c650d6c8038a351079848fe6",
+  "labels_manifest": "07ffd0f208538bfd11ea7d295b39e237a6c601403f918f9d8a83c1c6a57049f6  rater_a/har110-001181-plain__AnjbfwU.json\n1aabfe679f27700b232ca0b75d55388ef9fda87e08f3cea1329b7218a4aabe2b  rater_a/har110-000495-plain__mDTBFAW.json\n08c08690faf3bce89d7deb8f18b0ec09f364d38e9ce1205733115eaabc04d835  rater_a/har110-001161-plain__RZ8qyUu.json\n1dce5b43080535f917f21adbb025959055e49a1230193837189e9db62e4e84ea  rater_a/har110-000587-plain__5NNxU35.json\nf7d12de515a00b7f69b1b21a4d520628abbbb8a63c921e0411210c2e7b36f384  rater_a/gepa-terminus-2-format-code-task__CFCbfps.json\n020fd52fed5872cce6b0f2c13e900deb033c0f8017aa9bdd225fa462c53c956e  rater_a/gepa-terminus-2-format-code-task__X2dMzMw.json\ndc09ed4a1a4c066c4adaeda9f3612c4c76a20a0cbaf7441c0c9dda63a9546ca9  rater_a/gepa-terminus-2-format-code-task__8FqvKUU.json\nfa5a1927fb0b831ae0cdf066e6c438cf3b95a90cdfaa774aca5b69e7d3a6ad30  rater_a/har110-000495-seed__dimG2yD.json\n017c1ea0d0221c81cc90dd58c6dc9dd0ecbc3cd0244ea5dbc2d54417a3301dce  rater_a/har110-dev-002864-cfe31418__g7pfCqC.json\n4c89d68f0c8875c1306a4b18a5373259b5498a628f61c5e86ca8c6c1fc5988a9  rater_a/har110-dev-002391-cfe31418__MvXkrso.json\n03a5f3840360ac2313dd00b1246baf048bd47338d0b218fdaf6b645f318415d7  rater_a/har110-001161-gepa__kLkGSnR.json\nd94990be459b6a786f60cf485c26b5d3ef945fc1a8e1cfc062f37edfd557abb3  rater_a/har110-dev-000383-cfe31418__L7nGNNi.json\nc721525a1d2162963120057fedf456ad1878229c0cf0869c24442846f4e7e1c3  rater_b/har110-001181-plain__AnjbfwU.json\nd219c8a7ddab606673bb651bbb655b65963d4d6d1137e3c1d702bafb3a4db9e6  rater_b/har110-000495-plain__mDTBFAW.json\n8e944b7a07ad64c2a12546258ed6a8969407168da42e0011d421a991dd18d919  rater_b/har110-001161-plain__RZ8qyUu.json\n63d0a47139d114abb5ae5571e1302a64723582851f8b564ba452fff0c9b2cb20  rater_b/har110-000587-plain__5NNxU35.json\n5dfe147011a374db4dd9c8922d0b5020e8813e494983b0b54d5f8698a37dcfb1  rater_b/gepa-terminus-2-format-code-task__CFCbfps.json\n59b8f087c1888ceaa9b066337e49612c8375d0e8e12b805b51bcd60072c7dafe  rater_b/gepa-terminus-2-format-code-task__X2dMzMw.json\nafacdd9c414b327ea2b3fd12400d609e5c391c1cdf32d829f62cf7e019d4156f  rater_b/gepa-terminus-2-format-code-task__8FqvKUU.json\n0ee286361aa87ed4b26e73581139aa66d3b756a9517154f924dd3f0033c1f635  rater_b/har110-000495-seed__dimG2yD.json\n1f67b38b9261455ae3e1f47ea06d67c4bbf6f517e69bef3012488bab8790e7ad  rater_b/har110-dev-002864-cfe31418__g7pfCqC.json\n2649476c438387c98e15b8ad04981b86796584a8b0b6bde0f4f696f5c02d4d21  rater_b/har110-dev-002391-cfe31418__MvXkrso.json\n82e04419772d49eb32d56340525efa9f63027f048f01acc3f8e0172c510fbee4  rater_b/har110-001161-gepa__kLkGSnR.json\nee0fcf301c65940a3fde6f6ec9f8aa37e4abd5b0ce288ed1620e828f596306a2  rater_b/har110-dev-000383-cfe31418__L7nGNNi.json\n",
+  "rater_agreement_loop_kind": {
+    "agree": 11,
+    "n": 12,
+    "not_expressed": 0,
+    "rows": [
+      {
+        "trial": "har110-001181-plain__AnjbfwU",
+        "rater": "none",
+        "other": "repetition",
+        "match": false
+      },
+      {
+        "trial": "har110-000495-plain__mDTBFAW",
+        "rater": "none",
+        "other": "none",
+        "match": true
+      },
+      {
+        "trial": "har110-001161-plain__RZ8qyUu",
+        "rater": "none",
+        "other": "none",
+        "match": true
+      },
+      {
+        "trial": "har110-000587-plain__5NNxU35",
+        "rater": "none",
+        "other": "none",
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+        "rater": "completion-claim",
+        "other": "completion-claim",
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "rater": "completion-claim",
+        "other": "completion-claim",
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+        "rater": "completion-claim",
+        "other": "completion-claim",
+        "match": true
+      },
+      {
+        "trial": "har110-000495-seed__dimG2yD",
+        "rater": "none",
+        "other": "none",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+        "rater": "none",
+        "other": "none",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002391-cfe31418__MvXkrso",
+        "rater": "repetition",
+        "other": "repetition",
+        "match": true
+      },
+      {
+        "trial": "har110-001161-gepa__kLkGSnR",
+        "rater": "repetition",
+        "other": "repetition",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+        "rater": "repetition",
+        "other": "repetition",
+        "match": true
+      }
+    ]
+  },
+  "rater_agreement_loop_present": {
+    "agree": 11,
+    "n": 12,
+    "not_expressed": 0,
+    "rows": [
+      {
+        "trial": "har110-001181-plain__AnjbfwU",
+        "rater": false,
+        "other": true,
+        "match": false
+      },
+      {
+        "trial": "har110-000495-plain__mDTBFAW",
+        "rater": false,
+        "other": false,
+        "match": true
+      },
+      {
+        "trial": "har110-001161-plain__RZ8qyUu",
+        "rater": false,
+        "other": false,
+        "match": true
+      },
+      {
+        "trial": "har110-000587-plain__5NNxU35",
+        "rater": false,
+        "other": false,
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+        "rater": true,
+        "other": true,
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "rater": true,
+        "other": true,
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+        "rater": true,
+        "other": true,
+        "match": true
+      },
+      {
+        "trial": "har110-000495-seed__dimG2yD",
+        "rater": false,
+        "other": false,
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+        "rater": false,
+        "other": false,
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002391-cfe31418__MvXkrso",
+        "rater": true,
+        "other": true,
+        "match": true
+      },
+      {
+        "trial": "har110-001161-gepa__kLkGSnR",
+        "rater": true,
+        "other": true,
+        "match": true
+      },
+      {
+        "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+        "rater": true,
+        "other": true,
+        "match": true
+      }
+    ]
+  },
+  "page_vs_agreed_loop_kind": {
+    "agree": 7,
+    "n": 11,
+    "rows": [
+      {
+        "trial": "har110-000495-plain__mDTBFAW",
+        "rater": "none",
+        "page": "repetition",
+        "match": false
+      },
+      {
+        "trial": "har110-001161-plain__RZ8qyUu",
+        "rater": "none",
+        "page": "none",
+        "match": true
+      },
+      {
+        "trial": "har110-000587-plain__5NNxU35",
+        "rater": "none",
+        "page": "repetition",
+        "match": false
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+        "rater": "completion-claim",
+        "page": "completion-claim",
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "rater": "completion-claim",
+        "page": "none",
+        "match": false
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+        "rater": "completion-claim",
+        "page": "completion-claim",
+        "match": true
+      },
+      {
+        "trial": "har110-000495-seed__dimG2yD",
+        "rater": "none",
+        "page": "repetition",
+        "match": false
+      },
+      {
+        "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+        "rater": "none",
+        "page": "none",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002391-cfe31418__MvXkrso",
+        "rater": "repetition",
+        "page": "repetition",
+        "match": true
+      },
+      {
+        "trial": "har110-001161-gepa__kLkGSnR",
+        "rater": "repetition",
+        "page": "repetition",
+        "match": true
+      },
+      {
+        "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+        "rater": "repetition",
+        "page": "repetition",
+        "match": true
+      }
+    ]
+  },
+  "page_vs_agreed_loop_present": {
+    "agree": 7,
+    "n": 11,
+    "rows": [
+      {
+        "trial": "har110-000495-plain__mDTBFAW",
+        "rater": false,
+        "page": true,
+        "match": false
+      },
+      {
+        "trial": "har110-001161-plain__RZ8qyUu",
+        "rater": false,
+        "page": false,
+        "match": true
+      },
+      {
+        "trial": "har110-000587-plain__5NNxU35",
+        "rater": false,
+        "page": true,
+        "match": false
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+        "rater": true,
+        "page": true,
+        "match": true
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "rater": true,
+        "page": false,
+        "match": false
+      },
+      {
+        "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+        "rater": true,
+        "page": true,
+        "match": true
+      },
+      {
+        "trial": "har110-000495-seed__dimG2yD",
+        "rater": false,
+        "page": true,
+        "match": false
+      },
+      {
+        "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+        "rater": false,
+        "page": false,
+        "match": true
+      },
+      {
+        "trial": "har110-dev-002391-cfe31418__MvXkrso",
+        "rater": true,
+        "page": true,
+        "match": true
+      },
+      {
+        "trial": "har110-001161-gepa__kLkGSnR",
+        "rater": true,
+        "page": true,
+        "match": true
+      },
+      {
+        "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+        "rater": true,
+        "page": true,
+        "match": true
+      }
+    ]
+  },
+  "eligible_n": 11,
+  "excluded_rater_disagreement": 1,
+  "abstentions": 0,
+  "page_vs_loop_rule_kind": {
+    "agree": 12,
+    "n": 12
+  },
+  "page_first_failure_expressed": {
+    "n": 1,
+    "of": 12
+  },
+  "generated_at": "2026-10-01T04:19:15.046560+00:00",
+  "page_rows": {
+    "har110-001181-plain__AnjbfwU": {
+      "loop_kind": "repetition",
+      "loop_present": true,
+      "turns_after_prompt": 0,
+      "claim_bearing_turns": 0,
+      "first_prompt_step": null,
+      "loop_onset_step": 58
+    },
+    "har110-000495-plain__mDTBFAW": {
+      "loop_kind": "repetition",
+      "loop_present": true,
+      "turns_after_prompt": 0,
+      "claim_bearing_turns": 0,
+      "first_prompt_step": null,
+      "loop_onset_step": 46
+    },
+    "har110-001161-plain__RZ8qyUu": {
+      "loop_kind": "none",
+      "loop_present": false,
+      "turns_after_prompt": 0,
+      "claim_bearing_turns": 0,
+      "first_prompt_step": null,
+      "loop_onset_step": null
+    },
+    "har110-000587-plain__5NNxU35": {
+      "loop_kind": "repetition",
+      "loop_present": true,
+      "turns_after_prompt": 0,
+      "claim_bearing_turns": 0,
+      "first_prompt_step": null,
+      "loop_onset_step": 66
+    },
+    "gepa-terminus-2-format-code-task__CFCbfps": {
+      "loop_kind": "completion-claim",
+      "loop_present": true,
+      "turns_after_prompt": 12,
+      "claim_bearing_turns": 9,
+      "first_prompt_step": 87,
+      "loop_onset_step": null
+    },
+    "gepa-terminus-2-format-code-task__X2dMzMw": {
+      "loop_kind": "none",
+      "loop_present": false,
+      "turns_after_prompt": 110,
+      "claim_bearing_turns": 1,
+      "first_prompt_step": 11,
+      "loop_onset_step": null
+    },
+    "gepa-terminus-2-format-code-task__8FqvKUU": {
+      "loop_kind": "completion-claim",
+      "loop_present": true,
+      "turns_after_prompt": 52,
+      "claim_bearing_turns": 49,
+      "first_prompt_step": 36,
+      "loop_onset_step": 43
+    },
+    "har110-000495-seed__dimG2yD": {
+      "loop_kind": "repetition",
+      "loop_present": true,
+      "turns_after_prompt": 0,
+      "claim_bearing_turns": 0,
+      "first_prompt_step": null,
+      "loop_onset_step": 85
+    },
+    "har110-dev-002864-cfe31418__g7pfCqC": {
+      "loop_kind": "none",
+      "loop_present": false,
+      "turns_after_prompt": 1,
+      "claim_bearing_turns": 1,
+      "first_prompt_step": 12,
+      "loop_onset_step": null
+    },
+    "har110-dev-002391-cfe31418__MvXkrso": {
+      "loop_kind": "repetition",
+      "loop_present": true,
+      "turns_after_prompt": 0,
+      "claim_bearing_turns": 0,
+      "first_prompt_step": null,
+      "loop_onset_step": 59
+    },
+    "har110-001161-gepa__kLkGSnR": {
+      "loop_kind": "repetition",
+      "loop_present": true,
+      "turns_after_prompt": 0,
+      "claim_bearing_turns": 0,
+      "first_prompt_step": null,
+      "loop_onset_step": 8
+    },
+    "har110-dev-000383-cfe31418__L7nGNNi": {
+      "loop_kind": "repetition",
+      "loop_present": true,
+      "turns_after_prompt": 0,
+      "claim_bearing_turns": 0,
+      "first_prompt_step": null,
+      "loop_onset_step": 31
+    }
+  }
+}

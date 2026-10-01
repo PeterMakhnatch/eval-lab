@@ -517,19 +517,98 @@ def _process_trial(
 
         flags.extend(_token_flow_flags(token_flow))
     record["flags"] = flags
-    try:
-        from evallab.trial_decision import build_decision
+    # The decision page is attached in process_job after counts land, via
+    # _attach_decision: one clean path with the real counts field, never a
+    # provisional page built without it. Direct _process_trial callers get
+    # decision None until attached.
+    record["grader_evidence"] = (analysis or {}).get("grader_evidence") if analysis else None
+    record["decision"] = None
+    return record
 
-        decision = build_decision(
+
+def _job_task_identity(job_dir: Path) -> dict[str, Any | None]:
+    """Canonical task identity for counts, read once per job.
+
+    ``experiment-spec.json`` carries the optional ``task_id`` (explicit
+    canonical identity; avoids variant display-name aliases) and
+    ``task_package_digest``. Either may be absent on older jobs: counts
+    then keeps its legacy policy and reports the ledger unmatched.
+    """
+    spec = _read_json(job_dir / "experiment-spec.json") or {}
+    digest = spec.get("task_package_digest")
+    task_id = spec.get("task_id")
+    return {
+        "task_id": task_id.strip() if isinstance(task_id, str) and task_id.strip() else None,
+        "task_package_digest": digest.strip()
+        if isinstance(digest, str) and digest.strip()
+        else None,
+    }
+
+
+_COUNTS_KWARGS_CACHE: dict[str, bool] = {}
+
+
+def _counts_accepts(name: str) -> bool:
+    """Whether ``counts.attach_counts`` takes ``name``.
+
+    The parent ships the ``task_id``/``task_package_digest`` keywords
+    separately; the probe keeps this wiring working on trees that predate
+    them (legacy policy, ledger explicitly unmatched).
+    """
+    if name not in _COUNTS_KWARGS_CACHE:
+        try:
+            import inspect
+
+            from evallab import counts as _counts_module
+
+            params = inspect.signature(_counts_module.attach_counts).parameters
+            for key in ("task_package_digest", "task_id"):
+                _COUNTS_KWARGS_CACHE[key] = key in params
+        except (ImportError, ValueError, TypeError):
+            _COUNTS_KWARGS_CACHE.setdefault(name, False)
+    return _COUNTS_KWARGS_CACHE.get(name, False)
+
+
+def _attach_trial_counts(
+    record: dict[str, Any],
+    result: dict[str, Any],
+    *,
+    label_root: Path | None,
+    task_identity: dict[str, Any | None],
+) -> dict[str, Any]:
+    """Attach counts, passing the canonical task identity when supported."""
+    from evallab.counts import attach_counts
+
+    kwargs: dict[str, Any] = {}
+    for key in ("task_package_digest", "task_id"):
+        if _counts_accepts(key):
+            kwargs[key] = task_identity.get(key)
+    return attach_counts(record, result, label_root=label_root, **kwargs)
+
+
+def _attach_decision(record: dict[str, Any], trial_dir: Path) -> None:
+    """Build the trial-decision page in place, after counts are attached."""
+    from evallab.trial_decision import build_decision
+
+    try:
+        record["decision"] = build_decision(
             trial_dir,
-            reward=reward,
-            scored=scored,
-            outcome=outcome_failure if isinstance(outcome_failure, dict) else None,
-            first_failure=first_failure if isinstance(first_failure, dict) else None,
-            grader_evidence=(analysis or {}).get("grader_evidence") if analysis else None,
-            taint=taint,
-            token_flow=token_flow if isinstance(token_flow, dict) else None,
-            stop_reason=stop_reason,
+            reward=record.get("reward"),
+            scored=bool(record.get("scored")),
+            outcome=record.get("outcome_failure")
+            if isinstance(record.get("outcome_failure"), dict)
+            else None,
+            first_failure=record.get("first_failure")
+            if isinstance(record.get("first_failure"), dict)
+            else None,
+            grader_evidence=record.get("grader_evidence")
+            if isinstance(record.get("grader_evidence"), dict)
+            else None,
+            taint=record.get("taint") if isinstance(record.get("taint"), list) else [],
+            token_flow=record.get("token_flow")
+            if isinstance(record.get("token_flow"), dict)
+            else None,
+            stop_reason=record.get("stop_reason"),
             calls=record.get("agent_steps"),
             tokens=record.get("tokens_proxy")
             if isinstance(record.get("tokens_proxy"), dict)
@@ -538,11 +617,9 @@ def _process_trial(
         )
         decision_error = None
     except Exception as exc:  # noqa: BLE001 -- one bad trial must not kill the job
-        decision = None
+        record["decision"] = None
         decision_error = f"{type(exc).__name__}: {exc}"
-    record["decision"] = decision
     record["errors"]["decision"] = decision_error
-    return record
 
 
 def _jsonable(value: Any) -> Any:
@@ -770,8 +847,6 @@ def process_job(
     from evallab.counts import attach_counts, find_label_root, summarize_counts
 
     label_root = find_label_root(repo_root) or find_label_root(job_path)
-    spec = _read_json(job_path / "experiment-spec.json") or {}
-    package_digest = spec.get("task_package_digest") if isinstance(spec, dict) else None
 
     trials = _iter_trial_dirs(job_path)
     ledger = _job_ledger_block(job_path)
@@ -785,6 +860,7 @@ def process_job(
     attempted_output = (totals.get("attempted") or {}).get("output_tokens")
 
     trial_reports: list[dict[str, Any]] = []
+    task_identity = _job_task_identity(job_path)
     for trial_path in trials:
         record = _process_trial(trial_path, job_path, nop_runs_dir=nop_runs_dir)
         trial_result = _read_json(trial_path / "result.json") or {}
@@ -816,16 +892,11 @@ def process_job(
             if estimate is not None
             else estimate_reason
         )
-        record["counts"] = attach_counts(
-            record,
-            trial_result,
-            label_root=label_root,
-            package_digest=package_digest if isinstance(package_digest, str) else None,
+        record["task_package_digest"] = task_identity.get("task_package_digest")
+        record["counts"] = _attach_trial_counts(
+            record, trial_result, label_root=label_root, task_identity=task_identity
         )
-        if isinstance(record.get("decision"), dict):
-            from evallab.trial_decision import render_counts
-
-            record["decision"]["counts"] = render_counts(record["counts"])
+        _attach_decision(record, trial_path)
         trial_reports.append(record)
         trial_file = out_dir / f"trial-{trial_path.name}.json"
         trial_file.write_text(

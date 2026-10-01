@@ -98,3 +98,33 @@ Scout's bulky intermediates (normalized trials, probe-03 rows, Scout databases, 
 | R7 (new) | "One/few" vs an exact-N call count is an item; it is guessable only if the minimal fix hits N | 000413 |
 | R2 | Write the sibling's minimal fix out when the analogy is debatable | 001248 |
 | R6 (new) | Names that mechanically extend a verified repo pattern are covered | 000234 |
+
+## Page calibration (trial_decision/v3, HAR-131)
+
+The generated trial pages now carry the loop-kind measurement of the exact
+predictor they ship (`trial_decision.classify_loop_kind`), not the frozen
+part-1 rule's number: `score_page.py` runs the live page function on the 12
+frozen trial directories and scores it against the frozen labels.
+
+- **Page loop kind vs agreed rater cells: 7/11** (eligible 11, 1 excluded on
+  rater disagreement, 0 abstentions). Same misses as the part-1 rule: it
+  calls three loop-free runs repetition and misses X2dMzMw's claim-driven
+  echo loop.
+- **Page vs frozen part-1 rule: 12/12 kind agreement** on this cohort (same
+  rule; the page uses live `token_flow` instead of the frozen HAR-114 rows).
+- **Rater agreement: 11/12** on kind and presence.
+- **First failure: unavailable for the page** (page field null on 11/12;
+  nothing to score). **Blame and grader alignment: opinions**, no
+  page-measured calibration on this cohort.
+- Limits: out-of-sample for the loop rule, n=11 agreed cells, kind only.
+
+Rerun (cwd = repo root; refuses on changed labels, reports UNAVAILABLE when
+trial directories are missing):
+
+```
+uv run python research/explorations/trace-lab/har119/score_page.py
+```
+
+It writes `page_scores.json` (per-trial page rows, digests, rater tables)
+and checks the embedded `trial_decision.PAGE_CALIBRATION` constants (MATCH
+or DRIFT, nonzero exit on drift).

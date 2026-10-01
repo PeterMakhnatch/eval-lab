@@ -134,3 +134,61 @@ def test_shared_detector_catches_answer_leak_shapes() -> None:
         (10, "curl-remote-url"),
     ]
     assert detect_upstream_fetch([(2, "pip show soupsieve"), (3, "ls /tmp")]) == []
+
+
+def test_process_job_decision_renders_counts_single_path(tmp_path: Path) -> None:
+    """The page is built once, after counts, with the real counts field."""
+    from evallab.process_job import _job_task_identity, _process_trial
+
+    job = _job(tmp_path)
+    assert _job_task_identity(job) == {
+        "task_id": None,
+        "task_package_digest": None,
+    }
+    out = tmp_path / "out"
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
+
+    assert report["summary"]["n_trials"] == 2
+    for trial_path in (job / "trial-loop", job / "trial-pass"):
+        name = trial_path.name
+        saved = json.loads((out / f"trial-{name}.json").read_text(encoding="utf-8"))
+        counts, decision = saved["counts"], saved["decision"]
+        # One path: the stored page carries the attached counts verdict,
+        # never a provisional page built without it.
+        assert decision["schema"] == "trial_decision/v3"
+        assert decision["counts"]["verdict"] == counts["verdict"]
+        assert decision["counts"]["reasons"] == counts["reasons"]
+        assert saved["task_package_digest"] is None
+    loop = json.loads((out / "trial-trial-loop.json").read_text(encoding="utf-8"))
+    assert loop["counts"]["verdict"] == "counted_fail"
+    assert loop["decision"]["counts"]["verdict"] == "counted_fail"
+    assert loop["decision"]["counts"]["task_ledger"]["status"] == "unknown"
+    passing = json.loads((out / "trial-trial-pass.json").read_text(encoding="utf-8"))
+    assert passing["counts"]["verdict"] == "counted_pass"
+    assert passing["decision"]["counts"]["verdict"] == "counted_pass"
+
+    # Direct _process_trial use leaves the page for the post-counts attach.
+    record = _process_trial(job / "trial-pass", job)
+    assert record["decision"] is None
+
+
+def test_attach_trial_counts_forwards_identity_when_supported(monkeypatch) -> None:
+    """The canonical task identity reaches counts once counts accepts it."""
+    from evallab import counts as counts_module
+    from evallab import process_job as process_job_module
+
+    seen: dict = {}
+
+    def fake_attach(record, result, *, label_root, task_package_digest=None, task_id=None):
+        seen["digest"] = task_package_digest
+        seen["task_id"] = task_id
+        return {"schema": "evallab.counts/v1", "verdict": "counted_fail", "reasons": []}
+
+    monkeypatch.setattr(counts_module, "attach_counts", fake_attach)
+    monkeypatch.setattr(process_job_module, "_COUNTS_KWARGS_CACHE", {})
+    identity = {"task_id": "task001618", "task_package_digest": "sha256:abc"}
+    out = process_job_module._attach_trial_counts(
+        {}, {}, label_root=None, task_identity=identity
+    )
+    assert out["verdict"] == "counted_fail"
+    assert seen == {"digest": "sha256:abc", "task_id": "task001618"}

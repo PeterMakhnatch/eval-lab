@@ -112,6 +112,25 @@ def test_sound_census_row_does_not_exclude() -> None:
     assert usability(index, trial_name="har104-d-000226__JCDfZFi", task_name="format-code-task-000226") is None
 
 
+def test_validated_repair_variant_lifts_the_census_exclusion_only_for_its_task() -> None:
+    # 001618's original is broken_environment; HAR-115's pip repair is validated,
+    # an earlier attempt is still a candidate.
+    assert REPO is not None
+    index = task_index_for(REPO)
+    variants = REPO / "library/task-variants/mimo-v2.6-rl__format-code-task-001618"
+    repaired = json.loads((variants / "6711d55bc4e5.json").read_text())["variant_digest"]
+    candidate = json.loads((variants / "1b8e64964d4e.json").read_text())["variant_digest"]
+    task = "mimo-v2.6-rl/format-code-task-001618"
+    assert usability(index, trial_name=None, task_name=task, package_digest=repaired) is None
+    original = usability(index, trial_name=None, task_name=task, package_digest=None)
+    assert original is not None and original["status"] == "broken_environment"
+    assert usability(index, trial_name=None, task_name=task, package_digest=candidate) is not None
+    other_task = usability(
+        index, trial_name=None, task_name="format-code-task-002307", package_digest=repaired
+    )
+    assert other_task is not None
+
+
 @pytest.mark.skipif(not HAR104_COPY.is_dir(), reason="recorded HAR-104 trial is not on this machine")
 def test_recorded_copied_pass() -> None:
     record = _process_trial(HAR104_COPY, HAR104_COPY.parent)

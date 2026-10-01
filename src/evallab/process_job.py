@@ -770,6 +770,8 @@ def process_job(
     from evallab.counts import attach_counts, find_label_root, summarize_counts
 
     label_root = find_label_root(repo_root) or find_label_root(job_path)
+    spec = _read_json(job_path / "experiment-spec.json") or {}
+    package_digest = spec.get("task_package_digest") if isinstance(spec, dict) else None
 
     trials = _iter_trial_dirs(job_path)
     ledger = _job_ledger_block(job_path)
@@ -814,7 +816,12 @@ def process_job(
             if estimate is not None
             else estimate_reason
         )
-        record["counts"] = attach_counts(record, trial_result, label_root=label_root)
+        record["counts"] = attach_counts(
+            record,
+            trial_result,
+            label_root=label_root,
+            package_digest=package_digest if isinstance(package_digest, str) else None,
+        )
         if isinstance(record.get("decision"), dict):
             from evallab.trial_decision import render_counts
 

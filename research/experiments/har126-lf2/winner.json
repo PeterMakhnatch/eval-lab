@@ -1,0 +1,9 @@
+{
+  "command_run_min": 8,
+  "grace_calls": 15,
+  "input_tokens_saved": 50149859,
+  "message_run_min": 20,
+  "scored0_cut_before_edit": 3,
+  "scored1_cut": 0,
+  "scored1_unknown_edit": 0
+}

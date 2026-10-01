@@ -1,0 +1,14 @@
+[
+ {
+  "job": "HAR-120-har120-000838-a1",
+  "trial": "har120-000838-a1__YSe3G7t",
+  "task_id": "format-code-task-000838",
+  "reason": "traces:no_completion_in_kept_window"
+ },
+ {
+  "job": "HAR-120-har120-002552-a1-r2",
+  "trial": "har120-002552-a1-r2__ZftRzg3",
+  "task_id": "format-code-task-002552",
+  "reason": "traces:not_clean (Genuine pass, but the kept window has 8 identical empty-message greps (head#53-60) that drew the loop nudge; no single cut drops them and keeps the fix (both raters).)"
+ }
+]

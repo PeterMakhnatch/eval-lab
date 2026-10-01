@@ -767,6 +767,9 @@ def test_a_call_its_client_abandoned_settles_before_the_proxy_exits(
                     pass
             except ConnectionRefusedError:
                 break
+            except ConnectionResetError:
+                # A queued handshake can reset while the listener is closing.
+                pass
             if time.monotonic() >= deadline:
                 pytest.fail("proxy did not close its listener during shutdown")
             release_response.wait(0.05)

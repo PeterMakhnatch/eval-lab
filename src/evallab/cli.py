@@ -1714,6 +1714,7 @@ def _capture_smoke_command(
             out_dir=out,
             key_env=args.key_env,
             max_tokens=args.max_tokens,
+            model=args.model,
         )
     except SmokeError as exc:
         print(f"smoke failed: {exc}", file=sys.stderr)
@@ -4872,8 +4873,12 @@ def parser() -> argparse.ArgumentParser:
     capture_smoke.add_argument(
         "--max-tokens", type=int, default=64, help="Completion cap for the probe call"
     )
+    capture_smoke.add_argument(
+        "--model",
+        default=None,
+        help="Model selector to smoke (default: the selfhosted base MiMo distill)",
+    )
     capture_smoke.set_defaults(func=_capture_smoke_command)
-
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
     analyze_plan_parser = analyze_commands.add_parser(

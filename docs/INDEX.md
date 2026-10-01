@@ -71,7 +71,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/lora-sft-runbook.md
-    digest: sha256:3d76e8ed3a621c7f8d88384369f160f7634bcc65e467d2bffbd2b17612d62eca
+    digest: sha256:374f5a1be658920fcc02aa9638b388240dbbeac45e0397e0684752eb8c002db1
   - path: docs/mimo-task-catalog.md
     digest: sha256:92cd9596c75aa7bef1d4a7e5e3f5231ef32501c243db5a4f0781b3ebd0bde065
   - path: docs/model-capture.md
@@ -81,7 +81,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:753eb131338d4b0c1a26c25d966990ac06176354382d99ec8ad5d9467c39a5c0
+    digest: sha256:66b3f4cb18f8480e71834f8ca8b2bd7edc7911b50654a560edd590506310038f
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md

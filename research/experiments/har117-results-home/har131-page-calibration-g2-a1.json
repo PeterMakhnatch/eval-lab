@@ -1,0 +1,268 @@
+{
+  "schema": "har131.page_loop_calibration/v1",
+  "cohort": "HAR-128 G2 attempt 1: 20 HAR-120 trials",
+  "generated_at": "2026-10-01T09:48:51.689148+00:00",
+  "labels_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har131-g2-page-calibration/research/explorations/trace-lab/har128/labels_g2_a1",
+  "labels_frozen_at": "2026-10-01T09:14:45Z",
+  "labels_manifest_sha256": "f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674",
+  "results_home": "/Users/petermakhnatch/Developer/eval-lab-results",
+  "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+  "predictor_functions": {
+    "names": [
+      "trial_decision.classify_loop_kind",
+      "trial_decision._claim_bearing",
+      "token_flow._loop_onset"
+    ],
+    "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+  },
+  "scorer_sha256": "1ddc86324edd8c322b73da9d70fa3618805491475281984307a6021e606a929b",
+  "in_sample": false,
+  "rater_agreement": {
+    "agree": 17,
+    "n": 20
+  },
+  "disagreements": 3,
+  "page_vs_agreed": {
+    "agree": 12,
+    "n": 17
+  },
+  "page_abstentions": 0,
+  "loop_kind_confusion": {
+    "none": {
+      "agree": 5,
+      "n": 5
+    },
+    "repetition": {
+      "agree": 4,
+      "n": 6
+    },
+    "completion-claim": {
+      "agree": 3,
+      "n": 6
+    }
+  },
+  "rows": [
+    {
+      "trial": "har120-000227-a1__7WRBQ4u",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000227-a1/processed/trial-har120-000227-a1__7WRBQ4u.json",
+      "report_sha256": "2d66195dd5dcdb9c4d3320f118e83e92868d33a6999b4c9900bff39b30804a3b"
+    },
+    {
+      "trial": "har120-000341-a1__MYkGYQZ",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "completion-claim",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000341-a1/processed/trial-har120-000341-a1__MYkGYQZ.json",
+      "report_sha256": "912dd07fd389b2bb6852ec0254e0de51e169f42c4a6b7728ebc9732d7f9a2b2c"
+    },
+    {
+      "trial": "har120-000552-a1__WdaAJgE",
+      "rater_a": "completion-claim",
+      "rater_b": "none",
+      "rater_agreed": false,
+      "page": "completion-claim",
+      "page_matches": null,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000552-a1/processed/trial-har120-000552-a1__WdaAJgE.json",
+      "report_sha256": "4ab05597a5ff30f2b07d6459fd6a3f847215b6e3117e13909c65a74240874739"
+    },
+    {
+      "trial": "har120-000666-a1__mZosYxT",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000666-a1/processed/trial-har120-000666-a1__mZosYxT.json",
+      "report_sha256": "e9e3f1fdbeb9289bc521abb516e6d635937a2b902d53e8cd2e55a8f83e703f07"
+    },
+    {
+      "trial": "har120-000803-a1__xWzxKCn",
+      "rater_a": "none",
+      "rater_b": "completion-claim",
+      "rater_agreed": false,
+      "page": "none",
+      "page_matches": null,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000803-a1/processed/trial-har120-000803-a1__xWzxKCn.json",
+      "report_sha256": "b126fc41193d81bc78a4b1547b32075e387d0b001e2d2d2cd2f01dcc8f7bd134"
+    },
+    {
+      "trial": "har120-000813-a1__WXXsNxw",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000813-a1/processed/trial-har120-000813-a1__WXXsNxw.json",
+      "report_sha256": "65b973820c5a3b70f91fa9ddb16c0ee72531cf06cefbd685e67ad2a18624628d"
+    },
+    {
+      "trial": "har120-000838-a1__YSe3G7t",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000838-a1/processed/trial-har120-000838-a1__YSe3G7t.json",
+      "report_sha256": "89d120f929ef7599fbd5ed5ab57bd8d0d0d14863103aff90c35322b1d6b9479a"
+    },
+    {
+      "trial": "har120-000865-a1__a2TWzyM",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000865-a1/processed/trial-har120-000865-a1__a2TWzyM.json",
+      "report_sha256": "f27d90dc97e4b7643a39a7315544f15fc8d9b4789d83323dd39cbaefb0c3602a"
+    },
+    {
+      "trial": "har120-000941-a1__arZdiNe",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "completion-claim",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000941-a1/processed/trial-har120-000941-a1__arZdiNe.json",
+      "report_sha256": "9b618fdcfc9827b62b9c9463bc2b67f12d62bcfcf9516406016224663f6bd958"
+    },
+    {
+      "trial": "har120-001265-a1__3sBRy7Y",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001265-a1/processed/trial-har120-001265-a1__3sBRy7Y.json",
+      "report_sha256": "7dcea9b576d80a55f7ab42c8aac2afb0061227d36850339ba528918e31bc9607"
+    },
+    {
+      "trial": "har120-001269-a1__y3Wy5Ku",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001269-a1/processed/trial-har120-001269-a1__y3Wy5Ku.json",
+      "report_sha256": "4b540a66b6f6badf4d1a473c0b52f8cf88c8210edf070f98517a0e13399fa0a4"
+    },
+    {
+      "trial": "har120-001373-a1__vHMkbJW",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001373-a1/processed/trial-har120-001373-a1__vHMkbJW.json",
+      "report_sha256": "e63b8d83ed68667eda725989008d8b19e3acd5dc16514ea9eb5ec1014de05e76"
+    },
+    {
+      "trial": "har120-001399-a1__fwLaw2U",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001399-a1/processed/trial-har120-001399-a1__fwLaw2U.json",
+      "report_sha256": "da7a6e946141d22ebd3f55827a4b66462d5dedf12fd55f6a298877cbdbcfdac9"
+    },
+    {
+      "trial": "har120-001647-a1__iqMRm5R",
+      "rater_a": "none",
+      "rater_b": "none",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001647-a1/processed/trial-har120-001647-a1__iqMRm5R.json",
+      "report_sha256": "e49a3701bbdc594bc7f998de98ea6edff481c425b96170699703f8e817d01215"
+    },
+    {
+      "trial": "har120-001661-a1__xdRDCYr",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001661-a1/processed/trial-har120-001661-a1__xdRDCYr.json",
+      "report_sha256": "d0e6e4fb6722c6a0b069f124e547beb563289411d68f29ad4189c80bcf014a33"
+    },
+    {
+      "trial": "har120-001710-a1__BLMKCZN",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001710-a1/processed/trial-har120-001710-a1__BLMKCZN.json",
+      "report_sha256": "a5eb80f029b01fe8eea174fc55edd3c445c2319a90866be556e502320623a7c4"
+    },
+    {
+      "trial": "har120-001870-a1__rXFPYLR",
+      "rater_a": "repetition",
+      "rater_b": "repetition",
+      "rater_agreed": true,
+      "page": "none",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001870-a1/processed/trial-har120-001870-a1__rXFPYLR.json",
+      "report_sha256": "517d30a92b21e5a60bbd6ba40a9461e5fd2ba4e8cf0ca0bda34ba3bd1313f428"
+    },
+    {
+      "trial": "har120-001897-a1__6AyLy9W",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "completion-claim",
+      "page_matches": true,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001897-a1/processed/trial-har120-001897-a1__6AyLy9W.json",
+      "report_sha256": "a1df459d6d228a509706dab94ed3818f9a0d9d6a9db8dfbe6b0d6c95b1c53b4e"
+    },
+    {
+      "trial": "har120-002680-a1__Ci4bEkf",
+      "rater_a": "none",
+      "rater_b": "repetition",
+      "rater_agreed": false,
+      "page": "repetition",
+      "page_matches": null,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002680-a1/processed/trial-har120-002680-a1__Ci4bEkf.json",
+      "report_sha256": "6eeaba29369d29d7fdb259f9048dcdf872a2a33fb8a5716adec2216a76a4ab92"
+    },
+    {
+      "trial": "har120-002938-a1__UpSjiuM",
+      "rater_a": "completion-claim",
+      "rater_b": "completion-claim",
+      "rater_agreed": true,
+      "page": "repetition",
+      "page_matches": false,
+      "abstention_reason": null,
+      "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002938-a1/processed/trial-har120-002938-a1__UpSjiuM.json",
+      "report_sha256": "e6e809b5b2dd0425dbbcd936945814c448d6fd4bd1eaf0560eb3f8abc8de900a"
+    }
+  ],
+  "heldout": "G2 attempt-1 frozen cohort only: analysis and calibration only, never training reflection",
+  "limit": "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind scout-agent annotations A (G2A1-4) / B (G2B1-4), not human ground truth; no reported off-limits openings. Loop kind only: this cohort carries no first-failure/blame calibration. Denominators stay per-cohort, never pooled. Scores and report hashes only, not trial content; inspection only, never training reflection."
+}

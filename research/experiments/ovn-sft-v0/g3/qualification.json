@@ -1,0 +1,4619 @@
+{
+ "schema": "evallab.ovn_reconstruction_qualification/2",
+ "rule": "admit when >= 3 trials are complete (every row identical to its own delivered call, one call per row, every delivered call reproduced, link not ambiguous), no exported row fails and no captured call is unassigned",
+ "admit_reconstructed": false,
+ "trials_complete": 32,
+ "rows_exported": 2871,
+ "rows_failing": 203,
+ "calls_captured": 4319,
+ "calls_unassigned": [],
+ "producer": {
+  "files": {
+   "src/evallab/sft_terminus.py": "sha256:9f98082b037e6653171bdee82112182cbfc8839d9dee49ee1593fadf1800086d",
+   "src/evallab/model_capture.py": "sha256:2ac3a411b80bdad83e2848863ad9e7bbb834cf21f4b20b4c6f8a0bd2b2a4105b",
+   "research/experiments/ovn-sft-v0/fidelity.py": "sha256:d837ff08523ce7ac6bf9e71fa406cda76c4fbdc45070e7c03394dd795a7c8404",
+   "research/experiments/ovn-sft-v0/g3_capture.py": "sha256:287248eebf64febc283eab3203b47be5d6e028f66030d3583abad0bbd7ca3c01"
+  },
+  "tokenizer_files": {
+   "tokenizer.json": "sha256:06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+   "tokenizer_config.json": "sha256:792fa3f0cb88b111e54ef3134c873531008c4df471d108da17903426e308aa7b",
+   "chat_template.jinja": "sha256:59a64ebb4df6d1489d09a91267cf3ceb106162d4a893c4f84833cfb8c897ff63",
+   "vocab.json": "sha256:ce99b4cb2983d118806ce0a8b777a35b093e2000a503ebde25853284c9dfa003",
+   "merges.txt": "sha256:a9d356d7bdf1ef4949e3e748e95b8e10ad9d4e2e838eddc38a0a7b6b94d1db8d"
+  },
+  "libraries": {
+   "transformers": "5.18.0",
+   "tokenizers": "0.23.2",
+   "jinja2": "3.1.6"
+  }
+ },
+ "links": [
+  {
+   "job": "HAR-120-har120-000227-a1",
+   "calls_assigned": 99,
+   "ambiguous_trials": [],
+   "receipt": "sha256:5325029de1f70c7a523264976a98b44d6a0664864551b1c2d6b8ca3151ed1e90"
+  },
+  {
+   "job": "HAR-120-har120-000227-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:a935125e5361c4e1e442b32b4d4f8989e69dbc3e9d665c31fdb4e921bae049fb"
+  },
+  {
+   "job": "HAR-120-har120-000227-a2-r2",
+   "calls_assigned": 96,
+   "ambiguous_trials": [],
+   "receipt": "sha256:04e1561114cf98324fc71b1272cfff207d098f8bda30470c89f96fb09ad9707d"
+  },
+  {
+   "job": "HAR-120-har120-000341-a1",
+   "calls_assigned": 88,
+   "ambiguous_trials": [],
+   "receipt": "sha256:8e024df72140c5b1061311e6e457fedf2ba22aef5c3f3f96e2d6516aedde9beb"
+  },
+  {
+   "job": "HAR-120-har120-000341-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:69ba4d8f4240847a2adbfc65087e3c605f7527233f1609c89cfa242a33e2117b"
+  },
+  {
+   "job": "HAR-120-har120-000341-a2-r2",
+   "calls_assigned": 96,
+   "ambiguous_trials": [],
+   "receipt": "sha256:6a678d5cd01891fd7b95e335f64b0402b8cf7c7fcb0831fbc5d02817c762fadc"
+  },
+  {
+   "job": "HAR-120-har120-000552-a1",
+   "calls_assigned": 104,
+   "ambiguous_trials": [],
+   "receipt": "sha256:63f191e56a2bd64a82aba2ec4579b80e0245f63746a789c769fe35a3ad6b7338"
+  },
+  {
+   "job": "HAR-120-har120-000552-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:a03d5c66ac8e98a11dfcc613b92c5c537f985557b9bcde9be0acbafa9b471087"
+  },
+  {
+   "job": "HAR-120-har120-000552-a2-r2",
+   "calls_assigned": 54,
+   "ambiguous_trials": [],
+   "receipt": "sha256:360c346cda3bbf4982bb9bbc00706e508d32897bda2993889ad5dfde15afd6fe"
+  },
+  {
+   "job": "HAR-120-har120-000666-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:13a9e0c54c4ece0ac5ecea6d1ce3c0a58e9515c14b60d8f0518b5577bf2b50b8"
+  },
+  {
+   "job": "HAR-120-har120-000666-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:afc9c7b2ccdb8285d90f9a07434c1c63ad45e6ab229ed16eb5319c032882d331"
+  },
+  {
+   "job": "HAR-120-har120-000666-a2-r2",
+   "calls_assigned": 59,
+   "ambiguous_trials": [],
+   "receipt": "sha256:e07e2dfb052674c00d364a78ae2ba8127e9492238ba3bdf1a977a5b0aa9e020e"
+  },
+  {
+   "job": "HAR-120-har120-000803-a1",
+   "calls_assigned": 42,
+   "ambiguous_trials": [],
+   "receipt": "sha256:3e3fef7cbc64fa95e9cf14d1be5278831f6d5b216464e7d87b93345f15580f60"
+  },
+  {
+   "job": "HAR-120-har120-000803-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:48c4aa5ad052b01a98f2fe8022bc94e57bf0a5c5ef50bd3f556a98a5524950e7"
+  },
+  {
+   "job": "HAR-120-har120-000803-a2-r2",
+   "calls_assigned": 107,
+   "ambiguous_trials": [],
+   "receipt": "sha256:bb45e2a28777934f1ed45bfc15e9b65db3679ab61cd4de4f03ea96b21bc37eb2"
+  },
+  {
+   "job": "HAR-120-har120-000813-a1",
+   "calls_assigned": 69,
+   "ambiguous_trials": [],
+   "receipt": "sha256:fa45df74bc5d4cb233dd64fdf3263985f5c87b0a2b0d2b46d76e8542c2b0f4fe"
+  },
+  {
+   "job": "HAR-120-har120-000813-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:24680e9eb94f7cbbefdd47c0a0c09439b2a7d8ec7da3f2c233b26b14dc5bfc1c"
+  },
+  {
+   "job": "HAR-120-har120-000813-a2-r2",
+   "calls_assigned": 103,
+   "ambiguous_trials": [],
+   "receipt": "sha256:cfd31ce38dd92eafd711b54e996d65630db8f47ac1529717fbf6cb20359b79b9"
+  },
+  {
+   "job": "HAR-120-har120-000838-a1",
+   "calls_assigned": 83,
+   "ambiguous_trials": [],
+   "receipt": "sha256:bc9b179429231692a9f2d93faf6eac9dab8679a8da3ed892a4565f5dddd1ac63"
+  },
+  {
+   "job": "HAR-120-har120-000838-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:379986a5278274f939098422a1b237df37438b3278607d71084bb46d408dede0"
+  },
+  {
+   "job": "HAR-120-har120-000838-a2-r2",
+   "calls_assigned": 81,
+   "ambiguous_trials": [],
+   "receipt": "sha256:dafce77a7aa4f2ff7386e96c89a4cb592fff2160b6d9d23b5ea74359c990724c"
+  },
+  {
+   "job": "HAR-120-har120-000865-a1",
+   "calls_assigned": 33,
+   "ambiguous_trials": [],
+   "receipt": "sha256:966950367b4cbb13c9e5e09f8c8de3ac0dd2c2c87871b1c497e4d0f3ae3c5b5e"
+  },
+  {
+   "job": "HAR-120-har120-000865-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:4719645d888a6308366f6834da14898340a81cf49a141a51efe30db85aa8e281"
+  },
+  {
+   "job": "HAR-120-har120-000865-a2-r2",
+   "calls_assigned": 66,
+   "ambiguous_trials": [],
+   "receipt": "sha256:580304fc7e738c97c637c9cf5b0f365a35566ab1a560bb2bbc978e744e6eeb07"
+  },
+  {
+   "job": "HAR-120-har120-000941-a1",
+   "calls_assigned": 102,
+   "ambiguous_trials": [],
+   "receipt": "sha256:4dfdfaaff9ee8f3b6aae77db10ee8f2f18c4660a667bfd53dd3c7ce160012e87"
+  },
+  {
+   "job": "HAR-120-har120-000941-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:3ee69d91a898290d3de893ce5c0b2031fc5dfe1031b5d13b0ad283129e275b77"
+  },
+  {
+   "job": "HAR-120-har120-000941-a2-r2",
+   "calls_assigned": 73,
+   "ambiguous_trials": [],
+   "receipt": "sha256:b71bec3f48daf6990d8ae3c22c4b76cfc4092a49a302c550a518334bfedcd52d"
+  },
+  {
+   "job": "HAR-120-har120-001265-a1",
+   "calls_assigned": 60,
+   "ambiguous_trials": [],
+   "receipt": "sha256:ed2bc47623d30c08550c7a40ed74d540f5dc893dbc2214e865801d82fe801312"
+  },
+  {
+   "job": "HAR-120-har120-001265-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:b14373c2d1ab61dbe1a5de4f16a0e986f826ae66d7e7ea04e8055017965db276"
+  },
+  {
+   "job": "HAR-120-har120-001265-a2-r2",
+   "calls_assigned": 98,
+   "ambiguous_trials": [],
+   "receipt": "sha256:a73b0b85131b9fa1fd7e7457012b8166448bb075698eb4781674ec9866b76f7c"
+  },
+  {
+   "job": "HAR-120-har120-001269-a1",
+   "calls_assigned": 92,
+   "ambiguous_trials": [],
+   "receipt": "sha256:c3124a4042719b638ca6cae4d2bdff60c5dcaf5f1d0a891f2b64524988bd0d47"
+  },
+  {
+   "job": "HAR-120-har120-001269-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:4f219b7768fab4f6bdfceedbd8cbd88857a24c5bd3bc20e0976f6529a113ec4d"
+  },
+  {
+   "job": "HAR-120-har120-001269-a2-r2",
+   "calls_assigned": 101,
+   "ambiguous_trials": [],
+   "receipt": "sha256:cb85adf3e318caedd65192da3f14fb35eb4d5999353471255cfbcac81dffa5b8"
+  },
+  {
+   "job": "HAR-120-har120-001373-a1",
+   "calls_assigned": 71,
+   "ambiguous_trials": [],
+   "receipt": "sha256:a95c6990f759d289fb80c48b5207cd1812b523367b82bcbcab7b6e43f9801045"
+  },
+  {
+   "job": "HAR-120-har120-001373-a2",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:26a780c14db37bc73f34f5e533c7243dd9e1e39aa1542a3711e4df6023adcaae"
+  },
+  {
+   "job": "HAR-120-har120-001373-a2-r2",
+   "calls_assigned": 30,
+   "ambiguous_trials": [],
+   "receipt": "sha256:656f5733c6c7de59a0fe4b45a6a7e0a5cba7babfb895567d699c74a7c9285d59"
+  },
+  {
+   "job": "HAR-120-har120-001399-a1",
+   "calls_assigned": 87,
+   "ambiguous_trials": [],
+   "receipt": "sha256:7477543142c5862f923b87091453fd112c22ed5d983214dbb77062a7badb94eb"
+  },
+  {
+   "job": "HAR-120-har120-001609-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:6a7fb227f541237dd72fe59e8108c70ee83bddda3af9de9a1178c8704a367b19"
+  },
+  {
+   "job": "HAR-120-har120-001609-a1-r2",
+   "calls_assigned": 75,
+   "ambiguous_trials": [],
+   "receipt": "sha256:b3115eff32ea1da90515ad8710db7ddc16c3a41a8a8deb9fa406106dc6b00e2c"
+  },
+  {
+   "job": "HAR-120-har120-001618-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:e065898f61ea466bba10e98e4a0b2b374040b06ba16ac30620644d705f503c59"
+  },
+  {
+   "job": "HAR-120-har120-001618-a1-r2",
+   "calls_assigned": 79,
+   "ambiguous_trials": [],
+   "receipt": "sha256:23ffc8c4e225318950e6e1c2377264956e7b49e0e5d250597158e236f55ef284"
+  },
+  {
+   "job": "HAR-120-har120-001647-a1",
+   "calls_assigned": 0,
+   "ambiguous_trials": [],
+   "receipt": "sha256:4d5f2e2cdb5c6e9d5fbcacbb740e2be23cd7c50fc60234b3908df774dd0bb114"
+  },
+  {
+   "job": "HAR-120-har120-001661-a1",
+   "calls_assigned": 56,
+   "ambiguous_trials": [],
+   "receipt": "sha256:a3d4903bf3a01b32db7beb363d684bd07848684e598be5a7a5b8c01a3adc26da"
+  },
+  {
+   "job": "HAR-120-har120-001710-a1",
+   "calls_assigned": 94,
+   "ambiguous_trials": [],
+   "receipt": "sha256:9a8decbdacd2dd0060a7adbf051015bb56930736b63eb2e4675cdaea128c0d2d"
+  },
+  {
+   "job": "HAR-120-har120-001820-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:ce1706d1c11e3e8855e3972ce96d93be7cfae9b6391af3642e71fb9807a2958f"
+  },
+  {
+   "job": "HAR-120-har120-001820-a1-r2",
+   "calls_assigned": 32,
+   "ambiguous_trials": [],
+   "receipt": "sha256:5598e994059db54e9af73550bd70e1ef32dcc45dbf944cac60a63f8681c5051a"
+  },
+  {
+   "job": "HAR-120-har120-001865-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:ad640d7036db711c28ccb49dffcfe4fd983bacbace683bc6417b6fd17dcc5c8a"
+  },
+  {
+   "job": "HAR-120-har120-001865-a1-r2",
+   "calls_assigned": 59,
+   "ambiguous_trials": [],
+   "receipt": "sha256:931592e4701b32fec9078dbe7bf93e3eb216c4f8f5597e4f4273c272a38d307f"
+  },
+  {
+   "job": "HAR-120-har120-001870-a1",
+   "calls_assigned": 120,
+   "ambiguous_trials": [],
+   "receipt": "sha256:1a4dca454a370df97e1f64ba6d2dd3b3fbb329d2d26b41dd39a1ec54c7c9b1f1"
+  },
+  {
+   "job": "HAR-120-har120-001897-a1",
+   "calls_assigned": 62,
+   "ambiguous_trials": [],
+   "receipt": "sha256:e14663a642559d66d4ac886d50db5b0c071337114cc050ceda32ade52e9df60f"
+  },
+  {
+   "job": "HAR-120-har120-002104-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:7cfd48eda1c7134b03997f96d768d4b1ad9439c90946715cf72544fde4d8c26f"
+  },
+  {
+   "job": "HAR-120-har120-002104-a1-r2",
+   "calls_assigned": 85,
+   "ambiguous_trials": [],
+   "receipt": "sha256:5d854dda7d1a08dfc0fd00fe4e9bdc858edf23d2e9bd2cec075c4bbd1302816d"
+  },
+  {
+   "job": "HAR-120-har120-002356-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:ce7454e3ca2812cfc3d2742d3a1034b04bbdfdd8d2e65e9a55f73f5d15b43a95"
+  },
+  {
+   "job": "HAR-120-har120-002356-a1-r2",
+   "calls_assigned": 73,
+   "ambiguous_trials": [],
+   "receipt": "sha256:ad1e1ae2844de8b0c8c71ab418a33064b1dc89563afb202b74f3d24f37c6230b"
+  },
+  {
+   "job": "HAR-120-har120-002393-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:2775350c47c40513a86f649c4f4adb113a4cac70c4ceec7940c5ae8814023367"
+  },
+  {
+   "job": "HAR-120-har120-002393-a1-r2",
+   "calls_assigned": 40,
+   "ambiguous_trials": [],
+   "receipt": "sha256:ea52b9bd47f5492e058e1c7d2db8a440c3a0c8475d0a4d29fdb79a01d70ba15f"
+  },
+  {
+   "job": "HAR-120-har120-002416-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:c0ab70a7a78ad9389562316fb9edca8c51bdb1ac025b6f4debbd6eed6e8db268"
+  },
+  {
+   "job": "HAR-120-har120-002416-a1-r2",
+   "calls_assigned": 120,
+   "ambiguous_trials": [],
+   "receipt": "sha256:a6ac74c99a11dcbe6ed64c1be77e11b7ce201dcbe079f5827e1c809ed10fce6f"
+  },
+  {
+   "job": "HAR-120-har120-002552-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:f23407d3eaeb6a44c79f58ccb091fdbb098886008e04e8adca37537b5d6d691c"
+  },
+  {
+   "job": "HAR-120-har120-002552-a1-r2",
+   "calls_assigned": 95,
+   "ambiguous_trials": [],
+   "receipt": "sha256:e177e4707bbf7701e10256823c0fb737fa35469eeb35a31b6bd7faeb8a2d3e96"
+  },
+  {
+   "job": "HAR-120-har120-002555-a1",
+   "calls_assigned": 27,
+   "ambiguous_trials": [],
+   "receipt": "sha256:813fffb9f111ae45dc7764064691b90ba59ca7d5ca7a4b0a16f34dee83b0efcf"
+  },
+  {
+   "job": "HAR-120-har120-002555-a1-r2",
+   "calls_assigned": 65,
+   "ambiguous_trials": [],
+   "receipt": "sha256:5fd1263ed89681bd4560af2579c463cb7599f0a11f3680f49bea76acbe05752c"
+  },
+  {
+   "job": "HAR-120-har120-002680-a1",
+   "calls_assigned": 89,
+   "ambiguous_trials": [],
+   "receipt": "sha256:ee923d0451f232d89b738b70cb854032a8fb6830be6be17041d201043bb498a6"
+  },
+  {
+   "job": "HAR-120-har120-002938-a1",
+   "calls_assigned": 51,
+   "ambiguous_trials": [],
+   "receipt": "sha256:eb90ff434fe011b355b19de7f4e0528e14271bdcc5947f79b8ecd76848588f5d"
+  },
+  {
+   "job": "HAR-135-har135-c1-000803",
+   "calls_assigned": 38,
+   "ambiguous_trials": [],
+   "receipt": "sha256:2119f620e6f4d1287b98b76ad7e101eb863ff56707f7e7055e13f401549c3b5a"
+  },
+  {
+   "job": "HAR-135-har135-c1-001399",
+   "calls_assigned": 59,
+   "ambiguous_trials": [],
+   "receipt": "sha256:e50315eda7be9cef2a748e59ca494cfb87ff3347165980cda317298073661fc8"
+  },
+  {
+   "job": "HAR-135-har135-c1-001661",
+   "calls_assigned": 59,
+   "ambiguous_trials": [],
+   "receipt": "sha256:b37dea0536e2cc2a29936d0ebe72bcc07321f5358ce3e2f11fffbc8899878525"
+  },
+  {
+   "job": "HAR-135-har135-c1-001710",
+   "calls_assigned": 105,
+   "ambiguous_trials": [],
+   "receipt": "sha256:a16a7a3a367f9a6f27c40f423e35dfc7728f0ec710e55ae9982bc379ce2bc926"
+  },
+  {
+   "job": "HAR-135-har135-c1-001897",
+   "calls_assigned": 119,
+   "ambiguous_trials": [],
+   "receipt": "sha256:057ba644f7f2aface0f8f18c65366304cf643cbabc1d7ba0af191258cb982d73"
+  },
+  {
+   "job": "HAR-135-har135-c1-002680",
+   "calls_assigned": 109,
+   "ambiguous_trials": [],
+   "receipt": "sha256:44eaa4a9911c9155243116bf1189cdf3f5a38efa551061399491fb127f5f2a9d"
+  },
+  {
+   "job": "HAR-135-har135-c1-002938",
+   "calls_assigned": 120,
+   "ambiguous_trials": [],
+   "receipt": "sha256:cf0b37611548f3db0865b6ad3c2d8360ee9c2365fa59fd4509f322da069fa4bb"
+  }
+ ],
+ "coverage": [
+  {
+   "trial": "har120-000227-a1__7WRBQ4u",
+   "rows": 99,
+   "rows_identical": 99,
+   "one_call_per_row": true,
+   "delivered_calls": 99,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 99
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:95f8e48607bdcd00f3d56ce7b672c21d4bf9236fc9f21c41864b0f44b80a1bdc"
+  },
+  {
+   "trial": "har120-000227-a2-r2__RwjTt9d",
+   "rows": 96,
+   "rows_identical": 96,
+   "one_call_per_row": true,
+   "delivered_calls": 96,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 96
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:63adb7dde8613ab79e8754f0daef0dfecd4646c62a16b6fea58d5d90aef133fb"
+  },
+  {
+   "trial": "har120-000227-a2__yZe46HC",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1451,
+    1457,
+    1461,
+    1492,
+    1498,
+    1504,
+    1544,
+    1557,
+    1575,
+    1578,
+    1587,
+    1594,
+    1639,
+    1645,
+    1651,
+    1702,
+    1713,
+    1734,
+    1738,
+    1748,
+    1756,
+    1806,
+    1815,
+    1824,
+    1874,
+    1883,
+    1892
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:ae3fd3502d5ffadd8f67c7a1744d8987187ce0e1522e17be020e68b5ecc0cf6d"
+  },
+  {
+   "trial": "har120-000341-a1__MYkGYQZ",
+   "rows": 88,
+   "rows_identical": 88,
+   "one_call_per_row": true,
+   "delivered_calls": 88,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 88
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:215bab68401037306dd2818a9f4a2d7e4878313ddec526c1c889713708a148ff"
+  },
+  {
+   "trial": "har120-000341-a2-r2__MSDHRHS",
+   "rows": 96,
+   "rows_identical": 96,
+   "one_call_per_row": true,
+   "delivered_calls": 96,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 96
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:f70ef8e551b247bdaf5721552f7adfc3a6de397613d3f0fd11f112810747ee8b"
+  },
+  {
+   "trial": "har120-000341-a2__hfNEYge",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1443,
+    1449,
+    1460,
+    1482,
+    1490,
+    1499,
+    1527,
+    1537,
+    1555,
+    1561,
+    1570,
+    1584,
+    1618,
+    1627,
+    1642,
+    1680,
+    1690,
+    1710,
+    1712,
+    1727,
+    1743,
+    1785,
+    1795,
+    1812,
+    1856,
+    1864,
+    1880
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:9d18b643c9922986926a10269ee44533ca7c44674082ceb76ba09293624d9be5"
+  },
+  {
+   "trial": "har120-000552-a1__WdaAJgE",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 104,
+   "delivered_without_row": [
+    7,
+    13,
+    18,
+    22,
+    41,
+    51,
+    71,
+    95,
+    125,
+    140,
+    153,
+    168,
+    191,
+    202,
+    219,
+    231,
+    239,
+    264,
+    276,
+    287,
+    299,
+    308,
+    321,
+    332,
+    343,
+    357,
+    370,
+    377,
+    386,
+    394,
+    403,
+    413,
+    419,
+    430,
+    439,
+    449,
+    463,
+    472,
+    485,
+    491,
+    503,
+    587,
+    604,
+    661,
+    704,
+    750,
+    797,
+    808,
+    851,
+    870,
+    891,
+    932,
+    948,
+    979,
+    1007,
+    1033,
+    1048,
+    1060,
+    1070,
+    1086,
+    1096,
+    1100,
+    1111,
+    1115,
+    1118,
+    1124,
+    1125,
+    1129,
+    1136,
+    1140,
+    1145,
+    1152,
+    1157,
+    1164,
+    1171,
+    1184,
+    1185,
+    1186,
+    1188,
+    1193,
+    1198,
+    1204,
+    1211,
+    1215,
+    1236,
+    1244,
+    1259,
+    1279,
+    1298,
+    1316,
+    1327,
+    1329,
+    1331,
+    1333,
+    1335,
+    1337,
+    1338,
+    1341,
+    1342,
+    1344,
+    1345,
+    1347,
+    1348,
+    1350
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 104
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "unsplit_summarization"
+   ],
+   "complete": false,
+   "capture_file": "sha256:4d0d44d0f1eaa864e03b832a0f23ad851df107757a86ab91c20a3d6dfc41c9a6"
+  },
+  {
+   "trial": "har120-000552-a2-r2__ptsTP5m",
+   "rows": 54,
+   "rows_identical": 54,
+   "one_call_per_row": true,
+   "delivered_calls": 54,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 54
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:fb2031e267dd914d065608173d22dccc56554e127dd564a585ff8d68bc796d70"
+  },
+  {
+   "trial": "har120-000552-a2__CAPWzMo",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1463,
+    1464,
+    1469,
+    1507,
+    1508,
+    1515,
+    1580,
+    1589,
+    1597,
+    1598,
+    1604,
+    1611,
+    1656,
+    1662,
+    1672,
+    1752,
+    1755,
+    1763,
+    1764,
+    1768,
+    1781,
+    1834,
+    1837,
+    1847,
+    1899,
+    1904,
+    1910
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:24b2b7bbd3e74620bc8b0e5acbb76988dde0f6b01cdb23276b96fa466977b982"
+  },
+  {
+   "trial": "har120-000666-a1__mZosYxT",
+   "rows": 27,
+   "rows_identical": 27,
+   "one_call_per_row": true,
+   "delivered_calls": 27,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:88940fae16d78ca631954c3615eb6655873b343d0795ee302e2e70598cbffb5f"
+  },
+  {
+   "trial": "har120-000666-a2-r2__MdWhGXb",
+   "rows": 59,
+   "rows_identical": 59,
+   "one_call_per_row": true,
+   "delivered_calls": 59,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 59
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:e3f7396205ad7b56c512499d76c4db5390b9c5bfb6e5e8930878eead57774949"
+  },
+  {
+   "trial": "har120-000666-a2__jFzQofP",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1432,
+    1435,
+    1446,
+    1470,
+    1474,
+    1485,
+    1516,
+    1522,
+    1536,
+    1539,
+    1549,
+    1568,
+    1606,
+    1614,
+    1628,
+    1665,
+    1670,
+    1689,
+    1693,
+    1703,
+    1724,
+    1772,
+    1778,
+    1794,
+    1841,
+    1848,
+    1862
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:0597a64d8b3a044c5c96376f83da94807c167b76395e25e95126bc0cb8fdb6df"
+  },
+  {
+   "trial": "har120-000803-a1__xWzxKCn",
+   "rows": 42,
+   "rows_identical": 42,
+   "one_call_per_row": true,
+   "delivered_calls": 42,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 42
+   },
+   "failing_rows": [
+    {
+     "row_id": "162622a5d2bbf7c3e91b34e8:t18",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": 1
+    }
+   ],
+   "export_exclusion": null,
+   "complete": false,
+   "capture_file": "sha256:bdf9387d1033e44016323a4df9d3cfaef2830d6c259a8a1bf01b42c238493847"
+  },
+  {
+   "trial": "har120-000803-a2-r2__QyoYej6",
+   "rows": 107,
+   "rows_identical": 107,
+   "one_call_per_row": true,
+   "delivered_calls": 107,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 107
+   },
+   "failing_rows": [
+    {
+     "row_id": "fef59809d74bbe8eadb228dd:t14",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": 1
+    },
+    {
+     "row_id": "fef59809d74bbe8eadb228dd:t16",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": 2
+    },
+    {
+     "row_id": "fef59809d74bbe8eadb228dd:t21",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": -2
+    },
+    {
+     "row_id": "fef59809d74bbe8eadb228dd:t25",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": -1
+    }
+   ],
+   "export_exclusion": null,
+   "complete": false,
+   "capture_file": "sha256:da205964a5b284750f88b946f81d9185c661c83502f14044798e3b153315e9cc"
+  },
+  {
+   "trial": "har120-000803-a2__Jjiz4y5",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1434,
+    1439,
+    1450,
+    1472,
+    1477,
+    1491,
+    1519,
+    1526,
+    1543,
+    1545,
+    1559,
+    1576,
+    1612,
+    1621,
+    1636,
+    1673,
+    1682,
+    1698,
+    1701,
+    1715,
+    1733,
+    1775,
+    1784,
+    1802,
+    1845,
+    1854,
+    1873
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:de951271cf4feb82c409906e15ff242c7c461f35b6d3de2cfcc7fe1a3035b901"
+  },
+  {
+   "trial": "har120-000813-a1__WXXsNxw",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 69,
+   "delivered_without_row": [
+    68,
+    83,
+    98,
+    110,
+    127,
+    218,
+    258,
+    271,
+    296,
+    347,
+    369,
+    404,
+    426,
+    461,
+    507,
+    522,
+    533,
+    550,
+    562,
+    576,
+    589,
+    606,
+    630,
+    646,
+    686,
+    703,
+    722,
+    736,
+    742,
+    753,
+    759,
+    770,
+    777,
+    787,
+    793,
+    804,
+    811,
+    815,
+    824,
+    829,
+    835,
+    839,
+    845,
+    853,
+    859,
+    865,
+    873,
+    882,
+    887,
+    894,
+    901,
+    910,
+    915,
+    921,
+    929,
+    935,
+    941,
+    947,
+    953,
+    957,
+    962,
+    966,
+    971,
+    973,
+    978,
+    981,
+    985,
+    989,
+    994
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 69
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "secret_pattern_in_context"
+   ],
+   "complete": false,
+   "capture_file": "sha256:7afd8bc09cb232601690973424b7abc4f4dbfffc36fd38cd09b0516abb7229d1"
+  },
+  {
+   "trial": "har120-000813-a2-r2__Ci3xbwU",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 103,
+   "delivered_without_row": [
+    2033,
+    2046,
+    2068,
+    2075,
+    2098,
+    2307,
+    2383,
+    2419,
+    2454,
+    2467,
+    2498,
+    2511,
+    2527,
+    2540,
+    2550,
+    2564,
+    2578,
+    2589,
+    2601,
+    2613,
+    2626,
+    2639,
+    2651,
+    2669,
+    2688,
+    2707,
+    2734,
+    2752,
+    2771,
+    2785,
+    2801,
+    2816,
+    2830,
+    2843,
+    2856,
+    2871,
+    2887,
+    2899,
+    2912,
+    2928,
+    2945,
+    2953,
+    2964,
+    2976,
+    2988,
+    2999,
+    3011,
+    3026,
+    3038,
+    3053,
+    3066,
+    3083,
+    3096,
+    3117,
+    3134,
+    3147,
+    3169,
+    3181,
+    3196,
+    3204,
+    3216,
+    3230,
+    3253,
+    3263,
+    3273,
+    3283,
+    3292,
+    3302,
+    3310,
+    3318,
+    3327,
+    3333,
+    3338,
+    3340,
+    3346,
+    3351,
+    3356,
+    3360,
+    3363,
+    3371,
+    3374,
+    3377,
+    3383,
+    3387,
+    3393,
+    3397,
+    3401,
+    3406,
+    3410,
+    3415,
+    3420,
+    3422,
+    3426,
+    3428,
+    3432,
+    3435,
+    3439,
+    3441,
+    3446,
+    3448,
+    3453,
+    3458,
+    3462
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 103
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "unsplit_summarization"
+   ],
+   "complete": false,
+   "capture_file": "sha256:f27964dc3061341cde90b2bd75130e199b522324f4cca622018b97133b89c614"
+  },
+  {
+   "trial": "har120-000813-a2__TprTDJv",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1430,
+    1431,
+    1433,
+    1465,
+    1468,
+    1473,
+    1510,
+    1512,
+    1520,
+    1521,
+    1528,
+    1551,
+    1601,
+    1605,
+    1619,
+    1660,
+    1664,
+    1677,
+    1678,
+    1687,
+    1709,
+    1765,
+    1769,
+    1776,
+    1833,
+    1836,
+    1849
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:59c7620408912ccd15c93af336d2fa618880a3b28b979a0c731a4b0a334afe1a"
+  },
+  {
+   "trial": "har120-000838-a1__YSe3G7t",
+   "rows": 82,
+   "rows_identical": 82,
+   "one_call_per_row": true,
+   "delivered_calls": 83,
+   "delivered_without_row": [
+    1429
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 83
+   },
+   "failing_rows": [
+    {
+     "row_id": "406dc07cf25cff3bc53ce316:t23",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": 1
+    }
+   ],
+   "export_exclusion": null,
+   "complete": false,
+   "capture_file": "sha256:eaa877fea1ec4257eadb1419862fd123898e205445c0f079076a342ea04a9d52"
+  },
+  {
+   "trial": "har120-000838-a2-r2__XnnRuwu",
+   "rows": 81,
+   "rows_identical": 81,
+   "one_call_per_row": true,
+   "delivered_calls": 81,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 81
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:d77749a564e5fa959f65afcdd199790a8326d202bab870af5e9d0e84154abaf0"
+  },
+  {
+   "trial": "har120-000838-a2__yQwZqbb",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1452,
+    1459,
+    1462,
+    1493,
+    1497,
+    1505,
+    1548,
+    1560,
+    1577,
+    1582,
+    1588,
+    1596,
+    1641,
+    1647,
+    1653,
+    1708,
+    1722,
+    1739,
+    1742,
+    1751,
+    1759,
+    1809,
+    1818,
+    1825,
+    1875,
+    1886,
+    1895
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:d9e94fdb41e9373fc6f51643f1ccf99087e20164f29f65c838ab759ad96a9413"
+  },
+  {
+   "trial": "har120-000865-a1__a2TWzyM",
+   "rows": 33,
+   "rows_identical": 33,
+   "one_call_per_row": true,
+   "delivered_calls": 33,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 33
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:e0d73123ab40c7acf8b0f2094d098f2e5c40167065af3c9f65917c0773a856f0"
+  },
+  {
+   "trial": "har120-000865-a2-r2__T8MhMX4",
+   "rows": 66,
+   "rows_identical": 66,
+   "one_call_per_row": true,
+   "delivered_calls": 66,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 66
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:026f9832e42fd55875985cb955f4dabbd23b35798f55084b6b0eea3f1f2fbe65"
+  },
+  {
+   "trial": "har120-000865-a2__r8jQTkW",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1438,
+    1445,
+    1458,
+    1479,
+    1488,
+    1500,
+    1530,
+    1538,
+    1562,
+    1565,
+    1572,
+    1585,
+    1620,
+    1631,
+    1644,
+    1684,
+    1694,
+    1720,
+    1723,
+    1732,
+    1745,
+    1788,
+    1797,
+    1813,
+    1857,
+    1867,
+    1881
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:981fdca59128f5e94674f8b5843844ef9c7b74a2f07461a053839760ab6fde49"
+  },
+  {
+   "trial": "har120-000941-a1__arZdiNe",
+   "rows": 102,
+   "rows_identical": 102,
+   "one_call_per_row": true,
+   "delivered_calls": 102,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 102
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:2e5a2f7c5bc3fd340da6b6a8da1430c18843917441fba5b2aac8a319d99e985a"
+  },
+  {
+   "trial": "har120-000941-a2-r2__VrxFqqG",
+   "rows": 73,
+   "rows_identical": 73,
+   "one_call_per_row": true,
+   "delivered_calls": 73,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 73
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:c53683ad0b58f65c9bdc0c2a8605a6e277b0ca7e521c4302926fcfdd6324d57f"
+  },
+  {
+   "trial": "har120-000941-a2__bjdJiNg",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1440,
+    1447,
+    1456,
+    1480,
+    1487,
+    1502,
+    1532,
+    1542,
+    1566,
+    1567,
+    1574,
+    1591,
+    1624,
+    1633,
+    1646,
+    1686,
+    1697,
+    1716,
+    1719,
+    1731,
+    1746,
+    1790,
+    1798,
+    1814,
+    1859,
+    1865,
+    1882
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:ced3109de8175b4aa7664d5813d9f1d64a065a06e5dffdf17fb6c6663379a616"
+  },
+  {
+   "trial": "har120-001265-a1__3sBRy7Y",
+   "rows": 60,
+   "rows_identical": 60,
+   "one_call_per_row": true,
+   "delivered_calls": 60,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 60
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:e0cbee1d280502f1cb4673ca947c8373982241ff3cd5bdaaea2c7cc29b5bc844"
+  },
+  {
+   "trial": "har120-001265-a2-r2__fpm7nFz",
+   "rows": 98,
+   "rows_identical": 98,
+   "one_call_per_row": true,
+   "delivered_calls": 98,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 98
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:fc26486bcfe598a043e409188b8860ed0ce0f34852c60ef9ee08c92d0e2c61aa"
+  },
+  {
+   "trial": "har120-001265-a2__tkFj88x",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1514,
+    1518,
+    1534,
+    1595,
+    1599,
+    1608,
+    1655,
+    1658,
+    1666,
+    1669,
+    1675,
+    1688,
+    1760,
+    1762,
+    1770,
+    1826,
+    1830,
+    1838,
+    1840,
+    1844,
+    1860,
+    1905,
+    1909,
+    1912,
+    1929,
+    1933,
+    1935
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:f1f7f2b4140fc58804f81a8a611b31fef50f320295a3f7aaaca8b989a907a713"
+  },
+  {
+   "trial": "har120-001269-a1__y3Wy5Ku",
+   "rows": 91,
+   "rows_identical": 10,
+   "one_call_per_row": true,
+   "delivered_calls": 92,
+   "delivered_without_row": [
+    477,
+    481,
+    496,
+    551,
+    618,
+    637,
+    652,
+    668,
+    702,
+    719,
+    731,
+    766,
+    779,
+    796,
+    828,
+    841,
+    864,
+    878,
+    893,
+    904,
+    928,
+    940,
+    987,
+    995,
+    1010,
+    1018,
+    1026,
+    1034,
+    1067,
+    1074,
+    1082,
+    1090,
+    1098,
+    1107,
+    1112,
+    1123,
+    1131,
+    1139,
+    1149,
+    1161,
+    1168,
+    1176,
+    1180,
+    1190,
+    1195,
+    1201,
+    1207,
+    1214,
+    1220,
+    1223,
+    1229,
+    1235,
+    1241,
+    1246,
+    1252,
+    1256,
+    1260,
+    1264,
+    1271,
+    1274,
+    1277,
+    1282,
+    1287,
+    1292,
+    1297,
+    1301,
+    1306,
+    1310,
+    1315,
+    1320,
+    1322,
+    1324,
+    1326,
+    1328,
+    1330,
+    1332,
+    1336,
+    1340,
+    1343,
+    1346,
+    1349,
+    1351
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 92
+   },
+   "failing_rows": [
+    {
+     "row_id": "bc6757488fa3a91c01539756:t10",
+     "capture": "differs_at_target",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t11",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t12",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t13",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t14",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t15",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t16",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t17",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t18",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t19",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t20",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t21",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t22",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t23",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t24",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t25",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t26",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t27",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t28",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t29",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t30",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t31",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t32",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t33",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t34",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t35",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t36",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t37",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t38",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t39",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t40",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t41",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t42",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t43",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t44",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t45",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t46",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t47",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t48",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t49",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t50",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t51",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t52",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t53",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t54",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t55",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t56",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t57",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t58",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t59",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t60",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t61",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t62",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t63",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t64",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t65",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t66",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t67",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t68",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t69",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t70",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t71",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t72",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t73",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t74",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t75",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t76",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t77",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t78",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t79",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t80",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t81",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t82",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t83",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t84",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t85",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t86",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t87",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t88",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t89",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "bc6757488fa3a91c01539756:t90",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    }
+   ],
+   "export_exclusion": null,
+   "complete": false,
+   "capture_file": "sha256:b5c460db2a4a7a21fb2abbd8d372205ccd901013646541f4cc10ffe540225fd9"
+  },
+  {
+   "trial": "har120-001269-a2-r2__93WpuaE",
+   "rows": 101,
+   "rows_identical": 101,
+   "one_call_per_row": true,
+   "delivered_calls": 101,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 101
+   },
+   "failing_rows": [
+    {
+     "row_id": "de47cea1d70f5d63ecf3e7f5:t12",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": -2
+    }
+   ],
+   "export_exclusion": null,
+   "complete": false,
+   "capture_file": "sha256:408d425252128a3d5da4bd8e05dfd5b51440b8d924c331b5e964e0ba1cb7eefc"
+  },
+  {
+   "trial": "har120-001269-a2__sA8cq7s",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1973,
+    1974,
+    1975,
+    1979,
+    1980,
+    1981,
+    1986,
+    1988,
+    1990,
+    1991,
+    1992,
+    1993,
+    1997,
+    1998,
+    1999,
+    2004,
+    2006,
+    2008,
+    2009,
+    2010,
+    2011,
+    2015,
+    2016,
+    2017,
+    2021,
+    2022,
+    2023
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:34988601fe4a3ebbf56e988ca4190a7ab77c3fe8686dd7b98e8c4943353793d9"
+  },
+  {
+   "trial": "har120-001373-a1__vHMkbJW",
+   "rows": 71,
+   "rows_identical": 71,
+   "one_call_per_row": true,
+   "delivered_calls": 71,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 71
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:0acb4a792f69a2822b477d6b6d310026a4bbe591159e4c2ffb3d545b831bd98a"
+  },
+  {
+   "trial": "har120-001373-a2-r2__LfAWGFC",
+   "rows": 30,
+   "rows_identical": 30,
+   "one_call_per_row": true,
+   "delivered_calls": 30,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 30
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:133387cb532d4da3333904b44d3ed5af6fda514fde169a3205965cc116d6b73b"
+  },
+  {
+   "trial": "har120-001373-a2__LvZ3S5Q",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1970,
+    1971,
+    1972,
+    1976,
+    1977,
+    1978,
+    1982,
+    1983,
+    1984,
+    1985,
+    1987,
+    1989,
+    1994,
+    1995,
+    1996,
+    2000,
+    2001,
+    2002,
+    2003,
+    2005,
+    2007,
+    2012,
+    2013,
+    2014,
+    2018,
+    2019,
+    2020
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:875e1921182fa958ff3b61662cf2b2f2aaca32464ff8b748b794d864ef2a86cd"
+  },
+  {
+   "trial": "har120-001399-a1__fwLaw2U",
+   "rows": 86,
+   "rows_identical": 23,
+   "one_call_per_row": true,
+   "delivered_calls": 87,
+   "delivered_without_row": [
+    499,
+    556,
+    560,
+    569,
+    575,
+    584,
+    592,
+    600,
+    608,
+    617,
+    624,
+    632,
+    642,
+    651,
+    656,
+    664,
+    673,
+    678,
+    687,
+    692,
+    698,
+    710,
+    718,
+    724,
+    729,
+    738,
+    743,
+    748,
+    756,
+    760,
+    767,
+    775,
+    785,
+    849,
+    874,
+    900,
+    926,
+    949,
+    967,
+    980,
+    999,
+    1014,
+    1028,
+    1041,
+    1052,
+    1063,
+    1078,
+    1092,
+    1105,
+    1119,
+    1132,
+    1146,
+    1163,
+    1175,
+    1183,
+    1194,
+    1205,
+    1217,
+    1225,
+    1232,
+    1243,
+    1249,
+    1257,
+    1266
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 87
+   },
+   "failing_rows": [
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t23",
+     "capture": "differs_at_target",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t24",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t25",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t26",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t27",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t28",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t29",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t30",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t31",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t32",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t33",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t34",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t35",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t36",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t37",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t38",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t39",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t40",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t41",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t42",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t43",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t44",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t45",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t46",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t47",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t48",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t49",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t50",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t51",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t52",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t53",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t54",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t55",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t56",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t57",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t58",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t59",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t60",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t61",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t62",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t63",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t64",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t65",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t66",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t67",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t68",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t69",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t70",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t71",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t72",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t73",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t74",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t75",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t76",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t77",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t78",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t79",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t80",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t81",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t82",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t83",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t84",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "c0fab31c6f0fe04030b89f70:t85",
+     "capture": "differs_at_message_47",
+     "prompt_ok": false,
+     "target_delta": 0
+    }
+   ],
+   "export_exclusion": null,
+   "complete": false,
+   "capture_file": "sha256:2a252743edac00349161e6c7f95334c5df8aded7d0a41b3f303c4b1a96934574"
+  },
+  {
+   "trial": "har120-001609-a1-r2__vwLGuFL",
+   "rows": 75,
+   "rows_identical": 75,
+   "one_call_per_row": true,
+   "delivered_calls": 75,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 75
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:f1435144beea668d5084aafe2462c1c6720ae0d4f3b8f60a6c6ddf4d0c5a7b79"
+  },
+  {
+   "trial": "har120-001609-a1__Xw8pZQ2",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1654,
+    1657,
+    1667,
+    1741,
+    1749,
+    1757,
+    1807,
+    1817,
+    1828,
+    1829,
+    1831,
+    1842,
+    1897,
+    1900,
+    1907,
+    1923,
+    1927,
+    1930,
+    1932,
+    1934,
+    1936,
+    1949,
+    1952,
+    1953,
+    1957,
+    1960,
+    1962
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:70bb48fa41d700bacc2bec11a85861e1a908b9506a9369dd0eb3f13c5fb18286"
+  },
+  {
+   "trial": "har120-001618-a1-r2__8whFQDY",
+   "rows": 79,
+   "rows_identical": 79,
+   "one_call_per_row": true,
+   "delivered_calls": 79,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 79
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:fa6a4b534faaa3da50409d1c29e08534ce240388f8e120eb3f820e376f8d3787"
+  },
+  {
+   "trial": "har120-001618-a1__ghKjtXV",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1481,
+    1489,
+    1501,
+    1533,
+    1540,
+    1556,
+    1603,
+    1610,
+    1626,
+    1630,
+    1637,
+    1650,
+    1692,
+    1704,
+    1726,
+    1773,
+    1780,
+    1799,
+    1801,
+    1810,
+    1822,
+    1868,
+    1877,
+    1889,
+    1913,
+    1915,
+    1918
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:f7dadecc89579a19a756d16c2a1508205e7bf16b5bc9abcc05052122ec000a1f"
+  },
+  {
+   "trial": "har120-001661-a1__xdRDCYr",
+   "rows": 56,
+   "rows_identical": 56,
+   "one_call_per_row": true,
+   "delivered_calls": 56,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 56
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:e7dfb5e0157aa2baa388ce7a60f774a6998d91d1fc595de823a71a71994747e1"
+  },
+  {
+   "trial": "har120-001710-a1__BLMKCZN",
+   "rows": 94,
+   "rows_identical": 94,
+   "one_call_per_row": true,
+   "delivered_calls": 94,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 94
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:e162c8adbff923e4b83a04e9e2f477766a187d356d9a203fca8348140c5f4c5f"
+  },
+  {
+   "trial": "har120-001820-a1-r2__dUGBXgX",
+   "rows": 32,
+   "rows_identical": 32,
+   "one_call_per_row": true,
+   "delivered_calls": 32,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 32
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:81a5c44562aee176dfee7b64f6174f09af71f49ade6c06bbf740ecb851fd183c"
+  },
+  {
+   "trial": "har120-001820-a1__iS5xbhT",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1466,
+    1467,
+    1471,
+    1509,
+    1513,
+    1517,
+    1590,
+    1593,
+    1600,
+    1602,
+    1607,
+    1617,
+    1661,
+    1663,
+    1679,
+    1754,
+    1761,
+    1766,
+    1767,
+    1771,
+    1783,
+    1835,
+    1839,
+    1852,
+    1903,
+    1906,
+    1911
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:51d1f3c6a2e20dc739dbee801bbb811b5b4a39bc0c59f1c9ceb94f793c4461dc"
+  },
+  {
+   "trial": "har120-001865-a1-r2__TjQQ4fV",
+   "rows": 59,
+   "rows_identical": 59,
+   "one_call_per_row": true,
+   "delivered_calls": 59,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 59
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:ef4a93fc794c15f0026add5bd743bfbbb659944f7f7afee7b4223b72b89844c6"
+  },
+  {
+   "trial": "har120-001865-a1__nuBZA32",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1740,
+    1750,
+    1758,
+    1808,
+    1819,
+    1827,
+    1876,
+    1884,
+    1894,
+    1896,
+    1901,
+    1908,
+    1924,
+    1928,
+    1931,
+    1942,
+    1945,
+    1947,
+    1948,
+    1951,
+    1954,
+    1958,
+    1961,
+    1963,
+    1966,
+    1968,
+    1969
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:da4960c9aae4f5ca50deac07b750541f2b6a9cda05936779d676a3e46b52d848"
+  },
+  {
+   "trial": "har120-001870-a1__rXFPYLR",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 120,
+   "delivered_without_row": [
+    27,
+    36,
+    48,
+    61,
+    73,
+    90,
+    104,
+    141,
+    182,
+    192,
+    247,
+    334,
+    342,
+    353,
+    393,
+    482,
+    593,
+    614,
+    628,
+    636,
+    645,
+    671,
+    679,
+    689,
+    697,
+    705,
+    720,
+    728,
+    737,
+    745,
+    757,
+    765,
+    774,
+    788,
+    798,
+    813,
+    821,
+    832,
+    840,
+    848,
+    858,
+    866,
+    877,
+    888,
+    899,
+    913,
+    919,
+    930,
+    938,
+    946,
+    954,
+    963,
+    968,
+    976,
+    984,
+    991,
+    997,
+    1002,
+    1012,
+    1017,
+    1023,
+    1036,
+    1043,
+    1053,
+    1058,
+    1064,
+    1073,
+    1084,
+    1089,
+    1097,
+    1102,
+    1109,
+    1116,
+    1121,
+    1128,
+    1134,
+    1143,
+    1151,
+    1159,
+    1196,
+    1199,
+    1203,
+    1209,
+    1227,
+    1228,
+    1234,
+    1237,
+    1239,
+    1254,
+    1258,
+    1262,
+    1263,
+    1265,
+    1267,
+    1268,
+    1270,
+    1272,
+    1273,
+    1276,
+    1278,
+    1280,
+    1283,
+    1285,
+    1286,
+    1289,
+    1291,
+    1293,
+    1294,
+    1296,
+    1299,
+    1300,
+    1303,
+    1304,
+    1305,
+    1308,
+    1309,
+    1311,
+    1313,
+    1314,
+    1317
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 120
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "unsplit_summarization"
+   ],
+   "complete": false,
+   "capture_file": "sha256:b9121fff5d98160febe19ea5ba7d54e817c73ac6e3f2ea93ce8f25c029fa27d2"
+  },
+  {
+   "trial": "har120-001897-a1__6AyLy9W",
+   "rows": 60,
+   "rows_identical": 10,
+   "one_call_per_row": true,
+   "delivered_calls": 62,
+   "delivered_without_row": [
+    455,
+    458,
+    595,
+    626,
+    641,
+    658,
+    707,
+    781,
+    795,
+    806,
+    819,
+    862,
+    875,
+    892,
+    902,
+    912,
+    924,
+    934,
+    956,
+    983,
+    1008,
+    1021,
+    1045,
+    1049,
+    1051,
+    1056,
+    1062,
+    1068,
+    1072,
+    1076,
+    1080,
+    1085,
+    1088,
+    1093,
+    1101,
+    1104,
+    1110,
+    1113,
+    1117,
+    1122,
+    1126,
+    1130,
+    1135,
+    1138,
+    1144,
+    1150,
+    1155,
+    1160,
+    1166,
+    1170,
+    1174,
+    1178
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 62
+   },
+   "failing_rows": [
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t10",
+     "capture": "differs_at_target",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t11",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t12",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t13",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t14",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t15",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t16",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t17",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t18",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t19",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t20",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t21",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t22",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t23",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t24",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t25",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t26",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t27",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t28",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t29",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t30",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t31",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t32",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t33",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t34",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t35",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t36",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t37",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t38",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t39",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t40",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t41",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t42",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t43",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t44",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t45",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t46",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t47",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t48",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t49",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t50",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t51",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t52",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t53",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t54",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t55",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t56",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t57",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t58",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    },
+    {
+     "row_id": "754f87c6e9a5ee95b3782cb3:t59",
+     "capture": "differs_at_message_21",
+     "prompt_ok": false,
+     "target_delta": 0
+    }
+   ],
+   "export_exclusion": null,
+   "complete": false,
+   "capture_file": "sha256:7b15a27b26f62e32bfe3291692fa94a8bb6e1d0ab909b22226f3d631bdfe68a4"
+  },
+  {
+   "trial": "har120-002104-a1-r2__NuAxYam",
+   "rows": 85,
+   "rows_identical": 85,
+   "one_call_per_row": true,
+   "delivered_calls": 85,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 85
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:cdab4f016261df83955c919e451311ee2010519cfd1e768f76273c5a6cb4f0a8"
+  },
+  {
+   "trial": "har120-002104-a1__vEoVW8U",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1436,
+    1442,
+    1454,
+    1476,
+    1484,
+    1494,
+    1524,
+    1531,
+    1546,
+    1550,
+    1563,
+    1581,
+    1613,
+    1625,
+    1638,
+    1676,
+    1685,
+    1700,
+    1706,
+    1721,
+    1735,
+    1777,
+    1787,
+    1804,
+    1846,
+    1858,
+    1872
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:29f2cab3c274afe900690762c1ce615b4e6f663afb355b0b62192e8a2472f24e"
+  },
+  {
+   "trial": "har120-002356-a1-r2__nHVDgFh",
+   "rows": 73,
+   "rows_identical": 73,
+   "one_call_per_row": true,
+   "delivered_calls": 73,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 73
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:67e7821ca097eebec7c7018699f9d7d986789d5b2de62a4c190ee5885bfaf4be"
+  },
+  {
+   "trial": "har120-002356-a1__SZF2edE",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1437,
+    1444,
+    1453,
+    1475,
+    1483,
+    1495,
+    1523,
+    1529,
+    1547,
+    1552,
+    1564,
+    1579,
+    1615,
+    1623,
+    1635,
+    1671,
+    1681,
+    1699,
+    1705,
+    1718,
+    1737,
+    1779,
+    1791,
+    1805,
+    1850,
+    1855,
+    1871
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:76a5e1e719c03bde923e198c67867577fef221e351dec9d476eb95d82c69cadb"
+  },
+  {
+   "trial": "har120-002393-a1-r2__eFhhz27",
+   "rows": 40,
+   "rows_identical": 40,
+   "one_call_per_row": true,
+   "delivered_calls": 40,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 40
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:775f563b538179b086ab314f9c5fd85d1ab18a1ded204b5efe05e63d112d40a3"
+  },
+  {
+   "trial": "har120-002393-a1__SCzyssM",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1541,
+    1553,
+    1571,
+    1609,
+    1616,
+    1629,
+    1668,
+    1674,
+    1691,
+    1696,
+    1707,
+    1730,
+    1774,
+    1782,
+    1796,
+    1843,
+    1851,
+    1866,
+    1869,
+    1879,
+    1890,
+    1914,
+    1916,
+    1920,
+    1937,
+    1938,
+    1940
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:5526330afaa18d3e1df1fa845ecddd0f271031d3252fc1fd81f9d672d240ad52"
+  },
+  {
+   "trial": "har120-002416-a1-r2__ccd9JcE",
+   "rows": 120,
+   "rows_identical": 120,
+   "one_call_per_row": true,
+   "delivered_calls": 120,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 120
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:a5e0edc63d5b1b975b5cd9ab6edec9ad7048ce6f37cece63f2abd743f1f3f866"
+  },
+  {
+   "trial": "har120-002416-a1__n4teXVe",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1714,
+    1729,
+    1747,
+    1789,
+    1800,
+    1816,
+    1861,
+    1870,
+    1885,
+    1887,
+    1891,
+    1898,
+    1917,
+    1921,
+    1925,
+    1939,
+    1941,
+    1943,
+    1944,
+    1946,
+    1950,
+    1955,
+    1956,
+    1959,
+    1964,
+    1965,
+    1967
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:35a04435d0cca9f9e00ff56c55c64667fefcd3a7845df1d03f71c34a835ac5e2"
+  },
+  {
+   "trial": "har120-002552-a1-r2__ZftRzg3",
+   "rows": 95,
+   "rows_identical": 95,
+   "one_call_per_row": true,
+   "delivered_calls": 95,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 95
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:42c358aa9b3cca1123534cbbff1256517d464c189fe38eebf95cca3a8d25e219"
+  },
+  {
+   "trial": "har120-002552-a1__U9dRKLf",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1503,
+    1506,
+    1511,
+    1573,
+    1583,
+    1592,
+    1632,
+    1640,
+    1648,
+    1649,
+    1652,
+    1659,
+    1725,
+    1736,
+    1753,
+    1792,
+    1803,
+    1820,
+    1821,
+    1823,
+    1832,
+    1888,
+    1893,
+    1902,
+    1919,
+    1922,
+    1926
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:7e29530e74099d875dbeb4a1b11535dbbdde1cc948f5134c5d6adfd02a46a80b"
+  },
+  {
+   "trial": "har120-002555-a1-r2__Uki9j6d",
+   "rows": 65,
+   "rows_identical": 65,
+   "one_call_per_row": true,
+   "delivered_calls": 65,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 65
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:244579b61960748a9cab1b41e085f0b6394801beed079cd9c151bec56d306a24"
+  },
+  {
+   "trial": "har120-002555-a1__vLERz3G",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 0,
+   "delivered_without_row": [],
+   "undelivered_calls": [
+    1441,
+    1448,
+    1455,
+    1478,
+    1486,
+    1496,
+    1525,
+    1535,
+    1554,
+    1558,
+    1569,
+    1586,
+    1622,
+    1634,
+    1643,
+    1683,
+    1695,
+    1711,
+    1717,
+    1728,
+    1744,
+    1786,
+    1793,
+    1811,
+    1853,
+    1863,
+    1878
+   ],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 27
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "exception:ServiceUnavailableError"
+   ],
+   "complete": false,
+   "capture_file": "sha256:ce97f95028f73f717507219b42ce8d211da188caaeb8157b155c6c6f6f06e8c9"
+  },
+  {
+   "trial": "har120-002680-a1__Ci4bEkf",
+   "rows": 89,
+   "rows_identical": 89,
+   "one_call_per_row": true,
+   "delivered_calls": 89,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 89
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:cb82b03988b38338f548b4005e5263215d6c2cf9ce2b028dadc1c57c24929244"
+  },
+  {
+   "trial": "har120-002938-a1__UpSjiuM",
+   "rows": 51,
+   "rows_identical": 51,
+   "one_call_per_row": true,
+   "delivered_calls": 51,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 51
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:63e18403dba93f5840b3a00c8cd38f00b96e6bd1f4b899c75664af59e595a0c8"
+  },
+  {
+   "trial": "har135-c1-000803__jHtT7Bj",
+   "rows": 38,
+   "rows_identical": 38,
+   "one_call_per_row": true,
+   "delivered_calls": 38,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 38
+   },
+   "failing_rows": [
+    {
+     "row_id": "377529146ed8c3ce9cf603a5:t6",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": 1
+    },
+    {
+     "row_id": "377529146ed8c3ce9cf603a5:t16",
+     "capture": "identical",
+     "prompt_ok": true,
+     "target_delta": -2
+    }
+   ],
+   "export_exclusion": null,
+   "complete": false,
+   "capture_file": "sha256:0c4edc36490890ce270e9f36d2dcffc36c8b5a26eb83d3af9cfebfeb6541841e"
+  },
+  {
+   "trial": "har135-c1-001399__hQhuW63",
+   "rows": 59,
+   "rows_identical": 59,
+   "one_call_per_row": true,
+   "delivered_calls": 59,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 59
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:ac4d80cc755a4629e25ec953bdd8d7430e5d566de3944ee2c90ff2a54e75aaf1"
+  },
+  {
+   "trial": "har135-c1-001661__axtUtKL",
+   "rows": 59,
+   "rows_identical": 59,
+   "one_call_per_row": true,
+   "delivered_calls": 59,
+   "delivered_without_row": [],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 59
+   },
+   "failing_rows": [],
+   "export_exclusion": null,
+   "complete": true,
+   "capture_file": "sha256:3137b797f1e24e2ec0785ce48570e9dcb2c65c77654c48a20c4f14cabc50da64"
+  },
+  {
+   "trial": "har135-c1-001710__4jm4gbb",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 105,
+   "delivered_without_row": [
+    3716,
+    3721,
+    3727,
+    3737,
+    3745,
+    3751,
+    3760,
+    3767,
+    3774,
+    3780,
+    3787,
+    3793,
+    3801,
+    3810,
+    3816,
+    3822,
+    3828,
+    3838,
+    3847,
+    3857,
+    3868,
+    3874,
+    3882,
+    3889,
+    3897,
+    3904,
+    3913,
+    3921,
+    3930,
+    3937,
+    3951,
+    3962,
+    3973,
+    3982,
+    3991,
+    3998,
+    4008,
+    4017,
+    4026,
+    4033,
+    4042,
+    4049,
+    4058,
+    4065,
+    4072,
+    4078,
+    4084,
+    4085,
+    4086,
+    4087,
+    4090,
+    4091,
+    4094,
+    4096,
+    4101,
+    4104,
+    4106,
+    4107,
+    4109,
+    4111,
+    4113,
+    4115,
+    4117,
+    4121,
+    4124,
+    4137,
+    4147,
+    4154,
+    4158,
+    4160,
+    4162,
+    4165,
+    4167,
+    4172,
+    4173,
+    4176,
+    4179,
+    4181,
+    4184,
+    4187,
+    4190,
+    4192,
+    4196,
+    4198,
+    4201,
+    4204,
+    4206,
+    4208,
+    4211,
+    4214,
+    4216,
+    4220,
+    4222,
+    4224,
+    4227,
+    4230,
+    4231,
+    4234,
+    4236,
+    4240,
+    4242,
+    4245,
+    4247,
+    4250,
+    4253
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 105
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "unsplit_summarization"
+   ],
+   "complete": false,
+   "capture_file": "sha256:894dfb9eefc76e04a8b8673c7cd31ea407f4b8d0e7f40374aaafd6f9aa1e2113"
+  },
+  {
+   "trial": "har135-c1-001897__G4P3hWu",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 119,
+   "delivered_without_row": [
+    3715,
+    3724,
+    3726,
+    3731,
+    3732,
+    3736,
+    3740,
+    3743,
+    3749,
+    3753,
+    3758,
+    3763,
+    3765,
+    3771,
+    3772,
+    3805,
+    3829,
+    3835,
+    3840,
+    3848,
+    3858,
+    3876,
+    3881,
+    3886,
+    3892,
+    3900,
+    3918,
+    3925,
+    3932,
+    3939,
+    3968,
+    3975,
+    3980,
+    3987,
+    3992,
+    4018,
+    4037,
+    4045,
+    4052,
+    4060,
+    4076,
+    4089,
+    4092,
+    4093,
+    4095,
+    4097,
+    4099,
+    4103,
+    4108,
+    4112,
+    4114,
+    4116,
+    4125,
+    4134,
+    4152,
+    4157,
+    4163,
+    4164,
+    4166,
+    4169,
+    4170,
+    4171,
+    4175,
+    4177,
+    4180,
+    4183,
+    4185,
+    4186,
+    4189,
+    4191,
+    4193,
+    4195,
+    4197,
+    4199,
+    4200,
+    4203,
+    4205,
+    4207,
+    4209,
+    4210,
+    4212,
+    4215,
+    4217,
+    4219,
+    4221,
+    4223,
+    4225,
+    4226,
+    4229,
+    4232,
+    4233,
+    4235,
+    4238,
+    4239,
+    4241,
+    4243,
+    4246,
+    4248,
+    4249,
+    4252,
+    4254,
+    4255,
+    4256,
+    4257,
+    4258,
+    4259,
+    4261,
+    4262,
+    4263,
+    4264,
+    4266,
+    4267,
+    4268,
+    4270,
+    4271,
+    4272,
+    4273,
+    4274,
+    4276
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 119
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "unsplit_summarization"
+   ],
+   "complete": false,
+   "capture_file": "sha256:069afbdbf704697cda0a2a3fdf1db6b3ea5fa1530758df717ed070145232987a"
+  },
+  {
+   "trial": "har135-c1-002680__zznD4M9",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 109,
+   "delivered_without_row": [
+    3738,
+    3755,
+    3768,
+    3782,
+    3791,
+    3799,
+    3807,
+    3815,
+    3824,
+    3833,
+    3846,
+    3855,
+    3869,
+    3877,
+    3885,
+    3893,
+    3902,
+    3909,
+    3919,
+    3927,
+    3936,
+    3943,
+    3953,
+    3961,
+    3970,
+    3978,
+    3986,
+    3994,
+    4003,
+    4012,
+    4019,
+    4036,
+    4043,
+    4050,
+    4056,
+    4066,
+    4071,
+    4077,
+    4083,
+    4098,
+    4102,
+    4105,
+    4118,
+    4120,
+    4136,
+    4149,
+    4155,
+    4159,
+    4161,
+    4168,
+    4174,
+    4178,
+    4182,
+    4188,
+    4194,
+    4202,
+    4213,
+    4218,
+    4228,
+    4237,
+    4244,
+    4251,
+    4260,
+    4265,
+    4269,
+    4275,
+    4277,
+    4278,
+    4279,
+    4280,
+    4281,
+    4282,
+    4283,
+    4284,
+    4285,
+    4286,
+    4287,
+    4288,
+    4289,
+    4290,
+    4291,
+    4292,
+    4293,
+    4294,
+    4295,
+    4296,
+    4297,
+    4298,
+    4299,
+    4300,
+    4301,
+    4302,
+    4303,
+    4304,
+    4305,
+    4306,
+    4307,
+    4308,
+    4309,
+    4310,
+    4311,
+    4312,
+    4313,
+    4314,
+    4315,
+    4316,
+    4317,
+    4318,
+    4319
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 109
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "unsplit_summarization"
+   ],
+   "complete": false,
+   "capture_file": "sha256:ba8dfe09510b056a023e59e7957366bc82ebc397f9b1afce920ba92944c72de0"
+  },
+  {
+   "trial": "har135-c1-002938__iQaHjxi",
+   "rows": 0,
+   "rows_identical": 0,
+   "one_call_per_row": true,
+   "delivered_calls": 120,
+   "delivered_without_row": [
+    3711,
+    3714,
+    3720,
+    3725,
+    3730,
+    3735,
+    3741,
+    3778,
+    3783,
+    3786,
+    3795,
+    3806,
+    3813,
+    3818,
+    3820,
+    3825,
+    3831,
+    3834,
+    3837,
+    3841,
+    3842,
+    3845,
+    3850,
+    3852,
+    3854,
+    3856,
+    3861,
+    3863,
+    3866,
+    3871,
+    3872,
+    3875,
+    3878,
+    3879,
+    3883,
+    3884,
+    3887,
+    3890,
+    3891,
+    3895,
+    3896,
+    3898,
+    3901,
+    3903,
+    3907,
+    3908,
+    3910,
+    3914,
+    3915,
+    3917,
+    3920,
+    3922,
+    3924,
+    3926,
+    3929,
+    3931,
+    3933,
+    3935,
+    3938,
+    3941,
+    3944,
+    3945,
+    3948,
+    3950,
+    3954,
+    3956,
+    3957,
+    3960,
+    3964,
+    3967,
+    3969,
+    3971,
+    3974,
+    3976,
+    3979,
+    3981,
+    3983,
+    3985,
+    3988,
+    3990,
+    3993,
+    3995,
+    3997,
+    4000,
+    4004,
+    4007,
+    4010,
+    4013,
+    4014,
+    4016,
+    4020,
+    4023,
+    4025,
+    4028,
+    4030,
+    4032,
+    4035,
+    4038,
+    4040,
+    4041,
+    4044,
+    4047,
+    4048,
+    4053,
+    4054,
+    4055,
+    4057,
+    4059,
+    4062,
+    4063,
+    4067,
+    4068,
+    4069,
+    4070,
+    4073,
+    4074,
+    4075,
+    4079,
+    4081,
+    4082
+   ],
+   "undelivered_calls": [],
+   "link_ambiguous": false,
+   "attribution": {
+    "route_token": 120
+   },
+   "failing_rows": [],
+   "export_exclusion": [
+    "secret_pattern_in_context"
+   ],
+   "complete": false,
+   "capture_file": "sha256:d136d983494b4991690f449ed33c272b915a9a77eee2d9cca33a31d34c99fb51"
+  }
+ ],
+ "sha256": {
+  "calls.jsonl": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+  "export/conversations.jsonl": "sha256:a3c09c519c15088d96dc16d1e8f0c4c40d36feeba95e490794b2eacb788c2f6d",
+  "export/manifest.json": "sha256:14cdd8b883cf278ac288ef7705fd224e625aa4b01003f8fe5f16dc9e8e664a5f",
+  "export/fidelity.json": "sha256:163cc4e03aba270835066676ba63acfa4514dcb85d9edaf8132a18756afe278a",
+  "split.json": "sha256:6a6cd1a5fff00e758db6bebd1223a316ee7a9adecd9c9b45b9da8a34aba2f334"
+ }
+}

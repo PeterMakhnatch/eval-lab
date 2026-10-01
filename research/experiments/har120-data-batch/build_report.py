@@ -174,6 +174,7 @@ def read_job(job_dir: Path, derived_root: Path) -> dict:
         "input": tn.get("input_tokens"),
         "output": tn.get("output_tokens"),
     }
+    row["trial_wall_hours"] = trial.get("trial_wall_hours")
     row["handshake_confirmed"] = (trial.get("handshake") or {}).get("confirmed")
     tres = _load_json(tdir / "result.json") or {}
     ver = tres.get("verifier_result") or {}
@@ -231,6 +232,11 @@ def canonical_stop(row: dict) -> str:
 def counted_outcome(row: dict) -> str:
     """Display outcome: counted_pass / counted_fail / excluded:<reasons>."""
     if not row.get("finished"):
+        if row.get("status") == "refused":
+            return (
+                "not_run: quiet_failure_rule refusal (LoopBreakStop missing "
+                "from AGENT_STOP_EXCEPTIONS at ba8d8358; fixed in 8021fb8a)"
+            )
         return "pending"
     if "infra" in (row.get("reasons") or []):
         return "infra"
@@ -449,6 +455,153 @@ def summarize_capture_calls(capdir: Path) -> dict:
     }
 
 
+def scan_bounds(calls_path: Path) -> dict:
+    """Immutable prefix bounds per route token in a frozen calls.jsonl.
+
+    Returns {sha256, size_bytes, lines, tokens: {token: {
+    first_line, last_line, first_byte, last_byte, n}}}. Line numbers are
+    1-based; byte offsets delimit the job's records within the file, so
+    Data (G3) can slice an immutable prefix per trial.
+    """
+    import hashlib
+
+    tokens: dict[str, dict] = {}
+    h = hashlib.sha256()
+    offset = 0
+    lineno = 0
+    with open(calls_path, "rb") as f:
+        for raw in f:
+            lineno += 1
+            h.update(raw)
+            try:
+                tok = json.loads(raw.decode("utf-8")).get("route_token")
+            except (ValueError, UnicodeDecodeError):
+                tok = None
+            if tok:
+                b = tokens.setdefault(
+                    tok,
+                    {
+                        "first_line": lineno,
+                        "last_line": lineno,
+                        "first_byte": offset,
+                        "last_byte": offset + len(raw),
+                        "n": 0,
+                    },
+                )
+                b["last_line"] = lineno
+                b["last_byte"] = offset + len(raw)
+                b["n"] += 1
+            offset += len(raw)
+    return {
+        "sha256": h.hexdigest(),
+        "size_bytes": offset,
+        "lines": lineno,
+        "tokens": tokens,
+    }
+
+
+DAYTONA_USD_PER_HOUR = 0.23094
+
+
+def daytona_usd(wall_hours) -> float | None:
+    if wall_hours is None:
+        return None
+    try:
+        return round(float(wall_hours) * DAYTONA_USD_PER_HOUR, 6)
+    except (TypeError, ValueError):
+        return None
+
+
+def _spend(rows, c1_ranges, runs_dir: Path, modal_billing) -> dict:
+    """Daytona lifetimes + Modal hourly buckets, attributed to windows.
+
+    Modal hour buckets never align exactly to run windows; the raw buckets
+    are reported verbatim and window sums carry explicit caveats. Non-G2
+    apps (lora/sft) are excluded from every window sum.
+    """
+    out: dict = {"daytona_usd_per_hour": DAYTONA_USD_PER_HOUR, "modal": {}, "daytona": {}}
+    groups = {
+        "wave1": [
+            r
+            for r in rows
+            if r.get("which") == "orig"
+            and r.get("finished")
+            and r.get("exception_class") != "ServiceUnavailableError"
+        ],
+        "g2b_failures": [
+            r
+            for r in rows
+            if r.get("which") == "orig"
+            and r.get("finished")
+            and r.get("exception_class") == "ServiceUnavailableError"
+        ],
+        "r2": [r for r in rows if r.get("which") == "r2" and r.get("finished")],
+    }
+    for tag, jobs in groups.items():
+        vals = [r.get("daytona_usd") for r in jobs if r.get("daytona_usd") is not None]
+        out["daytona"][tag] = {
+            "n": len(vals),
+            "usd": round(sum(vals), 4),
+            "note": "trial lifetimes x $0.23094/h",
+        }
+    c1_vals = []
+    for c in c1_ranges:
+        jd = runs_dir / c["job"]
+        mts = sorted((jd / "processed").glob("trial-*.json")) if (jd / "processed").is_dir() else []
+        wh = None
+        if len(mts) == 1:
+            wh = (_load_json(mts[0]) or {}).get("trial_wall_hours")
+        if wh is None:
+            m = _load_json(jd / "lab-metadata.json") or {}
+            s, e = _parse_ts(m.get("started_at")), _parse_ts(m.get("finished_at"))
+            wh = (e - s).total_seconds() / 3600 if s and e else None
+        c["trial_wall_hours"] = wh
+        c["daytona_usd"] = daytona_usd(wh)
+        if c["daytona_usd"] is not None:
+            c1_vals.append(c["daytona_usd"])
+    out["daytona"]["c1"] = {
+        "n": len(c1_vals),
+        "usd": round(sum(c1_vals), 4),
+        "note": "trial lifetimes x $0.23094/h; HAR-135 scope, not G2",
+    }
+    if modal_billing:
+        try:
+            bill = json.loads(Path(modal_billing).expanduser().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            bill = []
+        mimo = [b for b in bill if b.get("description") == "evallab-mimo-v26-9b"]
+        other = [b for b in bill if b.get("description") != "evallab-mimo-v26-9b"]
+        by_hour: dict[str, float] = {}
+        for b in mimo:
+            by_hour[b.get("interval_start", "")[:13]] = by_hour.get(
+                b.get("interval_start", "")[:13], 0.0
+            ) + float(b.get("cost", 0) or 0)
+        out["modal"]["hourly_mimo_usd"] = {k: round(v, 4) for k, v in sorted(by_hour.items())}
+        out["modal"]["other_apps_usd"] = round(sum(float(b.get("cost", 0) or 0) for b in other), 4)
+        out["modal"]["windows"] = {
+            "har116_00h00_02h30": round(
+                by_hour.get("2026-10-01T00", 0)
+                + by_hour.get("2026-10-01T01", 0)
+                + by_hour.get("2026-10-01T02", 0),
+                4,
+            ),
+            "smoke_07h27_07h40": round(by_hour.get("2026-10-01T07", 0), 4),
+            "g2_07h57_09h51": round(
+                by_hour.get("2026-10-01T07", 0)
+                + by_hour.get("2026-10-01T08", 0)
+                + by_hour.get("2026-10-01T09", 0),
+                4,
+            ),
+            "c1_09h51_10h15": round(by_hour.get("2026-10-01T10", 0), 4),
+        }
+        out["modal"]["caveats"] = [
+            "hour buckets do not align to windows: the 07h bucket holds the 07:27 smoke and G2's 07:57 launch; the 09h bucket holds G2's redeploys, the r2 tail and C1's 09:51 start",
+            "the 10h bucket is partial (covers C1's 10:00-10:15 tail and anything after)",
+            "other_apps_usd (lora/sft/smoke apps) is Infra G4 scope, excluded from G2/C1/smoke sums",
+        ]
+    return out
+
+
 def build_rows(cells, runs_dir: Path, derived_root: Path) -> list[dict]:
     rows = []
     for task, attempt in sorted(cells):
@@ -461,6 +614,9 @@ def build_rows(cells, runs_dir: Path, derived_root: Path) -> list[dict]:
                 # r2 job (its original already finished in wave 1).
                 if which == "r2" and spec_r2 is None:
                     continue
+                # An r2 spec with no job dir means the tick refused it
+                # (r2: quiet_failure_rule, a lab defect fixed by #643).
+                status = "refused" if which == "r2" else "absent"
                 rows.append(
                     {
                         "task": task,
@@ -469,7 +625,7 @@ def build_rows(cells, runs_dir: Path, derived_root: Path) -> list[dict]:
                         "job": jd.name,
                         "job_path": str(jd),
                         "finished": False,
-                        "status": "absent",
+                        "status": status,
                         "spec": str(spec_r2 if which == "r2" else spec)
                         if (spec_r2 if which == "r2" else spec)
                         else None,
@@ -538,6 +694,29 @@ def render_results_md(
         f"{s['counted_pass']}/{s['n_counted']} = "
         f"{s['counted_pass'] / max(1, s['n_counted']):.1%}."
     )
+    q = ctx["r2"]
+    A(
+        f"r2 infra re-runs ({q['n_jobs']} of {ctx['n_r2_specs']} specs finished, {q['window']}): "
+        f"{q['counted_pass']} counted_pass, "
+        f"{q['counted_fail']} counted_fail, "
+        f"{q['excluded_taint']} excluded (taint), "
+        f"{q['infra']} infra."
+    )
+    A(
+        f"Settled tokens over r2 counted scope "
+        f"(pass + fail, {q['n_counted']} trials): "
+        f"{q['in_tokens']:,} in / {q['out_tokens']:,} out "
+        f"in {q['calls']:,} calls."
+    )
+    A(
+        f"{len(ctx['refused_r2'])} r2 specs not run (refused, lab defect): "
+        f"the tick refused them at 09:30:18–19Z with "
+        f"`dispatch_refused / quiet_failure_rule` because LoopBreakStop was "
+        f"missing from AGENT_STOP_EXCEPTIONS at ba8d8358 (fixed on main by "
+        f"#643). No job dirs exist; nothing is counted. "
+        f"Jobs: {', '.join(ctx['refused_r2'])}."
+    )
+    A(ctx["g2_closed"])
     A("")
     A("## 2. Per-task table")
     A("")
@@ -561,6 +740,8 @@ def render_results_md(
                 f"{rec.get('calls_assigned')}/"
                 f"{r.get('ledger_tokens', {}).get('requests')}"
             )
+        elif r.get("status") == "refused":
+            cap = "n/a (refused; lab defect, see section 1)"
         elif r.get("status") == "absent":
             cap = "pending (r2)" if r.get("which") == "r2" else "refused/absent"
         else:
@@ -685,6 +866,13 @@ def render_results_md(
             linked += 1
         else:
             unlinked += 1
+        bb = r.get("bounds") or {}
+        bound = (
+            f" lines {bb.get('first_line')}-{bb.get('last_line')} "
+            f"bytes {bb.get('first_byte')}-{bb.get('last_byte')}"
+            if bb
+            else " bounds=n/a"
+        )
         A(
             f"- {r['job']}: "
             f"{
@@ -696,16 +884,66 @@ def render_results_md(
                 )
                 if rec
                 else 'no receipt'
-            }."
+            }.{bound}."
         )
     A("")
     A(f"Linked {linked} finished jobs, {unlinked} without receipt.")
+    cf = ctx.get("capture_file") or {}
+    A(
+        f"Frozen capture file `{cf.get('path')}` "
+        f"sha256:{cf.get('sha256')} {cf.get('size_bytes')} bytes, "
+        f"{cf.get('lines')} lines, {cf.get('n_tokens')} route tokens. "
+        f"Only the g2 server ever bound its port; g2b/g2c/c1 dirs are empty."
+    )
+    for tag, label in (
+        ("wave1", "wave 1"),
+        ("g2b_failures", "g2b failures"),
+        ("r2", "r2"),
+    ):
+        rg = (ctx.get("ranges") or {}).get(tag)
+        if rg:
+            A(
+                f"- {label}: lines {rg['first_line']}-{rg['last_line']}, "
+                f"bytes {rg['first_byte']}-{rg['last_byte']}, {rg['calls']} calls."
+            )
+    c1 = ctx.get("c1_exclusion") or []
+    if c1:
+        A("Non-G2 (C1, HAR-135) ranges in the same file — exclude for G3:")
+        for c in c1:
+            bb = c.get("bounds") or {}
+            A(
+                f"- {c['job']}: "
+                + (
+                    f"lines {bb.get('first_line')}-{bb.get('last_line')}, "
+                    f"bytes {bb.get('first_byte')}-{bb.get('last_byte')}, "
+                    f"{bb.get('n')} calls."
+                    if bb
+                    else "no records (not run or unlinked)"
+                )
+            )
     if maint_log:
         A("")
         A("## 8. Maintenance performed by this run")
         A("")
         for line in maint_log:
             A(f"- {line}")
+    sp = ctx.get("spend") or {}
+    if sp:
+        A("")
+        A("## 9. Spend split")
+        A("")
+        for tag in ("wave1", "g2b_failures", "r2"):
+            d = (sp.get("daytona") or {}).get(tag) or {}
+            A(f"- Daytona {tag}: ${d.get('usd')} over {d.get('n')} trials ({d.get('note')}).")
+        d = (sp.get("daytona") or {}).get("c1") or {}
+        A(f"- Daytona C1: ${d.get('usd')} over {d.get('n')} trials ({d.get('note')}).")
+        m = sp.get("modal") or {}
+        if m.get("hourly_mimo_usd"):
+            A(f"- Modal evallab-mimo-v26-9b hourly: {m['hourly_mimo_usd']}.")
+            A(f"- Modal windows: {m.get('windows')}.")
+            A(f"- Modal non-G2 apps (excluded): ${m.get('other_apps_usd')}.")
+            for c in m.get("caveats", []):
+                A(f"  Caveat: {c}.")
     A("")
     return "\n".join(L) + "\n"
 
@@ -755,6 +993,12 @@ def main(argv=None) -> int:
         "--sampler", action="append", default=[], metavar="TAG=PATH", help="sampler telemetry JSONL"
     )
     ap.add_argument("--results-home", default=None)
+    ap.add_argument("--modal-billing", default=None, help="modal billing report JSON (hourly rows)")
+    ap.add_argument(
+        "--c1-glob",
+        default="har135-c1-*",
+        help="non-G2 job dirs whose capture ranges are listed for exclusion",
+    )
     ap.add_argument("--out", default=str(SCRIPT_DIR))
     ap.add_argument("--evallab", default="uv run --no-sync evallab")
     ap.add_argument("--no-maintenance", action="store_true")
@@ -800,11 +1044,17 @@ def main(argv=None) -> int:
         maintenance(present, live_root, evallab, capdirs, calls_mtime, maint_log)
         rows = build_rows(cells, runs_dir, derived_root)
 
+    # Immutable capture bounds from the frozen calls.jsonl (g2 holds every
+    # call: the g2b/g2c/c1 servers never bound their ports).
+    frozen = scan_bounds(capdirs["g2"] / "calls.jsonl") if capdirs.get("g2") else None
+    tok_bounds = (frozen or {}).get("tokens", {})
     for r in rows:
         r["stop"] = canonical_stop(r) if r.get("finished") else r.get("status")
         r["outcome"] = counted_outcome(r)
         r["r2_status"] = _sibling_status(rows, r, cells)
-
+        aid = r.get("attempt_id")
+        r["bounds"] = tok_bounds.get(aid) if aid else None
+        r["daytona_usd"] = daytona_usd(r.get("trial_wall_hours"))
     # results.jsonl (one row per in-scope trial slot).
     slim = [
         {
@@ -839,6 +1089,10 @@ def main(argv=None) -> int:
                 "capture_receipt_path",
                 "counts_task_status",
                 "r2_status",
+                "attempt_id",
+                "bounds",
+                "trial_wall_hours",
+                "daytona_usd",
             )
         }
         for r in rows
@@ -872,6 +1126,8 @@ def main(argv=None) -> int:
                     "trial_name": r.get("trial_name"),
                     "raw_reward": r.get("raw_reward"),
                     "ledger_tokens": r.get("ledger_tokens"),
+                    "attempt_id": r.get("attempt_id"),
+                    "bounds": r.get("bounds"),
                 },
                 sort_keys=True,
             )
@@ -921,24 +1177,70 @@ def main(argv=None) -> int:
         and r.get("finished")
         and r.get("exception_class") != "ServiceUnavailableError"
     ]
-    counted = [r for r in wave1 if r.get("verdict", "").startswith("counted")]
-    ledgers = [r.get("ledger_tokens") or {} for r in counted]
-    in_tok = sum((t.get("input") or 0) for t in ledgers)
-    out_tok = sum((t.get("output") or 0) for t in ledgers)
-    calls = sum((t.get("requests") or 0) for t in ledgers)
-    for r in wave1:
-        meta = _load_json(Path(r["job_path"]) / "lab-metadata.json") or {}
-        r["started"] = meta.get("started_at")
-        r["ended"] = meta.get("finished_at")
-    starts = [_parse_ts(r.get("started")) for r in wave1]
-    ends = [_parse_ts(r.get("ended")) for r in wave1]
-    starts = [s for s in starts if s]
-    ends = [e for e in ends if e]
-    window = (
-        f"{min(starts).strftime('%H:%MZ')}–{max(ends).strftime('%H:%MZ')}"
-        if starts and ends
-        else "n/a"
+
+    def _summarize(jobs):
+        counted = [r for r in jobs if (r.get("verdict") or "").startswith("counted")]
+        ledgers = [r.get("ledger_tokens") or {} for r in counted]
+        for r in jobs:
+            meta = _load_json(Path(r["job_path"]) / "lab-metadata.json") or {}
+            r["started"] = meta.get("started_at")
+            r["ended"] = meta.get("finished_at")
+        starts = [s for s in (_parse_ts(r.get("started")) for r in jobs) if s]
+        ends = [e for e in (_parse_ts(r.get("ended")) for r in jobs) if e]
+        return {
+            "n_jobs": len(jobs),
+            "window": (
+                f"{min(starts).strftime('%H:%MZ')}–{max(ends).strftime('%H:%MZ')}"
+                if starts and ends
+                else "n/a"
+            ),
+            "counted_pass": sum(1 for r in jobs if r.get("verdict") == "counted_pass"),
+            "counted_fail": sum(1 for r in jobs if r.get("verdict") == "counted_fail"),
+            "excluded_taint": sum(
+                1
+                for r in jobs
+                if r.get("verdict") == "excluded" and "infra" not in (r.get("reasons") or [])
+            ),
+            "infra": sum(1 for r in jobs if "infra" in (r.get("reasons") or [])),
+            "n_counted": len(counted),
+            "in_tokens": sum((t.get("input") or 0) for t in ledgers),
+            "out_tokens": sum((t.get("output") or 0) for t in ledgers),
+            "calls": sum((t.get("requests") or 0) for t in ledgers),
+        }
+
+    r2jobs = [r for r in rows if r.get("which") == "r2" and r.get("finished")]
+    refused_r2 = sorted(
+        r["job"] for r in rows if r.get("which") == "r2" and r.get("status") == "refused"
     )
+    g2b_jobs = [
+        r
+        for r in rows
+        if r.get("which") == "orig"
+        and r.get("finished")
+        and r.get("exception_class") == "ServiceUnavailableError"
+    ]
+
+    def _range(jobs):
+        bbs = [r.get("bounds") for r in jobs if r.get("bounds")]
+        if not bbs:
+            return None
+        return {
+            "first_line": min(b["first_line"] for b in bbs),
+            "last_line": max(b["last_line"] for b in bbs),
+            "first_byte": min(b["first_byte"] for b in bbs),
+            "last_byte": max(b["last_byte"] for b in bbs),
+            "calls": sum(b["n"] for b in bbs),
+        }
+
+    # Non-G2 (C1) jobs sharing the frozen file: ranges listed for exclusion.
+    c1_ranges = []
+    for c1d in sorted(runs_dir.glob(args.c1_glob)):
+        m = _load_json(c1d / "lab-metadata.json") or {}
+        aid = (m.get("provider_usage") or {}).get("attempt_id")
+        bb = tok_bounds.get(aid) if aid else None
+        c1_ranges.append({"job": c1d.name, "attempt_id": aid, "bounds": bb})
+
+    spend = _spend(rows, c1_ranges, runs_dir, args.modal_billing)
     ctx = {
         "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%MZ"),
         "command": " ".join(sys.argv),
@@ -949,22 +1251,28 @@ def main(argv=None) -> int:
         "n_cells": len(cells),
         "n_finished": sum(1 for r in rows if r.get("finished")),
         "n_pending": sum(1 for r in rows if not r.get("finished")),
-        "wave1": {
-            "n_jobs": len(wave1),
-            "window": window,
-            "counted_pass": sum(1 for r in wave1 if r.get("verdict") == "counted_pass"),
-            "counted_fail": sum(1 for r in wave1 if r.get("verdict") == "counted_fail"),
-            "excluded_taint": sum(
-                1
-                for r in wave1
-                if r.get("verdict") == "excluded" and "infra" not in (r.get("reasons") or [])
-            ),
-            "infra": sum(1 for r in wave1 if "infra" in (r.get("reasons") or [])),
-            "n_counted": len(counted),
-            "in_tokens": in_tok,
-            "out_tokens": out_tok,
-            "calls": calls,
+        "g2_closed": (
+            "G2 closes at 42 valid jobs: 20 wave-1 + 22 r2; "
+            "the 18 refused r2 specs are not run and never counted."
+        ),
+        "wave1": _summarize(wave1),
+        "r2": _summarize(r2jobs),
+        "n_r2_specs": len(r2jobs) + len(refused_r2),
+        "refused_r2": refused_r2,
+        "capture_file": {
+            "path": str(capdirs["g2"] / "calls.jsonl") if capdirs.get("g2") else None,
+            "sha256": (frozen or {}).get("sha256"),
+            "size_bytes": (frozen or {}).get("size_bytes"),
+            "lines": (frozen or {}).get("lines"),
+            "n_tokens": len(tok_bounds),
         },
+        "ranges": {
+            "wave1": _range(wave1),
+            "g2b_failures": _range(g2b_jobs),
+            "r2": _range(r2jobs),
+        },
+        "c1_exclusion": c1_ranges,
+        "spend": spend,
     }
 
     # GEPA seed receipt.

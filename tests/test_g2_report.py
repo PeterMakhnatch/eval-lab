@@ -109,6 +109,29 @@ def _job(
     return jd
 
 
+def test_scan_bounds_records_lines_and_bytes(tmp_path):
+    p = tmp_path / "calls.jsonl"
+    recs = [
+        {"route_token": "aaa", "seq": 1},
+        {"route_token": "bbb", "seq": 2},
+        {"route_token": "aaa", "seq": 3},
+    ]
+    with open(p, "w", encoding="utf-8") as f:
+        for r in recs:
+            f.write(json.dumps(r) + "\n")
+    got = b.scan_bounds(p)
+    assert got["lines"] == 3
+    assert got["tokens"]["aaa"]["first_line"] == 1
+    assert got["tokens"]["aaa"]["last_line"] == 3
+    assert got["tokens"]["bbb"]["n"] == 1
+    assert got["tokens"]["aaa"]["last_byte"] == got["size_bytes"]
+
+
+def test_refused_outcome_vocabulary():
+    assert b.counted_outcome({"finished": False, "status": "refused"}).startswith("not_run:")
+    assert b.counted_outcome({"finished": False, "status": "absent"}) == "pending"
+
+
 def _spec(specdir: Path, name: str):
     specdir.mkdir(parents=True, exist_ok=True)
     (specdir / f"{name}.json").write_text(

@@ -255,7 +255,14 @@ or `LoopBreakStop` is an agent outcome, not infrastructure failure. A stop with
 no finite reward remains unavailable; unrelated execution errors remain errors.
 The raw reward, canonical counts, report path and byte digest remain in the
 evaluation receipt. Do not combine this rule with `upstream_fetch_zero`:
-canonical counts already distinguish a tainted pass from a fetch-and-fail.
+canonical counts exclude fetch-based passes only after an exact upstream
+artifact is saved/listed and then observed unpacked or read, with recorded,
+target-bound evidence. Bare success summaries and exit code 0 do not suffice.
+Directory spelling is normalized; failed or unknown attempts remain visible
+as non-deciding flags, even on a native pass. Preexisting local image mirrors
+are addressed by task/variant usability, not successful-fetch counts. The legacy opt-in
+`upstream_fetch_zero` objective deliberately retains its separate **any-attempt**
+policy; an attempted fetch still zeros that objective regardless of outcome.
 
 `LabEvaluator.import_seed_evaluation(job_dir, example)` imports a finished,
 retained single-trial stock job for the exact empty instruction seed. It requires

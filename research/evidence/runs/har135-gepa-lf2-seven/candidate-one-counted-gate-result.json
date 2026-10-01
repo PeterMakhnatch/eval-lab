@@ -1,0 +1,874 @@
+{
+  "schema": "har135.c1-counted-gate-result/v1",
+  "recorded_at": "2026-10-01T11:17:58.094Z",
+  "card": "HAR-135",
+  "scientific_status": "admitted_g5_third_arm",
+  "candidate": {
+    "number": 1,
+    "id": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+    "path": "research/experiments/ovn-sft-v0/gepa-har135/candidates/b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470.txt",
+    "frozen_at": "2026-10-01T08:57:13.838229+00:00",
+    "bytes": 1564,
+    "intervention": "General repetition warning response, correct terminal/pager/newline state, targeted inspection, small local repair, verify behavior, honest completion. No task-specific code/solution.",
+    "only_variable": "Frozen addendum appended to Terminus-2 instructions; 15 common stock fields preserve model/base weights, lf2, task/verifier digests, limits, environment. No toolbox or adapter.",
+    "campaign_binding_sha256": "4e70ce92b8dd2647ba6d5c6d7ddb4e3681553db3294783c08e9ea4959e915011",
+    "spec_paths": [
+      {
+        "est_cost_usd": 0.25,
+        "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+        "name": "har135-c1-000803",
+        "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-000803.json",
+        "sha256": "4527bbe07abf225dd838521925076b15033540c7e2fb802f9d7c14ccf1e71851",
+        "spec_id": "01M3VBDY9WZ4N0E73F5J8ZJBD7",
+        "task_id": "format-code-task-000803",
+        "task_package_digest": "sha256:ac99a511015a2c31ae7cb56577154096de4df9ca2f40d655450f215cdcb4f740"
+      },
+      {
+        "est_cost_usd": 0.25,
+        "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+        "name": "har135-c1-001897",
+        "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-001897.json",
+        "sha256": "9ad39fb097da3880204e64f351c17081b307a7aa8d0615b990b8866b38badceb",
+        "spec_id": "01M3VBDY9ZYYQ56VV721PD0VCX",
+        "task_id": "format-code-task-001897",
+        "task_package_digest": "sha256:e9f28b6db44e81fdd174c04c0a42e5535466c9d19176c4f63c8f510419e8b3cc"
+      },
+      {
+        "est_cost_usd": 0.25,
+        "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+        "name": "har135-c1-002938",
+        "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-002938.json",
+        "sha256": "13ea1b4a630fbe8f5756a8f0a904fba92450780045dd97850c208fa2ce264eec",
+        "spec_id": "01M3VBDYA11ZNGJG72EY61GJME",
+        "task_id": "format-code-task-002938",
+        "task_package_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562"
+      },
+      {
+        "est_cost_usd": 0.25,
+        "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+        "name": "har135-c1-001710",
+        "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-001710.json",
+        "sha256": "d587b9cfbb1eb5f9f08b9c9c3e861eb1b81961cd4d602628043c13367cc58c18",
+        "spec_id": "01M3VBDYA2EE4FA6E9XDKKJKQF",
+        "task_id": "format-code-task-001710",
+        "task_package_digest": "sha256:361303219639ff24b77317f1a21fa72999bd13e1e2013ba18024e9e16c2e3d91"
+      },
+      {
+        "est_cost_usd": 0.25,
+        "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+        "name": "har135-c1-001399",
+        "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-001399.json",
+        "sha256": "158c03187ce07c016df8a3a23e88629965a92794005f389d1c0ba43cc4b0d37d",
+        "spec_id": "01M3VBDYA4SPVAY1KBQ091T7WB",
+        "task_id": "format-code-task-001399",
+        "task_package_digest": "sha256:f8ea9d7813ebe8488f5286188616463e195612abe2284e069f09951d3c8a9405"
+      },
+      {
+        "est_cost_usd": 0.25,
+        "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+        "name": "har135-c1-002680",
+        "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-002680.json",
+        "sha256": "9c49916b0a00043bcedac308dbe39ff828597f42199ffdc210cbd8defb199908",
+        "spec_id": "01M3VBDYA5N11HBKBNSG2HD9YN",
+        "task_id": "format-code-task-002680",
+        "task_package_digest": "sha256:205818a003ea443311e98770c8da6aeebfa5c04f71f4b72511f9f6d663cd6606"
+      },
+      {
+        "est_cost_usd": 0.25,
+        "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+        "name": "har135-c1-001661",
+        "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-001661.json",
+        "sha256": "ce9e68a906c2f2d453e3b134074f2f54712f284275ca1f05c9cb487e927baf3b",
+        "spec_id": "01M3VBDYA7CERZY19ERFVRX5V0",
+        "task_id": "format-code-task-001661",
+        "task_package_digest": "sha256:7281bec0244739c8c679d5ae2252ca13dcfd8d442b5993c4cb1347dbd7a78f7c"
+      }
+    ]
+  },
+  "gate": {
+    "original_outcome_blind_ten_manifest": "frozen-ten-parent.json",
+    "original_manifest_file_sha256": "sha256:4daca9553ef7b0880d857cd11d452b3aaad951dc957990fc887b37d8bee6b5e7",
+    "amendment": "Explicit Research-Harbor08:25/Cdx3accepted08:35; declared08:43beforeproposal08:57, remove3seedexcludedidentities symmetrically forseedandALLcandidates; no substitutions/addbacks.",
+    "excluded_seed_task_ids": [
+      "format-code-task-001647",
+      "format-code-task-000341",
+      "format-code-task-001870"
+    ],
+    "excluded_seed_designations": "Historical to08:25 ruling. 001870laterfailed-acquisitionfalsepositive correction doesNOT re-add it or retroactively assertcopiedgroundtruth.",
+    "gate_manifest_file_sha256": "sha256:54228ee29ba6842ea79379dc829fcfdabc44d4d3d928ee2efefdc2728bed1120",
+    "normalized_gate_manifest_digest": "sha256:1b75f4fb6c45a2104bf7a126514692b9f8de2818a43fd6db71ab4b6bf6bb816a",
+    "task_ids": [
+      "format-code-task-000803",
+      "format-code-task-001897",
+      "format-code-task-002938",
+      "format-code-task-001710",
+      "format-code-task-001399",
+      "format-code-task-002680",
+      "format-code-task-001661"
+    ],
+    "candidate_limit": 2,
+    "actual_candidates": 1,
+    "no_c2_by": "Research-Harbor11:03 ruling",
+    "total_gate_cap_usd": 2,
+    "seed_repeat": 1,
+    "seed_attempt": 1,
+    "substitutions": 0,
+    "all_held_out_001181_runs_excluded_from_reflection": true,
+    "g1_eval_csv_sha256": "sha256:3b997fdcff048061fd8a05d446948d4d6425bf670eb0d6710989c50dcd0a9219"
+  },
+  "totals": {
+    "tasks": 7,
+    "seed_counted_passes": 1,
+    "candidate_counted_passes": 3,
+    "seed_settled_proxy_total_tokens": 10153367,
+    "candidate_settled_proxy_total_tokens": 11931159,
+    "captured_calls": 609,
+    "source_native_files_unchanged": 682
+  },
+  "selection": {
+    "implementation_revision": "8021fb8adbe75aaf4b7ae22e78c745fd0fc18891",
+    "source_archive_sha256": "1255c357a6d4ed252f7676fca5beffcfe413ff672ff7c258cc766a3458b79b3c",
+    "status": "promoted",
+    "decision": "counted_improvement",
+    "winner": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+    "counted_pass_delta": 2,
+    "settled_proxy_token_delta": 1777792,
+    "tie_break_used": false,
+    "interpretation": "Training-selection signal from one paired run/task onfixed7,notheld-out improvement orcausalproof. Candidate used17.51percentmore settledtokens; strictpassgain wins beforetoken tie-break."
+  },
+  "provenance": {
+    "actual_execution_tree": "ba8d8358",
+    "actual_execution_dirty": true,
+    "candidate_and_seven_specs_untracked_at_launch": true,
+    "tracked_uncommitted_diff_bytes": 0,
+    "qualification_consumer_revision": "8021fb8adbe75aaf4b7ae22e78c745fd0fc18891",
+    "qualification_observed_at": "2026-10-01T10:49:21.525503+00:00",
+    "qualification_method": "Actual existingLabEvaluator nativeconsumer/base/provenance guards then publiccachedcallback, all7 scores derivedfromcanonicalprocess-jobcounts; actualfrozenselector. Not anempty-stockimport ofcandidate.",
+    "qualification_executor_accesses": [],
+    "qualification_fresh_target_calls": 0,
+    "qualification_fresh_proposer_calls": 0,
+    "qualification_receipt_sha256": "sha256:0b5da7fa83c80e8be94b40df75050995b15e1fb4a262fa602940f6f0375bc3fb",
+    "canonical_rows_receipt_sha256": "sha256:7720db3eb41e9f821d5a75e97eabf352bdf5f2148d7aeecb34275b13266b24e6",
+    "settled_usage_note": "002680 providerledgertotals2217491from109reconciledrequests, notnativeagenttelemetry2184894from105; total11931159notinitialreview11898562. All7unresolved_requests0. Agentstop withfiniteverifierreward remaincounted underexistingagent-stoprule."
+  },
+  "proposer": {
+    "origin": "codex/gpt-6-astra",
+    "calls": 1,
+    "replayed_responses": 0,
+    "reported_cost_usd": null,
+    "actual_billing_cost_usd": null,
+    "accounting_basis": "subscription_cli_invocations_not_physical_requests_or_billing",
+    "cost_cap_excludes_target_evaluation": true,
+    "physical_upstream_requests": null,
+    "subscription_quota": null,
+    "model": "codex/gpt-6-astra",
+    "transport": "CodexCLI0.154.0 / ChatGPTsubscription, review-only sandbox,no tools/web/plugins/hooks, no paidAPI fallback",
+    "gepa_release": "0.1.4",
+    "actual_reflection_prompt_bytes": 95561,
+    "actual_reflection_prompt_sha256": "sha256:124e3d856123dc4b2664128501d5c02ee8429b1da5b3247cd70618faa236f836",
+    "whole_input_metadata_only": false,
+    "scope_disposition": "Cdx3's HAR-135 10:18 audit accepted pinned training-only sources. Historical raters/atlas were metadata-only; primary 001399 native failure feedback included verifier/test-source fragments. The generic candidate contains no task-specific code, solutions, or test snippets. Twenty tagged subjects comprise 7 native and 13 historical training-usable tasks, with no G1 or 001181 identities. This is not proof against untagged aliases.",
+    "raw_reflection_or_trajectories_committed": false
+  },
+  "capture": {
+    "path": "/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g2/calls.jsonl",
+    "sha256": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+    "bytes": 292044252,
+    "lines": 4319,
+    "c1_assigned_calls": 609,
+    "c1_ambiguous_calls": 0,
+    "former_empty_c1_directory_links_invalid": true,
+    "all_seven_linker_verdicts": "trajectory_truncated",
+    "admission_disposition": "Research-Harbor11:03capturepresent/complete; commonATIF-versus-capturelimitation, notmissingcaptureorautomaticmissingpair. RetainordinaryAPIverdicts and reportperarmdescriptivelyG6. Engineeringnormalizationtechnicaldispositionstillowed; no wholeATIFliteraltextmatch added toGEPAgate. CountagreementnotexactSFTreproduction proof.",
+    "link_receipt_sha256": "sha256:3d8128b419865e80b3e0ff3b464f6d5c9fbcbc8443862c10651a42eb08a0df40"
+  },
+  "cost": {
+    "estimated_usd": 1.352175,
+    "possible_idle_tail_estimate_usd": 0.234575,
+    "total_with_idle_tail_estimate_usd": 1.58675,
+    "candidate_gate_cap_usd": 2,
+    "actual_billed_usd": null,
+    "actual_billed_unknown_reason": "Native proxy pricing is zero by self-hosted configuration. The newly published #656 hourly buckets do not isolate all of C1: the 09h bucket mixes G2 and C1's start, while the 10h bucket covers C1's tail and later activity. The owner-labeled $0.7219 allocation is not an exact full-window C1 bill. Research-Harbor11:03 accepts the roughly $1.35 plus $0.24 scoped estimate inside the $2 cap; actual billed C1 dollars remain unknown.",
+    "codex_subscription_cost_usd": null,
+    "gpu_estimate_usd": 1.077292,
+    "sandbox_estimate_usd": 0.274883,
+    "shared_gpu_rate_usd_per_hour": 2.8149,
+    "shared_gpu_window_seconds": 1377.8,
+    "daytona_rate_usd_per_sandbox_hour": 0.23094,
+    "sandbox_job_seconds": 4285,
+    "source_rate_docs": [
+      "docs/execution-tiers.md",
+      "docs/mimo-task-catalog.md"
+    ],
+    "basis": "Count the one shared warm app over 09:52:16–10:15:14, not the sum of per-trial GPU estimates. Sandbox job durations are observed lower-bound holds without deletion events. Include a possible five-minute GPU idle tail. Rates and durations are rounded estimates; native USD0 does not imply free physical compute.",
+    "scope_excludes": [
+      "G2earlierwarm/deploy/spend",
+      "G4training",
+      "G5evaluation",
+      "fullUTCdaytally",
+      "unknownCodexsubscriptionbilling"
+    ],
+    "actual_settlement_pending": true,
+    "published_owner_receipt": {
+      "revision": "0e5fd043",
+      "path": "research/experiments/har120-data-batch/RESULTS.md#9-spend-split",
+      "owner_reported_c1_modal_window_usd": 0.7219,
+      "owner_reported_c1_sandbox_estimate_usd": 0.2749,
+      "modal_hour_bucket_09_usd": 2.3493,
+      "modal_hour_bucket_10_usd": 0.7219,
+      "disposition": "Accept the published bucket totals and the matching sandbox lifetime estimate. Do not treat the entire 10h bucket alone as the full 09:52–10:15 C1 bill: 09h includes C1's first eight minutes together with G2, and 10h may include later activity. Full-app totals must not be added again to the earlier scoped rate estimate. An exact disjoint C1 settlement is unavailable from these hour buckets.",
+      "source_url": "https://raw.githubusercontent.com/PeterMakhnatch/eval-lab/0e5fd043/research/experiments/har120-data-batch/RESULTS.md"
+    }
+  },
+  "admission": {
+    "at": "2026-10-01T11:03:00Z",
+    "authority": "Research-HarborHAR135canonicalcomment11:03; userinterjectionrequestedimmediateEngineeringhandoff",
+    "family": "stock_tuned_gepa",
+    "handoff_cards": [
+      "HAR-126",
+      "HAR-135",
+      "HAR-133"
+    ],
+    "handoff_posted_at": "2026-10-01T11:06:00Z",
+    "missed_0930_checkpoint": "09:32explicitlyreportedcandidategatependingnotno-improvement; actualserving/queue/candidatepublicationcompletedlater. Proposalwasfrozen08:57.",
+    "copied_fix_rule_disposition": "Mergedsuccessful-acquisitionamendmentonlynarrowsrule; bothseedandC1fixed7already0copiedexclusions,3vs1selectionunchanged. AppliesuniformlytoallG5arms.",
+    "g5_preconditions": "Freeze3armfamilybeforefirstG5trial, commonLoRA-enabledserverandbaseweights,noloRaGEPA+onlyaddendum, identicallf2caps, sixserial-per-taskordercyclewithactualterminal-predecessorbarriers, exactMcNemar2primarycontrasts/HolmFWER0.05, no latearmshrink.",
+    "g5_results_not_yet_observed": true
+  },
+  "rows": [
+    {
+      "task_id": "format-code-task-000803",
+      "task_package_digest": "sha256:ac99a511015a2c31ae7cb56577154096de4df9ca2f40d655450f215cdcb4f740",
+      "seed": {
+        "trial_id": "8cc70fcd-47e8-47d5-8c20-710ed2ed3fe1",
+        "trial_name": "har120-000803-a1__xWzxKCn",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000803-a1",
+        "counts_sha256": "sha256:b126fc41193d81bc78a4b1547b32075e387d0b001e2d2d2cd2f01dcc8f7bd134",
+        "counts_verdict": "counted_fail",
+        "settled_proxy_input_tokens": 580852,
+        "settled_proxy_output_tokens": 6332,
+        "settled_proxy_total_tokens": 587184
+      },
+      "candidate": {
+        "trial_id": "e8ce6993-61fc-4a07-a61c-436ae6c31e2a",
+        "trial_name": "har135-c1-000803__jHtT7Bj",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803",
+        "native_receipts": {
+          "job_result": {
+            "sha256": "sha256:7a2d837e8cd6d6931fbcf4eef13222af96e133ec09c70ca09a349126b181fb6e",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803/result.json"
+          },
+          "job_config": {
+            "sha256": "sha256:0eee45dd66c064879e6cf26dd82d1fca6581985d1b25ffd0ec16b53860569956",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803/config.json"
+          },
+          "job_lock": {
+            "sha256": "sha256:ea39b05d7ecfd14c9c9d372100f91a4f2954cfea4ffa7b685a8cd2e52fa03a05",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803/lock.json"
+          },
+          "lab_metadata": {
+            "sha256": "sha256:5412cc39d515a52ddb54ada03f93c931bc038960238990d89583d3937da0dfc7",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803/lab-metadata.json"
+          },
+          "trial_result": {
+            "sha256": "sha256:5650a528bbe2bb298adc72b23d4315b6ddb2ed34869575471d95fcf91ef83af3",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803/har135-c1-000803__jHtT7Bj/result.json"
+          },
+          "trial_config": {
+            "sha256": "sha256:2dea610b06b6af49c50d4d1f32a3adea04341d7492bd8c864f9cc855e3fd0a95",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803/har135-c1-000803__jHtT7Bj/config.json"
+          },
+          "trial_lock": {
+            "sha256": "sha256:f9d60fa3b4acc44402d8badfa721d533ac44d76b300a625462559d9f4ddaa923",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803/har135-c1-000803__jHtT7Bj/lock.json"
+          },
+          "counts_report": {
+            "sha256": "sha256:a0800929369de052a229ee11aa6bfc8a8ab5948ab9ca0bc71ee678f8dd869421",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-000803/processed/trial-har135-c1-000803__jHtT7Bj.json"
+          }
+        },
+        "counts_verdict": "counted_pass",
+        "raw_reward": 1,
+        "canonical_score": 1,
+        "cache_score": 1,
+        "settled_proxy_input_tokens": 430970,
+        "settled_proxy_output_tokens": 5463,
+        "settled_proxy_total_tokens": 436433,
+        "usage_unresolved_requests": 0,
+        "agent_stop": null,
+        "source_native_files_unchanged": 67,
+        "source_native_tree_sha256": "sha256:284e585af7b9613cef482f0296fd8b528715e655e8a7074ae637eb376dc3eab4",
+        "queue_annotations_only_delta": {
+          "policy_rule": {
+            "frozen": null,
+            "native": "human-approval"
+          },
+          "submitted_at": {
+            "frozen": null,
+            "native": "2026-10-01T09:28:47.550303Z"
+          }
+        },
+        "capture": {
+          "source_capture_digest": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+          "linked_at": "2026-10-01T10:52:20.260408Z",
+          "job_id": "0947c522-3514-4fe8-9549-9cd2dde69cb6",
+          "captured_calls": 38,
+          "captured_assistant_turns": 38,
+          "atif_agent_steps": 38,
+          "atif_present": true,
+          "verdict": "trajectory_truncated",
+          "detail": "captured assistant turn 4 absent from the ATIF",
+          "first_divergence": {
+            "kind": "missing_turn",
+            "turn_index": 4
+          },
+          "ambiguous_conversations": 0,
+          "ambiguous_trials": []
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001897",
+      "task_package_digest": "sha256:e9f28b6db44e81fdd174c04c0a42e5535466c9d19176c4f63c8f510419e8b3cc",
+      "seed": {
+        "trial_id": "982505ca-763a-4dd2-aac8-a1ede3023e12",
+        "trial_name": "har120-001897-a1__6AyLy9W",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001897-a1",
+        "counts_sha256": "sha256:a1df459d6d228a509706dab94ed3818f9a0d9d6a9db8dfbe6b0d6c95b1c53b4e",
+        "counts_verdict": "counted_fail",
+        "settled_proxy_input_tokens": 1501027,
+        "settled_proxy_output_tokens": 27897,
+        "settled_proxy_total_tokens": 1528924
+      },
+      "candidate": {
+        "trial_id": "730b006e-15dd-47df-a847-d898f2346789",
+        "trial_name": "har135-c1-001897__G4P3hWu",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897",
+        "native_receipts": {
+          "job_result": {
+            "sha256": "sha256:1d8abb80354d7a084b43c8f6670c40e8e388c8fd677e65cd9b44414c391fda13",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897/result.json"
+          },
+          "job_config": {
+            "sha256": "sha256:139bc9943f1376d268f016a08d1f7a63bceb47ecc620056c42e817d2ce54e1a8",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897/config.json"
+          },
+          "job_lock": {
+            "sha256": "sha256:dd6c74b39ff82d144447991f07e4076c133082d36f266a497f4daf002d06189f",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897/lock.json"
+          },
+          "lab_metadata": {
+            "sha256": "sha256:7871c9c0671aeceb9401eb5c808c396557fa4e3af888fe85967516e189ffc96e",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897/lab-metadata.json"
+          },
+          "trial_result": {
+            "sha256": "sha256:27ce4e2907d7b5eee803cf35d4d7b8dd95795923d21634c41f2056887405fadd",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897/har135-c1-001897__G4P3hWu/result.json"
+          },
+          "trial_config": {
+            "sha256": "sha256:55d7ab67635528588032d44dfc3df6078715e8107c64037dc8a820087e30301d",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897/har135-c1-001897__G4P3hWu/config.json"
+          },
+          "trial_lock": {
+            "sha256": "sha256:b27f2eade0bdf0eb9ae3bf32899cab7809b278277b1b0ed18d5d6ca192e7f319",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897/har135-c1-001897__G4P3hWu/lock.json"
+          },
+          "counts_report": {
+            "sha256": "sha256:e4d19c81bef96abc70b39ed9e86819658678d8391d918a0adf6f78c35ab6b892",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001897/processed/trial-har135-c1-001897__G4P3hWu.json"
+          }
+        },
+        "counts_verdict": "counted_fail",
+        "raw_reward": 0,
+        "canonical_score": 0,
+        "cache_score": 0,
+        "settled_proxy_input_tokens": 2450938,
+        "settled_proxy_output_tokens": 32758,
+        "settled_proxy_total_tokens": 2483696,
+        "usage_unresolved_requests": 0,
+        "agent_stop": "TrialBudgetExhaustedError",
+        "source_native_files_unchanged": 142,
+        "source_native_tree_sha256": "sha256:f7842e38da45428ce12539e971f0312ab8ff83c53947bb015568c4ff8eba6fb6",
+        "queue_annotations_only_delta": {
+          "policy_rule": {
+            "frozen": null,
+            "native": "human-approval"
+          },
+          "submitted_at": {
+            "frozen": null,
+            "native": "2026-10-01T09:28:49.658686Z"
+          }
+        },
+        "capture": {
+          "source_capture_digest": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+          "linked_at": "2026-10-01T10:54:13.184179Z",
+          "job_id": "66f00ae5-9c60-40d3-8de8-aeedfba3306d",
+          "captured_calls": 119,
+          "captured_assistant_turns": 119,
+          "atif_agent_steps": 116,
+          "atif_present": true,
+          "verdict": "trajectory_truncated",
+          "detail": "fewer ATIF agent steps (116) than captured assistant turns (119)",
+          "first_divergence": {
+            "kind": "count_mismatch"
+          },
+          "ambiguous_conversations": 0,
+          "ambiguous_trials": []
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-002938",
+      "task_package_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562",
+      "seed": {
+        "trial_id": "477f4399-7579-4109-a5fb-9805ec669403",
+        "trial_name": "har120-002938-a1__UpSjiuM",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002938-a1",
+        "counts_sha256": "sha256:e6e809b5b2dd0425dbbcd936945814c448d6fd4bd1eaf0560eb3f8abc8de900a",
+        "counts_verdict": "counted_pass",
+        "settled_proxy_input_tokens": 485421,
+        "settled_proxy_output_tokens": 4929,
+        "settled_proxy_total_tokens": 490350
+      },
+      "candidate": {
+        "trial_id": "caecefa1-de94-479b-b478-455df4c8a38b",
+        "trial_name": "har135-c1-002938__iQaHjxi",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938",
+        "native_receipts": {
+          "job_result": {
+            "sha256": "sha256:eca6399f93c72bf77895f72bb4ab88c0190435cd9d281e2c849a435c8c655794",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938/result.json"
+          },
+          "job_config": {
+            "sha256": "sha256:9f5efdd501cb9a589c2daaf6a1549fc691ea34c017f45650b22434061f0f3284",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938/config.json"
+          },
+          "job_lock": {
+            "sha256": "sha256:ce103666f42b6ee5f8c5701fd15bc04c08dacb33e21f6114202307d1d285ce82",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938/lock.json"
+          },
+          "lab_metadata": {
+            "sha256": "sha256:fdc1eee2e16d755937aee94f9c2d500b9c8bfb0a2b02c477a14e4f07cb786a4d",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938/lab-metadata.json"
+          },
+          "trial_result": {
+            "sha256": "sha256:3dd3a776e28c7bb343dac2c1318c3335ce3a596a7a5b1f7f047246b731b3645b",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938/har135-c1-002938__iQaHjxi/result.json"
+          },
+          "trial_config": {
+            "sha256": "sha256:547ec797c281182312ec67ec510985407a86f290fbe7e3ce6f906efdc604706b",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938/har135-c1-002938__iQaHjxi/config.json"
+          },
+          "trial_lock": {
+            "sha256": "sha256:d4d3affd776ea48a09c4275c5d6ae7ffcf39e7651b6283223e6e0f84a54637fa",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938/har135-c1-002938__iQaHjxi/lock.json"
+          },
+          "counts_report": {
+            "sha256": "sha256:7734e622472be3ce973a242d02f9ba4c4e6761733343a6e2208de276193981f1",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002938/processed/trial-har135-c1-002938__iQaHjxi.json"
+          }
+        },
+        "counts_verdict": "counted_pass",
+        "raw_reward": 1,
+        "canonical_score": 1,
+        "cache_score": 1,
+        "settled_proxy_input_tokens": 2421505,
+        "settled_proxy_output_tokens": 15722,
+        "settled_proxy_total_tokens": 2437227,
+        "usage_unresolved_requests": 0,
+        "agent_stop": "TrialBudgetExhaustedError",
+        "source_native_files_unchanged": 45,
+        "source_native_tree_sha256": "sha256:b0f1b6d1986d89026363bd0f9203643b4aa50a10e655bb94ffb5f147d092b9c8",
+        "queue_annotations_only_delta": {
+          "policy_rule": {
+            "frozen": null,
+            "native": "human-approval"
+          },
+          "submitted_at": {
+            "frozen": null,
+            "native": "2026-10-01T09:28:50.688749Z"
+          }
+        },
+        "capture": {
+          "source_capture_digest": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+          "linked_at": "2026-10-01T10:54:15.649124Z",
+          "job_id": "346586af-e340-45ef-9ff1-25f4b9ff23de",
+          "captured_calls": 120,
+          "captured_assistant_turns": 120,
+          "atif_agent_steps": 120,
+          "atif_present": true,
+          "verdict": "trajectory_truncated",
+          "detail": "captured assistant turn 0 absent from the ATIF",
+          "first_divergence": {
+            "kind": "missing_turn",
+            "turn_index": 0
+          },
+          "ambiguous_conversations": 0,
+          "ambiguous_trials": []
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001710",
+      "task_package_digest": "sha256:361303219639ff24b77317f1a21fa72999bd13e1e2013ba18024e9e16c2e3d91",
+      "seed": {
+        "trial_id": "35304602-de90-4ba2-8f02-516dbd751e6c",
+        "trial_name": "har120-001710-a1__BLMKCZN",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001710-a1",
+        "counts_sha256": "sha256:a5eb80f029b01fe8eea174fc55edd3c445c2319a90866be556e502320623a7c4",
+        "counts_verdict": "counted_fail",
+        "settled_proxy_input_tokens": 2082993,
+        "settled_proxy_output_tokens": 5648,
+        "settled_proxy_total_tokens": 2088641
+      },
+      "candidate": {
+        "trial_id": "80ef0cdd-2a7a-4844-a64b-0c5bc6ac42e8",
+        "trial_name": "har135-c1-001710__4jm4gbb",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710",
+        "native_receipts": {
+          "job_result": {
+            "sha256": "sha256:673ce686ebd520143b88a1dbb9a73851df0a1e6b7e12b43cc780152a1db4eb56",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710/result.json"
+          },
+          "job_config": {
+            "sha256": "sha256:275fe2ebe3aed2b70ad99ebe1a56fbb3e6623346b5b0096627d4f944aea2b7cc",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710/config.json"
+          },
+          "job_lock": {
+            "sha256": "sha256:abcb4f22eb7c659362bd0770b38a587502f81efcdcc4fc7e682ab15808b573fc",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710/lock.json"
+          },
+          "lab_metadata": {
+            "sha256": "sha256:4792d212cdaf4f5403f425116961f812ca668f35a8865fa9c2879f5d1737e463",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710/lab-metadata.json"
+          },
+          "trial_result": {
+            "sha256": "sha256:a7ed0cb494e88d0431cb39c4d1a7bd4b032a5386c8369e0ecab8cb9203f45b8d",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710/har135-c1-001710__4jm4gbb/result.json"
+          },
+          "trial_config": {
+            "sha256": "sha256:5b32cee6f7470d9b5e096fa5d21ea57a61fc26eaa99b7f94e2f5e08addf1aa6d",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710/har135-c1-001710__4jm4gbb/config.json"
+          },
+          "trial_lock": {
+            "sha256": "sha256:a1f08bcb5477fa5112c453d135085c50c131aee2e6924eff5f8033ae5cd52110",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710/har135-c1-001710__4jm4gbb/lock.json"
+          },
+          "counts_report": {
+            "sha256": "sha256:a054505f472f3fa850d162f48a86a73fdd0ead1c853e459d1ff9e88280d7f9d8",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001710/processed/trial-har135-c1-001710__4jm4gbb.json"
+          }
+        },
+        "counts_verdict": "counted_fail",
+        "raw_reward": 0,
+        "canonical_score": 0,
+        "cache_score": 0,
+        "settled_proxy_input_tokens": 2473489,
+        "settled_proxy_output_tokens": 24796,
+        "settled_proxy_total_tokens": 2498285,
+        "usage_unresolved_requests": 0,
+        "agent_stop": "TrialBudgetExhaustedError",
+        "source_native_files_unchanged": 134,
+        "source_native_tree_sha256": "sha256:807a0fae0e93185f181674ffb07b11bd50e713594bb6352250bc05f008fdc61c",
+        "queue_annotations_only_delta": {
+          "policy_rule": {
+            "frozen": null,
+            "native": "human-approval"
+          },
+          "submitted_at": {
+            "frozen": null,
+            "native": "2026-10-01T09:28:49.158401Z"
+          }
+        },
+        "capture": {
+          "source_capture_digest": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+          "linked_at": "2026-10-01T10:54:18.189831Z",
+          "job_id": "a160f6a0-8568-4dee-b431-e7bb76ae5e5b",
+          "captured_calls": 105,
+          "captured_assistant_turns": 105,
+          "atif_agent_steps": 102,
+          "atif_present": true,
+          "verdict": "trajectory_truncated",
+          "detail": "fewer ATIF agent steps (102) than captured assistant turns (105)",
+          "first_divergence": {
+            "kind": "count_mismatch"
+          },
+          "ambiguous_conversations": 0,
+          "ambiguous_trials": []
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001399",
+      "task_package_digest": "sha256:f8ea9d7813ebe8488f5286188616463e195612abe2284e069f09951d3c8a9405",
+      "seed": {
+        "trial_id": "7424984e-73eb-45f1-8d7f-314761ff0f33",
+        "trial_name": "har120-001399-a1__fwLaw2U",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001399-a1",
+        "counts_sha256": "sha256:da7a6e946141d22ebd3f55827a4b66462d5dedf12fd55f6a298877cbdbcfdac9",
+        "counts_verdict": "counted_fail",
+        "settled_proxy_input_tokens": 1758425,
+        "settled_proxy_output_tokens": 17294,
+        "settled_proxy_total_tokens": 1775719
+      },
+      "candidate": {
+        "trial_id": "c2b335d2-e630-4a88-baa9-e23d36259230",
+        "trial_name": "har135-c1-001399__hQhuW63",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399",
+        "native_receipts": {
+          "job_result": {
+            "sha256": "sha256:ace32f3afa270e175054cc4512f3471709243b24b688039465f56a6dd5829acb",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399/result.json"
+          },
+          "job_config": {
+            "sha256": "sha256:4ea144a80b235b1af3e97f2543e35e7186a2e34c930347b573aea0313f9d21f8",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399/config.json"
+          },
+          "job_lock": {
+            "sha256": "sha256:9e534eeaa43f99a6a9001bd44a05723d198b8cadefc17a9accef10766e3d2ba5",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399/lock.json"
+          },
+          "lab_metadata": {
+            "sha256": "sha256:e44c725bf4ded072d5b78edeaf98610012cf3efc7f38008848015dce85d1539f",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399/lab-metadata.json"
+          },
+          "trial_result": {
+            "sha256": "sha256:68f2222c0d0700dc119d38dc470d8e96284229847863b282f9a6e3be5ab95ec2",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399/har135-c1-001399__hQhuW63/result.json"
+          },
+          "trial_config": {
+            "sha256": "sha256:ad404b68226040ee852f3b76f4ab55ca94628fc8d53d94c4b33d01790e4ccb74",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399/har135-c1-001399__hQhuW63/config.json"
+          },
+          "trial_lock": {
+            "sha256": "sha256:6d9a0a855298d59a3f3f86e06764cbd13039506e162e481f7cdd3ff492c36fe0",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399/har135-c1-001399__hQhuW63/lock.json"
+          },
+          "counts_report": {
+            "sha256": "sha256:db736531f91a3e05153ce25d590a54c4efcf7b1aa50bf869ebf9bc007aa78208",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001399/processed/trial-har135-c1-001399__hQhuW63.json"
+          }
+        },
+        "counts_verdict": "counted_fail",
+        "raw_reward": 0,
+        "canonical_score": 0,
+        "cache_score": 0,
+        "settled_proxy_input_tokens": 955890,
+        "settled_proxy_output_tokens": 8930,
+        "settled_proxy_total_tokens": 964820,
+        "usage_unresolved_requests": 0,
+        "agent_stop": "LoopBreakStop",
+        "source_native_files_unchanged": 89,
+        "source_native_tree_sha256": "sha256:02aacae56fc60fc8bfcf01b3a072d92600853d0ccfc637b37d52e2f672e38068",
+        "queue_annotations_only_delta": {
+          "policy_rule": {
+            "frozen": null,
+            "native": "human-approval"
+          },
+          "submitted_at": {
+            "frozen": null,
+            "native": "2026-10-01T09:28:48.134971Z"
+          }
+        },
+        "capture": {
+          "source_capture_digest": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+          "linked_at": "2026-10-01T10:54:20.715233Z",
+          "job_id": "9411777d-d8f7-4d8f-9eb5-cc991e2c839f",
+          "captured_calls": 59,
+          "captured_assistant_turns": 59,
+          "atif_agent_steps": 59,
+          "atif_present": true,
+          "verdict": "trajectory_truncated",
+          "detail": "captured assistant turn 0 absent from the ATIF",
+          "first_divergence": {
+            "kind": "missing_turn",
+            "turn_index": 0
+          },
+          "ambiguous_conversations": 0,
+          "ambiguous_trials": []
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-002680",
+      "task_package_digest": "sha256:205818a003ea443311e98770c8da6aeebfa5c04f71f4b72511f9f6d663cd6606",
+      "seed": {
+        "trial_id": "53114429-a1fc-468e-ba64-409e4625d00e",
+        "trial_name": "har120-002680-a1__Ci4bEkf",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002680-a1",
+        "counts_sha256": "sha256:6eeaba29369d29d7fdb259f9048dcdf872a2a33fb8a5716adec2216a76a4ab92",
+        "counts_verdict": "counted_fail",
+        "settled_proxy_input_tokens": 2458142,
+        "settled_proxy_output_tokens": 17377,
+        "settled_proxy_total_tokens": 2475519
+      },
+      "candidate": {
+        "trial_id": "53f3abd1-2d81-4d8e-898e-594df6ba1bc7",
+        "trial_name": "har135-c1-002680__zznD4M9",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680",
+        "native_receipts": {
+          "job_result": {
+            "sha256": "sha256:5f2e60b42b228359986ddd2aac359a7763c8c8742c039be76e12781243e84e8a",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680/result.json"
+          },
+          "job_config": {
+            "sha256": "sha256:a49e13b17bfd415442693032a08f73f1cf4a73a3bd9b52ffeac9f6e97d7f9136",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680/config.json"
+          },
+          "job_lock": {
+            "sha256": "sha256:0e835c6278776693aebb512aeddb2734a2fc4b12b64640c46697338921681f2e",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680/lock.json"
+          },
+          "lab_metadata": {
+            "sha256": "sha256:8d1d011360833a19f19dabc554bb4529285fbbc49a6729396b93c650721401a4",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680/lab-metadata.json"
+          },
+          "trial_result": {
+            "sha256": "sha256:6cbd1b4e084b15521d7149f49cd3643df96b4ad637cbd61b12102469dcad3e61",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680/har135-c1-002680__zznD4M9/result.json"
+          },
+          "trial_config": {
+            "sha256": "sha256:a517f12c87fe93012d489712cca2da6080e0a574f856efa3d1bbd62c94635485",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680/har135-c1-002680__zznD4M9/config.json"
+          },
+          "trial_lock": {
+            "sha256": "sha256:5843313eba2edc24670e9a5eab5f44d0882ae7cc19d1b7c6da2cb1f8b45550bd",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680/har135-c1-002680__zznD4M9/lock.json"
+          },
+          "counts_report": {
+            "sha256": "sha256:26ce16a5fbed211402cf0bc2259d0a2a97dfb48452892d11b76f642c5ede1e31",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-002680/processed/trial-har135-c1-002680__zznD4M9.json"
+          }
+        },
+        "counts_verdict": "counted_fail",
+        "raw_reward": 0,
+        "canonical_score": 0,
+        "cache_score": 0,
+        "settled_proxy_input_tokens": 2184864,
+        "settled_proxy_output_tokens": 32627,
+        "settled_proxy_total_tokens": 2217491,
+        "usage_unresolved_requests": 0,
+        "agent_stop": "LoopBreakStop",
+        "source_native_files_unchanged": 138,
+        "source_native_tree_sha256": "sha256:1eed110a408f8f1284045241ad119a22e81aef18f4d078f939b1a9ec1351a98f",
+        "queue_annotations_only_delta": {
+          "policy_rule": {
+            "frozen": null,
+            "native": "human-approval"
+          },
+          "submitted_at": {
+            "frozen": null,
+            "native": "2026-10-01T09:28:50.176818Z"
+          }
+        },
+        "capture": {
+          "source_capture_digest": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+          "linked_at": "2026-10-01T10:54:23.236973Z",
+          "job_id": "8262d4d5-c6b2-4bae-8b14-104750a9f0c8",
+          "captured_calls": 109,
+          "captured_assistant_turns": 109,
+          "atif_agent_steps": 105,
+          "atif_present": true,
+          "verdict": "trajectory_truncated",
+          "detail": "fewer ATIF agent steps (105) than captured assistant turns (109)",
+          "first_divergence": {
+            "kind": "count_mismatch"
+          },
+          "ambiguous_conversations": 0,
+          "ambiguous_trials": []
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001661",
+      "task_package_digest": "sha256:7281bec0244739c8c679d5ae2252ca13dcfd8d442b5993c4cb1347dbd7a78f7c",
+      "seed": {
+        "trial_id": "65685955-910c-4f92-afbc-e81c03eb5151",
+        "trial_name": "har120-001661-a1__xdRDCYr",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001661-a1",
+        "counts_sha256": "sha256:d0e6e4fb6722c6a0b069f124e547beb563289411d68f29ad4189c80bcf014a33",
+        "counts_verdict": "counted_fail",
+        "settled_proxy_input_tokens": 1189308,
+        "settled_proxy_output_tokens": 17722,
+        "settled_proxy_total_tokens": 1207030
+      },
+      "candidate": {
+        "trial_id": "b86ab440-da3d-4a25-9c5e-036a7a8caf66",
+        "trial_name": "har135-c1-001661__axtUtKL",
+        "source_native_job": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661",
+        "native_receipts": {
+          "job_result": {
+            "sha256": "sha256:c4706ec0fe4f93afb8e5047e2cb9329dca441fe977fc1c69ee2f5a2c8797b8a9",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661/result.json"
+          },
+          "job_config": {
+            "sha256": "sha256:06ca472ac22571c52bbd808b708e7ec3f380b953a50e7e7829f3c465e9e21a98",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661/config.json"
+          },
+          "job_lock": {
+            "sha256": "sha256:f9b4d6583bf547e3a5beb15ca2319c42917cd50792c80908386d45de7e57ede4",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661/lock.json"
+          },
+          "lab_metadata": {
+            "sha256": "sha256:ead63e0015d48b72795ca0b8a7fa08a01a622ca5cf055188d0fe24d9617fd63c",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661/lab-metadata.json"
+          },
+          "trial_result": {
+            "sha256": "sha256:317dda8981ff72f83d988e62b5519146717604f63cff5474d1dc81343d81fc12",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661/har135-c1-001661__axtUtKL/result.json"
+          },
+          "trial_config": {
+            "sha256": "sha256:bfb11142da0a8e1618a19ef0e8edee51880c0bfcb5b2ffcd7b72b65a6868cb78",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661/har135-c1-001661__axtUtKL/config.json"
+          },
+          "trial_lock": {
+            "sha256": "sha256:48afba6ca20f3ec7c41868e673ced5c6fd0cb604cbba00e4853e30e8a3148b17",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661/har135-c1-001661__axtUtKL/lock.json"
+          },
+          "counts_report": {
+            "sha256": "sha256:77c65395902b7385da8afb75a10d1020fff8c1235bd5b4024db66d822becbcdb",
+            "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-135-har135-c1-001661/processed/trial-har135-c1-001661__axtUtKL.json"
+          }
+        },
+        "counts_verdict": "counted_pass",
+        "raw_reward": 1,
+        "canonical_score": 1,
+        "cache_score": 1,
+        "settled_proxy_input_tokens": 886794,
+        "settled_proxy_output_tokens": 6413,
+        "settled_proxy_total_tokens": 893207,
+        "usage_unresolved_requests": 0,
+        "agent_stop": null,
+        "source_native_files_unchanged": 67,
+        "source_native_tree_sha256": "sha256:81ee1d488fe4cb9197011f17d6f5a2fc462d9b9ac697903679e48a46a6e89576",
+        "queue_annotations_only_delta": {
+          "policy_rule": {
+            "frozen": null,
+            "native": "human-approval"
+          },
+          "submitted_at": {
+            "frozen": null,
+            "native": "2026-10-01T09:28:48.652899Z"
+          }
+        },
+        "capture": {
+          "source_capture_digest": "sha256:ada914c85c9d0132af618b387ae97425db644e11f4e8bbac1f9163841ea20597",
+          "linked_at": "2026-10-01T10:54:25.743478Z",
+          "job_id": "107fa5b9-7dad-4a53-b034-a91f3d56b55b",
+          "captured_calls": 59,
+          "captured_assistant_turns": 59,
+          "atif_agent_steps": 59,
+          "atif_present": true,
+          "verdict": "trajectory_truncated",
+          "detail": "captured assistant turn 0 absent from the ATIF",
+          "first_divergence": {
+            "kind": "missing_turn",
+            "turn_index": 0
+          },
+          "ambiguous_conversations": 0,
+          "ambiguous_trials": []
+        }
+      }
+    }
+  ]
+}

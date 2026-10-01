@@ -70,6 +70,7 @@ RUNTIME_PREFIXES = ("terminus/sessions/", "terminus/trials/")
 #: Candidate behavior knobs a tree may set (exact contract set).
 ALLOWED_KNOBS = frozenset(
     {
+        "completion_fix",
         "enable_summarize",
         "interleaved_thinking",
         "llm_call_kwargs",
@@ -166,12 +167,15 @@ def _validate_config(config: dict[str, Any]) -> None:
                 + " is model/transport binding, not candidate behavior: "
                 "candidates vary Terminus behavior, never provider routing"
             )
-    # HAR-116 loop fix. Both default off; a tree opts in by setting them.
-    # The adapter rejects the same bad values, but a tree that cannot be
-    # loaded never gets as far as a launch.
+    # HAR-116 loop fix and completion fix. All default off; a tree opts in
+    # by setting them. The adapter rejects the same bad values, but a tree
+    # that cannot be loaded never gets as far as a launch.
     loop_break = config.get("loop_break")
     if loop_break is not None and not isinstance(loop_break, bool):
         raise ValueError("terminus config loop_break must be a boolean")
+    completion_fix = config.get("completion_fix")
+    if completion_fix is not None and not isinstance(completion_fix, bool):
+        raise ValueError("terminus config completion_fix must be a boolean")
     cap = config.get("output_cap_chars")
     if cap is not None and (isinstance(cap, bool) or not isinstance(cap, int) or cap < 2):
         raise ValueError("terminus config output_cap_chars must be an integer of at least 2")

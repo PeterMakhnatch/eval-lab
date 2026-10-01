@@ -109,6 +109,7 @@ __all__ = [
     "MIMO_RAW_COMMAND_FUNCTION",
     "MimoToolCallParser",
     "executed_keystrokes",
+    "has_native_completion",
     "normalize_mimo_tool_calls",
     "prose_completion",
 ]
@@ -277,6 +278,35 @@ def _completion_call(body: str) -> bool:
         return True
     value = arguments.get(MIMO_COMPLETE_FUNCTION)
     return set(arguments) == {MIMO_COMPLETE_FUNCTION} and (value is True or value == "true")
+
+
+#: ``"task_complete": true`` carried as JSON inside a native call body.
+_NATIVE_JSON_COMPLETION_RE = re.compile(r'"task_complete"\s*:\s*(true|"true")', re.IGNORECASE)
+#: ``<parameter=task_complete>true</parameter>`` inside a native call body.
+_NATIVE_PARAM_COMPLETION_RE = re.compile(
+    r"<parameter=task_complete>\s*true\s*</parameter>", re.IGNORECASE
+)
+
+
+def has_native_completion(response: str | None) -> bool:
+    """Whether a raw MiMo turn carries a native completion signal (HAR-96).
+
+    True for a ``task_complete`` tool call (lone or beside other calls) and
+    for ``"task_complete": true`` inside a native call body (JSON argument
+    or ``<parameter=task_complete>``). A bare Terminus object with
+    ``task_complete`` and no native markup is not native, and prose that
+    merely mentions the word without call markup never matches.
+    """
+    if not isinstance(response, str) or not response:
+        return False
+    for match in _CALL_OPENER.finditer(response):
+        if match.group(1) == MIMO_COMPLETE_FUNCTION:
+            return True
+    if _NATIVE_MARKUP.search(response) is None:
+        return False
+    return bool(
+        _NATIVE_JSON_COMPLETION_RE.search(response) or _NATIVE_PARAM_COMPLETION_RE.search(response)
+    )
 
 
 class _RepairBudgetExceeded(Exception):

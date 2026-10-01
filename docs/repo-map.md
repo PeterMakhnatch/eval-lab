@@ -153,7 +153,7 @@ inputs:
   - path: src/evallab/harbor_state_journal.py
     digest: sha256:9b95447082a99c2b8316ec183c97f27a3de3978758e828433b299a51526fe494
   - path: src/evallab/harbor_terminus.py
-    digest: sha256:4a295ebc2b0d93f913ba9fe61925b38d1b0fe272c91bd353e1ad3b0fdcc53b79
+    digest: sha256:b7ea67abd9d5b94912921021b76d31c0fe96d71438a42c8d2e97bd05e65680cb
   - path: src/evallab/harbor_zai_miniswe.py
     digest: sha256:61a6c4a69a59cc193e14d802575b945446ee8a74e7bab6c7447346003681a6b3
   - path: src/evallab/harbor_zai_opencode.py
@@ -273,7 +273,7 @@ inputs:
   - path: src/evallab/mimo_exploit.py
     digest: sha256:6cae5a54b46de6abd00f96790fde2081868bd45561cc4092bb78f56321bf56dc
   - path: src/evallab/mimo_tool_calls.py
-    digest: sha256:1a2f02e391de0e2c26c45b8e4f95218e33e027d91d7f566e8b19ec8d19fb0162
+    digest: sha256:c3fa6d7d6b87fd5d73992cc425175742b42210779cb7037582e609a32da9c2f6
   - path: src/evallab/mini_observation_masking.py
     digest: sha256:332e2a92b2db066699d7b4582992e40d710f884146705a9699dfa8ec24d17883
   - path: src/evallab/modal_billing.py
@@ -435,7 +435,7 @@ inputs:
   - path: src/evallab/task_workbench.py
     digest: sha256:a533e57816d80e550bbb8656cd6765abf99162d4b3c0098ce65f71ddc22a3c76
   - path: src/evallab/terminus_harness.py
-    digest: sha256:fbe6b847101cde2d62bee32e7e75919512266e34f3047861c3ba6ba9234a9933
+    digest: sha256:27fc9f4148f9da233734056a683e72edd3a1175be5d5ca0f10692cd7eb5ba673
   - path: src/evallab/terminus_local.py
     digest: sha256:a7ef7a2916e5e1c5389d89206886711006e370bb23c8d5a97784f7b36bd76db2
   - path: src/evallab/tidy.py

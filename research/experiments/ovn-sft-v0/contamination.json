@@ -1,0 +1,180 @@
+{
+ "eval": {
+  "format-code-task-000169": {
+   "max_jaccard_pair": "format-code-task-000201",
+   "max_jaccard_vs_train": 0.0215,
+   "modules": [
+    "hpccm"
+   ]
+  },
+  "format-code-task-000332": {
+   "max_jaccard_pair": "format-code-task-001418",
+   "max_jaccard_vs_train": 0.0097,
+   "modules": [
+    "peekingduck"
+   ]
+  },
+  "format-code-task-000521": {
+   "max_jaccard_pair": "format-code-task-000670",
+   "max_jaccard_vs_train": 0.0093,
+   "modules": [
+    "pyabm"
+   ]
+  },
+  "format-code-task-000568": {
+   "max_jaccard_pair": "format-code-task-002786",
+   "max_jaccard_vs_train": 0.018,
+   "modules": [
+    "youtube_dlc"
+   ]
+  },
+  "format-code-task-000842": {
+   "max_jaccard_pair": "format-code-task-000472",
+   "max_jaccard_vs_train": 0.0037,
+   "modules": [
+    "libsaas"
+   ]
+  },
+  "format-code-task-001136": {
+   "max_jaccard_pair": "format-code-task-000542",
+   "max_jaccard_vs_train": 0.0013,
+   "modules": [
+    "piccolo"
+   ]
+  },
+  "format-code-task-001241": {
+   "max_jaccard_pair": "format-code-task-001418",
+   "max_jaccard_vs_train": 0.0046,
+   "modules": [
+    "pyalgotrade"
+   ]
+  },
+  "format-code-task-001285": {
+   "max_jaccard_pair": "format-code-task-001418",
+   "max_jaccard_vs_train": 0.0062,
+   "modules": [
+    "pyftpdlib"
+   ]
+  },
+  "format-code-task-001355": {
+   "max_jaccard_pair": "format-code-task-002106",
+   "max_jaccard_vs_train": 0.0093,
+   "modules": [
+    "magika",
+    "onnxruntime"
+   ]
+  },
+  "format-code-task-001606": {
+   "max_jaccard_pair": "format-code-task-002848",
+   "max_jaccard_vs_train": 0.009,
+   "modules": [
+    "deepdow"
+   ]
+  },
+  "format-code-task-001626": {
+   "max_jaccard_pair": "format-code-task-001418",
+   "max_jaccard_vs_train": 0.02,
+   "modules": [
+    "dulwich"
+   ]
+  },
+  "format-code-task-001695": {
+   "max_jaccard_pair": "format-code-task-002443",
+   "max_jaccard_vs_train": 0.0064,
+   "modules": [
+    "skfem"
+   ]
+  },
+  "format-code-task-001765": {
+   "max_jaccard_pair": "format-code-task-000341",
+   "max_jaccard_vs_train": 0.0048,
+   "modules": [
+    "lbry"
+   ]
+  },
+  "format-code-task-001769": {
+   "max_jaccard_pair": "format-code-task-002391",
+   "max_jaccard_vs_train": 0.0147,
+   "modules": [
+    "lenstronomy"
+   ]
+  },
+  "format-code-task-001797": {
+   "max_jaccard_pair": "format-code-task-002341",
+   "max_jaccard_vs_train": 0.0022,
+   "modules": [
+    "linodecli"
+   ]
+  },
+  "format-code-task-001809": {
+   "max_jaccard_pair": "format-code-task-000365",
+   "max_jaccard_vs_train": 0.0196,
+   "modules": [
+    "localstack"
+   ]
+  },
+  "format-code-task-002017": {
+   "max_jaccard_pair": "format-code-task-001612",
+   "max_jaccard_vs_train": 0.0109,
+   "modules": [
+    "napari"
+   ]
+  },
+  "format-code-task-002209": {
+   "max_jaccard_pair": "format-code-task-002201",
+   "max_jaccard_vs_train": 0.0117,
+   "modules": [
+    "fastparquet"
+   ]
+  },
+  "format-code-task-002302": {
+   "max_jaccard_pair": "format-code-task-003059",
+   "max_jaccard_vs_train": 0.0,
+   "modules": [
+    "powerline"
+   ]
+  },
+  "format-code-task-002578": {
+   "max_jaccard_pair": "format-code-task-001622",
+   "max_jaccard_vs_train": 0.0091,
+   "modules": [
+    "maestral"
+   ]
+  }
+ },
+ "near_dup_threshold": 0.3,
+ "shingle_words": 5,
+ "skipped": {
+  "format-code-task-000143": "module shared with the training split: ['torch']",
+  "format-code-task-000145": "training-split tasks use its modules: ['format-code-task-000141']",
+  "format-code-task-000147": "training-split tasks use its modules: ['format-code-task-000141']",
+  "format-code-task-000324": "repository aiohttp has training-split tasks",
+  "format-code-task-000337": "training-split tasks use its modules: ['format-code-task-000338', 'format-code-task-000339']",
+  "format-code-task-000379": "repository unknown",
+  "format-code-task-000767": "repository unknown",
+  "format-code-task-000843": "repository pil has training-split tasks",
+  "format-code-task-000992": "repository ansible_collections has training-split tasks",
+  "format-code-task-001216": "repository unknown",
+  "format-code-task-001480": "module shared with the training split: ['homeassistant']",
+  "format-code-task-001490": "repository homeassistant has training-split tasks",
+  "format-code-task-001503": "repository unknown",
+  "format-code-task-001614": "repository unknown",
+  "format-code-task-001670": "module shared with the training split: ['data', 'torch']",
+  "format-code-task-001918": "tests name no project module",
+  "format-code-task-002015": "repository already picked",
+  "format-code-task-002052": "repository nilearn has training-split tasks",
+  "format-code-task-002053": "repository nilearn has training-split tasks",
+  "format-code-task-002216": "tests name no project module",
+  "format-code-task-002283": "repository smart_open has training-split tasks",
+  "format-code-task-002306": "repository unknown",
+  "format-code-task-002335": "repository torch has training-split tasks",
+  "format-code-task-002410": "tests name no project module",
+  "format-code-task-002446": "tests name no project module",
+  "format-code-task-002619": "repository unknown",
+  "format-code-task-002850": "repository sqlmesh has training-split tasks",
+  "format-code-task-002865": "repository sqlglot has training-split tasks",
+  "format-code-task-002872": "tests name no project module",
+  "format-code-task-002940": "repository unknown",
+  "format-code-task-002974": "repository vyper has training-split tasks"
+ }
+}

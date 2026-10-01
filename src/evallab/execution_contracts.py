@@ -1824,7 +1824,7 @@ def build_command(request: RunRequest) -> list[str]:
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     if resolve_egress_lock(request):
-        if not (terminus_daytona or control_daytona):
+        if request.environment != "daytona" or request.agent not in {"terminus-2", "nop", "oracle"}:
             raise ValueError(
                 "egress_lock=true is only supported for terminus-2/nop/oracle on daytona"
             )

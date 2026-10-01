@@ -30,8 +30,8 @@ sys.path.insert(0, str(ROOT / "tools/modal-mimo-sft"))
 
 import sft  # noqa: E402
 import torch  # noqa: E402
-import trl  # noqa: E402
 import transformers  # noqa: E402
+import trl  # noqa: E402
 from transformers import Qwen2Config, Qwen2ForCausalLM  # noqa: E402
 
 

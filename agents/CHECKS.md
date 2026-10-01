@@ -61,6 +61,12 @@ trigger and dependency handling fail closed, including merge-group support.
 The ty job fails on any diagnostic. Keep the local premerge baseline and the
 GitHub `typecheck` workflow at zero; never restore a positive baseline.
 
+The test matrix caches uv download/build artifacts, keyed by OS, architecture,
+Python, uv version and lock digest—not `.venv`. Locked sync and every test shard
+still run on a cache hit. Cache-transfer segments abort after two minutes; the
+ten-minute job cap is unchanged. On cancellation, inspect setup and pytest
+durations separately before attributing the timeout to a hanging test.
+
 Run focused checks or explicit premerge before pushing. Before final review and
 doc freshness checks, run explicit `make docs` to regenerate `docs/INDEX.md` and
 `docs/repo-map.md`.

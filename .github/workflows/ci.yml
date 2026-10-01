@@ -62,6 +62,13 @@ jobs:
         run: |
           uv python install ${{ matrix.python-version }}
           echo "UV_PYTHON=${{ matrix.python-version }}" >> $GITHUB_ENV
+      - name: Cache locked Python packages
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        env:
+          SEGMENT_DOWNLOAD_TIMEOUT_MINS: 2
+        with:
+          path: ~/.cache/uv
+          key: uv-0.9.24-${{ runner.os }}-${{ runner.arch }}-${{ matrix.python-version }}-${{ hashFiles('uv.lock') }}
       - name: Sync with benchmark and lance test dependencies (fastmcp, cryptography, lancedb)
         run: uv sync --locked --no-group observability --group benchmarks --group lance
       - name: Full test suite

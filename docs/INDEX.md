@@ -17,7 +17,7 @@ inputs:
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:fc2179db1df818f6149862127af8b9679b3ea6bcea06fbcdcbc7e35b59c65e0f
   - path: docs/SYSTEM.md
-    digest: sha256:67d5ca629e0c2474e15fdef59658b54362addae61fc4fc3cab0cceac67ea363e
+    digest: sha256:27d716de9252ceb013a6927e91167ccc29fdd933cbd12206aa4c621826483c0d
   - path: docs/WHERE-DOES-THIS-GO.md
     digest: sha256:f8c26556e4f54b6a10c85ac1c40243ecfe58da776e4da6561b197ac9d28782a1
   - path: docs/agent-analysis.md

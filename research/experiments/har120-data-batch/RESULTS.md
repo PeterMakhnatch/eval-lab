@@ -1,7 +1,7 @@
 # G2 data batch (HAR-120 x lf2): results
 
-Generated 2026-10-01T10:11Z by `build_report.py` (research/experiments/har120-data-batch/build_report.py --live-root /Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live --capture g2=/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g2 --capture g2b=/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g2b --capture g2c=/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g2c --sampler g2=/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/g2-telemetry.jsonl --sampler g2b=/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/g2b-telemetry.jsonl --sampler g2c=/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/g2c-telemetry.jsonl --out research/experiments/har120-data-batch --no-maintenance).
-Run worktree /Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live at `ba8d8358`; harness lf2 `sha256:f18091f344b075230bf99744fb92dd75c1e9ebe67f5cb15027a0d6ce791456be`.
+Generated 2026-10-01T10:24Z by `build_report.py` (research/experiments/har120-data-batch/build_report.py --live-root /Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live --capture g2=/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g2 --capture g2b=/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g2b --capture g2c=/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g2c --sampler g2=/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/g2-telemetry.jsonl --sampler g2b=/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/g2b-telemetry.jsonl --sampler g2c=/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/g2c-telemetry.jsonl --out research/experiments/har120-data-batch --no-maintenance).
+Run worktree /Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live at `8021fb8a`; harness lf2 `sha256:f18091f344b075230bf99744fb92dd75c1e9ebe67f5cb15027a0d6ce791456be`.
 Scope: 30 tasks x 2 attempts = 60 cells; 64 jobs finished, 36 pending/absent.
 
 Token rule: input/output tokens are PROXY-SETTLED ledger totals (`lab-metadata.json` provider_usage.totals), never tokens_proxy unverified and never native step sums (HAR-131/Cdx-2 defect; #609 merged and verified per trial below).
@@ -12,6 +12,9 @@ Stop rule: canonical stop prefers `diagnosis.exception_class`, then `token_flow.
 Wave 1 (tick 1, 20 jobs, 08:01Z–09:02Z): 2 counted_pass, 15 counted_fail, 2 excluded (taint), 1 infra.
 Settled tokens over wave-1 counted scope (pass + fail, 17 trials): 25,448,738 in / 222,220 out in 1,221 calls.
 Raw verifier pass rate (counted scope): 2/17 = 11.8%.
+r2 infra re-runs (22 of 40 specs finished, 09:23Z–09:51Z): 5 counted_pass, 14 counted_fail, 3 excluded (taint), 0 infra.
+Settled tokens over r2 counted scope (pass + fail, 19 trials): 31,689,785 in / 231,482 out in 1,483 calls.
+18 r2 specs not run (refused, lab defect): the tick refused them at 09:30:18–19Z with `dispatch_refused / quiet_failure_rule` because LoopBreakStop was missing from AGENT_STOP_EXCEPTIONS at ba8d8358 (fixed on main by #643). No job dirs exist; nothing is counted. Jobs: har120-001399-a2-r2, har120-001609-a2-r2, har120-001618-a2-r2, har120-001647-a2-r2, har120-001661-a2-r2, har120-001710-a2-r2, har120-001820-a2-r2, har120-001865-a2-r2, har120-001870-a2-r2, har120-001897-a2-r2, har120-002104-a2-r2, har120-002356-a2-r2, har120-002393-a2-r2, har120-002416-a2-r2, har120-002552-a2-r2, har120-002555-a2-r2, har120-002680-a2-r2, har120-002938-a2-r2.
 
 ## 2. Per-task table
 
@@ -55,50 +58,68 @@ Raw verifier pass rate (counted scope): 2/17 = 11.8%.
 | 001373 | 2 | har120-001373-a2-r2 | 1.0 | excluded:copied_fix+pass_tainted | 233,429 / 5,013 | 30 | confirmed completion | - | trajectory_truncated 30/30 |
 | 001399 | 1 | har120-001399-a1 | 0.0 | counted_fail | 1,758,425 / 17,294 | 87 | LoopBreakStop | 71 -> 86 | trajectory_truncated 87/87 |
 | 001399 | 2 | har120-001399-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001399 | 2 | har120-001399-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001609 | 1 | har120-001609-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 001609 | 1 | har120-001609-a1-r2 | 0.0 | counted_fail | 1,954,851 / 20,091 | 75 | LoopBreakStop | 60 -> 75 | trajectory_truncated 75/75 |
 | 001609 | 2 | har120-001609-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001609 | 2 | har120-001609-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001618 | 1 | har120-001618-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 001618 | 1 | har120-001618-a1-r2 | 0.0 | counted_fail | 1,201,329 / 12,633 | 79 | LoopBreakStop | 64 -> 79 | trajectory_truncated 79/79 |
 | 001618 | 2 | har120-001618-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001618 | 2 | har120-001618-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001647 | 1 | har120-001647-a1 | None | infra | - / - | 0 | infra (tmux missing) | - | capture_missing 0/0 |
 | 001647 | 2 | har120-001647-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001647 | 2 | har120-001647-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001661 | 1 | har120-001661-a1 | 0.0 | counted_fail | 1,189,308 / 17,722 | 56 | LoopBreakStop | 41 -> 56 | trajectory_truncated 56/56 |
 | 001661 | 2 | har120-001661-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001661 | 2 | har120-001661-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001710 | 1 | har120-001710-a1 | 0.0 | counted_fail | 2,082,993 / 5,648 | 94 | LoopBreakStop | 79 -> 94 | trajectory_truncated 94/94 |
 | 001710 | 2 | har120-001710-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001710 | 2 | har120-001710-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001820 | 1 | har120-001820-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 001820 | 1 | har120-001820-a1-r2 | 0.0 | counted_fail | 315,215 / 5,016 | 32 | confirmed completion | - | trajectory_truncated 32/32 |
 | 001820 | 2 | har120-001820-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001820 | 2 | har120-001820-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001865 | 1 | har120-001865-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 001865 | 1 | har120-001865-a1-r2 | 0.0 | counted_fail | 1,168,348 / 10,980 | 59 | LoopBreakStop | 44 -> 59 | trajectory_truncated 59/59 |
 | 001865 | 2 | har120-001865-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001865 | 2 | har120-001865-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001870 | 1 | har120-001870-a1 | 1.0 | excluded:copied_fix+pass_tainted | 2,365,815 / 32,329 | 120 | TrialBudgetExhausted (request ceiling) | - | trajectory_truncated 120/120 |
 | 001870 | 2 | har120-001870-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001870 | 2 | har120-001870-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 001897 | 1 | har120-001897-a1 | 0.0 | counted_fail | 1,501,027 / 27,897 | 62 | LoopBreakStop | 45 -> 60 | trajectory_truncated 62/62 |
 | 001897 | 2 | har120-001897-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 001897 | 2 | har120-001897-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 002104 | 1 | har120-002104-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 002104 | 1 | har120-002104-a1-r2 | 0.0 | counted_fail | 2,413,962 / 17,295 | 85 | TrialBudgetExhausted (input-token ceiling) | - | trajectory_truncated 85/85 |
 | 002104 | 2 | har120-002104-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 002104 | 2 | har120-002104-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 002356 | 1 | har120-002356-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 002356 | 1 | har120-002356-a1-r2 | 1.0 | excluded:copied_fix+pass_tainted | 1,592,090 / 11,918 | 73 | LoopBreakStop | 58 -> 73 | trajectory_truncated 73/73 |
 | 002356 | 2 | har120-002356-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 002356 | 2 | har120-002356-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 002393 | 1 | har120-002393-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 002393 | 1 | har120-002393-a1-r2 | 0.0 | counted_fail | 275,421 / 3,705 | 40 | LoopBreakStop | 25 -> 40 | trajectory_truncated 40/40 |
 | 002393 | 2 | har120-002393-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 002393 | 2 | har120-002393-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 002416 | 1 | har120-002416-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 002416 | 1 | har120-002416-a1-r2 | 1.0 | counted_pass | 2,265,118 / 13,468 | 120 | TrialBudgetExhausted (request ceiling) | - | trajectory_truncated 120/120 |
 | 002416 | 2 | har120-002416-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 002416 | 2 | har120-002416-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 002552 | 1 | har120-002552-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 002552 | 1 | har120-002552-a1-r2 | 1.0 | counted_pass | 2,464,413 / 11,815 | 95 | TrialBudgetExhausted (input-token ceiling) | nudge 59 (no stop) | trajectory_truncated 95/95 |
 | 002552 | 2 | har120-002552-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 002552 | 2 | har120-002552-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 002555 | 1 | har120-002555-a1 | None | infra | 0 / 0 | 27 | infra (upstream 503) | - | complete 27/27 |
 | 002555 | 1 | har120-002555-a1-r2 | 1.0 | counted_pass | 1,490,570 / 15,680 | 65 | LoopBreakStop | 50 -> 65 | trajectory_truncated 65/65 |
 | 002555 | 2 | har120-002555-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 002555 | 2 | har120-002555-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 002680 | 1 | har120-002680-a1 | 0.0 | counted_fail | 2,458,142 / 17,377 | 89 | TrialBudgetExhausted (input-token ceiling) | - | trajectory_truncated 89/89 |
 | 002680 | 2 | har120-002680-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 002680 | 2 | har120-002680-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 | 002938 | 1 | har120-002938-a1 | 1.0 | counted_pass | 485,421 / 4,929 | 51 | LoopBreakStop | 36 -> 51 | trajectory_truncated 51/51 |
 | 002938 | 2 | har120-002938-a2 | None | pending | - / - | - | absent | - | refused/absent |
+| 002938 | 2 | har120-002938-a2-r2 | None | not run (refused) | - / - | - | refused | - | n/a (refused; lab defect, see section 1) |
 
 ## 3. Infra-failed originals (no counted outcome)
 
@@ -170,7 +191,7 @@ Round g2c: 22 trials, 1684 calls, latency p50=5.215785s p90=13.285194s, peak cal
 Sampler g2: 233 probes (233 healthy): running peak=13.0 mean=1.19; queue peak=0.0 mean=0.0; gen peak=694.4 mean=72.0 tok/s; token usage peak=0.35 mean=0.035.
 Sampler g2b: 11 probes, 11 SGLang-503 (cold upstream); no healthy gauges.
 Sampler g2c: 107 probes (107 healthy): running peak=17.0 mean=2.46; queue peak=0.0 mean=0.0; gen peak=659.7 mean=156.7 tok/s; token usage peak=0.31 mean=0.072.
-Capture g2: 4306 calls, upstream latency p50=1.59s p90=4.9s, errors=0, status={'200': 3712, '503': 594}.
+Capture g2: 4319 calls, upstream latency p50=1.59s p90=4.9s, errors=0, status={'200': 3725, '503': 594}.
 Capture g2b: 0 calls (capture file empty).
 Capture g2c: 0 calls (capture file empty).
 

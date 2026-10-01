@@ -1,0 +1,58 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "The duplicate helpers got removed entirely. Let me re-add them once, right before the AsyncClient's `web_search`",
+      "ref": "head#37"
+    },
+    {
+      "quote": "the module-level helpers ended up placed after the class (they were inserted before `web_search` inside AsyncClient)",
+      "ref": "head#40"
+    },
+    {
+      "quote": "grep -c _iter_stream_response -> 7; defs at 126, 647, 679",
+      "ref": "head#50"
+    },
+    {
+      "quote": "idxs [] / IndexError: list index out of range",
+      "ref": "head#51"
+    },
+    {
+      "quote": "The file is badly corrupted from all the edits.",
+      "ref": "head#83"
+    },
+    {
+      "quote": "SyntaxError: '(' was never closed (ollama/_client.py, line 489)",
+      "ref": "verifier/test_output.log"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call",
+      "ref": "exception.txt"
+    },
+    {
+      "quote": "Since there's no git (but git log ran fine at head#3)",
+      "ref": "head#71"
+    }
+  ],
+  "first_failure": {
+    "quote": "Let me re-add them once, right before the AsyncClient's `web_search`",
+    "ref": "head#37",
+    "what": "Re-inserted stream helpers inside the AsyncClient class body, misplacing/duplicating blocks and starting a corruption cascade (dup defs, eaten braces) never repaired despite git being available"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#50",
+    "head#86"
+  ],
+  "notes": "Reward 0 (collection SyntaxError). Token ceiling: 86 episodes < 120-request limit with 2.41M input tokens vs 2.5M limit. Steps 50-86 repeat grep-count/python-dedup/sed-inspect on _iter_stream_response with zero progress; never claimed completion (0 prose completions). Also deleted examples/gpt-oss-tools-stream.py.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-002104-a1-r2__NuAxYam"
+}

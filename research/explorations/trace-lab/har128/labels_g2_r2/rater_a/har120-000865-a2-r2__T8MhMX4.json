@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "secretchecksum: {{ include (print .Template.BasePath \"/secret.yaml\") . | sha256sum | trunc 63 }}",
+      "ref": "head#18"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete?",
+      "ref": "head#36"
+    },
+    {
+      "quote": "The fix adds a `secretchecksum` annotation to the Logstash StatefulSet pod template ... all 39 tests pass.",
+      "ref": "head#67"
+    },
+    {
+      "quote": "echo \"task complete\"",
+      "ref": "head#67"
+    }
+  ],
+  "first_failure": {
+    "quote": "secretchecksum: {{ include (print .Template.BasePath \"/secret.yaml\") . | sha256sum | trunc 63 }}",
+    "ref": "head#18",
+    "what": "inserted singular secretchecksum annotation; hidden tests require plural secretschecksum"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#36",
+    "head#67"
+  ],
+  "notes": "Hidden tests assert secretschecksum (plural); agent wrote secretchecksum (singular) and its own added test asserted the singular name, so local pass masked the error. LoopBreakStop with stop_call=66 after ~30 turns of completion claims.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-000865-a2-r2__T8MhMX4"
+}

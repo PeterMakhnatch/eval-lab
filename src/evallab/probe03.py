@@ -3071,6 +3071,7 @@ def grader_collection_error(trial_dir: Path) -> str | None:
 
 EXCEPTION_STOP = {
     "AgentTimeoutError": "agent_timeout",
+    "LoopBreakStop": "loop_break",
     "RateLimitError": "trial_budget_exhausted",
     "AuthenticationError": "model_auth_error",
 }

@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "if key_lower == \"description\":\ndescription_lines = value.splitlines()",
+      "ref": "head#4"
+    },
+    {
+      "quote": "if key_lower == \"description\" and value:",
+      "ref": "head#6"
+    },
+    {
+      "quote": "mark_task_complete",
+      "ref": "head#13"
+    },
+    {
+      "quote": "echo done",
+      "ref": "head#14"
+    },
+    {
+      "quote": "you are repeating; change approach or finish",
+      "ref": "head#26"
+    }
+  ],
+  "first_failure": {
+    "quote": "if key_lower == \"description\" and value:",
+    "ref": "head#6",
+    "what": "added `and value` guard that avoids the IndexError but routes empty descriptions into the generic header path, leaving Description='' instead of omitting it (hidden test expects None)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#14",
+    "head#41"
+  ],
+  "notes": "Reward 0.0: hidden test test_convert_pkg_info_empty_description_not_added_as_header fails (assert metadata.get('Description') is None, got ''). Local visible suite was green at head#13 so model claimed completion, then echo-claim loop to LoopBreakStop (40 calls, nudge 25). No upstream fetching; only visible repo tests read.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-002393-a1-r2__eFhhz27"
+}

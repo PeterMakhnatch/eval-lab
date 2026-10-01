@@ -47,14 +47,20 @@ An explicit or declared card that disagrees with the job-name prefix fails
 closed to `unattributed` with a conflict note — task, model, harness, and app
 names are never attribution. Modal billed cost splits by app (one row per
 billed app); an app takes a card only through an explicit binding, otherwise
-it stays an `unattributed` residual line (the G5 apps served several cards'
-jobs from shared containers, so no app binding is declared). Jobs with no
-binding at all stay `unattributed`; republishing with an explicit
+it stays an `unattributed` residual line. G5 deployment intervals do not prove
+whole-day ownership of every billed app object, so no app binding is declared.
+Jobs with no binding at all stay `unattributed`; republishing with an explicit
 `publication_card` binds the results home without rewriting raw records.
 Provider limits: the Daytona API exposes quota snapshots only (no billed
 dollars, so Daytona rows stay estimates), and Modal bills the account rather
 than jobs (per-job GPU shares come only from an explicit HAR-131 session
 receipt).
+
+Prepare future jobs with `evallab tasks prepare ... --linear-card HAR-NNN`.
+For a complete, evidenced app/window ownership receipt, a day report may use
+`evallab spend day --date YYYY-MM-DD --modal-app-card APP=HAR-NNN` (repeatable);
+this explicit report-only binding neither rewrites provider bills nor grants
+spending approval. Never apply it from an app/model name alone.
 
 ## 1. Data
 

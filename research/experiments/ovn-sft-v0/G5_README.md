@@ -41,6 +41,11 @@ Spec names are deterministic: `ovn-g5-<short>-<arm>`
 differ ONLY in `model`, `extra_instruction_path`/`sha256` and
 `name`/`hypothesis` — a limit, tree or digest drifting on one arm fails.
 
+Newly generated specs declare `linear_card: HAR-126`, and `--check` requires
+that provenance. Regenerate only future execution specs; do not rewrite already
+executed, frozen spec bytes or run hashes. The 60 historical G5 cell names are
+bound to HAR-126 by their frozen run record in `policy/spend-attribution.yaml`.
+
 Per-trial `est_cost_usd` is **$0.35** on every spec, with the basis
 recorded in its hypothesis and in `cohort.json`: Research-Harbor's
 08:42Z ruling on HAR-126 (HAR-116 $4.81/40 and G2 wave-1 ~$2.4/20 put

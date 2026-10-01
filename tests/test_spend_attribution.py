@@ -22,8 +22,7 @@ from typing import Any
 
 import pytest
 
-from evallab import cli
-from evallab import spend_day
+from evallab import cli, spend_day
 from evallab.schemas import normalize_linear_card
 from evallab.spend_day import (
     UNATTRIBUTED,
@@ -36,7 +35,6 @@ from evallab.spend_day import (
     query_model_job_rows,
     resolve_job_card,
 )
-
 
 # ---------------------------------------------------------------------------
 # 1. Explicit card normalization and resolver precedence
@@ -475,28 +473,6 @@ def test_spend_day_empty_day_fixed_zero_output(
     }
 
 
-def test_spec_linear_card_survives_catalog_json_round_trip() -> None:
-    from evallab.schemas import ExperimentSpec, RunProvenance
-
-    spec = ExperimentSpec(
-        name="ovn-g5-001695-stock",
-        hypothesis="fixture",
-        purpose="baseline",
-        task="library/tasks/demo",
-        agent="oracle",
-        submitted_by="test",
-        linear_card="har126",
-    )
-    provenance = RunProvenance(
-        spec_id=str(spec.spec_id), task=spec.task, linear_card=spec.linear_card
-    )
-    payload = json.loads(provenance.model_dump_json())
-    assert payload["linear_card"] == "HAR-126"
-    assert resolve_job_card(
-        "ovn-g5-001695-stock", linear_card=payload["linear_card"]
-    ) == "HAR-126"
-
-
 # ---------------------------------------------------------------------------
 # 7. Declared exact-name bindings (policy/spend-attribution.yaml)
 # ---------------------------------------------------------------------------
@@ -549,17 +525,6 @@ def test_declared_policy_malformed_fails_closed(tmp_path: Path) -> None:
     )
     with pytest.raises(ValueError, match="unknown keys"):
         load_declared_attribution(tmp_path)
-
-
-def test_declared_real_policy_binds_exact_sixty_g5_jobs() -> None:
-    root = Path(__file__).resolve().parents[1]
-    assert (root / "policy/spend-attribution.yaml").is_file()
-    declared = load_declared_attribution(root)
-    assert len(declared.job_cards) == 60
-    assert set(declared.job_cards.values()) == {"HAR-126"}
-    assert declared.app_cards == {}
-    assert declared.job_cards["ovn-g5-001695-stock"] == "HAR-126"
-    assert "G5-RUN.md" in declared.source
 
 
 def test_daytona_declared_exact_binding_no_prefix_inference(

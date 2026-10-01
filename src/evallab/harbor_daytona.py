@@ -158,10 +158,14 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         self._daytona_guard = DaytonaGuard()
         self._daytona_usage: dict[str, Any] = {"schema_version": 1}
         self._daytona_monitor: asyncio.Task[None] | None = None
-        self._daytona_sandbox_name: str | None = None
         kwargs["auto_delete_interval_mins"] = 0
         kwargs["auto_stop_interval_mins"] = 5
         super().__init__(*args, **kwargs)
+        identity = f"{self.session_id}:{self.environment_name}"
+        self._daytona_sandbox_name = "evallab-" + hashlib.sha256(identity.encode()).hexdigest()[:24]
+        self._daytona_reservation_seconds = (
+            self._trial_ttl_minutes * 60 + int(self.task_env_config.build_timeout_sec) + 60
+        )
         if egress_lock:
             if self._compose_mode:
                 raise ValueError("egress_lock supports single-container tasks only")
@@ -169,6 +173,17 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
                 # Harbor would restore the task's baseline after that phase,
                 # lifting the lock.
                 raise ValueError("egress_lock cannot be combined with task phase network policies")
+
+    def _sandbox_resources(self) -> Resources | None:
+        resources = super()._sandbox_resources()
+        if resources is not None:
+            # Provider allocations are whole GiB; never floor a positive task
+            # declaration to zero or silently provision less than requested.
+            if (memory_mb := self._effective_memory_mb) is not None:
+                resources.memory = (memory_mb + 1023) // 1024
+            if (storage_mb := self._effective_storage_mb) is not None:
+                resources.disk = (storage_mb + 1023) // 1024
+        return resources
 
     async def _usage_resources(self, resources: Any) -> dict[str, float]:
         allocation = {
@@ -196,13 +211,22 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         temporary.replace(path)
 
     async def start(self, force_build: bool) -> None:
-        # Refuse before Harbor can build a paid snapshot. The final check uses
-        # the resolved snapshot's actual allocation, not the task's estimate.
-        resources = await self._usage_resources(self._sandbox_resources() or Resources())
+        # Hold cross-lane capacity before Harbor can build a paid snapshot.
+        # The final check uses the resolved snapshot's actual allocation.
         try:
-            preview = await asyncio.to_thread(self._daytona_guard.check, resources)
+            resources = await self._usage_resources(self._sandbox_resources() or Resources())
+            preview = await asyncio.to_thread(
+                self._daytona_guard.reserve,
+                self._daytona_sandbox_name,
+                resources,
+                ttl_seconds=self._daytona_reservation_seconds,
+            )
         except AdmissionRefused as error:
             self._daytona_usage["admission"] = error.snapshot
+            self._write_daytona_usage()
+            raise
+        except GuardUnavailable as error:
+            self._daytona_usage["monitor_error"] = str(error)
             self._write_daytona_usage()
             raise
         self._daytona_usage["admission"] = preview
@@ -210,15 +234,16 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         try:
             await super().start(force_build)
         except Exception as error:
+            if isinstance(error, GuardUnavailable):
+                self._daytona_usage["monitor_error"] = str(error)
+                self._write_daytona_usage()
             await self._capture_daytona_disappearance(error)
             raise
 
     async def _create_sandbox(self, params: Any, daytona: Any = None) -> None:
         params.ttl_minutes = self._trial_ttl_minutes
         # A retry cannot create multiple unnamed resources for the same trial.
-        identity = f"{self.session_id}:{self.environment_name}"
-        params.name = "evallab-" + hashlib.sha256(identity.encode()).hexdigest()[:24]
-        self._daytona_sandbox_name = params.name
+        params.name = self._daytona_sandbox_name
         snapshot_name = getattr(params, "snapshot", None)
         if hasattr(params, "snapshot"):
             if snapshot_name is None:
@@ -231,17 +256,12 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
                 getattr(params, "resources", None) or Resources()
             )
             sandbox_class = "container"
-        lifetime = (
-            self._trial_ttl_minutes * 60
-            + int(self.task_env_config.build_timeout_sec)
-            + 60
-        )
         try:
             admission = await asyncio.to_thread(
                 self._daytona_guard.reserve,
                 params.name,
                 resources,
-                ttl_seconds=lifetime,
+                ttl_seconds=self._daytona_reservation_seconds,
                 sandbox_class=sandbox_class,
             )
         except AdmissionRefused as error:
@@ -255,7 +275,9 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         await super()._create_sandbox(params=params, daytona=daytona)
         self._daytona_monitor = asyncio.create_task(self._monitor_daytona_usage())
 
-    async def _capture_daytona_disappearance(self, error: Exception | None = None) -> None:
+    async def _capture_daytona_disappearance(
+        self, error: Exception | None = None, *, current_usage: dict[str, Any] | None = None
+    ) -> None:
         sandbox = self._sandbox
         if sandbox is None or self._daytona_usage.get("disappearance"):
             return
@@ -268,12 +290,13 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         if not missing:
             return
         previous = self._daytona_usage.get("last_observation")
-        current = None
+        current = current_usage
         read_error = None
-        try:
-            current = await asyncio.to_thread(self._daytona_guard.observe)
-        except GuardUnavailable as unavailable:
-            read_error = str(unavailable)
+        if current is None:
+            try:
+                current = await asyncio.to_thread(self._daytona_guard.observe)
+            except GuardUnavailable as unavailable:
+                read_error = str(unavailable)
         now = datetime.now(UTC)
         recent_pressure = False
         if isinstance(previous, dict) and previous.get("at_or_near_limit"):
@@ -311,7 +334,7 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
                     row["id"] for row in snapshot["inventory"]
                 }
                 if sandbox is not None and sandbox.id not in visible:
-                    await self._capture_daytona_disappearance()
+                    await self._capture_daytona_disappearance(current_usage=snapshot)
                     if self._daytona_usage.get("disappearance"):
                         return
                 self._daytona_usage["last_observation"] = snapshot

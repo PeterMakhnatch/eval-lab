@@ -61,6 +61,56 @@ def no_network_task(tmp_path: Path) -> Path:
     return task_dir
 
 
+@pytest.mark.parametrize(("memory_mb", "memory_gib"), [(512, 1), (1024, 1), (1536, 2)])
+def test_daytona_preflight_reserves_whole_gib_without_underprovisioning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, memory_mb: int, memory_gib: int
+) -> None:
+    from evallab.daytona_guard import DaytonaGuard
+
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.delenv("DAYTONA_TARGET", raising=False)
+    task_dir = task(tmp_path)
+    (task_dir / "task.toml").write_text(
+        f"[environment]\ncpus = 1\nmemory_mb = {memory_mb}\nstorage_mb = 1536\n"
+    )
+    organization = "75ae5c7a-cc37-40e9-8f96-9bd4e8798e7b"
+
+    def fetch(_guard: DaytonaGuard, path: str) -> object:
+        if path == "/api-keys/current":
+            return {"organizationId": organization}
+        if path == f"/organizations/{organization}/usage":
+            return {"regionUsage": [{
+                "regionId": "us", "sandboxClass": "container",
+                "totalCpuQuota": 100, "totalMemoryQuota": 200, "totalDiskQuota": 300,
+                "totalGpuQuota": 0,
+                "currentCpuUsage": 0, "currentMemoryUsage": 160 - memory_gib,
+                "currentDiskUsage": 0, "currentGpuUsage": 0,
+                "maxCpuPerSandbox": None, "maxMemoryPerSandbox": None,
+                "maxDiskPerSandbox": None,
+            }]}
+        if path.startswith("/sandbox?"):
+            return {"items": [], "nextCursor": None}
+        raise AssertionError(path)
+
+    monkeypatch.setattr(DaytonaGuard, "_http_get", fetch)
+    request = RunRequest(
+        task=task_dir, agent="oracle", name="gib-boundary", jobs_dir=tmp_path / "runs",
+        environment="daytona",
+    )
+    admitted = runner_module._check_daytona_admission(request)
+    assert admitted is not None
+    assert admitted["requested"]["memory_gib"] == memory_gib
+    assert admitted["requested"]["disk_gib"] == 2
+    assert admitted["projected"]["memory_gib"] == 160
+    oversized = RunRequest(
+        task=task_dir, agent="oracle", name="gib-over-cap", jobs_dir=request.jobs_dir,
+        environment="daytona", attempts=2, concurrency=2,
+    )
+    with pytest.raises(ExecutionFailure) as error:
+        runner_module._check_daytona_admission(oversized)
+    assert error.value.reason_code == "daytona_usage_limit"
+
+
 def test_control_command_is_explicit_and_free(tmp_path: Path) -> None:
     request = RunRequest(
         task=task(tmp_path),

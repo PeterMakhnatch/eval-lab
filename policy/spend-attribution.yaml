@@ -10,10 +10,10 @@
 # 2026-10-01. Raw run records are never rewritten; this file is the
 # provenance-backed binding the spend ledger reads instead.
 #
-# `app_cards` stays empty on purpose: the Modal apps below served multiple
-# cards' jobs (base and :har129 from one container per G5-RUN.md), so no
-# honest app -> card binding exists. Those apps remain per-app
-# `unattributed` residual lines in the ledger.
+# `app_cards` stays empty on purpose: there is no complete UTC-day app/card
+# ownership receipt. G5-RUN.md identifies G5 deployment intervals, not ownership
+# of every billed object in each app for the whole day. App/model names alone
+# cannot assign those dollars; retain separately billed unknown app residuals.
 
 schema: evallab.spend_attribution/v1
 source:

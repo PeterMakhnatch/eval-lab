@@ -2161,8 +2161,20 @@ def _spend_day_command(
 
     try:
         target_day = parse_day(args.date)
+        from evallab.schemas import normalize_linear_card
+
+        card_by_app: dict[str, str] = {}
+        for binding in args.modal_app_card:
+            app, separator, card = binding.partition("=")
+            normalized = normalize_linear_card(card)
+            if not separator or not app.strip() or normalized is None:
+                raise ValueError("--modal-app-card requires APP=HAR-NNN")
+            app = app.strip()
+            if app in card_by_app and card_by_app[app] != normalized:
+                raise ValueError(f"conflicting explicit Modal app binding for {app!r}")
+            card_by_app[app] = normalized
     except ValueError as exc:
-        print(f"invalid --date: {exc}", file=sys.stderr)
+        print(f"invalid spend day arguments: {exc}", file=sys.stderr)
         return 2
 
     url = database_url_from_environment(args.database_url)
@@ -2174,6 +2186,7 @@ def _spend_day_command(
             database_url=url,
             cap_usd=args.cap_usd,
             extra_roots=extra_roots,
+            **({"card_by_app": card_by_app} if card_by_app else {}),
         )
     except Exception as exc:
         print(f"spend day failed: {type(exc).__name__}: {exc}", file=sys.stderr)
@@ -2730,6 +2743,7 @@ def _tasks_prepare_command(
         harness_tree_sha256=args.harness_tree_sha256,
         output=args.output,
         submitted_by=args.submitted_by,
+        linear_card=args.linear_card,
     )
     spec_path = prepared.spec_path.relative_to(root.resolve()).as_posix()
     next_command = f"uv run evallab submit {shlex.quote(spec_path)}"
@@ -2752,6 +2766,8 @@ def _tasks_prepare_command(
     print(f"task: {spec.task} @ {spec.task_version or 'unversioned'}")
     print(f"package: {spec.task_package_digest}")
     print(f"run: {spec.agent} / {spec.model or 'control'} / {spec.environment}")
+    if spec.linear_card is not None:
+        print(f"card: {spec.linear_card} (explicit provenance)")
     if spec.harness_tree_sha256 is not None:
         print(f"harness: {spec.harness_tree_sha256} ({spec.harness_tree_path})")
     print(f"resources: {json.dumps(prepared.resources, sort_keys=True)}")
@@ -5162,6 +5178,13 @@ def parser() -> argparse.ArgumentParser:
         help="Daily spend cap in USD (default: policy at reported day's 00:00 UTC)",
     )
     spend_day.add_argument("--database-url", help="Override catalog PostgreSQL URL")
+    spend_day.add_argument(
+        "--modal-app-card",
+        action="append",
+        default=[],
+        metavar="APP=HAR-NNN",
+        help="Explicit app/card binding; unbound billed apps remain separate unattributed rows",
+    )
     spend_day.add_argument("--json", action="store_true", help="Emit ledger as JSON")
     spend_day.set_defaults(func=_spend_day_command)
     spend_check = spend_commands.add_parser(
@@ -5378,6 +5401,7 @@ def parser() -> argparse.ArgumentParser:
     )
     tasks_prepare.add_argument("source", type=Path, help="Local Harbor task directory")
     tasks_prepare.add_argument("--name", required=True, help="Unique run name")
+    tasks_prepare.add_argument("--linear-card", help="Explicit spend/provenance card, e.g. HAR-126")
     tasks_prepare.add_argument("--agent", default="mini-swe-agent")
     tasks_prepare.add_argument("--model", help="Exact model selector; required for a paid harness")
     tasks_prepare.add_argument("--environment", default="docker")

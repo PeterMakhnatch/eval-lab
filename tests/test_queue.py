@@ -33,6 +33,7 @@ from evallab.schemas import (
     AutoRunRule,
     ExperimentSpec,
     QueueEvent,
+    QueueState,
     StandingApprovalsPolicy,
     canonical_grid_point_id,
 )
@@ -132,6 +133,35 @@ def executor(
         parallel=parallel,
         capacity=capacity,
     )
+
+
+@pytest.mark.parametrize(
+    ("reason_code", "state"),
+    [
+        ("daytona_usage_limit", "waiting"),
+        ("daytona_usage_unavailable", "waiting"),
+        ("execution_failed", "failed"),
+    ],
+)
+def test_daytona_capacity_refusal_defers_without_poisoning_job(
+    tmp_path: Path, reason_code: str, state: QueueState
+) -> None:
+    def refuse(request: RunRequest) -> Path:
+        raise ExecutionFailure(reason_code, "Daytona capacity cannot safely admit this job")
+
+    service = executor(tmp_path, runner=refuse)
+    submit_authorized(
+        service,
+        spec("capacity-control", est_cost_usd=1).model_copy(update={"environment": "daytona"}),
+    )
+    service.tick()
+
+    assert len(service.queue.list_specs(state)) == 1
+    assert not service.queue.list_specs("running")
+    assert not (tmp_path / "results" / "jobs" / "capacity-control").exists()
+    events = load_events(service.queue.events_path)
+    disposition = "dispatch_deferred" if state == "waiting" else "dispatch_failed"
+    assert any(event.event == disposition and event.reason_code == reason_code for event in events)
 
 
 @pytest.mark.parametrize("fail", [False, True])

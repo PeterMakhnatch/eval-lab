@@ -67,6 +67,16 @@ semantic/capability tables and all-null error-timing columns. Those are dated
 observations, not a current database census. State the corpus digest, query,
 timestamp, and unavailable sources before reporting present coverage.
 
+**2026-10-01 execution-safety update (HAR-144/HAR-145):** Daytona launchers share
+fresh organization-wide quota/inventory admission with a host-global pending
+ledger and 20% reserve; trial pages preserve dated capacity evidence and keep
+pressure correlation distinct from a confirmed provider cause. Capture servers
+bind isolated ephemeral endpoints and automatically link their own runs.
+Explicit `linear_card` provenance and frozen exact-name G5 bindings resolve
+Daytona attribution; Modal bills remain separate app residuals without complete
+window/card evidence. See [execution tiers](execution-tiers.md#shared-daytona-capacity-admission-har-144),
+[capture](model-capture.md), and [spend](lora-sft-runbook.md).
+
 The usable analysis corpus is the `status = 'featured'` slice, not the full
 feature table. Do not add a feature without a named consumer and a
 denominator. Do not report rates over rows with `status != 'featured'`.

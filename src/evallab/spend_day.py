@@ -92,7 +92,11 @@ from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
-from evallab.schemas import StandingApprovalsPolicy, effective_daily_cost_ceiling, normalize_linear_card
+from evallab.schemas import (
+    StandingApprovalsPolicy,
+    effective_daily_cost_ceiling,
+    normalize_linear_card,
+)
 
 #: Lab day-spend cap (USD) the ledger reports against.
 DEFAULT_CAP_USD = 20.0
@@ -1300,7 +1304,7 @@ def query_daytona_rows(
                     job_name if isinstance(job_name, str) else None,
                     linear_card=linear,
                 )
-                meta["explicit"] = linear is not None
+                meta["explicit"] = catalog is not None
                 meta["declared"] = declared is not None
             except ValueError as exc:
                 meta["card"] = UNATTRIBUTED

@@ -2336,8 +2336,8 @@ def _check_daytona_admission(request: RunRequest) -> dict[str, Any] | None:
             storage_mb = environment.get("storage_mb")
         resources = {
             "cpu": cpu if cpu is not None else caps["cpu"],
-            "memory_gib": memory_mb // 1024 if memory_mb is not None else caps["memory_gib"],
-            "disk_gib": storage_mb // 1024 if storage_mb is not None else caps["disk_gib"],
+            "memory_gib": (memory_mb + 1023) // 1024 if memory_mb is not None else caps["memory_gib"],
+            "disk_gib": (storage_mb + 1023) // 1024 if storage_mb is not None else caps["disk_gib"],
             "gpu": environment.get("gpus") or 0,
         }
         snapshot = guard.check(resources, count=min(request.attempts, request.concurrency))

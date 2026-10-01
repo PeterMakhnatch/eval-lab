@@ -752,8 +752,9 @@ def write_provenance(out_dir: str | Path, *, upstream: str) -> dict[str, Any]:
 
 
 class CaptureProxyServer(ThreadingHTTPServer):
-    """Threading HTTP server carrying the recorder and upstream binding."""
+    """Bound HTTP server; ``serve_capture`` attaches its recorder before serving."""
 
+    recorder: CaptureRecorder
     daemon_threads = True
     allow_reuse_address = True
     # socketserver's default listen backlog is 5. One capture server fronts
@@ -764,11 +765,9 @@ class CaptureProxyServer(ThreadingHTTPServer):
     def __init__(
         self,
         address: tuple[str, int],
-        recorder: CaptureRecorder,
         upstream: str,
         upstream_key: str | None,
     ) -> None:
-        self.recorder = recorder
         self.upstream = upstream.rstrip("/")
         self.upstream_key = upstream_key
         super().__init__(address, _CaptureHandler)
@@ -1078,18 +1077,6 @@ class _CaptureHandler(BaseHTTPRequestHandler):
         self.close_connection = True
 
 
-class _PendingRecorder:
-    """Placeholder until the socket owns its port; never records.
-
-    ``serve_capture`` binds first with this placeholder so a failed bind
-    (explicit occupied port) leaves no ``calls.jsonl`` or ``capture.json``
-    behind. It is replaced with the real recorder before ``serve_forever``.
-    """
-
-    def append(self, record: dict[str, Any]) -> int:
-        raise RuntimeError("capture server is not bound yet")
-
-
 def serve_capture(
     *,
     upstream: str,
@@ -1108,8 +1095,7 @@ def serve_capture(
     so there is no check-then-bind race.
     """
     server = CaptureProxyServer(
-        (bind, port),  # type: ignore[arg-type]
-        recorder=_PendingRecorder(),  # type: ignore[arg-type]
+        (bind, port),
         upstream=upstream,
         upstream_key=upstream_key,
     )
@@ -1118,7 +1104,7 @@ def serve_capture(
     except Exception:
         server.server_close()
         raise
-    server.recorder = recorder  # type: ignore[assignment]
+    server.recorder = recorder
     try:
         bound_port = int(server.server_address[1])
         manifest = write_manifest(out_dir, upstream=upstream, bind=bind, port=bound_port)

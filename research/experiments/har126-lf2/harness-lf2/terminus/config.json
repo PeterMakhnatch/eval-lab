@@ -1,0 +1,10 @@
+{
+  "temperature": 0.6,
+  "llm_call_kwargs": {"top_p": 0.95, "max_tokens": 4096},
+  "proactive_summarization_threshold": 16384,
+  "loop_break": true,
+  "output_cap_chars": 2000,
+  "loop_command_run_min": 8,
+  "loop_message_run_min": 20,
+  "loop_grace_calls": 15
+}

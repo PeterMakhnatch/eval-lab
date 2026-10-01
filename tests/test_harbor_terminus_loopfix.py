@@ -24,6 +24,7 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
 )
 from evallab.loopfix import LOOP_GRACE_CALLS, LOOP_NUDGE_MESSAGE, OUTPUT_CAP_CHARS
+from evallab.probe03 import LOOP_MIN_RUN
 from evallab.token_flow import COMMAND_RUN_MIN
 
 
@@ -80,6 +81,10 @@ class _FakeTerminus2:
     async def _execute_commands(self, commands: Any, session: Any) -> Any:
         del commands
         return False, await session.get_incremental_output()
+
+    async def _handle_llm_interaction(self, *args: Any, **kwargs: Any) -> Any:
+        del args, kwargs
+        raise NotImplementedError("script per test with monkeypatch.setattr")
 
     def _dump_trajectory(self) -> None:
         return None
@@ -238,3 +243,82 @@ def test_disabled_loop_fix_changes_nothing(bound: Any, tmp_path: Path) -> None:
         assert LOOP_NUDGE_MESSAGE not in fed_back
     agent._dump_trajectory()
     assert agent._loop_nudged_call is None
+
+
+_REPEATED_RAW_TOOL_CALL = (
+    "<tool_call><function=command>"
+    "<parameter=analysis>Write the fallback module using a python script.</parameter>"
+    "<parameter=plan>Create linkpreview/preview/html.py via python3 -c with escaped string.</parameter>"
+    '<parameter=commands>[{"keystrokes": "python3 -c \'x\'"}]</parameter>'
+    "</function=command></tool_call>"
+)
+
+
+def test_parse_error_loop_nudges_on_raw_response_then_stops(
+    bound: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Live message-loop detection sees what the replay sees (HAR-116 001896).
+
+    On unparsed turns upstream records the raw model response as the step
+    message and never executes, while the composed analysis/plan varies turn
+    to turn. The live detector must nudge on the tenth identical raw
+    response and stop the agent phase five calls later, exactly like the
+    offline replay over the recorded steps.
+    """
+    agent = _agent(bound, tmp_path, loop_break=True)
+    agent._parser = None
+    calls = 0
+
+    async def _repeat_unparsed(self: Any, *args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        return (
+            [],
+            False,
+            "ERROR: no valid tool call found",
+            f"attempt {calls}",
+            f"plan {calls}",
+            SimpleNamespace(content=_REPEATED_RAW_TOOL_CALL),
+        )
+
+    monkeypatch.setattr(_FakeTerminus2, "_handle_llm_interaction", _repeat_unparsed)
+    nudged_at = None
+    for call in range(1, LOOP_MIN_RUN + LOOP_GRACE_CALLS + 1):
+        _commands, _done, feedback, _analysis, _plan, response = _run(
+            agent._handle_llm_interaction()
+        )
+        # The detector sees the message the trajectory step will carry.
+        assert agent._pending_composed_message == _REPEATED_RAW_TOOL_CALL
+        # Upstream records the raw response on parse-error turns.
+        agent._trajectory_steps.append(
+            SimpleNamespace(
+                source="agent",
+                message=response.content,
+                tool_calls=[],
+                is_copied_context=False,
+            )
+        )
+        if LOOP_NUDGE_MESSAGE in feedback:
+            assert nudged_at is None  # one nudge, never repeated
+            nudged_at = call
+        if call < LOOP_MIN_RUN + LOOP_GRACE_CALLS:
+            agent._dump_trajectory()
+            continue
+        with pytest.raises(bound.LoopBreakStop):
+            agent._dump_trajectory()
+    assert nudged_at == LOOP_MIN_RUN
+    assert agent._loop_nudged_call == LOOP_MIN_RUN
+    assert agent._loop_stop_call == LOOP_MIN_RUN + LOOP_GRACE_CALLS
+    assert agent._loop_detector == "identical_message_run"
+
+
+def test_loop_threshold_knobs_reject_bad_values(bound: Any, tmp_path: Path) -> None:
+    for knob in ("loop_command_run_min", "loop_message_run_min", "loop_grace_calls"):
+        with pytest.raises(ValueError, match=knob):
+            _agent(bound, tmp_path, loop_break=True, **{knob: 1})
+        with pytest.raises(ValueError, match=knob):
+            _agent(bound, tmp_path, loop_break=True, **{knob: True})
+    agent = _agent(bound, tmp_path, loop_break=True, loop_grace_calls=10)
+    assert agent._loop_grace_calls == 10
+    assert agent._loop_command_run_min == COMMAND_RUN_MIN
+    assert agent._loop_message_run_min == LOOP_MIN_RUN

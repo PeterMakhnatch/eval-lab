@@ -1,0 +1,1151 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 93,
+      "agree_reject": 2,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 2,
+      "true": 93,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 95
+    }
+  },
+  "agent_steps": 95,
+  "assembly_pattern": "single_head",
+  "claim_regime": null,
+  "completion_refs": [],
+  "confirmation_loop": null,
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "shared GPU, not additive; excludes sandbox and warm periods; see evallab spend day",
+  "cost_estimate_usd": 0.77441944569264,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "counts": {
+    "evidence": [],
+    "flags": [],
+    "judgments": [
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": "model",
+        "label": "first_failure",
+        "value": "R-TOOL-02"
+      },
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": "n/a",
+        "label": "blame",
+        "value": "R-NONE-01"
+      },
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": null,
+        "label": "loop_kind",
+        "value": "identical_loop"
+      }
+    ],
+    "raw_reward": 1.0,
+    "reasons": [],
+    "schema": "evallab.counts/v1",
+    "scored": true,
+    "task_status": {
+      "digest_match": true,
+      "evidence": [
+        "research/experiments/har108-python-census/task_health.parquet#format-code-task-002391",
+        "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-002391",
+        "research/explorations/trace-lab/har111/census_labels.jsonl"
+      ],
+      "ledger_status": "usable",
+      "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-002391",
+      "reason": "status=usable; nop sound",
+      "run_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+      "source": "python_task_ledger",
+      "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+      "status": "usable",
+      "task_id": "format-code-task-002391",
+      "trial_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1"
+    },
+    "verdict": "counted_pass"
+  },
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "0a2bddb3-3f97-4c4b-a41a-59b7d03d8e3d",
+        "steps": 96
+      }
+    ],
+    "summarization_count": 0,
+    "trajectory_head": true,
+    "unique_steps": 96
+  },
+  "decision": {
+    "asked": {
+      "excerpt": null,
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "grader_tests_asked": "unknown",
+      "instruction_bytes": null,
+      "instruction_present": false
+    },
+    "attribution": "n/a",
+    "counts": {
+      "evidence": [],
+      "note": "Rendered from the HAR-78 counts field. Not computed here.",
+      "reasons": [],
+      "status": "rendered",
+      "task_ledger": {
+        "digest_match": true,
+        "evidence": [
+          "research/experiments/har108-python-census/task_health.parquet#format-code-task-002391",
+          "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-002391",
+          "research/explorations/trace-lab/har111/census_labels.jsonl"
+        ],
+        "ledger_status": "usable",
+        "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-002391",
+        "reason": "status=usable; nop sound",
+        "run_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+        "source": "python_task_ledger",
+        "source_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+        "status": "usable",
+        "task_id": "format-code-task-002391",
+        "trial_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1"
+      },
+      "verdict": "counted_pass"
+    },
+    "did": {
+      "evidence_steps": [
+        "head#5",
+        "head#14"
+      ],
+      "last_edit_excerpt": "cd /workspace/repo && python - <<'PYEOF'",
+      "last_edit_step": 50,
+      "note": "scored pass with no outcome-relevant failure",
+      "secondary": "error_recovery/model secondary: identical run head#5-head#14",
+      "step": null
+    },
+    "facts": {
+      "calls": 95,
+      "fetches": [],
+      "grader_gap": "instruction.md not located; deliverable check skipped",
+      "instruction_excerpt": null,
+      "nop_same_crash": {
+        "answer": "unknown",
+        "nop_trial": null,
+        "reason": "No same-task nop crash comparison was recorded."
+      },
+      "stop_reason": "ceiling:input_tokens",
+      "tokens": {
+        "attribution": "single_trial",
+        "input_tokens": 2443873,
+        "output_tokens": 20222,
+        "path": "lab-metadata.json#provider_usage",
+        "reason": null,
+        "scope": "job",
+        "source": "proxy_settled_ledger",
+        "total_tokens": 2464095
+      },
+      "verifier_message": ""
+    },
+    "fetched_fix": {
+      "command": null,
+      "fetched": false,
+      "kind": null,
+      "note": null,
+      "step": null
+    },
+    "first_failure": {
+      "attribution": "model",
+      "rule_id": "R-TOOL-02",
+      "step": "head#3"
+    },
+    "judgments": {
+      "agreement": {
+        "abstentions": 0,
+        "artifact": "research/explorations/trace-lab/har119/page_scores.json",
+        "blame_abstentions": 0,
+        "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
+        "eligible_n": 11,
+        "excluded_rater_disagreement": 1,
+        "first_failure_coverage": {
+          "abstentions": 11,
+          "expressed": 1,
+          "of": 12
+        },
+        "frozen_at": "2026-10-01T00:00:02Z",
+        "grader_alignment": "opinion with no page-measured calibration on this cohort",
+        "in_sample": false,
+        "limits": "Out-of-sample for the loop rule. Loop kind: n=11 agreed cells. First failure: n=9 agreed cells with page coverage 1/12 (11 abstentions). Blame 11/11 is uninformative on this cohort: the raters say model on every failure, so a constant prior scores the same. Grader alignment stays opinion.",
+        "method": "research/explorations/trace-lab/har119/score_page.py",
+        "page_vs_agreed_blame": {
+          "agree": 11,
+          "n": 11
+        },
+        "page_vs_agreed_first_failure": {
+          "agree": 1,
+          "n": 9
+        },
+        "page_vs_agreed_loop_kind": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_agreed_loop_present": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_loop_rule_kind": {
+          "agree": 12,
+          "n": 12
+        },
+        "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+        "predictor_functions": {
+          "names": [
+            "trial_decision.classify_loop_kind",
+            "trial_decision._claim_bearing",
+            "token_flow._loop_onset"
+          ],
+          "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+        },
+        "rater_agreement_blame": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_first_failure": {
+          "agree": 9,
+          "n": 12
+        },
+        "rater_agreement_loop_kind": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_loop_present": {
+          "agree": 11,
+          "n": 12
+        },
+        "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f"
+      },
+      "blame": {
+        "attribution": "n/a",
+        "note": "scored pass with no outcome-relevant failure",
+        "rule_id": "R-NONE-01",
+        "whose": "none"
+      },
+      "first_failure": {
+        "attribution": "model",
+        "rule_id": "R-TOOL-02",
+        "step": "head#3"
+      },
+      "grader_alignment": {
+        "answer": "unknown",
+        "why": "instruction.md not located; deliverable check skipped"
+      },
+      "label": "opinion",
+      "loop_kind": {
+        "claim_bearing_turns": 0,
+        "claim_fraction": 0.0,
+        "first_prompt_step": null,
+        "kind": "none",
+        "loop_onset_step": null,
+        "rule": "HAR-119",
+        "stop_reason": "ceiling:input_tokens",
+        "turns_after_prompt": 0
+      }
+    },
+    "nop_same_crash": {
+      "answer": "unknown",
+      "nop_trial": null,
+      "reason": "No same-task nop crash comparison was recorded."
+    },
+    "pass_tainted": {
+      "flagged": false,
+      "reasons": [],
+      "status": "clean"
+    },
+    "reward": 1.0,
+    "reward_why": "Reward `1.0`. Scored pass with no outcome-relevant failure.",
+    "rule_id": "R-NONE-01",
+    "schema": "trial_decision/v3",
+    "scored": true,
+    "whose": "none"
+  },
+  "diagnosis": {
+    "exception_class": "TrialBudgetExhaustedError",
+    "heuristic_label": "planning_no_edit",
+    "modes": [],
+    "notices": [
+      "stop reason: trial_budget_exhausted (agent metadata stop_reason)",
+      "scored pass; no failure modes proposed"
+    ],
+    "outcome": "scored",
+    "reward": 1.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": {
+    "attribution": "model",
+    "evidence_step_refs": [
+      "head#3"
+    ],
+    "feedback_names_problem": false,
+    "harness_feedback": "No valid JSON found in response",
+    "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+    "recovered": true,
+    "rule_id": "R-TOOL-02",
+    "step_id": 3,
+    "step_ref": "head#3",
+    "tag": "tool_use"
+  },
+  "flags": [
+    "token_ceiling:input_tokens",
+    "identical_loop:10x:head#5-head#14",
+    "wedged_terminal:1-stretches",
+    "outcome:R-NONE-01:n/a",
+    "first:R-TOOL-02:model",
+    "parse_error_shapes:2",
+    "post_edit_input_share:68%",
+    "max_prompt:38309"
+  ],
+  "grader_evidence": null,
+  "handshake": null,
+  "identical_runs": [
+    {
+      "end": "head#14",
+      "length": 10,
+      "start": "head#5"
+    }
+  ],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 12030,
+      "prompt": 2427397,
+      "steps": 95,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": {
+      "completion": 773,
+      "prompt": 53331,
+      "steps": 10,
+      "steps_without_metrics": 0
+    },
+    "in_loops": {
+      "completion": 773,
+      "prompt": 53331,
+      "steps": 10,
+      "steps_without_metrics": 0
+    },
+    "loop_prompt_share": 0.022,
+    "result_input_tokens": 2427397,
+    "spans": [
+      {
+        "kind": "identical",
+        "length": 10,
+        "span": [
+          "head#5",
+          "head#14"
+        ]
+      }
+    ]
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 95,
+  "outcome_failure": {
+    "attribution": "n/a",
+    "evidence_step_refs": [
+      "head#5",
+      "head#14"
+    ],
+    "note": "scored pass with no outcome-relevant failure",
+    "rule_id": "R-NONE-01",
+    "secondary": "error_recovery/model secondary: identical run head#5-head#14",
+    "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#53 (`cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail `), 43 turns head#54-head#96 with no interrupt, until run end",
+    "step_id": null,
+    "step_ref": null,
+    "tag": "none"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {
+    "head": {
+      "unknown_function:read": {
+        "count": 2,
+        "first_step": 3
+      }
+    }
+  },
+  "reward": 1.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [],
+  "shape_counts": {
+    "prose": 93,
+    "unparseable": 2
+  },
+  "stitched_steps": 96,
+  "stop_reason": "ceiling:input_tokens",
+  "taint": [],
+  "task_name": "mimo-v2.6-rl/format-code-task-002391",
+  "task_package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 49,
+      "command_excerpt": "cd /workspace/repo && python - <<'PYEOF'",
+      "kind": "write-call",
+      "persistence_reason": "touched basename present in final diff",
+      "persists_in_final_diff": true,
+      "step_id": 50,
+      "touched_paths": [
+        "pip_audit/_audit.py"
+      ]
+    },
+    "loop_onset": {
+      "reason": "no repeat run detected",
+      "step_id": null
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 86,
+        "prompt_tokens": 1119,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 52,
+        "prompt_tokens": 1905,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 59,
+        "prompt_tokens": 2001,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 58,
+        "prompt_tokens": 2097,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 65,
+        "prompt_tokens": 2813,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 70,
+        "prompt_tokens": 3566,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 213,
+        "prompt_tokens": 4289,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 76,
+        "prompt_tokens": 5146,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 100,
+        "prompt_tokens": 5904,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 40,
+        "prompt_tokens": 6691,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 68,
+        "prompt_tokens": 7039,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 41,
+        "prompt_tokens": 7681,
+        "step_id": 13
+      },
+      {
+        "call_index": 13,
+        "completion_tokens": 42,
+        "prompt_tokens": 8105,
+        "step_id": 14
+      },
+      {
+        "call_index": 14,
+        "completion_tokens": 157,
+        "prompt_tokens": 8549,
+        "step_id": 15
+      },
+      {
+        "call_index": 15,
+        "completion_tokens": 643,
+        "prompt_tokens": 8959,
+        "step_id": 16
+      },
+      {
+        "call_index": 16,
+        "completion_tokens": 148,
+        "prompt_tokens": 10258,
+        "step_id": 17
+      },
+      {
+        "call_index": 17,
+        "completion_tokens": 55,
+        "prompt_tokens": 10503,
+        "step_id": 18
+      },
+      {
+        "call_index": 18,
+        "completion_tokens": 68,
+        "prompt_tokens": 10695,
+        "step_id": 19
+      },
+      {
+        "call_index": 19,
+        "completion_tokens": 57,
+        "prompt_tokens": 11288,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "completion_tokens": 787,
+        "prompt_tokens": 11952,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "completion_tokens": 42,
+        "prompt_tokens": 13411,
+        "step_id": 22
+      },
+      {
+        "call_index": 22,
+        "completion_tokens": 56,
+        "prompt_tokens": 14038,
+        "step_id": 23
+      },
+      {
+        "call_index": 23,
+        "completion_tokens": 183,
+        "prompt_tokens": 14530,
+        "step_id": 24
+      },
+      {
+        "call_index": 24,
+        "completion_tokens": 44,
+        "prompt_tokens": 14986,
+        "step_id": 25
+      },
+      {
+        "call_index": 25,
+        "completion_tokens": 82,
+        "prompt_tokens": 15564,
+        "step_id": 26
+      },
+      {
+        "call_index": 26,
+        "completion_tokens": 849,
+        "prompt_tokens": 16302,
+        "step_id": 27
+      },
+      {
+        "call_index": 27,
+        "completion_tokens": 356,
+        "prompt_tokens": 17878,
+        "step_id": 28
+      },
+      {
+        "call_index": 28,
+        "completion_tokens": 40,
+        "prompt_tokens": 18738,
+        "step_id": 29
+      },
+      {
+        "call_index": 29,
+        "completion_tokens": 41,
+        "prompt_tokens": 19318,
+        "step_id": 30
+      },
+      {
+        "call_index": 30,
+        "completion_tokens": 772,
+        "prompt_tokens": 19882,
+        "step_id": 31
+      },
+      {
+        "call_index": 31,
+        "completion_tokens": 103,
+        "prompt_tokens": 21075,
+        "step_id": 32
+      },
+      {
+        "call_index": 32,
+        "completion_tokens": 43,
+        "prompt_tokens": 21487,
+        "step_id": 33
+      },
+      {
+        "call_index": 33,
+        "completion_tokens": 78,
+        "prompt_tokens": 21789,
+        "step_id": 34
+      },
+      {
+        "call_index": 34,
+        "completion_tokens": 145,
+        "prompt_tokens": 22276,
+        "step_id": 35
+      },
+      {
+        "call_index": 35,
+        "completion_tokens": 43,
+        "prompt_tokens": 22663,
+        "step_id": 36
+      },
+      {
+        "call_index": 36,
+        "completion_tokens": 74,
+        "prompt_tokens": 22965,
+        "step_id": 37
+      },
+      {
+        "call_index": 37,
+        "completion_tokens": 137,
+        "prompt_tokens": 23496,
+        "step_id": 38
+      },
+      {
+        "call_index": 38,
+        "completion_tokens": 43,
+        "prompt_tokens": 23869,
+        "step_id": 39
+      },
+      {
+        "call_index": 39,
+        "completion_tokens": 804,
+        "prompt_tokens": 24175,
+        "step_id": 40
+      },
+      {
+        "call_index": 40,
+        "completion_tokens": 43,
+        "prompt_tokens": 25400,
+        "step_id": 41
+      },
+      {
+        "call_index": 41,
+        "completion_tokens": 514,
+        "prompt_tokens": 25704,
+        "step_id": 42
+      },
+      {
+        "call_index": 42,
+        "completion_tokens": 43,
+        "prompt_tokens": 26880,
+        "step_id": 43
+      },
+      {
+        "call_index": 43,
+        "completion_tokens": 821,
+        "prompt_tokens": 27184,
+        "step_id": 44
+      },
+      {
+        "call_index": 44,
+        "completion_tokens": 43,
+        "prompt_tokens": 28426,
+        "step_id": 45
+      },
+      {
+        "call_index": 45,
+        "completion_tokens": 75,
+        "prompt_tokens": 28728,
+        "step_id": 46
+      },
+      {
+        "call_index": 46,
+        "completion_tokens": 1173,
+        "prompt_tokens": 29302,
+        "step_id": 47
+      },
+      {
+        "call_index": 47,
+        "completion_tokens": 43,
+        "prompt_tokens": 31134,
+        "step_id": 48
+      },
+      {
+        "call_index": 48,
+        "completion_tokens": 88,
+        "prompt_tokens": 31436,
+        "step_id": 49
+      },
+      {
+        "call_index": 49,
+        "completion_tokens": 285,
+        "prompt_tokens": 31968,
+        "step_id": 50
+      },
+      {
+        "call_index": 50,
+        "completion_tokens": 43,
+        "prompt_tokens": 32699,
+        "step_id": 51
+      },
+      {
+        "call_index": 51,
+        "completion_tokens": 65,
+        "prompt_tokens": 32963,
+        "step_id": 52
+      },
+      {
+        "call_index": 52,
+        "completion_tokens": 41,
+        "prompt_tokens": 33134,
+        "step_id": 53
+      },
+      {
+        "call_index": 53,
+        "completion_tokens": 66,
+        "prompt_tokens": 33304,
+        "step_id": 54
+      },
+      {
+        "call_index": 54,
+        "completion_tokens": 84,
+        "prompt_tokens": 33462,
+        "step_id": 55
+      },
+      {
+        "call_index": 55,
+        "completion_tokens": 90,
+        "prompt_tokens": 33653,
+        "step_id": 56
+      },
+      {
+        "call_index": 56,
+        "completion_tokens": 50,
+        "prompt_tokens": 33881,
+        "step_id": 57
+      },
+      {
+        "call_index": 57,
+        "completion_tokens": 66,
+        "prompt_tokens": 34001,
+        "step_id": 58
+      },
+      {
+        "call_index": 58,
+        "completion_tokens": 38,
+        "prompt_tokens": 34154,
+        "step_id": 59
+      },
+      {
+        "call_index": 59,
+        "completion_tokens": 37,
+        "prompt_tokens": 34269,
+        "step_id": 60
+      },
+      {
+        "call_index": 60,
+        "completion_tokens": 35,
+        "prompt_tokens": 34354,
+        "step_id": 61
+      },
+      {
+        "call_index": 61,
+        "completion_tokens": 36,
+        "prompt_tokens": 34434,
+        "step_id": 62
+      },
+      {
+        "call_index": 62,
+        "completion_tokens": 49,
+        "prompt_tokens": 34517,
+        "step_id": 63
+      },
+      {
+        "call_index": 63,
+        "completion_tokens": 24,
+        "prompt_tokens": 34629,
+        "step_id": 64
+      },
+      {
+        "call_index": 64,
+        "completion_tokens": 36,
+        "prompt_tokens": 34718,
+        "step_id": 65
+      },
+      {
+        "call_index": 65,
+        "completion_tokens": 36,
+        "prompt_tokens": 34804,
+        "step_id": 66
+      },
+      {
+        "call_index": 66,
+        "completion_tokens": 45,
+        "prompt_tokens": 34889,
+        "step_id": 67
+      },
+      {
+        "call_index": 67,
+        "completion_tokens": 24,
+        "prompt_tokens": 34996,
+        "step_id": 68
+      },
+      {
+        "call_index": 68,
+        "completion_tokens": 36,
+        "prompt_tokens": 35083,
+        "step_id": 69
+      },
+      {
+        "call_index": 69,
+        "completion_tokens": 45,
+        "prompt_tokens": 35169,
+        "step_id": 70
+      },
+      {
+        "call_index": 70,
+        "completion_tokens": 24,
+        "prompt_tokens": 35274,
+        "step_id": 71
+      },
+      {
+        "call_index": 71,
+        "completion_tokens": 36,
+        "prompt_tokens": 35361,
+        "step_id": 72
+      },
+      {
+        "call_index": 72,
+        "completion_tokens": 45,
+        "prompt_tokens": 35447,
+        "step_id": 73
+      },
+      {
+        "call_index": 73,
+        "completion_tokens": 166,
+        "prompt_tokens": 35800,
+        "step_id": 74
+      },
+      {
+        "call_index": 74,
+        "completion_tokens": 25,
+        "prompt_tokens": 36083,
+        "step_id": 75
+      },
+      {
+        "call_index": 75,
+        "completion_tokens": 39,
+        "prompt_tokens": 36171,
+        "step_id": 76
+      },
+      {
+        "call_index": 76,
+        "completion_tokens": 36,
+        "prompt_tokens": 36265,
+        "step_id": 77
+      },
+      {
+        "call_index": 77,
+        "completion_tokens": 45,
+        "prompt_tokens": 36352,
+        "step_id": 78
+      },
+      {
+        "call_index": 78,
+        "completion_tokens": 36,
+        "prompt_tokens": 36457,
+        "step_id": 79
+      },
+      {
+        "call_index": 79,
+        "completion_tokens": 45,
+        "prompt_tokens": 36555,
+        "step_id": 80
+      },
+      {
+        "call_index": 80,
+        "completion_tokens": 36,
+        "prompt_tokens": 36660,
+        "step_id": 81
+      },
+      {
+        "call_index": 81,
+        "completion_tokens": 45,
+        "prompt_tokens": 36758,
+        "step_id": 82
+      },
+      {
+        "call_index": 82,
+        "completion_tokens": 36,
+        "prompt_tokens": 36863,
+        "step_id": 83
+      },
+      {
+        "call_index": 83,
+        "completion_tokens": 45,
+        "prompt_tokens": 36961,
+        "step_id": 84
+      },
+      {
+        "call_index": 84,
+        "completion_tokens": 36,
+        "prompt_tokens": 37066,
+        "step_id": 85
+      },
+      {
+        "call_index": 85,
+        "completion_tokens": 45,
+        "prompt_tokens": 37164,
+        "step_id": 86
+      },
+      {
+        "call_index": 86,
+        "completion_tokens": 36,
+        "prompt_tokens": 37269,
+        "step_id": 87
+      },
+      {
+        "call_index": 87,
+        "completion_tokens": 45,
+        "prompt_tokens": 37367,
+        "step_id": 88
+      },
+      {
+        "call_index": 88,
+        "completion_tokens": 36,
+        "prompt_tokens": 37472,
+        "step_id": 89
+      },
+      {
+        "call_index": 89,
+        "completion_tokens": 45,
+        "prompt_tokens": 37570,
+        "step_id": 90
+      },
+      {
+        "call_index": 90,
+        "completion_tokens": 36,
+        "prompt_tokens": 37675,
+        "step_id": 91
+      },
+      {
+        "call_index": 91,
+        "completion_tokens": 36,
+        "prompt_tokens": 37912,
+        "step_id": 92
+      },
+      {
+        "call_index": 92,
+        "completion_tokens": 45,
+        "prompt_tokens": 37999,
+        "step_id": 93
+      },
+      {
+        "call_index": 93,
+        "completion_tokens": 36,
+        "prompt_tokens": 38106,
+        "step_id": 94
+      },
+      {
+        "call_index": 94,
+        "completion_tokens": 45,
+        "prompt_tokens": 38204,
+        "step_id": 95
+      },
+      {
+        "call_index": 95,
+        "completion_tokens": 36,
+        "prompt_tokens": 38309,
+        "step_id": 96
+      }
+    ],
+    "prompt_summary": {
+      "first": 1119,
+      "max": 38309,
+      "max_step_id": 96,
+      "median": 31436.0,
+      "n_calls": 95,
+      "reason": null,
+      "slope_per_call": 412.7727463605823,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": "TrialBudgetExhaustedError",
+      "metadata_stop_reason": "trial_budget_exhausted",
+      "reason": null,
+      "stop_reason": "ceiling:input_tokens"
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [],
+      "metadata_count": 0,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 1642233,
+      "note": null,
+      "output_tokens": 2082,
+      "share_input": 0.6765,
+      "share_output": 0.1731,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 4,
+        "chars": 2447,
+        "est_tokens": 611,
+        "next_prompt_tokens": 2813,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "chars": 2447,
+        "est_tokens": 611,
+        "next_prompt_tokens": 3566,
+        "step_id": 6
+      },
+      {
+        "call_index": 7,
+        "chars": 2447,
+        "est_tokens": 611,
+        "next_prompt_tokens": 5146,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "chars": 2447,
+        "est_tokens": 611,
+        "next_prompt_tokens": 5904,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "chars": 2447,
+        "est_tokens": 611,
+        "next_prompt_tokens": 6691,
+        "step_id": 10
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 95,
+      "n_steps_stitched": 96
+    },
+    "trajectory_reason": null,
+    "trial_name": "har116-a-002391-loopfix-r2__NvEfxbt"
+  },
+  "tokens_attempted_proxy": 2464095,
+  "tokens_native": {
+    "input_tokens": 2427397,
+    "output_tokens": 12030,
+    "source": "result.json#agent_result"
+  },
+  "tokens_proxy": {
+    "attribution": "single_trial",
+    "input_tokens": 2443873,
+    "output_tokens": 20222,
+    "path": "lab-metadata.json#provider_usage",
+    "reason": null,
+    "scope": "job",
+    "source": "proxy_settled_ledger",
+    "total_tokens": 2464095
+  },
+  "tokens_steps": {
+    "agent_steps": 95,
+    "completion_tokens": 12030,
+    "metered_steps": 95,
+    "prompt_tokens": 2427397,
+    "reason": null,
+    "total_tokens": 2439427,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "har116-a-002391-loopfix-r2__NvEfxbt",
+  "trial_wall_hours": 0.27511319916666666,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 93,
+    "keystroke_source": "recorded",
+    "short_stretches": 0,
+    "states": {
+      "no_prompt": 45,
+      "prompt": 48
+    },
+    "stretches": [
+      {
+        "cause": "no_prompt",
+        "end_ref": "head#96",
+        "interrupt_keys": null,
+        "interrupt_ref": null,
+        "prompt_returned": false,
+        "prompt_tokens": 1543437,
+        "screen": "cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail -3",
+        "start_ref": "head#54",
+        "steps_without_metrics": 0,
+        "trigger_command": "cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail -3",
+        "trigger_ref": "head#53",
+        "turns": 43,
+        "until_run_end": true
+      }
+    ]
+  }
+}

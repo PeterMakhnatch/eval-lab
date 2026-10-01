@@ -1,0 +1,137 @@
+{
+ "trial": "har116-b-000146-original__JT6tRiN",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-original/har116-b-000146-original__JT6tRiN",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-original",
+ "task": "mimo-v2.6-rl/format-code-task-000146",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#54",
+   "head#56"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 57,
+  "step_ref": "head#57",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#57"
+  ],
+  "recovered": false,
+  "note": "model-emitted surface the normalizer declines (malformed_native:task_complete); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+  "harness_feedback": "No valid JSON found in response",
+  "feedback_names_problem": false
+ },
+ "outcome": {
+  "step_id": 54,
+  "step_ref": "head#54",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#54",
+   "head#59",
+   "head#95"
+  ],
+  "note": "false completion claim from step 54 while the verifier score is 0.0 (scored=True); identical loop 59-95 until ceiling:input_tokens; the claim, not the harness, is wrong",
+  "loop_token_cost": {
+   "prompt": 1512715,
+   "completion": 5164
+  },
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): pager after head#43 (`cd /testbed && git diff`), 3 turns head#44-head#46 with no interrupt, prompt back after the command finished"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#54",
+  "prompts": 2,
+  "confirmed": false,
+  "turns_after_first_prompt": 41,
+  "prompt_tokens_after_first_prompt": 1480602,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 37,
+    "span": [
+     "head#59",
+     "head#95"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1348650,
+   "completion": 4366,
+   "steps": 37,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1348650,
+   "completion": 4366,
+   "steps": 37,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2460865,
+   "completion": 19955,
+   "steps": 94,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.548,
+  "result_input_tokens": 2460865
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 53,
+  "states": {
+   "no_prompt": 2,
+   "pager": 2,
+   "prompt": 49
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#43",
+    "trigger_command": "cd /testbed && git diff",
+    "cause": "pager",
+    "screen": "--More--",
+    "start_ref": "head#44",
+    "end_ref": "head#46",
+    "turns": 3,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": true,
+    "until_run_end": false,
+    "prompt_tokens": 86463,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

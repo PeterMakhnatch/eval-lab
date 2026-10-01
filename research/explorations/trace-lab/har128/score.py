@@ -10,6 +10,10 @@ Match rules are HAR-119's (`../har119/score.py`), unchanged:
 
 loop_present is derived (rater loop_kind != none; a tool's loop span present). A field a tool does not express
 is reported as not expressed, never right or wrong. Refuses to run if any label differs from its MANIFEST.
+
+Eval Lab adapter (same as HAR-119): `raw_first_failure_step` is a stitched ordinal; on all 40 HAR-116 runs the
+chain is one segment and ordinal == native step_id (checked with run_report `_resolve_chain_segments` +
+`_build_steps`), so it is used as the step.
 """
 
 from __future__ import annotations
@@ -41,9 +45,9 @@ NOT_EXPRESSED_BY = {
 }
 
 
-def wilson(k: int, n: int) -> tuple[float, float]:
+def wilson(k: int, n: int) -> tuple[float, float] | tuple[None, None]:
     if n == 0:
-        return (math.nan, math.nan)
+        return (None, None)
     z = 1.96
     p = k / n
     centre = (p + z * z / (2 * n)) / (1 + z * z / n)
@@ -85,6 +89,8 @@ def rater_view(row: dict) -> dict:
 def tool_view(tool: str, row: dict) -> dict:
     span = row.get("loop_span")
     step = row.get("first_failure_step")
+    if tool == "evallab":
+        step = row.get("raw_first_failure_step")
     view = {
         "stop_reason": row.get("stop_reason") or NE,
         "first_failure": step if isinstance(step, int) else step_of(row.get("first_failure_ref")),

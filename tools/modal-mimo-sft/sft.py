@@ -201,12 +201,21 @@ def load_conversations(path: Path) -> list[Conversation]:
         if not isinstance(messages, list) or not messages:
             raise SftError(f"{path}:{number} 'messages' must be a non-empty list")
         for message in messages:
-            if not isinstance(message, dict) or set(message) != {"role", "content"}:
-                raise SftError(f"{path}:{number} messages need exactly role/content")
+            keys = set(message) if isinstance(message, dict) else set()
+            if keys != {"role", "content"} and not (
+                keys == {"role", "content", "reasoning_content"}
+                and message.get("role") == "assistant"
+            ):
+                raise SftError(
+                    f"{path}:{number} messages need exactly role/content "
+                    "(assistant turns may add reasoning_content)"
+                )
             if message["role"] not in ALLOWED_ROLES:
                 raise SftError(f"{path}:{number} unsupported role {message['role']!r}")
-            if not isinstance(message["content"], str):
-                raise SftError(f"{path}:{number} content must be a string")
+            if not isinstance(message["content"], str) or not isinstance(
+                message.get("reasoning_content", ""), str
+            ):
+                raise SftError(f"{path}:{number} content and reasoning_content must be strings")
         loss = row.get("loss", "all")
         if loss not in ("all", "last"):
             raise SftError(f"{path}:{number} 'loss' must be 'all' or 'last'")
@@ -283,18 +292,31 @@ def split_think_prefix(content: str) -> tuple[str | None, str]:
 def to_template_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Map export rows onto the fields the distill template renders.
 
-    Assistant ``<think>`` prefixes become ``reasoning_content`` (the only
-    field the template renders inside ``<think>``); every other assistant
-    turn omits it and renders an empty ``<think></think>``. Tool calls stay
-    verbatim ``<tool_call><function=...>`` text inside ``content`` — the
-    export carries no structured ``tool_calls`` field (parsed-step
-    trajectories are excluded upstream), so the template's structured
-    branch is never triggered.
+    An assistant turn's reasoning reaches the template as ``reasoning_content``
+    (the only field it renders inside ``<think>``). Rows may carry it
+    explicitly, exactly as the model emitted it; otherwise a leading
+    ``<think>`` block in ``content`` is split off. Turns without reasoning
+    render an empty ``<think></think>``. Tool calls stay verbatim
+    ``<tool_call><function=...>`` text inside ``content`` — the export
+    carries no structured ``tool_calls`` field (parsed-step trajectories are
+    excluded upstream), so the template's structured branch is never
+    triggered.
     """
     rendered: list[dict[str, Any]] = []
     for message in messages:
         if message["role"] != "assistant":
             rendered.append({"role": message["role"], "content": message["content"]})
+            continue
+        if "reasoning_content" in message:
+            if message["content"].lstrip().startswith("<think>"):
+                raise SftError("assistant turn has both reasoning_content and a <think> prefix")
+            rendered.append(
+                {
+                    "role": "assistant",
+                    "content": message["content"],
+                    "reasoning_content": message["reasoning_content"],
+                }
+            )
             continue
         reasoning, body = split_think_prefix(message["content"])
         turn: dict[str, Any] = {"role": "assistant", "content": body}
@@ -343,14 +365,22 @@ def render_and_mask(
 ) -> Rendered:
     """Render with the model's own template; derive verified assistant spans.
 
-    Primary signal: the template's ``{% generation %}`` markers via
-    ``return_assistant_tokens_mask``. Verification: incremental prefix
-    rendering — every prefix must be an exact token-prefix of the full
-    render, and the union of assistant-turn suffixes must equal the template
-    mask. Anything else raises :class:`SftError` naming the conversation.
-    ``loss="last"`` then keeps only the final assistant turn's span.
-    ``enable_thinking=True`` matches serving; with ``add_generation_prompt``
-    unset it changes no training token, only the (absent) trailing prompt.
+    ``loss="all"``: the template's ``{% generation %}`` markers (via
+    ``return_assistant_tokens_mask``) are the primary signal, verified by
+    incremental prefix rendering — every prefix must be an exact token-prefix
+    of the full render, and the union of assistant-turn suffixes must equal
+    the template mask. These spans include each turn's
+    ``<|im_start|>assistant\\n`` header.
+
+    ``loss="last"``: exactly the tokens the served model generated for the
+    final call. The served prompt is ``messages[:-1]`` rendered with
+    ``add_generation_prompt=True``; it must be a token-prefix of the full
+    render, every token after it must sit inside the template's assistant
+    mask, and only those tokens train. The header is part of the prompt, so
+    it never trains.
+
+    Anything else raises :class:`SftError` naming the conversation.
+    ``enable_thinking=True`` matches serving.
     """
     tmpl = to_template_messages(messages)
     full = tokenizer.apply_chat_template(
@@ -364,37 +394,48 @@ def render_and_mask(
     mask = [int(bit) for bit in full["assistant_masks"]]
     assistant_turns = sum(1 for message in tmpl if message["role"] == "assistant")
 
-    # Verified prefix property + cross-check against the template markers.
-    derived = [0] * len(ids)
-    last_span = (0, 0)
-    previous = 0
-    for end in range(1, len(tmpl) + 1):
-        part = list(
-            tokenizer.apply_chat_template(
-                tmpl[:end],
-                tokenize=True,
-                add_generation_prompt=False,
-                enable_thinking=True,
-            )["input_ids"]
-        )
-        if len(part) <= previous or part != ids[: len(part)]:
-            raise SftError(f"{label}: prefix property broken at message {end}")
-        if tmpl[end - 1]["role"] == "assistant":
-            last_span = (previous, len(part))
-            for pos in range(previous, len(part)):
-                derived[pos] = 1
-        previous = len(part)
-    if previous != len(ids):
-        raise SftError(f"{label}: prefix render diverged from full render")
-    if derived != mask:
-        raise SftError(f"{label}: template mask disagrees with prefix spans")
-    if not any(mask):
-        raise SftError(f"{label}: conversation has zero trainable tokens")
     if loss == "last":
         if tmpl[-1]["role"] != "assistant":
             raise SftError(f"{label}: loss='last' needs a final assistant turn")
-        start, stop = last_span
-        mask = [int(start <= pos < stop) for pos in range(len(ids))]
+        prompt = list(
+            tokenizer.apply_chat_template(
+                tmpl[:-1],
+                tokenize=True,
+                add_generation_prompt=True,
+                enable_thinking=True,
+            )["input_ids"]
+        )
+        start = len(prompt)
+        if start >= len(ids) or prompt != ids[:start]:
+            raise SftError(f"{label}: served prompt is not a prefix of the full render")
+        if not all(mask[start:]):
+            raise SftError(f"{label}: completion falls outside the template's assistant mask")
+        mask = [int(pos >= start) for pos in range(len(ids))]
+    else:
+        # Verified prefix property + cross-check against the template markers.
+        derived = [0] * len(ids)
+        previous = 0
+        for end in range(1, len(tmpl) + 1):
+            part = list(
+                tokenizer.apply_chat_template(
+                    tmpl[:end],
+                    tokenize=True,
+                    add_generation_prompt=False,
+                    enable_thinking=True,
+                )["input_ids"]
+            )
+            if len(part) <= previous or part != ids[: len(part)]:
+                raise SftError(f"{label}: prefix property broken at message {end}")
+            if tmpl[end - 1]["role"] == "assistant":
+                for pos in range(previous, len(part)):
+                    derived[pos] = 1
+            previous = len(part)
+        if previous != len(ids):
+            raise SftError(f"{label}: prefix render diverged from full render")
+        if derived != mask:
+            raise SftError(f"{label}: template mask disagrees with prefix spans")
+    if not any(mask):
+        raise SftError(f"{label}: conversation has zero trainable tokens")
 
     tokens_before = len(ids)
     truncated = tokens_before > max_length
@@ -570,7 +611,8 @@ def build_receipt(
             "tool_calls": "verbatim <tool_call><function=...> text in content",
             "mask": "assistant_masks (template generation markers), "
             "prefix-property verified per conversation; rows with loss='last' "
-            "keep only the final assistant turn",
+            "train only the final call's served completion (after the "
+            "add_generation_prompt render of messages[:-1])",
             "loss_rows": {
                 scope: sum(1 for row in dry.export.conversations if row.loss == scope)
                 for scope in ("all", "last")

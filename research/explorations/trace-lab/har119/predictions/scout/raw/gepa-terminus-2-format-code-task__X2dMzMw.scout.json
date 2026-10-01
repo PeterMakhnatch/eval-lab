@@ -1,0 +1,111 @@
+{
+ "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8/gepa-terminus-2-format-code-task__X2dMzMw",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+ "task": "mimo-v2.6-rl/format-code-task-002256",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:requests",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#11"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 5,
+  "step_ref": "head#5",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#5"
+  ],
+  "recovered": true,
+  "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+  "harness_feedback": "No valid JSON found in response",
+  "feedback_names_problem": false
+ },
+ "outcome": {
+  "step_id": 11,
+  "step_ref": "head#11",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#11"
+  ],
+  "note": "false completion claim at head#11 while 1 verifier test(s) fail (2 failing (unnamed)); the claim, not the harness, is wrong"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#11",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 110,
+  "prompt_tokens_after_first_prompt": 1278950,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 109,
+    "span": [
+     "head#13",
+     "head#121"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1274679,
+   "completion": 3574,
+   "steps": 109,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1274679,
+   "completion": 3574,
+   "steps": 109,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1305899,
+   "completion": 4803,
+   "steps": 120,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.9761,
+  "result_input_tokens": 1305899
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 117,
+  "states": {
+   "prompt": 117
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

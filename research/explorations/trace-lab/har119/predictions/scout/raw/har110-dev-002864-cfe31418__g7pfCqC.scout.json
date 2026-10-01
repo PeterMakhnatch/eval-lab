@@ -1,0 +1,79 @@
+{
+ "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-002864-cfe31418/har110-dev-002864-cfe31418__g7pfCqC",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-002864-cfe31418",
+ "task": "mimo-v2.6-rl/format-code-task-002864",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#12",
+   "head#13"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [],
+  "note": "scored pass with no outcome-relevant failure"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#12",
+  "prompts": 1,
+  "confirmed": true,
+  "turns_after_first_prompt": 1,
+  "prompt_tokens_after_first_prompt": 9710,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [],
+  "identical": null,
+  "confirmation": null,
+  "in_loops": null,
+  "all_steps": {
+   "prompt": 74411,
+   "completion": 2735,
+   "steps": 12,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": null,
+  "result_input_tokens": 74411
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 10,
+  "states": {
+   "no_prompt": 1,
+   "prompt": 9
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

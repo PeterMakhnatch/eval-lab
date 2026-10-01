@@ -1,0 +1,96 @@
+{
+ "trial": "har110-000495-seed__dimG2yD",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000495-seed/har110-000495-seed__dimG2yD",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000495-seed",
+ "task": "mimo-v2.6-rl/format-code-task-000495",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "planning",
+  "attribution": "model",
+  "rule_id": "R-PLAN-01",
+  "evidence_step_refs": [
+   "head#9",
+   "head#92"
+  ],
+  "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#92)",
+  "scanned_step_refs": [
+   "head#2",
+   "head#92"
+  ],
+  "task_file_edits": 0,
+  "secondary": "error_recovery/model secondary: identical run head#9-head#92"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 84,
+    "span": [
+     "head#9",
+     "head#92"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 2332132,
+   "completion": 8704,
+   "steps": 84,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 2332132,
+   "completion": 8704,
+   "steps": 84,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2356994,
+   "completion": 9601,
+   "steps": 91,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.9895,
+  "result_input_tokens": 2356994
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 91,
+  "states": {
+   "no_prompt": 2,
+   "prompt": 89
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

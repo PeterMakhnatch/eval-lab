@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "medium",
+  "evidence": [
+    {
+      "quote": "def full(self) -> bool:",
+      "ref": "head#2"
+    },
+    {
+      "quote": "path = 'persistqueue/queue.py'",
+      "ref": "head#8"
+    },
+    {
+      "quote": "echo done",
+      "ref": "head#12"
+    },
+    {
+      "quote": "echo end35",
+      "ref": "head#121"
+    },
+    {
+      "quote": "assert await queue.full() is False",
+      "ref": "head#verifier"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError",
+      "ref": "head#result"
+    }
+  ],
+  "first_failure": {
+    "quote": "path = 'persistqueue/queue.py'",
+    "ref": "head#8",
+    "what": "Patched only sync Queue.full() and never inspected AsyncQueue.full()"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#12",
+    "head#121"
+  ],
+  "notes": "Sync fix was correct and present at verify (new sync tests passed); hidden async tests failed on the same maxsize=0 bug. Instruction examples are sync-Queue-only, so task blame is defensible, but the async twin was one grep away. Echo loop is claim-driven confirmation attempts, not independent repetition.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 22,
+  "stop_confidence": "high",
+  "stop_reason": "request_ceiling",
+  "trial": "gepa-terminus-2-format-code-task__X2dMzMw"
+}

@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Now I'll implement the fix in `_audit.py`.",
+      "ref": "head#6"
+    },
+    {
+      "quote": "The implementation is complete. Summary of changes:",
+      "ref": "head#36"
+    },
+    {
+      "quote": "echo complete",
+      "ref": "head#88"
+    },
+    {
+      "quote": "At index 0 diff: ('demo-pkg', '1.0.0', [('PYSEC-0', ['CVE-2024-0001', 'CVE-2024-0002'])])",
+      "ref": "head#verifier"
+    }
+  ],
+  "first_failure": {
+    "quote": "Now I'll implement the fix in `_audit.py`.",
+    "ref": "head#6",
+    "what": "First _dedupe_aliases write merges distinct advisories into one result"
+  },
+  "first_failure_confidence": "medium",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#36",
+    "head#88"
+  ],
+  "notes": "Final code unions aliases across non-overlapping advisories (GHSA-bbbb absorbed into PYSEC-0). Later patches never restored distinct advisories; completion was claimed against issue examples only.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 24,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "gepa-terminus-2-format-code-task__8FqvKUU"
+}

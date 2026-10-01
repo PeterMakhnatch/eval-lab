@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cat >> /testbed/pottery/redlock.py << 'EOF'",
+      "ref": "head#16"
+    },
+    {
+      "quote": "def redlock(*,",
+      "ref": "head#16"
+    },
+    {
+      "quote": "Oops \u2014 I named the inner Redlock instance",
+      "ref": "head#17"
+    },
+    {
+      "quote": "echo \"===\"",
+      "ref": "head#87"
+    },
+    {
+      "quote": "test_doctests.py",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "cat >> /testbed/pottery/redlock.py << 'EOF'",
+    "ref": "head#16",
+    "what": "Appended shared-instance redlock decorator that fails concurrent release with ReleaseUnlockedLock"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 0; verifier 18 passed 1 failed (RedlockDecoratorTests.test_redlock_decorator ReleaseUnlockedLock on concurrent use); n_episodes=87 with TrialBudgetExhaustedError; no task_complete claims (all null); final 3 turns repeat same doctest grep, not >=10; agent.diff 0B at collection [UNVERIFIED why] but trajectory shows decorator present at test time.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 22,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-000587-plain__5NNxU35"
+}

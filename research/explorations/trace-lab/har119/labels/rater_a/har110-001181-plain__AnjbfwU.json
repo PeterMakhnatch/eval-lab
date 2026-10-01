@@ -1,0 +1,47 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "grep -rn \"class Progress\" /testbed --include=*.py | head",
+      "ref": "head#2"
+    },
+    {
+      "quote": "Task.speed: sum deltas of retained samples in window",
+      "ref": "head#19"
+    },
+    {
+      "quote": "total_completed = sum(sample.completed for sample in progress[1:])",
+      "ref": "head#20"
+    },
+    {
+      "quote": "if len(progress) < 2:",
+      "ref": "head#20"
+    },
+    {
+      "quote": "The terminal is stuck in less. Let me break out with Ctrl-C.",
+      "ref": "head#84"
+    },
+    {
+      "quote": "cd /testbed && (PAGER=cat python -u /tmp/check.py > /tmp/out.txt 2>&1; echo EXIT=$?); cat /tmp/out.txt",
+      "ref": "head#85"
+    }
+  ],
+  "first_failure": {
+    "quote": "Task.speed: sum deltas of retained samples in window",
+    "ref": "head#19",
+    "what": "Replaced Task.speed with deque-slicing sum that raises TypeError on every speed call"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 0; verifier shows TypeError: sequence index must be integer, not 'slice' in Task.speed/time_remaining plus track failures; n_episodes=85 with TrialBudgetExhaustedError; no task_complete claims (all null); final 3 turns repeat same check.py command in stuck less pager, not >=10; pip download to /tmp did not yield passing code.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 28,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-001181-plain__AnjbfwU"
+}

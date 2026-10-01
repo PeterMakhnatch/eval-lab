@@ -1,0 +1,4 @@
+2026-10-01T00:00:02Z
+selection.json sha256 941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f
+rater guide RATER_GUIDE.md sha256 55bccb870266177b99b41b67de26ee142d6e820a70c917ec81ee83203cae7b28
+Frozen before any tool prediction for these 12 runs was read by the parent. Raters: blind scout agents (A: RaterA1-3, B: RaterB1-3), each saw only trial + task folders; all 24 report off_limits_opened=false.

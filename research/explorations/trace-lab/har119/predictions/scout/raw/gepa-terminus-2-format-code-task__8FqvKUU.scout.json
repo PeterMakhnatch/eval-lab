@@ -1,0 +1,105 @@
+{
+ "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/gepa-terminus-2-format-code-task-002-a951229932dc90303c90215d/gepa-terminus-2-format-code-task__8FqvKUU",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/gepa-terminus-2-format-code-task-002-a951229932dc90303c90215d",
+ "task": "mimo-v2.6-rl/format-code-task-002391",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#36"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 36,
+  "step_ref": "head#36",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#36",
+   "head#43",
+   "head#88"
+  ],
+  "note": "false completion claim from step 36 while the verifier score is 0.0 (scored=True); identical loop 43-88 until ceiling:input_tokens; the claim, not the harness, is wrong",
+  "loop_token_cost": {
+   "prompt": 1842738,
+   "completion": 10582
+  }
+ },
+ "handshake": {
+  "first_prompt_ref": "head#36",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 52,
+  "prompt_tokens_after_first_prompt": 1815415,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 46,
+    "span": [
+     "head#43",
+     "head#88"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1646179,
+   "completion": 9706,
+   "steps": 46,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1646179,
+   "completion": 9706,
+   "steps": 46,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2385033,
+   "completion": 20371,
+   "steps": 87,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.6902,
+  "result_input_tokens": 2385033
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 86,
+  "states": {
+   "no_prompt": 2,
+   "prompt": 84
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

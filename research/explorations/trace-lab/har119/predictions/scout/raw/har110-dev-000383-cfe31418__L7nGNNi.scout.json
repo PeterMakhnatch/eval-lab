@@ -1,0 +1,95 @@
+{
+ "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-000383-cfe31418/har110-dev-000383-cfe31418__L7nGNNi",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-000383-cfe31418",
+ "task": "mimo-v2.6-rl/format-code-task-000383",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "planning",
+  "attribution": "model",
+  "rule_id": "R-PLAN-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#93"
+  ],
+  "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#93)",
+  "scanned_step_refs": [
+   "head#2",
+   "head#93"
+  ],
+  "task_file_edits": 0,
+  "secondary": "error_recovery/model secondary: identical run head#2-head#93"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 92,
+    "span": [
+     "head#2",
+     "head#93"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 2383755,
+   "completion": 8394,
+   "steps": 92,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 2383755,
+   "completion": 8394,
+   "steps": 92,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2383755,
+   "completion": 8394,
+   "steps": 92,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 1.0,
+  "result_input_tokens": 2383755
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 92,
+  "states": {
+   "prompt": 92
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

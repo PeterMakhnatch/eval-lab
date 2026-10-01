@@ -1,0 +1,47 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ls /testbed && git -C /testbed log --oneline -5",
+      "ref": "head#2"
+    },
+    {
+      "quote": "a5672f074 (HEAD) add logic to handle substitutions (#3768)",
+      "ref": "head#2"
+    },
+    {
+      "quote": "There's an `is_function` helper. The right fix is to skip validation when the non-string value is a function object",
+      "ref": "head#84"
+    },
+    {
+      "quote": "cd /testbed && python - <<'PYEOF'",
+      "ref": "head#84"
+    },
+    {
+      "quote": "grep -n \"import\" /testbed/src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py",
+      "ref": "head#85"
+    },
+    {
+      "quote": "import cfnlint.helpers",
+      "ref": "head#85"
+    }
+  ],
+  "first_failure": {
+    "quote": "There's an `is_function` helper. The right fix is to skip validation when the non-string value is a function object",
+    "ref": "head#84",
+    "what": "Inserted is_function-skip plus strict_types=False fix that still fails substitution/strict hidden tests"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 0; verifier 9 passed 3 failed (Invalid configuration, Valid string json with definition substitution, Valid string json); n_episodes=97 with TrialBudgetExhaustedError; no task_complete claims seen; instruction vs hidden tests look reasonable so not task [UNVERIFIED full hidden-test comparison]; final diff matches head#84 edit direction.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 32,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-000495-plain__mDTBFAW"
+}

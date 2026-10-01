@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "m = fix.Message()\nm.getHeader().setField(fix.MsgType(fix.MsgType_MarketDataRequest))\nm.setField(fix.MarketDataUpdateType(0))",
+      "ref": "head#31"
+    },
+    {
+      "quote": "AttributeError: module 'quickfix' has no attribute 'MarketDataUpdateType'",
+      "ref": "head#31"
+    },
+    {
+      "quote": "m = fix.Message()\nm.getHeader().setField(fix.MsgType(fix.MsgType_MarketDataRequest))\nm.setField(fix.MarketDataUpdateType(0))",
+      "ref": "head#93"
+    },
+    {
+      "quote": "AttributeError: module 'quickfix' has no attribute 'MarketDataUpdateType'",
+      "ref": "head#93"
+    }
+  ],
+  "first_failure": {
+    "quote": "m.setField(fix.MarketDataUpdateType(0))",
+    "ref": "head#31",
+    "what": "Crystallized into byte-identical quickfix probe loop after learning MarketDataUpdateType is missing; never wrote any implementation code"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#31",
+    "head#93"
+  ],
+  "notes": "63 byte-identical probe turns (31-93) to budget death; max step 93 (<121 episodes) + trial-budget RateLimitError in exception.txt. Zero file edits in the whole run (no heredoc/cat>/sed/git-add; verifier/agent.diff 0B); all 13 hidden market-data tests failed on the pristine tree. Longer probe variants (steps ~23-30) converged to the minimal failing probe at step 31. The missing wrapper attribute was discoverable trivia, not a blocker (numeric field tags existed); the task was writing subscribe/unsubscribe client methods, which was never attempted.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 14,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-dev-000383-cfe31418__L7nGNNi"
+}

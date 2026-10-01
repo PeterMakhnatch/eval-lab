@@ -1,0 +1,245 @@
+{
+  "scope": "Current-consumer smoke, not the final G5 atlas or a paired treatment comparison",
+  "observed_at": "2026-10-01T13:31:56+00:00",
+  "builder_sha256": "5e66f6bedb7bc43ade7500abbe6333f02b789cf02cae126061559ee608ab58ac",
+  "atlas_output_sha256": "b247120f60937acb75b728d672920038a40301bd854dfab80a3f07097fd8d2d4",
+  "atlas_input_digest": "sha256:4609dfff4762d00422d5336ef351673648d7e047fa8bba7b8d84cebe045b02b7",
+  "n_discovered": 249,
+  "n_python_eligible": 165,
+  "historical_non_g5_n": 152,
+  "g5_status": "partial",
+  "g5_counts_by_arm": {
+    "stock": {
+      "pass": 1,
+      "fail": 6,
+      "excluded": 0,
+      "missing": 13,
+      "not_run": 13,
+      "unknown": 0,
+      "binding_unavailable": 0
+    },
+    "tuned": {
+      "pass": 0,
+      "fail": 0,
+      "excluded": 0,
+      "missing": 20,
+      "not_run": 20,
+      "unknown": 0,
+      "binding_unavailable": 0
+    },
+    "gepa": {
+      "pass": 1,
+      "fail": 5,
+      "excluded": 0,
+      "missing": 14,
+      "not_run": 14,
+      "unknown": 0,
+      "binding_unavailable": 0
+    }
+  },
+  "g5_native_audit_sha256": "cfff882fb6b0d94b3e836ce773222d2cdae0bd49a53c689eb0fb689403303ef1",
+  "g5_native_cells_independently_matched": 13,
+  "cohort_sha256": "ecfb2613ecfe0fdc941b28a07fdf67fc0ee8110bf05234c758b244330bce80d3",
+  "spec_manifest_sha256": "a8551c185172e7ad5b6c54acd50b4e41a8fd4a7d558cf6992e819b22c8838029",
+  "loop_calibration_studies": [
+    {
+      "label_cohort": "har128-har116",
+      "source_file": "research/experiments/har117-results-home/har131-page-calibration-har116.json",
+      "source_sha256": "sha256:b179b9a7fed89f07638b5f3acf820a2907bc9f05cf9b069d08400e94203da912",
+      "labels_manifest_sha256": "sha256:24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+      "status": "available",
+      "loop_kind_vs_agreed": "28/35",
+      "page_abstentions": 0,
+      "scope_note": "This study only; not pooled or transferred to G5. Inspection/calibration only, never training reflection.",
+      "cohort": "HAR-128 part 2: 40 HAR-116 trials",
+      "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+      "predictor_functions": {
+        "names": [
+          "trial_decision.classify_loop_kind",
+          "trial_decision._claim_bearing",
+          "token_flow._loop_onset"
+        ],
+        "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+      },
+      "scorer_sha256": "c052edcca32ca083adbaafe2b5b7f38699d5649b6d9d6028778b7f8f60321950",
+      "in_sample": false,
+      "labels_frozen_at": "2026-10-01T07:57:30Z",
+      "heldout": "har116 001181 baseline/loopfix/loopfix-r2 (3 trials): analysis and calibration only, never training reflection",
+      "limit": "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind scout-agent annotations, not human ground truth; rater A on har116-a-000383-baseline__igrXg8R reports off_limits_opened. har116 001181 baseline/loopfix/loopfix-r2 (3 trials): analysis and calibration only, never training reflection; do not export this cohort to training reflection. Scores and report hashes only, not trial content.",
+      "receipt_labels_manifest_sha256": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+      "page_vs_agreed": {
+        "agree": 28,
+        "n": 35
+      },
+      "rater_agreement": {
+        "agree": 35,
+        "n": 40
+      },
+      "disagreements": 5,
+      "loop_kind_confusion": {
+        "none": {
+          "agree": 17,
+          "n": 19
+        },
+        "repetition": {
+          "agree": 8,
+          "n": 13
+        },
+        "completion-claim": {
+          "agree": 3,
+          "n": 3
+        }
+      }
+    },
+    {
+      "label_cohort": "har128-g2-a1",
+      "source_file": "research/experiments/har117-results-home/har131-page-calibration-g2-a1.json",
+      "source_sha256": "sha256:0b70d7ef5eaba161aa82e8edfbac2ab7c19edcbd514b0b49ae1bf3ccb5241085",
+      "labels_manifest_sha256": "sha256:f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674",
+      "status": "available",
+      "loop_kind_vs_agreed": "12/17",
+      "page_abstentions": 0,
+      "scope_note": "This study only; not pooled or transferred to G5. Inspection/calibration only, never training reflection.",
+      "cohort": "HAR-128 G2 attempt 1: 20 HAR-120 trials",
+      "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+      "predictor_functions": {
+        "names": [
+          "trial_decision.classify_loop_kind",
+          "trial_decision._claim_bearing",
+          "token_flow._loop_onset"
+        ],
+        "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+      },
+      "scorer_sha256": "c052edcca32ca083adbaafe2b5b7f38699d5649b6d9d6028778b7f8f60321950",
+      "in_sample": false,
+      "labels_frozen_at": "2026-10-01T09:14:45Z",
+      "heldout": "G2 attempt-1 frozen cohort only: analysis and calibration only, never training reflection",
+      "limit": "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind scout-agent annotations A (G2A1-4) / B (G2B1-4), not human ground truth; no reported off-limits openings. Loop kind only: this cohort carries no first-failure/blame calibration. Denominators stay per-cohort, never pooled. Scores and report hashes only, not trial content; inspection only, never training reflection.",
+      "receipt_labels_manifest_sha256": "f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674",
+      "page_vs_agreed": {
+        "agree": 12,
+        "n": 17
+      },
+      "rater_agreement": {
+        "agree": 17,
+        "n": 20
+      },
+      "disagreements": 3,
+      "loop_kind_confusion": {
+        "none": {
+          "agree": 5,
+          "n": 5
+        },
+        "repetition": {
+          "agree": 4,
+          "n": 6
+        },
+        "completion-claim": {
+          "agree": 3,
+          "n": 6
+        }
+      }
+    },
+    {
+      "label_cohort": "har128-g2-r2",
+      "source_file": "research/experiments/har117-results-home/har131-page-calibration-g2-r2.json",
+      "source_sha256": "sha256:73b861e43482f39686fe56fecde6ace457a75a8243df4006ed89700f22de52f6",
+      "labels_manifest_sha256": "sha256:ddc1f2ad8bf52dc762067a367f7383b990164174b1732c108fb788167597f2ff",
+      "status": "available",
+      "loop_kind_vs_agreed": "10/16",
+      "page_abstentions": 0,
+      "scope_note": "This study only; not pooled or transferred to G5. Inspection/calibration only, never training reflection.",
+      "cohort": "HAR-128 G2 re-run: 19 HAR-120 trials",
+      "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+      "predictor_functions": {
+        "names": [
+          "trial_decision.classify_loop_kind",
+          "trial_decision._claim_bearing",
+          "token_flow._loop_onset"
+        ],
+        "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+      },
+      "scorer_sha256": "c052edcca32ca083adbaafe2b5b7f38699d5649b6d9d6028778b7f8f60321950",
+      "in_sample": false,
+      "labels_frozen_at": "2026-10-01T09:54:19Z",
+      "heldout": "G2 re-run frozen cohort only: analysis and calibration only, never training reflection",
+      "limit": "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind scout-agent annotations A (G3A1-4) / B (G3B1-4), not human ground truth; no reported off-limits openings. Loop kind only: this cohort carries no first-failure/blame calibration. Denominators stay per-cohort, never pooled. Scores and report hashes only, not trial content; inspection only, never training reflection.",
+      "receipt_labels_manifest_sha256": "ddc1f2ad8bf52dc762067a367f7383b990164174b1732c108fb788167597f2ff",
+      "page_vs_agreed": {
+        "agree": 10,
+        "n": 16
+      },
+      "rater_agreement": {
+        "agree": 16,
+        "n": 19
+      },
+      "disagreements": 3,
+      "loop_kind_confusion": {
+        "none": {
+          "agree": 1,
+          "n": 2
+        },
+        "repetition": {
+          "agree": 2,
+          "n": 4
+        },
+        "completion-claim": {
+          "agree": 7,
+          "n": 10
+        }
+      }
+    },
+    {
+      "label_cohort": "har128-g2-tail",
+      "source_file": "research/experiments/har117-results-home/har131-page-calibration-g2-tail.json",
+      "source_sha256": "sha256:f6ae380a7545277e112b9e8eeb7aea52d77f375d1bd1a5de2a9122caa45c13bb",
+      "labels_manifest_sha256": "sha256:3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50",
+      "status": "available",
+      "loop_kind_vs_agreed": "1/3",
+      "page_abstentions": 0,
+      "scope_note": "This study only; not pooled or transferred to G5. Inspection/calibration only, never training reflection.",
+      "cohort": "HAR-128 G2 tail: 3 HAR-120 trials",
+      "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+      "predictor_functions": {
+        "names": [
+          "trial_decision.classify_loop_kind",
+          "trial_decision._claim_bearing",
+          "token_flow._loop_onset"
+        ],
+        "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+      },
+      "scorer_sha256": "c052edcca32ca083adbaafe2b5b7f38699d5649b6d9d6028778b7f8f60321950",
+      "in_sample": false,
+      "labels_frozen_at": "2026-10-01T10:21:18Z",
+      "heldout": "G2 tail freeze: analysis and calibration only, never training reflection",
+      "limit": "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind scout-agent raters G4A/G4B, not human ground truth; neither reports off-limits openings. Loop kind only; no first-failure/blame calibration. Tiny cohort: three trials, all agreed labels completion-claim. Denominators stay per-cohort, never pooled. Scores and report hashes only, not trial content; never training reflection.",
+      "receipt_labels_manifest_sha256": "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50",
+      "page_vs_agreed": {
+        "agree": 1,
+        "n": 3
+      },
+      "rater_agreement": {
+        "agree": 3,
+        "n": 3
+      },
+      "disagreements": 0,
+      "loop_kind_confusion": {
+        "none": {
+          "agree": 0,
+          "n": 0
+        },
+        "repetition": {
+          "agree": 0,
+          "n": 0
+        },
+        "completion-claim": {
+          "agree": 1,
+          "n": 3
+        }
+      }
+    }
+  ],
+  "reflection_status": "unavailable",
+  "focused_tests": 44,
+  "corrections_from_runtime": "Initial real CLI rejected the legitimate freeze because digest-lines were sorted by digest instead of filename; corrected to exact filename-order. Bind native source identity rather than displaycard prefixes, and prefer retained published spec bytes."
+}

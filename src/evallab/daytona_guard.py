@@ -23,6 +23,10 @@ reconciling a now-visible reservation against a newer inventory. Pending names
 are counted until matching inventory visibility or their conservative expiry.
 Creation exceptions never release them. An instance owns only reservations it
 made; another instance cannot reuse, replace or release that name.
+Owned resizing records the latest actual request but retains the per-dimension
+high-water hold until inventory visibility: an earlier creation could still be
+ambiguous. The hold counts once, never old plus new; refused resizes leave it
+unchanged, and retries never shorten its expiry.
 
 Injected ``fetch(path)`` returns parsed JSON, or ``(HTTP_status, parsed_JSON)``;
 exceptions are sanitized to their type. Every real request is an authenticated
@@ -424,6 +428,10 @@ class DaytonaGuard:
             if not isinstance(entry, dict):
                 raise GuardUnavailable("InvalidReservationState")
             _resources(entry.get("resources"), candidate=True)
+            if "requested_resources" in entry:
+                requested = _resources(entry["requested_resources"], candidate=True)
+                if any(requested[dim] > entry["resources"][dim] for dim in _DIMENSIONS):
+                    raise GuardUnavailable("InvalidReservationState")
             for field in ("owner", "region", "sandbox_class", "organization_id", "api_url", "created_at", "expires_at"):
                 _text(entry.get(field))
             _number(entry.get("expires_at_epoch"))
@@ -491,6 +499,7 @@ class DaytonaGuard:
     def _decide(
         snapshot: dict[str, Any], resources: dict[str, float], count: int,
         pending: dict[str, float], *, already_visible: bool = False,
+        reserved_resources: dict[str, float] | None = None,
     ) -> dict[str, Any]:
         requested, reasons = DaytonaGuard._request(resources, count)
         valid_request = requested is not None
@@ -498,9 +507,12 @@ class DaytonaGuard:
         for dim, cap in snapshot["per_sandbox_limits"].items():
             if valid_request and cap is not None and resources[dim] > cap:
                 reasons.append(f"per-sandbox-{dim}-exceeded")
-        # Preserve the nominal request, but a matching visible sandbox already
-        # occupies inventory; admitting its retry adds no new resources.
-        increment = _vector() if already_visible else requested
+        # Nominal request and conservative hold differ after an owned resize.
+        # An earlier creation might be ambiguous, so shrinking cannot release
+        # previously held capacity until the provider inventory is authoritative.
+        increment = requested if reserved_resources is None else _vector(reserved_resources, count=1)
+        if already_visible:
+            increment = _vector()
         projected = {
             dim: _number(snapshot["used"][dim] + pending[dim] + increment[dim])
             for dim in pending
@@ -510,6 +522,8 @@ class DaytonaGuard:
                 reasons.append(f"projected-{dim}-over-cap")
         snapshot.update(pending=pending, requested=requested, projected=projected,
                         admitted=not reasons, reasons=reasons)
+        if reserved_resources is not None:
+            snapshot["reservation_resources"] = _vector(reserved_resources, count=1)
         return snapshot
 
     @staticmethod
@@ -560,12 +574,19 @@ class DaytonaGuard:
             own = (existing is not None and existing["owner"] == self._owner
                    and self._same_pool(existing, snapshot))
             pending = self._pending(entries, snapshot, omit=name if own else None)
-            snapshot = self._decide(snapshot, resources, 1, pending, already_visible=bool(visible))
-            request, invalid = self._request(resources, 1)
+            request, _ = self._request(resources, 1)
+            held = None
+            if request is not None and own and existing is not None:
+                held = {
+                    dim: max(existing["resources"][dim], request[dim])
+                    for dim in _DIMENSIONS
+                }
+            snapshot = self._decide(
+                snapshot, resources, 1, pending, already_visible=bool(visible),
+                reserved_resources=held,
+            )
             if existing is not None and not own:
                 snapshot["reasons"].append("reservation-name-owned-by-another-runner")
-            elif existing is not None and own and not invalid and existing["resources"] != _resources(resources):
-                snapshot["reasons"].append("reservation-resources-changed")
             if visible:
                 if len(visible) != 1 or not self._same_pool({
                     **visible[0], "organization_id": snapshot["organization_id"],
@@ -584,7 +605,13 @@ class DaytonaGuard:
             if visible:
                 snapshot["reservation_status"] = "already-visible"
             elif existing is not None and own:
-                snapshot["reservation_status"] = "reused"
+                actual = _resources(resources, candidate=True)
+                snapshot["reservation_status"] = (
+                    "reused" if existing.get("requested_resources", existing["resources"]) == actual
+                    else "resized"
+                )
+                existing["requested_resources"] = actual
+                existing["resources"] = held
                 # Never shorten a lifetime on retry; a later provider creation
                 # might run for the newly supplied TTL from this retry.
                 existing["expires_at_epoch"] = max(existing["expires_at_epoch"], now + ttl_seconds)
@@ -597,6 +624,7 @@ class DaytonaGuard:
                     "region": target,
                     "sandbox_class": klass,
                     "resources": _resources(resources, candidate=True),
+                    "requested_resources": _resources(resources, candidate=True),
                     "created_at": _iso(now),
                     "expires_at": _iso(now + ttl_seconds),
                     "expires_at_epoch": now + ttl_seconds,

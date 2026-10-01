@@ -185,11 +185,77 @@ def test_own_retry_preserves_reservation_and_others_cannot_bypass_or_release(tmp
         other.reserve("pending", RESOURCES, ttl_seconds=600)
     assert "reservation-name-owned-by-another-runner" in refused.value.snapshot["reasons"]
     with pytest.raises(AdmissionRefused) as changed:
-        owner.reserve("pending", {**RESOURCES, "cpu": 2}, ttl_seconds=600)
-    assert "reservation-resources-changed" in changed.value.snapshot["reasons"]
+        owner.reserve("pending", {**RESOURCES, "cpu": 5}, ttl_seconds=600)
+    assert "per-sandbox-cpu-exceeded" in changed.value.snapshot["reasons"]
     assert other.observe()["pending"]["cpu"] == 4
     owner.release("pending")
     other.reserve("next", RESOURCES, ttl_seconds=600)
+
+
+def test_owned_resize_races_another_lane_without_double_charge_or_ambiguous_shrink(tmp_path: Path) -> None:
+    api = API(items=[sandbox(i) for i in range(19)])
+    owner, other = guard(tmp_path, api), guard(tmp_path, api)
+    owner.reserve("building", RESOURCES, ttl_seconds=600)
+    path = tmp_path / "state" / "reservations.json"
+    before = json.loads(path.read_text())["reservations"]["building"]
+    actual = {"cpu": 2.0, "memory_gib": 4.0, "disk_gib": 7.0, "gpu": 0.0}
+    start = threading.Barrier(2)
+
+    def attempt(index: int) -> tuple[str, dict[str, Any]]:
+        start.wait(timeout=5)
+        try:
+            snapshot = (owner.reserve("building", actual, ttl_seconds=60) if index == 0
+                        else other.reserve("other-lane", actual, ttl_seconds=60))
+            return "admitted", snapshot
+        except AdmissionRefused as error:
+            return "refused", error.snapshot
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        resized, competing = list(executor.map(attempt, [0, 1]))
+    assert resized[0] == "admitted"
+    assert competing[0] == "refused"
+    assert resized[1]["reservation_status"] == "resized"
+    assert resized[1]["requested"]["cpu"] == 2
+    assert resized[1]["reservation_resources"]["cpu"] == 4
+    assert resized[1]["pending"]["cpu"] == 0
+    assert resized[1]["projected"]["cpu"] == 80  # 76 + hold 4, never old 4 + new 2
+    assert competing[1]["pending"]["cpu"] == 4
+    assert competing[1]["projected"]["cpu"] == 82
+    record = json.loads(path.read_text())["reservations"]["building"]
+    assert record["resources"] == RESOURCES
+    assert record["requested_resources"] == actual
+    assert record["expires_at_epoch"] >= before["expires_at_epoch"]
+    assert record["owner"] == before["owner"]
+    # Only authoritative visibility can replace an ambiguous earlier high-water
+    # allocation with the smaller final allocation and free capacity for others.
+    api.pages[0]["items"].append(sandbox(
+        19, name="building", cpu=actual["cpu"], memory=actual["memory_gib"], disk=actual["disk_gib"],
+    ))
+    admitted = other.reserve("other-lane", actual, ttl_seconds=60)
+    assert admitted["used"]["cpu"] == 78
+    assert admitted["pending"]["cpu"] == 0
+    assert admitted["projected"]["cpu"] == 80
+    assert list(json.loads(path.read_text())["reservations"]) == ["other-lane"]
+
+
+def test_owned_upsize_checks_other_pending_and_preserves_old_hold_when_refused(tmp_path: Path) -> None:
+    api = API(usage_record=usage(currentCpuUsage=74))
+    owner, other = guard(tmp_path, api), guard(tmp_path, api)
+    owner.reserve("owner", {**RESOURCES, "cpu": 2}, ttl_seconds=600)
+    other.reserve("other", {**RESOURCES, "cpu": 3}, ttl_seconds=600)
+    path = tmp_path / "state" / "reservations.json"
+    before = path.read_bytes()
+    with pytest.raises(AdmissionRefused) as refused:
+        owner.reserve("owner", RESOURCES, ttl_seconds=600)
+    assert refused.value.snapshot["pending"]["cpu"] == 3
+    assert refused.value.snapshot["projected"]["cpu"] == 81
+    assert "projected-cpu-over-cap" in refused.value.snapshot["reasons"]
+    assert path.read_bytes() == before
+    api.usage = usage(currentCpuUsage=74, maxCpuPerSandbox=1)
+    with pytest.raises(AdmissionRefused) as capped:
+        owner.reserve("owner", {**RESOURCES, "cpu": 2}, ttl_seconds=600)
+    assert "per-sandbox-cpu-exceeded" in capped.value.snapshot["reasons"]
+    assert path.read_bytes() == before
 
 
 def test_visible_name_retry_and_reconciliation_do_not_double_count(tmp_path: Path) -> None:

@@ -79,11 +79,11 @@ def _layout(root: Path) -> Path:
 
 def test_page_names_the_grader_gap_and_the_fetch(tmp_path: Path) -> None:
     job = _layout(tmp_path)
-    process_job(job, output_dir=tmp_path / "out", ingest=False)
+    process_job(job, output_dir=tmp_path / "out", ingest=False, publish=False)
     saved = json.loads((tmp_path / "out" / "trial-trial-leak.json").read_text(encoding="utf-8"))
     decision = saved["decision"]
 
-    assert decision["schema"] == "trial_decision/v1"
+    assert decision["schema"] == "trial_decision/v2"
     assert decision["asked"]["grader_tests_asked"] == "no"
     assert "deliverable_not_in_instruction" in decision["asked"]["grader_gap"]
     assert "submit.sh" in decision["asked"]["grader_gap"]
@@ -99,11 +99,13 @@ def test_page_names_the_grader_gap_and_the_fetch(tmp_path: Path) -> None:
 
     page = (tmp_path / "out" / "trial-trial-leak.md").read_text(encoding="utf-8")
     assert page.startswith("# Run report:")
-    assert "## Decision" in page
-    assert "Does the grader test that?** no" in page
-    assert "Fetched the fix: yes" in page
-    assert "not this shape" in page
+    assert "### Facts" in page
+    assert "### Judgments" in page
+    assert "Opinions. Do not treat these as facts." in page
+    assert "Verdict: `counted_fail`" in page
+    assert "Does the grader test that? no" in page
     assert FETCH in page
+    assert "not this shape" in page
 
 
 def test_pass_with_fetch_is_a_candidate_not_a_ruling() -> None:
@@ -131,11 +133,12 @@ def test_pass_with_fetch_is_a_candidate_not_a_ruling() -> None:
     )
     assert decision["whose"] == "none"
     assert decision["pass_tainted"]["flagged"] is True
-    assert decision["pass_tainted"]["status"] == "candidate"
-    assert decision["did"]["last_edit_step"] == 8
+    assert decision["counts"]["status"] == "pending"
+    assert decision["counts"]["verdict"] is None
+    assert decision["facts"]["fetches"][0]["command"] == FETCH
     text = "\n".join(render_decision_markdown(decision))
-    assert "Not a coordinator ruling" in text
-    assert "Last useful edit: step `8`" in text
+    assert "does not decide whether the result counts" in text
+    assert FETCH in text
 
 
 def test_suspect_grader_is_the_task_and_nop_can_confirm() -> None:
@@ -175,3 +178,55 @@ def test_suspect_grader_is_the_task_and_nop_can_confirm() -> None:
     )
     assert mismatch["rule_match"] is False
     assert mismatch["attribution_match"] is False
+
+
+def test_counts_field_is_rendered_and_never_computed() -> None:
+    from evallab.trial_decision import render_counts
+
+    pending = render_counts(None)
+    assert pending["status"] == "pending"
+    assert pending["verdict"] is None
+    rendered = render_counts(
+        {
+            "verdict": "excluded",
+            "reasons": ["copied_fix"],
+            "evidence": [{"step": "head#4", "command": FETCH}],
+        }
+    )
+    assert rendered["status"] == "rendered"
+    assert rendered["verdict"] == "excluded"
+    assert rendered["reasons"] == ["copied_fix"]
+
+
+def test_echo_task_complete_is_a_completion_claim_loop(tmp_path: Path) -> None:
+    from evallab.trial_decision import classify_loop_kind
+
+    trial = tmp_path / "trial"
+    agent = trial / "agent"
+    agent.mkdir(parents=True)
+    steps = [
+        {
+            "step_id": 1,
+            "source": "agent",
+            "message": "echo start",
+            "observation": {
+                "results": [
+                    {"content": "Are you sure you want to mark the task as complete?"}
+                ]
+            },
+        }
+    ]
+    steps.extend(
+        {
+            "step_id": index,
+            "source": "agent",
+            "message": 'echo "task_complete"',
+            "observation": {"results": [{"content": "task_complete"}]},
+        }
+        for index in range(2, 14)
+    )
+    (agent / "trajectory.json").write_text(json.dumps({"steps": steps}), encoding="utf-8")
+    kind = classify_loop_kind(trial, "ceiling:input_tokens", {"loop_onset": {"step_id": 4}})
+    assert kind["kind"] == "completion-claim"
+    assert kind["claim_bearing_turns"] == 12
+    assert kind["turns_after_prompt"] == 12

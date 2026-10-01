@@ -108,8 +108,13 @@ def test_unverified_exemplars_never_generalize():
     assert atlas_build.select_exemplars(matching, {}) == []
 
 
+DIG_GOOD = "sha256:" + "ab12" * 16
+DIG_1181 = "sha256:a680b2bdae21a72de651b06f58968c7e881628efb2b3b6abc93ce9f8895bac3d"
+DIG_0383 = "sha256:da5de5025dc1e2446c236bfd7d89337a7e478cc41d8645e8ae79c0d331941303"
+
+
 def _ledger_entry(**kw):
-    entry = {"status": "usable", "run": "original", "run_digest": "sha256:abc",
+    entry = {"status": "usable", "run": "original", "run_digest": DIG_GOOD,
              "split": "train", "project": "proj-a"}
     entry.update(kw)
     return entry
@@ -122,13 +127,13 @@ def _ledger(by_task):
 
 def _gate(task_ids=(), repos=(), digests=()):
     return {"path": "research/experiments/ovn-sft-v0/eval_tasks.csv",
-            "sha256": "sha256:eval", "n_tasks": len(task_ids),
+            "sha256": "sha256:eval", "n_tasks": len(task_ids), "columns": ["task", "digest", "run", "repo"],
             "task_ids": set(task_ids), "repos": set(repos), "digests": set(digests)}
 
 
 def _train_trial(**kw):
     base = {"task_name": "mimo-v2.6-rl/format-code-task-000495",
-            "task_package_digest": "sha256:abc", "counts_verdict": "counted_fail"}
+            "task_package_digest": DIG_GOOD, "counts_verdict": "counted_fail"}
     base.update(kw)
     return _trial(**base)
 
@@ -141,10 +146,9 @@ def test_gepa_gate_fail_closed():
     gate = _gate()
     ledger = _ledger({"format-code-task-000495": _ledger_entry()})
     assert atlas_build.reflection_status(None, [], {}, ledger, gate)["status"] == "unavailable"
-    assert atlas_build.reflection_status([], [], {}, ledger, gate)["status"] == "unavailable"
     assert atlas_build.reflection_status(
         [{"task": "x"}], [], {}, ledger, gate)["status"] == "unavailable"
-    bound = _bindings(("format-code-task-000495", "sha256:abc"))
+    bound = _bindings(("format-code-task-000495", DIG_GOOD))
     # full authorization context missing: still unavailable, never half-open
     assert atlas_build.reflection_status(
         bound, [_train_trial()], {}, None, None)["status"] == "unavailable"
@@ -152,16 +156,41 @@ def test_gepa_gate_fail_closed():
         bound, [_train_trial()], {}, ledger, None)["status"] == "unavailable"
     # bindings match nothing: unavailable, never an available-empty export
     assert atlas_build.reflection_status(
-        _bindings(("other", "sha256:zzz")), [_train_trial()], {}, ledger, gate)["status"] == "unavailable"
+        _bindings(("format-code-task-000587", DIG_GOOD)),
+        [_train_trial()], {}, ledger, gate)["status"] == "unavailable"
+
+
+def test_g2_bindings_validation_rejects_file():
+    good = ("format-code-task-000495", DIG_GOOD)
+    allowed, error = atlas_build.validate_g2_bindings([dict(zip(("task", "package_digest"), good))])
+    assert error is None and allowed == {good}
+    # one malformed entry fails the entire file, loudly
+    _, error = atlas_build.validate_g2_bindings(
+        [dict(zip(("task", "package_digest"), good)), {"task": "format-code-task-000495"}])
+    assert error is not None and "indices [1]" in error
+    _, error = atlas_build.validate_g2_bindings(
+        [dict(zip(("task", "package_digest"), good)), {"task": "candidate-1", "package_digest": DIG_GOOD}])
+    assert error is not None
+    _, error = atlas_build.validate_g2_bindings(
+        [dict(zip(("task", "package_digest"), good)),
+         {"task": "format-code-task-000495", "package_digest": 123}])
+    assert error is not None
+    # duplicates are explicit, not silently deduped
+    _, error = atlas_build.validate_g2_bindings(
+        [dict(zip(("task", "package_digest"), good)), dict(zip(("task", "package_digest"), good))])
+    assert error is not None and "duplicate" in error
+    assert atlas_build.validate_g2_bindings([])[1] is not None
 
 
 def test_gepa_gate_selects_only_gated_training():
     ledger = _ledger({"format-code-task-000495": _ledger_entry()})
     gate = _gate()
     ok = atlas_build.reflection_status(
-        _bindings(("format-code-task-000495", "sha256:abc")), [_train_trial()], {}, ledger, gate)
+        _bindings(("format-code-task-000495", DIG_GOOD)), [_train_trial()], {}, ledger, gate)
     assert ok["status"] == "available"
     assert ok["payload_file"] is None  # main() writes the file on success
+    assert ok["audit"]["withheld_counts"] == {
+        "not_authorized": 0, "eval_identity": 0, "ledger_mismatch": 0, "non_counted": 0}
     payload = ok["payload"]
     assert payload["scope"] == "training-only"
     assert payload["aggregates"]["n_selected"] == 1
@@ -169,16 +198,21 @@ def test_gepa_gate_selects_only_gated_training():
     assert (entry["task_id"], entry["trial_id"], entry["job_id"]) == (
         "format-code-task-000495", "trial-1", "job-1")
     assert entry["ledger"] == {"split": "train", "status": "usable", "run": "original",
-                               "run_digest": "sha256:abc", "project": "proj-a"}
+                               "run_digest": DIG_GOOD, "project": "proj-a"}
     dump = json.dumps(payload)
     assert "command_text" not in dump and "observation_excerpt" not in dump
+    assert "withheld_counts" not in dump and "eval_list" not in dump
+    assert "001181" not in dump and "000383" not in dump
     assert "7/11" not in dump and "loop_kind_vs_agreed" not in dump
 
 
-def test_gepa_gate_exclusions_hold_even_when_allowlisted():
+def test_gepa_gate_canonical_states_exclude_when_allowlisted():
+    # ledger states mirror the real canonical rows: 001181 heldout, 000383 review
     ledger = _ledger({
-        "format-code-task-001181": _ledger_entry(),
-        "format-code-task-000383": _ledger_entry(),
+        "format-code-task-001181": _ledger_entry(
+            split="heldout", project="rich", run_digest=DIG_1181),
+        "format-code-task-000383": _ledger_entry(
+            project="quickfix", status="review", run_digest=DIG_0383),
         "format-code-task-000495": _ledger_entry(),
         "format-code-task-000587": _ledger_entry(project="eval-repo"),
         "format-code-task-001161": _ledger_entry(split="heldout"),
@@ -186,20 +220,59 @@ def test_gepa_gate_exclusions_hold_even_when_allowlisted():
         "format-code-task-002256": _ledger_entry(),
     })
     gate = _gate(repos={"eval-repo"})
+    digests = {"format-code-task-001181": DIG_1181, "format-code-task-000383": DIG_0383}
     tasks = ["format-code-task-001181", "format-code-task-000383", "format-code-task-000495",
              "format-code-task-000587", "format-code-task-001161", "format-code-task-001832",
              "format-code-task-002256", "format-code-task-000927"]
-    trials = [_train_trial(task_name=f"mimo-v2.6-rl/{task}") for task in tasks]
+    trials = [_train_trial(task_name=f"mimo-v2.6-rl/{task}",
+                           task_package_digest=digests.get(task, DIG_GOOD)) for task in tasks]
     trials[6] = _train_trial(task_name="mimo-v2.6-rl/format-code-task-002256",
                              counts_verdict="excluded")
-    bound = _bindings(*[(task, "sha256:abc") for task in tasks[:7]])
+    bound = _bindings(*[(task, digests.get(task, DIG_GOOD)) for task in tasks[:7]])
     ok = atlas_build.reflection_status(bound, trials, {}, ledger, gate)
     assert ok["status"] == "available"
     assert ok["payload"]["aggregates"]["n_selected"] == 1
     assert ok["payload"]["selected_trials"][0]["task_id"] == "format-code-task-000495"
-    assert ok["payload"]["gate"]["withheld_counts"] == {
-        "not_authorized": 1, "safety_excluded": 2, "eval_identity": 1,
-        "ledger_mismatch": 2, "non_counted": 1}
+    assert ok["audit"]["withheld_counts"] == {
+        "not_authorized": 1, "eval_identity": 1, "ledger_mismatch": 4, "non_counted": 1}
+
+
+def test_eval_gate_rejects_missing_mismatch_empty(tmp_path):
+    assert atlas_build.load_eval_gate(tmp_path) is None
+    bad = tmp_path / "bad.csv"
+    bad.write_text("foo,bar\n1,2\n")
+    assert atlas_build.load_eval_gate(tmp_path, bad) is None
+    empty = tmp_path / "empty.csv"
+    empty.write_text("task,digest,run,repo,image_mib\n")
+    assert atlas_build.load_eval_gate(tmp_path, empty) is None
+    good = tmp_path / "good.csv"
+    good.write_text("task,digest,run,repo,image_mib\n"
+                    f"format-code-task-000495,{DIG_GOOD},original,proj-a,1\n")
+    gate = atlas_build.load_eval_gate(tmp_path, good)
+    assert gate["task_ids"] == {"format-code-task-000495"}
+    assert gate["repos"] == {"proj-a"} and gate["columns"][:2] == ["task", "digest"]
+
+
+def test_stale_payload_removed_on_unavailable(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    stale = out / atlas_build.PAYLOAD_FILENAME
+    stale.write_text("{}")
+    result = atlas_build.sync_reflection_payload(
+        out, {"status": "unavailable", "payload": None})
+    assert result == (None, None, False)
+    assert not stale.exists()
+
+
+def test_payload_written_on_available(tmp_path):
+    out = tmp_path / "out"
+    out.mkdir()
+    payload = {"scope": "training-only", "selected_trials": [], "aggregates": {}}
+    name, sha, fresh = atlas_build.sync_reflection_payload(
+        out, {"status": "available", "payload": payload})
+    assert fresh and name == atlas_build.PAYLOAD_FILENAME
+    assert json.loads((out / name).read_text()) == payload
+    assert sha.startswith("sha256:")
 
 
 def test_opinion_limits_derive_from_page_scores():

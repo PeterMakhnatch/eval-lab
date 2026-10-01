@@ -103,15 +103,43 @@ def load_ledger(repo_root: Path) -> dict:
             "sha256": _sha256_file(ledger_path), "n_tasks": len(by_task), "by_task": by_task}
 DEFAULT_EVAL_TASKS = "research/experiments/ovn-sft-v0/eval_tasks.csv"
 DEFAULT_TRAINING_PROPOSAL = "research/experiments/python-task-ledger/har120_proposal.csv"
+PAYLOAD_FILENAME = "reflection-training.json"
 
-# Parent-directed safety exclusions: these tasks never enter a training payload,
-# even when an allowlist binding names them.
-SAFETY_EXCLUDE_TASKS = {
-    "format-code-task-001181": "global heldout",
-    "format-code-task-000383": "ledger review",
-}
+DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
 
 COUNTED_VERDICTS = {"counted_pass", "counted_fail"}
+
+
+class PayloadSyncError(Exception):
+    """The output directory cannot be left without a stale safe-export artifact."""
+
+
+def validate_g2_bindings(g2_bindings: object) -> tuple[set, str | None]:
+    """Whole-file validation: any malformed entry or duplicate fails the file.
+
+    Returns (allowed pairs, error). Error is None only when every entry is a
+    well-formed {task, package_digest} pair with canonical string identity.
+    """
+    if not isinstance(g2_bindings, list) or not g2_bindings:
+        return set(), "empty or malformed bindings list"
+    allowed: set = set()
+    malformed: list = []
+    duplicates: list = []
+    for index, binding in enumerate(g2_bindings):
+        task = binding.get("task") if isinstance(binding, dict) else None
+        digest = binding.get("package_digest") if isinstance(binding, dict) else None
+        if not (isinstance(task, str) and PYTHON_TASK_RE.fullmatch(task)
+                and isinstance(digest, str) and DIGEST_RE.fullmatch(digest)):
+            malformed.append(index)
+            continue
+        if (task, digest) in allowed:
+            duplicates.append(index)
+            continue
+        allowed.add((task, digest))
+    if malformed or duplicates:
+        return set(), (f"rejecting bindings file: malformed entries at indices {malformed}; "
+                       f"duplicate entries at indices {duplicates}")
+    return allowed, None
 
 
 def _first_present(row: dict, names: list) -> object:
@@ -122,7 +150,12 @@ def _first_present(row: dict, names: list) -> object:
 
 
 def load_eval_gate(repo_root: Path, eval_tasks: Path | None = None) -> dict | None:
-    """Frozen G1 eval identities (task/digest/repo). None when absent: caller fails closed."""
+    """Frozen G1 eval identities (task/digest/repo).
+
+    Returns None (caller fails closed) when the file is missing, its header
+    lacks the actual G1v2 fields, or it yields no task identities: empty sets
+    must never pretend authority.
+    """
     rel = str(eval_tasks) if eval_tasks else DEFAULT_EVAL_TASKS
     if eval_tasks and eval_tasks.is_absolute():
         path = eval_tasks
@@ -130,9 +163,17 @@ def load_eval_gate(repo_root: Path, eval_tasks: Path | None = None) -> dict | No
         path = repo_root / rel
     if not path.is_file():
         return None
-    task_ids, repos, digests = set(), set(), set()
     with path.open(encoding="utf-8") as handle:
-        for row in csv.DictReader(handle):
+        reader = csv.DictReader(handle)
+        columns = list(reader.fieldnames or [])
+        lowered = [c.lower() for c in columns]
+        has_task = any(c in ("task", "task_id") for c in lowered)
+        has_repo = any(c in ("repo", "project", "project_key") for c in lowered)
+        has_digest = "digest" in lowered
+        if not (has_task and has_repo and has_digest):
+            return None
+        task_ids, repos, digests = set(), set(), set()
+        for row in reader:
             task = _first_present(row, ["task", "task_id"])
             repo = _first_present(row, ["repo", "project", "project_key"])
             digest = _first_present(row, ["digest"])
@@ -142,8 +183,10 @@ def load_eval_gate(repo_root: Path, eval_tasks: Path | None = None) -> dict | No
                 repos.add(str(repo))
             if digest:
                 digests.add(str(digest))
+    if not task_ids:
+        return None
     return {"path": rel, "sha256": _sha256_file(path), "n_tasks": len(task_ids),
-            "task_ids": task_ids, "repos": repos, "digests": digests}
+            "columns": columns, "task_ids": task_ids, "repos": repos, "digests": digests}
 
 
 def load_training_proposal(repo_root: Path, proposal: Path | None = None) -> dict | None:
@@ -246,11 +289,15 @@ def pick_exemplar_step(trial: dict, steps: list, judgments: dict, taint: list,
     return ordered[len(ordered) // 2], "median real step (only copied context available)"
 
 
-FROZEN_LABEL_COHORTS = {"har109", "har119"}
+FROZEN_LABEL_COHORTS = {"har109", "har119", "har128-sft-pass"}
 
 
 def summarize_labels(trial: dict) -> tuple[list, int]:
-    """Frozen rater entries only; heuristic parquet rows are dropped and counted."""
+    """Frozen entries only (har109/har119 raters, har128-sft-pass adjudication).
+
+    Heuristic rows are dropped and counted. Summaries carry cohort, rater,
+    provenance and label scope only -- never the full adjudicated label text.
+    """
     out, dropped = [], 0
     for entry in _parse_json_list(trial.get("labels_json")):
         if not isinstance(entry, dict):
@@ -258,8 +305,11 @@ def summarize_labels(trial: dict) -> tuple[list, int]:
         if entry.get("cohort") not in FROZEN_LABEL_COHORTS:
             dropped += 1
             continue
-        out.append({"cohort": entry.get("cohort"), "rater": entry.get("rater"),
-                    "provenance": entry.get("provenance")})
+        summary = {"cohort": entry.get("cohort"), "rater": entry.get("rater"),
+                   "provenance": entry.get("provenance")}
+        if entry.get("label_scope"):
+            summary["label_scope"] = entry.get("label_scope")
+        out.append(summary)
     return out, dropped
 
 
@@ -548,9 +598,12 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
     opinion_limits = derive_opinion_limits(page_scores)
 
     heuristic_labels_dropped = 0
+    har128_labeled_trials = 0
     for trial in eligible:
-        _, dropped = summarize_labels(trial)
+        kept, dropped = summarize_labels(trial)
         heuristic_labels_dropped += dropped
+        if any(e.get("cohort") == "har128-sft-pass" for e in kept):
+            har128_labeled_trials += 1
 
     categories = []
     for cat in CATEGORY_DEFS:
@@ -641,6 +694,8 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             "page_scores_json": _optional_sha(repo_root / "research/explorations/trace-lab/har119/page_scores.json"),
             "har119_manifest": freeze.get("manifest_sha256"),
             "har109_manifest": _optional_sha(repo_root / "research/explorations/trace-lab/har109/hand_labels.sha256"),
+            "har128_labels_jsonl": _optional_sha(
+                repo_root / "research/explorations/trace-lab/har128/sft_gate/labels.jsonl"),
         },
         "provenance": {
             "har119_freeze": freeze,
@@ -649,6 +704,9 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             ),
             "heuristic_labels_dropped": heuristic_labels_dropped,
             "label_cohorts_kept": sorted(FROZEN_LABEL_COHORTS),
+            "har128_sft_pass": {"label_scope": "sft_pass_cleanliness",
+                                "labeled_eligible_trials": har128_labeled_trials,
+                                "eligible_n": len(eligible)},
             "coverage": coverage,
         },
         "corpus": {
@@ -677,33 +735,34 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
 def reflection_status(g2_bindings: object, eligible: list, steps_by_trial: dict,
                       ledger: dict | None = None, eval_gate: dict | None = None,
                       proposal: dict | None = None) -> dict:
-    """Training-only GEPA reflection export; fail closed without authorized G2 bindings."""
+    """Training-only GEPA reflection export; fail closed without full authorization.
+
+    Selection requires every gate at once: a whole-file-validated explicit
+    (task, package_digest) binding; canonical ledger split=train, status=usable
+    and an exact run_digest match against the recorded trial digest (this alone
+    excludes heldout-split and review-status tasks by their own columns);
+    a counted verdict; and no frozen G1 eval task/digest/repo identity.
+    The proposer payload carries ONLY selected trials, selected aggregates and
+    source content hashes. Withheld counts and gate provenance live in the
+    atlas-side audit object, never in the payload file.
+    """
     note = ("Full atlas is inspection-only. Safe reflection covers ONLY explicitly authorized "
-            "G2 training task+package bindings; it must never carry held-out examples or "
-            "held-out-derived aggregates to the proposer.")
+            "G2 training task+package bindings; it must never carry held-out examples, "
+            "solutions, hidden-test contents or unselected refs to the proposer.")
     if not g2_bindings:
         return {"status": "unavailable", "scope": "training-only", "payload": None,
-                "payload_file": None, "payload_sha256": None,
+                "payload_file": None, "payload_sha256": None, "audit": None,
                 "reason": "no authorized G2 training bindings supplied (--g2-bindings absent); "
                           "reflection unavailable.", "note": note}
-    if not isinstance(g2_bindings, list) or not g2_bindings:
+    allowed, bindings_error = validate_g2_bindings(g2_bindings)
+    if bindings_error:
         return {"status": "unavailable", "scope": "training-only", "payload": None,
-                "payload_file": None, "payload_sha256": None,
-                "reason": "G2 bindings file present but empty or malformed; fail closed.",
-                "note": note}
-    allowed = set()
-    for binding in g2_bindings:
-        if (isinstance(binding, dict) and binding.get("task")
-                and binding.get("package_digest")):
-            allowed.add((str(binding["task"]), str(binding["package_digest"])))
-    if not allowed:
-        return {"status": "unavailable", "scope": "training-only", "payload": None,
-                "payload_file": None, "payload_sha256": None,
-                "reason": "no well-formed {task, package_digest} bindings; fail closed.",
+                "payload_file": None, "payload_sha256": None, "audit": None,
+                "reason": f"G2 bindings rejected: {bindings_error}; fail closed.",
                 "note": note}
     if not isinstance(ledger, dict) or not isinstance(eval_gate, dict):
         return {"status": "unavailable", "scope": "training-only", "payload": None,
-                "payload_file": None, "payload_sha256": None,
+                "payload_file": None, "payload_sha256": None, "audit": None,
                 "reason": "canonical ledger or frozen eval gate unavailable; fail closed "
                           "without the full authorization context.", "note": note}
     by_task = ledger.get("by_task") or {}
@@ -711,7 +770,20 @@ def reflection_status(g2_bindings: object, eligible: list, steps_by_trial: dict,
     eval_repos = eval_gate.get("repos") or set()
     eval_digests = eval_gate.get("digests") or set()
     proposal_ids = proposal.get("task_ids") if isinstance(proposal, dict) else None
-    withheld = {"not_authorized": 0, "safety_excluded": 0, "eval_identity": 0,
+    audit = {
+        "bindings_well_formed": len(allowed),
+        "ledger": {"path": ledger.get("path"), "sha256": ledger.get("sha256"),
+                   "n_tasks": ledger.get("n_tasks")},
+        "eval_list": {"path": eval_gate.get("path"), "sha256": eval_gate.get("sha256"),
+                      "n_tasks": eval_gate.get("n_tasks"), "columns": eval_gate.get("columns")},
+        "proposal": ({"path": proposal.get("path"), "sha256": proposal.get("sha256"),
+                      "n_tasks": proposal.get("n_tasks")}
+                     if isinstance(proposal, dict) else None),
+        "policy": ("ledger split=train/status=usable/exact run_digest + counted verdicts + "
+                   "eval task/digest/repo exclusion; heldout-split and review-status tasks "
+                   "are excluded by those canonical columns, no literal ban list"),
+    }
+    withheld = {"not_authorized": 0, "eval_identity": 0,
                 "ledger_mismatch": 0, "non_counted": 0}
     selected = []
     for trial in sorted(eligible, key=lambda t: t.get("trial_name") or ""):
@@ -719,9 +791,6 @@ def reflection_status(g2_bindings: object, eligible: list, steps_by_trial: dict,
         trial_digest = trial.get("task_package_digest")
         if (task_id, trial_digest) not in allowed:
             withheld["not_authorized"] += 1
-            continue
-        if task_id in SAFETY_EXCLUDE_TASKS:
-            withheld["safety_excluded"] += 1
             continue
         entry = by_task.get(task_id) or {}
         project = entry.get("project")
@@ -762,12 +831,13 @@ def reflection_status(g2_bindings: object, eligible: list, steps_by_trial: dict,
             "source_trial_dir": trial.get("source_trial_dir"),
             "verified_step_refs": verified_step_refs(trial, steps),
         })
+    audit["withheld_counts"] = withheld
     if not selected:
         return {"status": "unavailable", "scope": "training-only", "payload": None,
-                "payload_file": None, "payload_sha256": None,
+                "payload_file": None, "payload_sha256": None, "audit": audit,
                 "reason": "bindings supplied but zero trials satisfy every gate; "
                           "fail closed with no payload (never an available-empty export).",
-                "withheld_counts": withheld, "note": note}
+                "note": note}
     by_verdict: dict = {}
     by_category: dict = {}
     by_stop: dict = {}
@@ -778,16 +848,6 @@ def reflection_status(g2_bindings: object, eligible: list, steps_by_trial: dict,
             by_category[cat_id] = by_category.get(cat_id, 0) + 1
     payload = {
         "scope": "training-only",
-        "gate": {"bindings_well_formed": len(allowed),
-                 "ledger": {"path": ledger.get("path"), "sha256": ledger.get("sha256"),
-                            "n_tasks": ledger.get("n_tasks")},
-                 "eval_list": {"path": eval_gate.get("path"), "sha256": eval_gate.get("sha256"),
-                               "n_tasks": eval_gate.get("n_tasks")},
-                 "proposal": ({"path": proposal.get("path"), "sha256": proposal.get("sha256"),
-                               "n_tasks": proposal.get("n_tasks")}
-                              if isinstance(proposal, dict) else None),
-                 "safety_excluded_tasks": sorted(SAFETY_EXCLUDE_TASKS),
-                 "withheld_counts": withheld},
         "selected_trials": selected,
         "aggregates": {"scope": "training-selected trials only; not evaluation feedback",
                        "n_selected": len(selected), "by_counts_verdict": by_verdict,
@@ -795,7 +855,8 @@ def reflection_status(g2_bindings: object, eligible: list, steps_by_trial: dict,
     }
     return {"status": "available", "scope": "training-only",
             "reason": f"{len(selected)} training trial(s) satisfy every gate.",
-            "payload": payload, "payload_file": None, "payload_sha256": None, "note": note}
+            "payload": payload, "payload_file": None, "payload_sha256": None,
+            "audit": audit, "note": note}
 
 
 def render_readme(atlas: dict) -> str:
@@ -884,6 +945,36 @@ def parse_args(argv: list | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def sync_reflection_payload(out_dir: Path, reflection: dict) -> tuple:
+    """Write or remove the generated safe-export artifact; never leave it stale.
+
+    Returns (payload_file, payload_sha256, fresh_written). A stale
+    reflection-training.json is removed whenever no fresh payload is written,
+    so an unavailable rerun can never sit beside a prior training export.
+    Raises PayloadSyncError only when removal itself is impossible.
+    """
+    root = out_dir.resolve()
+    path = root / PAYLOAD_FILENAME
+    if path.resolve().parent != root:
+        raise PayloadSyncError("payload path escapes the output directory")
+    if reflection.get("status") == "available" and reflection.get("payload") is not None:
+        try:
+            path.write_text(json.dumps(reflection["payload"], indent=1) + "\n", encoding="utf-8")
+        except OSError as exc:
+            try:
+                path.unlink(missing_ok=True)
+            except OSError as exc2:
+                raise PayloadSyncError(
+                    f"payload write failed and stale file not removable: {exc2}") from exc
+            return None, None, False
+        return path.name, _sha256_file(path), True
+    try:
+        path.unlink(missing_ok=True)
+    except OSError as exc:
+        raise PayloadSyncError(f"stale payload not removable: {exc}") from exc
+    return None, None, False
+
+
 def main(argv: list | None = None) -> int:
     args = parse_args(argv)
     repo_root = args.repo_root.resolve()
@@ -902,6 +993,10 @@ def main(argv: list | None = None) -> int:
             print(f"ATLAS ABORT: --g2-bindings {args.g2_bindings} not found (fail closed).", file=sys.stderr)
             return 2
         g2_bindings = _load_json(args.g2_bindings)
+        _, bindings_error = validate_g2_bindings(g2_bindings)
+        if bindings_error:
+            print(f"ATLAS ABORT: {bindings_error}", file=sys.stderr)
+            return 2
 
     try:
         conn, coverage = connect_trace_query(
@@ -953,19 +1048,20 @@ def main(argv: list | None = None) -> int:
     atlas = build_atlas(trials, steps_by_trial, coverage, repo_root, ledger, freeze, page_scores,
                         g2_bindings, eval_gate=eval_gate, proposal=proposal)
     reflection = atlas["reflection"]
-    if reflection.get("status") == "available" and reflection.get("payload") is not None:
-        payload_path = out_dir / "reflection-training.json"
-        try:
-            payload_path.write_text(json.dumps(reflection["payload"], indent=1) + "\n", encoding="utf-8")
-        except OSError as exc:
-            atlas["reflection"] = {"status": "unavailable", "scope": "training-only",
-                                   "payload": None, "payload_file": None, "payload_sha256": None,
-                                   "reason": f"safe payload write failed ({exc}); fail closed, "
-                                             "inspection atlas only.",
-                                   "note": reflection.get("note")}
-        else:
-            reflection["payload_file"] = payload_path.name
-            reflection["payload_sha256"] = _sha256_file(payload_path)
+    try:
+        payload_file, payload_sha256, fresh = sync_reflection_payload(out_dir, reflection)
+    except PayloadSyncError as exc:
+        print(f"ATLAS ABORT: {exc}", file=sys.stderr)
+        return 2
+    if fresh:
+        reflection["payload_file"] = payload_file
+        reflection["payload_sha256"] = payload_sha256
+    elif reflection.get("status") == "available":
+        atlas["reflection"] = {"status": "unavailable", "scope": "training-only",
+                               "payload": None, "payload_file": None, "payload_sha256": None,
+                               "audit": reflection.get("audit"),
+                               "reason": "safe payload export failed; fail closed with no payload file.",
+                               "note": reflection.get("note")}
     (out_dir / "atlas.json").write_text(json.dumps(atlas, indent=1) + "\n", encoding="utf-8")
     (out_dir / "README.md").write_text(render_readme(atlas), encoding="utf-8")
 

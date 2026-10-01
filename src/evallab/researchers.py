@@ -27,6 +27,7 @@ from evallab.schemas import (
     QueueEvent,
     StandingApprovalsPolicy,
     TaskRegistryRecord,
+    effective_daily_cost_ceiling,
 )
 
 ResearchRole = Literal["analyst", "synthesizer", "proposer"]
@@ -402,6 +403,7 @@ class CallLedger:
         limits: RoleLimits,
         policy: StandingApprovalsPolicy,
         catalog_spend_usd: float,
+        now: datetime | None = None,
     ) -> str:
         if limits.attributed_cost_usd > policy.per_job_cost_ceiling_usd:
             raise ResearcherDeferred("researcher_per_call_cost_ceiling")
@@ -419,7 +421,8 @@ class CallLedger:
                 if record.event == "started" and record.day == day
             )
             projected = catalog_spend_usd + reservations + limits.attributed_cost_usd
-            if projected > policy.daily_cost_ceiling_usd:
+            ceiling = effective_daily_cost_ceiling(policy, now or datetime.now(UTC))
+            if projected > ceiling:
                 raise ResearcherDeferred("daily_cost_ceiling")
             invocation_id = new_ulid()
             self._append_descriptor(
@@ -688,6 +691,7 @@ class ResearcherLoop:
             policy=self.policy,
             ledger=self.ledger,
             catalog_spend=self._catalog_spend,
+            now=self._clock(),
         )
 
     def _invoke_validated(
@@ -714,6 +718,7 @@ class ResearcherLoop:
                 limits=limits,
                 policy=self.policy,
                 catalog_spend_usd=self._catalog_spend(attempt_day),
+                now=budget_now,
             )
             invocation_prompt = prompt
             if errors:
@@ -1127,6 +1132,7 @@ def append_fleet_section(
     policy: StandingApprovalsPolicy,
     ledger: CallLedger,
     catalog_spend: CatalogSpendLoader,
+    now: datetime | None = None,
 ) -> None:
     root = repo_root.resolve()
     content = digest_path.read_text()
@@ -1212,6 +1218,7 @@ def append_fleet_section(
                 "status for a file that states none.",
             ]
         )
+    ceiling = effective_daily_cost_ceiling(policy, now or datetime.now(UTC))
     lines.extend(
         [
             "",
@@ -1221,7 +1228,7 @@ def append_fleet_section(
             f"- Catalog spend: {spend_text}",
             f"- Researcher ceiling attribution: ${researcher_spend:.2f}",
             f"- Combined observed/attributed: ${recorded_spend + researcher_spend:.4f} / "
-            f"${policy.daily_cost_ceiling_usd:.2f}",
+            f"${ceiling:.2f}",
             f"- Deferrals: {len(deferrals)}",
         ]
     )

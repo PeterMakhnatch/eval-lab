@@ -1,0 +1,16 @@
+{
+  "runs": 38,
+  "looped": 25,
+  "completion_claim_loops": 8,
+  "share_of_looped_runs": 0.32,
+  "input_total": 76756999,
+  "input_post_edit": 50970245,
+  "input_post_edit_claim_strict": 12278300,
+  "share_post_edit_claim_strict": 0.241,
+  "input_claim_phase_broad": 14569442,
+  "input_claim_phase_strict": 12278300,
+  "thresholds": {
+    "share_of_looped_runs": 0.25,
+    "share_post_edit": 0.2
+  }
+}

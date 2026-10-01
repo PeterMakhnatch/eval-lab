@@ -1,0 +1,390 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 12,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 12,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 12
+    }
+  },
+  "agent_steps": 12,
+  "assembly_pattern": "single_head",
+  "claim_regime": {
+    "end": 13,
+    "end_doc": "head",
+    "start": 13,
+    "start_doc": "head",
+    "steps": 1
+  },
+  "completion_refs": [
+    "head#12",
+    "head#13"
+  ],
+  "confirmation_loop": null,
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "excludes sandbox and warm periods; time-based only",
+  "cost_estimate_usd": 0.15491146948992,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "13b1cd2f-7cc2-44fd-a657-625fe0ca2651",
+        "steps": 13
+      }
+    ],
+    "summarization_count": 0,
+    "trajectory_head": true,
+    "unique_steps": 13
+  },
+  "decision": {
+    "asked": {
+      "excerpt": "Fix the following issue: Unable to parse `WITH` / `WITHOUT` in Trino in JSON_QUERY In the same vein as issue https://github.com/tobymao/sqlglot/issues/4623 we found [another issue](https://github.com/apache/superset/issues/31768) still in the JSON_QUERY using WITH and WITHOUT ```python import sqlglot # https://trino.io/docs/current/functions/json.html#json-query sql = \"\"\"he SELECT id, json_query(\u2026",
+      "grader_gap": "verifier passage has no test count and no named gap",
+      "grader_tests_asked": "unknown",
+      "instruction_bytes": 1373,
+      "instruction_present": true
+    },
+    "attribution": "n/a",
+    "did": {
+      "evidence_steps": [],
+      "last_edit_excerpt": "cd /testbed && python - <<'EOF'",
+      "last_edit_step": 6,
+      "note": "scored pass with no outcome-relevant failure",
+      "secondary": null,
+      "step": null
+    },
+    "fetched_fix": {
+      "command": null,
+      "fetched": false,
+      "kind": null,
+      "step": null
+    },
+    "first_failure": null,
+    "nop_same_crash": {
+      "answer": "not_this_shape",
+      "nop_trial": null,
+      "reason": "This trial's verifier did not fail at setup or import."
+    },
+    "pass_tainted": {
+      "flagged": false,
+      "reasons": [],
+      "status": "clean"
+    },
+    "reward": 1.0,
+    "reward_why": "Reward `1.0`. Scored pass with no outcome-relevant failure.",
+    "rule_id": "R-NONE-01",
+    "schema": "trial_decision/v1",
+    "scored": true,
+    "whose": "none"
+  },
+  "diagnosis": {
+    "exception_class": null,
+    "heuristic_label": "planning_no_edit",
+    "modes": [],
+    "notices": [
+      "stop reason: prose_completion (final turn mapped prose_completion to task_complete)",
+      "scored pass; no failure modes proposed"
+    ],
+    "outcome": "scored",
+    "reward": 1.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "completion_handshake:head#12:0x-echo",
+    "claim_regime:1-steps",
+    "outcome:R-NONE-01:n/a",
+    "completed",
+    "post_edit_input_share:78%",
+    "max_prompt:9710"
+  ],
+  "handshake": {
+    "confirmed": true,
+    "echo_task_complete_turns": 0,
+    "first_prompt_ref": "head#12",
+    "prompt_tokens_after_first_prompt": 9710,
+    "prompts": 1,
+    "steps_without_metrics": 0,
+    "turns_after_first_prompt": 1
+  },
+  "identical_runs": [],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 2735,
+      "prompt": 74411,
+      "steps": 12,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": null,
+    "in_loops": null,
+    "loop_prompt_share": null,
+    "result_input_tokens": 74411,
+    "spans": []
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 12,
+  "outcome_failure": {
+    "attribution": "n/a",
+    "evidence_step_refs": [],
+    "note": "scored pass with no outcome-relevant failure",
+    "rule_id": "R-NONE-01",
+    "step_id": null,
+    "step_ref": null,
+    "tag": "none"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {},
+  "reward": 1.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [],
+  "shape_counts": {
+    "prose": 12
+  },
+  "stitched_steps": 13,
+  "stop_reason": "task_complete_confirmed",
+  "taint": [],
+  "task_name": "mimo-v2.6-rl/format-code-task-002864",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 5,
+      "command_excerpt": "cd /testbed && python - <<'EOF'",
+      "kind": "write-call",
+      "persistence_reason": "edit detected but no target path extracted; persistence uncheckable (see limits)",
+      "persists_in_final_diff": null,
+      "step_id": 6,
+      "touched_paths": []
+    },
+    "loop_onset": {
+      "reason": "no repeat run detected",
+      "step_id": null
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 117,
+        "prompt_tokens": 1834,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 155,
+        "prompt_tokens": 2453,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 51,
+        "prompt_tokens": 3125,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 373,
+        "prompt_tokens": 4263,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 816,
+        "prompt_tokens": 5066,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 264,
+        "prompt_tokens": 5534,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 342,
+        "prompt_tokens": 6049,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 233,
+        "prompt_tokens": 8555,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 68,
+        "prompt_tokens": 9014,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 61,
+        "prompt_tokens": 9222,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 21,
+        "prompt_tokens": 9586,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 234,
+        "prompt_tokens": 9710,
+        "step_id": 13
+      }
+    ],
+    "prompt_summary": {
+      "first": 1834,
+      "max": 9710,
+      "max_step_id": 13,
+      "median": 5791.5,
+      "n_calls": 12,
+      "reason": null,
+      "slope_per_call": 798.0734265734266,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": null,
+      "metadata_stop_reason": null,
+      "reason": "agent stopped without exception and without a harness stop label (clean finish, unlabeled by this harness version)",
+      "stop_reason": null
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [],
+      "metadata_count": 0,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 57670,
+      "note": null,
+      "output_tokens": 1223,
+      "share_input": 0.775,
+      "share_output": 0.4472,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 7,
+        "chars": 7507,
+        "est_tokens": 1876,
+        "next_prompt_tokens": 8555,
+        "step_id": 8
+      },
+      {
+        "call_index": 3,
+        "chars": 4367,
+        "est_tokens": 1091,
+        "next_prompt_tokens": 4263,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "chars": 2607,
+        "est_tokens": 651,
+        "next_prompt_tokens": 5066,
+        "step_id": 5
+      },
+      {
+        "call_index": 2,
+        "chars": 1621,
+        "est_tokens": 405,
+        "next_prompt_tokens": 3125,
+        "step_id": 3
+      },
+      {
+        "call_index": 1,
+        "chars": 1514,
+        "est_tokens": 378,
+        "next_prompt_tokens": 2453,
+        "step_id": 2
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 12,
+      "n_steps_stitched": 13
+    },
+    "trajectory_reason": null,
+    "trial_name": "har110-dev-002864-cfe31418__g7pfCqC"
+  },
+  "tokens_attempted_proxy": 77146,
+  "tokens_proxy": {
+    "input_tokens": 74411,
+    "output_tokens": 2735
+  },
+  "tokens_steps": {
+    "agent_steps": 12,
+    "completion_tokens": 2735,
+    "metered_steps": 12,
+    "prompt_tokens": 74411,
+    "reason": null,
+    "total_tokens": 77146,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "har110-dev-002864-cfe31418__g7pfCqC",
+  "trial_wall_hours": 0.055032437777777776,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 10,
+    "keystroke_source": "recorded",
+    "short_stretches": 0,
+    "states": {
+      "no_prompt": 1,
+      "prompt": 9
+    },
+    "stretches": []
+  }
+}

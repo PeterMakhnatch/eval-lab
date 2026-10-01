@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "pip download docformatter==1.7.1 --no-deps -d /tmp/dfdl 2>&1 | tail -3",
+      "ref": "head#27"
+    },
+    {
+      "quote": "Successfully downloaded docformatter",
+      "ref": "head#27"
+    },
+    {
+      "quote": "cd /tmp/dfdl && unzip -l docformatter-1.7.1-py3-none-any.whl",
+      "ref": "head#28"
+    }
+  ],
+  "first_failure": {
+    "quote": "pip download docformatter==1.7.1 --no-deps -d /tmp/dfdl 2>&1 | tail -3",
+    "ref": "head#27",
+    "what": "Chased upstream 1.7.1 wheel lacking wrap-structured, then never implemented correct prose splitting"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 0; verifier 6 structured-wrapping failures all showing prose before/after directive left unwrapped; n_episodes=84 with TrialBudgetExhaustedError; no task_complete claims seen; agent tried 1.7.1/1.7.7/1.8.0 downloads plus git clone, then implemented from scratch incompletely; exact implementing edit step [UNVERIFIED].",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 30,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-001161-plain__RZ8qyUu"
+}

@@ -2105,6 +2105,44 @@ def _modal_billing_reconcile_command(
     return 0
 
 
+def _spend_day_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.spend_day import (
+        build_day_ledger,
+        ledger_to_dict,
+        parse_day,
+        render_ledger,
+        sibling_worktree_roots,
+    )
+
+    try:
+        target_day = parse_day(args.date)
+    except ValueError as exc:
+        print(f"invalid --date: {exc}", file=sys.stderr)
+        return 2
+
+    url = database_url_from_environment(args.database_url)
+    extra_roots = sibling_worktree_roots(root)
+    try:
+        ledger = build_day_ledger(
+            root,
+            target_day,
+            database_url=url,
+            cap_usd=args.cap_usd,
+            extra_roots=extra_roots,
+        )
+    except Exception as exc:
+        print(f"spend day failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return 1
+
+    if args.json:
+        print(json.dumps(ledger_to_dict(ledger), indent=2, sort_keys=True))
+    else:
+        print(render_ledger(ledger))
+    return 0
+
 def _db_list_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4879,6 +4917,29 @@ def parser() -> argparse.ArgumentParser:
     modal_billing.add_argument("--database-url")
     modal_billing.add_argument("--json", action="store_true")
     modal_billing.set_defaults(func=_modal_billing_reconcile_command)
+
+    spend = commands.add_parser("spend", help="Lab spend accounting and daily ledgers")
+    spend_commands = spend.add_subparsers(dest="spend_command", required=True)
+    spend_day = spend_commands.add_parser(
+        "day",
+        help="One ledger per UTC day summing ALL lab spend against the daily cap",
+    )
+    spend_day.add_argument(
+        "--date",
+        required=True,
+        metavar="YYYY-MM-DD",
+        help="Target UTC day (YYYY-MM-DD)",
+    )
+    spend_day.add_argument(
+        "--cap-usd",
+        type=float,
+        default=20.0,
+        metavar="FLOAT",
+        help="Daily spend cap in USD (default: 20.0)",
+    )
+    spend_day.add_argument("--database-url", help="Override catalog PostgreSQL URL")
+    spend_day.add_argument("--json", action="store_true", help="Emit ledger as JSON")
+    spend_day.set_defaults(func=_spend_day_command)
 
     lineage = commands.add_parser(
         "lineage", help="Trace recursive lineage of generated artifacts back to Z1"

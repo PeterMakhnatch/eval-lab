@@ -1,0 +1,1589 @@
+{
+  "cap_usd": 20.0,
+  "day": "2026-09-29",
+  "headroom_usd": 3.373944280614598,
+  "notes": [
+    "modal: billed $13.6831 across 13 rows (last reported 2026-09-30 07:56:12.110936+00:00)",
+    "model: 2 jobs with settled proxy-ledger dollars; 108 finished jobs carry none (49 zero-priced self-hosted, $0 at the proxy)",
+    "model: 2 spend.jsonl ledgers scanned, 0 contribute to 2026-09-29, 0 duplicate rows across checkouts ignored",
+    "daytona: 192 trial slices across 192 jobs (rate measured 1, family fallback 191); 0 slices unratable, 0 non-daytona, 0 missing time"
+  ],
+  "over_by_usd": 0.0,
+  "over_cap": false,
+  "per_card_usd": {
+    "HAR-104": 0.000735,
+    "HAR-105": 0.012060613025699999,
+    "HAR-81": 1.9290555179364504,
+    "HAR-90": 0.446967303744,
+    "HAR-95": 0.043119993982549995,
+    "unattributed": 14.194117290696708
+  },
+  "per_source_usd": {
+    "daytona": 2.9421949493854007,
+    "modal": 13.68312577,
+    "model": 0.000735
+  },
+  "rows": [
+    {
+      "basis": "billed",
+      "card": "unattributed",
+      "evidence": "catalog:modal_billing_rows:13 rows",
+      "job": "modal-account",
+      "source": "modal",
+      "usd": 13.68312577
+    },
+    {
+      "basis": "ledger",
+      "card": "HAR-104",
+      "evidence": "runs/har104-canned-proof",
+      "job": "har104-canned-proof",
+      "source": "model",
+      "usd": 0.000619
+    },
+    {
+      "basis": "ledger",
+      "card": "HAR-104",
+      "evidence": "runs/har104-canned-gptoss",
+      "job": "har104-canned-gptoss",
+      "source": "model",
+      "usd": 0.000116
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-arvo-18737:1 trials",
+      "job": "har105-fix-arvo-18737",
+      "source": "daytona",
+      "usd": 0.0004329012639
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-arvo-18737-2c9c97a36419:1 trials",
+      "job": "har105-fix-arvo-18737-2c9c97a36419",
+      "source": "daytona",
+      "usd": 0.0004421002456
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-arvo-57589:1 trials",
+      "job": "har105-fix-arvo-57589",
+      "source": "daytona",
+      "usd": 0.00049584671935
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-arvo-57589-634bbec7b602:1 trials",
+      "job": "har105-fix-arvo-57589-634bbec7b602",
+      "source": "daytona",
+      "usd": 0.00109914719055
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-candidate-1634-software-databases:1 trials",
+      "job": "har105-fix-candidate-1634-software-databases",
+      "source": "daytona",
+      "usd": 0.000494707392
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-candidate-1634-software-databases-8de24f28a748:1 trials",
+      "job": "har105-fix-candidate-1634-software-databases-8de24f28a748",
+      "source": "daytona",
+      "usd": 0.000489965376
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-candidate-1702-ml-inference:1 trials",
+      "job": "har105-fix-candidate-1702-ml-inference",
+      "source": "daytona",
+      "usd": 0.000511613376
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-candidate-1702-ml-inference-2da2a320d7f9:1 trials",
+      "job": "har105-fix-candidate-1702-ml-inference-2da2a320d7f9",
+      "source": "daytona",
+      "usd": 0.000832629056
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-candidate-1789-security-appsec:1 trials",
+      "job": "har105-fix-candidate-1789-security-appsec",
+      "source": "daytona",
+      "usd": 0.0019180834559999998
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-candidate-1789-security-appsec-3e09b8e67f4f:1 trials",
+      "job": "har105-fix-candidate-1789-security-appsec-3e09b8e67f4f",
+      "source": "daytona",
+      "usd": 0.000614735168
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-fix-candidate-1789-security-appsec-caa7772d131e:1 trials",
+      "job": "har105-fix-candidate-1789-security-appsec-caa7772d131e",
+      "source": "daytona",
+      "usd": 0.0006396213760000001
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-qual-m-music-gk-0515:1 trials",
+      "job": "har105-qual-m-music-gk-0515",
+      "source": "daytona",
+      "usd": 0.0013895379464500001
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-qual-m-music-gk-1037:1 trials",
+      "job": "har105-qual-m-music-gk-1037",
+      "source": "daytona",
+      "usd": 0.00134489801425
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-105",
+      "evidence": "runs/har105-qual-m-music-gk-1087:1 trials",
+      "job": "har105-qual-m-music-gk-1087",
+      "source": "daytona",
+      "usd": 0.0013548264456
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a2-arvo-18737:1 trials",
+      "job": "har81-l-d-a2-arvo-18737",
+      "source": "daytona",
+      "usd": 0.033738958239099996
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a2-arvo-42485576:1 trials",
+      "job": "har81-l-d-a2-arvo-42485576",
+      "source": "daytona",
+      "usd": 0.02112413921425
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a2-arvo-42496599:1 trials",
+      "job": "har81-l-d-a2-arvo-42496599",
+      "source": "daytona",
+      "usd": 0.045004183469700004
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a2-candidate-1271-media-games:1 trials",
+      "job": "har81-l-d-a2-candidate-1271-media-games",
+      "source": "daytona",
+      "usd": 0.03955526176
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a2-candidate-1634-software-databases:1 trials",
+      "job": "har81-l-d-a2-candidate-1634-software-databases",
+      "source": "daytona",
+      "usd": 0.016387770816
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a2-candidate-1789-security-appsec:1 trials",
+      "job": "har81-l-d-a2-candidate-1789-security-appsec",
+      "source": "daytona",
+      "usd": 0.059399028416000005
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a2-format-code-task-000240:1 trials",
+      "job": "har81-l-d-a2-format-code-task-000240",
+      "source": "daytona",
+      "usd": 0.047082515875350006
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a2-format-code-task-001520:1 trials",
+      "job": "har81-l-d-a2-format-code-task-001520",
+      "source": "daytona",
+      "usd": 0.036980567179
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a3-arvo-18737:1 trials",
+      "job": "har81-l-d-a3-arvo-18737",
+      "source": "daytona",
+      "usd": 0.043671539965800005
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a3-arvo-42485576:1 trials",
+      "job": "har81-l-d-a3-arvo-42485576",
+      "source": "daytona",
+      "usd": 0.024101133509750003
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a3-arvo-42496599:1 trials",
+      "job": "har81-l-d-a3-arvo-42496599",
+      "source": "daytona",
+      "usd": 0.033109580728750004
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a3-candidate-1271-media-games:1 trials",
+      "job": "har81-l-d-a3-candidate-1271-media-games",
+      "source": "daytona",
+      "usd": 0.053373296384
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a3-candidate-1634-software-databases:1 trials",
+      "job": "har81-l-d-a3-candidate-1634-software-databases",
+      "source": "daytona",
+      "usd": 0.026535947263999996
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a3-candidate-1789-security-appsec:1 trials",
+      "job": "har81-l-d-a3-candidate-1789-security-appsec",
+      "source": "daytona",
+      "usd": 0.040863612031999993
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a3-format-code-task-000240:1 trials",
+      "job": "har81-l-d-a3-format-code-task-000240",
+      "source": "daytona",
+      "usd": 0.0508942142541
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a3-format-code-task-001520:1 trials",
+      "job": "har81-l-d-a3-format-code-task-001520",
+      "source": "daytona",
+      "usd": 0.0318929875899
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a4-arvo-18737:1 trials",
+      "job": "har81-l-d-a4-arvo-18737",
+      "source": "daytona",
+      "usd": 0.0254208210872
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a4-arvo-42485576:1 trials",
+      "job": "har81-l-d-a4-arvo-42485576",
+      "source": "daytona",
+      "usd": 0.02669534911745
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a4-arvo-42496599:1 trials",
+      "job": "har81-l-d-a4-arvo-42496599",
+      "source": "daytona",
+      "usd": 0.043490007333550004
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a4-candidate-1271-media-games:1 trials",
+      "job": "har81-l-d-a4-candidate-1271-media-games",
+      "source": "daytona",
+      "usd": 0.024381859328
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a4-candidate-1634-software-databases:1 trials",
+      "job": "har81-l-d-a4-candidate-1634-software-databases",
+      "source": "daytona",
+      "usd": 0.058581706688
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a4-candidate-1789-security-appsec:1 trials",
+      "job": "har81-l-d-a4-candidate-1789-security-appsec",
+      "source": "daytona",
+      "usd": 0.042076145856
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a4-format-code-task-000240:1 trials",
+      "job": "har81-l-d-a4-format-code-task-000240",
+      "source": "daytona",
+      "usd": 0.23185862248310002
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-l-d-a4-format-code-task-001520:1 trials",
+      "job": "har81-l-d-a4-format-code-task-001520",
+      "source": "daytona",
+      "usd": 0.21725384569635003
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-arvo-18737:1 trials",
+      "job": "har81-p-d-arvo-18737",
+      "source": "daytona",
+      "usd": 0.0074304564590500005
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-arvo-41330:1 trials",
+      "job": "har81-p-d-arvo-41330",
+      "source": "daytona",
+      "usd": 0.04855804490815001
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-arvo-42485576:1 trials",
+      "job": "har81-p-d-arvo-42485576",
+      "source": "daytona",
+      "usd": 0.0627067973069
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-arvo-42496599:1 trials",
+      "job": "har81-p-d-arvo-42496599",
+      "source": "daytona",
+      "usd": 0.025139548868899998
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-arvo-42514310:1 trials",
+      "job": "har81-p-d-arvo-42514310",
+      "source": "daytona",
+      "usd": 0.03385674617105
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-arvo-42528228:1 trials",
+      "job": "har81-p-d-arvo-42528228",
+      "source": "daytona",
+      "usd": 0.042815994317350003
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-arvo-57589:1 trials",
+      "job": "har81-p-d-arvo-57589",
+      "source": "daytona",
+      "usd": 0.0272371965188
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-candidate-1048-operations-virtualization:1 trials",
+      "job": "har81-p-d-candidate-1048-operations-virtualization",
+      "source": "daytona",
+      "usd": 0.028891303552
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-candidate-1271-media-games:1 trials",
+      "job": "har81-p-d-candidate-1271-media-games",
+      "source": "daytona",
+      "usd": 0.029078067456000004
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-candidate-1559-ml-evaluation:1 trials",
+      "job": "har81-p-d-candidate-1559-ml-evaluation",
+      "source": "daytona",
+      "usd": 0.0066217785599999995
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-candidate-1634-software-databases:1 trials",
+      "job": "har81-p-d-candidate-1634-software-databases",
+      "source": "daytona",
+      "usd": 0.011372383040000001
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-candidate-1702-ml-inference:1 trials",
+      "job": "har81-p-d-candidate-1702-ml-inference",
+      "source": "daytona",
+      "usd": 0.028902673343999995
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-candidate-1789-security-appsec:1 trials",
+      "job": "har81-p-d-candidate-1789-security-appsec",
+      "source": "daytona",
+      "usd": 0.058959128896
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-candidate-2684-security-appsec:1 trials",
+      "job": "har81-p-d-candidate-2684-security-appsec",
+      "source": "daytona",
+      "usd": 0.039522634432
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-format-code-task-000240:1 trials",
+      "job": "har81-p-d-format-code-task-000240",
+      "source": "daytona",
+      "usd": 0.022012997957700002
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-format-code-task-000434:1 trials",
+      "job": "har81-p-d-format-code-task-000434",
+      "source": "daytona",
+      "usd": 0.0333403006301
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-format-code-task-001520:1 trials",
+      "job": "har81-p-d-format-code-task-001520",
+      "source": "daytona",
+      "usd": 0.041616224965050005
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-format-code-task-001645:1 trials",
+      "job": "har81-p-d-format-code-task-001645",
+      "source": "daytona",
+      "usd": 0.031128600759350006
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-format-code-task-002537:1 trials",
+      "job": "har81-p-d-format-code-task-002537",
+      "source": "daytona",
+      "usd": 0.0361058286845
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-81",
+      "evidence": "har81-p-d-format-code-task-003011:1 trials",
+      "job": "har81-p-d-format-code-task-003011",
+      "source": "daytona",
+      "usd": 0.0402857168222
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-90",
+      "evidence": "runs/har90-mimo-0036-b:1 trials",
+      "job": "har90-mimo-0036-b",
+      "source": "daytona",
+      "usd": 0.028618955007999998
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-90",
+      "evidence": "runs/har90-mimo-0036-d:1 trials",
+      "job": "har90-mimo-0036-d",
+      "source": "daytona",
+      "usd": 0.05973564825600001
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-90",
+      "evidence": "runs/har90-mimo-0036-e:1 trials",
+      "job": "har90-mimo-0036-e",
+      "source": "daytona",
+      "usd": 0.059956609663999995
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-90",
+      "evidence": "runs/har90-mimo-0036-g:1 trials",
+      "job": "har90-mimo-0036-g",
+      "source": "daytona",
+      "usd": 0.059669524736
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-90",
+      "evidence": "runs/har90-mimo-0036-h:1 trials",
+      "job": "har90-mimo-0036-h",
+      "source": "daytona",
+      "usd": 0.059808754112000005
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-90",
+      "evidence": "runs/har90-mimo-0758-d:1 trials",
+      "job": "har90-mimo-0758-d",
+      "source": "daytona",
+      "usd": 0.060183740352
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-90",
+      "evidence": "runs/har90-mimo-0758-e:1 trials",
+      "job": "har90-mimo-0758-e",
+      "source": "daytona",
+      "usd": 0.059458311231999995
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-90",
+      "evidence": "runs/har90-mimo-0758-f:1 trials",
+      "job": "har90-mimo-0758-f",
+      "source": "daytona",
+      "usd": 0.059535760384000005
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-c-format-code-task-000240:1 trials",
+      "job": "har95-qual-c-format-code-task-000240",
+      "source": "daytona",
+      "usd": 0.002097123801
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-c-format-code-task-000434:1 trials",
+      "job": "har95-qual-c-format-code-task-000434",
+      "source": "daytona",
+      "usd": 0.00240305046805
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-c-format-code-task-001520:1 trials",
+      "job": "har95-qual-c-format-code-task-001520",
+      "source": "daytona",
+      "usd": 0.0081919320343
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-c-format-code-task-001645:1 trials",
+      "job": "har95-qual-c-format-code-task-001645",
+      "source": "daytona",
+      "usd": 0.0016386585696499998
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-c-format-code-task-002537:1 trials",
+      "job": "har95-qual-c-format-code-task-002537",
+      "source": "daytona",
+      "usd": 0.0083598465838
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-c-format-code-task-003011:1 trials",
+      "job": "har95-qual-c-format-code-task-003011",
+      "source": "daytona",
+      "usd": 0.0039397127188
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-y-arvo-18737:1 trials",
+      "job": "har95-qual-y-arvo-18737",
+      "source": "daytona",
+      "usd": 0.0029213168426
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-y-arvo-41330:1 trials",
+      "job": "har95-qual-y-arvo-41330",
+      "source": "daytona",
+      "usd": 0.0011283664891499998
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-y-arvo-42485576:1 trials",
+      "job": "har95-qual-y-arvo-42485576",
+      "source": "daytona",
+      "usd": 0.00310516002955
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-y-arvo-42496599:1 trials",
+      "job": "har95-qual-y-arvo-42496599",
+      "source": "daytona",
+      "usd": 0.0022022501908499996
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-y-arvo-42514310:1 trials",
+      "job": "har95-qual-y-arvo-42514310",
+      "source": "daytona",
+      "usd": 0.00299028328875
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-y-arvo-42528228:1 trials",
+      "job": "har95-qual-y-arvo-42528228",
+      "source": "daytona",
+      "usd": 0.0029094608961999996
+    },
+    {
+      "basis": "estimate",
+      "card": "HAR-95",
+      "evidence": "runs/har95-qual-y-arvo-57589:1 trials",
+      "job": "har95-qual-y-arvo-57589",
+      "source": "daytona",
+      "usd": 0.00123283206985
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000098:1 trials",
+      "job": "mimo-qual-c-format-code-task-000098",
+      "source": "daytona",
+      "usd": 0.0092338200254
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000105:1 trials",
+      "job": "mimo-qual-c-format-code-task-000105",
+      "source": "daytona",
+      "usd": 0.00522322239055
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000220:1 trials",
+      "job": "mimo-qual-c-format-code-task-000220",
+      "source": "daytona",
+      "usd": 0.0067851866843
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000359:1 trials",
+      "job": "mimo-qual-c-format-code-task-000359",
+      "source": "daytona",
+      "usd": 0.0061322913349
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000464:1 trials",
+      "job": "mimo-qual-c-format-code-task-000464",
+      "source": "daytona",
+      "usd": 0.0027164191766
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000514:1 trials",
+      "job": "mimo-qual-c-format-code-task-000514",
+      "source": "daytona",
+      "usd": 0.017152407370099997
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000541:1 trials",
+      "job": "mimo-qual-c-format-code-task-000541",
+      "source": "daytona",
+      "usd": 0.00867007707435
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000647:1 trials",
+      "job": "mimo-qual-c-format-code-task-000647",
+      "source": "daytona",
+      "usd": 0.02032591473415
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-000822:1 trials",
+      "job": "mimo-qual-c-format-code-task-000822",
+      "source": "daytona",
+      "usd": 0.0026630735761999998
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001118:1 trials",
+      "job": "mimo-qual-c-format-code-task-001118",
+      "source": "daytona",
+      "usd": 0.0079233109658
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001190:1 trials",
+      "job": "mimo-qual-c-format-code-task-001190",
+      "source": "daytona",
+      "usd": 0.1165190829268
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001264:1 trials",
+      "job": "mimo-qual-c-format-code-task-001264",
+      "source": "daytona",
+      "usd": 0.00652658026475
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001302:1 trials",
+      "job": "mimo-qual-c-format-code-task-001302",
+      "source": "daytona",
+      "usd": 0.00886133042025
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001482:1 trials",
+      "job": "mimo-qual-c-format-code-task-001482",
+      "source": "daytona",
+      "usd": 0.01077741124595
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001483:1 trials",
+      "job": "mimo-qual-c-format-code-task-001483",
+      "source": "daytona",
+      "usd": 0.0095231334462
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001486:1 trials",
+      "job": "mimo-qual-c-format-code-task-001486",
+      "source": "daytona",
+      "usd": 0.00521667857735
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001615:1 trials",
+      "job": "mimo-qual-c-format-code-task-001615",
+      "source": "daytona",
+      "usd": 0.0043623324056
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001621:1 trials",
+      "job": "mimo-qual-c-format-code-task-001621",
+      "source": "daytona",
+      "usd": 0.005868789693
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001626:1 trials",
+      "job": "mimo-qual-c-format-code-task-001626",
+      "source": "daytona",
+      "usd": 0.00284618083435
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-001873:1 trials",
+      "job": "mimo-qual-c-format-code-task-001873",
+      "source": "daytona",
+      "usd": 0.0030521235680000002
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002083:1 trials",
+      "job": "mimo-qual-c-format-code-task-002083",
+      "source": "daytona",
+      "usd": 0.00215160261115
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002201:1 trials",
+      "job": "mimo-qual-c-format-code-task-002201",
+      "source": "daytona",
+      "usd": 0.0021798168717
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002245:1 trials",
+      "job": "mimo-qual-c-format-code-task-002245",
+      "source": "daytona",
+      "usd": 0.0064214983308500005
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002278:1 trials",
+      "job": "mimo-qual-c-format-code-task-002278",
+      "source": "daytona",
+      "usd": 0.008237032691800001
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002289:1 trials",
+      "job": "mimo-qual-c-format-code-task-002289",
+      "source": "daytona",
+      "usd": 0.0058851967611499995
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002362:1 trials",
+      "job": "mimo-qual-c-format-code-task-002362",
+      "source": "daytona",
+      "usd": 0.0066454255811500005
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002581:1 trials",
+      "job": "mimo-qual-c-format-code-task-002581",
+      "source": "daytona",
+      "usd": 0.0078449260808
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002609:1 trials",
+      "job": "mimo-qual-c-format-code-task-002609",
+      "source": "daytona",
+      "usd": 0.0036182341031
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002681:1 trials",
+      "job": "mimo-qual-c-format-code-task-002681",
+      "source": "daytona",
+      "usd": 0.00790402792485
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002783:1 trials",
+      "job": "mimo-qual-c-format-code-task-002783",
+      "source": "daytona",
+      "usd": 0.0043423689256
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-002854:1 trials",
+      "job": "mimo-qual-c-format-code-task-002854",
+      "source": "daytona",
+      "usd": 0.002709757584
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-c-format-code-task-003031:1 trials",
+      "job": "mimo-qual-c-format-code-task-003031",
+      "source": "daytona",
+      "usd": 0.0032182709774500004
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-m-music-gk-0000:1 trials",
+      "job": "mimo-qual-m-music-gk-0000",
+      "source": "daytona",
+      "usd": 0.0021600172949500004
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0036-software-data-engineering:1 trials",
+      "job": "mimo-qual-t-candidate-0036-software-data-engineering",
+      "source": "daytona",
+      "usd": 0.002058488768
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0109-science-robotics:1 trials",
+      "job": "mimo-qual-t-candidate-0109-science-robotics",
+      "source": "daytona",
+      "usd": 0.0032812952959999997
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0260-security-appsec:1 trials",
+      "job": "mimo-qual-t-candidate-0260-security-appsec",
+      "source": "daytona",
+      "usd": 0.002322690752
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0308-security-forensics:1 trials",
+      "job": "mimo-qual-t-candidate-0308-security-forensics",
+      "source": "daytona",
+      "usd": 0.002197883008
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0390-security-appsec:1 trials",
+      "job": "mimo-qual-t-candidate-0390-security-appsec",
+      "source": "daytona",
+      "usd": 0.002418816768
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0461-ml-evaluation:1 trials",
+      "job": "mimo-qual-t-candidate-0461-ml-evaluation",
+      "source": "daytona",
+      "usd": 0.0033177539200000003
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0534-ml-training:1 trials",
+      "job": "mimo-qual-t-candidate-0534-ml-training",
+      "source": "daytona",
+      "usd": 0.0036140048000000004
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0628-media-music:1 trials",
+      "job": "mimo-qual-t-candidate-0628-media-music",
+      "source": "daytona",
+      "usd": 0.00197000672
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0674-ml-evaluation:1 trials",
+      "job": "mimo-qual-t-candidate-0674-ml-evaluation",
+      "source": "daytona",
+      "usd": 0.002844466432
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0688-hardware-rtl:1 trials",
+      "job": "mimo-qual-t-candidate-0688-hardware-rtl",
+      "source": "daytona",
+      "usd": 0.001314591168
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0758-ml-inference:1 trials",
+      "job": "mimo-qual-t-candidate-0758-ml-inference",
+      "source": "daytona",
+      "usd": 0.0015576074880000001
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0803-ml-training:1 trials",
+      "job": "mimo-qual-t-candidate-0803-ml-training",
+      "source": "daytona",
+      "usd": 0.002330431552
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0847-software-languages:1 trials",
+      "job": "mimo-qual-t-candidate-0847-software-languages",
+      "source": "daytona",
+      "usd": 0.002107604352
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0867-software-frontend:1 trials",
+      "job": "mimo-qual-t-candidate-0867-software-frontend",
+      "source": "daytona",
+      "usd": 0.0018374332159999996
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0938-science-chemistry:1 trials",
+      "job": "mimo-qual-t-candidate-0938-science-chemistry",
+      "source": "daytona",
+      "usd": 0.0016918635520000002
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-0993-software-systems:1 trials",
+      "job": "mimo-qual-t-candidate-0993-software-systems",
+      "source": "daytona",
+      "usd": 0.0021093986559999997
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1001-security-forensics:1 trials",
+      "job": "mimo-qual-t-candidate-1001-security-forensics",
+      "source": "daytona",
+      "usd": 0.0035038178560000003
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1005-software-systems:1 trials",
+      "job": "mimo-qual-t-candidate-1005-software-systems",
+      "source": "daytona",
+      "usd": 0.002367546112
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1048-operations-virtualization:1 trials",
+      "job": "mimo-qual-t-candidate-1048-operations-virtualization",
+      "source": "daytona",
+      "usd": 0.0032828842239999998
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1155-software-systems:1 trials",
+      "job": "mimo-qual-t-candidate-1155-software-systems",
+      "source": "daytona",
+      "usd": 0.001460495488
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1165-ml-evaluation:1 trials",
+      "job": "mimo-qual-t-candidate-1165-ml-evaluation",
+      "source": "daytona",
+      "usd": 0.004443359807999999
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1216-software-frontend:1 trials",
+      "job": "mimo-qual-t-candidate-1216-software-frontend",
+      "source": "daytona",
+      "usd": 0.0018756545920000003
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1247-security-reverse-engineering:1 trials",
+      "job": "mimo-qual-t-candidate-1247-security-reverse-engineering",
+      "source": "daytona",
+      "usd": 0.00128400704
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1257-software-systems:1 trials",
+      "job": "mimo-qual-t-candidate-1257-software-systems",
+      "source": "daytona",
+      "usd": 0.002124107392
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1271-media-games:1 trials",
+      "job": "mimo-qual-t-candidate-1271-media-games",
+      "source": "daytona",
+      "usd": 0.001489282432
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1305-software-data-engineering:1 trials",
+      "job": "mimo-qual-t-candidate-1305-software-data-engineering",
+      "source": "daytona",
+      "usd": 0.002105551936
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1399-security-reverse-engineering:1 trials",
+      "job": "mimo-qual-t-candidate-1399-security-reverse-engineering",
+      "source": "daytona",
+      "usd": 0.0013169517439999999
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1442-software-languages:1 trials",
+      "job": "mimo-qual-t-candidate-1442-software-languages",
+      "source": "daytona",
+      "usd": 0.0016303052159999999
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1559-ml-evaluation:1 trials",
+      "job": "mimo-qual-t-candidate-1559-ml-evaluation",
+      "source": "daytona",
+      "usd": 0.0030483062399999997
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1601-software-data-engineering:1 trials",
+      "job": "mimo-qual-t-candidate-1601-software-data-engineering",
+      "source": "daytona",
+      "usd": 0.0036888620159999997
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1634-software-databases:1 trials",
+      "job": "mimo-qual-t-candidate-1634-software-databases",
+      "source": "daytona",
+      "usd": 0.001595213888
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1669-operations-marketing:1 trials",
+      "job": "mimo-qual-t-candidate-1669-operations-marketing",
+      "source": "daytona",
+      "usd": 0.001692146496
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1682-science-physics:1 trials",
+      "job": "mimo-qual-t-candidate-1682-science-physics",
+      "source": "daytona",
+      "usd": 0.00175369728
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1702-ml-inference:1 trials",
+      "job": "mimo-qual-t-candidate-1702-ml-inference",
+      "source": "daytona",
+      "usd": 0.0020833018879999996
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1736-ml-inference:1 trials",
+      "job": "mimo-qual-t-candidate-1736-ml-inference",
+      "source": "daytona",
+      "usd": 0.0011857644800000002
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1789-security-appsec:1 trials",
+      "job": "mimo-qual-t-candidate-1789-security-appsec",
+      "source": "daytona",
+      "usd": 0.0016660908799999998
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1824-media-design:1 trials",
+      "job": "mimo-qual-t-candidate-1824-media-design",
+      "source": "daytona",
+      "usd": 0.002267537152
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1836-hardware-cad:1 trials",
+      "job": "mimo-qual-t-candidate-1836-hardware-cad",
+      "source": "daytona",
+      "usd": 0.0029602792319999996
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1866-ml-inference:1 trials",
+      "job": "mimo-qual-t-candidate-1866-ml-inference",
+      "source": "daytona",
+      "usd": 0.0016447503999999999
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1890-ml-training:1 trials",
+      "job": "mimo-qual-t-candidate-1890-ml-training",
+      "source": "daytona",
+      "usd": 0.0035395866879999994
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1939-software-systems:1 trials",
+      "job": "mimo-qual-t-candidate-1939-software-systems",
+      "source": "daytona",
+      "usd": 0.001850916544
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-1990-security-cryptography:1 trials",
+      "job": "mimo-qual-t-candidate-1990-security-cryptography",
+      "source": "daytona",
+      "usd": 0.001356467264
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2072-software-data-engineering:1 trials",
+      "job": "mimo-qual-t-candidate-2072-software-data-engineering",
+      "source": "daytona",
+      "usd": 0.0021193061120000005
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2160-software-frontend:1 trials",
+      "job": "mimo-qual-t-candidate-2160-software-frontend",
+      "source": "daytona",
+      "usd": 0.0015663144959999998
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2163-operations-marketing:1 trials",
+      "job": "mimo-qual-t-candidate-2163-operations-marketing",
+      "source": "daytona",
+      "usd": 0.002116713984
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2207-security-appsec:1 trials",
+      "job": "mimo-qual-t-candidate-2207-security-appsec",
+      "source": "daytona",
+      "usd": 0.0033356256
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2262-operations-compliance:1 trials",
+      "job": "mimo-qual-t-candidate-2262-operations-compliance",
+      "source": "daytona",
+      "usd": 0.0028994636799999996
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2329-software-languages:1 trials",
+      "job": "mimo-qual-t-candidate-2329-software-languages",
+      "source": "daytona",
+      "usd": 0.0017263230719999998
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2376-security-cryptography:1 trials",
+      "job": "mimo-qual-t-candidate-2376-security-cryptography",
+      "source": "daytona",
+      "usd": 0.001826754496
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2487-security-cryptography:1 trials",
+      "job": "mimo-qual-t-candidate-2487-security-cryptography",
+      "source": "daytona",
+      "usd": 0.001593562816
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2500-hardware-cad:1 trials",
+      "job": "mimo-qual-t-candidate-2500-hardware-cad",
+      "source": "daytona",
+      "usd": 0.001408735296
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2511-security-cryptography:1 trials",
+      "job": "mimo-qual-t-candidate-2511-security-cryptography",
+      "source": "daytona",
+      "usd": 0.001903116672
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2517-software-data-engineering:1 trials",
+      "job": "mimo-qual-t-candidate-2517-software-data-engineering",
+      "source": "daytona",
+      "usd": 0.0017286249600000003
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2535-security-cryptography:1 trials",
+      "job": "mimo-qual-t-candidate-2535-security-cryptography",
+      "source": "daytona",
+      "usd": 0.001764587968
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2684-security-appsec:1 trials",
+      "job": "mimo-qual-t-candidate-2684-security-appsec",
+      "source": "daytona",
+      "usd": 0.001340300864
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2713-ml-inference:1 trials",
+      "job": "mimo-qual-t-candidate-2713-ml-inference",
+      "source": "daytona",
+      "usd": 0.001697116416
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2728-software-data-engineering:1 trials",
+      "job": "mimo-qual-t-candidate-2728-software-data-engineering",
+      "source": "daytona",
+      "usd": 0.001637961856
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2760-ml-inference:1 trials",
+      "job": "mimo-qual-t-candidate-2760-ml-inference",
+      "source": "daytona",
+      "usd": 0.0018145639039999998
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2790-ml-evaluation:1 trials",
+      "job": "mimo-qual-t-candidate-2790-ml-evaluation",
+      "source": "daytona",
+      "usd": 0.001885596928
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2836-ml-kernels:1 trials",
+      "job": "mimo-qual-t-candidate-2836-ml-kernels",
+      "source": "daytona",
+      "usd": 0.001595521728
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2838-ml-evaluation:1 trials",
+      "job": "mimo-qual-t-candidate-2838-ml-evaluation",
+      "source": "daytona",
+      "usd": 0.0020725027199999997
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2916-ml-training:1 trials",
+      "job": "mimo-qual-t-candidate-2916-ml-training",
+      "source": "daytona",
+      "usd": 0.0014684310399999997
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2951-security-appsec:1 trials",
+      "job": "mimo-qual-t-candidate-2951-security-appsec",
+      "source": "daytona",
+      "usd": 0.002507025024
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-t-candidate-2996-ml-evaluation:1 trials",
+      "job": "mimo-qual-t-candidate-2996-ml-evaluation",
+      "source": "daytona",
+      "usd": 0.002375529344
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-10841:1 trials",
+      "job": "mimo-qual-y-arvo-10841",
+      "source": "daytona",
+      "usd": 0.0030579081659499996
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-14912:1 trials",
+      "job": "mimo-qual-y-arvo-14912",
+      "source": "daytona",
+      "usd": 0.0019443785453999998
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-21719:1 trials",
+      "job": "mimo-qual-y-arvo-21719",
+      "source": "daytona",
+      "usd": 0.00212011907415
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-28777:1 trials",
+      "job": "mimo-qual-y-arvo-28777",
+      "source": "daytona",
+      "usd": 0.0014594534918500003
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-29280:1 trials",
+      "job": "mimo-qual-y-arvo-29280",
+      "source": "daytona",
+      "usd": 0.00225717477935
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-30365:1 trials",
+      "job": "mimo-qual-y-arvo-30365",
+      "source": "daytona",
+      "usd": 0.0021900584833499997
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-32142:1 trials",
+      "job": "mimo-qual-y-arvo-32142",
+      "source": "daytona",
+      "usd": 0.010496393959750001
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-34134:1 trials",
+      "job": "mimo-qual-y-arvo-34134",
+      "source": "daytona",
+      "usd": 0.00474681369855
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-34960:1 trials",
+      "job": "mimo-qual-y-arvo-34960",
+      "source": "daytona",
+      "usd": 0.0019101564449000002
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-378159150:1 trials",
+      "job": "mimo-qual-y-arvo-378159150",
+      "source": "daytona",
+      "usd": 0.0029652769772500003
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-42471025:1 trials",
+      "job": "mimo-qual-y-arvo-42471025",
+      "source": "daytona",
+      "usd": 0.00367949074565
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-42486152:1 trials",
+      "job": "mimo-qual-y-arvo-42486152",
+      "source": "daytona",
+      "usd": 0.0024391128396
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-42497943:1 trials",
+      "job": "mimo-qual-y-arvo-42497943",
+      "source": "daytona",
+      "usd": 0.0029567237936000005
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-42537563:1 trials",
+      "job": "mimo-qual-y-arvo-42537563",
+      "source": "daytona",
+      "usd": 0.0030178344307500004
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-42539239:1 trials",
+      "job": "mimo-qual-y-arvo-42539239",
+      "source": "daytona",
+      "usd": 0.0031324168513500003
+    },
+    {
+      "basis": "estimate",
+      "card": "unattributed",
+      "evidence": "runs/mimo-qual-y-arvo-43055:1 trials",
+      "job": "mimo-qual-y-arvo-43055",
+      "source": "daytona",
+      "usd": 0.0023457662500999997
+    }
+  ],
+  "total_usd": 16.626055719385402
+}

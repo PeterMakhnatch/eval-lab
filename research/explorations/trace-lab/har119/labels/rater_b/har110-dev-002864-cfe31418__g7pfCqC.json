@@ -1,0 +1,43 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "-                    (\"CONDITIONAL\", \"ARRAY\", \"WRAPPED\"),",
+      "ref": "head#11"
+    },
+    {
+      "quote": "+                    (\"CONDITIONAL\", \"ARRAY\", \"WRAPPER\"),",
+      "ref": "head#11"
+    },
+    {
+      "quote": "Analysis: All 62 focused tests pass. Confirming the final diff and cleaning up any scratch files.",
+      "ref": "head#11"
+    },
+    {
+      "quote": "\"function_name\": \"mark_task_complete\"",
+      "ref": "head#12"
+    },
+    {
+      "quote": "The fix is complete and verified. The issue was in `Trino.Parser.JSON_QUERY_OPTIONS` in `/testbed/sqlglot/dialects/trino.py`",
+      "ref": "head#13"
+    },
+    {
+      "quote": "Ran 11 tests in 0.014s\nOK",
+      "ref": "verifier/test_output.log"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Earned pass. Fixed typo (CONDITIONAL, ARRAY, WRAPPED)->(CONDITIONAL, ARRAY, WRAPPER) and added bare (ARRAY, WRAPPER)/(WRAPPER,) continuations in Trino.Parser.JSON_QUERY_OPTIONS; 12 episodes, reward 1.0, exception_info null, all 11 hidden Trino tests OK. No fetches; diff touches only sqlglot/dialects/trino.py.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "read_minutes": 6,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har110-dev-002864-cfe31418__g7pfCqC"
+}

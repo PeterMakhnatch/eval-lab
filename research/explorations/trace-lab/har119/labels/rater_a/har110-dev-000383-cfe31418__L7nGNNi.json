@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "9=2635=V262=1231649=EUR/USD10=098",
+      "ref": "head#26"
+    },
+    {
+      "quote": "AttributeError: module 'quickfix' has no attribute 'MarketDataUpdateType'",
+      "ref": "head#30"
+    },
+    {
+      "quote": "m.setField(fix.MarketDataUpdateType(0))",
+      "ref": "head#31"
+    },
+    {
+      "quote": "AttributeError: module 'quickfix' has no attribute 'MarketDataUpdateType'",
+      "ref": "head#93"
+    },
+    {
+      "quote": "AttributeError: module 'quickfix' has no attribute 'a'",
+      "ref": "head#18"
+    }
+  ],
+  "first_failure": {
+    "quote": "AttributeError: module 'quickfix' has no attribute 'MarketDataUpdateType'",
+    "ref": "head#30",
+    "what": "returned to the known-broken MarketDataUpdateType probe despite a working generic-field path at head#26; subscribe methods never implemented"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#31",
+    "head#93"
+  ],
+  "notes": "result.json: n_episodes=93 with TrialBudgetExhaustedError -> token_ceiling. Agent had a working approach at head#26 (StringField/RelatedSymbol message builds and prints) but fixated from head#29 onward on the nonexistent typed wrapper fix.MarketDataUpdateType, repeating the identical failing probe ~63 times through head#93 and never writing subscribe_to_data/unsubscribe_to_data (agent.diff empty, all 13 hidden tests fail with missing-method AttributeError). Blame is model: nothing in the trajectory shows the task unachievable with generic fields.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 30,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-dev-000383-cfe31418__L7nGNNi"
+}

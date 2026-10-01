@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Analysis: Now the core formatting logic. First, the syntax helper for finding structured regions:",
+      "ref": "head#47"
+    },
+    {
+      "quote": "Analysis: The region-expansion loop I wrote is convoluted and buggy. Let me rewrite it more carefully:",
+      "ref": "head#48"
+    },
+    {
+      "quote": "[(14, 14), (14, 14), (14, 14)]",
+      "ref": "head#49"
+    },
+    {
+      "quote": "cd /testbed && grep -n \"wrap-descriptions\" src/docformatter/configuration.py",
+      "ref": "head#82"
+    },
+    {
+      "quote": "cd /testbed && grep -n \"wrap-descriptions\" src/docformatter/configuration.py",
+      "ref": "head#110"
+    }
+  ],
+  "first_failure": {
+    "quote": "Analysis: Now the core formatting logic. First, the syntax helper for finding structured regions:",
+    "ref": "head#47",
+    "what": "added do_find_structured_regions with broken block-expansion returning empty regions, so structured prose never wraps"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#82",
+    "head#110"
+  ],
+  "notes": "result.json: n_episodes=108 with TrialBudgetExhaustedError -> token_ceiling. Agent self-admits the buggy loop at head#48; probe at head#49 shows detector returning empty [(14,14)] regions and the run never recovers (reward 0.0). Steps head#82-head#110 (29 turns) repeat the identical grep command with no progress. No completion claim; no upstream fetches.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 25,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-001161-gepa__kLkGSnR"
+}

@@ -1,0 +1,106 @@
+{
+ "trial": "har110-dev-002391-cfe31418__MvXkrso",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-002391-cfe31418/har110-dev-002391-cfe31418__MvXkrso",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-002391-cfe31418",
+ "task": "mimo-v2.6-rl/format-code-task-002391",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 71,
+  "step_ref": "head#71",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#71"
+  ],
+  "note": "false completion claim at head#71 while 1 verifier test(s) fail (3 failing (unnamed)); the claim, not the harness, is wrong",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#49 (`cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail `), 18 turns head#50-head#67 with no interrupt, prompt back after the command finished"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 10,
+    "span": [
+     "head#59",
+     "head#68"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 409211,
+   "completion": 639,
+   "steps": 10,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 409211,
+   "completion": 639,
+   "steps": 10,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2310465,
+   "completion": 18389,
+   "steps": 78,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.1771,
+  "result_input_tokens": 2310465
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 78,
+  "states": {
+   "no_prompt": 20,
+   "prompt": 58
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#49",
+    "trigger_command": "cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail -20",
+    "cause": "no_prompt",
+    "screen": "cd /workspace/repo && python -m pytest test/ -q 2>&1 | tail -20",
+    "start_ref": "head#50",
+    "end_ref": "head#67",
+    "turns": 18,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": true,
+    "until_run_end": false,
+    "prompt_tokens": 724193,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

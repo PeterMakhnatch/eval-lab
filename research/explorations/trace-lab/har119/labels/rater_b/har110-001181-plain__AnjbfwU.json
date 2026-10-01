@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cd /testbed && python - <<'EOF'",
+      "ref": "head#11"
+    },
+    {
+      "quote": "cd /testbed && (export PAGER=cat; python -u /tmp/check.py > /tmp/out.txt 2>&1; echo \"EXIT=$?\"; cat /tmp/out.txt)",
+      "ref": "head#33"
+    },
+    {
+      "quote": "The terminal is stuck in less. Let me press Escape/Ctrl-C to break out and then run with output to a file.",
+      "ref": "head#34"
+    },
+    {
+      "quote": "cd /testbed && (PAGER=cat python -u /tmp/check.py > /tmp/out.txt 2>&1; echo EXIT=$?); cat /tmp/out.txt",
+      "ref": "head#85"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /testbed && python - <<'EOF'",
+    "ref": "head#11",
+    "what": "patched Task.speed windowing without fixing update/advance sampling"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#33",
+    "head#85"
+  ],
+  "notes": "rich progress telemetry: final diff touches Task.speed, time_remaining guard and _progress append filter but verifier still fails track/speed tests; run then stuck ~50 turns in less pager retrying same PAGER=cat check until trial_budget_exhausted at 85 episodes.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 12,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-001181-plain__AnjbfwU"
+}

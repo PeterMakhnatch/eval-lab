@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cat >> /testbed/pottery/redlock.py << 'EOF'",
+      "ref": "head#16"
+    },
+    {
+      "quote": "cd /testbed && .venv/bin/python -c \"import pottery.redlock as rl; print(rl.Redlock)\"",
+      "ref": "head#34"
+    },
+    {
+      "quote": "grep -n \"class Redlock",
+      "ref": "head#35"
+    }
+  ],
+  "first_failure": {
+    "quote": "cat >> /testbed/pottery/redlock.py << 'EOF'",
+    "ref": "head#16",
+    "what": "appended redlock decorator sharing one Redlock instance across calls"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "pottery redlock decorator: impl creates one Redlock in closure and reuses it via `with redlock`, so concurrent ThreadPoolExecutor calls collide with distinct random values and raise ReleaseUnlockedLock; 18 passed 1 failed; shadowing also broke `pottery.redlock.Redlock` lookup; budget exhausted at 87 episodes.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 8,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-000587-plain__5NNxU35"
+}

@@ -529,6 +529,10 @@ def _process_trial(
             grader_evidence=(analysis or {}).get("grader_evidence") if analysis else None,
             taint=taint,
             token_flow=token_flow if isinstance(token_flow, dict) else None,
+            stop_reason=stop_reason,
+            calls=record.get("agent_steps"),
+            tokens=record.get("tokens_proxy") if isinstance(record.get("tokens_proxy"), dict) else None,
+            counts=record.get("counts") if isinstance(record.get("counts"), dict) else None,
         )
         decision_error = None
     except Exception as exc:  # noqa: BLE001 -- one bad trial must not kill the job
@@ -567,6 +571,7 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
             "",
             f"- task: `{record['task_name']}`; model: `{record['model_name']}`",
             f"- reward: `{record['reward']}` (scored={record['scored']}, {record['reward_source']})",
+            _counts_line(record),
             f"- stop reason: `{record['stop_reason']}`",
             _tokens_line(record),
             _cost_line(record),
@@ -603,6 +608,13 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
         )
     lines.append("")
     return "\n".join(lines)
+
+
+def _counts_line(record: dict[str, Any]) -> str:
+    """Counts verdict. The reward line above it is not rewritten."""
+    counts = record.get("counts") or {}
+    reasons = ", ".join(counts.get("reasons") or []) or "none"
+    return f"- counts: `{counts.get('verdict')}` ({reasons})"
 
 
 def _tokens_line(record: dict[str, Any]) -> str:
@@ -699,6 +711,9 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"- trials: {summary.get('n_trials')} "
         f"(pass {summary.get('n_pass')}, fail {summary.get('n_fail')}, "
         f"unscored {summary.get('n_unscored')})",
+        f"- counts: pass {summary.get('n_counted_pass')}, "
+        f"fail {summary.get('n_counted_fail')}, "
+        f"excluded {summary.get('n_excluded')} ({summary.get('excluded_reasons') or {}})",
         f"- stop reasons: {summary.get('stop_reasons') or 'none'}",
         f"- tokens: used `{summary.get('tokens_used')}` "
         f"vs attempted `{summary.get('tokens_attempted')}`",
@@ -710,13 +725,13 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         ),
         f"- ingest: {summary.get('ingest')}",
         "",
-        "| trial | reward | stop reason | tokens used/attempted | cost | flags |",
-        "|---|---|---|---|---|---|",
+        "| trial | reward | verdict | stop reason | tokens used/attempted | cost | flags |",
+        "|---|---|---|---|---|---|---|",
     ]
     for row in report.get("trials") or []:
         tokens = f"{row.get('tokens_used')}/{row.get('tokens_attempted')}"
         lines.append(
-            f"| `{row['trial_name']}` | {row.get('reward')} "
+            f"| `{row['trial_name']}` | {row.get('reward')} | `{row.get('verdict')}` "
             f"| `{row.get('stop_reason')}` | {tokens} | {row.get('cost')} "
             f"| {', '.join(f'`{flag}`' for flag in row.get('flags') or [])} |"
         )
@@ -750,6 +765,9 @@ def process_job(
     out_dir = Path(output_dir).resolve() if output_dir is not None else job_path / "processed"
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_root = Path(root).resolve() if root is not None else job_path.parent
+    from evallab.counts import attach_counts, find_label_root, summarize_counts
+
+    label_root = find_label_root(repo_root) or find_label_root(job_path)
 
     trials = _iter_trial_dirs(job_path)
     ledger = _job_ledger_block(job_path)
@@ -794,6 +812,11 @@ def process_job(
             if estimate is not None
             else estimate_reason
         )
+        record["counts"] = attach_counts(record, trial_result, label_root=label_root)
+        if isinstance(record.get("decision"), dict):
+            from evallab.trial_decision import render_counts
+
+            record["decision"]["counts"] = render_counts(record["counts"])
         trial_reports.append(record)
         trial_file = out_dir / f"trial-{trial_path.name}.json"
         trial_file.write_text(
@@ -854,6 +877,8 @@ def process_job(
         {
             "trial_name": record["trial_name"],
             "reward": record["reward"],
+            "verdict": (record.get("counts") or {}).get("verdict"),
+            "reasons": (record.get("counts") or {}).get("reasons") or [],
             "stop_reason": record["stop_reason"],
             "tokens_used": (record["tokens_steps"] or {}).get("total_tokens"),
             "tokens_attempted": record["tokens_attempted_proxy"],
@@ -862,6 +887,7 @@ def process_job(
         }
         for record in trial_reports
     ]
+    counts_summary = summarize_counts(trial_reports)
     report: dict[str, Any] = {
         "schema": PROCESS_JOB_SCHEMA,
         "job_name": job_path.name,
@@ -885,6 +911,10 @@ def process_job(
             "cost_estimate_usd": sum(measured_estimate) if measured_estimate else None,
             "cost_estimate_measured": len(measured_estimate),
             "ingest": ingest_note,
+            "n_counted_pass": counts_summary["n_counted_pass"],
+            "n_counted_fail": counts_summary["n_counted_fail"],
+            "n_excluded": counts_summary["n_excluded"],
+            "excluded_reasons": counts_summary["excluded_reasons"],
         },
     }
     if publish:

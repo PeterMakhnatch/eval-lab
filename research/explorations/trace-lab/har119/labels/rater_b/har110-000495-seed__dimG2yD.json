@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cfn-lint /tmp/statemachine.json",
+      "ref": "head#6"
+    },
+    {
+      "quote": "cat /testbed/src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py",
+      "ref": "head#8"
+    },
+    {
+      "quote": "sed -n 540,575p /testbed/src/cfnlint/helpers.py",
+      "ref": "head#9"
+    },
+    {
+      "quote": "cat /testbed/src/cfnlint/rules/jsonschema/CfnLintJsonSchema.py",
+      "ref": "head#92"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed -n 540,575p /testbed/src/cfnlint/helpers.py",
+    "ref": "head#9",
+    "what": "after correctly diagnosing the Fn::Join handling gap, deferred any rule edit to chase helper/upstream internals; no code edit followed in 80+ remaining episodes (agent.diff empty)"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 0.0; n_episodes 92 with TrialBudgetExhaustedError; agent.diff empty (zero edits); verifier 11/12, failing hidden 'Using a function' case. 92 episodes of varied reads (rule, validators, schemas; prose_completions 0) with correct mid-run diagnosis but no attempted fix; instruction vs hidden tests are aligned (skipping/accepting function values is reasonable), so not a task defect. Exact stall point uncertain.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 35,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-000495-seed__dimG2yD"
+}

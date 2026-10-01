@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cat /testbed/src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py",
+      "ref": "head#72"
+    },
+    {
+      "quote": "path = \"src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py\"",
+      "ref": "head#84"
+    },
+    {
+      "quote": "grep -n \"import\" /testbed/src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py",
+      "ref": "head#85"
+    }
+  ],
+  "first_failure": {
+    "quote": "path = \"src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py\"",
+    "ref": "head#84",
+    "what": "added blanket is_function skip with strict_types=False suppressing valid errors"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "cfn-lint StepFunctions Fn::Join: final diff adds is_function continue plus functions=[]/strict_types=False; verifier passes repro but fails 3 unit cases (Invalid configuration, substitution variants) showing over-skip; budget exhausted at 97 episodes after summarization.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 10,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-000495-plain__mDTBFAW"
+}

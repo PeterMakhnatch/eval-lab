@@ -1,0 +1,31 @@
+{
+  "variants": {
+    "leak_har113": 247,
+    "repair_har113": 53,
+    "repair_har115": 44
+  },
+  "total_variants_audited": 344,
+  "task_toml_keys_modified": [
+    "[environment.healthcheck].command"
+  ],
+  "findings": [],
+  "nop_clean_fail": 96,
+  "nop_unchecked": 248,
+  "census_rows": 1180,
+  "census_labels": {
+    "sound": 1040,
+    "broken_environment": 135,
+    "grader_suspect": 5
+  },
+  "census_nop_rewards": {
+    "0.0": 1175,
+    "none": 5
+  },
+  "census_pre_har113": {
+    "rows": 1180,
+    "sound": 493,
+    "broken_environment": 59,
+    "grader_suspect": 2,
+    "unknown": 626
+  }
+}

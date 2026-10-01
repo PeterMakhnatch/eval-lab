@@ -1,0 +1,878 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 84,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 84,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 84
+    }
+  },
+  "agent_steps": 84,
+  "assembly_pattern": "single_head",
+  "claim_regime": null,
+  "completion_refs": [],
+  "confirmation_loop": null,
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "excludes sandbox and warm periods; time-based only",
+  "cost_estimate_usd": 0.62275083380064,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "677b6ee6-f832-4ee6-af64-a48f8473a89c",
+        "steps": 85
+      }
+    ],
+    "summarization_count": 0,
+    "trajectory_head": true,
+    "unique_steps": 85
+  },
+  "decision": {
+    "asked": {
+      "excerpt": "Fix the following issue: Progress task telemetry is currently hard to trust when callers mix `advance` and absolute `completed` updates: the public rate and ETA can drift, corrections can contaminate the estimate, and changing a task's lifecycle leaves stale measurements behind. Make the `Progress`/`Task` public behavior coherent. Every positive completion delta, whether supplied through `advance\u2026",
+      "grader_gap": "no named gap; verifier ran 46 tests, 11 failed. Not a semantic certificate.",
+      "grader_tests_asked": "yes",
+      "instruction_bytes": 1359,
+      "instruction_present": true
+    },
+    "attribution": "model",
+    "did": {
+      "evidence_steps": [
+        "head#58",
+        "head#85"
+      ],
+      "last_edit_excerpt": "cd /testbed && python - <<'PYEOF'",
+      "last_edit_step": 26,
+      "note": "identical message repeated steps 58-85 with no change after errors",
+      "secondary": null,
+      "step": "head#58"
+    },
+    "fetched_fix": {
+      "command": "pip download rich==13.7.0 --no-deps -d /tmp/richdl 2>&1 | tail -3",
+      "fetched": true,
+      "kind": "upstream_fetch:pip-download-remote-package",
+      "step": "head#12"
+    },
+    "first_failure": null,
+    "nop_same_crash": {
+      "answer": "not_this_shape",
+      "nop_trial": null,
+      "reason": "This trial's verifier did not fail at setup or import."
+    },
+    "pass_tainted": {
+      "flagged": false,
+      "reasons": [
+        "upstream_fetch:upstream_fetch:pip-download-remote-package"
+      ],
+      "status": "not_a_pass"
+    },
+    "reward": 0.0,
+    "reward_why": "Reward `0.0`. Identical message repeated steps 58-85 with no change after errors.",
+    "rule_id": "R-REC-01",
+    "schema": "trial_decision/v1",
+    "scored": true,
+    "whose": "model"
+  },
+  "diagnosis": {
+    "exception_class": "TrialBudgetExhaustedError",
+    "heuristic_label": "tool_use_loop",
+    "modes": [
+      {
+        "excerpt": "50x repeated: cd /testbed && (PAGER=cat python -u /tmp/check.py > /tmp/out.txt 2>&1; echo EXIT=$?); cat /tmp/out.txt",
+        "mode": "tool_use_loop",
+        "step_ids": [
+          "36",
+          "37",
+          "38"
+        ]
+      }
+    ],
+    "notices": [
+      "stop reason: trial_budget_exhausted (agent metadata stop_reason)"
+    ],
+    "outcome": "scored",
+    "reward": 0.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "token_ceiling:input_tokens",
+    "identical_loop:28x:head#58-head#85",
+    "wedged_terminal:1-stretches",
+    "outcome:R-REC-01:model",
+    "taint_candidate:upstream_fetch",
+    "diagnosis:tool_use_loop",
+    "post_edit_input_share:84%",
+    "loop_onset:step-58:identical_message_run",
+    "max_prompt:36607"
+  ],
+  "handshake": null,
+  "identical_runs": [
+    {
+      "end": "head#85",
+      "length": 28,
+      "start": "head#58"
+    }
+  ],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 16438,
+      "prompt": 2339648,
+      "steps": 84,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": {
+      "completion": 2268,
+      "prompt": 984172,
+      "steps": 28,
+      "steps_without_metrics": 0
+    },
+    "in_loops": {
+      "completion": 2268,
+      "prompt": 984172,
+      "steps": 28,
+      "steps_without_metrics": 0
+    },
+    "loop_prompt_share": 0.4206,
+    "result_input_tokens": 2339648,
+    "spans": [
+      {
+        "kind": "identical",
+        "length": 28,
+        "span": [
+          "head#58",
+          "head#85"
+        ]
+      }
+    ]
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 84,
+  "outcome_failure": {
+    "attribution": "model",
+    "evidence_step_refs": [
+      "head#58",
+      "head#85"
+    ],
+    "note": "identical message repeated steps 58-85 with no change after errors",
+    "rule_id": "R-REC-01",
+    "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): pager after head#27 (`cd /testbed && git diff`), 58 turns head#28-head#85 with no interrupt, until run end",
+    "step_id": 58,
+    "step_ref": "head#58",
+    "tag": "error_recovery"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {},
+  "reward": 0.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [],
+  "shape_counts": {
+    "prose": 84
+  },
+  "stitched_steps": 85,
+  "stop_reason": "ceiling:input_tokens",
+  "taint": [
+    {
+      "command": "pip download rich==13.7.0 --no-deps -d /tmp/richdl 2>&1 | tail -3",
+      "evidence": "head#12",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    }
+  ],
+  "task_name": "mimo-v2.6-rl/format-code-task-001181",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 25,
+      "command_excerpt": "cd /testbed && python - <<'PYEOF'",
+      "kind": "write-call",
+      "persistence_reason": "edit detected but no target path extracted; persistence uncheckable (see limits)",
+      "persists_in_final_diff": null,
+      "step_id": 26,
+      "touched_paths": []
+    },
+    "loop_onset": {
+      "call_index": 57,
+      "detail": "28x identical message",
+      "detector": "identical_message_run",
+      "step_id": 58
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 101,
+        "prompt_tokens": 999,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 243,
+        "prompt_tokens": 2381,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 232,
+        "prompt_tokens": 5109,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 103,
+        "prompt_tokens": 7639,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 108,
+        "prompt_tokens": 9304,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 53,
+        "prompt_tokens": 9722,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 2878,
+        "prompt_tokens": 10591,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 70,
+        "prompt_tokens": 11539,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 72,
+        "prompt_tokens": 12560,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 522,
+        "prompt_tokens": 13883,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 2907,
+        "prompt_tokens": 15124,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 183,
+        "prompt_tokens": 15825,
+        "step_id": 13
+      },
+      {
+        "call_index": 13,
+        "completion_tokens": 75,
+        "prompt_tokens": 16351,
+        "step_id": 14
+      },
+      {
+        "call_index": 14,
+        "completion_tokens": 55,
+        "prompt_tokens": 16644,
+        "step_id": 15
+      },
+      {
+        "call_index": 15,
+        "completion_tokens": 68,
+        "prompt_tokens": 17114,
+        "step_id": 16
+      },
+      {
+        "call_index": 16,
+        "completion_tokens": 82,
+        "prompt_tokens": 17401,
+        "step_id": 17
+      },
+      {
+        "call_index": 17,
+        "completion_tokens": 66,
+        "prompt_tokens": 19695,
+        "step_id": 18
+      },
+      {
+        "call_index": 18,
+        "completion_tokens": 466,
+        "prompt_tokens": 20063,
+        "step_id": 19
+      },
+      {
+        "call_index": 19,
+        "completion_tokens": 86,
+        "prompt_tokens": 21223,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "completion_tokens": 62,
+        "prompt_tokens": 21618,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "completion_tokens": 215,
+        "prompt_tokens": 21902,
+        "step_id": 22
+      },
+      {
+        "call_index": 22,
+        "completion_tokens": 662,
+        "prompt_tokens": 22424,
+        "step_id": 23
+      },
+      {
+        "call_index": 23,
+        "completion_tokens": 485,
+        "prompt_tokens": 23464,
+        "step_id": 24
+      },
+      {
+        "call_index": 24,
+        "completion_tokens": 765,
+        "prompt_tokens": 23939,
+        "step_id": 25
+      },
+      {
+        "call_index": 25,
+        "completion_tokens": 208,
+        "prompt_tokens": 25078,
+        "step_id": 26
+      },
+      {
+        "call_index": 26,
+        "completion_tokens": 49,
+        "prompt_tokens": 25634,
+        "step_id": 27
+      },
+      {
+        "call_index": 27,
+        "completion_tokens": 633,
+        "prompt_tokens": 26123,
+        "step_id": 28
+      },
+      {
+        "call_index": 28,
+        "completion_tokens": 604,
+        "prompt_tokens": 27247,
+        "step_id": 29
+      },
+      {
+        "call_index": 29,
+        "completion_tokens": 109,
+        "prompt_tokens": 28353,
+        "step_id": 30
+      },
+      {
+        "call_index": 30,
+        "completion_tokens": 80,
+        "prompt_tokens": 28992,
+        "step_id": 31
+      },
+      {
+        "call_index": 31,
+        "completion_tokens": 84,
+        "prompt_tokens": 29487,
+        "step_id": 32
+      },
+      {
+        "call_index": 32,
+        "completion_tokens": 92,
+        "prompt_tokens": 30023,
+        "step_id": 33
+      },
+      {
+        "call_index": 33,
+        "completion_tokens": 92,
+        "prompt_tokens": 30598,
+        "step_id": 34
+      },
+      {
+        "call_index": 34,
+        "completion_tokens": 97,
+        "prompt_tokens": 31025,
+        "step_id": 35
+      },
+      {
+        "call_index": 35,
+        "completion_tokens": 82,
+        "prompt_tokens": 31534,
+        "step_id": 36
+      },
+      {
+        "call_index": 36,
+        "completion_tokens": 66,
+        "prompt_tokens": 31643,
+        "step_id": 37
+      },
+      {
+        "call_index": 37,
+        "completion_tokens": 81,
+        "prompt_tokens": 31736,
+        "step_id": 38
+      },
+      {
+        "call_index": 38,
+        "completion_tokens": 66,
+        "prompt_tokens": 31844,
+        "step_id": 39
+      },
+      {
+        "call_index": 39,
+        "completion_tokens": 66,
+        "prompt_tokens": 31937,
+        "step_id": 40
+      },
+      {
+        "call_index": 40,
+        "completion_tokens": 66,
+        "prompt_tokens": 32030,
+        "step_id": 41
+      },
+      {
+        "call_index": 41,
+        "completion_tokens": 66,
+        "prompt_tokens": 32123,
+        "step_id": 42
+      },
+      {
+        "call_index": 42,
+        "completion_tokens": 86,
+        "prompt_tokens": 32216,
+        "step_id": 43
+      },
+      {
+        "call_index": 43,
+        "completion_tokens": 66,
+        "prompt_tokens": 32329,
+        "step_id": 44
+      },
+      {
+        "call_index": 44,
+        "completion_tokens": 66,
+        "prompt_tokens": 32422,
+        "step_id": 45
+      },
+      {
+        "call_index": 45,
+        "completion_tokens": 66,
+        "prompt_tokens": 32515,
+        "step_id": 46
+      },
+      {
+        "call_index": 46,
+        "completion_tokens": 66,
+        "prompt_tokens": 32608,
+        "step_id": 47
+      },
+      {
+        "call_index": 47,
+        "completion_tokens": 81,
+        "prompt_tokens": 32701,
+        "step_id": 48
+      },
+      {
+        "call_index": 48,
+        "completion_tokens": 66,
+        "prompt_tokens": 32809,
+        "step_id": 49
+      },
+      {
+        "call_index": 49,
+        "completion_tokens": 66,
+        "prompt_tokens": 32902,
+        "step_id": 50
+      },
+      {
+        "call_index": 50,
+        "completion_tokens": 66,
+        "prompt_tokens": 32995,
+        "step_id": 51
+      },
+      {
+        "call_index": 51,
+        "completion_tokens": 81,
+        "prompt_tokens": 33088,
+        "step_id": 52
+      },
+      {
+        "call_index": 52,
+        "completion_tokens": 66,
+        "prompt_tokens": 33196,
+        "step_id": 53
+      },
+      {
+        "call_index": 53,
+        "completion_tokens": 81,
+        "prompt_tokens": 33289,
+        "step_id": 54
+      },
+      {
+        "call_index": 54,
+        "completion_tokens": 66,
+        "prompt_tokens": 33397,
+        "step_id": 55
+      },
+      {
+        "call_index": 55,
+        "completion_tokens": 81,
+        "prompt_tokens": 33490,
+        "step_id": 56
+      },
+      {
+        "call_index": 56,
+        "completion_tokens": 66,
+        "prompt_tokens": 33598,
+        "step_id": 57
+      },
+      {
+        "call_index": 57,
+        "completion_tokens": 81,
+        "prompt_tokens": 33691,
+        "step_id": 58
+      },
+      {
+        "call_index": 58,
+        "completion_tokens": 81,
+        "prompt_tokens": 33799,
+        "step_id": 59
+      },
+      {
+        "call_index": 59,
+        "completion_tokens": 81,
+        "prompt_tokens": 33907,
+        "step_id": 60
+      },
+      {
+        "call_index": 60,
+        "completion_tokens": 81,
+        "prompt_tokens": 34015,
+        "step_id": 61
+      },
+      {
+        "call_index": 61,
+        "completion_tokens": 81,
+        "prompt_tokens": 34123,
+        "step_id": 62
+      },
+      {
+        "call_index": 62,
+        "completion_tokens": 81,
+        "prompt_tokens": 34231,
+        "step_id": 63
+      },
+      {
+        "call_index": 63,
+        "completion_tokens": 81,
+        "prompt_tokens": 34339,
+        "step_id": 64
+      },
+      {
+        "call_index": 64,
+        "completion_tokens": 81,
+        "prompt_tokens": 34447,
+        "step_id": 65
+      },
+      {
+        "call_index": 65,
+        "completion_tokens": 81,
+        "prompt_tokens": 34555,
+        "step_id": 66
+      },
+      {
+        "call_index": 66,
+        "completion_tokens": 81,
+        "prompt_tokens": 34663,
+        "step_id": 67
+      },
+      {
+        "call_index": 67,
+        "completion_tokens": 81,
+        "prompt_tokens": 34771,
+        "step_id": 68
+      },
+      {
+        "call_index": 68,
+        "completion_tokens": 81,
+        "prompt_tokens": 34879,
+        "step_id": 69
+      },
+      {
+        "call_index": 69,
+        "completion_tokens": 81,
+        "prompt_tokens": 34987,
+        "step_id": 70
+      },
+      {
+        "call_index": 70,
+        "completion_tokens": 81,
+        "prompt_tokens": 35095,
+        "step_id": 71
+      },
+      {
+        "call_index": 71,
+        "completion_tokens": 81,
+        "prompt_tokens": 35203,
+        "step_id": 72
+      },
+      {
+        "call_index": 72,
+        "completion_tokens": 81,
+        "prompt_tokens": 35311,
+        "step_id": 73
+      },
+      {
+        "call_index": 73,
+        "completion_tokens": 81,
+        "prompt_tokens": 35419,
+        "step_id": 74
+      },
+      {
+        "call_index": 74,
+        "completion_tokens": 81,
+        "prompt_tokens": 35527,
+        "step_id": 75
+      },
+      {
+        "call_index": 75,
+        "completion_tokens": 81,
+        "prompt_tokens": 35635,
+        "step_id": 76
+      },
+      {
+        "call_index": 76,
+        "completion_tokens": 81,
+        "prompt_tokens": 35743,
+        "step_id": 77
+      },
+      {
+        "call_index": 77,
+        "completion_tokens": 81,
+        "prompt_tokens": 35851,
+        "step_id": 78
+      },
+      {
+        "call_index": 78,
+        "completion_tokens": 81,
+        "prompt_tokens": 35959,
+        "step_id": 79
+      },
+      {
+        "call_index": 79,
+        "completion_tokens": 81,
+        "prompt_tokens": 36067,
+        "step_id": 80
+      },
+      {
+        "call_index": 80,
+        "completion_tokens": 81,
+        "prompt_tokens": 36175,
+        "step_id": 81
+      },
+      {
+        "call_index": 81,
+        "completion_tokens": 81,
+        "prompt_tokens": 36283,
+        "step_id": 82
+      },
+      {
+        "call_index": 82,
+        "completion_tokens": 81,
+        "prompt_tokens": 36391,
+        "step_id": 83
+      },
+      {
+        "call_index": 83,
+        "completion_tokens": 81,
+        "prompt_tokens": 36499,
+        "step_id": 84
+      },
+      {
+        "call_index": 84,
+        "completion_tokens": 81,
+        "prompt_tokens": 36607,
+        "step_id": 85
+      }
+    ],
+    "prompt_summary": {
+      "first": 999,
+      "max": 36607,
+      "max_step_id": 85,
+      "median": 32272.5,
+      "n_calls": 84,
+      "reason": null,
+      "slope_per_call": 338.8225777057811,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": "TrialBudgetExhaustedError",
+      "metadata_stop_reason": "trial_budget_exhausted",
+      "reason": null,
+      "stop_reason": "ceiling:input_tokens"
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [],
+      "metadata_count": 0,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 1958056,
+      "note": null,
+      "output_tokens": 5671,
+      "share_input": 0.8369,
+      "share_output": 0.345,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 2,
+        "chars": 10256,
+        "est_tokens": 2564,
+        "next_prompt_tokens": 5109,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "chars": 10256,
+        "est_tokens": 2564,
+        "next_prompt_tokens": 7639,
+        "step_id": 4
+      },
+      {
+        "call_index": 16,
+        "chars": 9675,
+        "est_tokens": 2418,
+        "next_prompt_tokens": 19695,
+        "step_id": 17
+      },
+      {
+        "call_index": 4,
+        "chars": 6480,
+        "est_tokens": 1620,
+        "next_prompt_tokens": 9304,
+        "step_id": 5
+      },
+      {
+        "call_index": 1,
+        "chars": 3778,
+        "est_tokens": 944,
+        "next_prompt_tokens": 2381,
+        "step_id": 2
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 84,
+      "n_steps_stitched": 85
+    },
+    "trajectory_reason": null,
+    "trial_name": "har110-001181-plain__AnjbfwU"
+  },
+  "tokens_attempted_proxy": 2409519,
+  "tokens_proxy": {
+    "input_tokens": 2339648,
+    "output_tokens": 16438
+  },
+  "tokens_steps": {
+    "agent_steps": 84,
+    "completion_tokens": 16438,
+    "metered_steps": 84,
+    "prompt_tokens": 2339648,
+    "reason": null,
+    "total_tokens": 2356086,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "har110-001181-plain__AnjbfwU",
+  "trial_wall_hours": 0.22123278944444444,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 84,
+    "keystroke_source": "recorded",
+    "short_stretches": 0,
+    "states": {
+      "no_prompt": 55,
+      "pager": 4,
+      "prompt": 25
+    },
+    "stretches": [
+      {
+        "cause": "pager",
+        "end_ref": "head#85",
+        "interrupt_keys": null,
+        "interrupt_ref": null,
+        "prompt_returned": false,
+        "prompt_tokens": 1932422,
+        "screen": ":",
+        "start_ref": "head#28",
+        "steps_without_metrics": 0,
+        "trigger_command": "cd /testbed && git diff",
+        "trigger_ref": "head#27",
+        "turns": 58,
+        "until_run_end": true
+      }
+    ]
+  }
+}

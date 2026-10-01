@@ -2001,6 +2001,46 @@ def test_import_seed_stock_then_exact_empty_reuse_without_dispatch(tmp_path: Pat
     assert without_budget("", task)[0] == 1.0
 
 
+@pytest.mark.parametrize("toolbox_source", ["experiment_digest", "toolbox_metadata"])
+def test_empty_stock_cache_rejects_toolbox_augmentation(
+    tmp_path: Path, toolbox_source: str
+) -> None:
+    repo_root = tmp_path / "repo"
+    repo_root.mkdir()
+    task = create_task_fixture(repo_root, "tasks/task_1")
+    stock_dir = _make_stock_job(
+        repo_root / "research" / "evidence" / "runs",
+        job_name="g2-stock",
+        task_id="task_1",
+        task_path=task["task_path"],
+        package_digest=task["task_package_digest"],
+    )
+    _write_counted_report(stock_dir, "task_1__trial01", reward=1.0, verdict="counted_pass")
+    executor = MockExecutor(repo_root)
+    evaluator = _counted_evaluator(repo_root, task, executor)
+    assert evaluator.import_seed_evaluation(stock_dir, task)[0] == 1.0
+    assert evaluator("", task)[0] == 1.0
+
+    metadata_path = stock_dir / "lab-metadata.json"
+    metadata = json.loads(metadata_path.read_text())
+    toolbox_sha256 = "sha256:" + "f" * 64
+    if toolbox_source == "experiment_digest":
+        metadata["experiment"]["toolbox_sha256"] = toolbox_sha256
+    else:
+        metadata["toolbox"] = {
+            "artifact_path": "retained-toolbox/repl_tools.py",
+            "sha256": toolbox_sha256,
+        }
+    write_json(metadata_path, metadata)
+
+    with pytest.raises(ProvenanceMismatchError):
+        evaluator("", task)
+    with pytest.raises(ProvenanceMismatchError):
+        evaluator.import_seed_evaluation(stock_dir, task)
+    assert executor.direct_requests == []
+    assert executor.submitted_specs == []
+
+
 def test_import_seed_rejects_unprocessed_wrong_harness_and_mismatch(tmp_path: Path) -> None:
     """Unprocessed jobs, changed harness/limits, and mismatched receipts are refused."""
     from evallab.schemas import ExperimentSpec

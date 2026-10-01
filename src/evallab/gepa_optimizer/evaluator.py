@@ -455,6 +455,12 @@ def _check_job_provenance(
     identity_field = "toolbox_sha256" if candidate_kind == "python_toolbox" else "preamble_sha256"
     recorded_identity = exp.get(identity_field)
     if is_empty_stock:
+        # Empty stock must be unaugmented on imports and retained-cache reuse.
+        toolbox_meta = job.metadata.get("toolbox")
+        if exp.get("toolbox_sha256") is not None or (
+            toolbox_meta is not None and toolbox_meta != {}
+        ):
+            return False
         # Stock equivalence: explicit empty digest or absent preamble (native
         # no-addendum). Any other digest never matches the empty candidate.
         if recorded_identity not in (EMPTY_CANDIDATE_SHA256, None):
@@ -1657,19 +1663,6 @@ class LabEvaluator:
         ):
             raise ProvenanceMismatchError(
                 f"Seed job at {resolved_job} does not match exact stock/task/model provenance"
-            )
-        # Absent addendum: no toolbox lever may ride along with stock.
-        exp = job_record.metadata.get("experiment") if isinstance(job_record.metadata, dict) else {}
-        if not isinstance(exp, dict):
-            raise ProvenanceMismatchError(f"Seed job at {resolved_job} has no experiment provenance")
-        if exp.get("toolbox_sha256") is not None:
-            raise ProvenanceMismatchError(
-                f"Seed job at {resolved_job} carries a toolbox addendum, not stock"
-            )
-        toolbox_meta = job_record.metadata.get("toolbox")
-        if isinstance(toolbox_meta, dict) and toolbox_meta:
-            raise ProvenanceMismatchError(
-                f"Seed job at {resolved_job} carries toolbox metadata, not stock"
             )
         if not _check_base_spec_binding(
             job_record,

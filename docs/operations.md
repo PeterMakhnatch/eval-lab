@@ -263,6 +263,9 @@ provider limits and policy. Terminus-2 retains provider limits in that base
 spec, not campaign-level `provider_ceilings`. Native job bytes are not rewritten.
 The deterministic budget identity is counted once, later empty-seed evaluations
 reuse the same job, and another native repeat cannot overwrite that seed receipt.
+Both import and every cached empty-seed reuse reject declared toolbox digests
+and nonempty or invalid toolbox metadata; a retained stock receipt cannot hide
+later augmentation of its native job.
 Reused evidence is not a fresh launch or a claim of zero historical cost.
 
 For HAR-135, `research/experiments/ovn-sft-v0/gepa_gate.py freeze` takes explicit
@@ -275,6 +278,9 @@ Selection verifies instruction bytes and requires all ten seed/candidate
 outcomes to be countable. More counted passes wins; a pass tie wins only with
 known, strictly fewer settled proxy input-plus-output tokens. Unknown usage is
 not zero and an exact seed tie retains stock. Native Harbor usage stays separate.
+Build rows from verified evaluator receipts and retain each row's candidate,
+native configuration/lock and capture bindings. The selector verifies supplied
+instruction bytes and coverage, not that those bytes generated every supplied row.
 The $2 total gate ceiling still requires the ordinary pre-dispatch spend check
 and serving-session accounting. This training selection is exploratory; G5
 analysis follows the frozen [overnight preregistration](../research/experiments/ovn-sft-v0/PREREG.md).

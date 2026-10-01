@@ -669,3 +669,176 @@ def test_har128_har116_absent_cohort_is_unavailable_not_empty_freeze(
         assert "har128-har116" not in coverage["label_manifest_hashes"]
     finally:
         con.close()
+
+def test_har128_g2_a1_cohort_loads_distinct(tmp_path: Path) -> None:
+    """G2 attempt-one freeze joins under its own cohort, never pooled."""
+    trial = "trial_g2_shared"
+    job = tmp_path / "job_g2_shared"
+    _create_minimal_trial(job, trial)
+    _write_rater_freeze(
+        tmp_path,
+        "research/explorations/trace-lab/har128/labels_g2_a1",
+        {
+            f"{rater}/{trial}.json": {"trial": trial, "loop_kind": "none"}
+            for rater in ("rater_a", "rater_b")
+        },
+    )
+    con, coverage = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+    try:
+        (labels_json,) = con.execute("SELECT labels_json FROM v_trace_trials").fetchone()
+        entries = json.loads(labels_json)
+        assert len(entries) == 2
+        assert {e["cohort"] for e in entries} == {"har128-g2-a1"}
+        assert sorted(e["rater"] for e in entries) == ["rater_a", "rater_b"]
+        assert {e["provenance"] for e in entries} == {"agent_rater"}
+        assert all(e["trial_name"] == trial for e in entries)
+        assert all(e["loop_kind"] == "none" for e in entries)
+        report = coverage["label_verification"]["har128-g2-a1"]
+        assert report["verified"] == 2
+        assert report["failed"] == []
+        assert coverage["label_manifest_hashes"]["har128-g2-a1"]
+    finally:
+        con.close()
+
+
+@pytest.mark.parametrize("case", ["missing", "corrupt", "duplicate", "empty"])
+def test_har128_g2_a1_declared_file_boundaries(tmp_path: Path, case: str) -> None:
+    """A declared-but-missing, drifted, double-declared, or empty G2 freeze aborts."""
+    base = tmp_path / "research/explorations/trace-lab/har128/labels_g2_a1"
+    rater_a = base / "rater_a"
+    rater_a.mkdir(parents=True)
+    good_body = json.dumps({"trial": "trial_g2_ok", "loop_kind": "none"})
+    (rater_a / "trial_g2_ok.json").write_text(good_body, encoding="utf-8")
+    member = f"{hashlib.sha256(good_body.encode()).hexdigest()}  rater_a/trial_g2_ok.json\n"
+    if case == "missing":
+        manifest_body = member + "0" * 64 + "  rater_a/trial_g2_gone.json\n"
+    elif case == "corrupt":
+        manifest_body = member
+        (rater_a / "trial_g2_ok.json").write_text(
+            json.dumps({"loop_kind": "repetition"}), encoding="utf-8"
+        )
+    elif case == "duplicate":
+        manifest_body = member + member
+    else:
+        manifest_body = ""
+    (base / "MANIFEST.sha256").write_text(manifest_body, encoding="utf-8")
+    job = tmp_path / "job_g2_bounds"
+    _create_minimal_trial(job, "trial_g2_ok")
+    with pytest.raises(ValueError):
+        connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+
+
+def test_har128_g2_a1_labels_cannot_be_reassigned_by_filename(tmp_path: Path) -> None:
+    job = tmp_path / "job_g2_identity"
+    _create_minimal_trial(job, "trial_g2_target")
+    _write_rater_freeze(
+        tmp_path,
+        "research/explorations/trace-lab/har128/labels_g2_a1",
+        {
+            f"{rater}/trial_g2_target.json": {"trial": "trial_g2_other", "loop_kind": "none"}
+            for rater in ("rater_a", "rater_b")
+        },
+    )
+    with pytest.raises(ValueError):
+        connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+
+
+def test_har128_g2_a1_absent_cohort_is_unavailable_not_empty_freeze(
+    tmp_path: Path,
+) -> None:
+    """Without the G2 freeze dir, the cohort reports missing, never verified-empty."""
+    job = tmp_path / "job_g2_absent"
+    _create_minimal_trial(job, "trial_g2_absent")
+    con, coverage = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+    try:
+        (labels_json,) = con.execute("SELECT labels_json FROM v_trace_trials").fetchone()
+        assert json.loads(labels_json) == []
+        report = coverage["label_verification"]["har128-g2-a1"]
+        assert report["manifest"] == "missing"
+        assert report["verified"] == 0
+        assert "har128-g2-a1" not in coverage["label_manifest_hashes"]
+    finally:
+        con.close()
+
+
+def _write_gate_batch(gate: Path, name: str, rows: list[dict]) -> str:
+    """Write one gate JSONL batch; return its sha256 hex digest."""
+    body = "".join(json.dumps(row) + "\n" for row in rows)
+    (gate / name).write_text(body, encoding="utf-8")
+    return hashlib.sha256(body.encode()).hexdigest()
+
+
+def test_sft_gate_two_declared_batches_both_retained_distinguishable(tmp_path: Path) -> None:
+    """Two declared gate batches on the same trial both append with batch identity."""
+    job = tmp_path / "job_gate_two"
+    _create_minimal_trial(job, "trial_gate_shared")
+    gate = tmp_path / "research/explorations/trace-lab/har128/sft_gate"
+    gate.mkdir(parents=True)
+    row_a = {"trial": "trial_gate_shared", "clean": True, "cut_step_id": 3}
+    row_b = {"trial": "trial_gate_shared", "clean": False, "cut_step_id": None}
+    digest_a = _write_gate_batch(gate, "labels.jsonl", [row_a])
+    digest_b = _write_gate_batch(gate, "labels_second.jsonl", [row_b])
+    (gate / "labels.sha256").write_text(
+        f"{digest_a}  labels.jsonl\n{digest_b}  labels_second.jsonl\n", encoding="utf-8"
+    )
+    con, coverage = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+    try:
+        (labels_json,) = con.execute("SELECT labels_json FROM v_trace_trials").fetchone()
+        entries = json.loads(labels_json)
+        assert len(entries) == 2
+        assert {e["cohort"] for e in entries} == {"har128-sft-pass"}
+        assert {e["label_scope"] for e in entries} == {"sft_pass_cleanliness"}
+        assert sorted(e["batch"] for e in entries) == ["labels", "labels_second"]
+        assert sorted(e["source_file"] for e in entries) != [entries[0]["source_file"]] * 2
+        assert {e["source_sha256"] for e in entries} == {digest_a, digest_b}
+        assert "loop_kind" not in entries[0]
+        report = coverage["label_verification"]["har128-sft-pass"]
+        assert report["verified"] == 2
+        assert report["rows"] == 2
+        assert sorted(report["batches"]) == ["labels", "labels_second"]
+        assert report["batches"]["labels"]["rows"] == 1
+        assert report["batches"]["labels_second"]["rows"] == 1
+    finally:
+        con.close()
+
+
+def test_sft_gate_within_batch_duplicate_refused(tmp_path: Path) -> None:
+    """Duplicate trial identity within one declared batch aborts, even with two batches."""
+    job = tmp_path / "job_gate_dup"
+    _create_minimal_trial(job, "trial_gate_dup")
+    gate = tmp_path / "research/explorations/trace-lab/har128/sft_gate"
+    gate.mkdir(parents=True)
+    dup_row = {"trial": "trial_gate_dup", "clean": True, "cut_step_id": 1}
+    digest_a = _write_gate_batch(gate, "labels.jsonl", [dup_row, dup_row])
+    digest_b = _write_gate_batch(gate, "labels_second.jsonl", [dup_row])
+    (gate / "labels.sha256").write_text(
+        f"{digest_a}  labels.jsonl\n{digest_b}  labels_second.jsonl\n", encoding="utf-8"
+    )
+    with pytest.raises(ValueError, match="duplicate"):
+        connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+
+
+def test_sft_gate_undeclared_batch_remains_unavailable(tmp_path: Path) -> None:
+    """A present-but-undeclared gate JSONL file is not loaded, but visibly reported."""
+    job = tmp_path / "job_gate_undeclared"
+    _create_minimal_trial(job, "trial_gate_declared")
+    gate = tmp_path / "research/explorations/trace-lab/har128/sft_gate"
+    gate.mkdir(parents=True)
+    declared_row = {"trial": "trial_gate_declared", "clean": True, "cut_step_id": 5}
+    digest = _write_gate_batch(gate, "labels.jsonl", [declared_row])
+    (gate / "labels.sha256").write_text(f"{digest}  labels.jsonl\n", encoding="utf-8")
+    undeclared_row = {"trial": "trial_gate_undeclared", "clean": True, "cut_step_id": 7}
+    _write_gate_batch(gate, "labels_g2_a1.jsonl", [undeclared_row])
+    con, coverage = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+    try:
+        (labels_json,) = con.execute("SELECT labels_json FROM v_trace_trials").fetchone()
+        entries = json.loads(labels_json)
+        assert len(entries) == 1
+        assert entries[0]["label"]["trial"] == "trial_gate_declared"
+        assert entries[0]["batch"] == "labels"
+        report = coverage["label_verification"]["har128-sft-pass"]
+        assert report["verified"] == 1
+        assert report["rows"] == 1
+        assert "labels_g2_a1.jsonl" in report["undeclared"]
+    finally:
+        con.close()

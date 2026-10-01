@@ -6,15 +6,15 @@ Short version: the `git clean` breakage is Xiaomi's own cleanup, ported verbatim
 
 |cluster|tasks|origin (Xiaomi / FineEnvs / ours / unknown)|evidence link|
 |---|---|---|---|
-|keep-build-outputs|32 HAR-113 + 35 HAR-115 validated|Xiaomi|[mimoagent base.py keep lists](https://github.com/XiaomiMiMo/mimoagent/blob/467f0a19016f0ac4d63b8d17a1f0da9ba07f232c/src/mimoagent/environments/datasets/base.py#L644-L683)|
+|keep-build-outputs|32 HAR-113 + 40 HAR-115 validated|Xiaomi|[mimoagent base.py keep lists](https://github.com/XiaomiMiMo/mimoagent/blob/467f0a19016f0ac4d63b8d17a1f0da9ba07f232c/src/mimoagent/environments/datasets/base.py#L644-L683)|
 |keep-files|3 (002696, 001246, 002055)|Xiaomi|[same cleanup, same port](https://github.com/XiaomiMiMo/mimoagent/blob/467f0a19016f0ac4d63b8d17a1f0da9ba07f232c/src/mimoagent/environments/datasets/base.py#L709-L736)|
-|login-path (incl. PYTHONPATH)|13 HAR-113 + 6 HAR-115 validated|FineEnvs (image layout: Xiaomi)|[code_test.sh `sh -c`](https://github.com/adithya-s-k/FineEnvs/blob/ac898e41a6caf6bfda9982670dccbd2e5cf8c860/mimo-explorer/mimo_harbor/templates/code_test.sh#L22) vs [k8s `bash -lc`](https://github.com/XiaomiMiMo/mimoagent/blob/467f0a19016f0ac4d63b8d17a1f0da9ba07f232c/src/mimoagent/environments/kubernetes.py#L474)|
+|login-path (incl. PYTHONPATH)|13 HAR-113 + 16 HAR-115 validated|FineEnvs (image layout: Xiaomi)|[code_test.sh `sh -c`](https://github.com/adithya-s-k/FineEnvs/blob/ac898e41a6caf6bfda9982670dccbd2e5cf8c860/mimo-explorer/mimo_harbor/templates/code_test.sh#L22) vs [k8s `bash -lc`](https://github.com/XiaomiMiMo/mimoagent/blob/467f0a19016f0ac4d63b8d17a1f0da9ba07f232c/src/mimoagent/environments/kubernetes.py#L474)|
 |pin|4 HAR-113 + 2 HAR-115 (001618, 002191)|Xiaomi|trial logs below; deps are image-baked, setup installs nothing|
 |HAR-113 unknown-wave errors|27 (+24 matched to kinds up front)|mostly Xiaomi (cleanup), then FineEnvs (login shell); 4 were not defects|§5: HAR-115 repair nops|
 |census false positives|000211, 001981, 002207, 001860 (+ repaired 002307)|ours (census classifier)|`src/evallab/task_health.py` missing-work rules, fixed in HAR-115|
 |unbuildable / unfixable|6|mixed per-task (see §6)|census rows + logs below|
 |PyPI blocklist gap|247 `pypi_fix_released`|FineEnvs|[ANSWER_HOSTS has no PyPI](https://github.com/adithya-s-k/FineEnvs/blob/ac898e41a6caf6bfda9982670dccbd2e5cf8c860/mimo-explorer/app/runner/opencode.py#L36-L44)|
-|root agent|all code tasks|ours (FineEnvs matches us on code)|`src/evallab/harbor_terminus.py:242-263`, `src/evallab/task_catalog.py:879`|
+|root agent|all code tasks|FineEnvs (we match it; Xiaomi uses the container default user)|`agents/mimo_opencode.py:41-61` in the snapshot; ours: `src/evallab/harbor_terminus.py:242-263`, `src/evallab/task_catalog.py:879`|
 
 Dataset snapshot paths below are under `~/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/`. Trial runs are under the read-only worktrees `~/Developer/eval-lab/.worktrees/har108-census-20260930/runs/` and `~/Developer/eval-lab/.worktrees/har113-variants-20260930/runs/`. Upstream links are commit-pinned except the FineEnvs branch HEAD (`ac898e4`, may move).
 
@@ -72,7 +72,7 @@ The shipped blocklist (33 lines incl. header, `tasks/format-code-task-000527/env
 
 It is not Xiaomi's list with PyPI removed: mimoagent takes `answer_leak_blocklist` from per-run config ([base.py L197-208](https://github.com/XiaomiMiMo/mimoagent/blob/467f0a19016f0ac4d63b8d17a1f0da9ba07f232c/src/mimoagent/environments/datasets/base.py#L197-L208)), and none of the four verl code harness specs sets it (verified at pinned SHA `a2ad9f6`). Xiaomi's pods needed no hosts list: "Xiaomi's pods had no route to the internet, so their agents could not look answers up" ([opencode.py L11-15](https://github.com/adithya-s-k/FineEnvs/blob/ac898e41a6caf6bfda9982670dccbd2e5cf8c860/mimo-explorer/app/runner/opencode.py#L11-L15)). The hosts-blocklist approach exists only because HF Sandbox has internet; forgetting the package index for Python tasks is FineEnvs' omission. Our harness applies the same list (`harbor_terminus.py:242-263`), so we inherit the hole rather than introduce it.
 
-## 8. root agent: ours (FineEnvs matches us on code)
+## 8. root agent: FineEnvs, and we match it
 
 Code tasks set no agent user: no `[agent].user` in `task.toml` (e.g. `tasks/format-code-task-002195/task.toml`), no `agent_user` file or reference anywhere under the task dir, and `jobs/code.yaml` sets none. FineEnvs' reference agent only drops privileges when `/var/lib/mimo/agent_user` exists (`agents/mimo_opencode.py:41-61`); the adapter writes `agent_user = "agent"` only for cyber and general ([adapter.py](https://github.com/adithya-s-k/FineEnvs/blob/ac898e41a6caf6bfda9982670dccbd2e5cf8c860/mimo-explorer/mimo_harbor/adapter.py) cyber/general builders). So on code tasks FineEnvs' agent runs as root too — the "unprivileged `agent`" claim in the dataset README holds for cyber/general only.
 
@@ -88,5 +88,5 @@ Their stated check: "With Harbor's no-op agent every dataset scores 0 and every 
 - Whether Xiaomi's pods had PyPI egress blocked at the network layer; inferred from the explorer docstring plus the absence of `answer_leak_blocklist` in all four verl code specs.
 - Image internals (default USER, whether `frontend/dist` or `*.egg-info` ever existed): no image pulls were done; presence is inferred from repair-nop transitions (a file kept from `git clean` that fixes grading existed before it).
 - 000613/002142 build failures: image-side vs Daytona-side undetermined.
-- §5's open tasks (000393, 000124, 002848) and the 33 tasks HAR-115's census waves newly found not sound (listed in the README; not repaired, so not attributed; 17 carry the §1 or §3 signature).
+- §5's open tasks (000393, 000124, 002848), and the census waves' 33 new finds: 15 were repaired by §1/§3 kinds (attributed as those sections), 6 such repairs were rejected and 12 were not attempted (discarded in the ledger, `research/experiments/python-task-ledger/`, except 000183's grader_suspect, which is in review), so those 18 are not attributed.
 - FineEnvs adapter/branch links are pinned to HEAD `ac898e4` of a mutable branch; Xiaomi links are pinned to the SHAs the dataset itself references (`467f0a1`, `a2ad9f6`).

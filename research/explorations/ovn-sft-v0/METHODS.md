@@ -29,7 +29,7 @@ The hyperparameters are a **predeclared conservative recommendation**, not a sea
 
 The canonical plan is `~/Developer/research-context/inbox/sft-overnight-20260918/OVERNIGHT-2026-10-01.md`, written about 04:05Z, with the card map on [HAR-134][har134]. Peter's 03:55Z direction supersedes the older no-training text for **this one experiment**: stock distill versus LoRA-SFT distill on held-out FineEnvs MiMo-V2.6 Python tasks, with Terminus-2 `lf2`, Daytona task execution, and Modal inference. The shared overnight run cap is $30; G4 has $6 including its smoke check. Library has no run allocation. No RL, model/domain switch, completion-fix arm, new viewer, or new training framework is proposed here.
 
-G1 freezes the evaluation set before training selection. G3 freezes the reviewed training manifest. G4 trains from that digest. G5 uses one LoRA-enabled server with two model names and otherwise identical harness, inference limits, and concurrency. Gate owners retain the canonical acceptance decisions. The later OOD benchmark qualification is **not** a substitute for tonight's frozen 20-task evaluation.
+G1 freezes the evaluation set before training selection. G3 freezes the reviewed training manifest. G4 trains from that digest. The revised plan adds optional G4b/HAR-135 GEPA optimization: G5 has stock, tuned, and (if frozen/admitted before launch) GEPA on the same server. Stock and GEPA share the stock model name; GEPA differs only by its candidate addendum. Tuned differs from stock only by the adapter. All retain the same `lf2` harness, inference limits, and concurrency. Cdx 3 owns the predeclared two- versus three-arm decision, order, and multiplicity rules. Gate owners retain acceptance decisions. The later OOD benchmark qualification is **not** a substitute for tonight's frozen 20-task evaluation.
 
 ## 1. What method is being run?
 
@@ -194,9 +194,9 @@ Use **one epoch**, the measured sequence-length distribution, actual startup/tai
 
 ## 6. Interpreting the frozen 20-task paired evaluation
 
-[HAR-133][har133] owns the preregistration: counted pass rate paired by task; exact two-sided McNemar at alpha 0.05; fixed infra-failure/exclusion rules; secondary tokens/loops/stop reasons. This note explains the sensitivity, not a competing analysis plan.
+[HAR-133][har133] owns the preregistration. The revised plan has **two primary contrasts** when GEPA is admitted: tuned–stock and GEPA–stock, each paired by task with an exact two-sided McNemar test and **Holm familywise error control at 0.05**. Tuned–GEPA is exploratory. If no GEPA candidate is admitted before the first G5 trial, the design remains two arms with one primary test. Freeze the family size before outcomes; missing GEPA results later must not shrink it. Counts/exclusion rules and secondary metrics remain preregistered. This note explains sensitivity, not a competing analysis plan.
 
-With 20 complete pairs, **one task is five percentage points**. Record the whole paired table: both pass, stock-only pass, tuned-only pass, both fail. A non-significant result is not evidence of equivalence or of “no effect.” One run per task also leaves stochastic run-to-run variance largely unmeasured.
+With 20 complete pairs for a contrast, **one task is five percentage points**. Record each contrast's whole paired table: both pass, stock-only pass, intervention-only pass, both fail, plus its analyzable denominator. The same stock trial is shared across contrasts, not independently rerun to obtain a favorable baseline. A non-significant result is not evidence of equivalence or of “no effect.” One run per task also leaves stochastic run-to-run variance largely unmeasured.
 
 For `w` tuned-only wins and `l` stock-only wins, the two-sided exact calculation on `d = w + l` discordant pairs is `min(1, 2 * sum(comb(d, k) for k in range(min(w, l) + 1)) / 2**d)`; use 1 when `d=0` [McNemar reference][mcnemar]. Examples below were calculated with Python's standard-library `math.comb`; **they are illustrations, not experimental results**:
 
@@ -205,10 +205,11 @@ For `w` tuned-only wins and `l` stock-only wins, the two-sided exact calculation
 | 4 / 0 | +20 pp | 0.125 |
 | 5 / 0 | +25 pp | 0.0625 |
 | 6 / 0 | +30 pp | 0.03125 |
+| 7 / 0 | +35 pp | 0.015625 |
 | 7 / 1 | +30 pp | 0.0703125 |
 | 8 / 1 | +35 pp | 0.0390625 |
 
-Thus even a five-task improvement with no regressions does not cross the specified threshold. For scale, a marginal 10/20 pass rate has a Wilson 95% interval of approximately **29.9%–70.1%** under independent-binomial assumptions; that is not a confidence interval for the paired difference. Shared-repository tasks can be dependent, and a light-image convenience slice is not a random sample of all coding work. Report the corpus and clustered structure alongside the preregistered statistic instead of generalizing to all Python tasks.
+Thus even a five-task improvement with no regressions fails the unadjusted 0.05 threshold. With two primary tests, Holm first compares the smaller p-value with **0.025** and, only if it passes, the larger with **0.05** [Holm reference][holm]. Six unopposed wins (`p=0.03125`) therefore do not pass the first Holm step; seven (`p=0.015625`) do. Final rejection depends on both contrasts, not this one illustration. For scale, a marginal 10/20 pass rate has a Wilson 95% interval of approximately **29.9%–70.1%** under independent-binomial assumptions; that is not a confidence interval for a paired difference. Shared-repository tasks can be dependent, and a light-image convenience slice is not a random sample of all coding work. Report the corpus and clustered structure alongside the preregistered statistics instead of generalizing to all Python tasks.
 
 Keep infrastructure/capture failures separate from measured model failures. Apply the registered counts/exclusion/rerun policy, preserve the original evidence, and report both scheduled and analyzable denominators. Do not replace difficult tasks, retry only one arm's ordinary failures, or optimize against this evaluation after seeing the result. G6's arm-blind trace analysis should explain concrete changes in loops, JSON format, completion behavior, and time to first edit without promoting secondary findings into a post-hoc primary win.
 
@@ -218,7 +219,7 @@ Keep infrastructure/capture failures separate from measured model failures. Appl
 
 **G4 / Infra:** base/tokenizer/template revisions; actual package pins and adapter targets; declared hyperparameters and realized optimizer-step count; zero unapproved truncations; real collated-mask proof; startup/training/serving cost; finite loss/gradient observations; adapter-file digest and successful reload; both model names; five Terminus-2 JSON smoke prompts per arm and base-serving parity evidence; auto-stop. A serving smoke establishes operability, not capability.
 
-**G5/G6 / Engineering + Traces + Cdx 3:** same frozen tasks, `lf2` digest, limits/concurrency and shared server; alternating arm order; counts/provenance for every attempt; preregistered paired table/statistic and exclusions; arm-blind behavior analysis; explicit valid/valid-with-caveats/invalid verdict. No external benchmark is substituted without a later decision.
+**G5/G6 / Engineering + Traces + Cdx 3:** same frozen tasks, `lf2` digest, limits/concurrency and shared server; preregistered arm order and frozen GEPA admission/family size; adapter/addendum digests as applicable; counts/provenance for every attempt; paired tables, raw and Holm-adjusted p-values, and exclusions; arm-blind behavior analysis; explicit valid/valid-with-caveats/invalid verdict. No external benchmark is substituted without a later decision.
 
 ## Primary sources and inspected artifacts
 
@@ -248,3 +249,4 @@ Keep infrastructure/capture failures separate from measured model failures. Appl
 [trainer]: https://github.com/PeterMakhnatch/eval-lab/blob/a90a72913695686e05d52483453b2d4eb1e10cb0/tools/modal-mimo-sft/sft.py
 [trainer-readme]: https://github.com/PeterMakhnatch/eval-lab/blob/a90a72913695686e05d52483453b2d4eb1e10cb0/tools/modal-mimo-sft/README.md
 [mcnemar]: https://www.statsmodels.org/stable/generated/statsmodels.stats.contingency_tables.mcnemar.html
+[holm]: https://www.statsmodels.org/stable/generated/statsmodels.stats.multitest.multipletests.html

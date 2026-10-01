@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "elif self._highlight_visible and self._is_selecting:",
+      "ref": "head#91"
+    },
+    {
+      "quote": "assert pos is None",
+      "ref": "head#96"
+    },
+    {
+      "quote": "1 failed, 12 passed",
+      "ref": "head#96"
+    },
+    {
+      "quote": "layer.update_highlight_visibility(False)",
+      "ref": "head#93"
+    }
+  ],
+  "first_failure": {
+    "quote": "elif self._highlight_visible and self._is_selecting:",
+    "ref": "head#91",
+    "what": "shapes gating left the select-mode box path live when another layer is active, so test_shapes_box_hidden_when_other_layer_active still sees a box"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "96 episodes (<120), 2.46M input; budget ended it. Viewer wiring (head#93) also implicated but the failing assertion is in shapes. /tmp/nap55 reads were reference only; run failed so pass_copied null. sft_cut null per assignment override.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-50"
+}

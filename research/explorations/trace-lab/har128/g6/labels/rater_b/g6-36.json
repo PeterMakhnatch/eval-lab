@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#118"
+    },
+    {
+      "quote": "res = self.dbx.files_list_folder(last_cursor)",
+      "ref": "head#27"
+    },
+    {
+      "quote": "self._backoff_until = time.time() + backoff",
+      "ref": "head#27"
+    },
+    {
+      "quote": "'cursor-0' did not match pattern",
+      "ref": "head#118"
+    },
+    {
+      "quote": "assert any(post_count == 2 and seconds > 0 for post_count, seconds in sleep_calls)",
+      "ref": "head#118"
+    }
+  ],
+  "first_failure": {
+    "quote": "res = self.dbx.files_list_folder(last_cursor)",
+    "ref": "head#27",
+    "what": "inserted remote-change methods using files_list_folder for a cursor and _backoff_until instead of sleep"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Implemented 3 methods but with wrong cursor API and backoff; 4/9 hidden tests pass.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-36"
+}

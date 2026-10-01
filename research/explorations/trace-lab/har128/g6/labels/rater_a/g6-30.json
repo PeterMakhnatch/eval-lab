@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "os.path.dirname(os.path.abspath(recipe_file)) if not os.path.isabs(recipe_file) else None",
+      "ref": "head#66"
+    },
+    {
+      "quote": "2 failed, 10 passed",
+      "ref": "head#88"
+    },
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "os.path.dirname(os.path.abspath(recipe_file)) if not os.path.isabs(recipe_file) else None",
+    "ref": "head#66",
+    "what": "introduced inverted __recipe_dir__ (None for absolute recipe paths)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "n_episodes 88 <120, input 2445420 near 2.5M token limit; loop_break fired false; verifier shows FileNotFoundError for sibling includes (absolute paths get None dir); tail still patching test recipes, never fixed source.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-30"
+}

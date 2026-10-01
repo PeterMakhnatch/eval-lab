@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+      "ref": "head#67"
+    },
+    {
+      "quote": "sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+      "ref": "head#96"
+    },
+    {
+      "quote": "trial budget exhausted",
+      "ref": "head#96"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed -n 1003,1004p /workspace/repo/youtube_dlc/YoutubeDL.py",
+    "ref": "head#64",
+    "what": "began repeating identical single-line read with no edit or progress"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#67",
+    "head#96"
+  ],
+  "notes": "n_ep 96<120, 2.44M input tokens so token_ceiling. Loop-break nudged at call 59 but never stopped; ~30 identical sed 1003,1004p repeats to end. Never edited code, never claimed completion.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-21"
+}

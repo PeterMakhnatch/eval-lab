@@ -1,0 +1,54 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "grep -rn .J( skfem",
+      "ref": "head#32"
+    },
+    {
+      "quote": "you are repeating; change approach or finish",
+      "ref": "head#45"
+    },
+    {
+      "quote": "grep -rn .J( skfem",
+      "ref": "head#46"
+    },
+    {
+      "quote": "cat > skfem/mapping/mapping_isoparametric.py",
+      "ref": "head#53"
+    },
+    {
+      "quote": "self.obj == other.obj",
+      "ref": "head#59"
+    },
+    {
+      "quote": "Performed context summarization and handoff",
+      "ref": "head#84"
+    },
+    {
+      "quote": "git show c07ff9f6",
+      "ref": "head#106"
+    }
+  ],
+  "first_failure": {
+    "quote": "cat > skfem/mapping/mapping_isoparametric.py",
+    "ref": "head#53",
+    "what": "wholesale rewrite of mapping_isoparametric.py that corrupted invDF/detDF math (dropped invDF[1,1]/[2,1]/[0,2], altered cofactor formulas) inside a broken Hashable/lru_cache redesign; retained to the end"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#32",
+    "head#46"
+  ],
+  "notes": "111 calls / 2.49M input tokens; loop nudge at call 44 (normalized_command_run, you-are-repeating) never stopped the run; TrialBudgetExhaustedError ended it, so token_ceiling. Further repetition runs at head#70-83 (identical lru_cache probes) and head#97-113 (git-log mining). Model read upstream history beyond HEAD incl. git show of upstream caching commit c07ff9f6 (fail, so pass_copied null). Proactive summarization fired once (head#84-85 handoff). Verifier: 4 pickle/math tests fail (Hashable eq ambiguous truth; unhashable ndarray), 2 pass.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-05"
+}

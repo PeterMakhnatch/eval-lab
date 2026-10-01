@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py",
+      "ref": "head#87"
+    },
+    {
+      "quote": "grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | tail -15",
+      "ref": "head#95"
+    },
+    {
+      "quote": "grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | awk -F: '$2>=3060 && $2<=3072'",
+      "ref": "head#97"
+    }
+  ],
+  "first_failure": {
+    "quote": "grep -rn \"selected\" /testbed/napari/layers/shapes/shapes.py | grep -n \"2[78][0-9][0-9]",
+    "ref": "head#87",
+    "what": "abandoned editing; cycled grep-selected variants with empty reasoning"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#87",
+    "head#97"
+  ],
+  "notes": "n_episodes 97 <120, input 2439447; loop nudge at call 80 (sed shapes.py); 11 turns of grep-selected variants head#87-97 with no edits (agent.diff empty); verifier 5 failed highlight/outline/box hidden tests.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-06"
+}

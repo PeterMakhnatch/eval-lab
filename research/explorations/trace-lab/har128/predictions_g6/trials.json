@@ -1,0 +1,422 @@
+[
+ {
+  "id": "g6-01",
+  "trial": "ovn-g5-002017-tuned__SWc4xbr",
+  "job": "HAR-126-ovn-g5-002017-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-tuned/ovn-g5-002017-tuned__SWc4xbr"
+ },
+ {
+  "id": "g6-02",
+  "trial": "ovn-g5-001136-gepa__rexYV6K",
+  "job": "HAR-126-ovn-g5-001136-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-gepa/ovn-g5-001136-gepa__rexYV6K"
+ },
+ {
+  "id": "g6-03",
+  "trial": "ovn-g5-001285-tuned__WgPbz8K",
+  "job": "HAR-126-ovn-g5-001285-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-tuned/ovn-g5-001285-tuned__WgPbz8K"
+ },
+ {
+  "id": "g6-04",
+  "trial": "ovn-g5-001606-tuned__MnCArfo",
+  "job": "HAR-126-ovn-g5-001606-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-tuned/ovn-g5-001606-tuned__MnCArfo"
+ },
+ {
+  "id": "g6-05",
+  "trial": "ovn-g5-001695-gepa__q4rVPoo",
+  "job": "HAR-126-ovn-g5-001695-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-gepa/ovn-g5-001695-gepa__q4rVPoo"
+ },
+ {
+  "id": "g6-06",
+  "trial": "ovn-g5-002017-stock__be4xo9x",
+  "job": "HAR-126-ovn-g5-002017-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-stock/ovn-g5-002017-stock__be4xo9x"
+ },
+ {
+  "id": "g6-07",
+  "trial": "ovn-g5-001355-tuned__8UJMiQN",
+  "job": "HAR-126-ovn-g5-001355-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-tuned/ovn-g5-001355-tuned__8UJMiQN"
+ },
+ {
+  "id": "g6-08",
+  "trial": "ovn-g5-000842-gepa__7p54K7C",
+  "job": "HAR-126-ovn-g5-000842-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-gepa/ovn-g5-000842-gepa__7p54K7C"
+ },
+ {
+  "id": "g6-09",
+  "trial": "ovn-g5-000332-stock__Xn3uN4Q",
+  "job": "HAR-126-ovn-g5-000332-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-stock/ovn-g5-000332-stock__Xn3uN4Q"
+ },
+ {
+  "id": "g6-10",
+  "trial": "ovn-g5-000332-tuned__zevQhXu",
+  "job": "HAR-126-ovn-g5-000332-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-tuned/ovn-g5-000332-tuned__zevQhXu"
+ },
+ {
+  "id": "g6-11",
+  "trial": "ovn-g5-002578-gepa__kzhAXLU",
+  "job": "HAR-126-ovn-g5-002578-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-gepa/ovn-g5-002578-gepa__kzhAXLU"
+ },
+ {
+  "id": "g6-12",
+  "trial": "ovn-g5-000568-tuned__Zcbk6Ub",
+  "job": "HAR-126-ovn-g5-000568-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-tuned/ovn-g5-000568-tuned__Zcbk6Ub"
+ },
+ {
+  "id": "g6-13",
+  "trial": "ovn-g5-000521-tuned__TdWLAib",
+  "job": "HAR-126-ovn-g5-000521-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-tuned/ovn-g5-000521-tuned__TdWLAib"
+ },
+ {
+  "id": "g6-14",
+  "trial": "ovn-g5-000568-gepa__XXS7kMp",
+  "job": "HAR-126-ovn-g5-000568-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-gepa/ovn-g5-000568-gepa__XXS7kMp"
+ },
+ {
+  "id": "g6-15",
+  "trial": "ovn-g5-001695-tuned__HSdBDkF",
+  "job": "HAR-126-ovn-g5-001695-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-tuned/ovn-g5-001695-tuned__HSdBDkF"
+ },
+ {
+  "id": "g6-16",
+  "trial": "ovn-g5-001833-tuned__rNpMkcb",
+  "job": "HAR-126-ovn-g5-001833-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-tuned/ovn-g5-001833-tuned__rNpMkcb"
+ },
+ {
+  "id": "g6-17",
+  "trial": "ovn-g5-000332-gepa__YyfJfPU",
+  "job": "HAR-126-ovn-g5-000332-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-gepa/ovn-g5-000332-gepa__YyfJfPU"
+ },
+ {
+  "id": "g6-18",
+  "trial": "ovn-g5-001765-gepa__yHdbtvs",
+  "job": "HAR-126-ovn-g5-001765-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-gepa/ovn-g5-001765-gepa__yHdbtvs"
+ },
+ {
+  "id": "g6-19",
+  "trial": "ovn-g5-001833-stock__UTVAfnN",
+  "job": "HAR-126-ovn-g5-001833-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-stock/ovn-g5-001833-stock__UTVAfnN"
+ },
+ {
+  "id": "g6-20",
+  "trial": "ovn-g5-001797-stock__yGw88CW",
+  "job": "HAR-126-ovn-g5-001797-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-stock/ovn-g5-001797-stock__yGw88CW"
+ },
+ {
+  "id": "g6-21",
+  "trial": "ovn-g5-000568-stock__Ri7YYN5",
+  "job": "HAR-126-ovn-g5-000568-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-stock/ovn-g5-000568-stock__Ri7YYN5"
+ },
+ {
+  "id": "g6-22",
+  "trial": "ovn-g5-002302-tuned__5j77iHJ",
+  "job": "HAR-126-ovn-g5-002302-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-tuned/ovn-g5-002302-tuned__5j77iHJ"
+ },
+ {
+  "id": "g6-23",
+  "trial": "ovn-g5-001765-stock__Tigdd3B",
+  "job": "HAR-126-ovn-g5-001765-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-stock/ovn-g5-001765-stock__Tigdd3B"
+ },
+ {
+  "id": "g6-24",
+  "trial": "ovn-g5-001797-gepa__W7cKEVT",
+  "job": "HAR-126-ovn-g5-001797-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-gepa/ovn-g5-001797-gepa__W7cKEVT"
+ },
+ {
+  "id": "g6-25",
+  "trial": "ovn-g5-001626-tuned__fSkoQL7",
+  "job": "HAR-126-ovn-g5-001626-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-tuned/ovn-g5-001626-tuned__fSkoQL7"
+ },
+ {
+  "id": "g6-26",
+  "trial": "ovn-g5-001241-tuned__xKbAg3N",
+  "job": "HAR-126-ovn-g5-001241-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-tuned/ovn-g5-001241-tuned__xKbAg3N"
+ },
+ {
+  "id": "g6-27",
+  "trial": "ovn-g5-000521-gepa__2rqo6EY",
+  "job": "HAR-126-ovn-g5-000521-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-gepa/ovn-g5-000521-gepa__2rqo6EY"
+ },
+ {
+  "id": "g6-28",
+  "trial": "ovn-g5-002578-stock__ZVWT2gB",
+  "job": "HAR-126-ovn-g5-002578-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-stock/ovn-g5-002578-stock__ZVWT2gB"
+ },
+ {
+  "id": "g6-29",
+  "trial": "ovn-g5-001769-tuned__pHJnuZq",
+  "job": "HAR-126-ovn-g5-001769-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-tuned/ovn-g5-001769-tuned__pHJnuZq"
+ },
+ {
+  "id": "g6-30",
+  "trial": "ovn-g5-000169-stock__npH4TqV",
+  "job": "HAR-126-ovn-g5-000169-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-stock/ovn-g5-000169-stock__npH4TqV"
+ },
+ {
+  "id": "g6-31",
+  "trial": "ovn-g5-001136-stock__jjgSG57",
+  "job": "HAR-126-ovn-g5-001136-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-stock/ovn-g5-001136-stock__jjgSG57"
+ },
+ {
+  "id": "g6-32",
+  "trial": "ovn-g5-001626-gepa__3kGXxof",
+  "job": "HAR-126-ovn-g5-001626-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-gepa/ovn-g5-001626-gepa__3kGXxof"
+ },
+ {
+  "id": "g6-33",
+  "trial": "ovn-g5-000169-tuned__CxBpceW",
+  "job": "HAR-126-ovn-g5-000169-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-tuned/ovn-g5-000169-tuned__CxBpceW"
+ },
+ {
+  "id": "g6-34",
+  "trial": "ovn-g5-002302-gepa__sFGLATE",
+  "job": "HAR-126-ovn-g5-002302-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-gepa/ovn-g5-002302-gepa__sFGLATE"
+ },
+ {
+  "id": "g6-35",
+  "trial": "ovn-g5-000842-stock__RUUQHiz",
+  "job": "HAR-126-ovn-g5-000842-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-stock/ovn-g5-000842-stock__RUUQHiz"
+ },
+ {
+  "id": "g6-36",
+  "trial": "ovn-g5-002578-tuned__Zyd7L6j",
+  "job": "HAR-126-ovn-g5-002578-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-tuned/ovn-g5-002578-tuned__Zyd7L6j"
+ },
+ {
+  "id": "g6-37",
+  "trial": "ovn-g5-001606-gepa__ySwezhm",
+  "job": "HAR-126-ovn-g5-001606-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-gepa/ovn-g5-001606-gepa__ySwezhm"
+ },
+ {
+  "id": "g6-38",
+  "trial": "ovn-g5-001626-stock__6P6YXKD",
+  "job": "HAR-126-ovn-g5-001626-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-stock/ovn-g5-001626-stock__6P6YXKD"
+ },
+ {
+  "id": "g6-39",
+  "trial": "ovn-g5-001809-tuned__AUVzrvM",
+  "job": "HAR-126-ovn-g5-001809-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-tuned/ovn-g5-001809-tuned__AUVzrvM"
+ },
+ {
+  "id": "g6-40",
+  "trial": "ovn-g5-001355-stock__ZHNXfvD",
+  "job": "HAR-126-ovn-g5-001355-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-stock/ovn-g5-001355-stock__ZHNXfvD"
+ },
+ {
+  "id": "g6-41",
+  "trial": "ovn-g5-000842-tuned__GjjMiqx",
+  "job": "HAR-126-ovn-g5-000842-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-tuned/ovn-g5-000842-tuned__GjjMiqx"
+ },
+ {
+  "id": "g6-42",
+  "trial": "ovn-g5-001241-gepa__6LNRk7d",
+  "job": "HAR-126-ovn-g5-001241-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-gepa/ovn-g5-001241-gepa__6LNRk7d"
+ },
+ {
+  "id": "g6-43",
+  "trial": "ovn-g5-001765-tuned__rrXKUgY",
+  "job": "HAR-126-ovn-g5-001765-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-tuned/ovn-g5-001765-tuned__rrXKUgY"
+ },
+ {
+  "id": "g6-44",
+  "trial": "ovn-g5-002302-stock__83xFDnj",
+  "job": "HAR-126-ovn-g5-002302-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-stock/ovn-g5-002302-stock__83xFDnj"
+ },
+ {
+  "id": "g6-45",
+  "trial": "ovn-g5-001833-gepa__aci6NkF",
+  "job": "HAR-126-ovn-g5-001833-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-gepa/ovn-g5-001833-gepa__aci6NkF"
+ },
+ {
+  "id": "g6-46",
+  "trial": "ovn-g5-001355-gepa__bJkSJkD",
+  "job": "HAR-126-ovn-g5-001355-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-gepa/ovn-g5-001355-gepa__bJkSJkD"
+ },
+ {
+  "id": "g6-47",
+  "trial": "ovn-g5-001285-stock__JvtxRFm",
+  "job": "HAR-126-ovn-g5-001285-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-stock/ovn-g5-001285-stock__JvtxRFm"
+ },
+ {
+  "id": "g6-48",
+  "trial": "ovn-g5-000169-gepa__Hmxf7wb",
+  "job": "HAR-126-ovn-g5-000169-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-gepa/ovn-g5-000169-gepa__Hmxf7wb"
+ },
+ {
+  "id": "g6-49",
+  "trial": "ovn-g5-001809-gepa__nxdBvhh",
+  "job": "HAR-126-ovn-g5-001809-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-gepa/ovn-g5-001809-gepa__nxdBvhh"
+ },
+ {
+  "id": "g6-50",
+  "trial": "ovn-g5-002017-gepa__qQJWeCc",
+  "job": "HAR-126-ovn-g5-002017-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-gepa/ovn-g5-002017-gepa__qQJWeCc"
+ },
+ {
+  "id": "g6-51",
+  "trial": "ovn-g5-001606-stock__jePg8nP",
+  "job": "HAR-126-ovn-g5-001606-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-stock/ovn-g5-001606-stock__jePg8nP"
+ },
+ {
+  "id": "g6-52",
+  "trial": "ovn-g5-001136-tuned__QTMzsEL",
+  "job": "HAR-126-ovn-g5-001136-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-tuned/ovn-g5-001136-tuned__QTMzsEL"
+ },
+ {
+  "id": "g6-53",
+  "trial": "ovn-g5-001285-gepa__waX6njT",
+  "job": "HAR-126-ovn-g5-001285-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-gepa/ovn-g5-001285-gepa__waX6njT"
+ },
+ {
+  "id": "g6-54",
+  "trial": "ovn-g5-001241-stock__FGtdyNH",
+  "job": "HAR-126-ovn-g5-001241-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-stock/ovn-g5-001241-stock__FGtdyNH"
+ },
+ {
+  "id": "g6-55",
+  "trial": "ovn-g5-001695-stock__PveqguL",
+  "job": "HAR-126-ovn-g5-001695-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-stock/ovn-g5-001695-stock__PveqguL"
+ },
+ {
+  "id": "g6-56",
+  "trial": "ovn-g5-000521-stock__pjKC2mS",
+  "job": "HAR-126-ovn-g5-000521-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-stock/ovn-g5-000521-stock__pjKC2mS"
+ },
+ {
+  "id": "g6-57",
+  "trial": "ovn-g5-001797-tuned__L32LiEr",
+  "job": "HAR-126-ovn-g5-001797-tuned",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-tuned",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-tuned/ovn-g5-001797-tuned__L32LiEr"
+ },
+ {
+  "id": "g6-58",
+  "trial": "ovn-g5-001809-stock__PZ8sw7f",
+  "job": "HAR-126-ovn-g5-001809-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-stock/ovn-g5-001809-stock__PZ8sw7f"
+ },
+ {
+  "id": "g6-59",
+  "trial": "ovn-g5-001769-stock__qSPHRnf",
+  "job": "HAR-126-ovn-g5-001769-stock",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-stock",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-stock/ovn-g5-001769-stock__qSPHRnf"
+ },
+ {
+  "id": "g6-60",
+  "trial": "ovn-g5-001769-gepa__XKhJTpk",
+  "job": "HAR-126-ovn-g5-001769-gepa",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-gepa",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-gepa/ovn-g5-001769-gepa__XKhJTpk"
+ }
+]

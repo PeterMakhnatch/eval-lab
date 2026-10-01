@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "res = self.dbx.files_list_folder(last_cursor)",
+      "ref": "head#27"
+    },
+    {
+      "quote": "ValidationError: 'cursor-0' did not match pattern '(/(.|[\r\n])*)?|id:.*|(ns:[0-9]+(/.*)?)'",
+      "ref": "head#27"
+    },
+    {
+      "quote": "assert any(post_count == 2 and seconds > 0 for post_count, seconds in sleep_calls)",
+      "ref": "head#27"
+    },
+    {
+      "quote": "grep -rn \"automethod\\|autoclass\\|automodule\" docs/*.rst docs/**/*.rst",
+      "ref": "head#118"
+    }
+  ],
+  "first_failure": {
+    "quote": "res = self.dbx.files_list_folder(last_cursor)",
+    "ref": "head#27",
+    "what": "inserted list_remote_changes_iterator using the path-based files_list_folder API with a cursor, plus wait_for_remote_changes that records but never sleeps the backoff"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "118 episodes with 2.47M input tokens and one proactive summarization; token pressure, not the 120-request limit, ended it. Tail is varied docs greps, not a repeated loop. sft_cut null per assignment override.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-36"
+}

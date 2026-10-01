@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#89"
+    },
+    {
+      "quote": "loop_break: fired true, nudge_call 57, detector normalized_command_run, stop_call null",
+      "ref": "head#57"
+    },
+    {
+      "quote": "data = open('/testbed/linodecli/__init__.py').read()",
+      "ref": "head#58"
+    },
+    {
+      "quote": "awk 'NR>=300 && NR<=340' /testbed/linodecli/api_request.py",
+      "ref": "head#63"
+    },
+    {
+      "quote": "awk 'NR>=300 && NR<=340' /testbed/linodecli/api_request.py",
+      "ref": "head#77"
+    },
+    {
+      "quote": "AssertionError: assert 'newer than' not in",
+      "ref": "head#89"
+    }
+  ],
+  "first_failure": {
+    "quote": "python3 - <<'PYEOF' data = open('/testbed/linodecli/__init__.py').read()",
+    "ref": "head#58",
+    "what": "re-ran identical __init__.py dump on same stuck screen, starting unproductive read loop; never edited code"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#63",
+    "head#77"
+  ],
+  "notes": "Empty agent.diff; curl attempts returned empty (no code). Budget exhausted with 89 episodes and ~2.4M input tokens.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-20"
+}

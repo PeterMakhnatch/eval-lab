@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "python3 heredoc read test_authorizers 240 to 470",
+      "ref": "head#46"
+    },
+    {
+      "quote": "python3 minus c read test_authorizers 243 to 470 sed 1 140p",
+      "ref": "head#52"
+    },
+    {
+      "quote": "Current Terminal Screen 345 AuthorizerError anonymous",
+      "ref": "head#74"
+    }
+  ],
+  "first_failure": {
+    "quote": "python3 heredoc read test_authorizers 240 to 470",
+    "ref": "head#46",
+    "what": "began repeating test file reads instead of writing DummyAuthorizer"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#46",
+    "head#74"
+  ],
+  "notes": "pycache only diff. Verifier ImportError DummyAuthorizer. No copy. Loop nudge 58 stop 73.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "g6-47"
+}

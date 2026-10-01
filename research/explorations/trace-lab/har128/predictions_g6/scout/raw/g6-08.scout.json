@@ -1,0 +1,114 @@
+{
+ "trial": "ovn-g5-000842-gepa__7p54K7C",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-gepa/ovn-g5-000842-gepa__7p54K7C",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-gepa",
+ "task": "mimo-v2.6-rl/format-code-task-000842",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#85"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 85,
+  "step_ref": "head#85",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#85"
+  ],
+  "note": "false completion claim at head#85 while 1 verifier test(s) fail (3 failing (unnamed)); the claim, not the harness, is wrong"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#85",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 7,
+  "prompt_tokens_after_first_prompt": 363734,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 22,
+    "span": [
+     "head#2",
+     "head#23"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 12,
+    "span": [
+     "head#25",
+     "head#36"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 13,
+    "span": [
+     "head#38",
+     "head#50"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 692603,
+   "completion": 4981,
+   "steps": 47,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 692603,
+   "completion": 4981,
+   "steps": 47,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2428069,
+   "completion": 17050,
+   "steps": 91,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.2852,
+  "result_input_tokens": 2428069
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 90,
+  "states": {
+   "prompt": 90
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

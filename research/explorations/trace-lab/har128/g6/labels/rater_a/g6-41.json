@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "def get(self, part, id=None, maxResults=None, pageToken=None,",
+      "ref": "head#31"
+    },
+    {
+      "quote": "I added a new `libsaas.services.youtube` service to libsaas",
+      "ref": "head#50"
+    },
+    {
+      "quote": "Analysis: Yes, I'm confident the task is complete.",
+      "ref": "head#53"
+    }
+  ],
+  "first_failure": {
+    "quote": "def get(self, part, id=None, maxResults=None, pageToken=None,",
+    "ref": "head#31",
+    "what": "wrote Activities.get without mine/home params, so activities().get('snippet', mine=False) raises TypeError; defect survived to graded run (9/10 pass)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "No exception, 52 eps, run ended after third mark_task_complete (harness accepted, graded reward 0). Verifier 9 passed/1 failed: test_get_serializes_booleans, Activities.get() unexpected keyword 'mine'. Git-log peeks were local only, no fetching.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "g6-41"
+}

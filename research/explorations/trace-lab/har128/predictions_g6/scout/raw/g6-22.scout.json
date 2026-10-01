@@ -1,0 +1,109 @@
+{
+ "trial": "ovn-g5-002302-tuned__5j77iHJ",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-tuned/ovn-g5-002302-tuned__5j77iHJ",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-tuned",
+ "task": "mimo-v2.6-rl/format-code-task-002302",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 90 calls in, 15 after the nudge at call 75",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#62"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 78,
+  "step_ref": "head#78",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#78",
+   "head#91"
+  ],
+  "note": "identical message repeated steps 78-91 with no change after errors"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#62",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 29,
+  "prompt_tokens_after_first_prompt": 1210352,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 13,
+    "span": [
+     "head#2",
+     "head#14"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 14,
+    "span": [
+     "head#78",
+     "head#91"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 667195,
+   "completion": 1995,
+   "steps": 27,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 667195,
+   "completion": 1995,
+   "steps": 27,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2377462,
+   "completion": 13994,
+   "steps": 90,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.2806,
+  "result_input_tokens": 2377462
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 89,
+  "states": {
+   "no_prompt": 1,
+   "pager": 6,
+   "prompt": 82
+  },
+  "stretches": [],
+  "short_stretches": 6
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

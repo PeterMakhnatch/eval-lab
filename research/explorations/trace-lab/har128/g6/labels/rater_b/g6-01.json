@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "756:    def _on_selection(self, selected: bool):",
+      "ref": "head#9"
+    },
+    {
+      "quote": "grep -rn \"selected_data\\|_on_selection\\|selection\" /testbed/napari/layers/base/base.py | grep -v \"#\" | head -20",
+      "ref": "head#89"
+    },
+    {
+      "quote": "grep -rn \"selected_data\\|_on_selection\\|selection\" /testbed/napari/layers/base/base.py | grep -v \"#\" | head -20",
+      "ref": "head#95"
+    }
+  ],
+  "first_failure": {
+    "quote": "grep -rn \"selected_data\\|_on_selection\\|selection\" /testbed/napari/layers/base/base.py",
+    "ref": "head#89",
+    "what": "settled into repeated greps of base.py (no selection logic) instead of editing points/shapes highlight"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 0.0; verifier 5 hidden-when-other/no-active-layer failures, no agent diff captured; budget exhausted at 95 eps / 2.46M input tokens; loop_break fired false; longest exact repeat run is 7 turns (head#89-95), below the 10-turn bar, broken by a different command at head#88.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-01"
+}

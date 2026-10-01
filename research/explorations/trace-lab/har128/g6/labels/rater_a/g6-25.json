@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cd /workspace/repo && grep -rn \"apply_delta\" dulwich/ --include=\"*.py\" | cat",
+      "ref": "head#39"
+    },
+    {
+      "quote": "cd /workspace/repo && grep -rn \"apply_delta\" dulwich/ --include=\"*.py\" | cat",
+      "ref": "head#60"
+    },
+    {
+      "quote": "cd /workspace/repo && grep -rn \"apply_delta\" dulwich/ --include=\"*.py\" | cat",
+      "ref": "head#61"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /workspace/repo && grep -rn \"apply_delta\" dulwich/ --include=\"*.py\" | cat; echo \"---\"",
+    "ref": "head#39",
+    "what": "re-ran identical apply_delta grep instead of implementing missing function"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#47",
+    "head#61"
+  ],
+  "notes": "LoopBreakStop: repetition still going 60 calls in, 15 after nudge at call 45; function known missing since head#4-5 but never implemented (only pycache diff); verifier ImportError cannot import apply_delta.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "g6-25"
+}

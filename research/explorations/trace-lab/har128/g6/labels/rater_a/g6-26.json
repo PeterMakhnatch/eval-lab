@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cat > /workspace/repo/pyalgotrade/dataseries/resampled.py <<'EOF'",
+      "ref": "head#12"
+    },
+    {
+      "quote": "open=bar1.getOpen(),",
+      "ref": "head#12"
+    },
+    {
+      "quote": "grep -rn \"getOpen()\" pyalgotrade/bar.py",
+      "ref": "head#103"
+    }
+  ],
+  "first_failure": {
+    "quote": "open=bar1.getOpen(),",
+    "ref": "head#12",
+    "what": "created resampled.py __buildBar calling bar.Bar with invalid open= kwargs"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Final diff keeps open= kwargs; BasicBar takes positional args so 2 bar tests fail. No upstream fetch; python probes varied with progress.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-26"
+}

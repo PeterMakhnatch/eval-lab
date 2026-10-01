@@ -1,0 +1,108 @@
+{
+ "trial": "ovn-g5-001285-tuned__WgPbz8K",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-tuned/ovn-g5-001285-tuned__WgPbz8K",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-tuned",
+ "task": "mimo-v2.6-rl/format-code-task-001285",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 3,
+  "step_ref": "head#3",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#3"
+  ],
+  "recovered": true,
+  "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+  "harness_feedback": "No valid JSON found in response",
+  "feedback_names_problem": false
+ },
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "planning",
+  "attribution": "model",
+  "rule_id": "R-PLAN-01",
+  "evidence_step_refs": [
+   "head#5",
+   "head#105"
+  ],
+  "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#105)",
+  "scanned_step_refs": [
+   "head#2",
+   "head#105"
+  ],
+  "task_file_edits": 0,
+  "secondary": "error_recovery/model secondary: identical run head#5-head#105"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 101,
+    "span": [
+     "head#5",
+     "head#105"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 2428562,
+   "completion": 6257,
+   "steps": 101,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 2428562,
+   "completion": 6257,
+   "steps": 101,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2434593,
+   "completion": 6441,
+   "steps": 104,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.9975,
+  "result_input_tokens": 2434593
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 102,
+  "states": {
+   "prompt": 102
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,31 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "litellm.ServiceUnavailableError: ServiceUnavailableError: OpenAIException - upstream provider error",
+      "ref": "head#88"
+    },
+    {
+      "quote": "cd /workspace/repo && python3 -m pytest \"tests/pipeline/nodes/dabble/test_tracking.py\" -q -k \"remove_update_failures\"",
+      "ref": "head#88"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /workspace/repo && python3 -m pytest \"tests/pipeline/nodes/dabble/test_tracking.py\" -q -k \"remove_update_failures\"",
+    "ref": "head#88",
+    "what": "upstream endpoint errored after last real work; no prior fatal model error"
+  },
+  "first_failure_confidence": "low",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward null, n_ep 86, no grading. Model built bbox/zone nodes and was iterating on mixed-zone logic when endpoint failed. Tail pytest tracking repeats vary (different sed -n line nos), fewer than 10 identical, loop_break never fired.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-10"
+}

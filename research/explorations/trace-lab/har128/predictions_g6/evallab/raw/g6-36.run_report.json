@@ -1,0 +1,1436 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "ovn-g5-002578-tuned__Zyd7L6j",
+    "trial_id": "a3579043-3ced-4a16-a4e7-6670ffc74859",
+    "task": "mimo-v2.6-rl/format-code-task-002578",
+    "job": "HAR-126-ovn-g5-002578-tuned",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "c02e15fe-710c-49ac-b93e-c7f3c96719c0",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-tuned/ovn-g5-002578-tuned__Zyd7L6j"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 120 (cd /workspace/repo && ls docs/autoapi 2>/dev/null; echo \"---\"; ls docs/background 2>/dev/null).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "Analysis: I need to reset `_backoff_until` to 0 when there's no backoff, so a subsequent poll doesn't inherit a stale backoff.",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 27,
+      "kind": "bad_edit",
+      "evidence": "first repo edit (src/maestral/client.py) with a tool error at step 30 or later",
+      "confidence": "medium"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T15:36:05.329386+00:00",
+    "finished_at": "2026-10-01T16:07:34.069456+00:00",
+    "total_seconds": 1888.74,
+    "phases": {
+      "environment_setup": {
+        "seconds": 5.1,
+        "starts_at_offset_seconds": 0.034
+      },
+      "agent_setup": {
+        "seconds": 82.266,
+        "starts_at_offset_seconds": 6.304
+      },
+      "agent_execution": {
+        "seconds": 1794.586,
+        "starts_at_offset_seconds": 88.67
+      },
+      "verifier": {
+        "seconds": 3.555,
+        "starts_at_offset_seconds": 1884.973
+      }
+    },
+    "unaccounted_seconds": 3.233,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 80.549,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 120,
+    "agent_span_seconds": 1757.861,
+    "step_gap_seconds": {
+      "count": 116,
+      "median": 4.328,
+      "p90": 33.67,
+      "max": 290.146,
+      "total": 1677.62
+    },
+    "slowest_steps": [
+      {
+        "step": 3,
+        "seconds": 290.146,
+        "action": "bash_command: cd /workspace/repo && wc -l src/maestral/client.py && grep -n \"cursor\\|Cursor\\|ListFolderResult\\|bac..."
+      },
+      {
+        "step": 8,
+        "seconds": 98.47,
+        "action": "bash_command: cd /workspace/repo && grep -rn \"wait_for_remote_changes\\|list_remote_changes\\|files_list_folder_chan..."
+      },
+      {
+        "step": 37,
+        "seconds": 92.959,
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli..."
+      },
+      {
+        "step": 112,
+        "seconds": 64.23,
+        "action": "bash_command: cd /workspace/repo && python3 -m ruff check src/maestral/client.py 2>&1 | tail -10"
+      },
+      {
+        "step": 108,
+        "seconds": 63.756,
+        "action": "bash_command: cd /workspace/repo && python3 -m pytest [hidden-path]/offline/test_client.py [hidden-path]/offline/t..."
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2467902,
+    "cached_input": 0,
+    "uncached_input": 2467902,
+    "output": 27761,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2495663,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2467902,
+        "cached_input": 0,
+        "output": 27761,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2467902,
+        "cached_input": 0,
+        "output": 27761,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2358354,
+        "cached_input": null,
+        "output": 27037,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 117,
+    "llm_steps_with_usage": 117,
+    "context": {
+      "first_prompt_tokens": 1075,
+      "peak_prompt_tokens": 53122,
+      "peak_step": 65,
+      "last_prompt_tokens": 21211
+    },
+    "top_steps": [
+      {
+        "step": 65,
+        "input": 53122,
+        "output": 259,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' path = \"src/maestral/client.py\" with open(path) as f: conten..."
+      },
+      {
+        "step": 64,
+        "input": 52638,
+        "output": 193,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && sed -n 1455,1478p src/maestral/client.py"
+      },
+      {
+        "step": 63,
+        "input": 50832,
+        "output": 1122,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli..."
+      },
+      {
+        "step": 62,
+        "input": 50431,
+        "output": 78,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && python3 -m pytest [hidden-path]/offline/test_client.py -q 2>&1 | tail -10"
+      },
+      {
+        "step": 61,
+        "input": 50014,
+        "output": 70,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && sed -n 1464,1520p src/maestral/client.py"
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 132,
+    "actions": 117,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 132,
+        "ok": 0,
+        "errors": 19,
+        "unknown": 113,
+        "output_chars": 155400,
+        "first_step": 2,
+        "last_step": 120,
+        "judged": 19,
+        "error_rate": 1.0
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "python3",
+        "calls": 47
+      },
+      {
+        "program": "sed",
+        "calls": 31
+      },
+      {
+        "program": "grep",
+        "calls": 28
+      },
+      {
+        "program": "ls",
+        "calls": 7
+      },
+      {
+        "program": "git",
+        "calls": 2
+      },
+      {
+        "program": "find",
+        "calls": 1
+      },
+      {
+        "program": "wc",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 117,
+    "distinct_actions": 117,
+    "repeated_actions": 0,
+    "repeat_rate": 0.0,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 8,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.45,
+      "reasons": [
+        "repeated_failing_command: bash_command:cd /workspace/repo && python3 - <<'EOF'\nfrom unittest.mock i:unknown (14 failures)"
+      ]
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "no_repeats",
+      "reason": "no repeated actions in the run",
+      "window": null,
+      "steps": null,
+      "repeat_rate": null
+    }
+  },
+  "subagents": {
+    "observability": "captured",
+    "reason": null,
+    "count": 3,
+    "delegated_count": 0,
+    "summarization_count": 3,
+    "delegation_calls": [],
+    "items": [
+      {
+        "id": "c02e15fe-710c-49ac-b93e-c7f3c96719c0-summarization-1-answers",
+        "kind": "context_summarization",
+        "evidence": "atif_subagent_ref",
+        "location": "agent/trajectory.summarization-1-answers.json",
+        "spawned_at_step": 66,
+        "spawned_at_offset_seconds": 1268.471,
+        "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+        "steps": 68,
+        "tool_calls": 78,
+        "input_tokens": 54574,
+        "output_tokens": 64,
+        "cost_usd": null,
+        "started_at": "2026-10-01T15:37:34.307415+00:00",
+        "ended_at": "2026-10-01T15:58:41.106009+00:00",
+        "duration_seconds": 1266.799,
+        "nested_subagents": 0
+      },
+      {
+        "id": "c02e15fe-710c-49ac-b93e-c7f3c96719c0-summarization-1-questions",
+        "kind": "context_summarization",
+        "evidence": "atif_subagent_ref",
+        "location": "agent/trajectory.summarization-1-questions.json",
+        "spawned_at_step": 66,
+        "spawned_at_offset_seconds": 1268.471,
+        "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+        "steps": 2,
+        "tool_calls": 0,
+        "input_tokens": 1074,
+        "output_tokens": 400,
+        "cost_usd": null,
+        "started_at": "2026-10-01T15:58:33.618146+00:00",
+        "ended_at": "2026-10-01T15:58:39.483139+00:00",
+        "duration_seconds": 5.865,
+        "nested_subagents": 0
+      },
+      {
+        "id": "c02e15fe-710c-49ac-b93e-c7f3c96719c0-summarization-1-summary",
+        "kind": "context_summarization",
+        "evidence": "atif_subagent_ref",
+        "location": "agent/trajectory.summarization-1-summary.json",
+        "spawned_at_step": 66,
+        "spawned_at_offset_seconds": 1268.471,
+        "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+        "steps": 66,
+        "tool_calls": 78,
+        "input_tokens": 53900,
+        "output_tokens": 260,
+        "cost_usd": null,
+        "started_at": "2026-10-01T15:37:34.307415+00:00",
+        "ended_at": "2026-10-01T15:58:33.475085+00:00",
+        "duration_seconds": 1259.168,
+        "nested_subagents": 0
+      }
+    ],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": [
+      {
+        "step": 66,
+        "kind": "context_management",
+        "detail": "compaction"
+      },
+      {
+        "step": 66,
+        "kind": "summarization_subagent",
+        "detail": "trajectory.summarization-1-summary.json"
+      },
+      {
+        "step": 66,
+        "kind": "summarization_subagent",
+        "detail": "trajectory.summarization-1-questions.json"
+      },
+      {
+        "step": 66,
+        "kind": "summarization_subagent",
+        "detail": "trajectory.summarization-1-answers.json"
+      },
+      {
+        "step": 68,
+        "kind": "inferred_context_drop",
+        "detail": "input tokens fell 53,122 -> 2,643"
+      }
+    ]
+  },
+  "errors": {
+    "tool_errors": 19,
+    "harness_signalled": 0,
+    "inferred_from_output": 19,
+    "status_unknown_calls": 113,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 19
+    },
+    "first_error": {
+      "step": 10,
+      "offset_seconds": 546.839,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 10,
+        "tool": "bash_command",
+        "target": "python3 -c \" import dropbox, inspect print([m for m in dir(dropbox.files) if 'cursor' in m.lower() or 'change' in m.lowe...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "sionCursor' , 'UploadSessionCursor_validator', 'list_folder_get_latest_cursor'] Traceback (most recent call last): File \"<string>\", line 4, in <module> AttributeError: module 'dropbox.files' has no attribute 'DropboxBase' root@58dc3177-bc66..."
+      },
+      {
+        "step": 11,
+        "tool": "bash_command",
+        "target": "python3 -c \" from dropbox import Dropbox print([m for m in dir(Dropbox) if 'folder' in m.lower()]) \" ; ls /usr/local/lib...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "ad -30 grep: /usr/local/lib/python3.12/dist-packages/dropbox/files/__init__.py: No such file or directory root@58dc3177-bc66-4bb2-bd8c-8ff02c92a6e4:/workspace/repo#"
+      },
+      {
+        "step": 12,
+        "tool": "bash_command",
+        "target": "python3 -c \" from dropbox import Dropbox import inspect print(inspect.signature(Dropbox.files_list_folder_longpoll)) pri...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "dropbox.files.ListFolderLongpollError` <class 'dropbox.files.ListFolderResult'> Traceback (most recent call last): File \"<string>\", line 8, in <module> AttributeError: module 'dropbox.files' has no attribute 'ListFolderCursor'. Did you mean..."
+      },
+      {
+        "step": 25,
+        "tool": "bash_command",
+        "target": "python3 -c \" from dropbox.files import ListFolderLongpollResult print(ListFolderLongpollResult) print(ListFolderLongpoll...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "ollResult.cursor) > print(ListFolderLongpollResult.has_more) > \" 2>&1 | tail -5 Traceback (most recent call last): File \"<string>\", line 4, in <module> AttributeError: type object 'ListFolderLongpollResult' has no attribute 'cursor' <class..."
+      },
+      {
+        "step": 30,
+        "tool": "bash_command",
+        "target": "cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.client import DropboxCl...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "assert res.cursor == \"c2\" > print(\"list_remote_changes ok\") > EOF Traceback (most recent call last): File \"<stdin>\", line 17, in <module> File \"/workspace/repo/src/maestral/client.py\", line 373, in dbx if not self._dbx: ^^^^^^^^^ AttributeE..."
+      }
+    ],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T16:07:28.593999Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 120,
+    "shown_steps": 40,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.309,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 80.549,
+        "source": "agent",
+        "action": "bash_command: find /workspace/repo -type f -name \"*.py\" | head -50 && echo \"---\" && ls /workspace/repo ; cd /works...",
+        "status": "unknown",
+        "input_tokens": 1075,
+        "output_tokens": 119,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 370.695,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && wc -l src/maestral/client.py && grep -n \"cursor\\|Cursor\\|ListFolderResult\\|bac...",
+        "status": "unknown",
+        "input_tokens": 1913,
+        "output_tokens": 143,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 427.781,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n 1320,1470p src/maestral/client.py ; cd /workspace/repo && sed -n 1640,1...",
+        "status": "unknown",
+        "input_tokens": 2799,
+        "output_tokens": 109,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 429.9,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n 1440,1650p src/maestral/client.py",
+        "status": "unknown",
+        "input_tokens": 3506,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 434.455,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && grep -n \"def list_folder\\|_list_folder_continue_helper\\|convert_list_folder_re...",
+        "status": "unknown",
+        "input_tokens": 4135,
+        "output_tokens": 137,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 438.617,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n 1350,1445p src/maestral/client.py ; cd /workspace/repo && sed -n 200,24...",
+        "status": "unknown",
+        "input_tokens": 4926,
+        "output_tokens": 107,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 537.087,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && grep -rn \"wait_for_remote_changes\\|list_remote_changes\\|files_list_folder_chan...",
+        "status": "unknown",
+        "input_tokens": 5673,
+        "output_tokens": 1131,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 541.573,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n 2860,3020p src/maestral/sync.py ; cd /workspace/repo && sed -n 590,615p...",
+        "status": "unknown",
+        "input_tokens": 6294,
+        "output_tokens": 121,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 546.839,
+        "source": "agent",
+        "action": "bash_command: python3 -c \" import dropbox, inspect print([m for m in dir(dropbox.files) if 'cursor' in m.lower() o...",
+        "status": "error",
+        "input_tokens": 7010,
+        "output_tokens": 167,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 11,
+        "offset_seconds": 553.084,
+        "source": "agent",
+        "action": "bash_command: python3 -c \" from dropbox import Dropbox print([m for m in dir(Dropbox) if 'folder' in m.lower()]) \"...",
+        "status": "error",
+        "input_tokens": 7654,
+        "output_tokens": 238,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 12,
+        "offset_seconds": 556.984,
+        "source": "agent",
+        "action": "bash_command: python3 -c \" from dropbox import Dropbox import inspect print(inspect.signature(Dropbox.files_list_f...",
+        "status": "error",
+        "input_tokens": 8362,
+        "output_tokens": 95,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          13,
+          24
+        ]
+      },
+      {
+        "step": 25,
+        "offset_seconds": 636.948,
+        "source": "agent",
+        "action": "bash_command: python3 -c \" from dropbox.files import ListFolderLongpollResult print(ListFolderLongpollResult) prin...",
+        "status": "error",
+        "input_tokens": 16023,
+        "output_tokens": 82,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          26,
+          29
+        ]
+      },
+      {
+        "step": 30,
+        "offset_seconds": 685.171,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 18922,
+        "output_tokens": 921,
+        "cost_usd": null,
+        "message": "Analysis: Now let me verify the implementation works with a quick mock-based test.",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 31,
+        "offset_seconds": 702.027,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 20546,
+        "output_tokens": 833,
+        "cost_usd": null,
+        "message": "Analysis: I need to set `_dbx` on the mock client. Let me fix the test.",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 32,
+        "offset_seconds": 716.106,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 22064,
+        "output_tokens": 663,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 33,
+        "offset_seconds": 730.338,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 23409,
+        "output_tokens": 675,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          34,
+          34
+        ]
+      },
+      {
+        "step": 35,
+        "offset_seconds": 760.245,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 26163,
+        "output_tokens": 720,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          36,
+          36
+        ]
+      },
+      {
+        "step": 37,
+        "offset_seconds": 868.653,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 28995,
+        "output_tokens": 759,
+        "cost_usd": null,
+        "message": "Analysis: The SDK uses ISO strings for timestamps. Let me fix that.",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          38,
+          39
+        ]
+      },
+      {
+        "step": 40,
+        "offset_seconds": 899.136,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 30817,
+        "output_tokens": 771,
+        "cost_usd": null,
+        "message": "Analysis: The SDK `FileMetadata` has a different field order than I assumed. Let me use the correct order.",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 41,
+        "offset_seconds": 915.047,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 32173,
+        "output_tokens": 771,
+        "cost_usd": null,
+        "message": "Analysis: The SDK expects `datetime` objects for timestamps, not ISO strings. Let me use datetimes.",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 42,
+        "offset_seconds": 930.962,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 33625,
+        "output_tokens": 760,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 43,
+        "offset_seconds": 946.748,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 35058,
+        "output_tokens": 757,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 44,
+        "offset_seconds": 964.339,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 36484,
+        "output_tokens": 757,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 45,
+        "offset_seconds": 980.632,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 37916,
+        "output_tokens": 762,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          46,
+          46
+        ]
+      },
+      {
+        "step": 47,
+        "offset_seconds": 1000.414,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 39966,
+        "output_tokens": 763,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          48,
+          62
+        ]
+      },
+      {
+        "step": 63,
+        "offset_seconds": 1242.707,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' from unittest.mock import MagicMock, patch from maestral.cli...",
+        "status": "error",
+        "input_tokens": 50832,
+        "output_tokens": 1122,
+        "cost_usd": null,
+        "message": "Analysis: All client tests pass. Let me run my comprehensive mock test one final time to confirm all three methods work correctly.",
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          64,
+          65
+        ]
+      },
+      {
+        "step": 66,
+        "offset_seconds": 1268.471,
+        "source": "system",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "Performed context summarization and handoff to continue task.",
+        "flags": [
+          "subagent",
+          "context"
+        ]
+      },
+      {
+        "omitted_steps": [
+          67,
+          67
+        ]
+      },
+      {
+        "step": 68,
+        "offset_seconds": 1270.596,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && sed -n 1444,1520p src/maestral/client.py",
+        "status": "unknown",
+        "input_tokens": 2643,
+        "output_tokens": 67,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "context"
+        ]
+      },
+      {
+        "omitted_steps": [
+          69,
+          81
+        ]
+      },
+      {
+        "step": 82,
+        "offset_seconds": 1439.443,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && grep -rn \"files_list_folder_longpoll\\|files_list_folder_continue\" src/maestral...",
+        "status": "error",
+        "input_tokens": 8104,
+        "output_tokens": 100,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "omitted_steps": [
+          83,
+          110
+        ]
+      },
+      {
+        "step": 111,
+        "offset_seconds": 1665.711,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 -m mypy src/maestral/client.py 2>&1 | tail -10",
+        "status": "unknown",
+        "input_tokens": 19122,
+        "output_tokens": 57,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 112,
+        "offset_seconds": 1729.941,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 -m ruff check src/maestral/client.py 2>&1 | tail -10",
+        "status": "unknown",
+        "input_tokens": 19324,
+        "output_tokens": 57,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 113,
+        "offset_seconds": 1733.46,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && grep -n \"wait_for_remote_changes\\|list_remote_changes\" src/maestral/client.py...",
+        "status": "unknown",
+        "input_tokens": 19515,
+        "output_tokens": 71,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 114,
+        "offset_seconds": 1737.146,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && ls docs/ 2>/dev/null | head; echo \"---\"; grep -rn \"list_folder\\b\\|list_folder_...",
+        "status": "unknown",
+        "input_tokens": 19724,
+        "output_tokens": 71,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 115,
+        "offset_seconds": 1740.756,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && ls docs/maestral 2>/dev/null | head; echo \"---\"; grep -rln \"DropboxClient\" doc...",
+        "status": "unknown",
+        "input_tokens": 19952,
+        "output_tokens": 70,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 116,
+        "offset_seconds": 1744.524,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && grep -rn \"list_folder\" src/maestral/__init__.py src/maestral/client.py | grep...",
+        "status": "unknown",
+        "input_tokens": 20160,
+        "output_tokens": 98,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 117,
+        "offset_seconds": 1748.299,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && grep -rn \"list_folder\\|wait_for_remote\" src/maestral/api_docs.rst src/maestral...",
+        "status": "unknown",
+        "input_tokens": 20560,
+        "output_tokens": 87,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 118,
+        "offset_seconds": 1751.779,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && grep -rn \"automethod\\|autoclass\\|automodule\" docs/*.rst docs/**/*.rst 2>/dev/n...",
+        "status": "unknown",
+        "input_tokens": 20803,
+        "output_tokens": 64,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 119,
+        "offset_seconds": 1754.85,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && grep -rn \"list_folder\\|sync\" docs/index.rst | head",
+        "status": "unknown",
+        "input_tokens": 20999,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 120,
+        "offset_seconds": 1758.169,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && ls docs/autoapi 2>/dev/null; echo \"---\"; ls docs/background 2>/dev/null",
+        "status": "unknown",
+        "input_tokens": 21211,
+        "output_tokens": 56,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          12
+        ],
+        "tool_calls": 11,
+        "errors": 3,
+        "revisits": 0,
+        "output_tokens": 2423,
+        "cost_usd": null,
+        "seconds": 556.676,
+        "peak_prompt_tokens": 8362,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          13,
+          24
+        ],
+        "tool_calls": 12,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 2781,
+        "cost_usd": null,
+        "seconds": 70.688,
+        "peak_prompt_tokens": 15850,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          25,
+          36
+        ],
+        "tool_calls": 12,
+        "errors": 6,
+        "revisits": 0,
+        "output_tokens": 6458,
+        "cost_usd": null,
+        "seconds": 138.746,
+        "peak_prompt_tokens": 27541,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          37,
+          48
+        ],
+        "tool_calls": 12,
+        "errors": 8,
+        "revisits": 0,
+        "output_tokens": 6389,
+        "cost_usd": null,
+        "seconds": 136.071,
+        "peak_prompt_tokens": 41401,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          49,
+          60
+        ],
+        "tool_calls": 12,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 3565,
+        "cost_usd": null,
+        "seconds": 167.297,
+        "peak_prompt_tokens": 49454,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          61,
+          72
+        ],
+        "tool_calls": 10,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 2083,
+        "cost_usd": null,
+        "seconds": 97.149,
+        "peak_prompt_tokens": 53122,
+        "compactions": 1
+      },
+      {
+        "steps": [
+          73,
+          84
+        ],
+        "tool_calls": 12,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 729,
+        "cost_usd": null,
+        "seconds": 156.3,
+        "peak_prompt_tokens": 8798,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          85,
+          96
+        ],
+        "tool_calls": 12,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 991,
+        "cost_usd": null,
+        "seconds": 42.017,
+        "peak_prompt_tokens": 13757,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          97,
+          108
+        ],
+        "tool_calls": 12,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 766,
+        "cost_usd": null,
+        "seconds": 99.776,
+        "peak_prompt_tokens": 18358,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          109,
+          120
+        ],
+        "tool_calls": 12,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 852,
+        "cost_usd": null,
+        "seconds": 159.345,
+        "peak_prompt_tokens": 21211,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T15:37:34.307415+00:00",
+      "span_seconds": 1757.861,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            2
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 119,
+          "cost_usd": null,
+          "peak_prompt_tokens": 1075,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 175.786
+        },
+        {
+          "steps": [
+            3,
+            7
+          ],
+          "tool_calls": 5,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 552,
+          "cost_usd": null,
+          "peak_prompt_tokens": 4926,
+          "compactions": 0,
+          "starts_at_offset_seconds": 351.572,
+          "ends_at_offset_seconds": 527.358
+        },
+        {
+          "steps": [
+            8,
+            31
+          ],
+          "tool_calls": 24,
+          "errors": 6,
+          "revisits": 0,
+          "output_tokens": 7404,
+          "cost_usd": null,
+          "peak_prompt_tokens": 20546,
+          "compactions": 0,
+          "starts_at_offset_seconds": 527.358,
+          "ends_at_offset_seconds": 703.144
+        },
+        {
+          "steps": [
+            32,
+            39
+          ],
+          "tool_calls": 8,
+          "errors": 4,
+          "revisits": 0,
+          "output_tokens": 4473,
+          "cost_usd": null,
+          "peak_prompt_tokens": 30555,
+          "compactions": 0,
+          "starts_at_offset_seconds": 703.144,
+          "ends_at_offset_seconds": 878.93
+        },
+        {
+          "steps": [
+            40,
+            51
+          ],
+          "tool_calls": 12,
+          "errors": 7,
+          "revisits": 0,
+          "output_tokens": 6423,
+          "cost_usd": null,
+          "peak_prompt_tokens": 43428,
+          "compactions": 0,
+          "starts_at_offset_seconds": 878.93,
+          "ends_at_offset_seconds": 1054.717
+        },
+        {
+          "steps": [
+            52,
+            62
+          ],
+          "tool_calls": 11,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 2793,
+          "cost_usd": null,
+          "peak_prompt_tokens": 50431,
+          "compactions": 0,
+          "starts_at_offset_seconds": 1054.717,
+          "ends_at_offset_seconds": 1230.503
+        },
+        {
+          "steps": [
+            63,
+            78
+          ],
+          "tool_calls": 14,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 2267,
+          "cost_usd": null,
+          "peak_prompt_tokens": 53122,
+          "compactions": 1,
+          "starts_at_offset_seconds": 1230.503,
+          "ends_at_offset_seconds": 1406.289
+        },
+        {
+          "steps": [
+            79,
+            107
+          ],
+          "tool_calls": 29,
+          "errors": 1,
+          "revisits": 0,
+          "output_tokens": 2091,
+          "cost_usd": null,
+          "peak_prompt_tokens": 18050,
+          "compactions": 0,
+          "starts_at_offset_seconds": 1406.289,
+          "ends_at_offset_seconds": 1582.075
+        },
+        {
+          "steps": [
+            108,
+            120
+          ],
+          "tool_calls": 13,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 915,
+          "cost_usd": null,
+          "peak_prompt_tokens": 21211,
+          "compactions": 0,
+          "starts_at_offset_seconds": 1582.075,
+          "ends_at_offset_seconds": 1757.861
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "3ff90968d46e747df51543a09f47490982bc8d2872fca68969708c1aff42ab70"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "b48f581dd84a4e56401988bda07fdc8de6bded46465100c1613bfc5431bf7235"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 117,
+    "recorded": 117,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 132,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 1,
+    "continuations_missing": [
+      1
+    ],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 120,
+        "copied_steps": 0,
+        "session_id": "c02e15fe-710c-49ac-b93e-c7f3c96719c0"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 120,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": [
+      "1 summarization attempt(s) left no continuation file: [1]"
+    ]
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129) failed (reward 0) on mimo-v2.6-rl/format-code-task-002578; in 31m29s wall (29m55s agent); 120 steps, 132 tool calls, 19 errors, 2.50M tokens, cost unavailable; 0 repeated actions (0 exact revisits); 3 subagents, 0 delegation calls."
+}

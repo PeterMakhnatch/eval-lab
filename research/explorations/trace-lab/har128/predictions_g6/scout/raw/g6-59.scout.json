@@ -1,0 +1,115 @@
+{
+ "trial": "ovn-g5-001769-stock__qSPHRnf",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-stock/ovn-g5-001769-stock__qSPHRnf",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-stock",
+ "task": "mimo-v2.6-rl/format-code-task-001769",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 62 calls in, 15 after the nudge at call 47",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 35,
+  "step_ref": "head#35",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#35",
+   "head#63"
+  ],
+  "note": "identical message repeated steps 35-63 with no change after errors",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#39 (`grep -rln \"mag_pert\" / 2>/dev/null | grep -v proc | head`), 24 turns head#40-head#63 with no interrupt, until run end"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 20,
+    "span": [
+     "head#2",
+     "head#21"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 29,
+    "span": [
+     "head#35",
+     "head#63"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 778330,
+   "completion": 3234,
+   "steps": 49,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 778330,
+   "completion": 3234,
+   "steps": 49,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 985220,
+   "completion": 8934,
+   "steps": 62,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.79,
+  "result_input_tokens": 985220
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 62,
+  "states": {
+   "no_prompt": 25,
+   "prompt": 37
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#39",
+    "trigger_command": "grep -rln \"mag_pert\" / 2>/dev/null | grep -v proc | head",
+    "cause": "no_prompt",
+    "screen": "root@a931f51d-eb55-4677-b59b-5a1609039611:/workspace/repo# grep -rln \"mag_pert\" / 2>/dev/null | grep -v proc | head",
+    "start_ref": "head#40",
+    "end_ref": "head#63",
+    "turns": 24,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 535827,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336"
+ },
+ "nop_runs_dir": null
+}

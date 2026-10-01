@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "table_rename_hints: t.Optional[t.Dict[str, str]] = None",
+      "ref": "head#58"
+    },
+    {
+      "quote": "self._validate_table_rename_hints(self.table_rename_hints)",
+      "ref": "head#59"
+    },
+    {
+      "quote": "head -140 /testbed/piccolo/apps/migrations/auto/schema_differ.py > /tmp/a.txt; sed -n '1,140p' /tmp/a.txt",
+      "ref": "head#105"
+    },
+    {
+      "quote": "head -140 /testbed/piccolo/apps/migrations/auto/schema_differ.py > /tmp/a.txt; sed -n '1,140p' /tmp/a.txt",
+      "ref": "head#106"
+    }
+  ],
+  "first_failure": {
+    "quote": "self._validate_table_rename_hints(self.table_rename_hints)",
+    "ref": "head#59",
+    "what": "updated __post_init__ to call _validate_table/column_rename_hints without ever defining those methods, so every hinted SchemaDiffer construction raises AttributeError"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#86",
+    "head#106"
+  ],
+  "notes": "TrialBudgetExhausted at 104/120 eps, 2.47M input. 12.5KB partial impl (hint fields, deepcopy, sort_by_new_class_name); existing tests pass, all hint tests ERROR on missing validators. Early nudge at call 22 was recovered; ~20-turn view-only tail loop ran to budget.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "g6-31"
+}

@@ -1,0 +1,302 @@
+{
+ "g6-01": {
+  "arm": "tuned",
+  "task": "002017",
+  "trial": "ovn-g5-002017-tuned__SWc4xbr"
+ },
+ "g6-02": {
+  "arm": "gepa",
+  "task": "001136",
+  "trial": "ovn-g5-001136-gepa__rexYV6K"
+ },
+ "g6-03": {
+  "arm": "tuned",
+  "task": "001285",
+  "trial": "ovn-g5-001285-tuned__WgPbz8K"
+ },
+ "g6-04": {
+  "arm": "tuned",
+  "task": "001606",
+  "trial": "ovn-g5-001606-tuned__MnCArfo"
+ },
+ "g6-05": {
+  "arm": "gepa",
+  "task": "001695",
+  "trial": "ovn-g5-001695-gepa__q4rVPoo"
+ },
+ "g6-06": {
+  "arm": "stock",
+  "task": "002017",
+  "trial": "ovn-g5-002017-stock__be4xo9x"
+ },
+ "g6-07": {
+  "arm": "tuned",
+  "task": "001355",
+  "trial": "ovn-g5-001355-tuned__8UJMiQN"
+ },
+ "g6-08": {
+  "arm": "gepa",
+  "task": "000842",
+  "trial": "ovn-g5-000842-gepa__7p54K7C"
+ },
+ "g6-09": {
+  "arm": "stock",
+  "task": "000332",
+  "trial": "ovn-g5-000332-stock__Xn3uN4Q"
+ },
+ "g6-10": {
+  "arm": "tuned",
+  "task": "000332",
+  "trial": "ovn-g5-000332-tuned__zevQhXu"
+ },
+ "g6-11": {
+  "arm": "gepa",
+  "task": "002578",
+  "trial": "ovn-g5-002578-gepa__kzhAXLU"
+ },
+ "g6-12": {
+  "arm": "tuned",
+  "task": "000568",
+  "trial": "ovn-g5-000568-tuned__Zcbk6Ub"
+ },
+ "g6-13": {
+  "arm": "tuned",
+  "task": "000521",
+  "trial": "ovn-g5-000521-tuned__TdWLAib"
+ },
+ "g6-14": {
+  "arm": "gepa",
+  "task": "000568",
+  "trial": "ovn-g5-000568-gepa__XXS7kMp"
+ },
+ "g6-15": {
+  "arm": "tuned",
+  "task": "001695",
+  "trial": "ovn-g5-001695-tuned__HSdBDkF"
+ },
+ "g6-16": {
+  "arm": "tuned",
+  "task": "001833",
+  "trial": "ovn-g5-001833-tuned__rNpMkcb"
+ },
+ "g6-17": {
+  "arm": "gepa",
+  "task": "000332",
+  "trial": "ovn-g5-000332-gepa__YyfJfPU"
+ },
+ "g6-18": {
+  "arm": "gepa",
+  "task": "001765",
+  "trial": "ovn-g5-001765-gepa__yHdbtvs"
+ },
+ "g6-19": {
+  "arm": "stock",
+  "task": "001833",
+  "trial": "ovn-g5-001833-stock__UTVAfnN"
+ },
+ "g6-20": {
+  "arm": "stock",
+  "task": "001797",
+  "trial": "ovn-g5-001797-stock__yGw88CW"
+ },
+ "g6-21": {
+  "arm": "stock",
+  "task": "000568",
+  "trial": "ovn-g5-000568-stock__Ri7YYN5"
+ },
+ "g6-22": {
+  "arm": "tuned",
+  "task": "002302",
+  "trial": "ovn-g5-002302-tuned__5j77iHJ"
+ },
+ "g6-23": {
+  "arm": "stock",
+  "task": "001765",
+  "trial": "ovn-g5-001765-stock__Tigdd3B"
+ },
+ "g6-24": {
+  "arm": "gepa",
+  "task": "001797",
+  "trial": "ovn-g5-001797-gepa__W7cKEVT"
+ },
+ "g6-25": {
+  "arm": "tuned",
+  "task": "001626",
+  "trial": "ovn-g5-001626-tuned__fSkoQL7"
+ },
+ "g6-26": {
+  "arm": "tuned",
+  "task": "001241",
+  "trial": "ovn-g5-001241-tuned__xKbAg3N"
+ },
+ "g6-27": {
+  "arm": "gepa",
+  "task": "000521",
+  "trial": "ovn-g5-000521-gepa__2rqo6EY"
+ },
+ "g6-28": {
+  "arm": "stock",
+  "task": "002578",
+  "trial": "ovn-g5-002578-stock__ZVWT2gB"
+ },
+ "g6-29": {
+  "arm": "tuned",
+  "task": "001769",
+  "trial": "ovn-g5-001769-tuned__pHJnuZq"
+ },
+ "g6-30": {
+  "arm": "stock",
+  "task": "000169",
+  "trial": "ovn-g5-000169-stock__npH4TqV"
+ },
+ "g6-31": {
+  "arm": "stock",
+  "task": "001136",
+  "trial": "ovn-g5-001136-stock__jjgSG57"
+ },
+ "g6-32": {
+  "arm": "gepa",
+  "task": "001626",
+  "trial": "ovn-g5-001626-gepa__3kGXxof"
+ },
+ "g6-33": {
+  "arm": "tuned",
+  "task": "000169",
+  "trial": "ovn-g5-000169-tuned__CxBpceW"
+ },
+ "g6-34": {
+  "arm": "gepa",
+  "task": "002302",
+  "trial": "ovn-g5-002302-gepa__sFGLATE"
+ },
+ "g6-35": {
+  "arm": "stock",
+  "task": "000842",
+  "trial": "ovn-g5-000842-stock__RUUQHiz"
+ },
+ "g6-36": {
+  "arm": "tuned",
+  "task": "002578",
+  "trial": "ovn-g5-002578-tuned__Zyd7L6j"
+ },
+ "g6-37": {
+  "arm": "gepa",
+  "task": "001606",
+  "trial": "ovn-g5-001606-gepa__ySwezhm"
+ },
+ "g6-38": {
+  "arm": "stock",
+  "task": "001626",
+  "trial": "ovn-g5-001626-stock__6P6YXKD"
+ },
+ "g6-39": {
+  "arm": "tuned",
+  "task": "001809",
+  "trial": "ovn-g5-001809-tuned__AUVzrvM"
+ },
+ "g6-40": {
+  "arm": "stock",
+  "task": "001355",
+  "trial": "ovn-g5-001355-stock__ZHNXfvD"
+ },
+ "g6-41": {
+  "arm": "tuned",
+  "task": "000842",
+  "trial": "ovn-g5-000842-tuned__GjjMiqx"
+ },
+ "g6-42": {
+  "arm": "gepa",
+  "task": "001241",
+  "trial": "ovn-g5-001241-gepa__6LNRk7d"
+ },
+ "g6-43": {
+  "arm": "tuned",
+  "task": "001765",
+  "trial": "ovn-g5-001765-tuned__rrXKUgY"
+ },
+ "g6-44": {
+  "arm": "stock",
+  "task": "002302",
+  "trial": "ovn-g5-002302-stock__83xFDnj"
+ },
+ "g6-45": {
+  "arm": "gepa",
+  "task": "001833",
+  "trial": "ovn-g5-001833-gepa__aci6NkF"
+ },
+ "g6-46": {
+  "arm": "gepa",
+  "task": "001355",
+  "trial": "ovn-g5-001355-gepa__bJkSJkD"
+ },
+ "g6-47": {
+  "arm": "stock",
+  "task": "001285",
+  "trial": "ovn-g5-001285-stock__JvtxRFm"
+ },
+ "g6-48": {
+  "arm": "gepa",
+  "task": "000169",
+  "trial": "ovn-g5-000169-gepa__Hmxf7wb"
+ },
+ "g6-49": {
+  "arm": "gepa",
+  "task": "001809",
+  "trial": "ovn-g5-001809-gepa__nxdBvhh"
+ },
+ "g6-50": {
+  "arm": "gepa",
+  "task": "002017",
+  "trial": "ovn-g5-002017-gepa__qQJWeCc"
+ },
+ "g6-51": {
+  "arm": "stock",
+  "task": "001606",
+  "trial": "ovn-g5-001606-stock__jePg8nP"
+ },
+ "g6-52": {
+  "arm": "tuned",
+  "task": "001136",
+  "trial": "ovn-g5-001136-tuned__QTMzsEL"
+ },
+ "g6-53": {
+  "arm": "gepa",
+  "task": "001285",
+  "trial": "ovn-g5-001285-gepa__waX6njT"
+ },
+ "g6-54": {
+  "arm": "stock",
+  "task": "001241",
+  "trial": "ovn-g5-001241-stock__FGtdyNH"
+ },
+ "g6-55": {
+  "arm": "stock",
+  "task": "001695",
+  "trial": "ovn-g5-001695-stock__PveqguL"
+ },
+ "g6-56": {
+  "arm": "stock",
+  "task": "000521",
+  "trial": "ovn-g5-000521-stock__pjKC2mS"
+ },
+ "g6-57": {
+  "arm": "tuned",
+  "task": "001797",
+  "trial": "ovn-g5-001797-tuned__L32LiEr"
+ },
+ "g6-58": {
+  "arm": "stock",
+  "task": "001809",
+  "trial": "ovn-g5-001809-stock__PZ8sw7f"
+ },
+ "g6-59": {
+  "arm": "stock",
+  "task": "001769",
+  "trial": "ovn-g5-001769-stock__qSPHRnf"
+ },
+ "g6-60": {
+  "arm": "gepa",
+  "task": "001769",
+  "trial": "ovn-g5-001769-gepa__XKhJTpk"
+ }
+}

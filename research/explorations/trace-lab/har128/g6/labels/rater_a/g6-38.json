@@ -1,0 +1,42 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Let me look at the repository structure and find the apply_delta function.",
+      "ref": "head#15"
+    },
+    {
+      "quote": "cd /workspace/repo && awk 'NR>=3760 && NR<=3770' dulwich/pack.py\n",
+      "ref": "head#57"
+    },
+    {
+      "quote": "cd /workspace/repo && awk 'NR>=3766 && NR<=3771' dulwich/pack.py\n",
+      "ref": "head#66"
+    },
+    {
+      "quote": "cd /workspace/repo && awk 'NR>=3774 && NR<=3779' dulwich/pack.py\n",
+      "ref": "head#76"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /workspace/repo && awk 'NR>=3774 && NR<=3779' dulwich/pack.py\n",
+    "ref": "head#76",
+    "what": "Last step before Daytona sandbox was lost with DaytonaNotFoundError."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#57",
+    "head#76"
+  ],
+  "notes": "Run terminated due to DaytonaNotFoundError (sandbox 326ac4db-eff0-42e7-afdd-168e1b18a201 not found / deleted). Note: result_summary.json lists task format-code-task-001626, but trajectory actually worked on dulwich apply_delta (task 001833). Prior to sandbox loss, model was in a 20-turn sliding awk repetition loop reading dulwich/pack.py.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "g6-38"
+}

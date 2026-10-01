@@ -87,12 +87,14 @@ uv run --project tools/modal-mimo-serve --locked modal deploy tools/modal-mimo-s
 uv run --project tools/modal-mimo-serve --locked modal run tools/modal-mimo-serve/lora_smoke.py \
   --prompts prompts.json --lora-url <lora url> --prod-url <prod url> --adapter har129 --out raw.json
 uv run python research/experiments/har129-lora/smoke_parity.py score raw.json scored.json
+uv run --project tools/modal-mimo-serve --locked modal run tools/modal-mimo-serve/lora_logprob_probe.py \
+  --prompts prompts.json --url <lora url> --adapter har129 --out logprob-probe.json
 ```
 
 Pass criteria:
 - the base name is byte-identical to production at temperature 0;
 - every reply on both names is a valid Terminus turn (`json` or `normalized`);
-- the adapter name differs from the base on at least one prompt.
+- the adapter is applied: with `lora_logprob_probe.py`, base vs base and adapter vs adapter show 0 logprob difference, while base vs adapter shows a nonzero one. Greedy text alone can't show this, because a small adapter often leaves greedy text unchanged, and long greedy generations can diverge between identical requests.
 
 The smoke requests run inside Modal, so the API key never leaves it.
 
@@ -107,8 +109,8 @@ uv run --project tools/modal-mimo-serve --locked modal app stop -y evallab-mimo-
 
 | step | rate / measurement | example |
 |---|---|---|
-| training | about 560 sequence tok/s on an A100-80GB at $2.8149/h, so about **$1.40 per 1M sequence tokens** per epoch, plus about 60 s of load | dry run: 143,829 tokens in 256.9 s of train time, 319 s wall, $0.28 |
-| serving | $2.8149/h while warm, plus about 3–5 min of cold start and a 5 min idle tail | smoke: about $0.37 for the LoRA server, about $0.26 for production |
-| eval traffic | about $0.022 of server time per run at 20 concurrent runs, provisional until G2 telemetry | `research/experiments/har129-throughput/` |
+| training | the estimator charges 560 sequence tok/s (about **$1.40 per 1M sequence tokens** per epoch). That figure was a first-step measurement, so it errs high | dry run: 143,829 tokens, one step, 319 s wall, $0.28. **G4: 1,569,955 tokens, 10 steps, 1,330 s train / 1,370 s wall (step 1: 558 s; later steps about 86 s), $1.27 actual vs $2.19 estimated** |
+| serving | $2.8149/h while warm, plus about 3–5 min of cold start and a 5 min idle tail | dry-run smoke: about $0.37 for the LoRA server, about $0.26 for production. G4 smoke and probe: LoRA server $0.42 |
+| eval traffic | measured on G2 wave 1: $0.15 of server time per run at a mean of 4.5 concurrent runs; about $0.03 if 20 slots stay busy | `research/experiments/har129-throughput/` |
 
-Sequence tokens count every token of every row, context included. Trained tokens are the subset that carries loss. At the G4 target of about 2.0M sequence tokens, expect about $2.80 of training plus load.
+Sequence tokens count every token of every row, context included. Trained tokens are the subset that carries loss.

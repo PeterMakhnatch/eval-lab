@@ -374,12 +374,14 @@ def _copy_file(source: Path, dest: Path) -> None:
     shutil.copyfile(source, dest)
 
 
-def _copy_tree(source: Path, dest: Path) -> int:
+def _copy_tree(source: Path, dest: Path, *, skip_processed: bool = False) -> int:
     """Byte-copy a job tree. Returns the number of files copied."""
     copied = 0
     for dirpath, dirnames, filenames in os.walk(source, followlinks=False):
         current = Path(dirpath)
         dirnames[:] = [name for name in dirnames if name not in _SKIP_DIR_NAMES]
+        if skip_processed and current == source:
+            dirnames[:] = [name for name in dirnames if name != "processed"]
         relative = current.relative_to(source)
         for name in filenames:
             origin = current / name
@@ -428,6 +430,13 @@ def _destination(home: Path, day: str, card: str, source: Path) -> tuple[Path, s
     return own, other
 
 
+def _is_processed_report_file(name: str) -> bool:
+    """Report pages process-job writes, never unrelated out-dir contents."""
+    if name in ("job.json", "job.md"):
+        return True
+    return name.startswith("trial-") and (name.endswith(".json") or name.endswith(".md"))
+
+
 def publish_job(
     job_dir: str | Path,
     *,
@@ -437,17 +446,32 @@ def publish_job(
     capture: str = "run-time",
     primary_checkout: Path | None = None,
     rewrite_index: bool = True,
+    processed_report_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Publish one job into the results home. Idempotent.
 
     A second call with the same provenance replaces the published tree with
     an identical one and rewrites the index, so a retried process-job does
     not duplicate or drift.
+
+    ``processed_report_root`` points at the freshly written report directory
+    when process-job used a custom ``output_dir``: those report pages
+    replace the snapshotted ``processed/`` copy, so the published tree shows
+    the new outcome instead of the stale source ``processed/``. Only
+    ``job.json``/``job.md`` and ``trial-*.json``/``trial-*.md`` pages are
+    overlaid; nothing else is taken from that directory. Raw job inputs and
+    provenance still come from ``job_dir``.
     """
     source = Path(job_dir).resolve()
     if not source.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
-    home = Path(root) if root is not None else results_root()
+    home = (Path(root) if root is not None else results_root()).resolve()
+    report_root = Path(processed_report_root).resolve() if processed_report_root is not None else None
+    if report_root is not None and not report_root.is_dir():
+        raise ValueError(f"Not a processed report directory: {processed_report_root}")
+    if report_root is not None and report_root.is_relative_to(home):
+        raise ValueError("Processed report input must be outside the results home when publishing")
+    custom_reports = report_root is not None and report_root != source / "processed"
     provenance = build_provenance(source, repo_root=repo_root, pr_lookup=pr_lookup, capture=capture)
     card = provenance["card"] or "unknown"
     day = _job_date(source, provenance)
@@ -457,7 +481,18 @@ def publish_job(
     if dest.exists():
         shutil.rmtree(dest)
     dest.mkdir(parents=True)
-    copied = _copy_tree(source, dest)
+    copied = _copy_tree(source, dest, skip_processed=custom_reports)
+    if custom_reports:
+        assert report_root is not None
+        processed_dest = dest / "processed"
+        processed_dest.mkdir(parents=True, exist_ok=True)
+        for child in sorted(report_root.iterdir()):
+            if child.is_symlink() or not child.is_file():
+                continue
+            if not _is_processed_report_file(child.name):
+                continue
+            _copy_file(child, processed_dest / child.name)
+            copied += 1
     (dest / "provenance.json").write_text(
         json.dumps(provenance, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
@@ -528,16 +563,46 @@ def _spend(published: Path) -> str:
     if report is None:
         return "None (no processed report)"
     summary = _as_dict(report.get("summary"))
+    allocated = _session_spend_cell(summary.get("session_spend"))
+    if allocated is not None:
+        return allocated
     cost = summary.get("cost_usd")
     if isinstance(cost, (int, float)):
         return f"${cost:.4f}"
     estimate = summary.get("cost_estimate_usd")
     if isinstance(estimate, (int, float)):
-        return f"~${estimate:.4f} estimated"
+        return (
+            f"~${estimate:.4f} shared GPU, not additive; "
+            "see `evallab spend day`"
+        )
     reason = summary.get("cost_reason")
     if isinstance(reason, str) and reason:
         return "None (unknown)"
     return "None (unknown)"
+
+
+def _session_spend_cell(allocation: Any) -> str | None:
+    """Allocated billed-GPU + Daytona estimate INDEX cell, or None.
+
+    Prefers the billed-session allocation when present. An unknown Daytona
+    estimate renders the GPU share plus unknown sandbox: never a false full
+    total and never a fallback to the legacy wall-time estimate.
+    """
+    if not isinstance(allocation, dict):
+        return None
+    modal = allocation.get("modal_allocated_usd")
+    if not isinstance(modal, (int, float)):
+        return None
+    session = allocation.get("session_id")
+    daytona = allocation.get("daytona_estimate_usd")
+    total = allocation.get("total_usd")
+    if isinstance(total, (int, float)) and isinstance(daytona, (int, float)):
+        return (
+            f"${total:.4f} session "
+            f"(billed GPU ${modal:.4f} + Daytona est ${daytona:.4f}; "
+            f"{allocation.get('allocation_basis')}; session {session})"
+        )
+    return f"${modal:.4f} billed GPU share + sandbox unknown (session {session})"
 
 
 def _tasks_cell(provenance: dict[str, Any]) -> str:

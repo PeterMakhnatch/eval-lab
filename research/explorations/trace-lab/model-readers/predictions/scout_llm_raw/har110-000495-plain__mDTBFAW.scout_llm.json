@@ -1,0 +1,14 @@
+{
+ "stop_reason": "request_ceiling",
+ "stop_evidence": "[M194] \"/testbed/src/cfnlint/rules/__init__.py  /testbed/src/cfnlint/rules/_rule.py  /testbed/src/cfnlint/rules/_rules.py\" \u2014 last transcript turn, mid-debug with no completion; run record: TrialBudgetExhaustedError after 97 episodes.",
+ "first_failure_is_pass": false,
+ "first_failure_what": "Added `elif cfnlint.helpers.is_function(value): continue`, but is_function returns the always-truthy tuple (None, None) for non-functions, so all non-string Definition/DefinitionString values were skipped and object validation was silently disabled.",
+ "first_failure_evidence": "[M163] \"elif cfnlint.helpers.is_function(value):\"",
+ "blame": "model",
+ "blame_evidence": "[M163] \"elif cfnlint.helpers.is_function(value):\" \u2014 the model's own fatal edit; it had just read the contract at [M162] \"Otherwise, returns a tuple with None and None.\"",
+ "loop_kind": "repetition",
+ "loop_start_evidence": "[M82] \"errs2 = list(step.iter_errors({\\\"StartAt\\\": \\\"a\\\", \\\"States\\\": {\\\"a\\\": {\\\"Type\\\": \\\"Pass\\\", \\\"End\\\": True}}}))\"",
+ "loop_end_evidence": "[M136] \"errs2 = list(step.iter_errors({\\\"StartAt\\\": \\\"a\\\", \\\"States\\\": {\\\"a\\\": {\\\"Type\\\": \\\"Pass\\\", \\\"End\\\": True}}}))\"",
+ "upstream_fetch": false,
+ "upstream_evidence": "none observed"
+}

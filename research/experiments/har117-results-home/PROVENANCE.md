@@ -72,7 +72,13 @@ path, the uncommitted diff and its sha256, and the names of untracked files.
 Commit and diff have to be taken when the job runs. A later publish reads a
 checkout that has moved on, so it cannot reconstruct them. The runner now
 saves that snapshot into `lab-metadata.json` and `repository-provenance/`
-inside the job directory. Publish copies it verbatim.
+inside the job directory. Publish copies it verbatim. When process-job writes
+its reports to a custom `output_dir`, publish still snapshots the raw job
+directory but takes `processed/` exclusively from the newly written
+`job`/`trial` report pages, excluding obsolete source pages and unrelated
+out-dir files. The published tree and INDEX therefore show the new outcome.
+The explicit report directory must exist outside the results home; invalid
+inputs fail before the existing publication is replaced.
 
 ## Publish-time only
 
@@ -125,6 +131,56 @@ input/output is **2,410,295 / 7,444**, while its 89 settled ledger calls
 sum to **2,423,707 / 11,540**. The permanent regression fixture retains the
 actual accounting fields plus hashes of the original metadata and result.
 Raw source artifacts are not rewritten during reprocessing.
+
+## Shared-GPU estimates
+
+A self-hosted `cost_estimate_usd` is a per-trial wall-time estimate, not a
+metered share of the common server. Overlapping jobs must not be summed as
+though each owned the GPU. Until a billed-session allocation is available,
+both pages and INDEX label these values **shared GPU, not additive** and
+direct the reader to `evallab spend day`. The existing Modal billing and
+Daytona estimate authorities remain separate; no zero-priced proxy ledger
+is presented as free GPU serving.
+
+## Billed-session allocation
+
+Once the Modal bill for a shared-GPU session lands, reprocessing the job
+with `evallab process-job --session-spend <receipt>` replaces the
+non-additive estimate in the job report and INDEX row with its allocated
+share: billed GPU pool split by recorded trial wall time over the complete
+session membership, plus the existing per-job Daytona estimate
+(`report['summary']['session_spend']`, basis
+`billed_modal_wall_time_share_plus_daytona_estimate` with the session id).
+Settled proxy cost and tokens are untouched and no per-trial GPU share is
+invented. An unknown Daytona estimate renders the GPU share plus unknown
+sandbox, never a full total and never the legacy wall-time estimate.
+
+Bill-before-allocation boundary: metering happens before the bill and
+allocation only after it, so ordinary landing pages stay non-additive
+until the billed receipt arrives, and reprocessing requires passing the
+receipt again. The receipt is validated before any report is written or
+any publication replaced: a stale or wrong receipt fails the run and the
+previous publication stands. Raw job inputs are never rewritten.
+
+The `evallab.session_spend/v1` receipt binds native job/spec identities and
+the exact metadata bytes to complete teardown membership. It retains Modal
+billing rows and deployment provenance separately from the Daytona estimate.
+Overlapping hourly/daily billing intervals are rejected rather than added.
+The allocation is an accounting policy, **not measured per-job GPU use**.
+
+The [HAR-116 receipt](har131-session-spend.json) covers two 20-job sessions:
+
+| Session | Billed Modal | Daytona estimate | Combined target | Displayed sum |
+|---|---:|---:|---:|---:|
+| `ap-i1jDXiUmYYzX3k11Tpww83` | $1.53380886 | $0.49377610 | $2.02758496 | $2.0277 |
+| `ap-yXxcAQPhR4WRVkUd4thsUc` | $1.67625561 | $1.10407693 | $2.78033254 | $2.7805 |
+| Total | $3.21006447 | $1.59785302 | $4.80791749 | $4.8082 |
+
+The [runtime proof](har131-spend-proof.json) records an isolated results-home
+publication over all 40 actual jobs, using their raw metadata rather than new
+trials. Both session sums differ from the source total by less than 0.01%
+(display rounding), within the requested ±10%. This receipt excludes other
+cards' sandbox spend, later G4 apps, and overlapping hourly copies of bills.
 
 ## Backfill
 

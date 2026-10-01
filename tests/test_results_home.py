@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 from pathlib import Path
+
+import pytest
 
 from evallab.process_job import process_job
 from evallab.results_home import backfill, publish_job, write_index
@@ -315,3 +318,389 @@ def test_automatic_publish_shows_processed_reward_and_spend(tmp_path: Path) -> N
     full = (home / "INDEX-all.md").read_text()
     assert "1 pass, 0 fail, 0 unscored" in full
     assert "unprocessed" not in full
+
+
+def _write_report(job: Path, summary: dict) -> None:
+    processed = job / "processed"
+    processed.mkdir(parents=True, exist_ok=True)
+    (processed / "job.json").write_text(
+        json.dumps({"schema": "process-job/v1", "job_name": job.name, "summary": summary}),
+        encoding="utf-8",
+    )
+
+
+def test_index_shows_raw_pass_alongside_counted_exclusion(tmp_path: Path) -> None:
+    """A raw pass excluded as copied_fix is visibly both: raw pass, counted excluded."""
+    from evallab.results_home import _counts_summary
+
+    job = _job(
+        tmp_path,
+        "har131-counted",
+        agent="evallab.harbor_terminus:SecretSafeTerminus2",
+        model="selfhosted/example",
+    )
+    _write_report(
+        job,
+        {
+            "n_pass": 1,
+            "n_fail": 0,
+            "n_unscored": 0,
+            "n_counted_pass": 0,
+            "n_counted_fail": 0,
+            "n_excluded": 1,
+            "excluded_reasons": {"copied_fix": 1},
+        },
+    )
+    home = tmp_path / "results"
+    published = Path(
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
+    )
+    assert _counts_summary(published) == (
+        "0 counted pass, 0 counted fail, 1 excluded (copied_fix: 1)"
+    )
+    for name in ("INDEX.md", "INDEX-all.md"):
+        text = (home / name).read_text()
+        assert "1 pass, 0 fail, 0 unscored" in text
+        assert "0 counted pass, 0 counted fail, 1 excluded (copied_fix: 1)" in text
+    agent_header = next(
+        line for line in (home / "INDEX.md").read_text().splitlines() if line.startswith("| Date")
+    )
+    agent_row = next(
+        line
+        for line in (home / "INDEX.md").read_text().splitlines()
+        if "har131-counted" in line
+    )
+    assert agent_row.count("|") == agent_header.count("|")
+
+
+def test_old_report_without_counts_stays_unknown_never_zero(tmp_path: Path) -> None:
+    """Reports predating counts render unknown, never a fabricated 0."""
+    from evallab.results_home import _counts_summary
+
+    job = _job(tmp_path, "har117-legacy")
+    _write_report(job, {"n_pass": 2, "n_fail": 1, "n_unscored": 0})
+    home = tmp_path / "results"
+    published = Path(
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
+    )
+    assert _counts_summary(published) == "counts unknown"
+    full = (home / "INDEX-all.md").read_text()
+    assert "2 pass, 1 fail, 0 unscored" in full
+    assert "counts unknown" in full
+    row = next(line for line in full.splitlines() if "har117-legacy" in line)
+    assert "0 counted" not in row
+
+
+def test_counts_cell_matches_canonical_multi_trial_summary(tmp_path: Path) -> None:
+    """The INDEX cell echoes the stored summary verbatim, reasons sorted."""
+    from evallab.results_home import _counts_summary
+
+    job = _job(tmp_path, "har117-multi")
+    _write_report(
+        job,
+        {
+            "n_pass": 2,
+            "n_fail": 1,
+            "n_unscored": 1,
+            "n_counted_pass": 1,
+            "n_counted_fail": 1,
+            "n_excluded": 2,
+            "excluded_reasons": {"infra": 1, "copied_fix": 1},
+        },
+    )
+    home = tmp_path / "results"
+    published = Path(
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
+    )
+    assert _counts_summary(published) == (
+        "1 counted pass, 1 counted fail, 2 excluded (copied_fix: 1, infra: 1)"
+    )
+    full = (home / "INDEX-all.md").read_text()
+    assert "1 counted pass, 1 counted fail, 2 excluded (copied_fix: 1, infra: 1)" in full
+
+
+def test_partial_counts_fields_stay_unknown(tmp_path: Path) -> None:
+    """A summary missing any one counted field is unknown, not partial zeros."""
+    from evallab.results_home import _counts_summary
+
+    job = _job(tmp_path, "har117-partial")
+    _write_report(
+        job, {"n_pass": 1, "n_fail": 0, "n_unscored": 0, "n_counted_pass": 1}
+    )
+    home = tmp_path / "results"
+    published = Path(
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)["published"]
+    )
+    assert _counts_summary(published) == "counts unknown"
+    row = next(
+        line
+        for line in (home / "INDEX-all.md").read_text().splitlines()
+        if "har117-partial" in line
+    )
+    assert "counts unknown" in row
+    assert "1 counted pass" not in row
+
+
+def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: Path) -> None:
+    """A custom output_dir + publish shows the new outcome, not stale source processed/."""
+    import shutil
+
+    job = _job(tmp_path, "har117-custom-out")
+    home = tmp_path / "results"
+
+    first = process_job(job, ingest=False, pr_lookup=lambda _commit: None, results_home=home)
+    assert Path(str(first["results_home"])) == home / "2026-09-30" / "HAR-117-har117-custom-out"
+    old_source = json.loads((job / "processed" / "job.json").read_text())
+    assert (old_source["summary"]["n_pass"], old_source["summary"]["n_fail"]) == (1, 0)
+    (job / "processed" / "trial-obsolete.json").write_text('{"reward": 1.0}', encoding="utf-8")
+
+    # New raw outcome: the trial now fails. No manual mirroring into processed/.
+    (job / "trial-one" / "result.json").write_text(
+        json.dumps({"trial_name": "trial-one", "verifier_result": {"rewards": {"reward": 0.0}}}),
+        encoding="utf-8",
+    )
+    custom = tmp_path / "custom-out"
+    custom.mkdir()
+    (custom / "scratch.txt").write_text("analyst scratch, not a report page", encoding="utf-8")
+    second = process_job(
+        job, output_dir=custom, ingest=False, pr_lookup=lambda _commit: None, results_home=home
+    )
+    published = Path(str(second["results_home"]))
+    assert published == Path(str(first["results_home"]))
+
+    fresh = json.loads((published / "processed" / "job.json").read_text())
+    assert (fresh["summary"]["n_pass"], fresh["summary"]["n_fail"]) == (0, 1)
+    fresh_trial = json.loads((published / "processed" / "trial-trial-one.json").read_text())
+    assert fresh_trial["reward"] == 0.0
+    assert "0 pass, 1 fail, 0 unscored" in (home / "INDEX-all.md").read_text(encoding="utf-8")
+
+    # The stale source processed/ is untouched, raw inputs are byte-identical,
+    # and unrelated out-dir contents never reach the published tree.
+    stale = json.loads((job / "processed" / "job.json").read_text())
+    assert (stale["summary"]["n_pass"], stale["summary"]["n_fail"]) == (1, 0)
+    assert (published / "result.json").read_bytes() == (job / "result.json").read_bytes()
+    assert not (published / "processed" / "scratch.txt").exists()
+    assert not (published / "scratch.txt").exists()
+    assert not (published / "processed" / "trial-obsolete.json").exists()
+
+    # Without any source processed/, the fresh custom report still publishes.
+    shutil.rmtree(job / "processed")
+    (job / "trial-one" / "result.json").write_text(
+        json.dumps({"trial_name": "trial-one", "verifier_result": {"rewards": {"reward": 1.0}}}),
+        encoding="utf-8",
+    )
+    third = process_job(
+        job,
+        output_dir=tmp_path / "custom-out-2",
+        ingest=False,
+        pr_lookup=lambda _commit: None,
+        results_home=home,
+    )
+    republished = Path(str(third["results_home"]))
+    assert republished == published
+    latest = json.loads((republished / "processed" / "job.json").read_text())
+    assert (latest["summary"]["n_pass"], latest["summary"]["n_fail"]) == (1, 0)
+    full = (home / "INDEX-all.md").read_text(encoding="utf-8")
+    assert "1 pass, 0 fail, 0 unscored" in full
+    assert "0 pass, 1 fail, 0 unscored" not in full
+
+    # Explicit bad inputs cannot silently fall back to an older snapshot.
+    for invalid in (tmp_path / "missing-reports", republished / "processed"):
+        with pytest.raises(ValueError):
+            publish_job(
+                job, root=home, processed_report_root=invalid, pr_lookup=lambda _commit: None
+            )
+        still_published = json.loads((republished / "processed" / "job.json").read_text())
+        assert still_published["summary"]["n_pass"] == 1
+
+    # Reject a live publication as output before writing a different outcome into it.
+    published_before = (republished / "processed" / "job.json").read_bytes()
+    (job / "trial-one" / "result.json").write_text(
+        json.dumps({"trial_name": "trial-one", "verifier_result": {"rewards": {"reward": 0.0}}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError):
+        process_job(
+            job,
+            output_dir=republished / "processed",
+            ingest=False,
+            pr_lookup=lambda _commit: None,
+            results_home=home,
+        )
+    assert (republished / "processed" / "job.json").read_bytes() == published_before
+
+
+def _spend_job(root: Path, name: str = "har131-session") -> Path:
+    """Job whose native id/spec/commit bind it to the test session receipt."""
+    job = _job(root, name)
+    metadata = json.loads((job / "lab-metadata.json").read_text(encoding="utf-8"))
+    metadata["repository"]["commit"] = "abc123def456"
+    experiment = metadata.get("experiment") or {}
+    experiment["spec_id"] = "spec-A"
+    metadata["experiment"] = experiment
+    (job / "lab-metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
+    spec_path = job / "experiment-spec.json"
+    spec = json.loads(spec_path.read_text(encoding="utf-8"))
+    spec["spec_id"] = "spec-A"
+    spec_path.write_text(json.dumps(spec), encoding="utf-8")
+    return job
+
+
+def _session_receipt(job: Path, receipt_path: Path, *, daytona_a: float | None = 0.1) -> Path:
+    """Two-member unequal-weight session receipt binding ``job`` as spec-A."""
+    metadata_sha = hashlib.sha256((job / "lab-metadata.json").read_bytes()).hexdigest()
+    receipt = {
+        "schema": "evallab.session_spend/v1",
+        "sessions": [
+            {
+                "session_id": "ap-test123",
+                "billing_rows": [
+                    {
+                        "object_id": "ap-test123",
+                        "description": "evallab-test-app",
+                        "environment": "main",
+                        "interval_start": "2026-10-01T00:00:00Z",
+                        "resource": "GPU",
+                        "cost_usd": 1.2,
+                        "resolution": "d",
+                        "reported_at": "2026-10-01T02:23:10Z",
+                    }
+                ],
+                "deployment": {"commit": "abc123def456", "time_deployed": "2026-10-01T00:01:27Z"},
+                "teardown": {
+                    "app": "evallab-test-app",
+                    "recorded_at": "2026-10-01T01:45:38Z",
+                    "completed_spec_ids": ["spec-A", "spec-B"],
+                },
+                "members": [
+                    {
+                        "job_id": "job-1",
+                        "job_name": job.name,
+                        "spec_id": "spec-A",
+                        "repository_commit": "abc123def456",
+                        "lab_metadata_sha256": metadata_sha,
+                        "trial_wall_seconds": 100.0,
+                        "daytona_estimate_usd": daytona_a,
+                    },
+                    {
+                        "job_id": "job-2",
+                        "job_name": "other-job",
+                        "spec_id": "spec-B",
+                        "repository_commit": "abc123def456",
+                        "lab_metadata_sha256": "0" * 64,
+                        "trial_wall_seconds": 300.0,
+                        "daytona_estimate_usd": 0.2,
+                    },
+                ],
+            }
+        ],
+    }
+    receipt_path.write_text(json.dumps(receipt), encoding="utf-8")
+    return receipt_path
+
+
+def test_session_spend_allocation_replaces_legacy_spend_in_report_and_index(
+    tmp_path: Path,
+) -> None:
+    """An explicit receipt stores the real allocation and prefers it on pages + INDEX."""
+    from evallab.spend_day import session_spend_for_job
+
+    job = _spend_job(tmp_path)
+    home = tmp_path / "results"
+    receipt = _session_receipt(job, tmp_path / "receipt.json")
+    expected = session_spend_for_job(job.resolve(), receipt)
+    assert expected["modal_allocated_usd"] == pytest.approx(0.3)
+    assert expected["daytona_estimate_usd"] == 0.1
+    assert expected["total_usd"] == pytest.approx(0.4)
+
+    baseline = process_job(job, output_dir=tmp_path / "base-out", ingest=False, publish=False)
+    report = process_job(
+        job,
+        ingest=False,
+        pr_lookup=lambda _commit: None,
+        results_home=home,
+        session_spend=receipt,
+    )
+    assert report["summary"]["session_spend"] == expected
+    # Settled proxy cost/tokens are untouched by the allocation.
+    assert report["summary"]["cost_usd"] == baseline["summary"]["cost_usd"]
+    assert report["summary"]["tokens_used"] == baseline["summary"]["tokens_used"]
+    published = Path(str(report["results_home"]))
+    saved = json.loads((published / "processed" / "job.json").read_text(encoding="utf-8"))
+    assert saved["summary"]["session_spend"] == expected
+    # Job-scope only: the allocation never becomes a per-trial GPU share.
+    saved_trial = json.loads(
+        (published / "processed" / "trial-trial-one.json").read_text(encoding="utf-8")
+    )
+    assert "session_spend" not in saved_trial
+    markdown = (published / "processed" / "job.md").read_text(encoding="utf-8")
+    assert "$0.4000" in markdown
+    assert "$0.3000" in markdown
+    assert "$0.4000" in (home / "INDEX-all.md").read_text(encoding="utf-8")
+
+    # Unknown Daytona renders the GPU share plus unknown sandbox, never a
+    # full total and never the legacy wall-time estimate.
+    unknown_receipt = _session_receipt(job, tmp_path / "receipt-unknown.json", daytona_a=None)
+    rerun = process_job(
+        job,
+        ingest=False,
+        pr_lookup=lambda _commit: None,
+        results_home=home,
+        session_spend=unknown_receipt,
+    )
+    assert rerun["summary"]["session_spend"]["total_usd"] is None
+    assert rerun["summary"]["session_spend"]["daytona_estimate_usd"] is None
+    assert rerun["summary"]["session_spend"]["reason"] is not None
+    full = (home / "INDEX-all.md").read_text(encoding="utf-8")
+    row = next(line for line in full.splitlines() if "har131-session" in line)
+    assert "$0.3000" in row and "unknown" in row
+    assert "$0.4000" not in full
+    remarked = (published / "processed" / "job.md").read_text(encoding="utf-8")
+    assert "$0.3000" in remarked
+    assert "$0.4000" not in remarked
+
+
+def test_invalid_session_spend_receipt_preserves_existing_publication(
+    tmp_path: Path,
+) -> None:
+    """A stale receipt fails before the previous publication is replaced."""
+    job = _spend_job(tmp_path, "har131-stale")
+    home = tmp_path / "results"
+    first = process_job(job, ingest=False, pr_lookup=lambda _commit: None, results_home=home)
+    published = Path(str(first["results_home"]))
+    baseline_report = (published / "processed" / "job.json").read_bytes()
+    baseline_index = (home / "INDEX-all.md").read_bytes()
+    baseline_source = (job / "processed" / "job.json").read_bytes()
+    assert "session_spend" not in json.loads(baseline_report.decode())["summary"]
+
+    stale = _session_receipt(job, tmp_path / "stale-receipt.json")
+    payload = json.loads(stale.read_text(encoding="utf-8"))
+    payload["sessions"][0]["members"][0]["repository_commit"] = "stale000commit"
+    stale.write_text(json.dumps(payload), encoding="utf-8")
+    with pytest.raises(ValueError):
+        process_job(
+            job,
+            ingest=False,
+            pr_lookup=lambda _commit: None,
+            results_home=home,
+            session_spend=stale,
+        )
+    assert (published / "processed" / "job.json").read_bytes() == baseline_report
+    assert (home / "INDEX-all.md").read_bytes() == baseline_index
+    assert (job / "processed" / "job.json").read_bytes() == baseline_source
+
+
+def test_process_job_without_receipt_leaves_spend_untouched(tmp_path: Path) -> None:
+    """Default runs keep the legacy spend path and never touch raw inputs."""
+    job = _job(tmp_path, "har131-default")
+    raw = [
+        job / "result.json",
+        job / "config.json",
+        job / "lab-metadata.json",
+        job / "trial-one" / "result.json",
+    ]
+    before = [path.read_bytes() for path in raw]
+    report = process_job(job, output_dir=tmp_path / "out", ingest=False, publish=False)
+    assert "session_spend" not in report["summary"]
+    for path, content in zip(raw, before, strict=True):
+        assert path.read_bytes() == content

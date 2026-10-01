@@ -1,0 +1,14 @@
+{
+ "stop_reason": "request_ceiling",
+ "stop_evidence": "[M173] \"38:    results = doctest.testmod()\" \u2014 final frame, no completion handshake; run record: TrialBudgetExhaustedError after 87 episodes.",
+ "first_failure_is_pass": false,
+ "first_failure_what": "M30 appended the redlock decorator (after the __main__ guard) with a doctest referencing an undefined `redis` global; the doctest failed at M121 (\"NameError: name 'redis' is not defined\", \"TestResults(failed=2, attempted=85)\") and was never fixed.",
+ "first_failure_evidence": "[M30] \">>> @redlock(key='printer', masters={redis}, auto_release_time=15*1000)\"",
+ "blame": "model",
+ "blame_evidence": "[M122] \"The doctest uses `redis` which isn't defined in the doctest namespace.\"",
+ "loop_kind": "repetition",
+ "loop_start_evidence": "[M122] \"The doctest uses `redis` which isn't defined in the doctest namespace.\"",
+ "loop_end_evidence": "[M172] \"grep -rn \\\"doctest\\|redis\\\" /testbed/tests/test_doctests.py; echo \\\"===\\\"; grep -rn \\\"doctest\\|redis\\\" /testbed/tests/base.py\"",
+ "upstream_fetch": false,
+ "upstream_evidence": "none observed; every edit was typed in place ([M30] heredoc; [M32], [M34] Python edit scripts); no pip/curl/git/download appears in the transcript."
+}

@@ -1,0 +1,14 @@
+{
+ "stop_reason": "request_ceiling",
+ "stop_evidence": "[M216] \"src/docformatter/configuration.py:192:            \\\"--wrap-descriptions\\\",\"",
+ "first_failure_is_pass": false,
+ "first_failure_what": "Inserted a broken do_find_structured_regions helper with dead block-expansion logic; the real wrap-structured formatting path was never implemented or wired into format.py.",
+ "first_failure_evidence": "[M92] \"def do_find_structured_regions(text: str) -> List[Tuple[int, int]]:\"",
+ "blame": "model",
+ "blame_evidence": "[M159] \"cd /testbed && grep -n \\\"wrap-descriptions\\\" src/docformatter/configuration.py\"",
+ "loop_kind": "repetition",
+ "loop_start_evidence": "[M159] \"cd /testbed && grep -n \\\"wrap-descriptions\\\" src/docformatter/configuration.py\"",
+ "loop_end_evidence": "[M215] \"grep -n \\\"wrap-descriptions\\\" src/docformatter/configuration.py\"",
+ "upstream_fetch": false,
+ "upstream_evidence": "none observed"
+}

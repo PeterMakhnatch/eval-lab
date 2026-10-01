@@ -1,8 +1,8 @@
 """HAR-116 results builder: per-run results.jsonl from finished runs only.
 
 Reads the finished HAR-116 trial directories (read-only) and emits one JSON
-row per run with reward, upstream-fetch flags, tokens, calls, stop reason,
-loop-break detail, loop kind, and fetch/bypass quotes. No new trials.
+row per run with reward, upstream-fetch flags, native Harbor tokens, calls,
+stop reason, loop-break detail, loop kind, and fetch/bypass quotes. No new trials.
 
 Usage (from the repo root):
     uv run --no-sync python research/experiments/har116-loopfix-leak/build_results.py
@@ -249,6 +249,19 @@ def build_row(job: str, part: str, task: str, arm: str) -> dict:
         return row
     row["trial"] = trial_dir.name
 
+    # These historical rows use native Harbor totals, not the proxy ledger.
+    try:
+        result = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        row["missing"].append(f"native result unreadable: {exc}")
+    else:
+        native = result.get("agent_result") if isinstance(result, dict) else None
+        if isinstance(native, dict):
+            row["input_tokens"] = native.get("n_input_tokens")
+            row["output_tokens"] = native.get("n_output_tokens")
+        if row["input_tokens"] is None or row["output_tokens"] is None:
+            row["missing"].append("native token totals unavailable")
+
     exc_path = trial_dir / "exception.txt"
     if exc_path.is_file():
         text = exc_path.read_text(encoding="utf-8", errors="replace").strip()
@@ -266,9 +279,6 @@ def build_row(job: str, part: str, task: str, arm: str) -> dict:
         row["missing"].append(problem)
     else:
         row["stop_processed"] = processed.get("stop_reason")
-        tokens = processed.get("tokens_proxy") or {}
-        row["input_tokens"] = tokens.get("input_tokens")
-        row["output_tokens"] = tokens.get("output_tokens")
         row["calls"] = processed.get("agent_steps")
         row["wall_hours"] = processed.get("trial_wall_hours")
         flow = processed.get("token_flow") or {}

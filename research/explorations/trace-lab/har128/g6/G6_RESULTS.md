@@ -5,7 +5,8 @@ This follows `../G6_PLAN.md`, which was written before G5 ran. It is descriptive
 ## How it was done
 
 - **Blinding.** Each of the 60 G5 cells was turned into an arm-stripped pack under `~/Developer/eval-lab/derived/trace-lab/har128-g6/packs/` and given a random id `g6-NN`.
-  - Removed: the job and trial names, the model id (`:har129`), the GEPA addendum (deleted from the first prompt; first prompts then matched across all three arms of every task), timestamps, agent metadata and `trial.log`.
+  - Removed: the job and trial names, the model id (`:har129`), the GEPA addendum (deleted from the first prompt), timestamps, agent metadata and `trial.log`.
+  - First prompts still differ across arms on all 20 tasks, but only in the sandbox hostname (a container UUID). With UUIDs masked, all three arms' first prompts are identical on all 20 tasks. *(Corrected: the first version said they matched, but it had only compared lengths.)*
   - A token scan of the packs found 0 hits.
 - **Labels.** Two blind raters labelled every pack under `RATER_GUIDE_v2.md`.
 - **Metrics.** Deterministic metrics were computed per id by `g6_metrics.py`.
@@ -17,13 +18,15 @@ This follows `../G6_PLAN.md`, which was written before G5 ran. It is descriptive
 
 Per-arm medians and paired differences are in `G6_TABLES.md`. Main points:
 
-- **Counted passes:**
-  - stock 2/17, tuned 1/19, GEPA 3/19;
-  - **genuine passes: stock 2, tuned 0, GEPA 3.** Tuned's only counted pass is copied (see 000169 below).
+- **Passes:**
+  - **counts verdict (`counted_pass`):** stock 2/17, tuned 1/19, GEPA 3/19;
+  - **the two blind raters' judgement of genuine (not copied) passes:** stock 2/17, tuned 0/19, GEPA 3/19. Both raters judge tuned's one counted pass as copied (see 000169 below); counts does not.
 - **Most cells end on the token cap, in every arm:** 13/17, 12/19 and 15/19. Median tokens are about 2.44–2.46M of the 2.5M cap in every arm. These runs exhaust the budget whatever the arm.
-- **GEPA edits later.** The median first repo edit is at step 24 [13–53], against 13 [10–22] for stock and 14 for tuned. The paired GEPA − stock difference is +7.5 steps (n = 10).
-  - Fewer GEPA runs never edit: 2/19, against stock 4/17 and tuned 4/19.
-  - GEPA runs spend fewer input tokens after their last edit: median 0.70M, against stock 1.17M.
+- **Withdrawn: "GEPA edits later".** This also withdraws the `first_edit_step`, `never_edited` and `tokens_after_last_edit_input` rows of `G6_TABLES.md`.
+  - The first-edit metric reuses `token_flow._is_edit`, the same detector as `last_useful_edit`. That detector reads `>` inside awk programs (`awk 'NR>=125 && NR<=240' file`) as a write redirect.
+  - At least 17 of the 45 detected "first edits" are read-only `awk 'NR>=…'` commands, across all three arms (e.g. g6-02 step 6, g6-13 step 11, g6-59 step 6).
+  - The edit-timing numbers are therefore not measurements of editing. A metric invented after the freeze would not be pre-registered, so I am not recomputing it here.
+  - The detector defect also affects Eval Lab's `last_useful_edit`, `tokens_after_last_edit` and its `bad_edit` first-failure, which can name an awk read as the "first repo edit". For example, the G2 attempt-1 raw report for 000803 has `first repo edit (=1,, =40, =80)`. [INFERENCE] This is part of why Eval Lab scores low on first failure.
 - **Tuned finishes on its own more often:**
   - model_finished 3/19, against stock 0/17;
   - confirmed completion handshakes 3, against 0 for stock;
@@ -34,7 +37,8 @@ Per-arm medians and paired differences are in `G6_TABLES.md`. Main points:
   - 001355: the fallback returns LOW_CONFIDENCE even when the label is unchanged (8/9);
   - 000842: `Activities.get` has no `mine` parameter (9/10).
 - **Loops (agreed labels):** repetition loops stock 9, tuned 6, GEPA 8; completion-claim loops 3, 3, 4. The GEPA addendum targets exactly these two behaviours, and on 19 cells it does not visibly reduce either.
-- **Flat metrics:** `loop_suspicion_score` is 0 for all 55 cells and `unparseable` is 0 throughout. These two metrics carry no signal on this cohort.
+- **Flat metric:** `loop_suspicion_score` is 0 for all 55 cells, so it carries no signal on this cohort.
+- **Unparseable replies:** `unparseable` is nonzero on 8 of 55 cells (stock 3, tuned 3, GEPA 2). The median is 0 in every arm. *(Corrected: the first version said it was 0 throughout.)*
 
 ## Every task where pass/fail differs
 

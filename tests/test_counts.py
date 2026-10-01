@@ -8,7 +8,13 @@ from pathlib import Path
 
 import pytest
 
-from evallab.counts import attach_counts, classify_counts, find_label_root, task_index_for, usability
+from evallab.counts import (
+    attach_counts,
+    classify_counts,
+    find_label_root,
+    task_index_for,
+    usability,
+)
 from evallab.process_job import _process_trial
 
 REPO = find_label_root(Path(__file__))

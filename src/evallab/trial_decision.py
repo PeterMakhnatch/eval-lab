@@ -114,13 +114,8 @@ def build_decision(
         taint_status = "not_a_pass"
     edit = (token_flow or {}).get("last_useful_edit") if isinstance(token_flow, dict) else None
     edit = edit if isinstance(edit, dict) else None
-    # Negative nop evidence needs verifier-side records: agent-only
-    # trajectories never show whether setup failed, so without the
-    # verifier result the shape stays unknown.
-    has_verifier_records = trial.is_dir() and (trial / "verifier" / "result.json").is_file()
     nop = _nop_same_crash(
-        grader_evidence if isinstance(grader_evidence, dict) else None,
-        has_verifier_records=has_verifier_records,
+        grader_evidence if isinstance(grader_evidence, dict) else None
     )
     fetched = _fetched_fix(fetches)
     loop = classify_loop_kind(trial, stop_reason, token_flow if isinstance(token_flow, dict) else None)
@@ -391,7 +386,10 @@ def render_decision_markdown(decision: dict[str, Any] | None) -> list[str]:
         f"- Calls: `{facts.get('calls')}`.",
         (
             f"- Tokens: input `{tokens.get('input_tokens')}`, "
-            f"output `{tokens.get('output_tokens')}`."
+            f"output `{tokens.get('output_tokens')}`; "
+            f"source `{tokens.get('source') or 'unknown'}`, "
+            f"attribution `{tokens.get('attribution') or 'unknown'}`"
+            + (f"; {tokens['reason']}." if tokens.get("reason") else ".")
             if isinstance(tokens, dict)
             else "- Tokens: not on the record."
         ),
@@ -629,25 +627,11 @@ def _taint_reasons(fetches: list[dict[str, Any]], guards: list[dict[str, Any]]) 
     return reasons
 
 
-def _nop_same_crash(
-    grader_evidence: dict[str, Any] | None, *, has_verifier_records: bool = False
-) -> dict[str, Any]:
+def _nop_same_crash(grader_evidence: dict[str, Any] | None) -> dict[str, Any]:
     if not grader_evidence:
-        if not has_verifier_records:
-            return {
-                "answer": "unknown",
-                "reason": (
-                    "No verifier records were readable, so the setup/import shape "
-                    "is unconfirmed; agent-only trajectories never show it."
-                ),
-                "nop_trial": None,
-            }
         return {
-            "answer": "not_this_shape",
-            "reason": (
-                "Probe-03 recorded no setup/import crash evidence on the readable "
-                "verifier records, so a same-crash comparison does not apply."
-            ),
+            "answer": "unknown",
+            "reason": "No same-task nop crash comparison was recorded.",
             "nop_trial": None,
         }
     confirm = grader_evidence.get("nop_control_confirms")

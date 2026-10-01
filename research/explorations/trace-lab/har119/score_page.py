@@ -240,7 +240,7 @@ def main() -> int:
         "excluded_rater_disagreement": 12 - len({trial for trial, _ in agreed if _ == "loop_kind"}),
         "abstentions": 0,
         "page_vs_loop_rule_kind": {"agree": rule_hits, "n": 12},
-        "generated_at": _datetime.datetime.now(_datetime.timezone.utc).isoformat(),
+        "generated_at": _datetime.datetime.now(_datetime.UTC).isoformat(),
         "page_rows": page_rows,
     }
     (HERE / "page_scores.json").write_text(json.dumps(payload, indent=2, default=str) + "\n")

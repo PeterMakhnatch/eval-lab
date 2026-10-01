@@ -27,6 +27,11 @@ beyond wiring:
   library (``discover_trajectory_parts`` + ``stitch_steps`` +
   ``coverage_record``). Token sums and step counts here come from its
   stitched unique steps.
+* proxy usage: ``tokens_proxy`` comes only from the validated, settled
+  ledger, never Harbor's native totals. A job-level ledger is attributable
+  to a trial only when the job has exactly one trial; otherwise trial
+  usage stays unknown. ``tokens_native`` preserves Harbor's independent
+  counters, and ``tokens_steps`` remains the stitched-step sum.
 * detectors: :func:`evallab.trial_diagnosis.diagnose_trial` (failure-mode
   taxonomy), :func:`evallab.traj.outline_trajectory` (loop suspicion,
   error counts), and :mod:`evallab.probe03` (Traces probe-03 first-failure
@@ -349,7 +354,7 @@ def _process_trial(
     else:
         taint = []
 
-    # Stop reason / tokens / proxy totals from the probe-03 analysis.
+    # Stop reason and behavioral findings from the probe-03 analysis.
     if analysis is not None:
         stop_reason = analysis["stop_reason"]
         first_failure = analysis["first_failure"]
@@ -371,10 +376,6 @@ def _process_trial(
             for run in analysis["runs"]
         ]
         secondaries = list(analysis["secondaries"])
-        tokens_proxy = {
-            "input_tokens": analysis["tokens_result"]["input"],
-            "output_tokens": analysis["tokens_result"]["output"],
-        }
         shape_counts = dict(analysis["shape_counts"])
         acceptance = {
             "counts": dict(analysis["acc_counts"]),
@@ -403,7 +404,6 @@ def _process_trial(
         wedge = None
         identical = []
         secondaries = []
-        tokens_proxy = {"input_tokens": None, "output_tokens": None}
         shape_counts = {}
         acceptance = {}
         rejection_causes = {}
@@ -430,8 +430,13 @@ def _process_trial(
         "reward_source": reward_source,
         "stop_reason": stop_reason,
         "tokens_steps": tokens_steps,
-        "tokens_proxy": tokens_proxy,
-        "tokens_attempted_proxy": None,  # filled at job level (ledger split)
+        "tokens_native": {
+            "input_tokens": agent_result.get("n_input_tokens"),
+            "output_tokens": agent_result.get("n_output_tokens"),
+            "source": "result.json#agent_result",
+        },
+        "tokens_proxy": None,  # attached once the job ledger's scope is known
+        "tokens_attempted_proxy": None,  # attributable ledger ceiling, never a split
         "cost_usd": None,  # filled at job level (ledger split)
         "cost_attempted_usd": None,  # filled at job level (ledger split)
         "cost_source": "proxy_ledger_x_pinned_price",
@@ -676,18 +681,16 @@ def _counts_line(record: dict[str, Any]) -> str:
 
 def _tokens_line(record: dict[str, Any]) -> str:
     steps = record.get("tokens_steps") or {}
+    native = record.get("tokens_native") or {}
     proxy = record.get("tokens_proxy") or {}
-    used = steps.get("total_tokens")
-    attempted = record.get("tokens_attempted_proxy")
     return (
-        f"- tokens: used `{used}` (steps sum"
-        + (
-            f" {steps.get('prompt_tokens')}/{steps.get('completion_tokens')}"
-            if used is not None
-            else f"; {steps.get('reason')}"
-        )
-        + f"; proxy {proxy.get('input_tokens')}/{proxy.get('output_tokens')})"
-        f" vs attempted `{attempted}` (ledger split)"
+        f"- tokens: step sum `{steps.get('total_tokens')}` "
+        f"({steps.get('prompt_tokens')}/{steps.get('completion_tokens')}); "
+        f"Harbor native `{native.get('input_tokens')}/{native.get('output_tokens')}`; "
+        f"proxy-settled `{proxy.get('input_tokens')}/{proxy.get('output_tokens')}` "
+        f"({proxy.get('attribution')}; {proxy.get('reason') or proxy.get('path')}); "
+        f"attempted ceiling `{record.get('tokens_attempted_proxy')}` "
+        "(settled usage plus unresolved reservations; same attribution)"
     )
 
 
@@ -725,6 +728,35 @@ def _job_ledger_block(job_dir: Path) -> dict[str, Any]:
         except ValueError as exc:
             totals = {"error": f"proxy ledger unreadable: {exc}"}
     return {"block": block, "totals": totals}
+
+
+def _trial_proxy_tokens(totals: dict[str, Any], n_trials: int) -> dict[str, Any]:
+    """Attribute settled job usage without pretending it was metered per trial."""
+    tokens: dict[str, Any] = {
+        "input_tokens": None,
+        "output_tokens": None,
+        "total_tokens": None,
+        "source": "proxy_settled_ledger",
+        "path": "lab-metadata.json#provider_usage",
+        "scope": "job",
+        "attribution": "unavailable",
+        "reason": None,
+    }
+    used = totals.get("used")
+    if not isinstance(used, dict):
+        tokens["reason"] = totals.get("error") or "proxy ledger missing"
+    elif n_trials != 1:
+        tokens["reason"] = (
+            f"job ledger covers {n_trials} trials without per-trial attribution"
+        )
+    else:
+        tokens.update(
+            input_tokens=used["input_tokens"],
+            output_tokens=used["output_tokens"],
+            total_tokens=used["total_tokens"],
+            attribution="single_trial",
+        )
+    return tokens
 
 
 def _selfhosted_estimate(
@@ -772,8 +804,8 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"fail {summary.get('n_counted_fail')}, "
         f"excluded {summary.get('n_excluded')} ({summary.get('excluded_reasons') or {}})",
         f"- stop reasons: {summary.get('stop_reasons') or 'none'}",
-        f"- tokens: used `{summary.get('tokens_used')}` "
-        f"vs attempted `{summary.get('tokens_attempted')}`",
+        f"- tokens: step-sum used `{summary.get('tokens_used')}` "
+        f"vs attributable attempted ceiling `{summary.get('tokens_attempted')}`",
         f"- cost: `{summary.get('cost_usd')}` ({summary.get('cost_source')})"
         + (
             f"; self-hosted time estimate `${summary.get('cost_estimate_usd', 0):.4f}`"
@@ -822,7 +854,7 @@ def process_job(
     out_dir = Path(output_dir).resolve() if output_dir is not None else job_path / "processed"
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_root = Path(root).resolve() if root is not None else job_path.parent
-    from evallab.counts import attach_counts, find_label_root, summarize_counts
+    from evallab.counts import find_label_root, summarize_counts
 
     label_root = find_label_root(repo_root) or find_label_root(job_path)
 
@@ -842,6 +874,7 @@ def process_job(
     for trial_path in trials:
         record = _process_trial(trial_path, job_path, nop_runs_dir=nop_runs_dir)
         trial_result = _read_json(trial_path / "result.json") or {}
+        record["tokens_proxy"] = _trial_proxy_tokens(totals, len(trials))
         # Job ledger split across trials (same convention as
         # database.trial_cost_columns: daily sums still equal the ledger).
         record["cost_usd"] = job_cost / n_trials if isinstance(job_cost, (int, float)) else None
@@ -849,20 +882,20 @@ def process_job(
             job_attempted / n_trials if isinstance(job_attempted, (int, float)) else None
         )
         record["cost_reason"] = block.get("reason")
-        # Attempted (ceiling footprint): settled used tokens plus the
-        # unresolved-reservation extra, split across trials. The gate spends
-        # used + attempted; a fully reconciled job attempts what it used.
+        # Attempted ceiling includes settled usage and unresolved reservations.
+        # Like settled tokens, a job ledger is attributable only for one trial.
         used_input = (totals.get("used") or {}).get("input_tokens")
         used_output = (totals.get("used") or {}).get("output_tokens")
         if (
-            isinstance(used_input, int)
+            n_trials == 1
+            and isinstance(used_input, int)
             and isinstance(used_output, int)
             and isinstance(attempted_input, int)
             and isinstance(attempted_output, int)
         ):
             record["tokens_attempted_proxy"] = (
                 used_input + used_output + attempted_input + attempted_output
-            ) // n_trials
+            )
         estimate, estimate_reason = _selfhosted_estimate(record, trial_result)
         record["cost_estimate_usd"] = estimate
         record["cost_estimate_reason"] = (

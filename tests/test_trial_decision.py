@@ -111,9 +111,8 @@ def test_page_keeps_grader_alignment_as_opinion(tmp_path: Path) -> None:
     assert "unjudged" in (decision["fetched_fix"]["note"] or "")
     assert decision["pass_tainted"]["flagged"] is False
     assert decision["pass_tainted"]["status"] == "not_a_pass"
-    # Records are readable and show no setup/import crash: negative
-    # evidence, not absent data.
-    assert decision["facts"]["nop_same_crash"]["answer"] == "not_this_shape"
+    # Verifier output alone says nothing about an unobserved nop control.
+    assert decision["facts"]["nop_same_crash"]["answer"] == "unknown"
     # Legacy counts carry no task_status: usability stays unknown, never
     # inferred, and the verdict still renders with its reasons.
     assert decision["counts"]["verdict"] == "counted_fail"

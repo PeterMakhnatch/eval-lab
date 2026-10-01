@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from evallab.process_job import process_job
 
 MESSAGE = json.dumps({"analysis": "", "plan": "", "commands": [{"keystrokes": "echo stuck"}]})
@@ -172,3 +174,78 @@ def test_process_job_decision_renders_counts_single_path(tmp_path: Path) -> None
     assert record["decision"] is None
 
 
+
+def _har116_usage_fixture() -> dict:
+    path = Path(__file__).parent / "fixtures/process_job/har116-001181-token-ledger.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_har116_proxy_tokens_include_usage_missing_from_native_totals(tmp_path: Path) -> None:
+    fixture = _har116_usage_fixture()
+    job = tmp_path / fixture["source"]["job"]
+    job.mkdir()
+    trial = _write_trial(
+        job, fixture["source"]["trial"], n_loop=1, reward=0.0, ceiling=True
+    )
+    result_path = trial / "result.json"
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    result["agent_result"] = fixture["agent_result"]
+    result_path.write_text(json.dumps(result), encoding="utf-8")
+    (job / "lab-metadata.json").write_text(
+        json.dumps({"provider_usage": fixture["provider_usage"]}), encoding="utf-8"
+    )
+
+    out = tmp_path / "out"
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
+    saved = json.loads((out / f"trial-{trial.name}.json").read_text(encoding="utf-8"))
+    assert saved["tokens_native"]["input_tokens"] == 2_410_295
+    assert saved["tokens_native"]["output_tokens"] == 7_444
+    assert saved["tokens_proxy"]["input_tokens"] == 2_423_707
+    assert saved["tokens_proxy"]["output_tokens"] == 11_540
+    assert saved["tokens_proxy"]["total_tokens"] == 2_435_247
+    assert saved["tokens_proxy"]["source"] == "proxy_settled_ledger"
+    assert saved["tokens_proxy"]["scope"] == "job"
+    assert saved["tokens_proxy"]["attribution"] == "single_trial"
+    assert saved["decision"]["facts"]["tokens"]["input_tokens"] == 2_423_707
+    assert saved["decision"]["facts"]["tokens"]["output_tokens"] == 11_540
+    assert saved["tokens_attempted_proxy"] == 2_435_247
+    assert report["ledger"]["totals"]["used"]["requests"] == 89
+
+
+def test_job_ledger_does_not_invent_per_trial_token_allocations(tmp_path: Path) -> None:
+    job = _job(tmp_path)
+    (job / "lab-metadata.json").write_text(
+        json.dumps({"provider_usage": _har116_usage_fixture()["provider_usage"]}),
+        encoding="utf-8",
+    )
+    out = tmp_path / "out"
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
+    assert report["ledger"]["totals"]["used"]["input_tokens"] == 2_423_707
+    assert report["ledger"]["totals"]["used"]["output_tokens"] == 11_540
+    for name in ("trial-loop", "trial-pass"):
+        saved = json.loads((out / f"trial-{name}.json").read_text(encoding="utf-8"))
+        assert saved["tokens_proxy"]["input_tokens"] is None
+        assert saved["tokens_proxy"]["output_tokens"] is None
+        assert saved["tokens_proxy"]["attribution"] == "unavailable"
+        assert saved["tokens_attempted_proxy"] is None
+        assert saved["decision"]["facts"]["tokens"]["input_tokens"] is None
+
+
+@pytest.mark.parametrize("provider_usage", [None, {}])
+def test_unavailable_ledger_never_falls_back_to_native_tokens(
+    tmp_path: Path, provider_usage: dict | None
+) -> None:
+    job = tmp_path / "job"
+    job.mkdir()
+    trial = _write_trial(job, "trial-native-only", n_loop=1, reward=0.0, ceiling=True)
+    (job / "lab-metadata.json").write_text(
+        json.dumps({"provider_usage": provider_usage}), encoding="utf-8"
+    )
+    out = tmp_path / "out"
+    process_job(job, output_dir=out, ingest=False, publish=False)
+    saved = json.loads((out / f"trial-{trial.name}.json").read_text(encoding="utf-8"))
+    assert saved["tokens_native"]["input_tokens"] == 1001
+    assert saved["tokens_proxy"]["input_tokens"] is None
+    assert saved["tokens_proxy"]["output_tokens"] is None
+    assert saved["tokens_attempted_proxy"] is None
+    assert saved["decision"]["facts"]["tokens"]["input_tokens"] is None

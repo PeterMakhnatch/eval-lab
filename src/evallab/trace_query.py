@@ -353,6 +353,66 @@ def _load_frozen_labels(
         har119_report["manifest"] = "missing"
     verification["har119"] = har119_report
 
+    # 1b. HAR-128 part 2 HAR-116 rater labels: a distinct cohort, never pooled
+    # with HAR-119. Same frozen-agent rater identities (rater_a/rater_b) and
+    # top-level loop fields, but cohort stays "har128-har116" so per-cohort
+    # agreement cannot silently merge cross-cohort votes. Labels are
+    # inspection-only, including globally heldout trials; nothing here may be
+    # reinterpreted as training reflection.
+    har128_dir = (
+        repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_har116"
+    )
+    har128_manifest = har128_dir / "MANIFEST.sha256"
+    har128_report: dict[str, Any] = {"verified": 0, "failed": [], "manifest": None}
+    if har128_manifest.is_file():
+        manifest_hashes["har128-har116"] = _file_sha256(har128_manifest)
+        har128_report["manifest"] = str(har128_manifest.relative_to(repo_root))
+        labels_base_128 = har128_dir
+        expected_128 = _parse_sha_manifest(har128_manifest, labels_base_128)
+        if not expected_128:
+            raise ValueError(f"Empty frozen-label freeze claims no labels: {har128_manifest}")
+        consumed_128: set[str] = set()
+        for rater in ("rater_a", "rater_b"):
+            rater_dir = labels_base_128 / rater
+            if not rater_dir.is_dir():
+                continue
+            for label_file in sorted(rater_dir.glob("*.json")):
+                rel = f"{rater}/{label_file.name}"
+                digest = _file_sha256(label_file)
+                if expected_128.get(rel) != digest:
+                    har128_report["failed"].append(rel)
+                    continue
+                trial_name = label_file.stem
+                data = _safe_read_json(label_file)
+                if not data:
+                    har128_report["failed"].append(rel)
+                    continue
+                har128_report["verified"] += 1
+                consumed_128.add(rel)
+                entry = {
+                    "cohort": "har128-har116",
+                    "rater": rater,
+                    "trial_name": trial_name,
+                    "blame": data.get("blame"),
+                    "blame_confidence": data.get("blame_confidence"),
+                    "first_failure": data.get("first_failure"),
+                    "loop_kind": data.get("loop_kind"),
+                    "stop_reason": data.get("stop_reason"),
+                    "pass_copied": data.get("pass_copied"),
+                    "provenance": "agent_rater",
+                    "source_file": str(label_file.relative_to(repo_root)),
+                    "source_sha256": digest,
+                }
+                labels_by_trial.setdefault(trial_name, []).append(entry)
+        unloaded = sorted(set(expected_128) - consumed_128)
+        if unloaded:
+            raise ValueError(
+                f"Frozen-label manifest members never loaded as rater labels: {unloaded}"
+            )
+    else:
+        har128_report["manifest"] = "missing"
+    verification["har128-har116"] = har128_report
+
     # 2. HAR-109 hand labels
     har109_dir = repo_root / "research" / "explorations" / "trace-lab" / "har109"
     har109_manifest = har109_dir / "hand_labels.sha256"

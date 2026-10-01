@@ -548,3 +548,109 @@ def test_first_edit_reader_accepts_explicit_job_outside_data_checkout(tmp_path: 
         assert step == 1
     finally:
         con.close()
+
+
+def _write_rater_freeze(repo_root: Path, rel_dir: str, files: dict) -> Path:
+    """Write rater_a/rater_b label files plus a matching MANIFEST.sha256."""
+    base = repo_root / rel_dir
+    lines = []
+    for rel, payload in sorted(files.items()):
+        target = base / rel
+        target.parent.mkdir(parents=True, exist_ok=True)
+        body = json.dumps(payload)
+        target.write_text(body, encoding="utf-8")
+        lines.append(f"{hashlib.sha256(body.encode()).hexdigest()}  {rel}\n")
+    (base / "MANIFEST.sha256").write_text("".join(lines), encoding="utf-8")
+    return base
+
+
+def test_har128_har116_cohort_loads_distinct_from_har119(tmp_path: Path) -> None:
+    """Same native trial in both rater cohorts yields four entries, never pooled."""
+    trial = "trial_shared"
+    job = tmp_path / "job_shared"
+    _create_minimal_trial(job, trial)
+    _write_rater_freeze(
+        tmp_path,
+        "research/explorations/trace-lab/har119/labels",
+        {
+            f"{rater}/{trial}.json": {"loop_kind": "none", "trial": trial}
+            for rater in ("rater_a", "rater_b")
+        },
+    )
+    _write_rater_freeze(
+        tmp_path,
+        "research/explorations/trace-lab/har128/labels_har116",
+        {
+            f"{rater}/{trial}.json": {"loop_kind": "repetition", "trial": trial}
+            for rater in ("rater_a", "rater_b")
+        },
+    )
+    con, coverage = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+    try:
+        (labels_json,) = con.execute("SELECT labels_json FROM v_trace_trials").fetchone()
+        entries = json.loads(labels_json)
+        assert len(entries) == 4
+        by_cohort: dict = {}
+        for entry in entries:
+            by_cohort.setdefault(entry["cohort"], []).append(entry)
+        assert sorted(by_cohort) == ["har119", "har128-har116"]
+        for cohort_entries in by_cohort.values():
+            assert sorted(e["rater"] for e in cohort_entries) == ["rater_a", "rater_b"]
+            assert {e["provenance"] for e in cohort_entries} == {"agent_rater"}
+            assert all(e["trial_name"] == trial for e in cohort_entries)
+            assert all(isinstance(e["loop_kind"], str) for e in cohort_entries)
+        assert [e["loop_kind"] for e in by_cohort["har128-har116"]] == [
+            "repetition",
+            "repetition",
+        ]
+        report = coverage["label_verification"]["har128-har116"]
+        assert report["verified"] == 2
+        assert report["failed"] == []
+        assert coverage["label_manifest_hashes"]["har128-har116"]
+    finally:
+        con.close()
+
+
+@pytest.mark.parametrize("case", ["missing", "corrupt", "duplicate", "empty"])
+def test_har128_har116_declared_file_boundaries(tmp_path: Path, case: str) -> None:
+    """A declared-but-missing, drifted, double-declared, or empty freeze aborts."""
+    base = tmp_path / "research/explorations/trace-lab/har128/labels_har116"
+    rater_a = base / "rater_a"
+    rater_a.mkdir(parents=True)
+    good_body = json.dumps({"loop_kind": "none"})
+    (rater_a / "trial_ok.json").write_text(good_body, encoding="utf-8")
+    member = f"{hashlib.sha256(good_body.encode()).hexdigest()}  rater_a/trial_ok.json\n"
+    if case == "missing":
+        manifest_body = member + "0" * 64 + "  rater_a/trial_gone.json\n"
+    elif case == "corrupt":
+        manifest_body = member
+        (rater_a / "trial_ok.json").write_text(
+            json.dumps({"loop_kind": "repetition"}), encoding="utf-8"
+        )
+    elif case == "duplicate":
+        manifest_body = member + member
+    else:
+        manifest_body = ""
+    (base / "MANIFEST.sha256").write_text(manifest_body, encoding="utf-8")
+    job = tmp_path / "job_bounds"
+    _create_minimal_trial(job, "trial_ok")
+    with pytest.raises(ValueError):
+        connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+
+
+def test_har128_har116_absent_cohort_is_unavailable_not_empty_freeze(
+    tmp_path: Path,
+) -> None:
+    """Without the freeze dir, the cohort reports missing, never verified-empty."""
+    job = tmp_path / "job_absent"
+    _create_minimal_trial(job, "trial_absent")
+    con, coverage = connect_trace_query(repo_root=tmp_path, job_dirs=[job])
+    try:
+        (labels_json,) = con.execute("SELECT labels_json FROM v_trace_trials").fetchone()
+        assert json.loads(labels_json) == []
+        report = coverage["label_verification"]["har128-har116"]
+        assert report["manifest"] == "missing"
+        assert report["verified"] == 0
+        assert "har128-har116" not in coverage["label_manifest_hashes"]
+    finally:
+        con.close()

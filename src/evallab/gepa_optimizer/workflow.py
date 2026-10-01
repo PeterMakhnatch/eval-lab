@@ -20,10 +20,11 @@ from evallab.execution_contracts import (
     ZAI_OPENCODE_MODEL_SELECTORS,
 )
 from evallab.registry import task_directory_digest
-from evallab.upstream_fetch import KNOWN_SCORE_RULES
+from evallab.upstream_fetch import KNOWN_SCORE_RULES, UPSTREAM_FETCH_ZERO
 
 from .budget import AggregateBudget, BudgetExhausted
 from .evaluator import (
+    COUNTED_VERDICT,
     DEEPSEEK_TARGET_AGENT,
     PROVIDER_CEILING_FIELDS,
     CandidateReviewRequired,
@@ -355,10 +356,16 @@ def load_campaign(path: Path, repo_root: Path) -> dict[str, Any]:
         not isinstance(rule, str) for rule in score_rules
     ):
         raise ValueError("score_rules must be a list of known rule ids")
-    unknown_rules = [rule for rule in score_rules if rule not in KNOWN_SCORE_RULES]
+    unknown_rules = [
+        rule for rule in score_rules if rule not in KNOWN_SCORE_RULES and rule != COUNTED_VERDICT
+    ]
     if unknown_rules:
         raise ValueError(
-            f"Unknown score_rules {unknown_rules}; known: {sorted(KNOWN_SCORE_RULES)}"
+            f"Unknown score_rules {unknown_rules}; known: {sorted(KNOWN_SCORE_RULES | frozenset({COUNTED_VERDICT}))}"
+        )
+    if UPSTREAM_FETCH_ZERO in score_rules and COUNTED_VERDICT in score_rules:
+        raise ValueError(
+            "score_rules counted_verdict and upstream_fetch_zero are mutually exclusive"
         )
     candidate_kind = raw.get("candidate_kind", "instructions")
     if not isinstance(candidate_kind, str) or candidate_kind not in {
@@ -639,7 +646,12 @@ def _run_campaign(
     candidate_kind = config.get("candidate_kind", "instructions")
     output.mkdir(parents=True, exist_ok=True)
     seed = _path(repo_root, config["seed_candidate_path"]).read_text(encoding="utf-8")
-    if not seed.strip():
+    if candidate_kind == "python_toolbox":
+        if not seed.strip():
+            raise ValueError("An explicit nonempty seed artifact is required")
+    elif seed != "" and not seed.strip():
+        # Stock/no-addendum is exactly the zero-byte artifact; whitespace-only
+        # text is never a valid seed.
         raise ValueError("An explicit nonempty seed artifact is required")
     binding = {
         "config": config,

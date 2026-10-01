@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cd /testbed && cat > /tmp/new_behavior.py <<'EOF'",
+      "ref": "head#21"
+    },
+    {
+      "quote": "cd /testbed && awk 'NR>=680 && NR<=760' rich/progress.py",
+      "ref": "head#34"
+    },
+    {
+      "quote": "cd /testbed && awk 'NR>=630 && NR<=639' rich/progress.py",
+      "ref": "head#62"
+    },
+    {
+      "quote": "cd /testbed && awk 'NR>=598 && NR<=607' rich/progress.py",
+      "ref": "head#66"
+    },
+    {
+      "quote": "cd /testbed && awk 'NR>=414 && NR<=423' rich/progress.py",
+      "ref": "head#89"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /testbed && cat > /tmp/new_behavior.py <<'EOF'",
+    "ref": "head#21",
+    "what": "wrote a comment-only scratch note instead of editing source; zero diff then 60+ read-only steps"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#34",
+    "head#89"
+  ],
+  "notes": "n_episodes 89, ~2.41M input tokens, TrialBudgetExhaustedError (baseline has no loop-break); reward 0.0, agent.diff 0B; head#21 note only restates the spec, never applied; no completion claim; span covers the windowed-read walk of rich/progress.py down through unrelated column/render code.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001181-baseline__cK5qZMf"
+}

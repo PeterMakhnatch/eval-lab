@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "find /testbed -maxdepth 2 -type f -name *.py | head -50; echo ---; ls /testbed",
+      "ref": "head#2"
+    },
+    {
+      "quote": "cd /testbed && pip download docformatter==1.7.7 --no-deps -d /tmp/df 2>&1 | tail -3",
+      "ref": "head#31"
+    },
+    {
+      "quote": "cd /tmp && pip download docformatter --no-deps -d /tmp/df2 2>&1 | tail -3 && ls /tmp/df2",
+      "ref": "head#32"
+    },
+    {
+      "quote": "cd /tmp && mkdir -p dfsrc && cd dfsrc && unzip -o -q /tmp/df2/docformatter-1.7.8-py3-none-any.whl && ls docformatter/",
+      "ref": "head#33"
+    },
+    {
+      "quote": "cd /tmp/df3/docformatter-1.7.8 && awk 'NR>=230 && NR<=260' src/docformatter/configuration.py",
+      "ref": "head#96"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /testbed && pip download docformatter==1.7.7 --no-deps -d /tmp/df 2>&1 | tail -3",
+    "ref": "head#31",
+    "what": "pivoted to fetching upstream wheels instead of implementing the fix; never edited /testbed"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "n_episodes 96 (<121 request limit), ~2.42M input tokens (~2.5M cap), TrialBudgetExhaustedError; loop_break fired (nudge_call 12) but stop_call null so harness only nudged; reward 0.0 (6 failed, 2 passed structured-wrapping codespec), agent.diff 0B; no completion claim (task_complete null all steps); upstream 1.7.8 greps for the feature returned empty.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001161-loopfix-r2__uo7QDVh"
+}

@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "The issue is clear: the default for `check_on_train_epoch_end` only considers `val_check_interval`",
+      "ref": "head#7"
+    },
+    {
+      "quote": "cd /testbed && python -m pytest tests/callbacks/test_early_stopping.py -q -p no:cacheprovider 2>&1 | tail -2",
+      "ref": "head#30"
+    },
+    {
+      "quote": "33 passed, 75 warnings in 52.15s",
+      "ref": "head#30"
+    },
+    {
+      "quote": "assert ckpt._save_on_train_epoch_end is False",
+      "ref": "head#7"
+    },
+    {
+      "quote": "assert True is False",
+      "ref": "head#7"
+    }
+  ],
+  "first_failure": {
+    "quote": "The issue is clear: the default for `check_on_train_epoch_end` only considers `val_check_interval`, not `check_val_every_n_epoch`",
+    "ref": "head#7",
+    "what": "applied EarlyStopping-only fix, leaving parallel ModelCheckpoint logic unchanged"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Partial fix: EarlyStopping corrected, ModelCheckpoint untouched so hidden test test_model_checkpoint_save_on_train_epoch_end_with_check_val_every_n_epoch_gt_1 fails (assert True is False). Verified only visible early-stopping tests (33 passed). No upstream fetch; leakclosed PyPI block irrelevant.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har116-b-000146-leakclosed__UsngzaQ"
+}

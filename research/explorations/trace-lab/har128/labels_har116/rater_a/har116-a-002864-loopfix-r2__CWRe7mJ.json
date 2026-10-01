@@ -1,0 +1,43 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Added (ARRAY, WRAPPER) and (WRAPPER,) continuations and corrected WRAPPED to WRAPPER",
+      "ref": "head#22"
+    },
+    {
+      "quote": "Ran 11 tests in 0.015s OK (with/without array/wrapper all pass)",
+      "ref": "head#22"
+    },
+    {
+      "quote": "mark_task_complete: The fix is verified",
+      "ref": "head#22"
+    },
+    {
+      "quote": "Marking complete (confirming task_complete true)",
+      "ref": "head#23"
+    },
+    {
+      "quote": "No pip install/download, curl, git clone, or site-packages read; small targeted trino.py edit",
+      "ref": "head#20"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Reward 1.0, no exception, n_episodes 22. head#22 first completion + head#23 immediate confirm is normal termination, not a loop.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 23,
+    "reason": "Genuine complete wrapper fix, verified; keep through confirming completion at head#23."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har116-a-002864-loopfix-r2__CWRe7mJ"
+}

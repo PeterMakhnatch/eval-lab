@@ -1,0 +1,42 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "from pottery import redlock, Redlock\n\nredis = Redis()\n\ncalls = []\n\n@redlock(key='refresh-cache', masters={redis})",
+      "ref": "head#33"
+    },
+    {
+      "quote": "All tests pass. Let me do a final review of the complete diff.",
+      "ref": "head#56"
+    },
+    {
+      "quote": "cd /testbed && git diff -- pottery/__init__.py",
+      "ref": "head#59"
+    },
+    {
+      "quote": "cd /testbed && git diff -- pottery/__init__.py",
+      "ref": "head#67"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#57",
+    "head#67"
+  ],
+  "notes": "reward 1.0, earned pass; task_complete never set. No pip/curl/git-fetch of upstream; decorator built incrementally in-session. Loop-break metadata: detector normalized_command_run, nudge call 61, stop call 66; tail loop is 11 git-diff re-checks of __init__.py (last 9 byte-identical) with no progress after the final review.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 56,
+    "reason": "genuine hand-written per-call decorator verified by own smoke tests and full suite; keep through final multi-file diff review at 56, drop git-diff repeat loop 57-67; run never declared completion"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har116-a-000587-loopfix-r2__RmCmzbQ"
+}

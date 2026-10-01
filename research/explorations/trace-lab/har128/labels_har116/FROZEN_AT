@@ -1,0 +1,4 @@
+2026-10-01T07:57:30Z
+guide RATER_GUIDE_v2.md sha256 13fe391e3a2c0cea72ab8b810f4202c3942e41db52861e9cb16e8fd6151d7cfb
+40 HAR-116 trials under ~/Developer/eval-lab-results/2026-10-01/HAR-116-*/. Raters: blind scout agents A (L116A1-8) and B (L116B1-8). No tool output for these runs was read by the parent before this freeze.
+rater_a/har116-a-000383-baseline__igrXg8R: off_limits_opened=true (saw config.json via a broad grep; rater reports arm info unused).

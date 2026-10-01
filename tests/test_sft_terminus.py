@@ -22,6 +22,7 @@ from evallab.sft_terminus import (
     SourceRoot,
     TraceError,
     export_conversations,
+    load_selection,
     write_export,
 )
 from evallab.sft_terminus import (
@@ -412,6 +413,10 @@ def _curation(path: Path, flags: list[dict[str, Any]]) -> Path:
     return path
 
 
+def _selection(path: Path, trials: list[dict[str, Any]]) -> Path:
+    path.write_text(json.dumps({"schema": "evallab.sft_selection/1", "trials": trials}))
+    return path
+
 def test_curation_flag_excludes_a_passing_trial_and_keeps_its_reward(tmp_path: Path) -> None:
     root = tmp_path / "runs"
     root.mkdir()
@@ -746,3 +751,581 @@ def test_store_digest_drift_is_excluded(tmp_path: Path) -> None:
     manifest_out, _ = _export(tmp_path, root, split, task_store_root=store)
     assert manifest_out["counts"]["trials_selected"] == 0
     assert manifest_out["exclusion_counts"] == {"task_version_drift": 1}
+
+
+def test_selection_excludes_unlisted_as_not_selected(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-selected", task_name="mimo-v2.6-rl/task-a")
+    _write_trial(root, "trial-unselected", task_name="mimo-v2.6-rl/task-b")
+    split = _freeze_split(tmp_path, ["task-a", "task-b"], heldout=[])
+    selection = _selection(
+        tmp_path / "selection.json",
+        [
+            {
+                "job": "job-x",
+                "trial": "trial-selected__abc123",
+                "source": "card-decision",
+                "cut_step_id": None,
+                "cut_file": None,
+            },
+            {
+                "job": "job-phantom",
+                "trial": "trial-phantom__xyz",
+                "source": "card-decision",
+                "cut_step_id": None,
+                "cut_file": None,
+            },
+        ],
+    )
+    out = tmp_path / "out"
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out),
+                "--selection",
+                str(selection),
+            ]
+        )
+        == 0
+    )
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["exclusion_counts"] == {"not_selected": 1}
+    assert manifest["counts"]["trials_selected"] == 1
+    assert [c["task_id"] for c in manifest["conversations"]] == ["task-a"]
+    unselected = next(t for t in manifest["trials"] if "trial-unselected" in t["trial"])
+    assert unselected["disposition"] == "excluded"
+    assert unselected["reasons"] == ["not_selected"]
+    assert manifest["selection"]["sha256"].startswith("sha256:")
+    assert manifest["selection_unmatched"] == [
+        {
+            "job": "job-phantom",
+            "trial": "trial-phantom__xyz",
+            "source": "card-decision",
+            "cut_step_id": None,
+            "cut_file": None,
+        }
+    ]
+    entry = manifest["conversations"][0]
+    assert entry["cut_step_id"] is None
+    assert entry["cut_file"] == "trajectory.json"
+
+
+def test_selection_cut_truncates_steps_and_drops_later_segments(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(
+        root,
+        "trial-cut",
+        continuations=[_continuation_steps()],
+    )
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    selection = _selection(
+        tmp_path / "selection.json",
+        [
+            {
+                "job": "job-x",
+                "trial": "trial-cut__abc123",
+                "source": "cut-review",
+                "cut_step_id": 2,
+                "cut_file": "trajectory.json",
+            }
+        ],
+    )
+    out = tmp_path / "out"
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out),
+                "--selection",
+                str(selection),
+            ]
+        )
+        == 0
+    )
+    rows = _rows(out)
+    assert len(rows) == 1
+    messages = rows[0]["messages"]
+    assert [m["role"] for m in messages] == ["user", "assistant"]
+    assert '{"analysis":"inspect", "commands":[{"keystrokes":"ls"}]}' in messages[1]["content"]
+    assert all("file1\nfile2" not in m["content"] for m in messages)
+    assert all("task_complete" not in m["content"] for m in messages)
+
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["counts"]["conversations"] == 1
+    (trial,) = manifest["trials"]
+    assert trial["skipped_segments"] == {"trajectory.cont-1.json": "after_cut"}
+    entry = manifest["conversations"][0]
+    assert entry["cut_step_id"] == 2
+    assert entry["cut_file"] == "trajectory.json"
+
+
+def test_selection_bad_cut_step_or_file_refuses(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-ok")
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+
+    bad_step = _selection(
+        tmp_path / "bad_step.json",
+        [
+            {
+                "job": "job-x",
+                "trial": "trial-ok__abc123",
+                "source": "rev",
+                "cut_step_id": 9999,
+                "cut_file": "trajectory.json",
+            }
+        ],
+    )
+    out1 = tmp_path / "out1"
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out1),
+                "--selection",
+                str(bad_step),
+            ]
+        )
+        == 2
+    )
+
+    bad_file = _selection(
+        tmp_path / "bad_file.json",
+        [
+            {
+                "job": "job-x",
+                "trial": "trial-ok__abc123",
+                "source": "rev",
+                "cut_step_id": 2,
+                "cut_file": "nonexistent.json",
+            }
+        ],
+    )
+    out2 = tmp_path / "out2"
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out2),
+                "--selection",
+                str(bad_file),
+            ]
+        )
+        == 2
+    )
+
+
+def test_heldout_trial_refuses_even_if_not_selected(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-heldout", task_name="mimo-v2.6-rl/task-held")
+    _write_trial(root, "trial-train", task_name="mimo-v2.6-rl/task-train")
+    split = _freeze_split(tmp_path, ["task-train", "task-held"], heldout=["task-held"])
+    selection = _selection(
+        tmp_path / "selection.json",
+        [
+            {
+                "job": "job-x",
+                "trial": "trial-train__abc123",
+                "source": "rev",
+                "cut_step_id": None,
+                "cut_file": None,
+            }
+        ],
+    )
+    out = tmp_path / "out"
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out),
+                "--selection",
+                str(selection),
+            ]
+        )
+        == 2
+    )
+    assert not out.exists() or not any(out.iterdir())
+
+
+def test_step_layers_raw_message_recovered_for_parsed_tool_calls(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    steps_with_layers = [
+        {"step_id": 1, "source": "user", "message": "TASK: run tool."},
+        {
+            "step_id": 2,
+            "source": "agent",
+            "message": "",
+            "tool_calls": [
+                {"tool_call_id": "c1", "function_name": "bash", "arguments": {"command": "ls"}}
+            ],
+            "extra": {
+                "step_layers": {
+                    "schema": "evallab.step_layers/v1",
+                    "provenance": "recorded",
+                    "proposed": {
+                        "message": '{"analysis": "listing", "command": "ls"}',
+                        "reasoning": "Need to check directory contents.",
+                    },
+                }
+            },
+            "observation": {"results": [{"content": "fileA\nfileB"}]},
+        },
+    ]
+    _write_trial(root, "trial-layers", steps=steps_with_layers)
+
+    steps_without_layers = [
+        {"step_id": 1, "source": "user", "message": "TASK: run tool."},
+        {
+            "step_id": 2,
+            "source": "agent",
+            "message": "",
+            "tool_calls": [
+                {"tool_call_id": "c2", "function_name": "bash", "arguments": {"command": "pwd"}}
+            ],
+            "observation": {"results": [{"content": "/app"}]},
+        },
+    ]
+    _write_trial(root, "trial-no-layers", steps=steps_without_layers)
+
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    out = tmp_path / "out"
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out),
+                "--keep-reasoning",
+            ]
+        )
+        == 0
+    )
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["exclusion_counts"] == {"parsed_steps_not_raw_content": 1}
+    assert manifest["counts"]["trials_selected"] == 1
+    assert manifest["counts"]["conversations"] == 1
+    rows = _rows(out)
+    assert len(rows) == 1
+    assistant = [m for m in rows[0]["messages"] if m["role"] == "assistant"]
+    assert "<think>\nNeed to check directory contents.\n</think>" in assistant[0]["content"]
+    assert '{"analysis": "listing", "command": "ls"}' in assistant[0]["content"]
+    entry = manifest["conversations"][0]
+    assert entry["step_layers_raw_messages"] == 1
+
+
+def test_selection_validation_refuses_malformed(tmp_path: Path) -> None:
+    # Wrong schema
+    bad_schema = tmp_path / "bad_schema.json"
+    bad_schema.write_text(json.dumps({"schema": "wrong/1", "trials": []}))
+    with pytest.raises(TraceError, match="is not evallab.sft_selection/1"):
+        load_selection(bad_schema)
+
+    # Missing field
+    missing_field = tmp_path / "missing_field.json"
+    missing_field.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.sft_selection/1",
+                "trials": [{"job": "j1", "trial": "t1"}],
+            }
+        )
+    )
+    with pytest.raises(TraceError, match="lacks source"):
+        load_selection(missing_field)
+
+    # Duplicate (job, trial)
+    dup = tmp_path / "dup.json"
+    dup.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.sft_selection/1",
+                "trials": [
+                    {"job": "j1", "trial": "t1", "source": "s"},
+                    {"job": "j1", "trial": "t1", "source": "s"},
+                ],
+            }
+        )
+    )
+    with pytest.raises(TraceError, match="duplicate selection entry"):
+        load_selection(dup)
+
+    # Invalid cut_step_id type
+    bad_cut = tmp_path / "bad_cut.json"
+    bad_cut.write_text(
+        json.dumps(
+            {
+                "schema": "evallab.sft_selection/1",
+                "trials": [{"job": "j1", "trial": "t1", "source": "s", "cut_step_id": "two"}],
+            }
+        )
+    )
+    with pytest.raises(TraceError, match="cut_step_id must be int or null"):
+        load_selection(bad_cut)
+
+
+def test_per_turn_stride_and_final_turn_inclusion(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    steps = [
+        {"step_id": 1, "source": "user", "message": "TASK: multi-step work."},
+        {
+            "step_id": 2,
+            "source": "agent",
+            "message": '{"cmd":"step1"}',
+            "reasoning_content": "think1",
+            "metrics": {"prompt_tokens": 10, "completion_tokens": 5},
+            "observation": {"results": [{"content": "out1"}]},
+        },
+        {
+            "step_id": 3,
+            "source": "agent",
+            "message": '{"cmd":"step2"}',
+            "reasoning_content": "think2",
+            "metrics": {"prompt_tokens": 20, "completion_tokens": 8},
+            "observation": {"results": [{"content": "out2"}]},
+        },
+        {
+            "step_id": 4,
+            "source": "agent",
+            "message": '{"cmd":"step3"}',
+            "reasoning_content": "think3",
+            "metrics": {"prompt_tokens": 30, "completion_tokens": 12},
+            "observation": {"results": [{"content": "out3"}]},
+        },
+        {
+            "step_id": 5,
+            "source": "agent",
+            "message": '{"cmd":"step4"}',
+            "reasoning_content": "think4",
+            "metrics": {"prompt_tokens": 40, "completion_tokens": 15},
+        },
+    ]
+    _write_trial(root, "trial-turns", steps=steps)
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    out = tmp_path / "out-pt"
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out),
+                "--per-turn-stride",
+                "2",
+            ]
+        )
+        == 0
+    )
+    # 4 assistant turns (0, 1, 2, 3), stride 2: kept turns are 1 and 3 (total 2 rows)
+    raw_lines = [
+        json.loads(line)
+        for line in (out / CONVERSATIONS_FILE).read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(raw_lines) == 2
+    assert all(row.get("loss") == "last" for row in raw_lines)
+
+    # Row 0: target is assistant turn 1 (step 3)
+    row0 = raw_lines[0]
+    msgs0 = row0["messages"]
+    # History: user (step 1), assistant turn 0 (step 2, raw, NO think), user obs (out1), target assistant (step 3, with think)
+    assert [m["role"] for m in msgs0] == ["user", "assistant", "user", "assistant"]
+    assert msgs0[1]["content"] == '{"cmd":"step1"}'
+    assert "think1" not in msgs0[1]["content"]
+    assert msgs0[2]["content"] == "out1"
+    assert msgs0[3] == {
+        "role": "assistant",
+        "content": '{"cmd":"step2"}',
+        "reasoning_content": "think2",
+    }
+    assert all("reasoning_content" not in m for m in msgs0[:3])
+
+    # Row 1: target is assistant turn 3 (step 5)
+    row1 = raw_lines[1]
+    msgs1 = row1["messages"]
+    # All prior assistant messages in history have raw content without think
+    assts1 = [m for m in msgs1 if m["role"] == "assistant"]
+    assert len(assts1) == 4
+    assert assts1[0]["content"] == '{"cmd":"step1"}'
+    assert assts1[1]["content"] == '{"cmd":"step2"}'
+    assert assts1[2]["content"] == '{"cmd":"step3"}'
+    assert assts1[3] == {
+        "role": "assistant",
+        "content": '{"cmd":"step4"}',
+        "reasoning_content": "think4",
+    }
+
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["per_turn"] == {"stride": 2, "rows": 2}
+    assert manifest["conversations"][0]["turn_rows"] == [1, 3]
+    assert len(manifest["rows"]) == 2
+    r0 = manifest["rows"][0]
+    assert r0["turn_index"] == 1
+    assert r0["step_id_of_target"] == 3
+    assert r0["prompt_tokens_recorded"] == 20
+    assert r0["completion_tokens_recorded"] == 8
+    r1 = manifest["rows"][1]
+    assert r1["turn_index"] == 3
+    assert r1["step_id_of_target"] == 5
+    assert r1["prompt_tokens_recorded"] == 40
+    assert r1["completion_tokens_recorded"] == 15
+
+
+def test_per_turn_always_includes_final_turn_even_if_not_stride_boundary(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    # 3 assistant turns (0, 1, 2)
+    steps = [
+        {"step_id": 1, "source": "user", "message": "TASK: three turns."},
+        {
+            "step_id": 2,
+            "source": "agent",
+            "message": '{"cmd":"one"}',
+            "reasoning_content": "think1",
+            "observation": {"results": [{"content": "out1"}]},
+        },
+        {
+            "step_id": 3,
+            "source": "agent",
+            "message": '{"cmd":"two"}',
+            "reasoning_content": "think2",
+            "observation": {"results": [{"content": "out2"}]},
+        },
+        {
+            "step_id": 4,
+            "source": "agent",
+            "message": '{"cmd":"three"}',
+            # No reasoning_content -> the target carries an empty reasoning_content
+        },
+    ]
+    _write_trial(root, "trial-three", steps=steps)
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+    out = tmp_path / "out-three"
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out),
+                "--per-turn-stride",
+                "2",
+            ]
+        )
+        == 0
+    )
+    # Stride 2 on 3 turns (0, 1, 2): kept are 1 (1 % 2 == 1) and 2 (final turn, 2 % 2 == 0)
+    raw_lines = [
+        json.loads(line)
+        for line in (out / CONVERSATIONS_FILE).read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(raw_lines) == 2
+    manifest = json.loads((out / "manifest.json").read_text())
+    assert manifest["conversations"][0]["turn_rows"] == [1, 2]
+    # Final turn has empty reasoning: the target's reasoning_content is ""
+    last_row_msgs = raw_lines[1]["messages"]
+    assert last_row_msgs[-1]["content"] == '{"cmd":"three"}'
+    assert last_row_msgs[-1]["reasoning_content"] == ""
+
+
+def test_per_turn_mutual_exclusion_with_keep_reasoning(tmp_path: Path) -> None:
+    root = tmp_path / "runs"
+    root.mkdir()
+    _write_trial(root, "trial-ex")
+    split = _freeze_split(tmp_path, ["task-a"], heldout=[])
+
+    out1 = tmp_path / "out1"
+    # Both --keep-reasoning and --per-turn-stride
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out1),
+                "--keep-reasoning",
+                "--per-turn-stride",
+                "1",
+            ]
+        )
+        == 2
+    )
+
+    with pytest.raises(TraceError, match="cannot specify both"):
+        export_conversations(
+            [SourceRoot(label="teacher", path=root)],
+            split_manifest_path=split,
+            keep_reasoning=True,
+            per_turn_stride=1,
+        )
+
+    out2 = tmp_path / "out2"
+    # Invalid stride < 1
+    assert (
+        cli_main(
+            [
+                "export",
+                "--root",
+                f"teacher={root}",
+                "--split-manifest",
+                str(split),
+                "--out",
+                str(out2),
+                "--per-turn-stride",
+                "0",
+            ]
+        )
+        == 2
+    )
+
+    with pytest.raises(TraceError, match="stride must be >= 1"):
+        export_conversations(
+            [SourceRoot(label="teacher", path=root)],
+            split_manifest_path=split,
+            per_turn_stride=0,
+        )

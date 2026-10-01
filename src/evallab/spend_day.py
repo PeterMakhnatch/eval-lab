@@ -183,6 +183,14 @@ def _coerce_utc(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+def _live_row_counts(row: Any, start: datetime, end: datetime) -> bool:
+    """Whether a live Modal row counts toward [start, end); an unparseable
+    interval counts (a guard may over-count, never under-count)."""
+    raw = row.interval_start
+    interval = _coerce_utc(raw) if isinstance(raw, datetime) else parse_dt(raw)
+    return interval is None or start <= interval < end
+
+
 def window_overlap_seconds(
     start: datetime, end: datetime, window_start: datetime, window_end: datetime
 ) -> float:
@@ -1613,15 +1621,7 @@ def check_launch(
 
     if live_modal_rows is not None:
         matching_rows = [
-            r
-            for r in live_modal_rows
-            if window_start
-            <= (
-                _coerce_utc(r.interval_start)
-                if isinstance(r.interval_start, datetime)
-                else parse_dt(r.interval_start)
-            )
-            < window_end
+            r for r in live_modal_rows if _live_row_counts(r, window_start, window_end)
         ]
         live_modal_usd = sum(float(r.cost_usd) for r in matching_rows)
 

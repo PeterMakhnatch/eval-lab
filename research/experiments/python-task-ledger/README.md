@@ -15,26 +15,27 @@ either fix them or discard them... and move on").
 
 | split | usable | review | discarded | unchecked | total |
 |---|---|---|---|---|---|
-| train | 863 | 150 | 34 | 0 | 1047 |
-| heldout | 106 | 24 | 3 | 0 | 133 |
-| all | 969 | 174 | 37 | 0 | 1180 |
+| train | 866 | 0 | 181 | 0 | 1047 |
+| heldout | 106 | 0 | 27 | 0 | 133 |
+| all | 972 | 0 | 208 | 0 | 1180 |
 
-- **usable 969:**
-  - 745 run the original;
-  - 132 run a leak-closed variant (`pypi_fix_released`);
+- **usable 972:**
+  - 746 run the original;
+  - 134 run a leak-closed variant (`pypi_fix_released`);
   - 92 run a validated repair variant (HAR-113/HAR-115 repairs derive from the leak-closed variant where there is one).
   - 122 of the 224 variants are leak-closed `candidate`s: their nop evidence is the original's. The blocklist reaches `/etc/hosts` only through the agent harness, so a nop cannot tell the two apart.
-- **review 174:**
-  - 165 where the HAR-112 checker alone says broken;
-  - 5 where one hand rater says broken;
-  - 4 census `grader_suspect` tasks with no repair (000124, 001146, 000183, 001150): no free reward, but the grade could not be confirmed.
-- **discarded 37:**
+  - 3 of the 972 left review in HAR-127 by majority: 000927, 001868 and 002757 (see [Review triage](#review-triage-har-127)).
+- **review 0:** the 174 review tasks were triaged in HAR-127.
+- **discarded 208:**
+  - 165 instruction gaps where the HAR-112 checker says broken (HAR-127 triage);
   - 11 hand-labelled broken (8 by two raters, 3 by adjudication);
+  - 2 where most of the judges say broken (HAR-127 triage: 002407, 002628);
+  - 4 census `grader_suspect` whose grade cannot be confirmed (HAR-127 triage: 000124, 000183, 001146, 001150);
   - 8 broken where a repair was tried and its nop rejected it;
   - 10 broken with no known repair kind matching the error, not attempted;
   - 5 whose image never built on Daytona (`SandboxBuildFailedError`);
   - 3 diagnosed with no repair kind (000393, 002595, 002848).
-  - `reason` gives each one's census evidence.
+  - `reason` gives each one's evidence.
 
 ## Status rule
 
@@ -48,6 +49,18 @@ From Research-Harbor's HAR-115 comment:
 | `unchecked` | no census nop |
 
 Hand labels come from two sources: HAR-111 raters 1 and 2 (`har111/census_labels.jsonl`), and HAR-112 raters A and B plus the adjudicator (`har112/hand_{a,b,adj}/`). An adjudication decides when present. A checker or hand `suspect` does not change status; the label is kept in the row.
+
+## Review triage (HAR-127)
+
+HAR-127 part 4: fix each `review` task with a known repair kind and re-nop it, or discard it with a reason. The known repair kinds in `library/task-variants` change the environment (`env-*`) or close a leak. None of them restates an instruction or confirms a grade, so none of them fixes a review task, and no re-nop was run ($0). `build.py`'s `triage` then decides each task:
+
+| review cause | count | decision |
+|---|---|---|
+| HAR-112 checker alone says broken | 165 | `discarded`. Every one has at least one `not_inferable` item; `reason` gives the checker's sample agreement (91 at 3/3, 73 at 2/3, 1 at 1/3), the not-inferable item kinds and one test. These are the candidates for a future instruction-disclosure repair. |
+| one hand rater says broken | 5 | majority of the judges, meaning the hand raters plus the checker (`suspect` is not `broken`). 002407 (checker + rater 2) and 002628 (checker + rater 1) are `discarded`; 000927, 001868 and 002757 (1 of 3) become `usable`. |
+| census `grader_suspect`, no repair | 4 | `discarded`, because the grade cannot be confirmed. 000124 is missing Alembic tables; 000183 has a pytest segfault (exit 139); 001146 has no count line; in 001150 the tests import Python 2 source under Python 3.14. |
+
+The HAR-120 proposal is unchanged by the triage.
 
 ## Columns
 

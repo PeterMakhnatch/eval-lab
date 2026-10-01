@@ -25,6 +25,11 @@ either fix them or discard them... and move on"):
   broken by two raters or by adjudication. ``reason`` says which.
 * ``unchecked``: no census nop yet.
 
+``triage`` then resolves the ``review`` rows (HAR-127 part 4): no known
+repair kind fixes one, so the checker-only and ``grader_suspect`` rows are
+discarded with a reason, and a one-rater row goes the way most of its judges
+(hand raters and checker) say.
+
 Then proposes 30 ``usable`` train tasks for HAR-120: one per repository,
 lightest image first, excluding held-out tasks and HAR-116's tasks. A task
 whose census project key is only its own task id (no repository found) is
@@ -91,6 +96,10 @@ REASONS = {
     "names the class, not the module; likely the agent's own work, unconfirmed",
     "format-code-task-001146": "tests run and fail on the missing feature (operation_id "
     "keyword); no count line, so the grade is unconfirmed",
+    "format-code-task-000183": "pytest segfaults (exit 139) in the compiled parcels/scipy "
+    "stack during the census nop (har115-nop-000183); no diagnosed environment repair",
+    "format-code-task-001150": "the tests import clients/python/GirderClient.py, which is "
+    "Python 2 (print statement), under Python 3.14; the image has no Python 2",
     "format-code-task-002595": "a nested pytest fails with 'LazySchema' object has no "
     "attribute 'hooks'; tests run, no environment repair identified",
 }
@@ -150,6 +159,54 @@ def hand_verdict(labels: dict[str, str]) -> str | None:
         return "broken" if labels["adj"] == "broken" else None
     broken = sum(label == "broken" for label in labels.values())
     return "broken" if broken >= 2 else "one" if broken == 1 else None
+
+
+def checker_gap(checker: dict) -> str:
+    """What the HAR-112 checker says the tests need and the instruction never states."""
+    items = [item for item in checker["items"] if item["severity"] == "not_inferable"]
+    kinds = Counter(item["kind"] for item in items)
+    broken = sum(label == "broken" for label in checker["sample_labels"])
+    return (
+        f"instruction gap (HAR-112 checker, {broken}/{len(checker['sample_labels'])} samples "
+        "broken): the tests need "
+        + ", ".join(f"{kind} x{n}" for kind, n in sorted(kinds.items()))
+        + f" the instruction does not state, e.g. {items[0]['test_ref']}"
+    )
+
+
+def triage(row: dict, checker: dict | None, hand: dict[str, str]) -> None:
+    """Resolve a ``review`` row (HAR-127 part 4: fix it with a known repair kind
+    or discard it with a reason).
+
+    The known repair kinds in ``library/task-variants`` change the environment
+    (``env-*``) or close a leak; none restates an instruction or confirms a
+    grade, so none fixes a review row:
+
+    * checker alone says broken: discarded as an instruction gap, with the
+      checker's not-inferable item kinds and one test;
+    * one hand rater says broken: the majority of the judges decides, the hand
+      raters and the checker (``suspect`` is not ``broken``); discarded when
+      most say broken, else usable;
+    * census ``grader_suspect`` with no repair: discarded, the grade cannot be
+      confirmed (``REASONS`` gives each diagnosis).
+    """
+    if row["status"] != "review":
+        return
+    if row["reason"] == "HAR-112 checker says broken":
+        assert checker is not None
+        row["status"], row["reason"] = "discarded", checker_gap(checker)
+    elif row["reason"] == "one hand rater says broken":
+        judges = {rater: label for rater, label in hand.items() if rater != "adj"}
+        if checker is not None:
+            judges["checker"] = checker["label"]
+        broken = sorted(judge for judge, label in judges.items() if label == "broken")
+        summary = f"{len(broken)} of {len(judges)} judges say broken ({', '.join(broken)})"
+        if 2 * len(broken) > len(judges):
+            row["status"], row["reason"] = "discarded", summary
+        else:
+            row["status"], row["reason"] = "usable", f"{summary}; the majority does not"
+    elif row["census_label"] == "grader_suspect":
+        row["status"], row["reason"] = "discarded", f"grade unconfirmed: {row['reason']}"
 
 
 def latest(records: list[tuple[dict, Path]]) -> tuple[dict, Path] | None:
@@ -286,20 +343,20 @@ def write(path: Path, rows: list[dict], columns: tuple[str, ...]) -> None:
 def main() -> None:
     census = pq.read_table(CENSUS).to_pylist()
     variants = load_variants()
-    checker = {
-        row["task_id"]: row["label"] for row in map(json.loads, CHECKER.read_text().splitlines())
-    }
+    checker = {row["task_id"]: row for row in map(json.loads, CHECKER.read_text().splitlines())}
     hand, hand_sources = load_hand()
     rows = [
         ledger_row(
             row,
             variants.get(row["task_id"], []),
-            checker.get(row["task_id"]),
+            (checker.get(row["task_id"]) or {}).get("label"),
             hand.get(row["task_id"], {}),
             hand_sources.get(row["task_id"], []),
         )
         for row in sorted(census, key=lambda row: row["task_id"])
     ]
+    for row in rows:
+        triage(row, checker.get(row["task_id"]), hand.get(row["task_id"], {}))
     write(HERE / "ledger.csv", rows, COLUMNS)
     proposal = propose(rows)
     write(

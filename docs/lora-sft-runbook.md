@@ -39,17 +39,22 @@ never renews authorization to spend.
 Card attribution is explicit-only and fail-closed. A queued spec may declare
 `linear_card: HAR-126`; the runner carries it through run provenance into the
 catalog, and `spend day` attributes that job's Daytona/model rows to the card.
-An explicit card that disagrees with the job-name prefix fails closed to
-`unattributed` with a conflict note — task, model, harness, and app names are
-never attribution. Modal billed cost splits by app (one row per billed app);
-an app takes a card only through an explicit binding, otherwise it stays an
-`unattributed` residual line. Jobs that predate the explicit field and carry no
-HAR job-name prefix (e.g. the 2026-10-01 `ovn-g5-*` runs) stay `unattributed`
-in the ledger; republishing with an explicit `publication_card` binds the
-results home without rewriting raw records. Provider limits: the Daytona API
-exposes quota snapshots only (no billed dollars, so Daytona rows stay
-estimates), and Modal bills the account rather than jobs (per-job GPU shares
-come only from an explicit HAR-131 session receipt).
+Historical jobs whose frozen record declares their card are bound instead by
+exact name in `policy/spend-attribution.yaml` (currently the 60 `ovn-g5-*`
+G5 cells declared by `research/experiments/ovn-sft-v0/G5-RUN.md` as HAR-126;
+the ledger loads this file read-only and fails closed when it is malformed).
+An explicit or declared card that disagrees with the job-name prefix fails
+closed to `unattributed` with a conflict note — task, model, harness, and app
+names are never attribution. Modal billed cost splits by app (one row per
+billed app); an app takes a card only through an explicit binding, otherwise
+it stays an `unattributed` residual line (the G5 apps served several cards'
+jobs from shared containers, so no app binding is declared). Jobs with no
+binding at all stay `unattributed`; republishing with an explicit
+`publication_card` binds the results home without rewriting raw records.
+Provider limits: the Daytona API exposes quota snapshots only (no billed
+dollars, so Daytona rows stay estimates), and Modal bills the account rather
+than jobs (per-job GPU shares come only from an explicit HAR-131 session
+receipt).
 
 ## 1. Data
 

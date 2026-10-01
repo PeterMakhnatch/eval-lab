@@ -1,0 +1,85 @@
+# Declared spend attribution (HAR-145): exact job names bound to a Linear card.
+#
+# Each entry below names one historical job EXACTLY as the frozen run record
+# declares it — no prefix inference, no model/app/path guessing. Source:
+# `research/experiments/ovn-sft-v0/G5-RUN.md`, cells table (frozen record),
+# whose heading declares the round card: `# G5 run record: paired eval,
+# stock vs tuned vs GEPA (HAR-126)`. The 60 cell trial names
+# (`ovn-g5-<task>-<arm>__<suffix>`) strip to the 60 job stems listed here,
+# which also exactly equal the 60 catalog `ovn-g5-*` job names for
+# 2026-10-01. Raw run records are never rewritten; this file is the
+# provenance-backed binding the spend ledger reads instead.
+#
+# `app_cards` stays empty on purpose: the Modal apps below served multiple
+# cards' jobs (base and :har129 from one container per G5-RUN.md), so no
+# honest app -> card binding exists. Those apps remain per-app
+# `unattributed` residual lines in the ledger.
+
+schema: evallab.spend_attribution/v1
+source:
+  path: research/experiments/ovn-sft-v0/G5-RUN.md
+  section: cells table (frozen record)
+  card_evidence: "# G5 run record: paired eval, stock vs tuned vs GEPA (HAR-126)"
+  recorded: "2026-10-01"
+job_cards:
+  ovn-g5-000169-gepa: HAR-126
+  ovn-g5-000169-stock: HAR-126
+  ovn-g5-000169-tuned: HAR-126
+  ovn-g5-000332-gepa: HAR-126
+  ovn-g5-000332-stock: HAR-126
+  ovn-g5-000332-tuned: HAR-126
+  ovn-g5-000521-gepa: HAR-126
+  ovn-g5-000521-stock: HAR-126
+  ovn-g5-000521-tuned: HAR-126
+  ovn-g5-000568-gepa: HAR-126
+  ovn-g5-000568-stock: HAR-126
+  ovn-g5-000568-tuned: HAR-126
+  ovn-g5-000842-gepa: HAR-126
+  ovn-g5-000842-stock: HAR-126
+  ovn-g5-000842-tuned: HAR-126
+  ovn-g5-001136-gepa: HAR-126
+  ovn-g5-001136-stock: HAR-126
+  ovn-g5-001136-tuned: HAR-126
+  ovn-g5-001241-gepa: HAR-126
+  ovn-g5-001241-stock: HAR-126
+  ovn-g5-001241-tuned: HAR-126
+  ovn-g5-001285-gepa: HAR-126
+  ovn-g5-001285-stock: HAR-126
+  ovn-g5-001285-tuned: HAR-126
+  ovn-g5-001355-gepa: HAR-126
+  ovn-g5-001355-stock: HAR-126
+  ovn-g5-001355-tuned: HAR-126
+  ovn-g5-001606-gepa: HAR-126
+  ovn-g5-001606-stock: HAR-126
+  ovn-g5-001606-tuned: HAR-126
+  ovn-g5-001626-gepa: HAR-126
+  ovn-g5-001626-stock: HAR-126
+  ovn-g5-001626-tuned: HAR-126
+  ovn-g5-001695-gepa: HAR-126
+  ovn-g5-001695-stock: HAR-126
+  ovn-g5-001695-tuned: HAR-126
+  ovn-g5-001765-gepa: HAR-126
+  ovn-g5-001765-stock: HAR-126
+  ovn-g5-001765-tuned: HAR-126
+  ovn-g5-001769-gepa: HAR-126
+  ovn-g5-001769-stock: HAR-126
+  ovn-g5-001769-tuned: HAR-126
+  ovn-g5-001797-gepa: HAR-126
+  ovn-g5-001797-stock: HAR-126
+  ovn-g5-001797-tuned: HAR-126
+  ovn-g5-001809-gepa: HAR-126
+  ovn-g5-001809-stock: HAR-126
+  ovn-g5-001809-tuned: HAR-126
+  ovn-g5-001833-gepa: HAR-126
+  ovn-g5-001833-stock: HAR-126
+  ovn-g5-001833-tuned: HAR-126
+  ovn-g5-002017-gepa: HAR-126
+  ovn-g5-002017-stock: HAR-126
+  ovn-g5-002017-tuned: HAR-126
+  ovn-g5-002302-gepa: HAR-126
+  ovn-g5-002302-stock: HAR-126
+  ovn-g5-002302-tuned: HAR-126
+  ovn-g5-002578-gepa: HAR-126
+  ovn-g5-002578-stock: HAR-126
+  ovn-g5-002578-tuned: HAR-126
+app_cards: {}

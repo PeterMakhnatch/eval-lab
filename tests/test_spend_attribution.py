@@ -27,8 +27,10 @@ from evallab import spend_day
 from evallab.schemas import normalize_linear_card
 from evallab.spend_day import (
     UNATTRIBUTED,
+    build_window_ledger,
     card_for_job,
     explicit_card_from_lab_metadata,
+    load_declared_attribution,
     query_daytona_rows,
     query_modal_rows,
     query_model_job_rows,
@@ -493,3 +495,157 @@ def test_spec_linear_card_survives_catalog_json_round_trip() -> None:
     assert resolve_job_card(
         "ovn-g5-001695-stock", linear_card=payload["linear_card"]
     ) == "HAR-126"
+
+
+# ---------------------------------------------------------------------------
+# 7. Declared exact-name bindings (policy/spend-attribution.yaml)
+# ---------------------------------------------------------------------------
+
+_MINI_POLICY = """\
+schema: evallab.spend_attribution/v1
+source:
+  path: research/experiments/ovn-sft-v0/G5-RUN.md
+  card_evidence: "# G5 run record (HAR-126)"
+  recorded: "2026-10-01"
+job_cards:
+  ovn-g5-001695-stock: har126
+app_cards: {}
+"""
+
+
+def _write_policy(root: Path, text: str = _MINI_POLICY) -> Path:
+    policy_dir = root / "policy"
+    policy_dir.mkdir(parents=True, exist_ok=True)
+    path = policy_dir / "spend-attribution.yaml"
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def test_declared_policy_absent_means_no_bindings(tmp_path: Path) -> None:
+    declared = load_declared_attribution(tmp_path)
+    assert declared.job_cards == {}
+    assert declared.app_cards == {}
+
+
+def test_declared_policy_malformed_fails_closed(tmp_path: Path) -> None:
+    _write_policy(tmp_path, "schema: evallab.spend_attribution/v1\njob_cards: [oops]\n")
+    with pytest.raises(ValueError):
+        load_declared_attribution(tmp_path)
+    _write_policy(
+        tmp_path,
+        "schema: evallab.spend_attribution/v1\njob_cards:\n  a: G5\n",
+    )
+    with pytest.raises(ValueError, match="HAR issue identifier"):
+        load_declared_attribution(tmp_path)
+    _write_policy(
+        tmp_path,
+        "schema: something-else/v9\njob_cards: {}\n",
+    )
+    with pytest.raises(ValueError, match="schema"):
+        load_declared_attribution(tmp_path)
+    _write_policy(
+        tmp_path,
+        "schema: evallab.spend_attribution/v1\nunknown_key: 1\n",
+    )
+    with pytest.raises(ValueError, match="unknown keys"):
+        load_declared_attribution(tmp_path)
+
+
+def test_declared_real_policy_binds_exact_sixty_g5_jobs() -> None:
+    root = Path(__file__).resolve().parents[1]
+    assert (root / "policy/spend-attribution.yaml").is_file()
+    declared = load_declared_attribution(root)
+    assert len(declared.job_cards) == 60
+    assert set(declared.job_cards.values()) == {"HAR-126"}
+    assert declared.app_cards == {}
+    assert declared.job_cards["ovn-g5-001695-stock"] == "HAR-126"
+    assert "G5-RUN.md" in declared.source
+
+
+def test_daytona_declared_exact_binding_no_prefix_inference(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    trials = [
+        _daytona_trial("ovn-g5-001695-stock", None),
+        _daytona_trial("ovn-g5-999999-stock", None),
+        _daytona_trial("har120-000001-a1", None),
+    ]
+    monkeypatch.setattr(psycopg, "connect", lambda url: _DaytonaConn(trials))
+    rows, notes = query_daytona_rows(
+        "postgresql://fake/db",
+        *_oct1_window(),
+        card_by_job={"ovn-g5-001695-stock": "HAR-126"},
+    )
+    by_job = {row.job: row for row in rows}
+    assert by_job["ovn-g5-001695-stock"].card == "HAR-126"
+    # Same prefix shape but not declared: never inferred.
+    assert by_job["ovn-g5-999999-stock"].card == UNATTRIBUTED
+    assert by_job["har120-000001-a1"].card == "HAR-120"
+    assert any("declared exact-name" in note for note in notes)
+
+
+def test_daytona_declared_conflict_fails_closed_to_unattributed(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    trials = [
+        # Declared HAR-126 disagrees with the job-name HAR-120.
+        _daytona_trial("har120-000001-a1", None),
+        # Declared HAR-126 disagrees with the catalog explicit HAR-131.
+        _daytona_trial("ovn-g5-001695-stock", "HAR-131"),
+    ]
+    monkeypatch.setattr(psycopg, "connect", lambda url: _DaytonaConn(trials))
+    rows, notes = query_daytona_rows(
+        "postgresql://fake/db",
+        *_oct1_window(),
+        card_by_job={
+            "har120-000001-a1": "HAR-126",
+            "ovn-g5-001695-stock": "HAR-126",
+        },
+    )
+    by_job = {row.job: row for row in rows}
+    assert by_job["har120-000001-a1"].card == UNATTRIBUTED
+    assert by_job["ovn-g5-001695-stock"].card == UNATTRIBUTED
+    assert any("fail-closed" in note for note in notes)
+
+
+def test_model_declared_binding_attributes_settled_row(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import psycopg
+
+    pu = _settled_provider_usage()
+    jobs = [
+        (
+            "ovn-g5-001695-stock",
+            "runs/ovn-g5-001695-stock",
+            "job-1",
+            "2026-10-01T10:00:00+00:00",
+            {"provider_usage": pu},
+        ),
+    ]
+    monkeypatch.setattr(psycopg, "connect", lambda url: _ModelJobsConn(jobs))
+    rows, notes, _ = query_model_job_rows(
+        "postgresql://fake/db",
+        *_oct1_window(),
+        card_by_job={"ovn-g5-001695-stock": "HAR-126"},
+    )
+    assert rows[0].card == "HAR-126"
+    assert rows[0].usd == pytest.approx(0.05)
+    assert any("declared exact-name" in note for note in notes)
+
+
+def test_builder_merges_policy_and_explicit_fail_closed_on_conflict(
+    tmp_path: Path,
+) -> None:
+    _write_policy(tmp_path)
+    with pytest.raises(ValueError, match="conflicts"):
+        build_window_ledger(
+            tmp_path,
+            *_oct1_window(),
+            database_url="postgresql://fake/db",
+            card_by_job={"ovn-g5-001695-stock": "HAR-131"},
+        )

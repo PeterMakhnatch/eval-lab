@@ -46,19 +46,19 @@ mixed with estimates):
   (pricing 0/0, billed instead through Modal server time) and
   contribute no model row, so they are never double counted.
 
-Card attribution is explicit-only and fail-closed: the catalog
+Card attribution is explicit-only and fail-closed: the declared
+``policy/spend-attribution.yaml`` exact-name bindings or the catalog
 ``lab_metadata`` ``experiment.linear_card`` (copied from the submitting
 ``ExperimentSpec.linear_card``) wins, the job-name prefix (``har81-...``
 -> ``HAR-81``) or the ledger path (``har111/...`` -> ``HAR-111``) covers
 the rest; disagreement or a malformed explicit card fails closed to
 ``unattributed`` with a conflict note and is never guessed. Task,
-model, harness, and app names are never attribution: jobs that predate
-the explicit field (e.g. the 2026-10-01 ``ovn-g5-*`` runs) stay
-``unattributed`` until republished with an explicit binding such as
-``publication_card``. Billed Daytona dollars are unavailable from the
+model, harness, and app names are never attribution: the 2026-10-01
+``ovn-g5-*`` runs attribute only through their declared G5-RUN.md
+cell binding, and jobs with no binding at all stay ``unattributed``
+(republishing with ``publication_card`` binds the results home without
+rewriting raw records). Billed Daytona dollars are unavailable from the
 provider API, so Daytona rows stay estimates.
-Model-ledger dollars attribute to the day the job finished;
-``spend.jsonl`` rows attribute to the day of their own timestamp.
 
 Window ledgers generalize the day to any half-open UTC window
 [start, end): a day is the special case [day 00:00, next day 00:00).
@@ -211,6 +211,101 @@ def explicit_card_from_lab_metadata(lab_metadata: Any) -> str | None:
         if isinstance(experiment, Mapping):
             return normalize_linear_card(experiment.get("linear_card"))
     return None
+
+#: Declared attribution policy: exact job/app names bound to a Linear card.
+#: Read-only; an absent file means no declared bindings.
+SPEND_ATTRIBUTION_POLICY = "policy/spend-attribution.yaml"
+SPEND_ATTRIBUTION_SCHEMA = "evallab.spend_attribution/v1"
+
+
+@dataclass(frozen=True)
+class DeclaredAttribution:
+    """Exact-name card bindings declared in the attribution policy."""
+
+    job_cards: dict[str, str]
+    app_cards: dict[str, str]
+    source: str
+
+
+def _normalize_binding_map(raw: Any, label: str) -> dict[str, str]:
+    """Validate one name -> card section; malformed raises fail-closed."""
+    if raw is None:
+        return {}
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"spend attribution {label} must be a mapping")
+    bound: dict[str, str] = {}
+    for name, card in raw.items():
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError(f"spend attribution {label} has a non-string name: {name!r}")
+        normalized = normalize_linear_card(card)
+        if normalized is None:
+            raise ValueError(f"spend attribution {label} for {name!r} is empty")
+        bound[name] = normalized
+    return bound
+
+
+def load_declared_attribution(repo_root: Path) -> DeclaredAttribution:
+    """Read-only declared bindings from the attribution policy, if present.
+
+    An absent file yields no bindings (isolated fixtures stay unbound).
+    A present-but-malformed file raises ``ValueError`` fail-closed: the
+    ledger never runs on half-read bindings.
+    """
+    import yaml
+
+    path = Path(repo_root) / SPEND_ATTRIBUTION_POLICY
+    if not path.is_file():
+        return DeclaredAttribution(job_cards={}, app_cards={}, source="")
+    try:
+        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(f"cannot load spend attribution policy {path}: {exc}") from exc
+    if not isinstance(raw, Mapping):
+        raise ValueError(f"spend attribution policy {path} must be a mapping")
+    unknown = set(raw) - {"schema", "source", "job_cards", "app_cards"}
+    if unknown:
+        raise ValueError(
+            f"spend attribution policy {path} has unknown keys: {sorted(unknown)}"
+        )
+    if raw.get("schema") != SPEND_ATTRIBUTION_SCHEMA:
+        raise ValueError(
+            f"spend attribution policy {path} has unsupported schema: "
+            f"{raw.get('schema')!r} (expected {SPEND_ATTRIBUTION_SCHEMA!r})"
+        )
+    source_block = raw.get("source")
+    if source_block is None:
+        source = str(path)
+    elif isinstance(source_block, Mapping):
+        document = source_block.get("path")
+        evidence = source_block.get("card_evidence")
+        source = f"{path} ({document}: {evidence})"
+    else:
+        raise ValueError(f"spend attribution policy {path} source must be a mapping")
+    return DeclaredAttribution(
+        job_cards=_normalize_binding_map(raw.get("job_cards"), "job_cards"),
+        app_cards=_normalize_binding_map(raw.get("app_cards"), "app_cards"),
+        source=source,
+    )
+
+
+def _merge_bindings(
+    label: str,
+    declared: Mapping[str, str],
+    explicit: Mapping[str, str] | None,
+) -> dict[str, str]:
+    """Union a declared map with an explicit caller map; conflicts raise."""
+    merged = dict(declared)
+    for name, card in (explicit or {}).items():
+        normalized = normalize_linear_card(card)
+        if normalized is None:
+            raise ValueError(f"explicit {label} binding for {name!r} is empty")
+        if name in merged and merged[name] != normalized:
+            raise ValueError(
+                f"explicit {label} binding for {name!r} ({normalized}) conflicts "
+                f"with the declared {merged[name]}"
+            )
+        merged[name] = normalized
+    return merged
 
 
 def parse_dt(value: Any) -> datetime | None:
@@ -796,7 +891,11 @@ def query_modal_latest_interval(database_url: str) -> datetime | None:
 
 
 def query_model_job_rows(
-    database_url: str, window_start: datetime, window_end: datetime
+    database_url: str,
+    window_start: datetime,
+    window_end: datetime,
+    *,
+    card_by_job: Mapping[str, str] | None = None,
 ) -> tuple[list[SpendRow], list[str], float]:
     """Settled per-job model dollars for jobs finished in ``[window_start, window_end)``.
 
@@ -810,10 +909,16 @@ def query_model_job_rows(
     unfinished/unattributable. Settled proxy ledgers attribute whole to the
     job finish time (they are not split across windows).
 
+    Card attribution is explicit-only like :func:`query_daytona_rows`: a
+    declared ``card_by_job`` binding (exact job names) or the catalog
+    ``lab_metadata`` explicit card first, the job-name prefix second,
+    failing closed to ``unattributed`` on disagreement.
+
     Returns ``(spend_rows, notes, unresolved_model_usd)``.
     """
     import psycopg
 
+    bound = _merge_bindings("job", {}, card_by_job)
     window_start = _coerce_utc(window_start)
     window_end = _coerce_utc(window_end)
     with psycopg.connect(database_url) as connection:
@@ -830,6 +935,7 @@ def query_model_job_rows(
     selfhosted_zero = 0
     unfinished = 0
     model_conflicts: list[str] = []
+    model_declared = 0
     for job_name, evidence_path, job_id, finished_at_raw, lab_metadata in rows:
         finished = None
         if isinstance(lab_metadata, dict) and lab_metadata.get("finished_at"):
@@ -886,10 +992,20 @@ def query_model_job_rows(
                 selfhosted_zero += 1
             continue
         try:
+            catalog = explicit_card_from_lab_metadata(lab_metadata)
+            declared = bound.get(job_name) if isinstance(job_name, str) else None
+            if declared is not None and catalog is not None and declared != catalog:
+                raise ValueError(
+                    f"declared card {declared} conflicts with catalog explicit "
+                    f"card {catalog} for {job_name!r}"
+                )
+            linear = declared if declared is not None else catalog
             model_card = resolve_job_card(
                 job_name if isinstance(job_name, str) else None,
-                linear_card=explicit_card_from_lab_metadata(lab_metadata),
+                linear_card=linear,
             )
+            if declared is not None:
+                model_declared += 1
         except ValueError as exc:
             model_card = UNATTRIBUTED
             model_conflicts.append(
@@ -920,6 +1036,10 @@ def query_model_job_rows(
         )
     if unfinished:
         notes.append(f"model: {unfinished} jobs lack finished_at; unattributable")
+    if model_declared:
+        notes.append(
+            f"model: {model_declared} jobs attributed via declared exact-name job binding"
+        )
     if model_conflicts:
         notes.append(
             "model: fail-closed to unattributed on card conflict: "
@@ -1036,7 +1156,11 @@ def _read_task_toml_env(task_path: Any) -> dict[str, Any]:
 
 
 def query_daytona_rows(
-    database_url: str, window_start: datetime, window_end: datetime
+    database_url: str,
+    window_start: datetime,
+    window_end: datetime,
+    *,
+    card_by_job: Mapping[str, str] | None = None,
 ) -> tuple[list[SpendRow], list[str]]:
     """Daytona sandbox estimates: trial wall time in the window x rate card.
 
@@ -1045,17 +1169,19 @@ def query_daytona_rows(
     Per-job rows aggregate trial slices; every dollar here is basis
     ``estimate`` from the Daytona list-price card.
 
-    Card attribution is explicit-only: the catalog ``lab_metadata``
-    ``experiment.linear_card`` first, the job-name prefix second, failing
-    closed (unattributed with a conflict note) on disagreement. Task,
-    model, and harness path substrings are never treated as attribution,
-    so jobs that predate the explicit field stay ``unattributed`` with an
-    honest note instead of a guessed card.
+    Card attribution is explicit-only: a declared ``card_by_job`` binding
+    (exact job names, e.g. from the attribution policy) or the catalog
+    ``lab_metadata`` ``experiment.linear_card`` first, the job-name prefix
+    second, failing closed (unattributed with a conflict note) on
+    disagreement. Task, model, and harness path substrings are never
+    treated as attribution, so jobs with no binding stay ``unattributed``
+    with an honest note instead of a guessed card.
     """
     import psycopg
 
     from evallab.task_qualification import estimate_cost_usd
 
+    bound = _merge_bindings("job", {}, card_by_job)
     window_start = _coerce_utc(window_start)
     window_end = _coerce_utc(window_end)
 
@@ -1162,12 +1288,20 @@ def query_daytona_rows(
         )
         if meta["trials"] == 0:
             try:
-                explicit = explicit_card_from_lab_metadata(job_metadata)
+                catalog = explicit_card_from_lab_metadata(job_metadata)
+                declared = bound.get(key) if isinstance(job_name, str) else None
+                if declared is not None and catalog is not None and declared != catalog:
+                    raise ValueError(
+                        f"declared card {declared} conflicts with catalog explicit "
+                        f"card {catalog} for {key!r}"
+                    )
+                linear = declared if declared is not None else catalog
                 meta["card"] = resolve_job_card(
                     job_name if isinstance(job_name, str) else None,
-                    linear_card=explicit,
+                    linear_card=linear,
                 )
-                meta["explicit"] = explicit is not None
+                meta["explicit"] = linear is not None
+                meta["declared"] = declared is not None
             except ValueError as exc:
                 meta["card"] = UNATTRIBUTED
                 card_conflicts.append(f"{key}: {exc}")
@@ -1184,6 +1318,9 @@ def query_daytona_rows(
         for key, usd in sorted(per_job_usd.items())
     ]
     explicit_jobs = sum(1 for key in per_job_usd if per_job_meta[key]["explicit"])
+    declared_jobs = sum(
+        1 for key in per_job_usd if per_job_meta[key].get("declared")
+    )
     unattributed_jobs = sum(1 for key in per_job_usd if per_job_meta[key]["card"] == UNATTRIBUTED)
     notes = [
         f"daytona: {trials_in_window} trial slices across {len(spend_rows)} jobs "
@@ -1196,11 +1333,17 @@ def query_daytona_rows(
             f"daytona: {explicit_jobs} jobs attributed via explicit linear_card "
             "from catalog lab_metadata"
         )
+    if declared_jobs:
+        notes.append(
+            f"daytona: {declared_jobs} jobs attributed via declared exact-name "
+            "job binding"
+        )
     if unattributed_jobs:
         notes.append(
-            f"daytona: {unattributed_jobs} jobs unattributed (no explicit "
-            "linear_card in catalog lab_metadata and no HAR job-name prefix; "
-            "harness/task path substrings are never attribution)"
+            f"daytona: {unattributed_jobs} jobs unattributed (no declared job "
+            "binding, no explicit linear_card in catalog lab_metadata, and no "
+            "HAR job-name prefix; harness/task path substrings are never "
+            "attribution)"
         )
     if card_conflicts:
         notes.append(
@@ -1283,12 +1426,19 @@ def build_window_ledger(
     include_window_preamble: bool = True,
     live_modal_row: SpendRow | None = None,
     live_modal_notes: Iterable[str] = (),
+    card_by_job: Mapping[str, str] | None = None,
+    card_by_app: Mapping[str, str] | None = None,
 ) -> WindowLedger:
     """Assemble the full window ledger from all three sources (read-only).
 
     ``label`` names the window in notes (defaults to the ISO range).
     When ``live_modal_notes`` is provided, they are used directly (live report);
     otherwise Modal spend is read from the catalog cache.
+
+    Declared bindings load once from ``policy/spend-attribution.yaml`` under
+    ``repo_root`` (absent file: no bindings) and merge with the explicit
+    ``card_by_job``/``card_by_app`` maps fail-closed; the union threads
+    into the Daytona, model, and Modal queries.
     """
     window_start = _coerce_utc(window_start)
     window_end = _coerce_utc(window_end)
@@ -1297,6 +1447,9 @@ def build_window_ledger(
     )
     rows: list[SpendRow] = []
     notes: list[str] = []
+    declared = load_declared_attribution(repo_root)
+    merged_job = _merge_bindings("job", declared.job_cards, card_by_job)
+    merged_app = _merge_bindings("app", declared.app_cards, card_by_app)
     if include_window_preamble:
         notes.append(f"window: settled spend in {caption} (half-open [start, end))")
         notes.append(
@@ -1304,13 +1457,20 @@ def build_window_ledger(
             "daytona trials contribute overlapping wall seconds; spend.jsonl rows count by "
             "their own ts; per-job proxy ledgers count whole on the job finish day"
         )
+    if merged_job or merged_app:
+        notes.append(
+            f"attribution: declared bindings from {declared.source} "
+            f"({len(merged_job)} jobs, {len(merged_app)} apps)"
+        )
     injected_notes = tuple(live_modal_notes)
     if injected_notes:
         notes.extend(injected_notes)
         if live_modal_row is not None:
             rows.append(live_modal_row)
     else:
-        modal_rows, modal_note = query_modal_rows(database_url, window_start, window_end)
+        modal_rows, modal_note = query_modal_rows(
+            database_url, window_start, window_end, card_by_app=merged_app or None
+        )
         notes.append(modal_note)
         rows.extend(modal_rows)
         if window_end.date() >= datetime.now(UTC).date():
@@ -1330,7 +1490,7 @@ def build_window_ledger(
                     "may undercount tonight"
                 )
     model_job_rows, model_notes, unresolved_model_usd = query_model_job_rows(
-        database_url, window_start, window_end
+        database_url, window_start, window_end, card_by_job=merged_job or None
     )
     rows.extend(model_job_rows)
     notes.extend(model_notes)
@@ -1339,7 +1499,9 @@ def build_window_ledger(
     )
     rows.extend(jsonl_rows)
     notes.extend(jsonl_notes)
-    daytona_rows, daytona_notes = query_daytona_rows(database_url, window_start, window_end)
+    daytona_rows, daytona_notes = query_daytona_rows(
+        database_url, window_start, window_end, card_by_job=merged_job or None
+    )
     rows.extend(daytona_rows)
     notes.extend(daytona_notes)
     return summarize_window(
@@ -1359,6 +1521,8 @@ def build_day_ledger(
     database_url: str,
     cap_usd: float | None = None,
     extra_roots: Iterable[Path] = (),
+    card_by_job: Mapping[str, str] | None = None,
+    card_by_app: Mapping[str, str] | None = None,
 ) -> DayLedger:
     """Assemble the full day ledger from all three sources (read-only).
 
@@ -1366,6 +1530,8 @@ def build_day_ledger(
     [day 00:00, next day 00:00) UTC. Without an explicit cap, resolve policy
     at that day's 00:00 UTC: the dated override applies to the whole reported
     day, even when reporting it after expiry. This never extends launch approval.
+    Declared bindings load from ``policy/spend-attribution.yaml`` and merge
+    with the explicit maps fail-closed (the future CLI flag seam).
     """
     start, end = day_to_window(day)
     cap_description = None
@@ -1384,6 +1550,8 @@ def build_day_ledger(
         extra_roots=extra_roots,
         label=day.isoformat(),
         include_window_preamble=False,
+        card_by_job=card_by_job,
+        card_by_app=card_by_app,
     )
     return summarize_day(
         day,

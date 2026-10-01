@@ -6,11 +6,13 @@ The detector reuses the HAR-114 onset rule exactly
 command run), so a run the offline replay would flag is the run the live
 agent flags. What this module adds is the response to that detection:
 
-- one nudge, ``LOOP_NUDGE_MESSAGE``, on the call the run first reaches its
-  length;
-- a stop ``LOOP_GRACE_CALLS`` later, but only when the repetition never
-  broke. One call whose signature differs, or one edit-like call, ends the
-  episode: the agent keeps running and the nudge is recorded as broken.
+One nudge, ``LOOP_NUDGE_MESSAGE``, on the call the run first reaches its
+length; a stop ``grace_calls`` later, but only when the repetition never
+broke. One call whose signature differs, or one edit-like call, ends it:
+the agent keeps running and the nudge is recorded as broken. The run
+lengths and the grace window are parameters (``command_run_min``,
+``message_run_min``, ``grace_calls``) defaulting to the HAR-114/116
+constants, so a replay sweep and the live agent share the exact rule.
 
 The output cap is the other half of the variant: at most
 ``OUTPUT_CAP_CHARS`` characters of terminal output go back into the prompt,
@@ -79,12 +81,17 @@ def _run_length(values: list[str], end: int) -> int:
     return end - start + 1
 
 
-def _onset(features: list[dict[str, Any]]) -> dict[str, Any] | None:
+def _onset(
+    features: list[dict[str, Any]],
+    *,
+    command_run_min: int = COMMAND_RUN_MIN,
+    message_run_min: int = LOOP_MIN_RUN,
+) -> dict[str, Any] | None:
     """First call at which a run reaches its length, or None.
 
-    Command onset needs ``COMMAND_RUN_MIN`` identical normalized signatures
+    Command onset needs ``command_run_min`` identical normalized signatures
     with no edit-like step inside the run; message onset needs
-    ``LOOP_MIN_RUN`` identical stripped messages. The earlier wins; both at
+    ``message_run_min`` identical stripped messages. The earlier wins; both at
     the same call are reported as ``both``.
     """
     signatures = [item["signature"] for item in features]
@@ -96,9 +103,13 @@ def _onset(features: list[dict[str, Any]]) -> dict[str, Any] | None:
         if command_at is None and signatures[index]:
             length = _run_length(signatures, index)
             start = index - length + 1
-            if length >= COMMAND_RUN_MIN and not any(edits[start : index + 1]):
+            if length >= command_run_min and not any(edits[start : index + 1]):
                 command_at = index
-        if message_at is None and messages[index] and _run_length(messages, index) >= LOOP_MIN_RUN:
+        if (
+            message_at is None
+            and messages[index]
+            and _run_length(messages, index) >= message_run_min
+        ):
             message_at = index
         if command_at is not None and message_at is not None:
             break
@@ -133,17 +144,23 @@ def repetition_broken(features: list[dict[str, Any]], onset_index: int, at: int)
     return False
 
 
-def loop_decision(steps: list[dict[str, Any]]) -> dict[str, Any]:
+def loop_decision(
+    steps: list[dict[str, Any]],
+    *,
+    command_run_min: int = COMMAND_RUN_MIN,
+    message_run_min: int = LOOP_MIN_RUN,
+    grace_calls: int = LOOP_GRACE_CALLS,
+) -> dict[str, Any]:
     """What the loop break does over a finished sequence of agent steps.
 
     ``nudge_call`` is the 1-based call the run first reached its length — the
     call that gets the nudge. ``stop_call`` is ``nudge_call +
-    LOOP_GRACE_CALLS`` when the repetition held through it, else None, and
+    grace_calls`` when the repetition held through it, else None, and
     ``broke_at_call`` is the first call that broke it. A sequence shorter
     than the grace window reports neither: the decision is still open.
     """
     features = [step_features(step) for step in steps]
-    onset = _onset(features)
+    onset = _onset(features, command_run_min=command_run_min, message_run_min=message_run_min)
     decision: dict[str, Any] = {
         "nudge_call": None,
         "detector": None,
@@ -159,13 +176,19 @@ def loop_decision(steps: list[dict[str, Any]]) -> dict[str, Any]:
         if repetition_broken(features, onset_index, index):
             decision["broke_at_call"] = index + 1
             return decision
-        if index - onset_index == LOOP_GRACE_CALLS:
+        if index - onset_index == grace_calls:
             decision["stop_call"] = index + 1
             return decision
     return decision
 
 
-def live_loop_action(steps: list[dict[str, Any]]) -> str | None:
+def live_loop_action(
+    steps: list[dict[str, Any]],
+    *,
+    command_run_min: int = COMMAND_RUN_MIN,
+    message_run_min: int = LOOP_MIN_RUN,
+    grace_calls: int = LOOP_GRACE_CALLS,
+) -> str | None:
     """The live agent's action after the latest call: nudge, stop, or none.
 
     ``steps`` includes the call just taken. A nudge fires once, on the onset
@@ -176,7 +199,7 @@ def live_loop_action(steps: list[dict[str, Any]]) -> str | None:
     features = [step_features(step) for step in steps]
     if not features:
         return None
-    onset = _onset(features)
+    onset = _onset(features, command_run_min=command_run_min, message_run_min=message_run_min)
     if onset is None:
         return None
     onset_index = onset["call_index"] - 1
@@ -187,7 +210,7 @@ def live_loop_action(steps: list[dict[str, Any]]) -> str | None:
         return None
     if repetition_broken(features, onset_index, latest):
         return None
-    if latest - onset_index == LOOP_GRACE_CALLS:
+    if latest - onset_index == grace_calls:
         return "stop"
     return None
 

@@ -10,10 +10,16 @@ from evallab.process_job import process_job
 from evallab.results_home import backfill, publish_job, write_index
 
 
-def _job(root: Path, name: str = "har117-sample") -> Path:
+def _job(
+    root: Path, name: str = "har117-sample", *, agent: str | None = None, model: str | None = None
+) -> Path:
     job = root / "runs" / name
     job.mkdir(parents=True)
-    (job / "config.json").write_text("{}", encoding="utf-8")
+    if agent is not None or model is not None:
+        job_config: dict[str, object] = {"agents": [{"name": agent or "nop", "model_name": model}]}
+    else:
+        job_config = {}
+    (job / "config.json").write_text(json.dumps(job_config), encoding="utf-8")
     (job / "result.json").write_text('{"id": "job-1"}', encoding="utf-8")
     (job / "lab-metadata.json").write_text(
         json.dumps(
@@ -69,7 +75,7 @@ def test_publish_copies_bytes_and_marks_uncommitted_code(tmp_path: Path) -> None
     checkout = tmp_path / "checkout"
     research = checkout / "research" / "experiments" / "har117-results-home"
     research.mkdir(parents=True)
-    (research / "NOTES.md").write_text("notes", encoding="utf-8")
+    (research / "RESULTS.md").write_text("results", encoding="utf-8")
 
     first = publish_job(job, root=home, pr_lookup=lambda _commit: "42", primary_checkout=checkout)
     published = Path(first["published"])
@@ -91,10 +97,13 @@ def test_publish_copies_bytes_and_marks_uncommitted_code(tmp_path: Path) -> None
     again = publish_job(job, root=home, pr_lookup=lambda _commit: "42", primary_checkout=checkout)
     assert again["published"] == first["published"]
     index = (home / "INDEX.md").read_text()
+    # No recorded agent, so the job collapses to one routine line for its card.
     assert sum(line.startswith("| HAR-117") for line in index.splitlines()) == 1
     assert "**uncommitted code**" in index
-    assert "NOTES.md" in index
-    assert "`abc123def456`" in index
+    full = (home / "INDEX-all.md").read_text()
+    assert sum(line.startswith("| HAR-117") for line in full.splitlines()) == 1
+    assert "RESULTS.md" in full
+    assert "`abc123def456`" in full
 
 
 def test_republish_never_removes_the_source(tmp_path: Path) -> None:
@@ -142,7 +151,7 @@ def test_process_job_publishes_into_overridden_home(tmp_path: Path, monkeypatch)
     report = process_job(job, ingest=False, pr_lookup=lambda _commit: None)
     assert report["results_home"] == str(home / "2026-09-30" / "HAR-117-har117-sample")
     assert "HAR-117" in (home / "INDEX.md").read_text()
-    assert "None (no processed report)" in (home / "INDEX.md").read_text()
+    assert "None (no processed report)" in (home / "INDEX-all.md").read_text()
 
 
 def test_backfill_skips_executor_and_old_cards(tmp_path: Path) -> None:
@@ -164,19 +173,119 @@ def test_backfill_skips_executor_and_old_cards(tmp_path: Path) -> None:
     assert os.listdir(tmp_path / "results" / "2026-09-30") == ["HAR-117-har117-kept"]
 
 
-def test_index_regenerates_newest_first(tmp_path: Path) -> None:
+def test_index_lists_agent_runs_first_newest_first(tmp_path: Path) -> None:
     home = tmp_path / "results"
-    older = _job(tmp_path / "a", "har90-old")
-    newer = _job(tmp_path / "b", "har116-new")
+    agent = "evallab.harbor_terminus:SecretSafeTerminus2"
+    older = _job(tmp_path / "a", "har90-old", agent=agent, model="selfhosted/example")
+    newer = _job(tmp_path / "b", "har116-new", agent=agent, model="selfhosted/example")
+    control = _job(tmp_path / "c", "har116-nop-1", agent="nop")
     meta = json.loads((newer / "lab-metadata.json").read_text())
     meta["started_at"] = "2026-10-01T00:00:00+00:00"
     (newer / "lab-metadata.json").write_text(json.dumps(meta), encoding="utf-8")
-    publish_job(older, root=home, pr_lookup=lambda _commit: None)
-    publish_job(newer, root=home, pr_lookup=lambda _commit: None)
-    lines = [
-        line for line in (home / "INDEX.md").read_text().splitlines() if line.startswith("| HAR-")
-    ]
-    assert lines[0].startswith("| HAR-116")
-    assert lines[1].startswith("| HAR-90")
+    for job in (older, newer, control):
+        publish_job(job, root=home, pr_lookup=lambda _commit: None)
+    text = (home / "INDEX.md").read_text()
+    agent_section = text.split("## Agent runs")[1].split("## Routine")[0]
+    rows = [line for line in agent_section.splitlines() if line.startswith("| 202")]
+    assert len(rows) == 2
+    assert "har116-new" in rows[0]
+    assert "har90-old" in rows[1]
+    assert "SecretSafeTerminus2" in rows[0]
+    # The control job collapses to one line for its card, after the agent runs.
+    assert "| HAR-116 | 1 |" in text.split("## Routine")[1]
+    assert "har116-nop-1" not in text
+    full = (home / "INDEX-all.md").read_text()
+    assert "har116-nop-1" in full
+    assert sum("har116-new" in line for line in full.splitlines()) == 1
     write_index(home)
-    assert (home / "INDEX.md").read_text().count("| HAR-116") == 1
+    index = (home / "INDEX.md").read_text()
+    assert sum("har116-new" in line for line in index.splitlines()) == 1
+
+
+def test_plain_process_job_call_never_writes_the_real_home(tmp_path: Path) -> None:
+    """A ``process_job`` call without ``publish=False`` stays inside the test."""
+    import os
+
+    from evallab.results_home import DEFAULT_ROOT, ENV_VAR, results_root
+
+    assert ENV_VAR in os.environ  # the autouse conftest fixture redirects publishing
+    assert Path(results_root()).is_relative_to(tmp_path)
+    job = _job(tmp_path)
+    report = process_job(job, ingest=False, pr_lookup=lambda _commit: None)
+    assert Path(str(report["results_home"])).is_relative_to(tmp_path)
+    assert not str(report["results_home"]).startswith(str(DEFAULT_ROOT))
+
+
+def test_agent_run_comes_from_records_not_name_heuristics(tmp_path: Path) -> None:
+    from evallab.results_home import _agent_model, is_agent_run
+
+    published = tmp_path / "job"
+    published.mkdir()
+    (published / "config.json").write_text(
+        json.dumps(
+            {
+                "agents": [
+                    {
+                        "name": "dryrun_rlm_agent:DryRunRlmAgent",
+                        "model_name": "zai-coding-plan/glm-5.3-flash",
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+    # An old backfilled job with no recorded command still resolves via config.
+    agent, model = _agent_model(published, {"command": None, "model": None})
+    assert agent == "dryrun_rlm_agent:DryRunRlmAgent"
+    assert model == "zai-coding-plan/glm-5.3-flash"
+    assert is_agent_run(agent) is True
+    assert is_agent_run("nop") is False
+    assert is_agent_run("oracle") is False
+    assert is_agent_run("evallab.harbor_terminus:SecretSafeTerminus2") is True
+    assert is_agent_run(None) is False
+
+
+def test_research_lookup_ignores_deep_trees(tmp_path: Path, monkeypatch) -> None:
+    from pathlib import Path as _Path
+
+    from evallab.results_home import _research_docs
+
+    checkout = tmp_path / "checkout"
+    experiment = checkout / "research" / "experiments" / "har117-results-home"
+    experiment.mkdir(parents=True)
+    (experiment / "RESULTS.md").write_text("results", encoding="utf-8")
+    # Decoy slug matches hidden where the old unbounded rglob used to look.
+    deep = checkout / "research" / "evidence" / "runs" / "deep"
+    deep.mkdir(parents=True)
+    (deep / "har117-results-home-notes.md").write_text("decoy", encoding="utf-8")
+    vendor = checkout / "research" / "external" / "harbor-ecosystem" / "vendor"
+    vendor.mkdir(parents=True)
+    (vendor / "har117-vendor.md").write_text("decoy", encoding="utf-8")
+
+    def _no_rglob(self: _Path, *args: object, **kwargs: object) -> object:
+        raise AssertionError("INDEX lookup must never rglob the checkout")
+
+    monkeypatch.setattr(_Path, "rglob", _no_rglob)
+    assert _research_docs(checkout) == {"HAR-117": str(experiment / "RESULTS.md")}
+
+
+def test_write_index_never_descends_into_jobs_or_checkout(tmp_path: Path, monkeypatch) -> None:
+    from pathlib import Path as _Path
+
+    home = tmp_path / "results"
+    agent = "evallab.harbor_terminus:SecretSafeTerminus2"
+    job = _job(tmp_path / "src", "har117-agent-1", agent=agent, model="selfhosted/example")
+    checkout = tmp_path / "checkout"
+    experiment = checkout / "research" / "experiments" / "har117-results-home"
+    experiment.mkdir(parents=True)
+    (experiment / "SUMMARY.md").write_text("summary", encoding="utf-8")
+    publish_job(job, root=home, pr_lookup=lambda _commit: None, primary_checkout=checkout)
+
+    def _no_rglob(self: _Path, *args: object, **kwargs: object) -> object:
+        raise AssertionError("INDEX regeneration must never rglob")
+
+    monkeypatch.setattr(_Path, "rglob", _no_rglob)
+    write_index(home, primary_checkout=checkout)
+    text = (home / "INDEX.md").read_text()
+    assert "har117-agent-1" in text
+    assert "SUMMARY.md" in text

@@ -2,7 +2,7 @@
 
 One row per MiMo-V2.6-RL Python code task in the census pool (1,180), in
 [`ledger.csv`](ledger.csv). Built by [`build.py`](build.py) from committed
-inputs only; re-run it after any census, variant or label change:
+inputs only; re-run it after any census or variant change:
 
 ```bash
 uv run python research/experiments/python-task-ledger/build.py
@@ -13,54 +13,36 @@ either fix them or discard them... and move on").
 
 ## Counts
 
+Since 2026-10-01 status rests on mechanical evidence only. Peter dropped the
+agent- and model-reviewed labels: the HAR-111/112 GLM checker and the
+rater-agent "hand" labels no longer change any status, and the columns that
+carried them are gone. That returned 165 checker-only `review` tasks and 13
+judgment-based discards to `usable`.
+
 | split | usable | review | discarded | unchecked | total |
 |---|---|---|---|---|---|
-| train | 865 | 141 | 41 | 0 | 1047 |
-| heldout | 106 | 24 | 3 | 0 | 133 |
-| all | 971 | 165 | 44 | 0 | 1180 |
+| train | 1017 | 0 | 30 | 0 | 1047 |
+| heldout | 132 | 0 | 1 | 0 | 133 |
+| all | 1149 | 0 | 31 | 0 | 1180 |
 
-- **usable 971:**
-  - 746 run the original;
-  - 133 run a leak-closed variant (`pypi_fix_released`);
-  - 92 run a validated repair variant (HAR-113/HAR-115 repairs derive from the leak-closed variant where there is one).
-  - 122 of the 224 variants are leak-closed `candidate`s: their nop evidence is the original's. The blocklist reaches `/etc/hosts` only through the agent harness, so a nop cannot tell the two apart.
-  - 3 of the 971 left review in HAR-127 by majority: 000927, 001868 and 002757 (see [Review triage](#review-triage-har-127)).
-- **review 165:** `checker_only_instruction_gap`, where the HAR-112 checker alone says broken. They stay in review because the checker alone doesn't decide soundness (Peter, HAR-139).
-- **discarded 44:**
-  - 1 defect found in a real run, bound to the digest that showed it (`RUN_DEFECTS` in `build.py`): 001269's leak-closed image (`541d4168…`) holds the fixed module under `/testbed/build/lib`, and G2's 001269-a2-r2 copied it. The HAR-120 proposal was frozen before this, so it still lists 001269.
-  - 11 hand-labelled broken (8 by two raters, 3 by adjudication);
-  - 2 where most of the judges say broken (HAR-127 triage: 002407, 002628);
-  - 4 census `grader_suspect` whose grade cannot be confirmed (HAR-127 triage: 000124, 000183, 001146, 001150);
-  - 8 broken where a repair was tried and its nop rejected it;
-  - 10 broken with no known repair kind matching the error, not attempted;
+- **usable 1149:** 850 run the original, 189 a leak-closed variant (`pypi_fix_released`), 110 a validated repair variant.
+  - The leak-closed variants only add PyPI hosts to the `/etc/hosts` blocklist, which a root agent can rewrite. They are not a leak guarantee; network isolation is.
+- **discarded 31:**
+  - 18 broken environments (census nop) with no validated repair; for 8 a repair was tried and its nop rejected it;
   - 5 whose image never built on Daytona (`SandboxBuildFailedError`);
-  - 3 diagnosed with no repair kind (000393, 002595, 002848).
+  - 4 census `grader_suspect` whose grade cannot be confirmed (000124, 000183, 001146, 001150);
+  - 3 diagnosed with no repair kind (000393, 002595, 002848);
+  - 1 defect found in a real run, bound to the digest that showed it (`RUN_DEFECTS` in `build.py`): 001269's image holds the fixed module under `/testbed/build/lib`, and G2's 001269-a2-r2 copied it.
   - `reason` gives each one's evidence.
 
 ## Status rule
 
-From Research-Harbor's HAR-115 comment:
-
 | status | rule |
 |---|---|
-| `usable` | the nop is sound on the package to run (the original, or a validated repair variant); not hand-labelled broken; not checker-broken. A `pypi_fix_released` task runs its leak-closed variant |
-| `review` | the environment is fine but only the checker, or only one hand rater, says broken; or census `grader_suspect` with no repair |
-| `discarded` | `broken_environment` with no validated repair; or hand-labelled broken by two raters, or by adjudication |
+| `usable` | the census nop is sound on the package to run (the original, or a validated repair variant). A `pypi_fix_released` task runs its leak-closed variant |
+| `review` | `pypi_fix_released` with no leak-closed variant (none today) |
+| `discarded` | `broken_environment` with no validated repair; census `grader_suspect` with no repair; or a run defect in `RUN_DEFECTS` |
 | `unchecked` | no census nop |
-
-Hand labels come from two sources: HAR-111 raters 1 and 2 (`har111/census_labels.jsonl`), and HAR-112 raters A and B plus the adjudicator (`har112/hand_{a,b,adj}/`). An adjudication decides when present. A checker or hand `suspect` does not change status; the label is kept in the row.
-
-## Review triage (HAR-127)
-
-HAR-127 part 4: fix each `review` task with a known repair kind and re-nop it, or discard it with a reason. The known repair kinds in `library/task-variants` change the environment (`env-*`) or close a leak. None of them restates an instruction or confirms a grade, so none of them fixes a review task, and no re-nop was run ($0). `build.py`'s `triage` then decides each task:
-
-| review cause | count | decision |
-|---|---|---|
-| HAR-112 checker alone says broken | 165 | stays `review`, with the reason `checker_only_instruction_gap`. An LLM checker alone doesn't make a soundness call (Peter, HAR-139). Every one has at least one `not_inferable` item; `reason` gives the checker's sample agreement (91 at 3/3, 73 at 2/3, 1 at 1/3), the not-inferable item kinds and one test. These are the candidates for a future instruction-disclosure repair. |
-| one hand rater says broken | 5 | majority of the judges, meaning the hand raters plus the checker (`suspect` is not `broken`). 002407 (checker + rater 2) and 002628 (checker + rater 1) are `discarded`; 000927, 001868 and 002757 (1 of 3) become `usable`. |
-| census `grader_suspect`, no repair | 4 | `discarded`, because the grade cannot be confirmed. 000124 is missing Alembic tables; 000183 has a pytest segfault (exit 139); 001146 has no count line; in 001150 the tests import Python 2 source under Python 3.14. |
-
-The HAR-120 proposal is unchanged by the triage.
 
 ## Columns
 
@@ -72,13 +54,11 @@ The HAR-120 proposal is unchanged by the triage.
 | `run_transform`, `run_variant_status` | the variant's transform and its record status |
 | `census_label`, `census_nop_job`, `census_evidence` | the census nop |
 | `leak_channel` | census leak channel |
-| `checker_label` | HAR-112 checker (`pool_labels.jsonl`) |
-| `hand_labels` | `rater=label` pairs: `har111-1`, `har111-2`, `har112-a`, `har112-b`, `adj` |
-| `evidence` | repo paths: census row, chosen variant record, rejected repair records, checker row and hand-label files |
+| `evidence` | repo paths: census row, chosen variant record, rejected repair records |
 
 ## Proposed for HAR-120 (30)
 
-[`har120_proposal.csv`](har120_proposal.csv) holds 30 `usable` train tasks.
+[`har120_proposal.csv`](har120_proposal.csv) holds 30 then-`usable` train tasks. It is a frozen HAR-120 input (read by `har120-data-batch/make_specs.py` and the failure atlas); `build.py` no longer regenerates it.
 
 - **Stratified:** one per repository.
 - **Order:** lightest image first.

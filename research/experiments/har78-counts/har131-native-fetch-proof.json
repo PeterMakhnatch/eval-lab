@@ -1,0 +1,1371 @@
+{
+  "schema": "har131.frozen_acquisition_runtime/v1",
+  "observed_at_utc": "2026-10-01T11:27:45.803258+00:00",
+  "status": "candidate_only_waiting_for_Data_usability_and_protected_merge",
+  "implementation_commit": "161baaead56ec7a247a5b27e1ea3225daf2ff135",
+  "frozen_policy_at": "2026-10-01T10:53:00Z",
+  "policy": "saved/listed pinned artifact plus bound observed unpack OR read; normalized directories; failed/unknown attempts nondeciding; no local-reference counts route",
+  "source_hashes": {
+    "src/evallab/upstream_fetch.py": "d1c27417a6b4307095f02f05d0a221a4fff2df2eb5cbe5ffc228579c4ec2c3df",
+    "src/evallab/process_job.py": "0bb12a3d4ee885ad4c16b068bd826bc93879b37b4948df636287564b809937f9",
+    "src/evallab/counts.py": "fb94ca6a252154c33aa1b0370973bae894fe41695ae8583403634d8d4b09ab6d",
+    "src/evallab/trial_decision.py": "aad236178977f906c288e48620b6d7d6e97646288481f14e2c0e599b0a3bc4f6",
+    "research/experiments/python-task-ledger/ledger.csv": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a"
+  },
+  "focused_tests_passed": 116,
+  "static_gates_passed": true,
+  "preservation_checked": [
+    "native trial result bytes",
+    "lab-metadata bytes",
+    "raw reward",
+    "proxy-settled input/output"
+  ],
+  "native_job_count": 64,
+  "before_counts": {
+    "counted_fail": 29,
+    "excluded": 28,
+    "counted_pass": 7
+  },
+  "candidate_counts": {
+    "counted_fail": 29,
+    "excluded": 26,
+    "counted_pass": 9
+  },
+  "changed": [
+    {
+      "job": "har120-001870-a1",
+      "before": "excluded",
+      "after": "counted_pass",
+      "reasons": []
+    },
+    {
+      "job": "har120-001269-a2-r2",
+      "before": "excluded",
+      "after": "counted_pass",
+      "reasons": []
+    }
+  ],
+  "pending_dependency": {
+    "task": "001269",
+    "package_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c",
+    "owner": "Data / HAR-127",
+    "requirement": "canonical task/variant usability downgrade before live G2 reprocessing; no validated-variant bypass",
+    "note": "The source snapshot still labels it usable; this interim counted_pass is not accepted as clean."
+  },
+  "goldens": [
+    {
+      "fixture": "tests/fixtures/upstream_fetch/g2-001870.json",
+      "fixture_sha256": "fee507f5706bdede5530d90e83ff16ebe05bd3d89cb6426f0bc17e92f2bf9370",
+      "provenance": {
+        "trial": "har120-001870-a1__rXFPYLR",
+        "trajectory_path": "har120-001870-a1/har120-001870-a1__rXFPYLR/agent/trajectory.json",
+        "trajectory_sha256": "0c82546a26b004d5e3e544deada7273a08c70ce2edc176d85ed88d52dd3c47b3",
+        "result_path": "har120-001870-a1/har120-001870-a1__rXFPYLR/result.json",
+        "result_sha256": "f97c4ea673229cc42d9b21f6248618e4f0a19511d6ed0ece6b01faf93212f1c7",
+        "selection": "Exact native tool_calls/observation/source/step_id for the listed steps; no source content synthesized."
+      },
+      "verdict": "counted_pass",
+      "reasons": [],
+      "fetch_attempts": [
+        {
+          "call_id": "call_11_1",
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -2; python -c \"import markdownify,inspect;print(markdownify.__file__)\"\n",
+          "document": "head",
+          "evidence": "head#13",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "unknown",
+          "outcome_evidence": [],
+          "outcome_reason": "output-producing companion command cannot prove acquisition",
+          "rule": "upstream_fetch:pip-download-remote-package",
+          "step": 13,
+          "target": "markdownify==0.12.0"
+        },
+        {
+          "call_id": "call_12_1",
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null\n",
+          "document": "head",
+          "evidence": "head#14",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "unknown",
+          "outcome_evidence": [],
+          "outcome_reason": "no bound saved/listed artifact plus observed unpack/read proof",
+          "rule": "upstream_fetch:pip-download-remote-package",
+          "step": 14,
+          "target": "markdownify==0.12.0"
+        },
+        {
+          "call_id": "call_13_1",
+          "command": "cd /testbed && pip download markdownify==0.12.0 --no-deps -d /tmp/md 2>&1 | tail -3; ls /tmp/md 2>/dev/null\n",
+          "document": "head",
+          "evidence": "head#15",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "unknown",
+          "outcome_evidence": [],
+          "outcome_reason": "no bound saved/listed artifact plus observed unpack/read proof",
+          "rule": "upstream_fetch:pip-download-remote-package",
+          "step": 15,
+          "target": "markdownify==0.12.0"
+        }
+      ],
+      "usability_dependency_pending": false
+    },
+    {
+      "fixture": "tests/fixtures/upstream_fetch/g2-000341.json",
+      "fixture_sha256": "2f93349ce3e9828388a34abe15ca5b9cdb6b955c62cfd8cf6c50763fd887a55e",
+      "provenance": {
+        "trial": "har120-000341-a1__MYkGYQZ",
+        "trajectory_path": "har120-000341-a1/har120-000341-a1__MYkGYQZ/agent/trajectory.json",
+        "trajectory_sha256": "9e03e80486254e608b921fccc52505c9a5a076f42a13d3425ca7e94b860e9209",
+        "result_path": "har120-000341-a1/har120-000341-a1__MYkGYQZ/result.json",
+        "result_sha256": "d455e48d81ba0fe0d8d72ca461a0c9d2b2ac86bc0b4e141a50f9ea8ceae1b145",
+        "selection": "Exact native tool_calls/observation/source/step_id for the listed steps; no source content synthesized."
+      },
+      "verdict": "excluded",
+      "reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "fetch_attempts": [
+        {
+          "call_id": "call_38_1",
+          "command": "pip download vyper-config==1.0.0 --no-deps -d /tmp/vc 2>&1 | tail -3; ls /tmp/vc 2>/dev/null\n",
+          "document": "head",
+          "evidence": "head#40",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "succeeded",
+          "outcome_evidence": [
+            {
+              "artifact": "/tmp/vc/vyper_config-1.0.0-py3-none-any.whl",
+              "call_id": "call_38_1",
+              "document": "head",
+              "excerpt": "vyper_config-1.0.0-py3-none-any.whl",
+              "observation_binding": [
+                "source_call_id"
+              ],
+              "step": 40,
+              "target": "vyper-config==1.0.0"
+            },
+            {
+              "acquisition_proof": "artifact_unpack",
+              "artifact": "/tmp/vc/vyper_config-1.0.0-py3-none-any.whl",
+              "call_id": "call_39_1",
+              "document": "head",
+              "excerpt": "pkg/vyper/__init__.py\npkg/vyper/constants.py\npkg/vyper/errors.py\npkg/vyper/remote.py\npkg/vyper/util.py\npkg/vyper/watch.py\n70:        self._args = {}\n243:    def bind_args(self, parser):\n247:            return self.bind_arg_values(parser)\n249:    def bind_arg(self, key, arg):\n250:        return self.bind_arg_value(key, arg)\n252:    def _parse_args(self, parser, overrides=None):\n254:            retu",
+              "extracted_to": "/tmp/vc/pkg",
+              "observation_binding": [
+                "source_call_id"
+              ],
+              "step": 41,
+              "target": "vyper-config==1.0.0"
+            }
+          ],
+          "outcome_reason": "exact saved/listed artifact observed being unpacked or read",
+          "rule": "upstream_fetch:pip-download-remote-package",
+          "step": 40,
+          "target": "vyper-config==1.0.0"
+        },
+        {
+          "call_id": "call_56_1",
+          "command": "pip download vyper-config==1.0.0 --no-deps --no-binary :all: -d /tmp/vcs 2>&1 | tail -2; ls /tmp/vcs 2>/dev/null\n",
+          "document": "head",
+          "evidence": "head#58",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "unknown",
+          "outcome_evidence": [],
+          "outcome_reason": "no bound saved/listed artifact plus observed unpack/read proof",
+          "rule": "upstream_fetch:pip-download-remote-package",
+          "step": 58,
+          "target": "vyper-config==1.0.0"
+        }
+      ],
+      "usability_dependency_pending": false
+    },
+    {
+      "fixture": "tests/fixtures/upstream_fetch/g2-001269-r2.json",
+      "fixture_sha256": "19ee6a2c5507cbb9442d7a8a98f43bb7d0ea2f277048e61be81555d9fe87638a",
+      "provenance": {
+        "trial": "har120-001269-a2-r2__93WpuaE",
+        "trajectory_path": "har120-001269-a2-r2/har120-001269-a2-r2__93WpuaE/agent/trajectory.json",
+        "trajectory_sha256": "1ff9c912062f9b39a31c7d54a4a8566c0368e4c9fa66c18df7e13fbdbd1b3da4",
+        "result_path": "har120-001269-a2-r2/har120-001269-a2-r2__93WpuaE/result.json",
+        "result_sha256": "b08de4302afb791380c99a38ac16dec41d6c03fddd1c82b16f10d79042c36c05",
+        "selection": "Exact native tool_calls/observation/source/step_id for the listed steps; no source content synthesized."
+      },
+      "verdict": "counted_pass",
+      "reasons": [],
+      "fetch_attempts": [
+        {
+          "call_id": "call_5_2",
+          "command": "pip download responses==0.15.0 --no-deps -d /tmp/resp 2>&1 | tail -2\n",
+          "document": "head",
+          "evidence": "head#7",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "unknown",
+          "outcome_evidence": [],
+          "outcome_reason": "no bound saved/listed artifact plus observed unpack/read proof",
+          "rule": "upstream_fetch:pip-download-remote-package",
+          "step": 7,
+          "target": "responses==0.15.0"
+        }
+      ],
+      "usability_dependency_pending": true
+    },
+    {
+      "fixture": "tests/fixtures/upstream_fetch/g2-001373-r2.json",
+      "fixture_sha256": "08f247e5a3a1d1c67ddefa6ef281c3cea8d88d19aad386f2fc85a9ec36b20d5c",
+      "provenance": {
+        "trial": "har120-001373-a2-r2__LfAWGFC",
+        "trajectory_path": "har120-001373-a2-r2/har120-001373-a2-r2__LfAWGFC/agent/trajectory.json",
+        "trajectory_sha256": "5f39297af38303452ab9c6fdb75948393de6e12b79976c8bc8735389c30259e1",
+        "result_path": "har120-001373-a2-r2/har120-001373-a2-r2__LfAWGFC/result.json",
+        "result_sha256": "104e824bdd41bccf571e614c76dd01f41e30d52c3879c6cec7c8d90f6001b771",
+        "selection": "Exact native tool_calls/observation/source/step_id for the listed steps; no source content synthesized."
+      },
+      "verdict": "excluded",
+      "reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "fetch_attempts": [
+        {
+          "call_id": "call_7_1",
+          "command": "cd /testbed && git log --oneline -5 2>/dev/null; pip download google-cloud-logging==2.2.0 --no-deps -d /tmp/gcl 2>&1 | tail -2\n",
+          "document": "head",
+          "evidence": "head#9",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "succeeded",
+          "outcome_evidence": [
+            {
+              "artifact": "/tmp/gcl/google_cloud_logging-2.2.0-py2.py3-none-any.whl",
+              "call_id": "call_7_1",
+              "document": "head",
+              "excerpt": "Saved /tmp/gcl/google_cloud_logging-2.2.0-py2.py3-none-any.whl",
+              "observation_binding": [
+                "source_call_id"
+              ],
+              "step": 9,
+              "target": "google-cloud-logging==2.2.0"
+            },
+            {
+              "acquisition_proof": "artifact_read",
+              "artifact": "/tmp/gcl/google_cloud_logging-2.2.0-py2.py3-none-any.whl",
+              "call_id": "call_8_1",
+              "document": "head",
+              "excerpt": "trace_id = header.split(\"/\", 1)[0]\nreturn http_request, trace_id\ndef get_request_data_from_django():\n\"\"\"Get http_request and trace data from django request headers.\nReturns:\nTuple[Optional[dict], Optional[str]]:\nData related to the current http request and the trace_id for the\nrequest. Both fields will be None if a django request isn't found.\n\"\"\"\nrequest = _get_django_request()\nif request is None:",
+              "extracted_to": "/tmp/gcl/x",
+              "observation_binding": [
+                "source_call_id"
+              ],
+              "step": 10,
+              "target": "google-cloud-logging==2.2.0"
+            }
+          ],
+          "outcome_reason": "exact saved/listed artifact observed being unpacked or read",
+          "rule": "upstream_fetch:pip-download-remote-package",
+          "step": 9,
+          "target": "google-cloud-logging==2.2.0"
+        }
+      ],
+      "usability_dependency_pending": false
+    },
+    {
+      "fixture": "tests/fixtures/upstream_fetch/g2-002356-r2.json",
+      "fixture_sha256": "18e656af08e6aab09f88d8b8ca2400bedf459e7c9c50ced8efa7cbb459cff739",
+      "provenance": {
+        "trial": "har120-002356-a1-r2__nHVDgFh",
+        "trajectory_path": "har120-002356-a1-r2/har120-002356-a1-r2__nHVDgFh/agent/trajectory.json",
+        "trajectory_sha256": "1ae12d27a0c5ad24967e8a839c1b91369d1b730c61d8ab64b9944af6fe8aa9ec",
+        "result_path": "har120-002356-a1-r2/har120-002356-a1-r2__nHVDgFh/result.json",
+        "result_sha256": "6b3b93ace2c5828e463f8147eebe0e4afac0d7ff406adafc2839d27560efd1cc",
+        "selection": "Exact native tool_calls/observation/source/step_id for the listed steps; no source content synthesized."
+      },
+      "verdict": "excluded",
+      "reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "fetch_attempts": [
+        {
+          "call_id": "call_11_1",
+          "command": "pip download black==24.4.2 --no-deps -d /tmp/blackdl 2>&1 | tail -2; ls /tmp/blackdl 2>/dev/null\n",
+          "document": "head",
+          "evidence": "head#13",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "succeeded",
+          "outcome_evidence": [
+            {
+              "artifact": "/tmp/blackdl/black-24.4.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+              "call_id": "call_11_1",
+              "document": "head",
+              "excerpt": "black-24.4.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+              "observation_binding": [
+                "terminal-command-window"
+              ],
+              "step": 13,
+              "target": "black==24.4.2"
+            },
+            {
+              "acquisition_proof": "artifact_unpack",
+              "artifact": "/tmp/blackdl/black-24.4.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+              "call_id": "call_12_1",
+              "document": "head",
+              "excerpt": "__init__.cpython-312-x86_64-linux-gnu.so      files.py                                             parsing.py\n__init__.py                                   handle_ipynb_magics.cpython-312-x86_64-linux-gnu.so  py.typed\n__main__.py                                   handle_ipynb_magics.py                               ranges.cpython-312-x86_64-linux-gnu.so\n_width_table.cpython-312-x86_64-linux-gnu.so",
+              "extracted_to": "/tmp/black24",
+              "observation_binding": [
+                "source_call_id"
+              ],
+              "step": 14,
+              "target": "black==24.4.2"
+            }
+          ],
+          "outcome_reason": "exact saved/listed artifact observed being unpacked or read",
+          "rule": "upstream_fetch:pip-download-remote-package",
+          "step": 13,
+          "target": "black==24.4.2"
+        },
+        {
+          "call_id": "call_12_1",
+          "command": "cd /tmp/blackdl && unzip -o -q black-24.4.2-*.whl -d /tmp/black24 && ls /tmp/black24/black/ && python3 -c \"import dis,uncompyle6\" 2>/dev/null; pip install uncom",
+          "document": "head",
+          "evidence": "head#14",
+          "kind": "upstream_fetch",
+          "names_task_repo": false,
+          "outcome": "unknown",
+          "outcome_evidence": [],
+          "outcome_reason": "output-producing companion command cannot prove acquisition",
+          "rule": "upstream_fetch:pip-install-remote-package",
+          "step": 14,
+          "target": "uncompyle6"
+        }
+      ],
+      "usability_dependency_pending": false
+    }
+  ],
+  "jobs": [
+    {
+      "job": "har120-000666-a1",
+      "job_id": "656df6c7-ed1f-4549-bc19-acdf939e35ac",
+      "trial_id": "26947e55-33d8-46e8-b012-8acf46417947",
+      "trial_name": "har120-000666-a1__mZosYxT",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 204192,
+      "settled_output": 3475,
+      "raw_result_sha256": "2d3b551a184aacbb7e4a3d39fa6802dec1292f53155142f1f021c68b6cfbb298",
+      "raw_metadata_sha256": "b7ad23183d9bcca07622fb93c34d799a823c19cdf85dbd0aadab8c11e8f6e967",
+      "report_sha256": "725bb132000e06c52ff63be3bd9a2457a7dcdb0687464b246da7a350aa74cb89"
+    },
+    {
+      "job": "har120-000803-a1",
+      "job_id": "f7532fd9-3bc6-4285-931b-a0535f9979d4",
+      "trial_id": "8cc70fcd-47e8-47d5-8c20-710ed2ed3fe1",
+      "trial_name": "har120-000803-a1__xWzxKCn",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 580852,
+      "settled_output": 6332,
+      "raw_result_sha256": "138846af1385116e76a7a13b5b47da609fdd5fe511911409b851a46595e8d89b",
+      "raw_metadata_sha256": "5768915f84b18f490efb6a9e278fb5edaeebd5ed220726018225403fe936e24d",
+      "report_sha256": "4cc8a179c260e5aa2c67a67bb917a247a8ba462b22d546107f1cc05dc866de98"
+    },
+    {
+      "job": "har120-001647-a1",
+      "job_id": "e5012da9-76a4-4bd9-ba98-a9b930c48efc",
+      "trial_id": "32ea3c98-efdd-4884-be48-d5269c8aa92b",
+      "trial_name": "har120-001647-a1__iqMRm5R",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": null,
+      "settled_output": null,
+      "raw_result_sha256": "2151a5d48f8c2d473c93d53ee3528c017281f01242aa93675699cea89b814bd5",
+      "raw_metadata_sha256": "61cd674449adc42e8341b7377e0c7208f042f7ef9a3b51ad83e43bfaa12f8682",
+      "report_sha256": "64cc432a1ffb7d263232f3f7af7cc37de483038275e240a6b565e3ff6a03df27"
+    },
+    {
+      "job": "har120-002938-a1",
+      "job_id": "9b914510-0fd1-4319-b00f-0206fe8e67d2",
+      "trial_id": "477f4399-7579-4109-a5fb-9805ec669403",
+      "trial_name": "har120-002938-a1__UpSjiuM",
+      "before_verdict": "counted_pass",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 485421,
+      "settled_output": 4929,
+      "raw_result_sha256": "d1c923244df9c605a3be6d100e3f1d2127b50a00411ba4b7ad726a4f269689f1",
+      "raw_metadata_sha256": "cafde285008c905662e6cf7739a1241d956202e68fdfb3aae55ce3305398efff",
+      "report_sha256": "114b9ad64ab6d61c9aa3c54d8209e95f2e7e1668168dc58d8b8ba36f41811817"
+    },
+    {
+      "job": "har120-000227-a1",
+      "job_id": "8099fc47-2239-44db-ae2d-fe01abc0d305",
+      "trial_id": "5757d35c-79e4-478c-8fb5-ce95a536e13f",
+      "trial_name": "har120-000227-a1__7WRBQ4u",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2451194,
+      "settled_output": 4838,
+      "raw_result_sha256": "5a951fbe294a4df84d52e736840416a7fa224e164d2bb5f545fe6f91ee53569d",
+      "raw_metadata_sha256": "f5f488825ab6cb7b8d11634ba469de0f42cdf27768e15090ea4f3941b44abf54",
+      "report_sha256": "f699bd7e15637dbb198c0deb08e9e7336dc0a1f9bc509d40fd54b2af0801aa68"
+    },
+    {
+      "job": "har120-000341-a1",
+      "job_id": "c9d23c62-2f26-4077-a63f-8ffa7903b360",
+      "trial_id": "c55ec935-7812-408e-9bc2-a9e90d709b7c",
+      "trial_name": "har120-000341-a1__MYkGYQZ",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "raw_reward": 1.0,
+      "settled_input": 2433916,
+      "settled_output": 16469,
+      "raw_result_sha256": "d455e48d81ba0fe0d8d72ca461a0c9d2b2ac86bc0b4e141a50f9ea8ceae1b145",
+      "raw_metadata_sha256": "6e986326ab4a7032bfb7d856e1b038bc20a6d6822e1027d9a9c529f8ec8582c9",
+      "report_sha256": "19482132a9c26b7d3ff58885c27f6c6a4dcdd48370f7d994b3c4355db8a491ad"
+    },
+    {
+      "job": "har120-000552-a1",
+      "job_id": "44bada63-e386-42a0-9c9d-7a36e79f542f",
+      "trial_id": "2c4e28ed-2f1d-440e-a880-5f890710febc",
+      "trial_name": "har120-000552-a1__WdaAJgE",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2462622,
+      "settled_output": 37047,
+      "raw_result_sha256": "45883e772a7a32ba7bad82abba0dcd86fb7b92535e1fd28658fe7c6a8606035f",
+      "raw_metadata_sha256": "1cd124baf59612a437b7292309ab37c898ebc7acbd495f3d5d432efe0b2fe5ce",
+      "report_sha256": "9dd76e64a6bb133b9fb1d7e2f1d5204635e9b7ba51f824fef05efc3435243bb7"
+    },
+    {
+      "job": "har120-000813-a1",
+      "job_id": "b11e14c7-30e6-4928-a5b0-3d0d2e6bdaab",
+      "trial_id": "af0e35e8-0497-46f8-adc9-d8c408dd8e53",
+      "trial_name": "har120-000813-a1__WXXsNxw",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1600260,
+      "settled_output": 15027,
+      "raw_result_sha256": "618e7de904ff4cfb68655168b953a187c04627810e68e2d19d39b1fdf210b6b0",
+      "raw_metadata_sha256": "e27f64ca8d1ef9b06d976c28b86d42c60cec036b8b67305d135eecb7906c94ae",
+      "report_sha256": "4323ae2c11612c4a14cc3e55854d571f6d23fb9d89880b42c9a9cc6bb5147daa"
+    },
+    {
+      "job": "har120-000865-a1",
+      "job_id": "eaa1e6a0-2602-417c-a2cd-2e849ca4d111",
+      "trial_id": "740dd44b-9f2a-4ad3-8097-77ca9b7085f0",
+      "trial_name": "har120-000865-a1__a2TWzyM",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 71629,
+      "settled_output": 1434,
+      "raw_result_sha256": "892ae51136917cd2d8b6a4525f7973a807d067a18d1406be1360fd0f4238bc15",
+      "raw_metadata_sha256": "a1ee9e5ea71920254cdfb968010dd8326163e39ea597f79a562668e350f6e176",
+      "report_sha256": "53e546a49f909c1455997011191d7fc065c3b4e25445bb4d1eb42267dff8ac69"
+    },
+    {
+      "job": "har120-000941-a1",
+      "job_id": "63b6bff4-cfef-457e-b0a9-441c6a9d64f8",
+      "trial_id": "23b70cce-ac14-41a3-afe7-92dec75dd54b",
+      "trial_name": "har120-000941-a1__arZdiNe",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2460129,
+      "settled_output": 10547,
+      "raw_result_sha256": "4276ab935e29f752f213dbfc84324cb42365625be008df1e24c12a621161bc48",
+      "raw_metadata_sha256": "8bbe5266fc387e94b4616c5b21386a1576630a0307e623585b767e94bf7d04a8",
+      "report_sha256": "61732ce57cf1b20410f26207c4a8a523ef1210e8e1e6a57e0ed4f38cd9f1bd4a"
+    },
+    {
+      "job": "har120-001265-a1",
+      "job_id": "55c32689-467d-4879-a192-377b8d58d2bf",
+      "trial_id": "e7ee4c78-dd73-491b-8e32-6b371c71d1d4",
+      "trial_name": "har120-001265-a1__3sBRy7Y",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 615767,
+      "settled_output": 9605,
+      "raw_result_sha256": "f7e8a3bc9c93e3dabc344df677299bd117832ab7fa951214d0e9db4f206c1662",
+      "raw_metadata_sha256": "c279667b94372fc97cfbf27ccaf274ba7b623bd742310e47d346215fc47b0ffb",
+      "report_sha256": "a8dba382f3226c9007156cd8a3930b70663c91500fa690dda530223c8c492897"
+    },
+    {
+      "job": "har120-001269-a1",
+      "job_id": "4aa9a045-1c4a-4767-8a8f-528a5be0c04f",
+      "trial_id": "356cdee5-3d6c-4da6-a83d-412130a645b8",
+      "trial_name": "har120-001269-a1__y3Wy5Ku",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2426017,
+      "settled_output": 23482,
+      "raw_result_sha256": "d88c0408bd00baf7e4434511116d42477574d264dd51ad5a0ab8139776bd551f",
+      "raw_metadata_sha256": "fcd6fc827125c16209c5ba9c0caa19821d23591a8b95c222a0f285d0026c9e88",
+      "report_sha256": "95afe2075c7837ac48ee609c9b516dd9c4a43901c8536e4ae37173e2f1ae64f4"
+    },
+    {
+      "job": "har120-001399-a1",
+      "job_id": "ed755e26-8772-4288-b22f-3261d6cee795",
+      "trial_id": "7424984e-73eb-45f1-8d7f-314761ff0f33",
+      "trial_name": "har120-001399-a1__fwLaw2U",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1758425,
+      "settled_output": 17294,
+      "raw_result_sha256": "b8989e205fbb4216883817809a61f5316e254933b6cbb762852b2f43c11b5f69",
+      "raw_metadata_sha256": "5e360df0f1df68335aa007f7b9e9aa8ee8ef6eee3512986c9723d3ba638ce94a",
+      "report_sha256": "9430d5ebd9e5ea00e45f41c3946b270bcbcba6679fc915b5f10e4e83ea68f6be"
+    },
+    {
+      "job": "har120-001661-a1",
+      "job_id": "2556bf88-1f5d-4e53-b86d-5cdc3cc90c54",
+      "trial_id": "65685955-910c-4f92-afbc-e81c03eb5151",
+      "trial_name": "har120-001661-a1__xdRDCYr",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1189308,
+      "settled_output": 17722,
+      "raw_result_sha256": "83fbfd42a8a21debd711dc946727574fe92859a99e930cb437239a4665c1a868",
+      "raw_metadata_sha256": "fe19b4690233fdac8f1640af905b54f8e7fde330f3a2c47e909c9398ba63e881",
+      "report_sha256": "500bd1c96883f8ace49fa62baa37001a82aa9d0019aa7bc8f82d9c4944d65610"
+    },
+    {
+      "job": "har120-001710-a1",
+      "job_id": "b750f796-0e13-47f3-9289-4be7788c7c1d",
+      "trial_id": "35304602-de90-4ba2-8f02-516dbd751e6c",
+      "trial_name": "har120-001710-a1__BLMKCZN",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2082993,
+      "settled_output": 5648,
+      "raw_result_sha256": "e8ffd17173bf0cb9593e42bcc93a0e6c3e5454b0121f48c26c61ac31b0066ca8",
+      "raw_metadata_sha256": "f59f8188fc8a6a05812cbfdb387255c7e412d443fe72ba07bedd25eae3d4c53b",
+      "report_sha256": "086d9a68b7e9ad1bd65560345b7d92462b73323fb80fe1eb3546709bfd083c20"
+    },
+    {
+      "job": "har120-001870-a1",
+      "job_id": "4362c646-7b23-425e-836c-e4473e8b0001",
+      "trial_id": "62a121ca-761b-4b5b-bca2-85d27a0e6356",
+      "trial_name": "har120-001870-a1__rXFPYLR",
+      "before_verdict": "excluded",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 2365815,
+      "settled_output": 32329,
+      "raw_result_sha256": "f97c4ea673229cc42d9b21f6248618e4f0a19511d6ed0ece6b01faf93212f1c7",
+      "raw_metadata_sha256": "dd0ffd7991c7f50202a7fa3ae266c6bee0953300024247add900a14f6c03efd7",
+      "report_sha256": "f0bac0eb97c866b7526ee5df5f1ced65699ac5d6b370eb2ef1b1e7c24b31a58d"
+    },
+    {
+      "job": "har120-001897-a1",
+      "job_id": "3a653418-688a-4808-8156-966d442983b2",
+      "trial_id": "982505ca-763a-4dd2-aac8-a1ede3023e12",
+      "trial_name": "har120-001897-a1__6AyLy9W",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1501027,
+      "settled_output": 27897,
+      "raw_result_sha256": "f1e986e297ae83625737f91d849651c5ddf74d66c85e3dd6642febd5bda0e38f",
+      "raw_metadata_sha256": "2bf52b84cbd4eced44223f0b3c0e619aeb9221501a044d3c5f3298dc072bddc5",
+      "report_sha256": "71bff5a31c5a353c7453b083c693a94ac667c8f169dddcdd066ce92e57425039"
+    },
+    {
+      "job": "har120-002680-a1",
+      "job_id": "50b12ddc-c201-4374-bc4f-8e9c22d40a7b",
+      "trial_id": "53114429-a1fc-468e-ba64-409e4625d00e",
+      "trial_name": "har120-002680-a1__Ci4bEkf",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2458142,
+      "settled_output": 17377,
+      "raw_result_sha256": "b7a75fa7280e34a2863485a4a89086e1b8990383ba7a036dc62c8c23954e8fb7",
+      "raw_metadata_sha256": "dce8dc78724e9385481d6a11c72d8ff54f88f4170ecfa55128051f85745ec456",
+      "report_sha256": "c30ae92d693a976c37bf829febd45c12ab1e4f3a2f63b98f41682d13c7169b93"
+    },
+    {
+      "job": "har120-001373-a1",
+      "job_id": "e84be5e1-53aa-4a55-9cf2-badcc167fe80",
+      "trial_id": "9fc452fe-930f-4fc0-8096-4d7e4c81091c",
+      "trial_name": "har120-001373-a1__vHMkbJW",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1196234,
+      "settled_output": 8297,
+      "raw_result_sha256": "50be04320dab2b567f5116b4d1fbc587c9e8aa54ade7abc7b628392c2ef5255b",
+      "raw_metadata_sha256": "d30ee3a5b770dae5f3a01c66477509c06409d9e710d521e9efe175dd3f4c1498",
+      "report_sha256": "1b0d479753bb68dec332ad1bae719398212a16e125bfd4a584e41f5723e2744a"
+    },
+    {
+      "job": "har120-000227-a2",
+      "job_id": "5e3513d7-19b1-4381-878a-d79b8b22bb06",
+      "trial_id": "9322537f-703a-40ee-ab9c-7180d8bd9e23",
+      "trial_name": "har120-000227-a2__yZe46HC",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "2a6fdd6474a4caffbc8c243e58bb92c6156e9d5c236d8d5176993e0b9c013664",
+      "raw_metadata_sha256": "e9adb8c02b5c5665e26a9efdb7a77b9ed66565d93e60e8053dedf4667bc7cccd",
+      "report_sha256": "563ac4f1d0d9962109962f334a5006443d234bf0d490a9785e44104075a955b8"
+    },
+    {
+      "job": "har120-000341-a2",
+      "job_id": "9ece00e7-a832-4839-be3a-7b8c044eac39",
+      "trial_id": "dbe38b6a-d18b-4e51-9016-ce19cd72828b",
+      "trial_name": "har120-000341-a2__hfNEYge",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "724fa579490f73bdecd37b34b2a892f4098f8401bafb2e71026f18ff98d98838",
+      "raw_metadata_sha256": "72e9965cb4c280d2ef601374b6b4e08d6f255e473a78d8e1c87175b04d22d65c",
+      "report_sha256": "64e06e579e650a5737c6fc083fed2af72f4dfaadca7d1df20d1c0156d330aa9f"
+    },
+    {
+      "job": "har120-000552-a2",
+      "job_id": "dad3e4b9-8a32-4216-8fc6-5d3f13864890",
+      "trial_id": "752533c5-7ae1-45a4-8688-6fef2a6022d8",
+      "trial_name": "har120-000552-a2__CAPWzMo",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "770fac1d78f5f47a466af84fc84f3f92edc40197a6fec3effb6266688c442a13",
+      "raw_metadata_sha256": "15877da25475e2a5ccd3f28a14753cd7ef515198988c851bc139807157a8ffc0",
+      "report_sha256": "18eeeb43f1b8eb88ad6f7f32e6db1f6549e4c4678b5cf02647dbaaf78ac29927"
+    },
+    {
+      "job": "har120-000666-a2",
+      "job_id": "ea475ee9-550b-481d-8f35-82d4a403068f",
+      "trial_id": "da0f834f-a621-47b8-af80-f8b3543bb5ce",
+      "trial_name": "har120-000666-a2__jFzQofP",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "8c98c2bf536d76508a0bc7ff0449786c3469f59bb7039b20d5caa149181c9981",
+      "raw_metadata_sha256": "33303df01367de22dd7752dce21d223ba418794cc9c5992f73c5523e39e22ee5",
+      "report_sha256": "9a77746a5ad39571855362cc1f05dcc3618d8553531214c67be74a38de33cb0a"
+    },
+    {
+      "job": "har120-000803-a2",
+      "job_id": "5dcc5143-709b-4353-9ae1-b210334e289a",
+      "trial_id": "84932fcc-65e4-4686-b11d-935b9be94945",
+      "trial_name": "har120-000803-a2__Jjiz4y5",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "200ccb2750c0b9430520bc9141a3b8579b6a17cbf2213c0e9f39627fbe108cf6",
+      "raw_metadata_sha256": "a34a91e46ef81fb58e2a8c6ff725725e9ce643987e515450037b0d5ef982c287",
+      "report_sha256": "94dd8142fa8c90066145ba5a9d5c5460ae3f19c9fa538682932e9c2ea90e4542"
+    },
+    {
+      "job": "har120-000813-a2",
+      "job_id": "249a57ba-19e7-472b-9db1-aa8833923bac",
+      "trial_id": "b0de9b29-5756-48f2-8d4e-e8165fd62138",
+      "trial_name": "har120-000813-a2__TprTDJv",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "dc5f92992a58a23f72e05218efd5aaf468ed879315d64d439dfee80b12b113cf",
+      "raw_metadata_sha256": "7e46a6ca46a2491d953998418abc06d3b708049027a035b69792d13d3a1a3cb9",
+      "report_sha256": "d6c74db90e6312e15fd186e2ea0b1d70cf215ba7537f38cb0b77da942adbfcf7"
+    },
+    {
+      "job": "har120-000838-a1",
+      "job_id": "f732cdcd-f1fe-4aac-a285-c5912a6447c0",
+      "trial_id": "4d7d4ce0-9729-498e-a7ec-a4f0ed6e72b7",
+      "trial_name": "har120-000838-a1__YSe3G7t",
+      "before_verdict": "counted_pass",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 1904526,
+      "settled_output": 11269,
+      "raw_result_sha256": "7f072c2cfc6b2cde1dd1b3d1d3f03618a5d9a50be7856f7d78c204ebfa8e8263",
+      "raw_metadata_sha256": "f4241e4ad60c62efc12e3425a124b5cac947f0c619b9a4f50ee78a6312448464",
+      "report_sha256": "51f3842048251ae3403ab06485fb2583ee16eb1dabece413a2e533ee5ccadd6d"
+    },
+    {
+      "job": "har120-000838-a2",
+      "job_id": "e9eab485-f94a-4426-9957-d9da30de3655",
+      "trial_id": "f8e03387-1235-45b7-baa6-3ae1b2add431",
+      "trial_name": "har120-000838-a2__yQwZqbb",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "c4147450caabbe9906e52380a2f039b605eb68eb93b5434e4162bd5785bdac2b",
+      "raw_metadata_sha256": "b6f1d03c16954b59e3e71bd3a84184976dd88738fbf5a9b0caccf13ee8dc8f19",
+      "report_sha256": "4cc23bfd4e67d005e06cc85538bf988a184cc8a535f0237f6e5b4da3ebd771b4"
+    },
+    {
+      "job": "har120-000865-a2",
+      "job_id": "679308dd-f6d9-4fb6-b9b5-35fa0167d775",
+      "trial_id": "3607275b-e12a-4762-98eb-2462f711e913",
+      "trial_name": "har120-000865-a2__r8jQTkW",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "2d0896c8bc67b94d6c870b569a48213a5accb4f3c3dda94079ed95fa195fd1b0",
+      "raw_metadata_sha256": "01579fec47b6497b4ab226c195d2a942a8377c227f7fb6a9dfe24fb725a26a73",
+      "report_sha256": "dc0d2621ad54d83d153661664acb5c1ee298790dcde01992d1e68c9b8983bc0b"
+    },
+    {
+      "job": "har120-000941-a2",
+      "job_id": "a617fab9-8ebb-4156-93e6-61436f7c0f5d",
+      "trial_id": "13dfa863-1062-44dd-9435-042db437ca32",
+      "trial_name": "har120-000941-a2__bjdJiNg",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "3c930e6f71f9e0d00640ac2daed48332154e668210452e502ab9e42f3a44e570",
+      "raw_metadata_sha256": "00a6884967b3bf5e3dba087a76bac8472563829880056002f11943a8f0951485",
+      "report_sha256": "f14d441f73429bd8e0be3e23b88377fff09fe48f15683808af1939d117e5326d"
+    },
+    {
+      "job": "har120-001265-a2",
+      "job_id": "d981b36a-b8bd-4485-994f-45c66a80785f",
+      "trial_id": "450db728-64ba-4a2d-88b9-2e88522904f4",
+      "trial_name": "har120-001265-a2__tkFj88x",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "9ed7e74fdd49a1801565ac19f44248237bf730fdb9b732a3f6188a146238b784",
+      "raw_metadata_sha256": "9e1bde774d9458b992325affc7e2e3a685d8ea02e730988f78deb96b37fc0c2b",
+      "report_sha256": "e86108f0736f4211d04b9daf0bb580d508af23f431faa155b974e2f3b8b6c7c1"
+    },
+    {
+      "job": "har120-001269-a2",
+      "job_id": "72dac39b-9804-4e9b-8ea8-fe47fcd89878",
+      "trial_id": "1a666cf1-5dee-4b79-8ead-b40cf2aa0ac5",
+      "trial_name": "har120-001269-a2__sA8cq7s",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "a13508a4ec774e2bd426154120278154948742585ed5dd04bc17a60957a6beb5",
+      "raw_metadata_sha256": "17f36d61c8dc14d5e4bfec3435ff2fe87a36fb6b2d0ea6634d0085607068a650",
+      "report_sha256": "55dda35534242497a1ec86d6c40b2f740c8de28be05864252ca683c057ffbae9"
+    },
+    {
+      "job": "har120-001373-a2",
+      "job_id": "fdcf4101-a4cc-4993-b45c-033a2f932ec7",
+      "trial_id": "68d398ec-2590-4568-ba5e-bead8d304881",
+      "trial_name": "har120-001373-a2__LvZ3S5Q",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "f0f490ef04ed1226dd5312b1de41202c08b4c3bc62308849e91910e56497cf73",
+      "raw_metadata_sha256": "457f62c53fd424deb3fa15609ec4877d11c418a209e6262223225c2621aa710d",
+      "report_sha256": "7be835c7f1cd8d86e83c029c1583c838611f6c70e1d9c74bf8486667503ff8fa"
+    },
+    {
+      "job": "har120-001609-a1",
+      "job_id": "56162731-a9c3-45c1-aaed-f5069052b2a1",
+      "trial_id": "096646d0-a663-43c7-a508-90557a584708",
+      "trial_name": "har120-001609-a1__Xw8pZQ2",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "96747fd021430cce8bd0855b2b558813285ebad6d0769cedc9b68e3d0d0a6b38",
+      "raw_metadata_sha256": "b6b786aeae5e95d58a6fb7a5eeea634dacf4d4adadf57cefe1712e73ebafd2bf",
+      "report_sha256": "72fd521b07324aceb5b6bb4ca579ae0a58ee2bac62c096c08731fc86a1214b0f"
+    },
+    {
+      "job": "har120-001618-a1",
+      "job_id": "f0a4f23c-a72c-4c89-9c64-097808c2632f",
+      "trial_id": "be12fb24-114f-4100-a535-8fddecac51d1",
+      "trial_name": "har120-001618-a1__ghKjtXV",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "f7c6fb9ba1b0e2cbbe75c71c8a1ff27b014e27948e894d79ce36d6c437f92057",
+      "raw_metadata_sha256": "807dccd4fea88be9ffefc5a2bb54ec5f2f6127280e01348887d7cb3d6509bf03",
+      "report_sha256": "d508d0af37b30bc897dd44da2c1e7ca334841d9bac9d6901e51d7e3f54cb63bc"
+    },
+    {
+      "job": "har120-001820-a1",
+      "job_id": "f5022e39-baf5-493e-8613-af1cb3bc6b21",
+      "trial_id": "838ecdcb-2000-487b-88e7-bc81f1c97169",
+      "trial_name": "har120-001820-a1__iS5xbhT",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "89acc1b87aa37de39a2675eea57520c723f4e6030cbdae6018425883af86ed7b",
+      "raw_metadata_sha256": "1944609f64c8ad9e6f068a36fa50a1d506e235369b1bc13a21f495d6e85a1870",
+      "report_sha256": "9852ef9df9171e0e55892ede8caff4b8b1f5a7d94bc6d1764bd688eec609c727"
+    },
+    {
+      "job": "har120-001865-a1",
+      "job_id": "3dbc486c-7c78-4793-8f98-6ddc15ada3e3",
+      "trial_id": "4eb53e1f-de3e-4fb9-95b4-6c93e291f337",
+      "trial_name": "har120-001865-a1__nuBZA32",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "3b18a47b064d5131f2c7f5c99ef8842322a6706f2b87e18f77e633da0a45189b",
+      "raw_metadata_sha256": "e6d59f8f17eb89a620ff2230b1e6a9ceaf25c95733f1e04f97420aa0f81885c4",
+      "report_sha256": "83c080836e6dd0d721d9cc9e649eb912b18b3b39e4338be01dc937660e650d5a"
+    },
+    {
+      "job": "har120-002104-a1",
+      "job_id": "f0766539-84d6-49f9-b6ff-f90175f28663",
+      "trial_id": "6d463be3-e5e0-47a1-a2be-6356861599c6",
+      "trial_name": "har120-002104-a1__vEoVW8U",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "7f4436dd88693d4d4bd3ca505b2b90b73100583f593984b6d1e67a254c1c2373",
+      "raw_metadata_sha256": "ecfe9c50efdfc13934cfd8ddbcde11611071e3349ca895f2bd984ec68b68f1c3",
+      "report_sha256": "6d462fca5451656725df0bf485beccadd591fcf97721b522d38021f53369630c"
+    },
+    {
+      "job": "har120-002356-a1",
+      "job_id": "2e7b17dd-a1af-4a2f-ba6f-eda4847d7e03",
+      "trial_id": "27c106dd-08be-42a7-805b-96a99444f29e",
+      "trial_name": "har120-002356-a1__SZF2edE",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "d4897e5e9f5277607ad8ce011d2e7439ad6e163c4e3e378e6a0632bb42b73e30",
+      "raw_metadata_sha256": "03ca2020178672b3ce472ba8e84cb0de20cc26ffb3f0eb54f04eb47a39a90550",
+      "report_sha256": "1f432dc5306ae7dc7de4868b8eef8b3d1e4bf27de121ff2ab8106956cbe0d69c"
+    },
+    {
+      "job": "har120-002393-a1",
+      "job_id": "b517bb86-4cb7-4be6-a8f4-27deccca89ce",
+      "trial_id": "b8eb63cc-6601-4fa9-b7eb-a46eafdee45c",
+      "trial_name": "har120-002393-a1__SCzyssM",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "0a12b5a946869fc2e19d21ddaa7103ac021f89a9693b19df59928fcaf1cf7c2a",
+      "raw_metadata_sha256": "30b6af93b373fd184cb7c68a7022aa5dda9331d995bf4860c71059ce157ec416",
+      "report_sha256": "5b76da11c9736b82505562fe942eea63ea8a56a3eb11a595ebff79a5a7e4fae5"
+    },
+    {
+      "job": "har120-002416-a1",
+      "job_id": "810e5c5a-5793-4098-a9a2-5e4b72733394",
+      "trial_id": "72f7e053-c4dd-4922-976b-011a70bdbe59",
+      "trial_name": "har120-002416-a1__n4teXVe",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "269d41305a77a1a6330856e637c148e678f5cb3953895c2aa5afd4b45056b4f7",
+      "raw_metadata_sha256": "cdbad4a7c22227f2c6cfb763db7b8ee399707890ce8621638fcfe10487420214",
+      "report_sha256": "d7697f2592736bcf0c2e4edfc9d7f974666eaf1fb42dd296bc667d90380693f4"
+    },
+    {
+      "job": "har120-002552-a1",
+      "job_id": "046e5100-ca78-4000-a62a-48fa163bc46f",
+      "trial_id": "aa09ba4b-1a28-4cf1-abb4-3a3a605e6ba0",
+      "trial_name": "har120-002552-a1__U9dRKLf",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "368d38a2f6bc568b215de11e17acf92638d5095036589335b0d027c861700802",
+      "raw_metadata_sha256": "de17043ed8069f538d7303fc21b993ddcf2c362c6b06c81f319f5811214d3b6a",
+      "report_sha256": "60a22c62bbed39343a6f266d4a8208163fac28b06f76219a41895dcc076c50fe"
+    },
+    {
+      "job": "har120-002555-a1",
+      "job_id": "2be4c910-f070-40f0-8220-c561e3db05f4",
+      "trial_id": "81868150-2b35-4d37-bf8b-bf5e6de941c7",
+      "trial_name": "har120-002555-a1__vLERz3G",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "infra"
+      ],
+      "raw_reward": null,
+      "settled_input": 0,
+      "settled_output": 0,
+      "raw_result_sha256": "57f1aa3f1a3d5cd4b568911085abcb5271bf82e97afbafa71ee1013401842974",
+      "raw_metadata_sha256": "af77cad81cc2d133c184906ec2f5973d7743f066b698b4d4b6953eb030057e49",
+      "report_sha256": "4d88dee611f476e71c03900347bce1fe9fdde2c28f8edd4aa0dd31931c393477"
+    },
+    {
+      "job": "har120-000227-a2-r2",
+      "job_id": "0f3be518-bb0f-4d3c-93c2-e3d26c4cb15d",
+      "trial_id": "cf5c210a-b2d9-413b-b505-8fa98533bc61",
+      "trial_name": "har120-000227-a2-r2__RwjTt9d",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2435135,
+      "settled_output": 4513,
+      "raw_result_sha256": "4d113a001ab9b8e7c578df002dc646b4d944db3fc989ba5d817f4152a5b62d65",
+      "raw_metadata_sha256": "02b03f0b42c017056d9215312007a0b6031fb76b296d80290c1718fc84904330",
+      "report_sha256": "a8d806895fb66a2414e36f59a8483564797d35ecddac898f7b401a5e7e6fee19"
+    },
+    {
+      "job": "har120-000341-a2-r2",
+      "job_id": "d4baadf7-0497-4ee4-b7f5-49eed7ed3099",
+      "trial_id": "fd1c239b-03d0-4800-9e40-60f0e315dd6b",
+      "trial_name": "har120-000341-a2-r2__MSDHRHS",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2447593,
+      "settled_output": 12802,
+      "raw_result_sha256": "04f69cb905712753038e6a75dd151a01590d5f4e923d97d44e028a02df6f2537",
+      "raw_metadata_sha256": "865e4657bad061c7ea94f68f86f92bd3ac489617f2032cc1ba45c1ba257b12fa",
+      "report_sha256": "aa934fb960a12cf60bc4c4d8c418cd6641672b6d1d2b696986004e75c89b54a5"
+    },
+    {
+      "job": "har120-000552-a2-r2",
+      "job_id": "afd21546-9094-41d5-a490-cddfb751faa8",
+      "trial_id": "154d7ac8-7891-4248-83e7-ff12b0b6aa6f",
+      "trial_name": "har120-000552-a2-r2__ptsTP5m",
+      "before_verdict": "counted_pass",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 947067,
+      "settled_output": 11032,
+      "raw_result_sha256": "aa618704d6c0c6eb1edbc80c598785ee38519b880132a68c17b0004113e2366f",
+      "raw_metadata_sha256": "379ca28ecbfddc3b666c519c59e024a15ea54d67749e2d58e432f8e5836d983e",
+      "report_sha256": "c49e196908599719f3d7f1af25d8380c8b6d4dd358753ca4345e2bebd81c4441"
+    },
+    {
+      "job": "har120-000666-a2-r2",
+      "job_id": "4ea4ffac-67fb-439e-b9b0-b90ed2544adc",
+      "trial_id": "1ea544d1-1f89-4c70-bb2e-d565536d256b",
+      "trial_name": "har120-000666-a2-r2__MdWhGXb",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 842405,
+      "settled_output": 10981,
+      "raw_result_sha256": "5f5b25c7729735752141ee77b6dd13102a0ab6b036c1dd56f18e481b12c75941",
+      "raw_metadata_sha256": "a04ae767edfac56ad76418f2e75e7dbf761c54277f9243cd72841ade57dcc63f",
+      "report_sha256": "3d2e447946728ad0e4387a3939f8a1c974858e13ae964f975c33b343de92b131"
+    },
+    {
+      "job": "har120-000803-a2-r2",
+      "job_id": "efd683ec-4f9a-431d-b1bf-5d0c544140b6",
+      "trial_id": "aff56593-e873-48d7-b6b5-4dd8cfd16df0",
+      "trial_name": "har120-000803-a2-r2__QyoYej6",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2463424,
+      "settled_output": 11961,
+      "raw_result_sha256": "07410c615fa58b4f0e011fb4126dfd6abecd3fde3bfe9840f7a31c24d3298469",
+      "raw_metadata_sha256": "10674b14e421bcedcc2b029fb2fef0ad5e2e235de253a640cb84be687dba1e36",
+      "report_sha256": "91778bc47f9b6f255ed21c59c3828cfb7bb53277e24409cd84ae64d9bc3f471d"
+    },
+    {
+      "job": "har120-000813-a2-r2",
+      "job_id": "64f1854c-0011-472b-a162-38e8b9d21afd",
+      "trial_id": "6c2b5135-ad11-4c50-9992-4cf40db158d0",
+      "trial_name": "har120-000813-a2-r2__Ci3xbwU",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2463536,
+      "settled_output": 29369,
+      "raw_result_sha256": "d88c00f3e873431821822f16db5b762016fba0c0b78d1e707075a9b6c37b85c0",
+      "raw_metadata_sha256": "1d83b35de4588802f12336d2a0ab78f86d6ab788945a409d7465c8471ecf4624",
+      "report_sha256": "dc5185ee3b868565869b2a8eb4dae40b8242c6854e22995bdacd3b9d5730cf71"
+    },
+    {
+      "job": "har120-000838-a2-r2",
+      "job_id": "ff0ed624-e947-4b97-8617-cb05c128980d",
+      "trial_id": "b4eb2aaf-9a21-4176-a5ef-19a8a1166cab",
+      "trial_name": "har120-000838-a2-r2__XnnRuwu",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1765227,
+      "settled_output": 10673,
+      "raw_result_sha256": "40c1c5a277ee5e9c55535c7ffe1abf1c830cb7a234e289220da0c52534792aa2",
+      "raw_metadata_sha256": "865be7f85ccea052aaafd0e284769c2eba33c2f09247cfd02ae26126eaead45c",
+      "report_sha256": "a6a662eca2cb1cae55f219559972b32cd7f0b70963c21b09ee1859ddaceb53d1"
+    },
+    {
+      "job": "har120-000865-a2-r2",
+      "job_id": "bd5db566-3096-4d67-ad31-9735de9d8572",
+      "trial_id": "c61cc343-d923-42f4-9548-ca4ae09bea42",
+      "trial_name": "har120-000865-a2-r2__T8MhMX4",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 970269,
+      "settled_output": 7003,
+      "raw_result_sha256": "099bba052cce85a28a6cb24533c31f3671df3ef7b595e1f0e51da8a5bafc859f",
+      "raw_metadata_sha256": "f97d491b7c04099c3e6706aa1d8793c262e331e19f3743bf799006c7371eb39b",
+      "report_sha256": "958a5c9eb99f0129afd2fe72195cb44ff77724eef807ab6498c84de2499a7247"
+    },
+    {
+      "job": "har120-000941-a2-r2",
+      "job_id": "284a9836-a837-4b8c-91c7-e969a75609fb",
+      "trial_id": "d5ff4d23-5202-473d-90aa-47392a9971b8",
+      "trial_name": "har120-000941-a2-r2__VrxFqqG",
+      "before_verdict": "counted_pass",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 1370554,
+      "settled_output": 13619,
+      "raw_result_sha256": "043a91bcc53dd276bbb67022f0858d9ea638248dd00f94411b5f5c67fdee79f3",
+      "raw_metadata_sha256": "91a8288ca40456d5e286d1ae2ad7e443154d75869be5aeca1f74aa39b36bfe73",
+      "report_sha256": "f52235e319a4a029cf4b780471c96b5e6f972049fb23f2eaa3416ff095d49036"
+    },
+    {
+      "job": "har120-001265-a2-r2",
+      "job_id": "cedd0d33-4d13-4489-98ea-9825a8018033",
+      "trial_id": "e0281a90-0778-4abb-9883-c9e89f5871d2",
+      "trial_name": "har120-001265-a2-r2__fpm7nFz",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2435348,
+      "settled_output": 8846,
+      "raw_result_sha256": "adb713c144b0ab9b7b6290b8d4b222b70ee8858a169cc39d7453889c38e13d77",
+      "raw_metadata_sha256": "fb0d644b1a6432b86a1d08d9351453d4a534596ec0671a9f30802bb92be3a830",
+      "report_sha256": "27a3470fec2b2357fedf9b0f6ad4ec67419e10e9a8ba5e61310247b686c789f6"
+    },
+    {
+      "job": "har120-001269-a2-r2",
+      "job_id": "fc1279e6-e2eb-4b94-8406-0766b4cad2d0",
+      "trial_id": "eb58e9c1-6237-4cfe-b93b-4062516a644c",
+      "trial_name": "har120-001269-a2-r2__93WpuaE",
+      "before_verdict": "excluded",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 2446342,
+      "settled_output": 17714,
+      "raw_result_sha256": "b08de4302afb791380c99a38ac16dec41d6c03fddd1c82b16f10d79042c36c05",
+      "raw_metadata_sha256": "da0fc7643ecc8f34d4128aff2467b7a087ffd53e7b19a8046cf5d925244faf38",
+      "report_sha256": "68609645a05731c1d7fdccb845758ba2664a8132c0c09224fa63d80d788b0ba0"
+    },
+    {
+      "job": "har120-001373-a2-r2",
+      "job_id": "09852f26-7976-447f-8459-6d9bca1337a1",
+      "trial_id": "47b895eb-be3b-4927-b1a8-61ed66dc8406",
+      "trial_name": "har120-001373-a2-r2__LfAWGFC",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "raw_reward": 1.0,
+      "settled_input": 233429,
+      "settled_output": 5013,
+      "raw_result_sha256": "104e824bdd41bccf571e614c76dd01f41e30d52c3879c6cec7c8d90f6001b771",
+      "raw_metadata_sha256": "05e476b3f9df236f1fd06d83ca467cdf0cdf5a09d8b372c095bc79c85105ec4b",
+      "report_sha256": "85785396512ed6c1258ec55040d471c25c8e613903b1f2a78fe600ea8078f912"
+    },
+    {
+      "job": "har120-001609-a1-r2",
+      "job_id": "851180be-8df1-401a-a5b3-d01623d56a1b",
+      "trial_id": "05beea47-9092-4807-8669-c6d988359aac",
+      "trial_name": "har120-001609-a1-r2__vwLGuFL",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1954851,
+      "settled_output": 20091,
+      "raw_result_sha256": "18268d94bce219b7e643bfd462a8856ac435d0683d795cff377c7c0ffbd0de1c",
+      "raw_metadata_sha256": "120397127c1d9947736d1110648048f3511954a4f1762f5a395e411d41a1c218",
+      "report_sha256": "55d1a8e4dc1ac44118ca1be5b1370fb708ad4f3c5464e444e9cba2fc12e88a0e"
+    },
+    {
+      "job": "har120-001618-a1-r2",
+      "job_id": "58a161f2-e4fc-4ad9-bcf2-5943db5d39db",
+      "trial_id": "b2d42ef2-8b55-4132-b91d-aca0f865a8ac",
+      "trial_name": "har120-001618-a1-r2__8whFQDY",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1201329,
+      "settled_output": 12633,
+      "raw_result_sha256": "22184702e99349f387e5a2adad853db580673e60353306423d67fba7ad8e0018",
+      "raw_metadata_sha256": "0cdfde59eef214eb4bb08f91488bd654cb41681cb3426b253cce8a46294c482c",
+      "report_sha256": "bbd8cfde2c0f2d177e2167daf0c3b0cb3b12c2d458aa5243efa7c0654483df1c"
+    },
+    {
+      "job": "har120-001820-a1-r2",
+      "job_id": "70fe0501-d045-4ed5-90bc-4da028cf8621",
+      "trial_id": "eacbc2c4-6883-481c-8f13-95437c654594",
+      "trial_name": "har120-001820-a1-r2__dUGBXgX",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 315215,
+      "settled_output": 5016,
+      "raw_result_sha256": "6d91c66ab5f8b670b82407387654cbcf439b4871a93692c8126924b5f78d958f",
+      "raw_metadata_sha256": "3488c67d3e76ef0680412681849145490e8f4904cb0581c48a267709cf677a23",
+      "report_sha256": "0198075d214baab40c3e4bda3dfcc1bc901e98208ff539f1a34a1565b2a9eaa2"
+    },
+    {
+      "job": "har120-001865-a1-r2",
+      "job_id": "c43d40ea-1674-4d0f-bce2-11687fbdc2f9",
+      "trial_id": "01648bc0-90e9-4e12-bc67-53cc62e6ad00",
+      "trial_name": "har120-001865-a1-r2__TjQQ4fV",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 1168348,
+      "settled_output": 10980,
+      "raw_result_sha256": "f51389d9bf282e70e3f273eba0d04957d6b2ca2e2dbf11c9cc598c182f42bead",
+      "raw_metadata_sha256": "3a38aa1cfcdacbd467d7655db7c0cda9bb003717028a903771f4e88940d3a346",
+      "report_sha256": "dac20bced10f90d8232c15d3b0c04c48f4a2cbff26fdef178369085c5a693223"
+    },
+    {
+      "job": "har120-002104-a1-r2",
+      "job_id": "9daa5271-35fa-4743-b6aa-6ba8274b840d",
+      "trial_id": "bbf550d3-0399-4fa4-9080-2b38392cf511",
+      "trial_name": "har120-002104-a1-r2__NuAxYam",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 2413962,
+      "settled_output": 17295,
+      "raw_result_sha256": "f740ad0b8829fc0d84983c36935845f4f4679c7ceed13e3fd64b2be59cf28ee2",
+      "raw_metadata_sha256": "e4b1b166ab7d4b4340ef7869eebb455b9ad6a298b72872b52e90d481e1a86259",
+      "report_sha256": "9f81c1e54741b12a120fe6ded4f07d11838de98c8b3d3673cde757976486feab"
+    },
+    {
+      "job": "har120-002356-a1-r2",
+      "job_id": "052dc264-c383-40bd-8df5-5d5ef1a1bcfd",
+      "trial_id": "e2fa438b-8c6d-401f-8669-ebe28ab8cce0",
+      "trial_name": "har120-002356-a1-r2__nHVDgFh",
+      "before_verdict": "excluded",
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "raw_reward": 1.0,
+      "settled_input": 1592090,
+      "settled_output": 11918,
+      "raw_result_sha256": "6b3b93ace2c5828e463f8147eebe0e4afac0d7ff406adafc2839d27560efd1cc",
+      "raw_metadata_sha256": "5a0ab66f08206f1bdaa3f11562dd67fb7ff10b8edbd7e639fed58cc0ebe81256",
+      "report_sha256": "3e69e8970342d85de4e4f04756563f3430e0e44b5b7540abff35155fac5e7fe4"
+    },
+    {
+      "job": "har120-002393-a1-r2",
+      "job_id": "8e0a32ef-c4d8-4b0d-9f01-71b754108a35",
+      "trial_id": "d3de0f54-69de-42f5-bc14-9fe8bb7d85d7",
+      "trial_name": "har120-002393-a1-r2__eFhhz27",
+      "before_verdict": "counted_fail",
+      "after_verdict": "counted_fail",
+      "after_reasons": [],
+      "raw_reward": 0.0,
+      "settled_input": 275421,
+      "settled_output": 3705,
+      "raw_result_sha256": "0c76063f0e0cc7e5d823d09b6568f02be674784af191dd657db87e26a166f308",
+      "raw_metadata_sha256": "84cd98367b035f79412bac1cb04e6fd5c57cc5343c02cb6fbaf79e04b58d4e8c",
+      "report_sha256": "2e2646db683f48db6cd376efe6c823bc1d56fc632b7fdf8c395b8686113504f7"
+    },
+    {
+      "job": "har120-002416-a1-r2",
+      "job_id": "4440e4ae-9a9a-4754-9834-c891d3d9bac5",
+      "trial_id": "9689e2aa-907a-4535-93ee-2184de183278",
+      "trial_name": "har120-002416-a1-r2__ccd9JcE",
+      "before_verdict": "counted_pass",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 2265118,
+      "settled_output": 13468,
+      "raw_result_sha256": "676f0a99784cf62ac055536081f8e7f29c7a174b81590d6179c1ef19f5b68537",
+      "raw_metadata_sha256": "4ab8f84e3b41db7b9a702bfc4eac049d36f6c174552bd49b3d764dc547cbbb2a",
+      "report_sha256": "e23d6634f1903970857e974c5a946bcb5461a00316d1ac7404c15f5e51a15786"
+    },
+    {
+      "job": "har120-002552-a1-r2",
+      "job_id": "ddbcf322-6d92-4698-9e5e-3c5cf5c0d2c3",
+      "trial_id": "68f75e59-32c3-4b95-8133-2e53a19cd783",
+      "trial_name": "har120-002552-a1-r2__ZftRzg3",
+      "before_verdict": "counted_pass",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 2464413,
+      "settled_output": 11815,
+      "raw_result_sha256": "7a465eeee2ca8421550953dac163a6a0bb82d1f125c29e4cb150e057d4c51f27",
+      "raw_metadata_sha256": "0af12d2bb00a1a17aec808c6ecad6dd3a7d6256bc38f6e81e13b8872f74615d6",
+      "report_sha256": "89f78543a08f3721e94953759e81f4e4e643f689321063acc8c3f01d495c3b97"
+    },
+    {
+      "job": "har120-002555-a1-r2",
+      "job_id": "cfccbcb8-ca1b-4940-a938-9a6abfaec645",
+      "trial_id": "22f03988-9d08-4251-bfd9-9833714976fc",
+      "trial_name": "har120-002555-a1-r2__Uki9j6d",
+      "before_verdict": "counted_pass",
+      "after_verdict": "counted_pass",
+      "after_reasons": [],
+      "raw_reward": 1.0,
+      "settled_input": 1490570,
+      "settled_output": 15680,
+      "raw_result_sha256": "5d40eeb23a68a77156554b3837cf28d1fd0540e8d2848c533207a60891338b4a",
+      "raw_metadata_sha256": "8bf1457a74d9e239de6aff9baf3bfe5d086eaf5cd1074628654ef38d7236a942",
+      "report_sha256": "84ae1c9db21b12bd25b6a3cb82549f22c53071eca4802e2f22d56dda9722a07a"
+    }
+  ],
+  "live_publication": false,
+  "experiment_spend_usd": 0
+}

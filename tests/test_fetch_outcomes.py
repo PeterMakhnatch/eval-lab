@@ -297,15 +297,22 @@ def test_normalization_does_not_bind_another_or_unknown_directory(option: str, l
     assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == "counted_pass"
 
 
-def test_saved_path_spelling_is_normalized_before_exact_artifact_use() -> None:
+@pytest.mark.parametrize("matching_wrapped_echo", [False, True])
+def test_saved_path_spelling_preserves_exact_artifact_and_call_binding(matching_wrapped_echo: bool) -> None:
     steps = _native("001373-r2")["steps"]
     for step in steps:
         for call in step["tool_calls"]:
             call["arguments"]["keystrokes"] = call["arguments"]["keystrokes"].replace("/tmp/gcl", "/tmp/./gcl/")
         for result in step["observation"]["results"]:
             result["content"] = result["content"].replace("/tmp/gcl", "/tmp/./gcl/")
+            if matching_wrapped_echo:
+                # This native echo wraps inside the directory name. A path-only
+                # perturbation must update that spelling too, not borrow an old call.
+                result["content"] = result["content"].replace("/tmp/\ngcl", "/tmp/./\ngcl/")
     flags = assess_upstream_fetch([("head", step) for step in steps], {})
-    assert confirmed_fetch(flags[0])
+    assert confirmed_fetch(flags[0]) is matching_wrapped_echo
+    expected = "excluded" if matching_wrapped_echo else "counted_pass"
+    assert classify_counts(reward=1.0, scored=True, taint=flags)["verdict"] == expected
 
 
 @pytest.mark.parametrize("separator", [";", "|| true;"])

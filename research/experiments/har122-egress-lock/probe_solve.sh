@@ -47,13 +47,16 @@ curl_try() {
   code=$(t 20 curl -sS -o /dev/null -w '%{http_code}' --max-time 15 "$@" 2>&1 | tail -n 1)
   echo "== $label: $code"
 }
+curl_try "https pypi.org (name, hosts pinned)" "https://pypi.org/simple/$PKG/"
 curl_try "https direct IP, SNI pypi.org" --resolve "pypi.org:443:$PYPI_IP" "https://pypi.org/pypi/$PKG/$VER/json"
 curl_try "https bare IP" -k "https://$PYPI_IP/"
 curl_try "http bare IP 1.1.1.1" "http://1.1.1.1/"
 curl_try "https example.com" "https://example.com/"
 curl_try "https Daytona API (to lift the lock)" "https://app.daytona.io/api/health"
 echo "== git ls-remote $REPO: $(t 30 git ls-remote "$REPO" HEAD 2>&1 | tail -n 1)"
-t 30 "$PY" - "$PYPI_IP" <<'EOF' 2>&1
+echo "== git clone $REPO: $(t 60 git clone --depth 1 "$REPO" /tmp/har122-clone 2>&1 | tail -n 1); cloned=$([ -d /tmp/har122-clone/.git ] && echo yes || echo no)"
+rm -rf /tmp/har122-clone
+t 120 "$PY" - "$PYPI_IP" <<'EOF' 2>&1
 import socket
 import sys
 
@@ -70,10 +73,22 @@ for label, family, address in (
             print(f"== {label}: connected")
     except Exception as exc:  # noqa: BLE001 - the probe reports any failure
         print(f"== {label}: {type(exc).__name__}: {exc}")
-try:
-    print("== resolve example.com:", socket.gethostbyname("example.com"))
-except Exception as exc:  # noqa: BLE001
-    print(f"== resolve example.com: {type(exc).__name__}: {exc}")
+for label, url in (
+    ("urllib pypi.org", "https://pypi.org/simple/"),
+    ("urllib example.com", "https://example.com/"),
+):
+    try:
+        import urllib.request
+
+        with urllib.request.urlopen(url, timeout=10) as response:
+            print(f"== {label}: HTTP {response.status}")
+    except Exception as exc:  # noqa: BLE001
+        print(f"== {label}: {type(exc).__name__}: {exc}")
+for host in ("example.com", "pypi.org", "github.com"):
+    try:
+        print(f"== resolve {host} (DNS):", socket.gethostbyname(host))
+    except Exception as exc:  # noqa: BLE001
+        print(f"== resolve {host} (DNS): {type(exc).__name__}: {exc}")
 EOF
 cp /tmp/har122-hosts.orig /etc/hosts
 rm -rf "$OUT" /tmp/har122-pip.log /tmp/har122-hosts.orig /tmp/har122-hosts.new

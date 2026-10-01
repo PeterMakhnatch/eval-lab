@@ -322,6 +322,21 @@ STRIP_INBOUND_HEADERS = frozenset(
     }
 )
 
+#: Optional per-job route token for the independent capture hop
+#: (``evallab capture serve``). When ``EVALLAB_CAPTURE_ROUTE_TOKEN`` holds a
+#: token, the proxy forwards upstream to ``/t/<token>/<upstream-path>``
+#: instead of the bare upstream path. The capture proxy strips the prefix
+#: before forwarding (recording it as ``route_token``), so the ultimate
+#: upstream sees byte-identical bodies on the canonical path and the agent
+#: sees byte-identical responses. Unset (the default) leaves the upstream
+#: path untouched. The runner sets this to the job attempt id exactly when
+#: the provider upstream points at a loopback capture server;
+#: direct-to-vendor rounds never carry it. Mirrors
+#: ``CAPTURE_ROUTE_TOKEN_ENV`` in ``src/evallab/execution_contracts.py``
+#: (this standalone container script cannot import that module).
+CAPTURE_ROUTE_TOKEN_ENV = "EVALLAB_CAPTURE_ROUTE_TOKEN"
+_CAPTURE_TOKEN_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
+
 
 def secret_path() -> Path:
     profile = _profile()
@@ -463,6 +478,25 @@ def _pinned_upstream_url() -> str:
             raise RuntimeError("upstream path is not pinned")
         return f"http://{host}:{port}{upstream_path}"
     raise RuntimeError("upstream scheme is not pinned")
+
+
+def _capture_prefixed_target(target: str) -> str:
+    """Insert ``/t/<token>/`` ahead of the pinned upstream path, if configured.
+
+    Returns ``target`` unchanged unless ``EVALLAB_CAPTURE_ROUTE_TOKEN`` holds
+    a well-formed token. A malformed token also leaves the target unchanged
+    (fail open to unattributed capture) rather than breaking the trial with
+    an upstream 404.
+    """
+    token = (os.environ.get(CAPTURE_ROUTE_TOKEN_ENV) or "").strip()
+    if not token or _CAPTURE_TOKEN_RE.fullmatch(token) is None:
+        return target
+    split = urllib.parse.urlsplit(target)
+    if not split.path or not split.path.startswith("/"):
+        return target
+    return urllib.parse.urlunsplit(
+        (split.scheme, split.netloc, f"/t/{token}{split.path}", split.query, split.fragment)
+    )
 
 
 def _key_needles(key: str) -> tuple[bytes, ...]:
@@ -1488,6 +1522,10 @@ class Handler(BaseHTTPRequestHandler):
             )
             self._reject(502, b"provider unavailable\n")
             return
+        # Independent capture hop: stamp the per-job route token ahead of the
+        # pinned path. The capture proxy strips it before forwarding, so the
+        # ultimate upstream still sees the canonical path and shaped body.
+        target = _capture_prefixed_target(target)
 
         request = urllib.request.Request(
             target,

@@ -5,12 +5,21 @@ $0, read-only. Method: new `evallab.token_flow` module (wired into
 every trial below via `analyze_runs.py` in this directory. Outputs:
 `runs.jsonl` (82 full records), `runs.csv` (compact per-run table),
 `aggregates.json`. Definitions and limits live in the module docstring;
-key points: last useful edit = last file-writing step (edit tool, write
-signal, shell redirect, shared traj patterns + bare-redirect supplement;
-reads and `/tmp` scratch excluded), checked against `verifier/agent.diff`;
-loop onset = earliest ≥4 normalized-command run or ≥10 identical-message
+key points: last useful edit = last **detected** file-writing signal (edit
+tool, write signal, shell redirect, shared traj patterns + bare-redirect
+supplement). Read/scratch filtering and `verifier/agent.diff` checks are
+heuristics, not proof that every anchor is a real repository edit.
+Loop onset = earliest ≥4 normalized-command run or ≥10 identical-message
 run (mirrors `traj._analyze_loop_suspicion` / `probe03.identical_runs`,
 same `LOOP_MIN_RUN=10`); missing inputs are `None` with a reason, never 0.
+
+HAR-132 replay reproduced all 82 frozen `token_flow` and savings records.
+Four zero-share anchors are false positives: quoted awk comparisons in
+trials ending `__Y8fE5ft`, `__RZ8qyUu` and `__LRiiKmy`, and socket/HTML
+`.write` text in `__XuSksWC`. The frozen records are retained, not hand-edited.
+Also, 23 trials have no detected edit and contribute a post-edit share of
+1.0 by definition. The aggregate describes this detector, not a verified
+fraction of wasted compute.
 
 ## 1. Coverage: 82 distinct trials, not 40
 
@@ -81,13 +90,16 @@ subagents run, so metadata > events means failure.
 
 **The ceiling is hit through looping, amplified by full-history re-send —
 never through context.** Over all 82 runs the largest real prompt is
-58,551 tokens (`har81-l-d-a4-arvo-42496599`, call 61), inside the 65,536
+58,551 tokens (`har81-l-d-a4-arvo-42496599`, call 59 / step 60), inside the 65,536
 context; the reactive `ContextLengthExceeded` path never fired. What binds
 is the *attempted* footprint (used + byte-based reservation, proxy-side):
-exhausted runs die at a median 2.36M settled input tokens / ~88 calls —
-below both the 2.5M and the 120-call line — when one more reservation
-would cross it (cf. §4). Median 90% of input tokens are spent *after* the
-last useful edit (median onset call 33 of ~88). Step refs: golden run last
+the 66 exhausted runs have median **2,385,430 settled ledger input tokens**
+and **91 metered calls**, below both the 2.5M and the 120-call line, when
+one more reservation would cross it (cf. §4). Across **all 82** runs, median
+post-edit share is **89.29%** (coarsely 90%), using native `agent_result`
+input-token denominators, not proxy reservations. Median onset is call
+**33** among the 54 trials with an onset; median metered length over all
+82 is **88.5** calls. These are different cohorts. Step refs: golden run last
 edit step 11 (`sed -i … stun.c`, call 10), onset step 24 (`echo
 "task_complete"` ×95, calls 23–117 — the same 95× run HAR-106 hand-found),
 96.7% of its 2.41M input tokens after the edit, max prompt only 29,836.

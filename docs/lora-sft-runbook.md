@@ -21,6 +21,21 @@ evallab spend check --since <window start, e.g. 2026-10-01T04:00:00Z> --cap-usd 
 
 `evallab spend day --date $(date -u +%F)` breaks down what a UTC day has already cost.
 
+Without `--cap-usd`, both spend commands read `policy/standing-approvals.yaml`.
+`spend day` covers a whole UTC day and resolves its cap at **00:00 UTC on the
+reported date**. Every validated dated override expires after that instant,
+so the override applies to its entire `utc_date` for reporting, even if it
+expires during that day or the report is generated later. The output names
+the dated card and standing ceiling, for example
+`cap $35.00 (dated override HAR-126; standing $20.00)`.
+Other dates use the standing ceiling.
+
+`spend check` is a launch decision, not a historical day report: it resolves
+the default ceiling at the **window end (now)** and respects override expiry.
+An older `--since` does not revive an expired approval. An explicit
+`--cap-usd` takes precedence in either command; reporting a past override
+never renews authorization to spend.
+
 ## 1. Data
 
 - **Input** is an `evallab.sft_terminus/1` export: a directory with `conversations.jsonl` and `manifest.json`, which carries `conversations_sha256`. Training refuses anything else.

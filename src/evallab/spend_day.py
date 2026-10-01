@@ -2,7 +2,13 @@
 
 One ledger per UTC day sums ALL lab spend broken down by source (Modal
 billed rows, Daytona sandbox estimates, model API ledgers), by card
-(HAR-NNN) and by job, with the grand total against the $20/day cap.
+(HAR-NNN) and by job, with the grand total against the policy's daily cap.
+
+``spend day`` resolves policy at 00:00 UTC on the reported day: its dated
+override applies to that whole day, including retrospective reports after
+expiry. Validated overrides always expire after that day's start. This is
+reporting, not renewed launch permission: ``spend check`` resolves at the
+window end (the launch time), respecting expiry even with an older --since.
 
 Source rules (each row carries ``basis`` so billed figures are never
 mixed with estimates):
@@ -72,6 +78,8 @@ from datetime import UTC, date, datetime, time, timedelta
 from pathlib import Path
 from typing import Any
 
+from evallab.schemas import StandingApprovalsPolicy, effective_daily_cost_ceiling
+
 #: Lab day-spend cap (USD) the ledger reports against.
 DEFAULT_CAP_USD = 20.0
 
@@ -125,6 +133,7 @@ class DayLedger:
     headroom_usd: float
     notes: tuple[str, ...] = field(default_factory=tuple)
     unresolved_model_usd: float = 0.0
+    cap_description: str | None = None
 
 
 def parse_day(value: str) -> date:
@@ -210,6 +219,22 @@ def day_to_window(day: date) -> tuple[datetime, datetime]:
     """Half-open UTC window ``[day 00:00, day+1 00:00)`` for a calendar day."""
     start = datetime.combine(day, time.min, tzinfo=UTC)
     return start, start + _one_day()
+
+
+def policy_cap_at(policy: StandingApprovalsPolicy, moment: datetime) -> tuple[float, str]:
+    """Effective cap and its provenance at an aware (or naive UTC) instant."""
+    moment = _coerce_utc(moment).astimezone(UTC)
+    cap = effective_daily_cost_ceiling(policy, moment)
+    for override in policy.daily_cost_ceiling_overrides:
+        if override.utc_date == moment.date() and moment < _coerce_utc(override.expires_at):
+            return cap, (
+                f"dated override {override.card}; standing ${policy.daily_cost_ceiling_usd:.2f}"
+            )
+    return cap, "standing policy"
+
+
+def _render_cap(cap_usd: float, description: str | None) -> str:
+    return f"${cap_usd:.2f}" + (f" ({description})" if description else "")
 
 
 def _one_day() -> Any:
@@ -458,6 +483,7 @@ def summarize_day(
     cap_usd: float = DEFAULT_CAP_USD,
     notes: Iterable[str] = (),
     unresolved_model_usd: float = 0.0,
+    cap_description: str | None = None,
 ) -> DayLedger:
     """Build the day ledger: per-source/card totals plus cap arithmetic."""
     ordered = tuple(rows)
@@ -475,6 +501,7 @@ def summarize_day(
         headroom_usd=headroom,
         notes=tuple(notes),
         unresolved_model_usd=unresolved_model_usd,
+        cap_description=cap_description,
     )
 
 
@@ -483,6 +510,7 @@ def ledger_to_dict(ledger: DayLedger) -> dict[str, Any]:
     return {
         "day": ledger.day.isoformat(),
         "cap_usd": ledger.cap_usd,
+        "cap_description": ledger.cap_description,
         "total_usd": ledger.total_usd,
         "over_cap": ledger.over_cap,
         "over_by_usd": ledger.over_by_usd,
@@ -506,8 +534,9 @@ def ledger_to_dict(ledger: DayLedger) -> dict[str, Any]:
 
 def render_ledger(ledger: DayLedger) -> str:
     """Human-readable per-day table with totals against the cap."""
+    cap = _render_cap(ledger.cap_usd, ledger.cap_description)
     lines = [
-        f"spend day {ledger.day.isoformat()} (cap ${ledger.cap_usd:.2f})",
+        f"spend day {ledger.day.isoformat()} (cap {cap})",
         "source | card | job | usd | basis | evidence",
     ]
     for row in ledger.rows:
@@ -525,7 +554,7 @@ def render_ledger(ledger: DayLedger) -> str:
         if ledger.over_cap
         else f"under cap (headroom ${ledger.headroom_usd:.4f})"
     )
-    lines.append(f"grand total ${ledger.total_usd:.4f} vs cap ${ledger.cap_usd:.2f}: {verdict}")
+    lines.append(f"grand total ${ledger.total_usd:.4f} vs cap {cap}: {verdict}")
     for note in ledger.notes:
         lines.append(f"note: {note}")
     return "\n".join(lines)
@@ -1174,15 +1203,24 @@ def build_day_ledger(
     day: date,
     *,
     database_url: str,
-    cap_usd: float = DEFAULT_CAP_USD,
+    cap_usd: float | None = None,
     extra_roots: Iterable[Path] = (),
 ) -> DayLedger:
     """Assemble the full day ledger from all three sources (read-only).
 
     A day is the special case of :func:`build_window_ledger` covering
-    [day 00:00, next day 00:00) UTC.
+    [day 00:00, next day 00:00) UTC. Without an explicit cap, resolve policy
+    at that day's 00:00 UTC: the dated override applies to the whole reported
+    day, even when reporting it after expiry. This never extends launch approval.
     """
     start, end = day_to_window(day)
+    cap_description = None
+    if cap_usd is None:
+        from evallab.execution_contracts import load_policy
+
+        cap_usd, cap_description = policy_cap_at(
+            load_policy(repo_root / "policy/standing-approvals.yaml"), start
+        )
     window = build_window_ledger(
         repo_root,
         start,
@@ -1199,6 +1237,7 @@ def build_day_ledger(
         cap_usd=cap_usd,
         notes=window.notes,
         unresolved_model_usd=window.unresolved_model_usd,
+        cap_description=cap_description,
     )
 
 
@@ -1280,6 +1319,7 @@ class LaunchDecision:
     headroom_usd: float
     unresolved_jobs_usd: float = 0.0
     notes: tuple[str, ...] = field(default_factory=tuple)
+    cap_description: str | None = None
 
 
 def parse_launch_since(value: str) -> datetime:
@@ -1824,6 +1864,7 @@ def decision_to_dict(decision: LaunchDecision) -> dict[str, Any]:
         "candidate_usd": decision.candidate_usd,
         "committed_usd": decision.committed_usd,
         "cap_usd": decision.cap_usd,
+        "cap_description": decision.cap_description,
         "headroom_usd": decision.headroom_usd,
         "notes": list(decision.notes),
     }
@@ -1852,7 +1893,7 @@ def render_decision(decision: LaunchDecision) -> str:
             "(pending provider charges from finished jobs)"
         )
     lines.append(f"candidate: ${decision.candidate_usd:.4f}")
-    lines.append(f"cap: ${decision.cap_usd:.2f}")
+    lines.append(f"cap: {_render_cap(decision.cap_usd, decision.cap_description)}")
     eq_parts = ["settled", "in-flight"]
     if decision.unresolved_jobs_usd > 0:
         eq_parts.append("unresolved-jobs")
@@ -2002,9 +2043,7 @@ def _validate_spend_session(entry: Any, index: int) -> dict[str, Any]:
                 "supply non-overlapping billing rows"
             )
         resource_intervals.append((interval, interval_end))
-        reported.append(
-            (_session_timestamp(row, "reported_at", row_label), row["reported_at"])
-        )
+        reported.append((_session_timestamp(row, "reported_at", row_label), row["reported_at"]))
         costs.append(_session_number(row.get("cost_usd"), f"{row_label} cost_usd"))
     raw_members = entry.get("members")
     if not isinstance(raw_members, list) or not raw_members:
@@ -2031,15 +2070,17 @@ def _validate_spend_session(entry: Any, index: int) -> dict[str, Any]:
         if "daytona_estimate_usd" not in member:
             raise ValueError(f"{member_label} requires daytona_estimate_usd (null if unknown)")
         daytona = member["daytona_estimate_usd"]
-        members.append({
-            **fields,
-            "trial_wall_seconds": _session_number(
-                member.get("trial_wall_seconds"), f"{member_label} trial_wall_seconds"
-            ),
-            "daytona_estimate_usd": None if daytona is None else _session_number(
-                daytona, f"{member_label} daytona_estimate_usd"
-            ),
-        })
+        members.append(
+            {
+                **fields,
+                "trial_wall_seconds": _session_number(
+                    member.get("trial_wall_seconds"), f"{member_label} trial_wall_seconds"
+                ),
+                "daytona_estimate_usd": None
+                if daytona is None
+                else _session_number(daytona, f"{member_label} daytona_estimate_usd"),
+            }
+        )
     if spec_ids != set(completed):
         raise ValueError(f"{label} members do not exactly match teardown completed_spec_ids")
     longest_commit = max((m["repository_commit"] for m in members), key=len)
@@ -2124,14 +2165,18 @@ def session_spend_for_job(job_dir: Path, receipt_path: Path) -> dict[str, Any]:
                 or member["repository_commit"] != commit
                 or member["lab_metadata_sha256"] != metadata_sha
             ):
-                raise ValueError(f"job {job_id!r} has a stale session spend binding; rebuild receipt")
+                raise ValueError(
+                    f"job {job_id!r} has a stale session spend binding; rebuild receipt"
+                )
             billed = session["billed_modal_usd"]
             weight = member["trial_wall_seconds"]
             session_weight = session["session_trial_wall_seconds"]
             modal_share = billed * (weight / session_weight)
             daytona = member["daytona_estimate_usd"]
-            total = None if daytona is None else _session_number(
-                modal_share + daytona, f"job {job_id!r} total_usd"
+            total = (
+                None
+                if daytona is None
+                else _session_number(modal_share + daytona, f"job {job_id!r} total_usd")
             )
             return {
                 "schema": "evallab.session_spend_allocation/v1",

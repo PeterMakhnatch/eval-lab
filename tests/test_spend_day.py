@@ -7,7 +7,7 @@ Covers:
 - No double count of self-hosted proxy calls (0/0 pricing returns None)
 - Card attribution: job prefixes, ledger paths, and strict unattributed bucket
 - Cap arithmetic: under, equal, over, headroom calculation
-- CLI argument parsing
+- Policy day caps and launch-time overrides are covered in test_daily_ceiling_override.py
 - Complete billed-session membership, weighted conservation and source binding
 """
 
@@ -23,7 +23,6 @@ from typing import Any
 
 import pytest
 
-from evallab import cli
 from evallab.spend_day import (
     BASIS_BILLED,
     BASIS_ESTIMATE,
@@ -37,7 +36,6 @@ from evallab.spend_day import (
     day_to_window,
     dedupe_records,
     model_usd_from_provider_usage,
-    parse_day,
     query_model_job_rows,
     session_spend_for_job,
     sibling_worktree_roots,
@@ -377,42 +375,6 @@ def test_trial_daytona_resources_resolution() -> None:
 
 
 # ---------------------------------------------------------------------------
-# 8. CLI parser coverage
-# ---------------------------------------------------------------------------
-
-
-def test_spend_day_cli_argument_parser() -> None:
-    p = cli.parser()
-
-    args = p.parse_args(["spend", "day", "--date", "2026-09-30"])
-    assert args.spend_command == "day"
-    assert args.date == "2026-09-30"
-    assert args.cap_usd == 20.0
-    assert args.json is False
-
-    args_custom = p.parse_args(
-        [
-            "spend",
-            "day",
-            "--date",
-            "2026-09-29",
-            "--cap-usd",
-            "35.5",
-            "--json",
-            "--database-url",
-            "sqlite:///:memory:",
-        ]
-    )
-    assert args_custom.date == "2026-09-29"
-    assert args_custom.cap_usd == 35.5
-    assert args_custom.json is True
-    assert args_custom.database_url == "sqlite:///:memory:"
-
-    with pytest.raises(ValueError):
-        parse_day("invalid-date")
-
-
-# ---------------------------------------------------------------------------
 # 9. HAR-122 regression tests: sibling worktree discovery & UTC finish times
 # ---------------------------------------------------------------------------
 
@@ -607,39 +569,46 @@ def _session_spend_fixture(
         raw_metadata = (json.dumps(metadata, sort_keys=True) + "\n").encode()
         (job / "lab-metadata.json").write_bytes(raw_metadata)
         jobs.append(job)
-        members.append({
-            "job_id": f"job-{name}-{index}",
-            "job_name": f"original-{name}-{index}",
-            "spec_id": f"spec-{name}-{index}",
-            "repository_commit": commit,
-            "lab_metadata_sha256": hashlib.sha256(raw_metadata).hexdigest(),
-            "trial_wall_seconds": seconds,
-            "daytona_estimate_usd": daytona,
-        })
+        members.append(
+            {
+                "job_id": f"job-{name}-{index}",
+                "job_name": f"original-{name}-{index}",
+                "spec_id": f"spec-{name}-{index}",
+                "repository_commit": commit,
+                "lab_metadata_sha256": hashlib.sha256(raw_metadata).hexdigest(),
+                "trial_wall_seconds": seconds,
+                "daytona_estimate_usd": daytona,
+            }
+        )
     session_id, app = f"ap-{name}", f"eval-app-{name}"
-    rows = [{
-        "object_id": session_id,
-        "description": app,
-        "environment": "main",
-        "interval_start": "2026-10-01T00:00:00Z",
-        "resource": resource,
-        "cost_usd": cost,
-        "resolution": "d",
-        "reported_at": "2026-10-01T02:23:10Z",
-    } for resource, cost in (("GPU", 1.1), ("CPU", 0.1))]
+    rows = [
+        {
+            "object_id": session_id,
+            "description": app,
+            "environment": "main",
+            "interval_start": "2026-10-01T00:00:00Z",
+            "resource": resource,
+            "cost_usd": cost,
+            "resolution": "d",
+            "reported_at": "2026-10-01T02:23:10Z",
+        }
+        for resource, cost in (("GPU", 1.1), ("CPU", 0.1))
+    ]
     payload = {
         "schema": "evallab.session_spend/v1",
-        "sessions": [{
-            "session_id": session_id,
-            "billing_rows": rows,
-            "deployment": {"commit": commit[:7], "time_deployed": "2026-10-01T00:01:27Z"},
-            "teardown": {
-                "app": app,
-                "recorded_at": "2026-10-01T01:45:38Z",
-                "completed_spec_ids": [m["spec_id"] for m in members],
-            },
-            "members": members,
-        }],
+        "sessions": [
+            {
+                "session_id": session_id,
+                "billing_rows": rows,
+                "deployment": {"commit": commit[:7], "time_deployed": "2026-10-01T00:01:27Z"},
+                "teardown": {
+                    "app": app,
+                    "recorded_at": "2026-10-01T01:45:38Z",
+                    "completed_spec_ids": [m["spec_id"] for m in members],
+                },
+                "members": members,
+            }
+        ],
     }
     receipt = root / name / "receipt.json"
     receipt.write_text(json.dumps(payload))
@@ -692,7 +661,9 @@ def test_session_spend_rejects_stale_or_wrong_target_binding(tmp_path: Path, bin
         raw = json.dumps(metadata).encode()
         (job / "lab-metadata.json").write_bytes(raw)
         if binding != "metadata_bytes":
-            payload["sessions"][0]["members"][0]["lab_metadata_sha256"] = hashlib.sha256(raw).hexdigest()
+            payload["sessions"][0]["members"][0]["lab_metadata_sha256"] = hashlib.sha256(
+                raw
+            ).hexdigest()
             receipt.write_text(json.dumps(payload))
     with pytest.raises(ValueError):
         session_spend_for_job(job, receipt)
@@ -700,9 +671,18 @@ def test_session_spend_rejects_stale_or_wrong_target_binding(tmp_path: Path, bin
 
 @pytest.mark.parametrize(
     "defect",
-    ["missing_member", "undeclared_member", "duplicate_job", "duplicate_spec", "duplicate_teardown", "empty_members"],
+    [
+        "missing_member",
+        "undeclared_member",
+        "duplicate_job",
+        "duplicate_spec",
+        "duplicate_teardown",
+        "empty_members",
+    ],
 )
-def test_session_spend_rejects_incomplete_or_duplicate_membership(tmp_path: Path, defect: str) -> None:
+def test_session_spend_rejects_incomplete_or_duplicate_membership(
+    tmp_path: Path, defect: str
+) -> None:
     jobs, receipt, payload = _session_spend_fixture(tmp_path)
     session = payload["sessions"][0]
     members = session["members"]
@@ -737,7 +717,10 @@ def test_session_spend_rejects_invalid_prices_or_weights(
         session_spend_for_job(jobs[0], receipt)
 
 
-@pytest.mark.parametrize("defect", ["zero_weights", "overflow_weights", "overflow_pool", "missing_daytona", "missing_hash"])
+@pytest.mark.parametrize(
+    "defect",
+    ["zero_weights", "overflow_weights", "overflow_pool", "missing_daytona", "missing_hash"],
+)
 def test_session_spend_rejects_unknown_or_unusable_pool_inputs(tmp_path: Path, defect: str) -> None:
     jobs, receipt, payload = _session_spend_fixture(tmp_path)
     session = payload["sessions"][0]
@@ -757,9 +740,7 @@ def test_session_spend_rejects_unknown_or_unusable_pool_inputs(tmp_path: Path, d
 
 
 @pytest.mark.parametrize("interval", ["2026-10-01T00:00:00Z", "2026-10-01T00:00:00+00:00"])
-def test_session_spend_rejects_duplicate_billing_identity(
-    tmp_path: Path, interval: str
-) -> None:
+def test_session_spend_rejects_duplicate_billing_identity(tmp_path: Path, interval: str) -> None:
     jobs, receipt, payload = _session_spend_fixture(tmp_path)
     rows = payload["sessions"][0]["billing_rows"]
     rows.append(dict(rows[0], interval_start=interval, resolution="h", cost_usd=2.0))
@@ -886,7 +867,9 @@ def test_session_spend_latest_reported_timestamp_retains_source_offset(tmp_path:
     assert session_spend_for_job(jobs[0], receipt)["billing_reported_at"] == rows[1]["reported_at"]
 
 
-def test_session_spend_large_finite_prices_do_not_overflow_intermediate_product(tmp_path: Path) -> None:
+def test_session_spend_large_finite_prices_do_not_overflow_intermediate_product(
+    tmp_path: Path,
+) -> None:
     jobs, receipt, payload = _session_spend_fixture(tmp_path)
     rows = payload["sessions"][0]["billing_rows"]
     rows[0]["cost_usd"], rows[1]["cost_usd"] = 1e308, 0.0
@@ -923,16 +906,20 @@ def test_session_spend_rejects_ambiguous_json_fields(tmp_path: Path) -> None:
     jobs, receipt, payload = _session_spend_fixture(tmp_path)
     receipt.write_text(
         '{"schema": "evallab.session_spend/v1", "sessions": [], "sessions": '
-        + json.dumps(payload["sessions"]) + "}"
+        + json.dumps(payload["sessions"])
+        + "}"
     )
     with pytest.raises(ValueError):
         session_spend_for_job(jobs[0], receipt)
 
 
-@pytest.mark.parametrize("hour_start", [
-    "2026-10-01T01:00:00Z",
-    "2026-10-02T00:00:00+02:00",
-])
+@pytest.mark.parametrize(
+    "hour_start",
+    [
+        "2026-10-01T01:00:00Z",
+        "2026-10-02T00:00:00+02:00",
+    ],
+)
 @pytest.mark.parametrize("hour_first", [False, True])
 def test_session_spend_rejects_daily_hourly_billing_overlap(
     tmp_path: Path, hour_start: str, hour_first: bool
@@ -946,10 +933,13 @@ def test_session_spend_rejects_daily_hourly_billing_overlap(
         session_spend_for_job(jobs[0], receipt)
 
 
-@pytest.mark.parametrize("first_resolution,first_start,second_resolution,second_start", [
-    ("h", "2026-10-01T01:00:00Z", "h", "2026-10-01T02:00:00Z"),
-    ("d", "2026-10-01T00:00:00Z", "h", "2026-10-02T00:00:00Z"),
-])
+@pytest.mark.parametrize(
+    "first_resolution,first_start,second_resolution,second_start",
+    [
+        ("h", "2026-10-01T01:00:00Z", "h", "2026-10-01T02:00:00Z"),
+        ("d", "2026-10-01T00:00:00Z", "h", "2026-10-02T00:00:00Z"),
+    ],
+)
 def test_session_spend_accepts_adjacent_nonoverlapping_billing_intervals(
     tmp_path: Path,
     first_resolution: str,
@@ -969,7 +959,9 @@ def test_session_spend_accepts_adjacent_nonoverlapping_billing_intervals(
     assert allocations[0]["modal_allocated_usd"] == pytest.approx(0.12)
 
 
-def test_session_spend_overlapping_times_on_different_resources_remain_additive(tmp_path: Path) -> None:
+def test_session_spend_overlapping_times_on_different_resources_remain_additive(
+    tmp_path: Path,
+) -> None:
     jobs, receipt, payload = _session_spend_fixture(tmp_path)
     payload["sessions"][0]["billing_rows"][1].update(
         resolution="h", interval_start="2026-10-01T01:00:00Z"

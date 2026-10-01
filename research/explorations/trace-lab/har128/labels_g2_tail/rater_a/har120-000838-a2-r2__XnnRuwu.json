@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Analysis: Now I have the full picture. Let me implement the feature.",
+      "ref": "head#26"
+    },
+    {
+      "quote": "it substitutes `['your command']` for the actual command list",
+      "ref": "head#53"
+    },
+    {
+      "quote": "All 17 CLI tests pass. The feature is implemented and complete.",
+      "ref": "head#53"
+    },
+    {
+      "quote": "echo \"task complete\"",
+      "ref": "head#82"
+    }
+  ],
+  "first_failure": {
+    "quote": "Analysis: Now I have the full picture. Let me implement the feature.",
+    "ref": "head#26",
+    "what": "wrote the hide_command substitution with lowercase 'your command'; hidden tests require capitalized 'Your command' and it never revisited casing"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#53",
+    "head#82"
+  ],
+  "notes": "reward 0.0. Verifier: 4 hidden-test failures, all case mismatch (expected 'Your command', got 'your command'); instruction.md itself shows capitalized \"Your command\". pip download ntfy==2.4.3 failed (no code); git history stayed at HEAD v2.4.2.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-000838-a2-r2__XnnRuwu"
+}

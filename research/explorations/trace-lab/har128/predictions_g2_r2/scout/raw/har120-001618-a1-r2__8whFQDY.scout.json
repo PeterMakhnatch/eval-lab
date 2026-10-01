@@ -1,0 +1,144 @@
+{
+ "trial": "har120-001618-a1-r2__8whFQDY",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001618-a1-r2/har120-001618-a1-r2__8whFQDY",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001618-a1-r2",
+ "task": "mimo-v2.6-rl/format-code-task-001618",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 79 calls in, 15 after the nudge at call 64",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#25",
+   "head#44",
+   "head#66"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 46,
+  "step_ref": "head#46",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#46",
+   "head#80"
+  ],
+  "note": "identical message repeated steps 46-80 with no change after errors",
+  "secondary": "confirmation_with_call loop (recorded): first confirmation head#66, span head#66-head#80; attribution unclear (confirm vs continue ambiguous)",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#23 (`cd /testbed && python -m pytest tests/test_cli_compile.py -q`), 15 turns head#24-head#39 with no interrupt, prompt back after the command finished"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#25",
+  "prompts": 3,
+  "confirmed": false,
+  "turns_after_first_prompt": 55,
+  "prompt_tokens_after_first_prompt": 1021695,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 35,
+    "span": [
+     "head#46",
+     "head#80"
+    ]
+   },
+   {
+    "kind": "confirmation",
+    "length": 15,
+    "span": [
+     "head#66",
+     "head#80"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 740129,
+   "completion": 4801,
+   "steps": 35,
+   "steps_without_metrics": 0
+  },
+  "confirmation": {
+   "prompt": 352192,
+   "completion": 2041,
+   "steps": 15,
+   "steps_without_metrics": 0
+  },
+  "in_loops": {
+   "prompt": 740129,
+   "completion": 4801,
+   "steps": 35,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1201329,
+   "completion": 12633,
+   "steps": 79,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.6161,
+  "result_input_tokens": 1201329
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 76,
+  "states": {
+   "no_prompt": 17,
+   "prompt": 59
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#23",
+    "trigger_command": "cd /testbed && python -m pytest tests/test_cli_compile.py -q 2>&1 | grep FAILED > /tmp/after.txt; git stash -q; python -m pytest tests/test_cli_compile.py -q 2>",
+    "cause": "no_prompt",
+    "screen": " FAILURES (pre-existing)\"",
+    "start_ref": "head#24",
+    "end_ref": "head#39",
+    "turns": 15,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": true,
+    "until_run_end": false,
+    "prompt_tokens": 209966,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": {
+  "rule_id": "R-COMP-04",
+  "detector": "recorded",
+  "first_confirmation_ref": "head#66",
+  "loop_span": [
+   "head#66",
+   "head#80"
+  ],
+  "steps_in_span": 15,
+  "suffix_claim_only": true,
+  "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+ },
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "15d8b7087135ed81c8c4286ead63e067b90ae7da"
+ },
+ "nop_runs_dir": null
+}

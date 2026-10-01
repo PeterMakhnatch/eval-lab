@@ -55,21 +55,38 @@ Tool rows score only the cells where both raters agree. Brackets are 95% Wilson 
 - **Tools:** run blind afterwards (`predictions_g2_a1/`). The mapping addendum was fixed at 09:19:10Z. Spend was $0.
 - **Scores:** `scores_labels_g2_a1.md`.
 
-**Pooled with HAR-116 (60 runs)**
+**Re-run wave: 19 G2 `-r2` trials**
+- **Labels:** frozen at 09:54:19Z in `labels_g2_r2/`.
+- **Tools:** run blind afterwards (`predictions_g2_r2/`). The mapping addendum was fixed at 09:56:12Z.
+- **Docent read only 10 of the 19.**
+  - 8 were blocked when Docent's **free weekly usage limit** was reached (`docent_usage_limit`). Per the $0 rule, nothing was paid for.
+  - 1 (000865) was withheld by the secret gate: the task's own test fixture contains an RSA private key.
+  - Unread runs are scored as "not expressed" (`score.py` treats a `raw_error` row that way). The 001647 no-transcript row in the attempt-1 scores is handled the same way.
+
+**Pooled over all 79 runs** (HAR-116 40, G2 attempt-1 20, G2 re-runs 19)
 
 Tool rows score only the cells where both raters agree.
 
 | | stop | first failure (±2) | blame | loop kind | pass copied |
 |---|---|---|---|---|---|
-| rater A vs B | 59/60 [0.91–1.00] | 50/60 [0.72–0.91] | 59/60 [0.91–1.00] | 52/60 [0.76–0.93] | 13/13 |
-| Docent Opus 5.5 | 36/58 [0.49–0.73] | **38/50 [0.63–0.86]** | 56/58 [0.88–0.99] | **45/51 [0.77–0.94]** | 13/13 |
-| Eval Lab | **59/59 [0.94–1.00]** | 12/50 [0.14–0.37] | — | — | 11/13 |
-| Scout rules | **59/59 [0.94–1.00]** | 4/50 [0.03–0.19] | 41/45 [0.79–0.96] | — | — |
+| rater A vs B | 78/79 [0.93–1.00] | 66/79 [0.74–0.90] | 78/79 [0.93–1.00] | 68/79 [0.77–0.92] | 19/19 |
+| Docent Opus 5.5 | 37/68 [0.43–0.66] | **42/58 [0.60–0.82]** | 65/68 [0.88–0.98] | **52/59 [0.77–0.94]** | 16/16 |
+| Eval Lab | **78/78 [0.95–1.00]** | 18/66 [0.18–0.39] | — | — | 17/19 |
+| Scout rules | **78/78 [0.95–1.00]** | 4/66 [0.02–0.15] | 58/64 [0.81–0.96] | — | — |
+
+**G2 runs only (39, harness lf2)**
+
+| | stop | first failure | blame | loop kind | pass copied |
+|---|---|---|---|---|---|
+| Docent Opus 5.5 | 9/28 | 15/25 [0.41–0.77] | 25/28 | 20/24 | 7/7 |
+| Eval Lab | 38/38 | 10/33 [0.17–0.47] | — | — | 9/10 |
+| Scout rules | 38/38 | 2/33 [0.02–0.20] | 32/35 | — | — |
 
 **What the G2 runs change**
-- **Docent's first-failure score is lower here:** 11/17, against 27/33 on HAR-116. It still beats Eval Lab (4/17) and Scout (2/17).
-- **Docent's stop reason gets worse:** 8/18. The 7 loop-breaks all come out as `other`, and it still confuses the ceilings.
-- **The recommendation holds:** rules for the stop reason, Docent Opus for first failure, loop kind and copied pass.
+- **Docent's first-failure lead narrows on lf2 runs.** It gets 15/25 against 27/33 on HAR-116. It still doubles Eval Lab's rate (10/33), but the intervals touch.
+- **Docent's stop reason collapses on lf2:** 9/28. Loop-breaks come out as `other` (its schema has no such value), and it still confuses the ceilings.
+- **The recommendation holds, with less margin.** Use the rules for the stop reason. Use Docent Opus for first failure, loop kind and copied pass, cited with these intervals.
+- **Capacity:** the limit hit after about 5.3M input tokens of Opus readings this week, covering 81 run readings (#610's 12, HAR-116's 40, G2's 29). The limit is not published in the SDK [INFERENCE: weekly reset]. Docent cannot be the default reader for every run without a paid plan or BYOK, which is Peter's decision.
 
 ## Limits
 

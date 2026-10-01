@@ -1,0 +1,89 @@
+{
+ "trial": "har120-000341-a2-r2__MSDHRHS",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000341-a2-r2/har120-000341-a2-r2__MSDHRHS",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000341-a2-r2",
+ "task": "mimo-v2.6-rl/format-code-task-000341",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#22"
+  ],
+  "note": "identical message repeated steps 2-22 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 21,
+    "span": [
+     "head#2",
+     "head#22"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 151924,
+   "completion": 1058,
+   "steps": 21,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 151924,
+   "completion": 1058,
+   "steps": 21,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2447593,
+   "completion": 12802,
+   "steps": 96,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.0621,
+  "result_input_tokens": 2447593
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 96,
+  "states": {
+   "prompt": 96
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "15d8b7087135ed81c8c4286ead63e067b90ae7da"
+ },
+ "nop_runs_dir": null
+}

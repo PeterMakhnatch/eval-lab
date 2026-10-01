@@ -1630,14 +1630,21 @@ def _capture_serve_command(
             print(f"error: {args.upstream_key_env} is not set", file=sys.stderr)
             return 1
     out_dir = _resolve(root, args.out)
-    server, recorder, manifest = serve_capture(
-        upstream=args.upstream,
-        out_dir=out_dir,
-        bind=args.bind,
-        port=args.port,
-        upstream_key=upstream_key,
-    )
-    print(f"capture: {args.upstream} -> {out_dir} (:{args.port})", file=sys.stderr)
+    try:
+        server, recorder, manifest = serve_capture(
+            upstream=args.upstream,
+            out_dir=out_dir,
+            bind=args.bind,
+            port=args.port,
+            upstream_key=upstream_key,
+        )
+    except OSError as exc:
+        # Explicit occupied port fails here, before any round dispatch, with
+        # no capture.json or calls.jsonl written (serve_capture binds first).
+        print(f"error: cannot bind capture {args.bind}:{args.port}: {exc}", file=sys.stderr)
+        return 1
+    endpoint = manifest.get("endpoint", f"http://{args.bind}:{manifest.get('port')}")
+    print(f"capture: {args.upstream} -> {out_dir} ({endpoint})", file=sys.stderr)
     print(json.dumps(manifest, indent=2, sort_keys=True))
     stopping = False
 
@@ -4852,7 +4859,14 @@ def parser() -> argparse.ArgumentParser:
     capture_serve.add_argument(
         "--out", required=True, type=Path, help="Capture directory to append to"
     )
-    capture_serve.add_argument("--port", type=int, default=8471, help="Loopback port to bind")
+    capture_serve.add_argument(
+        "--port",
+        type=int,
+        default=0,
+        help="Port to bind (0 asks the OS for a free port per server; "
+        "an explicit occupied port fails before any dispatch; "
+        "the bound endpoint is published in <out>/capture.json)",
+    )
     capture_serve.add_argument("--bind", default="127.0.0.1", help="Interface to bind")
     capture_serve.add_argument(
         "--upstream-key-env",

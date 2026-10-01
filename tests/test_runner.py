@@ -1758,3 +1758,101 @@ def test_absent_storage_override_keeps_legacy_argv(tmp_path: Path) -> None:
 
     assert legacy == explicit_absence
     assert "--override-storage-mb" not in legacy
+
+
+def test_capture_auto_link_uses_job_own_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """HAR-145: a no-cost local job auto-links to its own capture file.
+
+    Two jobs with distinct route tokens share nothing: each ``maybe_link``
+    receipt assigns exactly its own call from its own file.
+    """
+    from evallab.model_capture import link_capture
+    from evallab.runner import capture_dir_from_environment, maybe_link_capture
+
+    def _job(name: str, trial: str) -> Path:
+        job = tmp_path / "runs" / name
+        trial_dir = job / trial
+        trial_dir.mkdir(parents=True)
+        (trial_dir / "result.json").write_text(
+            json.dumps(
+                {
+                    "id": f"id-{trial}",
+                    "trial_name": trial,
+                    "config": {"agent": {"name": "oracle"}},
+                    "agent_execution": {
+                        "started_at": "2026-01-01T00:00:00Z",
+                        "finished_at": "2026-01-01T01:00:00Z",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (job / "result.json").write_text(
+            json.dumps({"id": f"job-{name}"}), encoding="utf-8"
+        )
+        return job
+
+    def _capture(name: str, token: str) -> Path:
+        cap = tmp_path / name
+        cap.mkdir(parents=True)
+        (cap / "calls.jsonl").write_text(
+            json.dumps(
+                {
+                    "seq": 1,
+                    "started_at": "2026-01-01T00:10:00Z",
+                    "ended_at": "2026-01-01T00:10:01Z",
+                    "method": "POST",
+                    "path": "/v1/chat/completions",
+                    "route_token": token,
+                    "session_id": None,
+                    "request_body": {"messages": [{"role": "user", "content": "hi"}]},
+                    "response_status": 200,
+                    "response_sse": False,
+                    "assistant_texts": ["hi"],
+                    "tool_calls": [],
+                    "usage": {"prompt_tokens": 1, "completion_tokens": 1},
+                    "model": "stub",
+                    "upstream_latency_s": 0.01,
+                    "error": None,
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return cap
+
+    job_a = _job("job-a", "trial-a")
+    job_b = _job("job-b", "trial-b")
+    cap_a = _capture("cap-a", "trial-a")
+    cap_b = _capture("cap-b", "trial-b")
+    derived = tmp_path / "derived"
+
+    monkeypatch.setenv("EVALLAB_MODEL_CAPTURE", "1")
+    monkeypatch.setenv("EVALLAB_MODEL_CAPTURE_DIR", str(cap_a))
+    assert capture_dir_from_environment() == cap_a
+    receipt_a = maybe_link_capture(job_a)
+    assert receipt_a is not None
+    assert receipt_a["capture_dir"] == str(cap_a)
+    assert receipt_a["calls_total"] == 1
+    assert receipt_a["calls_assigned"] == 1
+    assert receipt_a["calls_unassigned"] == []
+
+    monkeypatch.setenv("EVALLAB_MODEL_CAPTURE_DIR", str(cap_b))
+    receipt_b = maybe_link_capture(job_b)
+    assert receipt_b is not None
+    assert receipt_b["capture_dir"] == str(cap_b)
+    assert receipt_b["calls_total"] == 1
+    assert receipt_b["calls_assigned"] == 1
+
+    # Cross-linking stays unassigned: job-a's token is foreign to cap-b.
+    cross = link_capture(cap_b, job_a, derived_root=derived)
+    assert cross["calls_total"] == 1
+    assert cross["calls_assigned"] == 0
+    assert cross["calls_unassigned"] == [1]
+
+    monkeypatch.delenv("EVALLAB_MODEL_CAPTURE_DIR", raising=False)
+    assert maybe_link_capture(job_a) is None
+    monkeypatch.delenv("EVALLAB_MODEL_CAPTURE", raising=False)
+    assert capture_dir_from_environment() is None

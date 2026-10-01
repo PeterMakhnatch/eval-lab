@@ -138,13 +138,13 @@ research/experiments/ovn-sft-v0/run_g5.sh --specs-dir DIR --adapter <volume-rela
 
 One line per step (failures abort, except a failed last-wave gate still finalizes evidence; nothing billable starts before the deploy):
 
-1. Preflight: clean checkout, spec `--check`, free capture port, key file — and requires `evallab capture smoke --model` (aborts without it).
+1. Preflight: clean checkout, spec `--check`, key file — and requires `evallab capture smoke --model` (aborts without it). No free-port probe: each segment binds its own OS-assigned capture port (explicit `--port` fails before any tick when taken).
 2. Billing reconcile for the UTC day plus the spend check for the candidate against the cap (stays inside the $30 overnight envelope; G5 cap $10 per the plan, $8 per HAR-126's description).
 3. ONE deploy of the LoRA app (the single cold start; Infra may own this), wait for `/health`, record the URL and adapter sha256.
 4. Warm smokes for **both** model names through secret proxy → capture → Modal: `evallab capture smoke --upstream <LORA_URL> --model selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` then `--model ...:har129` (retries, never a redeploy; abort unless both pass with the matching echoed model).
-5. Capture serve, telemetry sampler and per-app Modal spend watchdog (capture every arm identically).
-6. Tick position waves serially at one pinned `--parallel` (all first arms, then seconds, then thirds, approving each wave just before its tick), so each task's next arm starts only after its predecessor finishes; freeze the arm-admission/family-size decision with its time before the first trial.
-7. `capture link` per job, `process-job` (counts + decision pages) on every job, freeze the capture file, reconcile billing, write the round manifest, publish to the results home, then `RESULTS.md` strictly per PREREG.
+5. Capture serve (own OS-assigned port per segment; endpoint read from `capture.json` after the bind), telemetry sampler and per-app Modal spend watchdog (capture every arm identically).
+6. Tick position waves serially at one pinned `--parallel` (all first arms, then seconds, then thirds, approving each wave just before its tick), so each task's next arm starts only after its predecessor finishes; freeze the arm-admission/family-size decision with its time before the first trial. The runner records each job's capture directory/endpoint in `lab-metadata.json` and auto-links the job to its own file.
+7. `capture link` per job (backstop over the runner auto-link), `process-job` (counts + decision pages) on every job, freeze the capture file, reconcile billing, write the round manifest, publish to the results home, then `RESULTS.md` strictly per PREREG.
 
 A failed wave gate (nonzero tick, non-terminal spec, 3+ infra failures,
 refusal, or unexpected captured model) is recorded in `round-manifest.json`

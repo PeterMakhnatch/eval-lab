@@ -383,8 +383,9 @@ completeness verdicts; see [the capture recipe](model-capture.md):
 
 ```bash
 uv run evallab capture serve --upstream https://tinker.thinkingmachines.dev \
-  --out derived/captures/<name> --port 8471
-EVALLAB_TINKER_UPSTREAM=http://127.0.0.1:8471 uv run evallab tick ...
+  --out derived/captures/<name>
+ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
+EVALLAB_TINKER_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
 uv run evallab capture link derived/captures/<name> runs/<job>
 ```
 

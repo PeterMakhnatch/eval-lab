@@ -1615,3 +1615,108 @@ def test_capture_smoke_unknown_adapter_suffix_refused(
             out_dir=tmp_path / "smoke-bad-suffix",
             model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:nope",
         )
+
+
+def test_concurrent_servers_bind_distinct_ports_with_isolated_records(
+    tmp_path: Path, upstream: Any
+) -> None:
+    """HAR-145: concurrent segments must not share one fixed port's file.
+
+    Two servers bound with the default (OS-assigned) port get distinct
+    endpoints, publish the bound port/endpoint in their manifests, and each
+    ``calls.jsonl`` holds only its own call.
+    """
+    from evallab.model_capture import capture_endpoint
+
+    base = f"http://127.0.0.1:{upstream.server_address[1]}"
+    server_a, recorder_a, manifest_a = serve_capture(
+        upstream=base, out_dir=tmp_path / "cap-a", bind="127.0.0.1"
+    )
+    server_b, recorder_b, manifest_b = serve_capture(
+        upstream=base, out_dir=tmp_path / "cap-b", bind="127.0.0.1"
+    )
+    thread_a = threading.Thread(target=server_a.serve_forever, daemon=True)
+    thread_b = threading.Thread(target=server_b.serve_forever, daemon=True)
+    thread_a.start()
+    thread_b.start()
+    try:
+        _post(
+            server_a.server_address[1],
+            "/t/job-a/v1/chat/completions",
+            {"model": "stub", "messages": [{"role": "user", "content": "hi a"}]},
+        )
+        _post(
+            server_b.server_address[1],
+            "/t/job-b/v1/chat/completions",
+            {"model": "stub", "messages": [{"role": "user", "content": "hi b"}]},
+        )
+    finally:
+        server_a.shutdown()
+        server_b.shutdown()
+        thread_a.join()
+        thread_b.join()
+        recorder_a.close()
+        recorder_b.close()
+    port_a = server_a.server_address[1]
+    port_b = server_b.server_address[1]
+    assert port_a != port_b
+    assert manifest_a["port"] == port_a
+    assert manifest_b["port"] == port_b
+    assert manifest_a["endpoint"] == capture_endpoint("127.0.0.1", port_a)
+    assert manifest_b["endpoint"] == capture_endpoint("127.0.0.1", port_b)
+    assert manifest_a["endpoint"] != manifest_b["endpoint"]
+    stored_a = json.loads((tmp_path / "cap-a" / "capture.json").read_text(encoding="utf-8"))
+    stored_b = json.loads((tmp_path / "cap-b" / "capture.json").read_text(encoding="utf-8"))
+    assert stored_a["port"] == port_a and stored_b["port"] == port_b
+    records_a = [
+        json.loads(line)
+        for line in (tmp_path / "cap-a" / "calls.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    records_b = [
+        json.loads(line)
+        for line in (tmp_path / "cap-b" / "calls.jsonl").read_text().splitlines()
+        if line.strip()
+    ]
+    assert len(records_a) == 1 and len(records_b) == 1
+    assert records_a[0]["route_token"] == "job-a"
+    assert records_b[0]["route_token"] == "job-b"
+    assert records_a[0]["request_body"]["messages"][0]["content"] == "hi a"
+    assert records_b[0]["request_body"]["messages"][0]["content"] == "hi b"
+
+
+def test_explicit_occupied_port_fails_without_manifest(tmp_path: Path, upstream: Any) -> None:
+    """An explicit taken port raises before dispatch with no misleading files."""
+    blocker = ThreadingHTTPServer(("127.0.0.1", 0), _StubUpstream)
+    blocker_thread = threading.Thread(target=blocker.serve_forever, daemon=True)
+    blocker_thread.start()
+    taken = blocker.server_address[1]
+    try:
+        out_dir = tmp_path / "cap-clash"
+        with pytest.raises(OSError):
+            serve_capture(
+                upstream=f"http://127.0.0.1:{upstream.server_address[1]}",
+                out_dir=out_dir,
+                bind="127.0.0.1",
+                port=taken,
+            )
+        assert not (out_dir / "capture.json").exists()
+        assert not (out_dir / "calls.jsonl").exists()
+        free_dir = tmp_path / "cap-free"
+        server, recorder, manifest = serve_capture(
+            upstream=f"http://127.0.0.1:{upstream.server_address[1]}",
+            out_dir=free_dir,
+            bind="127.0.0.1",
+        )
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            assert manifest["port"] == server.server_address[1]
+            assert manifest["port"] != taken
+        finally:
+            server.shutdown()
+            thread.join()
+            recorder.close()
+    finally:
+        blocker.shutdown()
+        blocker_thread.join()

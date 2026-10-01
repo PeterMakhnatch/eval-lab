@@ -23,8 +23,11 @@ tampered trajectory is detectable after the run.
 
 ```bash
 # Record: forward to the real backend, append one JSON record per call.
-uv run evallab capture serve --upstream <base_url> --out <dir> [--port 8471] \
-  [--bind 127.0.0.1] [--upstream-key-env NAME]
+# Default binds an OS-assigned free port per server; read the bound endpoint
+# from <dir>/capture.json after the bind (never probe the port first).
+uv run evallab capture serve --upstream <base_url> --out <dir> \
+  [--port PORT] [--bind 127.0.0.1] [--upstream-key-env NAME]
+ENDPOINT=$(python -c "import json; print(json.load(open('<dir>/capture.json'))['endpoint'])")
 
 # Attribute + judge: match calls to trials, write Parquet, print verdicts.
 uv run evallab capture link <capture_dir> <job_dir> [--derived-root DIR]
@@ -41,11 +44,16 @@ token from a `/t/<token>/` path prefix (stripped before forwarding), selected
 request headers with auth redacted, full request body, response status, full
 response body (raw SSE plus the reassembled message/tool calls), usage,
 upstream latency, and errors (upstream down, client disconnect). A
-`capture.json` manifest (upstream, start time, eval-lab commit, proxy version)
-is written at start; a `ProvenanceMetadata`-compatible digest
-(`provenance.json`) is written at close — stop with SIGINT/SIGTERM, not
-SIGKILL, so the close path runs.
+`capture.json` manifest (upstream, bound bind/port/endpoint, start time,
+eval-lab commit, proxy version) is written only after the bind succeeds; a
+`ProvenanceMetadata`-compatible digest (`provenance.json`) is written at
+close — stop with SIGINT/SIGTERM, not SIGKILL, so the close path runs.
 
+Ports: concurrent servers each bind their own free port by default
+(`--port 0`). An explicit `--port` pins one port and fails with `EADDRINUSE`
+before any round dispatch when taken, writing no manifest and no `calls.jsonl`.
+Never check-then-bind (no `lsof`/connect probe before `serve`): bind, then
+read the endpoint from `capture.json` and verify `/healthz`.
 Upstream path joining is prefix-aware: `--upstream .../v1` serves both
 `/v1/chat/completions` clients (raw OpenAI) and `/chat/completions` clients
 (litellm posts the bare path to its `api_base`).
@@ -63,6 +71,13 @@ anchor is embedding-tolerant: agents wrap `instruction.md` in a prompt
 template, so containment either way anchors (64-char guard). Output, under the
 resolved derived root: `derived/parquet/job_id=*/model_calls.parquet`,
 `trial_capture.parquet`, and a `capture_link.json` receipt.
+
+Auto-link: when a round sets `EVALLAB_MODEL_CAPTURE=1` plus
+`EVALLAB_MODEL_CAPTURE_DIR=<capture_dir>` alongside the loopback upstream,
+the runner stamps each job's attempt id as the route token, records the
+capture directory, endpoint, and bound manifest in `lab-metadata.json`
+(`model_capture`), and links the job to its own file at completion
+(best-effort; the round's final per-job `capture link` stays the backstop).
 
 Per-trial completeness verdicts:
 
@@ -95,8 +110,9 @@ kind with reassembled turns and `prompt_eval_count`/`eval_count` usage.
 
 ```bash
 uv run evallab capture serve --upstream http://127.0.0.1:11434 \
-  --out derived/captures/<name> --port 8472
-EVALLAB_TERMINUS_OLLAMA_URL=http://127.0.0.1:8472 \
+  --out derived/captures/<name>
+ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
+EVALLAB_TERMINUS_OLLAMA_URL="$ENDPOINT" \
 PYTHONPATH=<checkout>/src \
 harbor run -c lane-job.yaml -o runs/lane-proof --job-name lane-local-qwen -n 1
 uv run evallab capture link derived/captures/<name> runs/lane-proof/lane-local-qwen
@@ -128,10 +144,11 @@ capture as the secret proxy's upstream:
 
 ```bash
 uv run evallab capture serve --upstream https://api.z.ai \
-  --out derived/captures/<name> --port 8471
+  --out derived/captures/<name>
+ENDPOINT=$(python -c "import json; print(json.load(open('derived/captures/<name>/capture.json'))['endpoint'])")
 # The runner forwards this variable to the per-trial secret proxy (runner.py
 # `EVALLAB_ZAI_OPENAPI_UPSTREAM`), so set it on the dispatching command:
-EVALLAB_ZAI_OPENAPI_UPSTREAM=http://127.0.0.1:8471 uv run evallab tick ...
+EVALLAB_ZAI_OPENAPI_UPSTREAM="$ENDPOINT" EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR=derived/captures/<name> uv run evallab tick ...
 uv run evallab capture link derived/captures/<name> runs/<job>
 ```
 
@@ -145,9 +162,10 @@ nowhere in `calls.jsonl`.
 
 ## Wiring recipes
 
-Run the proxy on the host (`--bind 127.0.0.1`, fixed `--port`), then point the
-agent at it. In-container agents must reach the host via
-`http://host.docker.internal:<port>`.
+Run the proxy on the host (`--bind 127.0.0.1`; port assigned by the OS unless
+`--port` pins one), then point the agent at the bound endpoint from
+`<out>/capture.json`. In-container agents must reach the host via
+`http://host.docker.internal:<bound-port>`.
 
 ### Terminus-2 (host loop — covers remote sandboxes too)
 
@@ -163,7 +181,7 @@ agents:
   - name: terminus-2
     model_name: openai/qwen2.5:7b
     kwargs:
-      api_base: http://127.0.0.1:8471
+      api_base: http://127.0.0.1:<bound-port>  # endpoint from <out>/capture.json
       model_info: {max_input_tokens: 32768, max_output_tokens: 8192,
                    input_cost_per_token: 0.0, output_cost_per_token: 0.0}
 ```
@@ -182,7 +200,7 @@ The agent runs inside the container and reads its endpoint from
 for session attribution. Set the job env to the host proxy:
 
 ```bash
-OPENAI_BASE_URL=http://host.docker.internal:8471
+OPENAI_BASE_URL=http://host.docker.internal:<bound-port>  # host proxy's bound port
 ```
 
 ### OpenCode (in-container)
@@ -199,7 +217,7 @@ the override) at `http://host.docker.internal:<port>`.
 ```bash
 ollama serve  # or any OpenAI-compatible server on 127.0.0.1:11434
 uv run evallab capture serve --upstream http://127.0.0.1:11434/v1 \
-  --out derived/captures/<name> --port 8471
+  --out derived/captures/<name>
 ```
 
 For litellm's `openai/` route set a dummy key (`OPENAI_API_KEY=dummy…`;

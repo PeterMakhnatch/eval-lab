@@ -29,6 +29,7 @@ from pydantic import ValidationError
 from evallab.execution_contracts import (
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
     BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
+    CAPTURE_DIR_ENV,
     CAPTURE_ENABLED_ENV,
     CAPTURE_ROUTE_TOKEN_ENV,
     CONTROL_AGENTS,
@@ -188,6 +189,7 @@ __all__ = [
     "TransientHarnessFailure",
     "TrialTimeoutFailure",
     "build_command",
+    "capture_dir_from_environment",
     "cleanup_new_harbor_containers",
     "database_url_from_environment",
     "expected_primary_reward",
@@ -195,6 +197,7 @@ __all__ = [
     "git_state",
     "harbor_container_ids",
     "load_matrix",
+    "maybe_link_capture",
     "preflight_request",
     "profile_for_request",
     "redact_environment",
@@ -792,6 +795,134 @@ def _capture_route_token(upstream: str | None, attempt_id: str) -> dict[str, str
         return {}
     return {CAPTURE_ROUTE_TOKEN_ENV: token}
 
+def capture_dir_from_environment() -> Path | None:
+    """This job's capture directory, or ``None`` when capture is off.
+
+    The round launcher sets ``EVALLAB_MODEL_CAPTURE_DIR`` alongside
+    ``EVALLAB_MODEL_CAPTURE=1`` and the loopback upstream (the bound
+    endpoint published in ``<capture_dir>/capture.json``). Each concurrent
+    segment uses its own directory, so each job auto-links to its correct
+    file via :func:`maybe_link_capture`.
+    """
+    if os.environ.get(CAPTURE_ENABLED_ENV) != "1":
+        return None
+    raw = (os.environ.get(CAPTURE_DIR_ENV) or "").strip()
+    if not raw:
+        return None
+    return Path(raw)
+
+
+def _capture_binding_for_metadata(request: RunRequest) -> dict[str, Any] | None:
+    """Durable per-job capture identity for ``lab-metadata.json``.
+
+    Records the capture directory, the loopback endpoint in play (when any
+    known upstream env points at one), the route token stamped for this job,
+    and the bound manifest identity read from ``capture.json`` — which exists
+    only after the server bound successfully, so a failed bind leaves no
+    misleading identity behind.
+    """
+    capture_dir = capture_dir_from_environment()
+    if capture_dir is None:
+        return None
+    binding: dict[str, Any] = {"capture_dir": str(capture_dir)}
+    for env_name in (
+        MIMO_SELFHOSTED_UPSTREAM_ENV,
+        TINKER_UPSTREAM_ENV,
+        OPENROUTER_UPSTREAM_ENV,
+        ZAI_OPENAPI_UPSTREAM_ENV,
+        TERMINUS_LOCAL_ENDPOINT_ENV,
+    ):
+        upstream = os.environ.get(env_name)
+        if not upstream:
+            continue
+        try:
+            host = (urllib.parse.urlsplit(upstream).hostname or "").casefold()
+        except ValueError:
+            continue
+        if host in {"127.0.0.1", "localhost"}:
+            binding["capture_endpoint"] = upstream
+            binding["capture_endpoint_env"] = env_name
+            break
+    attempt = _proxy_attempt_id(request)
+    if attempt:
+        binding["route_token"] = attempt
+    try:
+        manifest = json.loads((capture_dir / "capture.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return binding
+    if isinstance(manifest, dict):
+        binding["manifest"] = {
+            key: manifest.get(key)
+            for key in (
+                "schema",
+                "proxy_version",
+                "upstream",
+                "bind",
+                "port",
+                "endpoint",
+                "started_at",
+                "pid",
+            )
+        }
+    return binding
+
+
+def maybe_link_capture(
+    job_dir: str | Path, *, capture_dir: str | Path | None = None
+) -> dict[str, Any] | None:
+    """Link a job to its own capture file; never raises.
+
+    Uses the independent-capture ``link_capture`` (route token, then session,
+    then conversation chaining) against the job's own capture directory —
+    ``capture_dir`` when given, else ``EVALLAB_MODEL_CAPTURE_DIR``. Returns
+    the link receipt, or ``None`` when capture is off, the file is absent,
+    or the link failed. A failure is recorded beside the job and never fails
+    the run.
+    """
+    try:
+        directory = Path(capture_dir) if capture_dir is not None else capture_dir_from_environment()
+        if directory is None:
+            return None
+        if not (directory / "calls.jsonl").is_file():
+            return None
+        job_path = Path(job_dir)
+        if not job_path.is_dir():
+            return None
+        from evallab.model_capture import link_capture
+
+        return link_capture(directory, job_path)
+    except Exception:
+        return None
+
+
+
+def _record_capture_link(job_dir: str | Path, receipt: dict[str, Any]) -> None:
+    """Merge a capture-link summary into ``lab-metadata.json``; best-effort."""
+    job_path = Path(job_dir)
+    metadata_path = job_path / "lab-metadata.json"
+    try:
+        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    if not isinstance(metadata, dict):
+        return
+    binding = metadata.get("model_capture")
+    if not isinstance(binding, dict):
+        binding = {}
+        metadata["model_capture"] = binding
+    binding["link"] = {
+        "parquet_dir": receipt.get("parquet_dir"),
+        "capture_digest": receipt.get("capture_digest"),
+        "calls_total": receipt.get("calls_total"),
+        "calls_assigned": receipt.get("calls_assigned"),
+        "linked_at": receipt.get("linked_at"),
+    }
+    with suppress(Exception):
+        persist_private_bytes(
+            metadata_path,
+            (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode(),
+            secrets=tuple(value.encode() for value in collected_secret_values()),
+        )
 
 def _terminus_proxy_env(
     *,
@@ -1960,12 +2091,14 @@ def _write_run_metadata(
     write_run_provenance(job_dir, repository)
     if local_ollama is not None:
         metadata["local_ollama"] = local_ollama
+    capture_binding = _capture_binding_for_metadata(request)
+    if capture_binding is not None:
+        metadata["model_capture"] = capture_binding
     persist_private_bytes(
         job_dir / "lab-metadata.json",
         (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode(),
         secrets=tuple(value.encode() for value in collected_secret_values()),
     )
-
 
 def _network_adaptation_path(request: RunRequest) -> Path:
     return request.jobs_dir / ".executor" / f"{request.name}.network-adaptation.json"
@@ -2556,6 +2689,24 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 transient_reason,
                 message=transient_reason + cleanup_detail,
             )
+        # Independent-capture auto-link (HAR-145): each job links to its own
+        # capture file via route token/session/chaining. Best-effort: the
+        # round's final ``capture link`` per job remains the backstop, and a
+        # link failure is recorded beside the job and never fails the run.
+        try:
+            capture_receipt = maybe_link_capture(job_dir)
+            if capture_receipt is not None:
+                with suppress(Exception):
+                    _record_capture_link(job_dir, capture_receipt)
+            elif capture_dir_from_environment() is not None:
+                with suppress(Exception):
+                    (job_dir / "capture-link-error.txt").write_text(
+                        "auto-link returned no receipt; "
+                        "run `evallab capture link <capture_dir> <job_dir>` by hand\n",
+                        encoding="utf-8",
+                    )
+        except Exception:
+            pass
         evidence_root = os.environ.get("EVALLAB_EVIDENCE_STORE_ROOT")
         if evidence_root:
             try:

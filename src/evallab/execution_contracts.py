@@ -461,6 +461,13 @@ MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
 #: ``route_token``) before forwarding to the real upstream. Mirrored as a
 #: literal in ``containers/zai_openapi_secret_proxy.py`` (standalone script).
 CAPTURE_ROUTE_TOKEN_ENV = "EVALLAB_CAPTURE_ROUTE_TOKEN"
+#: Env var carrying this job's capture directory (the ``evallab capture serve
+#: --out`` directory whose ``capture.json`` holds the bound endpoint). The
+#: round launcher sets it alongside ``EVALLAB_MODEL_CAPTURE=1`` and the
+#: loopback upstream; the runner records it in ``lab-metadata.json`` and
+#: auto-links the job to that file with ``link_capture``. Never set for
+#: direct-to-vendor rounds.
+CAPTURE_DIR_ENV = "EVALLAB_MODEL_CAPTURE_DIR"
 #: Opt-in flag (``=1``) telling the runner a recording capture proxy sits in
 #: the provider upstream path. The runner then hands each secret proxy the
 #: job attempt id as ``EVALLAB_CAPTURE_ROUTE_TOKEN`` (``/t/<token>/``), so

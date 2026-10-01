@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # OVN G5 operator round (HAR-126): the whole paired eval in ONE LoRA-server session.
 #
-#   run_g5.sh --specs-dir DIR --adapter REL --candidate-usd USD --actor TEXT [options]
+#   run_g5.sh --specs-dir DIR --adapter REL --candidate-usd USD --actor TEXT \
+#             --modal-app-day-limit-usd USD [--round-cap-usd USD] [options]
 #
 # Order (each step aborts the round on failure; nothing billable starts before 6):
 #   1. preflight: clean checkout, spec --check, free capture port, key file,
@@ -14,11 +15,14 @@
 #   7. warm smokes for BOTH model names through secret proxy -> capture -> Modal
 #      (retries, never a redeploy); abort unless both pass
 #   8. capture server (PID-checked owner of the port), telemetry sampler,
-#      per-app Modal spend watchdog
+#      watchdog stopping the app once ITS billed cost today reaches
+#      --modal-app-day-limit-usd
 #   9. tick position waves serially (all first arms, then seconds, then thirds),
 #      approving each wave just before its tick, at one pinned --parallel;
 #      between waves re-check /health; a wave advances only when every spec of
-#      the previous wave has a result.json; stop on 3+ infra failures or any refusal
+#      the previous wave has a result.json; stop on 3+ infra failures or any refusal;
+#      with --round-cap-usd, stop when this round's own spend (Modal app since
+#      deploy + its Daytona trials) plus a projected average wave would pass the cap
 #  10. capture link per job, freeze the capture file (sha256/bytes/lines),
 #      reconcile billing, write round-manifest.json
 #
@@ -35,8 +39,8 @@ set -euo pipefail
 usage() { sed -n '2,30p' "$0"; exit 2; }
 
 SPECS_DIR="" ADAPTER="" ADAPTER_NAME="har129" CANDIDATE_USD="" CAP_USD="35"
-PARALLEL="20" LABEL="g5" ACTOR="" MODAL_LIMIT_USD="" GEPA_CANDIDATE="" GEPA_SHA256=""
-PORT="8472" DRY_RUN=0
+PARALLEL="20" LABEL="g5" ACTOR="" MODAL_APP_DAY_LIMIT_USD="" GEPA_CANDIDATE="" GEPA_SHA256=""
+PORT="8472" DRY_RUN=0 ROUND_CAP_USD="" MODAL_RATE_USD_PER_H="2.8149"
 while [ $# -gt 0 ]; do
   case "$1" in
     --specs-dir) SPECS_DIR=$2; shift 2 ;;
@@ -47,17 +51,18 @@ while [ $# -gt 0 ]; do
     --parallel) PARALLEL=$2; shift 2 ;;
     --label) LABEL=$2; shift 2 ;;
     --actor) ACTOR=$2; shift 2 ;;
-    --modal-limit-usd) MODAL_LIMIT_USD=$2; shift 2 ;;
+    --modal-app-day-limit-usd) MODAL_APP_DAY_LIMIT_USD=$2; shift 2 ;;
+    --modal-rate-usd-per-h) MODAL_RATE_USD_PER_H=$2; shift 2 ;;
     --gepa-candidate) GEPA_CANDIDATE=$2; shift 2 ;;
     --gepa-sha256) GEPA_SHA256=$2; shift 2 ;;
     --port) PORT=$2; shift 2 ;;
+    --round-cap-usd) ROUND_CAP_USD=$2; shift 2 ;;
     --dry-run) DRY_RUN=1; shift ;;
     -h|--help) usage ;;
     *) echo "unknown argument: $1" >&2; usage ;;
   esac
 done
-[ -n "$SPECS_DIR" ] && [ -n "$ADAPTER" ] && [ -n "$CANDIDATE_USD" ] && [ -n "$ACTOR" ] || usage
-[ -n "$MODAL_LIMIT_USD" ] || MODAL_LIMIT_USD=$CANDIDATE_USD
+[ -n "$SPECS_DIR" ] && [ -n "$ADAPTER" ] && [ -n "$CANDIDATE_USD" ] && [ -n "$ACTOR" ] && [ -n "$MODAL_APP_DAY_LIMIT_USD" ] || usage
 
 REPO=$(git rev-parse --show-toplevel)
 cd "$REPO"
@@ -181,6 +186,14 @@ trap teardown EXIT
 
 # ---- 6. the one cold start --------------------------------------------------------
 KEY="$(<"$KEY_FILE")"
+app_cost() { # today's billed Modal cost for $APP alone
+  "${MODAL[@]}" billing report --for today --json 2>/dev/null \
+    | "$PY" -c "import json,sys; print(sum(float(r['cost']) for r in json.load(sys.stdin) if r.get('description')==sys.argv[1]))" "$APP"
+}
+MODAL_BASELINE=$(app_cost || echo 0)
+"$PY" -c "import sys; sys.exit(0 if float(sys.argv[1]) < float(sys.argv[2]) else 1)" "$MODAL_BASELINE" "$MODAL_APP_DAY_LIMIT_USD" \
+  || die "$APP already billed \$$MODAL_BASELINE today, at or over the \$$MODAL_APP_DAY_LIMIT_USD app-day limit"
+DEPLOYED_EPOCH=$(date +%s)
 log "deploy $APP (cold start)"
 DEPLOY_OUT=$(EVALLAB_MIMO_LORA_ADAPTER="$ADAPTER" EVALLAB_MIMO_LORA_NAME="$ADAPTER_NAME" \
   "${MODAL[@]}" deploy tools/modal-mimo-serve/serve_lora.py 2>&1) || die "deploy failed: $DEPLOY_OUT"
@@ -225,26 +238,24 @@ done
 "$EVALLAB" telemetry sample --out "$OUT/telemetry.jsonl" --metrics-url "$URL/metrics" --runs-dir runs \
   --queue-dir queue --modal-app "$APP" --interval 15.0 >>"$OUT/telemetry.log" 2>&1 &
 SAMPLER_PID=$!
-app_cost() {
-  "${MODAL[@]}" billing report --for today --json 2>/dev/null \
-    | "$PY" -c "import json,sys; print(sum(float(r['cost']) for r in json.load(sys.stdin) if r.get('description')==sys.argv[1]))" "$APP"
-}
-MODAL_BASELINE=$(app_cost || echo 0)
+# (app_cost and MODAL_BASELINE were taken before the deploy, so the cold start counts.)
 (
   while sleep 180; do
     cost=$(app_cost) || continue
-    if "$PY" -c "import sys; sys.exit(0 if float(sys.argv[1]) - float(sys.argv[2]) >= float(sys.argv[3]) else 1)" "$cost" "$MODAL_BASELINE" "$MODAL_LIMIT_USD"; then
-      echo "$(date -u +%FT%TZ) WATCHDOG: $APP billed \$$cost (baseline \$$MODAL_BASELINE, limit \$$MODAL_LIMIT_USD); stopping" >>"$LOG"
+    if "$PY" -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$cost" "$MODAL_APP_DAY_LIMIT_USD"; then
+      echo "$(date -u +%FT%TZ) WATCHDOG: $APP billed \$$cost today, app-day limit \$$MODAL_APP_DAY_LIMIT_USD; stopping" >>"$LOG"
       "${MODAL[@]}" app stop --yes "$APP" >>"$LOG" 2>&1
       exit 0
     fi
   done
 ) &
 WATCHDOG_PID=$!
-log "capture pid $CAPTURE_PID on :$PORT, sampler pid $SAMPLER_PID, watchdog pid $WATCHDOG_PID (Modal limit \$$MODAL_LIMIT_USD over baseline \$$MODAL_BASELINE)"
+log "capture pid $CAPTURE_PID on :$PORT, sampler pid $SAMPLER_PID, watchdog pid $WATCHDOG_PID ($APP app-day limit \$$MODAL_APP_DAY_LIMIT_USD; billed \$$MODAL_BASELINE before deploy)"
 
 # ---- 9. tick position waves serially, approving each wave just before its tick ----------
 # (the lab's drain teardown never targets the LoRA app, so nothing stops it between waves)
+TOTAL_WAVES=$(echo "$WAVES" | awk 'END{print NR}')
+WAVES_DONE=0
 for wave in $WAVES; do
   position=$(basename "$wave" .txt)
   if [ "$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/health")" != 200 ]; then
@@ -274,6 +285,41 @@ for wave in $WAVES; do
   log "$position done (tick exit $tick_status): $verdict"
   [ "$tick_status" = 0 ] || die "$position: tick exited $tick_status; later waves not ticked"
   [ "$advance" = 0 ] || die "$position: not every spec is terminal, or 3+ infra failures, or a dispatch refusal; later waves not ticked"
+  WAVES_DONE=$((WAVES_DONE + 1))
+  # Before the next wave: reconcile, then refuse if this round's own spend plus a
+  # next wave costing the round's average so far would pass --round-cap-usd.
+  # Round spend counts only this round: Modal = max(billed delta on $APP since
+  # deploy, wall hours since deploy x MODAL_RATE_USD_PER_H) because billing lags
+  # and max_containers=1; Daytona = this round's trial lifetimes x the rate card.
+  # (`spend check --since` sums ALL lab spend in the window, other lanes included.)
+  if [ -n "$ROUND_CAP_USD" ] && [ "$WAVES_DONE" -lt "$TOTAL_WAVES" ]; then
+    "$EVALLAB" modal billing-reconcile --for "$DAY" >"$OUT/billing-reconcile-$position.txt" 2>&1 || log "billing reconcile after $position failed"
+    billed=$(app_cost || echo 0)
+    "$PY" - "$OUT/ids.txt" "$DEPLOYED_EPOCH" "$billed" "$MODAL_BASELINE" "$MODAL_RATE_USD_PER_H" "$WAVES_DONE" "$ROUND_CAP_USD" \
+      >"$OUT/budget-after-$position.json" <<'EOF' || die "round spend plus a projected next wave would pass the \$$ROUND_CAP_USD round cap ($(cat "$OUT/budget-after-$position.json")); later waves not ticked"
+import glob, json, sys, time
+from datetime import datetime
+ids, deployed, billed, baseline, rate, done, cap = sys.argv[1:8]
+modal = max(float(billed) - float(baseline), (time.time() - float(deployed)) / 3600 * float(rate))
+daytona_seconds = 0.0
+for line in open(ids):
+    for path in glob.glob(f"runs/{line.split()[0]}/*/result.json"):
+        result = json.load(open(path))
+        if result.get("started_at") and result.get("finished_at"):
+            start = datetime.fromisoformat(result["started_at"].replace("Z", "+00:00"))
+            end = datetime.fromisoformat(result["finished_at"].replace("Z", "+00:00"))
+            daytona_seconds += (end - start).total_seconds()
+daytona = daytona_seconds / 3600 * 0.23094
+spent = modal + daytona
+next_wave = spent / int(done)
+out = {"modal_usd": round(modal, 4), "daytona_usd": round(daytona, 4), "round_usd": round(spent, 4),
+       "projected_next_wave_usd": round(next_wave, 4), "round_cap_usd": float(cap),
+       "allowed": spent + next_wave <= float(cap)}
+print(json.dumps(out))
+sys.exit(0 if out["allowed"] else 1)
+EOF
+    log "$position budget: $(cat "$OUT/budget-after-$position.json")"
+  fi
 done
 
 # ---- 10. link, freeze, reconcile ------------------------------------------------------

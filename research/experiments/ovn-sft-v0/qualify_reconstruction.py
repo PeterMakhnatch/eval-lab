@@ -159,9 +159,18 @@ def main() -> None:
         entry = per_trial.get(
             trial, {"rows": 0, "identical": 0, "failing": [], "history_lengths": set()}
         )
+        seqs = sorted(trial_seqs.get(trial, []))
+        delivered = [
+            s
+            for s in seqs
+            if by_seq[s].get("error") is None and by_seq[s].get("response_status") == 200
+        ]
+        # A delivered call no exported row stands at (e.g. a summarization
+        # subagent call) leaves the trial incomplete: reconstruction is proven
+        # only for trials where every delivered call is reproduced.
         unaccounted = [
             {"seq": s, "messages": len((by_seq[s].get("request_body") or {}).get("messages") or [])}
-            for s in sorted(trial_seqs.get(trial, []))
+            for s in delivered
             if len((by_seq[s].get("request_body") or {}).get("messages") or [])
             not in entry["history_lengths"]
         ]
@@ -169,12 +178,13 @@ def main() -> None:
             trial in capture_files
             and entry["rows"] > 0
             and entry["identical"] == entry["rows"]
-            and entry["rows"] + len(unaccounted) == len(trial_seqs[trial])
+            and not unaccounted
         )
         coverage.append(
             {
                 "trial": trial,
-                "captured_calls": len(trial_seqs.get(trial, [])),
+                "captured_calls": len(seqs),
+                "undelivered_calls": [s for s in seqs if s not in delivered],
                 "exported_rows": entry["rows"],
                 "identical_rows": entry["identical"],
                 "failing_rows": entry["failing"],
@@ -191,8 +201,9 @@ def main() -> None:
     qualification = {
         "schema": "evallab.ovn_reconstruction_qualification/1",
         "rule": (
-            f"admit when >= {MIN_TRIALS} trials are complete (every exported call identical "
-            "to its capture, bytes and token counts) and no exported row fails"
+            f"admit when >= {MIN_TRIALS} trials are complete (every delivered captured call "
+            "reproduced by an exported row identical to it, bytes and token counts) and no "
+            "exported row fails"
         ),
         "admit_reconstructed": complete >= MIN_TRIALS and failing == 0,
         "trials_complete": complete,

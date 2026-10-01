@@ -36,6 +36,8 @@ from evallab.execution_contracts import (
     GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
     GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS,
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
+    MIMO_SELFHOSTED_MODEL_SELECTOR,
+    MIMO_SELFHOSTED_MODEL_SELECTORS,
     OPENCODE_AUTH_RELATIVE_PATH,
     RLM_AGENT,
     TERMINUS_AGENT,
@@ -161,6 +163,7 @@ class AgentProfile(BaseModel):
         if provider_returned_model_id is not None:
             updates["provider_returned_model_id"] = provider_returned_model_id
         return self.model_copy(update=updates)
+
     @field_validator("required_files", "capabilities", "verified_facts")
     @classmethod
     def no_api_key_names(cls, value: tuple[str, ...]) -> tuple[str, ...]:
@@ -209,7 +212,9 @@ class AgentProfile(BaseModel):
             or self.model != TERMINUS_LOCAL_MODEL_SELECTOR
             or self.secret_source is not None
         ):
-            raise ValueError("local-service profiles require the admitted local Terminus model and no secret")
+            raise ValueError(
+                "local-service profiles require the admitted local Terminus model and no secret"
+            )
         if (
             self.auth_mode == "subscription-keychain"
             and self.secret_source is not None
@@ -397,7 +402,9 @@ class LocalOllamaProbe:
 
     def __call__(self, profile: AgentProfile) -> ProbeResult:
         if not self.environment.get(TERMINUS_LOCAL_ENDPOINT_ENV):
-            return ProbeResult(ok=False, reason=f"local endpoint missing: {TERMINUS_LOCAL_ENDPOINT_ENV}")
+            return ProbeResult(
+                ok=False, reason=f"local endpoint missing: {TERMINUS_LOCAL_ENDPOINT_ENV}"
+            )
         from evallab.terminus_local import resolve_ollama_binding
 
         try:
@@ -537,26 +544,35 @@ def scrub_environment(environment: Mapping[str, str], allowlist: frozenset[str])
 _MODEL_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9./_-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?$")
 
 
-def _pin_model(model: str | None) -> str | None:
-    """Collapse a Tinker checkpoint selector onto its pinned base profile."""
+def pinned_model(model: str | None) -> str | None:
+    """The profile pin a run's model selector inherits.
+
+    Fine-tuned weights selected on top of a pinned base inherit the base's
+    profile: a Tinker checkpoint selector collapses onto its ``tinker/<base>``
+    pin, and an admitted self-hosted LoRA adapter selector
+    (``selfhosted/<native>:<adapter>``, ``MIMO_SELFHOSTED_ADAPTERS``) collapses
+    onto the self-hosted base selector. Anything else is its own pin.
+    """
     if isinstance(model, str) and model.startswith(TINKER_MODEL_PREFIX):
         spec = parse_tinker_model(model)
         return f"{TINKER_MODEL_PREFIX}{spec.base_model}"
+    if model in MIMO_SELFHOSTED_MODEL_SELECTORS:
+        return MIMO_SELFHOSTED_MODEL_SELECTOR
     return model
 
 
 def validate_model_pin(profile: AgentProfile, model: str | None) -> None:
     """A run's model must match its profile's pin exactly (or inherit it).
 
-    A Tinker fine-tuned checkpoint selector pins the same profile as its base
-    model: the base determines pricing, context, and credential; the
-    checkpoint suffix only selects sampled weights.
+    A fine-tuned selector (Tinker checkpoint or admitted self-hosted LoRA
+    adapter) pins the same profile as its base model: the base determines
+    pricing, context, and credential; the suffix only selects sampled weights.
     """
     if profile.model is None:
         if model is not None:
             raise ValueError(f"control profile {profile.profile_id} takes no model")
         return
-    if model is not None and model != profile.model and _pin_model(model) != profile.model:
+    if model is not None and model != profile.model and pinned_model(model) != profile.model:
         raise ValueError(
             f"model {model!r} does not match profile {profile.profile_id} "
             f"pin {profile.model!r}; change profiles, not pins"

@@ -301,7 +301,7 @@ inputs:
   - path: src/evallab/process_job.py
     digest: sha256:b333e3bc75b4094f6bae1482effd901c2fd8ccb60de5400d18936e0cdb1d76e8
   - path: src/evallab/profiles.py
-    digest: sha256:2a85f3a9d512135b9b90c86124eb92a1c1ed24c8c244274c6932438d8868e173
+    digest: sha256:c7c80fa9093fc9744db88b91c14e93ad1a931c592d1fdf1e0f38128ff8de2ff3
   - path: src/evallab/provenance.py
     digest: sha256:8b76204b8281dc651babfe786a51a88688c3e462adf6e274a8b172d9b6c09807
   - path: src/evallab/quality_audit.py

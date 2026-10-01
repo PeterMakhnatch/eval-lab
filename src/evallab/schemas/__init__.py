@@ -5,7 +5,7 @@ import json
 import math
 import posixpath
 import re
-from datetime import date, datetime
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any, Literal, cast, get_args
 from uuid import UUID
 
@@ -594,6 +594,24 @@ class AutoRunRule(ContractModel):
     requires: list[str] = Field(default_factory=list)
 
 
+class DailyCostCeilingOverride(ContractModel):
+    """One dated override of the standing daily cost ceiling.
+
+    A dated override, never a code default: the standing
+    ``daily_cost_ceiling_usd`` holds every day except ``utc_date``, and only
+    while ``now < expires_at``. ``expires_at`` may not run past the end of
+    ``utc_date`` (midnight UTC starting the next day), so an override cannot
+    leak into another UTC day.
+    """
+
+    utc_date: date
+    ceiling_usd: float = Field(gt=0)
+    expires_at: datetime
+    approved_by: str = Field(min_length=1)
+    approval_quote: str = Field(min_length=1)
+    card: str = Field(min_length=1)
+
+
 class StandingApprovalsPolicy(ContractModel):
     version: Literal[1] = 1
     daily_cost_ceiling_usd: float = Field(gt=0)
@@ -601,6 +619,12 @@ class StandingApprovalsPolicy(ContractModel):
     quiet_failure_rule: int = Field(ge=1)
     auto_run: list[AutoRunRule] = Field(min_length=1)
     escalate_to_human: list[str] = Field(default_factory=list)
+    #: Dated ceiling overrides. Omitted from the canonical dump while empty so
+    #: existing policy files keep their digest; each entry is a one-UTC-day
+    #: ruling recorded with its approval, never a new standing default.
+    daily_cost_ceiling_overrides: list[DailyCostCeilingOverride] = Field(
+        default_factory=list, exclude_if=lambda value: not value
+    )
 
     #: The lab's own refusal threshold on the account-wide `used_percent`,
     #: committed **unset**. This is the one place a number goes, and it is
@@ -620,6 +644,48 @@ class StandingApprovalsPolicy(ContractModel):
     #: while meaning "refuse at or above 0%" — that is, refuse all paid work
     #: silently. A load error naming the field is the honest response.
     refuse_billable_at_used_percent: float | None = Field(default=None, gt=0, le=100)
+
+    @model_validator(mode="after")
+    def ceiling_overrides_stay_dated(self) -> StandingApprovalsPolicy:
+        seen: set[date] = set()
+        for override in self.daily_cost_ceiling_overrides:
+            if override.utc_date in seen:
+                raise ValueError(
+                    f"duplicate daily_cost_ceiling_overrides entry for {override.utc_date.isoformat()}"
+                )
+            seen.add(override.utc_date)
+            expires = override.expires_at
+            if expires.tzinfo is None:
+                expires = expires.replace(tzinfo=UTC)
+            day_start = datetime.combine(override.utc_date, time.min, tzinfo=UTC)
+            day_end = day_start + timedelta(days=1)
+            if not day_start < expires.astimezone(UTC) <= day_end:
+                raise ValueError(
+                    f"override for {override.utc_date.isoformat()} must expire after that UTC day "
+                    "starts and at most when the next UTC day starts"
+                )
+        return self
+
+
+def effective_daily_cost_ceiling(policy: StandingApprovalsPolicy, now: datetime) -> float:
+    """The dollar ceiling in force at ``now``.
+
+    Returns the override's ceiling only when ``now``'s UTC date equals the
+    override's ``utc_date`` and ``now`` precedes its ``expires_at``; otherwise
+    the standing ``daily_cost_ceiling_usd``. Every reader of the ceiling goes
+    through here so a dated ruling applies exactly one UTC day.
+    """
+    moment = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
+    today = moment.astimezone(UTC).date()
+    for override in policy.daily_cost_ceiling_overrides:
+        if override.utc_date != today:
+            continue
+        expires = override.expires_at
+        if expires.tzinfo is None:
+            expires = expires.replace(tzinfo=UTC)
+        if moment < expires:
+            return override.ceiling_usd
+    return policy.daily_cost_ceiling_usd
 
 
 QueueState = Literal[

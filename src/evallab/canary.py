@@ -10,7 +10,7 @@ import yaml
 from pydantic import ValidationError
 
 from evallab.queue import QUEUE_STATES, Executor
-from evallab.schemas import CanaryMember, CanarySuite, ExperimentSpec
+from evallab.schemas import CanaryMember, CanarySuite, ExperimentSpec, effective_daily_cost_ceiling
 
 
 def load_canary_suite(path: Path) -> CanarySuite:
@@ -159,7 +159,7 @@ class CanaryEnqueuer:
             self.suite.agents
         )
         estimated_total = estimated_per_cycle * self.suite.max_cycles_per_day
-        ceiling = self.executor.gate.policy.daily_cost_ceiling_usd
+        ceiling = effective_daily_cost_ceiling(self.executor.gate.policy, datetime.now(UTC))
         if estimated_total > ceiling:
             raise ValueError(
                 f"canary suite estimate {estimated_total:.2f} exceeds daily ceiling {ceiling:.2f}"

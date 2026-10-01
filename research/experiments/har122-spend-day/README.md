@@ -2,7 +2,7 @@
 
 ## Overview
 
-The daily spend ledger (`evallab spend day --date YYYY-MM-DD`) provides unified accounting of all Eval Lab infrastructure and model expenditure per UTC day, reported against the standing $20.00/day spending cap.
+The daily spend ledger (`evallab spend day --date YYYY-MM-DD`) combines available billing-cache rows, infrastructure estimates and model-usage ledgers per UTC day. These historical backfills compare that recorded total with the then-standing $20.00/day cap; they are not complete provider invoices or a new spending approval.
 
 Every line item reports an explicit `basis` (`billed`, `estimate`, or `ledger`) so that provider-billed invoices are never mixed up with model rate estimates:
 
@@ -20,7 +20,7 @@ Every line item reports an explicit `basis` (`billed`, `estimate`, or `ledger`) 
 |---|---|---:|---|
 | **Modal** | `billed` | $13.6831 | 13 billing rows in `modal_billing_rows` |
 | **Daytona** | `estimate` | $2.9422 | 192 trial slices across 192 jobs |
-| **Model APIs** | `ledger` | $0.0007 | 2 jobs with settled proxy ledgers (`har104-canned-proof`, `har104-canned-gptoss`) |
+| **Model APIs** | `ledger` | $0.0007 | Ledger-priced local canned-response proofs (`har104-canned-proof`, `har104-canned-gptoss`), not actual paid model requests |
 | **Grand Total** | | **$16.6261** | **Under cap ($20.00): Headroom $3.3739** |
 
 #### Breakdown by Card (2026-09-29)
@@ -68,3 +68,26 @@ Every line item reports an explicit `basis` (`billed`, `estimate`, or `ledger`) 
 4. **2026-09-30 is incomplete.** The backfill ran at about 23:50Z on 2026-09-30. Its Modal rows were last fetched at 08:58Z (`modal billing-reconcile`), so any Modal use after that time is missing. Re-run `evallab modal billing-reconcile --for 2026-09-30` and then `evallab spend day --date 2026-09-30` once the day has closed.
 5. **Daytona counts catalog-ingested trials only.** A run that was never ingested is missing: for example HAR-122's own egress probes (about $0.04, run directly through `harbor run`), and any job still running.
 6. **The rate card and the receipts differ.** HAR-113 reported $2.4389 using `qualify-collect`'s estimate, while this ledger puts HAR-113 at $2.2019 on 2026-09-30 and $0 on 2026-09-29. Both are list-price estimates, not Daytona bills; neither is authoritative until Daytona exposes billed usage.
+
+## HAR-132 reproduction (2026-10-01)
+
+Both dates were recomputed with the actual read-only `evallab spend day` CLI.
+September 29 matches the snapshot exactly: **$16.626055719385402**.
+September 30 returned **$17.210682529581202** in this replay, versus the saved
+**$17.21014313347965**: the **$0.0005393961015514** increase is one later
+catalog-ingested 8.408357-second Daytona trial,
+`har115-rnop-000238-a3485fb06ded`. Both still round to **$17.21**. The
+historical JSON snapshots are preserved rather than silently overwritten.
+
+The **18** retained Modal cache rows (13 + 5) and both experiment spend
+ledgers reproduce the recorded arithmetic. All 18 use daily resolution;
+the October 1 daily/hourly overlap defect does not affect these two dates.
+The original provider billing response was not found in the inspected
+retained sources, so this is cache/ledger reproduction, not independent
+invoice verification. Gap 4 still applies.
+Also, the audited `sibling_worktree_roots()` implementation discovers no
+siblings from a linked checkout. The 47 retained spend-file copies collapse
+to two distinct ledgers, so that defect did not change these totals, but
+unique unmerged sibling records could be missed. The runtime fix is owned
+on HAR-122, not hidden by rewriting these receipts.
+

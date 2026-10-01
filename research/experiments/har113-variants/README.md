@@ -60,12 +60,18 @@ to pypi.org and files.pythonhosted.org. The verifier then grades the
 untouched repo with the blocklist in place.
 
 - 000226 parent: pip exit 0, downloaded `waitress-1.3.1-py2.py3-none-any.whl`,
-  pypi.org JSON HTTP 200. Variant: pip exit 1 (`[Errno 111] Connection refused`);
-  IPv6 `Network is unreachable`: Daytona sandboxes have no IPv6 route, so an
-  AAAA answer cannot bypass the `0.0.0.0` entries.
+  pypi.org JSON HTTP 200. Variant: pip exit 1 (`[Errno 111] Connection refused`).
+  Its IPv6 probe reported `Network is unreachable`; this is sample-specific,
+  not a guarantee about every Daytona sandbox.
 - 000927 (soupsieve 1.9), 002256, 002864, 002407 parents: pip exit 0. All 14
   sample variants: pip exit 1. Graded with the blocklist, the 13 sound variants
-  stay sound.
+  stay sound. For 001618, pip fails with `ImportError: InvalidSchemeCombination`,
+  which alone is not blocklist evidence; its separate HTTPS probe is refused.
+- **HAR-132 correction:** the 002256 parent **and variant** logs show successful
+  IPv6 TCP connections to both PyPI hosts. Default pip/HTTPS outcomes reproduce
+  (14/14 variants fail, 5/5 parents download), but these logs do not establish
+  universal egress isolation. TCP reachability is not itself a demonstrated
+  IPv6 package download.
 
 **Nop sample** (`har113-vnop-*`: the nop agent never applies the blocklist, so
 this checks the re-embedded setup; the probe above checks the blocklist):

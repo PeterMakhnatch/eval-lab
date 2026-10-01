@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "redlock = Redlock(key=key, masters=masters, auto_release_time=auto_release_time)",
+      "ref": "head#12"
+    },
+    {
+      "quote": "Analysis: The terminal is stuck. Let me try to clear it:",
+      "ref": "head#48"
+    },
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "redlock = Redlock(key=key, masters=masters, auto_release_time=auto_release_time)",
+    "ref": "head#12",
+    "what": "Instantiated Redlock once at module definition rather than per function invocation inside the wrapper"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#48",
+    "head#87"
+  ],
+  "notes": "Model's implementation locked once globally breaking concurrent calls, and it subsequently got trapped in a terminal pager loop sending 'echo ok' repeatedly until exhausting the token ceiling.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-000587-baseline__Vuxk2nX"
+}

@@ -1,0 +1,38 @@
+{
+  "blame": "none",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "**Problem:** `control_flow.scan` with `Uniform` distributions raised `NotImplementedError: .event_dim cannot be determined statically`.",
+      "ref": "head#36"
+    },
+    {
+      "quote": "Analysis: The fix is complete and verified.",
+      "ref": "head#38"
+    },
+    {
+      "quote": "cd /testbed && git diff",
+      "ref": "head#84"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#36",
+    "head#84"
+  ],
+  "notes": "reward 1 (5 passed), n_episodes 84, TrialBudgetExhaustedError. Genuine 5-line batch_util.py fix (is_dependent fallback to event_dim 0), no fetch; completions at head#36/head#38 never consecutively confirmed, then ~46 git-diff re-checks to budget.",
+  "off_limits_opened": false,
+  "pass_copied": false,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": true,
+    "cut_step_id": 36,
+    "reason": "genuine root-cause fix; cut at first completion before re-check loop"
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-002402-original__PCgLbp7"
+}

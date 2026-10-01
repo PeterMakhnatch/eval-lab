@@ -1,0 +1,27 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "RuntimeError: Failed to start tmux session. Error: bash: line 1: tmux: command not found",
+      "ref": "exception.txt"
+    },
+    {
+      "quote": "Trial har120-001647-a1__iqMRm5R failed: Failed to start tmux session",
+      "ref": "trial.log"
+    }
+  ],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "No agent/ trajectory exists: tmux missing in the sandbox killed agent setup before step 1, so there is no trajectory step to cite; first_failure null with the setup error as evidence. Failure purely infrastructural.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har120-001647-a1__iqMRm5R"
+}

@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "print(fix.MarketDataEntryType_BID)",
+      "ref": "head#17"
+    },
+    {
+      "quote": "AttributeError: module 'quickfix' has no attribute 'MarketDataEntryType_BID'",
+      "ref": "head#17"
+    },
+    {
+      "quote": "print([n for n in dir(fix) if 'Market' in n])",
+      "ref": "head#18"
+    },
+    {
+      "quote": "find /workspace/repo -type f -name \"*.py\" | head -50 && echo \"---\" && ls /workspace/repo",
+      "ref": "head#2"
+    }
+  ],
+  "first_failure": {
+    "quote": "AttributeError: module 'quickfix' has no attribute 'MarketDataEntryType_BID'",
+    "ref": "head#17",
+    "what": "probed non-existent quickfix constants then looped enumerating dir(fix) without ever editing code"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#18",
+    "head#64"
+  ],
+  "notes": "result.json: LoopBreakStop 'repetition was still going 63 calls in, five after the nudge at call 58', loop_break.fired true detector normalized_command_run nudge 58 stop 63, n_episodes 63, reward 0; verifier diff 0B with all 13 tests AttributeError no subscribe_to_data; ~40+ steps of python3 -c dir(fix) variants, no edits, harness correctly stopped stalled run.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har116-a-000383-loopfix-r2__cNEHjBa"
+}

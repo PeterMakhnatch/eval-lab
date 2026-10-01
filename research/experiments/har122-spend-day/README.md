@@ -2,13 +2,51 @@
 
 ## Overview
 
-The daily spend ledger (`evallab spend day --date YYYY-MM-DD`) provides unified accounting of all Eval Lab infrastructure and model expenditure per UTC day, reported against the standing $20.00/day spending cap.
+The daily spend ledger (`evallab spend day --date YYYY-MM-DD`) combines available billing-cache rows, infrastructure estimates and model-usage ledgers per UTC day. These historical backfills compare that recorded total with the then-standing $20.00/day cap; they are not complete provider invoices or a new spending approval.
 
 Every line item reports an explicit `basis` (`billed`, `estimate`, or `ledger`) so that provider-billed invoices are never mixed up with model rate estimates:
 
 1. **Modal (`billed`)**: Retrieved from the `modal_billing_rows` catalog table populated by the read-only reconcile workflow (`evallab modal billing-reconcile`). Modal bills account-wide GPU/CPU/memory runtime. Because Modal does not tag individual trial containers with card IDs, account billing is attributed to `unattributed`.
 2. **Daytona (`estimate`)**: The installed Daytona SDK (`daytona` 0.220.0) provides only instantaneous quota/usage models (`OrganizationUsageOverview` and `RegionUsageOverview`), without historical dollar billing endpoints. Daytona usage is estimated using the lab's standard list-price rate card (`DAYTONA_RATE_CARD` in `evallab.task_qualification`: $0.0504/vCPU-h, $0.0162/GiB-h RAM, $0.000108/GiB-h storage > 5 GiB) applied to the trial wall-time portion falling within the UTC day (midnight-crossing intervals are split).
 3. **Model API calls (`ledger`)**: Metered proxy ledgers from `lab-metadata.json` (`provider_usage` totals `cost_micros`) for completed jobs, plus experiment `spend.jsonl` files across the repository tree and sibling worktrees (deduplicated by record content hash). Self-hosted MiMo proxy calls have 0/0 pricing at the proxy and are billed via Modal container runtime; they contribute $0 to the model ledger to prevent double counting.
+
+## Pre-launch spend check (`evallab spend check`)
+
+HAR-129 implements the HAR-122 proposal's pre-launch gate as a read-only
+CLI check plus a library function (`evallab.spend_day.check_launch`, so a
+later dispatch hook can call it). Before every launch:
+
+```bash
+evallab spend check --since 2026-10-01T04:00:00Z --cap-usd 30 --candidate-usd 6
+```
+
+This example covers the overnight operating window: spend counted from
+2026-10-01T04:00Z (Modal, Daytona and model calls) against the $30
+overnight envelope, with a $6 candidate launch. Omit `--since` to check
+the current UTC day; omit `--cap-usd` to use the standing policy's
+`daily_cost_ceiling_usd`.
+
+Committed spend is `settled(window) + in-flight + candidate`, where the
+window is the half-open UTC interval `[--since, now)` (a UTC day is the
+special case) and in-flight reserves `max(cost_limit_usd, est_cost_usd)`
+for every spec in `queue/running` and `queue/approved`. Source
+granularity inside a window: Modal billing rows are hourly, so a row
+counts whole when its hour starts in the window; Daytona trials
+contribute the wall seconds overlapping the window; `spend.jsonl` rows
+count by their own `ts`; per-job proxy ledgers count whole on the day
+their job finished.
+
+Exit codes: `0` allowed, `3` refused (committed strictly exceeds the cap;
+exactly-at-cap allows), `2` unverified — the catalog is unreachable
+(never treated as $0), a queued cloud (non-Docker) spec records no
+positive `est_cost_usd`, or Modal billing rows remain stale (>4h vs now).
+
+When stored Modal billing rows are stale and the window extends past them,
+`check_launch` automatically refreshes them read-only via the reconcile
+fetch path (`modal billing report --resolution h`). If refresh fails or
+rows remain stale, dispatch is refused with `stale_modal_billing` (exit 2).
+Pass `--allow-stale-modal` to downgrade this refusal to a visible warning.
+Modal's reporting lag (the current hour is partial) is always noted.
 
 ---
 
@@ -20,8 +58,10 @@ Every line item reports an explicit `basis` (`billed`, `estimate`, or `ledger`) 
 |---|---|---:|---|
 | **Modal** | `billed` | $13.6831 | 13 billing rows in `modal_billing_rows` |
 | **Daytona** | `estimate` | $2.9422 | 192 trial slices across 192 jobs |
-| **Model APIs** | `ledger` | $0.0007 | 2 jobs with settled proxy ledgers (`har104-canned-proof`, `har104-canned-gptoss`) |
-| **Grand Total** | | **$16.6261** | **Under cap ($20.00): Headroom $3.3739** |
+| **Model APIs** | `ledger` | $0.0000 | 0 jobs (see note below) |
+| **Grand Total** | | **$16.6253** | **Under cap ($20.00): Headroom $3.3747** |
+
+*Update 2026-10-01 (HAR-122 review)*: Corrected finish-time grouping to use the aware UTC finish time from `lab-metadata.json` rather than Harbor's naive local timestamp. Two jobs (`har104-canned-proof` $0.000619, `har104-canned-gptoss` $0.000116; ledger-priced local canned-response proofs, not actual paid model requests) finished at 22:49/22:50 EDT on 2026-09-29, which is 02:49/02:50 UTC on 2026-09-30. Under UTC grouping they move to 2026-09-30, reducing 2026-09-29 model spend from $0.0007 to $0.0000 and increasing 2026-09-30 model spend from $1.5238 to $1.5245.
 
 #### Breakdown by Card (2026-09-29)
 
@@ -40,8 +80,8 @@ Every line item reports an explicit `basis` (`billed`, `estimate`, or `ledger`) 
 |---|---|---:|---|
 | **Modal** | `billed` | $7.2226 | 5 billing rows in `modal_billing_rows` |
 | **Daytona** | `estimate` | $8.4638 | 1370 trial slices across 1370 jobs |
-| **Model APIs** | `ledger` | $1.5238 | HAR-111 checker ($0.1865) + HAR-112 trace exploration ($1.3373) |
-| **Grand Total** | | **$17.2101** | **Under cap ($20.00): Headroom $2.7899** |
+| **Model APIs** | `ledger` | $1.5245 | HAR-111 ($0.1865) + HAR-112 ($1.3373) + HAR-104 UTC-shifted ($0.0007) |
+| **Grand Total** | | **$17.2114** | **Under cap ($20.00): Headroom $2.7886** |
 
 #### Breakdown by Card (2026-09-30)
 
@@ -68,3 +108,26 @@ Every line item reports an explicit `basis` (`billed`, `estimate`, or `ledger`) 
 4. **2026-09-30 is incomplete.** The backfill ran at about 23:50Z on 2026-09-30. Its Modal rows were last fetched at 08:58Z (`modal billing-reconcile`), so any Modal use after that time is missing. Re-run `evallab modal billing-reconcile --for 2026-09-30` and then `evallab spend day --date 2026-09-30` once the day has closed.
 5. **Daytona counts catalog-ingested trials only.** A run that was never ingested is missing: for example HAR-122's own egress probes (about $0.04, run directly through `harbor run`), and any job still running.
 6. **The rate card and the receipts differ.** HAR-113 reported $2.4389 using `qualify-collect`'s estimate, while this ledger puts HAR-113 at $2.2019 on 2026-09-30 and $0 on 2026-09-29. Both are list-price estimates, not Daytona bills; neither is authoritative until Daytona exposes billed usage.
+
+## HAR-132 reproduction (2026-10-01)
+
+Both dates were recomputed with the actual read-only `evallab spend day` CLI.
+September 29 matches the snapshot exactly: **$16.626055719385402**.
+September 30 returned **$17.210682529581202** in this replay, versus the saved
+**$17.21014313347965**: the **$0.0005393961015514** increase is one later
+catalog-ingested 8.408357-second Daytona trial,
+`har115-rnop-000238-a3485fb06ded`. Both still round to **$17.21**. The
+historical JSON snapshots are preserved rather than silently overwritten.
+
+The **18** retained Modal cache rows (13 + 5) and both experiment spend
+ledgers reproduce the recorded arithmetic. All 18 use daily resolution;
+the October 1 daily/hourly overlap defect does not affect these two dates.
+The original provider billing response was not found in the inspected
+retained sources, so this is cache/ledger reproduction, not independent
+invoice verification. Gap 4 still applies.
+Also, the audited `sibling_worktree_roots()` implementation discovers no
+siblings from a linked checkout. The 47 retained spend-file copies collapse
+to two distinct ledgers, so that defect did not change these totals, but
+unique unmerged sibling records could be missed. The runtime fix is owned
+on HAR-122, not hidden by rewriting these receipts.
+

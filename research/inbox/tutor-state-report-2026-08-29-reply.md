@@ -95,7 +95,7 @@ Weak spot: `src/evallab/lance.py:43` uses a deterministic 256-dim lexical `Hashi
 
 **`AUTO_ACCEPTANCE_ENABLED = False`** (`src/evallab/interpretation/trajectory_acceptance.py:18`) — `evaluate_acceptance` can only emit `rejected` or `abstained`, never `accepted` (`:213`). `calibration_report_can_enable_acceptance()` returns literal `False` (`src/evallab/interpretation/trajectory_calibration.py:292`). `HumanBaselineReport` requires ≥3 independent raters with Cohen's κ, Fleiss' κ, Gwet's AC₁, Krippendorff's α (`:185`).
 
-Frozen 12-class judgment ontology under `machine-judgment/v1` (`src/evallab/interpretation/trajectory_judgment.py:21`). Deterministic zero-LLM taxonomies: 10 `ActionDomain` × 20 `ActionSubtype` (`src/evallab/trajectory_action_taxonomy.py:15-53`), plus `ErrorCategory`/`InterventionCategory` (`src/evallab/trajectory_error_taxonomy.py:17`). Analyst recipes R1–R7 (`src/evallab/interpretation/trajectory_recipes.py:30`).
+Frozen 12-class judgment ontology under `machine-judgment/v1` (`src/evallab/interpretation/trajectory_judgment.py:21`). Deterministic zero-LLM taxonomies: 10 `ActionDomain` × 20 `ActionSubtype` (`src/evallab/trajectory_action_taxonomy.py:15-53`), plus `ErrorCategory`/`InterventionCategory` (`src/evallab/trajectory_error_taxonomy.py:17`). Analyst recipes R1–R7 (`src/evallab/interpretation/trajectory_recipes.py:30`). [HAR136 2026-10-01: the standalone action classifier (`trajectory_action_taxonomy.py`) was unwired — no ATIF, TrajectoryIR, producer, or report consumer — and is retired; the schema `alphabet_id`/`alphabet_version` fields and the ACTIVE `trajectory_error_taxonomy` remain.]
 
 ### 2.6 Feature extraction — **production-capable**
 
@@ -139,7 +139,7 @@ PR #280 landed as `2e40b670`. `research/goldset/` holds `labeling_package.json`,
 | **Task / benchmark** | `task_digest`, `verifier_digest`, `environment_digest`, `task_family`, `task_instance_id`, `task_block_id` (`src/evallab/evidence/facts.py:113-133`) + per-vertical L1/L2 blocks (`src/evallab/interpretation/feature_registry.py:989-1557`) |
 | **Repeat** | `repeat_group_id` (`:1644`), `generator_seed_json` (`src/evallab/evidence/facts.py:131`), `pass_at_k_unbiased`, `pass_power_k_unbiased` (`src/evallab/cohort.py:559,578`) |
 | **Dose** | `dose_axis`, `dose_value`, `dose_unit` (`:1645-1647`); `dose_bytes` (A); `depth/width/distractor_count/name_similarity/schema_drift` (B); `fault_class/persistence_level/mode` (C) |
-| **Action alphabet** | `alphabet_id`, `alphabet_version` (`:1648-1649`); 10 domains × 20 subtypes (`src/evallab/trajectory_action_taxonomy.py:15-53`) |
+| **Action alphabet** | `alphabet_id`, `alphabet_version` (`:1648-1649`); 10 domains × 20 subtypes (`src/evallab/trajectory_action_taxonomy.py:15-53`) [HAR136 2026-10-01: schema fields persist as declared identifiers; the standalone action classifier that enumerated those domains/subtypes was unwired and is retired — fields were never automatically classified] |
 | **Recovery / censoring** | `step_to_first_error`, `time_to_first_error_seconds`, `recovery_latency_steps/_seconds`, `unrecovered_at_terminal`, `is_expected_negative` (`:457-529`); C3 5-gate certified recovery (`src/evallab/interpretation/producers/mcp_recovery.py:133-149`) |
 | **Provenance / lineage** | `cas_uri`, `quality_status`, `report_digest`, `source_digest`, `producer_version`, `projection_identity`, `dimension_digest`, `projection_refusals`, `analysis_ready` (`:1650-1657`); 5 explorer provenance states (`src/evallab/explorer.py:27-46`) |
 | **Cohort / contrast** | 13 `CONSEQUENTIAL_FIELDS` (`src/evallab/cohort.py:23-37`); matched-contrast join keys incl. `seed`, `cell_id`/`fault_class`, dose triple, alphabet pair, `analysis_ready IS TRUE` (`sql/traj_benchmark_views.sql:140-230`) |
@@ -153,7 +153,7 @@ PR #280 landed as `2e40b670`. `research/goldset/` holds `labeling_package.json`,
 **Answerable:**
 
 - Did a given trial's process evidence causally precede its outcome, or is there lineage leakage? (T1.1 over the 9 committed ATIF bundles.)
-- What deterministic action/error taxonomy describes a trajectory, with zero LLM involvement? (`trajectory_action_taxonomy.py`, `trajectory_error_taxonomy.py`, R1–R7.)
+- What deterministic action/error taxonomy describes a trajectory, with zero LLM involvement? (`trajectory_action_taxonomy.py`, `trajectory_error_taxonomy.py`, R1–R7.) [HAR136 2026-10-01: standalone `trajectory_action_taxonomy.py` retired as unwired; `trajectory_error_taxonomy.py` remains ACTIVE.]
 - Where did a trajectory first diverge from a counterfactual twin and fail to reconverge? (`src/evallab/interpretation/trajectory_alignment.py:56`, $k^*$.)
 - Is a trajectory analysis-ready, and if not, exactly which of the 11 settled dimensions or quality gates refused it? (`benchmark_projection.py`, `v_benchmark_refusal_diagnostics`.)
 - Can a claimed capability be certified against byte-bound artifact evidence? (`src/evallab/capability_contract.py:307`, P/R/U/C/Y.)

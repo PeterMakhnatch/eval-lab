@@ -1,0 +1,27 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "You are an AI assistant tasked with solving command-line tasks in a Linux environment.",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "You are an AI assistant tasked with solving command-line tasks in a Linux environment.",
+    "ref": "head#1",
+    "what": "harness _apply_loop_fix crashed importing duckdb before any agent work"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "result.json: ModuleNotFoundError No module named 'duckdb' in harbor_terminus _apply_loop_fix/live_loop_action via token_flow, n_episodes 1, n_input 1053, verifier absent/null; trajectory has only head#1 user prompt; loop_break.fired false. Matches guide note: loopfix (not r2) startup import error is infra_error/blame infra.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-000383-loopfix__wgujpBQ"
+}

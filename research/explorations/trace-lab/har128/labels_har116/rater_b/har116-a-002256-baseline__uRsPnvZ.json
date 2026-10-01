@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "grep -n \"def full\" -A 5 /testbed/persistqueue/queue.py",
+      "ref": "head#2"
+    },
+    {
+      "quote": "return 0 < self.maxsize and self._qsize() == self.maxsize",
+      "ref": "head#4"
+    },
+    {
+      "quote": "299 passed, 16 skipped in 32.77s",
+      "ref": "head#6"
+    },
+    {
+      "quote": "Yes, the task is complete. The fix has been applied and verified",
+      "ref": "head#8"
+    }
+  ],
+  "first_failure": {
+    "quote": "return 0 < self.maxsize and self._qsize() == self.maxsize",
+    "ref": "head#4",
+    "what": "applied fix only to persistqueue/queue.py full(), leaving async_queue.py as qsize()==maxsize; never revisited async"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 0.0, no exception, completion accepted at head#8 => model_finished. agent.diff touches queue.py only. verifier: 2 failed async tests (test_full_default_maxsize_empty_queue, test_full_default_maxsize_after_drain: assert True is False), 9 passed. Local 299-passed suite masked the missing async fix.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har116-a-002256-baseline__uRsPnvZ"
+}

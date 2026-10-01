@@ -1,0 +1,108 @@
+{
+ "trial": "har116-a-001896-baseline__mBFMKax",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-baseline/har116-a-001896-baseline__mBFMKax",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-baseline",
+ "task": "mimo-v2.6-rl/format-code-task-001896",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 3,
+   "summarization_count": 1,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": [
+    "head#44"
+   ]
+  }
+ },
+ "first_failure": {
+  "step_id": 8,
+  "step_ref": "head#8",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#8"
+  ],
+  "recovered": true,
+  "note": "model-emitted surface the normalizer declines (unknown_function:keystrokes); A-NON-NATIVE-MODEL; harness feedback: 'Invalid JSON: Expecting value: line 1 column 10 (char 9) | Content: '{\"name\": lambda x: x and x.lower() == \"description\", \"content\": True}'' (names the problem: false)",
+  "harness_feedback": "Invalid JSON: Expecting value: line 1 column 10 (char 9) | Content: '{\"name\": lambda x: x and x.lower() == \"description\", \"content\": True}'",
+  "feedback_names_problem": false
+ },
+ "outcome": {
+  "step_id": 8,
+  "step_ref": "head#8",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#8",
+   "head#11",
+   "head#43"
+  ],
+  "note": "model-emitted surface the normalizer declines (unknown_function:keystrokes); A-NON-NATIVE-MODEL; harness feedback: 'Invalid JSON: Expecting value: line 1 column 10 (char 9) | Content: '{\"name\": lambda x: x and x.lower() == \"description\", \"content\": True}'' (names the problem: false)",
+  "harness_feedback": "Invalid JSON: Expecting value: line 1 column 10 (char 9) | Content: '{\"name\": lambda x: x and x.lower() == \"description\", \"content\": True}'",
+  "feedback_names_problem": false,
+  "secondary": "error_recovery/model secondary: identical run head#11-head#43"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 33,
+    "span": [
+     "head#11",
+     "head#43"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1101342,
+   "completion": 38412,
+   "steps": 33,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1101342,
+   "completion": 38412,
+   "steps": 33,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2295813,
+   "completion": 69488,
+   "steps": 80,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.4797,
+  "result_input_tokens": 2408662
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 44,
+  "states": {
+   "prompt": 44
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

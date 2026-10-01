@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "sh\" /testbed --include=\"*.go\" -l | head -20\n>",
+      "ref": "head#2"
+    },
+    {
+      "quote": "pwd",
+      "ref": "head#10"
+    },
+    {
+      "quote": "pwd",
+      "ref": "head#18"
+    },
+    {
+      "quote": "pwd",
+      "ref": "head#33"
+    }
+  ],
+  "first_failure": {
+    "quote": "grep -ri \"logstash\" /testbed --include=\"*.go\" -l | head -20",
+    "ref": "head#2",
+    "what": "Sent a command that was corrupted in the terminal and wedged the bash session waiting for input, leaving the shell in an unrecoverable state."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#10",
+    "head#33"
+  ],
+  "notes": "Model's unclosed quote or corrupted interactive command left the shell stuck on a prompt, and it repeated 'pwd' repeatedly without recovering until loop_break stopped it.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-000865-a1__a2TWzyM"
+}

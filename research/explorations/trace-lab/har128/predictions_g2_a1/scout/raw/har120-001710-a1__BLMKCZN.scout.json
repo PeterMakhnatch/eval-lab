@@ -1,0 +1,89 @@
+{
+ "trial": "har120-001710-a1__BLMKCZN",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001710-a1/har120-001710-a1__BLMKCZN",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001710-a1",
+ "task": "mimo-v2.6-rl/format-code-task-001710",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 94 calls in, 15 after the nudge at call 79",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#95"
+  ],
+  "note": "identical message repeated steps 2-95 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 94,
+    "span": [
+     "head#2",
+     "head#95"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 2082993,
+   "completion": 5648,
+   "steps": 94,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 2082993,
+   "completion": 5648,
+   "steps": 94,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2082993,
+   "completion": 5648,
+   "steps": 94,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 1.0,
+  "result_input_tokens": 2082993
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 94,
+  "states": {
+   "prompt": 94
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

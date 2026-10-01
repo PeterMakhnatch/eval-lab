@@ -1,0 +1,97 @@
+{
+ "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix-r2/har116-a-001832-loopfix-r2__RL4Q8AX",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix-r2",
+ "task": "mimo-v2.6-rl/format-code-task-001832",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 63 calls in, five after the nudge at call 58",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 14,
+  "step_ref": "head#14",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#14",
+   "head#29"
+  ],
+  "note": "identical message repeated steps 14-29 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 11,
+    "span": [
+     "head#2",
+     "head#12"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 16,
+    "span": [
+     "head#14",
+     "head#29"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 307828,
+   "completion": 7683,
+   "steps": 27,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 307828,
+   "completion": 7683,
+   "steps": 27,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1407740,
+   "completion": 16234,
+   "steps": 63,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.2187,
+  "result_input_tokens": 1407740
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 63,
+  "states": {
+   "prompt": 63
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

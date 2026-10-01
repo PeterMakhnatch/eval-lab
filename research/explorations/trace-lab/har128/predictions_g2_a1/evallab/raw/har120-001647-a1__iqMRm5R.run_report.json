@@ -1,0 +1,265 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har120-001647-a1__iqMRm5R",
+    "trial_id": "32ea3c98-efdd-4884-be48-d5269c8aa92b",
+    "task": "mimo-v2.6-rl/format-code-task-001647",
+    "job": "HAR-120-har120-001647-a1",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": null,
+    "session_id": null,
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001647-a1/har120-001647-a1__iqMRm5R"
+  },
+  "availability": {
+    "trajectory": "absent",
+    "reason": "trajectory file missing (agent may have crashed before writing it)"
+  },
+  "outcome": {
+    "verdict": "errored",
+    "reward": null,
+    "rewards": {},
+    "verifier_outcome": "none",
+    "stop_reason": "error",
+    "stop_detail": "exception RuntimeError",
+    "completion": null,
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": "no trajectory",
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T08:01:59.785063+00:00",
+    "finished_at": "2026-10-01T08:02:43.256096+00:00",
+    "total_seconds": 43.471,
+    "phases": {
+      "environment_setup": {
+        "seconds": 23.413,
+        "starts_at_offset_seconds": 0.025
+      },
+      "agent_setup": {
+        "seconds": 17.382,
+        "starts_at_offset_seconds": 24.921
+      },
+      "agent_execution": {
+        "seconds": null,
+        "starts_at_offset_seconds": null
+      },
+      "verifier": {
+        "seconds": null,
+        "starts_at_offset_seconds": null
+      }
+    },
+    "unaccounted_seconds": 2.676,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": null,
+    "offset_origin": "trial.started_at",
+    "steps_with_timestamps": 0,
+    "agent_span_seconds": null,
+    "step_gap_seconds": {
+      "count": 0,
+      "median": null,
+      "p90": null,
+      "max": null,
+      "total": null
+    },
+    "slowest_steps": []
+  },
+  "tokens": {
+    "input": null,
+    "cached_input": null,
+    "uncached_input": null,
+    "output": null,
+    "reasoning": null,
+    "cache_write": null,
+    "total": null,
+    "sources": {
+      "input": null,
+      "cached_input": null,
+      "output": null,
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": null,
+        "cached_input": null,
+        "output": null,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": null,
+        "cached_input": null,
+        "output": null,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": null,
+        "cached_input": null,
+        "output": null,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 0,
+    "llm_steps_with_usage": 0,
+    "context": {
+      "first_prompt_tokens": null,
+      "peak_prompt_tokens": null,
+      "peak_step": null,
+      "last_prompt_tokens": null
+    },
+    "top_steps": []
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": null,
+      "reason": "zero calls: no rate applies without a provider call",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 0,
+    "actions": 0,
+    "distinct_tools": 0,
+    "polls": 0,
+    "by_tool": [],
+    "top_programs": [],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 0,
+    "distinct_actions": 0,
+    "repeated_actions": 0,
+    "repeat_rate": null,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 0,
+      "steps": [],
+      "start_step": null,
+      "end_step": null
+    },
+    "longest_cycle": null,
+    "most_repeated": [],
+    "loop_suspicion": null
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 0,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "RuntimeError",
+      "message": "Failed to start tmux session. Error: bash: line 1: tmux: command not found",
+      "occurred_at": "2026-10-01T08:02:42.093016Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 0,
+    "shown_steps": 0,
+    "entries": [],
+    "windows": [],
+    "time_windows": {
+      "status": "unavailable",
+      "reason": "fewer than 20 steps",
+      "windows": []
+    }
+  },
+  "data_quality": [
+    "trajectory absent: trajectory file missing (agent may have crashed before writing it)",
+    "step layers unavailable: no recorded layers and no parser to reconstruct them",
+    "no token usage recorded anywhere for this run",
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "2151a5d48f8c2d473c93d53ee3528c017281f01242aa93675699cea89b814bd5"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 0,
+    "recorded": 0,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 0,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": false,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": null,
+    "continuations_missing": null,
+    "parts": [],
+    "duplicate_segments": {},
+    "unique_steps": 0,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) errored on mimo-v2.6-rl/format-code-task-001647; in 43.5s wall (n/a agent); no trajectory (trajectory file missing (agent may have crashed before writing it))."
+}

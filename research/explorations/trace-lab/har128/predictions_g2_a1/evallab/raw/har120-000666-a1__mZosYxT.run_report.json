@@ -1,0 +1,1119 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har120-000666-a1__mZosYxT",
+    "trial_id": "26947e55-33d8-46e8-b012-8acf46417947",
+    "task": "mimo-v2.6-rl/format-code-task-000666",
+    "job": "HAR-120-har120-000666-a1",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "87353d13-d25f-4776-bb2e-9b8157760eb2",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000666-a1/har120-000666-a1__mZosYxT"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "task_complete",
+    "stop_detail": "final turn accepted task_complete",
+    "completion": "Completion: claimed at step 25, confirmed at step 28; the run ended on step 28 (mark_task_complete).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 1,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "Analysis: Yes, the task is complete. The `pm.get(idstr)` function has been implemented and verified against all the requirements in the issue.",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T08:01:59.799204+00:00",
+    "finished_at": "2026-10-01T08:04:27.851305+00:00",
+    "total_seconds": 148.052,
+    "phases": {
+      "environment_setup": {
+        "seconds": 24.878,
+        "starts_at_offset_seconds": 0.029
+      },
+      "agent_setup": {
+        "seconds": 8.176,
+        "starts_at_offset_seconds": 26.176
+      },
+      "agent_execution": {
+        "seconds": 109.364,
+        "starts_at_offset_seconds": 34.377
+      },
+      "verifier": {
+        "seconds": 2.513,
+        "starts_at_offset_seconds": 145.361
+      }
+    },
+    "unaccounted_seconds": 3.121,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 4.189,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 28,
+    "agent_span_seconds": 108.88,
+    "step_gap_seconds": {
+      "count": 26,
+      "median": 3.02,
+      "p90": 6.626,
+      "max": 12.774,
+      "total": 105.168
+    },
+    "slowest_steps": [
+      {
+        "step": 20,
+        "seconds": 12.774,
+        "action": "bash_command: grep -n \"^def search\" /workspace/repo/src/pyromat/__init__.py"
+      },
+      {
+        "step": 17,
+        "seconds": 7.16,
+        "action": "bash_command: sed -n 455,520p /workspace/repo/src/pyromat/__init__.py"
+      },
+      {
+        "step": 14,
+        "seconds": 6.626,
+        "action": "bash_command: find /workspace/repo -name \"*test*\" -o -name \"*Test*\" | head; grep -rn \"pm.get\\|pm\\.get(\" /workspace..."
+      },
+      {
+        "step": 26,
+        "seconds": 6.337,
+        "action": "bash_command: cd /workspace/repo && PYTHONPATH=src python3 - <<'EOF' import pyromat as pm # Exact-ID lookup over t..."
+      },
+      {
+        "step": 22,
+        "seconds": 6.2,
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' path = 'src/pyromat/__init__.py' src = open(path).read() anc..."
+      }
+    ]
+  },
+  "tokens": {
+    "input": 204192,
+    "cached_input": 0,
+    "uncached_input": 204192,
+    "output": 3475,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 207667,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 204192,
+        "cached_input": 0,
+        "output": 3475,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 204192,
+        "cached_input": 0,
+        "output": 3475,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 204192,
+        "cached_input": null,
+        "output": 3475,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 27,
+    "llm_steps_with_usage": 27,
+    "context": {
+      "first_prompt_tokens": 956,
+      "peak_prompt_tokens": 13113,
+      "peak_step": 28,
+      "last_prompt_tokens": 13113
+    },
+    "top_steps": [
+      {
+        "step": 28,
+        "input": 13113,
+        "output": 21,
+        "cost_usd": null,
+        "action": "mark_task_complete: {}"
+      },
+      {
+        "step": 27,
+        "input": 12987,
+        "output": 21,
+        "cost_usd": null,
+        "action": "mark_task_complete: {}"
+      },
+      {
+        "step": 26,
+        "input": 12478,
+        "output": 228,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && PYTHONPATH=src python3 - <<'EOF' import pyromat as pm # Exact-ID lookup over t..."
+      },
+      {
+        "step": 25,
+        "input": 12144,
+        "output": 229,
+        "cost_usd": null,
+        "action": "mark_task_complete: {}"
+      },
+      {
+        "step": 24,
+        "input": 11872,
+        "output": 84,
+        "cost_usd": null,
+        "action": "bash_command: cd /workspace/repo && PYTHONPATH=src python3 -c \"import pyromat; print(pyromat.get('ig.air') is not..."
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 28,
+    "actions": 27,
+    "distinct_tools": 2,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 25,
+        "ok": 0,
+        "errors": 2,
+        "unknown": 23,
+        "output_chars": 28530,
+        "first_step": 2,
+        "last_step": 26,
+        "judged": 2,
+        "error_rate": 1.0
+      },
+      {
+        "tool": "mark_task_complete",
+        "calls": 3,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 3,
+        "output_chars": 729,
+        "first_step": 25,
+        "last_step": 28,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "sed",
+        "calls": 8
+      },
+      {
+        "program": "grep",
+        "calls": 6
+      },
+      {
+        "program": "python3",
+        "calls": 4
+      },
+      {
+        "program": "ls",
+        "calls": 3
+      },
+      {
+        "program": "find",
+        "calls": 2
+      },
+      {
+        "program": "wc",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 27,
+    "distinct_actions": 25,
+    "repeated_actions": 2,
+    "repeat_rate": 0.0741,
+    "returns_to_earlier_action": 1,
+    "consecutive_repeats": 1,
+    "exact_revisits": 1,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 2,
+      "steps": [
+        27,
+        28
+      ],
+      "start_step": 27,
+      "end_step": 28
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "mark_task_complete",
+        "target": "{}",
+        "count": 3,
+        "steps": [
+          25,
+          27,
+          28
+        ],
+        "identical_results": 1
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 9,
+      "steps": [
+        27,
+        28
+      ],
+      "repeat_rate": 1.0
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 2,
+    "harness_signalled": 0,
+    "inferred_from_output": 2,
+    "status_unknown_calls": 26,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {
+      "inferred_from_output": 2
+    },
+    "first_error": {
+      "step": 6,
+      "offset_seconds": 16.725,
+      "evidence": "output_text"
+    },
+    "ended_in_error": true,
+    "examples": [
+      {
+        "step": 6,
+        "tool": "bash_command",
+        "target": "sed -n 38,55p /workspace/repo/src/pyromat/__init__.py; echo ---; grep -n \"PMParamError\\|def PMError\\|class \" /workspace/...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "iguration parameter'%repr(item)) --- grep: /workspace/repo/src/pyromat/data.py: No such file or directory root@24b0347e-691e-4b03-a632-38593aea445a:/workspace/repo#"
+      },
+      {
+        "step": 7,
+        "tool": "bash_command",
+        "target": "ls /workspace/repo/src/pyromat/data; echo ---; grep -n \"class Substance\\|def sid\\|def pmclass\\|def load\" /workspace/repo...",
+        "category": "inferred_from_output",
+        "evidence": "output_text",
+        "excerpt": "ead ig ig2 igmix mp --- grep: /workspace/repo/src/pyromat/data/substance.py: No such file or directory root@24b0347e-691e-4b03-a632-38593aea445a:/workspace/repo#"
+      }
+    ],
+    "exception": null
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 28,
+    "shown_steps": 28,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.478,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 4.189,
+        "source": "agent",
+        "action": "bash_command: ls /workspace/repo && ls /workspace/repo/pyromat 2>/dev/null | head -50 ; grep -rn \"def get\" /worksp...",
+        "status": "unknown",
+        "input_tokens": 956,
+        "output_tokens": 108,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 6.856,
+        "source": "agent",
+        "action": "bash_command: ls /workspace/repo/src/pyromat && head -80 /workspace/repo/src/pyromat/__init__.py",
+        "status": "unknown",
+        "input_tokens": 1353,
+        "output_tokens": 66,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 9.697,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,120p /workspace/repo/src/pyromat/__init__.py",
+        "status": "unknown",
+        "input_tokens": 2023,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 12.61,
+        "source": "agent",
+        "action": "bash_command: grep -n \"def \\|^from\\|^import\\|data\" /workspace/repo/src/pyromat/__init__.py | head -60",
+        "status": "unknown",
+        "input_tokens": 2741,
+        "output_tokens": 61,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 16.725,
+        "source": "agent",
+        "action": "bash_command: sed -n 38,55p /workspace/repo/src/pyromat/__init__.py; echo ---; grep -n \"PMParamError\\|def PMError\\...",
+        "status": "error",
+        "input_tokens": 3508,
+        "output_tokens": 115,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 7,
+        "offset_seconds": 19.839,
+        "source": "agent",
+        "action": "bash_command: ls /workspace/repo/src/pyromat/data; echo ---; grep -n \"class Substance\\|def sid\\|def pmclass\\|def l...",
+        "status": "error",
+        "input_tokens": 4188,
+        "output_tokens": 77,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "error"
+        ]
+      },
+      {
+        "step": 8,
+        "offset_seconds": 22.799,
+        "source": "agent",
+        "action": "bash_command: find /workspace/repo/src/pyromat/data -maxdepth 2 -type f | head; echo ---; grep -rn \"class Substanc...",
+        "status": "unknown",
+        "input_tokens": 4442,
+        "output_tokens": 71,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 25.678,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"class Substance\" /workspace/repo/src/pyromat | head; echo ---; grep -rn \"def sid\\|def pmcl...",
+        "status": "unknown",
+        "input_tokens": 4845,
+        "output_tokens": 78,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 28.289,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,60p /workspace/repo/src/pyromat/dat.py",
+        "status": "unknown",
+        "input_tokens": 5085,
+        "output_tokens": 48,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 11,
+        "offset_seconds": 30.945,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"class Substance\" /workspace/repo/src/pyromat --include=*.py; echo ---; grep -rn \"def sid\\|...",
+        "status": "unknown",
+        "input_tokens": 5557,
+        "output_tokens": 78,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 12,
+        "offset_seconds": 33.311,
+        "source": "agent",
+        "action": "bash_command: sed -n 100,175p /workspace/repo/src/pyromat/reg.py",
+        "status": "unknown",
+        "input_tokens": 5823,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 13,
+        "offset_seconds": 36.469,
+        "source": "agent",
+        "action": "bash_command: sed -n 1,100p /workspace/repo/src/pyromat/reg.py",
+        "status": "unknown",
+        "input_tokens": 6460,
+        "output_tokens": 76,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 14,
+        "offset_seconds": 43.095,
+        "source": "agent",
+        "action": "bash_command: find /workspace/repo -name \"*test*\" -o -name \"*Test*\" | head; grep -rn \"pm.get\\|pm\\.get(\" /workspace...",
+        "status": "unknown",
+        "input_tokens": 7120,
+        "output_tokens": 307,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 15,
+        "offset_seconds": 45.856,
+        "source": "agent",
+        "action": "bash_command: grep -n \"def \" /workspace/repo/src/pyromat/igtools.py | head -40; echo ---; sed -n 1,60p /workspace/...",
+        "status": "unknown",
+        "input_tokens": 7595,
+        "output_tokens": 77,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 16,
+        "offset_seconds": 49.022,
+        "source": "agent",
+        "action": "bash_command: grep -rn \"\\.get\\b\" /workspace/repo/src/pyromat/igtools.py | head; echo ---; grep -rn \"data\\[\" /works...",
+        "status": "unknown",
+        "input_tokens": 8461,
+        "output_tokens": 76,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 17,
+        "offset_seconds": 56.182,
+        "source": "agent",
+        "action": "bash_command: sed -n 455,520p /workspace/repo/src/pyromat/__init__.py",
+        "status": "unknown",
+        "input_tokens": 9059,
+        "output_tokens": 308,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 18,
+        "offset_seconds": 59.056,
+        "source": "agent",
+        "action": "bash_command: wc -l /workspace/repo/src/pyromat/__init__.py; sed -n 145,200p /workspace/repo/src/pyromat/__init__....",
+        "status": "unknown",
+        "input_tokens": 9230,
+        "output_tokens": 69,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 19,
+        "offset_seconds": 62.137,
+        "source": "agent",
+        "action": "bash_command: sed -n 340,362p /workspace/repo/src/pyromat/__init__.py; echo ---; grep -rn \"invalid substance\\|Inva...",
+        "status": "unknown",
+        "input_tokens": 9862,
+        "output_tokens": 83,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 20,
+        "offset_seconds": 74.911,
+        "source": "agent",
+        "action": "bash_command: grep -n \"^def search\" /workspace/repo/src/pyromat/__init__.py",
+        "status": "unknown",
+        "input_tokens": 10365,
+        "output_tokens": 611,
+        "cost_usd": null,
+        "message": "Analysis: Now I understand the structure. `dat.data` is the loaded catalog dictionary, and `__init__.py` already exposes `search()` but no `...",
+        "flags": []
+      },
+      {
+        "step": 21,
+        "offset_seconds": 77.861,
+        "source": "agent",
+        "action": "bash_command: sed -n 46,54p /workspace/repo/src/pyromat/__init__.py",
+        "status": "unknown",
+        "input_tokens": 10617,
+        "output_tokens": 51,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 22,
+        "offset_seconds": 84.06,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && python3 - <<'EOF' path = 'src/pyromat/__init__.py' src = open(path).read() anc...",
+        "status": "unknown",
+        "input_tokens": 10826,
+        "output_tokens": 282,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 23,
+        "offset_seconds": 89.055,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && PYTHONPATH=src python3 - <<'EOF' import pyromat as pm o2 = pm.get(\"ig.O2\") pri...",
+        "status": "unknown",
+        "input_tokens": 11482,
+        "output_tokens": 148,
+        "cost_usd": null,
+        "message": "Analysis: Now let me verify it works end-to-end:",
+        "flags": []
+      },
+      {
+        "step": 24,
+        "offset_seconds": 93.136,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && PYTHONPATH=src python3 -c \"import pyromat; print(pyromat.get('ig.air') is not...",
+        "status": "unknown",
+        "input_tokens": 11872,
+        "output_tokens": 84,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 25,
+        "offset_seconds": 99.257,
+        "source": "agent",
+        "action": "mark_task_complete: {}",
+        "status": "unknown",
+        "input_tokens": 12144,
+        "output_tokens": 229,
+        "cost_usd": null,
+        "message": "Analysis: Implemented `pyromat.get()` in `src/pyromat/__init__.py` as a pure lookup over the already-loaded `dat.data` catalog: ```python de...",
+        "flags": [
+          "completion"
+        ]
+      },
+      {
+        "step": 26,
+        "offset_seconds": 105.593,
+        "source": "agent",
+        "action": "bash_command: cd /workspace/repo && PYTHONPATH=src python3 - <<'EOF' import pyromat as pm # Exact-ID lookup over t...",
+        "status": "unknown",
+        "input_tokens": 12478,
+        "output_tokens": 228,
+        "cost_usd": null,
+        "message": "Analysis: Yes, the task is complete. The `pm.get(idstr)` function has been implemented and verified against all the requirements in the issu...",
+        "flags": []
+      },
+      {
+        "step": 27,
+        "offset_seconds": 107.484,
+        "source": "agent",
+        "action": "mark_task_complete: {}",
+        "status": "unknown",
+        "input_tokens": 12987,
+        "output_tokens": 21,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit",
+          "completion"
+        ]
+      },
+      {
+        "step": 28,
+        "offset_seconds": 109.358,
+        "source": "agent",
+        "action": "mark_task_complete: {}",
+        "status": "unknown",
+        "input_tokens": 13113,
+        "output_tokens": 21,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit",
+          "completion"
+        ]
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          3
+        ],
+        "tool_calls": 2,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 174,
+        "cost_usd": null,
+        "seconds": 6.378,
+        "peak_prompt_tokens": 1353,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          4,
+          6
+        ],
+        "tool_calls": 3,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 227,
+        "cost_usd": null,
+        "seconds": 7.028,
+        "peak_prompt_tokens": 3508,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          7,
+          9
+        ],
+        "tool_calls": 3,
+        "errors": 1,
+        "revisits": 0,
+        "output_tokens": 226,
+        "cost_usd": null,
+        "seconds": 5.84,
+        "peak_prompt_tokens": 4845,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          10,
+          12
+        ],
+        "tool_calls": 3,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 177,
+        "cost_usd": null,
+        "seconds": 5.021,
+        "peak_prompt_tokens": 5823,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          13,
+          14
+        ],
+        "tool_calls": 2,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 383,
+        "cost_usd": null,
+        "seconds": 6.626,
+        "peak_prompt_tokens": 7120,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          15,
+          17
+        ],
+        "tool_calls": 3,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 461,
+        "cost_usd": null,
+        "seconds": 10.326,
+        "peak_prompt_tokens": 9059,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          18,
+          20
+        ],
+        "tool_calls": 3,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 763,
+        "cost_usd": null,
+        "seconds": 15.855,
+        "peak_prompt_tokens": 10365,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          21,
+          23
+        ],
+        "tool_calls": 3,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 481,
+        "cost_usd": null,
+        "seconds": 11.194,
+        "peak_prompt_tokens": 11482,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          24,
+          26
+        ],
+        "tool_calls": 3,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 541,
+        "cost_usd": null,
+        "seconds": 12.457,
+        "peak_prompt_tokens": 12478,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          27,
+          28
+        ],
+        "tool_calls": 2,
+        "errors": 0,
+        "revisits": 2,
+        "output_tokens": 42,
+        "cost_usd": null,
+        "seconds": 1.873,
+        "peak_prompt_tokens": 13113,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T08:02:34.653459+00:00",
+      "span_seconds": 108.88,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            4
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 225,
+          "cost_usd": null,
+          "peak_prompt_tokens": 2023,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 10.888
+        },
+        {
+          "steps": [
+            5,
+            7
+          ],
+          "tool_calls": 3,
+          "errors": 2,
+          "revisits": 0,
+          "output_tokens": 253,
+          "cost_usd": null,
+          "peak_prompt_tokens": 4188,
+          "compactions": 0,
+          "starts_at_offset_seconds": 10.888,
+          "ends_at_offset_seconds": 21.776
+        },
+        {
+          "steps": [
+            8,
+            11
+          ],
+          "tool_calls": 4,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 275,
+          "cost_usd": null,
+          "peak_prompt_tokens": 5557,
+          "compactions": 0,
+          "starts_at_offset_seconds": 21.776,
+          "ends_at_offset_seconds": 32.664
+        },
+        {
+          "steps": [
+            12,
+            14
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 434,
+          "cost_usd": null,
+          "peak_prompt_tokens": 7120,
+          "compactions": 0,
+          "starts_at_offset_seconds": 32.664,
+          "ends_at_offset_seconds": 43.552
+        },
+        {
+          "steps": [
+            15,
+            16
+          ],
+          "tool_calls": 2,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 153,
+          "cost_usd": null,
+          "peak_prompt_tokens": 8461,
+          "compactions": 0,
+          "starts_at_offset_seconds": 43.552,
+          "ends_at_offset_seconds": 54.44
+        },
+        {
+          "steps": [
+            17,
+            19
+          ],
+          "tool_calls": 3,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 460,
+          "cost_usd": null,
+          "peak_prompt_tokens": 9862,
+          "compactions": 0,
+          "starts_at_offset_seconds": 54.44,
+          "ends_at_offset_seconds": 65.328
+        },
+        {
+          "steps": [
+            20,
+            20
+          ],
+          "tool_calls": 1,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 611,
+          "cost_usd": null,
+          "peak_prompt_tokens": 10365,
+          "compactions": 0,
+          "starts_at_offset_seconds": 65.328,
+          "ends_at_offset_seconds": 76.216
+        },
+        {
+          "steps": [
+            21,
+            22
+          ],
+          "tool_calls": 2,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 333,
+          "cost_usd": null,
+          "peak_prompt_tokens": 10826,
+          "compactions": 0,
+          "starts_at_offset_seconds": 76.216,
+          "ends_at_offset_seconds": 87.104
+        },
+        {
+          "steps": [
+            23,
+            24
+          ],
+          "tool_calls": 2,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 232,
+          "cost_usd": null,
+          "peak_prompt_tokens": 11872,
+          "compactions": 0,
+          "starts_at_offset_seconds": 87.104,
+          "ends_at_offset_seconds": 97.992
+        },
+        {
+          "steps": [
+            25,
+            28
+          ],
+          "tool_calls": 4,
+          "errors": 0,
+          "revisits": 2,
+          "output_tokens": 499,
+          "cost_usd": null,
+          "peak_prompt_tokens": 13113,
+          "compactions": 0,
+          "starts_at_offset_seconds": 97.992,
+          "ends_at_offset_seconds": 108.88
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "2d3b551a184aacbb7e4a3d39fa6802dec1292f53155142f1f021c68b6cfbb298"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "8b5497b2f0d4d0a3ccfadc4c1a5212e071eeb2509e35e83a383b006d8fa24e4b"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 27,
+    "recorded": 27,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 1,
+    "executed_calls": 25,
+    "task_complete_turns": 3,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 28,
+        "copied_steps": 0,
+        "session_id": "87353d13-d25f-4776-bb2e-9b8157760eb2"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 28,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-000666; in 2m28s wall (1m49s agent); 28 steps, 28 tool calls, 2 errors, 207.7k tokens, cost unavailable; 2 repeated actions (1 exact revisit); no subagents observed."
+}

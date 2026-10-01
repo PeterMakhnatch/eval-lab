@@ -1,0 +1,1049 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har116-a-001161-loopfix-r2__uo7QDVh",
+    "trial_id": "a43c6994-4092-47a2-a550-4d6b979f97e7",
+    "task": "mimo-v2.6-rl/format-code-task-001161",
+    "job": "HAR-116-har116-a-001161-loopfix-r2",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "4514bbef-f2c4-4d14-b194-a62d9b508966",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix-r2/har116-a-001161-loopfix-r2__uo7QDVh"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "failed",
+    "reward": 0.0,
+    "rewards": {
+      "reward": 0.0
+    },
+    "verifier_outcome": "fail",
+    "stop_reason": "trial_budget_exhausted",
+    "stop_detail": "agent metadata stop_reason; binding ceiling: input_tokens",
+    "completion": "Completion: never claimed; the run ended on step 96 (cd /tmp/df3/docformatter-1.7.8 && awk 'NR>=230 && NR<=260' src/docformatter/configuration.py).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": "Analysis: Now let me check the upstream tests to understand the expected behavior of `--wrap-structured`:",
+    "verifier_files": [
+      "verifier/agent.diff",
+      "verifier/apply.log",
+      "verifier/reward.txt",
+      "verifier/test-stdout.txt",
+      "verifier/test_output.log"
+    ],
+    "first_failure": {
+      "step": 31,
+      "kind": "upstream_fetch",
+      "evidence": "pip_download docformatter==1.7.7 (read back at step 33)",
+      "confidence": "high"
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T01:50:05.793620+00:00",
+    "finished_at": "2026-10-01T01:58:52.350916+00:00",
+    "total_seconds": 526.557,
+    "phases": {
+      "environment_setup": {
+        "seconds": 1.987,
+        "starts_at_offset_seconds": 0.036
+      },
+      "agent_setup": {
+        "seconds": 10.623,
+        "starts_at_offset_seconds": 3.327
+      },
+      "agent_execution": {
+        "seconds": 507.51,
+        "starts_at_offset_seconds": 14.002
+      },
+      "verifier": {
+        "seconds": 2.67,
+        "starts_at_offset_seconds": 523.738
+      }
+    },
+    "unaccounted_seconds": 3.767,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": 5.803,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 96,
+    "agent_span_seconds": 470.53,
+    "step_gap_seconds": {
+      "count": 94,
+      "median": 4.905,
+      "p90": 5.516,
+      "max": 7.983,
+      "total": 465.279
+    },
+    "slowest_steps": [
+      {
+        "step": 35,
+        "seconds": 7.983,
+        "action": "bash_command: cd /tmp/dfsrc && grep -rn \"wrap-structured\\|wrap_structured\\|wrap_structured\" docformatter/ | head -..."
+      },
+      {
+        "step": 79,
+        "seconds": 7.25,
+        "action": "bash_command: cd /tmp/dfsrc && awk 'NR>=256 && NR<=300' docformatter/strings.py"
+      },
+      {
+        "step": 31,
+        "seconds": 7.051,
+        "action": "bash_command: cd /testbed && pip download docformatter==1.7.7 --no-deps -d /tmp/df 2>&1 | tail -3 ; cd /testbed &&..."
+      },
+      {
+        "step": 68,
+        "seconds": 6.904,
+        "action": "bash_command: cd /tmp/dfsrc && grep -n \"def \" docformatter/strings.py ; cd /tmp/dfsrc && grep -n \"wrap-structured\\..."
+      },
+      {
+        "step": 9,
+        "seconds": 6.708,
+        "action": "bash_command: cd /testbed && wc -l src/docformatter/format.py src/docformatter/syntax.py src/docformatter/__init__..."
+      }
+    ]
+  },
+  "tokens": {
+    "input": 2421545,
+    "cached_input": 0,
+    "uncached_input": 2421545,
+    "output": 5145,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 2426690,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 2421545,
+        "cached_input": 0,
+        "output": 5145,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 2421545,
+        "cached_input": 0,
+        "output": 5145,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": 2421545,
+        "cached_input": null,
+        "output": 5145,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 95,
+    "llm_steps_with_usage": 95,
+    "context": {
+      "first_prompt_tokens": 1060,
+      "peak_prompt_tokens": 46494,
+      "peak_step": 96,
+      "last_prompt_tokens": 46494
+    },
+    "top_steps": [
+      {
+        "step": 96,
+        "input": 46494,
+        "output": 53,
+        "cost_usd": null,
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && awk 'NR>=230 && NR<=260' src/docformatter/configuration.py"
+      },
+      {
+        "step": 95,
+        "input": 45935,
+        "output": 67,
+        "cost_usd": null,
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && grep -rn \"wrap\" src/docformatter/configuration.py | grep -i \"struc..."
+      },
+      {
+        "step": 94,
+        "input": 45689,
+        "output": 64,
+        "cost_usd": null,
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && grep -rn \"wrap-structured\\|wrap_structured\" src/ docs/ README.rst..."
+      },
+      {
+        "step": 93,
+        "input": 45162,
+        "output": 53,
+        "cost_usd": null,
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && awk 'NR>=150 && NR<=168' src/docformatter/configuration.py"
+      },
+      {
+        "step": 92,
+        "input": 44750,
+        "output": 53,
+        "cost_usd": null,
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && awk 'NR>=190 && NR<=212' src/docformatter/configuration.py"
+      }
+    ]
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 102,
+    "actions": 95,
+    "distinct_tools": 1,
+    "polls": 0,
+    "by_tool": [
+      {
+        "tool": "bash_command",
+        "calls": 102,
+        "ok": 0,
+        "errors": 0,
+        "unknown": 102,
+        "output_chars": 137176,
+        "first_step": 2,
+        "last_step": 96,
+        "judged": 0,
+        "error_rate": null
+      }
+    ],
+    "top_programs": [
+      {
+        "program": "sed",
+        "calls": 31
+      },
+      {
+        "program": "awk",
+        "calls": 20
+      },
+      {
+        "program": "cat",
+        "calls": 17
+      },
+      {
+        "program": "grep",
+        "calls": 17
+      },
+      {
+        "program": "pip",
+        "calls": 3
+      },
+      {
+        "program": "find",
+        "calls": 2
+      },
+      {
+        "program": "ls",
+        "calls": 2
+      },
+      {
+        "program": "wc",
+        "calls": 1
+      },
+      {
+        "program": "mkdir",
+        "calls": 1
+      },
+      {
+        "program": "tar",
+        "calls": 1
+      }
+    ],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 95,
+    "distinct_actions": 94,
+    "repeated_actions": 1,
+    "repeat_rate": 0.0105,
+    "returns_to_earlier_action": 1,
+    "consecutive_repeats": 0,
+    "exact_revisits": 1,
+    "same_result_from_different_action": 2,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 1,
+      "steps": [
+        2
+      ],
+      "start_step": 2,
+      "end_step": 2
+    },
+    "longest_cycle": null,
+    "most_repeated": [
+      {
+        "tool": "bash_command",
+        "target": "cd /tmp/dfsrc && cat docformatter/patterns/misc.py",
+        "count": 2,
+        "steps": [
+          36,
+          44
+        ],
+        "identical_results": 1
+      }
+    ],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    },
+    "repeats_by_window": [
+      0,
+      0,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "revisits_started": {
+      "repeat_rate_by_window": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.1111,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "median_repeat_rate": 0.0,
+      "status": "onset",
+      "reason": null,
+      "window": 4,
+      "steps": [
+        40,
+        48
+      ],
+      "repeat_rate": 0.1111
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 102,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "TrialBudgetExhaustedError",
+      "message": "the trial proxy refused a model call: trial budget exhausted",
+      "occurred_at": "2026-10-01T01:58:47.309928Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 4,
+    "items": [
+      {
+        "step": 31,
+        "kind": "pip_download",
+        "command": "cd /testbed && pip download docformatter==1.7.7 --no-deps -d /tmp/df 2>&1 | tail -3 ; cd /testbed && git log --all --oneline | head -20; git branch -a",
+        "target": "docformatter==1.7.7",
+        "read_back_step": 33
+      },
+      {
+        "step": 32,
+        "kind": "pip_download",
+        "command": "cd /tmp && pip download docformatter --no-deps -d /tmp/df2 2>&1 | tail -3 && ls /tmp/df2",
+        "target": "docformatter",
+        "read_back_step": 33
+      },
+      {
+        "step": 81,
+        "kind": "pip_download",
+        "command": "cd /tmp && pip download docformatter==1.7.8 --no-deps --no-binary :all: -d /tmp/df3 2>&1 | tail -2",
+        "target": "docformatter==1.7.8",
+        "read_back_step": 83
+      },
+      {
+        "step": 82,
+        "kind": "pip_download",
+        "command": "cd /tmp/df3 2>/dev/null && ls; cd /tmp && pip download docformatter==1.7.8 --no-deps --no-binary :all: -d /tmp/df3 2>&1 | tail -5",
+        "target": "docformatter==1.7.8",
+        "read_back_step": 83
+      }
+    ]
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 96,
+    "shown_steps": 21,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.551,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      },
+      {
+        "step": 2,
+        "offset_seconds": 5.803,
+        "source": "agent",
+        "action": "bash_command: find /testbed -maxdepth 2 -type f -name \"*.py\" | head -50; echo ---; ls /testbed ; cd /testbed && gi...",
+        "status": "unknown",
+        "input_tokens": 1060,
+        "output_tokens": 94,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 3,
+        "offset_seconds": 10.562,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && find src -type f | sort ; cd /testbed && cat pyproject.toml",
+        "status": "unknown",
+        "input_tokens": 1607,
+        "output_tokens": 65,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 4,
+        "offset_seconds": 13.898,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && cat src/docformatter/configuration.py",
+        "status": "unknown",
+        "input_tokens": 2505,
+        "output_tokens": 30,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 5,
+        "offset_seconds": 17.377,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && sed -n 30,200p src/docformatter/configuration.py",
+        "status": "unknown",
+        "input_tokens": 3143,
+        "output_tokens": 40,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 6,
+        "offset_seconds": 20.961,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && sed -n 100,420p src/docformatter/configuration.py",
+        "status": "unknown",
+        "input_tokens": 3814,
+        "output_tokens": 41,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 7,
+        "offset_seconds": 24.83,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && awk 'NR>=150 && NR<=400' src/docformatter/configuration.py | cat -n",
+        "status": "unknown",
+        "input_tokens": 4473,
+        "output_tokens": 47,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 8,
+        "offset_seconds": 28.414,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && sed -n 100,300p src/docformatter/configuration.py",
+        "status": "unknown",
+        "input_tokens": 5256,
+        "output_tokens": 41,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 9,
+        "offset_seconds": 35.123,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && wc -l src/docformatter/format.py src/docformatter/syntax.py src/docformatter/__init__...",
+        "status": "unknown",
+        "input_tokens": 5904,
+        "output_tokens": 112,
+        "cost_usd": null,
+        "message": "Analysis: Now let me look at the format.py which contains the main formatting logic.",
+        "flags": []
+      },
+      {
+        "step": 10,
+        "offset_seconds": 39.66,
+        "source": "agent",
+        "action": "bash_command: cd /testbed && sed -n 1,100p src/docformatter/format.py",
+        "status": "unknown",
+        "input_tokens": 6581,
+        "output_tokens": 39,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "omitted_steps": [
+          11,
+          43
+        ]
+      },
+      {
+        "step": 44,
+        "offset_seconds": 210.199,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/dfsrc && cat docformatter/patterns/misc.py",
+        "status": "unknown",
+        "input_tokens": 23280,
+        "output_tokens": 34,
+        "cost_usd": null,
+        "message": null,
+        "flags": [
+          "revisit"
+        ]
+      },
+      {
+        "omitted_steps": [
+          45,
+          86
+        ]
+      },
+      {
+        "step": 87,
+        "offset_seconds": 423.12,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && cat src/docformatter/constants.py",
+        "status": "unknown",
+        "input_tokens": 42706,
+        "output_tokens": 40,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 88,
+        "offset_seconds": 428.537,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && grep -rn \"wrap-structured\\|wrap_structured\" . 2>/dev/null | grep -...",
+        "status": "unknown",
+        "input_tokens": 43122,
+        "output_tokens": 62,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 89,
+        "offset_seconds": 433.913,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && grep -rn \"wrap-structured\\|wrap_structured\" . 2>/dev/null | head;...",
+        "status": "unknown",
+        "input_tokens": 43363,
+        "output_tokens": 83,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 90,
+        "offset_seconds": 439.676,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && grep -rn \"wrap_structured\\|wrap-structured\\|wrap-structured\" src/...",
+        "status": "unknown",
+        "input_tokens": 43650,
+        "output_tokens": 86,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 91,
+        "offset_seconds": 444.775,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && grep -rn \"wrap\" src/docformatter/configuration.py",
+        "status": "unknown",
+        "input_tokens": 44243,
+        "output_tokens": 45,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 92,
+        "offset_seconds": 450.034,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && awk 'NR>=190 && NR<=212' src/docformatter/configuration.py",
+        "status": "unknown",
+        "input_tokens": 44750,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 93,
+        "offset_seconds": 455.537,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && awk 'NR>=150 && NR<=168' src/docformatter/configuration.py",
+        "status": "unknown",
+        "input_tokens": 45162,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 94,
+        "offset_seconds": 460.879,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && grep -rn \"wrap-structured\\|wrap_structured\" src/ docs/ README.rst...",
+        "status": "unknown",
+        "input_tokens": 45689,
+        "output_tokens": 64,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 95,
+        "offset_seconds": 466.073,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && grep -rn \"wrap\" src/docformatter/configuration.py | grep -i \"struc...",
+        "status": "unknown",
+        "input_tokens": 45935,
+        "output_tokens": 67,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      },
+      {
+        "step": 96,
+        "offset_seconds": 471.082,
+        "source": "agent",
+        "action": "bash_command: cd /tmp/df3/docformatter-1.7.8 && awk 'NR>=230 && NR<=260' src/docformatter/configuration.py",
+        "status": "unknown",
+        "input_tokens": 46494,
+        "output_tokens": 53,
+        "cost_usd": null,
+        "message": null,
+        "flags": []
+      }
+    ],
+    "windows": [
+      {
+        "steps": [
+          1,
+          10
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 509,
+        "cost_usd": null,
+        "seconds": 39.109,
+        "peak_prompt_tokens": 6581,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          11,
+          20
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 466,
+        "cost_usd": null,
+        "seconds": 44.035,
+        "peak_prompt_tokens": 11843,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          21,
+          29
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 563,
+        "cost_usd": null,
+        "seconds": 39.802,
+        "peak_prompt_tokens": 15919,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          30,
+          39
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 711,
+        "cost_usd": null,
+        "seconds": 48.397,
+        "peak_prompt_tokens": 20655,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          40,
+          48
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 1,
+        "output_tokens": 404,
+        "cost_usd": null,
+        "seconds": 36.845,
+        "peak_prompt_tokens": 25206,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          49,
+          58
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 407,
+        "cost_usd": null,
+        "seconds": 42.386,
+        "peak_prompt_tokens": 30387,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          59,
+          68
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 557,
+        "cost_usd": null,
+        "seconds": 46.933,
+        "peak_prompt_tokens": 35328,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          69,
+          77
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 417,
+        "cost_usd": null,
+        "seconds": 37.692,
+        "peak_prompt_tokens": 39291,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          78,
+          87
+        ],
+        "tool_calls": 10,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 545,
+        "cost_usd": null,
+        "seconds": 48.285,
+        "peak_prompt_tokens": 42706,
+        "compactions": 0
+      },
+      {
+        "steps": [
+          88,
+          96
+        ],
+        "tool_calls": 9,
+        "errors": 0,
+        "revisits": 0,
+        "output_tokens": 566,
+        "cost_usd": null,
+        "seconds": 42.545,
+        "peak_prompt_tokens": 46494,
+        "compactions": 0
+      }
+    ],
+    "time_windows": {
+      "status": "available",
+      "reason": null,
+      "origin": "2026-10-01T01:50:20.347116+00:00",
+      "span_seconds": 470.53,
+      "steps_without_timestamps": 0,
+      "windows": [
+        {
+          "steps": [
+            1,
+            11
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 550,
+          "cost_usd": null,
+          "peak_prompt_tokens": 7238,
+          "compactions": 0,
+          "starts_at_offset_seconds": 0.0,
+          "ends_at_offset_seconds": 47.053
+        },
+        {
+          "steps": [
+            12,
+            21
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 468,
+          "cost_usd": null,
+          "peak_prompt_tokens": 12199,
+          "compactions": 0,
+          "starts_at_offset_seconds": 47.053,
+          "ends_at_offset_seconds": 94.106
+        },
+        {
+          "steps": [
+            22,
+            30
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 563,
+          "cost_usd": null,
+          "peak_prompt_tokens": 16693,
+          "compactions": 0,
+          "starts_at_offset_seconds": 94.106,
+          "ends_at_offset_seconds": 141.159
+        },
+        {
+          "steps": [
+            31,
+            39
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 668,
+          "cost_usd": null,
+          "peak_prompt_tokens": 20655,
+          "compactions": 0,
+          "starts_at_offset_seconds": 141.159,
+          "ends_at_offset_seconds": 188.212
+        },
+        {
+          "steps": [
+            40,
+            49
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 1,
+          "output_tokens": 450,
+          "cost_usd": null,
+          "peak_prompt_tokens": 25892,
+          "compactions": 0,
+          "starts_at_offset_seconds": 188.212,
+          "ends_at_offset_seconds": 235.265
+        },
+        {
+          "steps": [
+            50,
+            59
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 404,
+          "cost_usd": null,
+          "peak_prompt_tokens": 30811,
+          "compactions": 0,
+          "starts_at_offset_seconds": 235.265,
+          "ends_at_offset_seconds": 282.318
+        },
+        {
+          "steps": [
+            60,
+            68
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 514,
+          "cost_usd": null,
+          "peak_prompt_tokens": 35328,
+          "compactions": 0,
+          "starts_at_offset_seconds": 282.318,
+          "ends_at_offset_seconds": 329.371
+        },
+        {
+          "steps": [
+            69,
+            78
+          ],
+          "tool_calls": 10,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 461,
+          "cost_usd": null,
+          "peak_prompt_tokens": 39843,
+          "compactions": 0,
+          "starts_at_offset_seconds": 329.371,
+          "ends_at_offset_seconds": 376.424
+        },
+        {
+          "steps": [
+            79,
+            87
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 501,
+          "cost_usd": null,
+          "peak_prompt_tokens": 42706,
+          "compactions": 0,
+          "starts_at_offset_seconds": 376.424,
+          "ends_at_offset_seconds": 423.477
+        },
+        {
+          "steps": [
+            88,
+            96
+          ],
+          "tool_calls": 9,
+          "errors": 0,
+          "revisits": 0,
+          "output_tokens": 566,
+          "cost_usd": null,
+          "peak_prompt_tokens": 46494,
+          "compactions": 0,
+          "starts_at_offset_seconds": 423.477,
+          "ends_at_offset_seconds": 470.53
+        }
+      ]
+    }
+  },
+  "data_quality": [
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry",
+    "harness reports no per-call status (no exit codes or error flags): tool errors are only inferred from output text"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "e31b06baf6644bc8dba858095fa8c01e0f1fb9ed5f240095d806976e9708334e"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "48d82cd76705bd3ac71dc8aa39d01309f8703d3115b82796641d5f76818a9842"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 95,
+    "recorded": 95,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 102,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 96,
+        "copied_steps": 0,
+        "session_id": "4514bbef-f2c4-4d14-b194-a62d9b508966"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 96,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) failed (reward 0) on mimo-v2.6-rl/format-code-task-001161; in 8m47s wall (8m28s agent); 96 steps, 102 tool calls, 0 errors, 2.43M tokens, cost unavailable; 1 repeated action (1 exact revisit); no subagents observed."
+}

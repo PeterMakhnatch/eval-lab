@@ -1,0 +1,96 @@
+{
+  "by_task": {
+    "000383": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 0.0,
+      "baseline_tokens": 2438052,
+      "loopfix_tokens": 1334947,
+      "token_saving": 1103105,
+      "pass_delta": 0.0
+    },
+    "000495": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 1.0,
+      "baseline_tokens": 2476358,
+      "loopfix_tokens": 2201995,
+      "token_saving": 274363,
+      "pass_delta": 1.0
+    },
+    "000587": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 1.0,
+      "baseline_tokens": 2422298,
+      "loopfix_tokens": 1322203,
+      "token_saving": 1100095,
+      "pass_delta": 1.0
+    },
+    "001161": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 0.0,
+      "baseline_tokens": 2446858,
+      "loopfix_tokens": 2421545,
+      "token_saving": 25313,
+      "pass_delta": 0.0
+    },
+    "001181": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 0.0,
+      "baseline_tokens": 2410295,
+      "loopfix_tokens": 2424719,
+      "token_saving": -14424,
+      "pass_delta": 0.0
+    },
+    "001832": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 0.0,
+      "baseline_tokens": 2481484,
+      "loopfix_tokens": 1407740,
+      "token_saving": 1073744,
+      "pass_delta": 0.0
+    },
+    "001896": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 0.0,
+      "baseline_tokens": 2408662,
+      "loopfix_tokens": 2427344,
+      "token_saving": -18682,
+      "pass_delta": 0.0
+    },
+    "002256": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 1.0,
+      "baseline_tokens": 16955,
+      "loopfix_tokens": 103908,
+      "token_saving": -86953,
+      "pass_delta": 1.0
+    },
+    "002391": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 1.0,
+      "baseline_tokens": 2439889,
+      "loopfix_tokens": 2427397,
+      "token_saving": 12492,
+      "pass_delta": 1.0
+    },
+    "002864": {
+      "baseline_reward": 0.0,
+      "loopfix_reward": 1.0,
+      "baseline_tokens": 2453081,
+      "loopfix_tokens": 147542,
+      "token_saving": 2305539,
+      "pass_delta": 1.0
+    }
+  },
+  "totals": {
+    "baseline": {
+      "passes": 0,
+      "runs": 10,
+      "input_tokens": 21993932
+    },
+    "loopfix-r2": {
+      "passes": 5,
+      "runs": 10,
+      "input_tokens": 16219340
+    }
+  }
+}

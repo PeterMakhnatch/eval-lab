@@ -423,3 +423,149 @@ def test_completeness_distinguishes_file_presence_steps_labels_and_counts_known(
     assert (row["n_labels_available"], row["n_no_frozen_label_entries"], row["n_label_input_unknown"]) == (1, 3, 1)
     assert row["trajectory_file_coverage_rate"] == pytest.approx(0.5)
     assert row["observed_step_coverage_rate"] == pytest.approx(0.25)
+
+def test_three_admitted_cohorts_reported_separately_without_pooling(query_surface):
+    """har119, har128-har116 and har128-g2-a1 stay non-additive per-cohort studies."""
+    conn = query_surface([
+        _trial(
+            "shared-three",
+            loop_kind="none",
+            labels_json=json.dumps([
+                _vote("shared-three", "rater_a", "none", cohort="har119"),
+                _vote("shared-three", "rater_b", "none", cohort="har119"),
+                _vote("shared-three", "rater_a", "repetition", cohort="har128-har116"),
+                _vote("shared-three", "rater_b", "repetition", cohort="har128-har116"),
+                _vote("shared-three", "rater_a", "completion-claim", cohort="har128-g2-a1"),
+                _vote("shared-three", "rater_b", "completion-claim", cohort="har128-g2-a1"),
+            ]),
+        ),
+        _trial(
+            "g2-only",
+            loop_kind="completion-claim",
+            labels_json=json.dumps([
+                _vote("g2-only", "rater_a", "completion-claim", cohort="har128-g2-a1"),
+                _vote("g2-only", "rater_b", "completion-claim", cohort="har128-g2-a1"),
+            ]),
+        ),
+    ])
+    rows = _rows(conn, "v_trace_frozen_label_agreement")
+    assert len(rows) == 3
+    by_cohort = {row["cohort"]: row for row in rows}
+    assert sorted(by_cohort) == ["har119", "har128-g2-a1", "har128-har116"]
+    assert by_cohort["har119"]["n_total"] == 2
+    assert by_cohort["har128-har116"]["n_total"] == 2
+    assert by_cohort["har128-g2-a1"]["n_total"] == 2
+    assert by_cohort["har119"]["n_agreed"] == 1
+    assert by_cohort["har128-har116"]["n_agreed"] == 1
+    assert by_cohort["har128-har116"]["n_agreed_repetition"] == 1
+    assert by_cohort["har128-g2-a1"]["n_agreed"] == 2
+    assert by_cohort["har128-g2-a1"]["n_agreed_claim"] == 2
+    assert by_cohort["har128-g2-a1"]["eligibleN"] == 2
+    assert by_cohort["har128-g2-a1"]["n_match"] == 1
+    assert by_cohort["har128-g2-a1"]["n_prediction_abstention"] == 0
+    assert by_cohort["har119"]["n_missing_loop_labels"] == 1
+    assert by_cohort["har128-har116"]["n_missing_loop_labels"] == 1
+    assert by_cohort["har128-g2-a1"]["n_missing_loop_labels"] == 0
+    assert all(row["n_ambiguous_cohort"] == 0 for row in rows)
+
+
+def test_three_cohorts_keep_exemplar_and_completeness_native_grain(query_surface):
+    """A third admitted cohort must not multiply exemplar or completeness denominators."""
+    conn = query_surface([
+        _trial(
+            "grain",
+            raw_reward=1.0,
+            counts_available=True,
+            counts_verdict="counted_pass",
+            loop_kind="none",
+            labels_json=json.dumps([
+                _vote("grain", "rater_a", "none", cohort="har119"),
+                _vote("grain", "rater_b", "none", cohort="har119"),
+                _vote("grain", "rater_a", "none", cohort="har128-har116"),
+                _vote("grain", "rater_b", "none", cohort="har128-har116"),
+                _vote("grain", "rater_a", "none", cohort="har128-g2-a1"),
+                _vote("grain", "rater_b", "none", cohort="har128-g2-a1"),
+            ]),
+        ),
+    ])
+    exemplars = _rows(conn, "v_trace_candidate_exemplars")
+    assert len(exemplars) == 1
+    assert exemplars[0]["trial_id"] == "grain"
+    assert exemplars[0]["category"] == "counted_pass"
+    row = _one(conn, "v_trace_evidence_completeness")
+    assert row["n_trials"] == 1
+    assert row["n_labels_available"] == 1
+    assert row["n_no_frozen_label_entries"] == 0
+
+def test_four_admitted_cohorts_reported_separately_without_pooling(query_surface):
+    """har119, har128-har116, har128-g2-a1 and har128-g2-r2 stay non-additive."""
+    conn = query_surface([
+        _trial(
+            "shared-four",
+            loop_kind="none",
+            labels_json=json.dumps([
+                _vote("shared-four", "rater_a", "none", cohort="har119"),
+                _vote("shared-four", "rater_b", "none", cohort="har119"),
+                _vote("shared-four", "rater_a", "repetition", cohort="har128-har116"),
+                _vote("shared-four", "rater_b", "repetition", cohort="har128-har116"),
+                _vote("shared-four", "rater_a", "completion-claim", cohort="har128-g2-a1"),
+                _vote("shared-four", "rater_b", "completion-claim", cohort="har128-g2-a1"),
+                _vote("shared-four", "rater_a", "none", cohort="har128-g2-r2"),
+                _vote("shared-four", "rater_b", "none", cohort="har128-g2-r2"),
+            ]),
+        ),
+        _trial(
+            "r2-only",
+            loop_kind="repetition",
+            labels_json=json.dumps([
+                _vote("r2-only", "rater_a", "repetition", cohort="har128-g2-r2"),
+                _vote("r2-only", "rater_b", "repetition", cohort="har128-g2-r2"),
+            ]),
+        ),
+    ])
+    rows = _rows(conn, "v_trace_frozen_label_agreement")
+    assert len(rows) == 4
+    by_cohort = {row["cohort"]: row for row in rows}
+    assert sorted(by_cohort) == ["har119", "har128-g2-a1", "har128-g2-r2", "har128-har116"]
+    assert all(row["n_total"] == 2 for row in rows)
+    assert by_cohort["har119"]["n_agreed"] == 1
+    assert by_cohort["har128-har116"]["n_agreed"] == 1
+    assert by_cohort["har128-g2-a1"]["n_agreed"] == 1
+    assert by_cohort["har128-g2-r2"]["n_agreed"] == 2
+    assert by_cohort["har128-g2-r2"]["eligibleN"] == 2
+    assert by_cohort["har128-g2-r2"]["n_match"] == 2
+    assert by_cohort["har128-g2-r2"]["n_prediction_abstention"] == 0
+    assert by_cohort["har128-g2-a1"]["n_missing_loop_labels"] == 1
+    assert by_cohort["har128-g2-r2"]["n_missing_loop_labels"] == 0
+    assert all(row["n_ambiguous_cohort"] == 0 for row in rows)
+
+
+def test_four_cohorts_keep_exemplar_and_completeness_native_grain(query_surface):
+    """A fourth admitted cohort must not multiply exemplar or completeness denominators."""
+    conn = query_surface([
+        _trial(
+            "grain-r2",
+            raw_reward=1.0,
+            counts_available=True,
+            counts_verdict="counted_pass",
+            loop_kind="none",
+            labels_json=json.dumps([
+                _vote("grain-r2", "rater_a", "none", cohort="har119"),
+                _vote("grain-r2", "rater_b", "none", cohort="har119"),
+                _vote("grain-r2", "rater_a", "none", cohort="har128-har116"),
+                _vote("grain-r2", "rater_b", "none", cohort="har128-har116"),
+                _vote("grain-r2", "rater_a", "none", cohort="har128-g2-a1"),
+                _vote("grain-r2", "rater_b", "none", cohort="har128-g2-a1"),
+                _vote("grain-r2", "rater_a", "none", cohort="har128-g2-r2"),
+                _vote("grain-r2", "rater_b", "none", cohort="har128-g2-r2"),
+            ]),
+        ),
+    ])
+    exemplars = _rows(conn, "v_trace_candidate_exemplars")
+    assert len(exemplars) == 1
+    assert exemplars[0]["trial_id"] == "grain-r2"
+    assert exemplars[0]["category"] == "counted_pass"
+    row = _one(conn, "v_trace_evidence_completeness")
+    assert row["n_trials"] == 1
+    assert row["n_labels_available"] == 1
+    assert row["n_no_frozen_label_entries"] == 0

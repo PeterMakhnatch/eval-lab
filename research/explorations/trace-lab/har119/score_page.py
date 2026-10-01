@@ -31,6 +31,13 @@ Usage (cwd = repo root):
   uv run python research/explorations/trace-lab/har119/score_page.py
   uv run python research/explorations/trace-lab/har119/score_page.py \\
     --published-cohort --results-home ~/Developer/eval-lab-results
+  uv run python research/explorations/trace-lab/har119/score_page.py \\
+    --published-cohort --cohort har128-g2-a1 --results-home ~/Developer/eval-lab-results
+
+``--cohort`` selects a named published study (``har128-har116`` by default,
+``har128-g2-a1`` for G2 attempt 1, ``har128-g2-r2`` for the first re-run
+freeze, ``har128-g2-tail`` for the last three re-runs); every cohort shares
+the same strict verification/scoring path with its own denominator.
 """
 from __future__ import annotations
 
@@ -58,7 +65,7 @@ def _sha256(path: Path) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    if args.published_cohort or args.labels or args.results_home or args.output:
+    if args.published_cohort or args.cohort or args.labels or args.results_home or args.output:
         return _main_published_cohort(args)
     har119_score.verify_freeze()
     selection = json.loads((HERE / "selection.json").read_text())
@@ -330,21 +337,130 @@ HAR128_LIMIT = (
     + "; do not export this cohort to training reflection. "
     "Scores and report hashes only, not trial content."
 )
+G2_COHORT = "HAR-128 G2 attempt 1: 20 HAR-120 trials"
+G2_MANIFEST_SHA256 = "f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674"
+G2_LABELS_DEFAULT = REPO / "research/explorations/trace-lab/har128/labels_g2_a1"
+G2_OUTPUT_DEFAULT = REPO / "research/experiments/har117-results-home/har131-page-calibration-g2-a1.json"
+G2_EXPECTED_FILES = 40
+G2_EXPECTED_TRIALS = 20
+G2_HELDOUT = (
+    "G2 attempt-1 frozen cohort only: analysis and "
+    "calibration only, never training reflection"
+)
+G2_LIMIT = (
+    "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind "
+    "scout-agent annotations A (G2A1-4) / B (G2B1-4), not human ground truth; "
+    "no reported off-limits openings. Loop kind only: this cohort carries no "
+    "first-failure/blame calibration. Denominators stay per-cohort, never pooled. "
+    "Scores and report hashes only, not trial content; inspection only, "
+    "never training reflection."
+)
+G2R2_COHORT = "HAR-128 G2 re-run: 19 HAR-120 trials"
+G2R2_MANIFEST_SHA256 = "ddc1f2ad8bf52dc762067a367f7383b990164174b1732c108fb788167597f2ff"
+G2R2_LABELS_DEFAULT = REPO / "research/explorations/trace-lab/har128/labels_g2_r2"
+G2R2_OUTPUT_DEFAULT = REPO / "research/experiments/har117-results-home/har131-page-calibration-g2-r2.json"
+G2R2_EXPECTED_FILES = 38
+G2R2_EXPECTED_TRIALS = 19
+G2R2_HELDOUT = (
+    "G2 re-run frozen cohort only: analysis and "
+    "calibration only, never training reflection"
+)
+G2R2_LIMIT = (
+    "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind "
+    "scout-agent annotations A (G3A1-4) / B (G3B1-4), not human ground truth; "
+    "no reported off-limits openings. Loop kind only: this cohort carries no "
+    "first-failure/blame calibration. Denominators stay per-cohort, never pooled. "
+    "Scores and report hashes only, not trial content; inspection only, "
+    "never training reflection."
+)
+G2TAIL_COHORT = "HAR-128 G2 tail: 3 HAR-120 trials"
+G2TAIL_MANIFEST_SHA256 = "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50"
+G2TAIL_LABELS_DEFAULT = REPO / "research/explorations/trace-lab/har128/labels_g2_tail"
+G2TAIL_OUTPUT_DEFAULT = REPO / "research/experiments/har117-results-home/har131-page-calibration-g2-tail.json"
+G2TAIL_EXPECTED_FILES = 6
+G2TAIL_EXPECTED_TRIALS = 3
+G2TAIL_HELDOUT = "G2 tail freeze: analysis and calibration only, never training reflection"
+G2TAIL_LIMIT = (
+    "Actual published trial_decision/v3 predictions, no classifier tuning. Frozen blind "
+    "scout-agent raters G4A/G4B, not human ground truth; neither reports off-limits openings. "
+    "Loop kind only; no first-failure/blame calibration. Tiny cohort: three trials, "
+    "all agreed labels completion-claim. Denominators stay per-cohort, never pooled. "
+    "Scores and report hashes only, not trial content; never training reflection."
+)
+#: Named published cohorts sharing one strict verification/scoring path.
+#: Each entry stands alone with its own denominator: never pooled, and no
+#: entry borrows other-field numbers it did not measure.
+PUBLISHED_COHORTS = {
+    "har128-har116": {
+        "cohort": HAR128_COHORT,
+        "labels": HAR128_LABELS_DEFAULT,
+        "output": HAR128_OUTPUT_DEFAULT,
+        "expected_files": HAR128_EXPECTED_FILES,
+        "expected_trials": HAR128_EXPECTED_TRIALS,
+        "expected_manifest_sha256": HAR128_MANIFEST_SHA256,
+        "heldout": HAR128_HELDOUT,
+        "limit": HAR128_LIMIT,
+    },
+    "har128-g2-a1": {
+        "cohort": G2_COHORT,
+        "labels": G2_LABELS_DEFAULT,
+        "output": G2_OUTPUT_DEFAULT,
+        "expected_files": G2_EXPECTED_FILES,
+        "expected_trials": G2_EXPECTED_TRIALS,
+        "expected_manifest_sha256": G2_MANIFEST_SHA256,
+        "heldout": G2_HELDOUT,
+        "limit": G2_LIMIT,
+    },
+    "har128-g2-r2": {
+        "cohort": G2R2_COHORT,
+        "labels": G2R2_LABELS_DEFAULT,
+        "output": G2R2_OUTPUT_DEFAULT,
+        "expected_files": G2R2_EXPECTED_FILES,
+        "expected_trials": G2R2_EXPECTED_TRIALS,
+        "expected_manifest_sha256": G2R2_MANIFEST_SHA256,
+        "heldout": G2R2_HELDOUT,
+        "limit": G2R2_LIMIT,
+    },
+    "har128-g2-tail": {
+        "cohort": G2TAIL_COHORT,
+        "labels": G2TAIL_LABELS_DEFAULT,
+        "output": G2TAIL_OUTPUT_DEFAULT,
+        "expected_files": G2TAIL_EXPECTED_FILES,
+        "expected_trials": G2TAIL_EXPECTED_TRIALS,
+        "expected_manifest_sha256": G2TAIL_MANIFEST_SHA256,
+        "heldout": G2TAIL_HELDOUT,
+        "limit": G2TAIL_LIMIT,
+    },
+}
+PUBLISHED_COHORT_DEFAULT = "har128-har116"
+
+
+def resolve_published_cohort(name: str | None) -> dict:
+    """The named published cohort description; defaults to the HAR-116 study."""
+    key = name or PUBLISHED_COHORT_DEFAULT
+    try:
+        spec = PUBLISHED_COHORTS[key]
+    except KeyError:
+        valid = ", ".join(sorted(PUBLISHED_COHORTS))
+        raise SystemExit(f"unknown published cohort {key!r}; expected one of: {valid}") from None
+    return {"name": key, **spec}
 
 
 def _parse_args(argv: list[str] | None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--published-cohort", action="store_true",
                         help="score published trial_decision/v3 pages against a frozen label root")
+    parser.add_argument("--cohort", default=None, choices=sorted(PUBLISHED_COHORTS),
+                        help="named published cohort (default: har128-har116)")
     parser.add_argument("--labels", default=None,
-                        help="frozen label root (default: post-merge HAR-128 labels_har116)")
+                        help="frozen label root (default: the selected cohort's freeze)")
     parser.add_argument("--results-home", default=None,
                         help="published results home to scan for trial reports (required in cohort mode)")
     parser.add_argument("--output", default=None,
-                        help="receipt path (default: har117-results-home/har131-page-calibration-har116.json)")
-    parser.add_argument("--expected-files", type=int, default=HAR128_EXPECTED_FILES)
-    parser.add_argument("--expected-trials", type=int, default=HAR128_EXPECTED_TRIALS)
-    parser.add_argument("--expected-manifest-sha256", default=HAR128_MANIFEST_SHA256,
+                        help="receipt path (default: the selected cohort's har117-results-home receipt)")
+    parser.add_argument("--expected-files", type=int, default=None)
+    parser.add_argument("--expected-trials", type=int, default=None)
+    parser.add_argument("--expected-manifest-sha256", default=None,
                         help="reject the label freeze before scoring unless its manifest matches")
     return parser.parse_args(argv)
 
@@ -441,11 +557,14 @@ def read_rater_kind(path: Path) -> str:
 
 
 def index_published_reports(results_home: Path) -> dict[str, list[str]]:
-    """Map each published trial report name to its paths with a single scan."""
+    """Index canonical publications, not nested training/selection copies."""
+    from evallab.results_home import _published_jobs
+
     index: dict[str, list[str]] = {}
-    for path in sorted(results_home.rglob("trial-*.json")):
-        trial = path.name[len("trial-"):-len(".json")]
-        index.setdefault(trial, []).append(str(path))
+    for job, _provenance in _published_jobs(results_home):
+        for path in sorted((job / "processed").glob("trial-*.json")):
+            trial = path.name[len("trial-"):-len(".json")]
+            index.setdefault(trial, []).append(str(path))
     return index
 
 
@@ -503,12 +622,18 @@ def score_published_cohort(
     expected_files: int = HAR128_EXPECTED_FILES,
     expected_trials: int = HAR128_EXPECTED_TRIALS,
     expected_manifest_sha256: str = HAR128_MANIFEST_SHA256,
+    cohort: str | None = None,
+    heldout: str | None = None,
+    limit: str | None = None,
 ) -> dict:
     """Score published pages against frozen labels; write the durable receipt.
 
     The manifest identity is rejected before anything is scored or written.
     ``page_vs_agreed.n`` stays the full rater-agreed denominator: an
     abstaining page counts as an abstention with no hit, never shrinks n.
+    ``cohort``/``heldout``/``limit`` describe the study scored; when omitted
+    they fall back to the default (HAR-116) cohort description so existing
+    callers keep current behavior.
     """
     manifest = verify_published_freeze(labels_root, expected_files)
     manifest_sha256 = hashlib.sha256(manifest.encode()).hexdigest()
@@ -560,7 +685,7 @@ def score_published_cohort(
     disagreements = len(trials) - sum(1 for row in rows if row["rater_agreed"])
     payload = {
         "schema": COHORT_SCHEMA,
-        "cohort": HAR128_COHORT,
+        "cohort": cohort if cohort is not None else HAR128_COHORT,
         "generated_at": _datetime.datetime.now(_datetime.UTC).isoformat(),
         "labels_root": str(labels_root),
         "labels_frozen_at": frozen_at,
@@ -576,8 +701,8 @@ def score_published_cohort(
         "page_abstentions": abstentions,
         "loop_kind_confusion": confusion,
         "rows": rows,
-        "heldout": HAR128_HELDOUT,
-        "limit": HAR128_LIMIT,
+        "heldout": heldout if heldout is not None else HAR128_HELDOUT,
+        "limit": limit if limit is not None else HAR128_LIMIT,
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(payload, indent=2, default=str) + "\n")
@@ -615,17 +740,25 @@ def check_published_drift(payload: dict, functions_sha: str) -> list[str]:
 
 
 def _main_published_cohort(args) -> int:
-    labels_root = Path(args.labels) if args.labels else HAR128_LABELS_DEFAULT
-    output = Path(args.output) if args.output else HAR128_OUTPUT_DEFAULT
+    spec = resolve_published_cohort(getattr(args, "cohort", None))
+    labels_root = Path(args.labels) if args.labels else Path(spec["labels"])
+    output = Path(args.output) if args.output else Path(spec["output"])
     if not args.results_home:
         raise SystemExit("--results-home is required in published-cohort mode")
     payload = score_published_cohort(
         labels_root=labels_root,
         results_home=Path(args.results_home),
         output=output,
-        expected_files=args.expected_files,
-        expected_trials=args.expected_trials,
-        expected_manifest_sha256=args.expected_manifest_sha256,
+        expected_files=args.expected_files if args.expected_files is not None else spec["expected_files"],
+        expected_trials=args.expected_trials if args.expected_trials is not None else spec["expected_trials"],
+        expected_manifest_sha256=(
+            args.expected_manifest_sha256
+            if args.expected_manifest_sha256 is not None
+            else spec["expected_manifest_sha256"]
+        ),
+        cohort=spec["cohort"],
+        heldout=spec["heldout"],
+        limit=spec["limit"],
     )
     kind, rater = payload["page_vs_agreed"], payload["rater_agreement"]
     print(

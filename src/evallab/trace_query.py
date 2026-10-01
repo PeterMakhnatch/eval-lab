@@ -309,109 +309,78 @@ def _load_frozen_labels(
     manifest_hashes: dict[str, str] = {}
     verification: dict[str, Any] = {}
 
-    # 1. HAR-119 Part 2 rater labels
-    har119_dir = repo_root / "research" / "explorations" / "trace-lab" / "har119"
-    har119_manifest = har119_dir / "labels" / "MANIFEST.sha256"
-    har119_report: dict[str, Any] = {"verified": 0, "failed": [], "manifest": None}
-    if har119_manifest.is_file():
-        manifest_hashes["har119"] = _file_sha256(har119_manifest)
-        har119_report["manifest"] = str(har119_manifest.relative_to(repo_root))
-        labels_base = har119_dir / "labels"
-        expected = _parse_sha_manifest(har119_manifest, labels_base)
-        for rater in ("rater_a", "rater_b"):
-            rater_dir = labels_base / rater
-            if not rater_dir.is_dir():
-                continue
-            for label_file in sorted(rater_dir.glob("*.json")):
-                rel = f"{rater}/{label_file.name}"
-                digest = _file_sha256(label_file)
-                if expected.get(rel) != digest:
-                    har119_report["failed"].append(rel)
-                    continue
-                trial_name = label_file.stem
-                data = _safe_read_json(label_file)
-                if not data:
-                    har119_report["failed"].append(rel)
-                    continue
-                har119_report["verified"] += 1
-                entry = {
-                    "cohort": "har119",
-                    "rater": rater,
-                    "trial_name": trial_name,
-                    "blame": data.get("blame"),
-                    "blame_confidence": data.get("blame_confidence"),
-                    "first_failure": data.get("first_failure"),
-                    "loop_kind": data.get("loop_kind"),
-                    "stop_reason": data.get("stop_reason"),
-                    "pass_copied": data.get("pass_copied"),
-                    "provenance": "agent_rater",
-                    "source_file": str(label_file.relative_to(repo_root)),
-                    "source_sha256": digest,
-                }
-                labels_by_trial.setdefault(trial_name, []).append(entry)
-    else:
-        har119_report["manifest"] = "missing"
-    verification["har119"] = har119_report
-
-    # 1b. HAR-128 part 2 HAR-116 rater labels: a distinct cohort, never pooled
-    # with HAR-119. Same frozen-agent rater identities (rater_a/rater_b) and
-    # top-level loop fields, but cohort stays "har128-har116" so per-cohort
-    # agreement cannot silently merge cross-cohort votes. Labels are
-    # inspection-only, including globally heldout trials; nothing here may be
+    # 1. Frozen agent-rater loop labels: one explicit cohort per frozen study.
+    # har119 is the immutable historic freeze; its loader stays lenient
+    # (filename-keyed, no closure/identity enforcement) to preserve history.
+    # har128-har116 and the three G2 freezes are strict:
+    # manifest-closed and trial-identity-checked. Cohorts stay distinct so
+    # votes never pool. Labels are inspection-only; nothing here may be
     # reinterpreted as training reflection.
-    har128_dir = (
-        repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_har116"
-    )
-    har128_manifest = har128_dir / "MANIFEST.sha256"
-    har128_report: dict[str, Any] = {"verified": 0, "failed": [], "manifest": None}
-    if har128_manifest.is_file():
-        manifest_hashes["har128-har116"] = _file_sha256(har128_manifest)
-        har128_report["manifest"] = str(har128_manifest.relative_to(repo_root))
-        labels_base_128 = har128_dir
-        expected_128 = _parse_sha_manifest(har128_manifest, labels_base_128)
-        if not expected_128:
-            raise ValueError(f"Empty frozen-label freeze claims no labels: {har128_manifest}")
-        consumed_128: set[str] = set()
-        for rater in ("rater_a", "rater_b"):
-            rater_dir = labels_base_128 / rater
-            if not rater_dir.is_dir():
-                continue
-            for label_file in sorted(rater_dir.glob("*.json")):
-                rel = f"{rater}/{label_file.name}"
-                digest = _file_sha256(label_file)
-                if expected_128.get(rel) != digest:
-                    har128_report["failed"].append(rel)
+    har119_base = repo_root / "research" / "explorations" / "trace-lab" / "har119" / "labels"
+    har128_har116_base = repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_har116"
+    har128_g2_a1_base = repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_g2_a1"
+    har128_g2_r2_base = repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_g2_r2"
+    har128_g2_tail_base = repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_g2_tail"
+    rater_cohorts: list[tuple[str, Path, Path, bool]] = [
+        ("har119", har119_base, har119_base / "MANIFEST.sha256", False),
+        ("har128-har116", har128_har116_base, har128_har116_base / "MANIFEST.sha256", True),
+        ("har128-g2-a1", har128_g2_a1_base, har128_g2_a1_base / "MANIFEST.sha256", True),
+        ("har128-g2-r2", har128_g2_r2_base, har128_g2_r2_base / "MANIFEST.sha256", True),
+        ("har128-g2-tail", har128_g2_tail_base, har128_g2_tail_base / "MANIFEST.sha256", True),
+    ]
+    for cohort, labels_base, cohort_manifest, strict in rater_cohorts:
+        report: dict[str, Any] = {"verified": 0, "failed": [], "manifest": None}
+        if cohort_manifest.is_file():
+            manifest_hashes[cohort] = _file_sha256(cohort_manifest)
+            report["manifest"] = str(cohort_manifest.relative_to(repo_root))
+            expected = _parse_sha_manifest(cohort_manifest, labels_base)
+            if strict and not expected:
+                raise ValueError(f"Empty frozen-label freeze claims no labels: {cohort_manifest}")
+            consumed: set[str] = set()
+            for rater in ("rater_a", "rater_b"):
+                rater_dir = labels_base / rater
+                if not rater_dir.is_dir():
                     continue
-                trial_name = label_file.stem
-                data = _safe_read_json(label_file)
-                if not data or data.get("trial") != trial_name:
-                    har128_report["failed"].append(rel)
-                    continue
-                har128_report["verified"] += 1
-                consumed_128.add(rel)
-                entry = {
-                    "cohort": "har128-har116",
-                    "rater": rater,
-                    "trial_name": trial_name,
-                    "blame": data.get("blame"),
-                    "blame_confidence": data.get("blame_confidence"),
-                    "first_failure": data.get("first_failure"),
-                    "loop_kind": data.get("loop_kind"),
-                    "stop_reason": data.get("stop_reason"),
-                    "pass_copied": data.get("pass_copied"),
-                    "provenance": "agent_rater",
-                    "source_file": str(label_file.relative_to(repo_root)),
-                    "source_sha256": digest,
-                }
-                labels_by_trial.setdefault(trial_name, []).append(entry)
-        unloaded = sorted(set(expected_128) - consumed_128)
-        if unloaded:
-            raise ValueError(
-                f"Frozen-label manifest members never loaded as rater labels: {unloaded}"
-            )
-    else:
-        har128_report["manifest"] = "missing"
-    verification["har128-har116"] = har128_report
+                for label_file in sorted(rater_dir.glob("*.json")):
+                    rel = f"{rater}/{label_file.name}"
+                    digest = _file_sha256(label_file)
+                    if expected.get(rel) != digest:
+                        report["failed"].append(rel)
+                        continue
+                    trial_name = label_file.stem
+                    data = _safe_read_json(label_file)
+                    if not data:
+                        report["failed"].append(rel)
+                        continue
+                    if strict and data.get("trial") != trial_name:
+                        report["failed"].append(rel)
+                        continue
+                    report["verified"] += 1
+                    consumed.add(rel)
+                    entry = {
+                        "cohort": cohort,
+                        "rater": rater,
+                        "trial_name": trial_name,
+                        "blame": data.get("blame"),
+                        "blame_confidence": data.get("blame_confidence"),
+                        "first_failure": data.get("first_failure"),
+                        "loop_kind": data.get("loop_kind"),
+                        "stop_reason": data.get("stop_reason"),
+                        "pass_copied": data.get("pass_copied"),
+                        "provenance": "agent_rater",
+                        "source_file": str(label_file.relative_to(repo_root)),
+                        "source_sha256": digest,
+                    }
+                    labels_by_trial.setdefault(trial_name, []).append(entry)
+            if strict:
+                unloaded = sorted(set(expected) - consumed)
+                if unloaded:
+                    raise ValueError(
+                        f"Frozen-label manifest members never loaded as rater labels: {unloaded}"
+                    )
+        else:
+            report["manifest"] = "missing"
+        verification[cohort] = report
 
     # 2. HAR-109 hand labels
     har109_dir = repo_root / "research" / "explorations" / "trace-lab" / "har109"
@@ -474,42 +443,73 @@ def _load_frozen_labels(
     verification["har109"] = har109_report
 
     # 3. HAR-128 adjudicated SFT-pass gate (not loop-kind ground truth).
+    # Every JSONL batch declared by labels.sha256 loads explicitly with its
+    # own source_file/hash and batch identity under the same
+    # cleanliness-only label_scope. Declared batches stay distinguishable
+    # even on the same native trial: rows append, never overwrite, and no
+    # consensus is guessed. Undeclared JSONL files (e.g. labels_g2_a1.jsonl
+    # until the producer amends the manifest) stay unavailable with visible
+    # coverage metadata. No second hash authority or hardcoded digest.
     gate_dir = repo_root / "research/explorations/trace-lab/har128/sft_gate"
     gate_manifest = gate_dir / "labels.sha256"
-    gate_labels = gate_dir / "labels.jsonl"
     gate_report: dict[str, Any] = {
-        "verified": 0, "rows": 0, "failed": [], "manifest": "missing"
+        "verified": 0, "rows": 0, "failed": [], "manifest": "missing",
+        "declared": [], "batches": {}, "undeclared": [],
     }
-    if gate_manifest.is_file() or gate_labels.is_file():
-        if not gate_manifest.is_file() or not gate_labels.is_file():
-            raise ValueError(f"Incomplete frozen SFT-pass gate: {gate_dir}")
-        expected = _parse_sha_manifest(gate_manifest, gate_dir)
-        if "labels.jsonl" not in expected:
-            raise ValueError(f"SFT-pass freeze does not declare labels.jsonl: {gate_manifest}")
+    if gate_manifest.is_file():
         manifest_hashes["har128-sft-pass"] = _file_sha256(gate_manifest)
         gate_report["manifest"] = str(gate_manifest.relative_to(repo_root))
-        seen_trials: set[str] = set()
-        for line in gate_labels.read_text(encoding="utf-8").splitlines():
-            if not line.strip():
-                continue
-            data = json.loads(line)
-            if not isinstance(data, dict) or not isinstance(data.get("trial"), str):
-                raise ValueError(f"Invalid frozen SFT-pass row: {gate_labels}")
-            trial_name = data["trial"]
-            if not trial_name or trial_name in seen_trials or not isinstance(data.get("clean"), bool):
-                raise ValueError(f"Invalid or duplicate SFT-pass identity: {trial_name!r}")
-            seen_trials.add(trial_name)
-            labels_by_trial.setdefault(trial_name, []).append({
-                "cohort": "har128-sft-pass",
-                "rater": None,
-                "provenance": "frozen_adjudication",
-                "label_scope": "sft_pass_cleanliness",
-                "label": data,
-                "source_file": str(gate_labels.relative_to(repo_root)),
-                "source_sha256": expected["labels.jsonl"],
-            })
-        gate_report["verified"] = 1
-        gate_report["rows"] = len(seen_trials)
+        expected = _parse_sha_manifest(gate_manifest, gate_dir)
+        batch_rels = sorted(rel for rel in expected if rel.endswith(".jsonl"))
+        if not batch_rels:
+            raise ValueError(f"SFT-pass freeze declares no JSONL batch: {gate_manifest}")
+        gate_report["declared"] = batch_rels
+        batches: dict[str, dict[str, Any]] = {}
+        total_rows = 0
+        for batch_rel in batch_rels:
+            batch_path = gate_dir / batch_rel
+            digest = expected[batch_rel]
+            batch_id = Path(batch_rel).stem
+            seen_trials: set[str] = set()
+            batch_rows = 0
+            for line in batch_path.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                data = json.loads(line)
+                if not isinstance(data, dict) or not isinstance(data.get("trial"), str):
+                    raise ValueError(f"Invalid frozen SFT-pass row: {batch_path}")
+                trial_name = data["trial"]
+                if not trial_name or trial_name in seen_trials or not isinstance(data.get("clean"), bool):
+                    raise ValueError(f"Invalid or duplicate SFT-pass identity: {trial_name!r}")
+                seen_trials.add(trial_name)
+                labels_by_trial.setdefault(trial_name, []).append({
+                    "cohort": "har128-sft-pass",
+                    "rater": None,
+                    "provenance": "frozen_adjudication",
+                    "label_scope": "sft_pass_cleanliness",
+                    "label": data,
+                    "batch": batch_id,
+                    "source_file": str(batch_path.relative_to(repo_root)),
+                    "source_sha256": digest,
+                })
+                batch_rows += 1
+            batches[batch_id] = {
+                "source_file": str(batch_path.relative_to(repo_root)),
+                "source_sha256": digest,
+                "rows": batch_rows,
+            }
+            total_rows += batch_rows
+        gate_report["batches"] = batches
+        gate_report["verified"] = len(batch_rels)
+        gate_report["rows"] = total_rows
+        undeclared: list[str] = []
+        if gate_dir.is_dir():
+            for candidate in sorted(gate_dir.glob("*.jsonl")):
+                if candidate.name not in expected:
+                    undeclared.append(candidate.name)
+        gate_report["undeclared"] = undeclared
+    elif gate_dir.is_dir() and any(gate_dir.glob("*.jsonl")):
+        raise ValueError(f"Incomplete frozen SFT-pass gate: {gate_dir}")
     verification["har128-sft-pass"] = gate_report
     for cohort, report in verification.items():
         if report["failed"]:

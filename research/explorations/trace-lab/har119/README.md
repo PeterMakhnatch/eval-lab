@@ -136,3 +136,40 @@ uv run python research/explorations/trace-lab/har119/score_page.py
 It writes `page_scores.json` (per-trial page rows, digests, rater tables)
 and checks the embedded `trial_decision.PAGE_CALIBRATION` constants (MATCH
 or DRIFT, nonzero exit on drift).
+
+### Second cohort: published HAR-116 pages vs frozen HAR-128 part-2 labels (HAR-131)
+
+The same script scores already-published `trial_decision/v3` pages without
+re-running any classifier: it reads each published report's
+`decision.judgments.loop_kind.kind` and compares it to the agreed frozen
+rater cells. The freeze (80 files) and the 40 unique trial IDs shared by
+both raters are verified before any page is read, and the expected manifest
+sha is rejected before anything is scored or written. A missing report or an
+unknown page kind is an explicit abstention, never `none` and never
+silently dropped; a corrupt label or report aborts, and ambiguous duplicate
+reports abort rather than pick one. Manifest members must be unique in-root
+`rater_[ab]` paths equal to exactly the files scored, each label's `trial`
+must match its filename, each report's `trial_name` must match the expected
+trial, and the denominator stays the full rater-agreed count (abstentions
+add no hit without shrinking `n`).
+
+```
+uv run python research/explorations/trace-lab/har119/score_page.py \
+  --published-cohort --results-home ~/Developer/eval-lab-results
+```
+
+`--labels` defaults to the post-merge
+`research/explorations/trace-lab/har128/labels_har116` freeze; `--output`
+defaults to
+`research/experiments/har117-results-home/har131-page-calibration-har116.json`.
+The receipt carries scores and report hashes only, never trial content.
+
+- **Page loop kind vs agreed rater cells: 28/35** (35 agreed of 40,
+  5 excluded on rater disagreement, 0 abstentions). Per-kind: none 17/19,
+  repetition 8/13, completion-claim 3/3.
+- **Rater agreement: 35/40** on loop kind.
+- This cohort calibrates **loop kind only**: it carries no first-failure or
+  blame numbers, and its denominator is never pooled with the 7/11 above.
+- Raters are blind scout agents, not humans; rater A on one trial reports
+  `off_limits_opened`. The three 001181 trials are globally held out:
+  analysis/calibration only, never training reflection.

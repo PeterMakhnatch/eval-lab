@@ -1695,6 +1695,40 @@ def _capture_link_command(
     return 0
 
 
+def _capture_smoke_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    import tempfile
+
+    from evallab.model_capture import SmokeError, run_capture_smoke
+
+    del harbor
+    out = (
+        _resolve(root, args.out)
+        if args.out is not None
+        else Path(tempfile.mkdtemp(prefix="evallab-capture-smoke."))
+    )
+    try:
+        summary = run_capture_smoke(
+            upstream=args.upstream,
+            out_dir=out,
+            key_env=args.key_env,
+            max_tokens=args.max_tokens,
+        )
+    except SmokeError as exc:
+        print(f"smoke failed: {exc}", file=sys.stderr)
+        return 1
+    print(f"status: {summary['status']}")
+    print(f"model: {summary['model']}")
+    print(f"forwarded_host: {summary['forwarded_host']}")
+    print(f"route_token: {summary['route_token']}")
+    print(f"request_sha256: {summary['request_sha256']}")
+    print(f"response_sha256: {summary['response_sha256']}")
+    print(f"calls: {summary['calls']}")
+    print(f"capture_dir: {summary['capture_dir']}")
+    return 0
+
+
 def _analyze_plan_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4696,6 +4730,20 @@ def parser() -> argparse.ArgumentParser:
     capture_link.add_argument("--derived-root", type=Path, help="Override the derived Parquet root")
     capture_link.add_argument("--json", action="store_true", help="Emit the link receipt as JSON")
     capture_link.set_defaults(func=_capture_link_command)
+    capture_smoke = capture_commands.add_parser(
+        "smoke", help="One live call through secret proxy -> capture -> upstream"
+    )
+    capture_smoke.add_argument("--upstream", required=True, help="Upstream base URL to forward to")
+    capture_smoke.add_argument(
+        "--out", type=Path, default=None, help="Capture directory (default: temp)"
+    )
+    capture_smoke.add_argument(
+        "--key-env", default="MIMO_SELFHOSTED_API_KEY", help="Env var holding the provider key"
+    )
+    capture_smoke.add_argument(
+        "--max-tokens", type=int, default=64, help="Completion cap for the probe call"
+    )
+    capture_smoke.set_defaults(func=_capture_smoke_command)
 
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)

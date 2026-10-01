@@ -1,0 +1,126 @@
+{
+ "trial": "har120-000552-a1__WdaAJgE",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000552-a1/har120-000552-a1__WdaAJgE",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000552-a1",
+ "task": "mimo-v2.6-rl/format-code-task-000552",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#64"
+  ],
+  "summarization_markers": {
+   "summarization_files": 3,
+   "summarization_count": 1,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": [
+    "head#77"
+   ]
+  }
+ },
+ "first_failure": {
+  "step_id": 3,
+  "step_ref": "head#3",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#3"
+  ],
+  "recovered": true,
+  "note": "model-emitted surface the normalizer declines (unknown_function:read); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+  "harness_feedback": "No valid JSON found in response",
+  "feedback_names_problem": false
+ },
+ "outcome": {
+  "step_id": 65,
+  "step_ref": "head#65",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#65",
+   "head#104"
+  ],
+  "note": "false completion claim from step 65 while the verifier score is 0.0 (scored=True); claim regime of 38 steps to head#104 until ceiling:input_tokens; the claim, not the harness, is wrong",
+  "loop_token_cost": {
+   "prompt": 1072273,
+   "completion": 13242
+  }
+ },
+ "handshake": {
+  "first_prompt_ref": "head#64",
+  "prompts": 1,
+  "confirmed": false,
+  "turns_after_first_prompt": 38,
+  "prompt_tokens_after_first_prompt": 1072273,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 22,
+    "span": [
+     "head#5",
+     "head#26"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 12,
+    "span": [
+     "head#31",
+     "head#42"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 399978,
+   "completion": 2733,
+   "steps": 34,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 399978,
+   "completion": 2733,
+   "steps": 34,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2349046,
+   "completion": 35898,
+   "steps": 101,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.1703,
+  "result_input_tokens": 2462622
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 98,
+  "states": {
+   "prompt": 98
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,91 @@
+{
+ "trial": "har120-000838-a1__YSe3G7t",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000838-a1/har120-000838-a1__YSe3G7t",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000838-a1",
+ "task": "mimo-v2.6-rl/format-code-task-000838",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "agent_timeout",
+  "exception_type": "AgentTimeoutError",
+  "exception_message": "Agent execution timed out after 3600.0 seconds",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#83"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#2-head#83"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 82,
+    "span": [
+     "head#2",
+     "head#83"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1861847,
+   "completion": 11123,
+   "steps": 82,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1861847,
+   "completion": 11123,
+   "steps": 82,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 1861847,
+   "completion": 11123,
+   "steps": 82,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 1.0,
+  "result_input_tokens": 1904526
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 82,
+  "states": {
+   "pager": 3,
+   "prompt": 79
+  },
+  "stretches": [],
+  "short_stretches": 3
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

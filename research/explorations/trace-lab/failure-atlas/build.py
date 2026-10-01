@@ -712,7 +712,7 @@ def load_g5_cohort(path: Path) -> dict:
     cohort = _load_json(path)
     if not isinstance(cohort, dict) or cohort.get("arms") != list(G5_ARMS):
         raise ValueError("G5 cohort must declare stock/tuned/gepa separately")
-    cells, spec_lines = [], []
+    cells, spec_lines = [], {}
     for task in cohort["cohort"]:
         for arm in G5_ARMS:
             name = f"ovn-g5-{task['task_id'].removeprefix('format-code-task-')}-{arm}"
@@ -731,14 +731,16 @@ def load_g5_cohort(path: Path) -> dict:
             }
             if not isinstance(spec, dict) or any(spec.get(key) != value for key, value in expected.items()):
                 raise ValueError(f"G5 spec identity differs from the cohort: {spec_path.name}")
-            spec_lines.append(f"{spec_sha.removeprefix('sha256:')}  {spec_path.name}\n")
+            spec_lines[spec_path.name] = f"{spec_sha.removeprefix('sha256:')}  {spec_path.name}\n"
             cells.append({
                 "task_id": task["task_id"], "arm": arm, "job_name": name,
                 "task_package_digest": task["package_digest"],
                 "source_spec_file": str(spec_path), "source_spec_sha256": spec_sha,
                 "spec": spec,
             })
-    spec_manifest_sha = "sha256:" + hashlib.sha256("".join(sorted(spec_lines)).encode()).hexdigest()
+    spec_manifest_sha = "sha256:" + hashlib.sha256(
+        "".join(spec_lines[name] for name in sorted(spec_lines)).encode()
+    ).hexdigest()
     if spec_manifest_sha != G5_SPEC_MANIFEST_SHA256:
         raise ValueError("G5 spec bytes do not match the admitted 60-spec freeze")
     return {
@@ -747,6 +749,13 @@ def load_g5_cohort(path: Path) -> dict:
         "eval_list": cohort["eval_list"], "harness_tree": cohort["harness_tree"],
         "gepa_candidate": cohort["gepa_candidate"], "models": cohort["models"], "cells": cells,
     }
+
+
+def _recorded_job_name(trial: dict) -> str:
+    """Use the native source identity, not the results-home card/directory label."""
+    source = trial.get("source_job_dir")
+    name = Path(source).name if isinstance(source, str) and source else trial.get("job_name") or ""
+    return re.sub(r"^HAR-\d+-", "", name)
 
 
 def _g5_binding(trial: dict, cell: dict, python_tasks: Collection[str]) -> tuple[dict | None, str]:
@@ -761,7 +770,7 @@ def _g5_binding(trial: dict, cell: dict, python_tasks: Collection[str]) -> tuple
         return None, reason
     if not trial.get("source_job_dir"):
         return None, "recorded job directory unavailable"
-    spec_path = Path(trial["source_job_dir"]) / "experiment-spec.json"
+    spec_path = Path(trial.get("published_job_dir") or trial["source_job_dir"]) / "experiment-spec.json"
     try:
         spec = _load_json(spec_path)
         spec_sha = _sha256_file(spec_path)
@@ -785,9 +794,7 @@ def build_g5_comparison(trials: list, steps_by_trial: dict, python_tasks: Collec
         }
     by_job: dict = {}
     for trial in trials:
-        # trace_query uses the published directory name; publication adds only
-        # the recorded HAR card prefix. Do not substring-match arbitrary names.
-        job_name = re.sub(r"^HAR-\d+-", "", trial.get("job_name") or "")
+        job_name = _recorded_job_name(trial)
         by_job.setdefault(job_name, []).append(trial)
     cells, rows_by_arm, rejections = [], {arm: [] for arm in G5_ARMS}, []
     for expected in cohort["cells"]:
@@ -915,8 +922,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
     g5_comparison = build_g5_comparison(trials, steps_by_trial, ledger["by_task"], g5_cohort)
     # Reserve the G5 namespace even without a binding file: those rows remain
     # visible in the corpus, never quietly enter the historical frequencies.
-    historical = [t for t in eligible if not re.match(
-        r"^(?:HAR-\d+-)?ovn-g5-", t.get("job_name") or "")]
+    historical = [t for t in eligible if not _recorded_job_name(t).startswith("ovn-g5-")]
     label_summaries, retained_cohorts = {}, set()
 
     heuristic_labels_dropped = 0

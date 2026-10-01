@@ -35,7 +35,7 @@ inputs:
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
-    digest: sha256:5b28343b180aa00c52789fb3cf238348c6d8887add328344c1be9861cbb7e957
+    digest: sha256:9c7476d169ae4df601c52ba273e438cd6cf8b8f4e9d9be16b5149127af71cf0b
   - path: docs/canaries.md
     digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
   - path: docs/catalog-tables.md

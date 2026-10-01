@@ -641,3 +641,60 @@ def test_g5_cohort_unadmitted_bytes_rejected(tmp_path):
     cohort.write_text(json.dumps({"arms": ["stock", "tuned", "gepa"], "cohort": []}))
     with pytest.raises(ValueError):
         atlas_build.load_g5_cohort(cohort)
+
+
+def test_g5_manifest_uses_filename_order_not_digest_order(tmp_path, monkeypatch):
+    import hashlib
+
+    cohort, _, _ = _g5_fixture(tmp_path)
+    frozen = {
+        "experiment": "synthetic admitted cohort", "arms": list(atlas_build.G5_ARMS),
+        "models": cohort["models"], "eval_list": {},
+        "harness_tree": {"path": "harness", "sha256": "sha256:" + "cd" * 32},
+        "gepa_candidate": {"path": "addendum.txt", "sha256": "sha256:" + "ef" * 32},
+        "cohort": [{
+            "task_id": "format-code-task-000383", "package_digest": DIG_GOOD,
+            "verifier_digest": "sha256:" + "ab" * 32,
+        }],
+    }
+    hashes = {}
+    for cell in cohort["cells"]:
+        spec = dict(cell["spec"], verifier_digest="sha256:" + "ab" * 32,
+                    harness_tree_path="harness",
+                    extra_instruction_path="addendum.txt" if cell["arm"] == "gepa" else None)
+        path = tmp_path / f"{cell['job_name']}.json"
+        path.write_text(json.dumps(spec))
+        hashes[path.name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest = "".join(f"{hashes[name]}  {name}\n" for name in sorted(hashes))
+    manifest_sha = "sha256:" + hashlib.sha256(manifest.encode()).hexdigest()
+    path = tmp_path / "cohort.json"
+    path.write_text(json.dumps(frozen))
+    monkeypatch.setattr(atlas_build, "G5_COHORT_SHA256", atlas_build._sha256_file(path))
+    monkeypatch.setattr(atlas_build, "G5_SPEC_MANIFEST_SHA256", manifest_sha)
+    loaded = atlas_build.load_g5_cohort(path)
+    assert {cell["job_name"] for cell in loaded["cells"]} == {
+        "ovn-g5-000383-stock", "ovn-g5-000383-tuned", "ovn-g5-000383-gepa",
+    }
+    assert loaded["spec_manifest_sha256"] == manifest_sha
+
+
+def test_g5_uses_native_identity_and_published_spec_after_source_retirement(tmp_path):
+    cohort, trials, python_tasks = _g5_fixture(tmp_path)
+    for trial in trials:
+        source = Path(trial["source_job_dir"])
+        published = tmp_path / "published" / f"unknown-{source.name}"
+        published.mkdir(parents=True)
+        spec = source / "experiment-spec.json"
+        (published / spec.name).write_bytes(spec.read_bytes())
+        spec.unlink()
+        trial["job_name"] = published.name
+        trial["published_job_dir"] = str(published)
+    atlas = atlas_build.build_atlas(
+        trials, {}, {}, tmp_path, _ledger({
+            task: _ledger_entry() for task in python_tasks}), {}, {}, None, g5_cohort=cohort)
+    arms = {row["arm"]: row for row in atlas["g5_comparison"]["arms"]}
+    assert arms["stock"]["counts"]["pass"] == 1
+    assert arms["tuned"]["counts"]["fail"] == 1
+    assert arms["gepa"]["counts"]["excluded"] == 1
+    assert atlas["corpus"]["historical_patterns_n"] == 0
+    assert all(not category["trial_names"] for category in atlas["categories"])

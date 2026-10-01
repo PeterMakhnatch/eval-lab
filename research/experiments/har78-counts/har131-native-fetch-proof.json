@@ -1,7 +1,7 @@
 {
   "schema": "har131.frozen_acquisition_runtime/v1",
-  "observed_at_utc": "2026-10-01T11:27:45.803258+00:00",
-  "status": "candidate_only_waiting_for_Data_usability_and_protected_merge",
+  "observed_at_utc": "2026-10-01T11:35:03.261079+00:00",
+  "status": "candidate_native_acceptance_complete_not_live_or_protected_merged",
   "implementation_commit": "161baaead56ec7a247a5b27e1ea3225daf2ff135",
   "frozen_policy_at": "2026-10-01T10:53:00Z",
   "policy": "saved/listed pinned artifact plus bound observed unpack OR read; normalized directories; failed/unknown attempts nondeciding; no local-reference counts route",
@@ -9,10 +9,10 @@
     "src/evallab/upstream_fetch.py": "d1c27417a6b4307095f02f05d0a221a4fff2df2eb5cbe5ffc228579c4ec2c3df",
     "src/evallab/process_job.py": "0bb12a3d4ee885ad4c16b068bd826bc93879b37b4948df636287564b809937f9",
     "src/evallab/counts.py": "fb94ca6a252154c33aa1b0370973bae894fe41695ae8583403634d8d4b09ab6d",
-    "src/evallab/trial_decision.py": "aad236178977f906c288e48620b6d7d6e97646288481f14e2c0e599b0a3bc4f6",
-    "research/experiments/python-task-ledger/ledger.csv": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a"
+    "src/evallab/trial_decision.py": "edba2d61760f692fea37a251902d848e5bc19d740e39271b5c03bfb3e97c3e1e",
+    "research/experiments/python-task-ledger/ledger.csv": "083c5c777d573988dca573391c9012cb1d33c83729c51263ccd0e4f5d5fc0a7f"
   },
-  "focused_tests_passed": 116,
+  "focused_tests_passed": 117,
   "static_gates_passed": true,
   "preservation_checked": [
     "native trial result bytes",
@@ -27,31 +27,26 @@
     "counted_pass": 7
   },
   "candidate_counts": {
-    "counted_fail": 29,
-    "excluded": 26,
-    "counted_pass": 9
+    "counted_fail": 28,
+    "excluded": 28,
+    "counted_pass": 8
   },
   "changed": [
+    {
+      "job": "har120-001269-a1",
+      "before": "counted_fail",
+      "after": "excluded",
+      "reasons": [
+        "task_not_usable"
+      ]
+    },
     {
       "job": "har120-001870-a1",
       "before": "excluded",
       "after": "counted_pass",
       "reasons": []
-    },
-    {
-      "job": "har120-001269-a2-r2",
-      "before": "excluded",
-      "after": "counted_pass",
-      "reasons": []
     }
   ],
-  "pending_dependency": {
-    "task": "001269",
-    "package_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c",
-    "owner": "Data / HAR-127",
-    "requirement": "canonical task/variant usability downgrade before live G2 reprocessing; no validated-variant bypass",
-    "note": "The source snapshot still labels it usable; this interim counted_pass is not accepted as clean."
-  },
   "goldens": [
     {
       "fixture": "tests/fixtures/upstream_fetch/g2-001870.json",
@@ -196,8 +191,10 @@
         "result_sha256": "b08de4302afb791380c99a38ac16dec41d6c03fddd1c82b16f10d79042c36c05",
         "selection": "Exact native tool_calls/observation/source/step_id for the listed steps; no source content synthesized."
       },
-      "verdict": "counted_pass",
-      "reasons": [],
+      "verdict": "excluded",
+      "reasons": [
+        "task_not_usable"
+      ],
       "fetch_attempts": [
         {
           "call_id": "call_5_2",
@@ -214,7 +211,7 @@
           "target": "responses==0.15.0"
         }
       ],
-      "usability_dependency_pending": true
+      "usability_dependency_pending": false
     },
     {
       "fixture": "tests/fixtures/upstream_fetch/g2-001373-r2.json",
@@ -363,7 +360,8 @@
       "settled_output": 3475,
       "raw_result_sha256": "2d3b551a184aacbb7e4a3d39fa6802dec1292f53155142f1f021c68b6cfbb298",
       "raw_metadata_sha256": "b7ad23183d9bcca07622fb93c34d799a823c19cdf85dbd0aadab8c11e8f6e967",
-      "report_sha256": "725bb132000e06c52ff63be3bd9a2457a7dcdb0687464b246da7a350aa74cb89"
+      "report_sha256": "8dda615019d2e0aadcb2de0333f534f237616f830af894b387566e6ecb193351",
+      "before_reasons": []
     },
     {
       "job": "har120-000803-a1",
@@ -378,7 +376,8 @@
       "settled_output": 6332,
       "raw_result_sha256": "138846af1385116e76a7a13b5b47da609fdd5fe511911409b851a46595e8d89b",
       "raw_metadata_sha256": "5768915f84b18f490efb6a9e278fb5edaeebd5ed220726018225403fe936e24d",
-      "report_sha256": "4cc8a179c260e5aa2c67a67bb917a247a8ba462b22d546107f1cc05dc866de98"
+      "report_sha256": "be0a27ecf4c10307d65aa6f67fa62466e3d9215f06e1ade3c9b7f3fb7b28c7e4",
+      "before_reasons": []
     },
     {
       "job": "har120-001647-a1",
@@ -395,7 +394,10 @@
       "settled_output": null,
       "raw_result_sha256": "2151a5d48f8c2d473c93d53ee3528c017281f01242aa93675699cea89b814bd5",
       "raw_metadata_sha256": "61cd674449adc42e8341b7377e0c7208f042f7ef9a3b51ad83e43bfaa12f8682",
-      "report_sha256": "64cc432a1ffb7d263232f3f7af7cc37de483038275e240a6b565e3ff6a03df27"
+      "report_sha256": "d2db99b5d355010ccf5612b4ffe644701a267edf5d4028e4500a04f089cca0c0",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-002938-a1",
@@ -410,7 +412,8 @@
       "settled_output": 4929,
       "raw_result_sha256": "d1c923244df9c605a3be6d100e3f1d2127b50a00411ba4b7ad726a4f269689f1",
       "raw_metadata_sha256": "cafde285008c905662e6cf7739a1241d956202e68fdfb3aae55ce3305398efff",
-      "report_sha256": "114b9ad64ab6d61c9aa3c54d8209e95f2e7e1668168dc58d8b8ba36f41811817"
+      "report_sha256": "1b36399613d7c83324cda572dcd59f792cd0ce46904bd633578e2e8d3a101f96",
+      "before_reasons": []
     },
     {
       "job": "har120-000227-a1",
@@ -425,7 +428,8 @@
       "settled_output": 4838,
       "raw_result_sha256": "5a951fbe294a4df84d52e736840416a7fa224e164d2bb5f545fe6f91ee53569d",
       "raw_metadata_sha256": "f5f488825ab6cb7b8d11634ba469de0f42cdf27768e15090ea4f3941b44abf54",
-      "report_sha256": "f699bd7e15637dbb198c0deb08e9e7336dc0a1f9bc509d40fd54b2af0801aa68"
+      "report_sha256": "293ecad88f08d3d02f45b33910243b1c88bc8f8b5aa811d3bfb11fc0cf1b9316",
+      "before_reasons": []
     },
     {
       "job": "har120-000341-a1",
@@ -443,7 +447,11 @@
       "settled_output": 16469,
       "raw_result_sha256": "d455e48d81ba0fe0d8d72ca461a0c9d2b2ac86bc0b4e141a50f9ea8ceae1b145",
       "raw_metadata_sha256": "6e986326ab4a7032bfb7d856e1b038bc20a6d6822e1027d9a9c529f8ec8582c9",
-      "report_sha256": "19482132a9c26b7d3ff58885c27f6c6a4dcdd48370f7d994b3c4355db8a491ad"
+      "report_sha256": "654bbbe6dfae7207793121d1081b5f854530b3dedfac6e7a12cec40d194f872d",
+      "before_reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ]
     },
     {
       "job": "har120-000552-a1",
@@ -458,7 +466,8 @@
       "settled_output": 37047,
       "raw_result_sha256": "45883e772a7a32ba7bad82abba0dcd86fb7b92535e1fd28658fe7c6a8606035f",
       "raw_metadata_sha256": "1cd124baf59612a437b7292309ab37c898ebc7acbd495f3d5d432efe0b2fe5ce",
-      "report_sha256": "9dd76e64a6bb133b9fb1d7e2f1d5204635e9b7ba51f824fef05efc3435243bb7"
+      "report_sha256": "ecaeb99b8023af5de4022843e4df940d2a6e3ac2742fec1207b82183c7db1ee3",
+      "before_reasons": []
     },
     {
       "job": "har120-000813-a1",
@@ -473,7 +482,8 @@
       "settled_output": 15027,
       "raw_result_sha256": "618e7de904ff4cfb68655168b953a187c04627810e68e2d19d39b1fdf210b6b0",
       "raw_metadata_sha256": "e27f64ca8d1ef9b06d976c28b86d42c60cec036b8b67305d135eecb7906c94ae",
-      "report_sha256": "4323ae2c11612c4a14cc3e55854d571f6d23fb9d89880b42c9a9cc6bb5147daa"
+      "report_sha256": "92945445aa1ace00c8ede16b5dada5c56b12ccbc06ffcceec81b2a2076cfcde2",
+      "before_reasons": []
     },
     {
       "job": "har120-000865-a1",
@@ -488,7 +498,8 @@
       "settled_output": 1434,
       "raw_result_sha256": "892ae51136917cd2d8b6a4525f7973a807d067a18d1406be1360fd0f4238bc15",
       "raw_metadata_sha256": "a1ee9e5ea71920254cdfb968010dd8326163e39ea597f79a562668e350f6e176",
-      "report_sha256": "53e546a49f909c1455997011191d7fc065c3b4e25445bb4d1eb42267dff8ac69"
+      "report_sha256": "082438fedd1139f4920939251253e9452f4498092db8859ecc2f8dd6cd190574",
+      "before_reasons": []
     },
     {
       "job": "har120-000941-a1",
@@ -503,7 +514,8 @@
       "settled_output": 10547,
       "raw_result_sha256": "4276ab935e29f752f213dbfc84324cb42365625be008df1e24c12a621161bc48",
       "raw_metadata_sha256": "8bbe5266fc387e94b4616c5b21386a1576630a0307e623585b767e94bf7d04a8",
-      "report_sha256": "61732ce57cf1b20410f26207c4a8a523ef1210e8e1e6a57e0ed4f38cd9f1bd4a"
+      "report_sha256": "1d243f4059b7a76b725b74d4e8412876e96e7dce676984f272b53e22377032a5",
+      "before_reasons": []
     },
     {
       "job": "har120-001265-a1",
@@ -518,7 +530,8 @@
       "settled_output": 9605,
       "raw_result_sha256": "f7e8a3bc9c93e3dabc344df677299bd117832ab7fa951214d0e9db4f206c1662",
       "raw_metadata_sha256": "c279667b94372fc97cfbf27ccaf274ba7b623bd742310e47d346215fc47b0ffb",
-      "report_sha256": "a8dba382f3226c9007156cd8a3930b70663c91500fa690dda530223c8c492897"
+      "report_sha256": "e24d4dc3d7a63a295c3cb7dcb0194052e08139d042b75a9b65070f4bb3d8ced1",
+      "before_reasons": []
     },
     {
       "job": "har120-001269-a1",
@@ -526,14 +539,17 @@
       "trial_id": "356cdee5-3d6c-4da6-a83d-412130a645b8",
       "trial_name": "har120-001269-a1__y3Wy5Ku",
       "before_verdict": "counted_fail",
-      "after_verdict": "counted_fail",
-      "after_reasons": [],
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "task_not_usable"
+      ],
       "raw_reward": 0.0,
       "settled_input": 2426017,
       "settled_output": 23482,
       "raw_result_sha256": "d88c0408bd00baf7e4434511116d42477574d264dd51ad5a0ab8139776bd551f",
       "raw_metadata_sha256": "fcd6fc827125c16209c5ba9c0caa19821d23591a8b95c222a0f285d0026c9e88",
-      "report_sha256": "95afe2075c7837ac48ee609c9b516dd9c4a43901c8536e4ae37173e2f1ae64f4"
+      "report_sha256": "e9b5f05fcd5255a8b682229402db45edfffd1085d03351523462ad3ad536578a",
+      "before_reasons": []
     },
     {
       "job": "har120-001399-a1",
@@ -548,7 +564,8 @@
       "settled_output": 17294,
       "raw_result_sha256": "b8989e205fbb4216883817809a61f5316e254933b6cbb762852b2f43c11b5f69",
       "raw_metadata_sha256": "5e360df0f1df68335aa007f7b9e9aa8ee8ef6eee3512986c9723d3ba638ce94a",
-      "report_sha256": "9430d5ebd9e5ea00e45f41c3946b270bcbcba6679fc915b5f10e4e83ea68f6be"
+      "report_sha256": "efa34e5ed3c3000a1ac04466036d98e0ca5da81711bccce0f8859f5f6b2c279d",
+      "before_reasons": []
     },
     {
       "job": "har120-001661-a1",
@@ -563,7 +580,8 @@
       "settled_output": 17722,
       "raw_result_sha256": "83fbfd42a8a21debd711dc946727574fe92859a99e930cb437239a4665c1a868",
       "raw_metadata_sha256": "fe19b4690233fdac8f1640af905b54f8e7fde330f3a2c47e909c9398ba63e881",
-      "report_sha256": "500bd1c96883f8ace49fa62baa37001a82aa9d0019aa7bc8f82d9c4944d65610"
+      "report_sha256": "2b1e2aade07e938ed2f67bbf853cf6ea29d107f00b6df1e093562e58951b4024",
+      "before_reasons": []
     },
     {
       "job": "har120-001710-a1",
@@ -578,7 +596,8 @@
       "settled_output": 5648,
       "raw_result_sha256": "e8ffd17173bf0cb9593e42bcc93a0e6c3e5454b0121f48c26c61ac31b0066ca8",
       "raw_metadata_sha256": "f59f8188fc8a6a05812cbfdb387255c7e412d443fe72ba07bedd25eae3d4c53b",
-      "report_sha256": "086d9a68b7e9ad1bd65560345b7d92462b73323fb80fe1eb3546709bfd083c20"
+      "report_sha256": "7626d9ae7f5f0d74eba337ac2be87800ca6cb4117aa7f043110dc16fe5c2bb38",
+      "before_reasons": []
     },
     {
       "job": "har120-001870-a1",
@@ -593,7 +612,11 @@
       "settled_output": 32329,
       "raw_result_sha256": "f97c4ea673229cc42d9b21f6248618e4f0a19511d6ed0ece6b01faf93212f1c7",
       "raw_metadata_sha256": "dd0ffd7991c7f50202a7fa3ae266c6bee0953300024247add900a14f6c03efd7",
-      "report_sha256": "f0bac0eb97c866b7526ee5df5f1ced65699ac5d6b370eb2ef1b1e7c24b31a58d"
+      "report_sha256": "b44b787c8793be66ff770b3dc90e9dbaa13c1fdea512f5bc6daae657bfb8f534",
+      "before_reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ]
     },
     {
       "job": "har120-001897-a1",
@@ -608,7 +631,8 @@
       "settled_output": 27897,
       "raw_result_sha256": "f1e986e297ae83625737f91d849651c5ddf74d66c85e3dd6642febd5bda0e38f",
       "raw_metadata_sha256": "2bf52b84cbd4eced44223f0b3c0e619aeb9221501a044d3c5f3298dc072bddc5",
-      "report_sha256": "71bff5a31c5a353c7453b083c693a94ac667c8f169dddcdd066ce92e57425039"
+      "report_sha256": "1775b318f3f22b0a6bffe0f49c426cae4b7e39130238cc6f0b45c88180046b21",
+      "before_reasons": []
     },
     {
       "job": "har120-002680-a1",
@@ -623,7 +647,8 @@
       "settled_output": 17377,
       "raw_result_sha256": "b7a75fa7280e34a2863485a4a89086e1b8990383ba7a036dc62c8c23954e8fb7",
       "raw_metadata_sha256": "dce8dc78724e9385481d6a11c72d8ff54f88f4170ecfa55128051f85745ec456",
-      "report_sha256": "c30ae92d693a976c37bf829febd45c12ab1e4f3a2f63b98f41682d13c7169b93"
+      "report_sha256": "79f50cb03d2956b60d889f6729acaa92fe6dbdaa0a90e99c61638f49325ab1fb",
+      "before_reasons": []
     },
     {
       "job": "har120-001373-a1",
@@ -638,7 +663,8 @@
       "settled_output": 8297,
       "raw_result_sha256": "50be04320dab2b567f5116b4d1fbc587c9e8aa54ade7abc7b628392c2ef5255b",
       "raw_metadata_sha256": "d30ee3a5b770dae5f3a01c66477509c06409d9e710d521e9efe175dd3f4c1498",
-      "report_sha256": "1b0d479753bb68dec332ad1bae719398212a16e125bfd4a584e41f5723e2744a"
+      "report_sha256": "41c3b2871a73fc703493977accb7ef5ed84f276cd7c76153f40f1591067ce3d1",
+      "before_reasons": []
     },
     {
       "job": "har120-000227-a2",
@@ -655,7 +681,10 @@
       "settled_output": 0,
       "raw_result_sha256": "2a6fdd6474a4caffbc8c243e58bb92c6156e9d5c236d8d5176993e0b9c013664",
       "raw_metadata_sha256": "e9adb8c02b5c5665e26a9efdb7a77b9ed66565d93e60e8053dedf4667bc7cccd",
-      "report_sha256": "563ac4f1d0d9962109962f334a5006443d234bf0d490a9785e44104075a955b8"
+      "report_sha256": "37d014ec10301e1564a4109907ccfd61e8fb7302721e296b99045243f401476c",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000341-a2",
@@ -672,7 +701,10 @@
       "settled_output": 0,
       "raw_result_sha256": "724fa579490f73bdecd37b34b2a892f4098f8401bafb2e71026f18ff98d98838",
       "raw_metadata_sha256": "72e9965cb4c280d2ef601374b6b4e08d6f255e473a78d8e1c87175b04d22d65c",
-      "report_sha256": "64e06e579e650a5737c6fc083fed2af72f4dfaadca7d1df20d1c0156d330aa9f"
+      "report_sha256": "a652cca9a97b751e33947cfc712d421c8755839cbadeb8946990249a248a421f",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000552-a2",
@@ -689,7 +721,10 @@
       "settled_output": 0,
       "raw_result_sha256": "770fac1d78f5f47a466af84fc84f3f92edc40197a6fec3effb6266688c442a13",
       "raw_metadata_sha256": "15877da25475e2a5ccd3f28a14753cd7ef515198988c851bc139807157a8ffc0",
-      "report_sha256": "18eeeb43f1b8eb88ad6f7f32e6db1f6549e4c4678b5cf02647dbaaf78ac29927"
+      "report_sha256": "7fce04e2f06b5fd2fe709b50fcad65adbae77dade94d77dba962f8c74ec5b10d",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000666-a2",
@@ -706,7 +741,10 @@
       "settled_output": 0,
       "raw_result_sha256": "8c98c2bf536d76508a0bc7ff0449786c3469f59bb7039b20d5caa149181c9981",
       "raw_metadata_sha256": "33303df01367de22dd7752dce21d223ba418794cc9c5992f73c5523e39e22ee5",
-      "report_sha256": "9a77746a5ad39571855362cc1f05dcc3618d8553531214c67be74a38de33cb0a"
+      "report_sha256": "2b929ee96743f51d5c0a76d389635203c53a1af336efdbf12f0e7b00379864b9",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000803-a2",
@@ -723,7 +761,10 @@
       "settled_output": 0,
       "raw_result_sha256": "200ccb2750c0b9430520bc9141a3b8579b6a17cbf2213c0e9f39627fbe108cf6",
       "raw_metadata_sha256": "a34a91e46ef81fb58e2a8c6ff725725e9ce643987e515450037b0d5ef982c287",
-      "report_sha256": "94dd8142fa8c90066145ba5a9d5c5460ae3f19c9fa538682932e9c2ea90e4542"
+      "report_sha256": "a63d6619c63dddf0904f4e47e4e2fd10dcce566467834e0e6fc1d49094f27b3f",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000813-a2",
@@ -740,7 +781,10 @@
       "settled_output": 0,
       "raw_result_sha256": "dc5f92992a58a23f72e05218efd5aaf468ed879315d64d439dfee80b12b113cf",
       "raw_metadata_sha256": "7e46a6ca46a2491d953998418abc06d3b708049027a035b69792d13d3a1a3cb9",
-      "report_sha256": "d6c74db90e6312e15fd186e2ea0b1d70cf215ba7537f38cb0b77da942adbfcf7"
+      "report_sha256": "f1cf8c6ea74a2ae28f8a12d3da69bcc179c3bf188a23e4c4ae9daf1efc036265",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000838-a1",
@@ -755,7 +799,8 @@
       "settled_output": 11269,
       "raw_result_sha256": "7f072c2cfc6b2cde1dd1b3d1d3f03618a5d9a50be7856f7d78c204ebfa8e8263",
       "raw_metadata_sha256": "f4241e4ad60c62efc12e3425a124b5cac947f0c619b9a4f50ee78a6312448464",
-      "report_sha256": "51f3842048251ae3403ab06485fb2583ee16eb1dabece413a2e533ee5ccadd6d"
+      "report_sha256": "2253c0fe2490d3505f9fcce4e98591a1286534e186afb68f2e6275b5ffae4dad",
+      "before_reasons": []
     },
     {
       "job": "har120-000838-a2",
@@ -772,7 +817,10 @@
       "settled_output": 0,
       "raw_result_sha256": "c4147450caabbe9906e52380a2f039b605eb68eb93b5434e4162bd5785bdac2b",
       "raw_metadata_sha256": "b6f1d03c16954b59e3e71bd3a84184976dd88738fbf5a9b0caccf13ee8dc8f19",
-      "report_sha256": "4cc23bfd4e67d005e06cc85538bf988a184cc8a535f0237f6e5b4da3ebd771b4"
+      "report_sha256": "aa8b98991b0e8d58cf20bb4b4413a9321e9759611b7cf8c2fe584fdc06a93994",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000865-a2",
@@ -789,7 +837,10 @@
       "settled_output": 0,
       "raw_result_sha256": "2d0896c8bc67b94d6c870b569a48213a5accb4f3c3dda94079ed95fa195fd1b0",
       "raw_metadata_sha256": "01579fec47b6497b4ab226c195d2a942a8377c227f7fb6a9dfe24fb725a26a73",
-      "report_sha256": "dc0d2621ad54d83d153661664acb5c1ee298790dcde01992d1e68c9b8983bc0b"
+      "report_sha256": "c74ade9c9a50be39e7a787171bf38731b923b0db554b035ac9ecc9adf42502da",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000941-a2",
@@ -806,7 +857,10 @@
       "settled_output": 0,
       "raw_result_sha256": "3c930e6f71f9e0d00640ac2daed48332154e668210452e502ab9e42f3a44e570",
       "raw_metadata_sha256": "00a6884967b3bf5e3dba087a76bac8472563829880056002f11943a8f0951485",
-      "report_sha256": "f14d441f73429bd8e0be3e23b88377fff09fe48f15683808af1939d117e5326d"
+      "report_sha256": "1c77df058bcf3caa04bc9e539ac951df0b6c7077855665266bf7e663fc582785",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-001265-a2",
@@ -823,7 +877,10 @@
       "settled_output": 0,
       "raw_result_sha256": "9ed7e74fdd49a1801565ac19f44248237bf730fdb9b732a3f6188a146238b784",
       "raw_metadata_sha256": "9e1bde774d9458b992325affc7e2e3a685d8ea02e730988f78deb96b37fc0c2b",
-      "report_sha256": "e86108f0736f4211d04b9daf0bb580d508af23f431faa155b974e2f3b8b6c7c1"
+      "report_sha256": "c28887c9e544606a6b7a9fbe22f9522628a30431f97675f7a600e30efe590f4c",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-001269-a2",
@@ -833,6 +890,7 @@
       "before_verdict": "excluded",
       "after_verdict": "excluded",
       "after_reasons": [
+        "task_not_usable",
         "infra"
       ],
       "raw_reward": null,
@@ -840,7 +898,10 @@
       "settled_output": 0,
       "raw_result_sha256": "a13508a4ec774e2bd426154120278154948742585ed5dd04bc17a60957a6beb5",
       "raw_metadata_sha256": "17f36d61c8dc14d5e4bfec3435ff2fe87a36fb6b2d0ea6634d0085607068a650",
-      "report_sha256": "55dda35534242497a1ec86d6c40b2f740c8de28be05864252ca683c057ffbae9"
+      "report_sha256": "480174d5ff7413b8c82bb329c2d1e48cf777f310022de6c220805ae68e1839a7",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-001373-a2",
@@ -857,7 +918,10 @@
       "settled_output": 0,
       "raw_result_sha256": "f0f490ef04ed1226dd5312b1de41202c08b4c3bc62308849e91910e56497cf73",
       "raw_metadata_sha256": "457f62c53fd424deb3fa15609ec4877d11c418a209e6262223225c2621aa710d",
-      "report_sha256": "7be835c7f1cd8d86e83c029c1583c838611f6c70e1d9c74bf8486667503ff8fa"
+      "report_sha256": "c08ae79fb40e95494bafc1255d6f2af01973b3323ea31b8a71444d07322ed2a3",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-001609-a1",
@@ -874,7 +938,10 @@
       "settled_output": 0,
       "raw_result_sha256": "96747fd021430cce8bd0855b2b558813285ebad6d0769cedc9b68e3d0d0a6b38",
       "raw_metadata_sha256": "b6b786aeae5e95d58a6fb7a5eeea634dacf4d4adadf57cefe1712e73ebafd2bf",
-      "report_sha256": "72fd521b07324aceb5b6bb4ca579ae0a58ee2bac62c096c08731fc86a1214b0f"
+      "report_sha256": "fce83e0f660197569d7aa86ca8d8d29fd004026ea408506c0249b56d66e484d1",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-001618-a1",
@@ -891,7 +958,10 @@
       "settled_output": 0,
       "raw_result_sha256": "f7c6fb9ba1b0e2cbbe75c71c8a1ff27b014e27948e894d79ce36d6c437f92057",
       "raw_metadata_sha256": "807dccd4fea88be9ffefc5a2bb54ec5f2f6127280e01348887d7cb3d6509bf03",
-      "report_sha256": "d508d0af37b30bc897dd44da2c1e7ca334841d9bac9d6901e51d7e3f54cb63bc"
+      "report_sha256": "1e82eca68c4239be7e6e523d329667ddfafd151227af6eabc98451a2fda0bce3",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-001820-a1",
@@ -908,7 +978,10 @@
       "settled_output": 0,
       "raw_result_sha256": "89acc1b87aa37de39a2675eea57520c723f4e6030cbdae6018425883af86ed7b",
       "raw_metadata_sha256": "1944609f64c8ad9e6f068a36fa50a1d506e235369b1bc13a21f495d6e85a1870",
-      "report_sha256": "9852ef9df9171e0e55892ede8caff4b8b1f5a7d94bc6d1764bd688eec609c727"
+      "report_sha256": "985c503455ee97347fe76b89b1c11e12ede4929c0d442af054339ae79ac1e410",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-001865-a1",
@@ -925,7 +998,10 @@
       "settled_output": 0,
       "raw_result_sha256": "3b18a47b064d5131f2c7f5c99ef8842322a6706f2b87e18f77e633da0a45189b",
       "raw_metadata_sha256": "e6d59f8f17eb89a620ff2230b1e6a9ceaf25c95733f1e04f97420aa0f81885c4",
-      "report_sha256": "83c080836e6dd0d721d9cc9e649eb912b18b3b39e4338be01dc937660e650d5a"
+      "report_sha256": "e96a86fd528f7d298362ccbb49cb549488a9dd7a2d5adb112b0ae83bd329458a",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-002104-a1",
@@ -942,7 +1018,10 @@
       "settled_output": 0,
       "raw_result_sha256": "7f4436dd88693d4d4bd3ca505b2b90b73100583f593984b6d1e67a254c1c2373",
       "raw_metadata_sha256": "ecfe9c50efdfc13934cfd8ddbcde11611071e3349ca895f2bd984ec68b68f1c3",
-      "report_sha256": "6d462fca5451656725df0bf485beccadd591fcf97721b522d38021f53369630c"
+      "report_sha256": "e8c0a3d5fda79a37200ba38ca079fcab97972cbaf6c2ed77915131deb31bd5eb",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-002356-a1",
@@ -959,7 +1038,10 @@
       "settled_output": 0,
       "raw_result_sha256": "d4897e5e9f5277607ad8ce011d2e7439ad6e163c4e3e378e6a0632bb42b73e30",
       "raw_metadata_sha256": "03ca2020178672b3ce472ba8e84cb0de20cc26ffb3f0eb54f04eb47a39a90550",
-      "report_sha256": "1f432dc5306ae7dc7de4868b8eef8b3d1e4bf27de121ff2ab8106956cbe0d69c"
+      "report_sha256": "bff5c2ac28a1aafb88617b297f8b78a212b72c9d8dfe3251491530ce7f45ca77",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-002393-a1",
@@ -976,7 +1058,10 @@
       "settled_output": 0,
       "raw_result_sha256": "0a12b5a946869fc2e19d21ddaa7103ac021f89a9693b19df59928fcaf1cf7c2a",
       "raw_metadata_sha256": "30b6af93b373fd184cb7c68a7022aa5dda9331d995bf4860c71059ce157ec416",
-      "report_sha256": "5b76da11c9736b82505562fe942eea63ea8a56a3eb11a595ebff79a5a7e4fae5"
+      "report_sha256": "94a7559bde648b961ad4310361a44ccbc2266fe33f2089c7e1e46daf6e6c97ed",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-002416-a1",
@@ -993,7 +1078,10 @@
       "settled_output": 0,
       "raw_result_sha256": "269d41305a77a1a6330856e637c148e678f5cb3953895c2aa5afd4b45056b4f7",
       "raw_metadata_sha256": "cdbad4a7c22227f2c6cfb763db7b8ee399707890ce8621638fcfe10487420214",
-      "report_sha256": "d7697f2592736bcf0c2e4edfc9d7f974666eaf1fb42dd296bc667d90380693f4"
+      "report_sha256": "89dae5f4ccadbfbe8aa0838ef56938115a9503185b0c194ef3ad91ad2a9f062e",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-002552-a1",
@@ -1010,7 +1098,10 @@
       "settled_output": 0,
       "raw_result_sha256": "368d38a2f6bc568b215de11e17acf92638d5095036589335b0d027c861700802",
       "raw_metadata_sha256": "de17043ed8069f538d7303fc21b993ddcf2c362c6b06c81f319f5811214d3b6a",
-      "report_sha256": "60a22c62bbed39343a6f266d4a8208163fac28b06f76219a41895dcc076c50fe"
+      "report_sha256": "a5e90036fda3f5723e3dc6804788e83d7954c324e8eae92172fa41915d68f602",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-002555-a1",
@@ -1027,7 +1118,10 @@
       "settled_output": 0,
       "raw_result_sha256": "57f1aa3f1a3d5cd4b568911085abcb5271bf82e97afbafa71ee1013401842974",
       "raw_metadata_sha256": "af77cad81cc2d133c184906ec2f5973d7743f066b698b4d4b6953eb030057e49",
-      "report_sha256": "4d88dee611f476e71c03900347bce1fe9fdde2c28f8edd4aa0dd31931c393477"
+      "report_sha256": "84f64ec45cdd25aa490f0c99719651f9034bee17e16649e3fa49a518a1166d41",
+      "before_reasons": [
+        "infra"
+      ]
     },
     {
       "job": "har120-000227-a2-r2",
@@ -1042,7 +1136,8 @@
       "settled_output": 4513,
       "raw_result_sha256": "4d113a001ab9b8e7c578df002dc646b4d944db3fc989ba5d817f4152a5b62d65",
       "raw_metadata_sha256": "02b03f0b42c017056d9215312007a0b6031fb76b296d80290c1718fc84904330",
-      "report_sha256": "a8d806895fb66a2414e36f59a8483564797d35ecddac898f7b401a5e7e6fee19"
+      "report_sha256": "33ff2e3f65bef40d772ffe1cab37b832854234724b8a4bcaf2970061ae8e884f",
+      "before_reasons": []
     },
     {
       "job": "har120-000341-a2-r2",
@@ -1057,7 +1152,8 @@
       "settled_output": 12802,
       "raw_result_sha256": "04f69cb905712753038e6a75dd151a01590d5f4e923d97d44e028a02df6f2537",
       "raw_metadata_sha256": "865e4657bad061c7ea94f68f86f92bd3ac489617f2032cc1ba45c1ba257b12fa",
-      "report_sha256": "aa934fb960a12cf60bc4c4d8c418cd6641672b6d1d2b696986004e75c89b54a5"
+      "report_sha256": "e36afda4298922280f7b5f30ee56019980ab1ae6cb673e5e2c7930049b34192d",
+      "before_reasons": []
     },
     {
       "job": "har120-000552-a2-r2",
@@ -1072,7 +1168,8 @@
       "settled_output": 11032,
       "raw_result_sha256": "aa618704d6c0c6eb1edbc80c598785ee38519b880132a68c17b0004113e2366f",
       "raw_metadata_sha256": "379ca28ecbfddc3b666c519c59e024a15ea54d67749e2d58e432f8e5836d983e",
-      "report_sha256": "c49e196908599719f3d7f1af25d8380c8b6d4dd358753ca4345e2bebd81c4441"
+      "report_sha256": "295a316c14cefa3705d625caf2e34ec6d40acb73c6e1c8d8c2a99b42f78af023",
+      "before_reasons": []
     },
     {
       "job": "har120-000666-a2-r2",
@@ -1087,7 +1184,8 @@
       "settled_output": 10981,
       "raw_result_sha256": "5f5b25c7729735752141ee77b6dd13102a0ab6b036c1dd56f18e481b12c75941",
       "raw_metadata_sha256": "a04ae767edfac56ad76418f2e75e7dbf761c54277f9243cd72841ade57dcc63f",
-      "report_sha256": "3d2e447946728ad0e4387a3939f8a1c974858e13ae964f975c33b343de92b131"
+      "report_sha256": "eb8b58d5557cefdd3a8a20a4e25135489d9cf5f44b5665bf4e2cd68c51cb2698",
+      "before_reasons": []
     },
     {
       "job": "har120-000803-a2-r2",
@@ -1102,7 +1200,8 @@
       "settled_output": 11961,
       "raw_result_sha256": "07410c615fa58b4f0e011fb4126dfd6abecd3fde3bfe9840f7a31c24d3298469",
       "raw_metadata_sha256": "10674b14e421bcedcc2b029fb2fef0ad5e2e235de253a640cb84be687dba1e36",
-      "report_sha256": "91778bc47f9b6f255ed21c59c3828cfb7bb53277e24409cd84ae64d9bc3f471d"
+      "report_sha256": "62e273d448ee8e190ba363d949264438cc9c82fd3db4f78f0e166e34ed875c91",
+      "before_reasons": []
     },
     {
       "job": "har120-000813-a2-r2",
@@ -1117,7 +1216,8 @@
       "settled_output": 29369,
       "raw_result_sha256": "d88c00f3e873431821822f16db5b762016fba0c0b78d1e707075a9b6c37b85c0",
       "raw_metadata_sha256": "1d83b35de4588802f12336d2a0ab78f86d6ab788945a409d7465c8471ecf4624",
-      "report_sha256": "dc5185ee3b868565869b2a8eb4dae40b8242c6854e22995bdacd3b9d5730cf71"
+      "report_sha256": "7dd220099930c5e890785525b137206380d3c12dcee816755fc7bc488ee58e5c",
+      "before_reasons": []
     },
     {
       "job": "har120-000838-a2-r2",
@@ -1132,7 +1232,8 @@
       "settled_output": 10673,
       "raw_result_sha256": "40c1c5a277ee5e9c55535c7ffe1abf1c830cb7a234e289220da0c52534792aa2",
       "raw_metadata_sha256": "865be7f85ccea052aaafd0e284769c2eba33c2f09247cfd02ae26126eaead45c",
-      "report_sha256": "a6a662eca2cb1cae55f219559972b32cd7f0b70963c21b09ee1859ddaceb53d1"
+      "report_sha256": "15e38c0cdace6772eec1aefd01eda7c271c158880ddfc33c154ba9692454b249",
+      "before_reasons": []
     },
     {
       "job": "har120-000865-a2-r2",
@@ -1147,7 +1248,8 @@
       "settled_output": 7003,
       "raw_result_sha256": "099bba052cce85a28a6cb24533c31f3671df3ef7b595e1f0e51da8a5bafc859f",
       "raw_metadata_sha256": "f97d491b7c04099c3e6706aa1d8793c262e331e19f3743bf799006c7371eb39b",
-      "report_sha256": "958a5c9eb99f0129afd2fe72195cb44ff77724eef807ab6498c84de2499a7247"
+      "report_sha256": "ad337c293618d2b9c9a078cb172bb845b5482c5baef61c30d4d6da472758f0ce",
+      "before_reasons": []
     },
     {
       "job": "har120-000941-a2-r2",
@@ -1162,7 +1264,8 @@
       "settled_output": 13619,
       "raw_result_sha256": "043a91bcc53dd276bbb67022f0858d9ea638248dd00f94411b5f5c67fdee79f3",
       "raw_metadata_sha256": "91a8288ca40456d5e286d1ae2ad7e443154d75869be5aeca1f74aa39b36bfe73",
-      "report_sha256": "f52235e319a4a029cf4b780471c96b5e6f972049fb23f2eaa3416ff095d49036"
+      "report_sha256": "0153bf9053c453379dafd2ef7321cac7b83ceed7d6f462c8dc8f7356cdbcc50e",
+      "before_reasons": []
     },
     {
       "job": "har120-001265-a2-r2",
@@ -1177,7 +1280,8 @@
       "settled_output": 8846,
       "raw_result_sha256": "adb713c144b0ab9b7b6290b8d4b222b70ee8858a169cc39d7453889c38e13d77",
       "raw_metadata_sha256": "fb0d644b1a6432b86a1d08d9351453d4a534596ec0671a9f30802bb92be3a830",
-      "report_sha256": "27a3470fec2b2357fedf9b0f6ad4ec67419e10e9a8ba5e61310247b686c789f6"
+      "report_sha256": "736b6a3bc70112d6abfc8848f349b09d176e7e0718326b7c1502001b7ec2e0a5",
+      "before_reasons": []
     },
     {
       "job": "har120-001269-a2-r2",
@@ -1185,14 +1289,20 @@
       "trial_id": "eb58e9c1-6237-4cfe-b93b-4062516a644c",
       "trial_name": "har120-001269-a2-r2__93WpuaE",
       "before_verdict": "excluded",
-      "after_verdict": "counted_pass",
-      "after_reasons": [],
+      "after_verdict": "excluded",
+      "after_reasons": [
+        "task_not_usable"
+      ],
       "raw_reward": 1.0,
       "settled_input": 2446342,
       "settled_output": 17714,
       "raw_result_sha256": "b08de4302afb791380c99a38ac16dec41d6c03fddd1c82b16f10d79042c36c05",
       "raw_metadata_sha256": "da0fc7643ecc8f34d4128aff2467b7a087ffd53e7b19a8046cf5d925244faf38",
-      "report_sha256": "68609645a05731c1d7fdccb845758ba2664a8132c0c09224fa63d80d788b0ba0"
+      "report_sha256": "cff4ede76cd4f5bfb9308c103feba81e8ac6689fae7ad2d38adbd02d5f86dc1a",
+      "before_reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ]
     },
     {
       "job": "har120-001373-a2-r2",
@@ -1210,7 +1320,11 @@
       "settled_output": 5013,
       "raw_result_sha256": "104e824bdd41bccf571e614c76dd01f41e30d52c3879c6cec7c8d90f6001b771",
       "raw_metadata_sha256": "05e476b3f9df236f1fd06d83ca467cdf0cdf5a09d8b372c095bc79c85105ec4b",
-      "report_sha256": "85785396512ed6c1258ec55040d471c25c8e613903b1f2a78fe600ea8078f912"
+      "report_sha256": "73dc429e5a32c86ebaebd15f5dc1c5017541ef3aecacd54da0aa796632da02f8",
+      "before_reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ]
     },
     {
       "job": "har120-001609-a1-r2",
@@ -1225,7 +1339,8 @@
       "settled_output": 20091,
       "raw_result_sha256": "18268d94bce219b7e643bfd462a8856ac435d0683d795cff377c7c0ffbd0de1c",
       "raw_metadata_sha256": "120397127c1d9947736d1110648048f3511954a4f1762f5a395e411d41a1c218",
-      "report_sha256": "55d1a8e4dc1ac44118ca1be5b1370fb708ad4f3c5464e444e9cba2fc12e88a0e"
+      "report_sha256": "f0649662ae91dd4f66c2a7bd85dcb26391231b646eb2eff6d00a5628242186ea",
+      "before_reasons": []
     },
     {
       "job": "har120-001618-a1-r2",
@@ -1240,7 +1355,8 @@
       "settled_output": 12633,
       "raw_result_sha256": "22184702e99349f387e5a2adad853db580673e60353306423d67fba7ad8e0018",
       "raw_metadata_sha256": "0cdfde59eef214eb4bb08f91488bd654cb41681cb3426b253cce8a46294c482c",
-      "report_sha256": "bbd8cfde2c0f2d177e2167daf0c3b0cb3b12c2d458aa5243efa7c0654483df1c"
+      "report_sha256": "6985966c2c828a5424cb719818dd59311279ceca1d9929baacdf6d54d74b50e3",
+      "before_reasons": []
     },
     {
       "job": "har120-001820-a1-r2",
@@ -1255,7 +1371,8 @@
       "settled_output": 5016,
       "raw_result_sha256": "6d91c66ab5f8b670b82407387654cbcf439b4871a93692c8126924b5f78d958f",
       "raw_metadata_sha256": "3488c67d3e76ef0680412681849145490e8f4904cb0581c48a267709cf677a23",
-      "report_sha256": "0198075d214baab40c3e4bda3dfcc1bc901e98208ff539f1a34a1565b2a9eaa2"
+      "report_sha256": "9371d6e778f6a3251c04ed026bbb75c7abc17ebde42a46ba93d0ee2d058b7157",
+      "before_reasons": []
     },
     {
       "job": "har120-001865-a1-r2",
@@ -1270,7 +1387,8 @@
       "settled_output": 10980,
       "raw_result_sha256": "f51389d9bf282e70e3f273eba0d04957d6b2ca2e2dbf11c9cc598c182f42bead",
       "raw_metadata_sha256": "3a38aa1cfcdacbd467d7655db7c0cda9bb003717028a903771f4e88940d3a346",
-      "report_sha256": "dac20bced10f90d8232c15d3b0c04c48f4a2cbff26fdef178369085c5a693223"
+      "report_sha256": "0db44f9d696b14bc0e4c09c4d5d2998a7f7d93bf5615dd9df07d4b372a487890",
+      "before_reasons": []
     },
     {
       "job": "har120-002104-a1-r2",
@@ -1285,7 +1403,8 @@
       "settled_output": 17295,
       "raw_result_sha256": "f740ad0b8829fc0d84983c36935845f4f4679c7ceed13e3fd64b2be59cf28ee2",
       "raw_metadata_sha256": "e4b1b166ab7d4b4340ef7869eebb455b9ad6a298b72872b52e90d481e1a86259",
-      "report_sha256": "9f81c1e54741b12a120fe6ded4f07d11838de98c8b3d3673cde757976486feab"
+      "report_sha256": "9bc13fe85c8d046ad77b97b0b03715b6069b1ac360fce3e2d4be6cecb0f4c1a6",
+      "before_reasons": []
     },
     {
       "job": "har120-002356-a1-r2",
@@ -1303,7 +1422,11 @@
       "settled_output": 11918,
       "raw_result_sha256": "6b3b93ace2c5828e463f8147eebe0e4afac0d7ff406adafc2839d27560efd1cc",
       "raw_metadata_sha256": "5a0ab66f08206f1bdaa3f11562dd67fb7ff10b8edbd7e639fed58cc0ebe81256",
-      "report_sha256": "3e69e8970342d85de4e4f04756563f3430e0e44b5b7540abff35155fac5e7fe4"
+      "report_sha256": "f5b79874e9fcb2f7c13475e99c300a56efa49192fb9948490dea1d6357c11fcc",
+      "before_reasons": [
+        "copied_fix",
+        "pass_tainted"
+      ]
     },
     {
       "job": "har120-002393-a1-r2",
@@ -1318,7 +1441,8 @@
       "settled_output": 3705,
       "raw_result_sha256": "0c76063f0e0cc7e5d823d09b6568f02be674784af191dd657db87e26a166f308",
       "raw_metadata_sha256": "84cd98367b035f79412bac1cb04e6fd5c57cc5343c02cb6fbaf79e04b58d4e8c",
-      "report_sha256": "2e2646db683f48db6cd376efe6c823bc1d56fc632b7fdf8c395b8686113504f7"
+      "report_sha256": "f1a2f0c3ad38002d5e32bf46855096e53339ad230a16caea8828d7b431f6091b",
+      "before_reasons": []
     },
     {
       "job": "har120-002416-a1-r2",
@@ -1333,7 +1457,8 @@
       "settled_output": 13468,
       "raw_result_sha256": "676f0a99784cf62ac055536081f8e7f29c7a174b81590d6179c1ef19f5b68537",
       "raw_metadata_sha256": "4ab8f84e3b41db7b9a702bfc4eac049d36f6c174552bd49b3d764dc547cbbb2a",
-      "report_sha256": "e23d6634f1903970857e974c5a946bcb5461a00316d1ac7404c15f5e51a15786"
+      "report_sha256": "a2df8f030fea2b549c5854c11c2dc0b521bc84d16825545dc1770e3d9b433266",
+      "before_reasons": []
     },
     {
       "job": "har120-002552-a1-r2",
@@ -1348,7 +1473,8 @@
       "settled_output": 11815,
       "raw_result_sha256": "7a465eeee2ca8421550953dac163a6a0bb82d1f125c29e4cb150e057d4c51f27",
       "raw_metadata_sha256": "0af12d2bb00a1a17aec808c6ecad6dd3a7d6256bc38f6e81e13b8872f74615d6",
-      "report_sha256": "89f78543a08f3721e94953759e81f4e4e643f689321063acc8c3f01d495c3b97"
+      "report_sha256": "20fad3740ca4161ce723016fb3724ef5b6cbac816c279fc0700d234da0594541",
+      "before_reasons": []
     },
     {
       "job": "har120-002555-a1-r2",
@@ -1363,9 +1489,127 @@
       "settled_output": 15680,
       "raw_result_sha256": "5d40eeb23a68a77156554b3837cf28d1fd0540e8d2848c533207a60891338b4a",
       "raw_metadata_sha256": "8bf1457a74d9e239de6aff9baf3bfe5d086eaf5cd1074628654ef38d7236a942",
-      "report_sha256": "84ae1c9db21b12bd25b6a3cb82549f22c53071eca4802e2f22d56dda9722a07a"
+      "report_sha256": "6c8f3a174598417aa1cba13c7694ee8e6c69c2b639fea0169140c4324a52b651",
+      "before_reasons": []
     }
   ],
   "live_publication": false,
-  "experiment_spend_usd": 0
+  "experiment_spend_usd": 0,
+  "integration_commit": "6e22f0d9ee612cff269adfbd9f7aea9056d3a62e",
+  "usability_dependency": {
+    "status": "cleared_by_actual_native_runtime",
+    "pr": 660,
+    "merged_commit": "6e95a13e9370652f64e6d3b62e2b747cd263c1ae",
+    "package_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c",
+    "jobs": [
+      {
+        "job": "har120-001269-a1",
+        "reasons": [
+          "task_not_usable"
+        ],
+        "task_status": {
+          "digest_match": true,
+          "evidence": [
+            "research/experiments/har108-python-census/task_health.parquet#format-code-task-001269",
+            "library/task-variants/mimo-v2.6-rl__format-code-task-001269/541d416818c7.json",
+            "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001269"
+          ],
+          "ledger_status": "discarded",
+          "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001269",
+          "reason": "status=discarded; image leaks the fix: /testbed/build/lib holds the fixed module, copied in G2 001269-a2-r2 (Traces HAR-128 labels_g2_tail; Cdx 1 HAR-127 11:01Z)",
+          "run_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c",
+          "source": "python_task_ledger",
+          "source_sha256": "083c5c777d573988dca573391c9012cb1d33c83729c51263ccd0e4f5d5fc0a7f",
+          "status": "discarded",
+          "task_id": "format-code-task-001269",
+          "trial_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c"
+        }
+      },
+      {
+        "job": "har120-001269-a2",
+        "reasons": [
+          "task_not_usable",
+          "infra"
+        ],
+        "task_status": {
+          "digest_match": true,
+          "evidence": [
+            "research/experiments/har108-python-census/task_health.parquet#format-code-task-001269",
+            "library/task-variants/mimo-v2.6-rl__format-code-task-001269/541d416818c7.json",
+            "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001269"
+          ],
+          "ledger_status": "discarded",
+          "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001269",
+          "reason": "status=discarded; image leaks the fix: /testbed/build/lib holds the fixed module, copied in G2 001269-a2-r2 (Traces HAR-128 labels_g2_tail; Cdx 1 HAR-127 11:01Z)",
+          "run_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c",
+          "source": "python_task_ledger",
+          "source_sha256": "083c5c777d573988dca573391c9012cb1d33c83729c51263ccd0e4f5d5fc0a7f",
+          "status": "discarded",
+          "task_id": "format-code-task-001269",
+          "trial_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c"
+        }
+      },
+      {
+        "job": "har120-001269-a2-r2",
+        "reasons": [
+          "task_not_usable"
+        ],
+        "task_status": {
+          "digest_match": true,
+          "evidence": [
+            "research/experiments/har108-python-census/task_health.parquet#format-code-task-001269",
+            "library/task-variants/mimo-v2.6-rl__format-code-task-001269/541d416818c7.json",
+            "research/explorations/trace-lab/har112/pool_labels.jsonl#format-code-task-001269"
+          ],
+          "ledger_status": "discarded",
+          "path": "research/experiments/python-task-ledger/ledger.csv#format-code-task-001269",
+          "reason": "status=discarded; image leaks the fix: /testbed/build/lib holds the fixed module, copied in G2 001269-a2-r2 (Traces HAR-128 labels_g2_tail; Cdx 1 HAR-127 11:01Z)",
+          "run_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c",
+          "source": "python_task_ledger",
+          "source_sha256": "083c5c777d573988dca573391c9012cb1d33c83729c51263ccd0e4f5d5fc0a7f",
+          "status": "discarded",
+          "task_id": "format-code-task-001269",
+          "trial_digest": "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c"
+        }
+      }
+    ],
+    "validated_variant_boundary": "Existing test_matching_ledger_excludes_unusable_task_despite_raw_pass uses a validated variant and passed for review/discarded/unchecked in the 117-case suite."
+  },
+  "reason_changes": [
+    {
+      "job": "har120-001269-a1",
+      "before": [],
+      "after": [
+        "task_not_usable"
+      ]
+    },
+    {
+      "job": "har120-001870-a1",
+      "before": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "after": []
+    },
+    {
+      "job": "har120-001269-a2",
+      "before": [
+        "infra"
+      ],
+      "after": [
+        "task_not_usable",
+        "infra"
+      ]
+    },
+    {
+      "job": "har120-001269-a2-r2",
+      "before": [
+        "copied_fix",
+        "pass_tainted"
+      ],
+      "after": [
+        "task_not_usable"
+      ]
+    }
+  ]
 }

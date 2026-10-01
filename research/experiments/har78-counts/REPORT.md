@@ -131,13 +131,15 @@ Native R2 boundary fixtures preserve additional exact excerpts:
   These fetch-scoped fixture results do not substitute for that usability
   dependency or claim this native trial is counted.
 
-The [native runtime receipt](har131-native-fetch-proof.json) records 116 passing
+The [native runtime receipt](har131-native-fetch-proof.json) records 117 passing
 focused cases and an isolated reprocessing of all 64 G2 jobs: 001870 becomes
 counted, while 000341, 001373 and 002356 keep source-bound fetch exclusions.
-Its old-ledger 001269 result is explicitly **pending the usability downgrade**,
-not an accepted clean pass. The receipt binds source hashes, each native
-result/metadata hash, unchanged reward/settled usage and the before/after diff;
-it is not a live-publication or merged-revision claim.
+Data's merged #660 (`6e95a13e`) excludes all three physical 001269 jobs through
+the digest-matched discarded ledger row, without a local-copy detector or
+validated-variant bypass. The result is 8 counted passes, 28 counted failures
+and 28 exclusions. The receipt binds source hashes, each native result/metadata
+hash, unchanged reward/settled usage and verdict/reason diffs. It is an integrated
+candidate proof, not a live-publication or merged-amendment claim.
 
 
 

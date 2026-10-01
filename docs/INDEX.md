@@ -13,9 +13,11 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:25d9127a8e0746e3cba0a8b61cc758740a6d2fcf58272c160b2267919e1a9e56
+    digest: sha256:fb81d9eb4a8ac2899df9a548fa8baa8b166a4cb20ed65bc463132dbcd0b484e4
   - path: docs/SYSTEM-TOUR.md
-    digest: sha256:b4020d2da184e6c5dd3cf7538c7fc9b481f19f8a753666ed22091753d48c9a95
+    digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
+  - path: docs/SYSTEM.md
+    digest: sha256:27d716de9252ceb013a6927e91167ccc29fdd933cbd12206aa4c621826483c0d
   - path: docs/WHERE-DOES-THIS-GO.md
     digest: sha256:f8c26556e4f54b6a10c85ac1c40243ecfe58da776e4da6561b197ac9d28782a1
   - path: docs/agent-analysis.md
@@ -29,11 +31,11 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:8e437f7f76b2147c8478d3ba17a31fd1a5a8bb07680c9b9ab02723d0a6f5632e
   - path: docs/attach-surface.md
-    digest: sha256:24568c07fd8448f019f046f95811b1edd0913638f70bb35b6299f6f8c3d926b1
+    digest: sha256:f25d3359de4679c08f86887b991cadcab0bf2e386ebb61d5325d63a1fd09e315
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
-    digest: sha256:105ecb8bfedc934b8a04c824f3a0383b3c2a3ea57530dd6fb1f49cbd5968f356
+    digest: sha256:5b28343b180aa00c52789fb3cf238348c6d8887add328344c1be9861cbb7e957
   - path: docs/canaries.md
     digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
   - path: docs/catalog-tables.md
@@ -69,7 +71,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/lora-sft-runbook.md
-    digest: sha256:3577c0726727a04f5dc53a9c8bf788b80f8637af2db185552e4dcf9d9e9401ae
+    digest: sha256:3d76e8ed3a621c7f8d88384369f160f7634bcc65e467d2bffbd2b17612d62eca
   - path: docs/mimo-task-catalog.md
     digest: sha256:92cd9596c75aa7bef1d4a7e5e3f5231ef32501c243db5a4f0781b3ebd0bde065
   - path: docs/model-capture.md
@@ -79,7 +81,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:ce73d2aa57d2e1cc0da118df7f6304a59bf61117dcbb88d377b1e3213543f228
+    digest: sha256:66b3f4cb18f8480e71834f8ca8b2bd7edc7911b50654a560edd590506310038f
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md
@@ -152,6 +154,7 @@ an operator can see what is archived.
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-09-10 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM.md` | Eval Lab system map | `living` | `builder, runner, operator, analyst` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
@@ -204,6 +207,7 @@ an operator can see what is archived.
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM.md` | Eval Lab system map | `living` | `builder, runner, operator, analyst` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/analysis-loop.md` | Evidence-to-experiment analysis loop | `living` | `analyst` |
@@ -261,6 +265,7 @@ an operator can see what is archived.
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-09-10 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM.md` | Eval Lab system map | `living` | `builder, runner, operator, analyst` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
@@ -302,6 +307,7 @@ an operator can see what is archived.
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-09-10 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM.md` | Eval Lab system map | `living` | `builder, runner, operator, analyst` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |

@@ -87,8 +87,20 @@ inputs fail before the existing publication is replaced.
   never hit the network. When `gh` is missing or fails, the value is `null`
   with a reason, never `0`.
 - **The Linear card.** Taken from the job name or the spec's `question_ref`
-  (`har110-000495-plain` and `har110-python-gepa` both give HAR-110). Unknown
-  when neither matches.
+  (`har110-000495-plain` and `har110-python-gepa` both give HAR-110). When a
+  frozen spec has neither, use `process-job --publication-card HAR-126`
+  (for example, the `ovn-g5` specs). This is an explicit publish-time
+  annotation in `provenance.card_assignment`, not a claim that the card
+  was recorded at execution. It cannot override a recorded card or an
+  existing source-bound assignment. The annotation survives subsequent
+  publication in the same results home without the flag. An earlier
+  `unknown-` copy for that exact source is removed only after its corrected
+  replacement succeeds; unrelated same-name jobs remain untouched.
+  Raw native files and frozen spec bytes are never rewritten. With no
+  recorded or explicit assignment, the card remains unknown.
+  The [native G5 CLI smoke](har131-publication-card-smoke.json) exercises
+  unknown → HAR-126 → default republication, preserving all 120 native
+  files and the original reward, counts, settled tokens and stop reason.
 - **The research doc link.** A search of the primary checkout for a
   `research/**` doc whose path contains the card slug. Absent when none
   matches.

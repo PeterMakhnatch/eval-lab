@@ -1,0 +1,37 @@
+{
+  "source_job": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/ovn-g5-002017-stock",
+  "isolated_home": "/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/har131-g5-card-smoke-qy63mpcw/results",
+  "old_publication": "/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/har131-g5-card-smoke-qy63mpcw/results/2026-10-01/unknown-ovn-g5-002017-stock",
+  "current_publication": "/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/har131-g5-card-smoke-qy63mpcw/results/2026-10-01/HAR-126-ovn-g5-002017-stock",
+  "republication_without_argument_reuses_assignment": true,
+  "native_files_preserved": 120,
+  "native_manifest_sha256": "56ac9f1e35c8b59e75dad8b40dc6fb80393d9c87a1b97ddeb9b2638224df10b7",
+  "native_counts_reward_tokens_stop_unchanged": true,
+  "publication_provenance": {
+    "card": "HAR-126",
+    "source": "publication_argument"
+  },
+  "actual_index": "# Eval Lab results: all jobs\n\n1 jobs, newest first. Agent runs are listed up front in\n[INDEX.md](INDEX.md); this file is the complete per-job list.\n\n## HAR-126 (1)\n\n| Card | Date | Tasks | Reward (raw) | Counted | Spend | Run | Report | Research | Commit |\n|---|---|---|---|---|---|---|---|---|---|\n| HAR-126 | 2026-10-01 | format-code-task-002017 | 0 pass, 1 fail, 0 unscored | 0 counted pass, 1 counted fail, 0 excluded | ~$0.2982 shared GPU, not additive; see `evallab spend day` | [run](/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/har131-g5-card-smoke-qy63mpcw/results/2026-10-01/HAR-126-ovn-g5-002017-stock) | [report](/private/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/har131-g5-card-smoke-qy63mpcw/results/2026-10-01/HAR-126-ovn-g5-002017-stock/processed/job.md) | no research doc | `55366a45bf85` |\n",
+  "checked_at": "2026-10-01T13:11:28.595923+00:00",
+  "source_files_sha256": {
+    "src/evallab/results_home.py": "ba81706d31e6991b15453a28796bfd65eeebe06c70c0adc9b7a8fe063b79af4e",
+    "src/evallab/process_job.py": "27dcbccee4f7abb7f2f2b8fc5e4f5f3d2af97c46a2e39a00b6a45d097802e402",
+    "src/evallab/cli.py": "88591bb2a9648c540b10f9bf753e2f6e796adcb815f4e28432187e414365d91e"
+  },
+  "native_result_facts": {
+    "reward": 0.0,
+    "tokens_proxy": {
+      "attribution": "single_trial",
+      "input_tokens": 2439447,
+      "output_tokens": 7167,
+      "path": "lab-metadata.json#provider_usage",
+      "reason": null,
+      "scope": "job",
+      "source": "proxy_settled_ledger",
+      "total_tokens": 2446614
+    },
+    "stop_reason": "ceiling:input_tokens"
+  },
+  "native_counts_verdict": "counted_fail",
+  "limits": "Isolated publication smoke over one completed native G5 job. No live publication repaired before protected merge. No new trial/model call; no counts/classifier, frozen-spec or native-data change."
+}

@@ -4020,6 +4020,7 @@ def _process_job_command(
             publish=not args.no_publish,
             nop_runs_dir=args.nop_runs_dir,
             session_spend=args.session_spend,
+            publication_card=args.publication_card,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -6264,6 +6265,11 @@ def parser() -> argparse.ArgumentParser:
             "passing the receipt again; without it the legacy shared-GPU "
             "estimate keeps its non-additive label."
         ),
+    )
+    process_job_parser.add_argument(
+        "--publication-card",
+        default=None,
+        help="Explicit HAR issue attribution when the frozen job/spec has none; native inputs stay unchanged",
     )
     process_job_parser.set_defaults(func=_process_job_command)
     process_job_parser.add_argument(

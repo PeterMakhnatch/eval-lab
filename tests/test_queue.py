@@ -918,10 +918,10 @@ def test_reconciliation_fails_closed_on_terminal_transient_job(
     assert service.queue.list_specs("failed")
     assert not service.queue.list_specs("done")
     assert service._reserved_attempt_spend_today() == 2
-    # submit_authorized leaves the paid_run_unauthorized refusal behind it;
-    # the reconciliation reason is the newest file, and ULIDs sort by time.
-    reason = sorted(service.queue.reasons_dir.glob("*.json"))[-1].read_text()
-    assert "transient_harness:provider_http_5xx" in reason
+    reasons = [
+        json.loads(path.read_text()) for path in service.queue.reasons_dir.glob("*.json")
+    ]
+    assert any(reason["code"] == "transient_harness:provider_http_5xx" for reason in reasons)
 
 
 def test_reconciliation_fails_closed_if_retry_archive_has_no_canonical_job(
@@ -951,10 +951,10 @@ def test_reconciliation_fails_closed_if_retry_archive_has_no_canonical_job(
     service.reconcile_running()
 
     assert service.queue.list_specs("failed")
-    # submit_authorized leaves the paid_run_unauthorized refusal behind it;
-    # the reconciliation reason is the newest file, and ULIDs sort by time.
-    reason = sorted(service.queue.reasons_dir.glob("*.json"))[-1].read_text()
-    assert "transient_harness:retry_interrupted" in reason
+    reasons = [
+        json.loads(path.read_text()) for path in service.queue.reasons_dir.glob("*.json")
+    ]
+    assert any(reason["code"] == "transient_harness:retry_interrupted" for reason in reasons)
 
 
 def test_reservation_policy_day_is_utc_at_local_evening_boundary(

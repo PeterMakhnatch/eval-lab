@@ -54,7 +54,7 @@ Scout (deterministic, no `--model`; all rc=0, 0 scan errors):
 Docent (all prefixed `keys run --` for `DOCENT_API_KEY`; account auto-approve ON):
 - Secret-gate refusal FIRST: `... python research/explorations/trace-lab/har128/predictions_g2_r2/docent_upload_r2.py`
   → `refusing: 3 non-false-positive secret-like strings` (exit 3, NOTHING
-  uploaded). All 3 hits are `-----BEGIN RSA PRIVATE KEY-----` in
+  uploaded). All 3 hits are an RSA private-key PEM header in
   `har120-000865-a2-r2__T8MhMX4` (converted msgs 25–26). Provenance (key
   bytes never printed or stored): first occurrence is the step-14 observation
   of read-only `sed -n 300,335p /testbed/logstash/tests/logstash_test.py` —

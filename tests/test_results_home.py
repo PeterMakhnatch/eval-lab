@@ -511,3 +511,140 @@ def test_custom_output_dir_publishes_fresh_report_not_stale_processed(tmp_path: 
             )
         still_published = json.loads((republished / "processed" / "job.json").read_text())
         assert still_published["summary"]["n_pass"] == 1
+
+
+def _allocation(*, daytona: float | None = 0.0399, total: float | None = 0.1164) -> dict:
+    return {
+        "schema": "evallab.session_spend_allocation/v1",
+        "session_id": "ap-test123",
+        "job_id": "job-1",
+        "spec_id": "spec-1",
+        "member_count": 2,
+        "modal_allocated_usd": 0.0765,
+        "daytona_estimate_usd": daytona,
+        "total_usd": total,
+        "billed_modal_usd": 1.53,
+        "trial_wall_seconds": 100.0,
+        "session_trial_wall_seconds": 2000.0,
+        "allocation_basis": "billed_modal_wall_time_share_plus_daytona_estimate",
+        "source_receipt_path": "receipt.json",
+        "source_receipt_sha256": "sha256:abc",
+        "billing_reported_at": "2026-10-01T02:23:10Z",
+        "reason": None if total is not None else "daytona_estimate_unknown",
+    }
+
+
+def test_session_spend_allocation_replaces_legacy_spend_in_report_and_index(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An explicit receipt stores the allocation and prefers it on pages + INDEX."""
+    import evallab.spend_day
+
+    job = _job(tmp_path, "har131-session")
+    home = tmp_path / "results"
+    receipt = tmp_path / "receipt.json"
+    receipt.write_text("{}", encoding="utf-8")
+    seen: dict[str, str] = {}
+
+    def fake(job_dir: Path, receipt_path: Path) -> dict:
+        seen["job"] = str(job_dir)
+        seen["receipt"] = str(receipt_path)
+        if Path(receipt_path) != receipt:
+            raise ValueError("wrong receipt binding")
+        return _allocation()
+
+    monkeypatch.setattr(evallab.spend_day, "session_spend_for_job", fake, raising=False)
+    report = process_job(
+        job,
+        ingest=False,
+        pr_lookup=lambda _commit: None,
+        results_home=home,
+        session_spend=receipt,
+    )
+    assert Path(seen["job"]) == job.resolve()
+    assert Path(seen["receipt"]) == receipt
+    assert report["summary"]["session_spend"]["total_usd"] == 0.1164
+    published = Path(str(report["results_home"]))
+    saved = json.loads((published / "processed" / "job.json").read_text(encoding="utf-8"))
+    assert saved["summary"]["session_spend"]["modal_allocated_usd"] == 0.0765
+    assert saved["summary"]["session_spend"]["daytona_estimate_usd"] == 0.0399
+    # Job-scope only: the allocation never becomes a per-trial GPU share.
+    saved_trial = json.loads(
+        (published / "processed" / "trial-trial-one.json").read_text(encoding="utf-8")
+    )
+    assert "session_spend" not in saved_trial
+    markdown = (published / "processed" / "job.md").read_text(encoding="utf-8")
+    assert "$0.1164" in markdown
+    assert "$0.0765" in markdown
+    assert "$0.1164" in (home / "INDEX-all.md").read_text(encoding="utf-8")
+
+    # Unknown Daytona renders the GPU share plus unknown sandbox, never a
+    # full total and never the legacy wall-time estimate.
+    def fake_unknown(job_dir: Path, receipt_path: Path) -> dict:
+        return _allocation(daytona=None, total=None)
+
+    monkeypatch.setattr(evallab.spend_day, "session_spend_for_job", fake_unknown, raising=False)
+    rerun = process_job(
+        job,
+        ingest=False,
+        pr_lookup=lambda _commit: None,
+        results_home=home,
+        session_spend=receipt,
+    )
+    assert rerun["summary"]["session_spend"]["total_usd"] is None
+    full = (home / "INDEX-all.md").read_text(encoding="utf-8")
+    assert "$0.0765 billed GPU share + sandbox unknown" in full
+    assert "$0.1164" not in full
+    remarked = (published / "processed" / "job.md").read_text(encoding="utf-8")
+    assert "$0.0765" in remarked
+    assert "$0.1164" not in remarked
+
+
+def test_invalid_session_spend_receipt_preserves_existing_publication(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale receipt fails before the previous publication is replaced."""
+    import evallab.spend_day
+
+    job = _job(tmp_path, "har131-stale")
+    home = tmp_path / "results"
+    first = process_job(job, ingest=False, pr_lookup=lambda _commit: None, results_home=home)
+    published = Path(str(first["results_home"]))
+    baseline_report = (published / "processed" / "job.json").read_bytes()
+    baseline_index = (home / "INDEX-all.md").read_bytes()
+    baseline_source = (job / "processed" / "job.json").read_bytes()
+    assert "session_spend" not in json.loads(baseline_report.decode())["summary"]
+
+    def refusing(job_dir: Path, receipt_path: Path) -> dict:
+        raise ValueError("stale binding: receipt members do not match job")
+
+    monkeypatch.setattr(evallab.spend_day, "session_spend_for_job", refusing, raising=False)
+    with pytest.raises(ValueError, match="stale binding"):
+        process_job(
+            job,
+            ingest=False,
+            pr_lookup=lambda _commit: None,
+            results_home=home,
+            session_spend=tmp_path / "receipt.json",
+        )
+    assert (published / "processed" / "job.json").read_bytes() == baseline_report
+    assert (home / "INDEX-all.md").read_bytes() == baseline_index
+    assert (job / "processed" / "job.json").read_bytes() == baseline_source
+
+
+def test_process_job_without_receipt_leaves_spend_untouched(tmp_path: Path) -> None:
+    """Default runs keep the legacy spend path and never touch raw inputs."""
+    job = _job(tmp_path, "har131-default")
+    raw = [
+        job / "result.json",
+        job / "config.json",
+        job / "lab-metadata.json",
+        job / "trial-one" / "result.json",
+    ]
+    before = [path.read_bytes() for path in raw]
+    report = process_job(job, output_dir=tmp_path / "out", ingest=False, publish=False)
+    assert "session_spend" not in report["summary"]
+    markdown = (tmp_path / "out" / "job.md").read_text(encoding="utf-8")
+    assert "session spend" not in markdown
+    for path, content in zip(raw, before):
+        assert path.read_bytes() == content

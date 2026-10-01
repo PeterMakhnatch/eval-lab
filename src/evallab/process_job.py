@@ -794,9 +794,43 @@ def _selfhosted_estimate(
     return estimate, None
 
 
+def _session_spend_suffix(summary: dict[str, Any]) -> str | None:
+    """Allocated billed-GPU + Daytona estimate suffix, or None without receipt.
+
+    Prefers the billed-session allocation when present. An unknown Daytona
+    estimate renders the GPU share plus unknown sandbox: never a false full
+    total and never a fallback to the legacy wall-time estimate.
+    """
+    allocation = summary.get("session_spend")
+    if not isinstance(allocation, dict):
+        return None
+    modal = allocation.get("modal_allocated_usd")
+    if not isinstance(modal, (int, float)):
+        return None
+    daytona = allocation.get("daytona_estimate_usd")
+    total = allocation.get("total_usd")
+    provenance = f"{allocation.get('allocation_basis')}; session {allocation.get('session_id')}"
+    if isinstance(total, (int, float)) and isinstance(daytona, (int, float)):
+        return (
+            f"; session spend `${total:.4f}` (billed GPU share `${modal:.4f}`"
+            f" + Daytona estimate `${daytona:.4f}`; {provenance})"
+        )
+    return (
+        f"; session spend: billed GPU share `${modal:.4f}`, sandbox unknown"
+        f" ({provenance})"
+    )
+
+
 def _render_job_markdown(report: dict[str, Any]) -> str:
     """Short markdown job report with the per-trial summary table."""
     summary = report.get("summary") or {}
+    allocated = _session_spend_suffix(summary)
+    legacy_estimate = (
+        f"; self-hosted time estimate `${summary.get('cost_estimate_usd', 0):.4f}`"
+        " (shared GPU, not additive; see `evallab spend day`)"
+        if allocated is None and summary.get("cost_estimate_usd") is not None
+        else ""
+    )
     lines = [
         f"# Job report: `{report['job_name']}`",
         "",
@@ -810,12 +844,7 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"- tokens: step-sum used `{summary.get('tokens_used')}` "
         f"vs attributable attempted ceiling `{summary.get('tokens_attempted')}`",
         f"- cost: `{summary.get('cost_usd')}` ({summary.get('cost_source')})"
-        + (
-            f"; self-hosted time estimate `${summary.get('cost_estimate_usd', 0):.4f}`"
-            " (shared GPU, not additive; see `evallab spend day`)"
-            if summary.get("cost_estimate_usd") is not None
-            else ""
-        ),
+        + (allocated if allocated is not None else legacy_estimate),
         f"- ingest: {summary.get('ingest')}",
         "",
         "| trial | reward | verdict | stop reason | tokens used/attempted | cost | flags |",
@@ -843,6 +872,7 @@ def process_job(
     publish: bool = True,
     results_home: str | Path | None = None,
     pr_lookup: Any = None,
+    session_spend: str | Path | None = None,
 ) -> dict[str, Any]:
     """Process a landed Harbor job directory.
 
@@ -851,10 +881,30 @@ def process_job(
     ``ingest`` is False. Returns the JSON-serializable job report. A
     missing catalog raises nothing: the ingest outcome (or skip) is
     recorded in the report.
+
+    ``session_spend`` is an optional billed-session receipt
+    (``evallab.session_spend/v1`` JSON). When given, the receipt is
+    loaded and validated via
+    :func:`evallab.spend_day.session_spend_for_job` BEFORE any report
+    is written or any publication replaced, and the computed allocation
+    is stored in ``report['summary']['session_spend']``. Settled proxy
+    cost/tokens are never overwritten and no per-trial GPU share is
+    invented. Without a receipt the legacy shared-GPU estimate keeps
+    its non-additive label. Reprocessing after the bills land requires
+    passing the receipt again: allocation is post-session accounting,
+    not automatic pre-bill metering.
     """
     job_path = Path(job_dir).resolve()
     if not job_path.is_dir():
         raise ValueError(f"Not a job directory: {job_dir}")
+    allocation: dict[str, Any] | None = None
+    if session_spend is not None:
+        from evallab.spend_day import session_spend_for_job
+
+        receipt = Path(session_spend).expanduser()
+        allocation = session_spend_for_job(job_path, receipt)
+        if not isinstance(allocation, dict):
+            raise ValueError(f"Invalid session spend allocation for {job_path} from {receipt}")
     out_dir = Path(output_dir).resolve() if output_dir is not None else job_path / "processed"
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_root = Path(root).resolve() if root is not None else job_path.parent
@@ -1013,6 +1063,10 @@ def process_job(
             "excluded_reasons": counts_summary["excluded_reasons"],
         },
     }
+    if allocation is not None:
+        # Computed job-scope value only: settled proxy cost/tokens above
+        # are untouched and no per-trial GPU share is invented.
+        report["summary"]["session_spend"] = allocation
     # The job report lands in out_dir BEFORE the publish copies the tree:
     # publish_job snapshots the source, so publishing first would copy a
     # processed/ without job.json and the INDEX row would read "unprocessed".

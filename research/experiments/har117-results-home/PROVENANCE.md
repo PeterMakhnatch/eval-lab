@@ -142,6 +142,26 @@ direct the reader to `evallab spend day`. The existing Modal billing and
 Daytona estimate authorities remain separate; no zero-priced proxy ledger
 is presented as free GPU serving.
 
+## Billed-session allocation
+
+Once the Modal bill for a shared-GPU session lands, reprocessing the job
+with `evallab process-job --session-spend <receipt>` replaces the
+non-additive estimate on that job's pages and INDEX row with its allocated
+share: billed GPU pool split by recorded trial wall time over the complete
+session membership, plus the existing per-job Daytona estimate
+(`report['summary']['session_spend']`, basis
+`billed_modal_wall_time_share_plus_daytona_estimate` with the session id).
+Settled proxy cost and tokens are untouched and no per-trial GPU share is
+invented. An unknown Daytona estimate renders the GPU share plus unknown
+sandbox, never a full total and never the legacy wall-time estimate.
+
+Bill-before-allocation boundary: metering happens before the bill and
+allocation only after it, so ordinary landing pages stay non-additive
+until the billed receipt arrives, and reprocessing requires passing the
+receipt again. The receipt is validated before any report is written or
+any publication replaced: a stale or wrong receipt fails the run and the
+previous publication stands. Raw job inputs are never rewritten.
+
 ## Backfill
 
 Jobs that predate the run-time snapshot have `repository.commit` and

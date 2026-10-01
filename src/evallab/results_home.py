@@ -563,6 +563,9 @@ def _spend(published: Path) -> str:
     if report is None:
         return "None (no processed report)"
     summary = _as_dict(report.get("summary"))
+    allocated = _session_spend_cell(summary.get("session_spend"))
+    if allocated is not None:
+        return allocated
     cost = summary.get("cost_usd")
     if isinstance(cost, (int, float)):
         return f"${cost:.4f}"
@@ -576,6 +579,30 @@ def _spend(published: Path) -> str:
     if isinstance(reason, str) and reason:
         return "None (unknown)"
     return "None (unknown)"
+
+
+def _session_spend_cell(allocation: Any) -> str | None:
+    """Allocated billed-GPU + Daytona estimate INDEX cell, or None.
+
+    Prefers the billed-session allocation when present. An unknown Daytona
+    estimate renders the GPU share plus unknown sandbox: never a false full
+    total and never a fallback to the legacy wall-time estimate.
+    """
+    if not isinstance(allocation, dict):
+        return None
+    modal = allocation.get("modal_allocated_usd")
+    if not isinstance(modal, (int, float)):
+        return None
+    session = allocation.get("session_id")
+    daytona = allocation.get("daytona_estimate_usd")
+    total = allocation.get("total_usd")
+    if isinstance(total, (int, float)) and isinstance(daytona, (int, float)):
+        return (
+            f"${total:.4f} session "
+            f"(billed GPU ${modal:.4f} + Daytona est ${daytona:.4f}; "
+            f"{allocation.get('allocation_basis')}; session {session})"
+        )
+    return f"${modal:.4f} billed GPU share + sandbox unknown (session {session})"
 
 
 def _tasks_cell(provenance: dict[str, Any]) -> str:

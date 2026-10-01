@@ -1290,7 +1290,8 @@ def test_zero_byte_stock_seed_allowed_for_instructions(tmp_path: Path, monkeypat
     """An exact zero-byte seed file loads and runs the oracle baseline without dispatch tricks."""
     pytest.importorskip("gepa")
     from evallab.gepa_optimizer import workflow as _workflow
-    from evallab.gepa_optimizer.evaluator import EMPTY_CANDIDATE_SHA256, LabEvaluator as _RealEvaluator
+    from evallab.gepa_optimizer.evaluator import EMPTY_CANDIDATE_SHA256
+    from evallab.gepa_optimizer.evaluator import LabEvaluator as _RealEvaluator
 
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
@@ -1320,7 +1321,8 @@ def test_zero_byte_stock_seed_allowed_for_instructions(tmp_path: Path, monkeypat
             self.direct_requests: list[Any] = []
 
         def execute_direct(self, request: Any, *, ingest: bool = True) -> Path:
-            from uuid import NAMESPACE_URL as _NS, uuid5 as _uuid5
+            from uuid import NAMESPACE_URL as _NS
+            from uuid import uuid5 as _uuid5
 
             from evallab.registry import task_directory_digest as _digest
 

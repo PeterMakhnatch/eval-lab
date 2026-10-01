@@ -1755,8 +1755,6 @@ def _counted_evaluator(
 
 def test_counted_verdict_pass_and_fail_reusable_without_fresh_calls(tmp_path: Path) -> None:
     """Counted pass is 1.0 and counted fail is 0.0 from authoritative receipts, reused."""
-    from evallab.gepa_optimizer.evaluator import COUNTED_VERDICT
-
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     task = create_task_fixture(repo_root, "tasks/task_1")
@@ -1766,9 +1764,9 @@ def test_counted_verdict_pass_and_fail_reusable_without_fresh_calls(tmp_path: Pa
     candidate_fail = "Fail candidate instructions."
     pass_sha = f"sha256:{hashlib.sha256(candidate_pass.encode()).hexdigest()}"
     fail_sha = f"sha256:{hashlib.sha256(candidate_fail.encode()).hexdigest()}"
-    for candidate, sha, reward, verdict in (
-        (candidate_pass, pass_sha, 1.0, "counted_pass"),
-        (candidate_fail, fail_sha, 0.0, "counted_fail"),
+    for sha, reward, verdict in (
+        (pass_sha, 1.0, "counted_pass"),
+        (fail_sha, 0.0, "counted_fail"),
     ):
         job_name = deterministic_job_name(
             campaign_path="out/lab", agent="oracle", model=None, task_id="task_1",
@@ -1908,6 +1906,21 @@ def test_counted_verdict_rejects_missing_malformed_mismatched(tmp_path: Path) ->
     with pytest.raises(EvaluationUnavailable):
         evaluator(wrong_trial, task)
     assert evaluator.records[-1].score is None
+    # A copied reward can agree while the verdict or scored flag contradicts it.
+    for index, corrupt_counts in enumerate(
+        ({"verdict": "counted_fail"}, {"scored": False}, {"reasons": ["pass_tainted"]})
+    ):
+        candidate = f"Inconsistent counts candidate {index}."
+        job_dir, _ = _job_for(candidate)
+        report_path = _write_counted_report(
+            job_dir, "task_1__trial01", reward=1.0, verdict="counted_pass"
+        )
+        report = json.loads(report_path.read_text())
+        report["counts"].update(corrupt_counts)
+        report_path.write_text(json.dumps(report))
+        with pytest.raises(EvaluationUnavailable):
+            evaluator(candidate, task)
+        assert evaluator.records[-1].score is None
 
 
 def test_counted_verdict_mutually_exclusive_with_upstream_fetch_zero(tmp_path: Path) -> None:
@@ -1927,15 +1940,6 @@ def test_counted_verdict_mutually_exclusive_with_upstream_fetch_zero(tmp_path: P
             executor=MockExecutor(repo_root),
             score_rules=(COUNTED_VERDICT, UPSTREAM_FETCH_ZERO),
         )
-    # Historic rule alone still constructs.
-    LabEvaluator(
-        repo_root=repo_root,
-        output_dir=repo_root / "out2",
-        examples=[task],
-        agent="oracle",
-        executor=MockExecutor(repo_root),
-        score_rules=(UPSTREAM_FETCH_ZERO,),
-    )
 
 
 def test_import_seed_stock_then_exact_empty_reuse_without_dispatch(tmp_path: Path) -> None:
@@ -1966,8 +1970,10 @@ def test_import_seed_stock_then_exact_empty_reuse_without_dispatch(tmp_path: Pat
     assert score == 1.0
     assert info["candidate_id"] == EMPTY_CANDIDATE_SHA256
     assert info["usage"]["counted_verdict"]["verdict"] == "counted_pass"
-    assert Path(info["receipt_paths"]["counts_report"]).is_file()
-    assert "sha256:" in info["usage"]["counted_verdict"]["receipt_sha256"]
+    report_path = Path(info["receipt_paths"]["counts_report"])
+    assert info["usage"]["counted_verdict"]["receipt_sha256"] == (
+        "sha256:" + hashlib.sha256(report_path.read_bytes()).hexdigest()
+    )
     # Native bytes untouched; no paid launch marked.
     for rel, digest in before.items():
         assert hashlib.sha256((stock_dir / rel).read_bytes()).hexdigest() == digest
@@ -1982,11 +1988,21 @@ def test_import_seed_stock_then_exact_empty_reuse_without_dispatch(tmp_path: Pat
     assert executor.direct_requests == []
     assert executor.submitted_specs == []
     assert budget.summary()["target"]["reserved"] == 1
+    # Even without the aggregate ledger, a frozen repeat cannot be swapped for
+    # another stock trial at the same candidate/task identity.
+    foreign = _make_stock_job(
+        evidence.parent, job_name="other-stock-repeat", task_id="task_1",
+        task_path="tasks/task_1", package_digest=task["task_package_digest"], reward=0.0,
+    )
+    _write_counted_report(foreign, "task_1__trial01", reward=0.0, verdict="counted_fail")
+    without_budget = _counted_evaluator(repo_root, task, executor)
+    with pytest.raises(ProvenanceMismatchError):
+        without_budget.import_seed_evaluation(foreign, task)
+    assert without_budget("", task)[0] == 1.0
 
 
 def test_import_seed_rejects_unprocessed_wrong_harness_and_mismatch(tmp_path: Path) -> None:
     """Unprocessed jobs, changed harness/limits, and mismatched receipts are refused."""
-    from evallab.gepa_optimizer.evaluator import EMPTY_CANDIDATE_SHA256
     from evallab.schemas import ExperimentSpec
 
     repo_root = tmp_path / "repo"
@@ -2024,6 +2040,9 @@ def test_import_seed_rejects_unprocessed_wrong_harness_and_mismatch(tmp_path: Pa
         task_path="tasks/task_1", package_digest=task["task_package_digest"], reward=0.0,
     )
     _write_counted_report(stock_dir, "task_1__trial01", reward=0.0, verdict="counted_fail")
+    with pytest.raises(ProvenanceMismatchError):
+        evaluator.import_seed_evaluation(stock_dir, task)
+    (stock_dir / "experiment-spec.json").write_text(base.model_dump_json(), encoding="utf-8")
     score, _ = evaluator.import_seed_evaluation(stock_dir, task)
     assert score == 0.0
     # Changed behavioral limit (timeout) must not reuse the frozen receipt.
@@ -2051,18 +2070,21 @@ def test_import_seed_rejects_unprocessed_wrong_harness_and_mismatch(tmp_path: Pa
     (unfinished / "result.json").write_text(
         json.dumps({"id": "x", "n_total_trials": 1, "stats": {}}) + "\n", encoding="utf-8"
     )
+    fresh = _counted_evaluator(
+        repo_root, task, executor, output_dir=repo_root / "out" / "unprocessed"
+    )
     with pytest.raises(EvaluationUnavailable):
-        evaluator.import_seed_evaluation(unfinished, task)
+        fresh.import_seed_evaluation(unfinished, task)
 
 
-def test_nonempty_candidate_cannot_masquerade_as_stock(tmp_path: Path) -> None:
+@pytest.mark.parametrize("nonempty", ["Nonempty addendum candidate.", "   \n"])
+def test_nonempty_candidate_cannot_masquerade_as_stock(tmp_path: Path, nonempty: str) -> None:
     """Zero extra_instructions only ever matches the exact empty seed, not another digest."""
     repo_root = tmp_path / "repo"
     repo_root.mkdir()
     task = create_task_fixture(repo_root, "tasks/task_1")
     executor = MockExecutor(repo_root)
     evaluator = _counted_evaluator(repo_root, task, executor)
-    nonempty = "Nonempty addendum candidate."
     nonempty_sha = f"sha256:{hashlib.sha256(nonempty.encode()).hexdigest()}"
     job_name = deterministic_job_name(
         campaign_path="out/lab", agent="oracle", model=None, task_id="task_1",
@@ -2077,6 +2099,3 @@ def test_nonempty_candidate_cannot_masquerade_as_stock(tmp_path: Path) -> None:
     _write_counted_report(stock_dir, "task_1__trial01", reward=1.0, verdict="counted_pass")
     with pytest.raises(ProvenanceMismatchError):
         evaluator(nonempty, task)
-    # Whitespace-only text is a distinct digest and likewise cannot reuse stock.
-    with pytest.raises(ProvenanceMismatchError):
-        evaluator("   \n", task)

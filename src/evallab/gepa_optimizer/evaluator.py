@@ -68,7 +68,7 @@ from evallab.execution_contracts import (
 )
 from evallab.queue import Executor, new_ulid
 from evallab.registry import compute_task_digests, task_directory_digest
-from evallab.results import JobRecord, load_job
+from evallab.results import JobRecord, TrialRecord, load_job
 from evallab.runner import CONTROL_AGENTS, RunRequest, profile_for_request, resolve_harbor_model
 from evallab.schemas import CohortComparisonSpec, CohortSelector, ExperimentSpec, RunProvenance
 from evallab.toolbox import compute_skill_digest, validate_toolbox_code
@@ -408,9 +408,17 @@ def _check_job_provenance(
                 # ONLY to the exact empty candidate, never to another digest.
                 if len(extras) == 0:
                     pass
-                elif len(extras) != 1 or extras[0].get("digest") != EMPTY_CANDIDATE_SHA256:
+                elif (
+                    len(extras) != 1
+                    or not isinstance(extras[0], dict)
+                    or extras[0].get("digest") != EMPTY_CANDIDATE_SHA256
+                ):
                     return False
-            elif len(extras) != 1 or extras[0].get("digest") != expected_candidate_sha256:
+            elif (
+                len(extras) != 1
+                or not isinstance(extras[0], dict)
+                or extras[0].get("digest") != expected_candidate_sha256
+            ):
                 return False
         elif extras:
             return False
@@ -554,160 +562,94 @@ def _check_base_spec_binding(
     evaluator_ceilings: ProviderCeilings | None,
     base_spec: ExperimentSpec | None,
 ) -> bool:
-    """Verify the frozen lf2 base-spec binding for a retained native job."""
+    """Bind the frozen target to native spec evidence, not assumed defaults."""
     if base_spec is None:
         return True
-    # Evaluator construction must reproduce the frozen target exactly.
-    if evaluator_agent != base_spec.agent:
-        return False
-    if evaluator_model != base_spec.model:
-        return False
-    if int(evaluator_timeout_seconds) != int(base_spec.timeout_seconds):
+    if (
+        evaluator_agent != base_spec.agent
+        or evaluator_model != base_spec.model
+        or evaluator_timeout_seconds != base_spec.timeout_seconds
+    ):
         return False
     if evaluator_ceilings is not None:
         expected = evaluator_ceilings.to_spec_kwargs()
-        for field in PROVIDER_CEILING_FIELDS:
-            if expected[field] != getattr(base_spec, field):
-                return False
+        if any(expected[field] != getattr(base_spec, field) for field in PROVIDER_CEILING_FIELDS):
+            return False
     exp = job.metadata.get("experiment")
-    if not isinstance(exp, dict):
+    if not isinstance(exp, dict) or exp.get("harness_tree_sha256") != base_spec.harness_tree_sha256:
         return False
-    # Frozen harness digest must match exactly (None equals None).
-    if exp.get("harness_tree_sha256") != base_spec.harness_tree_sha256:
-        return False
-    # When the native job carries its full experiment spec, its behavioral
-    # fields must reproduce the frozen spec exactly.
     spec_path = job.path / "experiment-spec.json"
-    if spec_path.is_file() and not spec_path.is_symlink():
-        try:
-            recorded = json.loads(spec_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            return False
-        if not isinstance(recorded, dict):
-            return False
-        for field in (
-            "agent",
-            "model",
-            "environment",
-            "attempts",
-            "concurrency",
-            "timeout_seconds",
-            "harness_tree_sha256",
-            "harness_policy",
-        ):
-            if recorded.get(field) != getattr(base_spec, field):
-                return False
-        for field in (
-            "max_requests",
-            "max_input_tokens",
-            "max_output_tokens",
-            "max_total_tokens",
-            "cost_limit_usd",
-        ):
-            if recorded.get(field) != getattr(base_spec, field):
-                return False
-    # When the native job carries broker ledger limits, they must match the
-    # frozen ceilings (dollars converted to micros, mirroring the runner).
+    if not spec_path.is_file() or spec_path.is_symlink():
+        return False
+    try:
+        recorded = ExperimentSpec.model_validate_json(spec_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if _base_spec_binding(recorded) != _base_spec_binding(base_spec):
+        return False
     provider_usage = job.metadata.get("provider_usage")
     if isinstance(provider_usage, dict) and isinstance(provider_usage.get("limits"), dict):
         limits = provider_usage["limits"]
-        frozen = {
-            "max_requests": base_spec.max_requests,
-            "max_input_tokens": base_spec.max_input_tokens,
-            "max_output_tokens": base_spec.max_output_tokens,
-            "max_total_tokens": base_spec.max_total_tokens,
-        }
-        if any(value is not None for value in frozen.values()):
-            for key, value in frozen.items():
-                if value is not None and limits.get(key) != value:
-                    return False
-            if base_spec.cost_limit_usd is not None:
-                import math as _math
-
-                if limits.get("max_cost_micros") != _math.ceil(base_spec.cost_limit_usd * 1_000_000):
-                    return False
+        for key in ("max_requests", "max_input_tokens", "max_output_tokens", "max_total_tokens"):
+            value = getattr(base_spec, key)
+            if value is not None and limits.get(key) != value:
+                return False
+        if (
+            base_spec.cost_limit_usd is not None
+            and limits.get("max_cost_micros") != math.ceil(base_spec.cost_limit_usd * 1_000_000)
+        ):
+            return False
     return True
 
 
 def _read_counted_verdict(
-    job_dir: Path, trial: Any, primary_reward: float | None
+    job_dir: Path, trial: TrialRecord, primary_reward: float | None
 ) -> tuple[dict[str, Any], Path, str]:
-    """Load and validate the authoritative process-job counts report."""
+    """Read the canonical process-job report and bind its native trial reward."""
     from evallab.counts import COUNTS_SCHEMA
 
-    candidates: list[Path] = []
-    trial_path_name: str | None = None
-    trial_result_name: str | None = None
-    try:
-        trial_path_name = Path(trial.path).name
-    except Exception:
-        trial_path_name = None
-    try:
-        trial_result_name = str(trial.name)
-    except Exception:
-        trial_result_name = None
-    for name in (trial_path_name, trial_result_name):
-        if name:
-            candidate = job_dir / "processed" / f"trial-{name}.json"
-            if candidate not in candidates:
-                candidates.append(candidate)
-    if not candidates:
-        raise _CountedUnavailable("counted_verdict has no trial identity for counts lookup")
-    report_path = candidates[0]
-    if len(candidates) > 1 and not report_path.is_file():
-        report_path = candidates[1]
-    if not report_path.is_file() or report_path.is_symlink():
-        raise _CountedUnavailable(
-            f"counted_verdict requires retained process-job report {report_path} (unprocessed job)"
-        )
+    report_path = job_dir / "processed" / f"trial-{trial.name}.json"
+    if (
+        not report_path.is_file()
+        or report_path.is_symlink()
+        or not report_path.resolve().is_relative_to(job_dir.resolve())
+    ):
+        raise _CountedUnavailable(f"counted_verdict requires retained process-job report {report_path}")
     try:
         raw_bytes = report_path.read_bytes()
-    except OSError as exc:
-        raise _CountedUnavailable(f"counted_verdict cannot read {report_path}: {exc}") from exc
-    try:
         report = json.loads(raw_bytes.decode("utf-8"))
-    except (UnicodeError, ValueError) as exc:
-        raise _CountedUnavailable(f"counted_verdict report {report_path} is malformed: {exc}") from exc
-    if not isinstance(report, dict):
-        raise _CountedUnavailable(f"counted_verdict report {report_path} is malformed")
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise _CountedUnavailable(f"counted_verdict report {report_path} is unreadable: {exc}") from exc
+    if not isinstance(report, dict) or report.get("trial_name") != trial.name:
+        raise _CountedUnavailable(f"counted_verdict report {report_path} has a mismatched trial identity")
     counts = report.get("counts")
-    if not isinstance(counts, dict):
-        raise _CountedUnavailable(f"counted_verdict report {report_path} has no counts")
-    if counts.get("schema") != COUNTS_SCHEMA:
-        raise _CountedUnavailable(
-            f"counted_verdict report {report_path} has schema {counts.get('schema')!r}, expected {COUNTS_SCHEMA!r}"
-        )
-    verdict = counts.get("verdict")
-    if verdict not in ("counted_pass", "counted_fail", "excluded"):
-        raise _CountedUnavailable(
-            f"counted_verdict report {report_path} has verdict {verdict!r}"
-        )
-    reasons = counts.get("reasons")
-    if not isinstance(reasons, list) or any(not isinstance(reason, str) for reason in reasons):
-        raise _CountedUnavailable(f"counted_verdict report {report_path} has malformed reasons")
-    raw_reward = counts.get("raw_reward")
-    if raw_reward is not None and (
-        isinstance(raw_reward, bool) or not isinstance(raw_reward, (int, float))
+    if not isinstance(counts, dict) or counts.get("schema") != COUNTS_SCHEMA:
+        raise _CountedUnavailable(f"counted_verdict report {report_path} has no canonical counts schema")
+    verdict, reasons, reward = counts.get("verdict"), counts.get("reasons"), counts.get("raw_reward")
+    if (
+        verdict not in ("counted_pass", "counted_fail", "excluded")
+        or not isinstance(reasons, list)
+        or any(not isinstance(reason, str) or not reason for reason in reasons)
     ):
-        raise _CountedUnavailable(
-            f"counted_verdict report {report_path} has malformed raw_reward"
-        )
-    # Trial identity and raw-reward agreement: never score a mismatched receipt.
-    record_trial = report.get("trial_name")
-    if trial_result_name is not None and record_trial not in (trial_result_name, trial_path_name):
-        raise _CountedUnavailable(
-            f"counted_verdict report {report_path} trial {record_trial!r} does not match {trial_result_name!r}"
-        )
-    if primary_reward is None or not math.isfinite(float(primary_reward)):
-        raise _CountedUnavailable(
-            f"counted_verdict report {report_path} has no finite native reward to bind"
-        )
-    if raw_reward is None or float(raw_reward) != float(primary_reward):
-        raise _CountedUnavailable(
-            f"counted_verdict report {report_path} raw_reward {raw_reward!r} mismatches native reward {primary_reward!r}"
-        )
-    digest = "sha256:" + hashlib.sha256(raw_bytes).hexdigest()
-    return counts, report_path, digest
+        raise _CountedUnavailable(f"counted_verdict report {report_path} has malformed verdict/reasons")
+    if (
+        type(reward) not in (int, float)
+        or not math.isfinite(reward)
+        or primary_reward is None
+        or not math.isfinite(primary_reward)
+        or reward != primary_reward
+    ):
+        raise _CountedUnavailable(f"counted_verdict report {report_path} raw_reward mismatches native reward")
+    if verdict == "excluded":
+        if not reasons:
+            raise _CountedUnavailable(f"counted_verdict report {report_path} excludes without reasons")
+    elif (
+        counts.get("scored") is not True
+        or reasons
+        or (reward >= 1.0) != (verdict == "counted_pass")
+    ):
+        raise _CountedUnavailable(f"counted_verdict report {report_path} has inconsistent scored verdict")
+    return counts, report_path, "sha256:" + hashlib.sha256(raw_bytes).hexdigest()
 
 
 class LabEvaluator:
@@ -1067,39 +1009,23 @@ class LabEvaluator:
 
         # Successful evaluation: counted_verdict scores from authoritative
         # process-job counts; historic rules score the native reward directly.
-        score: float
+        score = float(primary_reward)
         counted_counts: dict[str, Any] | None = None
-        counted_receipt: str | None = None
         counted_digest: str | None = None
         if COUNTED_VERDICT in self.score_rules:
-            if trial is None:
-                self._record_evaluation(
-                    candidate_sha256=candidate_sha256,
-                    local_candidate_file=local_candidate_file,
-                    example=example,
-                    status="error",
-                    job_path=str(job_dir),
-                    receipt_paths=receipt_paths,
-                    score=None,
-                    rewards=rewards,
-                    usage=usage,
-                    error="counted_verdict_missing_trial",
-                    trial_id=None,
-                    trial_name=None,
-                )
-                raise EvaluationUnavailable(
-                    f"counted_verdict has no trial to score on task {example['task_id']}"
-                )
+            assert trial is not None  # A finite native reward above requires a trial.
+            receipt_paths["counts_report"] = str(
+                job_dir / "processed" / f"trial-{trial.name}.json"
+            )
             try:
                 counted_counts, counted_path, counted_digest = _read_counted_verdict(
                     job_dir, trial, primary_reward
                 )
             except _CountedUnavailable as exc:
-                reason = str(exc)
                 usage["counted_verdict"] = {
                     "applied": False,
-                    "reason": reason,
-                    "receipt": str(job_dir / "processed"),
+                    "reason": str(exc),
+                    "receipt": receipt_paths["counts_report"],
                 }
                 self._record_evaluation(
                     candidate_sha256=candidate_sha256,
@@ -1111,117 +1037,45 @@ class LabEvaluator:
                     score=None,
                     rewards=rewards,
                     usage=usage,
-                    error=f"counted_verdict_unavailable: {reason}",
+                    error=f"counted_verdict_unavailable: {exc}",
                     trial_id=trial.id,
                     trial_name=trial.name,
                 )
                 raise EvaluationUnavailable(
-                    f"counted_verdict unavailable on task {example['task_id']}: {reason}"
+                    f"counted_verdict unavailable on task {example['task_id']}: {exc}"
                 ) from exc
-            verdict = counted_counts.get("verdict")
-            if verdict == "counted_pass":
-                score = 1.0
-            elif verdict == "counted_fail":
-                score = 0.0
-            else:
-                usage["counted_verdict"] = {
-                    "applied": False,
-                    "verdict": verdict,
-                    "reasons": counted_counts.get("reasons"),
-                    "receipt": str(counted_path),
-                    "receipt_sha256": counted_digest,
-                }
-                self._record_evaluation(
-                    candidate_sha256=candidate_sha256,
-                    local_candidate_file=local_candidate_file,
-                    example=example,
-                    status="error",
-                    job_path=str(job_dir),
-                    receipt_paths=receipt_paths,
-                    score=None,
-                    rewards=rewards,
-                    usage=usage,
-                    error=f"counted_verdict_excluded: {counted_counts.get('reasons')}",
-                    trial_id=trial.id,
-                    trial_name=trial.name,
-                )
-                raise EvaluationUnavailable(
-                    f"counted_verdict excluded trial on task {example['task_id']}: {counted_counts.get('reasons')}"
-                )
-            counted_receipt = str(counted_path)
-            receipt_paths["counts_report"] = counted_receipt
+            verdict = counted_counts["verdict"]
             usage["counts"] = counted_counts
             usage["counted_verdict"] = {
-                "applied": True,
+                "applied": verdict != "excluded",
                 "verdict": verdict,
-                "reasons": counted_counts.get("reasons"),
-                "raw_reward": counted_counts.get("raw_reward"),
-                "receipt": counted_receipt,
+                "reasons": counted_counts["reasons"],
+                "raw_reward": counted_counts["raw_reward"],
+                "receipt": str(counted_path),
                 "receipt_sha256": counted_digest,
             }
-            binding = _base_spec_binding(self.base_spec)
-            if binding is not None:
-                usage["base_spec"] = binding
-            prior_trial_paths: tuple[Path, ...] = ()
-            prior_ref = example.get("prior_run_reference")
-            if prior_ref is not None:
-                prior_trial_paths = (
-                    validate_prior_run_reference(
-                        self.repo_root, Path(example["task_path"]), prior_ref
-                    ),
+            if self.base_spec is not None:
+                usage["base_spec"] = _base_spec_binding(self.base_spec)
+            if verdict == "excluded":
+                self._record_evaluation(
+                    candidate_sha256=candidate_sha256,
+                    local_candidate_file=local_candidate_file,
+                    example=example,
+                    status="error",
+                    job_path=str(job_dir),
+                    receipt_paths=receipt_paths,
+                    score=None,
+                    rewards=rewards,
+                    usage=usage,
+                    error=f"counted_verdict_excluded: {counted_counts['reasons']}",
+                    trial_id=trial.id,
+                    trial_name=trial.name,
                 )
-            feedback = (
-                build_feedback(
-                    repo_root=self.repo_root,
-                    task_path=Path(example["task_path"]),
-                    trial_path=trial.path,
-                    max_chars=self.feedback_max_chars,
-                    oracle_reference=example.get("oracle_reference"),
-                    prior_trial_paths=prior_trial_paths,
+                raise EvaluationUnavailable(
+                    f"counted_verdict excluded trial on task {example['task_id']}: {counted_counts['reasons']}"
                 )
-                if trial is not None
-                else {"feedback": "No trial evidence available."}
-            )
-            notice = (
-                f"counted_verdict {verdict} "
-                f"(raw_reward={counted_counts.get('raw_reward')}, "
-                f"reasons={counted_counts.get('reasons')}) "
-                f"from {counted_receipt} ({counted_digest})."
-            )
-            feedback = {
-                **feedback,
-                "feedback": f"{feedback.get('feedback', '')}\n\n{notice}",
-            }
-            self._record_evaluation(
-                candidate_sha256=candidate_sha256,
-                local_candidate_file=local_candidate_file,
-                example=example,
-                status="completed",
-                job_path=str(job_dir),
-                receipt_paths=receipt_paths,
-                score=score,
-                rewards=rewards,
-                usage=usage,
-                error=None,
-                trial_id=trial.id if trial else None,
-                trial_name=trial.name if trial else None,
-            )
-            info: dict[str, Any] = {
-                "task_id": example["task_id"],
-                "candidate_hash": candidate_sha256,
-                "candidate_id": candidate_sha256,
-                "job_path": str(job_dir),
-                "status": "completed",
-                "score": score,
-                "rewards": rewards,
-                "usage": usage,
-                "error": None,
-                "receipt_paths": receipt_paths,
-                **feedback,
-            }
-            return score, info
-        score = float(primary_reward)
-        prior_trial_paths = ()
+            score = 1.0 if verdict == "counted_pass" else 0.0
+        prior_trial_paths: tuple[Path, ...] = ()
         prior_ref = example.get("prior_run_reference")
         if prior_ref is not None:
             prior_trial_paths = (
@@ -1239,6 +1093,13 @@ class LabEvaluator:
             if trial is not None
             else {"feedback": "No trial evidence available."}
         )
+        if counted_counts is not None:
+            notice = (
+                f"counted_verdict {counted_counts['verdict']} "
+                f"(raw_reward={counted_counts['raw_reward']}, reasons={counted_counts['reasons']}) "
+                f"from {receipt_paths['counts_report']} ({counted_digest})."
+            )
+            feedback = {**feedback, "feedback": f"{feedback.get('feedback', '')}\n\n{notice}"}
         # Upstream-fetch leak rule: the recorded verifier reward stands, but a
         # trial that fetched remote content scores 0 for GEPA's objective, with
         # the rule and its findings in the evaluation evidence.
@@ -1716,6 +1577,8 @@ class LabEvaluator:
         """
         if self.candidate_kind != "instructions":
             raise ValueError("import_seed_evaluation supports only the instructions candidate kind")
+        if COUNTED_VERDICT not in self.score_rules:
+            raise ValueError("import_seed_evaluation requires score_rules=['counted_verdict']")
         task_id = example.get("task_id")
         if not task_id or task_id not in self._declared_examples:
             raise ExampleDeclarationError(
@@ -1752,6 +1615,18 @@ class LabEvaluator:
             raise EvaluationUnavailable(
                 f"Seed job at {job_dir} is not a retained Harbor job directory"
             )
+        receipt_path = (
+            self.output_dir
+            / "evaluations"
+            / f"{EMPTY_CANDIDATE_SHA256.split(':', 1)[-1]}_{_artifact_task_tag(task_id)}.json"
+        )
+        if receipt_path.is_file():
+            retained = json.loads(receipt_path.read_text(encoding="utf-8"))
+            retained_job = retained.get("job_path")
+            if retained_job is not None and Path(retained_job).resolve() != resolved_job:
+                raise ProvenanceMismatchError(
+                    f"Seed receipt at {receipt_path} is already bound to another native job"
+                )
         try:
             finished_flag = bool(
                 json.loads((resolved_job / "result.json").read_text(encoding="utf-8")).get(

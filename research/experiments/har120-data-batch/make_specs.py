@@ -471,7 +471,10 @@ def check(
 
     Reuses the exact admission-time checks: read_spec (the pydantic model
     submit parses), digest-vs-disk (the queue's frozen-digest check), and
-    load_harness_tree (the dispatch-time tree pin).
+    load_harness_tree (the dispatch-time tree pin). Every spec must also
+    match its proposal row (task_id, task path, variant-or-original
+    run_digest) and the --tree/--tree-digest arguments (harness path and
+    digest); any mismatch fails the check.
     """
     failures: list[str] = []
     harness_rel, harness_digest = tree
@@ -508,10 +511,14 @@ def check(
             failures.append(f"{name}: question_ref {spec.question_ref!r} != {QUESTION_REF!r}")
         if (spec.attempts, spec.concurrency) != (1, 1):
             failures.append(f"{name}: attempts/concurrency != 1/1")
-        if spec.task_path != want["task_rel"] or spec.task != want["task_rel"]:
-            failures.append(f"{name}: task path {spec.task_path!r} != {want['task_rel']!r}")
-        if spec.task_package_digest != want["package_digest"]:
-            failures.append(f"{name}: package digest != proposal")
+        if spec.task_id != want["task_id"]:
+            failures.append(f"{name}: task_id {spec.task_id!r} != proposal {want['task_id']!r}")
+        if spec.harness_tree_path != harness_rel:
+            failures.append(
+                f"{name}: harness path {spec.harness_tree_path!r} != --tree {harness_rel!r}"
+            )
+        if spec.harness_tree_sha256 != harness_digest:
+            failures.append(f"{name}: harness digest {spec.harness_tree_sha256!r} != --tree-digest")
         task_dir = REPO / want["task_rel"]
         if not task_dir.is_dir():
             failures.append(f"{name}: staged task dir is missing: {want['task_rel']}")

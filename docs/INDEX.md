@@ -16,6 +16,8 @@ inputs:
     digest: sha256:25d9127a8e0746e3cba0a8b61cc758740a6d2fcf58272c160b2267919e1a9e56
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:b4020d2da184e6c5dd3cf7538c7fc9b481f19f8a753666ed22091753d48c9a95
+  - path: docs/SYSTEM.md
+    digest: sha256:27d716de9252ceb013a6927e91167ccc29fdd933cbd12206aa4c621826483c0d
   - path: docs/WHERE-DOES-THIS-GO.md
     digest: sha256:f8c26556e4f54b6a10c85ac1c40243ecfe58da776e4da6561b197ac9d28782a1
   - path: docs/agent-analysis.md
@@ -148,6 +150,7 @@ an operator can see what is archived.
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-09-10 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM.md` | Eval Lab system map | `living` | `builder, runner, operator, analyst` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
@@ -199,6 +202,7 @@ an operator can see what is archived.
 | `docs/GLOSSARY.md` | Eval Lab Canonical Glossary & Terminology Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM.md` | Eval Lab system map | `living` | `builder, runner, operator, analyst` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/analysis-loop.md` | Evidence-to-experiment analysis loop | `living` | `analyst` |
@@ -255,6 +259,7 @@ an operator can see what is archived.
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-09-10 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM.md` | Eval Lab system map | `living` | `builder, runner, operator, analyst` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |
 | `docs/analysis-worker.md` | Guarded post-trial analysis worker | `living` | `analyst, runner` |
@@ -295,6 +300,7 @@ an operator can see what is archived.
 | `docs/NOW.md` | Where the lab is now | `living` | `builder, analyst, runner, operator` |
 | `docs/STATUS.md` | Research status — 2026-09-10 | `living` | `operator, builder, runner` |
 | `docs/SYSTEM-TOUR.md` | System Tour: End-to-End Evaluation Architecture | `living` | `builder, analyst, runner, operator` |
+| `docs/SYSTEM.md` | Eval Lab system map | `living` | `builder, runner, operator, analyst` |
 | `docs/WHERE-DOES-THIS-GO.md` | Where Does This Go? File Placement Decision Guide | `living` | `builder, analyst, runner, operator` |
 | `docs/agent-analysis.md` | Agent Analysis | `living` | `analyst, operator, builder` |
 | `docs/agent-profiles.md` | Agent profiles: subscription-only identity and qualification | `living` | `runner, operator` |

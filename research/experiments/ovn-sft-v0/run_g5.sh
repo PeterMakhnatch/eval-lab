@@ -4,7 +4,8 @@
 #   run_g5.sh --specs-dir DIR --adapter REL --candidate-usd USD --actor TEXT \
 #             --modal-app-day-limit-usd USD [--round-cap-usd USD] [options]
 #
-# Order (each step aborts the round on failure; nothing billable starts before 6):
+# Order (failures abort, except a last-wave gate failure finalizes at 10;
+# nothing billable starts before 6):
 #   1. preflight: clean checkout, spec --check, free capture port, key file,
 #      `capture smoke --model` available
 #   2. `evallab modal billing-reconcile --for <UTC day>`
@@ -298,6 +299,7 @@ log "capture pid $CAPTURE_PID on :$PORT, sampler pid $SAMPLER_PID, watchdog pid 
 TOTAL_WAVES=$(echo "$WAVES" | awk 'END{print NR}')
 WAVES_DONE=0
 PREV_SPENT=0
+ROUND_STATUS=0
 for wave in $WAVES; do
   position=$(basename "$wave" .txt)
   if [ "$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/health")" != 200 ]; then
@@ -326,8 +328,16 @@ for wave in $WAVES; do
   verdict=$(cat "$OUT/$position-outcome.json")
   manifest "$position" "{\"started\": \"$started\", \"finished\": \"$finished\", \"tick_status\": $tick_status, \"outcome\": $verdict}"
   log "$position done (tick exit $tick_status): $verdict"
-  [ "$tick_status" = 0 ] || die "$position: tick exited $tick_status; later waves not ticked"
-  [ "$advance" = 0 ] || die "$position: a spec is not terminal, 3+ infra failures, a dispatch refusal, or a captured call on a model outside this wave's specs; later waves not ticked"
+  if [ "$tick_status" != 0 ] || [ "$advance" != 0 ]; then
+    last_wave=false
+    [ "$((WAVES_DONE + 1))" = "$TOTAL_WAVES" ] && last_wave=true
+    manifest gate_failure "{\"wave\": \"$position\", \"tick_status\": $tick_status, \"outcome_status\": $advance, \"last_wave\": $last_wave}"
+    log "GATE FAILED: $position (tick exit $tick_status, outcome exit $advance): non-terminal spec, 3+ infra failures, refusal, or unexpected model; last_wave=$last_wave"
+    [ "$last_wave" = true ] || die "$position: failed gate; later waves not ticked"
+    ROUND_STATUS=3
+    log "$position: last-wave gate failed; preserving capture and billing in step 10 before exiting $ROUND_STATUS"
+    break
+  fi
   WAVES_DONE=$((WAVES_DONE + 1))
   # Before the next wave: reconcile, then refuse if spend so far (--prior-spend-usd
   # from earlier segments of the same round + this run's own spend) plus the cost
@@ -380,4 +390,9 @@ chmod a-w "$CAPDIR/calls.jsonl"
 manifest capture "{\"file\": \"$CAPDIR/calls.jsonl\", \"sha256\": \"$(shasum -a 256 "$CAPDIR/calls.jsonl" | awk '{print $1}')\", \"bytes\": $(wc -c <"$CAPDIR/calls.jsonl"), \"lines\": $(awk 'END{print NR}' "$CAPDIR/calls.jsonl")}"
 "$EVALLAB" modal billing-reconcile --for "$DAY" >"$OUT/billing-reconcile-after.txt" 2>&1 || log "billing reconcile after the round failed"
 "$EVALLAB" spend day --date "$DAY" >"$OUT/spend-day-after.txt" 2>&1 || true
-log "round $LABEL complete; manifest $OUT/round-manifest.json"
+if [ "$ROUND_STATUS" = 0 ]; then
+  log "round $LABEL complete; manifest $OUT/round-manifest.json"
+else
+  log "round $LABEL finalized after failed last-wave gate (exit $ROUND_STATUS); manifest $OUT/round-manifest.json"
+fi
+exit "$ROUND_STATUS"

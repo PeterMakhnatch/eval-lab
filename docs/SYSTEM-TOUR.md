@@ -41,7 +41,7 @@ execution checklist or a statement of current run approval.
        ▼
 [5. METADATA CATALOG & DATA LAYER INGESTION (Zones 2 & 3)]
        │  • PostgreSQL Catalog (Z2): evallab ingest runs -> sql/schema.sql (jobs, trials, rewards, verdicts)
-       │  • Live Parquet Lake (Z3): <primary>-state/derived/parquet/ (storage.paths)
+       │  • Parquet Analytics Lake (Z3): configured store (storage.paths; EVALLAB_DERIVED_ROOT)
        │  • Reconciliation / Backfill: evallab data backfill --all (disposition: ANALYSIS_READY vs HOLD)
        │  • Unified Query Surface: evallab db attach --zones (DuckDB across Z2+Z3+Z4)
        ▼
@@ -84,7 +84,7 @@ The code layout is strictly modularized across authoritative domain packages and
    - Locations: PostgreSQL database (`jobs`, `trials`, `verdicts`, `rewards`)
    - Policy: Fast operational queries and indexing; never stores heavy blob data.
 3. **Zone 3: Columnar Analytics Lake**
-   - Live location: `<primary>-state/derived/parquet/`; tracked `derived/parquet/` files are deliberate reproducibility snapshots.
+   - Location: the Parquet root selected by `storage.paths` for the pinned revision and overrides; tracked `derived/parquet/` files remain reviewed snapshots.
    - Policy: Deterministic facts can be rebuilt from retained source evidence. Preserve model judgments and other outputs whose exact regeneration is not established; see [generated/cache policy](GENERATED-CACHE-POLICY.md).
 4. **Zone 4: Curated Marts & Evaluation Artifacts**
    - Locations: `derived/curated/`, `derived/comparisons/`, capability curves, eval cards

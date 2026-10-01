@@ -15,7 +15,7 @@ inputs:
   - path: docs/NOW.md
     digest: sha256:fb81d9eb4a8ac2899df9a548fa8baa8b166a4cb20ed65bc463132dbcd0b484e4
   - path: docs/SYSTEM-TOUR.md
-    digest: sha256:fc2179db1df818f6149862127af8b9679b3ea6bcea06fbcdcbc7e35b59c65e0f
+    digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
   - path: docs/SYSTEM.md
     digest: sha256:27d716de9252ceb013a6927e91167ccc29fdd933cbd12206aa4c621826483c0d
   - path: docs/WHERE-DOES-THIS-GO.md

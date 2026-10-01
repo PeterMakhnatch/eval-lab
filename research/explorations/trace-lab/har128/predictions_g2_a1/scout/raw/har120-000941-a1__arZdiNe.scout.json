@@ -1,0 +1,152 @@
+{
+ "trial": "har120-000941-a1__arZdiNe",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000941-a1/har120-000941-a1__arZdiNe",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000941-a1",
+ "task": "mimo-v2.6-rl/format-code-task-000941",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [
+   "head#38",
+   "head#47"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 38,
+  "step_ref": "head#38",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#38",
+   "head#49",
+   "head#103"
+  ],
+  "note": "false completion claim from step 38 while the verifier score is 0.0 (scored=True); identical loop 49-103 until ceiling:input_tokens; the claim, not the harness, is wrong",
+  "confirmation_loop": {
+   "rule_id": "R-COMP-04",
+   "detector": "recorded",
+   "first_confirmation_ref": "head#38",
+   "loop_span": [
+    "head#38",
+    "head#103"
+   ],
+   "steps_in_span": 66,
+   "suffix_claim_only": true,
+   "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+  },
+  "secondary": "confirmation_with_call loop (recorded): first confirmation head#38, span head#38-head#103; attribution unclear (confirm vs continue ambiguous)",
+  "loop_token_cost": {
+   "prompt": 2035769,
+   "completion": 6262
+  }
+ },
+ "handshake": {
+  "first_prompt_ref": "head#38",
+  "prompts": 2,
+  "confirmed": false,
+  "turns_after_first_prompt": 65,
+  "prompt_tokens_after_first_prompt": 2014209,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 10,
+    "span": [
+     "head#2",
+     "head#11"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 55,
+    "span": [
+     "head#49",
+     "head#103"
+    ]
+   },
+   {
+    "kind": "confirmation",
+    "length": 66,
+    "span": [
+     "head#38",
+     "head#103"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1824883,
+   "completion": 6137,
+   "steps": 65,
+   "steps_without_metrics": 0
+  },
+  "confirmation": {
+   "prompt": 2035769,
+   "completion": 6262,
+   "steps": 66,
+   "steps_without_metrics": 0
+  },
+  "in_loops": {
+   "prompt": 2077222,
+   "completion": 7284,
+   "steps": 76,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2460129,
+   "completion": 10547,
+   "steps": 102,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.8444,
+  "result_input_tokens": 2460129
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 100,
+  "states": {
+   "no_prompt": 74,
+   "pager": 2,
+   "prompt": 24
+  },
+  "stretches": [],
+  "short_stretches": 2
+ },
+ "confirmation_loop": {
+  "rule_id": "R-COMP-04",
+  "detector": "recorded",
+  "first_confirmation_ref": "head#38",
+  "loop_span": [
+   "head#38",
+   "head#103"
+  ],
+  "steps_in_span": 66,
+  "suffix_claim_only": true,
+  "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+ },
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

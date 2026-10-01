@@ -1,0 +1,2462 @@
+{
+  "rater_a_vs_rater_b": {
+    "stop_reason": {
+      "agree": 19,
+      "n": 20,
+      "ci95": [
+        0.7638641064874331,
+        0.9911187805671268
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "agent_timeout",
+          "other": "agent_timeout",
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": "request_ceiling",
+          "other": "token_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 17,
+      "n": 20,
+      "ci95": [
+        0.6395767041130426,
+        0.9476322080405041
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": 4,
+          "other": 21,
+          "match": false
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": 40,
+          "other": 40,
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": 43,
+          "other": 43,
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": 22,
+          "other": 22,
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": 19,
+          "other": 20,
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": 26,
+          "other": 7,
+          "match": false
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": 2,
+          "other": 3,
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": 11,
+          "other": 11,
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": 51,
+          "other": 51,
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": 35,
+          "other": 35,
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": 16,
+          "other": 16,
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": 65,
+          "other": 64,
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": 10,
+          "other": 10,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": 80,
+          "other": 80,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": 13,
+          "other": 44,
+          "match": false
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": 40,
+          "other": 40,
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": null,
+          "other": null,
+          "match": true
+        }
+      ]
+    },
+    "blame": {
+      "agree": 19,
+      "n": 20,
+      "ci95": [
+        0.7638641064874331,
+        0.9911187805671268
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": "model",
+          "other": "harness",
+          "match": false
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        }
+      ]
+    },
+    "loop_present": {
+      "agree": 17,
+      "n": 20,
+      "ci95": [
+        0.6395767041130426,
+        0.9476322080405041
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 17,
+      "n": 20,
+      "ci95": [
+        0.6395767041130426,
+        0.9476322080405041
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": "completion-claim",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": "none",
+          "other": "completion-claim",
+          "match": false
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        }
+      ]
+    },
+    "loop_onset": {
+      "agree": 10,
+      "n": 12,
+      "ci95": [
+        0.5519636426153274,
+        0.9530358523851776
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": 19,
+          "other": 21,
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": 75,
+          "other": 75,
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": 31,
+          "other": 32,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": 55,
+          "other": 57,
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": 10,
+          "other": 10,
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": 38,
+          "other": 48,
+          "match": false
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": 65,
+          "other": 64,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": 33,
+          "other": 33,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": 80,
+          "other": 80,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": 104,
+          "other": 104,
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": 36,
+          "other": 44,
+          "match": false
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": 14,
+          "other": 14,
+          "match": true
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 4,
+      "n": 4,
+      "ci95": [
+        0.5100999795960008,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": false,
+          "other": false,
+          "match": true
+        }
+      ]
+    }
+  },
+  "docent_opus_vs_agreed": {
+    "stop_reason": {
+      "agree": 8,
+      "n": 18,
+      "ci95": [
+        0.24559231101389126,
+        0.6628393057174837
+      ],
+      "not_expressed": 1,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "agent_timeout",
+          "other": "agent_timeout",
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "token_ceiling",
+          "other": "request_ceiling",
+          "match": false
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "loop_break",
+          "other": "other",
+          "match": false
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 11,
+      "n": 17,
+      "ci95": [
+        0.4129996672121182,
+        0.826905138560951
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": 40,
+          "other": 40,
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": 43,
+          "other": 43,
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": 22,
+          "other": 22,
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": 19,
+          "other": 10,
+          "match": false
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": 2,
+          "other": 2,
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": 11,
+          "other": 39,
+          "match": false
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": 51,
+          "other": 51,
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": 35,
+          "other": 35,
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": 16,
+          "other": 16,
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": 65,
+          "other": 61,
+          "match": false
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": 10,
+          "other": 10,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": 80,
+          "other": 23,
+          "match": false
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": null,
+          "other": 96,
+          "match": false
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": 40,
+          "other": 40,
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": null,
+          "other": 16,
+          "match": false
+        }
+      ]
+    },
+    "blame": {
+      "agree": 16,
+      "n": 18,
+      "ci95": [
+        0.6719975513339578,
+        0.9689811315464172
+      ],
+      "not_expressed": 1,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": "none",
+          "other": "model",
+          "match": false
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "none",
+          "other": "model",
+          "match": false
+        }
+      ]
+    },
+    "loop_present": {
+      "agree": 14,
+      "n": 17,
+      "ci95": [
+        0.5897007098262422,
+        0.9380898628745101
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 13,
+      "n": 16,
+      "ci95": [
+        0.5699064013154177,
+        0.9340852122641324
+      ],
+      "not_expressed": 1,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        }
+      ]
+    },
+    "loop_onset": {
+      "agree": 10,
+      "n": 10,
+      "ci95": [
+        0.7224598312333834,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": 19,
+          "other": 21,
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": 75,
+          "other": 75,
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": 31,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": 55,
+          "other": 55,
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": 10,
+          "other": 10,
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": 65,
+          "other": 62,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": 33,
+          "other": 34,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": 80,
+          "other": 80,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": 104,
+          "other": 104,
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": 14,
+          "other": 17,
+          "match": true
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 4,
+      "n": 4,
+      "ci95": [
+        0.5100999795960008,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": false,
+          "other": false,
+          "match": true
+        }
+      ]
+    }
+  },
+  "evallab_vs_agreed": {
+    "stop_reason": {
+      "agree": 19,
+      "n": 19,
+      "ci95": [
+        0.8318156346315496,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "agent_timeout",
+          "other": "agent_timeout",
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 4,
+      "n": 17,
+      "ci95": [
+        0.0955488907167594,
+        0.47262245889171595
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": 40,
+          "other": 40,
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": 43,
+          "other": 3,
+          "match": false
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": 22,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": 19,
+          "other": 13,
+          "match": false
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": null,
+          "other": 25,
+          "match": false
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": 2,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": 11,
+          "other": 11,
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": 51,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": 35,
+          "other": 14,
+          "match": false
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": 16,
+          "other": 11,
+          "match": false
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": 65,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": 10,
+          "other": 10,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": 80,
+          "other": 6,
+          "match": false
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": null,
+          "other": 13,
+          "match": false
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": 40,
+          "other": 36,
+          "match": false
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": null,
+          "other": 3,
+          "match": false
+        }
+      ]
+    },
+    "blame": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 19,
+      "rows": []
+    },
+    "loop_present": {
+      "agree": 13,
+      "n": 17,
+      "ci95": [
+        0.5273775411082839,
+        0.9044511092832406
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": true,
+          "other": false,
+          "match": false
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 17,
+      "rows": []
+    },
+    "loop_onset": {
+      "agree": 5,
+      "n": 6,
+      "ci95": [
+        0.43649056343635395,
+        0.9699474141282697
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": 31,
+          "other": 39,
+          "match": false
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": 55,
+          "other": 57,
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": 65,
+          "other": 65,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": 33,
+          "other": 35,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": 80,
+          "other": 80,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": 104,
+          "other": 104,
+          "match": true
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 3,
+      "n": 4,
+      "ci95": [
+        0.3006360524426366,
+        0.9544139373553637
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": false,
+          "other": false,
+          "match": true
+        }
+      ]
+    }
+  },
+  "scout_vs_agreed": {
+    "stop_reason": {
+      "agree": 19,
+      "n": 19,
+      "ci95": [
+        0.8318156346315496,
+        1.0
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "agent_timeout",
+          "other": "agent_timeout",
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 2,
+      "n": 17,
+      "ci95": [
+        0.03287908001292092,
+        0.3433684249770991
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": 40,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": 43,
+          "other": 3,
+          "match": false
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": 22,
+          "other": 25,
+          "match": false
+        },
+        {
+          "trial": "har120-000803-a1__xWzxKCn",
+          "rater": 19,
+          "other": 33,
+          "match": false
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": null,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": 2,
+          "other": 2,
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": 11,
+          "other": 38,
+          "match": false
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": 51,
+          "other": 60,
+          "match": false
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": 35,
+          "other": 91,
+          "match": false
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": 16,
+          "other": 71,
+          "match": false
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": 65,
+          "other": 30,
+          "match": false
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": 10,
+          "other": 37,
+          "match": false
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": 80,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": null,
+          "other": 95,
+          "match": false
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": 40,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": null,
+          "other": 3,
+          "match": false
+        }
+      ]
+    },
+    "blame": {
+      "agree": 15,
+      "n": 16,
+      "ci95": [
+        0.7167073163197013,
+        0.9888809426916687
+      ],
+      "not_expressed": 3,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": "model",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "har120-000552-a1__WdaAJgE",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-002680-a1__Ci4bEkf",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        }
+      ]
+    },
+    "loop_present": {
+      "agree": 14,
+      "n": 17,
+      "ci95": [
+        0.5897007098262422,
+        0.9380898628745101
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000666-a1__mZosYxT",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-000941-a1__arZdiNe",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001265-a1__3sBRy7Y",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-001269-a1__y3Wy5Ku",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001373-a1__vHMkbJW",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001647-a1__iqMRm5R",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-001897-a1__6AyLy9W",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 17,
+      "rows": []
+    },
+    "loop_onset": {
+      "agree": 3,
+      "n": 10,
+      "ci95": [
+        0.10778928748621183,
+        0.6032267800204347
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "har120-000227-a1__7WRBQ4u",
+          "rater": 19,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-000341-a1__MYkGYQZ",
+          "rater": 75,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-000813-a1__WXXsNxw",
+          "rater": 31,
+          "other": 36,
+          "match": true
+        },
+        {
+          "trial": "har120-000838-a1__YSe3G7t",
+          "rater": 55,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-000865-a1__a2TWzyM",
+          "rater": 10,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-001399-a1__fwLaw2U",
+          "rater": 65,
+          "other": 30,
+          "match": false
+        },
+        {
+          "trial": "har120-001661-a1__xdRDCYr",
+          "rater": 33,
+          "other": 37,
+          "match": true
+        },
+        {
+          "trial": "har120-001710-a1__BLMKCZN",
+          "rater": 80,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "har120-001870-a1__rXFPYLR",
+          "rater": 104,
+          "other": 95,
+          "match": false
+        },
+        {
+          "trial": "har120-002938-a1__UpSjiuM",
+          "rater": 14,
+          "other": 18,
+          "match": true
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 4,
+      "rows": []
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "sed -n 380,560p /testbed/src/waitress/channel.py",
+      "ref": "head#4"
+    },
+    {
+      "quote": "sed -n 465,500p /testbed/src/waitress/task.py",
+      "ref": "head#19"
+    },
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#100"
+    },
+    {
+      "quote": "AssertionError: True != False",
+      "ref": "head#100"
+    },
+    {
+      "quote": "1 failed, 2 passed",
+      "ref": "head#100"
+    },
+    {
+      "quote": "normalized_command_run",
+      "ref": "head#100"
+    }
+  ],
+  "first_failure": {
+    "quote": "sed -n 380,560p /testbed/src/waitress/channel.py",
+    "ref": "head#4",
+    "what": "fixated on channel.py response writing instead of task.py WSGITask HEAD close_on_finish; never edited"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#19",
+    "head#100"
+  ],
+  "notes": "agent.diff empty; 100 read-only sed views, loop-break nudged at 19 (stop_call null), ended budget-exhausted, not loop-stop",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000227-a1__7WRBQ4u"
+}

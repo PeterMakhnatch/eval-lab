@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "return PparStream(self.patterns)",
+      "ref": "head#40"
+    },
+    {
+      "quote": "from sc3.seq.patterns.eventpatterns import PparStream",
+      "ref": "head#42"
+    },
+    {
+      "quote": "The terminal output display is broken - it's only echoing commands. Let me try a completely different approach - write the output to a file and then use `cat` on that file in a separate command",
+      "ref": "head#72"
+    },
+    {
+      "quote": "The terminal output display is broken - it's only echoing commands. Let me try a completely different approach - write the output to a file and then use `cat` on that file in a separate command",
+      "ref": "head#90"
+    }
+  ],
+  "first_failure": {
+    "quote": "return PparStream(self.patterns)",
+    "ref": "head#40",
+    "what": "wrote Ppar.__stream__ referencing bare PparStream with no import in eventpatterns.py and never tested the Ppar path"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#72",
+    "head#90"
+  ],
+  "notes": "TrialBudgetExhaustedError (token budget: 90 episodes < 120 request limit, 2.46M input tokens of 2.5M cap). Verifier 9/9 Ppar tests failed with NameError: PparStream not defined at eventpatterns.py:62; model only ever exercised PparStream via direct import from eventstream, never iter(Ppar(...)). No completion claim (prose_completions 0); loop_break never fired.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-002680-a1__Ci4bEkf"
+}

@@ -26,7 +26,8 @@ artifacts, verifier output, reward, timing, token use, cost, and exceptions.
 PostgreSQL catalogs jobs, trials, rewards, and verdicts. Parquet and DuckDB provide
 the fast columnar query surface.
 
-See [docs/NOW.md](docs/NOW.md) for current lab state (what exists, what not to
+See [docs/SYSTEM.md](docs/SYSTEM.md) for the one-page launch-to-training map,
+[docs/NOW.md](docs/NOW.md) for current lab state (what exists, what not to
 rebuild, live writers), [docs/SYSTEM-TOUR.md](docs/SYSTEM-TOUR.md) for the
 end-to-end architectural tour, [docs/GLOSSARY.md](docs/GLOSSARY.md) for
 terminology, [docs/WHERE-DOES-THIS-GO.md](docs/WHERE-DOES-THIS-GO.md) for file

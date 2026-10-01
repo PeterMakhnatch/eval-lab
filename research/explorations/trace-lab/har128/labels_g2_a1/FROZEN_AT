@@ -1,0 +1,3 @@
+2026-10-01T09:14:45Z
+guide RATER_GUIDE_v2.md sha256 13fe391e3a2c0cea72ab8b810f4202c3942e41db52861e9cb16e8fd6151d7cfb
+20 G2 attempt-1 trials (HAR-120 jobs har120-*-a1) under ~/Developer/eval-lab-results/2026-10-01/. Raters: blind scout agents A (G2A1-4) and B (G2B1-4); none reports opening off-limits files. No tool output for these runs was read before this freeze.

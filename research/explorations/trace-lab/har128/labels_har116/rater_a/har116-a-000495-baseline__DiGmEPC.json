@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cat /testbed/src/cfnlint/rules/resources/stepfunctions/StateMachineDefinition.py",
+      "ref": "head#3"
+    },
+    {
+      "quote": "Reproduced. Now let's understand the flow. The E1022 error comes from the resource property schema validation",
+      "ref": "head#7"
+    },
+    {
+      "quote": "Now let me look at how the E1022 error is generated.",
+      "ref": "head#8"
+    },
+    {
+      "quote": "ls /testbed && git -C /testbed log --oneline -5",
+      "ref": "head#2"
+    }
+  ],
+  "first_failure": {
+    "quote": "Now let me look at how the E1022 error is generated.",
+    "ref": "head#8",
+    "what": "diverted to provider-schema/E1022 hunt instead of editing StateMachineDefinition despite correct diagnosis"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "result.json: TrialBudgetExhaustedError, n_episodes 102 (<121), n_input 2476358, reward 0; verifier diff 0B with 11/12 passed, only 'Using a function' failed; never edited rule despite correct head#7 diagnosis, chased provider schemas/_keywords_cfn for 90+ steps; all task_complete null, varied commands.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-000495-baseline__DiGmEPC"
+}

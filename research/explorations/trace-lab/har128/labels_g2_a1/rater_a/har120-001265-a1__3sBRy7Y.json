@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ignore_key = (record.levelno, record.getMessage())",
+      "ref": "head#51"
+    },
+    {
+      "quote": "pl.LimitFilter._ignore.update(set([(logging.WARN, '%s is set to %s')]))",
+      "ref": "head#53"
+    },
+    {
+      "quote": "\"function_name\": \"mark_task_complete\"",
+      "ref": "head#60"
+    },
+    {
+      "quote": "\"function_name\": \"mark_task_complete\"",
+      "ref": "head#61"
+    }
+  ],
+  "first_failure": {
+    "quote": "ignore_key = (record.levelno, record.getMessage())",
+    "ref": "head#51",
+    "what": "Replaced record.msg with record.getMessage() instead of checking both or allowing template-based filters to match as well, breaking template filtering."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Model cleanly completed and confirmed completion across steps 60-61. Failed 1 verifier test because template-based filtering was disabled when swapping out record.msg.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har120-001265-a1__3sBRy7Y"
+}

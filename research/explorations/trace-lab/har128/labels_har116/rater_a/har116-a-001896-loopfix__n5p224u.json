@@ -1,0 +1,31 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ModuleNotFoundError: No module named 'duckdb'",
+      "ref": "exception.txt"
+    },
+    {
+      "quote": "Trial har116-a-001896-loopfix__n5p224u failed: No module named 'duckdb'",
+      "ref": "trial.log"
+    }
+  ],
+  "first_failure": {
+    "quote": "ModuleNotFoundError: No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "harness crashed in loopfix import (live_loop_action -> _is_edit -> import duckdb) before any agent step was recorded; trajectory holds only the user prompt"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Trajectory has only head#1 (user prompt); the duckdb crash occurred while processing the model's first command batch, so the first-failure quote is taken from exception.txt/trial.log. result.json embeds a config block (model name, loop_break flag) but names no arm; nothing inferred from run names. n_episodes 1, loop_break fired false, verifier never ran.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-001896-loopfix__n5p224u"
+}

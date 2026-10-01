@@ -1,0 +1,35 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ModuleNotFoundError: No module named duckdb in loopfix startup",
+      "ref": "head#1"
+    },
+    {
+      "quote": "n_episodes 1, trajectory has only the user prompt step",
+      "ref": "head#1"
+    },
+    {
+      "quote": "no verifier output; crash in _apply_loop_fix before any model action",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "ModuleNotFoundError: No module named duckdb",
+    "ref": "head#1",
+    "what": "harness loop-fix crashed at startup on missing duckdb import"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Loopfix (not r2) startup import error; model never acted.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-001832-loopfix__rw7cJJ4"
+}

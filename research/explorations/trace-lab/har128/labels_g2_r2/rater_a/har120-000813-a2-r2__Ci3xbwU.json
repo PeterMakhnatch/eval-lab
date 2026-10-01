@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cat > /workspace/repo/django_recaptcha/client.py << 'EOF'",
+      "ref": "head#8"
+    },
+    {
+      "quote": "request.add_header(\"Content-type\", \"application/x-www-form-urlencoded\")",
+      "ref": "head#8"
+    },
+    {
+      "quote": "cat /workspace/repo/django_recaptcha/client.py",
+      "ref": "head#78"
+    },
+    {
+      "quote": "cat /workspace/repo/django_recaptcha/client.py",
+      "ref": "head#79"
+    },
+    {
+      "quote": "cat /workspace/repo/django_recaptcha/client.py",
+      "ref": "head#103"
+    }
+  ],
+  "first_failure": {
+    "quote": "request.add_header(\"Content-type\", \"application/x-www-form-urlencoded\")",
+    "ref": "head#8",
+    "what": "created client.py submit() via Request()+add_header instead of Request(url,data,headers)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#78",
+    "head#103"
+  ],
+  "notes": "Hidden tests patch client.Request with FakeRequest capturing only constructor kwargs (url/data/headers) and providing no add_header, so all 11 verifier tests raise AttributeError. TrialBudgetExhaustedError with n_episodes=101/120 and 2.46M input tokens => token ceiling. Empty-message cat repeats run from ~step77 to 103; nudge fired at call 26.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000813-a2-r2__Ci3xbwU"
+}

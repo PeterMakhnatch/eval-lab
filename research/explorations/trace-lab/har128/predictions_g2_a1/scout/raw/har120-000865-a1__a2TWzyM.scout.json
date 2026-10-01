@@ -1,0 +1,106 @@
+{
+ "trial": "har120-000865-a1__a2TWzyM",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000865-a1/har120-000865-a1__a2TWzyM",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-000865-a1",
+ "task": "mimo-v2.6-rl/format-code-task-000865",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "unknown",
+  "exception_type": "LoopBreakStop",
+  "exception_message": "loop break: the repetition was still going 33 calls in, 15 after the nudge at call 18",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#34"
+  ],
+  "note": "identical message repeated steps 2-34 with no change after errors",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): continuation after head#2 (`ls /testbed && git -C /testbed log --oneline -3 | grep -ri \"`), 32 turns head#3-head#34 with no interrupt, until run end"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 33,
+    "span": [
+     "head#2",
+     "head#34"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 71629,
+   "completion": 1434,
+   "steps": 33,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 71629,
+   "completion": 1434,
+   "steps": 33,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 71629,
+   "completion": 1434,
+   "steps": 33,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 1.0,
+  "result_input_tokens": 71629
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 33,
+  "states": {
+   "continuation": 33
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#2",
+    "trigger_command": "ls /testbed && git -C /testbed log --oneline -3 | grep -ri \"logstash\" /testbed --include=\"*.go\" -l | head -20",
+    "cause": "continuation",
+    "screen": ">",
+    "start_ref": "head#3",
+    "end_ref": "head#34",
+    "turns": 32,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 70784,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

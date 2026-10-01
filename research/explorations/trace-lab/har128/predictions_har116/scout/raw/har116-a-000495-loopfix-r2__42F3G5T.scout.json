@@ -1,0 +1,144 @@
+{
+ "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix-r2/har116-a-000495-loopfix-r2__42F3G5T",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix-r2",
+ "task": "mimo-v2.6-rl/format-code-task-000495",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#87",
+   "head#88"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#17"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#2-head#17",
+  "secondary_comp04": "confirmation_with_call loop (recorded): first confirmation head#87, span head#87-head#88; attribution unclear (confirm vs continue ambiguous)",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): no_prompt after head#76 (`cd /testbed && python3 -m pytest test/unit/rules/ -q 2>/dev/`), 8 turns head#77-head#84 with no interrupt, prompt back after the command finished"
+ },
+ "handshake": {
+  "first_prompt_ref": "head#87",
+  "prompts": 1,
+  "confirmed": true,
+  "turns_after_first_prompt": 1,
+  "prompt_tokens_after_first_prompt": 46673,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 16,
+    "span": [
+     "head#2",
+     "head#17"
+    ]
+   },
+   {
+    "kind": "confirmation",
+    "length": 2,
+    "span": [
+     "head#87",
+     "head#88"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 94974,
+   "completion": 3869,
+   "steps": 16,
+   "steps_without_metrics": 0
+  },
+  "confirmation": {
+   "prompt": 92895,
+   "completion": 411,
+   "steps": 2,
+   "steps_without_metrics": 0
+  },
+  "in_loops": {
+   "prompt": 187869,
+   "completion": 4280,
+   "steps": 18,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2201995,
+   "completion": 15925,
+   "steps": 87,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.0853,
+  "result_input_tokens": 2201995
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 85,
+  "states": {
+   "no_prompt": 27,
+   "prompt": 58
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#76",
+    "trigger_command": "cd /testbed && python3 -m pytest test/unit/rules/ -q 2>/dev/null | tail -5; echo \"rc=$?\"",
+    "cause": "no_prompt",
+    "screen": "cd /testbed && python3 -m pytest test/unit/rules/ -q 2>/dev/null | tail -5; echo \"rc=$?\"",
+    "start_ref": "head#77",
+    "end_ref": "head#84",
+    "turns": 8,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": true,
+    "until_run_end": false,
+    "prompt_tokens": 344081,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 1
+ },
+ "confirmation_loop": {
+  "rule_id": "R-COMP-04",
+  "detector": "recorded",
+  "first_confirmation_ref": "head#87",
+  "loop_span": [
+   "head#87",
+   "head#88"
+  ],
+  "steps_in_span": 2,
+  "suffix_claim_only": true,
+  "note": "confirmation_with_call loop (secondary): the harness asked 'Are you sure ...' and the model kept replying claim+call, which executed instead of confirming; attribution unclear (confirm vs continue ambiguous)"
+ },
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

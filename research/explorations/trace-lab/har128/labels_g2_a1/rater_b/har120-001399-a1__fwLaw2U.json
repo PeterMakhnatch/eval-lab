@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "print(\"valid:\", ff.clean(\"pub_date\"))",
+      "ref": "head#64"
+    },
+    {
+      "quote": "print(\"valid:\", ff.clean(\"pub_date\"))",
+      "ref": "head#87"
+    },
+    {
+      "quote": "loop break: the repetition was still going 86 calls in, 15 after the nudge at call 71",
+      "ref": "head#87"
+    },
+    {
+      "quote": "detector: normalized_command_run",
+      "ref": "head#87"
+    },
+    {
+      "quote": "Select a valid choice. -pubDate is not one of the available choices",
+      "ref": "head#87"
+    },
+    {
+      "quote": "agent.diff is empty: no source changes made",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "print(\"valid:\", ff.clean(\"pub_date\"))",
+    "ref": "head#64",
+    "what": "Began repeating the identical ff.clean('pub_date') Django probe instead of implementing camelCase ordering choices; no source edit was ever made (agent.diff empty)."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#64",
+    "head#87"
+  ],
+  "notes": "24 straight turns (head#64-head#87) of the same Django heredoc probe with zero edits; prose_completions 0 so not completion-driven. Loop-break correctly fired on a non-progressing run.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-001399-a1__fwLaw2U"
+}

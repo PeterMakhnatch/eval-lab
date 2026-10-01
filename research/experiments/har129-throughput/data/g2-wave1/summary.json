@@ -1,0 +1,192 @@
+{
+  "n_job_dirs": 20,
+  "n_trials": 20,
+  "n_provider_calls": 1429,
+  "session_window": {
+    "start": "2026-10-01T08:01:59.280155Z",
+    "end": "2026-10-01T09:02:15.410875Z"
+  },
+  "job_n_concurrent_values": [
+    1
+  ],
+  "concurrency": {
+    "peak_concurrent_trials": 19,
+    "time_weighted_mean_concurrent_trials": 4.4135572621113655
+  },
+  "trials": {
+    "wall_s": {
+      "mean": 822.5172737,
+      "median": 624.1214735000001,
+      "max": 3615.937385
+    },
+    "llm_time_s": {
+      "mean": 243.54815431645042,
+      "median": 218.74173307418823
+    },
+    "tool_time_s": {
+      "mean": 588.6301900519707,
+      "median": 375.7082652588501
+    },
+    "input_tokens_total": 30210520,
+    "output_tokens_total": 254634,
+    "mean_output_tokens": 12731.7,
+    "by_exception": {
+      "AgentTimeoutError": {
+        "n": 1,
+        "wall_s_mean": 3615.937385,
+        "wall_s_median": 3615.937385,
+        "llm_time_s_mean": 194.21850180625916,
+        "tool_time_s_mean": 3405.761450193741,
+        "mean_output_tokens": 11269.0,
+        "experienced_concurrency_mean": 4.416666666666667
+      },
+      "LoopBreakStop": {
+        "n": 7,
+        "wall_s_mean": 560.6912961428571,
+        "wall_s_median": 496.143662,
+        "llm_time_s_mean": 206.01356063570296,
+        "tool_time_s_mean": 327.6325179357256,
+        "mean_output_tokens": 11094.714285714286,
+        "experienced_concurrency_mean": 16.206965653394224
+      },
+      "RuntimeError": {
+        "n": 1,
+        "wall_s_mean": 43.471033,
+        "wall_s_median": 43.471033,
+        "llm_time_s_mean": null,
+        "tool_time_s_mean": null,
+        "mean_output_tokens": 0.0,
+        "experienced_concurrency_mean": null
+      },
+      "TrialBudgetExhaustedError": {
+        "n": 7,
+        "wall_s_mean": 841.443005,
+        "wall_s_median": 966.977369,
+        "llm_time_s_mean": 353.32774472236633,
+        "tool_time_s_mean": 452.3788244204908,
+        "mean_output_tokens": 19713.285714285714,
+        "experienced_concurrency_mean": 13.810772642390289
+      },
+      "none": {
+        "n": 4,
+        "wall_s_mean": 743.999237,
+        "wall_s_median": 450.859238,
+        "llm_time_s_mean": 129.45182317495346,
+        "tool_time_s_mean": 579.5331910750465,
+        "mean_output_tokens": 6927.25,
+        "experienced_concurrency_mean": 15.1140625
+      }
+    }
+  },
+  "server": {
+    "n_decode_batches": 1829,
+    "n_prefill_batches": 1449,
+    "gen_tok_s_by_batch_size": {
+      "1": {
+        "n": 555,
+        "mean_gen_tok_s": 72.64801801801802,
+        "median_gen_tok_s": 79.81
+      },
+      "2": {
+        "n": 243,
+        "mean_gen_tok_s": 147.82407407407408,
+        "median_gen_tok_s": 152.47
+      },
+      "3": {
+        "n": 218,
+        "mean_gen_tok_s": 210.09518348623854,
+        "median_gen_tok_s": 215.98000000000002
+      },
+      "4": {
+        "n": 184,
+        "mean_gen_tok_s": 262.3825543478261,
+        "median_gen_tok_s": 270.76
+      },
+      "5": {
+        "n": 133,
+        "mean_gen_tok_s": 324.99067669172933,
+        "median_gen_tok_s": 326.38
+      },
+      "6": {
+        "n": 152,
+        "mean_gen_tok_s": 370.2911842105263,
+        "median_gen_tok_s": 369.79999999999995
+      },
+      "7": {
+        "n": 117,
+        "mean_gen_tok_s": 409.09128205128206,
+        "median_gen_tok_s": 415.31
+      },
+      "8": {
+        "n": 81,
+        "mean_gen_tok_s": 484.3495061728395,
+        "median_gen_tok_s": 474.58
+      },
+      "9": {
+        "n": 57,
+        "mean_gen_tok_s": 489.0312280701754,
+        "median_gen_tok_s": 497.47
+      },
+      "10": {
+        "n": 34,
+        "mean_gen_tok_s": 576.0705882352942,
+        "median_gen_tok_s": 563.395
+      },
+      "11": {
+        "n": 33,
+        "mean_gen_tok_s": 590.800909090909,
+        "median_gen_tok_s": 584.15
+      },
+      "12": {
+        "n": 9,
+        "mean_gen_tok_s": 602.9033333333333,
+        "median_gen_tok_s": 595.9
+      },
+      "13": {
+        "n": 9,
+        "mean_gen_tok_s": 651.5544444444445,
+        "median_gen_tok_s": 647.76
+      },
+      "14": {
+        "n": 2,
+        "mean_gen_tok_s": 604.225,
+        "median_gen_tok_s": 604.225
+      },
+      "15": {
+        "n": 1,
+        "mean_gen_tok_s": 230.43,
+        "median_gen_tok_s": 230.43
+      },
+      "16": {
+        "n": 1,
+        "mean_gen_tok_s": 578.7,
+        "median_gen_tok_s": 578.7
+      }
+    },
+    "gen_tok_s_overall_mean": 239.03190814652817,
+    "input_tok_s_prefill_median": 873.48,
+    "queue_req_gt0_batches": 0,
+    "queue_req_gt0_share": 0.0,
+    "full_token_usage_max": 0.37,
+    "kv_scaling": {
+      "kv_capacity_full_tokens": 745735.0877192982,
+      "running_req_per_trial_slope": 0.3272240733399994,
+      "running_req_per_trial_intercept": 0.5436538948679208,
+      "full_token_per_running_req_mean": 20135.372043010753,
+      "tail_bs_gt16": {
+        "min_concurrent_trials": 17,
+        "minutes": 4,
+        "batches": 351,
+        "share": 0.0
+      }
+    }
+  },
+  "billing": {
+    "billed_usd_by_app": {
+      "ap-6MVKRrBnozowbUzD1yL5NE": 3.78600334
+    },
+    "billed_usd_total": 3.78600334,
+    "cost_per_run_usd": 0.18930016700000002,
+    "server_rate_usd_per_h": 2.814912
+  }
+}

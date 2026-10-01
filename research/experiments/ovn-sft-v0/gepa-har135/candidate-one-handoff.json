@@ -1,0 +1,158 @@
+{
+  "candidate_count_limit": 2,
+  "candidate_gate_cost_cap_usd_total": 2,
+  "candidate_id": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+  "candidate_number": 1,
+  "candidate_path": "research/experiments/ovn-sft-v0/gepa-har135/candidates/b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470.txt",
+  "estimate_basis": "G2 wave1/HAR116 measured approximately0.12USD per trial including Modal and Daytona, per Research-Harbor HAR12608:42; 0.25 is >2x observed with warm-session-only handoff. This is reservation/projection, not billed cost. Do not dispatch if incremental shared-server plus candidate sandbox projection exceeds2USD. No cold start is included.",
+  "forbidden_executor_accesses": [],
+  "fresh_target_calls": 0,
+  "gate_manifest_path": "research/evidence/runs/har135-gepa-lf2-seven/gate-admission-seven.json",
+  "gate_manifest_sha256": "54228ee29ba6842ea79379dc829fcfdabc44d4d3d928ee2efefdc2728bed1120",
+  "intervention": "General repetition warning response, correct terminal/pager/newline state, targeted inspection, small local repair, verify behavior, honest completion. No task-specific code/solution.",
+  "proposer": {
+    "model": "codex/gpt-6-astra",
+    "subscription_cli_invocations": 1,
+    "subscription_quota_or_cost_usd": null,
+    "transport": "codex",
+    "upstream_physical_requests": null
+  },
+  "schema": "har135.candidate-handoff/v1",
+  "seed_counted_fails": 6,
+  "seed_counted_passes": 1,
+  "seed_rows_sha256": "f4e0c1d24c4e5b00c3e6a816cdf7582079db81506c45a828b8849f035a000fd9",
+  "seed_settled_total_tokens": 10153367,
+  "spec_estimate_usd_each": 0.25,
+  "spec_estimate_usd_total": 1.75,
+  "specs": [
+    {
+      "est_cost_usd": 0.25,
+      "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+      "name": "har135-c1-000803",
+      "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-000803.json",
+      "sha256": "4527bbe07abf225dd838521925076b15033540c7e2fb802f9d7c14ccf1e71851",
+      "spec_id": "01M3VBDY9WZ4N0E73F5J8ZJBD7",
+      "task_id": "format-code-task-000803",
+      "task_package_digest": "sha256:ac99a511015a2c31ae7cb56577154096de4df9ca2f40d655450f215cdcb4f740"
+    },
+    {
+      "est_cost_usd": 0.25,
+      "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+      "name": "har135-c1-001897",
+      "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-001897.json",
+      "sha256": "9ad39fb097da3880204e64f351c17081b307a7aa8d0615b990b8866b38badceb",
+      "spec_id": "01M3VBDY9ZYYQ56VV721PD0VCX",
+      "task_id": "format-code-task-001897",
+      "task_package_digest": "sha256:e9f28b6db44e81fdd174c04c0a42e5535466c9d19176c4f63c8f510419e8b3cc"
+    },
+    {
+      "est_cost_usd": 0.25,
+      "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+      "name": "har135-c1-002938",
+      "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-002938.json",
+      "sha256": "13ea1b4a630fbe8f5756a8f0a904fba92450780045dd97850c208fa2ce264eec",
+      "spec_id": "01M3VBDYA11ZNGJG72EY61GJME",
+      "task_id": "format-code-task-002938",
+      "task_package_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562"
+    },
+    {
+      "est_cost_usd": 0.25,
+      "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+      "name": "har135-c1-001710",
+      "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-001710.json",
+      "sha256": "d587b9cfbb1eb5f9f08b9c9c3e861eb1b81961cd4d602628043c13367cc58c18",
+      "spec_id": "01M3VBDYA2EE4FA6E9XDKKJKQF",
+      "task_id": "format-code-task-001710",
+      "task_package_digest": "sha256:361303219639ff24b77317f1a21fa72999bd13e1e2013ba18024e9e16c2e3d91"
+    },
+    {
+      "est_cost_usd": 0.25,
+      "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+      "name": "har135-c1-001399",
+      "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-001399.json",
+      "sha256": "158c03187ce07c016df8a3a23e88629965a92794005f389d1c0ba43cc4b0d37d",
+      "spec_id": "01M3VBDYA4SPVAY1KBQ091T7WB",
+      "task_id": "format-code-task-001399",
+      "task_package_digest": "sha256:f8ea9d7813ebe8488f5286188616463e195612abe2284e069f09951d3c8a9405"
+    },
+    {
+      "est_cost_usd": 0.25,
+      "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+      "name": "har135-c1-002680",
+      "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-002680.json",
+      "sha256": "9c49916b0a00043bcedac308dbe39ff828597f42199ffdc210cbd8defb199908",
+      "spec_id": "01M3VBDYA5N11HBKBNSG2HD9YN",
+      "task_id": "format-code-task-002680",
+      "task_package_digest": "sha256:205818a003ea443311e98770c8da6aeebfa5c04f71f4b72511f9f6d663cd6606"
+    },
+    {
+      "est_cost_usd": 0.25,
+      "extra_instruction_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+      "name": "har135-c1-001661",
+      "path": "research/experiments/ovn-sft-v0/gepa-har135/specs/c1/format-code-task-001661.json",
+      "sha256": "ce9e68a906c2f2d453e3b134074f2f54712f284275ca1f05c9cb487e927baf3b",
+      "spec_id": "01M3VBDYA7CERZY19ERFVRX5V0",
+      "task_id": "format-code-task-001661",
+      "task_package_digest": "sha256:7281bec0244739c8c679d5ae2252ca13dcfd8d442b5993c4cb1347dbd7a78f7c"
+    }
+  ],
+  "seed_rows_path": "research/evidence/runs/har135-gepa-lf2-seven/stock-seed-rows-seven.json",
+  "frozen_at": "2026-10-01T08:57:13.838229+00:00",
+  "campaign_binding_sha256": "4e70ce92b8dd2647ba6d5c6d7ddb4e3681553db3294783c08e9ea4959e915011",
+  "proposer_authorization_sha256": "a89befc82637055df77871d32bc2cb1655c3f584abc7072b48d3609278214650",
+  "source_ruling_url": "https://linear.app/petermakhnatch/issue/HAR-135/overnight-gepa-on-lf2-prompt-optimization-as-the-second-improvement",
+  "source_release": {
+    "commit": "0632cdb5dcc052e690eab439e1b4a7e3e9cfe407",
+    "version": "0.1.4",
+    "python_source_tree_sha256": "sha256:e8bc3facf961884faca73e7a434773231b3c1ba0eb79688072bf65bc1a268dd1"
+  },
+  "proposer_transport": {
+    "transport": "codex",
+    "model": "codex/gpt-6-astra",
+    "authenticated_route": "chatgpt_subscription",
+    "model_provider": "openai",
+    "executable": "/opt/homebrew/lib/node_modules/@openai/codex/bin/codex.js",
+    "executable_sha256": "sha256:61b0194f3bb6534439c8d26a3ed57d0805f84b884588b761795323eeb92fcf70",
+    "version": "codex-cli 0.154.0",
+    "text_only": {
+      "sandbox": "read-only",
+      "ignore_user_config": true,
+      "ignore_rules": true,
+      "ephemeral": true,
+      "disabled_features": [
+        "shell_tool",
+        "unified_exec",
+        "unified_exec_tty",
+        "multi_agent",
+        "browser_use",
+        "browser_use_external",
+        "browser_use_full_cdp_access",
+        "computer_use",
+        "apps",
+        "plugins",
+        "plugin_sharing",
+        "remote_plugin",
+        "hooks",
+        "view_image",
+        "image_generation",
+        "sleep_tool",
+        "tool_suggest",
+        "skill_search",
+        "skill_mcp_dependency_install"
+      ],
+      "web_search": "disabled",
+      "analytics": "disabled",
+      "feedback": "disabled",
+      "file_patch_tool": "no_cli_disable_flag;_blocked_by_read_only_sandbox_and_parser"
+    }
+  },
+  "proposer_actual": {
+    "origin": "codex/gpt-6-astra",
+    "calls": 1,
+    "replayed_responses": 0,
+    "reported_cost_usd": null,
+    "actual_billing_cost_usd": null,
+    "accounting_basis": "subscription_cli_invocations_not_physical_requests_or_billing",
+    "cost_cap_excludes_target_evaluation": true
+  }
+}

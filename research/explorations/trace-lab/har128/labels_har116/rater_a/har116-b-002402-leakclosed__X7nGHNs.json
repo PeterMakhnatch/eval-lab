@@ -1,0 +1,54 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Reproduced. Now fix _default_promote_batch_shape to handle dependent constraints.",
+      "ref": "head#7"
+    },
+    {
+      "quote": "cd /testbed && timeout 10 git ls-remote https://github.com/pyro-ppl/numpyro.git HEAD",
+      "ref": "head#20"
+    },
+    {
+      "quote": "tr = jax.eval_shape(numpyro.handlers.seed(model, 1), ())",
+      "ref": "head#44"
+    },
+    {
+      "quote": "TypeError: model() takes 0 positional arguments but 1 was given",
+      "ref": "head#80"
+    },
+    {
+      "quote": "5 failed, NotImplementedError: .event_dim cannot be determined statically",
+      "ref": "verifier/test_output.log"
+    },
+    {
+      "quote": "reward 0.0",
+      "ref": "verifier"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted",
+      "ref": "exception.txt"
+    }
+  ],
+  "first_failure": {
+    "quote": "tr = jax.eval_shape(numpyro.handlers.seed(model, 1), ())",
+    "ref": "head#44",
+    "what": "abandoned the (correctly diagnosed) fix to repeat a buggy trace-inspection script ~40x with no progress"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#44",
+    "head#83"
+  ],
+  "notes": "Model correctly diagnosed the dependent-constraint event_dim bug early (same diagnosis as the passing original-variant run) but never implemented a fix; agent.diff effectively empty. No completion ever declared (prose_completions 0).",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-002402-leakclosed__X7nGHNs"
+}

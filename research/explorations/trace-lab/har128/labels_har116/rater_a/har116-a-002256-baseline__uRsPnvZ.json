@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "p = 'persistqueue/queue.py'",
+      "ref": "head#4"
+    },
+    {
+      "quote": "299 passed, 16 skipped in 32.77s",
+      "ref": "head#6"
+    },
+    {
+      "quote": "return 0 < self.maxsize and self._qsize() == self.maxsize",
+      "ref": "head#7"
+    }
+  ],
+  "first_failure": {
+    "quote": "p = 'persistqueue/queue.py'",
+    "ref": "head#4",
+    "what": "patched full() in persistqueue/queue.py only and never inspected async_queue.py, whose full() kept the identical maxsize==0 bug"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "agent.diff touches only queue.py; existing suite passed (299 passed) masking the gap, but hidden tests fail 2 async cases (test_full_default_maxsize_empty_queue / _after_drain, 'assert True is False'). Steps 7-8 are a normal single-confirm completion handshake, not a loop. Hidden async coverage is the same bug class in the sibling implementation (r2 run fixed both), so blame is model, not task.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har116-a-002256-baseline__uRsPnvZ"
+}

@@ -1,0 +1,120 @@
+{
+ "trial": "har120-001870-a1__rXFPYLR",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001870-a1/har120-001870-a1__rXFPYLR",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-001870-a1",
+ "task": "mimo-v2.6-rl/format-code-task-001870",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:requests",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 3,
+   "summarization_count": 1,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": [
+    "head#93"
+   ]
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [
+   "head#95",
+   "head#120"
+  ],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary": "error_recovery/model secondary: identical run head#95-head#120",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): continuation after head#96 (`cd /testbed && git diff HEAD~1 | cd /testbed && grep -n \"ind`), 24 turns head#97-head#120 with no interrupt, until run end"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 15,
+    "span": [
+     "head#2",
+     "head#16"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 26,
+    "span": [
+     "head#95",
+     "head#120"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 169452,
+   "completion": 7356,
+   "steps": 41,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 169452,
+   "completion": 7356,
+   "steps": 41,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2257535,
+   "completion": 32145,
+   "steps": 117,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.0751,
+  "result_input_tokens": 2365815
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 117,
+  "states": {
+   "continuation": 25,
+   "no_prompt": 5,
+   "pager": 2,
+   "prompt": 85
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#96",
+    "trigger_command": "cd /testbed && git diff HEAD~1 | cd /testbed && grep -n \"indent\\|ljust\\|rstrip\\|'\\s'\" markdownify/__init__.py | head -40",
+    "cause": "continuation",
+    "screen": ">",
+    "start_ref": "head#97",
+    "end_ref": "head#120",
+    "turns": 24,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 89372,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 3
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

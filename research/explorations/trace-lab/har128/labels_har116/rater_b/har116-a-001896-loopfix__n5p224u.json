@@ -1,0 +1,27 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ModuleNotFoundError: No module named 'duckdb'",
+      "ref": "head#1"
+    }
+  ],
+  "first_failure": {
+    "quote": "ModuleNotFoundError: No module named 'duckdb'",
+    "ref": "head#1",
+    "what": "harness loopfix crashed at startup on `import duckdb` before any agent action"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "result.json exception_info ModuleNotFoundError via harbor_terminus _apply_loop_fix -> loopfix.live_loop_action -> traj import duckdb; verifier_result null; trajectory holds only head#1 (user prompt). Per assignment notes, loopfix (not r2) startup import error = infra_error/blame infra.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har116-a-001896-loopfix__n5p224u"
+}

@@ -1,0 +1,31 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "old = '''    _rest_iter = re.finditer(REST_REGEX, text)\n    return bool([(_rest.start(0), _rest.end(0)) for _rest in _rest_iter])\n\n\ndef do_find_field_lists('''",
+      "ref": "head#77"
+    },
+    {
+      "quote": "the trial proxy refused a model call: trial budget exhausted",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "def do_clean_url(url: str, indentation: str):\n    text: str,\n    style: str,\n):",
+    "ref": "head#77",
+    "what": "Corrupted syntax.py when inserting structured region detection, introducing a SyntaxError"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Model attempted to download external docformatter wheels, then mangled docformatter/syntax.py with an unmatched parenthesis SyntaxError before running into the token ceiling.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001161-baseline__DwYZaia"
+}

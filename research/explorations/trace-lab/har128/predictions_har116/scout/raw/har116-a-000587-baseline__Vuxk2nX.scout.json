@@ -1,0 +1,108 @@
+{
+ "trial": "har116-a-000587-baseline__Vuxk2nX",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-baseline/har116-a-000587-baseline__Vuxk2nX",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-baseline",
+ "task": "mimo-v2.6-rl/format-code-task-000587",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 51,
+  "step_ref": "head#51",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#51",
+   "head#87"
+  ],
+  "note": "identical message repeated steps 51-87 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 37,
+    "span": [
+     "head#51",
+     "head#87"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1463325,
+   "completion": 1813,
+   "steps": 37,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1463325,
+   "completion": 1813,
+   "steps": 37,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2422298,
+   "completion": 10930,
+   "steps": 86,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.6041,
+  "result_input_tokens": 2422298
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 86,
+  "states": {
+   "continuation": 2,
+   "no_prompt": 37,
+   "pager": 16,
+   "prompt": 31
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#38",
+    "trigger_command": "cd /testbed && git diff",
+    "cause": "pager",
+    "screen": ":",
+    "start_ref": "head#39",
+    "end_ref": "head#87",
+    "turns": 49,
+    "interrupt_ref": "head#49",
+    "interrupt_keys": "q",
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 1810114,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

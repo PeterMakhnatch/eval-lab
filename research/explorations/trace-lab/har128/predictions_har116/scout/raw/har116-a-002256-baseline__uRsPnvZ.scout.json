@@ -1,0 +1,86 @@
+{
+ "trial": "har116-a-002256-baseline__uRsPnvZ",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-baseline/har116-a-002256-baseline__uRsPnvZ",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-baseline",
+ "task": "mimo-v2.6-rl/format-code-task-002256",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "task_complete_confirmed",
+  "exception_type": null,
+  "exception_message": "",
+  "natural_completion": true,
+  "task_complete_refs": [
+   "head#7",
+   "head#8"
+  ],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 7,
+  "step_ref": "head#7",
+  "tag": "completion",
+  "attribution": "model",
+  "rule_id": "R-COMP-02",
+  "evidence_step_refs": [
+   "head#7",
+   "head#8"
+  ],
+  "note": "harness-confirmed task_complete at head#7, head#8, but the verifier contradicts the claim (9/11 tests pass)",
+  "grader_note": "instruction.md not located; deliverable check skipped",
+  "loop_token_cost": {
+   "prompt": 6587,
+   "completion": 578
+  }
+ },
+ "handshake": {
+  "first_prompt_ref": "head#7",
+  "prompts": 1,
+  "confirmed": true,
+  "turns_after_first_prompt": 1,
+  "prompt_tokens_after_first_prompt": 3486,
+  "steps_without_metrics": 0,
+  "echo_task_complete_turns": 0
+ },
+ "loops": {
+  "spans": [],
+  "identical": null,
+  "confirmation": null,
+  "in_loops": null,
+  "all_steps": {
+   "prompt": 16955,
+   "completion": 1194,
+   "steps": 7,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": null,
+  "result_input_tokens": 16955
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 5,
+  "states": {
+   "prompt": 5
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,38 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "cat > /tmp/decorator.py <<'EOF'\nF = TypeVar('F', bound=Callable[..., Any])",
+      "ref": "head#13"
+    },
+    {
+      "quote": "echo ok",
+      "ref": "head#48"
+    },
+    {
+      "quote": "echo ok",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "Analysis: The heredoc had nested triple-quotes. Let me write the decorator to a temp file first:",
+    "ref": "head#13",
+    "what": "drafted redlock decorator around a single shared Redlock built at decoration time instead of per call, breaking concurrent use"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#48",
+    "head#87"
+  ],
+  "notes": "hidden test RedlockDecoratorTests::test_redlock_decorator failed with ReleaseUnlockedLock under 3 concurrent submits (shared lock instance; final diff shows `redlock = Redlock(...)` at decoration time with `with redlock:` in wrapper). No completion claim. Loop is ~40 no-op turns (first echo ok at 48, lone `q` at 49, echo ok through 87). n_episodes 87 (< 121 request limit) with ~2.42M input tokens (~2.5M token limit) -> token_ceiling. Stray file t\" in agent.diff.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-000587-baseline__Vuxk2nX"
+}

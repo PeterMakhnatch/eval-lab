@@ -124,25 +124,51 @@ server total = GPU + 4 CPU + 16 GiB; throughput scaling [INFERENCE]):
 | L40S | 1.9512 | 2.2677 (−19%) |
 | H100 | 3.9492 | 4.2657 (+52%) |
 
-## Provisional defaults (until G2 measures otherwise)
+## G2 wave 1, measured (2026-10-01 08:02–09:02Z)
 
-**Default C=20 concurrent trials on the A100-80GB server
-(~$0.022/run server, W≈570 s, P(bs>16)≈0.003 at HAR-116-like mix).
-PROVISIONAL — G2 (60 trials at parallelism 20 on one A100) measures
-bs_mean and P(bs>16) at C=20 directly and calibrates the regression.**
-Upside to C=32–48 ($0.012–0.015/run) exists in the model but rides the
-eager-mix tail with W≈610–760 s; revisit once G2 confirms. Keep
-A100-80GB: L40S/H100 only win if measured tok/s beats their price delta,
-which is [INFERENCE] today. Raising --cuda-graph-max-bs-decode is a
-serving change to production's launch command, out of scope.
+**Inputs:**
+- 20 `har120-*` jobs, all started at 08:01:59Z against app `ap-6MVKRrBnozowbUzD1yL5NE`, from the `.worktrees/har126-live/runs` checkout.
+- Server logs fetched without `--timestamps`, for 07:20–09:10Z.
+- Hourly billing for 2026-10-01.
+
+The output is in `data/g2-wave1/`, with the full table in `report.txt`. The 22 tick-2 jobs, which failed with 503 on a new app, are excluded.
+
+| measure | value |
+|---|---|
+| peak / time-weighted mean concurrent trials | 19 / **4.5** |
+| makespan | 3,616 s. 10 trials were done by 622 s, 18 by 1,122 s, 19 by 1,927 s; the last was an `AgentTimeoutError` at 3,616 s |
+| server queueing | none (queue>0 batch share 0.0000) |
+| KV usage, max | 0.37 |
+| batch size at ≥ 17 concurrent | P(bs>16) = 0 over 351 batches |
+| gen tok/s by batch size | 73 at bs=1, 262 at bs=4, 484 at bs=8, 603 at bs=12, 652 at bs=13. Nearly linear, with no saturation in range |
+| Modal billed, this app | $0.76 (07h: Engineering's chain smoke, not G2) + $2.82 (08h) + $0.21 (09h tail) |
+| server $/run, G2-attributable (08h + 09h) | **$0.15** |
+| model at sustained C=20 | $0.033/run, W≈834 s (re-fit on this mix) |
+
+**Reading:**
+- The server was never the bottleneck at C=20: there was no queueing, KV peaked at 37%, and no batch exceeded the CUDA-graph range.
+- The measured cost per run is about 5× the sustained-C model because of **utilization, not throughput**. A single wave of 20 at a fixed start leaves the A100 serving 1–2 trials for the last ~28 minutes, waiting on one trial that ran to the 3,600 s agent timeout.
+- The bs=1 sanity gate fails here: 73 tok/s measured vs 98 modelled. The likely cause is slower long-context decode at bs=1 in this mix, whose longest prompt was about 56K tokens [INFERENCE]. Walls by outcome still match the model within 8% (ratios 0.92–0.98).
+
+## Recommended defaults
+
+1. **Keep the A100-80GB at C=20; C=24 is safe if a lane needs it.** At C=20 the measured headroom is large (KV 0.37, no queueing). The model gives P(bs>16)=0.006 and $0.028/run at C=24. Values above 24 still rest on the eager-mix [INFERENCE].
+2. **The bigger lever is keeping the slots full.**
+   - **Rolling dispatch:** keep at least C runs queued and start a new run as each one ends, rather than waves of exactly C.
+   - **Scale down as soon as the last run ends:** stop the app on the run's teardown instead of the idle tail.
+   - At the 4.5 mean measured here, cost per run is about $0.15. At a sustained 20 it would be about $0.03.
+   - For G5, the per-task serial arm order still allows concurrent task groups, so rolling dispatch over the task groups applies.
+3. **Budget long-tail trials explicitly.** One run at the agent timeout holds the whole server; at a 60-run scale that is about $1.40 for a single straggler wave. The agent timeout is frozen eval policy and is not changed here.
+4. **GPU type:** keep the A100-80GB. L40S and H100 win only if their measured tok/s beats the price delta, and that remains [INFERENCE].
 
 ## Rerun on G2/G5
 
 ```bash
-cd ~/Developer/eval-lab/.worktrees/har129-throughput
-# 1. Fetch server logs + billing (read-only; adjust --tail/--since):
+cd ~/Developer/eval-lab/.worktrees/<worktree>
+# 1. Fetch server logs + billing (read-only). No --timestamps: the parser
+#    expects SGLang's own "[YYYY-MM-DD HH:MM:SS]" at line start.
 env -u VIRTUAL_ENV uv run --project tools/modal-mimo-serve --locked \
-  modal app logs <APP_ID> --tail 20000 > /tmp/g2-logs.txt
+  modal app logs <APP_ID> --since <start ISO> --until <end ISO> > /tmp/g2-logs.txt
 env -u VIRTUAL_ENV uv run --project tools/modal-mimo-serve --locked \
   modal billing report --start <YYYY-MM-DD> --end <YYYY-MM-DD> \
   --resolution h --json > /tmp/g2-billing.json

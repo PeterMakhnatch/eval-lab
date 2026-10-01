@@ -1,0 +1,112 @@
+{
+ "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix-r2/har116-a-001161-loopfix-r2__uo7QDVh",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix-r2",
+ "task": "mimo-v2.6-rl/format-code-task-001161",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "planning",
+  "attribution": "model",
+  "rule_id": "R-PLAN-01",
+  "evidence_step_refs": [
+   "head#36",
+   "head#67"
+  ],
+  "note": "no task edit before budget ran out (zero executed file-changing ops on task paths; scanned head#2-head#96)",
+  "scanned_step_refs": [
+   "head#2",
+   "head#96"
+  ],
+  "task_file_edits": 0,
+  "secondary": "error_recovery/model secondary: identical run head#36-head#67"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 16,
+    "span": [
+     "head#10",
+     "head#25"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 32,
+    "span": [
+     "head#36",
+     "head#67"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 15,
+    "span": [
+     "head#82",
+     "head#96"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1688700,
+   "completion": 3108,
+   "steps": 63,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1688700,
+   "completion": 3108,
+   "steps": 63,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2421545,
+   "completion": 5145,
+   "steps": 95,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.6974,
+  "result_input_tokens": 2421545
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 95,
+  "states": {
+   "no_prompt": 2,
+   "prompt": 93
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,1200 @@
+{
+  "schema": "har133.closed-g5-sources/v1",
+  "experiment": "ovn-sft-v0",
+  "preregistration": {
+    "pr": 598,
+    "merge": "c58a2797a51f1423a8d427016aad94f0bf99ff03",
+    "merged_at": "2026-10-01T04:42:26Z",
+    "sha256": "225ee5e1ce054dc89661b625228ac13f333995c54e9624db6e1b5e060b630a72",
+    "tested_head": "c90f64feeee3f58413d9ca5e5d8231b0898fddba",
+    "tested_base": "260d89ada30a9a2f5b0946685b7e79e3232c0619",
+    "tested_merge": "1410adecc340784b132925433a4e7439f25e7e2d",
+    "quality_run": 36816037203,
+    "typecheck_run": 36816037246,
+    "all_reported_checks_success": true,
+    "merged_document_identical": true,
+    "scope": "3 arms; exact paired McNemar, Holm across 2 primary contrasts; pre-G5 no-candidate fallback"
+  },
+  "frozen_inputs": {
+    "eval_sha256": "3b997fdcff048061fd8a05d446948d4d6425bf670eb0d6710989c50dcd0a9219",
+    "cohort_sha256": "ecfb2613ecfe0fdc941b28a07fdf67fc0ee8110bf05234c758b244330bce80d3",
+    "specs_aggregate_sha256": "a8551c185172e7ad5b6c54acd50b4e41a8fd4a7d558cf6992e819b22c8838029",
+    "base_revision": "2367e865d009c13ac81713a2878291d33ab28177",
+    "adapter_sha256": "e96209f2a15108e50076e24d7ecaeba43365af055e020f2ab526bb0b270c04a2",
+    "sft_export": {
+      "conversations": 145,
+      "conversations_sha256": "sha256:71a9f7073a0ce4e2a12865fc2a0a74881986ec30067a18bf7e78a528a3875c94",
+      "manifest_sha256": "sha256:567d64a4b78a3775dae89596787851e8e04578a111774932c6d3494af07a522b",
+      "split_manifest_digest": "sha256:c3df70a5551c47d6c695abb3b8e51ca009b48d606289de4f637a7c1329e49f58"
+    },
+    "gepa_addendum_sha256": "b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+    "harness_tree_sha256": "f18091f344b075230bf99744fb92dd75c1e9ebe67f5cb15027a0d6ce791456be"
+  },
+  "g1_v2": {
+    "head": "00c7d8cbbbed2630dca491a6d58fb4afcf53a85a",
+    "commit_time": "2026-10-01T04:38:28Z",
+    "authorization": {
+      "card": "HAR-127",
+      "comment_time": "2026-10-01T04:39Z",
+      "decision": "Working freeze accepted pending independent re-audit; supersedes initial cohort before G2/eval outcomes"
+    },
+    "computed": {
+      "reviewed_eval_sha256": "3b997fdcff048061fd8a05d446948d4d6425bf670eb0d6710989c50dcd0a9219",
+      "reproduced": {
+        "eval_tasks.csv": true,
+        "contamination.json": true
+      },
+      "n_eval": 20,
+      "all_globally_heldout": true,
+      "all_ledger_usable": true,
+      "all_run_digests_match_ledger": true,
+      "new_task": {
+        "row": {
+          "task": "format-code-task-001833",
+          "digest": "sha256:bfc2dece06735ef317905f43ceab80ff62902ae2c2738f3d6a5ce92798653a58",
+          "run": "original",
+          "repo": "safedelete",
+          "image_mib": "2949"
+        },
+        "original_digest_matches": true,
+        "modules": [
+          "safedelete"
+        ],
+        "patch_roots": [
+          "safedelete"
+        ]
+      },
+      "pandas_rejected": "test files live in a training-split package: ['pandas']",
+      "full_code_training_tasks": 2428,
+      "nearest_full_code_train": [
+        {
+          "eval": "format-code-task-002302",
+          "train": "format-code-task-003061",
+          "jaccard": 0
+        },
+        {
+          "eval": "format-code-task-001695",
+          "train": "format-code-task-002443",
+          "jaccard": 0.00641025641025641
+        },
+        {
+          "eval": "format-code-task-000521",
+          "train": "format-code-task-000670",
+          "jaccard": 0.009324009324009324
+        },
+        {
+          "eval": "format-code-task-001797",
+          "train": "format-code-task-001301",
+          "jaccard": 0.002688172043010753
+        },
+        {
+          "eval": "format-code-task-001809",
+          "train": "format-code-task-000365",
+          "jaccard": 0.019639934533551555
+        },
+        {
+          "eval": "format-code-task-001769",
+          "train": "format-code-task-002391",
+          "jaccard": 0.014675052410901468
+        },
+        {
+          "eval": "format-code-task-001285",
+          "train": "format-code-task-001418",
+          "jaccard": 0.006172839506172839
+        },
+        {
+          "eval": "format-code-task-001765",
+          "train": "format-code-task-002280",
+          "jaccard": 0.005194805194805195
+        },
+        {
+          "eval": "format-code-task-000568",
+          "train": "format-code-task-001968",
+          "jaccard": 0.020522388059701493
+        },
+        {
+          "eval": "format-code-task-001241",
+          "train": "format-code-task-001214",
+          "jaccard": 0.00516795865633075
+        },
+        {
+          "eval": "format-code-task-002578",
+          "train": "format-code-task-002150",
+          "jaccard": 0.009478672985781991
+        },
+        {
+          "eval": "format-code-task-001606",
+          "train": "format-code-task-002848",
+          "jaccard": 0.008982035928143712
+        },
+        {
+          "eval": "format-code-task-002017",
+          "train": "format-code-task-001612",
+          "jaccard": 0.010917030567685589
+        },
+        {
+          "eval": "format-code-task-001626",
+          "train": "format-code-task-001418",
+          "jaccard": 0.02
+        },
+        {
+          "eval": "format-code-task-001355",
+          "train": "format-code-task-001214",
+          "jaccard": 0.00946372239747634
+        },
+        {
+          "eval": "format-code-task-000332",
+          "train": "format-code-task-001418",
+          "jaccard": 0.00966183574879227
+        },
+        {
+          "eval": "format-code-task-000842",
+          "train": "format-code-task-000472",
+          "jaccard": 0.0037105751391465678
+        },
+        {
+          "eval": "format-code-task-000169",
+          "train": "format-code-task-000201",
+          "jaccard": 0.021484375
+        },
+        {
+          "eval": "format-code-task-001136",
+          "train": "format-code-task-002249",
+          "jaccard": 0.0013717421124828531
+        },
+        {
+          "eval": "format-code-task-001833",
+          "train": "format-code-task-002083",
+          "jaccard": 0.002079002079002079
+        }
+      ],
+      "unknown_identity_word_mentions_all_code_train": {
+        "pyabm": [],
+        "lenstronomy": [],
+        "pyftpdlib": [],
+        "pyalgotrade": [],
+        "maestral": [],
+        "libsaas": [],
+        "piccolo": []
+      }
+    },
+    "canonical_group_check": {
+      "known_eval_repositories_checked_against_all_sealed_training_groups": 12,
+      "sealed_training_tasks": 6990,
+      "overlaps": [],
+      "new_task_recorded_repo": null,
+      "new_task_issue": null,
+      "new_task_pypi_project": null
+    },
+    "caveats": [
+      "Package/source identity for URL-unresolved tasks is not a measured image .git remote.",
+      "Dry-run sample selection was at04:08Z, before first G1 commit04:09:33Z; samples excluded from both cohorts and adapter deleted, but strict selection chronology not met."
+    ],
+    "delivery": {
+      "merge": "e6eae7d5259fc1f8313a6a96d7cf431edfd36c23",
+      "merged_at": "2026-10-01T05:22:12Z",
+      "source_reaudit_head": "00c7d8cbbbed2630dca491a6d58fb4afcf53a85a",
+      "postmerge": {
+        "eval_tasks.csv": {
+          "same_as_audited": true,
+          "sha256": "3b997fdcff048061fd8a05d446948d4d6425bf670eb0d6710989c50dcd0a9219"
+        },
+        "contamination.json": {
+          "same_as_audited": true,
+          "sha256": "7269a745c5179120ea54058d66a3d704c65a58806cf83b8632868a1ebe688ada"
+        },
+        "select_eval.py": {
+          "same_as_audited": true,
+          "sha256": "e6a458bd92e828e24cf2e33edb6a19989694e53b8341c1939ffc15e783af225e"
+        }
+      },
+      "scientific_gate": "cleared with recorded pre-outcome refreeze, package-identity and dry-run chronology caveats",
+      "hold_lifted": "repository-overlap blocker on G2"
+    }
+  },
+  "g4_receipt": {
+    "merge": "3844e46b5fb15213cd3fab6bebe4aa6d2072f999",
+    "merged_at": "2026-10-01T11:53:20Z",
+    "source_training_ref": "15d8b7087135ed81c8c4286ead63e067b90ae7da",
+    "files": {
+      "research/experiments/har129-lora/smoke/scored-g4.json": {
+        "sha256": "b4f2af127aa8fa82f6d95445107b13615cd8b83273e8748ba5723154da226b6d",
+        "git_blob": "0cf7e9a6014bab3b43c1657a37714e93b586ca3d",
+        "bytes": 3231
+      },
+      "research/experiments/har129-lora/g4/receipt.json": {
+        "sha256": "a11fb6cc0271284f0abd098b4aa98c801a9090f49330677b4d75e82f55803e88",
+        "git_blob": "ac69c30f49aea833898893faebf3fe4e96a97f08",
+        "bytes": 7401
+      },
+      "research/experiments/har129-lora/smoke/logprob-probe.json": {
+        "sha256": "657970a922514df4f554494ea090981c35cda8b1f4bdcaa8f962edf18a2d13c9",
+        "git_blob": "ff629377435abcf6047a061e1d5099e385bb7b2e",
+        "bytes": 2594
+      },
+      "research/experiments/har129-lora/smoke/raw-g4.json": {
+        "sha256": "979da1bdf246682ae588e82b9971420683e28edbba23aa2462a186094019ee0f",
+        "git_blob": "e3d4c31595516a7df749c7b1489860abc20d005a",
+        "bytes": 8963
+      },
+      "research/experiments/har129-lora/README.md": {
+        "sha256": "88139984bad0fee3b0ddfe12caa9c2fc6e9b59992fd3f4f97b582bc7f666f72c",
+        "git_blob": "0b59468a169d6777cb407bb7a72c41a4590b55ec",
+        "bytes": 10594
+      }
+    },
+    "export": {
+      "conversations": 145,
+      "conversations_sha256": "sha256:71a9f7073a0ce4e2a12865fc2a0a74881986ec30067a18bf7e78a528a3875c94",
+      "manifest_sha256": "sha256:567d64a4b78a3775dae89596787851e8e04578a111774932c6d3494af07a522b",
+      "split_manifest_digest": "sha256:c3df70a5551c47d6c695abb3b8e51ca009b48d606289de4f637a7c1329e49f58"
+    },
+    "model_revision": "2367e865d009c13ac81713a2878291d33ab28177",
+    "config": {
+      "dtype": "bfloat16",
+      "gradient_checkpointing": true,
+      "image_packages": [
+        "torch==2.14.0",
+        "transformers==5.12.1",
+        "tokenizers==0.22.2",
+        "jinja2==3.1.6",
+        "trl==1.14.0",
+        "peft==0.21.0",
+        "accelerate==1.15.0",
+        "datasets==5.0.1",
+        "huggingface_hub==1.9.2",
+        "flash-linear-attention==0.5.2",
+        "fla-core==0.5.2"
+      ],
+      "length_policy": "refuse rows longer than max_length; never truncate",
+      "lora": {
+        "alpha": 32,
+        "dropout": 0.05,
+        "rank": 16,
+        "target_modules": [
+          "q_proj",
+          "k_proj",
+          "v_proj",
+          "o_proj",
+          "gate_proj",
+          "up_proj",
+          "down_proj"
+        ]
+      },
+      "max_length": 65536,
+      "output_volume": "evallab-mimo-v26-9b-sft",
+      "packing": false,
+      "sft": {
+        "grad_accum_steps": 16,
+        "learning_rate": 0.00005,
+        "lr_scheduler": "cosine",
+        "num_epochs": 1,
+        "per_device_batch": 1,
+        "seed": 42,
+        "seed_applied": "transformers.set_seed before PEFT adapter init",
+        "warmup_ratio": 0.03
+      },
+      "trainer": "trl.SFTTrainer on pre-rendered input_ids+assistant_masks; loss = token-mean cross-entropy over assistant tokens, computed from their hidden states in checkpointed lm_head chunks of 4096",
+      "weights_volume": "evallab-mimo-v26-9b-weights"
+    },
+    "labels": {
+      "label_tokens": 39913,
+      "mask_tokens": 39913,
+      "mismatched_rows": 0,
+      "rows": 145
+    },
+    "steps": 10,
+    "computed_mean_step_loss": 0.1640332370996475,
+    "recorded_train_loss": 0.1640332370996475,
+    "cosine_max_absolute_error": 0,
+    "update": {
+      "learning_rates": [
+        0,
+        0.00005,
+        0.00004849231551964771,
+        0.00004415111107797445,
+        0.000037500000000000003,
+        0.000029341204441673266,
+        0.000020658795558326743,
+        0.000012500000000000006,
+        0.000005848888922025553,
+        0.0000015076844803522922
+      ],
+      "lora_A_init": {
+        "max_abs": 0.015625,
+        "sha256": "0e80c4dd55f9d6376abbcd6cd26f17257aab8730beadf3d9485b28dce6c5dc72",
+        "tensors": 128
+      },
+      "lora_B_final": {
+        "max_abs": 0.00025146189727820456,
+        "sha256": "135034ea19d2a74c042cd493291f8192f6801e487d48450c42c47b61b16b61fa",
+        "tensors": 128
+      },
+      "lora_B_init_max_abs": 0,
+      "optimizer_steps": 10
+    },
+    "adapter_sha256": "e96209f2a15108e50076e24d7ecaeba43365af055e020f2ab526bb0b270c04a2",
+    "adapter_path": "har129-g4/adapter",
+    "train_seconds": 1330.3,
+    "wall_seconds": 1370,
+    "scope": "Parent read immutable mergedreceipt andverifiedsource hashes/config/labels/step/LR/loss arithmetic against frozen G3. Producer GPU/remote-adapter hashes are primaryreceipt evidence, not independent modeldownload/retraining. Directsmoke/probe limits retained; actualG5full-chain launch still separate."
+  },
+  "counts_implementation": {
+    "source": "HAR-131 Research-Harbor comment2026-10-01T10:53:30.199Z; acknowledgedHAR-13310:53:31.252Z",
+    "frozen_before_g5": true,
+    "rule": "copied_fix requires successful upstream acquisition with bound listed/saved artifact AND subsequent unpack/read; failed or unknown attempts nondeciding; normalize directory path spellings.",
+    "usability": "No local-reference copy detector tonight. Exact leaked001269 package541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c must be excluded via Data task/variant usability; no validated-variant bypass.",
+    "g2_fixtures": {
+      "001870-a1": "counted_pass",
+      "000341-a1": "copied_fix excluded",
+      "001373-a2-r2": "copied_fix excluded",
+      "002356-a1-r2": "copied_fix excluded",
+      "001269-a2-r2": "task_not_usable excluded",
+      "000341_path_variants": "same decisive acquisition verdict"
+    },
+    "implementation_timing": "Prefer merge before firstG5trial; coordinator explicitly permits G5launchfirst with verdicts computed only from merged amendment. No spec/fixture changes after firsttrial; later defectfixes only onG2evidence and any G5verdictdiff reported.",
+    "blinding": "Parent and assigned workers will not inspect G5 trajectories/outcomes while verifying this implementation; all counts probes use G2 or predeclared path controls.",
+    "status": "Protected implementation and uniform64-job reprocessing still pending; previousEFEfindings are pinned-source facts, not claims about the owner current working tree."
+  },
+  "final_disposition": {
+    "source": "HAR-126 Research-Harbor 2026-10-01T16:42:43.559Z",
+    "supersedes": "2026-10-01T16:06:28.241Z three-stock-r2 permission",
+    "disposition": "60 original physical cells only; 55 counted, 5 infra missing. No replacements or environment changes. Potential behaviour-linked idle loss makes operational benign-command criterion unsafe; cause remains unknown.",
+    "primary": "Two original contrasts, separate N16/20, exact two-sided McNemar and Holm family2. Include uniform imputation scenarios and PREREG sharp per-cell 0/1 bounds; no primary counts mutation."
+  },
+  "outcome_source_snapshot": {
+    "receipt_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-131-steward-evidence/g5-original60-audit.json",
+    "receipt_sha256": "666556cb2e378c5b8a6bfa08eb53fb09078cb5de3bcdf59e656be967eadb27f2",
+    "cohort_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/research/experiments/ovn-sft-v0/g5-specs/cohort.json",
+    "cohort_sha256": "ecfb2613ecfe0fdc941b28a07fdf67fc0ee8110bf05234c758b244330bce80d3",
+    "eval_sha256": "3b997fdcff048061fd8a05d446948d4d6425bf670eb0d6710989c50dcd0a9219",
+    "current_published_hash_drifts": [],
+    "all60_native_result_hashes_match_receipt": true,
+    "all60_counts_raw_rewards_match_receipt": true,
+    "summary": {
+      "stock": {
+        "counted_pass": 2,
+        "counted_fail": 15,
+        "excluded": 3
+      },
+      "tuned": {
+        "counted_pass": 1,
+        "counted_fail": 18,
+        "excluded": 1
+      },
+      "gepa": {
+        "counted_pass": 3,
+        "counted_fail": 16,
+        "excluded": 1
+      }
+    },
+    "missing": [
+      "ovn-g5-001765-stock",
+      "ovn-g5-001241-stock",
+      "ovn-g5-001626-stock",
+      "ovn-g5-000332-tuned",
+      "ovn-g5-001833-gepa"
+    ],
+    "rows": 60,
+    "input_sha256": "ea23e08a004c1050f3e39bf4e7beadb3bff2cae8342443f97eee001f10702af3"
+  },
+  "runtime_parent_proof": {
+    "capture": {
+      "records": 1709,
+      "bytes": 152564684,
+      "sha256": "343fe946b3481ff1563a9f40dc403c887619a1a28bb85d17fac46a8d1725b3e8",
+      "routes": 20,
+      "all200": true,
+      "all_models_samplers_and_gepa_addendum_embeddings_match": true,
+      "addendum_semantics": "Exact1564 UTF8bytes embedded once in first user task prompt on GEPA only; not the entire first message.",
+      "all20_per_route_wire_usage_matches_ledger": true
+    },
+    "native_order": {
+      "all20_task_orders_sequential": true,
+      "wave3_native_trial_peak": 20,
+      "wave3_start_min": "2026-10-01T15:36:04.892178+00:00",
+      "wave3_start_max": "2026-10-01T15:36:05.630134+00:00"
+    },
+    "quantiles": "For N16, median of lower8 and upper8 (Tukey median-of-halves).",
+    "common_three_arm_complete": 15
+  },
+  "arithmetic_parent_proof": {
+    "independent_arithmetic": [
+      {
+        "contrast": "tuned_minus_stock",
+        "independent_exact_p_fraction": "1",
+        "additive_sharp_bound_fractions": [
+          "-1/5",
+          "0"
+        ]
+      },
+      {
+        "contrast": "gepa_minus_stock",
+        "independent_exact_p_fraction": "1",
+        "additive_sharp_bound_fractions": [
+          "-1/10",
+          "1/10"
+        ]
+      }
+    ],
+    "all32_joint_completions_reject_neither": true,
+    "scenarios": {
+      "all_missing_fail": {
+        "gepa_minus_stock": {
+          "n_pairs": 20,
+          "arm_a_passes": 3,
+          "arm_b_passes": 2,
+          "risk_difference": 0.05,
+          "exact_p_value": 1,
+          "holm_adjusted_p_value": 1
+        },
+        "tuned_minus_stock": {
+          "n_pairs": 20,
+          "arm_a_passes": 1,
+          "arm_b_passes": 2,
+          "risk_difference": -0.05,
+          "exact_p_value": 1,
+          "holm_adjusted_p_value": 1
+        }
+      },
+      "all_missing_pass": {
+        "gepa_minus_stock": {
+          "n_pairs": 20,
+          "arm_a_passes": 4,
+          "arm_b_passes": 5,
+          "risk_difference": -0.05,
+          "exact_p_value": 1,
+          "holm_adjusted_p_value": 1
+        },
+        "tuned_minus_stock": {
+          "n_pairs": 20,
+          "arm_a_passes": 2,
+          "arm_b_passes": 5,
+          "risk_difference": -0.15,
+          "exact_p_value": 0.453125,
+          "holm_adjusted_p_value": 0.90625
+        }
+      },
+      "three_missing_stock_cells_fail_other_missing_unchanged": {
+        "gepa_minus_stock": {
+          "n_pairs": 19,
+          "arm_a_passes": 3,
+          "arm_b_passes": 2,
+          "risk_difference": 0.05263157894736842,
+          "exact_p_value": 1,
+          "holm_adjusted_p_value": 1
+        },
+        "tuned_minus_stock": {
+          "n_pairs": 19,
+          "arm_a_passes": 1,
+          "arm_b_passes": 2,
+          "risk_difference": -0.05263157894736842,
+          "exact_p_value": 1,
+          "holm_adjusted_p_value": 1
+        }
+      }
+    },
+    "exploratory": {
+      "n_pairs": 18,
+      "concordant_success_a_b": 1,
+      "discordant_a_only": 0,
+      "discordant_b_only": 1,
+      "concordant_failure_a_b": 16,
+      "risk_difference": -0.05555555555555555,
+      "exact_p_value": 1
+    }
+  },
+  "spend_parent_proof": {
+    "observed_at_utc": "2026-10-01T17:11:10.656401+00:00",
+    "readonly": "on",
+    "stored_rows": [
+      {
+        "object_id": "ap-4z76iy0rZU7eQuNPRcI9PP",
+        "description": "evallab-mimo-v26-9b-lora-smoke",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.00081225,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-4z76iy0rZU7eQuNPRcI9PP",
+        "description": "evallab-mimo-v26-9b-lora-smoke",
+        "interval_start": "2026-10-01 11:00:00+00:00",
+        "resource": "",
+        "usd": 0.00081225,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-6MVKRrBnozowbUzD1yL5NE",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 3.82356653,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-6MVKRrBnozowbUzD1yL5NE",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 07:00:00+00:00",
+        "resource": "",
+        "usd": 0.76220959,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-6MVKRrBnozowbUzD1yL5NE",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 08:00:00+00:00",
+        "resource": "",
+        "usd": 2.81719977,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-6MVKRrBnozowbUzD1yL5NE",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 09:00:00+00:00",
+        "resource": "",
+        "usd": 0.24415717,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-6pxMXzbE2bWWEj3ugVPsQB",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.26293926,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-6pxMXzbE2bWWEj3ugVPsQB",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 04:00:00+00:00",
+        "resource": "",
+        "usd": 0.26293926,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-FoqHeopYEwpNfk114IDO8v",
+        "description": "evallab-mimo-v26-9b-sft",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.28046262,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-FoqHeopYEwpNfk114IDO8v",
+        "description": "evallab-mimo-v26-9b-sft",
+        "interval_start": "2026-10-01 04:00:00+00:00",
+        "resource": "",
+        "usd": 0.28046262,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-KbuSWoJK3ywOHMpZhGq8v3",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 2.82701718,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-KbuSWoJK3ywOHMpZhGq8v3",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 09:00:00+00:00",
+        "resource": "",
+        "usd": 2.10509416,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-KbuSWoJK3ywOHMpZhGq8v3",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 10:00:00+00:00",
+        "resource": "",
+        "usd": 0.72192302,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-Wx0Oc4ZHhZKcVip3cmJlFH",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.46955012,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-Wx0Oc4ZHhZKcVip3cmJlFH",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 11:00:00+00:00",
+        "resource": "",
+        "usd": 0.46955012,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-Xft5Hxgkut0ykJXcHn5KIC",
+        "description": "evallab-mimo-v26-9b-lora-logprob-probe",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.00032063,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-Xft5Hxgkut0ykJXcHn5KIC",
+        "description": "evallab-mimo-v26-9b-lora-logprob-probe",
+        "interval_start": "2026-10-01 11:00:00+00:00",
+        "resource": "",
+        "usd": 0.00032063,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-gccUw9UoMeIUQQF2Kcg3HK",
+        "description": "evallab-mimo-v26-9b-sft",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 1.26964596,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-gccUw9UoMeIUQQF2Kcg3HK",
+        "description": "evallab-mimo-v26-9b-sft",
+        "interval_start": "2026-10-01 10:00:00+00:00",
+        "resource": "",
+        "usd": 0.17514536,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-gccUw9UoMeIUQQF2Kcg3HK",
+        "description": "evallab-mimo-v26-9b-sft",
+        "interval_start": "2026-10-01 11:00:00+00:00",
+        "resource": "",
+        "usd": 1.0945006,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-hK2xAp7irlCkKKmJhmOYDU",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 2.9924937,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-i1jDXiUmYYzX3k11Tpww83",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 1.53380886,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-iqQJmcnewTfxiEndg3cbfH",
+        "description": "evallab-mimo-v26-9b-lora-logprob-probe",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.00081476,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-iqQJmcnewTfxiEndg3cbfH",
+        "description": "evallab-mimo-v26-9b-lora-logprob-probe",
+        "interval_start": "2026-10-01 11:00:00+00:00",
+        "resource": "",
+        "usd": 0.00081476,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-jTixLqyjMMDwM5rHXsWd6G",
+        "description": "evallab-mimo-v26-9b-lora-logprob-probe",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.0000285,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-jTixLqyjMMDwM5rHXsWd6G",
+        "description": "evallab-mimo-v26-9b-lora-logprob-probe",
+        "interval_start": "2026-10-01 11:00:00+00:00",
+        "resource": "",
+        "usd": 0.0000285,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-sPxzZirZYOZfqkD4aag9XI",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.36937814,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-sPxzZirZYOZfqkD4aag9XI",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 04:00:00+00:00",
+        "resource": "",
+        "usd": 0.36937814,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-sZTglHHBgjaYQGp2eMwYLY",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 3.56532319,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-sZTglHHBgjaYQGp2eMwYLY",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 14:00:00+00:00",
+        "resource": "",
+        "usd": 2.47131068,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-sZTglHHBgjaYQGp2eMwYLY",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 15:00:00+00:00",
+        "resource": "",
+        "usd": 1.0940125,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-yQ6zmLXIx5o9Usb3Xpyxni",
+        "description": "evallab-mimo-v26-9b-lora-smoke",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.000627,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-yQ6zmLXIx5o9Usb3Xpyxni",
+        "description": "evallab-mimo-v26-9b-lora-smoke",
+        "interval_start": "2026-10-01 11:00:00+00:00",
+        "resource": "",
+        "usd": 0.000627,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-yWKEdU0HxX4hcyRXjC675j",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 1.39873665,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-yWKEdU0HxX4hcyRXjC675j",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 12:00:00+00:00",
+        "resource": "",
+        "usd": 0.12990397,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-yWKEdU0HxX4hcyRXjC675j",
+        "description": "evallab-mimo-v26-9b-lora",
+        "interval_start": "2026-10-01 13:00:00+00:00",
+        "resource": "",
+        "usd": 1.26883268,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-yXxcAQPhR4WRVkUd4thsUc",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 1.70599282,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-yXxcAQPhR4WRVkUd4thsUc",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 01:00:00+00:00",
+        "resource": "",
+        "usd": 0.64328196,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-yXxcAQPhR4WRVkUd4thsUc",
+        "description": "evallab-mimo-v26-9b",
+        "interval_start": "2026-10-01 02:00:00+00:00",
+        "resource": "",
+        "usd": 1.06271086,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      },
+      {
+        "object_id": "ap-ypuh4CMZ1zX1AIq6uZa3T5",
+        "description": "evallab-mimo-v26-9b-lora-smoke",
+        "interval_start": "2026-10-01 00:00:00+00:00",
+        "resource": "",
+        "usd": 0.001425,
+        "resolution": "d",
+        "reported_at": "2026-10-01 16:37:18.146005+00:00"
+      },
+      {
+        "object_id": "ap-ypuh4CMZ1zX1AIq6uZa3T5",
+        "description": "evallab-mimo-v26-9b-lora-smoke",
+        "interval_start": "2026-10-01 04:00:00+00:00",
+        "resource": "",
+        "usd": 0.001425,
+        "resolution": "h",
+        "reported_at": "2026-10-01 15:30:47.513871+00:00"
+      }
+    ],
+    "daily_sum": 20.502943169999998,
+    "canonical_modal": {
+      "usd": 20.50294317,
+      "basis": "billed",
+      "note": "modal: billed $20.5029 across 25 rows in 2026-10-01T00:00:00+00:00..2026-10-02T00:00:00+00:00 (last reported 2026-10-01 16:37:18.146005+00:00)"
+    },
+    "objects_where_hourly_exceeds_daily": [
+      {
+        "object_id": "ap-6MVKRrBnozowbUzD1yL5NE",
+        "description": "evallab-mimo-v26-9b",
+        "daily": 3.82356653,
+        "hourly_sum": 3.8235665300000004,
+        "canonical_max": 3.8235665300000004
+      },
+      {
+        "object_id": "ap-KbuSWoJK3ywOHMpZhGq8v3",
+        "description": "evallab-mimo-v26-9b",
+        "daily": 2.82701718,
+        "hourly_sum": 2.8270171800000004,
+        "canonical_max": 2.8270171800000004
+      }
+    ],
+    "lora_objects": [
+      {
+        "object_id": "ap-Wx0Oc4ZHhZKcVip3cmJlFH",
+        "description": "evallab-mimo-v26-9b-lora",
+        "daily": 0.46955012,
+        "hourly_sum": 0.46955012,
+        "canonical_max": 0.46955012
+      },
+      {
+        "object_id": "ap-hK2xAp7irlCkKKmJhmOYDU",
+        "description": "evallab-mimo-v26-9b-lora",
+        "daily": 2.9924937,
+        "hourly_sum": 0,
+        "canonical_max": 2.9924937
+      },
+      {
+        "object_id": "ap-sPxzZirZYOZfqkD4aag9XI",
+        "description": "evallab-mimo-v26-9b-lora",
+        "daily": 0.36937814,
+        "hourly_sum": 0.36937814,
+        "canonical_max": 0.36937814
+      },
+      {
+        "object_id": "ap-sZTglHHBgjaYQGp2eMwYLY",
+        "description": "evallab-mimo-v26-9b-lora",
+        "daily": 3.56532319,
+        "hourly_sum": 3.56532318,
+        "canonical_max": 3.56532319
+      },
+      {
+        "object_id": "ap-yWKEdU0HxX4hcyRXjC675j",
+        "description": "evallab-mimo-v26-9b-lora",
+        "daily": 1.39873665,
+        "hourly_sum": 1.39873665,
+        "canonical_max": 1.39873665
+      }
+    ],
+    "lora_daily_sum": 8.7954818,
+    "lora_canonical_sum": 8.7954818,
+    "pre_g5_lora": 0.83892826,
+    "g5_native_trial_seconds": 69301.478367,
+    "g5_daytona_rate_estimate": 4.445689837243051,
+    "g5_billed_delta_plus_daytona_estimate": 12.40224337724305,
+    "whole_day_daytona_rate_estimate": 8.654129770533,
+    "daytona_notes": [
+      "daytona: 182 trial slices across 182 jobs (rate measured 0, family fallback 182); 0 slices unratable, 1 non-daytona, 0 missing time"
+    ],
+    "whole_day_canonical_total": 29.157072940533002,
+    "pre04_bound_parent_snapshot": 5.00611592480475,
+    "after04_accounting_subtotal": 24.150957015728252,
+    "after04_with_disclosed_direct_whole_day_allowance": 26.46095701572825,
+    "scope": "Read-only stored catalog plus actual native lifetimes; no provider API. Latest bill plus rate estimate plus disclosed allowance, NOT settled invoice or unconditional bound on unreported/lagged spend."
+  },
+  "worker_reports": {
+    "g5-final-runtime-audit.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-133-validity/g5-final-runtime-audit.json",
+      "sha256": "34edd59ad829d3e63487d170de7b9c5cc801f61f19d54943d217ad05d2156cc1"
+    },
+    "g5-final-spend-audit.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-133-validity/g5-final-spend-audit.json",
+      "sha256": "e32d1bfeda97e42b4b7161a0d998d8df7cec795fcc09e0b1f6d76ea9e0030c80"
+    },
+    "g5-deviations-evidence.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-133-validity/g5-deviations-evidence.json",
+      "sha256": "7dcb6a4e1b00c5f287e1fc2067ecdb80252f6266050b956cda3fe976683a37ab"
+    },
+    "g6-freeze-metrics-audit.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-133-validity/g6-freeze-metrics-audit.json",
+      "sha256": "9c696b149bee922492511414e177b6011c831622613e203f1544651e51b482c3"
+    },
+    "g6-000169-copy-fact-audit.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-133-validity/g6-000169-copy-fact-audit.json",
+      "sha256": "ae37a645e8321b72a32e57e7cff39b0ba51056e17f69f9bbf55303d2ef79b493",
+      "scope": "Contains original capped-view assessment and a superseding retained-output addendum; parent late disposition governs the stronger full-source evidence."
+    }
+  },
+  "archived_full_audit": {
+    "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-133-validity/har133-audit-source-close.json",
+    "sha256": "1a968488c03f52f54f87f89b78f9ad5bbc0f3cd4ba602ee978dbf58b8763d989",
+    "scope": "Dated source-audit snapshot, including historical superseded states; final decisions are in current_status and the final ruling."
+  },
+  "verification_limits": [
+    "No new model/GPU/Daytona/provider calls by HAR-133; CPU and read-only local catalog only.",
+    "G4 GPU execution and adapter-on-volume hashes remain producer-receipt evidence, not an independent download/retrain.",
+    "Observed configured auto-stop5/delete0/ttl70 does not prove the Daytona loss cause.",
+    "Billing rows lag and direct Z.ai spend is self-reported; accounting totals are not a final invoice.",
+    "G6 blind behavioural judgments are separate from counts and this primary analysis."
+  ],
+  "integrated_g5_run": {
+    "path": "research/experiments/ovn-sft-v0/G5-RUN.md",
+    "pr": 673,
+    "merge": "0b862e077642327387cd80a8b91766df60334ecc",
+    "merged_at": "2026-10-01T17:24:55Z",
+    "sha256": "7dc5bd93fe847959f6e85f9857a6fc668ecc8e81156dee061b91d787231b4154",
+    "review_report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-133-validity/g5-run-integration-audit.json"
+  },
+  "coordinator_spend_snapshot": {
+    "source": "/Users/petermakhnatch/Developer/research-context/inbox/sft-overnight-20260918/OVERNIGHT-2026-10-01.md:112-117",
+    "as_of": "2026-10-01T16:43Z",
+    "modal": 17.29,
+    "daytona_estimate": 6.89,
+    "subtotal": 24.18,
+    "scope": "Explicit Modal-plus-Daytona subtotal; direct Z.ai not included.",
+    "with_disclosed_direct_allowance": 26.49,
+    "limit": "Rounded coordinator ledger plus disclosed whole-day allowance, not independently settled invoice."
+  },
+  "g6_parent_manifest_proof": {
+    "verified_manifest_entries": 121,
+    "labels": 120,
+    "manifest_sha256": "05161b61a7d5df481f6f2ac1fbc3b4d07cd1232636e7cff19ed60b4fd0464b5e",
+    "arm_map_sha256": "5fcfcc8e6004de41a1d55c94f659cb674246edb0ef29a3928bb12310fe2971db",
+    "mapping_entries": 60,
+    "metric_rows": 60,
+    "metric_keys": [
+      "agent_steps",
+      "echo_task_complete_turns",
+      "first_edit_step",
+      "handshake_confirmed",
+      "handshake_present",
+      "id",
+      "loop_break_fired",
+      "loop_break_stopped",
+      "loop_onset",
+      "loop_suspicion_score",
+      "rejection_causes",
+      "reward",
+      "stop_reason",
+      "task",
+      "tokens_after_last_edit_input",
+      "tokens_total_proxy",
+      "turns_after_first_prompt",
+      "unparseable",
+      "verdict"
+    ],
+    "freeze_no_map_join_has_map": true,
+    "join_additions_only": [
+      "A\tresearch/explorations/trace-lab/har128/g6/G6_RESULTS.md",
+      "A\tresearch/explorations/trace-lab/har128/g6/G6_TABLES.md",
+      "A\tresearch/explorations/trace-lab/har128/g6/arm_map.json",
+      "A\tresearch/explorations/trace-lab/har128/g6/labels/MANIFEST.sha256",
+      "A\tresearch/explorations/trace-lab/har128/g6/scores_g6.json",
+      "A\tresearch/explorations/trace-lab/har128/g6/scores_g6.md"
+    ]
+  },
+  "g6_parent_data_join_proof": {
+    "all60_map_counts_raw_rewards_match_primary_snapshot": true,
+    "nonzero_unparseable": [
+      {
+        "id": "g6-01",
+        "arm": "tuned",
+        "unparseable": 1
+      },
+      {
+        "id": "g6-03",
+        "arm": "tuned",
+        "unparseable": 2
+      },
+      {
+        "id": "g6-17",
+        "arm": "gepa",
+        "unparseable": 1
+      },
+      {
+        "id": "g6-19",
+        "arm": "stock",
+        "unparseable": 62
+      },
+      {
+        "id": "g6-35",
+        "arm": "stock",
+        "unparseable": 2
+      },
+      {
+        "id": "g6-40",
+        "arm": "stock",
+        "unparseable": 1
+      },
+      {
+        "id": "g6-41",
+        "arm": "tuned",
+        "unparseable": 2
+      },
+      {
+        "id": "g6-49",
+        "arm": "gepa",
+        "unparseable": 90
+      }
+    ],
+    "nonzero_by_arm": {
+      "tuned": 3,
+      "gepa": 2,
+      "stock": 3
+    },
+    "canonical_stops_scored55": {
+      "ceiling:input_tokens": 40,
+      "loop_break": 11,
+      "task_complete_confirmed": 4
+    },
+    "confirmed_handshakes": [
+      {
+        "id": "g6-04",
+        "arm": "tuned",
+        "raw_reward": 0
+      },
+      {
+        "id": "g6-07",
+        "arm": "tuned",
+        "raw_reward": 0
+      },
+      {
+        "id": "g6-37",
+        "arm": "gepa",
+        "raw_reward": 0
+      },
+      {
+        "id": "g6-41",
+        "arm": "tuned",
+        "raw_reward": 0
+      }
+    ],
+    "source_hashes": {
+      "G6_RESULTS.md": "8ed4db34bcf33d2ed795b1ffb31c6b120055c99f90043b6924d2d375b4fb9d62",
+      "G6_TABLES.md": "3039a22cb7daf357331d6fb000447833a6a03290b11d5f985fb3e431a1bc87ce",
+      "scores_g6.json": "17c928c0ed4ace8e15b3872868a4f02178d507739813a70277234dbefbd63709",
+      "metrics_blind.jsonl": "45dee31b3a408cc0e1ee79a9f18ec18e554ca09d28f4ee5abea1b1f1a7b1f1c3"
+    }
+  },
+  "final_primary_designation": {
+    "source": "HAR-133 Research-Harbor 2026-10-01T17:48:36.331Z",
+    "supersedes": "17:32Z proposed spec-conformant corrected-primary interpretation",
+    "primary": "Canonical published counts; 666556cb receipt and ea23e08a input unchanged.",
+    "secondary": "Both blind raters judge000169-tuned copied. Excluding it gives N15,0 gains/2 losses,rawp0.5,Holmp1; no primary mutation.",
+    "scope": "No deterministic implementation departure established. Forward-looking matcher replay is sensitivity only, not a RESULTS blocker."
+  },
+  "integrated_g6": {
+    "report_path": "research/explorations/trace-lab/har128/g6/G6_RESULTS.md",
+    "initial_pr": 674,
+    "initial_merge": "d37137f5a4ff7d696aa143b4a6339b2cd731f95e",
+    "initial_merged_at": "2026-10-01T17:31:04Z",
+    "correction_pr": 676,
+    "correction_merge": "da500218695c60d6a92a4967d8a80d2b3e875fe2",
+    "correction_merged_at": "2026-10-01T17:53:56Z",
+    "report_sha256": "8ed4db34bcf33d2ed795b1ffb31c6b120055c99f90043b6924d2d375b4fb9d62",
+    "withdrawn": [
+      "first_edit_step comparisons",
+      "never_edited incidence",
+      "tokens_after_last_edit_input comparisons"
+    ],
+    "preserved": "120 labels and metrics_blind remain frozen; primary counts unchanged."
+  },
+  "verification_scope": {
+    "new_experiment_spend_usd": 0,
+    "analysis_smoke": "Actual canonical60 input; existing exact paired API; fixed Holm2; all32 joint completions; independently checked rational p-values and additive sharp bounds; separate N15 judgment-exclusion scenario.",
+    "focused_tests": "tests/test_ovn_g5_analysis.py: 2 passed; asymmetric missingness versus uniform imputation, separate complete-pair sets, exclusion versus failure and fixed-family Holm boundary.",
+    "other_runtime": "Raw sealed final1709 capture, per-route ledgers, native60 task-order intervals, paired token/request tables, G6 manifest121/121 +60map/metric joins, read-only local stored-billing reconstruction."
+  },
+  "g6_retained_output_late_disposition": {
+    "observed_at": "2026-10-01T18:18:08.918Z",
+    "trial": "ovn-g5-000169-tuned__CxBpceW",
+    "native_step": 22,
+    "source_call_id": "call_20_1",
+    "retained_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/ovn-g5-000169-tuned/ovn-g5-000169-tuned__CxBpceW/agent/evallab-output/step-0021.txt",
+    "retained_sha256": "3fd855a9cdb0fa4d9b4fbf09b69b095e98e2aad403a8a31625a46557922025bd",
+    "retained_bytes": 3691,
+    "visible_marker": [
+      "[... output limited to 2000 characters; 1691 characters omitted. Full output: /logs/agent/evallab-output/step-0021.txt — grep or read it there ...]"
+    ],
+    "retained_evidence_lines": [
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      40,
+      41
+    ],
+    "disposition": "New retained source has current command echo, &&-gated extraction/read output and listing. Earlier absent-echo conclusion applied only to capped ATIF, not all native evidence. Primary remains canonical per17:48; frozen-consumer recovery probe and prospective isolated replay are separate.",
+    "frozen_consumer_recovery": {
+      "input": "Exact marker-bound retained step-0021.txt substituted in memory only",
+      "bound_lines": 11,
+      "extraction": null,
+      "observed_limitations": [
+        "Source-content recognizer does not match grep path:line:content prefixes.",
+        "Trailing ls is semicolon-joined, not &&-gated."
+      ],
+      "interpretation": "Unknown remains the frozen consumer result; this does not negate the retained command-bound extraction/read evidence. Prospective ingestion/parser replay stays separate from primary."
+    }
+  },
+  "direct_zai_subcap_disclosure": {
+    "source": "HAR-128 Traces receipt 2026-10-01T17:32:04.261Z",
+    "reported_whole_day_usd": 2.31,
+    "reported_cap_usd": 2,
+    "reported_overrun_usd": 0.31,
+    "scope": "Self-reported #610 component, no invoice independently retrieved; separate from overnight30."
+  }
+}

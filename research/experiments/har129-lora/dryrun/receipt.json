@@ -1,0 +1,122 @@
+{
+  "cost_estimate": {
+    "assumed_throughput_tok_s": 1000.0,
+    "hours": 0.011141944444444444,
+    "seconds": 40.111,
+    "train_tokens_total": 40111.0,
+    "usd": 0.03136359312,
+    "usd_per_hour": 2.814912
+  },
+  "dry_run": {
+    "dropped": 0,
+    "tokens": 143829,
+    "trained_tokens": 40111,
+    "truncated": 0
+  },
+  "export": {
+    "conversations": 3,
+    "conversations_sha256": "sha256:9498cddc40013202bde9a8ff0a064612fe92dcc90c2a7116068ceb3990e896d3",
+    "kept": 3,
+    "manifest_sha256": "sha256:c2c5b5905791ddc7a0d9aa023ad923ea68a4e56a87ca2c708dd7765eb2b4e330",
+    "split_manifest_digest": null
+  },
+  "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_revision": "2367e865d009c13ac81713a2878291d33ab28177",
+  "remote": {
+    "adapter": "har129-dryrun-1/adapter",
+    "adapter_files_sha256": {
+      "README.md": "e911f3cc5e6569c86aa7038170742a77b118890575c951cf07dc5e2956613942",
+      "adapter_config.json": "24758ffeac886ac7f0fafb3140abf6c467c1832fa5f55e695d1b9f19c70ae5cc",
+      "adapter_model.safetensors": "5be702d0162ffb7206ce7362affd91b47bf39d036da1e6df3ff436a119a07724",
+      "chat_template.jinja": "59a64ebb4df6d1489d09a91267cf3ceb106162d4a893c4f84833cfb8c897ff63",
+      "tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+      "tokenizer_config.json": "792fa3f0cb88b111e54ef3134c873531008c4df471d108da17903426e308aa7b",
+      "training_args.bin": "829ed002e7edf98901367a0220df27ac66b3956ebf2101b4045bfeb0de2838f4"
+    },
+    "adapter_model_sha256": "5be702d0162ffb7206ce7362affd91b47bf39d036da1e6df3ff436a119a07724",
+    "fla": "0.5.2",
+    "log_history": [
+      {
+        "epoch": 1.0,
+        "grad_norm": 0.703809380531311,
+        "learning_rate": 0.0,
+        "loss": 0.331382155418396,
+        "step": 1
+      },
+      {
+        "epoch": 1.0,
+        "step": 1,
+        "total_flos": 6874263211318272.0,
+        "train_loss": 0.331382155418396,
+        "train_runtime": 256.4548,
+        "train_samples_per_second": 0.012,
+        "train_steps_per_second": 0.004
+      }
+    ],
+    "max_tokens": 51700,
+    "peak_gpu_memory_gib": 52.66,
+    "torch": "2.14.0+cu130",
+    "train_rows": 3,
+    "train_seconds": 256.9,
+    "trained_tokens": 40111,
+    "wall_seconds": 318.8
+  },
+  "render": {
+    "enable_thinking": true,
+    "mask": "assistant_masks (template generation markers), prefix-property verified per conversation",
+    "template": "model-own chat_template.jinja via apply_chat_template",
+    "think_mapping": "<think> content prefix -> reasoning_content field",
+    "tool_calls": "verbatim <tool_call><function=...> text in content",
+    "transformers": "5.12.1"
+  },
+  "run_name": "har129-dryrun-1",
+  "serve_hint": {
+    "adapter": "--enable-lora --lora-paths mimo_sft=/sft/har129-dryrun-1/adapter",
+    "targets_flag": "--lora-target-modules q_proj k_proj v_proj o_proj gate_proj up_proj down_proj"
+  },
+  "tool": "tools/modal-mimo-sft/sft.py",
+  "train": {
+    "dtype": "bfloat16",
+    "gradient_checkpointing": true,
+    "image_packages": [
+      "torch==2.14.0",
+      "transformers==5.12.1",
+      "trl==1.14.0",
+      "peft==0.21.0",
+      "accelerate==1.15.0",
+      "datasets==5.0.1",
+      "huggingface_hub==1.9.2",
+      "flash-linear-attention==0.5.2",
+      "fla-core==0.5.2"
+    ],
+    "lora": {
+      "alpha": 32,
+      "dropout": 0.05,
+      "rank": 16,
+      "target_modules": [
+        "q_proj",
+        "k_proj",
+        "v_proj",
+        "o_proj",
+        "gate_proj",
+        "up_proj",
+        "down_proj"
+      ]
+    },
+    "max_length": 65536,
+    "output_volume": "evallab-mimo-v26-9b-sft",
+    "packing": false,
+    "sft": {
+      "grad_accum_steps": 16,
+      "learning_rate": 0.0001,
+      "lr_scheduler": "cosine",
+      "num_epochs": 1,
+      "per_device_batch": 1,
+      "seed": 42,
+      "warmup_ratio": 0.03
+    },
+    "trainer": "trl.SFTTrainer on pre-rendered input_ids+assistant_masks",
+    "truncation": "keep_start:right-truncate@max_length,drop-fully-masked",
+    "weights_volume": "evallab-mimo-v26-9b-weights"
+  }
+}

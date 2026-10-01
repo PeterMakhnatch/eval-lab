@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "if key_lower == \"description\" and value:",
+      "ref": "head#6"
+    },
+    {
+      "quote": "OK, payload: None",
+      "ref": "head#10"
+    },
+    {
+      "quote": "100 passed, 2 skipped in 6.52s",
+      "ref": "head#12"
+    },
+    {
+      "quote": "All 100 tests pass (2 skipped for unrelated reasons",
+      "ref": "head#13"
+    },
+    {
+      "quote": "echo done",
+      "ref": "head#14"
+    },
+    {
+      "quote": "echo done",
+      "ref": "head#41"
+    }
+  ],
+  "first_failure": {
+    "quote": "if key_lower == \"description\" and value:",
+    "ref": "head#6",
+    "what": "incomplete guard avoids IndexError but lets empty description fall through to generic header path, leaving empty Description header"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#14",
+    "head#41"
+  ],
+  "notes": "Hidden test fails: metadata.get(Description) is '' not None; agent verified payload only, never the header. LoopBreakStop nudge 25 stop 40.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-002393-a1-r2__eFhhz27"
+}

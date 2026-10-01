@@ -40,18 +40,17 @@ beyond wiring:
   submit-contract and suspect-grader evidence).
 * taint candidates: a process-job flag (not a probe-03 rule) combining
   the verifier's ``anti_hack_guard: REJECT`` line (pattern reused from
-  probe-03) with remote-content fetches in executed model commands via
-  the canonical :mod:`evallab.upstream_fetch` guard (shared with GEPA
-  scoring: the task images are offline, so a trial that downloads the
-  upstream package or curls the upstream file may have graded something
-  other than the agent's own work).
+  probe-03) with confirmed upstream acquisition via
+  :mod:`evallab.upstream_fetch`. Its canonical command matcher also serves
+  GEPA's separate attempt-based policy; failed and unknown attempts here are
+  retained as non-deciding facts, not copied-fix evidence.
 
 The trial markdown opens with a decision page
 (:mod:`evallab.trial_decision`). That page invents no label. It quotes
 the probe-03 outcome, the existing grader-gap checks, the taint flags,
 and token-flow's last useful edit, and says whose problem the rule is.
-``R-ENV-02`` reads as the task. A pass with a fetch or a guard reject is
-a taint candidate, not a coordinator ruling.
+``R-ENV-02`` reads as the task. A pass with confirmed acquisition or a guard
+reject is a taint candidate, not a coordinator ruling.
 
 The runner calls :func:`process_job` automatically when a job finalizes
 """
@@ -150,49 +149,18 @@ def _step_token_sums(steps: list[Any]) -> dict[str, Any]:
     }
 
 
-def _shell_commands(agent_seq: list[tuple[str, dict]], info: dict) -> list[tuple[str, Any, str]]:
-    """``(doc, step_id, shell text)`` per agent step with proposed commands.
-
-    Shell text is the harness-recorded executed keystrokes when present,
-    else the normalizer's replay of the proposed Terminus commands -- never
-    the raw message, so model prose about fetching cannot misfire the
-    remote-fetch guard.
-    """
-    from evallab import probe03
-
-    layer_of = info if isinstance(info, dict) else {}
-    commands: list[tuple[str, Any, str]] = []
-    for doc, step in agent_seq:
-        keystrokes: list[str] = []
-        layer = (layer_of.get((doc, step.get("step_id"))) or {}).get("layer")
-        if isinstance(layer, dict):
-            sent = layer.get("executed_keystrokes") or layer.get("keystrokes_sent")
-            if isinstance(sent, str) and sent.strip():
-                keystrokes = [sent]
-            elif isinstance(sent, list):
-                keystrokes = [part for part in sent if isinstance(part, str) and part.strip()]
-        if not keystrokes:
-            keystrokes = [
-                part
-                for part in probe03._replay_keystrokes(None, str(step.get("message") or ""))
-                if part.strip()
-            ]
-        if keystrokes:
-            commands.append((doc, step.get("step_id"), "\n".join(keystrokes)))
-    return commands
 
 
 def _taint_flags(
     agent_seq: list[tuple[str, dict]], info: dict, trial_dir: Path
 ) -> list[dict[str, Any]]:
-    """Taint candidates: guard rejects plus upstream-fetch findings.
+    """Guard rejects plus outcome-assessed upstream-fetch attempt facts.
 
-    Remote-fetch detection is the canonical :mod:`evallab.upstream_fetch`
-    guard (shared with GEPA scoring); only the verifier-side guard reject
-    stays here.
+    Counts and the decision page use only confirmed acquisitions. Command
+    attempts (including failed/unknown ones) remain visible without deciding.
     """
     from evallab import probe03
-    from evallab.upstream_fetch import detect_upstream_fetch
+    from evallab.upstream_fetch import assess_upstream_fetch
 
     flags: list[dict[str, Any]] = []
     try:
@@ -212,22 +180,7 @@ def _taint_flags(
                 "guard_mutation_steps": writes,
             }
         )
-    commands = _shell_commands(agent_seq, info)
-    doc_of = {step_id: doc for doc, step_id, _ in commands}
-    findings = detect_upstream_fetch(
-        [(step_id if isinstance(step_id, int) else -1, text) for _, step_id, text in commands]
-    )
-    for finding in findings:
-        step_id = finding.step_index if finding.step_index >= 0 else None
-        flags.append(
-            {
-                "kind": "upstream_fetch",
-                "rule": f"upstream_fetch:{finding.kind}",
-                "evidence": probe03._ref(doc_of.get(step_id, "head"), step_id),
-                "command": finding.excerpt[:160],
-                "names_task_repo": finding.names_task_repo,
-            }
-        )
+    flags.extend(assess_upstream_fetch(agent_seq, info))
     return flags
 
 
@@ -508,8 +461,15 @@ def _process_trial(
     if shape_counts.get("unparseable"):
         flags.append(f"parse_error_shapes:{shape_counts['unparseable']}")
     if taint:
-        kinds = sorted({flag["kind"] for flag in taint})
-        flags.append(f"taint_candidate:{'+'.join(kinds)}")
+        from evallab.upstream_fetch import confirmed_fetch
+
+        decisive = [flag for flag in taint if confirmed_fetch(flag) or flag["kind"] == "guard_reject"]
+        if decisive:
+            kinds = sorted({flag["kind"] for flag in decisive})
+            flags.append(f"taint_candidate:{'+'.join(kinds)}")
+        for flag in taint:
+            if flag["kind"] == "upstream_fetch" and not confirmed_fetch(flag):
+                flags.append(f"fetch_attempt:{flag.get('outcome', 'unknown')}:{flag['evidence']}")
     if diagnosis_record is not None and diagnosis_record["modes"]:
         modes = ",".join(str(mode["mode"]) for mode in diagnosis_record["modes"])
         flags.append(f"diagnosis:{modes}")

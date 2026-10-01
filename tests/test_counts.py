@@ -16,12 +16,9 @@ from evallab.counts import (
     usability,
 )
 from evallab.process_job import _process_trial
+from evallab.upstream_fetch import assess_upstream_fetch
 
 REPO = find_label_root(Path(__file__))
-WAITERESS = (
-    "cd /testbed && pip download waitress==2.0.0 --no-deps -d /tmp/wtr 2>&1 | tail -2; "
-    "ls /tmp/wtr 2>/dev/null"
-)
 HAR104_COPY = Path(
     "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har104-runs/runs/"
     "har104-d-000226/har104-d-000226__JCDfZFi"
@@ -36,23 +33,17 @@ HAR104_BROKEN = Path(
 )
 
 
-def _fetch(command: str = WAITERESS) -> list[dict]:
-    return [
-        {
-            "kind": "upstream_fetch",
-            "rule": "upstream_fetch:pip-download-remote-package",
-            "command": command,
-            "evidence": "head#4",
-        }
-    ]
+def _fetch() -> list[dict]:
+    native = json.loads((Path(__file__).parent / "fixtures/upstream_fetch/g2-000341.json").read_text())
+    return assess_upstream_fetch([("head", step) for step in native["steps"]], {})
 
 
-def test_copied_pass_is_excluded_and_a_fetch_fail_still_counts() -> None:
+def test_acquired_upstream_excludes_a_pass_but_not_a_verifier_failure() -> None:
     copied = classify_counts(reward=1.0, scored=True, taint=_fetch())
     assert copied["verdict"] == "excluded"
     assert copied["reasons"] == ["copied_fix", "pass_tainted"]
     assert copied["raw_reward"] == 1.0
-    assert copied["evidence"][0]["command"].startswith("cd /testbed && pip download waitress==2.0.0")
+    assert copied["evidence"][0]["observations"][0]["artifact"] == "/tmp/vc/vyper_config-1.0.0-py3-none-any.whl"
     assert copied["judgments"] == []
 
     failed = classify_counts(

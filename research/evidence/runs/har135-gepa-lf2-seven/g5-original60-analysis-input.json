@@ -1,0 +1,3900 @@
+{
+  "schema": "har135.g5-original60-analysis-input/v1",
+  "frozen_at_utc": "2026-10-01T17:30:52.604Z",
+  "analysis_rule": "Canonical counted_pass=1/counted_fail=0, every excluded/missing/unscored=NULL; raw verifier rewards retained as evidence, never substituted for counts; filter a separate complete-pair set per contrast before API; no physical replacements executed.",
+  "authority": {
+    "card": "HAR-126",
+    "final_disposition_at_utc": "2026-10-01T16:42:43.559Z",
+    "no_replacements": true,
+    "prior_16h06_r2_authorization_superseded": true,
+    "prospective_combined_g5_cap_usd": 16,
+    "prospective_app_day_watchdog_usd": 11.5,
+    "overnight_cap_usd": 30,
+    "projected_overnight_stop_usd": 29
+  },
+  "frozen_refs": {
+    "lf2_sha256": "sha256:f18091f344b075230bf99744fb92dd75c1e9ebe67f5cb15027a0d6ce791456be",
+    "cohort_sha256": "sha256:ecfb2613ecfe0fdc941b28a07fdf67fc0ee8110bf05234c758b244330bce80d3",
+    "eval_csv_sha256": "sha256:3b997fdcff048061fd8a05d446948d4d6425bf670eb0d6710989c50dcd0a9219",
+    "candidate_b55_sha256": "sha256:b55a90cdf5e07719150c5642043bebfa54ce7ff68f28aff2009d4f738e7f9470",
+    "adapter_sha256": "sha256:e96209f2a15108e50076e24d7ecaeba43365af055e020f2ab526bb0b270c04a2",
+    "models": {
+      "stock": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+      "tuned": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+      "gepa": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+    },
+    "serving_engine": "SGLang (actual G4 parity/runtime, not vLLM planning label)",
+    "runtime_source_commits": {
+      "g5r": "55366a45bf85d7f7a75353e1f7004a5454b0f044",
+      "g5r2": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336",
+      "g5r3": "b1619aa3e3f0bef20fd52cb8590c4203f7c27336",
+      "basis": "round manifests checkout.commit + capture manifests eval_lab_commit agree per segment; steward index_row commit backticks agree (55366a45bf85 for g5r cells, b1619aa3e3f0 for g5r2/g5r3 cells)",
+      "difference_note": "source commit differs by segment (g5r vs g5r2/g5r3); recorded as observed, no extra requirement added"
+    },
+    "sampler": {
+      "temperature": 0.6,
+      "top_p": 0.95,
+      "top_k": 20,
+      "max_tokens": 4096,
+      "n": 1,
+      "stream": false,
+      "enable_thinking": true,
+      "inference_seed": null,
+      "inference_seed_observed": false
+    }
+  },
+  "source_receipts": {
+    "native_consumer_sha256": "sha256:a3c3a1210f808a54a6e5374d9b7e1dee6747ec6cd8cfb569bc51cb0309742806",
+    "capture_consumer_sha256": "sha256:1cdaefd4d03a2e0eabaca8a00bdabe85ffd833e14144dc93505d0e1ed0f71058",
+    "original60_steward": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-131-steward-evidence/g5-original60-audit.json",
+      "sha256": "sha256:666556cb2e378c5b8a6bfa08eb53fb09078cb5de3bcdf59e656be967eadb27f2",
+      "rows": 60
+    },
+    "captures": {
+      "g5r": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g5r/calls.jsonl",
+        "stat_bytes_observed": 115010282,
+        "complete_bytes": 115010282,
+        "complete_newline_records": 1194,
+        "incomplete_trailing_bytes": 0,
+        "ends_with_newline": true,
+        "sha256": "a3289b94728feee629038ccd4788135150bd7cdcf41a70ce48381dfa47cdcd9a",
+        "seq_contiguous_1_to_n": true,
+        "prefix_time_bounds_utc": [
+          "2026-10-01T13:01:51.548701Z",
+          "2026-10-01T13:25:58.247917Z"
+        ],
+        "time_basis": "actualZ-suffixedCaptureRecordUTC"
+      },
+      "g5r2": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g5r2/calls.jsonl",
+        "stat_bytes_observed": 212943122,
+        "complete_bytes": 212943122,
+        "complete_newline_records": 2442,
+        "incomplete_trailing_bytes": 0,
+        "ends_with_newline": true,
+        "sha256": "3f278dcd57494c1e5c5dede2cdf7cb137847eaa826a5c2f52053f3cb284c31f9",
+        "seq_contiguous_1_to_n": true,
+        "prefix_time_bounds_utc": [
+          "2026-10-01T14:11:43.587615Z",
+          "2026-10-01T15:26:02.234586Z"
+        ],
+        "time_basis": "actualZ-suffixedCaptureRecordUTC"
+      },
+      "g5r3": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab-results/har126-capture/g5r3/calls.jsonl",
+        "stat_bytes_observed": 152564684,
+        "complete_bytes": 152564684,
+        "complete_newline_records": 1709,
+        "incomplete_trailing_bytes": 0,
+        "ends_with_newline": true,
+        "sha256": "343fe946b3481ff1563a9f40dc403c887619a1a28bb85d17fac46a8d1725b3e8",
+        "seq_contiguous_1_to_n": true,
+        "prefix_time_bounds_utc": [
+          "2026-10-01T15:36:15.112575Z",
+          "2026-10-01T16:35:34.391941Z"
+        ],
+        "time_basis": "actualZ-suffixedCaptureRecordUTC",
+        "owner_abbreviated_hash_note": "owner-reported 1709 LF / SHA 343fe946 validated against FULL source bytes: full-file sha256 343fe946b3481ff1563a9f40dc403c887619a1a28bb85d17fac46a8d1725b3e8 over 152564684 bytes and 1709 newline records; abbreviated hash never trusted alone"
+      }
+    },
+    "actual_16h19_runtime_prefix": {
+      "bytes": 148914117,
+      "records": 1670,
+      "sha256": "sha256:aae14dde9f910041a553a774bf028754f299b35c93f9c3252897af4ca9718ed5",
+      "exact_prefix_of_final": true
+    },
+    "parent": {
+      "raw_record_fact_checks": 240,
+      "source_join_rows": 60,
+      "previous40_physical_hashes_and_facts_unchanged": true,
+      "new20_physical_raw_and_metadata_hashes_independently_recomputed": true,
+      "aware_wrapper_three_arm_order_verified": 20,
+      "no_within_task_overlap": true
+    }
+  },
+  "primary_family": {
+    "size": 2,
+    "contrasts": [
+      "tuned_minus_stock",
+      "gepa_minus_stock"
+    ],
+    "test": "exact two-sided McNemar",
+    "adjustment": "Holm",
+    "fwer": 0.05,
+    "confidence_intervals": "95% approximate paired score, marginal descriptive; not exact and not family-wise",
+    "exploratory_contrast": "tuned_minus_gepa"
+  },
+  "coverage_semantics": {
+    "capture_complete_for_binary_API": "Eligible paired cells have source-bound canonical verdicts and full successful-response wire/settlement coverage; this flag is not a claim about all hidden upstream provider operations or full-ATIF reconstruction.",
+    "usage": "Reported usage from HTTP200 only; 54 HTTP503 provider usage UNKNOWN (not zero). Reasoning included in completion tokens, never added a second time.",
+    "usd": "NULL for every self-hosted cell; proxy failed-charge zero is not zero provider usage or free GPU. Shared per-cell GPU estimates must never be summed.",
+    "clocks": "Only Z/+offset physical-trial and lab-wrapper clocks used for duration/order. Naive aggregate-job native clock strings are never cast to UTC.",
+    "sealing": "Capture files are byte/SHA-bound closed sources; capture manifests have no ended_at or seal marker."
+  },
+  "rows": [
+    {
+      "task_id": "format-code-task-002302",
+      "repository": "powerline",
+      "run": "original",
+      "package_digest": "sha256:5c7cb446bfa714ef0b739244885ac7a9aa0f6c768772dae9a03a31466fb797da",
+      "verifier_digest": "sha256:ce550200a6c825c89f0933b42c91b9de354e89f3f6e74ac36cc03c786a450593",
+      "frozen_arm_order": [
+        "stock",
+        "tuned",
+        "gepa"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-002302-stock",
+          "spec_id": "01M3VRKKCYBTBJ40SZ6AQR9P2Z",
+          "trial_name": "ovn-g5-002302-stock__83xFDnj",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 90,
+          "http_status": {
+            "200": 90
+          },
+          "known_reported_input_tokens": 2431748,
+          "known_reported_output_tokens_including_reasoning": 15645,
+          "known_reported_reasoning_tokens": 1828,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 90,
+            "min": 0.871,
+            "max": 17.551,
+            "sum": 286.294,
+            "median": 1.8275000000000001,
+            "q1": 1.5054999999999998,
+            "q3": 3.73675,
+            "iqr": 2.23125
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.285954Z",
+            "finished_at": "2026-10-01T13:26:53.830519Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.891660+00:00",
+            "finished_at": "2026-10-01T13:26:54.462054+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:cb3b78b699d9ce1a73313104fe89d7bd41b4ab82f5bd39fcb91b4d9d0467af59",
+          "raw_lab_metadata_sha256": "sha256:551abe44071d3989e6109b62b209fc0327592ab77e5e302306e9bb74c7297603",
+          "experiment_spec_sha256": "sha256:78a2a3cd62e1a06a751cce744ff1df65587574b107bab5b70245013cdab8b4a8",
+          "published_trial_sha256": "sha256:8f58a220ad3bfbb33706203b90de70a19b0519c031322c71e3d675d6aac97b62",
+          "published_meta_sha256": "sha256:551abe44071d3989e6109b62b209fc0327592ab77e5e302306e9bb74c7297603",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 90,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-002302-tuned",
+          "spec_id": "01M3VWM9S60TWCQ31J8MJXV65D",
+          "trial_name": "ovn-g5-002302-tuned__5j77iHJ",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 90,
+          "http_status": {
+            "200": 90
+          },
+          "known_reported_input_tokens": 2377462,
+          "known_reported_output_tokens_including_reasoning": 13994,
+          "known_reported_reasoning_tokens": 456,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 90,
+            "min": 1.01,
+            "max": 207.901,
+            "sum": 932.6270000000001,
+            "median": 1.813,
+            "q1": 1.5229999999999997,
+            "q3": 5.779,
+            "iqr": 4.256
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.522879Z",
+            "finished_at": "2026-10-01T15:11:47.309767Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.371672+00:00",
+            "finished_at": "2026-10-01T15:11:47.967497+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:46f030b96185814a6c8fd14a68bf720247cc5a41cab301d8a81f6174b0c686d7",
+          "raw_lab_metadata_sha256": "sha256:68e3fe389d7236587f01925afe4db85288e91410176d423504197623b3bbda67",
+          "experiment_spec_sha256": "sha256:41ae9ef8e0820bb2587cf5fdb8e2ec8029767057d75e97907800470a6de95967",
+          "published_trial_sha256": "sha256:c5a408ce9505503765eb47d6d08c8e5020357aa2219d1e310756915b11d85857",
+          "published_meta_sha256": "sha256:68e3fe389d7236587f01925afe4db85288e91410176d423504197623b3bbda67",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 90,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-002302-gepa",
+          "spec_id": "01M3W1G01MN8XWN1CWD3B6W3YY",
+          "trial_name": "ovn-g5-002302-gepa__sFGLATE",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-COMP-02",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 95,
+          "http_status": {
+            "200": 95
+          },
+          "known_reported_input_tokens": 2448663,
+          "known_reported_output_tokens_including_reasoning": 11674,
+          "known_reported_reasoning_tokens": 1448,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 95,
+            "min": 0.871,
+            "max": 245.495,
+            "sum": 613.612,
+            "median": 1.718,
+            "q1": 1.329,
+            "q3": 2.768,
+            "iqr": 1.4389999999999998
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.290044Z",
+            "finished_at": "2026-10-01T16:08:50.827426Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.311188+00:00",
+            "finished_at": "2026-10-01T16:08:51.751366+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:c019f223869bd1eaf7a14b800875ba82619dc6ec7a06e9e59cca6bffc05597dd",
+          "raw_lab_metadata_sha256": "sha256:0945f0ef0612cf2f8f829cb53a8cc0ee4b08da8af7510629fb56d5c9fe2e6fc3",
+          "experiment_spec_sha256": "sha256:3ec3de861f304a871c7d92c24ef839db254da051d60aacc4caa073cde02f9cf4",
+          "published_trial_sha256": "sha256:1b1d3ad67636f14a871fd839383657a860bc4bca1ce4343b429ec3283ead9b77",
+          "published_meta_sha256": "sha256:0945f0ef0612cf2f8f829cb53a8cc0ee4b08da8af7510629fb56d5c9fe2e6fc3",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002302-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 95,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001695",
+      "repository": "github.com/kinnala/scikit-fem",
+      "run": "leak-closed",
+      "package_digest": "sha256:ed03a438c0160c4def6b3a6d07149117338119513af678d93cd402027c305057",
+      "verifier_digest": "sha256:f96930cc4afff2edd74509478b4672c291384b9ad98868ba313e1261706af661",
+      "frozen_arm_order": [
+        "tuned",
+        "gepa",
+        "stock"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001695-stock",
+          "spec_id": "01M3W1G0S2V1MK2JSWPP1Y99MX",
+          "trial_name": "ovn-g5-001695-stock__PveqguL",
+          "canonical_verdict": "counted_pass",
+          "outcome": 1,
+          "raw_reward": 1,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-NONE-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 104,
+          "http_status": {
+            "200": 104
+          },
+          "known_reported_input_tokens": 2477635,
+          "known_reported_output_tokens_including_reasoning": 30499,
+          "known_reported_reasoning_tokens": 8463,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 104,
+            "min": 1.04,
+            "max": 257.653,
+            "sum": 826.121,
+            "median": 2.3705,
+            "q1": 1.6022500000000002,
+            "q3": 6.0305,
+            "iqr": 4.42825
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.260475Z",
+            "finished_at": "2026-10-01T16:36:29.328093Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.291983+00:00",
+            "finished_at": "2026-10-01T16:36:29.935190+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:8a86eedbf9b109eb5dd60d375addaa48955344356c2f904f1ae2e874a98aa71c",
+          "raw_lab_metadata_sha256": "sha256:2e13bf6af8eee268608742056a175f5d6508ee450d7efb8298b9059fc058b946",
+          "experiment_spec_sha256": "sha256:395a6891bfd7ff861601e3ce4ae8350829439b6b02eae93d3a99bdcdba21d851",
+          "published_trial_sha256": "sha256:d8bbb24e40fbd441f5907fbfe9a608304525df8b66af91c1622a06ae1242bb63",
+          "published_meta_sha256": "sha256:2e13bf6af8eee268608742056a175f5d6508ee450d7efb8298b9059fc058b946",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 104,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001695-tuned",
+          "spec_id": "01M3VWM64F3F6M5WD8RTD7EAMX",
+          "trial_name": "ovn-g5-001695-tuned__HSdBDkF",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 120,
+          "http_status": {
+            "200": 120
+          },
+          "known_reported_input_tokens": 2490958,
+          "known_reported_output_tokens_including_reasoning": 25534,
+          "known_reported_reasoning_tokens": 4559,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 120,
+            "min": 0.744,
+            "max": 29.135,
+            "sum": 429.843,
+            "median": 2.315,
+            "q1": 1.14025,
+            "q3": 3.77875,
+            "iqr": 2.6385
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:11:30.434442Z",
+            "finished_at": "2026-10-01T14:36:14.033918Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:11:27.572636+00:00",
+            "finished_at": "2026-10-01T14:36:14.537363+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:c4102e39b8e01a6ce0b0a6270c05658a24df356fbd1bf8ce77f35cb7cf753da2",
+          "raw_lab_metadata_sha256": "sha256:a176052cb640d0c91c64433a076061e4a7f70f3ed6737029f28117d8da38e64a",
+          "experiment_spec_sha256": "sha256:b5567f9a7f70da8c86cea5ed46d071d26204ebbbe92d66ea02d5ec970fb1453d",
+          "published_trial_sha256": "sha256:33a310bc49faa76c7ddf23b84ae283f0a47088c290b72385cff6f267e44b4400",
+          "published_meta_sha256": "sha256:a176052cb640d0c91c64433a076061e4a7f70f3ed6737029f28117d8da38e64a",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 120,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001695-gepa",
+          "spec_id": "01M3VWMA8YZHKQ9FTRKV06APBY",
+          "trial_name": "ovn-g5-001695-gepa__q4rVPoo",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 113,
+          "http_status": {
+            "200": 113
+          },
+          "known_reported_input_tokens": 2485690,
+          "known_reported_output_tokens_including_reasoning": 22454,
+          "known_reported_reasoning_tokens": 1375,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 113,
+            "min": 0.879,
+            "max": 76.699,
+            "sum": 775.099,
+            "median": 2.256,
+            "q1": 1.4405000000000001,
+            "q3": 4.0315,
+            "iqr": 2.591
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:48.923816Z",
+            "finished_at": "2026-10-01T15:11:54.158121Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.212124+00:00",
+            "finished_at": "2026-10-01T15:11:55.054614+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:4e830d3eeaddab8065aaa3ce8e7d4a762ff62cadea938cf67c684e269f09c6e3",
+          "raw_lab_metadata_sha256": "sha256:1846ff66611c3f7bb6f899bd0d698502f009609da1c7ecbbbd415678d4742b49",
+          "experiment_spec_sha256": "sha256:6eaabafca6ba0404b3de853dfe3aa85aab6f5f268f0eaeb18397d07ef4b879bd",
+          "published_trial_sha256": "sha256:da1e61aeef4503c0f56402c7fb7d36457c6c23883a20d0d1878a1f01d4281b81",
+          "published_meta_sha256": "sha256:1846ff66611c3f7bb6f899bd0d698502f009609da1c7ecbbbd415678d4742b49",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001695-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 113,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-000521",
+      "repository": "pyabm",
+      "run": "original",
+      "package_digest": "sha256:a37768d9102ababe1f27030a6cfa37aa71bc7fb7f0377cfc8820121a3583ad47",
+      "verifier_digest": "sha256:e6ee196c8d4d7d22e8dcfa17e3075aa687baf176733416d105a2fd333ef2ed48",
+      "frozen_arm_order": [
+        "gepa",
+        "stock",
+        "tuned"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-000521-stock",
+          "spec_id": "01M3VWMARYCKRSG040CTZBWK47",
+          "trial_name": "ovn-g5-000521-stock__pjKC2mS",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 55,
+          "http_status": {
+            "200": 55
+          },
+          "known_reported_input_tokens": 1167003,
+          "known_reported_output_tokens_including_reasoning": 5556,
+          "known_reported_reasoning_tokens": 827,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 55,
+            "min": 0.982,
+            "max": 104.593,
+            "sum": 293.468,
+            "median": 2.006,
+            "q1": 1.552,
+            "q3": 2.276,
+            "iqr": 0.7239999999999998
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.495746Z",
+            "finished_at": "2026-10-01T14:43:44.506119Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.402650+00:00",
+            "finished_at": "2026-10-01T14:43:45.198323+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:815c31b6778ebd766785ebc6a02d13306481b16221750d408de9c842eccedbec",
+          "raw_lab_metadata_sha256": "sha256:29dd3de3273436620a0e59764d14283e19e5ba59b5f41e45315e982c766a35de",
+          "experiment_spec_sha256": "sha256:283fad081a3c5370bf208f0572a95ab5023333d7c4c8193d09b2c6e99e1d1929",
+          "published_trial_sha256": "sha256:b3f9e7a7e746d7f2de65531e552dca2fd01430c23e648b91b188082584562c52",
+          "published_meta_sha256": "sha256:29dd3de3273436620a0e59764d14283e19e5ba59b5f41e45315e982c766a35de",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 55,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-000521-tuned",
+          "spec_id": "01M3W1G18Y1B027VD26B9KMXHA",
+          "trial_name": "ovn-g5-000521-tuned__TdWLAib",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 110,
+          "http_status": {
+            "200": 110
+          },
+          "known_reported_input_tokens": 2473096,
+          "known_reported_output_tokens_including_reasoning": 17102,
+          "known_reported_reasoning_tokens": 410,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 110,
+            "min": 0.813,
+            "max": 287.588,
+            "sum": 974.499,
+            "median": 1.859,
+            "q1": 1.3592499999999998,
+            "q3": 2.733,
+            "iqr": 1.3737500000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.630134Z",
+            "finished_at": "2026-10-01T15:57:45.606381Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.382883+00:00",
+            "finished_at": "2026-10-01T15:57:46.467272+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:417766b5b5597a257e4e60b308767be5856b13a815d0ae2fda6036fdbc5a6ab2",
+          "raw_lab_metadata_sha256": "sha256:0d845012bcd3f4b9988a19e6825df0f4520b374a41b004a9d404cc10d1597bbf",
+          "experiment_spec_sha256": "sha256:9a496dd84ff036e623d7e29712fe03418ca68255079915c22c772fe820c3501a",
+          "published_trial_sha256": "sha256:96fc6f11a768eef4e03bb824adb3a4f322878d215382d18034f00d3a6a45c41e",
+          "published_meta_sha256": "sha256:0d845012bcd3f4b9988a19e6825df0f4520b374a41b004a9d404cc10d1597bbf",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 110,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-000521-gepa",
+          "spec_id": "01M3VRKMGGHR4RVERV1EEXVD6D",
+          "trial_name": "ovn-g5-000521-gepa__2rqo6EY",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 103,
+          "http_status": {
+            "200": 103
+          },
+          "known_reported_input_tokens": 2477226,
+          "known_reported_output_tokens_including_reasoning": 8438,
+          "known_reported_reasoning_tokens": 421,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 103,
+            "min": 0.857,
+            "max": 11.661,
+            "sum": 191.639,
+            "median": 1.185,
+            "q1": 1.029,
+            "q3": 2.087,
+            "iqr": 1.0580000000000003
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.351097Z",
+            "finished_at": "2026-10-01T13:09:44.175214Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.881312+00:00",
+            "finished_at": "2026-10-01T13:09:44.991970+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:a178325d8e78b0d123edd008999848f3d330d531581f38d7620d4b92a6b900f4",
+          "raw_lab_metadata_sha256": "sha256:785944be8d2b4ef4e7482b28fdfb6178dcec514efae94cc9ff347fe487881184",
+          "experiment_spec_sha256": "sha256:ee82503d63b5e32d76644020c5323426920c15767717d791f8a0a8ff53b40389",
+          "published_trial_sha256": "sha256:1e4eb9db98075b2b5b17bd5afb3b9107afbdbcc094e5261b610b2a35bc9af407",
+          "published_meta_sha256": "sha256:785944be8d2b4ef4e7482b28fdfb6178dcec514efae94cc9ff347fe487881184",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000521-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 103,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001797",
+      "repository": "github.com/linode/linode-cli",
+      "run": "original",
+      "package_digest": "sha256:702534249ae675b7d431a8a25ec535d8e1e565d93a2e486010ebb6351acbdbe9",
+      "verifier_digest": "sha256:0fb679b40540a12beb4cae2a732892a64e51c93796893c719e4bdc81055237e9",
+      "frozen_arm_order": [
+        "gepa",
+        "tuned",
+        "stock"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001797-stock",
+          "spec_id": "01M3W1G1RYAAXNBKTE9TKFFNYP",
+          "trial_name": "ovn-g5-001797-stock__yGw88CW",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 88,
+          "http_status": {
+            "200": 88
+          },
+          "known_reported_input_tokens": 2403774,
+          "known_reported_output_tokens_including_reasoning": 12812,
+          "known_reported_reasoning_tokens": 4636,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 88,
+            "min": 1.211,
+            "max": 32.932,
+            "sum": 256.284,
+            "median": 2.0374999999999996,
+            "q1": 1.8385,
+            "q3": 2.46275,
+            "iqr": 0.6242500000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:04.892178Z",
+            "finished_at": "2026-10-01T15:45:08.734014Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.259301+00:00",
+            "finished_at": "2026-10-01T15:45:09.206959+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:a3b8b9486856eb4c4f97a35834bb86e24569bc641f9ea60306dba6c0d52f2da0",
+          "raw_lab_metadata_sha256": "sha256:a1ad85dd8330323b3e729f2440bd1e1cbcc427ae08500d6554e6b1db88056134",
+          "experiment_spec_sha256": "sha256:5107bb232b87f113e889384baee524997aabdab8025d4230e81376bac417f8dd",
+          "published_trial_sha256": "sha256:d909dd9878bca699da4ffff928a320b8d66be5a2a9c4f8cdc6a4ab8d0b6bc7f9",
+          "published_meta_sha256": "sha256:a1ad85dd8330323b3e729f2440bd1e1cbcc427ae08500d6554e6b1db88056134",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 88,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001797-tuned",
+          "spec_id": "01M3VWMB8F2GHSH1NJYQG9J7ER",
+          "trial_name": "ovn-g5-001797-tuned__L32LiEr",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 94,
+          "http_status": {
+            "200": 94
+          },
+          "known_reported_input_tokens": 2188681,
+          "known_reported_output_tokens_including_reasoning": 9475,
+          "known_reported_reasoning_tokens": 4116,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 94,
+            "min": 1.004,
+            "max": 216.942,
+            "sum": 748.672,
+            "median": 1.371,
+            "q1": 1.223,
+            "q3": 1.7639999999999998,
+            "iqr": 0.5409999999999997
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.495746Z",
+            "finished_at": "2026-10-01T14:53:01.876621Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.370310+00:00",
+            "finished_at": "2026-10-01T14:53:02.584994+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:735b09095ea0f869814d979f48f6834a760c0c37be0895944e5dca2994b40549",
+          "raw_lab_metadata_sha256": "sha256:4a67fa95a5305203215c864eac8fc4d6565bf01d6fedb12358adf337be37c67e",
+          "experiment_spec_sha256": "sha256:89c2363d037743f3d766f1b714b8774bc3adffe29caaa739331e2d15c84ee14d",
+          "published_trial_sha256": "sha256:31d9cbecfa9834e63e4009162075226a8ae49758546bb5d5168e8f0073cba175",
+          "published_meta_sha256": "sha256:4a67fa95a5305203215c864eac8fc4d6565bf01d6fedb12358adf337be37c67e",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 94,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001797-gepa",
+          "spec_id": "01M3VRKMZ38NYJS6NHC6GHYNEP",
+          "trial_name": "ovn-g5-001797-gepa__W7cKEVT",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 86,
+          "http_status": {
+            "200": 86
+          },
+          "known_reported_input_tokens": 2447785,
+          "known_reported_output_tokens_including_reasoning": 16039,
+          "known_reported_reasoning_tokens": 6063,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 86,
+            "min": 1.163,
+            "max": 40.782,
+            "sum": 301.392,
+            "median": 2.2385,
+            "q1": 1.504,
+            "q3": 3.02925,
+            "iqr": 1.5252500000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.362305Z",
+            "finished_at": "2026-10-01T13:16:13.710210Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.875451+00:00",
+            "finished_at": "2026-10-01T13:16:14.549919+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:88f5ca791a934495ef2686cd7691763547eb322bdefb91a0f3a6073abdd526ee",
+          "raw_lab_metadata_sha256": "sha256:2c5e20d3e0a63aabd7f2e1c5430ff97410917a8061007c6564c6a44c85830a1f",
+          "experiment_spec_sha256": "sha256:595c8a91639cbc4360f6cd8d2bba4e36cad1d6c0db2b7cdabd55c6592a00ffdb",
+          "published_trial_sha256": "sha256:13595125774845a025102a41ef8347ac5dc467915ade19cf0cdf9d7107d28316",
+          "published_meta_sha256": "sha256:2c5e20d3e0a63aabd7f2e1c5430ff97410917a8061007c6564c6a44c85830a1f",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001797-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 86,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001809",
+      "repository": "localstack",
+      "run": "leak-closed",
+      "package_digest": "sha256:5621a1f3d0de1428c222738d7a793c224e47b41abd5b1fa5d9b0e10631aa7cc0",
+      "verifier_digest": "sha256:967c876f83c63508dcef8c52b5606ad8121195147afbbc446d2006b9647257a6",
+      "frozen_arm_order": [
+        "stock",
+        "gepa",
+        "tuned"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001809-stock",
+          "spec_id": "01M3VRKNDJ7NF5MYBJNRZKFFD1",
+          "trial_name": "ovn-g5-001809-stock__PZ8sw7f",
+          "canonical_verdict": "counted_pass",
+          "outcome": 1,
+          "raw_reward": 1,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-NONE-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 94,
+          "http_status": {
+            "200": 94
+          },
+          "known_reported_input_tokens": 2463110,
+          "known_reported_output_tokens_including_reasoning": 19150,
+          "known_reported_reasoning_tokens": 8597,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 94,
+            "min": 0.861,
+            "max": 34.961,
+            "sum": 343.65,
+            "median": 1.1869999999999998,
+            "q1": 1.0725000000000002,
+            "q3": 2.2487500000000002,
+            "iqr": 1.17625
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.295100Z",
+            "finished_at": "2026-10-01T13:17:23.647873Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.893899+00:00",
+            "finished_at": "2026-10-01T13:17:24.516055+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:a789ccfb519e3aba7ad7a322049031824ae409d0eca21bf823a2c1b6ca8e5514",
+          "raw_lab_metadata_sha256": "sha256:4f89a282d1b5c7c4f157ce53d8092ecc0b559ce69209a25428247441d79c5a26",
+          "experiment_spec_sha256": "sha256:b83c4bb49305dfe9fe2135322078e521512f67f66cacaf7b1db17ec8aa062125",
+          "published_trial_sha256": "sha256:9f55ec0a5593723c8ebfa5c4e6c35c1f466adc6abc8fafbd236dd6adfc6ce8eb",
+          "published_meta_sha256": "sha256:4f89a282d1b5c7c4f157ce53d8092ecc0b559ce69209a25428247441d79c5a26",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 94,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001809-tuned",
+          "spec_id": "01M3W1G28V2SPM98PWB769ZHDH",
+          "trial_name": "ovn-g5-001809-tuned__AUVzrvM",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 85,
+          "http_status": {
+            "200": 85
+          },
+          "known_reported_input_tokens": 2453262,
+          "known_reported_output_tokens_including_reasoning": 16430,
+          "known_reported_reasoning_tokens": 6988,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 85,
+            "min": 1.188,
+            "max": 286.218,
+            "sum": 936.875,
+            "median": 2.473,
+            "q1": 1.8795,
+            "q3": 3.433,
+            "iqr": 1.5534999999999999
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:04.993385Z",
+            "finished_at": "2026-10-01T15:58:39.683263Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.288426+00:00",
+            "finished_at": "2026-10-01T15:58:40.718825+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:ffeeb9cd52a04524c2d2c9507ac65ff0bbac864cbc1a639e1128dfcde24d29f5",
+          "raw_lab_metadata_sha256": "sha256:ce8b976dfbc17df118a09af16497014ad7690d98c030a029c5c599e3fdc3fe36",
+          "experiment_spec_sha256": "sha256:5572ae837f7ed945f49e0b3a00d229ca47526bfe7b8fcb443d5585a7d4d94753",
+          "published_trial_sha256": "sha256:01af3ac6f29f2954098359a6254590fcb0baddac895106d35dfb2e3052eea6a6",
+          "published_meta_sha256": "sha256:ce8b976dfbc17df118a09af16497014ad7690d98c030a029c5c599e3fdc3fe36",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 85,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001809-gepa",
+          "spec_id": "01M3VWMBR1XSR832XRXMZE9RMY",
+          "trial_name": "ovn-g5-001809-gepa__nxdBvhh",
+          "canonical_verdict": "counted_pass",
+          "outcome": 1,
+          "raw_reward": 1,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-NONE-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 117,
+          "http_status": {
+            "200": 117
+          },
+          "known_reported_input_tokens": 2467934,
+          "known_reported_output_tokens_including_reasoning": 11377,
+          "known_reported_reasoning_tokens": 3163,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 117,
+            "min": 0.97,
+            "max": 67.988,
+            "sum": 355.356,
+            "median": 1.184,
+            "q1": 1.084,
+            "q3": 1.3864999999999998,
+            "iqr": 0.30249999999999977
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:48.956093Z",
+            "finished_at": "2026-10-01T14:47:11.120890Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.267238+00:00",
+            "finished_at": "2026-10-01T14:47:11.988694+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:c238065cfa25e234f443fe0068bdd268a5f34e5629ea7284cace76acf9b292cd",
+          "raw_lab_metadata_sha256": "sha256:58534c8e1b41ca9d858d95d665c5e3110525a8a65f4974638c036645e999f7b7",
+          "experiment_spec_sha256": "sha256:74cfd9049332ef84cc8adc2d2c9bd025a2afd9043f71e15e7d3f1278166f087f",
+          "published_trial_sha256": "sha256:84282b5be32223e650b94787b94c97b71e089c5c03670bcb683a49aae51d6e1c",
+          "published_meta_sha256": "sha256:58534c8e1b41ca9d858d95d665c5e3110525a8a65f4974638c036645e999f7b7",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001809-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 117,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001769",
+      "repository": "lenstronomy",
+      "run": "original",
+      "package_digest": "sha256:d0d90c10d01d4b1c8093790349a71f748e5d226274bc42385ab721d249b7c619",
+      "verifier_digest": "sha256:b8e8e0c7512e5f59e776ac7495aa9a6fcbe62db091b2459c1ca3ca58dd3e1639",
+      "frozen_arm_order": [
+        "tuned",
+        "stock",
+        "gepa"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001769-stock",
+          "spec_id": "01M3VWMC7T7QP7WF066J58PD60",
+          "trial_name": "ovn-g5-001769-stock__qSPHRnf",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 62,
+          "http_status": {
+            "200": 62
+          },
+          "known_reported_input_tokens": 985220,
+          "known_reported_output_tokens_including_reasoning": 8934,
+          "known_reported_reasoning_tokens": 4768,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 62,
+            "min": 1.072,
+            "max": 102.794,
+            "sum": 424.847,
+            "median": 1.391,
+            "q1": 1.224,
+            "q3": 1.881,
+            "iqr": 0.657
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.183471Z",
+            "finished_at": "2026-10-01T14:49:18.977698Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.301426+00:00",
+            "finished_at": "2026-10-01T14:49:19.784178+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:dd001f68440176e7f4eee023502d3249d88839232595409f995523c4e247e9e9",
+          "raw_lab_metadata_sha256": "sha256:d1d6e47b1743a7943fb42778816fbdf7e01bc9f16b94aaeeb01c7d38ec70e4c2",
+          "experiment_spec_sha256": "sha256:cf655a4e403002b1d6cd3e89887be7796f0122efe8d9f950a5eb7b7de2a8924e",
+          "published_trial_sha256": "sha256:868a1b02d03da1a5662d849cf5363fa95e2d8a4213a8811a19a77c3679297831",
+          "published_meta_sha256": "sha256:d1d6e47b1743a7943fb42778816fbdf7e01bc9f16b94aaeeb01c7d38ec70e4c2",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 62,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001769-tuned",
+          "spec_id": "01M3VWM6TNVKAHSDN92CFZ4HM6",
+          "trial_name": "ovn-g5-001769-tuned__pHJnuZq",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 95,
+          "http_status": {
+            "200": 95
+          },
+          "known_reported_input_tokens": 2408619,
+          "known_reported_output_tokens_including_reasoning": 8473,
+          "known_reported_reasoning_tokens": 2528,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 95,
+            "min": 0.734,
+            "max": 33.387,
+            "sum": 176.439,
+            "median": 1.577,
+            "q1": 1.153,
+            "q3": 1.887,
+            "iqr": 0.734
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:11:30.400400Z",
+            "finished_at": "2026-10-01T14:24:16.869351Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:11:27.425860+00:00",
+            "finished_at": "2026-10-01T14:24:17.686632+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:6abb1fd1bf2109b6d67e7c111afbb8a17d986c9ba6cb8aa0b308cf4ed602d2f1",
+          "raw_lab_metadata_sha256": "sha256:c9834479b6dd7c7f3e8f32df769390ca88eb668a10c6c703cc157d501a926100",
+          "experiment_spec_sha256": "sha256:cad88c27f02c858486b667c7831eea03f2159eb1a0d64da8100159c0291aae39",
+          "published_trial_sha256": "sha256:a8d31319c837cd4496abbe913209304a6786ffcf0a1974f65d2889bb6dd70f6c",
+          "published_meta_sha256": "sha256:c9834479b6dd7c7f3e8f32df769390ca88eb668a10c6c703cc157d501a926100",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 95,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001769-gepa",
+          "spec_id": "01M3W1G2RWBTRT1AW20KNDHJB6",
+          "trial_name": "ovn-g5-001769-gepa__XKhJTpk",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 101,
+          "http_status": {
+            "200": 101
+          },
+          "known_reported_input_tokens": 2445295,
+          "known_reported_output_tokens_including_reasoning": 6335,
+          "known_reported_reasoning_tokens": 362,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 101,
+            "min": 0.764,
+            "max": 255.752,
+            "sum": 604.746,
+            "median": 1.424,
+            "q1": 1.249,
+            "q3": 1.831,
+            "iqr": 0.5819999999999999
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.552102Z",
+            "finished_at": "2026-10-01T15:57:10.080084Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.355197+00:00",
+            "finished_at": "2026-10-01T15:57:11.146252+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:5d1eeed0df25591f903171dc9720bf4c93dadf3159331ec061aec931300700ec",
+          "raw_lab_metadata_sha256": "sha256:02553b9332adfe044db82c4c81e52a8cce22a7649d0ff498907008d12a1886fe",
+          "experiment_spec_sha256": "sha256:3d935002461115fd96d73736a01a0b7f5e5b9083a03a2fed0a2519232ab41f19",
+          "published_trial_sha256": "sha256:23b96680339631e5b4d1d6d5eb2f068b9826b11856f73d0798b7c48aaf31017b",
+          "published_meta_sha256": "sha256:02553b9332adfe044db82c4c81e52a8cce22a7649d0ff498907008d12a1886fe",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001769-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 101,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001285",
+      "repository": "pyftpdlib",
+      "run": "original",
+      "package_digest": "sha256:fa20ccd9b38cec35a064b3500b3cd58c952dcdaa7a20eaf3a2fcf46543c8ccfe",
+      "verifier_digest": "sha256:db1613cd2b520dd5df10e4efcdc78ce28aa93a6c4aba96743bb35a608f654b32",
+      "frozen_arm_order": [
+        "stock",
+        "tuned",
+        "gepa"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001285-stock",
+          "spec_id": "01M3VRKPAY4TNRMXF70VM3VXSV",
+          "trial_name": "ovn-g5-001285-stock__JvtxRFm",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 73,
+          "http_status": {
+            "200": 73
+          },
+          "known_reported_input_tokens": 1647866,
+          "known_reported_output_tokens_including_reasoning": 6931,
+          "known_reported_reasoning_tokens": 865,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 73,
+            "min": 1.186,
+            "max": 5.873,
+            "sum": 148.424,
+            "median": 1.89,
+            "q1": 1.6225,
+            "q3": 2.1065,
+            "iqr": 0.484
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.234194Z",
+            "finished_at": "2026-10-01T13:12:50.897826Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.873893+00:00",
+            "finished_at": "2026-10-01T13:12:51.793235+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:9c6c25b4c7b270d8c77b3dbd9c2636671b19d214dc9374d8ce9141254bff79fd",
+          "raw_lab_metadata_sha256": "sha256:1aad9277d4dab97a2daf34ab9452572eb007db3adc0c5875ad939c09c4e2a3de",
+          "experiment_spec_sha256": "sha256:4a6910ac15c1d327258091686f1bd4b143c96395f6f359308fca77a01835a696",
+          "published_trial_sha256": "sha256:4fb6fa26f214143a1a7188a102bdfebd518a94e77ff5e57043f03841b391e1d6",
+          "published_meta_sha256": "sha256:1aad9277d4dab97a2daf34ab9452572eb007db3adc0c5875ad939c09c4e2a3de",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 73,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001285-tuned",
+          "spec_id": "01M3VWMCQJF76EFKA5WB1W1RVR",
+          "trial_name": "ovn-g5-001285-tuned__WgPbz8K",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 104,
+          "http_status": {
+            "200": 104
+          },
+          "known_reported_input_tokens": 2434593,
+          "known_reported_output_tokens_including_reasoning": 6441,
+          "known_reported_reasoning_tokens": 352,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 104,
+            "min": 0.94,
+            "max": 216.59,
+            "sum": 859.57,
+            "median": 1.448,
+            "q1": 1.349,
+            "q3": 1.8655000000000002,
+            "iqr": 0.5165000000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.525873Z",
+            "finished_at": "2026-10-01T15:03:38.380408Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.432757+00:00",
+            "finished_at": "2026-10-01T15:03:39.163696+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:c66426f69a3df3dcc52596758ed42cd3c4c3a642aae01807b94f77a7a0f59ca5",
+          "raw_lab_metadata_sha256": "sha256:d69136b836558e3aa6b9dac8f16f26a1861b38cf7abe913a6ecbb87489f9b06c",
+          "experiment_spec_sha256": "sha256:30f1a9354c7a08907ca4601a75ce907eac077df366a88ba5711ce3097d9a06f1",
+          "published_trial_sha256": "sha256:b15a9381a35dd768b25065cd5d221e9cce3de770d025d4f564e95c410c19a00a",
+          "published_meta_sha256": "sha256:d69136b836558e3aa6b9dac8f16f26a1861b38cf7abe913a6ecbb87489f9b06c",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 104,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001285-gepa",
+          "spec_id": "01M3W1G38H1B1GWAXN85BMR6TR",
+          "trial_name": "ovn-g5-001285-gepa__waX6njT",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 90,
+          "http_status": {
+            "200": 90
+          },
+          "known_reported_input_tokens": 2231160,
+          "known_reported_output_tokens_including_reasoning": 6058,
+          "known_reported_reasoning_tokens": 436,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 90,
+            "min": 1.012,
+            "max": 253.339,
+            "sum": 541.759,
+            "median": 1.406,
+            "q1": 1.287,
+            "q3": 1.762,
+            "iqr": 0.4750000000000001
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.253242Z",
+            "finished_at": "2026-10-01T15:54:49.116859Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.284339+00:00",
+            "finished_at": "2026-10-01T15:54:50.002675+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:cb92970a797d1a504ba930ece6079fd5f215f5de014757452328be83e6bd70dc",
+          "raw_lab_metadata_sha256": "sha256:186e69e04dc423c7717ba0c4feb5b52cadfa10635b47c60b4cc9458e94a02dfa",
+          "experiment_spec_sha256": "sha256:1c2c049d101ac1746bcd384af121a9e7d007a08506d8ab1b394e39e6db1c8782",
+          "published_trial_sha256": "sha256:62836588497121f272f713d001e9190aaa5cf06b2bdec51080519541827fef70",
+          "published_meta_sha256": "sha256:186e69e04dc423c7717ba0c4feb5b52cadfa10635b47c60b4cc9458e94a02dfa",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001285-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 90,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001765",
+      "repository": "lbry",
+      "run": "original",
+      "package_digest": "sha256:41f2e7efe2c0eefdecbe40e32840b1efcae84936745a234f7b6a9a9c587b05b1",
+      "verifier_digest": "sha256:4279ca94f7fe815af4cc8ed65d39d0364225a37e769b0f9f351ca31f7b30363a",
+      "frozen_arm_order": [
+        "tuned",
+        "gepa",
+        "stock"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001765-stock",
+          "spec_id": "01M3W1G3RGW8VCX8KPDKVV8M8C",
+          "trial_name": "ovn-g5-001765-stock__Tigdd3B",
+          "canonical_verdict": "excluded",
+          "outcome": null,
+          "raw_reward": null,
+          "exception_type": "DaytonaNotFoundError",
+          "stop_reason": "unknown",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 83,
+          "http_status": {
+            "200": 83
+          },
+          "known_reported_input_tokens": 2016738,
+          "known_reported_output_tokens_including_reasoning": 15234,
+          "known_reported_reasoning_tokens": 9764,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 83,
+            "min": 0.683,
+            "max": 256.071,
+            "sum": 550.244,
+            "median": 1.464,
+            "q1": 1.155,
+            "q3": 2.028,
+            "iqr": 0.873
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.340975Z",
+            "finished_at": "2026-10-01T15:51:09.228862Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.363076+00:00",
+            "finished_at": "2026-10-01T15:51:09.927526+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:1fb33d5fa304e2c438dc8f2da30cb2f08f15477df2d6ce77ea986ba1cf783479",
+          "raw_lab_metadata_sha256": "sha256:1d5d1bdff6d1408b2d706401a34b34008920da914537095513fa258e8f616cea",
+          "experiment_spec_sha256": "sha256:59b403e410e0501be7017ca282137bbcb69801bcc5623bd20c3f24d80a8006c4",
+          "published_trial_sha256": "sha256:741803de3b0060cd43724c8453f74708aecf2c7a00273a53157112b451917c6a",
+          "published_meta_sha256": "sha256:1d5d1bdff6d1408b2d706401a34b34008920da914537095513fa258e8f616cea",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 83,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001765-tuned",
+          "spec_id": "01M3VWM7AAR8YRACVXHZ5T0MQK",
+          "trial_name": "ovn-g5-001765-tuned__rrXKUgY",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 109,
+          "http_status": {
+            "200": 109
+          },
+          "known_reported_input_tokens": 2490404,
+          "known_reported_output_tokens_including_reasoning": 20431,
+          "known_reported_reasoning_tokens": 5697,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 109,
+            "min": 0.893,
+            "max": 18.332,
+            "sum": 357.521,
+            "median": 1.712,
+            "q1": 1.206,
+            "q3": 3.65,
+            "iqr": 2.444
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:11:30.443136Z",
+            "finished_at": "2026-10-01T14:29:32.128583Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:11:27.569923+00:00",
+            "finished_at": "2026-10-01T14:29:32.612822+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:f133d06f33200ab8cd51dcbb74b9cfbef043c191d0da96ab21420200f62908c7",
+          "raw_lab_metadata_sha256": "sha256:4dbc53197fdad6364386f5ca03f8b39a78871bb5aae85a481742abd1bb2f755e",
+          "experiment_spec_sha256": "sha256:259fc19fed427f8a5830d6cb2e5ca8423b39e0475172f3428e1f3f04da192119",
+          "published_trial_sha256": "sha256:69c00957b24116502f9e372545c81d0afff42ce6c2a3f350cc9f78ea936d8a0c",
+          "published_meta_sha256": "sha256:4dbc53197fdad6364386f5ca03f8b39a78871bb5aae85a481742abd1bb2f755e",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 109,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001765-gepa",
+          "spec_id": "01M3VWMD714S7ZHVE812H7Y7F5",
+          "trial_name": "ovn-g5-001765-gepa__yHdbtvs",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 95,
+          "http_status": {
+            "200": 95
+          },
+          "known_reported_input_tokens": 2432761,
+          "known_reported_output_tokens_including_reasoning": 8587,
+          "known_reported_reasoning_tokens": 319,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 95,
+            "min": 0.9,
+            "max": 101.075,
+            "sum": 550.606,
+            "median": 1.57,
+            "q1": 1.289,
+            "q3": 2.148,
+            "iqr": 0.8590000000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.225001Z",
+            "finished_at": "2026-10-01T14:56:10.224617Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.273565+00:00",
+            "finished_at": "2026-10-01T14:56:11.210900+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:41d1261fda939158737546b6305503d8639b20b14f8e3c7ebae7f213ef4b0a39",
+          "raw_lab_metadata_sha256": "sha256:61818219788b0d1a84fc5b2d292b28f63191a4b67d5b6630efa61ba5241d6c3b",
+          "experiment_spec_sha256": "sha256:6fc7337e0ec29df2b4058575e479c932b978660010891e2d6f5e7bce774edc50",
+          "published_trial_sha256": "sha256:5af76bf01d2da1458a6afd75934d130d9ea3e28aabc9f10ced8c05366ce92ec5",
+          "published_meta_sha256": "sha256:61818219788b0d1a84fc5b2d292b28f63191a4b67d5b6630efa61ba5241d6c3b",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001765-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 95,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-000568",
+      "repository": "youtube_dlc",
+      "run": "original",
+      "package_digest": "sha256:11021499591d1aba69448515beb0565c7401339c77a9de36f44fdd92d4f5a543",
+      "verifier_digest": "sha256:fff321ee675adefb3ce4d7c79486443463113ca54d592f25bc02cfecb253d047",
+      "frozen_arm_order": [
+        "gepa",
+        "stock",
+        "tuned"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-000568-stock",
+          "spec_id": "01M3VWMDPKKY62KY9ZZSJZ2DJK",
+          "trial_name": "ovn-g5-000568-stock__Ri7YYN5",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 95,
+          "http_status": {
+            "200": 95
+          },
+          "known_reported_input_tokens": 2438795,
+          "known_reported_output_tokens_including_reasoning": 7503,
+          "known_reported_reasoning_tokens": 2729,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 95,
+            "min": 0.96,
+            "max": 102.699,
+            "sum": 499.045,
+            "median": 1.322,
+            "q1": 1.192,
+            "q3": 1.559,
+            "iqr": 0.367
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.384273Z",
+            "finished_at": "2026-10-01T14:52:31.313338Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.363081+00:00",
+            "finished_at": "2026-10-01T14:52:31.973150+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:54aeb9e4e9c3452501dcd6b34342ef491202a497c68e2c82491c648652d79335",
+          "raw_lab_metadata_sha256": "sha256:1b23a89b9f82f66d0933a7bf37e726c6b62c29c44545dc700642dfbcd6999572",
+          "experiment_spec_sha256": "sha256:5a75cad4dae1c28c85e6094bf183413569cce82fa58c615af1a3d88454ce233a",
+          "published_trial_sha256": "sha256:c865cedc70c701928e18512e3969b08eb54ff74bb15eedaa4b7d77494237bb68",
+          "published_meta_sha256": "sha256:1b23a89b9f82f66d0933a7bf37e726c6b62c29c44545dc700642dfbcd6999572",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 95,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-000568-tuned",
+          "spec_id": "01M3W1G48BHSMAKNJZC4A39NEE",
+          "trial_name": "ovn-g5-000568-tuned__Zcbk6Ub",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 89,
+          "http_status": {
+            "200": 89
+          },
+          "known_reported_input_tokens": 2434550,
+          "known_reported_output_tokens_including_reasoning": 17499,
+          "known_reported_reasoning_tokens": 3357,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 89,
+            "min": 0.97,
+            "max": 287.497,
+            "sum": 903.667,
+            "median": 1.973,
+            "q1": 1.4335,
+            "q3": 4.334,
+            "iqr": 2.9004999999999996
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.236329Z",
+            "finished_at": "2026-10-01T16:11:10.401928Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.321738+00:00",
+            "finished_at": "2026-10-01T16:11:11.222492+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:5b339336f2330968b0c2710f878f7e88556a49f3a1b4f10632377b7e46cc26a5",
+          "raw_lab_metadata_sha256": "sha256:f8132b5ab508e490a3178e7b6e33d9286c0b3581ae7b4d1c23c33a85a0393eb4",
+          "experiment_spec_sha256": "sha256:21eb7c5251869f3b59ff44d1889fad730f24d83db59f8a1b4ffe992a88df21d3",
+          "published_trial_sha256": "sha256:d9f485505429d387bff68da5cd1824908eb3b3946d9a35933af7ec9d3a0ffe36",
+          "published_meta_sha256": "sha256:f8132b5ab508e490a3178e7b6e33d9286c0b3581ae7b4d1c23c33a85a0393eb4",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 89,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-000568-gepa",
+          "spec_id": "01M3VRKQ7WBVDVCB7C3C0W6P7Y",
+          "trial_name": "ovn-g5-000568-gepa__XXS7kMp",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 85,
+          "http_status": {
+            "200": 85
+          },
+          "known_reported_input_tokens": 2445685,
+          "known_reported_output_tokens_including_reasoning": 21443,
+          "known_reported_reasoning_tokens": 4400,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 85,
+            "min": 1.066,
+            "max": 57.807,
+            "sum": 376.303,
+            "median": 1.913,
+            "q1": 1.3820000000000001,
+            "q3": 3.29,
+            "iqr": 1.908
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.396156Z",
+            "finished_at": "2026-10-01T13:25:36.809952Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.886927+00:00",
+            "finished_at": "2026-10-01T13:25:37.345830+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:b1c4966091a035a1b032b7b3bfb13182057c3e00984446f2ae258ccad3537aa1",
+          "raw_lab_metadata_sha256": "sha256:1fdc811db968655adc27e88d1dc6e22cdd4be401eabf5f2f80e33e9796494fcf",
+          "experiment_spec_sha256": "sha256:33f10fdc8ce36101f8cd6841daf7ff5308261422d3369d8958a4dad68cc51b96",
+          "published_trial_sha256": "sha256:de45dc88a2223ee1786a1815dfa77c81550b710fe419a9d35b7f0b25667a5999",
+          "published_meta_sha256": "sha256:1fdc811db968655adc27e88d1dc6e22cdd4be401eabf5f2f80e33e9796494fcf",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000568-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 85,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001241",
+      "repository": "pyalgotrade",
+      "run": "original",
+      "package_digest": "sha256:5bee129ed4e919b3507be46c259a561c4d6b6f82503bc6106146a6d7b2b5f3df",
+      "verifier_digest": "sha256:bcbd515dfe46375b567c734d183fdb48f7611fb20a6b068f58e049c078959eca",
+      "frozen_arm_order": [
+        "gepa",
+        "tuned",
+        "stock"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001241-stock",
+          "spec_id": "01M3W1G4RACDEZYX5PZCJS7GRR",
+          "trial_name": "ovn-g5-001241-stock__FGtdyNH",
+          "canonical_verdict": "excluded",
+          "outcome": null,
+          "raw_reward": null,
+          "exception_type": "DaytonaNotFoundError",
+          "stop_reason": "unknown",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 33,
+          "http_status": {
+            "200": 33
+          },
+          "known_reported_input_tokens": 571592,
+          "known_reported_output_tokens_including_reasoning": 31998,
+          "known_reported_reasoning_tokens": 5441,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 33,
+            "min": 1.362,
+            "max": 281.164,
+            "sum": 785.631,
+            "median": 15.343,
+            "q1": 2.2095000000000002,
+            "q3": 26.85,
+            "iqr": 24.640500000000003
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.076595Z",
+            "finished_at": "2026-10-01T15:51:39.279040Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.302573+00:00",
+            "finished_at": "2026-10-01T15:51:39.906638+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:9f19f5ef76aaebfd477cecbb8216663a84ce9f55507d225fca581c9314c98bfe",
+          "raw_lab_metadata_sha256": "sha256:2d5b087364e71b41cd304e6a299c2a0eea849c7ce9b65d5e728046e97f3586cc",
+          "experiment_spec_sha256": "sha256:307c1329cac81e22af79df3f189428232429e75b6ef5244017160a91a5578e2c",
+          "published_trial_sha256": "sha256:3dbf2eee72fea2ce699473bc1faf2353f2f4423ea53264fa8924e2f0817f270b",
+          "published_meta_sha256": "sha256:2d5b087364e71b41cd304e6a299c2a0eea849c7ce9b65d5e728046e97f3586cc",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 33,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001241-tuned",
+          "spec_id": "01M3VWME6QQCQAZ2T3RKW3Y841",
+          "trial_name": "ovn-g5-001241-tuned__xKbAg3N",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 103,
+          "http_status": {
+            "200": 103
+          },
+          "known_reported_input_tokens": 2480717,
+          "known_reported_output_tokens_including_reasoning": 32569,
+          "known_reported_reasoning_tokens": 8233,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 103,
+            "min": 0.951,
+            "max": 229.757,
+            "sum": 1348.327,
+            "median": 4.785,
+            "q1": 1.906,
+            "q3": 9.101,
+            "iqr": 7.195000000000001
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:48.984992Z",
+            "finished_at": "2026-10-01T15:05:23.974391Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.245243+00:00",
+            "finished_at": "2026-10-01T15:05:24.905222+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:1d9e25805ba0424fc766e283438d74e0b58e094366ec133f2eb9f6ad1a7bfa96",
+          "raw_lab_metadata_sha256": "sha256:5d15807c6a011cbce2b8bb5d181644cc9ea21557cee55c0b44737a3c08da386d",
+          "experiment_spec_sha256": "sha256:1421e9f3a77b40f7ab9f97932b9298499fdd07b4d0ff84a604387353085f2a7d",
+          "published_trial_sha256": "sha256:1bcc49e97c8d8e1b02205f0056fce19a17e7167e0b23ba48bd06bb8aa1618a5c",
+          "published_meta_sha256": "sha256:5d15807c6a011cbce2b8bb5d181644cc9ea21557cee55c0b44737a3c08da386d",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 103,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001241-gepa",
+          "spec_id": "01M3VRKQPH3PVSH59EFXHM86Y1",
+          "trial_name": "ovn-g5-001241-gepa__6LNRk7d",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 90,
+          "http_status": {
+            "200": 90
+          },
+          "known_reported_input_tokens": 2447988,
+          "known_reported_output_tokens_including_reasoning": 15841,
+          "known_reported_reasoning_tokens": 2527,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 90,
+            "min": 0.785,
+            "max": 35.656,
+            "sum": 300.343,
+            "median": 1.4975,
+            "q1": 1.18525,
+            "q3": 2.1652500000000003,
+            "iqr": 0.9800000000000004
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.300403Z",
+            "finished_at": "2026-10-01T13:12:49.347957Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.886017+00:00",
+            "finished_at": "2026-10-01T13:12:50.013049+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:49cff9136c66934c7af897e5b8bbc6838f00a04f0770a5f2fe11c779529c0c15",
+          "raw_lab_metadata_sha256": "sha256:bdc1581a3b6fd34137766faf349f9c7dea6210cc1850d737eb8ae741c85cbee5",
+          "experiment_spec_sha256": "sha256:4bb6aed46565472b5f5f1498295eb5e4cb862e2339d068144708a1c87871b712",
+          "published_trial_sha256": "sha256:f8b9b18fc423b5ea91f5fb6dd9485fcb112de8cdd4cc46bc675cbbd1867888e8",
+          "published_meta_sha256": "sha256:bdc1581a3b6fd34137766faf349f9c7dea6210cc1850d737eb8ae741c85cbee5",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001241-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 90,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-002578",
+      "repository": "maestral",
+      "run": "original",
+      "package_digest": "sha256:a507564369e9609d9b7e71ed019f61c779dd1cc9882342f87b4144326252f05e",
+      "verifier_digest": "sha256:31c05e20e69c77ba5b5cc7abc9ce8d5dae86078d87cb62dc12b3ab9756826df4",
+      "frozen_arm_order": [
+        "stock",
+        "gepa",
+        "tuned"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-002578-stock",
+          "spec_id": "01M3VRKR5359D8187EHR3KYGYP",
+          "trial_name": "ovn-g5-002578-stock__ZVWT2gB",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 93,
+          "http_status": {
+            "200": 93
+          },
+          "known_reported_input_tokens": 2414978,
+          "known_reported_output_tokens_including_reasoning": 8577,
+          "known_reported_reasoning_tokens": 381,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 93,
+            "min": 0.992,
+            "max": 14.036,
+            "sum": 191.225,
+            "median": 1.707,
+            "q1": 1.4325,
+            "q3": 2.1340000000000003,
+            "iqr": 0.7015000000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.349784Z",
+            "finished_at": "2026-10-01T13:09:10.428752Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.889907+00:00",
+            "finished_at": "2026-10-01T13:09:11.265615+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:7ff13abfc550de4fc67d8a56290e4f6fcf3b7149149acacf962cd7461f6c17da",
+          "raw_lab_metadata_sha256": "sha256:bced424b6feb999bd41fc504607614b14aba4977ae3276510ab5b0e12cd3d24c",
+          "experiment_spec_sha256": "sha256:1b1684377211976f3198e63456654fcff9f0de3f7078c5932e5b782620403837",
+          "published_trial_sha256": "sha256:1ca52b9497f5e16c9fed0bf165d57a5bdb9b80f58bd5292a93deaa1483cc8235",
+          "published_meta_sha256": "sha256:bced424b6feb999bd41fc504607614b14aba4977ae3276510ab5b0e12cd3d24c",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 93,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-002578-tuned",
+          "spec_id": "01M3W1G582QEAVMS6HQSHTM4V6",
+          "trial_name": "ovn-g5-002578-tuned__Zyd7L6j",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 120,
+          "http_status": {
+            "200": 120
+          },
+          "known_reported_input_tokens": 2467902,
+          "known_reported_output_tokens_including_reasoning": 27761,
+          "known_reported_reasoning_tokens": 3038,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 120,
+            "min": 0.903,
+            "max": 288.794,
+            "sum": 1060.417,
+            "median": 1.7595,
+            "q1": 1.285,
+            "q3": 3.84575,
+            "iqr": 2.5607499999999996
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.329386Z",
+            "finished_at": "2026-10-01T16:07:34.069456Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.331175+00:00",
+            "finished_at": "2026-10-01T16:07:34.577869+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:3ff90968d46e747df51543a09f47490982bc8d2872fca68969708c1aff42ab70",
+          "raw_lab_metadata_sha256": "sha256:427faad85279c8607ec82213ff002115c6db8b24ef4ceb83bca6687b661852fb",
+          "experiment_spec_sha256": "sha256:2e795ec072ed3da8ee46f6b4a00c5667489d4b4e6a38e2333aba5ec5d62a0fda",
+          "published_trial_sha256": "sha256:3f31a0427ddbfe4949058ddf43dbb3895b07b85a2b4aa72caddc6b37dfefb194",
+          "published_meta_sha256": "sha256:427faad85279c8607ec82213ff002115c6db8b24ef4ceb83bca6687b661852fb",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 120,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-002578-gepa",
+          "spec_id": "01M3VWMEPNXSYH2H056P7MMP5P",
+          "trial_name": "ovn-g5-002578-gepa__kzhAXLU",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 99,
+          "http_status": {
+            "200": 99
+          },
+          "known_reported_input_tokens": 2464488,
+          "known_reported_output_tokens_including_reasoning": 10073,
+          "known_reported_reasoning_tokens": 465,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 99,
+            "min": 0.941,
+            "max": 103.658,
+            "sum": 480.307,
+            "median": 2.042,
+            "q1": 1.865,
+            "q3": 2.49,
+            "iqr": 0.6250000000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.507163Z",
+            "finished_at": "2026-10-01T14:49:36.302869Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.373602+00:00",
+            "finished_at": "2026-10-01T14:49:36.967280+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:9f675369396551d94b96995824f1ed0a2e26f72a4772a183e81d6309fde21425",
+          "raw_lab_metadata_sha256": "sha256:d86e3092674e9848ad849eb75431229dedbe4b266ed75813de1121abe4331ef4",
+          "experiment_spec_sha256": "sha256:8ded84954a97724451b054e434d597aa4b17fefc28c16a839c99b3e2ef1faa2b",
+          "published_trial_sha256": "sha256:7fc6afa81bc14baacecce5a2ed839ff9ab5729e7a4d85d32c49a3370a567d4a8",
+          "published_meta_sha256": "sha256:d86e3092674e9848ad849eb75431229dedbe4b266ed75813de1121abe4331ef4",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002578-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 99,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001606",
+      "repository": "deepdow",
+      "run": "original",
+      "package_digest": "sha256:6f96e1128a5a8703fa5c7ca9cf43716d869226a37942c4bb0d67d87431f54f2d",
+      "verifier_digest": "sha256:d2268ecceb63ce52d8a7c71aaf05fc63c5f038d76f496c552e0af4cddd60985c",
+      "frozen_arm_order": [
+        "tuned",
+        "stock",
+        "gepa"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001606-stock",
+          "spec_id": "01M3VWMF68Y1K4Y6ZM57031H4B",
+          "trial_name": "ovn-g5-001606-stock__jePg8nP",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 46,
+          "http_status": {
+            "200": 46
+          },
+          "known_reported_input_tokens": 702831,
+          "known_reported_output_tokens_including_reasoning": 12770,
+          "known_reported_reasoning_tokens": 1803,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 46,
+            "min": 0.933,
+            "max": 106.723,
+            "sum": 419.296,
+            "median": 4.5405,
+            "q1": 2.8512500000000003,
+            "q3": 5.15925,
+            "iqr": 2.308
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.384473Z",
+            "finished_at": "2026-10-01T15:15:23.863410Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.362286+00:00",
+            "finished_at": "2026-10-01T15:15:24.888911+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:56fbaa20b60916923e2eb80ee9eeaa5a37b1c5c2e3f61da099385ffe4cf78c28",
+          "raw_lab_metadata_sha256": "sha256:7456b6351ca0d63c67f75333faa6379d1834b4332147a2a9678b1cd434121b7e",
+          "experiment_spec_sha256": "sha256:00887bd9951329c1c47c4a5dc57e86aab156a548d69ce7ad357234cdb4aa5638",
+          "published_trial_sha256": "sha256:3e06a312ca120eab6514b548d8026fdcf35f31269f0601c0e7a37c1919208577",
+          "published_meta_sha256": "sha256:7456b6351ca0d63c67f75333faa6379d1834b4332147a2a9678b1cd434121b7e",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 46,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001606-tuned",
+          "spec_id": "01M3VWM7SVBMRPTTRXY2C52SZ7",
+          "trial_name": "ovn-g5-001606-tuned__MnCArfo",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": null,
+          "stop_reason": "task_complete_confirmed",
+          "counts_rule": "R-COMP-02",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 41,
+          "http_status": {
+            "200": 41
+          },
+          "known_reported_input_tokens": 657811,
+          "known_reported_output_tokens_including_reasoning": 13573,
+          "known_reported_reasoning_tokens": 2791,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 41,
+            "min": 0.958,
+            "max": 24.946,
+            "sum": 218.537,
+            "median": 3.293,
+            "q1": 1.587,
+            "q3": 7.5475,
+            "iqr": 5.960500000000001
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:11:30.445020Z",
+            "finished_at": "2026-10-01T14:17:06.295630Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:11:27.570235+00:00",
+            "finished_at": "2026-10-01T14:17:07.219461+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:31e5f44116624d43c2e71c09ff1a5ca6e2e0d2d9b2541c187423f60b363f3c69",
+          "raw_lab_metadata_sha256": "sha256:d62eb68be3db519a0be6fdede81b618052c3528e519c234c2e43a094ee272830",
+          "experiment_spec_sha256": "sha256:c0adc061caffcf1b61c2eab70ec4b895b030e54643bb9809eafccc2a6d49b9de",
+          "published_trial_sha256": "sha256:f48be533621eece4fb5c6c03f42a10bbf78453bcba30940d56fb727fd46f834a",
+          "published_meta_sha256": "sha256:d62eb68be3db519a0be6fdede81b618052c3528e519c234c2e43a094ee272830",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 41,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001606-gepa",
+          "spec_id": "01M3W1G5R2BY39DEFMXX67YD5E",
+          "trial_name": "ovn-g5-001606-gepa__ySwezhm",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": null,
+          "stop_reason": "task_complete_confirmed",
+          "counts_rule": "R-COMP-02",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 33,
+          "http_status": {
+            "200": 33
+          },
+          "known_reported_input_tokens": 395688,
+          "known_reported_output_tokens_including_reasoning": 6555,
+          "known_reported_reasoning_tokens": 442,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 33,
+            "min": 0.982,
+            "max": 13.5,
+            "sum": 122.388,
+            "median": 2.224,
+            "q1": 1.449,
+            "q3": 4.8185,
+            "iqr": 3.3695000000000004
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.356504Z",
+            "finished_at": "2026-10-01T15:41:21.678253Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.348556+00:00",
+            "finished_at": "2026-10-01T15:41:22.585198+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:5a4a277b61ea91c4706014e342ce4b466218a9502121c81fb08b9d242c4572c7",
+          "raw_lab_metadata_sha256": "sha256:a340dfb1cd2906b9832a2cc26f60571ed83d2818779b71525be6c35124701428",
+          "experiment_spec_sha256": "sha256:cee59d9bfc4b735aa479efa737c16201cab5cd9842b2c15ddce6a690bf2d599d",
+          "published_trial_sha256": "sha256:07a04b7bafaee6818985f2e3e5ad89d01c51137e1e1548f9b00efade78ea6114",
+          "published_meta_sha256": "sha256:a340dfb1cd2906b9832a2cc26f60571ed83d2818779b71525be6c35124701428",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001606-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 33,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-002017",
+      "repository": "github.com/napari/napari",
+      "run": "repair",
+      "package_digest": "sha256:d58b321d3fe5c6c5cf7a56ed1df10d7942b559e5d91e37bb40f52efb428ed44d",
+      "verifier_digest": "sha256:ceb80176268ee7230e2acf889b66782c8109d1f9d48fc5e9fa2f9265ad27cbb3",
+      "frozen_arm_order": [
+        "stock",
+        "tuned",
+        "gepa"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-002017-stock",
+          "spec_id": "01M3VRKS2WKXXTCCSDNJ5694J9",
+          "trial_name": "ovn-g5-002017-stock__be4xo9x",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 96,
+          "http_status": {
+            "200": 96
+          },
+          "known_reported_input_tokens": 2439447,
+          "known_reported_output_tokens_including_reasoning": 7167,
+          "known_reported_reasoning_tokens": 1018,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 96,
+            "min": 0.838,
+            "max": 5.567,
+            "sum": 168.978,
+            "median": 1.5965,
+            "q1": 1.3535,
+            "q3": 1.882,
+            "iqr": 0.5285
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.360067Z",
+            "finished_at": "2026-10-01T13:08:02.731702Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.866717+00:00",
+            "finished_at": "2026-10-01T13:08:03.355903+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:087babf1ce42cc7121e3985f63e495ae52d0a57b5d9dbbdb632a0cf59b60d702",
+          "raw_lab_metadata_sha256": "sha256:5ebecda5181ec25ad95ebc37da17099f5c7ac816bfb3dc0a416170e5198a9e82",
+          "experiment_spec_sha256": "sha256:1dca9e19fab74865dc7748e5f73d7454d48d4c926549246f31dd40ce6e8979c3",
+          "published_trial_sha256": "sha256:8b6519e544293acdeb8b2d0d750d88849a779f7018a3c4868ca33f6283347583",
+          "published_meta_sha256": "sha256:5ebecda5181ec25ad95ebc37da17099f5c7ac816bfb3dc0a416170e5198a9e82",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 96,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-002017-tuned",
+          "spec_id": "01M3VWMFNV1N0F1JE016BWE689",
+          "trial_name": "ovn-g5-002017-tuned__SWc4xbr",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 94,
+          "http_status": {
+            "200": 94
+          },
+          "known_reported_input_tokens": 2460291,
+          "known_reported_output_tokens_including_reasoning": 8907,
+          "known_reported_reasoning_tokens": 1397,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 94,
+            "min": 1.123,
+            "max": 219.268,
+            "sum": 713.353,
+            "median": 1.767,
+            "q1": 1.43075,
+            "q3": 2.3145,
+            "iqr": 0.8837499999999998
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.188726Z",
+            "finished_at": "2026-10-01T14:52:18.659841Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.297188+00:00",
+            "finished_at": "2026-10-01T14:52:19.510745+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:b6389045c018acf869e4d80c19b48d9c27a71f1f20b5f59de573b7e11982aed3",
+          "raw_lab_metadata_sha256": "sha256:8db0d189e42dc902ec215b3f7163fe8b7a0aeef6fb87740af78364b241fcc8db",
+          "experiment_spec_sha256": "sha256:557f1846d703445837abd54acedd05f5469e7ad392cdeefabee2f019aaa136c7",
+          "published_trial_sha256": "sha256:4655216da08e476ca407062289cb94828787a9a01ae5aa6cc11df07d4df6cbf5",
+          "published_meta_sha256": "sha256:8db0d189e42dc902ec215b3f7163fe8b7a0aeef6fb87740af78364b241fcc8db",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 94,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-002017-gepa",
+          "spec_id": "01M3W1G681A7Z187KV61ZKHGDJ",
+          "trial_name": "ovn-g5-002017-gepa__qQJWeCc",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 95,
+          "http_status": {
+            "200": 95
+          },
+          "known_reported_input_tokens": 2459102,
+          "known_reported_output_tokens_including_reasoning": 10661,
+          "known_reported_reasoning_tokens": 622,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 95,
+            "min": 0.954,
+            "max": 33.239,
+            "sum": 224.48499999999999,
+            "median": 1.638,
+            "q1": 1.34,
+            "q3": 2.127,
+            "iqr": 0.7869999999999997
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.412479Z",
+            "finished_at": "2026-10-01T15:45:28.088392Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.365209+00:00",
+            "finished_at": "2026-10-01T15:45:28.698006+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:92e070284af7d94c18757630d1dd0c7ea8ffaa38497bf39ff2a56b19f3c4b996",
+          "raw_lab_metadata_sha256": "sha256:3886574801f2d59eceab47b0412134018cfcce61506500d2bba95a84062302e5",
+          "experiment_spec_sha256": "sha256:ecfd768a9d2e2b5eac300192a86e21dce5170fcdc6237d9887270d17542048bd",
+          "published_trial_sha256": "sha256:2bfc40ffea311db23aa14b4e8da44859ac896908f1c9f11d019a4f6227321a27",
+          "published_meta_sha256": "sha256:3886574801f2d59eceab47b0412134018cfcce61506500d2bba95a84062302e5",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-002017-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 95,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001626",
+      "repository": "dulwich",
+      "run": "original",
+      "package_digest": "sha256:620857c980c8978a6380ae55101016179854e180579ca192ba8e7a8925ddf3a6",
+      "verifier_digest": "sha256:a0a7105756708b3bc903ba3340fb92ec8875012e701b0deb2371945d3244042f",
+      "frozen_arm_order": [
+        "tuned",
+        "gepa",
+        "stock"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001626-stock",
+          "spec_id": "01M3W1G6R0KH0T7KM7GZP3MA8P",
+          "trial_name": "ovn-g5-001626-stock__6P6YXKD",
+          "canonical_verdict": "excluded",
+          "outcome": null,
+          "raw_reward": null,
+          "exception_type": "DaytonaNotFoundError",
+          "stop_reason": "unknown",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 76,
+          "http_status": {
+            "200": 76
+          },
+          "known_reported_input_tokens": 1574522,
+          "known_reported_output_tokens_including_reasoning": 4286,
+          "known_reported_reasoning_tokens": 420,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 76,
+            "min": 0.964,
+            "max": 255.668,
+            "sum": 373.44800000000004,
+            "median": 1.274,
+            "q1": 1.1709999999999998,
+            "q3": 1.4695,
+            "iqr": 0.2985000000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.465011Z",
+            "finished_at": "2026-10-01T15:51:12.404309Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.363806+00:00",
+            "finished_at": "2026-10-01T15:51:13.167468+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:7de358d3babdf394fe084470030b214c2da10d090eb4bf2ffadda16a9137f0f2",
+          "raw_lab_metadata_sha256": "sha256:753529f3423b1ccc4be91ddf1a8b664de7bbd66ae46d15a68ec69b3ac5c0d24d",
+          "experiment_spec_sha256": "sha256:220be096c3a36f0318644b516d77904e10459ca4de29a5faa522dab515091587",
+          "published_trial_sha256": "sha256:989ddf64249d233e6cefefa0685cafa648633febd36c80965561bf8b36217e9a",
+          "published_meta_sha256": "sha256:753529f3423b1ccc4be91ddf1a8b664de7bbd66ae46d15a68ec69b3ac5c0d24d",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 76,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001626-tuned",
+          "spec_id": "01M3VWM89STQ13AA6JBGBBE0BY",
+          "trial_name": "ovn-g5-001626-tuned__fSkoQL7",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 62,
+          "http_status": {
+            "200": 62
+          },
+          "known_reported_input_tokens": 1115582,
+          "known_reported_output_tokens_including_reasoning": 21133,
+          "known_reported_reasoning_tokens": 15697,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 62,
+            "min": 1.045,
+            "max": 62.491,
+            "sum": 342.525,
+            "median": 2.0460000000000003,
+            "q1": 1.4205,
+            "q3": 2.3120000000000003,
+            "iqr": 0.8915000000000002
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:11:30.444700Z",
+            "finished_at": "2026-10-01T14:22:17.698656Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:11:27.568221+00:00",
+            "finished_at": "2026-10-01T14:22:18.692179+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:fe118e9a16cf66f6a6c7ad92d6c410abee49bf9ede137b882a40ffca223b0122",
+          "raw_lab_metadata_sha256": "sha256:02dac8db73a9697ff3f15793845743fbf96f608d20f97d864244e73d669dc314",
+          "experiment_spec_sha256": "sha256:cd32362f6bb87b5f86dc499ad8845c5d2295700083440eb0dcba77af6f34a172",
+          "published_trial_sha256": "sha256:d36c8d75ecde6c219c6b0b62aa44fadf5cc26c432c775403955a9ac50f4241db",
+          "published_meta_sha256": "sha256:02dac8db73a9697ff3f15793845743fbf96f608d20f97d864244e73d669dc314",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 62,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001626-gepa",
+          "spec_id": "01M3VWMG5RQPY4ETDTJGPTB8AX",
+          "trial_name": "ovn-g5-001626-gepa__3kGXxof",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 110,
+          "http_status": {
+            "200": 110
+          },
+          "known_reported_input_tokens": 2427605,
+          "known_reported_output_tokens_including_reasoning": 48319,
+          "known_reported_reasoning_tokens": 8737,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 110,
+            "min": 0.937,
+            "max": 102.103,
+            "sum": 1348.7740000000001,
+            "median": 2.479,
+            "q1": 2.2537499999999997,
+            "q3": 10.373000000000001,
+            "iqr": 8.119250000000001
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.301525Z",
+            "finished_at": "2026-10-01T15:06:07.684744Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.336905+00:00",
+            "finished_at": "2026-10-01T15:06:08.534873+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:6df88d913656e8d017a6b84a94841c432c1a15b304a5ceb83c97fe9a02339901",
+          "raw_lab_metadata_sha256": "sha256:6e49c4aa879cb5c37a0d16be802bfd20c1e43260957df96f71d93b343e60862f",
+          "experiment_spec_sha256": "sha256:85db3e1e1d2ee870704b626030150980d8d97f5d78ad8047c01c007e2eadd529",
+          "published_trial_sha256": "sha256:e8a3442478a29133f0dd45bee7f3427c06fabc763156452a324168bb96f1a78b",
+          "published_meta_sha256": "sha256:6e49c4aa879cb5c37a0d16be802bfd20c1e43260957df96f71d93b343e60862f",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001626-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 110,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001355",
+      "repository": "magika",
+      "run": "original",
+      "package_digest": "sha256:f5ee23939db6dfac40697951f0fd2c18ef81e2db58377adbcdeab4d61aeb0aa4",
+      "verifier_digest": "sha256:86df32b34c2b4323defd6be37e26279cfbcd4f34456623cc73b188d42d5f6fb0",
+      "frozen_arm_order": [
+        "gepa",
+        "stock",
+        "tuned"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001355-stock",
+          "spec_id": "01M3VWMGN8QXW5X41EBJ16Z7H0",
+          "trial_name": "ovn-g5-001355-stock__ZHNXfvD",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 98,
+          "http_status": {
+            "200": 98
+          },
+          "known_reported_input_tokens": 2437929,
+          "known_reported_output_tokens_including_reasoning": 8212,
+          "known_reported_reasoning_tokens": 301,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 98,
+            "min": 0.803,
+            "max": 103.988,
+            "sum": 378.761,
+            "median": 2.075,
+            "q1": 1.3125,
+            "q3": 2.2265,
+            "iqr": 0.9140000000000001
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:48.990563Z",
+            "finished_at": "2026-10-01T14:47:33.471928Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.245501+00:00",
+            "finished_at": "2026-10-01T14:47:34.285437+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:d120acf98ac793ab3b423724938d413a5cb1a0c14e75beb693ae5dc0869a9653",
+          "raw_lab_metadata_sha256": "sha256:d7ffbbd0e10dd62da07909638b1798f4dd911a509aad671839ddc45c58bde71d",
+          "experiment_spec_sha256": "sha256:89a7715aadce8c6904f7c40b9e5380a93412e5da5fa82d7f2a632ce91a4c2005",
+          "published_trial_sha256": "sha256:0af122a231e31b321f0becb38e62fbf9c2adb029b637288ce2f2675b7e4c603f",
+          "published_meta_sha256": "sha256:d7ffbbd0e10dd62da07909638b1798f4dd911a509aad671839ddc45c58bde71d",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 98,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001355-tuned",
+          "spec_id": "01M3W1G77WB0RW9VNHH7274QVS",
+          "trial_name": "ovn-g5-001355-tuned__8UJMiQN",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": null,
+          "stop_reason": "task_complete_confirmed",
+          "counts_rule": "R-COMP-02",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 80,
+          "http_status": {
+            "200": 80
+          },
+          "known_reported_input_tokens": 2073294,
+          "known_reported_output_tokens_including_reasoning": 18126,
+          "known_reported_reasoning_tokens": 6603,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 80,
+            "min": 0.789,
+            "max": 288.76,
+            "sum": 969.025,
+            "median": 2.2695,
+            "q1": 1.409,
+            "q3": 5.2175,
+            "iqr": 3.8085000000000004
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.551362Z",
+            "finished_at": "2026-10-01T15:56:51.603150Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.369596+00:00",
+            "finished_at": "2026-10-01T15:56:52.657790+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:27b1b658016212bfd4ea50396d8097b25ee5d517a5ead6b718a3da9964f21495",
+          "raw_lab_metadata_sha256": "sha256:f29b701af031da5c76365bea4bb626879cc3ec06dcfbd1f827aabc51dda23aa9",
+          "experiment_spec_sha256": "sha256:19eaedaed2f7dd2950e69d4f2b065f6c2fda6eb40e6f1f5e33ff5de2e84d1168",
+          "published_trial_sha256": "sha256:9ff535ec8043b95bf69cbe5c1ab82af76f8bd486aa09565d10db514e066cffde",
+          "published_meta_sha256": "sha256:f29b701af031da5c76365bea4bb626879cc3ec06dcfbd1f827aabc51dda23aa9",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 80,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001355-gepa",
+          "spec_id": "01M3VRKT06QXBTP2E9082YGT7Q",
+          "trial_name": "ovn-g5-001355-gepa__bJkSJkD",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 95,
+          "http_status": {
+            "200": 95
+          },
+          "known_reported_input_tokens": 2424164,
+          "known_reported_output_tokens_including_reasoning": 6626,
+          "known_reported_reasoning_tokens": 556,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 95,
+            "min": 0.832,
+            "max": 6.882,
+            "sum": 164.293,
+            "median": 1.445,
+            "q1": 1.21,
+            "q3": 1.836,
+            "iqr": 0.6260000000000001
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.231113Z",
+            "finished_at": "2026-10-01T13:10:43.856081Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.830445+00:00",
+            "finished_at": "2026-10-01T13:10:44.581606+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:e3a810d0e019ab2ca1c59e3a41ef570b14347082b9b870ef2a0e1f8b1f28a8b0",
+          "raw_lab_metadata_sha256": "sha256:f62a235b021a5290d9c31134417c06b44013b0e12166da25e797c44e6312d202",
+          "experiment_spec_sha256": "sha256:8fab7cfaa971e23635e5c5dcc8c5ab61b8b3db3541a17ec76f2d6ca223cae000",
+          "published_trial_sha256": "sha256:a11b7cfd5e16247240bdee2e4f5cd3b661a7c6bf80302b6fc18c92f1199195ff",
+          "published_meta_sha256": "sha256:f62a235b021a5290d9c31134417c06b44013b0e12166da25e797c44e6312d202",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001355-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 95,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-000332",
+      "repository": "peekingduck",
+      "run": "original",
+      "package_digest": "sha256:1c6eb3e5ca30206d84196c652294a029849378cb92ff6be40e4d3ec0026a012c",
+      "verifier_digest": "sha256:ff6b747dea9faf0bfd74e2e75399bf95d496f6c629023edc54a359558ea4d7de",
+      "frozen_arm_order": [
+        "gepa",
+        "tuned",
+        "stock"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-000332-stock",
+          "spec_id": "01M3W1G7QZ248BGGHJD495ATN9",
+          "trial_name": "ovn-g5-000332-stock__Xn3uN4Q",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 101,
+          "http_status": {
+            "200": 101
+          },
+          "known_reported_input_tokens": 2491560,
+          "known_reported_output_tokens_including_reasoning": 20134,
+          "known_reported_reasoning_tokens": 5710,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 101,
+            "min": 0.753,
+            "max": 256.834,
+            "sum": 830.766,
+            "median": 1.854,
+            "q1": 1.4129999999999998,
+            "q3": 3.91,
+            "iqr": 2.4970000000000003
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.602395Z",
+            "finished_at": "2026-10-01T15:56:37.913375Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.371666+00:00",
+            "finished_at": "2026-10-01T15:56:38.685854+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:5e6f1f42d29340635389eda7110c09137b04e18ccda571aaf93df01a89c215fd",
+          "raw_lab_metadata_sha256": "sha256:dfa01d4111bb689ea86aa2f3711ab3a2eef5cd9f12446e6c6a84d6189ad4fbd4",
+          "experiment_spec_sha256": "sha256:6b17b66bd9785b7f7f045b99c3f3d1e355b26c117b0a59d58407ab01e86587c5",
+          "published_trial_sha256": "sha256:e3f1409fd1a427d20ce41dfb9b5bbec60517358ac45a273996fb5a7e88204cb8",
+          "published_meta_sha256": "sha256:dfa01d4111bb689ea86aa2f3711ab3a2eef5cd9f12446e6c6a84d6189ad4fbd4",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 101,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-000332-tuned",
+          "spec_id": "01M3VWMH4P4V9P6FTZZ4ZJMXHB",
+          "trial_name": "ovn-g5-000332-tuned__zevQhXu",
+          "canonical_verdict": "excluded",
+          "outcome": null,
+          "raw_reward": null,
+          "exception_type": "ServiceUnavailableError",
+          "stop_reason": "unknown",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 116,
+          "http_status": {
+            "200": 89,
+            "503": 27
+          },
+          "known_reported_input_tokens": 1827342,
+          "known_reported_output_tokens_including_reasoning": 33011,
+          "known_reported_reasoning_tokens": 5033,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": false,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 116,
+            "min": 0.07,
+            "max": 227.774,
+            "sum": 1317.137,
+            "median": 3.509,
+            "q1": 1.04425,
+            "q3": 9.62275,
+            "iqr": 8.5785
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.523501Z",
+            "finished_at": "2026-10-01T15:26:03.187504Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.371095+00:00",
+            "finished_at": "2026-10-01T15:26:03.961357+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:b0f229c25cd9ce7db8e4b915be862798decfb7a0ca9c1cc6400d559dca0d07ee",
+          "raw_lab_metadata_sha256": "sha256:d6295d55a33edf2ba8228b11751ffdc672a995281fb840969d6b2498d268e625",
+          "experiment_spec_sha256": "sha256:483ac981dd23715bda7e82c9bc4d9286da678763d2043d5ec5718630763fdc43",
+          "published_trial_sha256": "sha256:77bd05db6d02415d024c9193dbf8dbae051d23fa1bdf4f1f7327e7974fb4d1b0",
+          "published_meta_sha256": "sha256:d6295d55a33edf2ba8228b11751ffdc672a995281fb840969d6b2498d268e625",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 116,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-000332-gepa",
+          "spec_id": "01M3VRKTEZX721BVWJDXGAEB4K",
+          "trial_name": "ovn-g5-000332-gepa__YyfJfPU",
+          "canonical_verdict": "counted_pass",
+          "outcome": 1,
+          "raw_reward": 1,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-NONE-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 79,
+          "http_status": {
+            "200": 79
+          },
+          "known_reported_input_tokens": 2114396,
+          "known_reported_output_tokens_including_reasoning": 11535,
+          "known_reported_reasoning_tokens": 282,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 79,
+            "min": 0.94,
+            "max": 34.075,
+            "sum": 230.288,
+            "median": 1.553,
+            "q1": 1.364,
+            "q3": 3.124,
+            "iqr": 1.76
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.344600Z",
+            "finished_at": "2026-10-01T13:11:46.657470Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.877185+00:00",
+            "finished_at": "2026-10-01T13:11:47.575784+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:ad95639ca4c71ff7fc85c1e3ca419e7cfe3213e3675b7e2044c603b14083f493",
+          "raw_lab_metadata_sha256": "sha256:5bd429e47ffb3de53369285c6b5c133f9566a059a16e220671cdcc655ea5e1d7",
+          "experiment_spec_sha256": "sha256:7e1943ab0a4d64a7e310efd7445908790fc7c38c24c1d5bcfa740b5f2ab8143a",
+          "published_trial_sha256": "sha256:0630d9d3f4318874e18689176db6aa970c180b31af6881c4f2c5845648e71f21",
+          "published_meta_sha256": "sha256:5bd429e47ffb3de53369285c6b5c133f9566a059a16e220671cdcc655ea5e1d7",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000332-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 79,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-000842",
+      "repository": "libsaas",
+      "run": "original",
+      "package_digest": "sha256:5c4ed18d658e9594719de5e4455e121450ba41290a1863beeff845e1deb0a96c",
+      "verifier_digest": "sha256:2c784e996f5c7a54e5a4ddd5c4173d11dcfac775bd6b1a0e5cf42184518d4ccc",
+      "frozen_arm_order": [
+        "stock",
+        "gepa",
+        "tuned"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-000842-stock",
+          "spec_id": "01M3VRKTXQ80ZST4XP2MWSF8NE",
+          "trial_name": "ovn-g5-000842-stock__RUUQHiz",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 104,
+          "http_status": {
+            "200": 104
+          },
+          "known_reported_input_tokens": 2448469,
+          "known_reported_output_tokens_including_reasoning": 35757,
+          "known_reported_reasoning_tokens": 3169,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 104,
+            "min": 0.764,
+            "max": 41.745,
+            "sum": 576.74,
+            "median": 2.3525,
+            "q1": 1.58125,
+            "q3": 5.0595,
+            "iqr": 3.47825
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.351061Z",
+            "finished_at": "2026-10-01T13:20:00.187550Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.893389+00:00",
+            "finished_at": "2026-10-01T13:20:00.634083+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:cebaba55983c416d615109e5a8199980894a404fcc0852bce0a54a1ba87c0059",
+          "raw_lab_metadata_sha256": "sha256:3e7959c24ae632839572ba9f1d249450deb257f2add7d3b9e368b4b0c3d731d8",
+          "experiment_spec_sha256": "sha256:3568e4ffdddaff7d606df7cfb0f0461d687d2950c64900a140e1f34eb2ec795a",
+          "published_trial_sha256": "sha256:f4d99c57584fab1f3443366f5520269e9247e753352b737077f86441af9b69f4",
+          "published_meta_sha256": "sha256:3e7959c24ae632839572ba9f1d249450deb257f2add7d3b9e368b4b0c3d731d8",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 104,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-000842-tuned",
+          "spec_id": "01M3W1G87TEGCPZ05AQ998MXP0",
+          "trial_name": "ovn-g5-000842-tuned__GjjMiqx",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": null,
+          "stop_reason": "task_complete_confirmed",
+          "counts_rule": "R-COMP-02",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 52,
+          "http_status": {
+            "200": 52
+          },
+          "known_reported_input_tokens": 1084632,
+          "known_reported_output_tokens_including_reasoning": 18474,
+          "known_reported_reasoning_tokens": 2363,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 52,
+            "min": 0.903,
+            "max": 289.151,
+            "sum": 950.67,
+            "median": 3.1855,
+            "q1": 1.436,
+            "q3": 10.5765,
+            "iqr": 9.1405
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.492009Z",
+            "finished_at": "2026-10-01T15:54:20.648641Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.416604+00:00",
+            "finished_at": "2026-10-01T15:54:21.735417+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:45a97700402cdb554bdb6cc8892cd556b6a8ac8bf9dc25f7c3571877fc7d49bd",
+          "raw_lab_metadata_sha256": "sha256:087a4dee179396beebdb04e3d218aba5fe4590cd6f5de52d80750d2d9696fa1e",
+          "experiment_spec_sha256": "sha256:bb88ea74f072627fe78e075e9cd918abc4fe9373b6160bee875611c092120ff5",
+          "published_trial_sha256": "sha256:621e0bb320fe6c2862bbdbb814d86ca1795ad2dcd58f3c66bf043806557c1619",
+          "published_meta_sha256": "sha256:087a4dee179396beebdb04e3d218aba5fe4590cd6f5de52d80750d2d9696fa1e",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 52,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-000842-gepa",
+          "spec_id": "01M3VWMHM62SXG2BME5JFBQY9P",
+          "trial_name": "ovn-g5-000842-gepa__7p54K7C",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-COMP-02",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 91,
+          "http_status": {
+            "200": 91
+          },
+          "known_reported_input_tokens": 2428069,
+          "known_reported_output_tokens_including_reasoning": 17050,
+          "known_reported_reasoning_tokens": 2227,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 91,
+            "min": 0.872,
+            "max": 103.594,
+            "sum": 615.853,
+            "median": 2.003,
+            "q1": 1.35,
+            "q3": 6.442,
+            "iqr": 5.0920000000000005
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.488969Z",
+            "finished_at": "2026-10-01T14:54:31.221152Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.432680+00:00",
+            "finished_at": "2026-10-01T14:54:31.845658+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:c7e73f37b77882d67f588613a0865e771e9196c8fe7704880788fcc8938da8d3",
+          "raw_lab_metadata_sha256": "sha256:0e74afc1bc8fa2656faee1e3320620916ac11a3ee61d83f812fccf1e02f6ad1e",
+          "experiment_spec_sha256": "sha256:735b294e41e9beca09c728bcde231b95af2aab589f027e47bb10470942107785",
+          "published_trial_sha256": "sha256:10a0986a264bd452c6ed628abebc7c9835c2528a5e0fa3968041e306d6c9027f",
+          "published_meta_sha256": "sha256:0e74afc1bc8fa2656faee1e3320620916ac11a3ee61d83f812fccf1e02f6ad1e",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000842-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 91,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-000169",
+      "repository": "hpccm",
+      "run": "original",
+      "package_digest": "sha256:8d85e8accf1b321af4c9a2a98855480a3e0899d0fac8a8574359d43f7957f141",
+      "verifier_digest": "sha256:3352de472319c00929ec87dbc2b89def118ecd048410a34c5fa5a187044b83a2",
+      "frozen_arm_order": [
+        "tuned",
+        "stock",
+        "gepa"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-000169-stock",
+          "spec_id": "01M3VWMJ3PZ3F29AP24JXHRGYZ",
+          "trial_name": "ovn-g5-000169-stock__npH4TqV",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 87,
+          "http_status": {
+            "200": 87
+          },
+          "known_reported_input_tokens": 2445420,
+          "known_reported_output_tokens_including_reasoning": 18352,
+          "known_reported_reasoning_tokens": 2808,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 87,
+            "min": 0.872,
+            "max": 104.906,
+            "sum": 647.164,
+            "median": 2.615,
+            "q1": 1.811,
+            "q3": 4.566,
+            "iqr": 2.755
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.099263Z",
+            "finished_at": "2026-10-01T14:51:57.424529Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.226743+00:00",
+            "finished_at": "2026-10-01T14:51:58.504412+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:2f03f1c72926ab99c33d1b4a05dce3a316c10e374c4874b4c10f1f1d4ae6bbb8",
+          "raw_lab_metadata_sha256": "sha256:a8a58950ec16302ac648147f91b17404b28365f34f3eb75a04e6f2bf1bc98f67",
+          "experiment_spec_sha256": "sha256:8bc0012694f70c13bcba87c3da99133c806f789ec55f5ddc0f0c9fe60802edd3",
+          "published_trial_sha256": "sha256:f580ef72a6395e5074e1734baba73b10af61d7954fac6be1cc22dd9b971ff03c",
+          "published_meta_sha256": "sha256:a8a58950ec16302ac648147f91b17404b28365f34f3eb75a04e6f2bf1bc98f67",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 87,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-000169-tuned",
+          "spec_id": "01M3VWM8SMHQ6YVNWMGBYKS67H",
+          "trial_name": "ovn-g5-000169-tuned__CxBpceW",
+          "canonical_verdict": "counted_pass",
+          "outcome": 1,
+          "raw_reward": 1,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-NONE-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 100,
+          "http_status": {
+            "200": 100
+          },
+          "known_reported_input_tokens": 2485435,
+          "known_reported_output_tokens_including_reasoning": 19964,
+          "known_reported_reasoning_tokens": 7379,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 100,
+            "min": 0.689,
+            "max": 45.817,
+            "sum": 349.889,
+            "median": 1.674,
+            "q1": 1.27925,
+            "q3": 2.7249999999999996,
+            "iqr": 1.4457499999999996
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:11:30.442542Z",
+            "finished_at": "2026-10-01T14:26:16.390310Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:11:27.571712+00:00",
+            "finished_at": "2026-10-01T14:26:16.998079+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:b2dcce641531c2d0476181fb69fb851430b6079815c8519ddd6894fc01dc1b01",
+          "raw_lab_metadata_sha256": "sha256:ea55bf266d531d03cfd382cd43f22dfe146d933b33169eb611b6c71de6d3bfde",
+          "experiment_spec_sha256": "sha256:d44416b4f401283cf1198c41ecda3fc1de4d4bfb19638d2844892262c5f3b4ee",
+          "published_trial_sha256": "sha256:29ae053830ae54a4d8567c09e66b217a7ebd4a8b68d063a9e44d3d323be2fe0f",
+          "published_meta_sha256": "sha256:ea55bf266d531d03cfd382cd43f22dfe146d933b33169eb611b6c71de6d3bfde",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 100,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-000169-gepa",
+          "spec_id": "01M3W1G8QXC9XPG6W2WGYN69Q3",
+          "trial_name": "ovn-g5-000169-gepa__Hmxf7wb",
+          "canonical_verdict": "counted_pass",
+          "outcome": 1,
+          "raw_reward": 1,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-NONE-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 101,
+          "http_status": {
+            "200": 101
+          },
+          "known_reported_input_tokens": 2485774,
+          "known_reported_output_tokens_including_reasoning": 23459,
+          "known_reported_reasoning_tokens": 327,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 101,
+            "min": 1.01,
+            "max": 258.972,
+            "sum": 881.683,
+            "median": 3.722,
+            "q1": 1.964,
+            "q3": 6.5615000000000006,
+            "iqr": 4.5975
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:04.940954Z",
+            "finished_at": "2026-10-01T15:57:14.907952Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.297857+00:00",
+            "finished_at": "2026-10-01T15:57:15.800931+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:56ad267da4c2edefaa3f24e5abe25471ca4309403b7b18f85762a6641a0dc5ca",
+          "raw_lab_metadata_sha256": "sha256:f4c4bcee4e2c4f2ad29d3cb4af7bf57cde99bb0a4ddd954965e50eb09c1fe672",
+          "experiment_spec_sha256": "sha256:28322c27f273556ce3571700cc7047b7ed5f1922b38ea7eed40450a8cc2b6577",
+          "published_trial_sha256": "sha256:9081954ff0d6c9cf6ed8c5c610d12a1a37f79e2b5b3ca6c22186139ef6e1db5a",
+          "published_meta_sha256": "sha256:f4c4bcee4e2c4f2ad29d3cb4af7bf57cde99bb0a4ddd954965e50eb09c1fe672",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-000169-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 101,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001136",
+      "repository": "piccolo",
+      "run": "original",
+      "package_digest": "sha256:913418f2b8631912ddfc8132ecd9efcca801da78c6798d5d6c07410b65ed7434",
+      "verifier_digest": "sha256:3e174e8ba7056582514f7938a22f0f8786c254f6313b644c70f434e746b98ec9",
+      "frozen_arm_order": [
+        "stock",
+        "tuned",
+        "gepa"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001136-stock",
+          "spec_id": "01M3VRKVTZSZP377WZAYF62Q11",
+          "trial_name": "ovn-g5-001136-stock__jjgSG57",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r",
+          "physical_model_calls": 106,
+          "http_status": {
+            "200": 106
+          },
+          "known_reported_input_tokens": 2474394,
+          "known_reported_output_tokens_including_reasoning": 21269,
+          "known_reported_reasoning_tokens": 1794,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 106,
+            "min": 0.604,
+            "max": 50.697,
+            "sum": 361.052,
+            "median": 1.8929999999999998,
+            "q1": 1.252,
+            "q3": 2.7969999999999997,
+            "iqr": 1.5449999999999997
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T13:01:41.403934Z",
+            "finished_at": "2026-10-01T13:20:45.957120Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T13:01:37.890139+00:00",
+            "finished_at": "2026-10-01T13:20:47.029025+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:e4a9de51f6ccf40b59ddca333064155c538d21a3e1b4c0eedf0217c21b1dc9ad",
+          "raw_lab_metadata_sha256": "sha256:79dbfa042daafc111050baf429c91ae86e7182d6f666100c0cb76f519a334505",
+          "experiment_spec_sha256": "sha256:fdb5cab2b8c60bc31f1d724783472aa393cc61f56c0fcb8dbc4c59bbd00d1a9e",
+          "published_trial_sha256": "sha256:7cf0617fa9f81a9e29764d8bf128d662ca3dad7e8299dab6502432007272edee",
+          "published_meta_sha256": "sha256:79dbfa042daafc111050baf429c91ae86e7182d6f666100c0cb76f519a334505",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 106,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001136-tuned",
+          "spec_id": "01M3VWMJKD9FS2GK75YG1AQTQ0",
+          "trial_name": "ovn-g5-001136-tuned__QTMzsEL",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-PLAN-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 89,
+          "http_status": {
+            "200": 89
+          },
+          "known_reported_input_tokens": 2426067,
+          "known_reported_output_tokens_including_reasoning": 4874,
+          "known_reported_reasoning_tokens": 396,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 89,
+            "min": 1.011,
+            "max": 212.6,
+            "sum": 806.918,
+            "median": 1.331,
+            "q1": 1.2285,
+            "q3": 1.7525,
+            "iqr": 0.524
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.505314Z",
+            "finished_at": "2026-10-01T15:00:25.925436Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.375056+00:00",
+            "finished_at": "2026-10-01T15:00:26.902620+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:837dd392ce149c59a241ef6819d5bb9804be6fbc94f3984d3d39ba1260c66228",
+          "raw_lab_metadata_sha256": "sha256:feed7b18f19c4ead2de8f37fc86db8d610b269f40e6f1e151852c92e414d3508",
+          "experiment_spec_sha256": "sha256:4662e9d6624475ba370ad299f1fd700978e9bf1b58d38f16b77dfc8e1c256a24",
+          "published_trial_sha256": "sha256:db10f71f017967ef39ee874d026532f3c516db6a2f4985407302c4fe54230e43",
+          "published_meta_sha256": "sha256:feed7b18f19c4ead2de8f37fc86db8d610b269f40e6f1e151852c92e414d3508",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 89,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001136-gepa",
+          "spec_id": "01M3W1G97S550JCNAT801DJ839",
+          "trial_name": "ovn-g5-001136-gepa__rexYV6K",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 62,
+          "http_status": {
+            "200": 62
+          },
+          "known_reported_input_tokens": 1076944,
+          "known_reported_output_tokens_including_reasoning": 4078,
+          "known_reported_reasoning_tokens": 431,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 62,
+            "min": 0.891,
+            "max": 8.323,
+            "sum": 103.384,
+            "median": 1.3675000000000002,
+            "q1": 1.266,
+            "q3": 1.55975,
+            "iqr": 0.29374999999999996
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:05.592913Z",
+            "finished_at": "2026-10-01T15:45:19.143498Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.406198+00:00",
+            "finished_at": "2026-10-01T15:45:19.754300+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:0a3cd99dd99f1da24b14c19e4eed764376667d24a80349ff9d6e3f6133884626",
+          "raw_lab_metadata_sha256": "sha256:e8547689c7db865e33721fb65bec9c691fb3b5cfdcead2251ea38547330ce559",
+          "experiment_spec_sha256": "sha256:c9f357fcea6011a1c6e979f8163948777097566560209bb128264309b6cf69c8",
+          "published_trial_sha256": "sha256:a4e99e545806c2a5c06ce5527d326fc641130a191b33e3bfea59cfcbb64523d4",
+          "published_meta_sha256": "sha256:e8547689c7db865e33721fb65bec9c691fb3b5cfdcead2251ea38547330ce559",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001136-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 62,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    },
+    {
+      "task_id": "format-code-task-001833",
+      "repository": "safedelete",
+      "run": "original",
+      "package_digest": "sha256:bfc2dece06735ef317905f43ceab80ff62902ae2c2738f3d6a5ce92798653a58",
+      "verifier_digest": "sha256:822f3b3b270053c2d3e5fd07e0605d854b82c9c9779d2839295dc4f0787b964a",
+      "frozen_arm_order": [
+        "tuned",
+        "gepa",
+        "stock"
+      ],
+      "cells": {
+        "stock": {
+          "job": "ovn-g5-001833-stock",
+          "spec_id": "01M3W1G9QR2HENHADCGFVNBPH7",
+          "trial_name": "ovn-g5-001833-stock__UTVAfnN",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "TrialBudgetExhaustedError",
+          "stop_reason": "ceiling:input_tokens",
+          "counts_rule": "R-TOOL-02",
+          "capture_segment": "g5r3",
+          "physical_model_calls": 111,
+          "http_status": {
+            "200": 111
+          },
+          "known_reported_input_tokens": 2468802,
+          "known_reported_output_tokens_including_reasoning": 7243,
+          "known_reported_reasoning_tokens": 1208,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 111,
+            "min": 0.608,
+            "max": 12.738,
+            "sum": 163.23,
+            "median": 0.805,
+            "q1": 0.702,
+            "q3": 1.295,
+            "iqr": 0.593
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T15:36:04.919630Z",
+            "finished_at": "2026-10-01T15:44:03.011444Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T15:36:00.278010+00:00",
+            "finished_at": "2026-10-01T15:44:03.841691+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:32e6de191f0e3f839829e325f75c1cf0721157ffd2577aef1ad30e16ec6ff3ec",
+          "raw_lab_metadata_sha256": "sha256:f9d9799f0f4d00901573274dd5618e8a14649d9b10f7522dc78c35f306c83499",
+          "experiment_spec_sha256": "sha256:2c76509135f06f7042167a779b69e530c1ce3047c09e950a716270c933c1417c",
+          "published_trial_sha256": "sha256:1b98b8d63a0baa2c4b0c31f123c653a484816b0606dc5b68ad052802f7185a38",
+          "published_meta_sha256": "sha256:f9d9799f0f4d00901573274dd5618e8a14649d9b10f7522dc78c35f306c83499",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-stock",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 111,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "tuned": {
+          "job": "ovn-g5-001833-tuned",
+          "spec_id": "01M3VWM99KS35T88XS7W338B1W",
+          "trial_name": "ovn-g5-001833-tuned__rNpMkcb",
+          "canonical_verdict": "counted_fail",
+          "outcome": 0,
+          "raw_reward": 0,
+          "exception_type": "LoopBreakStop",
+          "stop_reason": "loop_break",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 76,
+          "http_status": {
+            "200": 76
+          },
+          "known_reported_input_tokens": 1694586,
+          "known_reported_output_tokens_including_reasoning": 10854,
+          "known_reported_reasoning_tokens": 1357,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": true,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 76,
+            "min": 0.869,
+            "max": 8.604,
+            "sum": 197.91,
+            "median": 2.0985,
+            "q1": 1.4922499999999999,
+            "q3": 3.2335,
+            "iqr": 1.74125
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:11:30.392181Z",
+            "finished_at": "2026-10-01T14:20:19.519439Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:11:27.550299+00:00",
+            "finished_at": "2026-10-01T14:20:20.290190+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:913fc65ec23042cbc97a92925ef367de03b37020698ed481a407da13ee0da30c",
+          "raw_lab_metadata_sha256": "sha256:3c3beb22717e407fe3d9470cd1cfb175fa19e374a33480deff1bbabdfdcd5ce8",
+          "experiment_spec_sha256": "sha256:6cffc247950cdae56fc7c766f54c9248063c8f6b6817dd5661e0dcbbf462268f",
+          "published_trial_sha256": "sha256:05496e015697a22f3174eb389e94649e44b8d3e3368b719fc6d2a71b12396e19",
+          "published_meta_sha256": "sha256:3c3beb22717e407fe3d9470cd1cfb175fa19e374a33480deff1bbabdfdcd5ce8",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-tuned",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 0,
+            "false": 76,
+            "unknown": 0,
+            "expected": false,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        },
+        "gepa": {
+          "job": "ovn-g5-001833-gepa",
+          "spec_id": "01M3VWMK355P5SYVERWN54ZN68",
+          "trial_name": "ovn-g5-001833-gepa__aci6NkF",
+          "canonical_verdict": "excluded",
+          "outcome": null,
+          "raw_reward": null,
+          "exception_type": "ServiceUnavailableError",
+          "stop_reason": "unknown",
+          "counts_rule": "R-REC-01",
+          "capture_segment": "g5r2",
+          "physical_model_calls": 81,
+          "http_status": {
+            "200": 54,
+            "503": 27
+          },
+          "known_reported_input_tokens": 1053853,
+          "known_reported_output_tokens_including_reasoning": 13691,
+          "known_reported_reasoning_tokens": 843,
+          "successful_response_usage_coverage_complete": true,
+          "provider_response_usage_coverage_complete": false,
+          "missing_provider_usage_records": 0,
+          "upstream_call_latency_s": {
+            "n": 81,
+            "min": 0.11,
+            "max": 42.775,
+            "sum": 379.67,
+            "median": 2.678,
+            "q1": 0.1515,
+            "q3": 5.178,
+            "iqr": 5.0264999999999995
+          },
+          "physical_trial_times_aware": {
+            "started_at": "2026-10-01T14:36:49.219693Z",
+            "finished_at": "2026-10-01T15:26:03.329822Z"
+          },
+          "lab_wrapper_times_aware": {
+            "started_at": "2026-10-01T14:36:44.306528+00:00",
+            "finished_at": "2026-10-01T15:26:04.102682+00:00"
+          },
+          "cost_usd": null,
+          "physical_trial_raw_sha256": "sha256:8807c131ed986ec6833457822c5549bac1691ada853074ec475ac4b03a4f8268",
+          "raw_lab_metadata_sha256": "sha256:608437af8c3c31ea70bd2e255776e35e3b844c94ffed02a0e8749c0bc2cc0669",
+          "experiment_spec_sha256": "sha256:64c8d845658c9df16dccbb595348796cbfb1027b4ddcfc5d61267adff480b6b9",
+          "published_trial_sha256": "sha256:eef7d67dcf04928e97b5f4eee24c9dcf6bec291768fd56fb6082262e41ca3803",
+          "published_meta_sha256": "sha256:608437af8c3c31ea70bd2e255776e35e3b844c94ffed02a0e8749c0bc2cc0669",
+          "publication_card": "HAR-126",
+          "published_job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-126-ovn-g5-001833-gepa",
+          "model_selector_consistent": true,
+          "sampling_consistent": true,
+          "b55_presence_by_call": {
+            "true": 81,
+            "false": 0,
+            "unknown": 0,
+            "expected": true,
+            "method": "decoded request message text contains full 1564-char candidate file text (raw-line substring check alone is insufficient due to JSON escaping)"
+          },
+          "source_fact_checks_4_passed": true
+        }
+      }
+    }
+  ]
+}

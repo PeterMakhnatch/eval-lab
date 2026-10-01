@@ -1,0 +1,1725 @@
+{
+  "schema": "har135.g5-g6-descriptive-evidence/v1",
+  "recorded_at_utc": "2026-10-01T18:30:50.491Z",
+  "canonical_primary_input_sha256": "sha256:342cbed8efe0442f9d2b9fe1019af7debc836bfb97384846a898d4b1df78d9c6",
+  "authority": {
+    "card": "HAR-133",
+    "final_primary_disposition_at_utc_minute": "2026-10-01T17:48Z",
+    "canonical_primary_unchanged": true,
+    "deterministic_copy_defect_established_for_tuned000169": false,
+    "forward_looking_PR675_does_not_block_results": true
+  },
+  "freeze": {
+    "at_utc": "2026-10-01T17:18:24Z",
+    "commit": "b957af3b70bdf51377b911f5f7a739bde75dbd10",
+    "protected_merge_674": "d37137f5a4ff7d696aa143b4a6339b2cd731f95e",
+    "protected_correction_676": "da500218695c60d6a92a4967d8a80d2b3e875fe2",
+    "labels": 120,
+    "original_physical_cells": 60,
+    "parent_identity_reward_verdict_join_passed": 60,
+    "map_sha256": "sha256:5fcfcc8e6004de41a1d55c94f659cb674246edb0ef29a3928bb12310fe2971db",
+    "manifest_sha256": "sha256:05161b61a7d5df481f6f2ac1fbc3b4d07cd1232636e7cff19ed60b4fd0464b5e",
+    "metrics_sha256": "sha256:45dee31b3a408cc0e1ee79a9f18ec18e554ca09d28f4ee5abea1b1f1a7b1f1c3",
+    "copy_judgment_label_sha256": {
+      "a": "sha256:d76868058fd6446bc13284e4878b2abb05616a8d527b1724489a33b370d0850a",
+      "b": "sha256:d31875c0eb669d0e87fe43fdac1ae4c78bcfebc26f18bd9753982188218123cd"
+    },
+    "corrected_doc_sha256": {
+      "G6_RESULTS.md": "sha256:8ed4db34bcf33d2ed795b1ffb31c6b120055c99f90043b6924d2d375b4fb9d62",
+      "G6_TABLES.md": "sha256:3039a22cb7daf357331d6fb000447833a6a03290b11d5f985fb3e431a1bc87ce"
+    }
+  },
+  "withdrawn_metrics": {
+    "fields": [
+      "first_edit_step",
+      "never_edited",
+      "tokens_after_last_edit_input",
+      "elapsed_seconds_to_first_real_edit"
+    ],
+    "reason": "token_flow._is_edit interprets > inside read-only awk expressions as shell writes; at least17/45 first-edit detections false per protectedPR676. No post-freeze replacement definition or imputation.",
+    "valid_time_to_first_real_edit_coverage": 0,
+    "never_edited_counts_not_validated": true,
+    "zero_imputation_permitted": false
+  },
+  "format_errors": {
+    "stock": {
+      "scored_denominator": 17,
+      "nonzero_unparseable_cells": 3,
+      "unparseable_total": 65,
+      "unparseable_max": 62,
+      "nonzero_cells": [
+        {
+          "task_id": "format-code-task-001833",
+          "opaque_id": "g6-19",
+          "count": 62,
+          "rejection_causes": {
+            "head": {
+              "unknown_function:task_complete": {
+                "count": 62,
+                "first_step": 51
+              }
+            }
+          }
+        },
+        {
+          "task_id": "format-code-task-000842",
+          "opaque_id": "g6-35",
+          "count": 2,
+          "rejection_causes": {
+            "head": {
+              "unknown_function:write": {
+                "count": 2,
+                "first_step": 17
+              }
+            }
+          }
+        },
+        {
+          "task_id": "format-code-task-001355",
+          "opaque_id": "g6-40",
+          "count": 1,
+          "rejection_causes": {
+            "head": {
+              "other_native": {
+                "count": 1,
+                "first_step": 90
+              }
+            }
+          }
+        }
+      ]
+    },
+    "tuned": {
+      "scored_denominator": 19,
+      "nonzero_unparseable_cells": 3,
+      "unparseable_total": 5,
+      "unparseable_max": 2,
+      "nonzero_cells": [
+        {
+          "task_id": "format-code-task-002017",
+          "opaque_id": "g6-01",
+          "count": 1,
+          "rejection_causes": {
+            "head": {
+              "other_native": {
+                "count": 1,
+                "first_step": 26
+              }
+            }
+          }
+        },
+        {
+          "task_id": "format-code-task-001285",
+          "opaque_id": "g6-03",
+          "count": 2,
+          "rejection_causes": {
+            "head": {
+              "unknown_function:read": {
+                "count": 2,
+                "first_step": 3
+              }
+            }
+          }
+        },
+        {
+          "task_id": "format-code-task-000842",
+          "opaque_id": "g6-41",
+          "count": 2,
+          "rejection_causes": {
+            "head": {
+              "unknown_function:write": {
+                "count": 2,
+                "first_step": 29
+              }
+            }
+          }
+        }
+      ]
+    },
+    "gepa": {
+      "scored_denominator": 19,
+      "nonzero_unparseable_cells": 2,
+      "unparseable_total": 91,
+      "unparseable_max": 90,
+      "nonzero_cells": [
+        {
+          "task_id": "format-code-task-000332",
+          "opaque_id": "g6-17",
+          "count": 1,
+          "rejection_causes": {
+            "head": {
+              "other_native": {
+                "count": 1,
+                "first_step": 12
+              }
+            }
+          }
+        },
+        {
+          "task_id": "format-code-task-001809",
+          "opaque_id": "g6-49",
+          "count": 90,
+          "rejection_causes": {
+            "head": {
+              "malformed_native:task_complete": {
+                "count": 90,
+                "first_step": 29
+              }
+            }
+          }
+        }
+      ]
+    }
+  },
+  "canonical_native_stops": {
+    "gepa": {
+      "planned": 20,
+      "scored": 19,
+      "counts": {
+        "ceiling:input_tokens": 15,
+        "loop_break": 3,
+        "task_complete_confirmed": 1,
+        "unknown": 1
+      }
+    },
+    "stock": {
+      "planned": 20,
+      "scored": 17,
+      "counts": {
+        "ceiling:input_tokens": 13,
+        "loop_break": 4,
+        "unknown": 3
+      }
+    },
+    "tuned": {
+      "planned": 20,
+      "scored": 19,
+      "counts": {
+        "ceiling:input_tokens": 12,
+        "loop_break": 4,
+        "task_complete_confirmed": 3,
+        "unknown": 1
+      }
+    }
+  },
+  "loop_kind_agreed_agent_labels": {
+    "stock": {
+      "scored_denominator": 17,
+      "repetition": 9,
+      "completion-claim": 3,
+      "none": 4,
+      "disagree": 1
+    },
+    "tuned": {
+      "scored_denominator": 19,
+      "repetition": 6,
+      "completion-claim": 3,
+      "none": 7,
+      "disagree": 3
+    },
+    "gepa": {
+      "scored_denominator": 19,
+      "repetition": 8,
+      "completion-claim": 4,
+      "none": 5,
+      "disagree": 2
+    }
+  },
+  "stop_call_flag_not_actual_exit": [
+    {
+      "opaque_id": "g6-19",
+      "task_id": "format-code-task-001833",
+      "arm": "stock",
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "metric_stop_call_flag": true
+    },
+    {
+      "opaque_id": "g6-49",
+      "task_id": "format-code-task-001809",
+      "arm": "gepa",
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "metric_stop_call_flag": true
+    }
+  ],
+  "tuned_counted_pass_copy_judgment": {
+    "task_id": "format-code-task-000169",
+    "opaque_id": "g6-33",
+    "raw_reward": 1,
+    "canonical_verdict": "counted_pass",
+    "canonical_acquisition": "unknown",
+    "rater_a_pass_copied": true,
+    "rater_b_pass_copied": true,
+    "why_canonical_not_amended": "Frozen consumer cannot bind step22 CurrentTerminalScreen extraction output to command; subsequent fresh reads are separate under preexisting-directory guard. Source-provenance concern remains; neither independence nor deterministic defect proved.",
+    "genuine_pass_judgment_counts": {
+      "stock": {
+        "passes": 2,
+        "scored": 17
+      },
+      "tuned": {
+        "passes": 0,
+        "scored": 19
+      },
+      "gepa": {
+        "passes": 3,
+        "scored": 19
+      }
+    }
+  },
+  "posthoc_judgment_sensitivities": {
+    "exclude_NULL_tuned_minus_gepa": {
+      "N": 17,
+      "RD": -0.058823529411764705,
+      "a": 0,
+      "b": 0,
+      "c": 1,
+      "canonical_counts_modified": false,
+      "d": 16,
+      "hypothesis_test_run": false,
+      "interpretation": "Posthoc two-blind-agent copied-fix judgment; not deterministic corrected counts.",
+      "primary_modified": false,
+      "registered_primary": false
+    },
+    "exclude_NULL_tuned_minus_stock": {
+      "N": 15,
+      "RD": -0.13333333333333333,
+      "a": 0,
+      "b": 0,
+      "c": 2,
+      "canonical_counts_modified": false,
+      "d": 13,
+      "exact_p_value_descriptive": 0.5,
+      "interpretation": "Posthoc two-blind-agent copied-fix judgment; not deterministic corrected counts.",
+      "primary_modified": false,
+      "registered_primary": false
+    },
+    "genuine_predicate_zero_tuned_minus_gepa": {
+      "N": 18,
+      "RD": -0.1111111111111111,
+      "a": 0,
+      "b": 0,
+      "c": 2,
+      "canonical_counts_modified": false,
+      "d": 16,
+      "hypothesis_test_run": false,
+      "interpretation": "Posthoc two-blind-agent copied-fix judgment; not deterministic corrected counts.",
+      "primary_modified": false,
+      "registered_primary": false
+    },
+    "genuine_predicate_zero_tuned_minus_stock": {
+      "N": 16,
+      "RD": -0.125,
+      "a": 0,
+      "b": 0,
+      "c": 2,
+      "canonical_counts_modified": false,
+      "d": 14,
+      "hypothesis_test_run": false,
+      "interpretation": "Posthoc two-blind-agent copied-fix judgment; not deterministic corrected counts.",
+      "primary_modified": false,
+      "registered_primary": false
+    }
+  },
+  "network_evidence_scope": "Successful upstream acquisition judged on tuned000169; failed fetch on different-task tuned001809; self-reported no-network on stock001695. Not a same-task randomized network comparison; actual config and cause UNKNOWN, not attributed to arm.",
+  "blinding_limits": [
+    "Agent raters, not humans.",
+    "Coordinator pack construction and no-off-limits-open claims are source attestations, not independently inspected raw pack bytes.",
+    "A07/B07 incomplete reports resent before freeze; raterA g6-45 wrong-task note disclosed; label bytes unchanged.",
+    "Docent unavailable for allG5/G6 due quota; no paid Docent/Scout-LLM and no retrospective coverage."
+  ],
+  "provider_error_usage_coverage": {
+    "successful_reported_usage_complete": 5291,
+    "physical_HTTP_attempts": 5345,
+    "http503_known_record_count_with_UNKNOWN_usage": 54,
+    "by_arm": {
+      "stock": 0,
+      "tuned": 27,
+      "gepa": 27
+    },
+    "missing_provider_usage_records_means_absent_ledger_records_not_UNKNOWN_usage_values": true
+  },
+  "cells": [
+    {
+      "opaque_id": "g6-01",
+      "task_id": "format-code-task-002017",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-002017-tuned__SWc4xbr",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 94,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {
+          "head": {
+            "other_native": {
+              "count": 1,
+              "first_step": 26
+            }
+          }
+        },
+        "tokens_total_proxy": 2469198,
+        "turns_after_first_prompt": null,
+        "unparseable": 1
+      }
+    },
+    {
+      "opaque_id": "g6-02",
+      "task_id": "format-code-task-001136",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001136-gepa__rexYV6K",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 62,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 1081022,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-03",
+      "task_id": "format-code-task-001285",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001285-tuned__WgPbz8K",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 104,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {
+          "head": {
+            "unknown_function:read": {
+              "count": 2,
+              "first_step": 3
+            }
+          }
+        },
+        "tokens_total_proxy": 2441034,
+        "turns_after_first_prompt": null,
+        "unparseable": 2
+      }
+    },
+    {
+      "opaque_id": "g6-04",
+      "task_id": "format-code-task-001606",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001606-tuned__MnCArfo",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "task_complete_confirmed",
+      "supported_metrics": {
+        "agent_steps": 41,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": true,
+        "handshake_present": true,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 671384,
+        "turns_after_first_prompt": 8,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-05",
+      "task_id": "format-code-task-001695",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001695-gepa__q4rVPoo",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 110,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2508144,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-06",
+      "task_id": "format-code-task-002017",
+      "arm": "stock",
+      "native_trial": "ovn-g5-002017-stock__be4xo9x",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 96,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2446614,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-07",
+      "task_id": "format-code-task-001355",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001355-tuned__8UJMiQN",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "task_complete_confirmed",
+      "supported_metrics": {
+        "agent_steps": 79,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": true,
+        "handshake_present": true,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2091420,
+        "turns_after_first_prompt": 3,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-08",
+      "task_id": "format-code-task-000842",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-000842-gepa__7p54K7C",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 91,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2445119,
+        "turns_after_first_prompt": 7,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-09",
+      "task_id": "format-code-task-000332",
+      "arm": "stock",
+      "native_trial": "ovn-g5-000332-stock__Xn3uN4Q",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 98,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2511694,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-10",
+      "task_id": "format-code-task-000332",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-000332-tuned__zevQhXu",
+      "canonical_verdict": "excluded",
+      "canonical_outcome": null,
+      "canonical_stop_reason": "unknown",
+      "supported_metrics": {
+        "agent_steps": 85,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 1860353,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-11",
+      "task_id": "format-code-task-002578",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-002578-gepa__kzhAXLU",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 99,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2474561,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-12",
+      "task_id": "format-code-task-000568",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-000568-tuned__Zcbk6Ub",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 89,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2452049,
+        "turns_after_first_prompt": 9,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-13",
+      "task_id": "format-code-task-000521",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-000521-tuned__TdWLAib",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 106,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2490198,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-14",
+      "task_id": "format-code-task-000568",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-000568-gepa__XXS7kMp",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 85,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2467128,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-15",
+      "task_id": "format-code-task-001695",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001695-tuned__HSdBDkF",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 117,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2516492,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-16",
+      "task_id": "format-code-task-001833",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001833-tuned__rNpMkcb",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 76,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 1705440,
+        "turns_after_first_prompt": 35,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-17",
+      "task_id": "format-code-task-000332",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-000332-gepa__YyfJfPU",
+      "canonical_verdict": "counted_pass",
+      "canonical_outcome": 1,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 79,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {
+          "head": {
+            "other_native": {
+              "count": 1,
+              "first_step": 12
+            }
+          }
+        },
+        "tokens_total_proxy": 2125931,
+        "turns_after_first_prompt": null,
+        "unparseable": 1
+      }
+    },
+    {
+      "opaque_id": "g6-18",
+      "task_id": "format-code-task-001765",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001765-gepa__yHdbtvs",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 95,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2441348,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-19",
+      "task_id": "format-code-task-001833",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001833-stock__UTVAfnN",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 111,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {
+          "head": {
+            "unknown_function:task_complete": {
+              "count": 62,
+              "first_step": 51
+            }
+          }
+        },
+        "tokens_total_proxy": 2476045,
+        "turns_after_first_prompt": 63,
+        "unparseable": 62
+      }
+    },
+    {
+      "opaque_id": "g6-20",
+      "task_id": "format-code-task-001797",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001797-stock__yGw88CW",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 88,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2416586,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-21",
+      "task_id": "format-code-task-000568",
+      "arm": "stock",
+      "native_trial": "ovn-g5-000568-stock__Ri7YYN5",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 95,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2446298,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-22",
+      "task_id": "format-code-task-002302",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-002302-tuned__5j77iHJ",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 90,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2391456,
+        "turns_after_first_prompt": 29,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-23",
+      "task_id": "format-code-task-001765",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001765-stock__Tigdd3B",
+      "canonical_verdict": "excluded",
+      "canonical_outcome": null,
+      "canonical_stop_reason": "unknown",
+      "supported_metrics": {
+        "agent_steps": 82,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2031972,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-24",
+      "task_id": "format-code-task-001797",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001797-gepa__W7cKEVT",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 86,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2463824,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-25",
+      "task_id": "format-code-task-001626",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001626-tuned__fSkoQL7",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 60,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 1136715,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-26",
+      "task_id": "format-code-task-001241",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001241-tuned__xKbAg3N",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 100,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2513286,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-27",
+      "task_id": "format-code-task-000521",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-000521-gepa__2rqo6EY",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 103,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2485664,
+        "turns_after_first_prompt": 60,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-28",
+      "task_id": "format-code-task-002578",
+      "arm": "stock",
+      "native_trial": "ovn-g5-002578-stock__ZVWT2gB",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 93,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2423555,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-29",
+      "task_id": "format-code-task-001769",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001769-tuned__pHJnuZq",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 95,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2417092,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-30",
+      "task_id": "format-code-task-000169",
+      "arm": "stock",
+      "native_trial": "ovn-g5-000169-stock__npH4TqV",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 87,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2463772,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-31",
+      "task_id": "format-code-task-001136",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001136-stock__jjgSG57",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 103,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2495663,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-32",
+      "task_id": "format-code-task-001626",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001626-gepa__3kGXxof",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 104,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2475924,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-33",
+      "task_id": "format-code-task-000169",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-000169-tuned__CxBpceW",
+      "canonical_verdict": "counted_pass",
+      "canonical_outcome": 1,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 97,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2505399,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-34",
+      "task_id": "format-code-task-002302",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-002302-gepa__sFGLATE",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 95,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2460337,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-35",
+      "task_id": "format-code-task-000842",
+      "arm": "stock",
+      "native_trial": "ovn-g5-000842-stock__RUUQHiz",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 101,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {
+          "head": {
+            "unknown_function:write": {
+              "count": 2,
+              "first_step": 17
+            }
+          }
+        },
+        "tokens_total_proxy": 2484226,
+        "turns_after_first_prompt": null,
+        "unparseable": 2
+      }
+    },
+    {
+      "opaque_id": "g6-36",
+      "task_id": "format-code-task-002578",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-002578-tuned__Zyd7L6j",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 117,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2495663,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-37",
+      "task_id": "format-code-task-001606",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001606-gepa__ySwezhm",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "task_complete_confirmed",
+      "supported_metrics": {
+        "agent_steps": 33,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": true,
+        "handshake_present": true,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {
+          "head": {
+            "prose_no_call": {
+              "count": 1,
+              "first_step": 32
+            }
+          }
+        },
+        "tokens_total_proxy": 402243,
+        "turns_after_first_prompt": 1,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-38",
+      "task_id": "format-code-task-001626",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001626-stock__6P6YXKD",
+      "canonical_verdict": "excluded",
+      "canonical_outcome": null,
+      "canonical_stop_reason": "unknown",
+      "supported_metrics": {
+        "agent_steps": 75,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 1578808,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-39",
+      "task_id": "format-code-task-001809",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001809-tuned__AUVzrvM",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 83,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2469692,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-40",
+      "task_id": "format-code-task-001355",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001355-stock__ZHNXfvD",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 98,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {
+          "head": {
+            "other_native": {
+              "count": 1,
+              "first_step": 90
+            }
+          }
+        },
+        "tokens_total_proxy": 2446141,
+        "turns_after_first_prompt": null,
+        "unparseable": 1
+      }
+    },
+    {
+      "opaque_id": "g6-41",
+      "task_id": "format-code-task-000842",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-000842-tuned__GjjMiqx",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "task_complete_confirmed",
+      "supported_metrics": {
+        "agent_steps": 52,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": true,
+        "handshake_present": true,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {
+          "head": {
+            "unknown_function:write": {
+              "count": 2,
+              "first_step": 29
+            }
+          }
+        },
+        "tokens_total_proxy": 1103106,
+        "turns_after_first_prompt": 3,
+        "unparseable": 2
+      }
+    },
+    {
+      "opaque_id": "g6-42",
+      "task_id": "format-code-task-001241",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001241-gepa__6LNRk7d",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 88,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2463829,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-43",
+      "task_id": "format-code-task-001765",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001765-tuned__rrXKUgY",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 106,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2510835,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-44",
+      "task_id": "format-code-task-002302",
+      "arm": "stock",
+      "native_trial": "ovn-g5-002302-stock__83xFDnj",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 90,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2447393,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-45",
+      "task_id": "format-code-task-001833",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001833-gepa__aci6NkF",
+      "canonical_verdict": "excluded",
+      "canonical_outcome": null,
+      "canonical_stop_reason": "unknown",
+      "supported_metrics": {
+        "agent_steps": 54,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 1067544,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-46",
+      "task_id": "format-code-task-001355",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001355-gepa__bJkSJkD",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 95,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2430790,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-47",
+      "task_id": "format-code-task-001285",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001285-stock__JvtxRFm",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 73,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 1654797,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-48",
+      "task_id": "format-code-task-000169",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-000169-gepa__Hmxf7wb",
+      "canonical_verdict": "counted_pass",
+      "canonical_outcome": 1,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 98,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2509233,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-49",
+      "task_id": "format-code-task-001809",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001809-gepa__nxdBvhh",
+      "canonical_verdict": "counted_pass",
+      "canonical_outcome": 1,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 117,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {
+          "head": {
+            "malformed_native:task_complete": {
+              "count": 90,
+              "first_step": 29
+            }
+          }
+        },
+        "tokens_total_proxy": 2479311,
+        "turns_after_first_prompt": 93,
+        "unparseable": 90
+      }
+    },
+    {
+      "opaque_id": "g6-50",
+      "task_id": "format-code-task-002017",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-002017-gepa__qQJWeCc",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 95,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2469763,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-51",
+      "task_id": "format-code-task-001606",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001606-stock__jePg8nP",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 46,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 715601,
+        "turns_after_first_prompt": 27,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-52",
+      "task_id": "format-code-task-001136",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001136-tuned__QTMzsEL",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 89,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2430941,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-53",
+      "task_id": "format-code-task-001285",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001285-gepa__waX6njT",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 90,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2237218,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-54",
+      "task_id": "format-code-task-001241",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001241-stock__FGtdyNH",
+      "canonical_verdict": "excluded",
+      "canonical_outcome": null,
+      "canonical_stop_reason": "unknown",
+      "supported_metrics": {
+        "agent_steps": 31,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 603590,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-55",
+      "task_id": "format-code-task-001695",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001695-stock__PveqguL",
+      "canonical_verdict": "counted_pass",
+      "canonical_outcome": 1,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 101,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": false,
+        "loop_break_stopped": false,
+        "loop_onset": false,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2508134,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-56",
+      "task_id": "format-code-task-000521",
+      "arm": "stock",
+      "native_trial": "ovn-g5-000521-stock__pjKC2mS",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 55,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 1172559,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-57",
+      "task_id": "format-code-task-001797",
+      "arm": "tuned",
+      "native_trial": "ovn-g5-001797-tuned__L32LiEr",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 94,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2198156,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-58",
+      "task_id": "format-code-task-001809",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001809-stock__PZ8sw7f",
+      "canonical_verdict": "counted_pass",
+      "canonical_outcome": 1,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 94,
+        "echo_task_complete_turns": 0,
+        "handshake_confirmed": false,
+        "handshake_present": true,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2482260,
+        "turns_after_first_prompt": 54,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-59",
+      "task_id": "format-code-task-001769",
+      "arm": "stock",
+      "native_trial": "ovn-g5-001769-stock__qSPHRnf",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "loop_break",
+      "supported_metrics": {
+        "agent_steps": 62,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": true,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 994154,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    },
+    {
+      "opaque_id": "g6-60",
+      "task_id": "format-code-task-001769",
+      "arm": "gepa",
+      "native_trial": "ovn-g5-001769-gepa__XKhJTpk",
+      "canonical_verdict": "counted_fail",
+      "canonical_outcome": 0,
+      "canonical_stop_reason": "ceiling:input_tokens",
+      "supported_metrics": {
+        "agent_steps": 101,
+        "echo_task_complete_turns": null,
+        "handshake_confirmed": null,
+        "handshake_present": false,
+        "loop_break_fired": true,
+        "loop_break_stopped": false,
+        "loop_onset": true,
+        "rejection_causes": {},
+        "tokens_total_proxy": 2451630,
+        "turns_after_first_prompt": null,
+        "unparseable": 0
+      }
+    }
+  ]
+}

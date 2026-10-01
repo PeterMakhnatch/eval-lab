@@ -1,100 +1,2164 @@
 {
-  "verified_at_utc": "2026-10-01T08:00:59.043480+00:00",
-  "atlas_sha256": "292aee54ea435a189ebb858f619f5654069bd6b22873972039c523976078e6f6",
-  "readme_sha256": "a5bcb0de382cf848fd9bd70114ef6d37ef02a1352361a0b81b7cf6c57cd33e9b",
-  "query_results_sha256": "618a3bcf811eceab0f834b75e48e5cc87771e39da0d2e9e8e3bc049c63e98092",
-  "corpus_digest": "sha256:4ec47b8b3d7b6cb62c042405144b7020137979bea822d2e0481b0dff8ae544c1",
-  "verified_refs": [
-    {
-      "category": "recorded-budget-stop",
-      "trial": "gepa-terminus-2-format-code-task__7RJJeFg",
-      "step_ref": "head#76",
-      "source_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
-      "selection": "highest native step_id context; not a causal or chronological assertion"
-    },
-    {
-      "category": "recorded-budget-stop",
-      "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
-      "step_ref": "head#88",
-      "source_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
-      "selection": "highest native step_id context; not a causal or chronological assertion"
-    },
-    {
-      "category": "completion-claim-loop",
-      "trial": "gepa-terminus-2-format-code-task__7RJJeFg",
-      "step_ref": "head#42",
-      "source_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
-      "selection": "loop-onset opinion head#42"
-    },
-    {
-      "category": "completion-claim-loop",
-      "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
-      "step_ref": "head#43",
-      "source_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
-      "selection": "loop-onset opinion head#43"
-    },
-    {
-      "category": "repetition-loop",
-      "trial": "gepa-terminus-2-format-code-task__bo5YsYL",
-      "step_ref": "head#25",
-      "source_sha256": "sha256:a9114a61e1fe99a939461f517d6c1602a0da1326e1fe8c5eb2bc3c1e70f77f7a",
-      "selection": "loop-onset opinion head#25"
-    },
-    {
-      "category": "repetition-loop",
-      "trial": "har104-d-001896__MDkTErY",
-      "step_ref": "head#33",
-      "source_sha256": "sha256:3c231fa870acc5c0bae11a9c1eea98f3a21f898ce9d28f9fa259ae961014520e",
-      "selection": "loop-onset opinion head#33"
-    },
-    {
-      "category": "counts-excluded-copied-pass",
-      "trial": "gepa-terminus-2-format-code-task__CFCbfps",
-      "step_ref": "head#20",
-      "source_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
-      "selection": "upstream-fetch detector evidence head#20"
-    },
-    {
-      "category": "counts-excluded-copied-pass",
-      "trial": "har104-d-000226__JCDfZFi",
-      "step_ref": "head#4",
-      "source_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
-      "selection": "upstream-fetch detector evidence head#4"
-    },
-    {
-      "category": "counts-excluded-infra",
-      "trial": "har110-dev-002256-cfe31418__uDRp4Vb",
-      "step_ref": "head#15",
-      "source_sha256": "sha256:ab599e4c39fb5de053cfabd2574054ab62c25a1c013a08e582d4d1c433fb006d",
-      "selection": "loop-onset opinion head#15"
-    },
-    {
-      "category": "counts-excluded-infra",
-      "trial": "har116-a-000383-loopfix__wgujpBQ",
-      "step_ref": "head#1",
-      "source_sha256": "sha256:896e4fed468429b0a48fc0d0ad71d8f92099bebe318efe99e09c37fa879fd7ea",
-      "selection": "median real non-copied step (no recorded ref resolved)"
-    },
-    {
-      "category": "recorded-upstream-fetch-signal",
-      "trial": "gepa-terminus-2-format-code-task__CFCbfps",
-      "step_ref": "head#20",
-      "source_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
-      "selection": "upstream-fetch detector evidence head#20"
-    },
-    {
-      "category": "recorded-upstream-fetch-signal",
-      "trial": "har104-d-000226__JCDfZFi",
-      "step_ref": "head#4",
-      "source_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
-      "selection": "upstream-fetch detector evidence head#4"
-    }
-  ],
-  "n_queries_exercised": 10,
-  "loop_frozen_agreement": {
-    "agree": 7,
-    "eligible": 11
+ "verified_at_utc": "2026-10-01T08:48:16+00:00",
+ "superseded_atlas_sha256": "292aee54ea435a189ebb858f619f5654069bd6b22873972039c523976078e6f6",
+ "atlas_sha256": "sha256:66c2a138f0e0f3beb389c04b3b252f8819656ceb9b86241c80c607965d1f0598",
+ "readme_sha256": "sha256:af9dd3403681ef4f3a43c3688d5b417d6a663c88e2721d536212eb72772d6529",
+ "query_results_sha256": "sha256:634ef2101f502cb7f317d08d2c006f9dba8ded4c834533de2a73e65fedebb26a",
+ "pinned_manifest_sha256": "sha256:b478e433512b7168feb1c688be8d8a75a0cd20f536f1aad33f7244cd45b92e5f",
+ "corpus_digest": "sha256:ee1dde931a76df6a075c612b1865f39a53bd58ab561e38f684227e0fb35afecc",
+ "atlas_input_digest": "sha256:6f33081c66e358731649318a154511f6cf6543ec708541de0a6d834ad4e9dc28",
+ "coverage": {
+  "discovered_jobs": 172,
+  "discovered_trials": 165,
+  "discovered_steps": 11310,
+  "stitched_duplicated_steps": 258,
+  "copied_context_steps": 52,
+  "missing_processed": 47,
+  "missing_counts": 47,
+  "missing_atif": 32,
+  "by_card": {
+   "HAR-85": 27,
+   "HAR-81": 44,
+   "HAR-90": 14,
+   "HAR-104": 16,
+   "HAR-110": 24,
+   "HAR-116": 40
   },
-  "scope": "All-recorded inspection atlas. Not a proposer input; separate gated reflection remains unavailable without authorized bindings.",
-  "native_trial_manifest_verified": 90
+  "by_arm": {
+   "unknown": 47,
+   "l-d-a2": 8,
+   "l-d-a3": 8,
+   "l-d-a4": 8,
+   "p-d-arvo": 7,
+   "p-d-candidate": 7,
+   "p-d-format": 6,
+   "plain": 13,
+   "plain-dev": 1,
+   "seed-addendum": 10,
+   "gepa-candidate": 10,
+   "baseline": 10,
+   "loopfix": 10,
+   "loopfix-r2": 10,
+   "leakclosed": 5,
+   "original": 5
+  }
+ },
+ "identity": {
+  "n_pinned_job_dirs": 172,
+  "n_returned_pairs": 165,
+  "n_missing": 0,
+  "n_additional": 0,
+  "n_eligible": 81,
+  "n_excluded": 84
+ },
+ "verified_refs": [
+  {
+   "category": "recorded-budget-stop",
+   "trial": "gepa-terminus-2-format-code-task__7RJJeFg",
+   "job_id": "43ee9743-5d05-4ebc-afb6-304539cab56f",
+   "trial_id": "d3a5b416-6b85-49c9-9128-2f5f6dc98b36",
+   "step_ref": "head#76",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
+   "selection": "highest native step_id context; not a causal or chronological assertion",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 76,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "recorded-budget-stop",
+   "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+   "job_id": "b2fd36cb-2a9a-4f36-8752-610452a4ec7d",
+   "trial_id": "26dc73f9-1730-489e-a700-493c52332237",
+   "step_ref": "head#88",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
+   "selection": "highest native step_id context; not a causal or chronological assertion",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 88,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "completion-claim-loop",
+   "trial": "gepa-terminus-2-format-code-task__7RJJeFg",
+   "job_id": "43ee9743-5d05-4ebc-afb6-304539cab56f",
+   "trial_id": "d3a5b416-6b85-49c9-9128-2f5f6dc98b36",
+   "step_ref": "head#42",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
+   "selection": "loop-onset opinion head#42",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 42,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "completion-claim-loop",
+   "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+   "job_id": "b2fd36cb-2a9a-4f36-8752-610452a4ec7d",
+   "trial_id": "26dc73f9-1730-489e-a700-493c52332237",
+   "step_ref": "head#43",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
+   "selection": "loop-onset opinion head#43",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 43,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "repetition-loop",
+   "trial": "gepa-terminus-2-format-code-task__bo5YsYL",
+   "job_id": "0d2efa21-fd00-462a-b747-5f4b462d845f",
+   "trial_id": "3f3e5159-b1f8-4933-9556-11565905025e",
+   "step_ref": "head#25",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:a9114a61e1fe99a939461f517d6c1602a0da1326e1fe8c5eb2bc3c1e70f77f7a",
+   "selection": "loop-onset opinion head#25",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 25,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "repetition-loop",
+   "trial": "har104-d-001896__MDkTErY",
+   "job_id": "8c93a5a2-2d6a-4be0-8f9e-3a02c7573175",
+   "trial_id": "735a47ae-2931-4fc1-bfd7-f47c1b9d9c30",
+   "step_ref": "head#33",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:3c231fa870acc5c0bae11a9c1eea98f3a21f898ce9d28f9fa259ae961014520e",
+   "selection": "loop-onset opinion head#33",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 33,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "counts-excluded-copied-pass",
+   "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+   "job_id": "6aae31f1-777f-4e3c-b7a7-a272ce1f3764",
+   "trial_id": "c9edd135-8c61-47c5-aaaf-10ee7795b425",
+   "step_ref": "head#20",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
+   "selection": "upstream-fetch detector evidence head#20",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 20,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "counts-excluded-copied-pass",
+   "trial": "har104-d-000226__JCDfZFi",
+   "job_id": "9f1842b4-1fe6-49df-a533-17dd1b9a0b2c",
+   "trial_id": "2fa7697c-77c2-4fb3-b89e-f7b1d8373690",
+   "step_ref": "head#4",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
+   "selection": "upstream-fetch detector evidence head#4",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 4,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "counts-excluded-infra",
+   "trial": "har110-dev-002256-cfe31418__uDRp4Vb",
+   "job_id": "5ea4f0f8-8259-4722-8dfd-2118e870be7c",
+   "trial_id": "e17e6130-adc8-4c70-8983-3c2484117b62",
+   "step_ref": "head#15",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:ab599e4c39fb5de053cfabd2574054ab62c25a1c013a08e582d4d1c433fb006d",
+   "selection": "loop-onset opinion head#15",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 15,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "counts-excluded-infra",
+   "trial": "har116-a-000383-loopfix__wgujpBQ",
+   "job_id": "cbdefc3a-a48b-4185-814e-a10a96d7651e",
+   "trial_id": "1b994fa9-724b-4ac2-9f78-5dd43e2b59a9",
+   "step_ref": "head#1",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:896e4fed468429b0a48fc0d0ad71d8f92099bebe318efe99e09c37fa879fd7ea",
+   "selection": "median real non-copied step (no recorded ref resolved)",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 1,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "recorded-upstream-fetch-signal",
+   "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+   "job_id": "6aae31f1-777f-4e3c-b7a7-a272ce1f3764",
+   "trial_id": "c9edd135-8c61-47c5-aaaf-10ee7795b425",
+   "step_ref": "head#20",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
+   "selection": "upstream-fetch detector evidence head#20",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 20,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  },
+  {
+   "category": "recorded-upstream-fetch-signal",
+   "trial": "har104-d-000226__JCDfZFi",
+   "job_id": "9f1842b4-1fe6-49df-a533-17dd1b9a0b2c",
+   "trial_id": "2fa7697c-77c2-4fb3-b89e-f7b1d8373690",
+   "step_ref": "head#4",
+   "source_path": "agent/trajectory.json",
+   "source_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
+   "selection": "upstream-fetch detector evidence head#4",
+   "file_exists": true,
+   "sha_match": true,
+   "step_present_once": true,
+   "native_id_match": true,
+   "genuine": true,
+   "detail": {
+    "step_id": 4,
+    "occurrences": 1,
+    "native_trial_id_match": true,
+    "native_job_id_match": true
+   }
+  }
+ ],
+ "per_category": [
+  {
+   "id": "recorded-budget-stop",
+   "genuine_refs": 2,
+   "coverage_met": true,
+   "atlas_exemplars": 2
+  },
+  {
+   "id": "completion-claim-loop",
+   "genuine_refs": 2,
+   "coverage_met": true,
+   "atlas_exemplars": 2
+  },
+  {
+   "id": "repetition-loop",
+   "genuine_refs": 2,
+   "coverage_met": true,
+   "atlas_exemplars": 2
+  },
+  {
+   "id": "counts-excluded-copied-pass",
+   "genuine_refs": 2,
+   "coverage_met": true,
+   "atlas_exemplars": 2
+  },
+  {
+   "id": "counts-excluded-infra",
+   "genuine_refs": 2,
+   "coverage_met": true,
+   "atlas_exemplars": 2
+  },
+  {
+   "id": "recorded-upstream-fetch-signal",
+   "genuine_refs": 2,
+   "coverage_met": true,
+   "atlas_exemplars": 2
+  }
+ ],
+ "all_categories_met": true,
+ "n_queries_exercised": 10,
+ "query_row_counts": {
+  "01_cohort_raw_countability.sql": 19,
+  "02_first_edit_vs_pass.sql": 15,
+  "03_test_path_access_signals.sql": 19,
+  "04_post_edit_tokens.sql": 19,
+  "05_loop_by_arm.sql": 19,
+  "06_fetch_exclusion_audit.sql": 19,
+  "07_parse_rejection_evidence.sql": 9,
+  "08_frozen_label_agreement.sql": 6,
+  "09_candidate_exemplars.sql": 22,
+  "10_evidence_completeness.sql": 6
+ },
+ "loop_frozen_agreement": {
+  "agree": 7,
+  "eligible": 11
+ },
+ "scope": "Historical correction only: 165 native pairs preserved, 81 verified Python, 84 excluded with reasons. Reflection unavailable (no G2 bindings); no training payload synthesized.",
+ "native_trial_manifest_verified": 81,
+ "native_inputs": [
+  {
+   "job_id": "011a91c6-c551-412d-956b-da7e702d9565",
+   "trial_id": "d8737886-c453-49b5-8d54-8fe962aaa6b2",
+   "trial_name": "har116-b-000146-original__JT6tRiN",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-original/har116-b-000146-original__JT6tRiN",
+   "native_result_job_id": null,
+   "native_result_trial_id": "d8737886-c453-49b5-8d54-8fe962aaa6b2",
+   "id_match": true,
+   "result_sha256": "sha256:f4aec3d908a9252945d4b773fa52c573862f1a495142db7a40d14db927566386",
+   "report_sha256": "sha256:6b11789d55851dc52f7c926d70626c83d73889f627b47d1347f8f6814ac767b6",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:f7cd396ed0409aaf3132166687105f93de473581b3d7ad12255c1c9733df2010",
+     "actual_sha256": "sha256:f7cd396ed0409aaf3132166687105f93de473581b3d7ad12255c1c9733df2010",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "011a91c6-c551-412d-956b-da7e702d9565",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "04b569be-43f4-4f7b-a886-007c9c176718",
+   "trial_id": "ac93da6b-6ca8-443e-b88d-85643b903fbb",
+   "trial_name": "har110-000587-seed__perD9bE",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-000587-seed/har110-000587-seed__perD9bE",
+   "native_result_job_id": null,
+   "native_result_trial_id": "ac93da6b-6ca8-443e-b88d-85643b903fbb",
+   "id_match": true,
+   "result_sha256": "sha256:91ada5019c385580ef3b208b0b3d8f44c6739c15eae8f8f393fe93201233cef0",
+   "report_sha256": "sha256:bc67f56c81076301f491ad9910aa874f7a9c30b161fd196b94f6803440514098",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:461bae48877416527a8f00499fa07ac19d85b9de0a910d7ce5e622aa025bcf05",
+     "actual_sha256": "sha256:461bae48877416527a8f00499fa07ac19d85b9de0a910d7ce5e622aa025bcf05",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "04b569be-43f4-4f7b-a886-007c9c176718",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "0982d91d-73ba-435e-9c0c-a58f22ffcd1e",
+   "trial_id": "d607caee-0f73-40f4-b7a3-080c0bb6e296",
+   "trial_name": "har116-a-000587-baseline__Vuxk2nX",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-baseline/har116-a-000587-baseline__Vuxk2nX",
+   "native_result_job_id": null,
+   "native_result_trial_id": "d607caee-0f73-40f4-b7a3-080c0bb6e296",
+   "id_match": true,
+   "result_sha256": "sha256:41f65bebb1451f95f64a01be45289db212c8c693256d9bbfc2fdd73aa9c72af0",
+   "report_sha256": "sha256:70659afe26f6883b538e489e34efd05346a6554eb500377678e85a61e2ac1088",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:976c39543982547b9522aea2dcad0a7c7335ced5ba57ce188d536b511b0ea77e",
+     "actual_sha256": "sha256:976c39543982547b9522aea2dcad0a7c7335ced5ba57ce188d536b511b0ea77e",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "0982d91d-73ba-435e-9c0c-a58f22ffcd1e",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "0b10e771-7af4-4f29-b1e0-3996135dcae4",
+   "trial_id": "e4a2c715-313b-445c-b7ba-bc0800decec5",
+   "trial_name": "har116-a-000587-loopfix__X5SAhvg",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix/har116-a-000587-loopfix__X5SAhvg",
+   "native_result_job_id": null,
+   "native_result_trial_id": "e4a2c715-313b-445c-b7ba-bc0800decec5",
+   "id_match": true,
+   "result_sha256": "sha256:4471d8287ad71fa3020e4b38fb2fe497419d3bcd82ef36b11763bfae4838183e",
+   "report_sha256": "sha256:28c057fe3726264410220bc4e2e196214077857a84353893ca3ddf7977279166",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:08ec9e153027e1329ec5e99cbee72fb4e1e3a9e2e654918d4057a125663e9a04",
+     "actual_sha256": "sha256:08ec9e153027e1329ec5e99cbee72fb4e1e3a9e2e654918d4057a125663e9a04",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "0b10e771-7af4-4f29-b1e0-3996135dcae4",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "0b62cb88-5d12-441d-a912-10ce1974c67b",
+   "trial_id": "3939b605-1722-41e6-a1c8-5207d8314e2c",
+   "trial_name": "har104-d-000226__v276NfY",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-000226-2/har104-d-000226__v276NfY",
+   "native_result_job_id": null,
+   "native_result_trial_id": "3939b605-1722-41e6-a1c8-5207d8314e2c",
+   "id_match": true,
+   "result_sha256": "sha256:0f60d11213d89d4fda6d1f60832ddee102355790022fb9ed56c5e9e5601b75cb",
+   "report_sha256": null,
+   "atif": [],
+   "native_job_result_id": "0b62cb88-5d12-441d-a912-10ce1974c67b",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "0d2efa21-fd00-462a-b747-5f4b462d845f",
+   "trial_id": "3f3e5159-b1f8-4933-9556-11565905025e",
+   "trial_name": "gepa-terminus-2-format-code-task__bo5YsYL",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-000-9862796a5e5624e818ab5f04/gepa-terminus-2-format-code-task__bo5YsYL",
+   "native_result_job_id": null,
+   "native_result_trial_id": "3f3e5159-b1f8-4933-9556-11565905025e",
+   "id_match": true,
+   "result_sha256": "sha256:ba8c3aaf3f59920349896f71bff79bf0e567ebaf56ccd2226961afc31ff45368",
+   "report_sha256": "sha256:3089d9b118f270730db7a0c000a55de80f4e83be795d0d42256f2b25024cdecf",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:a9114a61e1fe99a939461f517d6c1602a0da1326e1fe8c5eb2bc3c1e70f77f7a",
+     "actual_sha256": "sha256:a9114a61e1fe99a939461f517d6c1602a0da1326e1fe8c5eb2bc3c1e70f77f7a",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "0d2efa21-fd00-462a-b747-5f4b462d845f",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "1dceb200-c786-428c-8741-1179bef34fc4",
+   "trial_id": "0bc1f6b1-9563-400d-8d5e-ae12c97763fc",
+   "trial_name": "har116-a-001896-loopfix__n5p224u",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix/har116-a-001896-loopfix__n5p224u",
+   "native_result_job_id": null,
+   "native_result_trial_id": "0bc1f6b1-9563-400d-8d5e-ae12c97763fc",
+   "id_match": true,
+   "result_sha256": "sha256:51c91de0cd5cab7a21a212edcec249f7327e597423528b18a50a7d5a31cbf175",
+   "report_sha256": "sha256:3c17dd720c1a39ed5bfd5bf5001ba040af27a3acf28df7fabd355866fd93baf5",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:b63880a8ef3519410ac1e5817a0028eedc9b76f31d463f07a44bebe8d83dad36",
+     "actual_sha256": "sha256:b63880a8ef3519410ac1e5817a0028eedc9b76f31d463f07a44bebe8d83dad36",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "1dceb200-c786-428c-8741-1179bef34fc4",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "24af1ec8-24b9-4dd3-91d0-ef85ef85c24f",
+   "trial_id": "a967cfb8-f50a-4020-960b-1eef746b09ba",
+   "trial_name": "har116-b-000146-leakclosed__UsngzaQ",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-leakclosed/har116-b-000146-leakclosed__UsngzaQ",
+   "native_result_job_id": null,
+   "native_result_trial_id": "a967cfb8-f50a-4020-960b-1eef746b09ba",
+   "id_match": true,
+   "result_sha256": "sha256:12d1e5a8600e1b2f2c2895494c3495807e20c44bdc15662be1abe56d5f663567",
+   "report_sha256": "sha256:d7c96d477de4962f7b7c6e672a24f25baca77991fa0c3532d393228f6e2aa21b",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:85bb169383877714cca632e984d665d5e2777081ab0c6b0b1beece129c6bb0d7",
+     "actual_sha256": "sha256:85bb169383877714cca632e984d665d5e2777081ab0c6b0b1beece129c6bb0d7",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "24af1ec8-24b9-4dd3-91d0-ef85ef85c24f",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "26575997-7e4b-4931-a7c8-565b90ec3d63",
+   "trial_id": "a9e6abca-fe2b-4745-850c-3389023291ac",
+   "trial_name": "har110-000495-plain__mDTBFAW",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-000495-plain/har110-000495-plain__mDTBFAW",
+   "native_result_job_id": null,
+   "native_result_trial_id": "a9e6abca-fe2b-4745-850c-3389023291ac",
+   "id_match": true,
+   "result_sha256": "sha256:ae60d5e45b925702983b6bb7279d0a5d4102bb958aa81879c032ce4b01025568",
+   "report_sha256": "sha256:5737f05f2d47930507f1e6573d674219a2a096cc115ec2c6d5d578f6e2d72f35",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:786f09f5ed18c2ec87668e180b01a211f10847814cf60bf821315c8e584956eb",
+     "actual_sha256": "sha256:786f09f5ed18c2ec87668e180b01a211f10847814cf60bf821315c8e584956eb",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "26575997-7e4b-4931-a7c8-565b90ec3d63",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "292edafa-299d-4c09-bd12-ce8efeee659a",
+   "trial_id": "3d4022e7-e0a9-450b-8a0b-f4848dcae7b2",
+   "trial_name": "har110-000495-gepa__eEzm4kr",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-000495-gepa/har110-000495-gepa__eEzm4kr",
+   "native_result_job_id": null,
+   "native_result_trial_id": "3d4022e7-e0a9-450b-8a0b-f4848dcae7b2",
+   "id_match": true,
+   "result_sha256": "sha256:8c36d01b16a8631b50c4f2638de7bf90090afa560ea9439504964698ad9e1ca1",
+   "report_sha256": "sha256:c0d366acc9f3001eb48ac4cfe329546387c5125a9ee2f84e9261f7efd5dfe586",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:046118c4d67a652374bb8a96ab800e1cc29ec026b1f54a1b2d4804fbb4d018f9",
+     "actual_sha256": "sha256:046118c4d67a652374bb8a96ab800e1cc29ec026b1f54a1b2d4804fbb4d018f9",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "292edafa-299d-4c09-bd12-ce8efeee659a",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "2faace9c-3e27-4ebb-ac9b-e5fdd0c4e12a",
+   "trial_id": "863f4cb0-60e1-479f-be4a-a5b626def3ac",
+   "trial_name": "har104-d-002259__cptLF6h",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002259/har104-d-002259__cptLF6h",
+   "native_result_job_id": null,
+   "native_result_trial_id": "863f4cb0-60e1-479f-be4a-a5b626def3ac",
+   "id_match": true,
+   "result_sha256": "sha256:14450f6b71847fb3025204ca74421f1e9d059cbd4b2d45537adabcb11be3f9db",
+   "report_sha256": "sha256:e4f4b56f02122a5226b4532fa94af2f76d5ec4b0386816d4afcc80a78e618840",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:768514e797beab2e7cc471523027c237345b9b39187dc6e448e1cf61e3337a42",
+     "actual_sha256": "sha256:768514e797beab2e7cc471523027c237345b9b39187dc6e448e1cf61e3337a42",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "2faace9c-3e27-4ebb-ac9b-e5fdd0c4e12a",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "32abdff7-c3d5-4e40-ae43-cc5bdc2be78c",
+   "trial_id": "5b847adf-be59-4486-9f00-acc4e2c248b2",
+   "trial_name": "har116-a-000495-baseline__DiGmEPC",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-baseline/har116-a-000495-baseline__DiGmEPC",
+   "native_result_job_id": null,
+   "native_result_trial_id": "5b847adf-be59-4486-9f00-acc4e2c248b2",
+   "id_match": true,
+   "result_sha256": "sha256:3a4a0448b2afa5ad1ff815be9b333e9f1d0586fadb170834b4a9b8f71a0a9097",
+   "report_sha256": "sha256:28faa12008e91416e0db3a7c243ab05ddfa4ef41b56ca7746b30293d7b3bb546",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:e9e1bc62d48a6a2845c503e0e561741b460415c7b344410f4e2c9df96d41a64b",
+     "actual_sha256": "sha256:e9e1bc62d48a6a2845c503e0e561741b460415c7b344410f4e2c9df96d41a64b",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "32abdff7-c3d5-4e40-ae43-cc5bdc2be78c",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "3923cf3c-a45f-41f3-a5b9-77aea47a121d",
+   "trial_id": "e8753825-8741-40e5-b54f-a46ab66cb878",
+   "trial_name": "har110-000495-seed__dimG2yD",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-000495-seed/har110-000495-seed__dimG2yD",
+   "native_result_job_id": null,
+   "native_result_trial_id": "e8753825-8741-40e5-b54f-a46ab66cb878",
+   "id_match": true,
+   "result_sha256": "sha256:1160632a83db6b71136954d288093a7c27e2f5351f59ecc5142a44f4e35fdc95",
+   "report_sha256": "sha256:2ea17635da7b3dab6c5b217f2fec6794d0ce58a1b50ffc1e9ea90973e85f4893",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:1ea698e6f51bfdef8eb35846d4a03ef73beeaa56587c41a9f4d5c38aabc06aa7",
+     "actual_sha256": "sha256:1ea698e6f51bfdef8eb35846d4a03ef73beeaa56587c41a9f4d5c38aabc06aa7",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "3923cf3c-a45f-41f3-a5b9-77aea47a121d",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "41a06c02-66b4-472b-ac06-748e460c4bb6",
+   "trial_id": "ba99e856-5d04-4091-8a5e-e58fbe15b6f5",
+   "trial_name": "gepa-terminus-2-format-code-task__X2dMzMw",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8/gepa-terminus-2-format-code-task__X2dMzMw",
+   "native_result_job_id": null,
+   "native_result_trial_id": "ba99e856-5d04-4091-8a5e-e58fbe15b6f5",
+   "id_match": true,
+   "result_sha256": "sha256:adb54b515124857812c14eefd01c6a36bb8154b047c92c3ea29bd242e3f0eabf",
+   "report_sha256": "sha256:715085d9d8dd4ae8059f58912e997ce85dd0eae805e4d782d88f0a7b95a8787b",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:12c157f8932b1a821121aa940853d1165edcd750bc73e52cc0812a07dd9592eb",
+     "actual_sha256": "sha256:12c157f8932b1a821121aa940853d1165edcd750bc73e52cc0812a07dd9592eb",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "41a06c02-66b4-472b-ac06-748e460c4bb6",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "4344c276-cb9b-4502-b7de-0eec0c69ecb9",
+   "trial_id": "cf554671-734a-4481-a910-178ea3e91131",
+   "trial_name": "har116-b-002402-original__PCgLbp7",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002402-original/har116-b-002402-original__PCgLbp7",
+   "native_result_job_id": null,
+   "native_result_trial_id": "cf554671-734a-4481-a910-178ea3e91131",
+   "id_match": true,
+   "result_sha256": "sha256:f6f663dab561a9ef766272999e2209af9e6ece2e921ddbf5f3f9d540a51b99b7",
+   "report_sha256": "sha256:2166dba5cd9efa1ecbe1bbe3834de783545d31cbcde553b91e1d28ce96e4bfa7",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:7a8ee014304062c2d9acd75388b6f0a6976b68d7e90a0316f5f301256c89802b",
+     "actual_sha256": "sha256:7a8ee014304062c2d9acd75388b6f0a6976b68d7e90a0316f5f301256c89802b",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "4344c276-cb9b-4502-b7de-0eec0c69ecb9",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "43ee9743-5d05-4ebc-afb6-304539cab56f",
+   "trial_id": "d3a5b416-6b85-49c9-9128-2f5f6dc98b36",
+   "trial_name": "gepa-terminus-2-format-code-task__7RJJeFg",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-d1471e1b2701d6d1765ff1df/gepa-terminus-2-format-code-task__7RJJeFg",
+   "native_result_job_id": null,
+   "native_result_trial_id": "d3a5b416-6b85-49c9-9128-2f5f6dc98b36",
+   "id_match": true,
+   "result_sha256": "sha256:a672b6b2e7848eb1d968127e735c7e678708b09b564e13236d8cac00f5484118",
+   "report_sha256": "sha256:9388affd8f4c47c3c6f4f826d2ea5ef3bab4773d2e4b9a45eab9c4956c111a42",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
+     "actual_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "43ee9743-5d05-4ebc-afb6-304539cab56f",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "44e55dfb-0aa3-479f-9655-e34a62ecd5d9",
+   "trial_id": "6164e137-9359-4ca1-8156-6c99131614aa",
+   "trial_name": "har110-000587-plain__5NNxU35",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-000587-plain/har110-000587-plain__5NNxU35",
+   "native_result_job_id": null,
+   "native_result_trial_id": "6164e137-9359-4ca1-8156-6c99131614aa",
+   "id_match": true,
+   "result_sha256": "sha256:bf51c81418b6ea1ce865f9cb4a5e4ad9def070734782db8c8e876e14474ee2bf",
+   "report_sha256": "sha256:50f8b24fc43b35fd6c1c630fc0fcdababe8f2f109126883ff8f91b2d940340d8",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:f2527562b0020f54ce01917f6da8033b4d6fda1cfc075e7b2787f703a53addf9",
+     "actual_sha256": "sha256:f2527562b0020f54ce01917f6da8033b4d6fda1cfc075e7b2787f703a53addf9",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "44e55dfb-0aa3-479f-9655-e34a62ecd5d9",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "51f2ea16-2153-42a6-aa89-04ceef3c8258",
+   "trial_id": "1f330fdd-d064-4e1b-aae0-cad4db900d79",
+   "trial_name": "har116-a-001181-loopfix__Cd9chGm",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-loopfix/har116-a-001181-loopfix__Cd9chGm",
+   "native_result_job_id": null,
+   "native_result_trial_id": "1f330fdd-d064-4e1b-aae0-cad4db900d79",
+   "id_match": true,
+   "result_sha256": "sha256:197d3ab99e9e3e9e67f68f9eb2f59886d5748d1c01023ecdcb4e630b5c6168c2",
+   "report_sha256": "sha256:ea46163818e80fa6230c25b89960ea6c28335675e106d5b668c8d96387e009ee",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:f34d4f11852cd7985d4e16df248f93e97bc1e767ebef0cb243f4843626b8123a",
+     "actual_sha256": "sha256:f34d4f11852cd7985d4e16df248f93e97bc1e767ebef0cb243f4843626b8123a",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "51f2ea16-2153-42a6-aa89-04ceef3c8258",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "53cd1810-0689-4b29-8b19-1057abe6c71a",
+   "trial_id": "1eed8a90-d2dd-4f7b-b35d-a9bd23e18fcb",
+   "trial_name": "har104-d-001896__BQr7N9b",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-001896-2/har104-d-001896__BQr7N9b",
+   "native_result_job_id": null,
+   "native_result_trial_id": "1eed8a90-d2dd-4f7b-b35d-a9bd23e18fcb",
+   "id_match": true,
+   "result_sha256": "sha256:b4f8c431aae1abea5060a60d736acabb4e0c3909f37d2d90ac1bd225a3da5c76",
+   "report_sha256": null,
+   "atif": [],
+   "native_job_result_id": "53cd1810-0689-4b29-8b19-1057abe6c71a",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "549107be-66f7-46db-b77b-5ec124b8bf04",
+   "trial_id": "83cf7df5-9819-4838-9913-0d0e137be9dd",
+   "trial_name": "gepa-terminus-2-format-code-task__XuSksWC",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-f1d48fcf652ab5d801068db1/gepa-terminus-2-format-code-task__XuSksWC",
+   "native_result_job_id": null,
+   "native_result_trial_id": "83cf7df5-9819-4838-9913-0d0e137be9dd",
+   "id_match": true,
+   "result_sha256": "sha256:398311c8f6798c1dedef992ff85c5d85020554839fd798a902b105f3bf568c8e",
+   "report_sha256": "sha256:8e84238facb43a5ebe9c994e6bbab06082c27a2fa892004bb13c83074600e64b",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:4574fe459a97cde624d38b7e256e9058af904993c828fe27843d889f5a617036",
+     "actual_sha256": "sha256:4574fe459a97cde624d38b7e256e9058af904993c828fe27843d889f5a617036",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "549107be-66f7-46db-b77b-5ec124b8bf04",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "55892a26-93b8-475d-a350-6862e3e0cace",
+   "trial_id": "bb3001e3-7d74-4dba-9149-79bd294e02aa",
+   "trial_name": "har116-a-001896-loopfix-r2__Wmwi4NK",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix-r2/har116-a-001896-loopfix-r2__Wmwi4NK",
+   "native_result_job_id": null,
+   "native_result_trial_id": "bb3001e3-7d74-4dba-9149-79bd294e02aa",
+   "id_match": true,
+   "result_sha256": "sha256:3dd90721baaafb21e531d5d287762675a7eee1e324834b4e938b8b157c04587a",
+   "report_sha256": "sha256:70200fbc98f94e700fbbcde839df5ace351c1093e89d17f603bdd952fd774d56",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:d4013bdb13f60a6007e9cd791f32d904fa80b094524790f3bc27c45813b13f85",
+     "actual_sha256": "sha256:d4013bdb13f60a6007e9cd791f32d904fa80b094524790f3bc27c45813b13f85",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "55892a26-93b8-475d-a350-6862e3e0cace",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "58fa3204-d5f7-4d14-be19-7edbff8b7021",
+   "trial_id": "197e2f40-0b27-471d-887a-da771d6d9ccb",
+   "trial_name": "har104-d-001896__bRWKiLq",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-001896-3/har104-d-001896__bRWKiLq",
+   "native_result_job_id": null,
+   "native_result_trial_id": "197e2f40-0b27-471d-887a-da771d6d9ccb",
+   "id_match": true,
+   "result_sha256": "sha256:75e62dc50226b54ee09205f43f40790004b6af73e0e06cdac70c37139932bbd9",
+   "report_sha256": null,
+   "atif": [],
+   "native_job_result_id": "58fa3204-d5f7-4d14-be19-7edbff8b7021",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "5b1eb668-6a85-44e1-b6bf-9f9db26369bc",
+   "trial_id": "722728bd-7aa8-452d-b449-8c2fe9ba1862",
+   "trial_name": "har110-001181-plain__AnjbfwU",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-001181-plain/har110-001181-plain__AnjbfwU",
+   "native_result_job_id": null,
+   "native_result_trial_id": "722728bd-7aa8-452d-b449-8c2fe9ba1862",
+   "id_match": true,
+   "result_sha256": "sha256:f815f10c9ec042ed7e913e98d429f0f194e910f5e220a42976b858e1cda6ed46",
+   "report_sha256": "sha256:f090374895510506cafde8ccca74ac95a2ee3bb8ff6b38bcf2ed0688037d4cb5",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:6de77f3078c2964312ceb3e5de3efeea8d4132d1cfcdc941aa8dcb2e0f04ce0b",
+     "actual_sha256": "sha256:6de77f3078c2964312ceb3e5de3efeea8d4132d1cfcdc941aa8dcb2e0f04ce0b",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "5b1eb668-6a85-44e1-b6bf-9f9db26369bc",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "5d90b50e-a649-4231-8eb4-b699f0e07866",
+   "trial_id": "d6cfb706-61b3-4239-929a-1b91ddb9be36",
+   "trial_name": "har116-a-002864-loopfix-r2__CWRe7mJ",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2/har116-a-002864-loopfix-r2__CWRe7mJ",
+   "native_result_job_id": null,
+   "native_result_trial_id": "d6cfb706-61b3-4239-929a-1b91ddb9be36",
+   "id_match": true,
+   "result_sha256": "sha256:e07db8d20f08e3da16b5831a002535886ac3026db05e9e28139ccbd33ef0d0dd",
+   "report_sha256": "sha256:e1824d8daa333a7ddc4d0a683ec9316131f9eb9159376b4dffeb26037ef7f736",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:f435eb02e0fc31fcd3c1a3a8d5c922ada3f4f12599c5ea4cb755a061dcbe3403",
+     "actual_sha256": "sha256:f435eb02e0fc31fcd3c1a3a8d5c922ada3f4f12599c5ea4cb755a061dcbe3403",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "5d90b50e-a649-4231-8eb4-b699f0e07866",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "5ea4f0f8-8259-4722-8dfd-2118e870be7c",
+   "trial_id": "e17e6130-adc8-4c70-8983-3c2484117b62",
+   "trial_name": "har110-dev-002256-cfe31418__uDRp4Vb",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-002256-cfe31418/har110-dev-002256-cfe31418__uDRp4Vb",
+   "native_result_job_id": null,
+   "native_result_trial_id": "e17e6130-adc8-4c70-8983-3c2484117b62",
+   "id_match": true,
+   "result_sha256": "sha256:c4368daa0438e8e787eeb7ccc2c0331a89b26a2babf76a8324f16ed34528b0f9",
+   "report_sha256": "sha256:0d6f5fdfa7fcde3a6e1792a2a059034d2408ed34bed2d646ccfd19dcc2b15c48",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:ab599e4c39fb5de053cfabd2574054ab62c25a1c013a08e582d4d1c433fb006d",
+     "actual_sha256": "sha256:ab599e4c39fb5de053cfabd2574054ab62c25a1c013a08e582d4d1c433fb006d",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "5ea4f0f8-8259-4722-8dfd-2118e870be7c",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "649f285a-363c-4666-aa77-5fa6cf4cd87c",
+   "trial_id": "5715c108-e6c8-4800-b429-51cdd780ee7c",
+   "trial_name": "har116-a-000383-loopfix-r2__cNEHjBa",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix-r2/har116-a-000383-loopfix-r2__cNEHjBa",
+   "native_result_job_id": null,
+   "native_result_trial_id": "5715c108-e6c8-4800-b429-51cdd780ee7c",
+   "id_match": true,
+   "result_sha256": "sha256:a3724ca78631a4fbea22f0ea1ff2d94faee47759039f92bfca6eeeadaf94d2c1",
+   "report_sha256": "sha256:b76eb226c75d0f7f54d4d07ca19d4989e1cbf8182ff2b13990d2b55269b05cd5",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:0f99c2d48a26fca60809906cc96bce585549f64385b7edc33ca41a5559635e94",
+     "actual_sha256": "sha256:0f99c2d48a26fca60809906cc96bce585549f64385b7edc33ca41a5559635e94",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "649f285a-363c-4666-aa77-5fa6cf4cd87c",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "6957d010-14ff-4125-aebd-b002c84d664d",
+   "trial_id": "e24f3d84-2a23-4595-8dae-4f170acf2203",
+   "trial_name": "har116-a-000383-baseline__igrXg8R",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-baseline/har116-a-000383-baseline__igrXg8R",
+   "native_result_job_id": null,
+   "native_result_trial_id": "e24f3d84-2a23-4595-8dae-4f170acf2203",
+   "id_match": true,
+   "result_sha256": "sha256:4813a51173325349d3e242b3537ed105ace013e102a4651048343d09fa014770",
+   "report_sha256": "sha256:b4979bf8b049e6818816170499623aaefc9925b9b224d2e3b125fd9cf0a242bf",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:8d469af80ddddd79c5ce8ed83297d2e293883d4ac60c6d124f1249d9ac9b9069",
+     "actual_sha256": "sha256:8d469af80ddddd79c5ce8ed83297d2e293883d4ac60c6d124f1249d9ac9b9069",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "6957d010-14ff-4125-aebd-b002c84d664d",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "697f406b-788d-410d-b696-b67c6d614900",
+   "trial_id": "88d0639e-62f9-4875-9872-f3627656ac37",
+   "trial_name": "har81-p-d-format-code-task-00253__7xmXPRq",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-002537/har81-p-d-format-code-task-00253__7xmXPRq",
+   "native_result_job_id": null,
+   "native_result_trial_id": "88d0639e-62f9-4875-9872-f3627656ac37",
+   "id_match": true,
+   "result_sha256": "sha256:a271de84732b69b32e1bb94fe42c81db1b1dda2238b01dd0c9dea26626cceb99",
+   "report_sha256": "sha256:2b8bb71c2a7efa2d653e000aa4ab9c3431a067f459240ee663a8efcfddb35d11",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:48942451bfd10168e5f6ac7baa3f49cc72746cc775a0f55c954f555f0308ca6e",
+     "actual_sha256": "sha256:48942451bfd10168e5f6ac7baa3f49cc72746cc775a0f55c954f555f0308ca6e",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "697f406b-788d-410d-b696-b67c6d614900",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "6aae31f1-777f-4e3c-b7a7-a272ce1f3764",
+   "trial_id": "c9edd135-8c61-47c5-aaaf-10ee7795b425",
+   "trial_name": "gepa-terminus-2-format-code-task__CFCbfps",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33/gepa-terminus-2-format-code-task__CFCbfps",
+   "native_result_job_id": null,
+   "native_result_trial_id": "c9edd135-8c61-47c5-aaaf-10ee7795b425",
+   "id_match": true,
+   "result_sha256": "sha256:de0c71706b8a16f1cd9ebd2ae4763ad1b0746a7daf283bcd272daf4ea2b46b3e",
+   "report_sha256": "sha256:98c0016b0c2d88eca82a0c0a76b6157ea0cb5f5f47d44943d9d2d85454cde5d2",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
+     "actual_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "6aae31f1-777f-4e3c-b7a7-a272ce1f3764",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "6f7f45f6-3d1f-4edc-be7d-25c387d7f04b",
+   "trial_id": "a6bee1be-0f52-4972-9248-cff576af61a6",
+   "trial_name": "har104-d-002391__WxBjcjX",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002391/har104-d-002391__WxBjcjX",
+   "native_result_job_id": null,
+   "native_result_trial_id": "a6bee1be-0f52-4972-9248-cff576af61a6",
+   "id_match": true,
+   "result_sha256": "sha256:a93476c58aab4fb5f4bafc2d5aae150eeffe4ca99cb52e17879d103de5ae9ed2",
+   "report_sha256": "sha256:8eda5d4a0eda08ab3827f247a673cd3ed77d66ed25b2f71fd0f85f1651c524d4",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:953525bc54369695eef0a385f419fa4d5bed54cda93de8dace90ae7108d5eca1",
+     "actual_sha256": "sha256:953525bc54369695eef0a385f419fa4d5bed54cda93de8dace90ae7108d5eca1",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "6f7f45f6-3d1f-4edc-be7d-25c387d7f04b",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "7837360b-04b1-4fa4-aaa4-2e3cc237df83",
+   "trial_id": "22067d39-c6a9-4f7b-81e9-85e5ba0b052a",
+   "trial_name": "har116-b-002308-leakclosed__idknFAu",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-leakclosed/har116-b-002308-leakclosed__idknFAu",
+   "native_result_job_id": null,
+   "native_result_trial_id": "22067d39-c6a9-4f7b-81e9-85e5ba0b052a",
+   "id_match": true,
+   "result_sha256": "sha256:a08eb66023d91837a3cda908ddfa270f2526dcdb118ac2bbe6125bcb4068fcab",
+   "report_sha256": "sha256:3e875eec0bfeaf7ae4f578bb495d85e7d92ea19cc36ba128c7f8abfaa4f90473",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:bfb8b37f603e7d5ca79aaac7850c551192a3369e7ccf3e475e28e3a920f1c5e5",
+     "actual_sha256": "sha256:bfb8b37f603e7d5ca79aaac7850c551192a3369e7ccf3e475e28e3a920f1c5e5",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "7837360b-04b1-4fa4-aaa4-2e3cc237df83",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "7b1bab8a-a420-4270-9612-1aa84ade54f5",
+   "trial_id": "47c82788-04f3-4efa-aa98-800aa0dddd5b",
+   "trial_name": "har81-p-d-format-code-task-00164__bMN27md",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-001645/har81-p-d-format-code-task-00164__bMN27md",
+   "native_result_job_id": null,
+   "native_result_trial_id": "47c82788-04f3-4efa-aa98-800aa0dddd5b",
+   "id_match": true,
+   "result_sha256": "sha256:71e13eeecfb9b68b46ba0f35d88cabd1b1a92083726bc3bcaa7948335fcd2af9",
+   "report_sha256": "sha256:ea9c1b9f0069438700b0926ed3b762fd86d37a64fef8c89b32d97c236cfa2ddc",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:713d500fa5c7b6cd73e967126d29add3af3910462a5ce051d382531ae27a2f09",
+     "actual_sha256": "sha256:713d500fa5c7b6cd73e967126d29add3af3910462a5ce051d382531ae27a2f09",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "7b1bab8a-a420-4270-9612-1aa84ade54f5",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "7d041047-dd90-4974-9e11-7fbd030d20d8",
+   "trial_id": "16907fc3-1565-454b-a212-7007adb35b60",
+   "trial_name": "har104-d-000383__PmZMZ6z",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-000383/har104-d-000383__PmZMZ6z",
+   "native_result_job_id": null,
+   "native_result_trial_id": "16907fc3-1565-454b-a212-7007adb35b60",
+   "id_match": true,
+   "result_sha256": "sha256:5fca68d63355457e2db6fe17ab9f98cd980ed438d04b85512db733f4c5f4b44b",
+   "report_sha256": "sha256:ecd34452f19b686df7277d328939e9cff5c4e531833d435b98257d3d71393f4b",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:5939ca2869d0aadf52b87f9787db237d3b6586f5df4108f6de93bf7661a0e23c",
+     "actual_sha256": "sha256:5939ca2869d0aadf52b87f9787db237d3b6586f5df4108f6de93bf7661a0e23c",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "7d041047-dd90-4974-9e11-7fbd030d20d8",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "826b7cd3-1a1e-41d3-951a-5b5bb247e398",
+   "trial_id": "802b6e2c-bfb1-400c-82ee-67313a802f33",
+   "trial_name": "har110-dev-002864-cfe31418__g7pfCqC",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-002864-cfe31418/har110-dev-002864-cfe31418__g7pfCqC",
+   "native_result_job_id": null,
+   "native_result_trial_id": "802b6e2c-bfb1-400c-82ee-67313a802f33",
+   "id_match": true,
+   "result_sha256": "sha256:0f3d79f08ac51814858e63d9d147a8296f6967c71e1c96e80051fec7ac048c37",
+   "report_sha256": "sha256:0ba6b8930747c12c5336d4c66140cdbb2c38a4315abef6e5faab00868d35111c",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:9181acc638d1acc0c88c01321eb49bbd2cc75ea1179ae616d3c18d792dc833ea",
+     "actual_sha256": "sha256:9181acc638d1acc0c88c01321eb49bbd2cc75ea1179ae616d3c18d792dc833ea",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "826b7cd3-1a1e-41d3-951a-5b5bb247e398",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "8c93a5a2-2d6a-4be0-8f9e-3a02c7573175",
+   "trial_id": "735a47ae-2931-4fc1-bfd7-f47c1b9d9c30",
+   "trial_name": "har104-d-001896__MDkTErY",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-001896/har104-d-001896__MDkTErY",
+   "native_result_job_id": null,
+   "native_result_trial_id": "735a47ae-2931-4fc1-bfd7-f47c1b9d9c30",
+   "id_match": true,
+   "result_sha256": "sha256:10015f887b27d87f541c6ab5dcf2600ec85243305aa2151fb7cfa282eb058fd6",
+   "report_sha256": "sha256:283479cd2d32b44b1ef28b7ef33249438198ebdf195e4bc87cdf2fe045408c76",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:3c231fa870acc5c0bae11a9c1eea98f3a21f898ce9d28f9fa259ae961014520e",
+     "actual_sha256": "sha256:3c231fa870acc5c0bae11a9c1eea98f3a21f898ce9d28f9fa259ae961014520e",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "8c93a5a2-2d6a-4be0-8f9e-3a02c7573175",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "9392b128-043f-4d86-8224-0e3f1683ad42",
+   "trial_id": "c36f11c2-9e2b-45e9-84c6-f151160da995",
+   "trial_name": "har104-d-002407__LRiiKmy",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002407/har104-d-002407__LRiiKmy",
+   "native_result_job_id": null,
+   "native_result_trial_id": "c36f11c2-9e2b-45e9-84c6-f151160da995",
+   "id_match": true,
+   "result_sha256": "sha256:0837ddca6a21691674692c63a30c50187fca3f4765279c27cd8b1d0e64cdd8d9",
+   "report_sha256": "sha256:bdae6b463d88687af8aac6014adce2b617278571d9b1b61ecc6e0321bc5e81d7",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:f1ba98ef7d83a6cdaf91c8aedf7818b8088dbc65b383b2f12db7af02cff96715",
+     "actual_sha256": "sha256:f1ba98ef7d83a6cdaf91c8aedf7818b8088dbc65b383b2f12db7af02cff96715",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "9392b128-043f-4d86-8224-0e3f1683ad42",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "94b3dff8-af1a-4d46-9df4-a21be1771be4",
+   "trial_id": "a43c6994-4092-47a2-a550-4d6b979f97e7",
+   "trial_name": "har116-a-001161-loopfix-r2__uo7QDVh",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix-r2/har116-a-001161-loopfix-r2__uo7QDVh",
+   "native_result_job_id": null,
+   "native_result_trial_id": "a43c6994-4092-47a2-a550-4d6b979f97e7",
+   "id_match": true,
+   "result_sha256": "sha256:e31b06baf6644bc8dba858095fa8c01e0f1fb9ed5f240095d806976e9708334e",
+   "report_sha256": "sha256:1bbbc997c0cb68f0832eadf5a5cd4fb907abb739b2989f958c35c78bb1e69733",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:48d82cd76705bd3ac71dc8aa39d01309f8703d3115b82796641d5f76818a9842",
+     "actual_sha256": "sha256:48d82cd76705bd3ac71dc8aa39d01309f8703d3115b82796641d5f76818a9842",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "94b3dff8-af1a-4d46-9df4-a21be1771be4",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "96910994-7bb5-4710-9715-0fa392f28d85",
+   "trial_id": "1286824c-b21f-46a9-b01b-6db15c8be1ed",
+   "trial_name": "har116-b-000226-original__JTEerfm",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000226-original/har116-b-000226-original__JTEerfm",
+   "native_result_job_id": null,
+   "native_result_trial_id": "1286824c-b21f-46a9-b01b-6db15c8be1ed",
+   "id_match": true,
+   "result_sha256": "sha256:075b0964e8551f007740fb51ebaf15dc534e7574f964adbcb90ab7c274f1eaeb",
+   "report_sha256": "sha256:51892ad1979a2c1aa8ddd85dab686aa1df74d814a1a0dc8b281e1df84c2bf182",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:58d9cdd6c40bc706ebb849d22b3bf23137cf7acaf6f70c16fde0d3e9e06d4c2c",
+     "actual_sha256": "sha256:58d9cdd6c40bc706ebb849d22b3bf23137cf7acaf6f70c16fde0d3e9e06d4c2c",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "96910994-7bb5-4710-9715-0fa392f28d85",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "9932718f-de77-41e0-aaba-d057fbd57303",
+   "trial_id": "3dd2a35f-f0ce-45a6-bd57-0773eccb5e97",
+   "trial_name": "har110-001161-seed__jj2vEqJ",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-001161-seed/har110-001161-seed__jj2vEqJ",
+   "native_result_job_id": null,
+   "native_result_trial_id": "3dd2a35f-f0ce-45a6-bd57-0773eccb5e97",
+   "id_match": true,
+   "result_sha256": "sha256:276c47ab84ec94fe56e5bdb7caefba5e31a6e587354c54abce708d86c67c3a18",
+   "report_sha256": "sha256:f0752449ff03fc8c46e2ad2db2c4ce37a9f5837d89af120b1607844a84644397",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:3443fcef26f2dd809ea7d0bf5829deb228422ee78f50e22a1dd044e3618fcb09",
+     "actual_sha256": "sha256:3443fcef26f2dd809ea7d0bf5829deb228422ee78f50e22a1dd044e3618fcb09",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "9932718f-de77-41e0-aaba-d057fbd57303",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "9aee3762-7911-4980-ad4f-b532dc2aff82",
+   "trial_id": "c82855f0-1462-47ac-b24a-0385fbb48b4e",
+   "trial_name": "har116-a-001832-loopfix-r2__RL4Q8AX",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix-r2/har116-a-001832-loopfix-r2__RL4Q8AX",
+   "native_result_job_id": null,
+   "native_result_trial_id": "c82855f0-1462-47ac-b24a-0385fbb48b4e",
+   "id_match": true,
+   "result_sha256": "sha256:2bc0623727f99b169b07cb975f08c9df2bd539d9541cbc6b0620c92e7140edcb",
+   "report_sha256": "sha256:048a1371c476971afb6e2be18feb8c4b28a9a853701764ea70939e9c19b65d0d",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:9fb0ff9bc82458ec92a6b07b18f2b56d3f073da7e914e552054a8ee1b8ccde31",
+     "actual_sha256": "sha256:9fb0ff9bc82458ec92a6b07b18f2b56d3f073da7e914e552054a8ee1b8ccde31",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "9aee3762-7911-4980-ad4f-b532dc2aff82",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "9b44d76c-2dae-420a-a286-4c14d7d3b7fa",
+   "trial_id": "be9d8ebd-ccec-49a2-9e21-5209a7dd2ae1",
+   "trial_name": "har116-a-002256-loopfix-r2__5oQwkeW",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix-r2/har116-a-002256-loopfix-r2__5oQwkeW",
+   "native_result_job_id": null,
+   "native_result_trial_id": "be9d8ebd-ccec-49a2-9e21-5209a7dd2ae1",
+   "id_match": true,
+   "result_sha256": "sha256:444524d35e183a86f52e5a2bbd5330388ec38238f1352bcf7f3f3a4cfe24dc89",
+   "report_sha256": "sha256:067627299cd015dd2b5ea17dcdc1a7feb4eec9d37f03bd6445160d4beec46003",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:e23438eaccb987c954970949951cf706bd632c5eeff63247a67fac279c742e71",
+     "actual_sha256": "sha256:e23438eaccb987c954970949951cf706bd632c5eeff63247a67fac279c742e71",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "9b44d76c-2dae-420a-a286-4c14d7d3b7fa",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "9c494b57-9ccd-4e4f-8990-de3ae98109e5",
+   "trial_id": "f241a584-5117-474a-be1d-683681e38d6d",
+   "trial_name": "har116-a-001896-baseline__mBFMKax",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-baseline/har116-a-001896-baseline__mBFMKax",
+   "native_result_job_id": null,
+   "native_result_trial_id": "f241a584-5117-474a-be1d-683681e38d6d",
+   "id_match": true,
+   "result_sha256": "sha256:feb4b89dd37ad3f43dbbd8cdfe891d7566fb683fead4b10cd237e6ba00e6b1d8",
+   "report_sha256": "sha256:7cdeefa4a29e54967c64fceefc65ca1ced69c7b44cbfcfdcece64db8dbb3d363",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:43caf18a1f15d48e0b9796174ddfae2663418b9203df9f49b4b637bab812cb3e",
+     "actual_sha256": "sha256:43caf18a1f15d48e0b9796174ddfae2663418b9203df9f49b4b637bab812cb3e",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "9c494b57-9ccd-4e4f-8990-de3ae98109e5",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "9d3843d7-8f83-4634-a6b0-512f0e11a21c",
+   "trial_id": "23bb0362-3708-462b-8382-d27b022abbf4",
+   "trial_name": "har116-a-000495-loopfix__rXR8je7",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix/har116-a-000495-loopfix__rXR8je7",
+   "native_result_job_id": null,
+   "native_result_trial_id": "23bb0362-3708-462b-8382-d27b022abbf4",
+   "id_match": true,
+   "result_sha256": "sha256:10f80438b00f9dfc18033234bff717340aabe89113c317cd97b6d4cfecb9af70",
+   "report_sha256": "sha256:6e8b9fe7b6f2a1c53c887ef69691f7836d01337f867e4a3c023b4d696015f629",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:b0c26675fc9d4228c50bf167a7118b1ada9df28bb746e9f3d9e2ea2ed132de46",
+     "actual_sha256": "sha256:b0c26675fc9d4228c50bf167a7118b1ada9df28bb746e9f3d9e2ea2ed132de46",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "9d3843d7-8f83-4634-a6b0-512f0e11a21c",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "9f1842b4-1fe6-49df-a533-17dd1b9a0b2c",
+   "trial_id": "2fa7697c-77c2-4fb3-b89e-f7b1d8373690",
+   "trial_name": "har104-d-000226__JCDfZFi",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-000226/har104-d-000226__JCDfZFi",
+   "native_result_job_id": null,
+   "native_result_trial_id": "2fa7697c-77c2-4fb3-b89e-f7b1d8373690",
+   "id_match": true,
+   "result_sha256": "sha256:b68dfefe37c2ba287d95be4dd0f9151b78e81cf10e00fab28ae96c5c5f51b4f8",
+   "report_sha256": "sha256:e84b58dcf13a5f9f0c833b36953fcd0f5c816c7df2ccfdb12c9b8e1c225e53c5",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
+     "actual_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "9f1842b4-1fe6-49df-a533-17dd1b9a0b2c",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "a6a2bad2-5d86-4c7b-81d7-b175e39f6aea",
+   "trial_id": "5774ae2c-42fb-49ad-91bc-abb5ade25fb3",
+   "trial_name": "har116-a-001181-baseline__cK5qZMf",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-baseline/har116-a-001181-baseline__cK5qZMf",
+   "native_result_job_id": null,
+   "native_result_trial_id": "5774ae2c-42fb-49ad-91bc-abb5ade25fb3",
+   "id_match": true,
+   "result_sha256": "sha256:2c99bfc4f8ed733712d0c40c8bcfcb9f4566079e867253e98d1665212e4942b5",
+   "report_sha256": "sha256:3a2ecaed2b239894c7fba1dfcf414a983897726d2488b56b5b9a39c72cd5ef72",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:c05148436b2d729043ccda0742cd92fa478bbb44368520a29f41b421fba2fb20",
+     "actual_sha256": "sha256:c05148436b2d729043ccda0742cd92fa478bbb44368520a29f41b421fba2fb20",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "a6a2bad2-5d86-4c7b-81d7-b175e39f6aea",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "a71595a8-83a3-4b4f-b718-3c121000a5d1",
+   "trial_id": "cb529b46-3e8f-4eb9-9993-9289527400df",
+   "trial_name": "har104-d-000927__23aAzui",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-000927/har104-d-000927__23aAzui",
+   "native_result_job_id": null,
+   "native_result_trial_id": "cb529b46-3e8f-4eb9-9993-9289527400df",
+   "id_match": true,
+   "result_sha256": "sha256:10a4732b47916a0f26fe5e4a2e1749759eb9812c9bf6e2f9934081d8a5770853",
+   "report_sha256": "sha256:22b76487c8c09bab9d9872573f32cbb52adddf70f0ab55eea575732dff194913",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:5c1a496a0baf419467c94806391407150eaeed16bb5f13dec9129893201dffb7",
+     "actual_sha256": "sha256:5c1a496a0baf419467c94806391407150eaeed16bb5f13dec9129893201dffb7",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "a71595a8-83a3-4b4f-b718-3c121000a5d1",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "abd963a0-a74a-41c1-92d6-d62ecf081397",
+   "trial_id": "9f6832da-109f-4082-bdfd-da1a8692fe24",
+   "trial_name": "har116-a-001832-baseline__9jhqCTW",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-baseline/har116-a-001832-baseline__9jhqCTW",
+   "native_result_job_id": null,
+   "native_result_trial_id": "9f6832da-109f-4082-bdfd-da1a8692fe24",
+   "id_match": true,
+   "result_sha256": "sha256:181b0c88f1ee8602a12e33ef035f848803d4dca56e0a67a2fa35504387850209",
+   "report_sha256": "sha256:9a7d407a7c72094fe5c4ddea32afde252458905ea7c25c654a5b2baa7f039b1b",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:4df496e68f0fcb892237491f6ec13f04ddd51abd4b4c6cc1e150e6b96b6645d8",
+     "actual_sha256": "sha256:4df496e68f0fcb892237491f6ec13f04ddd51abd4b4c6cc1e150e6b96b6645d8",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "abd963a0-a74a-41c1-92d6-d62ecf081397",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "affb8505-68f0-4d34-aa4e-f8b1934bc551",
+   "trial_id": "0e7de6b1-a7aa-4813-9dff-af9cf11bade0",
+   "trial_name": "har110-dev-002391-cfe31418__MvXkrso",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-002391-cfe31418/har110-dev-002391-cfe31418__MvXkrso",
+   "native_result_job_id": null,
+   "native_result_trial_id": "0e7de6b1-a7aa-4813-9dff-af9cf11bade0",
+   "id_match": true,
+   "result_sha256": "sha256:72a35191dfe9d10aaed2d6d133047368180bfc98bd8f81327d5caef0691ae53e",
+   "report_sha256": "sha256:70c69431d03ea494598cb08ea83746dd6cb25c973b8c2f0d64d29caf42fb7046",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:10452cd2103a43986dc3a2d4c3c07550603b75ffe9d641c27c44a24d4d64b67e",
+     "actual_sha256": "sha256:10452cd2103a43986dc3a2d4c3c07550603b75ffe9d641c27c44a24d4d64b67e",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "affb8505-68f0-4d34-aa4e-f8b1934bc551",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "b24aa768-b3b6-4b51-a408-6c382f24aae4",
+   "trial_id": "5f2cb832-bae5-4a3e-bd5a-17cdbcdac690",
+   "trial_name": "har110-000587-gepa__SciJPNn",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-000587-gepa/har110-000587-gepa__SciJPNn",
+   "native_result_job_id": null,
+   "native_result_trial_id": "5f2cb832-bae5-4a3e-bd5a-17cdbcdac690",
+   "id_match": true,
+   "result_sha256": "sha256:28a2866af150afdaca4831571c24f989ffb14a589dae53b4e970612077ebf3b2",
+   "report_sha256": "sha256:8958c479f4658a232a41b9086001adc94cd3865db8442b6f631dd47f880112c7",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:9962cd7a823dacbae07ae39cb1e9f91130283e603e82dd153ae0a0b7757df15c",
+     "actual_sha256": "sha256:9962cd7a823dacbae07ae39cb1e9f91130283e603e82dd153ae0a0b7757df15c",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "b24aa768-b3b6-4b51-a408-6c382f24aae4",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "b2fd36cb-2a9a-4f36-8752-610452a4ec7d",
+   "trial_id": "26dc73f9-1730-489e-a700-493c52332237",
+   "trial_name": "gepa-terminus-2-format-code-task__8FqvKUU",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-002-a951229932dc90303c90215d/gepa-terminus-2-format-code-task__8FqvKUU",
+   "native_result_job_id": null,
+   "native_result_trial_id": "26dc73f9-1730-489e-a700-493c52332237",
+   "id_match": true,
+   "result_sha256": "sha256:c7c72b4c832188fe7236028c691b4b1051673c5153206fedabbdd240dcd208ca",
+   "report_sha256": "sha256:e89e46a833bf373d0c2564ce3a58f0a6ce30761344e89135cfee3c431286045b",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
+     "actual_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "b2fd36cb-2a9a-4f36-8752-610452a4ec7d",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "b34847bd-21a9-404b-a34d-782d08f790f9",
+   "trial_id": "3063aa1e-b6cb-4014-8221-cc9d08ae1a10",
+   "trial_name": "har116-a-001181-loopfix-r2__ZhWHNno",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-loopfix-r2/har116-a-001181-loopfix-r2__ZhWHNno",
+   "native_result_job_id": null,
+   "native_result_trial_id": "3063aa1e-b6cb-4014-8221-cc9d08ae1a10",
+   "id_match": true,
+   "result_sha256": "sha256:8068cdcb50c08a5868cb0b79b4d77b0c26f695cb6976c1e57259324fa00f3b00",
+   "report_sha256": "sha256:867eb1ec2b46ddb05876a246f59c69a80c91368646b5d04e44b3803cdc7b72c4",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:e736d9fca8b4d0e6d3f1f74d449de17feea491f258e11a14fe2fe75a987c4ce6",
+     "actual_sha256": "sha256:e736d9fca8b4d0e6d3f1f74d449de17feea491f258e11a14fe2fe75a987c4ce6",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "b34847bd-21a9-404b-a34d-782d08f790f9",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "b7753b2a-95fe-4b39-9bc9-c5440f22bb6b",
+   "trial_id": "3b25de75-c6a6-4aa5-ace1-53d4728a0709",
+   "trial_name": "har104-d-002864__B7cJ4cG",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002864/har104-d-002864__B7cJ4cG",
+   "native_result_job_id": null,
+   "native_result_trial_id": "3b25de75-c6a6-4aa5-ace1-53d4728a0709",
+   "id_match": true,
+   "result_sha256": "sha256:0162d4eb34741ca88a9d83838368e1813dd491bf4b1f351f53f98993df63a1ea",
+   "report_sha256": "sha256:c912597dc2879c83b89786c92e45a2eebede331260a087996a564000b26ab465",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:513daabee1a1aae622dd27fe07939d483fcc77ed13069cb0f79c8c894b09c2a9",
+     "actual_sha256": "sha256:513daabee1a1aae622dd27fe07939d483fcc77ed13069cb0f79c8c894b09c2a9",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "b7753b2a-95fe-4b39-9bc9-c5440f22bb6b",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c1791d11-ba52-4b0b-bf5e-c3d6325398c5",
+   "trial_id": "c3215d50-532a-4df3-b5d1-85177147d930",
+   "trial_name": "har116-a-001161-baseline__DwYZaia",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-baseline/har116-a-001161-baseline__DwYZaia",
+   "native_result_job_id": null,
+   "native_result_trial_id": "c3215d50-532a-4df3-b5d1-85177147d930",
+   "id_match": true,
+   "result_sha256": "sha256:bc904dac752fcd57b2ab8d1f2d2b61f0bddc090852287c22e9bb055041940057",
+   "report_sha256": "sha256:f878bb9ce92fc41853800bfc8998127cdda3aad2a950fd2dc2cad7bfc2744c4d",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:298ec9d7872a5918e0159a4d65c2cd67a7408dc4fd4832964aee0edc9938a7a5",
+     "actual_sha256": "sha256:298ec9d7872a5918e0159a4d65c2cd67a7408dc4fd4832964aee0edc9938a7a5",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c1791d11-ba52-4b0b-bf5e-c3d6325398c5",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c1a42208-f174-4aec-a39e-cf7da8b8e670",
+   "trial_id": "7b9a9c13-3d82-4836-a0f0-f66208fb251b",
+   "trial_name": "har104-d-001832__d7Hop8E",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-001832/har104-d-001832__d7Hop8E",
+   "native_result_job_id": null,
+   "native_result_trial_id": "7b9a9c13-3d82-4836-a0f0-f66208fb251b",
+   "id_match": true,
+   "result_sha256": "sha256:3983fcd9ad374ed8806bcc1f7bb503172f13788041f2fbb1dddd67f5b28792f4",
+   "report_sha256": "sha256:6246a93f4348eadd92b191313b2bb1b8bcc5931a8661f7e75d0ae55326423ef6",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:a53200cf414b0ab33e2705ab36c897908c9fefd8825c45ce33e634620f31399e",
+     "actual_sha256": "sha256:a53200cf414b0ab33e2705ab36c897908c9fefd8825c45ce33e634620f31399e",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c1a42208-f174-4aec-a39e-cf7da8b8e670",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c2484d66-867e-4edc-a0ec-db205c7991f9",
+   "trial_id": "b8809b1d-c686-48d3-bd67-1596963c05e2",
+   "trial_name": "har116-a-000495-loopfix-r2__42F3G5T",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix-r2/har116-a-000495-loopfix-r2__42F3G5T",
+   "native_result_job_id": null,
+   "native_result_trial_id": "b8809b1d-c686-48d3-bd67-1596963c05e2",
+   "id_match": true,
+   "result_sha256": "sha256:0ff345a908e81887d7332a622748aae58a9f393e937dcaf3d61dcf82ee843f61",
+   "report_sha256": "sha256:c3d90cc2a12fa274afde3e856e316ae0c2f4315c00f1e7de9494112d5825ae85",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:3d1ca806a34d81bb2ff7d82e15dd137c8ecb8b151f71ea1270db5406fe678286",
+     "actual_sha256": "sha256:3d1ca806a34d81bb2ff7d82e15dd137c8ecb8b151f71ea1270db5406fe678286",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c2484d66-867e-4edc-a0ec-db205c7991f9",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c3528ca0-59e1-4485-8664-0378d369a04d",
+   "trial_id": "be874c13-3e30-41f5-bf52-10d3a0ce907e",
+   "trial_name": "har116-b-002402-leakclosed__X7nGHNs",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002402-leakclosed/har116-b-002402-leakclosed__X7nGHNs",
+   "native_result_job_id": null,
+   "native_result_trial_id": "be874c13-3e30-41f5-bf52-10d3a0ce907e",
+   "id_match": true,
+   "result_sha256": "sha256:3d79acb549637af816d1dec84e0e9c1697b50d575ae03bdcd870f11b8430d3c1",
+   "report_sha256": "sha256:b8a94fcfa376f046d0d248683bf5841039c3a3b32a2df4701413f5fea5561cb8",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:6c8fb4f08a821141c69f222af7b3b5872ebcc7ced198d1d7e53df6788f44aa31",
+     "actual_sha256": "sha256:6c8fb4f08a821141c69f222af7b3b5872ebcc7ced198d1d7e53df6788f44aa31",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c3528ca0-59e1-4485-8664-0378d369a04d",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c52d3e32-0245-4349-946c-be0fadbca390",
+   "trial_id": "8d0a5ecd-9eea-401b-b7c4-40e34443891c",
+   "trial_name": "har116-b-002308-original__oYziU3z",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-original/har116-b-002308-original__oYziU3z",
+   "native_result_job_id": null,
+   "native_result_trial_id": "8d0a5ecd-9eea-401b-b7c4-40e34443891c",
+   "id_match": true,
+   "result_sha256": "sha256:1290a939de87d6eb9454b20e457ecaa0bfeedf676f94850c6035ca50d0af56b0",
+   "report_sha256": "sha256:06dfbc2a2a3cfc3671d88036735775b07fd6fdd31689e0315a2f56e06f5e7e46",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:6f1fc20729b573d3c88fcbe56efdbdd5983ab6a6a79f8cf7fb66dc70bb817d0c",
+     "actual_sha256": "sha256:6f1fc20729b573d3c88fcbe56efdbdd5983ab6a6a79f8cf7fb66dc70bb817d0c",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c52d3e32-0245-4349-946c-be0fadbca390",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c87468bc-11dd-491f-9860-755409244a1e",
+   "trial_id": "df2fa1e1-78c2-4f7c-92c1-67efb396d908",
+   "trial_name": "har116-b-000927-leakclosed__Sj3aGEg",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-leakclosed/har116-b-000927-leakclosed__Sj3aGEg",
+   "native_result_job_id": null,
+   "native_result_trial_id": "df2fa1e1-78c2-4f7c-92c1-67efb396d908",
+   "id_match": true,
+   "result_sha256": "sha256:f952f1d959b645e06aab39121f366bea74eeff48e708d53b38508f75d2a7265f",
+   "report_sha256": "sha256:58b7ee81ffccdd337e3604236faf6c0b18a10eeb16bc3bdff1ed4f72a011e668",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:feb29e7b81920b231737cfb3bb814a168d354f8e26249bc3c348d7eeeeaf856b",
+     "actual_sha256": "sha256:feb29e7b81920b231737cfb3bb814a168d354f8e26249bc3c348d7eeeeaf856b",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c87468bc-11dd-491f-9860-755409244a1e",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c8bbf880-dde6-4b23-8801-8842da5ffad7",
+   "trial_id": "68f2b2d5-d543-4f78-bf5a-02f3d9b8c43d",
+   "trial_name": "har116-a-002391-baseline__xZqrQkD",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-baseline/har116-a-002391-baseline__xZqrQkD",
+   "native_result_job_id": null,
+   "native_result_trial_id": "68f2b2d5-d543-4f78-bf5a-02f3d9b8c43d",
+   "id_match": true,
+   "result_sha256": "sha256:14e6f418c2639eb222c51fefeb53098b491c70702a9f0e89ad26e9ea1ab954df",
+   "report_sha256": "sha256:6bcbf7f39512485db2a7e5148b6d5d795a27a274df662d1478468be2c3db24c1",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:834508f0ae020bbb2a05bd9b084f48594261d71896d55b4917bf061593f4bd2b",
+     "actual_sha256": "sha256:834508f0ae020bbb2a05bd9b084f48594261d71896d55b4917bf061593f4bd2b",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c8bbf880-dde6-4b23-8801-8842da5ffad7",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c8e6d2d0-975c-4a74-9899-87cd4dfacb4c",
+   "trial_id": "d0e3f133-3e94-48f1-a526-6f95a6c77904",
+   "trial_name": "har116-a-002256-baseline__uRsPnvZ",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-baseline/har116-a-002256-baseline__uRsPnvZ",
+   "native_result_job_id": null,
+   "native_result_trial_id": "d0e3f133-3e94-48f1-a526-6f95a6c77904",
+   "id_match": true,
+   "result_sha256": "sha256:33bedd137fb89507da50c895faf8698b33ec00c73f1dc022605b5e71a23e7b74",
+   "report_sha256": "sha256:adfa0630c405b3cfbfff2a666fee6e1053e9f11dab3ae85122c23ed1c2928d7c",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:d7443b30e2c3e0bab68066265f623d53b796659e798adaaf1dd7f03567991117",
+     "actual_sha256": "sha256:d7443b30e2c3e0bab68066265f623d53b796659e798adaaf1dd7f03567991117",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c8e6d2d0-975c-4a74-9899-87cd4dfacb4c",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "c96fad1f-012c-4acd-acc5-3266fd745e87",
+   "trial_id": "6d0be002-aecb-452b-bc8d-89ec15f910d6",
+   "trial_name": "har81-p-d-format-code-task-00301__4KvLSba",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-003011/har81-p-d-format-code-task-00301__4KvLSba",
+   "native_result_job_id": null,
+   "native_result_trial_id": "6d0be002-aecb-452b-bc8d-89ec15f910d6",
+   "id_match": true,
+   "result_sha256": "sha256:d73198c4f43b006fb0ae361edb4afebc25b2d49fc41156cbce34fea4c2faa4af",
+   "report_sha256": "sha256:4291611c00231f0ba53e3642bae108a0701ac942803b201b1c52e416fef1d7f6",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:6869e2ca508fd928ee51fffe984124a2fba5a73c0716b6d44af386e679e34a8a",
+     "actual_sha256": "sha256:6869e2ca508fd928ee51fffe984124a2fba5a73c0716b6d44af386e679e34a8a",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "c96fad1f-012c-4acd-acc5-3266fd745e87",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "cb389f84-e07a-4b6b-940a-e2587190dc64",
+   "trial_id": "240dce35-11aa-448c-aa60-405970fd49b7",
+   "trial_name": "har116-a-002391-loopfix-r2__NvEfxbt",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt",
+   "native_result_job_id": null,
+   "native_result_trial_id": "240dce35-11aa-448c-aa60-405970fd49b7",
+   "id_match": true,
+   "result_sha256": "sha256:4b990ff8f5f868b1f0409d22443257845c59f2b47bdbab4c8e7c426222286a0a",
+   "report_sha256": "sha256:a017d00042bd38fcbf44eca295635753cdb1ebfe8eafa3c63243b65edc71fb95",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:0eeba77ad1cb95bf69c1bcb3d092fc1537af0a7a30f99f273016395d0b54430d",
+     "actual_sha256": "sha256:0eeba77ad1cb95bf69c1bcb3d092fc1537af0a7a30f99f273016395d0b54430d",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "cb389f84-e07a-4b6b-940a-e2587190dc64",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "cbdefc3a-a48b-4185-814e-a10a96d7651e",
+   "trial_id": "1b994fa9-724b-4ac2-9f78-5dd43e2b59a9",
+   "trial_name": "har116-a-000383-loopfix__wgujpBQ",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix/har116-a-000383-loopfix__wgujpBQ",
+   "native_result_job_id": null,
+   "native_result_trial_id": "1b994fa9-724b-4ac2-9f78-5dd43e2b59a9",
+   "id_match": true,
+   "result_sha256": "sha256:40ae1655da0fdc4e44676783b53598422dc18eb9d75f2a0f1a6ac7aa4df33618",
+   "report_sha256": "sha256:2c36eb74082124ed41a1fceea95a1ec3578b6931c1955f2e2dee13a3135b6e42",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:896e4fed468429b0a48fc0d0ad71d8f92099bebe318efe99e09c37fa879fd7ea",
+     "actual_sha256": "sha256:896e4fed468429b0a48fc0d0ad71d8f92099bebe318efe99e09c37fa879fd7ea",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "cbdefc3a-a48b-4185-814e-a10a96d7651e",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "cc94fb1c-4fd2-40a3-bd6e-051934c4ce6f",
+   "trial_id": "62f05b6e-e82f-4d9f-8f0c-ec8edbd371c7",
+   "trial_name": "har104-d-000226__Y2BTVP3",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-000226-3/har104-d-000226__Y2BTVP3",
+   "native_result_job_id": null,
+   "native_result_trial_id": "62f05b6e-e82f-4d9f-8f0c-ec8edbd371c7",
+   "id_match": true,
+   "result_sha256": "sha256:05e905511088be86d5693ccf5a3d1d16da1c30584dc2d60669fbfa88dd9809ff",
+   "report_sha256": null,
+   "atif": [],
+   "native_job_result_id": "cc94fb1c-4fd2-40a3-bd6e-051934c4ce6f",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "cd3037b3-2a7a-4e75-9851-2f74b4c2cfa7",
+   "trial_id": "f9d0d228-4b70-491c-a824-f4af488deb59",
+   "trial_name": "har116-a-000587-loopfix-r2__RmCmzbQ",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix-r2/har116-a-000587-loopfix-r2__RmCmzbQ",
+   "native_result_job_id": null,
+   "native_result_trial_id": "f9d0d228-4b70-491c-a824-f4af488deb59",
+   "id_match": true,
+   "result_sha256": "sha256:cd64d7ac8df50f5ec8f32ff45d7388e3c1bf8de5fe41715abea4466cbf96a265",
+   "report_sha256": "sha256:cf587aaf979dacc27f1c187960e51a08b0cd17fe6731748dc064cf0380ca600f",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:d23bc0edc3105bd47c73d2fbf8e8d0505f0ea289cf3edc92437487cb33442789",
+     "actual_sha256": "sha256:d23bc0edc3105bd47c73d2fbf8e8d0505f0ea289cf3edc92437487cb33442789",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "cd3037b3-2a7a-4e75-9851-2f74b4c2cfa7",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "ce10d190-3bcf-425e-8a99-54651bc6bf3a",
+   "trial_id": "a2bf6fa2-d6e4-49a2-9b7b-555203719f53",
+   "trial_name": "har116-a-002391-loopfix__KMAky2p",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix/har116-a-002391-loopfix__KMAky2p",
+   "native_result_job_id": null,
+   "native_result_trial_id": "a2bf6fa2-d6e4-49a2-9b7b-555203719f53",
+   "id_match": true,
+   "result_sha256": "sha256:11ec967c4f6bea0d69b56c9685487e4f7457900d439da98e12c1f4cd3907f68a",
+   "report_sha256": "sha256:0ed3083610bcbee1eea825d1338c382107a5937c8a5ad06f355504bbdd755f28",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:0261bb65145aaaccbaba9413cdb11154038b17604024074b4686b31cd0916830",
+     "actual_sha256": "sha256:0261bb65145aaaccbaba9413cdb11154038b17604024074b4686b31cd0916830",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "ce10d190-3bcf-425e-8a99-54651bc6bf3a",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "ce26b39f-b095-48ba-86eb-8692fce0540c",
+   "trial_id": "f0497b8b-6f80-4278-9f66-6c427a078a15",
+   "trial_name": "har110-dev-000383-cfe31418__L7nGNNi",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-000383-cfe31418/har110-dev-000383-cfe31418__L7nGNNi",
+   "native_result_job_id": null,
+   "native_result_trial_id": "f0497b8b-6f80-4278-9f66-6c427a078a15",
+   "id_match": true,
+   "result_sha256": "sha256:96a6ef9d0395c308177b5461c21df04fdd6bbe3572bf4966d66bb76ab3ac411d",
+   "report_sha256": "sha256:c2184aa84a41c50a1e5aa9bbaf7ca270b468b042ecf6a532f8557a4344872600",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:4b1cb96be50c64c17fa4067f7b9a5d9afc75a6732a0c62ee7f2af57cf7842768",
+     "actual_sha256": "sha256:4b1cb96be50c64c17fa4067f7b9a5d9afc75a6732a0c62ee7f2af57cf7842768",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "ce26b39f-b095-48ba-86eb-8692fce0540c",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "d0b38ebf-8b61-47f5-b3b8-1a7ee646901b",
+   "trial_id": "b70aed44-ef9e-4717-ab8a-b96f70c22b98",
+   "trial_name": "har116-a-002256-loopfix__5Xu6dgc",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix/har116-a-002256-loopfix__5Xu6dgc",
+   "native_result_job_id": null,
+   "native_result_trial_id": "b70aed44-ef9e-4717-ab8a-b96f70c22b98",
+   "id_match": true,
+   "result_sha256": "sha256:fb91da3078899207e67d914caa6d75def4b718ff4fc9a0d9e4f73397a2f8a4e2",
+   "report_sha256": "sha256:ca1cb5fa1e48f8ec2a66214d4725f702eb5d0cbe0e48f74a7a75647249261845",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:58527dd4a82636159d57b78b434d18e9659be21dd58655e9c768f58303cbb9cf",
+     "actual_sha256": "sha256:58527dd4a82636159d57b78b434d18e9659be21dd58655e9c768f58303cbb9cf",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "d0b38ebf-8b61-47f5-b3b8-1a7ee646901b",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "d16f49f1-63ca-4121-82dc-e64b699d46e8",
+   "trial_id": "11d342aa-928f-4ded-9b28-2b041d80e230",
+   "trial_name": "har110-001161-gepa__kLkGSnR",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-001161-gepa/har110-001161-gepa__kLkGSnR",
+   "native_result_job_id": null,
+   "native_result_trial_id": "11d342aa-928f-4ded-9b28-2b041d80e230",
+   "id_match": true,
+   "result_sha256": "sha256:4fed06d10e948e30fa525d8f6632d0c3a34120d549b68a8d5e536a590364b6f1",
+   "report_sha256": "sha256:50eae69b3a7035ed81a412de8b8ef1a04dab48e20d9f3f7d02e0fe27cc76e931",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:1a6663aa0bfc91da71386812fca03ec57bad1e210dfbf10cb8878d17c2d20413",
+     "actual_sha256": "sha256:1a6663aa0bfc91da71386812fca03ec57bad1e210dfbf10cb8878d17c2d20413",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "d16f49f1-63ca-4121-82dc-e64b699d46e8",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "d5b9fa9a-4f2e-4d9d-9084-cba68f52b595",
+   "trial_id": "dedabcf9-82af-4375-a226-b31618a0b739",
+   "trial_name": "har116-a-001161-loopfix__WxP98h8",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix/har116-a-001161-loopfix__WxP98h8",
+   "native_result_job_id": null,
+   "native_result_trial_id": "dedabcf9-82af-4375-a226-b31618a0b739",
+   "id_match": true,
+   "result_sha256": "sha256:7ae306a90b10f862905846a328a16234ff65ec1d795292ed50d4eef8a9a78dba",
+   "report_sha256": "sha256:15610701aa74ec73fe1beddc687c924378d4010fb9a4b788bfcfb3711e9cffd6",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:01fe38fb80f20627bbe2c82f481f4c4c8768c627429aa3a93e4a17503cdac28c",
+     "actual_sha256": "sha256:01fe38fb80f20627bbe2c82f481f4c4c8768c627429aa3a93e4a17503cdac28c",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "d5b9fa9a-4f2e-4d9d-9084-cba68f52b595",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "ddde315a-50da-433e-9b83-f14b2c936145",
+   "trial_id": "28830130-8271-40aa-8e5b-07242c5ddfc8",
+   "trial_name": "gepa-terminus-2-format-code-task__Ey8Vxsr",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-002-f785358f50e70ab387a1ba6c/gepa-terminus-2-format-code-task__Ey8Vxsr",
+   "native_result_job_id": null,
+   "native_result_trial_id": "28830130-8271-40aa-8e5b-07242c5ddfc8",
+   "id_match": true,
+   "result_sha256": "sha256:bb7d951f32312fafa341a17f17a8a533767a0a1660445c231aedda01b6c58d97",
+   "report_sha256": "sha256:f489f2d24c5bced55c4975754cfc9c4b46838f31e3b75fff482e0df2b5fdb6dd",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:9473080de5377849b6de0ae5ba9f6ce998ee17a4891e4164cecb04e7ec347118",
+     "actual_sha256": "sha256:9473080de5377849b6de0ae5ba9f6ce998ee17a4891e4164cecb04e7ec347118",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "ddde315a-50da-433e-9b83-f14b2c936145",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "e001a801-fbdc-4a02-91da-8c6b313f9036",
+   "trial_id": "211e4acb-599e-48ac-99fc-28a26be0ae49",
+   "trial_name": "har110-dev-001832-cfe31418__DbqpN36",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-001832-cfe31418/har110-dev-001832-cfe31418__DbqpN36",
+   "native_result_job_id": null,
+   "native_result_trial_id": "211e4acb-599e-48ac-99fc-28a26be0ae49",
+   "id_match": true,
+   "result_sha256": "sha256:e706c09d05a3cbf9692b8d51eeedd0651f89b5efe34c732d7580952839c5ace8",
+   "report_sha256": "sha256:3df9843cc45a31ff88e5ced712ae5fc69b68b966382d3ccdb0c33e49f19736c5",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:57e016c78a9cd55a81546a2f74f42b9397056ef403126828464cac3d816840dc",
+     "actual_sha256": "sha256:57e016c78a9cd55a81546a2f74f42b9397056ef403126828464cac3d816840dc",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "e001a801-fbdc-4a02-91da-8c6b313f9036",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "e01175b8-e3e7-4d63-9427-33a0561617ae",
+   "trial_id": "3a8e025d-f2e8-4903-b5a5-bdbe4299e3df",
+   "trial_name": "har110-001181-seed__Q3rr6S4",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-001181-seed/har110-001181-seed__Q3rr6S4",
+   "native_result_job_id": null,
+   "native_result_trial_id": "3a8e025d-f2e8-4903-b5a5-bdbe4299e3df",
+   "id_match": true,
+   "result_sha256": "sha256:a3ba1124d2f8a5ce97a4ed7216aad76bc0ec39aaf8c5c9c197cc9ceb537c8ecc",
+   "report_sha256": "sha256:283ada29c04f00a7f27263d4d8c1cbf57bc85fd5139df7cfd7f2397f85e55079",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:ffc6b3ca21857a2955e08a72400eba719b691d4905662bfe9098f43ebf956af8",
+     "actual_sha256": "sha256:ffc6b3ca21857a2955e08a72400eba719b691d4905662bfe9098f43ebf956af8",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "e01175b8-e3e7-4d63-9427-33a0561617ae",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "e16bb6b2-6d48-4657-9639-17dd487b4cd1",
+   "trial_id": "16b3e638-8c45-478c-9994-45fcaa4f5e97",
+   "trial_name": "har116-a-002864-baseline__LnaWDq6",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-baseline/har116-a-002864-baseline__LnaWDq6",
+   "native_result_job_id": null,
+   "native_result_trial_id": "16b3e638-8c45-478c-9994-45fcaa4f5e97",
+   "id_match": true,
+   "result_sha256": "sha256:847d68aafc6394a4a9546e4a8487ee47fae1066b66404fbdb0f8d717cdd28f85",
+   "report_sha256": "sha256:8f09a6c03b01fabcaef20069c06bcfefcbcfc8d13e4b1f8b9d1b4f54241b84ce",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:39e9bec6d2468a05d050c611e50fb8059d5d31e9fb2ba5e591354d2a20f342bb",
+     "actual_sha256": "sha256:39e9bec6d2468a05d050c611e50fb8059d5d31e9fb2ba5e591354d2a20f342bb",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "e16bb6b2-6d48-4657-9639-17dd487b4cd1",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "e604aaab-b1b1-4307-b743-e3fa7388c716",
+   "trial_id": "68a253fa-593f-4b76-b301-1c0690ca5ff0",
+   "trial_name": "har116-a-001832-loopfix__rw7cJJ4",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix/har116-a-001832-loopfix__rw7cJJ4",
+   "native_result_job_id": null,
+   "native_result_trial_id": "68a253fa-593f-4b76-b301-1c0690ca5ff0",
+   "id_match": true,
+   "result_sha256": "sha256:35153ec9d8f04c4a9f32da38aa3c4062392e4a182d8cbe719de0612d425e76d1",
+   "report_sha256": "sha256:ae4bec289d6724e233081725338872c0a09c41571db60ea2ffc8b9b1ba417f65",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:3343f8733396a9df0d1cb308bb75e74e368fd589eb154379f24b2e422848671e",
+     "actual_sha256": "sha256:3343f8733396a9df0d1cb308bb75e74e368fd589eb154379f24b2e422848671e",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "e604aaab-b1b1-4307-b743-e3fa7388c716",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "e7894020-3cb4-4517-b403-5fc61e0c2e40",
+   "trial_id": "41d7e661-89ac-489f-897b-82b587a4d8b1",
+   "trial_name": "har116-a-002864-loopfix__oHC4HdZ",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix/har116-a-002864-loopfix__oHC4HdZ",
+   "native_result_job_id": null,
+   "native_result_trial_id": "41d7e661-89ac-489f-897b-82b587a4d8b1",
+   "id_match": true,
+   "result_sha256": "sha256:fec06fddf7d831e0b6ad36bdac879f70864e0db5be2a2caefb0d9427c55392ab",
+   "report_sha256": "sha256:32098028cdb7205ec56c342cb62bb002147e191b97400acb9d241298d929d098",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:f8693c118a9cfb6413a334df271771c29ea78f3803636854a3ab650bffa22ab6",
+     "actual_sha256": "sha256:f8693c118a9cfb6413a334df271771c29ea78f3803636854a3ab650bffa22ab6",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "e7894020-3cb4-4517-b403-5fc61e0c2e40",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "ea38d29a-0964-4ff1-ae44-a39505353552",
+   "trial_id": "d96e1959-c237-4498-af7b-884188fadb9a",
+   "trial_name": "har116-b-000927-original__kvyP9fr",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-original/har116-b-000927-original__kvyP9fr",
+   "native_result_job_id": null,
+   "native_result_trial_id": "d96e1959-c237-4498-af7b-884188fadb9a",
+   "id_match": true,
+   "result_sha256": "sha256:150683c24f8a37bfa33ee9c20f9fa0bc90e573a3a28cdac43f4215877c69b00a",
+   "report_sha256": "sha256:deedfb31d9eb3edd4de7ecf027f5c5c394a8ceadb8c1d80c70c6d0584d319ee2",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:d5507fe676f6595cdce2e272ed32996db17d5a19f33767f217105248a3f36416",
+     "actual_sha256": "sha256:d5507fe676f6595cdce2e272ed32996db17d5a19f33767f217105248a3f36416",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "ea38d29a-0964-4ff1-ae44-a39505353552",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "f1ad76d7-e767-4667-ab43-0281307194d3",
+   "trial_id": "02e103cc-1e56-4174-9d17-3b70abe206be",
+   "trial_name": "har104-d-002256__RDffvXQ",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-104-har104-d-002256/har104-d-002256__RDffvXQ",
+   "native_result_job_id": null,
+   "native_result_trial_id": "02e103cc-1e56-4174-9d17-3b70abe206be",
+   "id_match": true,
+   "result_sha256": "sha256:78661f307b26397556cfb20c941975296dab159596499d06b4c85eb9a5a6d2c0",
+   "report_sha256": "sha256:a564e2e7473df11cd9f2740ae7a3f37234ebce453902b1c2f5538b15f5c52e47",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:e9238fe63f6ed1aa4b3f0c6c851289593b36231579c694936a0dac723e233ea9",
+     "actual_sha256": "sha256:e9238fe63f6ed1aa4b3f0c6c851289593b36231579c694936a0dac723e233ea9",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "f1ad76d7-e767-4667-ab43-0281307194d3",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "f494bd5b-728a-4cad-bb80-1194c77a8ee4",
+   "trial_id": "81156ea6-c412-480c-9dc9-8dd16d66cc43",
+   "trial_name": "har110-001161-plain__RZ8qyUu",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-001161-plain/har110-001161-plain__RZ8qyUu",
+   "native_result_job_id": null,
+   "native_result_trial_id": "81156ea6-c412-480c-9dc9-8dd16d66cc43",
+   "id_match": true,
+   "result_sha256": "sha256:4145a3ccac7fc939f172a18e679d3f77e1595d7579e16291f201cbebc53cbcf8",
+   "report_sha256": "sha256:8aac50de2bfc594f8c68e3549aab2a557ec4bc02f256c7e6ba3b9e26b6ba0dfd",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:00c505a0720167e05fc4c910ac682a19d5aa3cbc7899ecac93b14a381c851a00",
+     "actual_sha256": "sha256:00c505a0720167e05fc4c910ac682a19d5aa3cbc7899ecac93b14a381c851a00",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "f494bd5b-728a-4cad-bb80-1194c77a8ee4",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "f57001f5-ae96-48bd-b278-f19d3903db04",
+   "trial_id": "32a332cc-0878-4c3b-907f-e36acd90dbb5",
+   "trial_name": "har110-001181-gepa__i4RTJT9",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-001181-gepa/har110-001181-gepa__i4RTJT9",
+   "native_result_job_id": null,
+   "native_result_trial_id": "32a332cc-0878-4c3b-907f-e36acd90dbb5",
+   "id_match": true,
+   "result_sha256": "sha256:1071a0a1ad28b0ea05f2b3fde34cd11f95c083e0b11073ddd96f054d578542f3",
+   "report_sha256": "sha256:57e0c308581eecc1eb84e93a0b58e2216680a11428522bbef6ad8b59ee9c9c6b",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:42930881e913727bab6a02224accad4291ac1a20332f4fbc0696eee412b89677",
+     "actual_sha256": "sha256:42930881e913727bab6a02224accad4291ac1a20332f4fbc0696eee412b89677",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "f57001f5-ae96-48bd-b278-f19d3903db04",
+   "trial_id_match": true,
+   "job_id_match": true
+  },
+  {
+   "job_id": "faf35b08-8ed4-4a70-994b-ca8f5b6f35b4",
+   "trial_id": "91963e4a-0424-4b19-b325-232ed7a84b04",
+   "trial_name": "har116-b-000226-leakclosed__K9ddjiP",
+   "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000226-leakclosed/har116-b-000226-leakclosed__K9ddjiP",
+   "native_result_job_id": null,
+   "native_result_trial_id": "91963e4a-0424-4b19-b325-232ed7a84b04",
+   "id_match": true,
+   "result_sha256": "sha256:f4ca3c6308bbdab8142529aa42e07917f4ec86804c0ce50832a8b075282b8a0d",
+   "report_sha256": "sha256:0b87883c5b2c74bbbc56634ea6e9fc231f27edf6947b6f3f9cf95a2fe770cade",
+   "atif": [
+    {
+     "source_path": "agent/trajectory.json",
+     "sha256": "sha256:5e1745bfc8b8bdad3a9e788690a6f62f2aca88ab11d3a6340f7cd47b12a11d3a",
+     "actual_sha256": "sha256:5e1745bfc8b8bdad3a9e788690a6f62f2aca88ab11d3a6340f7cd47b12a11d3a",
+     "match": true
+    }
+   ],
+   "native_job_result_id": "faf35b08-8ed4-4a70-994b-ca8f5b6f35b4",
+   "trial_id_match": true,
+   "job_id_match": true
+  }
+ ],
+ "source_hashes": {
+  "build_py": "sha256:a7dcc0c834f0b382e75c034f11ce23a084faba385b2c3e486450799107cee158",
+  "trace_query_py": "sha256:8bf9868ebf8616b16e403c9e7c3b6d7bdd3b455f52b87bd19bc4603304836d25",
+  "trace_queries_sql": "sha256:94d6adc7b3e88d13fbc770631b615744877bd2e204e22c37f45d887e91b5a4fd",
+  "ledger_csv": "sha256:949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+  "code_head": "4aa26712dc1e238f51cf15748b0b92d4a9b16b7f",
+  "data_commit": "26073dfb7d831d964ea430ee7f59099f2526279a"
+ },
+ "reflection": "unavailable",
+ "digest_note": "corpus_digest ee1dde93... differs from original 4ec47b8b... because pinned job_dirs mode records published_job_dir=null (auto-discovery recorded published paths); all ten canonical query row sets are byte-identical and atlas_input_digest 6f33081c... matches. discovered 172 jobs/165 trials/11310 steps identical to original; 19 new live pairs excluded by pinning.",
+ "native_id_match": 81,
+ "parent_acceptance": {
+  "at_utc": "2026-10-01T08:55:22.007318+00:00",
+  "native_id_and_hash_checks": 81,
+  "atif_hash_checks": 77,
+  "unique_step_reference_checks": 12,
+  "same_165_native_pairs": true,
+  "all_ten_query_row_sets_unchanged": true,
+  "actual_cli_exit": 0,
+  "actual_cli_stdout": "trials=165 eligible=81 excluded=84\nrecorded-budget-stop: 54/81 exemplars=2 exemplar_coverage_met=True\ncompletion-claim-loop: 9/77 exemplars=2 exemplar_coverage_met=True\nrepetition-loop: 30/77 exemplars=2 exemplar_coverage_met=True\ncounts-excluded-copied-pass: 6/77 exemplars=2 exemplar_coverage_met=True\ncounts-excluded-infra: 11/77 exemplars=2 exemplar_coverage_met=True\nrecorded-upstream-fetch-signal: 13/77 exemplars=2 exemplar_coverage_met=True\nreflection=unavailable payload_file=None\nwrote /Users/petermakhnatch/Developer/eval-lab/.worktrees/har131-trace-analysis/derived/har131/corrected-atlas-cli-gc2a8xtv/atlas.json and /Users/petermakhnatch/Developer/eval-lab/.worktrees/har131-trace-analysis/derived/har131/corrected-atlas-cli-gc2a8xtv/README.md\n",
+  "actual_cli_no_training_payload": true
+ },
+ "language_metadata": [
+  {
+   "task_id": "format-code-task-000240",
+   "recorded_category": "JavaScript",
+   "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/.prepared-tasks/mimo-v2-6-rl-format-code-task-000240-acfffdf037f4/task.toml",
+   "sha256": "69a4f032f43e10f57c634ae6716001ecf165dab52957cd1ef8a680cc7ec542db"
+  },
+  {
+   "task_id": "format-code-task-000434",
+   "recorded_category": "JavaScript",
+   "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-528/runs/.prepared-tasks/mimo-v2-6-rl-format-code-task-000434-71c448f52ef6/task.toml",
+   "sha256": "955f70397240d8b29ed4d5b7d68800e72e1f3c5d5f3c0d4060e95f4c94a1b1c9"
+  },
+  {
+   "task_id": "format-code-task-001520",
+   "recorded_category": "Unknown",
+   "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har81-dispatch-531/runs/.prepared-tasks/mimo-v2-6-rl-format-code-task-001520-35a77ae84b84/task.toml",
+   "sha256": "13bfaeadd05a2f02ef9d1e508d4201a76954523c6c2321f9ab7391461f6f58c9"
+  }
+ ]
 }

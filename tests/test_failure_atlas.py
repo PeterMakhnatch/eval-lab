@@ -52,17 +52,21 @@ def _trial(**overrides):
     return base
 
 
-def test_eligibility_requires_mimo_and_python_family():
-    ok, _ = atlas_build.is_python_eligible(_trial())
-    assert ok
-    ok, reason = atlas_build.is_python_eligible(
-        _trial(model_name="glm-5.3-flash"))
-    assert not ok and "model" in reason
-    ok, reason = atlas_build.is_python_eligible(
-        _trial(task_name="mimo-v2.6-rl/candidate-0260-security-appsec"))
-    assert not ok and "non-Python" in reason
-    ok, _ = atlas_build.is_python_eligible(_trial(model_name=None))
-    assert not ok
+def test_eligibility_requires_model_and_canonical_python_identity():
+    python_tasks = {"format-code-task-000383"}
+    assert atlas_build.is_python_eligible(_trial(), python_tasks)[0]
+    assert atlas_build.is_python_eligible(
+        _trial(model_name="XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"), python_tasks
+    )[0]
+    for model in ("glm-5.3-flash", None, "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:unknown"):
+        assert not atlas_build.is_python_eligible(_trial(model_name=model), python_tasks)[0]
+    # Real HAR81 counterexamples: JavaScript 000240/000434 and unknown-language
+    # 001520 share the format-code naming convention with Python tasks.
+    for task in ("format-code-task-000240", "format-code-task-000434",
+                 "format-code-task-001520", "candidate-0260-security-appsec"):
+        assert not atlas_build.is_python_eligible(
+            _trial(task_name=f"mimo-v2.6-rl/{task}"), python_tasks
+        )[0]
 
 
 def test_unknown_verdict_is_not_infra_or_failure():

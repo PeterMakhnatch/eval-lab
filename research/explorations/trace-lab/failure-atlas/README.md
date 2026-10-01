@@ -1,11 +1,18 @@
+# HAR-131 failure atlas — CORRECTED snapshot (historical, pinned)
+
+Supersedes atlas.json `292aee54ea435a189ebb858f619f5654069bd6b22873972039c523976078e6f6` from commit `4aa26712`; its 90-Python denominator was incorrect.
+Correction: 9 HAR81 trials (000240×4 and 000434×1 JavaScript; 001520×4 Unknown) are now excluded by requiring canonical Python-ledger membership. Historical 165 native pairs are unchanged: 81 positively identified Python trials, 84 excluded. All nine excluded identities remain inspectable. The admitted `:har129` adapter is eligible for future comparisons, not present in this historical population. The fixed snapshot excludes the 19 G2 trials discovered during its refresh. See `verification.json` and `job-manifest.json`.
+
+---
+
 # HAR-131 failure atlas (inspection-only)
 
-Generated 2026-10-01T07:59:43+00:00 from current trace-query rows. Every number below is computed from recorded inputs; unknown stays unknown and `counts_verdict` is the sole counted authority. Overlapping patterns are not an exhaustive causal partition.
+Generated 2026-10-01T08:48:16+00:00 from current trace-query rows. Every number below is computed from recorded inputs; unknown stays unknown and `counts_verdict` is the sole counted authority. Overlapping patterns are not an exhaustive causal partition.
 
 ## Corpus
 
-- Discovered trials: 165; Python-eligible: 90 (model_name matches MiMo-V2.6-Distill-Qwen-9B AND task family format-code-task-NNNNNN (recorded identity, ledger corroborates family=Python))
-- Excluded (reported, not dropped): 75 (non-Python family or non-MiMo model; see atlas.json)
+- Discovered trials: 165; Python-eligible: 81 (recorded MiMo-V2.6-Distill-Qwen-9B (base or admitted :har129 adapter) AND task identity present in the canonical Python ledger; a format-code-task name alone is not a language label)
+- Excluded (reported, not dropped): 84 (model or canonical Python identity predicate failed; unknown identity is not asserted non-Python)
 - Coverage: missing_processed=47, missing_counts=47, missing_atif=32
 - Missing evidence is retained explicitly. Rebuild after report or label refreshes; do not interpret missing counts or labels as clean outcomes.
 - Frozen labels independently re-verified (24 files ok=True); heuristic label rows dropped: 0.
@@ -14,7 +21,7 @@ Generated 2026-10-01T07:59:43+00:00 from current trace-query rows. Every number 
 ## Patterns (frequency | eligible denominator | N, current view only)
 
 ### recorded-budget-stop [fact; two verified exemplars]
-- 61/90 (eligible trials (stop_reason is always recorded; 'unknown' stays separate))
+- 54/81 (eligible trials (stop_reason is always recorded; 'unknown' stays separate))
 - Predicate: `stop_reason in {TrialBudgetExhaustedError, ceiling:input_tokens, ceiling:requests}`
 - [`gepa-terminus-2-format-code-task__7RJJeFg` / head#76](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-d1471e1b2701d6d1765ff1df/gepa-terminus-2-format-code-task__7RJJeFg/agent/trajectory.json#step_id=76>) (recorded-command, reference-verified=True). Selection: highest native step_id context; not a causal or chronological assertion. [Native result](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-d1471e1b2701d6d1765ff1df/gepa-terminus-2-format-code-task__7RJJeFg/result.json>).
 ```text
@@ -29,7 +36,7 @@ echo complete
 - Lever (hypothesis): Harness budget/ceiling policy or agent time-to-first-edit efficiency; causal evidence absent.
 
 ### completion-claim-loop [opinion; two verified exemplars]
-- 12/86 (eligible trials with a recorded loop-kind prediction)
+- 9/77 (eligible trials with a recorded loop-kind prediction)
 - Predicate: `decision loop_kind.kind == 'completion-claim' (producer rule HAR-119)`
 - Opinion limits (page_scores cohort only): loop 7/11 vs rater-agreed; first_failure 1/9 with 1/12 coverage and 11 abstentions; page values are usually absent -- do not use as step truth; blame 11/11 with 0 abstentions; near-constant prior, not skill.
 - [`gepa-terminus-2-format-code-task__7RJJeFg` / head#42](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-d1471e1b2701d6d1765ff1df/gepa-terminus-2-format-code-task__7RJJeFg/agent/trajectory.json#step_id=42>) (recorded-command, reference-verified=True). Selection: loop-onset opinion head#42. [Native result](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-d1471e1b2701d6d1765ff1df/gepa-terminus-2-format-code-task__7RJJeFg/result.json>).
@@ -45,7 +52,7 @@ echo complete
 - Lever (hypothesis): Prompt/harness completion discipline (e.g. confirm-then-stop); causal evidence absent.
 
 ### repetition-loop [opinion; two verified exemplars]
-- 35/86 (eligible trials with a recorded loop-kind prediction)
+- 30/77 (eligible trials with a recorded loop-kind prediction)
 - Predicate: `decision loop_kind.kind == 'repetition' (producer rule HAR-119)`
 - Opinion limits (page_scores cohort only): loop 7/11 vs rater-agreed; first_failure 1/9 with 1/12 coverage and 11 abstentions; page values are usually absent -- do not use as step truth; blame 11/11 with 0 abstentions; near-constant prior, not skill.
 - [`gepa-terminus-2-format-code-task__bo5YsYL` / head#25](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-000-9862796a5e5624e818ab5f04/gepa-terminus-2-format-code-task__bo5YsYL/agent/trajectory.json#step_id=25>) (recorded-command, reference-verified=True). Selection: loop-onset opinion head#25. [Native result](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-000-9862796a5e5624e818ab5f04/gepa-terminus-2-format-code-task__bo5YsYL/result.json>).
@@ -64,7 +71,7 @@ echo done
 - Lever (hypothesis): Harness loop-break / output-cap or agent stuckness recovery; causal evidence absent.
 
 ### counts-excluded-copied-pass [fact; two verified exemplars]
-- 6/86 (eligible trials with counts_verdict non-null)
+- 6/77 (eligible trials with counts_verdict non-null)
 - Predicate: `counts_verdict == 'excluded' with reason copied_fix or pass_tainted (canonical counts)`
 - [`gepa-terminus-2-format-code-task__CFCbfps` / head#20](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33/gepa-terminus-2-format-code-task__CFCbfps/agent/trajectory.json#step_id=20>) (recorded-command, reference-verified=True). Selection: upstream-fetch detector evidence head#20. [Native result](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33/gepa-terminus-2-format-code-task__CFCbfps/result.json>).
 ```text
@@ -79,7 +86,7 @@ cd /testbed &
 - Lever (hypothesis): Data integrity: keep excluded from training; upstream-fetch guard is a hypothesis.
 
 ### counts-excluded-infra [fact; two verified exemplars]
-- 11/86 (eligible trials with counts_verdict non-null)
+- 11/77 (eligible trials with counts_verdict non-null)
 - Predicate: `counts_verdict == 'excluded' with reason infra (canonical counts)`
 - [`har110-dev-002256-cfe31418__uDRp4Vb` / head#15](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-002256-cfe31418/har110-dev-002256-cfe31418__uDRp4Vb/agent/trajectory.json#step_id=15>) (recorded-command, reference-verified=True). Selection: loop-onset opinion head#15. [Native result](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-har110-dev-002256-cfe31418/har110-dev-002256-cfe31418__uDRp4Vb/result.json>).
 ```text
@@ -91,7 +98,7 @@ pwd
 - Lever (hypothesis): Infra reliability (harness/sandbox), not model capability; kept out of pass-rate denominator.
 
 ### recorded-upstream-fetch-signal [fact-signal; two verified exemplars]
-- 13/86 (eligible trials with processed_available (taint lives in processed reports))
+- 13/77 (eligible trials with processed_available (taint lives in processed reports))
 - Predicate: `processed taint contains an upstream_fetch detector entry; command provenance is separate, not proof of execution or copying`
 - [`gepa-terminus-2-format-code-task__CFCbfps` / head#20](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33/gepa-terminus-2-format-code-task__CFCbfps/agent/trajectory.json#step_id=20>) (recorded-command, reference-verified=True). Selection: upstream-fetch detector evidence head#20. [Native result](<file:///Users/petermakhnatch/Developer/eval-lab-results/2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33/gepa-terminus-2-format-code-task__CFCbfps/result.json>).
 ```text
@@ -121,4 +128,10 @@ Ledger-discarded/review tasks are authoritative task signals, not model failures
 
 ## Refresh
 
+The following rebuilds the **current** corpus, not this frozen population:
+
 `PYTHONPATH=src python research/explorations/trace-lab/failure-atlas/build.py --repo-root . --out-dir research/explorations/trace-lab/failure-atlas`
+
+To replay this historical snapshot, use a data checkout at `26073dfb7d831d964ea430ee7f59099f2526279a` for `--repo-root`, the recorded results home and `derived/parquet` root, and pass every `job_dirs` value in `job-manifest.json` as a repeated `--job-dir`. That pins 172 physical job copies to the same 165 native identities. It requires the retained local run files; this repository does not contain those raw inputs.
+
+The pinned API records `published_job_dir=null`, so its full projection digest differs from the earlier discovery-mode digest. All ten canonical query row sets and the atlas input digest are unchanged; the Python eligibility correction changes the atlas denominators. No G2 or later frozen-label cohort is silently inserted into this historical receipt.

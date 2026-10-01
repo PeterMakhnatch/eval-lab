@@ -6,7 +6,7 @@
   "Missing canonical counts: 47.",
   "Coverage and calibration limits apply; this is not a causal attribution study."
  ],
- "generated_at_utc": "2026-10-01T07:59:43+00:00",
+ "generated_at_utc": "2026-10-01T08:48:16+00:00",
  "repo_head": "26073dfb7d831d964ea430ee7f59099f2526279a",
  "atlas_input_digest": "sha256:6f33081c66e358731649318a154511f6cf6543ec708541de0a6d834ad4e9dc28",
  "source_hashes": {
@@ -36,7 +36,7 @@
   "har128_sft_pass": {
    "label_scope": "sft_pass_cleanliness",
    "labeled_eligible_trials": 9,
-   "eligible_n": 90
+   "eligible_n": 81
   },
   "coverage": {
    "discovered_jobs": 172,
@@ -97,13 +97,13 @@
     "leakclosed": 5,
     "original": 5
    },
-   "corpus_digest": "sha256:4ec47b8b3d7b6cb62c042405144b7020137979bea822d2e0481b0dff8ae544c1"
+   "corpus_digest": "sha256:ee1dde931a76df6a075c612b1865f39a53bd58ab561e38f684227e0fb35afecc"
   }
  },
  "corpus": {
-  "eligible_predicate": "model_name matches MiMo-V2.6-Distill-Qwen-9B AND task family format-code-task-NNNNNN (recorded identity, ledger corroborates family=Python)",
+  "eligible_predicate": "recorded MiMo-V2.6-Distill-Qwen-9B (base or admitted :har129 adapter) AND task identity present in the canonical Python ledger; a format-code-task name alone is not a language label",
   "n_discovered": 165,
-  "n_eligible": 90,
+  "n_eligible": 81,
   "trials": [
    {
     "job_id": "011a91c6-c551-412d-956b-da7e702d9565",
@@ -136,40 +136,6 @@
       {
        "source_path": "agent/trajectory.json",
        "sha256": "sha256:f7cd396ed0409aaf3132166687105f93de473581b3d7ad12255c1c9733df2010"
-      }
-     ]
-    }
-   },
-   {
-    "job_id": "04a26af4-f066-40c5-afa7-024851a7c3ae",
-    "trial_id": "cafee4df-d053-4580-aa7d-171724a4a4f4",
-    "job_name": "HAR-81-har81-l-d-a2-format-code-task-001520",
-    "trial_name": "har81-l-d-a2-format-code-task-00__6TqzNQw",
-    "task_name": "mimo-v2.6-rl/format-code-task-001520",
-    "task_id": "format-code-task-001520",
-    "task_package_digest": "sha256:c6a5ecfbd44433d886c0b8eef1a8a5b41353c848a00aad76ae86ac0d7f427dee",
-    "card": "HAR-81",
-    "arm": "l-d-a2",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_pass",
-    "raw_reward": 1.0,
-    "scored": true,
-    "category_membership": [
-     "recorded-budget-stop",
-     "repetition-loop"
-    ],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a2-format-code-task-001520/har81-l-d-a2-format-code-task-00__6TqzNQw",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a2-format-code-task-001520/processed/trial-har81-l-d-a2-format-code-task-00__6TqzNQw.json",
-    "input_hashes": {
-     "native_result": "sha256:8635e9179fb65880bc4015345410c278f48baf20e2f7377738b2916617f4371c",
-     "processed_report": "sha256:409b2b22d9d9d1a6ac8f238530a2bbe70bd2d88ce2594edf53d64a2e7e96aa9e",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:5c9ce361437fda2fcdd21535d040ea91331b96491d73ab3b98ea2d022d765140"
       }
      ]
     }
@@ -336,37 +302,6 @@
     }
    },
    {
-    "job_id": "1296c1f3-f0c9-45b5-a961-0c0ebe256931",
-    "trial_id": "d3eba954-5dd8-4e50-b864-32a169d1bf93",
-    "job_name": "HAR-81-har81-p-d-format-code-task-000240",
-    "trial_name": "har81-p-d-format-code-task-00024__9KYGvwT",
-    "task_name": "mimo-v2.6-rl/format-code-task-000240",
-    "task_id": "format-code-task-000240",
-    "task_package_digest": "sha256:828bddfb30d203b9107611294f0de0f64e9e41f88ea1d89f640c9de341f54022",
-    "card": "HAR-81",
-    "arm": "p-d-format",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_pass",
-    "raw_reward": 1.0,
-    "scored": true,
-    "category_membership": [],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-000240/har81-p-d-format-code-task-00024__9KYGvwT",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-000240/processed/trial-har81-p-d-format-code-task-00024__9KYGvwT.json",
-    "input_hashes": {
-     "native_result": "sha256:926200377e7d1dd729e8e2c596d3dcf09b4472aa6c78736e66ce3683ed01602e",
-     "processed_report": "sha256:b66eb237db5a0337fc346ba59d620e781ce91d12842be229bb0bd62367a654a0",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:02ded7286ee3ffb5ff02a300895464cd1a8660009ed21f88862d096f49057f48"
-      }
-     ]
-    }
-   },
-   {
     "job_id": "1dceb200-c786-428c-8741-1179bef34fc4",
     "trial_id": "0bc1f6b1-9563-400d-8d5e-ae12c97763fc",
     "job_name": "HAR-116-har116-a-001896-loopfix",
@@ -395,40 +330,6 @@
       {
        "source_path": "agent/trajectory.json",
        "sha256": "sha256:b63880a8ef3519410ac1e5817a0028eedc9b76f31d463f07a44bebe8d83dad36"
-      }
-     ]
-    }
-   },
-   {
-    "job_id": "20a9ccbb-c375-4517-93df-6fb9d1fd00b2",
-    "trial_id": "15286dc3-b36b-4096-90a7-62e7be03649e",
-    "job_name": "HAR-81-har81-l-d-a3-format-code-task-000240",
-    "trial_name": "har81-l-d-a3-format-code-task-00__ZsTxf68",
-    "task_name": "mimo-v2.6-rl/format-code-task-000240",
-    "task_id": "format-code-task-000240",
-    "task_package_digest": "sha256:828bddfb30d203b9107611294f0de0f64e9e41f88ea1d89f640c9de341f54022",
-    "card": "HAR-81",
-    "arm": "l-d-a3",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_fail",
-    "raw_reward": 0.0,
-    "scored": true,
-    "category_membership": [
-     "recorded-budget-stop",
-     "completion-claim-loop"
-    ],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a3-format-code-task-000240/har81-l-d-a3-format-code-task-00__ZsTxf68",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a3-format-code-task-000240/processed/trial-har81-l-d-a3-format-code-task-00__ZsTxf68.json",
-    "input_hashes": {
-     "native_result": "sha256:3b7df3b5df3205fcdaeaa90820633b1ae6f1c5acbd8b0b1dd8ed98d9b0d9514c",
-     "processed_report": "sha256:d3ea98ef0172ff772b821625d567550e3b19edccae799ef4e808684d1077a4c2",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:fff47398e09e9c6d75f9ac50c4af39c2e0c414c38b298e846f4f1f3259dde00f"
       }
      ]
     }
@@ -528,44 +429,6 @@
       {
        "source_path": "agent/trajectory.json",
        "sha256": "sha256:046118c4d67a652374bb8a96ab800e1cc29ec026b1f54a1b2d4804fbb4d018f9"
-      }
-     ]
-    }
-   },
-   {
-    "job_id": "294f8949-c174-45b6-9cd0-59fe7943c34c",
-    "trial_id": "67263841-0d66-45b3-9a10-07f4ed8cd704",
-    "job_name": "HAR-81-har81-l-d-a4-format-code-task-001520",
-    "trial_name": "har81-l-d-a4-format-code-task-00__ZmQBZYW",
-    "task_name": "mimo-v2.6-rl/format-code-task-001520",
-    "task_id": "format-code-task-001520",
-    "task_package_digest": "sha256:c6a5ecfbd44433d886c0b8eef1a8a5b41353c848a00aad76ae86ac0d7f427dee",
-    "card": "HAR-81",
-    "arm": "l-d-a4",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_fail",
-    "raw_reward": 0.0,
-    "scored": true,
-    "category_membership": [
-     "recorded-budget-stop",
-     "repetition-loop"
-    ],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a4-format-code-task-001520/har81-l-d-a4-format-code-task-00__ZmQBZYW",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a4-format-code-task-001520/processed/trial-har81-l-d-a4-format-code-task-00__ZmQBZYW.json",
-    "input_hashes": {
-     "native_result": "sha256:b348cb934a9820e786e723458b2a8172a74eb2e4db1ac467d072dc63fa98fb43",
-     "processed_report": "sha256:adc9fdd19f852ffef509dd8cb6e75dfa0ffd77a4c8a7c2008382e9465ac276cd",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.cont-1.json",
-       "sha256": "sha256:827db21e7bf958cd1b95fd24fe833affae28813c338ce317ca4c44a1fdbe74dc"
-      },
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:dec6e0d23c57b4ff619c4791a4b2ca3ba58eb4dba8a8ff56b97d0925d8ab3022"
       }
      ]
     }
@@ -734,40 +597,6 @@
       {
        "source_path": "agent/trajectory.json",
        "sha256": "sha256:7a8ee014304062c2d9acd75388b6f0a6976b68d7e90a0316f5f301256c89802b"
-      }
-     ]
-    }
-   },
-   {
-    "job_id": "436c5aa9-8dfe-42ef-a3b8-c85cd5320ffd",
-    "trial_id": "e5c268db-0231-4bc9-b082-c2621e01fe1d",
-    "job_name": "HAR-81-har81-l-d-a3-format-code-task-001520",
-    "trial_name": "har81-l-d-a3-format-code-task-00__BrJZfvJ",
-    "task_name": "mimo-v2.6-rl/format-code-task-001520",
-    "task_id": "format-code-task-001520",
-    "task_package_digest": "sha256:c6a5ecfbd44433d886c0b8eef1a8a5b41353c848a00aad76ae86ac0d7f427dee",
-    "card": "HAR-81",
-    "arm": "l-d-a3",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_fail",
-    "raw_reward": 0.0,
-    "scored": true,
-    "category_membership": [
-     "recorded-budget-stop",
-     "repetition-loop"
-    ],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a3-format-code-task-001520/har81-l-d-a3-format-code-task-00__BrJZfvJ",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a3-format-code-task-001520/processed/trial-har81-l-d-a3-format-code-task-00__BrJZfvJ.json",
-    "input_hashes": {
-     "native_result": "sha256:e4e01b615cb560021e02bf2e5a20543e6da41d60c5d02ad8ccab944d06df159a",
-     "processed_report": "sha256:44b004de7f32204c0e4cd47e02f04ac7ed7a7d9871c04d3fd74837016d8de447",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:e36bdaec7ff2fd9f2d896174ea6d4de37dbbbe83919042107798e56442be4766"
       }
      ]
     }
@@ -1088,44 +917,6 @@
       {
        "source_path": "agent/trajectory.json",
        "sha256": "sha256:ab599e4c39fb5de053cfabd2574054ab62c25a1c013a08e582d4d1c433fb006d"
-      }
-     ]
-    }
-   },
-   {
-    "job_id": "62019188-009f-41db-94b6-a979edc43e31",
-    "trial_id": "2b12a8a0-7479-439d-8f35-a8fe2e3357e1",
-    "job_name": "HAR-81-har81-p-d-format-code-task-001520",
-    "trial_name": "har81-p-d-format-code-task-00152__P9EP83h",
-    "task_name": "mimo-v2.6-rl/format-code-task-001520",
-    "task_id": "format-code-task-001520",
-    "task_package_digest": "sha256:c6a5ecfbd44433d886c0b8eef1a8a5b41353c848a00aad76ae86ac0d7f427dee",
-    "card": "HAR-81",
-    "arm": "p-d-format",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_fail",
-    "raw_reward": 0.0,
-    "scored": true,
-    "category_membership": [
-     "recorded-budget-stop",
-     "completion-claim-loop"
-    ],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-001520/har81-p-d-format-code-task-00152__P9EP83h",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-001520/processed/trial-har81-p-d-format-code-task-00152__P9EP83h.json",
-    "input_hashes": {
-     "native_result": "sha256:c2e9b07b748e357d40b419266ced8bac82b9555829a8b7326b2c9d6201a7a7f9",
-     "processed_report": "sha256:e90bf7042bc6aa6c83df8399d6677e200ce5396f53fc0575840e67141dc87bee",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.cont-1.json",
-       "sha256": "sha256:b166080ea54a85c1dbcbbac0f10191b130657540786201d2e800615bf05c58e0"
-      },
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:bcfc9f24cbd6149093578f3115d6cdec5ae794a28990780d491102e5866f8889"
       }
      ]
     }
@@ -1462,40 +1253,6 @@
       {
        "source_path": "agent/trajectory.json",
        "sha256": "sha256:3c231fa870acc5c0bae11a9c1eea98f3a21f898ce9d28f9fa259ae961014520e"
-      }
-     ]
-    }
-   },
-   {
-    "job_id": "8d8cbc4a-f132-4374-a79f-3f1b9837546b",
-    "trial_id": "70ef5bab-a300-4490-89f1-5d4d3fa31ab2",
-    "job_name": "HAR-81-har81-l-d-a2-format-code-task-000240",
-    "trial_name": "har81-l-d-a2-format-code-task-00__NGhDDRU",
-    "task_name": "mimo-v2.6-rl/format-code-task-000240",
-    "task_id": "format-code-task-000240",
-    "task_package_digest": "sha256:828bddfb30d203b9107611294f0de0f64e9e41f88ea1d89f640c9de341f54022",
-    "card": "HAR-81",
-    "arm": "l-d-a2",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_fail",
-    "raw_reward": 0.0,
-    "scored": true,
-    "category_membership": [
-     "recorded-budget-stop",
-     "completion-claim-loop"
-    ],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a2-format-code-task-000240/har81-l-d-a2-format-code-task-00__NGhDDRU",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a2-format-code-task-000240/processed/trial-har81-l-d-a2-format-code-task-00__NGhDDRU.json",
-    "input_hashes": {
-     "native_result": "sha256:38860f44ed7385c6be2ce473b7d1cd3267d5cc0f1b5ff1c6919e4e807564d105",
-     "processed_report": "sha256:1cab735b4ede011a044ca6b3d862c5a0a87c6a8e5ccaaec0d26e8f82366711af",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:b16ffb48ee1adb31a8d69616bf7305a0c3b8b251bc0b172142274f410b605694"
       }
      ]
     }
@@ -2069,40 +1826,6 @@
       {
        "source_path": "agent/trajectory.json",
        "sha256": "sha256:513daabee1a1aae622dd27fe07939d483fcc77ed13069cb0f79c8c894b09c2a9"
-      }
-     ]
-    }
-   },
-   {
-    "job_id": "c167e5a3-10dc-4211-ba43-49472459faf6",
-    "trial_id": "5353b929-0434-4ba7-a8fd-b1599769018f",
-    "job_name": "HAR-81-har81-p-d-format-code-task-000434",
-    "trial_name": "har81-p-d-format-code-task-00043__iT2yUa7",
-    "task_name": "mimo-v2.6-rl/format-code-task-000434",
-    "task_id": "format-code-task-000434",
-    "task_package_digest": "sha256:3fd1934ac72699f814699dc236ec630c1c0e1c8837a63c727f0c905b19afd38d",
-    "card": "HAR-81",
-    "arm": "p-d-format",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_fail",
-    "raw_reward": 0.0,
-    "scored": true,
-    "category_membership": [
-     "recorded-budget-stop",
-     "repetition-loop"
-    ],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-000434/har81-p-d-format-code-task-00043__iT2yUa7",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-p-d-format-code-task-000434/processed/trial-har81-p-d-format-code-task-00043__iT2yUa7.json",
-    "input_hashes": {
-     "native_result": "sha256:f70dca5e02d31c79c459884f42e7138c807c32e33ef3f91f812f23967ed3c0ae",
-     "processed_report": "sha256:70e2da053dcadedc528d14adf31f42aeda70b38562abde7fbbc0488ba75368b9",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:94c0a98f4c677774dc7b6fcc1b46384cbce08083e74b5bc4a58f6715009be2a0"
       }
      ]
     }
@@ -2964,39 +2687,6 @@
     }
    },
    {
-    "job_id": "f2578367-e021-4280-a2ea-dae91885a6c3",
-    "trial_id": "bebcac97-be21-4d29-95e8-298fe000717e",
-    "job_name": "HAR-81-har81-l-d-a4-format-code-task-000240",
-    "trial_name": "har81-l-d-a4-format-code-task-00__2JNXcHz",
-    "task_name": "mimo-v2.6-rl/format-code-task-000240",
-    "task_id": "format-code-task-000240",
-    "task_package_digest": "sha256:828bddfb30d203b9107611294f0de0f64e9e41f88ea1d89f640c9de341f54022",
-    "card": "HAR-81",
-    "arm": "l-d-a4",
-    "recorded_split": null,
-    "ledger_split": null,
-    "ledger_status": "absent-from-ledger",
-    "ledger_project": null,
-    "counts_verdict": "counted_fail",
-    "raw_reward": 0.0,
-    "scored": true,
-    "category_membership": [
-     "repetition-loop"
-    ],
-    "source_trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a4-format-code-task-000240/har81-l-d-a4-format-code-task-00__2JNXcHz",
-    "report_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-09-29/HAR-81-har81-l-d-a4-format-code-task-000240/processed/trial-har81-l-d-a4-format-code-task-00__2JNXcHz.json",
-    "input_hashes": {
-     "native_result": "sha256:d06ed04dc061cc6d0eb7c3783cae35a313941fb3690315d05e93cdfd1c6b6ff2",
-     "processed_report": "sha256:143ef0d30c4477c787a606dd00ab56b56dfee933bd5d5f3741bc488c01368b1f",
-     "atif": [
-      {
-       "source_path": "agent/trajectory.json",
-       "sha256": "sha256:fdc7cb26a5be821d5f8e6116f0e41419f68f4c118ce87855ed8b219ce789853c"
-      }
-     ]
-    }
-   },
-   {
     "job_id": "f494bd5b-728a-4cad-bb80-1194c77a8ee4",
     "trial_id": "81156ea6-c412-480c-9dc9-8dd16d66cc43",
     "job_name": "HAR-110-har110-001161-plain",
@@ -3369,7 +3059,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_18737",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_18737"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_18737"
    },
    {
     "job_id": "da6f5a41-16db-4a5a-a212-75d6434ac1b2",
@@ -3378,7 +3068,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42485576",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42485576"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42485576"
    },
    {
     "job_id": "2d4bce4e-09ca-4535-a6e1-cfd4fae64672",
@@ -3387,7 +3077,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42496599",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42496599"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42496599"
    },
    {
     "job_id": "45c036e1-f442-47f6-a12d-09300801dfb7",
@@ -3396,7 +3086,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1271-media-games",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1271-media-games"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1271-media-games"
    },
    {
     "job_id": "43074b12-b56e-443f-a8b5-b86a6a6f22ff",
@@ -3405,7 +3095,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1634-software-databases",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1634-software-databases"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1634-software-databases"
    },
    {
     "job_id": "25f949c8-6261-45a1-ae9d-17d92c0c93c2",
@@ -3414,7 +3104,25 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1789-security-appsec",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1789-security-appsec"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1789-security-appsec"
+   },
+   {
+    "job_id": "04a26af4-f066-40c5-afa7-024851a7c3ae",
+    "trial_id": "cafee4df-d053-4580-aa7d-171724a4a4f4",
+    "trial_name": "har81-l-d-a2-format-code-task-00__6TqzNQw",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-001520",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-001520 is absent from the canonical Python ledger"
+   },
+   {
+    "job_id": "8d8cbc4a-f132-4374-a79f-3f1b9837546b",
+    "trial_id": "70ef5bab-a300-4490-89f1-5d4d3fa31ab2",
+    "trial_name": "har81-l-d-a2-format-code-task-00__NGhDDRU",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-000240",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-000240 is absent from the canonical Python ledger"
    },
    {
     "job_id": "1b5f3c56-e728-4e78-962f-19af648d558b",
@@ -3423,7 +3131,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_18737",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_18737"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_18737"
    },
    {
     "job_id": "ce790023-01fe-41ca-89a1-a3cdd563e33a",
@@ -3432,7 +3140,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42485576",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42485576"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42485576"
    },
    {
     "job_id": "10c8986c-4ade-4c73-accd-f36fc9adbae9",
@@ -3441,7 +3149,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42496599",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42496599"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42496599"
    },
    {
     "job_id": "d19ed7b1-4664-4d2a-9567-e68fa69e2e5d",
@@ -3450,7 +3158,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1271-media-games",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1271-media-games"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1271-media-games"
    },
    {
     "job_id": "9da34c41-789e-433a-b103-636579acd2ec",
@@ -3459,7 +3167,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1634-software-databases",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1634-software-databases"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1634-software-databases"
    },
    {
     "job_id": "98abb2ea-2d8c-4935-8050-0177f69f603a",
@@ -3468,7 +3176,25 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1789-security-appsec",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1789-security-appsec"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1789-security-appsec"
+   },
+   {
+    "job_id": "436c5aa9-8dfe-42ef-a3b8-c85cd5320ffd",
+    "trial_id": "e5c268db-0231-4bc9-b082-c2621e01fe1d",
+    "trial_name": "har81-l-d-a3-format-code-task-00__BrJZfvJ",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-001520",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-001520 is absent from the canonical Python ledger"
+   },
+   {
+    "job_id": "20a9ccbb-c375-4517-93df-6fb9d1fd00b2",
+    "trial_id": "15286dc3-b36b-4096-90a7-62e7be03649e",
+    "trial_name": "har81-l-d-a3-format-code-task-00__ZsTxf68",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-000240",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-000240 is absent from the canonical Python ledger"
    },
    {
     "job_id": "1b826496-194b-4ac2-9c3a-fb95326bc317",
@@ -3477,7 +3203,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_18737",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_18737"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_18737"
    },
    {
     "job_id": "51ba62da-0fc6-45a7-824c-5471aee02ec9",
@@ -3486,7 +3212,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42485576",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42485576"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42485576"
    },
    {
     "job_id": "695c3437-e855-412c-b8b7-6997d45de939",
@@ -3495,7 +3221,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42496599",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42496599"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42496599"
    },
    {
     "job_id": "55652aec-b643-45f7-b9cc-1ec188a9f860",
@@ -3504,7 +3230,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1271-media-games",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1271-media-games"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1271-media-games"
    },
    {
     "job_id": "e787c519-bcba-4dbc-996e-f450266ebcc4",
@@ -3513,7 +3239,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1634-software-databases",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1634-software-databases"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1634-software-databases"
    },
    {
     "job_id": "ba5d2ac7-5778-40e5-b3fe-8466f8409700",
@@ -3522,7 +3248,25 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1789-security-appsec",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1789-security-appsec"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1789-security-appsec"
+   },
+   {
+    "job_id": "f2578367-e021-4280-a2ea-dae91885a6c3",
+    "trial_id": "bebcac97-be21-4d29-95e8-298fe000717e",
+    "trial_name": "har81-l-d-a4-format-code-task-00__2JNXcHz",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-000240",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-000240 is absent from the canonical Python ledger"
+   },
+   {
+    "job_id": "294f8949-c174-45b6-9cd0-59fe7943c34c",
+    "trial_id": "67263841-0d66-45b3-9a10-07f4ed8cd704",
+    "trial_name": "har81-l-d-a4-format-code-task-00__ZmQBZYW",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-001520",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-001520 is absent from the canonical Python ledger"
    },
    {
     "job_id": "53af2cc2-91f8-483b-83ea-0ec617d29881",
@@ -3531,7 +3275,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_18737",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_18737"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_18737"
    },
    {
     "job_id": "ce755049-b946-4ab5-8690-2567942217c5",
@@ -3540,7 +3284,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_41330",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_41330"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_41330"
    },
    {
     "job_id": "e11dd83f-990c-4e4a-8009-f01665e6538f",
@@ -3549,7 +3293,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42485576",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42485576"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42485576"
    },
    {
     "job_id": "4e23c6e8-7425-4e2a-bc58-76dafd1f59a1",
@@ -3558,7 +3302,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42496599",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42496599"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42496599"
    },
    {
     "job_id": "cae7c89b-530d-48df-99d5-2c7906c7709c",
@@ -3567,7 +3311,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42514310",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42514310"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42514310"
    },
    {
     "job_id": "1d0c5f61-6e98-4a4b-a9d6-8cf28338afb2",
@@ -3576,7 +3320,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_42528228",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_42528228"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_42528228"
    },
    {
     "job_id": "b61e38ff-0610-4659-a970-61a7cb4ff3cc",
@@ -3585,7 +3329,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/arvo_57589",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/arvo_57589"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/arvo_57589"
    },
    {
     "job_id": "cd3e4222-0b64-48e9-8aac-168771b71f07",
@@ -3594,7 +3338,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1048-operations-virtualization",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1048-operations-virtualization"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1048-operations-virtualization"
    },
    {
     "job_id": "b6ceeb29-9d32-4a59-b714-a667038efe63",
@@ -3603,7 +3347,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1271-media-games",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1271-media-games"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1271-media-games"
    },
    {
     "job_id": "175c8042-9878-4af6-9469-a96663fcfb8a",
@@ -3612,7 +3356,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1559-ml-evaluation",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1559-ml-evaluation"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1559-ml-evaluation"
    },
    {
     "job_id": "975ed813-5a05-46f5-abcf-6a5c88fa5d2c",
@@ -3621,7 +3365,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1634-software-databases",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1634-software-databases"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1634-software-databases"
    },
    {
     "job_id": "941d090a-897d-41bc-9293-37328c2608a9",
@@ -3630,7 +3374,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1702-ml-inference",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1702-ml-inference"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1702-ml-inference"
    },
    {
     "job_id": "e18c8108-437c-4bbc-88ac-e0a147e4bd0c",
@@ -3639,7 +3383,7 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-1789-security-appsec",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-1789-security-appsec"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-1789-security-appsec"
    },
    {
     "job_id": "6ce5b77f-a5fe-4fcc-94dc-50969f2906fe",
@@ -3648,7 +3392,34 @@
     "card": "HAR-81",
     "task_name": "mimo-v2.6-rl/candidate-2684-security-appsec",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-2684-security-appsec"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-2684-security-appsec"
+   },
+   {
+    "job_id": "1296c1f3-f0c9-45b5-a961-0c0ebe256931",
+    "trial_id": "d3eba954-5dd8-4e50-b864-32a169d1bf93",
+    "trial_name": "har81-p-d-format-code-task-00024__9KYGvwT",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-000240",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-000240 is absent from the canonical Python ledger"
+   },
+   {
+    "job_id": "c167e5a3-10dc-4211-ba43-49472459faf6",
+    "trial_id": "5353b929-0434-4ba7-a8fd-b1599769018f",
+    "trial_name": "har81-p-d-format-code-task-00043__iT2yUa7",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-000434",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-000434 is absent from the canonical Python ledger"
+   },
+   {
+    "job_id": "62019188-009f-41db-94b6-a979edc43e31",
+    "trial_id": "2b12a8a0-7479-439d-8f35-a8fe2e3357e1",
+    "trial_name": "har81-p-d-format-code-task-00152__P9EP83h",
+    "card": "HAR-81",
+    "task_name": "mimo-v2.6-rl/format-code-task-001520",
+    "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "reason": "Python identity unverified: format-code-task-001520 is absent from the canonical Python ledger"
    },
    {
     "job_id": "2428f03b-349a-4b01-9e9d-df4e0f7a0d0e",
@@ -3657,7 +3428,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0036-software-data-engineering",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
    },
    {
     "job_id": "5653c875-68a4-4070-b018-c18efabc554c",
@@ -3666,7 +3437,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0036-software-data-engineering",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
    },
    {
     "job_id": "ae5bc793-058c-40c7-996e-7b789a9b811c",
@@ -3675,7 +3446,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0036-software-data-engineering",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
    },
    {
     "job_id": "facadf4c-87c3-41ad-ba95-e6d4751e57c8",
@@ -3684,7 +3455,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0036-software-data-engineering",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
    },
    {
     "job_id": "ff1e9a17-f69e-43d9-bb98-e99dcb0121d7",
@@ -3693,7 +3464,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0036-software-data-engineering",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
    },
    {
     "job_id": "b99608fc-b29b-463a-a430-056b2d4a684a",
@@ -3702,7 +3473,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0036-software-data-engineering",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
    },
    {
     "job_id": "b689ad6f-e607-434d-a59a-97114ffeb749",
@@ -3711,7 +3482,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0036-software-data-engineering",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
    },
    {
     "job_id": "c9c178ed-6990-4445-939d-0c910d4b5d0b",
@@ -3720,7 +3491,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0036-software-data-engineering",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0036-software-data-engineering"
    },
    {
     "job_id": "a3d54a8f-9267-4722-987a-0a3330b56820",
@@ -3729,7 +3500,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0758-ml-inference",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
    },
    {
     "job_id": "7abd6314-2f7c-4f42-91bf-80cf31a7fc3b",
@@ -3738,7 +3509,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0758-ml-inference",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
    },
    {
     "job_id": "ef7f05c6-87d1-4b65-bc6d-e98224ccf035",
@@ -3747,7 +3518,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0758-ml-inference",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
    },
    {
     "job_id": "aaf4ff0f-8087-481c-8792-40cdf91da151",
@@ -3756,7 +3527,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0758-ml-inference",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
    },
    {
     "job_id": "98eae07d-375b-4bff-9a60-5756dc9b9bda",
@@ -3765,7 +3536,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0758-ml-inference",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
    },
    {
     "job_id": "8712187f-9dd3-4a8d-981c-3831053fad3d",
@@ -3774,7 +3545,7 @@
     "card": "HAR-90",
     "task_name": "mimo-v2.6-rl/candidate-0758-ml-inference",
     "model_name": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
-    "reason": "non-Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
+    "reason": "outside canonical Python task family: mimo-v2.6-rl/candidate-0758-ml-inference"
    }
   ]
  },
@@ -3785,8 +3556,8 @@
    "predicate": "stop_reason in {TrialBudgetExhaustedError, ceiling:input_tokens, ceiling:requests}",
    "denominator": "eligible trials (stop_reason is always recorded; 'unknown' stays separate)",
    "lever_hypothesis": "Harness budget/ceiling policy or agent time-to-first-edit efficiency; causal evidence absent.",
-   "n": 61,
-   "denominator_n": 90,
+   "n": 54,
+   "denominator_n": 81,
    "excluded_from_denominator": 0,
    "trial_names": [
     "gepa-terminus-2-format-code-task__7RJJeFg",
@@ -3840,13 +3611,6 @@
     "har116-b-002308-original__oYziU3z",
     "har116-b-002402-leakclosed__X7nGHNs",
     "har116-b-002402-original__PCgLbp7",
-    "har81-l-d-a2-format-code-task-00__6TqzNQw",
-    "har81-l-d-a2-format-code-task-00__NGhDDRU",
-    "har81-l-d-a3-format-code-task-00__BrJZfvJ",
-    "har81-l-d-a3-format-code-task-00__ZsTxf68",
-    "har81-l-d-a4-format-code-task-00__ZmQBZYW",
-    "har81-p-d-format-code-task-00043__iT2yUa7",
-    "har81-p-d-format-code-task-00152__P9EP83h",
     "har81-p-d-format-code-task-00164__bMN27md",
     "har81-p-d-format-code-task-00253__7xmXPRq",
     "har81-p-d-format-code-task-00301__4KvLSba"
@@ -3947,8 +3711,8 @@
    "predicate": "decision loop_kind.kind == 'completion-claim' (producer rule HAR-119)",
    "denominator": "eligible trials with a recorded loop-kind prediction",
    "lever_hypothesis": "Prompt/harness completion discipline (e.g. confirm-then-stop); causal evidence absent.",
-   "n": 12,
-   "denominator_n": 86,
+   "n": 9,
+   "denominator_n": 77,
    "excluded_from_denominator": 4,
    "trial_names": [
     "gepa-terminus-2-format-code-task__7RJJeFg",
@@ -3959,10 +3723,7 @@
     "har104-d-002864__B7cJ4cG",
     "har116-a-002864-baseline__LnaWDq6",
     "har116-b-000146-original__JT6tRiN",
-    "har116-b-002402-original__PCgLbp7",
-    "har81-l-d-a2-format-code-task-00__NGhDDRU",
-    "har81-l-d-a3-format-code-task-00__ZsTxf68",
-    "har81-p-d-format-code-task-00152__P9EP83h"
+    "har116-b-002402-original__PCgLbp7"
    ],
    "exemplars": [
     {
@@ -4077,8 +3838,8 @@
    "predicate": "decision loop_kind.kind == 'repetition' (producer rule HAR-119)",
    "denominator": "eligible trials with a recorded loop-kind prediction",
    "lever_hypothesis": "Harness loop-break / output-cap or agent stuckness recovery; causal evidence absent.",
-   "n": 35,
-   "denominator_n": 86,
+   "n": 30,
+   "denominator_n": 77,
    "excluded_from_denominator": 4,
    "trial_names": [
     "gepa-terminus-2-format-code-task__bo5YsYL",
@@ -4109,11 +3870,6 @@
     "har116-b-000226-leakclosed__K9ddjiP",
     "har116-b-000927-leakclosed__Sj3aGEg",
     "har116-b-002308-original__oYziU3z",
-    "har81-l-d-a2-format-code-task-00__6TqzNQw",
-    "har81-l-d-a3-format-code-task-00__BrJZfvJ",
-    "har81-l-d-a4-format-code-task-00__2JNXcHz",
-    "har81-l-d-a4-format-code-task-00__ZmQBZYW",
-    "har81-p-d-format-code-task-00043__iT2yUa7",
     "har81-p-d-format-code-task-00164__bMN27md",
     "har81-p-d-format-code-task-00253__7xmXPRq"
    ],
@@ -4219,7 +3975,7 @@
    "denominator": "eligible trials with counts_verdict non-null",
    "lever_hypothesis": "Data integrity: keep excluded from training; upstream-fetch guard is a hypothesis.",
    "n": 6,
-   "denominator_n": 86,
+   "denominator_n": 77,
    "excluded_from_denominator": 4,
    "trial_names": [
     "gepa-terminus-2-format-code-task__CFCbfps",
@@ -4337,7 +4093,7 @@
    "denominator": "eligible trials with counts_verdict non-null",
    "lever_hypothesis": "Infra reliability (harness/sandbox), not model capability; kept out of pass-rate denominator.",
    "n": 11,
-   "denominator_n": 86,
+   "denominator_n": 77,
    "excluded_from_denominator": 4,
    "trial_names": [
     "har110-dev-002256-cfe31418__uDRp4Vb",
@@ -4426,7 +4182,7 @@
    "denominator": "eligible trials with processed_available (taint lives in processed reports)",
    "lever_hypothesis": "Fetch command != fetched solution; treat as audit signal only.",
    "n": 13,
-   "denominator_n": 86,
+   "denominator_n": 77,
    "excluded_from_denominator": 4,
    "trial_names": [
     "gepa-terminus-2-format-code-task__CFCbfps",
@@ -4681,28 +4437,12 @@
    "ledger_project": "github.com/Pylons/waitress"
   },
   {
-   "task_id": "format-code-task-000240",
-   "n_eligible_trials": 4,
-   "ledger_status": "absent-from-ledger",
-   "ledger_run": null,
-   "ledger_split": null,
-   "ledger_project": null
-  },
-  {
    "task_id": "format-code-task-000383",
    "n_eligible_trials": 6,
    "ledger_status": "review",
    "ledger_run": "original",
    "ledger_split": "train",
    "ledger_project": "quickfix"
-  },
-  {
-   "task_id": "format-code-task-000434",
-   "n_eligible_trials": 1,
-   "ledger_status": "absent-from-ledger",
-   "ledger_run": null,
-   "ledger_split": null,
-   "ledger_project": null
   },
   {
    "task_id": "format-code-task-000495",
@@ -4743,14 +4483,6 @@
    "ledger_run": "original",
    "ledger_split": "heldout",
    "ledger_project": "rich"
-  },
-  {
-   "task_id": "format-code-task-001520",
-   "n_eligible_trials": 4,
-   "ledger_status": "absent-from-ledger",
-   "ledger_run": null,
-   "ledger_split": null,
-   "ledger_project": null
   },
   {
    "task_id": "format-code-task-001645",
@@ -4880,5 +4612,37 @@
  "refresh": {
   "command": "PYTHONPATH=src python research/explorations/trace-lab/failure-atlas/build.py --repo-root . --out-dir research/explorations/trace-lab/failure-atlas",
   "notes": "Re-run after recorded reports or frozen labels change; frequencies, exemplars and input hashes are recomputed. New publishes appear on the next connection."
+ },
+ "correction": {
+  "superseded_atlas_sha256": "292aee54ea435a189ebb858f619f5654069bd6b22873972039c523976078e6f6",
+  "reason": "Original 90 eligible improperly included 9 HAR81 trials (000240x4 + 000434x1 JavaScript; 001520x4 Unknown metadata) sharing format-code naming with Python tasks. Corrected predicate requires canonical Python-ledger membership; exact :har129 adapter admitted. Historical 165 native pairs preserved; no new live G2 pairs admitted.",
+  "original": {
+   "n_discovered": 165,
+   "n_eligible": 90,
+   "n_excluded": 75,
+   "discovered_jobs": 172
+  },
+  "corrected": {
+   "n_discovered": 165,
+   "n_eligible": 81,
+   "n_excluded": 84,
+   "discovered_jobs": 172
+  },
+  "duplicate_job_discovery": "Pinned 172 historical job dirs (165 unique native pairs + 7 second copies: 5 HAR-90 archive/har92-step-layers + 2 HAR-104/~har104-runs); connect_trace_query dedup collapses to 165 trials. Original auto-discovery also reported 172 jobs/165 trials; pinned run reproduces that count with zero new pairs.",
+  "pinned_manifest_sha256": "sha256:b478e433512b7168feb1c688be8d8a75a0cd20f536f1aad33f7244cd45b92e5f",
+  "code": {
+   "repo_head": "4aa26712dc1e238f51cf15748b0b92d4a9b16b7f",
+   "build_py": "sha256:a7dcc0c834f0b382e75c034f11ce23a084faba385b2c3e486450799107cee158",
+   "trace_query_py": "sha256:8bf9868ebf8616b16e403c9e7c3b6d7bdd3b455f52b87bd19bc4603304836d25",
+   "trace_queries_sql": "sha256:94d6adc7b3e88d13fbc770631b615744877bd2e204e22c37f45d887e91b5a4fd",
+   "note": "Parent build.py/test edits uncommitted at generation time; hashes pin the executing bytes."
+  },
+  "data": {
+   "repo_root": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har131-results-followup",
+   "commit": "26073dfb7d831d964ea430ee7f59099f2526279a",
+   "ledger_sha256": "sha256:949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+   "results_home": "/Users/petermakhnatch/Developer/eval-lab-results",
+   "derived_root": "/Users/petermakhnatch/Developer/eval-lab/derived/parquet"
+  }
  }
 }

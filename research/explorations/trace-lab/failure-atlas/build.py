@@ -32,9 +32,10 @@ import json
 import re
 import subprocess
 import sys
+from collections.abc import Collection
 from pathlib import Path
 
-MIMO_MODEL_RE = re.compile(r"MiMo-V2\.6-Distill-Qwen-9B$")
+MIMO_MODEL_RE = re.compile(r"(?:^|/)MiMo-V2\.6-Distill-Qwen-9B(?::har129)?$")
 PYTHON_TASK_RE = re.compile(r"format-code-task-\d+$")
 BUDGET_STOPS = {"TrialBudgetExhaustedError", "ceiling:input_tokens", "ceiling:requests"}
 EVIDENCE_QUOTE_LIMIT = 200
@@ -202,15 +203,17 @@ def load_training_proposal(repo_root: Path, proposal: Path | None = None) -> dic
             "task_ids": task_ids}
 
 
-def is_python_eligible(trial: dict) -> tuple[bool, str]:
-    """MiMo-V2.6-Distill-Qwen-9B model AND format-code-task family (recorded identity)."""
+def is_python_eligible(trial: dict, python_tasks: Collection[str]) -> tuple[bool, str]:
+    """Require the admitted model and a positively identified canonical Python task."""
     model = trial.get("model_name") or ""
     task_name = trial.get("task_name") or ""
     family = task_name.split("/")[-1]
     if not MIMO_MODEL_RE.search(model):
         return False, f"non-eligible model: {model or 'null'}"
     if not PYTHON_TASK_RE.fullmatch(family):
-        return False, f"non-Python task family: {task_name}"
+        return False, f"outside canonical Python task family: {task_name}"
+    if family not in python_tasks:
+        return False, f"Python identity unverified: {family} is absent from the canonical Python ledger"
     return True, ""
 
 
@@ -613,7 +616,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
                 eval_gate: dict | None = None, proposal: dict | None = None) -> dict:
     eligible, excluded_rows = [], []
     for trial in trials:
-        ok, reason = is_python_eligible(trial)
+        ok, reason = is_python_eligible(trial, ledger["by_task"])
         (eligible if ok else excluded_rows).append(trial if ok else {**trial, "exclusion_reason": reason})
     for trial in eligible:
         entry = ledger["by_task"].get(task_id_of(trial))
@@ -741,7 +744,7 @@ def build_atlas(trials: list, steps_by_trial: dict, coverage: dict, repo_root: P
             "coverage": coverage,
         },
         "corpus": {
-            "eligible_predicate": "model_name matches MiMo-V2.6-Distill-Qwen-9B AND task family format-code-task-NNNNNN (recorded identity, ledger corroborates family=Python)",
+            "eligible_predicate": "recorded MiMo-V2.6-Distill-Qwen-9B (base or admitted :har129 adapter) AND task identity present in the canonical Python ledger; a format-code-task name alone is not a language label",
             "n_discovered": len(trials),
             "n_eligible": len(eligible),
             "trials": [
@@ -938,7 +941,7 @@ def render_readme(atlas: dict) -> str:
         f"Python-eligible: {atlas['corpus']['n_eligible']} "
         f"({atlas['corpus']['eligible_predicate']})",
         f"- Excluded (reported, not dropped): {len(atlas['corpus']['excluded_rows'])} "
-        "(non-Python family or non-MiMo model; see atlas.json)",
+        "(model or canonical Python identity predicate failed; unknown identity is not asserted non-Python)",
         f"- Coverage: missing_processed={atlas['provenance']['coverage'].get('missing_processed')}, "
         f"missing_counts={atlas['provenance']['coverage'].get('missing_counts')}, "
         f"missing_atif={atlas['provenance']['coverage'].get('missing_atif')}",

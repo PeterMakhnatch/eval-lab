@@ -1,0 +1,242 @@
+[
+ {
+  "trial": "har116-a-000383-baseline__igrXg8R",
+  "job": "HAR-116-har116-a-000383-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-baseline/har116-a-000383-baseline__igrXg8R"
+ },
+ {
+  "trial": "har116-a-000383-loopfix__wgujpBQ",
+  "job": "HAR-116-har116-a-000383-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix/har116-a-000383-loopfix__wgujpBQ"
+ },
+ {
+  "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+  "job": "HAR-116-har116-a-000383-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000383-loopfix-r2/har116-a-000383-loopfix-r2__cNEHjBa"
+ },
+ {
+  "trial": "har116-a-000495-baseline__DiGmEPC",
+  "job": "HAR-116-har116-a-000495-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-baseline/har116-a-000495-baseline__DiGmEPC"
+ },
+ {
+  "trial": "har116-a-000495-loopfix__rXR8je7",
+  "job": "HAR-116-har116-a-000495-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix/har116-a-000495-loopfix__rXR8je7"
+ },
+ {
+  "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+  "job": "HAR-116-har116-a-000495-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000495-loopfix-r2/har116-a-000495-loopfix-r2__42F3G5T"
+ },
+ {
+  "trial": "har116-a-000587-baseline__Vuxk2nX",
+  "job": "HAR-116-har116-a-000587-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-baseline/har116-a-000587-baseline__Vuxk2nX"
+ },
+ {
+  "trial": "har116-a-000587-loopfix__X5SAhvg",
+  "job": "HAR-116-har116-a-000587-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix/har116-a-000587-loopfix__X5SAhvg"
+ },
+ {
+  "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+  "job": "HAR-116-har116-a-000587-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-000587-loopfix-r2/har116-a-000587-loopfix-r2__RmCmzbQ"
+ },
+ {
+  "trial": "har116-a-001161-baseline__DwYZaia",
+  "job": "HAR-116-har116-a-001161-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-baseline/har116-a-001161-baseline__DwYZaia"
+ },
+ {
+  "trial": "har116-a-001161-loopfix__WxP98h8",
+  "job": "HAR-116-har116-a-001161-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix/har116-a-001161-loopfix__WxP98h8"
+ },
+ {
+  "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+  "job": "HAR-116-har116-a-001161-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001161-loopfix-r2/har116-a-001161-loopfix-r2__uo7QDVh"
+ },
+ {
+  "trial": "har116-a-001181-baseline__cK5qZMf",
+  "job": "HAR-116-har116-a-001181-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-baseline/har116-a-001181-baseline__cK5qZMf"
+ },
+ {
+  "trial": "har116-a-001181-loopfix__Cd9chGm",
+  "job": "HAR-116-har116-a-001181-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-loopfix/har116-a-001181-loopfix__Cd9chGm"
+ },
+ {
+  "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+  "job": "HAR-116-har116-a-001181-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001181-loopfix-r2/har116-a-001181-loopfix-r2__ZhWHNno"
+ },
+ {
+  "trial": "har116-a-001832-baseline__9jhqCTW",
+  "job": "HAR-116-har116-a-001832-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-baseline/har116-a-001832-baseline__9jhqCTW"
+ },
+ {
+  "trial": "har116-a-001832-loopfix__rw7cJJ4",
+  "job": "HAR-116-har116-a-001832-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix/har116-a-001832-loopfix__rw7cJJ4"
+ },
+ {
+  "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+  "job": "HAR-116-har116-a-001832-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix-r2/har116-a-001832-loopfix-r2__RL4Q8AX"
+ },
+ {
+  "trial": "har116-a-001896-baseline__mBFMKax",
+  "job": "HAR-116-har116-a-001896-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-baseline/har116-a-001896-baseline__mBFMKax"
+ },
+ {
+  "trial": "har116-a-001896-loopfix__n5p224u",
+  "job": "HAR-116-har116-a-001896-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix/har116-a-001896-loopfix__n5p224u"
+ },
+ {
+  "trial": "har116-a-001896-loopfix-r2__Wmwi4NK",
+  "job": "HAR-116-har116-a-001896-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001896-loopfix-r2/har116-a-001896-loopfix-r2__Wmwi4NK"
+ },
+ {
+  "trial": "har116-a-002256-baseline__uRsPnvZ",
+  "job": "HAR-116-har116-a-002256-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-baseline/har116-a-002256-baseline__uRsPnvZ"
+ },
+ {
+  "trial": "har116-a-002256-loopfix__5Xu6dgc",
+  "job": "HAR-116-har116-a-002256-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix/har116-a-002256-loopfix__5Xu6dgc"
+ },
+ {
+  "trial": "har116-a-002256-loopfix-r2__5oQwkeW",
+  "job": "HAR-116-har116-a-002256-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002256-loopfix-r2/har116-a-002256-loopfix-r2__5oQwkeW"
+ },
+ {
+  "trial": "har116-a-002391-baseline__xZqrQkD",
+  "job": "HAR-116-har116-a-002391-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-baseline/har116-a-002391-baseline__xZqrQkD"
+ },
+ {
+  "trial": "har116-a-002391-loopfix__KMAky2p",
+  "job": "HAR-116-har116-a-002391-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix/har116-a-002391-loopfix__KMAky2p"
+ },
+ {
+  "trial": "har116-a-002391-loopfix-r2__NvEfxbt",
+  "job": "HAR-116-har116-a-002391-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002391-loopfix-r2/har116-a-002391-loopfix-r2__NvEfxbt"
+ },
+ {
+  "trial": "har116-a-002864-baseline__LnaWDq6",
+  "job": "HAR-116-har116-a-002864-baseline",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-baseline",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-baseline/har116-a-002864-baseline__LnaWDq6"
+ },
+ {
+  "trial": "har116-a-002864-loopfix__oHC4HdZ",
+  "job": "HAR-116-har116-a-002864-loopfix",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix/har116-a-002864-loopfix__oHC4HdZ"
+ },
+ {
+  "trial": "har116-a-002864-loopfix-r2__CWRe7mJ",
+  "job": "HAR-116-har116-a-002864-loopfix-r2",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2/har116-a-002864-loopfix-r2__CWRe7mJ"
+ },
+ {
+  "trial": "har116-b-000146-leakclosed__UsngzaQ",
+  "job": "HAR-116-har116-b-000146-leakclosed",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-leakclosed",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-leakclosed/har116-b-000146-leakclosed__UsngzaQ"
+ },
+ {
+  "trial": "har116-b-000146-original__JT6tRiN",
+  "job": "HAR-116-har116-b-000146-original",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-original",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000146-original/har116-b-000146-original__JT6tRiN"
+ },
+ {
+  "trial": "har116-b-000226-leakclosed__K9ddjiP",
+  "job": "HAR-116-har116-b-000226-leakclosed",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000226-leakclosed",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000226-leakclosed/har116-b-000226-leakclosed__K9ddjiP"
+ },
+ {
+  "trial": "har116-b-000226-original__JTEerfm",
+  "job": "HAR-116-har116-b-000226-original",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000226-original",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000226-original/har116-b-000226-original__JTEerfm"
+ },
+ {
+  "trial": "har116-b-000927-leakclosed__Sj3aGEg",
+  "job": "HAR-116-har116-b-000927-leakclosed",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-leakclosed",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-leakclosed/har116-b-000927-leakclosed__Sj3aGEg"
+ },
+ {
+  "trial": "har116-b-000927-original__kvyP9fr",
+  "job": "HAR-116-har116-b-000927-original",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-original",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-original/har116-b-000927-original__kvyP9fr"
+ },
+ {
+  "trial": "har116-b-002308-leakclosed__idknFAu",
+  "job": "HAR-116-har116-b-002308-leakclosed",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-leakclosed",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-leakclosed/har116-b-002308-leakclosed__idknFAu"
+ },
+ {
+  "trial": "har116-b-002308-original__oYziU3z",
+  "job": "HAR-116-har116-b-002308-original",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-original",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002308-original/har116-b-002308-original__oYziU3z"
+ },
+ {
+  "trial": "har116-b-002402-leakclosed__X7nGHNs",
+  "job": "HAR-116-har116-b-002402-leakclosed",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002402-leakclosed",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002402-leakclosed/har116-b-002402-leakclosed__X7nGHNs"
+ },
+ {
+  "trial": "har116-b-002402-original__PCgLbp7",
+  "job": "HAR-116-har116-b-002402-original",
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002402-original",
+  "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-002402-original/har116-b-002402-original__PCgLbp7"
+ }
+]

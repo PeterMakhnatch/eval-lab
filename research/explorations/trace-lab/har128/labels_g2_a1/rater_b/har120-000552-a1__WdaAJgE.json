@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "return self._req(url, params=dict(index=index.upper())).json()",
+      "ref": "head#38"
+    },
+    {
+      "quote": "I'll insert the new methods after `advanceDecline` (line 1133, before `holidays` at line 1134)",
+      "ref": "head#43"
+    },
+    {
+      "quote": "calls `/corporates-corporateActions` with `index=segment.upper()`",
+      "ref": "head#64"
+    }
+  ],
+  "first_failure": {
+    "quote": "I'll insert the new methods after `advanceDecline` (line 1133, before `holidays` at line 1134)",
+    "ref": "head#43",
+    "what": "Inserted all 7 NSE methods with index params uppercased (segment.upper()/index.upper()) though the instruction gives lowercase Literals and reserves uppercasing for symbol/dept; 5 hidden tests fail EQUITIES vs equities, never revisited."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Reward 0; sole NSE.py write at head#43, later 60 steps only re-verify with own FakeSession (same wrong case baked in); git log check was read-only within HEAD; summarization at head#77-78; single completion claim, loop_break never fired.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000552-a1__WdaAJgE"
+}

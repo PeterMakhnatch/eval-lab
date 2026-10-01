@@ -1,0 +1,31 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "from .. import eventstream as est",
+      "ref": "head#35"
+    },
+    {
+      "quote": "class Ppar(ptt.Pattern):",
+      "ref": "head#40"
+    }
+  ],
+  "first_failure": {
+    "quote": "Let me implement `Ppar` in `eventpatterns.py` and `PparStream` in `eventstream.py`",
+    "ref": "head#40",
+    "what": "wrote Ppar into eventpatterns.py with __stream__ returning bare PparStream, never imported (module imports eventstream as est); all 9 hidden tests die with NameError"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "reward 0.0; all 9 hidden Ppar tests fail with NameError: name 'PparStream' is not defined at eventpatterns.py:62. head#36 write attempt failed its own assertion (nothing written); head#40 landed Ppar, PparStream went to eventstream.py. Model tested eventstream.PparStream directly and never fixed the import. 90 episodes, 2.458M/2.5M input tokens -> token budget; no completion claims, no 10-repeat, loop_break false.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-002680-a1__Ci4bEkf"
+}

@@ -1,0 +1,18 @@
+{
+  "blame": "infra",
+  "blame_confidence": "high",
+  "evidence": [],
+  "first_failure": null,
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "No agent/ or verifier/ dirs; agent_execution null. Setup failed: 'RuntimeError: Failed to start tmux session. Error: bash: line 1: tmux: command not found'. No model steps exist, so first_failure is null (nothing model-side to cite).",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "infra_error",
+  "trial": "har120-001647-a1__iqMRm5R"
+}

@@ -1,0 +1,99 @@
+{
+ "trial": "har116-b-000927-original__kvyP9fr",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-original/har116-b-000927-original__kvyP9fr",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-b-000927-original",
+ "task": "mimo-v2.6-rl/format-code-task-000927",
+ "verifier": {
+  "scored": true,
+  "reward": 1.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": {
+  "step_id": 66,
+  "step_ref": "head#66",
+  "tag": "tool_use",
+  "attribution": "model",
+  "rule_id": "R-TOOL-02",
+  "evidence_step_refs": [
+   "head#66"
+  ],
+  "recovered": true,
+  "note": "model-emitted surface the normalizer declines (malformed_native:task_complete); A-NON-NATIVE-MODEL; harness feedback: 'No valid JSON found in response' (names the problem: false)",
+  "harness_feedback": "No valid JSON found in response",
+  "feedback_names_problem": false
+ },
+ "outcome": {
+  "step_id": null,
+  "step_ref": null,
+  "tag": "none",
+  "attribution": "n/a",
+  "rule_id": "R-NONE-01",
+  "evidence_step_refs": [],
+  "note": "scored pass with no outcome-relevant failure",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): pager after head#46 (`cd /testbed && git diff soupsieve/`), 17 turns head#47-head#63 with no interrupt, prompt back after the command finished"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [],
+  "identical": null,
+  "confirmation": null,
+  "in_loops": null,
+  "all_steps": {
+   "prompt": 2423714,
+   "completion": 22140,
+   "steps": 74,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": null,
+  "result_input_tokens": 2423714
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 67,
+  "states": {
+   "continuation": 16,
+   "pager": 3,
+   "prompt": 48
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#46",
+    "trigger_command": "cd /testbed && git diff soupsieve/",
+    "cause": "pager",
+    "screen": "--More--",
+    "start_ref": "head#47",
+    "end_ref": "head#63",
+    "turns": 17,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": true,
+    "until_run_end": false,
+    "prompt_tokens": 753984,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 1
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "ba8d8358d2bb6ca6fae7c00e871c0271e587269c"
+ },
+ "nop_runs_dir": null
+}

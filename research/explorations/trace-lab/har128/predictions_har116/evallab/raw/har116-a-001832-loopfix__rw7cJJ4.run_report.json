@@ -1,0 +1,299 @@
+{
+  "schema": "evallab.run_report/v1",
+  "identity": {
+    "trial_name": "har116-a-001832-loopfix__rw7cJJ4",
+    "trial_id": "68a253fa-593f-4b76-b301-1c0690ca5ff0",
+    "task": "mimo-v2.6-rl/format-code-task-001832",
+    "job": "HAR-116-har116-a-001832-loopfix",
+    "agent": "terminus-2",
+    "agent_version": "2.0.0",
+    "model": "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    "atif_schema": "ATIF-v1.7",
+    "session_id": "6a934a35-359f-4816-bbad-22f05fb7caf3",
+    "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-001832-loopfix/har116-a-001832-loopfix__rw7cJJ4"
+  },
+  "availability": {
+    "trajectory": "present",
+    "reason": null
+  },
+  "outcome": {
+    "verdict": "errored",
+    "reward": null,
+    "rewards": {},
+    "verifier_outcome": "none",
+    "stop_reason": "error",
+    "stop_detail": "exception ModuleNotFoundError",
+    "completion": "Completion: never claimed; the run ended on step 1 (You are an AI assistant tasked with solving command-line tasks in a Linux environment. You will be given a task descript...).",
+    "execution_problems": {
+      "parse_errors": 0,
+      "prose_completions": 0,
+      "http_400_no_usage": 0,
+      "proxy_unresolved_requests": 0,
+      "proxy_usage_unreconciled": false,
+      "coverage": "complete"
+    },
+    "final_agent_message": null,
+    "verifier_files": [],
+    "first_failure": {
+      "step": null,
+      "kind": null,
+      "evidence": null,
+      "confidence": null
+    }
+  },
+  "timing": {
+    "started_at": "2026-10-01T00:06:50.511232+00:00",
+    "finished_at": "2026-10-01T00:07:09.995200+00:00",
+    "total_seconds": 19.484,
+    "phases": {
+      "environment_setup": {
+        "seconds": 2.446,
+        "starts_at_offset_seconds": 0.154
+      },
+      "agent_setup": {
+        "seconds": 8.561,
+        "starts_at_offset_seconds": 3.961
+      },
+      "agent_execution": {
+        "seconds": 5.612,
+        "starts_at_offset_seconds": 12.55
+      },
+      "verifier": {
+        "seconds": null,
+        "starts_at_offset_seconds": null
+      }
+    },
+    "unaccounted_seconds": 2.865,
+    "phases_overlap": false,
+    "first_agent_step_offset_seconds": null,
+    "offset_origin": "agent_execution.started_at",
+    "steps_with_timestamps": 1,
+    "agent_span_seconds": null,
+    "step_gap_seconds": {
+      "count": 0,
+      "median": null,
+      "p90": null,
+      "max": null,
+      "total": null
+    },
+    "slowest_steps": []
+  },
+  "tokens": {
+    "input": 1105,
+    "cached_input": 0,
+    "uncached_input": 1105,
+    "output": 100,
+    "reasoning": null,
+    "cache_write": null,
+    "total": 1205,
+    "sources": {
+      "input": "result_json",
+      "cached_input": "result_json",
+      "output": "result_json",
+      "reasoning": null
+    },
+    "declared": {
+      "result_json": {
+        "input": 1105,
+        "cached_input": 0,
+        "output": 100,
+        "cost_usd": null
+      },
+      "trajectory_final_metrics": {
+        "input": 1105,
+        "cached_input": 0,
+        "output": 100,
+        "cost_usd": null
+      },
+      "step_sum": {
+        "input": null,
+        "cached_input": null,
+        "output": null,
+        "reasoning": null,
+        "cache_write": null,
+        "cost_usd": null
+      }
+    },
+    "llm_steps": 0,
+    "llm_steps_with_usage": 0,
+    "context": {
+      "first_prompt_tokens": null,
+      "peak_prompt_tokens": null,
+      "peak_step": null,
+      "last_prompt_tokens": null
+    },
+    "top_steps": []
+  },
+  "cost": {
+    "total_usd": null,
+    "source": null,
+    "harness_cost_source": null,
+    "is_lower_bound": false,
+    "steps_with_cost": 0,
+    "per_1k_output_tokens_usd": null,
+    "note": "Harness-reported native ledger; not a provider invoice.",
+    "ledger": {
+      "attempted_cost_usd": 0.0,
+      "cost_usd": null,
+      "pricing": {
+        "input_cost_micros_per_million": 0,
+        "output_cost_micros_per_million": 0
+      },
+      "reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "price_table": null
+  },
+  "tools": {
+    "total_calls": 0,
+    "actions": 0,
+    "distinct_tools": 0,
+    "polls": 0,
+    "by_tool": [],
+    "top_programs": [],
+    "wrapped_calls": {}
+  },
+  "revisits": {
+    "actions_considered": 0,
+    "distinct_actions": 0,
+    "repeated_actions": 0,
+    "repeat_rate": null,
+    "returns_to_earlier_action": 0,
+    "consecutive_repeats": 0,
+    "exact_revisits": 0,
+    "same_result_from_different_action": 0,
+    "repeated_errors": 0,
+    "longest_identical_run": {
+      "length": 0,
+      "steps": [],
+      "start_step": null,
+      "end_step": null
+    },
+    "longest_cycle": null,
+    "most_repeated": [],
+    "loop_suspicion": {
+      "detected": false,
+      "score": 0.0,
+      "reasons": []
+    }
+  },
+  "subagents": {
+    "observability": "none_observed",
+    "reason": null,
+    "count": 0,
+    "delegated_count": 0,
+    "summarization_count": 0,
+    "delegation_calls": [],
+    "items": [],
+    "codex_rollouts": null
+  },
+  "context": {
+    "segments": [
+      "agent/trajectory.json"
+    ],
+    "copied_context_steps_excluded": 0,
+    "events": []
+  },
+  "errors": {
+    "tool_errors": 0,
+    "harness_signalled": 0,
+    "inferred_from_output": 0,
+    "status_unknown_calls": 0,
+    "calls_without_result": 0,
+    "not_executed_calls": 0,
+    "expected_probe_misses": 0,
+    "by_category": {},
+    "first_error": null,
+    "ended_in_error": false,
+    "examples": [],
+    "exception": {
+      "type": "ModuleNotFoundError",
+      "message": "No module named 'duckdb'",
+      "occurred_at": "2026-10-01T00:07:09.206944Z"
+    }
+  },
+  "domain": null,
+  "outside_fetches": {
+    "count": 0,
+    "items": []
+  },
+  "pass_may_be_copied": null,
+  "timeline": {
+    "total_steps": 1,
+    "shown_steps": 1,
+    "entries": [
+      {
+        "step": 1,
+        "offset_seconds": 0.554,
+        "source": "user",
+        "action": null,
+        "status": null,
+        "input_tokens": null,
+        "output_tokens": null,
+        "cost_usd": null,
+        "message": "You are an AI assistant tasked with solving command-line tasks in a Linux enviro...",
+        "flags": []
+      }
+    ],
+    "windows": [],
+    "time_windows": {
+      "status": "unavailable",
+      "reason": "fewer than 20 steps",
+      "windows": []
+    }
+  },
+  "data_quality": [
+    "step layers unavailable: no recorded layers and no parser to reconstruct them",
+    "cost unavailable: the harness recorded no cost for this run; model 'XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B' has no pinned price-table entry"
+  ],
+  "sources": [
+    {
+      "path": "result.json",
+      "sha256": "35153ec9d8f04c4a9f32da38aa3c4062392e4a182d8cbe719de0612d425e76d1"
+    },
+    {
+      "path": "agent/trajectory.json",
+      "sha256": "3343f8733396a9df0d1cb308bb75e74e368fd589eb154379f24b2e422848671e"
+    }
+  ],
+  "capture": null,
+  "step_layers": {
+    "agent_steps": 0,
+    "recorded": 0,
+    "reconstructed": 0,
+    "copied": 0,
+    "missing": 0,
+    "parse_errors": 0,
+    "prose_completions": 0,
+    "executed_calls": 0,
+    "task_complete_turns": 0,
+    "layers_unknown_reason": null
+  },
+  "trajectory_coverage": {
+    "trajectory_head": true,
+    "continuation_indices": [],
+    "continuation_count": 0,
+    "summarization_count": 0,
+    "continuations_missing": [],
+    "parts": [
+      {
+        "path": "trajectory.json",
+        "kind": "head",
+        "index": 0,
+        "readable": true,
+        "steps": 1,
+        "copied_steps": 0,
+        "session_id": "6a934a35-359f-4816-bbad-22f05fb7caf3"
+      }
+    ],
+    "duplicate_segments": {},
+    "unique_steps": 1,
+    "duplicated_steps": 0,
+    "copied_context_steps": 0,
+    "malformed_steps": 0,
+    "complete": true,
+    "gaps": [],
+    "notes": []
+  },
+  "summary": "terminus-2 (XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B) errored on mimo-v2.6-rl/format-code-task-001832; in 19.5s wall (5.6s agent); 1 step, 0 tool calls, 0 errors, 1,205 tokens, cost unavailable; 0 repeated actions (0 exact revisits); no subagents observed."
+}

@@ -686,9 +686,11 @@ def cmd_report(args: argparse.Namespace) -> int:
         f"max={trials_s['wall_s']['max']:.0f}"
     )
     for exc, g in (trials_s.get("by_exception") or {}).items():
+        llm_g = g["llm_time_s_mean"]
         lines.append(
             f"  outcome {exc}: n={g['n']} wall mean={g['wall_s_mean']:.0f} "
-            f"median={g['wall_s_median']:.0f} llm mean={g['llm_time_s_mean']:.0f} "
+            f"median={g['wall_s_median']:.0f} "
+            f"llm mean={'n/a' if llm_g is None else f'{llm_g:.0f}'} "
             f"mean_out_tok={g['mean_output_tokens']:.0f}"
         )
     lines.append(

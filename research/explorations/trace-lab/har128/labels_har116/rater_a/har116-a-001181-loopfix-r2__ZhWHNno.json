@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Now I'll implement the fix. The design: add `_completed` and `_total` accumulators on `Task` for the rolling rate estimate",
+      "ref": "head#22"
+    },
+    {
+      "quote": "print(s[80:95])",
+      "ref": "head#78"
+    },
+    {
+      "quote": "print(s[78:93])",
+      "ref": "head#80"
+    },
+    {
+      "quote": "print(s[74:89])",
+      "ref": "head#84"
+    },
+    {
+      "quote": "print(s[71:86])",
+      "ref": "head#87"
+    }
+  ],
+  "first_failure": {
+    "quote": "Now I'll implement the fix. The design: add `_completed` and `_total` accumulators on `Task` for the rolling rate estimate",
+    "ref": "head#22",
+    "what": "introduced _completed/_total accumulator design with a wrong speed formula; broke all telemetry tests"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#78",
+    "head#87"
+  ],
+  "notes": "n_episodes 87, ~2.42M input tokens, TrialBudgetExhaustedError; loop_break nudged at call 12 but stop_call null; agent.diff 3.3KB wrong patch (speed from _completed minus _total, clobbers window state); verifier 11 failed incl. all 8 telemetry codespec tests plus 3 pre-existing progress tests; never fixed core logic, chased test_track rendering instead; no completion claim.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-a-001181-loopfix-r2__ZhWHNno"
+}

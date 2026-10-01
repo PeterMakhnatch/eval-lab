@@ -1,0 +1,54 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Where to put `friend_set_for` module-level function",
+      "ref": "head#10"
+    },
+    {
+      "quote": "The implementation is complete and verified. All requested behaviors pass against a live database.",
+      "ref": "head#33"
+    },
+    {
+      "quote": "Are you sure you want to mark the task as complete?",
+      "ref": "head#33"
+    },
+    {
+      "quote": "Yes, I'm confident the task is complete.",
+      "ref": "head#34"
+    },
+    {
+      "quote": "import ast; ast.parse(open('friends/models.py').read()); print('SYNTAX OK')",
+      "ref": "head#35"
+    },
+    {
+      "quote": "the repetition was still going 56 calls in, 15 after the nudge at call 41",
+      "ref": "head#57"
+    },
+    {
+      "quote": "ImportError: cannot import name 'friend_set_for' from 'friends.models'",
+      "ref": "head#57"
+    }
+  ],
+  "first_failure": {
+    "quote": "I'll add a `FriendshipManager` with the four lookups plus a `delete()` override on `Friendship`",
+    "ref": "head#10",
+    "what": "Wrote FriendshipManager but the required module-level friend_set_for (imported by the hidden test and pre-existing callers) never landed in friends/models.py; verified only manager methods via DB probes, never the module import."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#33",
+    "head#57"
+  ],
+  "notes": "After the head#33 done-claim the model never confirmed; steps head#34-head#57 are all re-checks (sed + ~23 SYNTAX OK probes, later carrying a typo'd read()); variant), so completion-claim outranks repetition. Pre-existing models.py:132,167 already call module-level friend_set_for, which was never defined.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-001661-a1__xdRDCYr"
+}

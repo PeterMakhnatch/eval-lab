@@ -1,0 +1,55 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "ERROR: No matching distribution found for pre-commit==2.15.0",
+      "ref": "head#15"
+    },
+    {
+      "quote": "grep -n post-rewrite /usr/local/lib/python3.9/site-packages/pre_commit/commands/hook_impl.py -> 171: 'post-rewrite': 1, 215: elif hook_type == 'post-rewrite':",
+      "ref": "head#18"
+    },
+    {
+      "quote": "I found the upstream implementation in the installed site-packages",
+      "ref": "head#21"
+    },
+    {
+      "quote": "Now I'll apply the upstream changes to the source package",
+      "ref": "head#25"
+    },
+    {
+      "quote": "The source now matches the upstream implementation exactly",
+      "ref": "head#29"
+    },
+    {
+      "quote": "15 passed",
+      "ref": "verifier/test_output.log"
+    },
+    {
+      "quote": "TrialBudgetExhaustedError: the trial proxy refused a model call: trial budget exhausted",
+      "ref": "exception.txt"
+    }
+  ],
+  "first_failure": {
+    "quote": "grep -n post-rewrite ... /usr/local/lib/python3.9/site-packages/pre_commit/commands/hook_impl.py -> 171: 'post-rewrite': 1, 215: elif hook_type == 'post-rewrite':",
+    "ref": "head#18",
+    "what": "read the newer installed pre-commit in site-packages containing the upstream post-rewrite implementation"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "pip download blocked (leakclosed); model fell back to the newer pre-commit installed in site-packages. agent.diff is inflated by build/lib artifacts from a local build. Agent's test edits were overwritten by the verifier test patch. Steps 55-78 are varied garbled-terminal troubleshooting, never twice the same action; no completion ever declared.",
+  "off_limits_opened": false,
+  "pass_copied": true,
+  "pass_copied_confidence": "high",
+  "sft_cut": {
+    "clean": false,
+    "cut_step_id": 54,
+    "reason": "Copied post-rewrite support from newer installed site-packages; keep through final verification, drop garbled-terminal tail."
+  },
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har116-b-002308-leakclosed__idknFAu"
+}

@@ -1,0 +1,35 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "If no substance with the given ID is loaded, a PMParamError is raised.",
+      "ref": "head#22"
+    },
+    {
+      "quote": "PMParamError: Invalid substance ID: 'not.a.real.substance'",
+      "ref": "head#23"
+    },
+    {
+      "quote": "Implemented `pyromat.get()` in `src/pyromat/__init__.py` as a pure lookup",
+      "ref": "head#25"
+    }
+  ],
+  "first_failure": {
+    "quote": "If no substance with the given ID is loaded, a PMParamError is raised.",
+    "ref": "head#22",
+    "what": "Wrote get() that raises PMParamError but never prints/reports the missing ID to stdout as the issue ('report ... and raise') and hidden tests require; later checks asserted only the exception message."
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Reward 0 (2 hidden tests need the ID on stdout via capsys); upstream-get() musings in reasoning only, no fetch executed; trailing completions at 25/27/28 are normal harness confirm flow.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har120-000666-a1__mZosYxT"
+}

@@ -312,17 +312,19 @@ def _load_frozen_labels(
     # 1. Frozen agent-rater loop labels: one explicit cohort per frozen study.
     # har119 is the immutable historic freeze; its loader stays lenient
     # (filename-keyed, no closure/identity enforcement) to preserve history.
-    # har128-har116 and har128-g2-a1 are strict: manifest-closed and
-    # trial-identity-checked. Cohorts stay distinct so votes never pool.
-    # Labels are inspection-only; nothing here may be reinterpreted as
-    # training reflection.
+    # har128-har116, har128-g2-a1 and har128-g2-r2 are strict:
+    # manifest-closed and trial-identity-checked. Cohorts stay distinct so
+    # votes never pool. Labels are inspection-only; nothing here may be
+    # reinterpreted as training reflection.
     har119_base = repo_root / "research" / "explorations" / "trace-lab" / "har119" / "labels"
     har128_har116_base = repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_har116"
     har128_g2_a1_base = repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_g2_a1"
+    har128_g2_r2_base = repo_root / "research" / "explorations" / "trace-lab" / "har128" / "labels_g2_r2"
     rater_cohorts: list[tuple[str, Path, Path, bool]] = [
         ("har119", har119_base, har119_base / "MANIFEST.sha256", False),
         ("har128-har116", har128_har116_base, har128_har116_base / "MANIFEST.sha256", True),
         ("har128-g2-a1", har128_g2_a1_base, har128_g2_a1_base / "MANIFEST.sha256", True),
+        ("har128-g2-r2", har128_g2_r2_base, har128_g2_r2_base / "MANIFEST.sha256", True),
     ]
     for cohort, labels_base, cohort_manifest, strict in rater_cohorts:
         report: dict[str, Any] = {"verified": 0, "failed": [], "manifest": None}

@@ -30,7 +30,7 @@ from pydantic import ValidationError, field_validator, model_validator
 
 from evallab.evidence_store import load_blob, store_blob
 from evallab.execution_contracts import CONTROL_AGENTS, PaidRunAuthorization, load_policy
-from evallab.schemas import ContractModel, StandingApprovalsPolicy
+from evallab.schemas import ContractModel, StandingApprovalsPolicy, effective_daily_cost_ceiling
 
 MODES = frozenset({"DISABLED", "PAUSED", "RUNNING", "DRAINING", "MAINTENANCE", "KILLED"})
 KILL_DISPOSITION = "FAILED_OPERATOR_KILL"
@@ -874,7 +874,7 @@ def lookup_trusted_record(
         ceiling = loaded.get("ceiling_usd")
         if not isinstance(ceiling, (int, float)) or ceiling <= 0:
             return None, {}
-        if standing is not None and ceiling > standing.daily_cost_ceiling_usd:
+        if standing is not None and ceiling > effective_daily_cost_ceiling(standing, now):
             return None, {}
         out["ceiling_usd"] = ceiling
     if kind == "recovery":

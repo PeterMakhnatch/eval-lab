@@ -902,9 +902,19 @@ class _RecordingStub(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     received: list[dict[str, Any]] = []
     lock = threading.Lock()
+    #: Forced echo for the response ``model``; None echoes the request model.
+    echo_model: str | None = None
 
     def log_message(self, format: str, *args: Any) -> None:
         return
+
+    def _echo(self, payload: dict[str, Any]) -> str:
+        # Forced echo only: the default "stub" keeps every existing
+        # expectation stable. Smoke tests set echo_model to the SGLang
+        # served-model-name they need (base or adapter native id).
+        del payload
+        forced = type(self).echo_model
+        return forced if forced is not None else "stub"
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length") or 0)
@@ -913,9 +923,10 @@ class _RecordingStub(BaseHTTPRequestHandler):
             payload = json.loads(raw.decode())
         except (ValueError, UnicodeDecodeError):
             payload = {}
+        echo = self._echo(payload)
         if self.path.endswith("/stream") or bool(payload.get("stream")):
             events = [
-                {"model": "stub", "choices": [{"index": 0, "delta": {"content": "hel"}}]},
+                {"model": echo, "choices": [{"index": 0, "delta": {"content": "hel"}}]},
                 {"choices": [{"index": 0, "delta": {"content": "lo"}}]},
                 {
                     "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
@@ -928,7 +939,7 @@ class _RecordingStub(BaseHTTPRequestHandler):
         else:
             body = json.dumps(
                 {
-                    "model": "stub",
+                    "model": echo,
                     "choices": [
                         {
                             "index": 0,
@@ -1489,6 +1500,7 @@ def test_capture_smoke_against_fake_upstream(
     from evallab.model_capture import _forwarded_host, run_capture_smoke
 
     _RecordingStub.received = []
+    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
     stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
     threading.Thread(target=stub.serve_forever, daemon=True).start()
     try:
@@ -1499,8 +1511,9 @@ def test_capture_smoke_against_fake_upstream(
         )
     finally:
         stub.shutdown()
+        _RecordingStub.echo_model = None
     assert summary["status"] == 200
-    assert summary["model"] == "stub"
+    assert summary["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
     assert summary["calls"] == 1
     assert summary["forwarded_host"] == f"127.0.0.1:{stub.server_address[1]}"
     assert _forwarded_host("https://example.us-east.modal.direct") == "example.us-east.modal.direct"
@@ -1535,3 +1548,70 @@ def test_capture_smoke_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-001")
     with _pytest.raises(SmokeError):
         run_capture_smoke(upstream="http://127.0.0.1:9", out_dir=tmp_path / "s2")
+
+
+def test_capture_smoke_adapter_selector_passes_on_adapter_echo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The :har129 leg smokes through the same proxy/capture chain."""
+    from evallab.model_capture import run_capture_smoke
+
+    _RecordingStub.received = []
+    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"
+    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-002")
+        summary = run_capture_smoke(
+            upstream=f"http://127.0.0.1:{stub.server_address[1]}",
+            out_dir=tmp_path / "smoke-adapter",
+            model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+        )
+    finally:
+        stub.shutdown()
+        _RecordingStub.echo_model = None
+    assert summary["status"] == 200
+    assert summary["model"] == "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129"
+    assert "smoke-fake-key-002" not in json.dumps(summary)
+
+
+def test_capture_smoke_adapter_selector_fails_when_echo_is_base(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An adapter request echoing the base id fails the runner identity rule."""
+    import pytest as _pytest
+
+    from evallab.model_capture import SmokeError, run_capture_smoke
+
+    _RecordingStub.received = []
+    _RecordingStub.echo_model = "XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+    stub = ThreadingHTTPServer(("127.0.0.1", 0), _RecordingStub)
+    threading.Thread(target=stub.serve_forever, daemon=True).start()
+    try:
+        monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-003")
+        with _pytest.raises(SmokeError, match="does not match requested"):
+            run_capture_smoke(
+                upstream=f"http://127.0.0.1:{stub.server_address[1]}",
+                out_dir=tmp_path / "smoke-mismatch",
+                model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:har129",
+            )
+    finally:
+        stub.shutdown()
+        _RecordingStub.echo_model = None
+
+
+def test_capture_smoke_unknown_adapter_suffix_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A selector outside the #604 admission never reaches the chain."""
+    import pytest as _pytest
+
+    from evallab.model_capture import SmokeError, run_capture_smoke
+
+    monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "smoke-fake-key-004")
+    with _pytest.raises(SmokeError, match="refused"):
+        run_capture_smoke(
+            upstream="http://127.0.0.1:9",
+            out_dir=tmp_path / "smoke-bad-suffix",
+            model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B:nope",
+        )

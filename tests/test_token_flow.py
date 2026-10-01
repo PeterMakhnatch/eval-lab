@@ -326,7 +326,7 @@ def test_process_job_carries_token_flow(tmp_path: Path) -> None:
     ]
     _write_trial(job, "trial-a", steps, diff="a.py\n")
     out = tmp_path / "out"
-    report = process_job(job, output_dir=out, ingest=False)
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
 
     saved = json.loads((out / "trial-trial-a.json").read_text(encoding="utf-8"))
     flow = saved["token_flow"]

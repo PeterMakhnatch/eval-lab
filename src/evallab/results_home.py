@@ -21,7 +21,7 @@ import os
 import re
 import shutil
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +31,17 @@ DEFAULT_ROOT = Path.home() / "Developer" / "eval-lab-results"
 PRIMARY_CHECKOUT = Path.home() / "Developer" / "eval-lab"
 CARD_RE = re.compile(r"har-?(\d+)", re.IGNORECASE)
 SECRET_RE = re.compile(r"(?i)(key|token|secret|password|authorization)")
+
+#: Agents that run controls, not model capability: their jobs collapse to one
+#: INDEX line per card. Anything else with a recorded agent is an agent run.
+#: Compared against the agent's short name (after the last ``:``), so both
+#: ``nop`` and ``evallab.module:Nop``-style paths classify the same way.
+CONTROL_AGENTS = frozenset({"nop", "oracle", "probe"})
+
+#: The only research docs the INDEX links, in preference order. The lookup
+#: never descends anywhere else, so deep ``evidence/`` and vendored trees
+#: are never touched during publish (HAR-117 publish-slowness fix).
+_RESEARCH_DOC_NAMES = ("RESULTS.md", "SUMMARY.md", "README.md")
 
 # Publish refuses to follow links out of the job directory, and never publishes
 # the executor's staging area.
@@ -503,64 +514,280 @@ def _tasks_cell(provenance: dict[str, Any]) -> str:
     return ", ".join(names) if names else "unknown"
 
 
-def _research_doc(card: str | None, checkout: Path) -> str | None:
-    if card is None or not checkout.is_dir():
-        return None
-    slug = card.lower().replace("-", "")
-    research = checkout / "research"
-    if not research.is_dir():
-        return None
-    for path in sorted(research.rglob("*.md")):
-        if slug in path.relative_to(checkout).as_posix().lower().replace("-", ""):
-            return str(path)
+def _doc_for_dir(directory: Path) -> Path | None:
+    """The preferred research doc directly inside one experiment/exploration dir."""
+    for name in _RESEARCH_DOC_NAMES:
+        candidate = directory / name
+        if candidate.is_file():
+            return candidate
     return None
 
 
-def _index_rows(home: Path, checkout: Path) -> list[str]:
-    rows: list[tuple[str, str]] = []
-    if not home.is_dir():
-        return []
-    for provenance_path in home.rglob("provenance.json"):
-        published = provenance_path.parent
-        provenance = _read_json(provenance_path) or {}
-        repository = _as_dict(provenance.get("repository"))
-        day = published.parent.name
-        card = provenance.get("card") or "unknown"
-        dirty = repository.get("dirty")
-        mark = " **uncommitted code**" if dirty is True else ""
-        commit = repository.get("commit") or "unknown"
-        short = commit[:12] if isinstance(commit, str) else "unknown"
-        doc = _research_doc(card if isinstance(card, str) else None, checkout)
-        doc_cell = f"[research]({doc})" if doc else "no research doc"
-        line = (
-            f"| {card}{mark} | {day} | {_tasks_cell(provenance)} | {_reward_summary(published)} "
-            f"| {_spend(published)} | [run]({published}) | [report]({published / 'processed' / 'job.md'}) "
-            f"| {doc_cell} | `{short}` |"
+def _research_docs(checkout: Path) -> dict[str, str]:
+    """Card (``HAR-117``) to research doc, from one bounded scan per regeneration.
+
+    Only ``research/experiments/*/`` and ``research/explorations/*/``
+    top-level docs are considered, plus one bounded level for nested
+    explorations such as ``trace-lab/har109``. The previous implementation
+    ran ``research.rglob("*.md")`` once per INDEX row, descending into
+    ``research/evidence/runs`` and vendored trees on every publish; this
+    never leaves the two buckets above, so its cost does not depend on deep
+    trees. Only directories whose own name carries the card match.
+    """
+    docs: dict[str, str] = {}
+    research = checkout / "research"
+    for bucket in ("experiments", "explorations"):
+        base = research / bucket
+        if not base.is_dir():
+            continue
+        try:
+            top = sorted(p for p in base.iterdir() if p.is_dir() and not p.is_symlink())
+        except OSError:
+            continue
+        candidates: list[Path] = list(top)
+        for entry in top:
+            try:
+                children = sorted(p for p in entry.iterdir() if p.is_dir() and not p.is_symlink())
+            except OSError:
+                continue
+            candidates.extend(children)
+        for directory in candidates:
+            card = card_from(directory.name)
+            if card is None or card in docs:
+                continue
+            doc = _doc_for_dir(directory)
+            if doc is not None:
+                docs[card] = str(doc)
+    return docs
+
+
+def _command_agent(command: Any) -> str | None:
+    """The ``--agent`` value of a recorded harbor command, else None."""
+    if not isinstance(command, list):
+        return None
+    for index, token in enumerate(command):
+        if token == "--agent" and index + 1 < len(command):
+            value = command[index + 1]
+            return str(value) if value else None
+    return None
+
+
+def _agent_model(published: Path, provenance: dict[str, Any]) -> tuple[str | None, str | None]:
+    """``(agent, model)`` for one published job, from records, not name heuristics.
+
+    Prefers the provenance command, then the published ``config.json``
+    agent entry (old backfilled jobs have no recorded command but keep
+    their config), then the ``lab-metadata.json`` command. Either side may
+    stay None when nothing recorded it.
+    """
+    agent = _command_agent(provenance.get("command"))
+    model = provenance.get("model")
+    if not isinstance(model, str):
+        model = None
+    if agent is None or model is None:
+        config = _read_json(published / "config.json") or {}
+        agents = config.get("agents")
+        first = (
+            agents[0]
+            if isinstance(agents, list) and agents and isinstance(agents[0], dict)
+            else None
         )
-        rows.append((f"{day}-{published.name}", line))
-    rows.sort(reverse=True)
-    return [line for _, line in rows]
+        if agent is None and first is not None:
+            name = first.get("name")
+            agent = str(name) if name else None
+        if model is None and first is not None:
+            model_name = first.get("model_name")
+            model = str(model_name) if model_name else None
+    if agent is None:
+        metadata = _read_json(published / "lab-metadata.json") or {}
+        agent = _command_agent(metadata.get("command"))
+    return agent, model
+
+
+def _agent_short(agent: str | None) -> str | None:
+    """``SecretSafeTerminus2`` from ``evallab.harbor_terminus:SecretSafeTerminus2``."""
+    if not agent:
+        return None
+    return agent.split(":")[-1].strip() or None
+
+
+def is_agent_run(agent: str | None) -> bool:
+    """A recorded agent counts as an agent run unless it is a control agent."""
+    short = _agent_short(agent)
+    return short is not None and short.lower() not in CONTROL_AGENTS
+
+
+def _published_jobs(home: Path) -> Iterator[tuple[Path, dict[str, Any]]]:
+    """``(published dir, provenance)`` for every job, without descending into jobs.
+
+    Published jobs always live at ``<home>/<day>/<card>-<job>/``. The
+    previous ``home.rglob("provenance.json")`` walked every copied run tree
+    (gigabytes of trial files) on each regeneration; two ``iterdir`` levels
+    find the same entries in time proportional to the job count.
+    """
+    if not home.is_dir():
+        return
+    try:
+        days = sorted(p for p in home.iterdir() if p.is_dir() and not p.is_symlink())
+    except OSError:
+        return
+    for day in days:
+        try:
+            jobs = sorted(p for p in day.iterdir() if p.is_dir() and not p.is_symlink())
+        except OSError:
+            continue
+        for job in jobs:
+            provenance_path = job / "provenance.json"
+            if not provenance_path.is_file():
+                continue
+            yield job, _read_json(provenance_path) or {}
+
+
+def _entry(published: Path, provenance: dict[str, Any], docs: dict[str, str]) -> dict[str, Any]:
+    """All INDEX cells for one published job, computed once per regeneration."""
+    repository = _as_dict(provenance.get("repository"))
+    day = published.parent.name
+    card = provenance.get("card")
+    if not isinstance(card, str) or not card:
+        card = "unknown"
+    commit = repository.get("commit") or "unknown"
+    agent, model = _agent_model(published, provenance)
+    doc = docs.get(card)
+    return {
+        "sort": f"{day}-{published.name}",
+        "day": day,
+        "card": card,
+        "job": published.name,
+        "tasks": _tasks_cell(provenance),
+        "reward": _reward_summary(published),
+        "spend": _spend(published),
+        "agent": agent or "unknown",
+        "agent_short": _agent_short(agent) or "unknown",
+        "model": model or "unknown",
+        "is_agent_run": is_agent_run(agent),
+        "mark": " **uncommitted code**" if repository.get("dirty") is True else "",
+        "short_commit": commit[:12] if isinstance(commit, str) else "unknown",
+        "run": str(published),
+        "report": str(published / "processed" / "job.md"),
+        "doc": f"[research]({doc})" if doc else "no research doc",
+    }
+
+
+def _agent_row(entry: dict[str, Any]) -> str:
+    return (
+        f"| {entry['day']} | {entry['job']}{entry['mark']} | {entry['tasks']} "
+        f"| {entry['agent_short']} | {entry['model']} | {entry['reward']} "
+        f"| {entry['spend']} | [run]({entry['run']}) | [report]({entry['report']}) "
+        f"| {entry['doc']} | `{entry['short_commit']}` |"
+    )
+
+
+def _routine_row(entry: dict[str, Any]) -> str:
+    return (
+        f"| {entry['card']}{entry['mark']} | {entry['day']} | {entry['tasks']} "
+        f"| {entry['reward']} | {entry['spend']} | [run]({entry['run']}) "
+        f"| [report]({entry['report']}) | {entry['doc']} | `{entry['short_commit']}` |"
+    )
 
 
 def write_index(home: Path, *, primary_checkout: Path | None = None) -> Path:
-    """Regenerate ``INDEX.md``, newest job first."""
+    """Regenerate ``INDEX.md`` (agent runs first) and ``INDEX-all.md`` (every job).
+
+    Agent runs are grouped by card, newest group first, newest job first
+    inside each group. Control jobs (``nop``/``oracle``/``probe`` agents,
+    plus jobs with no recorded agent) collapse to one line per card with a
+    count and a link to the full per-card list. Provenance columns are
+    unchanged. The research-doc lookup is built once per call and never
+    descends outside ``research/experiments`` and ``research/explorations``.
+    """
     checkout = primary_checkout if primary_checkout is not None else PRIMARY_CHECKOUT
-    rows = _index_rows(home, checkout)
+    docs = _research_docs(checkout)
+    entries = [
+        _entry(published, provenance, docs) for published, provenance in _published_jobs(home)
+    ]
+    agent_runs = sorted(
+        (entry for entry in entries if entry["is_agent_run"]),
+        key=lambda entry: entry["sort"],
+        reverse=True,
+    )
+    routine = sorted(
+        (entry for entry in entries if not entry["is_agent_run"]),
+        key=lambda entry: entry["sort"],
+        reverse=True,
+    )
+    by_card: dict[str, list[dict[str, Any]]] = {}
+    for entry in agent_runs:
+        by_card.setdefault(entry["card"], []).append(entry)
+    cards = sorted(by_card, key=lambda card: by_card[card][0]["sort"], reverse=True)
+    routine_by_card: dict[str, list[dict[str, Any]]] = {}
+    for entry in routine:
+        routine_by_card.setdefault(entry["card"], []).append(entry)
+    routine_cards = sorted(
+        routine_by_card, key=lambda card: routine_by_card[card][0]["sort"], reverse=True
+    )
     lines = [
         "# Eval Lab results",
         "",
-        "Published by `evallab process-job`. Newest first. A job marked",
-        "**uncommitted code** ran from a dirty checkout; its `uncommitted.diff`",
-        "is the change.",
+        "Published by `evallab process-job`. Agent runs first, grouped by card,",
+        "newest first. Control jobs (`nop`/`oracle`/`probe` agents, or no",
+        "recorded agent) collapse to one line per card below; the full list is",
+        "[INDEX-all.md](INDEX-all.md). A job marked **uncommitted code** ran",
+        "from a dirty checkout; its `uncommitted.diff` is the change.",
         "",
-        "| Card | Date | Tasks | Reward | Spend | Run | Report | Research | Commit |",
-        "|---|---|---|---|---|---|---|---|---|",
-        *rows,
+        f"## Agent runs ({len(agent_runs)})",
         "",
     ]
+    if agent_runs:
+        for card in cards:
+            group = by_card[card]
+            lines.append(f"### {card} ({len(group)})")
+            lines.append("")
+            lines.append(
+                "| Date | Job | Tasks | Agent | Model | Reward | Spend | Run | Report | Research | Commit |"
+            )
+            lines.append("|---|---|---|---|---|---|---|---|---|---|---|")
+            lines.extend(_agent_row(entry) for entry in group)
+            lines.append("")
+    else:
+        lines.append("No agent runs published yet.")
+        lines.append("")
+    lines.append(f"## Routine control jobs ({len(routine)} jobs, {len(routine_cards)} cards)")
+    lines.append("")
+    lines.append("| Card | Jobs | List |")
+    lines.append("|---|---|---|")
+    for card in routine_cards:
+        group = routine_by_card[card]
+        anchor = card.lower().replace(" ", "-")
+        lines.append(
+            f"| {card} | {len(group)} | [all {card} routine jobs](INDEX-all.md#{anchor}) |"
+        )
+    lines.append("")
     target = home / "INDEX.md"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text("\n".join(lines), encoding="utf-8")
+    all_by_card: dict[str, list[dict[str, Any]]] = {}
+    for entry in entries:
+        all_by_card.setdefault(entry["card"], []).append(entry)
+    for group in all_by_card.values():
+        group.sort(key=lambda entry: entry["sort"], reverse=True)
+    all_lines = [
+        "# Eval Lab results: all jobs",
+        "",
+        f"{len(entries)} jobs, newest first. Agent runs are listed up front in",
+        "[INDEX.md](INDEX.md); this file is the complete per-job list.",
+        "",
+    ]
+    for card in sorted(all_by_card, key=lambda card: all_by_card[card][0]["sort"], reverse=True):
+        group = all_by_card[card]
+        all_lines.append(f"## {card} ({len(group)})")
+        all_lines.append("")
+        all_lines.append(
+            "| Card | Date | Tasks | Reward | Spend | Run | Report | Research | Commit |"
+        )
+        all_lines.append("|---|---|---|---|---|---|---|---|---|")
+        all_lines.extend(_routine_row(entry) for entry in group)
+        all_lines.append("")
+    (home / "INDEX-all.md").write_text("\n".join(all_lines), encoding="utf-8")
     return target
 
 

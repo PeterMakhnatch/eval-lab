@@ -9,6 +9,27 @@ from pathlib import Path
 
 import pytest
 
+
+@pytest.fixture(autouse=True)
+def _isolate_results_home(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[Path, None, None]:
+    """Publishing from tests never touches Peter's real results home.
+
+    ``process_job(..., publish=True)`` (the default) resolves the home from
+    ``EVALLAB_RESULTS_HOME``; without this fixture a plain call publishes
+    into ``~/Developer/eval-lab-results`` and pollutes its INDEX (HAR-117:
+    ``unknown-job`` rows with a pytest tmp ``source_path``). Tests that need
+    an explicit home keep setting the variable themselves; the last setenv
+    wins because this fixture runs first.
+    """
+    from evallab.results_home import ENV_VAR
+
+    isolated = tmp_path / "results-home"
+    monkeypatch.setenv(ENV_VAR, str(isolated))
+    yield isolated
+
+
 _COLLECTED_MODULES: pytest.StashKey[frozenset[str]] = pytest.StashKey()
 _DEFAULT_COLLECTION: pytest.StashKey[bool] = pytest.StashKey()
 _SHARD_ASSIGNMENT: pytest.StashKey[tuple[int, int] | None] = pytest.StashKey()

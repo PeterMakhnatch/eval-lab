@@ -5,7 +5,7 @@
    (HAR-104's ``mimo-qual-*``, HAR-95, HAR-105, HAR-108) plus HAR-113's
    ``har113-nop-*`` (originals), ``har113-vnop-*`` and ``har113-rnop-*``
    (variants, in its locked worktree) and HAR-115's ``har115-nop-*`` and
-   ``har115-rnop-*`` (this checkout), rewriting the shared catalog's
+   ``har115-rnop-*`` (in its retained worktree or archive), rewriting the shared catalog's
    ``task_qualification.parquet``. Oracle probes and diagnoses
    (``*-probe-*``, ``*-diag*``) are not nops and stay out.
 2. ``evallab tasks health-collect`` over HAR-108's pool into
@@ -47,7 +47,7 @@ PATTERNS = {
     runs_of("har105-python-20260930"): ("har105-qual-py-*",),
     runs_of("har108-census-20260930"): ("har108-nop-*",),
     runs_of("har113-variants-20260930"): ("har113-nop-*", "har113-vnop-*", "har113-rnop-*"),
-    ROOT / "runs": ("har115-nop-*", "har115-rnop-*"),
+    runs_of("har115-census-20261001"): ("har115-nop-*", "har115-rnop-*"),
 }
 FIXES = WORKTREES / "har105-taskfix-20260929/research/experiments/har105-exploration/fixes.json"
 

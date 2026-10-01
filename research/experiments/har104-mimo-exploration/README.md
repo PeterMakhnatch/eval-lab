@@ -88,3 +88,19 @@ read from `experiment-spec.json`.
   context 131 072 with at most 117 964 completion tokens.
 - Treatment key: `serving_image` `deepinfra/bf16`, `serving_context_tokens`
   131072, `thinking` `reasoning_effort=medium`.
+
+## Self-hosted distill baseline: HAR-132 reproduction
+
+The ten `har104-d-*` runs under the retained `har104-runs/runs` worktree
+reproduce the HAR-104 card's 2026-09-30 04:34Z per-task table: four raw passes
+(000226, 000927, 002391, 002864), of which two remain after the upstream-fetch
+zero rule (002391, 002864). This is the self-hosted distill cohort, not an
+OpenRouter result for either route documented above.
+
+The later 05:05Z card receipt's **9/10 ceilings is incorrect: 8/10** ended
+with `TrialBudgetExhaustedError`; 000927 and 001896 finished naturally.
+The original per-task table already records those two natural finishes.
+Its token and call columns are settled proxy usage, not native ATIF totals:
+for example, 001896 has 1,076,698 input / 21,972 output tokens and 42 proxy
+calls, versus 1,068,603 / 17,876 native tokens and 41 agent steps.
+

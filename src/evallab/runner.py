@@ -16,6 +16,7 @@ import tempfile
 import threading
 import time
 import tomllib
+import urllib.parse
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
 from dataclasses import asdict, replace
@@ -28,6 +29,8 @@ from pydantic import ValidationError
 from evallab.execution_contracts import (
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
     BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
+    CAPTURE_ENABLED_ENV,
+    CAPTURE_ROUTE_TOKEN_ENV,
     CONTROL_AGENTS,
     DEEPSEEK_ALLOWED_MODEL,
     DEEPSEEK_ALLOWED_MODEL_ENV,
@@ -763,6 +766,33 @@ _TERMINUS_PROXY_STOP_TIMEOUT_SECONDS = 130.0
 _TERMINUS_PROXY_STDERR_TAIL_BYTES = 4096
 
 
+def _capture_route_token(upstream: str | None, attempt_id: str) -> dict[str, str]:
+    """Route token for the independent capture hop, or nothing.
+
+    Only when the operator opted in (``EVALLAB_MODEL_CAPTURE=1``) *and* the
+    provider upstream points at a loopback address (the recording proxy):
+    hand the secret proxy the job attempt id as ``/t/<token>/`` prefix so
+    ``capture link`` can attribute calls per job deterministically. Every
+    other shape — direct-to-vendor rounds, unset upstreams, a stray flag
+    against an https upstream — carries no token and the path stays pinned
+    exactly.
+    """
+    if os.environ.get(CAPTURE_ENABLED_ENV) != "1":
+        return {}
+    if not upstream:
+        return {}
+    try:
+        host = (urllib.parse.urlsplit(upstream).hostname or "").casefold()
+    except ValueError:
+        return {}
+    if host not in {"127.0.0.1", "localhost"}:
+        return {}
+    token = attempt_id.strip()
+    if not token:
+        return {}
+    return {CAPTURE_ROUTE_TOKEN_ENV: token}
+
+
 def _terminus_proxy_env(
     *,
     provider: str,
@@ -797,6 +827,7 @@ def _terminus_proxy_env(
         upstream = os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV)
         if upstream:
             env[MIMO_SELFHOSTED_UPSTREAM_ENV] = upstream
+        env.update(_capture_route_token(upstream, attempt_id))
         env[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
         env[MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV] = attempt_id
         env[MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV] = str(usage_path)
@@ -816,6 +847,7 @@ def _terminus_proxy_env(
         upstream = os.environ.get(TINKER_UPSTREAM_ENV)
         if upstream:
             env[TINKER_UPSTREAM_ENV] = upstream
+        env.update(_capture_route_token(upstream, attempt_id))
         env[TINKER_PROXY_CAPABILITY_ENV] = capability
         env[TINKER_PROXY_ATTEMPT_ID_ENV] = attempt_id
         env[TINKER_PROXY_USAGE_FILE_ENV] = str(usage_path)
@@ -835,6 +867,7 @@ def _terminus_proxy_env(
         upstream = os.environ.get(OPENROUTER_UPSTREAM_ENV)
         if upstream:
             env[OPENROUTER_UPSTREAM_ENV] = upstream
+        env.update(_capture_route_token(upstream, attempt_id))
         env[OPENROUTER_PROXY_CAPABILITY_ENV] = capability
         env[OPENROUTER_PROXY_ATTEMPT_ID_ENV] = attempt_id
         env[OPENROUTER_PROXY_USAGE_FILE_ENV] = str(usage_path)
@@ -849,6 +882,7 @@ def _terminus_proxy_env(
     upstream = os.environ.get(ZAI_OPENAPI_UPSTREAM_ENV)
     if upstream:
         env[ZAI_OPENAPI_UPSTREAM_ENV] = upstream
+    env.update(_capture_route_token(upstream, attempt_id))
     env[ZAI_OPENAPI_PROXY_CAPABILITY_ENV] = capability
     env[ZAI_OPENAPI_PROXY_ATTEMPT_ID_ENV] = attempt_id
     env[ZAI_OPENAPI_PROXY_USAGE_FILE_ENV] = str(usage_path)

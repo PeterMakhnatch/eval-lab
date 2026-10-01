@@ -15,18 +15,19 @@ either fix them or discard them... and move on").
 
 | split | usable | review | discarded | unchecked | total |
 |---|---|---|---|---|---|
-| train | 866 | 141 | 40 | 0 | 1047 |
+| train | 865 | 141 | 41 | 0 | 1047 |
 | heldout | 106 | 24 | 3 | 0 | 133 |
-| all | 972 | 165 | 43 | 0 | 1180 |
+| all | 971 | 165 | 44 | 0 | 1180 |
 
-- **usable 972:**
+- **usable 971:**
   - 746 run the original;
-  - 134 run a leak-closed variant (`pypi_fix_released`);
+  - 133 run a leak-closed variant (`pypi_fix_released`);
   - 92 run a validated repair variant (HAR-113/HAR-115 repairs derive from the leak-closed variant where there is one).
   - 122 of the 224 variants are leak-closed `candidate`s: their nop evidence is the original's. The blocklist reaches `/etc/hosts` only through the agent harness, so a nop cannot tell the two apart.
-  - 3 of the 972 left review in HAR-127 by majority: 000927, 001868 and 002757 (see [Review triage](#review-triage-har-127)).
+  - 3 of the 971 left review in HAR-127 by majority: 000927, 001868 and 002757 (see [Review triage](#review-triage-har-127)).
 - **review 165:** `checker_only_instruction_gap`, where the HAR-112 checker alone says broken. They stay in review because the checker alone doesn't decide soundness (Peter, HAR-139).
-- **discarded 43:**
+- **discarded 44:**
+  - 1 defect found in a real run, bound to the digest that showed it (`RUN_DEFECTS` in `build.py`): 001269's leak-closed image (`541d4168…`) holds the fixed module under `/testbed/build/lib`, and G2's 001269-a2-r2 copied it. The HAR-120 proposal was frozen before this, so it still lists 001269.
   - 11 hand-labelled broken (8 by two raters, 3 by adjudication);
   - 2 where most of the judges say broken (HAR-127 triage: 002407, 002628);
   - 4 census `grader_suspect` whose grade cannot be confirmed (HAR-127 triage: 000124, 000183, 001146, 001150);

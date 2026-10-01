@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Let me check the original PYroMat 2.2.6 upstream implementation for reference. In upstream pyromat...",
+      "ref": "head#21"
+    },
+    {
+      "quote": "def get(idstr):",
+      "ref": "head#22"
+    },
+    {
+      "quote": "Analysis: The task is complete.",
+      "ref": "head#37"
+    },
+    {
+      "quote": "Reports \"no substance with that ID was found\"",
+      "ref": "head#60"
+    }
+  ],
+  "first_failure": {
+    "quote": "'There is no substance with the ID \"' + idstr + '\" in the loaded data catalog.'",
+    "ref": "head#22",
+    "what": "inserted get() whose not-found report lacks the required word 'found' (later duplicated the whole function); both hidden failures assert 'found' in output"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#37",
+    "head#60"
+  ],
+  "notes": "LoopBreakStop: repetition still going 59 calls in, 15 after the nudge at call 44 (model_next 'true'). Verifier 7 passed 2 failed, both on _assert_invalid_substance_error requiring 'found' in normalized output. The head#21 upstream recollection is from memory (no fetch observed); head#60 summary misquotes the model's own message, which never contained 'found'. mark_task_complete at head#37, then ~22 'true' re-check turns.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "loop_break",
+  "trial": "har120-000666-a2-r2__MdWhGXb"
+}

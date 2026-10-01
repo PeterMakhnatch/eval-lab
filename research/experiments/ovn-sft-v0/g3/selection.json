@@ -1,0 +1,52 @@
+{
+ "schema": "evallab.sft_selection/1",
+ "split_manifest_digest": "sha256:c3df70a5551c47d6c695abb3b8e51ca009b48d606289de4f637a7c1329e49f58",
+ "labels": {
+  "labels_g2_a1.jsonl": "sha256:46c5c8cae5b5231245dc6873e799699eb9a7971546b81e66ca8c72e03168b7d1",
+  "labels_g2_r2.jsonl": "sha256:fe1e45d52ee3b92ec84aff7660877b3c95d3ed28620256ebcd039d9c7f29f982",
+  "labels_g2_tail.jsonl": "sha256:e722fb02b8c73d30fb57565a7f4b598e0189e62f3b278adbd67b78902c8909a7"
+ },
+ "qualification": "sha256:cb542ae5edd6534b3d74d3769fc915f92c365686bc5a9eda182f715fee9fcabf",
+ "trials": [
+  {
+   "job": "HAR-120-har120-000552-a2-r2",
+   "trial": "har120-000552-a2-r2__ptsTP5m",
+   "source": "captured",
+   "format_warning_steps_kept": null,
+   "cut_step_id": 30,
+   "cut_file": null
+  },
+  {
+   "job": "HAR-120-har120-000941-a2-r2",
+   "trial": "har120-000941-a2-r2__VrxFqqG",
+   "source": "captured",
+   "format_warning_steps_kept": null,
+   "cut_step_id": 33,
+   "cut_file": null
+  },
+  {
+   "job": "HAR-120-har120-002416-a1-r2",
+   "trial": "har120-002416-a1-r2__ccd9JcE",
+   "source": "captured",
+   "format_warning_steps_kept": null,
+   "cut_step_id": 30,
+   "cut_file": null
+  },
+  {
+   "job": "HAR-120-har120-002555-a1-r2",
+   "trial": "har120-002555-a1-r2__Uki9j6d",
+   "source": "captured",
+   "format_warning_steps_kept": null,
+   "cut_step_id": 41,
+   "cut_file": null
+  },
+  {
+   "job": "HAR-120-har120-002938-a1",
+   "trial": "har120-002938-a1__UpSjiuM",
+   "source": "captured",
+   "format_warning_steps_kept": null,
+   "cut_step_id": 16,
+   "cut_file": null
+  }
+ ]
+}

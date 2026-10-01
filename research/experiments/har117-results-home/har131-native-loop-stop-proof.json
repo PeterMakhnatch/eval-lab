@@ -1,0 +1,95 @@
+{
+  "at_utc": "2026-10-01T09:33:23.512119+00:00",
+  "code_file": "src/evallab/probe03.py",
+  "code_sha256": "ad3c91f178e16649da6afa44be16b29fabf23492546bb2e03def315e20e276e9",
+  "inputs": [
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-002938-a1/har120-002938-a1__UpSjiuM",
+      "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-002938-a1",
+      "reward": 1.0,
+      "sha256": "d1c923244df9c605a3be6d100e3f1d2127b50a00411ba4b7ad726a4f269689f1"
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-000813-a1/har120-000813-a1__WXXsNxw",
+      "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-000813-a1",
+      "reward": 0.0,
+      "sha256": "618e7de904ff4cfb68655168b953a187c04627810e68e2d19d39b1fdf210b6b0"
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-000865-a1/har120-000865-a1__a2TWzyM",
+      "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-000865-a1",
+      "reward": 0.0,
+      "sha256": "892ae51136917cd2d8b6a4525f7973a807d067a18d1406be1360fd0f4238bc15"
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-001399-a1/har120-001399-a1__fwLaw2U",
+      "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-001399-a1",
+      "reward": 0.0,
+      "sha256": "b8989e205fbb4216883817809a61f5316e254933b6cbb762852b2f43c11b5f69"
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-001661-a1/har120-001661-a1__xdRDCYr",
+      "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-001661-a1",
+      "reward": 0.0,
+      "sha256": "83fbfd42a8a21debd711dc946727574fe92859a99e930cb437239a4665c1a868"
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-001710-a1/har120-001710-a1__BLMKCZN",
+      "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-001710-a1",
+      "reward": 0.0,
+      "sha256": "e8ffd17173bf0cb9593e42bcc93a0e6c3e5454b0121f48c26c61ac31b0066ca8"
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-001897-a1/har120-001897-a1__6AyLy9W",
+      "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har126-live/runs/har120-001897-a1",
+      "reward": 0.0,
+      "sha256": "f1e986e297ae83625737f91d849651c5ddf74d66c85e3dd6642febd5bda0e38f"
+    }
+  ],
+  "native_results_unchanged": true,
+  "observations": [
+    {
+      "trial": "har120-002938-a1__UpSjiuM",
+      "stop_reason": "loop_break",
+      "reward": 1.0,
+      "scored": true
+    },
+    {
+      "trial": "har120-000813-a1__WXXsNxw",
+      "stop_reason": "loop_break",
+      "reward": 0.0,
+      "scored": true
+    },
+    {
+      "trial": "har120-000865-a1__a2TWzyM",
+      "stop_reason": "loop_break",
+      "reward": 0.0,
+      "scored": true
+    },
+    {
+      "trial": "har120-001399-a1__fwLaw2U",
+      "stop_reason": "loop_break",
+      "reward": 0.0,
+      "scored": true
+    },
+    {
+      "trial": "har120-001661-a1__xdRDCYr",
+      "stop_reason": "loop_break",
+      "reward": 0.0,
+      "scored": true
+    },
+    {
+      "trial": "har120-001710-a1__BLMKCZN",
+      "stop_reason": "loop_break",
+      "reward": 0.0,
+      "scored": true
+    },
+    {
+      "trial": "har120-001897-a1__6AyLy9W",
+      "stop_reason": "loop_break",
+      "reward": 0.0,
+      "scored": true
+    }
+  ],
+  "scope": "Actual analysis on seven G2 native LoopBreakStop trials; one scored pass and six scored failures retain their raw reward. Live pages await protected merge and reprocessing."
+}

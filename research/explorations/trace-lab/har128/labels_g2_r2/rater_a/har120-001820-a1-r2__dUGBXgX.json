@@ -1,0 +1,43 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Now I'll add the Literal handling ... using a String field with validate.OneOf over the literal values.",
+      "ref": "head#16"
+    },
+    {
+      "quote": "Verified all 41 tests pass, plus the original issue example and the tagged-union scenario work correctly.",
+      "ref": "head#33"
+    },
+    {
+      "quote": "FAILED tests/test_literal.py::TestLiteralField::test_literal_int_does_not_coerce_string",
+      "ref": "verifier/test_output.log"
+    },
+    {
+      "quote": "marshmallow.exceptions.ValidationError: {'n': ['Not a valid string.']}",
+      "ref": "verifier/test_output.log"
+    },
+    {
+      "quote": "loop_break: fired false",
+      "ref": "head#33 final_metrics"
+    }
+  ],
+  "first_failure": {
+    "quote": "Now I'll add the Literal handling. I'll insert it before the Nested marshmallow dataclass section, using a String field with validate.OneOf over the literal values.",
+    "ref": "head#16",
+    "what": "Chose fields.String for all Literals, which rejects non-string values (Literal[1,2,3] fails with 'Not a valid string'); only string literals were ever tested"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "Clean 33-step run, accepted completion, no loop. Agent edited tests/test_field_for_schema.py (own added test + import) but hidden test_literal.py is a separate file; fail is purely the String-vs-int bug.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "model_finished",
+  "trial": "har120-001820-a1-r2__dUGBXgX"
+}

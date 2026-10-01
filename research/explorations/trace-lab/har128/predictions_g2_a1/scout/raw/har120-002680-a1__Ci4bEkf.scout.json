@@ -1,0 +1,116 @@
+{
+ "trial": "har120-002680-a1__Ci4bEkf",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002680-a1/har120-002680-a1__Ci4bEkf",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-01/HAR-120-har120-002680-a1",
+ "task": "mimo-v2.6-rl/format-code-task-002680",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#29"
+  ],
+  "note": "identical message repeated steps 2-29 with no change after errors",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): continuation after head#52 (`cd /workspace/repo && python3 - <<'EOF' 2>&1 | grep -v Synta`), 38 turns head#53-head#90 with no interrupt, until run end"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 28,
+    "span": [
+     "head#2",
+     "head#29"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 13,
+    "span": [
+     "head#78",
+     "head#90"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 864419,
+   "completion": 5379,
+   "steps": 41,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 864419,
+   "completion": 5379,
+   "steps": 41,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2458142,
+   "completion": 17377,
+   "steps": 89,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.3517,
+  "result_input_tokens": 2458142
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 89,
+  "states": {
+   "continuation": 1,
+   "no_prompt": 40,
+   "prompt": 48
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#52",
+    "trigger_command": "cd /workspace/repo && python3 - <<'EOF' 2>&1 | grep -v SyntaxWarning | grep -v \"invalid escape\"\nfrom sc3.seq.patterns import Ppar, Pbind\nfrom sc3.seq.eventstrea",
+    "cause": "continuation",
+    "screen": "> EOF",
+    "start_ref": "head#53",
+    "end_ref": "head#90",
+    "turns": 38,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 1585106,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 1
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "045bcc7366fc",
+  "evallab_commit": "36c4c0a4ba3f117a69ed0825cb2a2e7de9b75291"
+ },
+ "nop_runs_dir": null
+}

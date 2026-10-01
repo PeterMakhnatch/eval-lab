@@ -250,6 +250,9 @@ Set `"score_rules": ["counted_verdict"]` to score authoritative
 `process-job` reports rather than raw reward. A `counted_pass` scores 1 and a
 `counted_fail` scores 0. Excluded, missing, malformed or mismatched reports are
 unavailable, with a persisted null score; they are never fabricated failures.
+A finite verifier reward after `AgentTimeoutError`, `TrialBudgetExhaustedError`
+or `LoopBreakStop` is an agent outcome, not infrastructure failure. A stop with
+no finite reward remains unavailable; unrelated execution errors remain errors.
 The raw reward, canonical counts, report path and byte digest remain in the
 evaluation receipt. Do not combine this rule with `upstream_fetch_zero`:
 canonical counts exclude fetch-based passes only after an exact upstream
@@ -281,10 +284,17 @@ the first ten training tasks and repeat 1. This metadata check does not replace
 the independent G1 contamination audit. `select` takes `--manifest`, `--seed`,
 up to two `--candidates` receipts, and `--out`; each candidate receipt binds
 `candidate_id`, `candidate_path`, timezone-aware `frozen_at` and `rows`.
-Selection verifies instruction bytes and requires all ten seed/candidate
-outcomes to be countable. More counted passes wins; a pass tie wins only with
-known, strictly fewer settled proxy input-plus-output tokens. Unknown usage is
-not zero and an exact seed tie retains stock. Native Harbor usage stays separate.
+Selection normally requires all ten seed/candidate outcomes to be countable.
+An explicit pre-candidate `seed_exclusions` ruling may remove canonical
+excluded repeat-1 seeds from every arm without replacing them: keep the ten-task
+parent, bind `approved_by`, `declared_at`, `source_ref` and native excluded `rows`,
+and supply only the remaining tasks for stock and every candidate. A declaration
+after candidate freeze, reintroduced task, or later candidate-only exclusion
+cannot establish a paired improvement. HAR-135's 08:25Z ruling removes 001647
+(infra), 000341 and 001870 (copied/tainted), leaving the fixed seven in parent order.
+More counted passes wins; a pass tie wins only with known, strictly fewer settled
+proxy input-plus-output tokens. Unknown usage is not zero and an exact seed tie
+retains stock. Native Harbor usage stays separate.
 Build rows from verified evaluator receipts and retain each row's candidate,
 native configuration/lock and capture bindings. The selector verifies supplied
 instruction bytes and coverage, not that those bytes generated every supplied row.

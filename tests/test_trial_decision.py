@@ -232,6 +232,37 @@ def test_page_calibration_measures_fields_with_coverage() -> None:
     assert PAGE_CALIBRATION["blame_abstentions"] == 0
     assert PAGE_CALIBRATION["in_sample"] is False
     assert len(PAGE_CALIBRATION["predictor_functions"]["sha256"]) == 64
+
+def test_additional_calibrations_stay_separately_denominated() -> None:
+    entries = {
+        entry["cohort"]: entry
+        for entry in PAGE_CALIBRATION["additional_loop_calibrations"]
+    }
+    har116 = entries["HAR-128 part 2: 40 HAR-116 trials"]
+    assert har116["page_vs_agreed_loop_kind"] == {"agree": 28, "n": 35}
+    assert har116["rater_agreement_loop_kind"] == {"agree": 35, "n": 40}
+    assert har116["excluded_rater_disagreement"] == 5
+    g2 = entries["HAR-128 G2 attempt 1: 20 HAR-120 trials"]
+    assert g2["page_vs_agreed_loop_kind"] == {"agree": 12, "n": 17}
+    assert g2["rater_agreement_loop_kind"] == {"agree": 17, "n": 20}
+    assert g2["excluded_rater_disagreement"] == 3
+    assert g2["abstentions"] == 0
+    assert g2["loop_kind_confusion"] == {
+        "none": {"agree": 5, "n": 5},
+        "repetition": {"agree": 4, "n": 6},
+        "completion-claim": {"agree": 3, "n": 6},
+    }
+    assert g2["labels_manifest_sha256"] == (
+        "f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674"
+    )
+    assert g2["in_sample"] is False
+    for entry in (har116, g2):
+        assert "page_vs_agreed_first_failure" not in entry
+        assert "page_vs_agreed_blame" not in entry
+    assert "001181" in har116["heldout"]
+    assert "001181" not in g2["heldout"] + g2["limits"]
+
+
 def test_counts_task_status_renders_match_and_mismatch() -> None:
     matched = render_task_ledger(
         {

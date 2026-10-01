@@ -169,6 +169,36 @@ def main() -> None:
             raise SystemExit(f"captured trial {t['trial']} fails capture health: {cover}")
     if capture is not None and capture["unassigned"]:
         raise SystemExit(f"{len(capture['unassigned'])} captured calls are unassigned")
+    # Research-Harbor 08:42Z: a reply stopped at finish_reason=length is a
+    # truncated output, never a target (history only). The export has no
+    # history-only target mode yet, so such a target refuses the freeze.
+    length_stop_targets = [
+        r["row_id"]
+        for rows in results_by_trial.values()
+        for r in rows
+        if capture is not None
+        and r.get("capture_seq") is not None
+        and (
+            (
+                (capture["calls"][r["capture_seq"]].get("response_body") or {}).get("choices")
+                or [{}]
+            )[0]
+        ).get("finish_reason")
+        == "length"
+    ]
+    if length_stop_targets:
+        raise SystemExit(f"length-stopped targets {length_stop_targets}; not frozen")
+    capture_bounds = None
+    if capture is not None:
+        calls_path = args.capture_dir / "calls.jsonl"
+        capture_bounds = {
+            "path": str(calls_path),
+            "bytes": calls_path.stat().st_size,
+            "calls": len(capture["calls"]),
+            "seq_min": min(capture["calls"]),
+            "seq_max": max(capture["calls"]),
+            "sha256": capture["calls_sha256"],
+        }
 
     source_of = {(t["job"], t["trial"]): t["source"] for t in selection["trials"]}
     conv = {c["conversation_id"]: c for c in manifest["conversations"]}
@@ -205,6 +235,8 @@ def main() -> None:
         "fidelity": summary,
         "capture_links": capture_links,
         "calls_unassigned": capture["unassigned"] if capture else None,
+        "capture": capture_bounds,
+        "length_stop_targets_excluded": len(length_stop_targets),
         "producer": producer(args.tokenizer),
         "qualification": sha256(args.qualification) if qualification else None,
         "sha256": {

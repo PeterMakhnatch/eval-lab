@@ -1,0 +1,258 @@
+{
+  "schema": "har135.sanitized-training-context/v3",
+  "purpose": "Metadata and structured opinions only; no quotes, solutions, hidden tests, mixed full-corpus rates or held-out outcomes.",
+  "ledger_sha256": "949be0ab8574a6822f81f6f8f59705fae2bcf966773bfff50ffbd8ac9a51a87a",
+  "har116": {
+    "source_intake_sha256": "7a2de60da6eaff3f5020a864ae026852a6ce382ca935a25f8916c92cc9f35ce0",
+    "pairs_n": 34,
+    "task_ids": [
+      "format-code-task-000495",
+      "format-code-task-000587",
+      "format-code-task-001161",
+      "format-code-task-001832",
+      "format-code-task-001896",
+      "format-code-task-002256",
+      "format-code-task-002391",
+      "format-code-task-002864",
+      "format-code-task-000146",
+      "format-code-task-000226",
+      "format-code-task-000927",
+      "format-code-task-002308",
+      "format-code-task-002402"
+    ],
+    "agreement": {
+      "blame": {
+        "compared": 34,
+        "agree": 34
+      },
+      "blame_confidence": {
+        "compared": 34,
+        "agree": 34
+      },
+      "loop_kind": {
+        "compared": 34,
+        "agree": 29
+      },
+      "loop_span": {
+        "compared": 13,
+        "agree": 7
+      },
+      "loop_confidence": {
+        "compared": 34,
+        "agree": 31
+      },
+      "stop_reason": {
+        "compared": 34,
+        "agree": 34
+      },
+      "stop_confidence": {
+        "compared": 34,
+        "agree": 34
+      },
+      "first_failure_ref": {
+        "compared": 28,
+        "agree": 19
+      },
+      "first_failure_confidence": {
+        "compared": 34,
+        "agree": 32
+      },
+      "pass_copied": {
+        "compared": 9,
+        "agree": 9
+      },
+      "pass_copied_confidence": {
+        "compared": 34,
+        "agree": 34
+      },
+      "off_limits_opened": {
+        "compared": 34,
+        "agree": 34
+      },
+      "sft_clean": {
+        "compared": 9,
+        "agree": 8
+      },
+      "sft_cut_step_id": {
+        "compared": 9,
+        "agree": 3
+      }
+    },
+    "limits": "Human labels are opinions, agreement is not accuracy; historical package binding is not asserted. Unknown census repository names do not establish positive repository disjointness.",
+    "held_out_001181_runs_excluded": 3
+  },
+  "atlas": {
+    "source_intake_sha256": "dc8b1e2232e9999cdb636753f0dbb24d653139b5cb7ac673100f9eef3a8fbec6",
+    "source_commit": "4aa26712dc1e238f51cf15748b0b92d4a9b16b7f",
+    "source_pr": "PR639",
+    "eligible_subjects_n": 64,
+    "eligible_task_ids": [
+      "format-code-task-001896",
+      "format-code-task-002391",
+      "format-code-task-001832",
+      "format-code-task-002864",
+      "format-code-task-002256",
+      "format-code-task-000226",
+      "format-code-task-000927",
+      "format-code-task-000495",
+      "format-code-task-000587",
+      "format-code-task-001161",
+      "format-code-task-000146",
+      "format-code-task-002308",
+      "format-code-task-002402"
+    ],
+    "categories": [
+      {
+        "id": "recorded-budget-stop",
+        "kind": "fact",
+        "predicate": "stop_reason in {TrialBudgetExhaustedError, ceiling:input_tokens, ceiling:requests}",
+        "eligible_n": 40,
+        "eligible_denominator_n": 64,
+        "denominator_note": "eligible non-HAR81 training trials; recomputed from per-trial witnesses",
+        "step_refs": [
+          {
+            "trial_name": "gepa-terminus-2-format-code-task__7RJJeFg",
+            "task_id": "format-code-task-001896",
+            "step_ref": "head#76",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          },
+          {
+            "trial_name": "gepa-terminus-2-format-code-task__8FqvKUU",
+            "task_id": "format-code-task-002391",
+            "step_ref": "head#88",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          }
+        ]
+      },
+      {
+        "id": "completion-claim-loop",
+        "kind": "opinion",
+        "predicate": "decision loop_kind.kind == 'completion-claim' (producer rule HAR-119)",
+        "eligible_n": 9,
+        "eligible_denominator_n": null,
+        "denominator_note": "not available after cohort correction; no estimated rate",
+        "step_refs": [
+          {
+            "trial_name": "gepa-terminus-2-format-code-task__7RJJeFg",
+            "task_id": "format-code-task-001896",
+            "step_ref": "head#42",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:d467c455dafc2aabf2415b55461f7d4eed34a3f5a168723b55855c2e75a810c3",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          },
+          {
+            "trial_name": "gepa-terminus-2-format-code-task__8FqvKUU",
+            "task_id": "format-code-task-002391",
+            "step_ref": "head#43",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:2e3f355e760e7d162a8be498a0f0ed2bf331b8d047363391635b6e641f91ad73",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          }
+        ]
+      },
+      {
+        "id": "repetition-loop",
+        "kind": "opinion",
+        "predicate": "decision loop_kind.kind == 'repetition' (producer rule HAR-119)",
+        "eligible_n": 21,
+        "eligible_denominator_n": null,
+        "denominator_note": "not available after cohort correction; no estimated rate",
+        "step_refs": [
+          {
+            "trial_name": "har104-d-001896__MDkTErY",
+            "task_id": "format-code-task-001896",
+            "step_ref": "head#33",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:3c231fa870acc5c0bae11a9c1eea98f3a21f898ce9d28f9fa259ae961014520e",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          }
+        ]
+      },
+      {
+        "id": "counts-excluded-copied-pass",
+        "kind": "fact",
+        "predicate": "counts_verdict == 'excluded' with reason copied_fix or pass_tainted (canonical counts)",
+        "eligible_n": 6,
+        "eligible_denominator_n": null,
+        "denominator_note": "not available after cohort correction; no estimated rate",
+        "step_refs": [
+          {
+            "trial_name": "gepa-terminus-2-format-code-task__CFCbfps",
+            "task_id": "format-code-task-001832",
+            "step_ref": "head#20",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          },
+          {
+            "trial_name": "har104-d-000226__JCDfZFi",
+            "task_id": "format-code-task-000226",
+            "step_ref": "head#4",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          }
+        ]
+      },
+      {
+        "id": "counts-excluded-infra",
+        "kind": "fact",
+        "predicate": "counts_verdict == 'excluded' with reason infra (canonical counts)",
+        "eligible_n": 9,
+        "eligible_denominator_n": null,
+        "denominator_note": "not available after cohort correction; no estimated rate",
+        "step_refs": [
+          {
+            "trial_name": "har110-dev-002256-cfe31418__uDRp4Vb",
+            "task_id": "format-code-task-002256",
+            "step_ref": "head#15",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:ab599e4c39fb5de053cfabd2574054ab62c25a1c013a08e582d4d1c433fb006d",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          }
+        ]
+      },
+      {
+        "id": "recorded-upstream-fetch-signal",
+        "kind": "fact-signal",
+        "predicate": "processed taint contains an upstream_fetch detector entry; command provenance is separate, not proof of execution or copying",
+        "eligible_n": 11,
+        "eligible_denominator_n": null,
+        "denominator_note": "not available after cohort correction; no estimated rate",
+        "step_refs": [
+          {
+            "trial_name": "gepa-terminus-2-format-code-task__CFCbfps",
+            "task_id": "format-code-task-001832",
+            "step_ref": "head#20",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:fff0cae41e925a11044d1450459f7132dcf9fbdb7d07fe55b13c1666d00ed78e",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          },
+          {
+            "trial_name": "har104-d-000226__JCDfZFi",
+            "task_id": "format-code-task-000226",
+            "step_ref": "head#4",
+            "source_path": "agent/trajectory.json",
+            "source_sha256": "sha256:e4b98a6b24fd9ccbd14112d22aa186a11320703331f8f5ab56fc600fa5dbcad4",
+            "evidence_kind": "recorded-command",
+            "command_provenance": "recorded"
+          }
+        ]
+      }
+    ],
+    "limits": "PR639 unmerged; 08:47 source cohort bug explicitly quarantined every HAR81 subject (JavaScript/unknown-language). Only non-HAR81 globally train+usable metadata admitted. Labels and atlas overlap in native trials, not independent observations."
+  }
+}

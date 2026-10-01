@@ -1,0 +1,42 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "request.add_header(\"Content-type\", \"application/x-www-form-urlencoded\")\n    request.add_header(\"User-agent\", \"reCAPTCHA Django\")",
+      "ref": "head#8"
+    },
+    {
+      "quote": "cd /workspace/repo && python - << 'PYEOF'\nimport json, io",
+      "ref": "head#21"
+    },
+    {
+      "quote": "cat /workspace/repo/django_recaptcha/client.py",
+      "ref": "head#74"
+    },
+    {
+      "quote": "cat /workspace/repo/django_recaptcha/client.py",
+      "ref": "head#101"
+    }
+  ],
+  "first_failure": {
+    "quote": "request = Request(verify_url, data=data)\n    request.add_header(\"Content-type\", \"application/x-www-form-urlencoded\")",
+    "ref": "head#8",
+    "what": "Wrote client.py using request.add_header instead of headers in Request constructor, failing the test mock"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#21",
+    "head#101"
+  ],
+  "notes": "Model wrote client.py with request.add_header which broke against test FakeRequest mock. It then entered an extended loop running repetitive test scripts and viewing client.py until the 2.5M token budget was exhausted.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "sft_cut": null,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har120-000813-a2-r2__Ci3xbwU"
+}

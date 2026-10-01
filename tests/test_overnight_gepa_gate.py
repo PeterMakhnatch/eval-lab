@@ -212,3 +212,54 @@ def test_cli_freeze_is_immutable_and_selection_checks_candidate_bytes(sources: t
     instructions.write_text("Changed after freeze.\n")
     assert _gate.main(select_args) == 2
     assert json.loads(capsys.readouterr().err.splitlines()[-1])["decision"] == "candidate_digest_drift"
+
+
+def _admit_seed_exclusions(manifest: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    seed, candidate = _rows(manifest), _candidate(manifest, passes=4)
+    excluded_ids = {seed[i]["task_id"] for i in (0, 2, 4)}
+    excluded = [row for row in seed if row["task_id"] in excluded_ids]
+    for row in excluded:
+        _exclude(row)
+    manifest["seed_exclusions"] = {
+        "approved_by": "Research-Harbor", "declared_at": "2026-10-01T07:50:00Z",
+        "source_ref": "HAR-135 explicit symmetric ruling", "rows": excluded,
+    }
+    candidate["rows"] = [row for row in candidate["rows"] if row["task_id"] not in excluded_ids]
+    return [row for row in seed if row["task_id"] not in excluded_ids], candidate
+
+
+def test_declared_seed_exclusions_apply_to_every_arm_without_substitution(manifest: dict[str, Any]) -> None:
+    seed, candidate = _admit_seed_exclusions(manifest)
+    result = _gate.select_candidate(manifest, seed, [candidate])
+    assert result["promoted"] is True
+    assert result["seed"]["task_count"] == result["candidates"][0]["task_count"] == 7
+    assert result["seed"]["counted_passes"] == 1
+    assert result["candidates"][0]["counted_passes"] == 2
+    assert result["candidates"][0]["pass_delta_vs_seed"] == 1
+    candidate["rows"].append(_rows(manifest)[0])
+    with pytest.raises(_gate.GateError) as refusal:
+        _gate.select_candidate(manifest, seed, [candidate])
+    assert refusal.value.decision == "extra_task_rows"
+
+
+@pytest.mark.parametrize("change,decision", [
+    (lambda ruling: ruling.pop("approved_by"), "invalid_seed_exclusion"),
+    (lambda ruling: ruling["rows"][0]["counts"].update(verdict="counted_pass", reasons=[]), "invalid_seed_exclusion"),
+    (lambda ruling: ruling["rows"][0].update(repeat=2), "invalid_baseline_repeat"),
+    (lambda ruling: ruling.update(declared_at="2026-10-01T08:01:00Z"), "late_seed_exclusion"),
+])
+def test_invalid_or_late_seed_exclusion_is_refused(manifest: dict[str, Any], change: Any, decision: str) -> None:
+    seed, candidate = _admit_seed_exclusions(manifest)
+    change(manifest["seed_exclusions"])
+    with pytest.raises(_gate.GateError) as refusal:
+        _gate.select_candidate(manifest, seed, [candidate])
+    assert refusal.value.decision == decision
+
+
+def test_later_candidate_exclusion_does_not_shrink_admitted_gate(manifest: dict[str, Any]) -> None:
+    seed, candidate = _admit_seed_exclusions(manifest)
+    _exclude(candidate["rows"][0])
+    result = _gate.select_candidate(manifest, seed, [candidate])
+    assert result["promoted"] is False
+    assert result["decision"] == "incomplete_countable_coverage"
+    assert result["seed"]["task_count"] == result["candidates"][0]["task_count"] == 7

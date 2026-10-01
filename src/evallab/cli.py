@@ -1714,6 +1714,7 @@ def _capture_smoke_command(
             out_dir=out,
             key_env=args.key_env,
             max_tokens=args.max_tokens,
+            model=args.model,
         )
     except SmokeError as exc:
         print(f"smoke failed: {exc}", file=sys.stderr)
@@ -2315,6 +2316,51 @@ def _db_attach_command(
     # thin layer over attach/print_zones/attach_and_query/build_sql_preamble
     explicit = getattr(args, "derived_root", None)
     derived = derived_root_from_environment(root, explicit=explicit)
+
+    trace_mode = bool(
+        getattr(args, "trace", False)
+        or getattr(args, "trace_results_home", None)
+        or getattr(args, "trace_job_dirs", None)
+    )
+    if trace_mode:
+        from evallab.trace_query import connect_trace_query
+
+        con, coverage = connect_trace_query(
+            repo_root=root,
+            results_home=getattr(args, "trace_results_home", None),
+            derived_root=derived,
+            job_dirs=getattr(args, "trace_job_dirs", None),
+        )
+        try:
+            if args.zones:
+                print(
+                    f"trace: attached ({coverage['discovered_jobs']} jobs, "
+                    f"{coverage['discovered_trials']} trials, "
+                    f"{coverage['discovered_steps']} steps; "
+                    f"{coverage['missing_processed']} missing processed, "
+                    f"{coverage['missing_counts']} missing counts)"
+                )
+                return 0
+            if args.print_sql:
+                queries_path = root / "sql" / "trace_queries.sql"
+                if queries_path.is_file():
+                    print(queries_path.read_text(encoding="utf-8"))
+                else:
+                    print("-- v_trace_trials and v_trace_steps transient views")
+                return 0
+            if args.query:
+                rows = con.execute(args.query).fetchall()
+                for row in rows:
+                    print(row)
+                return 0
+            print(
+                f"trace: attached ({coverage['discovered_trials']} trials, "
+                f"{coverage['discovered_steps']} steps across {coverage['discovered_jobs']} jobs)"
+            )
+            return 0
+        finally:
+            con.close()
+
     result = attach(repo_root=root, explicit_derived=derived)
     if args.zones:
         print_zones(result.zones)
@@ -4827,8 +4873,12 @@ def parser() -> argparse.ArgumentParser:
     capture_smoke.add_argument(
         "--max-tokens", type=int, default=64, help="Completion cap for the probe call"
     )
+    capture_smoke.add_argument(
+        "--model",
+        default=None,
+        help="Model selector to smoke (default: the selfhosted base MiMo distill)",
+    )
     capture_smoke.set_defaults(func=_capture_smoke_command)
-
     analyze = commands.add_parser("analyze", help="Plan or index bounded trial analyses")
     analyze_commands = analyze.add_subparsers(dest="analyze_command", required=True)
     analyze_plan_parser = analyze_commands.add_parser(
@@ -5030,6 +5080,25 @@ def parser() -> argparse.ArgumentParser:
         "--derived-root",
         type=Path,
         help="override the shared Parquet root (same resolution as library)",
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--trace",
+        action="store_true",
+        help="attach transient trace query surface (v_trace_trials + v_trace_steps in memory, no PG required)",
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--trace-results-home",
+        type=Path,
+        metavar="PATH",
+        help="override results home directory for trace job discovery",
+    )  # noqa: E501
+    db_attach.add_argument(
+        "--trace-job-dir",
+        action="append",
+        type=Path,
+        dest="trace_job_dirs",
+        metavar="PATH",
+        help="pin specific Harbor job directory (may be repeated)",
     )  # noqa: E501
     db_attach.set_defaults(func=_db_attach_command)
 

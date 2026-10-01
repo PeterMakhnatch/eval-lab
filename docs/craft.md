@@ -11,9 +11,11 @@ Status: living. Owner: Platform lane. Date: 2026-08-16. Implements the
 deterministic half of `docs/archive/build-plan.md` WS-A.
 
 `src/evallab/craft.py` reads task directories and writes one `CraftRecord` per
-task to `derived/parquet/craft/craft.parquet`; `sql/craft_views.sql` builds the
-DuckDB views over it. No model is called, no network is touched, and nothing is
-written inside a scanned corpus.
+task to `craft/craft.parquet` under the resolved live Parquet root (default
+`<primary>-state/derived/parquet/craft/craft.parquet`);
+`sql/craft_views.sql` builds the DuckDB views over it. No model is called, no
+network is touched, and nothing is written inside a scanned corpus. See the
+source/runtime boundary in [SYSTEM.md](SYSTEM.md#source-and-runtime-boundary).
 
 The half that is **not** built is `craft classify` (the LLM facet pass) and
 `craft patterns` (which depends on classify for several facets). The most useful
@@ -38,7 +40,7 @@ Corpus roots and the output root are both injectable:
 |---|---|---|
 | `--tb3-root`, `$EVALLAB_TB3_ROOT` | `~/Developer/agent-evals/terminal-bench/tasks` | The TB3 corpus is outside this repository; tests must not depend on a developer's host layout (`agents/CHECKS.md`). |
 | `--tb4-root`, `$EVALLAB_TB4_ROOT` | `~/Developer/agent-evals/terminal-bench-4/tasks` | The pinned TB4 lane (`v4.0.0`, commit `452bf30`). A TB4 `source_repo` is forced to `terminal-bench/terminal-bench@4.0.0` so its craft rows never share a `(source_repo, task_ref)` key with the TB3 lane. |
-| `--out`, `$EVALLAB_DERIVED_ROOT` | `<primary checkout>/derived/parquet/craft` | `paths.derived_root_from_environment`: one derived store per machine, announced when a linked worktree inherits another checkout's. |
+| `--out`, `$EVALLAB_DERIVED_ROOT` | `<primary>-state/derived/parquet/craft` (`derived_root_from_environment` + `/craft`; explicit `--out` wins, else `$EVALLAB_DERIVED_ROOT` relocates the root) | One live derived store per machine, announced when a linked worktree inherits another checkout's. |
 
 The two Terminal-Bench lanes are intentional historical coexistence, not a
 compatibility shim. TB3 keeps its existing 74-task `terminal-bench/terminal-bench`

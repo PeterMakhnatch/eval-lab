@@ -8,7 +8,7 @@ audience:
 
 Status: living. Owner: Platform lane. Date: 2026-08-16. Implements WS-E Item 4 from `docs/archive/build-plan.md`.
 
-`src/evallab/parquet_compaction.py` consolidates granular uncompacted Parquet trial partitions from `derived/parquet/job_id=*/` into a daily partitioned layout under `derived/parquet/compact/dt=YYYY-MM-DD/`.
+`src/evallab/storage/parquet_compaction.py` consolidates granular uncompacted Parquet trial partitions from `<live-parquet-root>/job_id=*/` into a daily partitioned layout under `<live-parquet-root>/compact/dt=YYYY-MM-DD/`. The live root defaults to `<primary>-state/derived/parquet` via `derived_root_from_environment`; explicit flags override it. See the source/runtime boundary in [SYSTEM.md](SYSTEM.md#source-and-runtime-boundary).
 
 Compaction is a pure projection over raw evidence and derived fact tables: it enforces zero row loss, preserves exact PyArrow schemas, supports idempotent re-runs, and retains granular partitions for a configurable trailing window (default 7 days) while pruning older partitions after validation.
 
@@ -16,7 +16,7 @@ Compaction is a pure projection over raw evidence and derived fact tables: it en
 
 ### Granular Uncompacted Layout (Source)
 ```text
-derived/parquet/
+<live-parquet-root>/
   job_id=03c50e09-d16f-4058-93b9-893bb9cae9da/
     jobs.parquet
     trial_id=1e40baab-3f5b-4030-89a0-439c25638328/
@@ -32,7 +32,7 @@ derived/parquet/
 
 ### Compacted Daily Layout (Target)
 ```text
-derived/parquet/
+<live-parquet-root>/
   compact/
     dt=2026-08-15/
       jobs.parquet
@@ -97,6 +97,8 @@ Every table write adheres to a strict atomic validation contract:
 
 ## Running Compaction
 
+The Parquet root defaults to the resolved live root; `--derived-dir` (aliases `--out`, `--parquet-dir`) overrides it. Retention and pruning semantics below are unchanged.
+
 ### CLI
 
 ```bash
@@ -112,18 +114,21 @@ python -m evallab.storage.parquet_compaction compact --dry-run
 # Output structured JSON
 python -m evallab.storage.parquet_compaction compact --json
 
-# Override derived Parquet root
+# Override derived Parquet root (explicit path keeps precedence over the live default)
 python -m evallab.storage.parquet_compaction compact --derived-dir /path/to/derived/parquet
 ```
 
 ### Programmatic API
 
 ```python
-from evallab.storage.parquet_compaction import compact, plan_compaction
+from pathlib import Path
 
-# Execute compaction
+from evallab.storage.parquet_compaction import compact, plan_compaction
+from evallab.storage.paths import derived_root_from_environment
+
+# Execute compaction against the resolved live root
 result = compact(
-    derived_root=Path("derived/parquet"),
+    derived_root=derived_root_from_environment(Path.cwd()),
     target_date="2026-08-14",
     retention_days=7,
 )
@@ -139,11 +144,11 @@ Compacted partitions support DuckDB Hive partitioning queries across all days wi
 ```sql
 -- Query all trial facts across compacted dates
 SELECT dt, count(*), avg(primary_reward)
-FROM read_parquet('derived/parquet/compact/dt=*/trial_facts.parquet', hive_partitioning = true)
+FROM read_parquet('<live-parquet-root>/compact/dt=*/trial_facts.parquet', hive_partitioning = true)
 GROUP BY dt
 ORDER BY dt DESC;
 
 -- Query a single closed day directly
 SELECT *
-FROM read_parquet('derived/parquet/compact/dt=2026-08-14/steps.parquet');
+FROM read_parquet('<live-parquet-root>/compact/dt=2026-08-14/steps.parquet');
 ```

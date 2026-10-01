@@ -79,10 +79,12 @@ catalog-ingested 8.408357-second Daytona trial,
 `har115-rnop-000238-a3485fb06ded`. Both still round to **$17.21**. The
 historical JSON snapshots are preserved rather than silently overwritten.
 
-The 20 retained Modal cache rows and both experiment spend ledgers reproduce
-the recorded arithmetic; the original provider billing response was not
-found in the inspected retained sources, so this is cache/ledger
-reproduction, not independent invoice verification. Gap 4 still applies.
+The **18** retained Modal cache rows (13 + 5) and both experiment spend
+ledgers reproduce the recorded arithmetic. All 18 use daily resolution;
+the October 1 daily/hourly overlap defect does not affect these two dates.
+The original provider billing response was not found in the inspected
+retained sources, so this is cache/ledger reproduction, not independent
+invoice verification. Gap 4 still applies.
 Also, the audited `sibling_worktree_roots()` implementation discovers no
 siblings from a linked checkout. The 47 retained spend-file copies collapse
 to two distinct ledgers, so that defect did not change these totals, but

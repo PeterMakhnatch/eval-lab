@@ -19,11 +19,12 @@ sound 1040, broken_environment 135, grader_suspect 5, unknown 0 (was 870 / 107 /
 The census labels original tasks. There are **110 unique validated repair
 variants**: HAR-113's 51 plus HAR-115's **59** (44 initial + 15 round-four),
 with no task overlap. Validation here means nop-sound, not demonstrated
-solvability or automatic admission: the ledger places 92 repairs in usable,
-17 in review and 1 in discarded.
+solvability or automatic admission: the audited ledger at `a90a7291` places
+92 repairs in usable, 17 in review and 1 in discarded, before the overnight
+HAR-127 review-queue triage.
 
-HAR-132's read-only replay reproduced all 1,180 census labels and ledger
-statuses. `census_update.jobs()` now resolves HAR-115 through the same
+HAR-132's read-only replay at that revision reproduced all 1,180 census
+labels and ledger statuses. `census_update.jobs()` now resolves HAR-115 through the same
 retained-worktree/archive rule as earlier cohorts, rather than silently
 looking in an empty analysis checkout's `runs/`. The October 1 retained
 snapshot yields 1,437 nop jobs, including all 265 HAR-115 jobs (199 nop,

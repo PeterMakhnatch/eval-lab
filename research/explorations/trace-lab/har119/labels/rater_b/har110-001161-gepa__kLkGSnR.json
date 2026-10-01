@@ -1,0 +1,50 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "3 files changed, 79 insertions(+)",
+      "ref": "head#68"
+    },
+    {
+      "quote": "src/docformatter/configuration.py |  7 +++++++",
+      "ref": "head#68"
+    },
+    {
+      "quote": "src/docformatter/configuration.py:210:            \"--wrap-structured\",",
+      "ref": "head#80"
+    },
+    {
+      "quote": "cd /testbed && grep -n \"wrap-descriptions\" src/docformatter/configuration.py",
+      "ref": "head#82"
+    },
+    {
+      "quote": "192:            \"--wrap-descriptions\",",
+      "ref": "head#82"
+    },
+    {
+      "quote": "cd /testbed && grep -n \"wrap-descriptions\" src/docformatter/configuration.py",
+      "ref": "head#110"
+    }
+  ],
+  "first_failure": {
+    "quote": "cd /testbed && grep -n \"wrap-descriptions\" src/docformatter/configuration.py",
+    "ref": "head#82",
+    "what": "Entered terminal identical-grep loop (same command/output 29x to budget death); never edited, tested, or verified again"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "repetition",
+  "loop_span": [
+    "head#82",
+    "head#110"
+  ],
+  "notes": "29 identical grep turns (82-110), never claimed completion; n_episodes ~108 <121 with trial-budget RateLimitError. In-container work was independently incomplete (step-68 diff stat: only __main__/configuration/syntax, no format.py wiring; region-finder returned degenerate empty spans [(14,14)...] in pre-handoff probes), so model blame stands regardless of the following [UNVERIFIED] anomaly: final verifier/agent.diff is 0B despite step-68 in-tree diff (79 insertions) and step-80 confirmation the option persisted, with no revert command anywhere in the trajectory (harness collection-side loss suspected, cause unverified). Hidden tests ran against a pristine tree: 6 failed, 2 passed (backward-compat survivors).",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 30,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-001161-gepa__kLkGSnR"
+}

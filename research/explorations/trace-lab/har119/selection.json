@@ -1,0 +1,114 @@
+{
+  "rule": "HAR-119 part 2: pick the 12 HAR-110 v2 runs for blind hand labels.\n\nRule (fixed before any rater or tool output exists):\n- population: the 24 fresh HAR-110 split-v2 runs (dev + held-out) in\n  research/experiments/har110-python-gepa/results-v2-trials.jsonl\n  (source == \"HAR-110\", split in {development, heldout});\n- 4 runs per arm (plain, seed-addendum, gepa-candidate);\n- every verifier pass is included (seed 001832 and candidate 002864);\n- the rest of each arm's quota is filled by ascending\n  sha256(\"har119-oos-v1:\" + trial name).\nplain has exactly 4 v2 runs (held-out), so all four are in.",
+  "population": 24,
+  "runs": [
+    {
+      "trial": "har110-001181-plain__AnjbfwU",
+      "job": "har110-001181-plain",
+      "arm": "plain",
+      "split": "heldout",
+      "task": "001181",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-001181-plain/har110-001181-plain__AnjbfwU"
+    },
+    {
+      "trial": "har110-000495-plain__mDTBFAW",
+      "job": "har110-000495-plain",
+      "arm": "plain",
+      "split": "heldout",
+      "task": "000495",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000495-plain/har110-000495-plain__mDTBFAW"
+    },
+    {
+      "trial": "har110-001161-plain__RZ8qyUu",
+      "job": "har110-001161-plain",
+      "arm": "plain",
+      "split": "heldout",
+      "task": "001161",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-001161-plain/har110-001161-plain__RZ8qyUu"
+    },
+    {
+      "trial": "har110-000587-plain__5NNxU35",
+      "job": "har110-000587-plain",
+      "arm": "plain",
+      "split": "heldout",
+      "task": "000587",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000587-plain/har110-000587-plain__5NNxU35"
+    },
+    {
+      "trial": "gepa-terminus-2-format-code-task__CFCbfps",
+      "job": "gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33",
+      "arm": "seed-addendum",
+      "split": "development",
+      "task": "001832",
+      "reward": 1.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33/gepa-terminus-2-format-code-task__CFCbfps"
+    },
+    {
+      "trial": "gepa-terminus-2-format-code-task__X2dMzMw",
+      "job": "gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+      "arm": "seed-addendum",
+      "split": "development",
+      "task": "002256",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8/gepa-terminus-2-format-code-task__X2dMzMw"
+    },
+    {
+      "trial": "gepa-terminus-2-format-code-task__8FqvKUU",
+      "job": "gepa-terminus-2-format-code-task-002-a951229932dc90303c90215d",
+      "arm": "seed-addendum",
+      "split": "development",
+      "task": "002391",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/gepa-terminus-2-format-code-task-002-a951229932dc90303c90215d/gepa-terminus-2-format-code-task__8FqvKUU"
+    },
+    {
+      "trial": "har110-000495-seed__dimG2yD",
+      "job": "har110-000495-seed",
+      "arm": "seed-addendum",
+      "split": "heldout",
+      "task": "000495",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000495-seed/har110-000495-seed__dimG2yD"
+    },
+    {
+      "trial": "har110-dev-002864-cfe31418__g7pfCqC",
+      "job": "har110-dev-002864-cfe31418",
+      "arm": "gepa-candidate",
+      "split": "development",
+      "task": "002864",
+      "reward": 1.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-002864-cfe31418/har110-dev-002864-cfe31418__g7pfCqC"
+    },
+    {
+      "trial": "har110-dev-002391-cfe31418__MvXkrso",
+      "job": "har110-dev-002391-cfe31418",
+      "arm": "gepa-candidate",
+      "split": "development",
+      "task": "002391",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-002391-cfe31418/har110-dev-002391-cfe31418__MvXkrso"
+    },
+    {
+      "trial": "har110-001161-gepa__kLkGSnR",
+      "job": "har110-001161-gepa",
+      "arm": "gepa-candidate",
+      "split": "heldout",
+      "task": "001161",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-001161-gepa/har110-001161-gepa__kLkGSnR"
+    },
+    {
+      "trial": "har110-dev-000383-cfe31418__L7nGNNi",
+      "job": "har110-dev-000383-cfe31418",
+      "arm": "gepa-candidate",
+      "split": "development",
+      "task": "000383",
+      "reward": 0.0,
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-dev-000383-cfe31418/har110-dev-000383-cfe31418__L7nGNNi"
+    }
+  ]
+}

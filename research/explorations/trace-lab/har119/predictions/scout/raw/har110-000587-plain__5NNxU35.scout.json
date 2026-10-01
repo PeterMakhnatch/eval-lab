@@ -1,0 +1,116 @@
+{
+ "trial": "har110-000587-plain__5NNxU35",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000587-plain/har110-000587-plain__5NNxU35",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000587-plain",
+ "task": "mimo-v2.6-rl/format-code-task-000587",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#14"
+  ],
+  "note": "identical message repeated steps 2-14 with no change after errors",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): continuation after head#51 (`cd /testbed && timeout 120 .venv/bin/python -c \"\nimport doct`), 22 turns head#52-head#73 with no interrupt, prompt back after the command finished"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 13,
+    "span": [
+     "head#2",
+     "head#14"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 13,
+    "span": [
+     "head#75",
+     "head#87"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 694521,
+   "completion": 3722,
+   "steps": 26,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 694521,
+   "completion": 3722,
+   "steps": 26,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2337518,
+   "completion": 13113,
+   "steps": 86,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.2971,
+  "result_input_tokens": 2337518
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 86,
+  "states": {
+   "continuation": 2,
+   "no_prompt": 26,
+   "prompt": 58
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#51",
+    "trigger_command": "cd /testbed && timeout 120 .venv/bin/python -c \"\nimport doctest, importlib\nm = importlib.import_module('pottery.redlock')\nresults = doctest.testmod(m=m)\nprint(r",
+    "cause": "continuation",
+    "screen": "> \"",
+    "start_ref": "head#52",
+    "end_ref": "head#73",
+    "turns": 22,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": true,
+    "until_run_end": false,
+    "prompt_tokens": 772010,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 1
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

@@ -1,0 +1,46 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "for dep, vulns in self._service.query_all(specs):",
+      "ref": "head#6"
+    },
+    {
+      "quote": "The merged alias set must come from **all** duplicates, not just the kept representatives.",
+      "ref": "head#12"
+    },
+    {
+      "quote": "Keeps a result only if it shares no identifier (primary `id` or `aliases`) with an already-kept result.",
+      "ref": "head#36"
+    },
+    {
+      "quote": "Yes, I'm confident the task is complete.",
+      "ref": "head#37"
+    },
+    {
+      "quote": "echo complete",
+      "ref": "head#88"
+    }
+  ],
+  "first_failure": {
+    "quote": "The merged alias set must come from **all** duplicates, not just the kept representatives.",
+    "ref": "head#12",
+    "what": "switched alias merge to a union across ALL vulns per kept result, so distinct advisories get merged (hidden distinct-vuln test fails)"
+  },
+  "first_failure_confidence": "high",
+  "loop_confidence": "high",
+  "loop_kind": "completion-claim",
+  "loop_span": [
+    "head#37",
+    "head#88"
+  ],
+  "notes": "reward 0.0; n_episodes 88 with TrialBudgetExhaustedError; verifier 7/8, failing test_audit_preserves_distinct_non_overlapping_vulnerabilities (distinct PYSEC-0/GHSA-bbbb merged into one result with union aliases ['CVE-2024-0001','CVE-2024-0002']). Kept-selection logic was correct; the global-union merge from step 12 is the defect. Claimed complete at 36, echo tail 37-88.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 30,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "gepa-terminus-2-format-code-task__8FqvKUU"
+}

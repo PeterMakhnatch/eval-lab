@@ -1,0 +1,993 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 96,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 96,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 96
+    }
+  },
+  "agent_steps": 96,
+  "assembly_pattern": "single_head",
+  "claim_regime": {
+    "end": 99,
+    "end_doc": "head",
+    "start": 88,
+    "start_doc": "head",
+    "steps": 12
+  },
+  "completion_refs": [
+    "head#87"
+  ],
+  "confirmation_loop": null,
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "excludes sandbox and warm periods; time-based only",
+  "cost_estimate_usd": 1.04406375622464,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [
+      1
+    ],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [
+      "1 summarization attempt(s) left no continuation file: [1]"
+    ],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "e04c3656-c1f7-41e1-b467-f479b4d38966",
+        "steps": 99
+      }
+    ],
+    "summarization_count": 1,
+    "trajectory_head": true,
+    "unique_steps": 99
+  },
+  "decision": {
+    "asked": {
+      "excerpt": "Fix the following issue: I want siuba to provide a pure table verb `rename(__data, **kwargs)` exported from the package so I can rename columns in pandas DataFrames, grouped DataFrames, and SQL lazy tables without changing the row data. Keyword arguments should map each new column name to an existing column named either as a string or as a simple siuba column expression, for example `rename(df, A\u2026",
+      "grader_gap": "no named gap; verifier ran 14 tests, 0 failed. Not a semantic certificate.",
+      "grader_tests_asked": "yes",
+      "instruction_bytes": 1456,
+      "instruction_present": true
+    },
+    "attribution": "n/a",
+    "did": {
+      "evidence_steps": [
+        "head#2",
+        "head#19"
+      ],
+      "last_edit_excerpt": "cd /workspace/repo && python3 - <<'PYEOF'",
+      "last_edit_step": 51,
+      "note": "scored pass with no outcome-relevant failure",
+      "secondary": "error_recovery/model secondary: identical run head#2-head#19",
+      "step": null
+    },
+    "fetched_fix": {
+      "command": "grep -rn \"rename\" /workspace/repo/docs -l 2>/dev/null | head; pip download siuba==0.4.6 --no-deps -d /tmp/siuba_dl 2>&1 | tail -2",
+      "fetched": true,
+      "kind": "upstream_fetch:pip-download-remote-package",
+      "step": "head#20"
+    },
+    "first_failure": null,
+    "nop_same_crash": {
+      "answer": "not_this_shape",
+      "nop_trial": null,
+      "reason": "This trial's verifier did not fail at setup or import."
+    },
+    "pass_tainted": {
+      "flagged": true,
+      "reasons": [
+        "upstream_fetch:upstream_fetch:pip-download-remote-package",
+        "upstream_fetch:upstream_fetch:pip-download-remote-package"
+      ],
+      "status": "candidate"
+    },
+    "reward": 1.0,
+    "reward_why": "Reward `1.0`. Scored pass with no outcome-relevant failure.",
+    "rule_id": "R-NONE-01",
+    "schema": "trial_decision/v1",
+    "scored": true,
+    "whose": "none"
+  },
+  "diagnosis": {
+    "exception_class": "TrialBudgetExhaustedError",
+    "heuristic_label": "tool_use_loop",
+    "modes": [],
+    "notices": [
+      "stop reason: trial_budget_exhausted (agent metadata stop_reason)",
+      "scored pass; no failure modes proposed"
+    ],
+    "outcome": "scored",
+    "reward": 1.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "token_ceiling:input_tokens",
+    "identical_loop:18x:head#2-head#19",
+    "completion_handshake:head#87:0x-echo",
+    "claim_regime:12-steps",
+    "outcome:R-NONE-01:n/a",
+    "taint_candidate:upstream_fetch",
+    "claimed_unconfirmed",
+    "post_edit_input_share:45%",
+    "summarised:1/1-shrunk",
+    "max_prompt:53432"
+  ],
+  "handshake": {
+    "confirmed": false,
+    "echo_task_complete_turns": 0,
+    "first_prompt_ref": "head#87",
+    "prompt_tokens_after_first_prompt": 179525,
+    "prompts": 1,
+    "steps_without_metrics": 0,
+    "turns_after_first_prompt": 12
+  },
+  "identical_runs": [
+    {
+      "end": "head#19",
+      "length": 18,
+      "start": "head#2"
+    },
+    {
+      "end": "head#85",
+      "length": 16,
+      "start": "head#70"
+    }
+  ],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 16797,
+      "prompt": 2343040,
+      "steps": 96,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": {
+      "completion": 5449,
+      "prompt": 374498,
+      "steps": 34,
+      "steps_without_metrics": 0
+    },
+    "in_loops": {
+      "completion": 5449,
+      "prompt": 374498,
+      "steps": 34,
+      "steps_without_metrics": 0
+    },
+    "loop_prompt_share": 0.1598,
+    "result_input_tokens": 2454481,
+    "spans": [
+      {
+        "kind": "identical",
+        "length": 18,
+        "span": [
+          "head#2",
+          "head#19"
+        ]
+      },
+      {
+        "kind": "identical",
+        "length": 16,
+        "span": [
+          "head#70",
+          "head#85"
+        ]
+      }
+    ]
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 96,
+  "outcome_failure": {
+    "attribution": "n/a",
+    "evidence_step_refs": [
+      "head#2",
+      "head#19"
+    ],
+    "note": "scored pass with no outcome-relevant failure",
+    "rule_id": "R-NONE-01",
+    "secondary": "error_recovery/model secondary: identical run head#2-head#19",
+    "step_id": null,
+    "step_ref": null,
+    "tag": "none"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {},
+  "reward": 1.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [
+    "context markers present (see coverage/stop) but not the outcome rule"
+  ],
+  "shape_counts": {
+    "prose": 96
+  },
+  "stitched_steps": 99,
+  "stop_reason": "ceiling:input_tokens",
+  "taint": [
+    {
+      "command": "grep -rn \"rename\" /workspace/repo/docs -l 2>/dev/null | head; pip download siuba==0.4.6 --no-deps -d /tmp/siuba_dl 2>&1 | tail -2",
+      "evidence": "head#20",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    },
+    {
+      "command": "cat /workspace/repo/docs/api_table_core/04_rename.Rmd 2>/dev/null | head -60; pip download siuba --no-deps -d /tmp/siuba_dl 2>&1 | tail -1; ls /tmp/siuba_dl 2>/",
+      "evidence": "head#21",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    }
+  ],
+  "task_name": "mimo-v2.6-rl/format-code-task-001832",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 50,
+      "command_excerpt": "cd /workspace/repo && python3 - <<'PYEOF'",
+      "kind": "write-call",
+      "persistence_reason": "edit detected but no target path extracted; persistence uncheckable (see limits)",
+      "persists_in_final_diff": null,
+      "step_id": 51,
+      "touched_paths": []
+    },
+    "loop_onset": {
+      "reason": "no repeat run detected",
+      "step_id": null
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 116,
+        "prompt_tokens": 1284,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 139,
+        "prompt_tokens": 2914,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 168,
+        "prompt_tokens": 5658,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 103,
+        "prompt_tokens": 6749,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 223,
+        "prompt_tokens": 8852,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 149,
+        "prompt_tokens": 10610,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 121,
+        "prompt_tokens": 11795,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 172,
+        "prompt_tokens": 12629,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 133,
+        "prompt_tokens": 14080,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 1216,
+        "prompt_tokens": 15705,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 69,
+        "prompt_tokens": 16577,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 77,
+        "prompt_tokens": 16940,
+        "step_id": 13
+      },
+      {
+        "call_index": 13,
+        "completion_tokens": 51,
+        "prompt_tokens": 17245,
+        "step_id": 14
+      },
+      {
+        "call_index": 14,
+        "completion_tokens": 53,
+        "prompt_tokens": 18012,
+        "step_id": 15
+      },
+      {
+        "call_index": 15,
+        "completion_tokens": 54,
+        "prompt_tokens": 18687,
+        "step_id": 16
+      },
+      {
+        "call_index": 16,
+        "completion_tokens": 228,
+        "prompt_tokens": 19405,
+        "step_id": 17
+      },
+      {
+        "call_index": 17,
+        "completion_tokens": 53,
+        "prompt_tokens": 20090,
+        "step_id": 18
+      },
+      {
+        "call_index": 18,
+        "completion_tokens": 53,
+        "prompt_tokens": 20918,
+        "step_id": 19
+      },
+      {
+        "call_index": 19,
+        "completion_tokens": 133,
+        "prompt_tokens": 21695,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "completion_tokens": 91,
+        "prompt_tokens": 22064,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "completion_tokens": 166,
+        "prompt_tokens": 22612,
+        "step_id": 22
+      },
+      {
+        "call_index": 22,
+        "completion_tokens": 122,
+        "prompt_tokens": 22892,
+        "step_id": 23
+      },
+      {
+        "call_index": 23,
+        "completion_tokens": 66,
+        "prompt_tokens": 23784,
+        "step_id": 24
+      },
+      {
+        "call_index": 24,
+        "completion_tokens": 52,
+        "prompt_tokens": 24191,
+        "step_id": 25
+      },
+      {
+        "call_index": 25,
+        "completion_tokens": 139,
+        "prompt_tokens": 24918,
+        "step_id": 26
+      },
+      {
+        "call_index": 26,
+        "completion_tokens": 134,
+        "prompt_tokens": 25459,
+        "step_id": 27
+      },
+      {
+        "call_index": 27,
+        "completion_tokens": 321,
+        "prompt_tokens": 26121,
+        "step_id": 28
+      },
+      {
+        "call_index": 28,
+        "completion_tokens": 104,
+        "prompt_tokens": 27056,
+        "step_id": 29
+      },
+      {
+        "call_index": 29,
+        "completion_tokens": 65,
+        "prompt_tokens": 27546,
+        "step_id": 30
+      },
+      {
+        "call_index": 30,
+        "completion_tokens": 51,
+        "prompt_tokens": 27731,
+        "step_id": 31
+      },
+      {
+        "call_index": 31,
+        "completion_tokens": 53,
+        "prompt_tokens": 27961,
+        "step_id": 32
+      },
+      {
+        "call_index": 32,
+        "completion_tokens": 633,
+        "prompt_tokens": 28268,
+        "step_id": 33
+      },
+      {
+        "call_index": 33,
+        "completion_tokens": 97,
+        "prompt_tokens": 29317,
+        "step_id": 34
+      },
+      {
+        "call_index": 34,
+        "completion_tokens": 53,
+        "prompt_tokens": 29626,
+        "step_id": 35
+      },
+      {
+        "call_index": 35,
+        "completion_tokens": 638,
+        "prompt_tokens": 29824,
+        "step_id": 36
+      },
+      {
+        "call_index": 36,
+        "completion_tokens": 55,
+        "prompt_tokens": 31280,
+        "step_id": 37
+      },
+      {
+        "call_index": 37,
+        "completion_tokens": 600,
+        "prompt_tokens": 31505,
+        "step_id": 38
+      },
+      {
+        "call_index": 38,
+        "completion_tokens": 501,
+        "prompt_tokens": 32517,
+        "step_id": 39
+      },
+      {
+        "call_index": 39,
+        "completion_tokens": 299,
+        "prompt_tokens": 33631,
+        "step_id": 40
+      },
+      {
+        "call_index": 40,
+        "completion_tokens": 174,
+        "prompt_tokens": 34424,
+        "step_id": 41
+      },
+      {
+        "call_index": 41,
+        "completion_tokens": 198,
+        "prompt_tokens": 35356,
+        "step_id": 42
+      },
+      {
+        "call_index": 42,
+        "completion_tokens": 189,
+        "prompt_tokens": 35931,
+        "step_id": 43
+      },
+      {
+        "call_index": 43,
+        "completion_tokens": 325,
+        "prompt_tokens": 36499,
+        "step_id": 44
+      },
+      {
+        "call_index": 44,
+        "completion_tokens": 312,
+        "prompt_tokens": 37512,
+        "step_id": 45
+      },
+      {
+        "call_index": 45,
+        "completion_tokens": 306,
+        "prompt_tokens": 38629,
+        "step_id": 46
+      },
+      {
+        "call_index": 46,
+        "completion_tokens": 85,
+        "prompt_tokens": 39810,
+        "step_id": 47
+      },
+      {
+        "call_index": 47,
+        "completion_tokens": 84,
+        "prompt_tokens": 40065,
+        "step_id": 48
+      },
+      {
+        "call_index": 48,
+        "completion_tokens": 78,
+        "prompt_tokens": 40733,
+        "step_id": 49
+      },
+      {
+        "call_index": 49,
+        "completion_tokens": 77,
+        "prompt_tokens": 41377,
+        "step_id": 50
+      },
+      {
+        "call_index": 50,
+        "completion_tokens": 494,
+        "prompt_tokens": 41952,
+        "step_id": 51
+      },
+      {
+        "call_index": 51,
+        "completion_tokens": 63,
+        "prompt_tokens": 43064,
+        "step_id": 52
+      },
+      {
+        "call_index": 52,
+        "completion_tokens": 110,
+        "prompt_tokens": 43730,
+        "step_id": 53
+      },
+      {
+        "call_index": 53,
+        "completion_tokens": 104,
+        "prompt_tokens": 44243,
+        "step_id": 54
+      },
+      {
+        "call_index": 54,
+        "completion_tokens": 243,
+        "prompt_tokens": 44609,
+        "step_id": 55
+      },
+      {
+        "call_index": 55,
+        "completion_tokens": 267,
+        "prompt_tokens": 45642,
+        "step_id": 56
+      },
+      {
+        "call_index": 56,
+        "completion_tokens": 291,
+        "prompt_tokens": 46486,
+        "step_id": 57
+      },
+      {
+        "call_index": 57,
+        "completion_tokens": 253,
+        "prompt_tokens": 47187,
+        "step_id": 58
+      },
+      {
+        "call_index": 58,
+        "completion_tokens": 235,
+        "prompt_tokens": 47853,
+        "step_id": 59
+      },
+      {
+        "call_index": 59,
+        "completion_tokens": 232,
+        "prompt_tokens": 48474,
+        "step_id": 60
+      },
+      {
+        "call_index": 60,
+        "completion_tokens": 227,
+        "prompt_tokens": 49079,
+        "step_id": 61
+      },
+      {
+        "call_index": 61,
+        "completion_tokens": 248,
+        "prompt_tokens": 49682,
+        "step_id": 62
+      },
+      {
+        "call_index": 62,
+        "completion_tokens": 234,
+        "prompt_tokens": 50638,
+        "step_id": 63
+      },
+      {
+        "call_index": 63,
+        "completion_tokens": 213,
+        "prompt_tokens": 51475,
+        "step_id": 64
+      },
+      {
+        "call_index": 64,
+        "completion_tokens": 143,
+        "prompt_tokens": 52002,
+        "step_id": 65
+      },
+      {
+        "call_index": 65,
+        "completion_tokens": 112,
+        "prompt_tokens": 52663,
+        "step_id": 66
+      },
+      {
+        "call_index": 66,
+        "completion_tokens": 180,
+        "prompt_tokens": 53432,
+        "step_id": 67
+      },
+      {
+        "call_index": 67,
+        "completion_tokens": 105,
+        "prompt_tokens": 4009,
+        "step_id": 70
+      },
+      {
+        "call_index": 68,
+        "completion_tokens": 128,
+        "prompt_tokens": 5157,
+        "step_id": 71
+      },
+      {
+        "call_index": 69,
+        "completion_tokens": 210,
+        "prompt_tokens": 5657,
+        "step_id": 72
+      },
+      {
+        "call_index": 70,
+        "completion_tokens": 216,
+        "prompt_tokens": 6230,
+        "step_id": 73
+      },
+      {
+        "call_index": 71,
+        "completion_tokens": 136,
+        "prompt_tokens": 7300,
+        "step_id": 74
+      },
+      {
+        "call_index": 72,
+        "completion_tokens": 140,
+        "prompt_tokens": 7769,
+        "step_id": 75
+      },
+      {
+        "call_index": 73,
+        "completion_tokens": 159,
+        "prompt_tokens": 8250,
+        "step_id": 76
+      },
+      {
+        "call_index": 74,
+        "completion_tokens": 52,
+        "prompt_tokens": 8498,
+        "step_id": 77
+      },
+      {
+        "call_index": 75,
+        "completion_tokens": 51,
+        "prompt_tokens": 8713,
+        "step_id": 78
+      },
+      {
+        "call_index": 76,
+        "completion_tokens": 51,
+        "prompt_tokens": 9174,
+        "step_id": 79
+      },
+      {
+        "call_index": 77,
+        "completion_tokens": 209,
+        "prompt_tokens": 9722,
+        "step_id": 80
+      },
+      {
+        "call_index": 78,
+        "completion_tokens": 59,
+        "prompt_tokens": 10262,
+        "step_id": 81
+      },
+      {
+        "call_index": 79,
+        "completion_tokens": 51,
+        "prompt_tokens": 10662,
+        "step_id": 82
+      },
+      {
+        "call_index": 80,
+        "completion_tokens": 215,
+        "prompt_tokens": 10951,
+        "step_id": 83
+      },
+      {
+        "call_index": 81,
+        "completion_tokens": 284,
+        "prompt_tokens": 11730,
+        "step_id": 84
+      },
+      {
+        "call_index": 82,
+        "completion_tokens": 205,
+        "prompt_tokens": 12264,
+        "step_id": 85
+      },
+      {
+        "call_index": 83,
+        "completion_tokens": 83,
+        "prompt_tokens": 13103,
+        "step_id": 86
+      },
+      {
+        "call_index": 84,
+        "completion_tokens": 297,
+        "prompt_tokens": 13369,
+        "step_id": 87
+      },
+      {
+        "call_index": 85,
+        "completion_tokens": 343,
+        "prompt_tokens": 13776,
+        "step_id": 88
+      },
+      {
+        "call_index": 86,
+        "completion_tokens": 31,
+        "prompt_tokens": 14226,
+        "step_id": 89
+      },
+      {
+        "call_index": 87,
+        "completion_tokens": 92,
+        "prompt_tokens": 14357,
+        "step_id": 90
+      },
+      {
+        "call_index": 88,
+        "completion_tokens": 67,
+        "prompt_tokens": 14555,
+        "step_id": 91
+      },
+      {
+        "call_index": 89,
+        "completion_tokens": 66,
+        "prompt_tokens": 14720,
+        "step_id": 92
+      },
+      {
+        "call_index": 90,
+        "completion_tokens": 59,
+        "prompt_tokens": 14886,
+        "step_id": 93
+      },
+      {
+        "call_index": 91,
+        "completion_tokens": 77,
+        "prompt_tokens": 15049,
+        "step_id": 94
+      },
+      {
+        "call_index": 92,
+        "completion_tokens": 86,
+        "prompt_tokens": 15232,
+        "step_id": 95
+      },
+      {
+        "call_index": 93,
+        "completion_tokens": 66,
+        "prompt_tokens": 15420,
+        "step_id": 96
+      },
+      {
+        "call_index": 94,
+        "completion_tokens": 77,
+        "prompt_tokens": 15589,
+        "step_id": 97
+      },
+      {
+        "call_index": 95,
+        "completion_tokens": 77,
+        "prompt_tokens": 15768,
+        "step_id": 98
+      },
+      {
+        "call_index": 96,
+        "completion_tokens": 77,
+        "prompt_tokens": 15947,
+        "step_id": 99
+      }
+    ],
+    "prompt_summary": {
+      "first": 1284,
+      "max": 53432,
+      "max_step_id": 67,
+      "median": 21306.5,
+      "n_calls": 96,
+      "reason": null,
+      "slope_per_call": -9.148128052088987,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": "TrialBudgetExhaustedError",
+      "metadata_stop_reason": "trial_budget_exhausted",
+      "reason": null,
+      "stop_reason": "ceiling:input_tokens"
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [
+        {
+          "index": 1,
+          "kept": {
+            "chars": 269172,
+            "files": [
+              "trajectory.summarization-1-answers.json",
+              "trajectory.summarization-1-questions.json",
+              "trajectory.summarization-1-summary.json"
+            ],
+            "parts": [
+              "handoff_user_message",
+              "3 subagent trajectories"
+            ]
+          },
+          "prompt_after": {
+            "prompt_tokens": 4009,
+            "step_id": 70
+          },
+          "prompt_before": {
+            "prompt_tokens": 53432,
+            "step_id": 67
+          },
+          "prompt_delta": -49423,
+          "step_id": 68,
+          "success": true,
+          "success_reason": null
+        }
+      ],
+      "metadata_count": 1,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 1112604,
+      "note": null,
+      "output_tokens": 6924,
+      "share_input": 0.4533,
+      "share_output": 0.384,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 2,
+        "chars": 9081,
+        "est_tokens": 2270,
+        "next_prompt_tokens": 5658,
+        "step_id": 3
+      },
+      {
+        "call_index": 4,
+        "chars": 7288,
+        "est_tokens": 1822,
+        "next_prompt_tokens": 8852,
+        "step_id": 5
+      },
+      {
+        "call_index": 9,
+        "chars": 5780,
+        "est_tokens": 1445,
+        "next_prompt_tokens": 15705,
+        "step_id": 10
+      },
+      {
+        "call_index": 5,
+        "chars": 5683,
+        "est_tokens": 1420,
+        "next_prompt_tokens": 10610,
+        "step_id": 6
+      },
+      {
+        "call_index": 1,
+        "chars": 4795,
+        "est_tokens": 1198,
+        "next_prompt_tokens": 2914,
+        "step_id": 2
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 96,
+      "n_steps_stitched": 99
+    },
+    "trajectory_reason": null,
+    "trial_name": "gepa-terminus-2-format-code-task__CFCbfps"
+  },
+  "tokens_attempted_proxy": 2472514,
+  "tokens_proxy": {
+    "input_tokens": 2454481,
+    "output_tokens": 18033
+  },
+  "tokens_steps": {
+    "agent_steps": 96,
+    "completion_tokens": 16797,
+    "metered_steps": 96,
+    "prompt_tokens": 2343040,
+    "reason": null,
+    "total_tokens": 2359837,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "gepa-terminus-2-format-code-task__CFCbfps",
+  "trial_wall_hours": 0.37090458111111113,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 95,
+    "keystroke_source": "recorded",
+    "short_stretches": 0,
+    "states": {
+      "prompt": 95
+    },
+    "stretches": []
+  }
+}

@@ -1,0 +1,105 @@
+{
+ "trial": "har110-001161-plain__RZ8qyUu",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-001161-plain/har110-001161-plain__RZ8qyUu",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-001161-plain",
+ "task": "mimo-v2.6-rl/format-code-task-001161",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 2,
+  "step_ref": "head#2",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#2",
+   "head#25"
+  ],
+  "note": "identical message repeated steps 2-25 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 24,
+    "span": [
+     "head#2",
+     "head#25"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 15,
+    "span": [
+     "head#27",
+     "head#41"
+    ]
+   },
+   {
+    "kind": "identical",
+    "length": 20,
+    "span": [
+     "head#65",
+     "head#84"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1539169,
+   "completion": 7926,
+   "steps": 59,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1539169,
+   "completion": 7926,
+   "steps": 59,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2323433,
+   "completion": 10165,
+   "steps": 83,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.6625,
+  "result_input_tokens": 2323433
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 83,
+  "states": {
+   "prompt": 83
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

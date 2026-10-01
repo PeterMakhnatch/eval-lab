@@ -1,0 +1,108 @@
+{
+ "trial": "har110-001181-plain__AnjbfwU",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-001181-plain/har110-001181-plain__AnjbfwU",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-001181-plain",
+ "task": "mimo-v2.6-rl/format-code-task-001181",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 0,
+   "summarization_count": 0,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": []
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 58,
+  "step_ref": "head#58",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#58",
+   "head#85"
+  ],
+  "note": "identical message repeated steps 58-85 with no change after errors",
+  "secondary_wedge": "error_recovery/model secondary (R-REC-02 wedged terminal): pager after head#27 (`cd /testbed && git diff`), 58 turns head#28-head#85 with no interrupt, until run end"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 28,
+    "span": [
+     "head#58",
+     "head#85"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 984172,
+   "completion": 2268,
+   "steps": 28,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 984172,
+   "completion": 2268,
+   "steps": 28,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2339648,
+   "completion": 16438,
+   "steps": 84,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.4206,
+  "result_input_tokens": 2339648
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 84,
+  "states": {
+   "no_prompt": 55,
+   "pager": 4,
+   "prompt": 25
+  },
+  "stretches": [
+   {
+    "trigger_ref": "head#27",
+    "trigger_command": "cd /testbed && git diff",
+    "cause": "pager",
+    "screen": ":",
+    "start_ref": "head#28",
+    "end_ref": "head#85",
+    "turns": 58,
+    "interrupt_ref": null,
+    "interrupt_keys": null,
+    "prompt_returned": false,
+    "until_run_end": true,
+    "prompt_tokens": 1932422,
+    "steps_without_metrics": 0
+   }
+  ],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

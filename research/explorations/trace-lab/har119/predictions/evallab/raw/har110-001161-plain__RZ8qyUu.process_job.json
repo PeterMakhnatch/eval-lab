@@ -1,0 +1,897 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 83,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 83,
+      "unknown": 0
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 0,
+      "recorded": 83
+    }
+  },
+  "agent_steps": 83,
+  "assembly_pattern": "single_head",
+  "claim_regime": null,
+  "completion_refs": [],
+  "confirmation_loop": null,
+  "cost_attempted_usd": 0.0,
+  "cost_estimate_reason": "excludes sandbox and warm periods; time-based only",
+  "cost_estimate_usd": 0.51845227962912,
+  "cost_reason": "self-hosted route bills by server time, not tokens: use execution_contracts.mimo_selfhosted_trial_cost_usd with trial wall time, concurrency, and sandbox cost; the sandbox input is unavailable at finalize so no spend is reported",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": [],
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "016cefa5-5f4b-43ab-b936-5fc5f2953f78",
+        "steps": 84
+      }
+    ],
+    "summarization_count": 0,
+    "trajectory_head": true,
+    "unique_steps": 84
+  },
+  "decision": {
+    "asked": {
+      "excerpt": "Fix the following issue: docformatter is deliberately conservative around structured reStructuredText because reflowing a directive or list can change its meaning. That caution is useful, but it currently makes a whole description opaque when only one small region is structured: prose before and after a directive, literal block, doctest, list, or Sphinx field is left unwrapped. Add an opt-in stru\u2026",
+      "grader_gap": "no named gap; verifier ran 8 tests, 6 failed. Not a semantic certificate.",
+      "grader_tests_asked": "yes",
+      "instruction_bytes": 1864,
+      "instruction_present": true
+    },
+    "attribution": "model",
+    "did": {
+      "evidence_steps": [
+        "head#2",
+        "head#25"
+      ],
+      "last_edit_excerpt": "grep -n \"non_cap\\|capitalize\" /testbed/tests/conftest.py; awk 'NR>=160 && NR<=200' /testbed/tests/conftest.py",
+      "last_edit_step": 84,
+      "note": "identical message repeated steps 2-25 with no change after errors",
+      "secondary": null,
+      "step": "head#2"
+    },
+    "fetched_fix": {
+      "command": "pip download docformatter==1.7.1 --no-deps -d /tmp/dfdl 2>&1 | tail -3",
+      "fetched": true,
+      "kind": "upstream_fetch:pip-download-remote-package",
+      "step": "head#27"
+    },
+    "first_failure": null,
+    "nop_same_crash": {
+      "answer": "not_this_shape",
+      "nop_trial": null,
+      "reason": "This trial's verifier did not fail at setup or import."
+    },
+    "pass_tainted": {
+      "flagged": false,
+      "reasons": [
+        "upstream_fetch:upstream_fetch:pip-download-remote-package",
+        "upstream_fetch:upstream_fetch:pip-download-remote-package",
+        "upstream_fetch:upstream_fetch:pip-download-remote-package",
+        "upstream_fetch:upstream_fetch:pip-download-remote-package"
+      ],
+      "status": "not_a_pass"
+    },
+    "reward": 0.0,
+    "reward_why": "Reward `0.0`. Identical message repeated steps 2-25 with no change after errors.",
+    "rule_id": "R-REC-01",
+    "schema": "trial_decision/v1",
+    "scored": true,
+    "whose": "model"
+  },
+  "diagnosis": {
+    "exception_class": "TrialBudgetExhaustedError",
+    "heuristic_label": "unrecovered_error",
+    "modes": [
+      {
+        "excerpt": "New Terminal Output: [1:])[0] root@c3853237-f34d-4b7b-bf34-86f2bb8c3454:/testbed# grep -n \"non_cap\\|capitalize\" /testbed/[hidden-path]/conftest.py; awk 'NR>=160...",
+        "mode": "unclassified_failure",
+        "step_ids": [
+          "84"
+        ]
+      }
+    ],
+    "notices": [
+      "stop reason: trial_budget_exhausted (agent metadata stop_reason)"
+    ],
+    "outcome": "scored",
+    "reward": 0.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "token_ceiling:input_tokens",
+    "identical_loop:24x:head#2-head#25",
+    "outcome:R-REC-01:model",
+    "taint_candidate:upstream_fetch",
+    "diagnosis:unclassified_failure",
+    "post_edit_input_share:0%",
+    "max_prompt:51216"
+  ],
+  "handshake": null,
+  "identical_runs": [
+    {
+      "end": "head#25",
+      "length": 24,
+      "start": "head#2"
+    },
+    {
+      "end": "head#41",
+      "length": 15,
+      "start": "head#27"
+    },
+    {
+      "end": "head#84",
+      "length": 20,
+      "start": "head#65"
+    }
+  ],
+  "loop_cost": {
+    "all_steps": {
+      "completion": 10165,
+      "prompt": 2323433,
+      "steps": 83,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": {
+      "completion": 7926,
+      "prompt": 1539169,
+      "steps": 59,
+      "steps_without_metrics": 0
+    },
+    "in_loops": {
+      "completion": 7926,
+      "prompt": 1539169,
+      "steps": 59,
+      "steps_without_metrics": 0
+    },
+    "loop_prompt_share": 0.6625,
+    "result_input_tokens": 2323433,
+    "spans": [
+      {
+        "kind": "identical",
+        "length": 24,
+        "span": [
+          "head#2",
+          "head#25"
+        ]
+      },
+      {
+        "kind": "identical",
+        "length": 15,
+        "span": [
+          "head#27",
+          "head#41"
+        ]
+      },
+      {
+        "kind": "identical",
+        "length": 20,
+        "span": [
+          "head#65",
+          "head#84"
+        ]
+      }
+    ]
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+  "model_steps": 83,
+  "outcome_failure": {
+    "attribution": "model",
+    "evidence_step_refs": [
+      "head#2",
+      "head#25"
+    ],
+    "note": "identical message repeated steps 2-25 with no change after errors",
+    "rule_id": "R-REC-01",
+    "step_id": 2,
+    "step_ref": "head#2",
+    "tag": "error_recovery"
+  },
+  "outline": {
+    "agent_steps": 0,
+    "exception_class": null,
+    "primary_reward": null,
+    "status": "accounted_unavailable",
+    "total_steps": 0
+  },
+  "rejection_causes": {},
+  "reward": 0.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [],
+  "shape_counts": {
+    "prose": 83
+  },
+  "stitched_steps": 84,
+  "stop_reason": "ceiling:input_tokens",
+  "taint": [
+    {
+      "command": "pip download docformatter==1.7.1 --no-deps -d /tmp/dfdl 2>&1 | tail -3",
+      "evidence": "head#27",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    },
+    {
+      "command": "pip download docformatter==1.8.0 --no-deps -d /tmp/dfdl2 2>&1 | tail -3",
+      "evidence": "head#54",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    },
+    {
+      "command": "pip download docformatter==1.7.8 --no-deps -d /tmp/dfdl3 2>&1 | tail -2; ls /tmp/dfdl3 2>/dev/null",
+      "evidence": "head#55",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    },
+    {
+      "command": "pip download docformatter==1.7.7 --no-deps --no-binary :all: -d /tmp/dfdl4 2>&1 | tail -3; ls /tmp/dfdl4 2>/dev/null",
+      "evidence": "head#58",
+      "kind": "upstream_fetch",
+      "names_task_repo": false,
+      "rule": "upstream_fetch:pip-download-remote-package"
+    }
+  ],
+  "task_name": "mimo-v2.6-rl/format-code-task-001161",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 83,
+      "command_excerpt": "grep -n \"non_cap\\|capitalize\" /testbed/tests/conftest.py; awk 'NR>=160 && NR<=200' /testbed/tests/conftest.py",
+      "kind": "shell-redirect",
+      "persistence_reason": "final diff is empty",
+      "persists_in_final_diff": false,
+      "step_id": 84,
+      "touched_paths": []
+    },
+    "loop_onset": {
+      "reason": "no repeat run detected",
+      "step_id": null
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 113,
+        "prompt_tokens": 1061,
+        "step_id": 2
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 105,
+        "prompt_tokens": 2628,
+        "step_id": 3
+      },
+      {
+        "call_index": 3,
+        "completion_tokens": 96,
+        "prompt_tokens": 3351,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "completion_tokens": 38,
+        "prompt_tokens": 5912,
+        "step_id": 5
+      },
+      {
+        "call_index": 5,
+        "completion_tokens": 39,
+        "prompt_tokens": 8306,
+        "step_id": 6
+      },
+      {
+        "call_index": 6,
+        "completion_tokens": 57,
+        "prompt_tokens": 8668,
+        "step_id": 7
+      },
+      {
+        "call_index": 7,
+        "completion_tokens": 47,
+        "prompt_tokens": 9211,
+        "step_id": 8
+      },
+      {
+        "call_index": 8,
+        "completion_tokens": 48,
+        "prompt_tokens": 9679,
+        "step_id": 9
+      },
+      {
+        "call_index": 9,
+        "completion_tokens": 50,
+        "prompt_tokens": 10014,
+        "step_id": 10
+      },
+      {
+        "call_index": 10,
+        "completion_tokens": 50,
+        "prompt_tokens": 10351,
+        "step_id": 11
+      },
+      {
+        "call_index": 11,
+        "completion_tokens": 52,
+        "prompt_tokens": 10690,
+        "step_id": 12
+      },
+      {
+        "call_index": 12,
+        "completion_tokens": 52,
+        "prompt_tokens": 11116,
+        "step_id": 13
+      },
+      {
+        "call_index": 13,
+        "completion_tokens": 52,
+        "prompt_tokens": 11490,
+        "step_id": 14
+      },
+      {
+        "call_index": 14,
+        "completion_tokens": 79,
+        "prompt_tokens": 11886,
+        "step_id": 15
+      },
+      {
+        "call_index": 15,
+        "completion_tokens": 52,
+        "prompt_tokens": 12746,
+        "step_id": 16
+      },
+      {
+        "call_index": 16,
+        "completion_tokens": 50,
+        "prompt_tokens": 13145,
+        "step_id": 17
+      },
+      {
+        "call_index": 17,
+        "completion_tokens": 81,
+        "prompt_tokens": 13696,
+        "step_id": 18
+      },
+      {
+        "call_index": 18,
+        "completion_tokens": 52,
+        "prompt_tokens": 14278,
+        "step_id": 19
+      },
+      {
+        "call_index": 19,
+        "completion_tokens": 52,
+        "prompt_tokens": 14872,
+        "step_id": 20
+      },
+      {
+        "call_index": 20,
+        "completion_tokens": 52,
+        "prompt_tokens": 15213,
+        "step_id": 21
+      },
+      {
+        "call_index": 21,
+        "completion_tokens": 71,
+        "prompt_tokens": 16199,
+        "step_id": 22
+      },
+      {
+        "call_index": 22,
+        "completion_tokens": 50,
+        "prompt_tokens": 16591,
+        "step_id": 23
+      },
+      {
+        "call_index": 23,
+        "completion_tokens": 52,
+        "prompt_tokens": 17325,
+        "step_id": 24
+      },
+      {
+        "call_index": 24,
+        "completion_tokens": 52,
+        "prompt_tokens": 18953,
+        "step_id": 25
+      },
+      {
+        "call_index": 25,
+        "completion_tokens": 119,
+        "prompt_tokens": 19312,
+        "step_id": 26
+      },
+      {
+        "call_index": 26,
+        "completion_tokens": 1282,
+        "prompt_tokens": 19742,
+        "step_id": 27
+      },
+      {
+        "call_index": 27,
+        "completion_tokens": 104,
+        "prompt_tokens": 19969,
+        "step_id": 28
+      },
+      {
+        "call_index": 28,
+        "completion_tokens": 100,
+        "prompt_tokens": 20693,
+        "step_id": 29
+      },
+      {
+        "call_index": 29,
+        "completion_tokens": 151,
+        "prompt_tokens": 21057,
+        "step_id": 30
+      },
+      {
+        "call_index": 30,
+        "completion_tokens": 50,
+        "prompt_tokens": 21456,
+        "step_id": 31
+      },
+      {
+        "call_index": 31,
+        "completion_tokens": 40,
+        "prompt_tokens": 21662,
+        "step_id": 32
+      },
+      {
+        "call_index": 32,
+        "completion_tokens": 129,
+        "prompt_tokens": 21825,
+        "step_id": 33
+      },
+      {
+        "call_index": 33,
+        "completion_tokens": 170,
+        "prompt_tokens": 22259,
+        "step_id": 34
+      },
+      {
+        "call_index": 34,
+        "completion_tokens": 113,
+        "prompt_tokens": 22839,
+        "step_id": 35
+      },
+      {
+        "call_index": 35,
+        "completion_tokens": 154,
+        "prompt_tokens": 23423,
+        "step_id": 36
+      },
+      {
+        "call_index": 36,
+        "completion_tokens": 147,
+        "prompt_tokens": 23960,
+        "step_id": 37
+      },
+      {
+        "call_index": 37,
+        "completion_tokens": 141,
+        "prompt_tokens": 24430,
+        "step_id": 38
+      },
+      {
+        "call_index": 38,
+        "completion_tokens": 156,
+        "prompt_tokens": 24892,
+        "step_id": 39
+      },
+      {
+        "call_index": 39,
+        "completion_tokens": 157,
+        "prompt_tokens": 25370,
+        "step_id": 40
+      },
+      {
+        "call_index": 40,
+        "completion_tokens": 131,
+        "prompt_tokens": 25848,
+        "step_id": 41
+      },
+      {
+        "call_index": 41,
+        "completion_tokens": 66,
+        "prompt_tokens": 27215,
+        "step_id": 42
+      },
+      {
+        "call_index": 42,
+        "completion_tokens": 47,
+        "prompt_tokens": 27589,
+        "step_id": 43
+      },
+      {
+        "call_index": 43,
+        "completion_tokens": 45,
+        "prompt_tokens": 27944,
+        "step_id": 44
+      },
+      {
+        "call_index": 44,
+        "completion_tokens": 67,
+        "prompt_tokens": 28232,
+        "step_id": 45
+      },
+      {
+        "call_index": 45,
+        "completion_tokens": 49,
+        "prompt_tokens": 28999,
+        "step_id": 46
+      },
+      {
+        "call_index": 46,
+        "completion_tokens": 49,
+        "prompt_tokens": 29586,
+        "step_id": 47
+      },
+      {
+        "call_index": 47,
+        "completion_tokens": 122,
+        "prompt_tokens": 29897,
+        "step_id": 48
+      },
+      {
+        "call_index": 48,
+        "completion_tokens": 55,
+        "prompt_tokens": 31089,
+        "step_id": 49
+      },
+      {
+        "call_index": 49,
+        "completion_tokens": 48,
+        "prompt_tokens": 31454,
+        "step_id": 50
+      },
+      {
+        "call_index": 50,
+        "completion_tokens": 45,
+        "prompt_tokens": 32458,
+        "step_id": 51
+      },
+      {
+        "call_index": 51,
+        "completion_tokens": 49,
+        "prompt_tokens": 32844,
+        "step_id": 52
+      },
+      {
+        "call_index": 52,
+        "completion_tokens": 49,
+        "prompt_tokens": 33249,
+        "step_id": 53
+      },
+      {
+        "call_index": 53,
+        "completion_tokens": 109,
+        "prompt_tokens": 34069,
+        "step_id": 54
+      },
+      {
+        "call_index": 54,
+        "completion_tokens": 71,
+        "prompt_tokens": 34812,
+        "step_id": 55
+      },
+      {
+        "call_index": 55,
+        "completion_tokens": 159,
+        "prompt_tokens": 35072,
+        "step_id": 56
+      },
+      {
+        "call_index": 56,
+        "completion_tokens": 44,
+        "prompt_tokens": 35673,
+        "step_id": 57
+      },
+      {
+        "call_index": 57,
+        "completion_tokens": 144,
+        "prompt_tokens": 36971,
+        "step_id": 58
+      },
+      {
+        "call_index": 58,
+        "completion_tokens": 64,
+        "prompt_tokens": 37312,
+        "step_id": 59
+      },
+      {
+        "call_index": 59,
+        "completion_tokens": 65,
+        "prompt_tokens": 37541,
+        "step_id": 60
+      },
+      {
+        "call_index": 60,
+        "completion_tokens": 98,
+        "prompt_tokens": 37738,
+        "step_id": 61
+      },
+      {
+        "call_index": 61,
+        "completion_tokens": 65,
+        "prompt_tokens": 38037,
+        "step_id": 62
+      },
+      {
+        "call_index": 62,
+        "completion_tokens": 115,
+        "prompt_tokens": 38439,
+        "step_id": 63
+      },
+      {
+        "call_index": 63,
+        "completion_tokens": 495,
+        "prompt_tokens": 38732,
+        "step_id": 64
+      },
+      {
+        "call_index": 64,
+        "completion_tokens": 470,
+        "prompt_tokens": 40012,
+        "step_id": 65
+      },
+      {
+        "call_index": 65,
+        "completion_tokens": 487,
+        "prompt_tokens": 41066,
+        "step_id": 66
+      },
+      {
+        "call_index": 66,
+        "completion_tokens": 57,
+        "prompt_tokens": 42077,
+        "step_id": 67
+      },
+      {
+        "call_index": 67,
+        "completion_tokens": 447,
+        "prompt_tokens": 42459,
+        "step_id": 68
+      },
+      {
+        "call_index": 68,
+        "completion_tokens": 79,
+        "prompt_tokens": 43556,
+        "step_id": 69
+      },
+      {
+        "call_index": 69,
+        "completion_tokens": 54,
+        "prompt_tokens": 44043,
+        "step_id": 70
+      },
+      {
+        "call_index": 70,
+        "completion_tokens": 551,
+        "prompt_tokens": 44852,
+        "step_id": 71
+      },
+      {
+        "call_index": 71,
+        "completion_tokens": 106,
+        "prompt_tokens": 46122,
+        "step_id": 72
+      },
+      {
+        "call_index": 72,
+        "completion_tokens": 50,
+        "prompt_tokens": 46473,
+        "step_id": 73
+      },
+      {
+        "call_index": 73,
+        "completion_tokens": 63,
+        "prompt_tokens": 46735,
+        "step_id": 74
+      },
+      {
+        "call_index": 74,
+        "completion_tokens": 51,
+        "prompt_tokens": 46956,
+        "step_id": 75
+      },
+      {
+        "call_index": 75,
+        "completion_tokens": 619,
+        "prompt_tokens": 47423,
+        "step_id": 76
+      },
+      {
+        "call_index": 76,
+        "completion_tokens": 50,
+        "prompt_tokens": 49004,
+        "step_id": 77
+      },
+      {
+        "call_index": 77,
+        "completion_tokens": 52,
+        "prompt_tokens": 49204,
+        "step_id": 78
+      },
+      {
+        "call_index": 78,
+        "completion_tokens": 51,
+        "prompt_tokens": 49426,
+        "step_id": 79
+      },
+      {
+        "call_index": 79,
+        "completion_tokens": 52,
+        "prompt_tokens": 49979,
+        "step_id": 80
+      },
+      {
+        "call_index": 80,
+        "completion_tokens": 46,
+        "prompt_tokens": 50147,
+        "step_id": 81
+      },
+      {
+        "call_index": 81,
+        "completion_tokens": 51,
+        "prompt_tokens": 50591,
+        "step_id": 82
+      },
+      {
+        "call_index": 82,
+        "completion_tokens": 53,
+        "prompt_tokens": 51022,
+        "step_id": 83
+      },
+      {
+        "call_index": 83,
+        "completion_tokens": 70,
+        "prompt_tokens": 51216,
+        "step_id": 84
+      }
+    ],
+    "prompt_summary": {
+      "first": 1061,
+      "max": 51216,
+      "max_step_id": 84,
+      "median": 27589.0,
+      "n_calls": 83,
+      "reason": null,
+      "slope_per_call": 578.632173292473,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": "TrialBudgetExhaustedError",
+      "metadata_stop_reason": "trial_budget_exhausted",
+      "reason": null,
+      "stop_reason": "ceiling:input_tokens"
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [],
+      "metadata_count": 0,
+      "metadata_reason": null
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 0,
+      "note": null,
+      "output_tokens": 0,
+      "share_input": 0.0,
+      "share_output": 0.0,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 3,
+        "chars": 10256,
+        "est_tokens": 2564,
+        "next_prompt_tokens": 5912,
+        "step_id": 4
+      },
+      {
+        "call_index": 4,
+        "chars": 10068,
+        "est_tokens": 2517,
+        "next_prompt_tokens": 8306,
+        "step_id": 5
+      },
+      {
+        "call_index": 23,
+        "chars": 5598,
+        "est_tokens": 1399,
+        "next_prompt_tokens": 18953,
+        "step_id": 24
+      },
+      {
+        "call_index": 40,
+        "chars": 4576,
+        "est_tokens": 1144,
+        "next_prompt_tokens": 27215,
+        "step_id": 41
+      },
+      {
+        "call_index": 1,
+        "chars": 4195,
+        "est_tokens": 1048,
+        "next_prompt_tokens": 2628,
+        "step_id": 2
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 83,
+      "n_steps_stitched": 84
+    },
+    "trajectory_reason": null,
+    "trial_name": "har110-001161-plain__RZ8qyUu"
+  },
+  "tokens_attempted_proxy": 2333598,
+  "tokens_proxy": {
+    "input_tokens": 2323433,
+    "output_tokens": 10165
+  },
+  "tokens_steps": {
+    "agent_steps": 83,
+    "completion_tokens": 10165,
+    "metered_steps": 83,
+    "prompt_tokens": 2323433,
+    "reason": null,
+    "total_tokens": 2333598,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "har110-001161-plain__RZ8qyUu",
+  "trial_wall_hours": 0.184180635,
+  "trial_wall_reason": null,
+  "wedge": {
+    "executed_turns": 83,
+    "keystroke_source": "recorded",
+    "short_stretches": 0,
+    "states": {
+      "prompt": 83
+    },
+    "stretches": []
+  }
+}

@@ -1,0 +1,92 @@
+{
+ "trial": "har110-000495-plain__mDTBFAW",
+ "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000495-plain/har110-000495-plain__mDTBFAW",
+ "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har110-live/runs/har110-000495-plain",
+ "task": "mimo-v2.6-rl/format-code-task-000495",
+ "verifier": {
+  "scored": true,
+  "reward": 0.0,
+  "source": "verifier_result",
+  "guard_reject": null
+ },
+ "stop": {
+  "reason": "ceiling:input_tokens",
+  "exception_type": "TrialBudgetExhaustedError",
+  "exception_message": "the trial proxy refused a model call: trial budget exhausted",
+  "natural_completion": false,
+  "task_complete_refs": [],
+  "summarization_markers": {
+   "summarization_files": 3,
+   "summarization_count": 1,
+   "cont_files": 0,
+   "tech_difficulties_tail": 0,
+   "system_handoffs": [
+    "head#70"
+   ]
+  }
+ },
+ "first_failure": null,
+ "outcome": {
+  "step_id": 10,
+  "step_ref": "head#10",
+  "tag": "error_recovery",
+  "attribution": "model",
+  "rule_id": "R-REC-01",
+  "evidence_step_refs": [
+   "head#10",
+   "head#69"
+  ],
+  "note": "identical message repeated steps 10-69 with no change after errors"
+ },
+ "handshake": null,
+ "loops": {
+  "spans": [
+   {
+    "kind": "identical",
+    "length": 60,
+    "span": [
+     "head#10",
+     "head#69"
+    ]
+   }
+  ],
+  "identical": {
+   "prompt": 1955545,
+   "completion": 15282,
+   "steps": 60,
+   "steps_without_metrics": 0
+  },
+  "confirmation": null,
+  "in_loops": {
+   "prompt": 1955545,
+   "completion": 15282,
+   "steps": 60,
+   "steps_without_metrics": 0
+  },
+  "all_steps": {
+   "prompt": 2317340,
+   "completion": 23370,
+   "steps": 96,
+   "steps_without_metrics": 0
+  },
+  "loop_prompt_share": 0.8439,
+  "result_input_tokens": 2431433
+ },
+ "wedge": {
+  "keystroke_source": "recorded",
+  "executed_turns": 96,
+  "states": {
+   "no_prompt": 3,
+   "prompt": 93
+  },
+  "stretches": [],
+  "short_stretches": 0
+ },
+ "confirmation_loop": null,
+ "normalizer": {
+  "mode": "evallab-normalizer",
+  "sha256": "23c07e3b8aea",
+  "evallab_commit": "71f863461b91150071ccfb65433a0adfe5d8bf58"
+ },
+ "nop_runs_dir": null
+}

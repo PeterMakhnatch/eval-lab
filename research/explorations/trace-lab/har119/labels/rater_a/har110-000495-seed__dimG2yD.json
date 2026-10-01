@@ -1,0 +1,39 @@
+{
+  "blame": "model",
+  "blame_confidence": "high",
+  "evidence": [
+    {
+      "quote": "Let me look at how the actual upstream fix was done.",
+      "ref": "head#11"
+    },
+    {
+      "quote": "I can't access the internet probably.",
+      "ref": "head#11"
+    },
+    {
+      "quote": "cat /testbed/src/cfnlint/rules/jsonschema/CfnLintJsonSchema.py",
+      "ref": "head#92"
+    },
+    {
+      "quote": "'Using a function' test failed with",
+      "ref": "head#verifier"
+    }
+  ],
+  "first_failure": {
+    "quote": "Let me look at how the actual upstream fix was done.",
+    "ref": "head#11",
+    "what": "Diagnosed the bug then pivoted to upstream-commit hunting and never wrote a patch"
+  },
+  "first_failure_confidence": "medium",
+  "loop_confidence": "medium",
+  "loop_kind": "none",
+  "loop_span": null,
+  "notes": "92 episodes of varied reads across cfnlint sources; no edit to StateMachineDefinition.py ever landed. Hidden test still fails with StartAt/States required errors on Fn::Join. Late validators.py paging is sequential reading, not same-action repetition.",
+  "off_limits_opened": false,
+  "pass_copied": null,
+  "pass_copied_confidence": "high",
+  "read_minutes": 26,
+  "stop_confidence": "high",
+  "stop_reason": "token_ceiling",
+  "trial": "har110-000495-seed__dimG2yD"
+}

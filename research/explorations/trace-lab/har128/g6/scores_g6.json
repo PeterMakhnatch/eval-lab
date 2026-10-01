@@ -1,0 +1,4783 @@
+{
+  "rater_a_vs_rater_b": {
+    "stop_reason": {
+      "agree": 60,
+      "n": 60,
+      "ci95": [
+        0.9398260695220669,
+        0.9999999999999999
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-01",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-02",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-04",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-05",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-06",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-07",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-08",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-09",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-10",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-11",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-13",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-29",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-30",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-35",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-41",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-45",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-46",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-50",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-54",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 42,
+      "n": 60,
+      "ci95": [
+        0.5749105303360957,
+        0.801019897472731
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-01",
+          "rater": 85,
+          "other": 89,
+          "match": false
+        },
+        {
+          "trial": "g6-02",
+          "rater": 45,
+          "other": 45,
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": 21,
+          "other": 14,
+          "match": false
+        },
+        {
+          "trial": "g6-04",
+          "rater": 14,
+          "other": 14,
+          "match": true
+        },
+        {
+          "trial": "g6-05",
+          "rater": 53,
+          "other": 59,
+          "match": false
+        },
+        {
+          "trial": "g6-06",
+          "rater": 87,
+          "other": 77,
+          "match": false
+        },
+        {
+          "trial": "g6-07",
+          "rater": 46,
+          "other": 46,
+          "match": true
+        },
+        {
+          "trial": "g6-08",
+          "rater": 58,
+          "other": 58,
+          "match": true
+        },
+        {
+          "trial": "g6-09",
+          "rater": 68,
+          "other": 69,
+          "match": true
+        },
+        {
+          "trial": "g6-10",
+          "rater": 88,
+          "other": 88,
+          "match": true
+        },
+        {
+          "trial": "g6-11",
+          "rater": 47,
+          "other": 47,
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": 25,
+          "other": 81,
+          "match": false
+        },
+        {
+          "trial": "g6-13",
+          "rater": 56,
+          "other": 56,
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": 42,
+          "other": 77,
+          "match": false
+        },
+        {
+          "trial": "g6-15",
+          "rater": 43,
+          "other": 43,
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": 21,
+          "other": 21,
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": 82,
+          "other": 82,
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": 16,
+          "other": 16,
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": 57,
+          "other": 58,
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": 59,
+          "other": 64,
+          "match": false
+        },
+        {
+          "trial": "g6-22",
+          "rater": 62,
+          "other": 62,
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": 83,
+          "other": 83,
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": 78,
+          "other": 77,
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": 39,
+          "other": 37,
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": 12,
+          "other": 12,
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": 38,
+          "other": 40,
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": 84,
+          "other": 84,
+          "match": true
+        },
+        {
+          "trial": "g6-29",
+          "rater": 53,
+          "other": 80,
+          "match": false
+        },
+        {
+          "trial": "g6-30",
+          "rater": 66,
+          "other": 66,
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": 59,
+          "other": 60,
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": 24,
+          "other": 24,
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": 21,
+          "other": 21,
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": 27,
+          "other": 53,
+          "match": false
+        },
+        {
+          "trial": "g6-35",
+          "rater": 20,
+          "other": 97,
+          "match": false
+        },
+        {
+          "trial": "g6-36",
+          "rater": 27,
+          "other": 27,
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": 13,
+          "other": 13,
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": 76,
+          "other": 76,
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": 63,
+          "other": 51,
+          "match": false
+        },
+        {
+          "trial": "g6-40",
+          "rater": 40,
+          "other": 15,
+          "match": false
+        },
+        {
+          "trial": "g6-41",
+          "rater": 31,
+          "other": 31,
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": 46,
+          "other": 46,
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": 38,
+          "other": 38,
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": 58,
+          "other": 58,
+          "match": true
+        },
+        {
+          "trial": "g6-45",
+          "rater": 55,
+          "other": 55,
+          "match": true
+        },
+        {
+          "trial": "g6-46",
+          "rater": 60,
+          "other": 37,
+          "match": false
+        },
+        {
+          "trial": "g6-47",
+          "rater": 46,
+          "other": 46,
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "g6-50",
+          "rater": 91,
+          "other": 91,
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": 13,
+          "other": 13,
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": 28,
+          "other": 64,
+          "match": false
+        },
+        {
+          "trial": "g6-53",
+          "rater": 66,
+          "other": 77,
+          "match": false
+        },
+        {
+          "trial": "g6-54",
+          "rater": 32,
+          "other": 32,
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": 16,
+          "other": 20,
+          "match": false
+        },
+        {
+          "trial": "g6-57",
+          "rater": 73,
+          "other": 50,
+          "match": false
+        },
+        {
+          "trial": "g6-58",
+          "rater": null,
+          "other": null,
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": 39,
+          "other": 40,
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": 53,
+          "other": 66,
+          "match": false
+        }
+      ]
+    },
+    "blame": {
+      "agree": 59,
+      "n": 60,
+      "ci95": [
+        0.9114466177322051,
+        0.9970519161391262
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-01",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-02",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-04",
+          "rater": "model",
+          "other": "task",
+          "match": false
+        },
+        {
+          "trial": "g6-05",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-06",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-07",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-08",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-09",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-10",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "g6-11",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-13",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-29",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-30",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-35",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-41",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-45",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "g6-46",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-50",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-54",
+          "rater": "infra",
+          "other": "infra",
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        }
+      ]
+    },
+    "loop_present": {
+      "agree": 52,
+      "n": 60,
+      "ci95": [
+        0.7583460540992789,
+        0.9308597302169036
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-01",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-02",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-04",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-05",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-06",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-07",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-08",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-09",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-10",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-11",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-13",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-29",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-30",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-35",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-41",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-45",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-46",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-50",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-54",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-55",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 51,
+      "n": 60,
+      "ci95": [
+        0.7388517410884038,
+        0.9190265075770431
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-01",
+          "rater": "repetition",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "g6-02",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-04",
+          "rater": "none",
+          "other": "completion-claim",
+          "match": false
+        },
+        {
+          "trial": "g6-05",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-06",
+          "rater": "repetition",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "g6-07",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-08",
+          "rater": "completion-claim",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "g6-09",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-10",
+          "rater": "repetition",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "g6-11",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-13",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-29",
+          "rater": "repetition",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "g6-30",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": "completion-claim",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "g6-35",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-41",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-45",
+          "rater": "repetition",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "g6-46",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-50",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-54",
+          "rater": "none",
+          "other": "repetition",
+          "match": false
+        },
+        {
+          "trial": "g6-55",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": "completion-claim",
+          "other": "completion-claim",
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": "repetition",
+          "other": "repetition",
+          "match": true
+        }
+      ]
+    },
+    "loop_onset": {
+      "agree": 25,
+      "n": 36,
+      "ci95": [
+        0.5314342132091627,
+        0.8199572971719464
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-02",
+          "rater": 45,
+          "other": 45,
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": 21,
+          "other": 13,
+          "match": false
+        },
+        {
+          "trial": "g6-05",
+          "rater": 32,
+          "other": 32,
+          "match": true
+        },
+        {
+          "trial": "g6-11",
+          "rater": 47,
+          "other": 47,
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": 82,
+          "other": 81,
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": 77,
+          "other": 77,
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": 111,
+          "other": 102,
+          "match": false
+        },
+        {
+          "trial": "g6-16",
+          "rater": 42,
+          "other": 42,
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": 52,
+          "other": 51,
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": 35,
+          "other": 35,
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": 49,
+          "other": 51,
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": 64,
+          "other": 63,
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": 59,
+          "other": 67,
+          "match": false
+        },
+        {
+          "trial": "g6-22",
+          "rater": 63,
+          "other": 62,
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": 73,
+          "other": 73,
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": 47,
+          "other": 37,
+          "match": false
+        },
+        {
+          "trial": "g6-27",
+          "rater": 45,
+          "other": 45,
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": 56,
+          "other": 54,
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": 86,
+          "other": 96,
+          "match": false
+        },
+        {
+          "trial": "g6-32",
+          "rater": 74,
+          "other": 91,
+          "match": false
+        },
+        {
+          "trial": "g6-34",
+          "rater": 69,
+          "other": 74,
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": 57,
+          "other": 57,
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": 64,
+          "other": 51,
+          "match": false
+        },
+        {
+          "trial": "g6-40",
+          "rater": 40,
+          "other": 15,
+          "match": false
+        },
+        {
+          "trial": "g6-46",
+          "rater": 60,
+          "other": 60,
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": 52,
+          "other": 46,
+          "match": false
+        },
+        {
+          "trial": "g6-49",
+          "rater": 29,
+          "other": 29,
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": 21,
+          "other": 22,
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": 28,
+          "other": 64,
+          "match": false
+        },
+        {
+          "trial": "g6-53",
+          "rater": 72,
+          "other": 77,
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": 91,
+          "other": 93,
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": 32,
+          "other": 34,
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": 81,
+          "other": 73,
+          "match": false
+        },
+        {
+          "trial": "g6-58",
+          "rater": 42,
+          "other": 42,
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": 41,
+          "other": 40,
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": 70,
+          "other": 66,
+          "match": true
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 6,
+      "n": 6,
+      "ci95": [
+        0.6096569663469354,
+        0.9999999999999999
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-17",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": false,
+          "other": false,
+          "match": true
+        }
+      ]
+    }
+  },
+  "evallab_vs_agreed": {
+    "stop_reason": {
+      "agree": 59,
+      "n": 60,
+      "ci95": [
+        0.9114466177322051,
+        0.9970519161391262
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-01",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-02",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-04",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-05",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-06",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-07",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-08",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-09",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-10",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-11",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-13",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-29",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-30",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-35",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-41",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-45",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-46",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": "loop_break",
+          "other": "token_ceiling",
+          "match": false
+        },
+        {
+          "trial": "g6-50",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-54",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 9,
+      "n": 42,
+      "ci95": [
+        0.11705668531051237,
+        0.3594013789804373
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-02",
+          "rater": 45,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-04",
+          "rater": 14,
+          "other": 14,
+          "match": true
+        },
+        {
+          "trial": "g6-07",
+          "rater": 46,
+          "other": 17,
+          "match": false
+        },
+        {
+          "trial": "g6-08",
+          "rater": 58,
+          "other": 56,
+          "match": true
+        },
+        {
+          "trial": "g6-09",
+          "rater": 68,
+          "other": 7,
+          "match": false
+        },
+        {
+          "trial": "g6-10",
+          "rater": 88,
+          "other": 22,
+          "match": false
+        },
+        {
+          "trial": "g6-11",
+          "rater": 47,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-13",
+          "rater": 56,
+          "other": 11,
+          "match": false
+        },
+        {
+          "trial": "g6-15",
+          "rater": 43,
+          "other": 19,
+          "match": false
+        },
+        {
+          "trial": "g6-16",
+          "rater": 21,
+          "other": 15,
+          "match": false
+        },
+        {
+          "trial": "g6-17",
+          "rater": null,
+          "other": 12,
+          "match": false
+        },
+        {
+          "trial": "g6-18",
+          "rater": 82,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-19",
+          "rater": 16,
+          "other": 51,
+          "match": false
+        },
+        {
+          "trial": "g6-20",
+          "rater": 57,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-22",
+          "rater": 62,
+          "other": 22,
+          "match": false
+        },
+        {
+          "trial": "g6-23",
+          "rater": 83,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-24",
+          "rater": 78,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-25",
+          "rater": 39,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-26",
+          "rater": 12,
+          "other": 12,
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": 38,
+          "other": 9,
+          "match": false
+        },
+        {
+          "trial": "g6-28",
+          "rater": 84,
+          "other": 83,
+          "match": true
+        },
+        {
+          "trial": "g6-30",
+          "rater": 66,
+          "other": 9,
+          "match": false
+        },
+        {
+          "trial": "g6-31",
+          "rater": 59,
+          "other": 9,
+          "match": false
+        },
+        {
+          "trial": "g6-32",
+          "rater": 24,
+          "other": 9,
+          "match": false
+        },
+        {
+          "trial": "g6-33",
+          "rater": 21,
+          "other": 20,
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": 27,
+          "other": 27,
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": 13,
+          "other": 32,
+          "match": false
+        },
+        {
+          "trial": "g6-38",
+          "rater": 76,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-41",
+          "rater": 31,
+          "other": 29,
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": 46,
+          "other": 30,
+          "match": false
+        },
+        {
+          "trial": "g6-43",
+          "rater": 38,
+          "other": 38,
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": 58,
+          "other": 45,
+          "match": false
+        },
+        {
+          "trial": "g6-45",
+          "rater": 55,
+          "other": 15,
+          "match": false
+        },
+        {
+          "trial": "g6-47",
+          "rater": 46,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-48",
+          "rater": null,
+          "other": 24,
+          "match": false
+        },
+        {
+          "trial": "g6-49",
+          "rater": null,
+          "other": 29,
+          "match": false
+        },
+        {
+          "trial": "g6-50",
+          "rater": 91,
+          "other": 76,
+          "match": false
+        },
+        {
+          "trial": "g6-51",
+          "rater": 13,
+          "other": 13,
+          "match": true
+        },
+        {
+          "trial": "g6-54",
+          "rater": 32,
+          "other": null,
+          "match": false
+        },
+        {
+          "trial": "g6-55",
+          "rater": null,
+          "other": 7,
+          "match": false
+        },
+        {
+          "trial": "g6-58",
+          "rater": null,
+          "other": 74,
+          "match": false
+        },
+        {
+          "trial": "g6-59",
+          "rater": 39,
+          "other": 6,
+          "match": false
+        }
+      ]
+    },
+    "blame": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 59,
+      "rows": []
+    },
+    "loop_present": {
+      "agree": 43,
+      "n": 52,
+      "ci95": [
+        0.7026887630639471,
+        0.9061763124353222
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-02",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-05",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-07",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-09",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-11",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-13",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-19",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-20",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-25",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-30",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-35",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-39",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-41",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-46",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-47",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-50",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": true,
+          "other": false,
+          "match": false
+        },
+        {
+          "trial": "g6-56",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 51,
+      "rows": []
+    },
+    "loop_onset": {
+      "agree": 11,
+      "n": 18,
+      "ci95": [
+        0.3861866858065617,
+        0.7969500807306884
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-02",
+          "rater": 45,
+          "other": 45,
+          "match": true
+        },
+        {
+          "trial": "g6-05",
+          "rater": 32,
+          "other": 38,
+          "match": false
+        },
+        {
+          "trial": "g6-11",
+          "rater": 47,
+          "other": 47,
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": 77,
+          "other": 77,
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": 42,
+          "other": 63,
+          "match": false
+        },
+        {
+          "trial": "g6-17",
+          "rater": 52,
+          "other": 58,
+          "match": false
+        },
+        {
+          "trial": "g6-20",
+          "rater": 64,
+          "other": 64,
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": 63,
+          "other": 69,
+          "match": false
+        },
+        {
+          "trial": "g6-23",
+          "rater": 73,
+          "other": 75,
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": 45,
+          "other": 45,
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": 56,
+          "other": 56,
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": 69,
+          "other": 90,
+          "match": false
+        },
+        {
+          "trial": "g6-51",
+          "rater": 21,
+          "other": 25,
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": 72,
+          "other": 17,
+          "match": false
+        },
+        {
+          "trial": "g6-56",
+          "rater": 32,
+          "other": 34,
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": 42,
+          "other": 74,
+          "match": false
+        },
+        {
+          "trial": "g6-59",
+          "rater": 41,
+          "other": 41,
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": 70,
+          "other": 70,
+          "match": true
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 5,
+      "n": 6,
+      "ci95": [
+        0.43649056343635395,
+        0.9699474141282697
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-17",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-58",
+          "rater": false,
+          "other": false,
+          "match": true
+        }
+      ]
+    }
+  },
+  "scout_vs_agreed": {
+    "stop_reason": {
+      "agree": 59,
+      "n": 60,
+      "ci95": [
+        0.9114466177322051,
+        0.9970519161391262
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-01",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-02",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-04",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-05",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-06",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-07",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-08",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-09",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-10",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-11",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-13",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-29",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-30",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-34",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-35",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-41",
+          "rater": "model_finished",
+          "other": "model_finished",
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-45",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-46",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": "loop_break",
+          "other": "token_ceiling",
+          "match": false
+        },
+        {
+          "trial": "g6-50",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-54",
+          "rater": "infra_error",
+          "other": "infra_error",
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": "loop_break",
+          "other": "loop_break",
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": "token_ceiling",
+          "other": "token_ceiling",
+          "match": true
+        }
+      ]
+    },
+    "first_failure": {
+      "agree": 2,
+      "n": 42,
+      "ci95": [
+        0.013157248639206365,
+        0.1579013531547973
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-02",
+          "rater": 45,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-04",
+          "rater": 14,
+          "other": 34,
+          "match": false
+        },
+        {
+          "trial": "g6-07",
+          "rater": 46,
+          "other": 77,
+          "match": false
+        },
+        {
+          "trial": "g6-08",
+          "rater": 58,
+          "other": 85,
+          "match": false
+        },
+        {
+          "trial": "g6-09",
+          "rater": 68,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-10",
+          "rater": 88,
+          "other": 54,
+          "match": false
+        },
+        {
+          "trial": "g6-11",
+          "rater": 47,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-13",
+          "rater": 56,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-15",
+          "rater": 43,
+          "other": 43,
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": 21,
+          "other": 49,
+          "match": false
+        },
+        {
+          "trial": "g6-17",
+          "rater": null,
+          "other": 12,
+          "match": false
+        },
+        {
+          "trial": "g6-18",
+          "rater": 82,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-19",
+          "rater": 16,
+          "other": 51,
+          "match": false
+        },
+        {
+          "trial": "g6-20",
+          "rater": 57,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-22",
+          "rater": 62,
+          "other": 78,
+          "match": false
+        },
+        {
+          "trial": "g6-23",
+          "rater": 83,
+          "other": 18,
+          "match": false
+        },
+        {
+          "trial": "g6-24",
+          "rater": 78,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-25",
+          "rater": 39,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-26",
+          "rater": 12,
+          "other": 66,
+          "match": false
+        },
+        {
+          "trial": "g6-27",
+          "rater": 38,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-28",
+          "rater": 84,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-30",
+          "rater": 66,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-31",
+          "rater": 59,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-32",
+          "rater": 24,
+          "other": 58,
+          "match": false
+        },
+        {
+          "trial": "g6-33",
+          "rater": 21,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-36",
+          "rater": 27,
+          "other": 68,
+          "match": false
+        },
+        {
+          "trial": "g6-37",
+          "rater": 13,
+          "other": 32,
+          "match": false
+        },
+        {
+          "trial": "g6-38",
+          "rater": 76,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-41",
+          "rater": 31,
+          "other": 29,
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": 46,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-43",
+          "rater": 38,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-44",
+          "rater": 58,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-45",
+          "rater": 55,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-47",
+          "rater": 46,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-48",
+          "rater": null,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-49",
+          "rater": null,
+          "other": 29,
+          "match": false
+        },
+        {
+          "trial": "g6-50",
+          "rater": 91,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-51",
+          "rater": 13,
+          "other": 26,
+          "match": false
+        },
+        {
+          "trial": "g6-54",
+          "rater": 32,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-55",
+          "rater": null,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-58",
+          "rater": null,
+          "other": 75,
+          "match": false
+        },
+        {
+          "trial": "g6-59",
+          "rater": 39,
+          "other": 35,
+          "match": false
+        }
+      ]
+    },
+    "blame": {
+      "agree": 53,
+      "n": 59,
+      "ci95": [
+        0.7953595375326347,
+        0.9525526734868176
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-01",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-02",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-05",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-06",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-07",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-08",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-09",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-10",
+          "rater": "infra",
+          "other": "model",
+          "match": false
+        },
+        {
+          "trial": "g6-11",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-13",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-14",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": "infra",
+          "other": "model",
+          "match": false
+        },
+        {
+          "trial": "g6-24",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-25",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-27",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-29",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-30",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-31",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": "model",
+          "other": "none",
+          "match": false
+        },
+        {
+          "trial": "g6-34",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-35",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-36",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-37",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": "infra",
+          "other": "model",
+          "match": false
+        },
+        {
+          "trial": "g6-39",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-41",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-42",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-43",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-44",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-45",
+          "rater": "infra",
+          "other": "model",
+          "match": false
+        },
+        {
+          "trial": "g6-46",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-49",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-50",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-54",
+          "rater": "infra",
+          "other": "model",
+          "match": false
+        },
+        {
+          "trial": "g6-55",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": "none",
+          "other": "none",
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": "model",
+          "other": "model",
+          "match": true
+        }
+      ]
+    },
+    "loop_present": {
+      "agree": 37,
+      "n": 52,
+      "ci95": [
+        0.5772695428589907,
+        0.816701976581713
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-02",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-03",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-05",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-07",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-09",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-11",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-12",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-13",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-14",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-15",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-16",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-17",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-18",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-19",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-21",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-22",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-23",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-24",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-25",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-26",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-27",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-28",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-30",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-31",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-32",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-33",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-34",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-35",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-36",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-37",
+          "rater": false,
+          "other": false,
+          "match": true
+        },
+        {
+          "trial": "g6-38",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-39",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-40",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-41",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-42",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-43",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-44",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-46",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-47",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-48",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-49",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-50",
+          "rater": false,
+          "other": true,
+          "match": false
+        },
+        {
+          "trial": "g6-51",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-52",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-55",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-56",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-57",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-58",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-59",
+          "rater": true,
+          "other": true,
+          "match": true
+        },
+        {
+          "trial": "g6-60",
+          "rater": true,
+          "other": true,
+          "match": true
+        }
+      ]
+    },
+    "loop_kind": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 51,
+      "rows": []
+    },
+    "loop_onset": {
+      "agree": 3,
+      "n": 25,
+      "ci95": [
+        0.04166741357068093,
+        0.2995619218337349
+      ],
+      "not_expressed": 0,
+      "rows": [
+        {
+          "trial": "g6-02",
+          "rater": 45,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-05",
+          "rater": 32,
+          "other": 86,
+          "match": false
+        },
+        {
+          "trial": "g6-11",
+          "rater": 47,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-12",
+          "rater": 82,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-14",
+          "rater": 77,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-16",
+          "rater": 42,
+          "other": 49,
+          "match": false
+        },
+        {
+          "trial": "g6-17",
+          "rater": 52,
+          "other": 58,
+          "match": false
+        },
+        {
+          "trial": "g6-18",
+          "rater": 35,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-19",
+          "rater": 49,
+          "other": 51,
+          "match": true
+        },
+        {
+          "trial": "g6-20",
+          "rater": 64,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-22",
+          "rater": 63,
+          "other": 78,
+          "match": false
+        },
+        {
+          "trial": "g6-23",
+          "rater": 73,
+          "other": 18,
+          "match": false
+        },
+        {
+          "trial": "g6-27",
+          "rater": 45,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-28",
+          "rater": 56,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-34",
+          "rater": 69,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-38",
+          "rater": 57,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-46",
+          "rater": 60,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-49",
+          "rater": 29,
+          "other": 29,
+          "match": true
+        },
+        {
+          "trial": "g6-51",
+          "rater": 21,
+          "other": 26,
+          "match": true
+        },
+        {
+          "trial": "g6-53",
+          "rater": 72,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-55",
+          "rater": 91,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-56",
+          "rater": 32,
+          "other": 2,
+          "match": false
+        },
+        {
+          "trial": "g6-58",
+          "rater": 42,
+          "other": 75,
+          "match": false
+        },
+        {
+          "trial": "g6-59",
+          "rater": 41,
+          "other": 35,
+          "match": false
+        },
+        {
+          "trial": "g6-60",
+          "rater": 70,
+          "other": 50,
+          "match": false
+        }
+      ]
+    },
+    "pass_copied": {
+      "agree": 0,
+      "n": 0,
+      "ci95": [
+        null,
+        null
+      ],
+      "not_expressed": 6,
+      "rows": []
+    }
+  }
+}

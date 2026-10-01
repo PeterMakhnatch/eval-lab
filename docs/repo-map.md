@@ -391,7 +391,7 @@ inputs:
   - path: src/evallab/smoke.py
     digest: sha256:8e9c4d8a8560513ed333c5bd794f69882632c4ba78a76cd04c4506ed5b246e46
   - path: src/evallab/spend_day.py
-    digest: sha256:beba35ddfc0a26ce7452dd9c3eae848a6e57e8c39c49370dbfda6ef4dc29b510
+    digest: sha256:5f4e35b7da1a730d4468437485c8d08f5003942dc92942d4b1cbcb0479dc944f
   - path: src/evallab/spine.py
     digest: sha256:0504f2eca179ed47e17d3ef7e7e4654e54d645f2745782edb998c7186770ae20
   - path: src/evallab/state_events.py

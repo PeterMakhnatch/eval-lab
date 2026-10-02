@@ -121,7 +121,7 @@ When running with metered model providers, the supervisor creates `<job_dir>/pro
 | `budget_burn` | medium | ≥80% of the input-token limit spent with no repo edit in the last 20 steps |
 | `repetition` | medium | ≥8 consecutive identical commands (matches the harness `loop_command_run_min=8`) |
 | `completion_loop` | medium | ≥5 `mark_task_complete` claims |
-| `parse_errors` | medium | ≥3 harness parse or format rejections in a run, or ≥3 consecutive rejections in a row |
+| `parse_errors` | medium | ≥3 harness parsing-error rejections (`Previous response had parsing errors:`) in a run, or ≥3 consecutive in a row. Soft warnings (`Previous response had warnings:`, such as default command duration or missing newline) are recorded in `status.json` and `BOARD.md` as `format_warnings` for information only and do not alert |
 | `proxy_errors` | high | any 5xx or non-budget 429 response from the provider proxy |
 | `infra_error` | high | finished with `DaytonaNotFoundError`, `ServiceUnavailableError`, or another Daytona-family exception |
 | `infra_spike` (fleet) | high | ≥3 infra errors across trials within 15 min |

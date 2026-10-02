@@ -39,7 +39,7 @@ def _prepare(tmp_path: Path, monkeypatch, corpus: MonitorCorpus) -> tuple[Path, 
     source.mkdir(exist_ok=True)
     status = tmp_path / "watch.json"
     status.write_text(json.dumps({"schema": "evallab.live_watch/v1", "trials": []}))
-    monkeypatch.setattr(monitor_evidence, "snapshot_watch", lambda *_args: corpus)
+    monkeypatch.setattr(monitor_evidence, "snapshot_watch", lambda *_args, **_kwargs: corpus)
     out = tmp_path / "analysis"
     return out, monitor.prepare_watch(status, [source], out, unflagged=0)
 
@@ -108,7 +108,7 @@ def test_prepare_cannot_write_inside_source_or_follow_output_link(tmp_path: Path
     source.mkdir()
     status = tmp_path / "watch.json"
     status.write_text("{}")
-    monkeypatch.setattr(monitor_evidence, "snapshot_watch", lambda *_args: MonitorCorpus(trials=()))
+    monkeypatch.setattr(monitor_evidence, "snapshot_watch", lambda *_args, **_kwargs: MonitorCorpus(trials=()))
     with pytest.raises(ValueError, match="overlap"):
         monitor.prepare_watch(status, [source], source / "analysis")
     assert not (source / "analysis").exists()
@@ -167,3 +167,69 @@ def test_missing_current_source_retains_case_without_dispatch(tmp_path: Path, mo
     assert summary["inactive_case_ids"] == [original.case_id]
     assert monitor.latest_cases(out)[0][0] == original
     assert monitor.latest_cases(out, active_only=True) == []
+
+
+def test_fleet_signal_routes_only_real_members_and_preserves_unroutable_signal(tmp_path: Path, monkeypatch) -> None:
+    trial_a = _trial("a", finished=True)
+    trial_b = _trial("b", finished=True)
+    fleet = MonitorAlert(rule="same_task_copy", severity="high", scope="fleet", job="fleet",
+                         trial="fleet:copy", task="task-a", trials=("a", "b"), detail="two acquisitions")
+    unknown = MonitorAlert(rule="future_rule", severity="medium", scope="fleet", job="fleet",
+                           trial="fleet:unknown", task="fleet", detail="no source members declared")
+    corpus = MonitorCorpus(trials=(trial_a, trial_b), fleet_alerts=(fleet, unknown))
+    out, summary = _prepare(tmp_path, monkeypatch, corpus)
+    fleet_cases = [case for case, _ in monitor.select_cases(corpus, unflagged=0)
+                   if any(alert.scope == "fleet" for alert in case.alerts)]
+    assert len(fleet_cases) == 1
+    assert {fleet_cases[0].primary_trial, *fleet_cases[0].related_trials} == {"a", "b"}
+    assert summary["unrouted_fleet_alerts"] == [unknown.model_dump(mode="json")]
+    assert summary["fleet_alerts"] == [fleet.model_dump(mode="json"), unknown.model_dump(mode="json")]
+    assert "future_rule" in monitor.render_monitor_report(out)
+
+
+def test_unflagged_sample_not_starved_by_flag_backlog() -> None:
+    corpus = MonitorCorpus(trials=tuple(_trial(f"flag-{n}") for n in range(5)) + (
+        _trial("unflagged", flagged=False),
+    ))
+    selected = monitor.select_cases(corpus, unflagged=1, max_cases=2)
+    assert [case.selection for case, _ in selected] == ["alert", "unflagged_control"]
+
+
+def test_elapsed_stall_detail_alone_cannot_trigger_another_investigation(tmp_path: Path, monkeypatch) -> None:
+    old = _trial("trial")
+    old = old.model_copy(update={"alerts": (
+        MonitorAlert(rule="stalled", severity="medium", job="job", trial="trial", task="task-a",
+                     detail="10 minutes without an update"),
+    )})
+    out, _ = _prepare(tmp_path, monkeypatch, MonitorCorpus(trials=(old,)))
+    original = monitor.latest_cases(out)[0][0]
+    new = old.model_copy(update={"alerts": (
+        old.alerts[0].model_copy(update={"detail": "20 minutes without an update"}),
+    )})
+    _, summary = _prepare(tmp_path, monkeypatch, MonitorCorpus(trials=(new,)))
+    assert summary["new_revisions"] == 0
+    assert monitor.latest_cases(out)[0][0] == original
+
+
+def test_selection_cap_is_visible_and_does_not_claim_source_vanished(tmp_path: Path, monkeypatch) -> None:
+    corpus = MonitorCorpus(trials=(_trial("a"), _trial("b")))
+    out, _ = _prepare(tmp_path, monkeypatch, corpus)
+    summary = monitor.prepare_watch(tmp_path / "watch.json", [tmp_path / "runs"], out,
+                                    unflagged=0, max_cases=1)
+    assert summary["candidate_cases"] == 2
+    assert len(summary["omitted_candidates"]) == 1
+    omitted_id = summary["omitted_candidates"][0]["case_id"]
+    assert summary["inactive_reasons"][omitted_id] == "selection_cap"
+    assert len(monitor.latest_cases(out)) == 2
+    assert len(monitor.latest_cases(out, active_only=True)) == 1
+
+
+def test_unfinished_analysis_profile_is_visible_in_report(tmp_path: Path, monkeypatch) -> None:
+    out, _ = _prepare(tmp_path, monkeypatch, MonitorCorpus(trials=(_trial("trial"),)))
+    _, _, revision = monitor.latest_cases(out)[0]
+    profile = "a" * 64
+    journal = revision / "analyses" / profile / "journal.jsonl"
+    journal.parent.mkdir(parents=True)
+    journal.write_text('{"event":"request_started"}\\n')
+    rendered = monitor.render_monitor_report(out)
+    assert profile in rendered

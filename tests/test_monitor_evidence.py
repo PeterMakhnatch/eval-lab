@@ -544,7 +544,7 @@ def test_result_task_name_preferred_over_row_prefix(tmp_path: Path) -> None:
     result2 = _finished_result()
     result2["task_name"] = {"nested": "dict"}
     _write_trial(runs, "jobA", "trial2", head_steps=[_step(1, "hi")], result=result2)
-    snap2 = snapshot_watch(_status(_row("jobA", "trial2", task="ugly__arm")), [runs]).trials[1]
+    snap2 = snapshot_watch(_status(_row("jobA", "trial2", task="ugly__arm")), [runs]).trials[0]
     assert snap2.task == "ugly__arm"
 
 
@@ -605,3 +605,31 @@ def test_malformed_outcome_isolated_from_good_trial(tmp_path: Path) -> None:
     assert any("non-finite" in lim for lim in by_key["jobA/trial2"].limitations)
     assert by_key["jobA/trial3"].complete is True
     assert by_key["jobA/trial3"].reward == 1.0
+
+
+def test_growing_source_cannot_turn_a_bounded_read_into_following_eof(tmp_path: Path, monkeypatch) -> None:
+    from evallab.interpretation import monitor_evidence
+
+    runs = tmp_path / "runs"
+    trial = _write_trial(runs, "jobA", "trial1", head_steps=[_step(1, "working")],
+                         result=_finished_result())
+    source = trial / "agent" / "trajectory.json"
+    inode = source.stat().st_ino
+    original_read = os.read
+    read_bytes = 0
+
+    def append_while_reading(fd: int, count: int) -> bytes:
+        nonlocal read_bytes
+        relevant = os.fstat(fd).st_ino == inode
+        data = original_read(fd, count)
+        if relevant and data:
+            read_bytes += len(data)
+            assert read_bytes <= 1024, "reader followed an ever-growing source past its budget"
+            with source.open("ab") as handle:
+                handle.write(b" " * 2048)
+        return data
+
+    monkeypatch.setattr(monitor_evidence.os, "read", append_while_reading)
+    snap = snapshot_watch(_status(_row("jobA", "trial1")), [runs], max_trial_bytes=1024).trials[0]
+    assert not snap.complete
+    assert any("changed during read" in limitation for limitation in snap.limitations)

@@ -17,8 +17,9 @@ import re
 import tempfile
 import time
 from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import ValidationError
 
@@ -26,6 +27,7 @@ from evallab.interpretation.monitor_contracts import (
     InvestigationCase,
     InvestigationLimits,
     InvestigationReport,
+    MonitorAlert,
     MonitorCorpus,
     TrialSnapshot,
     content_digest,
@@ -129,15 +131,17 @@ def _related_trials(corpus: MonitorCorpus, primary: TrialSnapshot, count: int) -
     return tuple(trial.trial_key for trial in candidates[:count])
 
 
-def select_cases(
-    corpus: MonitorCorpus,
-    *,
-    unflagged: int = 1,
-    related: int = 2,
-    max_cases: int = 200,
-) -> list[tuple[InvestigationCase, MonitorCorpus]]:
-    """Choose flagged trials and a reproducible explicitly unflagged sample."""
-    if unflagged < 0 or related < 0 or max_cases < 1:
+@dataclass(frozen=True)
+class _Candidate:
+    case_id: str
+    primary_trial: str
+    related_trials: tuple[str, ...]
+    alerts: tuple[MonitorAlert, ...]
+    selection: Literal["alert", "unflagged_control"]
+
+
+def _candidates(corpus: MonitorCorpus, unflagged: int, related: int) -> list[_Candidate]:
+    if unflagged < 0 or related < 0:
         raise ValueError("invalid investigation selection limits")
     flagged = sorted(
         (trial for trial in corpus.trials if trial.alerts),
@@ -150,29 +154,75 @@ def select_cases(
         (trial for trial in corpus.trials if not trial.alerts),
         key=lambda trial: content_digest(trial.trial_key),
     )[:unflagged]
-    selections = [(trial, "alert") for trial in flagged]
-    selections.extend((trial, "unflagged_control") for trial in controls)
-    cases: list[tuple[InvestigationCase, MonitorCorpus]] = []
-    for primary, selection in selections[:max_cases]:
-        related_keys = _related_trials(corpus, primary, related)
-        selected_keys = {primary.trial_key, *related_keys}
-        subset = MonitorCorpus(
-            trials=tuple(sorted(
-                (trial for trial in corpus.trials if trial.trial_key in selected_keys),
-                key=lambda trial: trial.trial_key,
+    urgent: list[_Candidate] = []
+    for alert in corpus.fleet_alerts:
+        rule = {"infra_spike": "infra_error", "same_task_copy": "copy_acquired"}.get(alert.rule)
+        members = sorted(
+            (trial for trial in corpus.trials if (
+                trial.trial in alert.trials if alert.trials
+                else rule is not None and any(item.rule == rule for item in trial.alerts)
             )),
-            limitations=corpus.limitations,
+            key=lambda trial: trial.trial_key,
         )
-        case = InvestigationCase(
-            case_id=content_digest({"primary": primary.trial_key, "selection": selection})[:24],
-            snapshot_id=subset.digest,
+        if not members:
+            continue  # Remains visible in status/report as an unroutable fleet signal.
+        primary = members[0]
+        related_keys = tuple(trial.trial_key for trial in members[1:max(related, 2) + 1])
+        urgent.append(_Candidate(
+            case_id=content_digest({"fleet_rule": alert.rule, "task": alert.task})[:24],
             primary_trial=primary.trial_key,
             related_trials=related_keys,
+            alerts=(alert,),
+            selection="alert",
+        ))
+    sampled: list[_Candidate] = []
+    selections: list[tuple[TrialSnapshot, Literal["alert", "unflagged_control"]]] = [
+        (trial, "alert") for trial in flagged
+    ]
+    selections.extend((trial, "unflagged_control") for trial in controls)
+    for primary, selection in selections:
+        candidate = _Candidate(
+            case_id=content_digest({"primary": primary.trial_key, "selection": selection})[:24],
+            primary_trial=primary.trial_key,
+            related_trials=_related_trials(corpus, primary, related),
             alerts=primary.alerts,
             selection=selection,
         )
-        cases.append((case, subset))
-    return cases
+        (urgent if selection == "alert" else sampled).append(candidate)
+    # A small provider envelope must not spend everything on flags before
+    # inspecting any unflagged control. One urgent concern still comes first.
+    ordered = urgent[:1] + sampled + urgent[1:]
+    return list({candidate.case_id: candidate for candidate in ordered}.values())
+
+
+def _build_case(corpus: MonitorCorpus, candidate: _Candidate) -> tuple[InvestigationCase, MonitorCorpus]:
+    selected_keys = {candidate.primary_trial, *candidate.related_trials}
+    subset = MonitorCorpus(
+        trials=tuple(sorted(
+            (trial for trial in corpus.trials if trial.trial_key in selected_keys),
+            key=lambda trial: trial.trial_key,
+        )),
+        fleet_alerts=tuple(alert for alert in candidate.alerts if alert.scope == "fleet"),
+        limitations=corpus.limitations,
+    )
+    return InvestigationCase(
+        case_id=candidate.case_id, snapshot_id=subset.digest,
+        primary_trial=candidate.primary_trial, related_trials=candidate.related_trials,
+        alerts=candidate.alerts, selection=candidate.selection,
+    ), subset
+
+
+def select_cases(
+    corpus: MonitorCorpus,
+    *,
+    unflagged: int = 1,
+    related: int = 2,
+    max_cases: int = 200,
+) -> list[tuple[InvestigationCase, MonitorCorpus]]:
+    """Choose source-bound trial/fleet concerns and unflagged controls."""
+    if max_cases < 1:
+        raise ValueError("max_cases must be positive")
+    return [_build_case(corpus, item) for item in _candidates(corpus, unflagged, related)[:max_cases]]
 
 
 def _step_count(trial: TrialSnapshot) -> int:
@@ -186,7 +236,9 @@ def _alert_signature(trial: TrialSnapshot) -> str:
 
 
 def _needs_revision(previous: TrialSnapshot, current: TrialSnapshot, min_new_steps: int) -> bool:
-    if content_digest(previous) == content_digest(current):
+    previous_material = previous.model_dump(mode="json", exclude={"alerts"})
+    current_material = current.model_dump(mode="json", exclude={"alerts"})
+    if previous_material == current_material and _alert_signature(previous) == _alert_signature(current):
         return False
     if (
         previous.state != current.state
@@ -225,6 +277,7 @@ def prepare_watch(
     unflagged: int = 1,
     related: int = 2,
     max_cases: int = 200,
+    max_trials: int = 200,
     min_new_steps: int = 20,
 ) -> dict[str, Any]:
     """Freeze new significant prefixes; unchanged bytes produce no new request."""
@@ -238,8 +291,15 @@ def prepare_watch(
     status = _read_json(status_path, limit=16_000_000)
     if not isinstance(status, dict):
         raise ValueError("watch status must be an object")
-    corpus = snapshot_watch(status, roots)
-    selected = select_cases(corpus, unflagged=unflagged, related=related, max_cases=max_cases)
+    if max_cases < 1 or max_trials < 1:
+        raise ValueError("preparation caps must be positive")
+    corpus = snapshot_watch(status, roots, max_trials=max_trials)
+    candidates = _candidates(corpus, unflagged, related)
+    selected = [_build_case(corpus, item) for item in candidates[:max_cases]]
+    omitted_candidates = candidates[max_cases:]
+    omitted_ids = {item.case_id for item in omitted_candidates}
+    present_keys = {trial.trial_key for trial in corpus.trials}
+    inactive_reasons: dict[str, str] = {}
     created, unchanged, deferred = 0, 0, 0
     current_ids: list[str] = []
     with _preparation_lock(root):
@@ -248,7 +308,14 @@ def prepare_watch(
         if status_file.exists():
             # Verify existing identities before preserving them. A vanished
             # source must not make a prior concern disappear from the report.
-            prior_ids = [case.case_id for case, _, _ in latest_cases(root)]
+            prior_cases = latest_cases(root)
+            prior_ids = [case.case_id for case, _, _ in prior_cases]
+            for old_case, _, _ in prior_cases:
+                inactive_reasons[old_case.case_id] = (
+                    "selection_cap" if old_case.case_id in omitted_ids
+                    else "not_selected" if old_case.primary_trial in present_keys
+                    else "source_absent"
+                )
         for case, subset in selected:
             current_ids.append(case.case_id)
             case_root = root / "cases" / case.case_id
@@ -264,7 +331,14 @@ def prepare_watch(
                 old_primary = next(
                     trial for trial in old_corpus.trials if trial.trial_key == old_case.primary_trial
                 )
-                if not _needs_revision(old_primary, primary, min_new_steps):
+                changed = _needs_revision(old_primary, primary, min_new_steps)
+                if any(alert.scope == "fleet" for alert in case.alerts):
+                    old_members = {trial.trial_key: trial for trial in old_corpus.trials}
+                    changed = set(old_members) != {trial.trial_key for trial in subset.trials} or any(
+                        _needs_revision(old_members[trial.trial_key], trial, min_new_steps)
+                        for trial in subset.trials if trial.trial_key in old_members
+                    )
+                if not changed:
                     deferred += 1
                     continue
             _write_json(root, root / "snapshots" / f"{case.snapshot_id}.json",
@@ -278,6 +352,19 @@ def prepare_watch(
             "source_watch": str(status_path.resolve()),
             "source_roots": [str(path.resolve()) for path in roots],
             "source_trials": len(corpus.trials),
+            "captured_trials": sum(bool(trial.artifacts) for trial in corpus.trials),
+            "complete_trials": sum(trial.complete for trial in corpus.trials),
+            "unavailable_trials": sum(trial.state == "unavailable" for trial in corpus.trials),
+            "candidate_cases": len(candidates),
+            "omitted_candidates": [
+                {"case_id": item.case_id, "primary_trial": item.primary_trial, "reason": "selection_cap"}
+                for item in omitted_candidates
+            ],
+            "fleet_alerts": [alert.model_dump(mode="json") for alert in corpus.fleet_alerts],
+            "unrouted_fleet_alerts": [
+                alert.model_dump(mode="json") for alert in corpus.fleet_alerts
+                if not any(alert in candidate.alerts for candidate in candidates)
+            ],
             "selected_cases": len(selected),
             "new_revisions": created,
             "unchanged": unchanged,
@@ -285,12 +372,16 @@ def prepare_watch(
             "case_ids": current_ids + sorted(set(prior_ids) - set(current_ids)),
             "active_case_ids": current_ids,
             "inactive_case_ids": sorted(set(prior_ids) - set(current_ids)),
+            "inactive_reasons": {
+                key: reason for key, reason in inactive_reasons.items() if key not in current_ids
+            },
             "limitations": list(corpus.limitations),
             "policy": {
                 "unflagged_sample": unflagged,
                 "related_trials": related,
                 "min_new_steps": min_new_steps,
                 "max_cases": max_cases,
+                "max_trials": max_trials,
                 "findings_are_hypotheses": True,
                 "mutates_source_runs": False,
             },
@@ -399,8 +490,19 @@ def run_prepared(
                     f"case {case.case_id} has an ambiguous prior request; "
                     "inspect the retained provider journal before authorizing further analysis"
                 )
-            report = monitor_agent.investigate(case, corpus, transport=transport, budget=budget,
-                                               work_dir=work_dir, limits=effective)
+            primary = next(trial for trial in corpus.trials if trial.trial_key == case.primary_trial)
+            if not any(record.role != "metadata" for record in primary.records):
+                report = InvestigationReport(
+                    case_id=case.case_id, snapshot_id=case.snapshot_id,
+                    status="inconclusive", model=transport.model,
+                    error="evidence_unavailable",
+                    limitations=("No readable captured evidence; provider was not invoked.",),
+                    estimated_usage_usd=0.0, input_tokens=0, output_tokens=0,
+                )
+                _write_json(root, existing, report.model_dump(mode="json"), immutable=True)
+            else:
+                report = monitor_agent.investigate(case, corpus, transport=transport, budget=budget,
+                                                   work_dir=work_dir, limits=effective)
             if report.case_id != case.case_id or report.snapshot_id != case.snapshot_id:
                 raise ValueError("investigator returned a different case identity")
             # The engine publishes before returning; no inferred success.
@@ -426,12 +528,36 @@ def render_monitor_report(root: Path) -> str:
     ]
     status = _read_json(_safe_path(root, root / "status.json"))
     inactive = set(status.get("inactive_case_ids", []))
+    lines.extend([
+        f"Coverage: **{status.get('source_trials', 0)} source rows**, "
+        f"**{status.get('captured_trials', 0)} captured**, "
+        f"**{status.get('complete_trials', 0)} terminal complete captures**; "
+        f"**{len(status.get('active_case_ids', []))} active cases**, "
+        f"**{len(inactive)} inactive retained cases**.", "",
+    ])
+    if not status.get("source_trials"):
+        lines.extend(["No trials observed. This is unavailable monitoring coverage, not an all-clear.", ""])
+    for limitation in status.get("limitations", []):
+        lines.append(f"- Coverage limit: {_text(limitation)}")
+    if status.get("omitted_candidates"):
+        lines.extend([
+            f"- Selection cap deferred {len(status['omitted_candidates'])} candidate cases; "
+            "increase --prepare-max-cases to make them eligible.", "",
+        ])
+    if status.get("fleet_alerts"):
+        lines.extend(["## Fleet signals", ""])
+        for alert in status["fleet_alerts"]:
+            lines.append(f"- **{_text(alert['rule'])}**: {_text(alert.get('detail', ''))}")
+        lines.append("")
+    if status.get("unrouted_fleet_alerts"):
+        lines.extend(["Some fleet signals have no resolvable source members; manual inspection is required.", ""])
     for case, corpus, revision in latest_cases(root):
         primary = next(trial for trial in corpus.trials if trial.trial_key == case.primary_trial)
         records = {record.record_id: record for trial in corpus.trials for record in trial.records}
         if case.case_id in inactive:
+            reason = status.get("inactive_reasons", {}).get(case.case_id, "not_selected")
             lines.extend([
-                "**Source not present in the current selection.** Retained evidence only; "
+                f"**Inactive: {_text(reason)}.** Retained evidence only; "
                 "no new provider call is dispatched for this case.", "",
             ])
         lines.extend([
@@ -451,6 +577,14 @@ def render_monitor_report(root: Path) -> str:
                     continue
                 report_path = _safe_path(root, directory / "report.json")
                 if not report_path.is_file():
+                    journal = _safe_path(root, directory / "journal.jsonl")
+                    if journal.exists():
+                        found = True
+                        lines.extend([
+                            "**Unfinished analysis: journal present, final report unavailable.** "
+                            "Reserved spend remains booked; inspect the journal before further analysis.",
+                            f"Analysis profile `{directory.name}`.", "",
+                        ])
                     continue
                 report = InvestigationReport.model_validate(_read_json(report_path))
                 if report.case_id != case.case_id or report.snapshot_id != case.snapshot_id:
@@ -560,7 +694,8 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None)
                                          output_usd_per_million=args.output_price)
         for cycle in range(args.cycles):
             summary = prepare_watch(status_path, roots, out_dir, unflagged=args.unflagged,
-                                    related=args.related, min_new_steps=args.min_new_steps)
+                                    related=args.related, min_new_steps=args.min_new_steps,
+                                    max_cases=args.prepare_max_cases, max_trials=args.max_trials)
             if transport is not None and budget is not None:
                 reports = run_prepared(out_dir, transport=transport, budget=budget,
                                        profile=profile, limits=limits, max_cases=args.max_cases)
@@ -586,6 +721,10 @@ def build_investigate_parser(commands: argparse._SubParsersAction) -> None:
         command.add_argument("--out", type=Path, default=Path("derived/analyses/monitor"))
         command.add_argument("--unflagged", type=int, default=1, help="Unflagged control cases to sample")
         command.add_argument("--related", type=int, default=2, help="Related trials available per case")
+        command.add_argument("--prepare-max-cases", type=int, default=200,
+                             help="Maximum active prepared cases; omitted candidates remain visible")
+        command.add_argument("--max-trials", type=int, default=200,
+                             help="Maximum source trials captured per snapshot")
         command.add_argument("--min-new-steps", type=int, default=20,
                              help="Coalesce running prefixes; new alerts and terminal evidence bypass this")
         command.add_argument("--cycles", type=int, default=1, help="Finite number of watch-state refreshes")

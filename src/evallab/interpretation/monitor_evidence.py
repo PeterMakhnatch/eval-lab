@@ -146,14 +146,20 @@ def _read_frozen(path: Path, rel: str, *, budget: _Budget, whole: bool) -> _Capt
         return None
     try:
         before = os.fstat(fd)
-        if not stat.S_ISREG(before.st_mode):
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_size > cap
+            or before.st_size > budget.total_remaining[0]
+        ):
             return None
         chunks: list[bytes] = []
-        while True:
-            chunk = os.read(fd, 1 << 20)
+        remaining = before.st_size
+        while remaining:
+            chunk = os.read(fd, min(1 << 20, remaining))
             if not chunk:
                 break
             chunks.append(chunk)
+            remaining -= len(chunk)
         after = os.fstat(fd)
     finally:
         os.close(fd)
@@ -211,7 +217,7 @@ def _resolve_trial_dir(job: Any, trial: Any, roots: Sequence[Path]) -> tuple[Pat
             try:
                 node = resolved_root
                 linked = False
-                for part in resolved.relative_to(resolved_root).parts:
+                for part in candidate.relative_to(resolved_root).parts:
                     node = node / part
                     if node.is_symlink():
                         linked = True

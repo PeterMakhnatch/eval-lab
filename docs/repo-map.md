@@ -389,7 +389,7 @@ inputs:
   - path: src/evallab/run_telemetry.py
     digest: sha256:84a91d9e7652d78a1236825ec5bca5516c10d82f674cba6ef786a32531dcf1b7
   - path: src/evallab/runner.py
-    digest: sha256:0a95f802c5210dcb9b9da3f5e17644f3fe85616ada935ac5cbb6f8fcfa2fe6ca
+    digest: sha256:b16fd9dee87ad9731f26577b019bded02525468fddc99f5fb6754454588cfe90
   - path: src/evallab/schemas/__init__.py
     digest: sha256:997c2d36c062bef8566fb9bdfaa1c779d43f863553d0d2037b3c9a16b7358e0f
   - path: src/evallab/screen.py
@@ -399,7 +399,7 @@ inputs:
   - path: src/evallab/seqgen.py
     digest: sha256:0b895d33ff3846e71e1d2e66401860c92450fabe07a96da006f4ea675e0b9948
   - path: src/evallab/setup_fingerprint.py
-    digest: sha256:7a232da68e4e5654bd4d988226dced75bbd51417c0a6401713b000349d429fe7
+    digest: sha256:251a0b1229fecca00a8e152d62d3b8ebf5634e58198fcef6df9185147fde8105
   - path: src/evallab/sft_glm.py
     digest: sha256:9d61f7257f84e912b1dc25963dd9dfa9acc4c2fde706bfc2e4d9588ac6d15594
   - path: src/evallab/sft_records.py

@@ -67,6 +67,7 @@ TOP_LEVEL_COMMANDS = (
     "review",
     "watch",
     "telemetry",
+    "investigate",
 )
 
 

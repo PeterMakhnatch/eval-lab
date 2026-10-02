@@ -74,8 +74,9 @@ _SECRET_TEXT_PATTERNS = (
     re.compile(r"(?i)\bBearer\s+[A-Za-z0-9._~+/=-]+"),
     re.compile(r"(?i)\b(?:sk|rk)-[A-Za-z0-9._-]+"),
     re.compile(
-        r"(?i)\b(?:api[_ -]?key|access[_ -]?token|oauth[_ -]?token|"
-        r"session[_ -]?token|password|secret)(\s*[:=]\s*)[^\s,;]+"
+        r"""(?i)["']?\b(?:api[_ -]?key|access[_ -]?token|oauth[_ -]?token|"""
+        r"""session[_ -]?token|password|secret)["']?\s*[:=]\s*"""
+        r"""(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;]+)"""
     ),
 )
 _HIDDEN_TASK_DIRS = frozenset({"tests", "solution"})

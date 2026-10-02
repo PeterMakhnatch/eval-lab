@@ -3,9 +3,12 @@
 Tools for reading Harbor / Eval Lab run traces: turning raw trial folders
 into whole-run transcripts, tagging them with deterministic rules, and
 browsing them in Inspect Scout, Docent, or `harbor view`. Built
-2026-09-26–29 for the HAR-81 / HAR-90 MiMo runs. Everything here is $0
-(local code, no model calls); only Docent uploads touch the network, and
-only with an explicit flag.
+2026-09-26–29 for the HAR-81 / HAR-90 MiMo runs. Local normalization,
+deterministic scans, and export preparation do not call a model. Docent uploads
+and hosted readers have their own explicit opt-in and cost policies.
+The [bounded monitor investigator](../../../docs/monitor-investigations.md)
+adds source-cited hypotheses over frozen live-watch evidence; its hosted calls
+require `investigate run --allow-model` and a pinned lifetime budget.
 
 Related Linear cards: HAR-77 (probe-01 cheat detector), HAR-87 (probe-02
 MiMo kit).

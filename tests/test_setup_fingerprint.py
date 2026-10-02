@@ -171,6 +171,26 @@ def test_task_outside_ledger_refused(tmp_path: Path) -> None:
         validate_request(request, repo_root=root)
 
 
+def test_exploit_probe_needs_no_reference_but_keeps_lock_and_ledger(tmp_path: Path) -> None:
+    from evallab.exploit_probe import PREAMBLE
+
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    (root / PREAMBLE).parent.mkdir(parents=True)
+    (root / PREAMBLE).write_text("probe\n")
+    probe = make_spec(TASK_ID, digest, reference_profile=None).model_copy(
+        update={"extra_instruction_path": PREAMBLE}
+    )
+    validate_request(make_request(root, TASK_ID, probe), repo_root=root)
+    with pytest.raises(ValueError, match="reference_profile"):
+        validate_request(
+            make_request(root, TASK_ID, make_spec(TASK_ID, digest, reference_profile=None)),
+            repo_root=root,
+        )
+    unlocked = probe.model_copy(update={"egress_lock": None})
+    with pytest.raises(ValueError, match="lock"):
+        validate_request(make_request(root, TASK_ID, unlocked, egress_lock=False), repo_root=root)
+
+
 def test_missing_reference_refused(tmp_path: Path) -> None:
     root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
     spec = make_spec(TASK_ID, digest, reference_profile=None, deviations=COVERING_DEVIATIONS)

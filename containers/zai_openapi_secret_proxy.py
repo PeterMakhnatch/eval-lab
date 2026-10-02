@@ -144,6 +144,9 @@ PROVIDERS: dict[str, Any] = {
         "usage_env": "EVALLAB_ZAI_OPENAPI_USAGE_FILE",
         "limit_env_prefix": "EVALLAB_ZAI_OPENAPI",
         "model_prefix": "zai/",
+        # LiteLLM's native ``zai`` provider (Terminus 2) strips the prefix and
+        # sends the bare id; mini-SWE (OpenAI-compatible) keeps ``zai/<id>``.
+        "bare_ids": True,
         "allowed_models_env": "EVALLAB_ZAI_OPENAPI_ALLOWED_MODEL",
         "default_allowed_models": frozenset({"glm-5.3-flash", "glm-5.3"}),
         "flat_input_price_env": "EVALLAB_ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION",
@@ -799,6 +802,8 @@ def _validate_model(model: Any) -> tuple[str, str, tuple[int, int]] | None:
     """
     profile = _profile()
     prefix = profile["model_prefix"]
+    if isinstance(model, str) and profile.get("bare_ids") and not model.startswith(prefix):
+        model = prefix + model
     if not isinstance(model, str) or not model.startswith(prefix):
         return None
     remainder = model[len(prefix) :]

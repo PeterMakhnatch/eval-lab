@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -268,7 +269,7 @@ def test_symlinked_source_file_not_read(tmp_path: Path) -> None:
     (trial_dir / "agent" / "trajectory.json").symlink_to(secret)
     snap = snapshot_watch(_status(_row("jobA", "trial1")), [runs]).trials[0]
     assert snap.complete is False
-    assert any("escapes trial/job dir" in lim for lim in snap.limitations)
+    assert any("symlinked path component" in lim for lim in snap.limitations)
     assert all("stolen" not in r.text for r in snap.records)
 
 
@@ -445,3 +446,162 @@ def test_snapshot_leaves_sources_untouched(tmp_path: Path) -> None:
     tools.read_steps("jobA/trial1", 1, 5)
     tools.search("hello")
     assert _hashes(trial_dir) == before
+
+# --- review regressions: budgets debit, links, bounds, alerts, tasks ---
+
+def test_budget_debits_within_a_trial(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    _write_trial(runs, "jobA", "trial1", head_steps=[_step(1, "hello", command="ls")],
+                 result=_finished_result())
+    traj_bytes = (runs / "jobA" / "trial1" / "agent" / "trajectory.json").stat().st_size
+    corpus = snapshot_watch(_status(_row("jobA", "trial1")), [runs],
+                            max_total_bytes=traj_bytes + 5)
+    snap = corpus.trials[0]
+    assert snap.state == "running"
+    assert snap.complete is False
+    assert any("byte budget" in lim for lim in snap.limitations)
+
+
+def test_text_artifact_refused_whole_never_partial(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    _write_trial(runs, "jobA", "trial1", head_steps=[_step(1, "hi")],
+                 result=_finished_result(), stdout="Q" * 5000)
+    corpus = snapshot_watch(_status(_row("jobA", "trial1")), [runs],
+                            max_total_bytes=10_000_000, max_trial_bytes=4000)
+    snap = corpus.trials[0]
+    assert snap.complete is False
+    assert all(r.document != "verifier/test-stdout.txt" for r in snap.records)
+    assert all(a.path != "verifier/test-stdout.txt" for a in snap.artifacts)
+    assert any("byte budget" in lim for lim in snap.limitations)
+
+
+def test_agent_dir_symlink_refused(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    outside = tmp_path / "outside"
+    _write_trial(outside, "jobA", "trial1", head_steps=[_step(1, "stolen")],
+                 result=_finished_result())
+    trial_dir = _write_trial(runs, "jobA", "trial1", head_steps=[_step(1, "hi")],
+                             result=_finished_result())
+    shutil.rmtree(trial_dir / "agent")
+    (trial_dir / "agent").symlink_to(outside / "jobA" / "trial1" / "agent",
+                                     target_is_directory=True)
+    snap = snapshot_watch(_status(_row("jobA", "trial1")), [runs]).trials[0]
+    assert snap.complete is False
+    assert any("symlinked path component" in lim for lim in snap.limitations)
+    assert all("stolen" not in r.text for r in snap.records)
+
+
+def test_job_component_symlink_refused(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    _write_trial(runs, "jobB", "trial1", head_steps=[_step(1, "hi")],
+                 result=_finished_result())
+    (runs / "jobA").symlink_to(runs / "jobB", target_is_directory=True)
+    snap = snapshot_watch(_status(_row("jobA", "trial1")), [runs]).trials[0]
+    assert snap.state == "unavailable"
+    assert any("symlinked path component" in lim for lim in snap.limitations)
+
+
+def test_tool_output_hard_bound_and_marker_not_citable(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    _write_trial(runs, "jobA", "trial1",
+                 head_steps=[_step(1, "needle-visible-here " + "padding. " * 300)],
+                 result=_finished_result())
+    corpus = snapshot_watch(_status(_row("jobA", "trial1")), [runs])
+    tools = EvidenceTools(corpus, _case(corpus, "jobA/trial1"), max_chars=500)
+    overview = tools.overview()
+    assert len(json.dumps(overview)) <= 500
+    assert overview["omitted"], "capping must be explicit"
+    shown = overview["snippets"][0]["excerpt"] if overview["snippets"] else ""
+    if shown:
+        tools.validate_finding(_finding(overview["snippets"][0]["record_id"], shown[:20]))
+    with pytest.raises(ValueError):
+        tools.validate_finding(_finding(overview["snippets"][0]["record_id"] if overview["snippets"] else "x",
+                                        "[output-capped]"))
+
+
+def test_alert_secrets_redacted(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    secret = "sk-abcdefghij1234567890"
+    alert = {"rule": "grader_tamper", "severity": "high", "scope": "trial",
+             "job": "jobA", "trial": "trial1", "task": "demo",
+             "quote": f"leaked {secret} here", "detail": "detail text"}
+    _write_trial(runs, "jobA", "trial1", head_steps=[_step(1, "hi")],
+                 result=_finished_result())
+    snap = snapshot_watch(
+        _status(_row("jobA", "trial1", open_alerts=[alert])), [runs]).trials[0]
+    assert len(snap.alerts) == 1
+    assert secret not in snap.alerts[0].quote
+    assert any("secret-redacted" in lim for lim in snap.limitations)
+
+
+def test_result_task_name_preferred_over_row_prefix(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    result = _finished_result()
+    result["task_name"] = "readable-task"
+    _write_trial(runs, "jobA", "trial1", head_steps=[_step(1, "hi")], result=result)
+    snap = snapshot_watch(_status(_row("jobA", "trial1", task="ugly__arm")), [runs]).trials[0]
+    assert snap.task == "readable-task"
+    result2 = _finished_result()
+    result2["task_name"] = {"nested": "dict"}
+    _write_trial(runs, "jobA", "trial2", head_steps=[_step(1, "hi")], result=result2)
+    snap2 = snapshot_watch(_status(_row("jobA", "trial2", task="ugly__arm")), [runs]).trials[1]
+    assert snap2.task == "ugly__arm"
+
+
+def test_trial_root_trajectory_fallback(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    trial_dir = runs / "jobA" / "trial1"
+    trial_dir.mkdir(parents=True)
+    (trial_dir / "trajectory.json").write_text(
+        json.dumps({"steps": [_step(1, "root level", command="ls")]}), encoding="utf-8")
+    (trial_dir / "result.json").write_text(json.dumps(_finished_result()), encoding="utf-8")
+    snap = snapshot_watch(_status(_row("jobA", "trial1")), [runs]).trials[0]
+    steps = [r for r in snap.records if r.ordinal is not None]
+    assert len(steps) == 1
+    assert steps[0].document == "trajectory.json"
+    assert steps[0].step_ref == "head#1"
+    assert snap.complete is True
+
+
+def test_shells_preserve_valid_alerts(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    alert = {"rule": "stalled", "severity": "medium", "scope": "trial",
+             "job": "jobA", "trial": "trial1", "task": "demo", "detail": "quiet"}
+    row = _row("jobA", "trial1", open_alerts=[alert])
+    capped = snapshot_watch(_status(row), [runs], max_trials=0).trials[0]
+    assert capped.state == "unavailable"
+    assert [a.rule for a in capped.alerts] == ["stalled"]
+    missing = snapshot_watch(_status(row), [runs]).trials[0]
+    assert missing.state == "unavailable"
+    assert [a.rule for a in missing.alerts] == ["stalled"]
+
+
+def test_nondict_rows_explicit(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    corpus = snapshot_watch(_status(_row("jobA", "trial1"), "junk", 42), [runs])
+    assert any("non-dict" in lim for lim in corpus.limitations)
+
+
+def test_malformed_outcome_isolated_from_good_trial(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    bad = _finished_result()
+    bad["verifier_result"] = {"rewards": {"reward": True}}
+    bad["finished_at"] = ["not", "a", "timestamp"]
+    _write_trial(runs, "jobA", "trial1", head_steps=[_step(1, "bad")], result=bad)
+    nan_result = _finished_result()
+    nan_result["verifier_result"] = {"rewards": {"reward": "nan"}}
+    _write_trial(runs, "jobA", "trial2", head_steps=[_step(1, "nan")], result=nan_result)
+    _write_trial(runs, "jobA", "trial3", head_steps=[_step(1, "good")],
+                 result=_finished_result())
+    corpus = snapshot_watch(
+        _status(_row("jobA", "trial1"), _row("jobA", "trial2"), _row("jobA", "trial3")),
+        [runs])
+    by_key = {s.trial_key: s for s in corpus.trials}
+    assert by_key["jobA/trial1"].state == "running"
+    assert by_key["jobA/trial1"].reward is None
+    assert any("boolean" in lim for lim in by_key["jobA/trial1"].limitations)
+    assert any("finished_at" in lim for lim in by_key["jobA/trial1"].limitations)
+    assert by_key["jobA/trial2"].reward is None
+    assert any("non-finite" in lim for lim in by_key["jobA/trial2"].limitations)
+    assert by_key["jobA/trial3"].complete is True
+    assert by_key["jobA/trial3"].reward == 1.0

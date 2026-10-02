@@ -17,9 +17,13 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
+import os
 import re
+import stat
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -85,48 +89,87 @@ class _Budget:
     total_remaining: list[int]
 
     def take(self, size: int) -> bool:
-        if size > self.trial_remaining or size > self.total_remaining[0]:
-            return False
+        """Debit exactly the bytes read; report whether they fit the caps."""
+        fit = size <= self.trial_remaining and size <= self.total_remaining[0]
         self.trial_remaining -= size
         self.total_remaining[0] -= size
-        return True
+        return fit
 
 
-def _stat_sig(path: Path) -> tuple[int, int] | None:
-    try:
-        stat = path.stat()
-    except OSError:
-        return None
-    return (stat.st_mtime_ns, stat.st_size)
+def _refusal_for_link(base: Path, rel: str, *, top: Path) -> str | None:
+    """Refuse when ``base/rel`` escapes scope or crosses a symlink component.
+
+    Every component is checked with lstat (never followed), so a symlinked
+    ``agent/`` directory, a symlinked source file, or a ``..`` climb out of
+    scope is refused before any open. Best effort against a hostile local
+    writer: the open itself uses ``O_NOFOLLOW`` and the open descriptor is
+    revalidated; a mid-read race is flagged, not isolated.
+    """
+    node = base
+    for part in Path(rel).parts:
+        if part in ("", "."):
+            continue
+        node = node.parent if part == ".." else node / part
+        if node != top and top not in node.parents:
+            return f"path escapes permitted scope, not read: {rel}"
+        try:
+            if node.is_symlink():
+                return f"symlinked path component, not read: {rel}"
+        except OSError:
+            return f"unreadable path component: {rel}"
+    return None
 
 
 def _read_frozen(path: Path, rel: str, *, budget: _Budget, whole: bool) -> _Capture | None:
-    """Capture immutable raw bytes, or ``None`` when the file must be skipped.
+    """Capture raw bytes through one file descriptor, or skip.
 
-    ``whole=True`` (JSON sources) refuses to truncate: an oversized file is
-    skipped so a partial document never parses as complete. ``whole=False``
-    (text artifacts) reads a bounded prefix and the caller marks truncation.
+    Oversized files are refused whole and never hashed as a partial prefix:
+    anything over the remaining trial/total budget (and, for text artifacts,
+    ``_TEXT_ARTIFACT_CAP``) is skipped with an explicit limitation. Bounded
+    truncation happens later at record rendering, after the full raw hash.
+
+    The open uses ``O_NOFOLLOW`` with fstat/read/fstat on the same descriptor
+    plus a descriptor-vs-path identity recheck, so a replaced or grown file
+    is flagged ``changed``, never silently treated as clean. This does not
+    claim isolation against a hostile local filesystem race.
     """
-    before = _stat_sig(path)
-    if before is None:
-        return None
-    size = before[1]
-    if whole:
-        if size > budget.trial_remaining or size > budget.total_remaining[0]:
-            return None
-        want = size
-    else:
-        want = min(size, _TEXT_ARTIFACT_CAP, budget.trial_remaining, budget.total_remaining[0])
     try:
-        with path.open("rb") as handle:
-            raw = handle.read(want + 1 if not whole else want)
+        claimed = path.stat(follow_symlinks=False).st_size
     except OSError:
         return None
-    if not whole and len(raw) > want:
-        raw = raw[:want]
-    after = _stat_sig(path)
-    short = whole and len(raw) != size
-    changed = after is None or after != before or short
+    cap = budget.trial_remaining if whole else min(budget.trial_remaining, _TEXT_ARTIFACT_CAP)
+    if claimed > cap or claimed > budget.total_remaining[0]:
+        return None
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    try:
+        before = os.fstat(fd)
+        if not stat.S_ISREG(before.st_mode):
+            return None
+        chunks: list[bytes] = []
+        while True:
+            chunk = os.read(fd, 1 << 20)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        after = os.fstat(fd)
+    finally:
+        os.close(fd)
+    raw = b"".join(chunks)
+    try:
+        current = path.stat()
+    except OSError:
+        current = None
+    replaced = current is None or (current.st_dev, current.st_ino) != (before.st_dev, before.st_ino)
+    changed = (
+        replaced
+        or after.st_size != before.st_size
+        or after.st_mtime_ns != before.st_mtime_ns
+        or len(raw) != before.st_size
+    )
+    budget.take(len(raw))
     return _Capture(rel=rel, sha256=hashlib.sha256(raw).hexdigest(),
                      size_bytes=len(raw), raw=raw, changed=changed)
 
@@ -165,6 +208,18 @@ def _resolve_trial_dir(job: Any, trial: Any, roots: Sequence[Path]) -> tuple[Pat
                 continue
             if resolved != resolved_root and resolved_root not in resolved.parents:
                 continue
+            try:
+                node = resolved_root
+                linked = False
+                for part in resolved.relative_to(resolved_root).parts:
+                    node = node / part
+                    if node.is_symlink():
+                        linked = True
+                        break
+            except OSError:
+                continue
+            if linked:
+                return None, f"symlinked path component under roots: {job}/{trial}"
             if resolved.is_dir():
                 found.append(resolved)
     unique = sorted(set(found))
@@ -175,9 +230,13 @@ def _resolve_trial_dir(job: Any, trial: Any, roots: Sequence[Path]) -> tuple[Pat
     return unique[0], None
 
 
-def _coerce_alert(payload: Any, *, job: str, trial: str, task: str) -> MonitorAlert | None:
+_ALERT_REDACTED_FIELDS = ("quote", "detail", "target", "trial", "task")
+
+
+def _coerce_alert(payload: Any, *, job: str, trial: str, task: str) -> tuple[MonitorAlert | None, bool]:
+    """Coerce one watch alert dict, redacting free-text fields for secrets."""
     if not isinstance(payload, dict):
-        return None
+        return None, False
     allowed = {"rule", "severity", "scope", "job", "trial", "task",
                "step_ref", "quote", "detail", "target", "trials"}
     cleaned = {key: payload[key] for key in allowed if key in payload}
@@ -185,32 +244,80 @@ def _coerce_alert(payload: Any, *, job: str, trial: str, task: str) -> MonitorAl
     cleaned.setdefault("trial", trial)
     cleaned.setdefault("task", task)
     if cleaned.get("severity") not in ("high", "medium", "low"):
-        return None
+        return None, False
+    redacted = False
+    for field in _ALERT_REDACTED_FIELDS:
+        value = cleaned.get(field)
+        if isinstance(value, str):
+            scrubbed = redact_text(value)
+            if scrubbed != value:
+                cleaned[field] = scrubbed
+                redacted = True
     try:
-        return MonitorAlert(**cleaned)
+        return MonitorAlert(**cleaned), redacted
     except ValidationError:
-        return None
+        return None, False
 
 
-def _reward_from_result(result: Any) -> float | None:
+def _reward_from_result(result: Any) -> tuple[float | None, str | None]:
     """Reward from frozen ``result.json`` bytes (mirrors probe03's rule).
 
     ``verifier_result.rewards.reward`` when present and scored; missing or
-    ``-1`` means unscored. ``reward.txt`` is deliberately not consulted: it
-    is outside the permitted source set.
+    ``-1`` means unscored. Booleans, non-finite floats, and non-numeric
+    values are rejected as unavailable (never zero, never ``float(True)``),
+    because a NaN would crash whole-corpus validation. ``reward.txt`` is
+    deliberately not consulted: it is outside the permitted source set.
     """
     if not isinstance(result, dict):
-        return None
+        return None, None
     verifier = result.get("verifier_result")
     rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
     raw = rewards.get("reward", "MISSING") if isinstance(rewards, dict) else "MISSING"
     if raw == "MISSING" or raw == -1:
-        return None
+        return None, None
+    if isinstance(raw, bool):
+        return None, "result reward is a boolean, treated as unscored"
     try:
-        return float(raw)
+        value = float(raw)
     except (TypeError, ValueError):
-        return None
+        return None, f"result reward is non-numeric ({type(raw).__name__}), treated as unscored"
+    if not math.isfinite(value):
+        return None, "result reward is non-finite, treated as unscored"
+    return value, None
 
+
+def _finished_state(result_ok: bool, result: Any) -> tuple[str, str | None]:
+    """Derive running/finished from a plausible recorded timestamp string."""
+    if not result_ok or not isinstance(result, dict):
+        return "running", None
+    raw = result.get("finished_at")
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        return "running", None
+    if not isinstance(raw, str) or len(raw.strip()) > 100:
+        return "running", "malformed finished_at, not a completed verdict"
+    try:
+        datetime.fromisoformat(raw.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return "running", "malformed finished_at, not a completed verdict"
+    return "finished", None
+
+
+def _row_alerts(row: dict[str, Any], *, job: Any, trial: Any, task: str | None) -> tuple[tuple[MonitorAlert, ...], bool, int]:
+    """Coerce a status row's open alerts, preserving suspicion on shells."""
+    alerts: list[MonitorAlert] = []
+    redacted = False
+    dropped = 0
+    open_alerts = row.get("open_alerts", [])
+    if isinstance(open_alerts, list):
+        for payload in open_alerts:
+            alert, scrubbed = _coerce_alert(
+                payload, job=str(job), trial=str(trial), task=task or str(trial))
+            if alert is None:
+                dropped += 1
+                continue
+            alerts.append(alert)
+            redacted = redacted or scrubbed
+    return tuple(alerts), redacted, dropped
 
 def _render_call(call: Any) -> str | None:
     if not isinstance(call, dict):
@@ -324,11 +431,14 @@ def snapshot_watch(
     if not isinstance(fleet_raw, list):
         raise ValueError("status['fleet_alerts'] must be a list")
 
+    nondicts = sum(1 for row in rows if not isinstance(row, dict))
     ordered = sorted(
         [row for row in rows if isinstance(row, dict)],
         key=lambda row: (str(row.get("job", "")), str(row.get("trial", ""))),
     )
     limitations: list[str] = []
+    if nondicts:
+        limitations.append(f"{nondicts} non-dict status rows ignored, never snapshotted")
     if len(ordered) > max_trials:
         limitations.append(
             f"trial cap: snapshotted first {max_trials} of {len(ordered)} status rows in (job, trial) order"
@@ -356,11 +466,13 @@ def snapshot_watch(
 
     fleet_alerts: list[MonitorAlert] = []
     for payload in fleet_raw:
-        alert = _coerce_alert(payload, job="fleet", trial="fleet", task="fleet")
+        alert, redacted = _coerce_alert(payload, job="fleet", trial="fleet", task="fleet")
         if alert is None:
             limitations.append("fleet alert dropped: invalid shape or severity")
             continue
         fleet_alerts.append(alert)
+        if redacted:
+            limitations.append("fleet alert secret-redacted")
 
     corpus_limitations = list(limitations)
     budget_hit = total_remaining[0] <= 0 or any(
@@ -388,22 +500,29 @@ def _snapshot_row(
     total_remaining: list[int],
 ) -> TrialSnapshot:
     trial_limits: list[str] = []
-    task_text = str(task) if isinstance(task, str) and task else None
+    row_task = str(task) if isinstance(task, str) and task else None
+    task_text = row_task
 
     def shell(reason: str) -> TrialSnapshot:
+        alerts, redacted, dropped = _row_alerts(row, job=job, trial=trial, task=row_task)
+        limits = [reason]
+        if redacted:
+            limits.append("watch alert secret-redacted")
+        if dropped:
+            limits.append("watch alert dropped: invalid shape or severity")
         return TrialSnapshot(
             trial_key=trial_key,
-            job=str(job) if isinstance(job, str) else str(job),
-            trial=str(trial) if isinstance(trial, str) else str(trial),
-            task=task_text,
+            job=str(job),
+            trial=str(trial),
+            task=row_task,
             source_path="",
             state="unavailable",
             reward=None,
             complete=False,
             artifacts=(),
             records=(),
-            alerts=(),
-            limitations=tuple([reason]),
+            alerts=alerts,
+            limitations=tuple(limits),
         )
 
     if beyond_cap:
@@ -420,19 +539,12 @@ def _snapshot_row(
     complete = True
 
     job_dir = trial_dir.parent
-    def contained(path: Path) -> bool:
-        try:
-            resolved = path.resolve()
-        except OSError:
-            return False
-        return (
-            resolved == trial_dir or trial_dir in resolved.parents
-            or resolved == job_dir or job_dir in resolved.parents
-        )
+
     def capture_file(path: Path, rel: str, *, whole: bool, optional: bool) -> _Capture | None:
         nonlocal complete
-        if path.is_symlink() and not contained(path):
-            trial_limits.append(f"source escapes trial/job dir, not read: {rel}")
+        refusal = _refusal_for_link(trial_dir, rel, top=job_dir)
+        if refusal is not None:
+            trial_limits.append(refusal)
             complete = False
             return None
         if not path.is_file():
@@ -454,33 +566,51 @@ def _snapshot_row(
             complete = False
         return capture
 
-    # 1. Trajectory head + continuations, exact approved names only.
-    agent_dir = trial_dir / "agent"
-    part_names: list[str] = []
-    try:
-        entries = sorted(agent_dir.iterdir(), key=lambda p: p.name) if agent_dir.is_dir() else []
-    except OSError:
-        entries = []
-    for entry in entries:
-        if entry.name == "trajectory.json":
-            part_names.append(entry.name)
-        elif _CONT_RE.fullmatch(entry.name):
-            part_names.append(entry.name)
-    part_names.sort(key=lambda n: (n != "trajectory.json", int(_CONT_RE.fullmatch(n).group(1)) if n != "trajectory.json" else 0))
-    if len(part_names) > 513:
-        trial_limits.append(f"continuation count capped at 512 parts, rest ignored: {len(part_names)} found")
-        part_names = part_names[:513]
+    # 1. Trajectory head (agent/ first, trial-root fallback like live_watch)
+    #    plus agent/ continuations; exact approved names only.
+    part_refs: list[tuple[str, str]] = []
+    for candidate in ("agent/trajectory.json", "trajectory.json"):
+        candidate_path = trial_dir / candidate
+        refusal = _refusal_for_link(trial_dir, candidate, top=job_dir)
+        if refusal is not None:
+            if candidate_path.is_symlink():
+                trial_limits.append(refusal)
+                complete = False
+            continue
+        if candidate_path.is_file():
+            part_refs.append((candidate, "head"))
+            break
+    if not part_refs:
+        trial_limits.append("missing source: agent/trajectory.json")
         complete = False
-
+    agent_path = trial_dir / "agent"
+    if _refusal_for_link(trial_dir, "agent", top=job_dir) is None:
+        try:
+            entries = sorted(agent_path.iterdir(), key=lambda p: p.name) if agent_path.is_dir() else []
+        except OSError:
+            entries = []
+        conts = sorted(
+            (entry.name for entry in entries if _CONT_RE.fullmatch(entry.name)),
+            key=lambda name: int(_CONT_RE.fullmatch(name).group(1)),  # type: ignore[union-attr]
+        )
+        if len(conts) > 512:
+            trial_limits.append(
+                f"continuation count capped at 512 parts, rest ignored: {len(conts)} found")
+            conts = conts[:512]
+            complete = False
+        part_refs.extend(
+            (f"agent/{name}", f"cont-{_CONT_RE.fullmatch(name).group(1)}")  # type: ignore[union-attr]
+            for name in conts
+        )
+    elif agent_path.is_symlink():
+        trial_limits.append("symlinked path component, not read: agent/ continuations")
+        complete = False
     docs: list[Any] = []
     part_docs: dict[str, Any] = {}
     origin: dict[int, tuple[str, str, str]] = {}
-    if not part_names:
-        trial_limits.append("missing source: agent/trajectory.json")
-        complete = False
-    for name in part_names:
-        rel = f"agent/{name}"
-        capture = capture_file(agent_dir / name, rel, whole=True, optional=True)
+    for rel, stem in part_refs:
+        capture = capture_file(trial_dir / rel, rel, whole=True, optional=True)
+
         if capture is None:
             continue
         try:
@@ -493,7 +623,6 @@ def _snapshot_row(
             trial_limits.append(f"malformed source, no steps list: {rel}")
             complete = False
             continue
-        stem = "head" if name == "trajectory.json" else f"cont-{_CONT_RE.fullmatch(name).group(1)}"
         for pos, raw_step in enumerate(payload["steps"]):
             if isinstance(raw_step, Mapping) and not raw_step.get("is_copied_context"):
                 sid = raw_step.get("step_id")
@@ -517,12 +646,15 @@ def _snapshot_row(
         )
 
     # Continuation chain: every declared ref must be a captured part.
-    captured_rels = set(part_docs)
+    # stitch_steps appends first-occurrence step objects unchanged, so
+    # origin[id(step)] below maps each stitched step to its source part
+    # (verified against the step_layers.stitch_steps source, not assumed).
+    captured_names = {Path(item).name for item in part_docs}
     for rel, payload in part_docs.items():
         ref = payload.get("continued_trajectory_ref")
         if isinstance(ref, str) and ref:
             target = _normalize_ref(ref)
-            if target is None or target not in captured_rels:
+            if target is None or Path(target).name not in captured_names:
                 trial_limits.append(f"continuation chain incomplete at {rel}: ref {ref!r} not captured")
                 complete = False
 
@@ -542,39 +674,39 @@ def _snapshot_row(
             else:
                 trial_limits.append(f"malformed source, top-level JSON is not an object: {_RESULT_REL}")
                 complete = False
-    else:
-        # capture_file already recorded missing/over-budget.
-        pass
     if result_capture is None or not result_ok:
         complete = False
 
-    reward = _reward_from_result(result) if result_ok else None
-    finished = bool(result_ok and isinstance(result, dict) and result.get("finished_at"))
-    state = "finished" if finished else "running"
-    if not finished:
+    reward: float | None = None
+    if result_ok:
+        reward, reward_limitation = _reward_from_result(result)
+        if reward_limitation is not None:
+            trial_limits.append(reward_limitation)
+            complete = False
+        task_name = result.get("task_name") if isinstance(result, dict) else None
+        if isinstance(task_name, str) and task_name.strip():
+            task_text = task_name.strip()
+    state, state_limitation = _finished_state(result_ok, result)
+    if state_limitation is not None:
+        trial_limits.append(state_limitation)
+    if state != "finished":
         trial_limits.append("live prefix: no finished result, not a completed verdict")
         complete = False
 
     # 3. Optional spec: instruction.md physically inside trial or job dir.
     spec_capture: _Capture | None = None
     spec_rel: str | None = None
-    for base, spec_rel_name in ((trial_dir, "instruction.md"), (trial_dir.parent, "../instruction.md")):
-        candidate = base / "instruction.md"
+    for candidate_rel in ("instruction.md", "../instruction.md"):
+        candidate = trial_dir / candidate_rel
+        refusal = _refusal_for_link(trial_dir, candidate_rel, top=job_dir)
+        if refusal is not None:
+            if candidate.is_symlink():
+                trial_limits.append(refusal)
+                complete = False
+            continue
         if not candidate.is_file():
             continue
-        try:
-            resolved = candidate.resolve()
-            scope = trial_dir.resolve()
-            job_scope = trial_dir.parent.resolve()
-        except OSError:
-            continue
-        contained = (
-            resolved == scope or scope in resolved.parents
-            or resolved == job_scope or job_scope in resolved.parents
-        )
-        if not contained:
-            continue
-        spec_rel = spec_rel_name
+        spec_rel = candidate_rel
         spec_capture = _read_frozen(candidate, spec_rel, budget=budget, whole=False)
         if spec_capture is None:
             trial_limits.append("spec over byte budget, skipped: instruction.md")
@@ -589,19 +721,11 @@ def _snapshot_row(
     if spec_capture is None and spec_rel is None:
         trial_limits.append("spec unavailable: no instruction.md inside trial/job dir")
 
-    # 4. Bounded verifier artifacts.
+    # 4. Bounded verifier artifacts (refused whole when over budget, never partial).
     text_captures: dict[str, _Capture] = {}
     for rel in _VERIFIER_RELS:
         capture = capture_file(trial_dir / rel, rel, whole=False, optional=True)
         if capture is not None:
-            # Detect prefix-truncation: on-disk size exceeded what budgets allowed.
-            try:
-                on_disk = (trial_dir / rel).stat().st_size
-            except OSError:
-                on_disk = capture.size_bytes
-            if on_disk > capture.size_bytes:
-                trial_limits.append(f"source truncated to {capture.size_bytes} bytes: {rel}")
-                complete = False
             text_captures[rel] = capture
 
     # --- Records ---
@@ -610,11 +734,18 @@ def _snapshot_row(
     n_steps = len(step_records)
     truncated_count = 0
     redacted_count = 0
-    for ordinal, step in enumerate(step_records, start=1):
+    orphan_steps = 0
+    ordinal = 0
+    for step in step_records:
         info = origin.get(id(step))
-        document = info[0] if info else _HEAD_REL
-        step_ref = info[2] if info else None
-        part_sha = captures[document].sha256 if document in captures else hashlib.sha256(b"").hexdigest()
+        if info is None:
+            # No invented digest or source: a stitched step without a captured
+            # origin part is excluded and the snapshot marked incomplete.
+            orphan_steps += 1
+            continue
+        ordinal += 1
+        document, step_ref = info[0], info[2]
+        part_sha = captures[document].sha256
         raw_text = _render_step_text(step)
         redacted_text = redact_text(raw_text)
         was_redacted = redacted_text != raw_text
@@ -636,6 +767,10 @@ def _snapshot_row(
             truncated=was_truncated,
             redacted=was_redacted,
         ))
+    n_steps = ordinal
+    if orphan_steps:
+        trial_limits.append(f"{orphan_steps} stitched steps without origin part excluded")
+        complete = False
     if truncated_count:
         trial_limits.append(f"{truncated_count} step records truncated to {max_record_chars} chars")
         complete = False
@@ -688,16 +823,11 @@ def _snapshot_row(
         if record.truncated:
             trial_limits.append(f"verifier record truncated: {rel}")
 
-    alerts: list[MonitorAlert] = []
-    open_alerts = row.get("open_alerts", [])
-    if isinstance(open_alerts, list):
-        for payload in open_alerts:
-            alert = _coerce_alert(payload, job=str(job), trial=str(trial),
-                                  task=task_text or str(trial))
-            if alert is None:
-                trial_limits.append("watch alert dropped: invalid shape or severity")
-                continue
-            alerts.append(alert)
+    alerts, alerts_redacted, alerts_dropped = _row_alerts(row, job=job, trial=trial, task=task_text)
+    if alerts_redacted:
+        trial_limits.append("watch alert secret-redacted")
+    if alerts_dropped:
+        trial_limits.append("watch alert dropped: invalid shape or severity")
 
     return TrialSnapshot(
         trial_key=trial_key,
@@ -762,38 +892,57 @@ class EvidenceTools:
             self._visible.setdefault(record_id, []).append(span)
 
     def _fit(self, payload: dict[str, Any]) -> dict[str, Any]:
-        """Cap serialized output at max_chars by shortening text/excerpt fields."""
-        encoded = json.dumps(payload, ensure_ascii=False)
-        if len(encoded) <= self._max_chars:
-            return payload
+        """Enforce a hard serialized-char bound, pruning with explicit counts."""
         omitted: dict[str, int] = {}
         if isinstance(payload.get("omitted"), dict):
             omitted.update(payload["omitted"])
-        candidates: list[tuple[int, dict[str, Any], str]] = []
 
-        def collect(node: Any) -> None:
-            if isinstance(node, dict):
-                for key, value in node.items():
-                    if key in ("text", "excerpt") and isinstance(value, str):
-                        candidates.append((len(value), node, key))
-                    else:
-                        collect(value)
-            elif isinstance(node, list):
-                for item in node:
-                    collect(item)
+        def collect() -> list[tuple[dict[str, Any], str]]:
+            found: list[tuple[dict[str, Any], str]] = []
 
-        collect(payload)
-        candidates.sort(key=lambda item: item[0], reverse=True)
-        for _, node, key in candidates:
-            value = node[key]
-            assert isinstance(value, str)
-            keep = max(64, len(value) // 2)
-            if len(value) <= keep:
+            def visit(node: Any) -> None:
+                if isinstance(node, dict):
+                    for key, value in node.items():
+                        if key in ("text", "excerpt") and isinstance(value, str):
+                            found.append((node, key))
+                        else:
+                            visit(value)
+                elif isinstance(node, list):
+                    for item in node:
+                        visit(item)
+
+            visit(payload)
+            found.sort(key=lambda item: len(item[0][item[1]]), reverse=True)
+            return found
+
+        while len(json.dumps(payload, ensure_ascii=False)) > self._max_chars:
+            trimmed = False
+            for node, key in collect():
+                value = node[key]
+                assert isinstance(value, str)
+                keep = max(64, len(value) // 2)
+                if len(value) <= 64:
+                    continue
+                shortened = value[:keep].rstrip() + "…[output-capped]"
+                if len(shortened) >= len(value):
+                    continue
+                node[key] = shortened
+                omitted["chars"] = omitted.get("chars", 0) + (len(value) - len(shortened))
+                trimmed = True
+                break
+            if trimmed:
                 continue
-            node[key] = value[:keep].rstrip() + "…[output-capped]"
-            omitted["chars"] = omitted.get("chars", 0) + (len(value) - len(node[key]))
-            encoded = json.dumps(payload, ensure_ascii=False)
-            if len(encoded) <= self._max_chars:
+            pruned = False
+            for list_key, omit_key in (("records", "records"), ("hits", "hits"),
+                                      ("snippets", "snippets"), ("trials", "trials"),
+                                      ("related", "related")):
+                entries = payload.get(list_key)
+                if isinstance(entries, list) and entries:
+                    entries.pop()
+                    omitted[omit_key] = omitted.get(omit_key, 0) + 1
+                    pruned = True
+                    break
+            if not pruned:
                 break
         payload["omitted"] = omitted
         return payload
@@ -956,6 +1105,9 @@ class EvidenceTools:
             record = self._records.get(citation.record_id)
             if record is None or record.trial_key not in set(self._allowed):
                 problems.append(f"{label} {citation.record_id}: unknown or out-of-case record")
+                continue
+            if citation.quote not in record.text:
+                problems.append(f"{label} {citation.record_id}: quote is not from the stored record text")
                 continue
             spans = self._visible.get(citation.record_id, [])
             if not spans:

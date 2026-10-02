@@ -558,6 +558,15 @@
       "command": "uv run --no-sync pytest -o addopts='' -q tests/test_truth.py tests/test_curve.py tests/test_antigravity.py tests/test_power_gate.py",
       "passed": 58
     },
+    "analysis_contract_tests": {
+      "command": "uv run --no-sync pytest -o addopts='' -q research/analysis/tests/test_cohort.py",
+      "passed": 75,
+      "ci_correction": "Replace the obsolete all-exceptions-censor rule with distinct graded-stop and infrastructure-error expectations while retaining one task unit for repeated attempts."
+    },
+    "output_boundary_smoke": {
+      "existing_output_preserved": true,
+      "output_within_input_root_refused": true
+    },
     "runtime": "All 18 retained arm/task cells validated; two existing write_comparison API calls completed through the replay CLI; 54 result/config file hashes remained unchanged.",
     "new_model_trials": 0,
     "external_experiment_spend_usd": 0,

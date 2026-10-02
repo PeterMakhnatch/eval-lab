@@ -199,8 +199,18 @@ def test_exploratory_comparison_carries_validity_warnings() -> None:
     assert any("agent_name" in warning for warning in report["validity_warnings"])
 
 
-def test_exceptions_are_reported_beside_but_excluded_from_denominator(
+@pytest.mark.parametrize(
+    ("exception", "trial_denominator", "excluded"),
+    [
+        ("AgentTimeoutError", 2, {}),
+        ("DockerInfrastructureError", 1, {"DockerInfrastructureError": 1}),
+    ],
+)
+def test_scored_stops_and_infrastructure_errors_have_distinct_denominators(
     tmp_path: Path,
+    exception: str,
+    trial_denominator: int,
+    excluded: dict[str, int],
 ) -> None:
     _synthetic_job(tmp_path / "left-pass", suffix=1, agent="oracle", reward=1.0)
     _synthetic_job(
@@ -208,7 +218,7 @@ def test_exceptions_are_reported_beside_but_excluded_from_denominator(
         suffix=2,
         agent="oracle",
         reward=0.0,
-        exception="AgentTimeoutError",
+        exception=exception,
     )
     _synthetic_job(tmp_path / "right", suffix=3, agent="nop", reward=0.0)
     spec = _synthetic_spec(
@@ -220,9 +230,10 @@ def test_exceptions_are_reported_beside_but_excluded_from_denominator(
 
     left = report["cohorts"][0]
     assert left["n_total"] == 2
-    assert left["capability_denominator"] == 1
-    assert left["exception_count"] == 1
-    assert left["exceptions"] == {"AgentTimeoutError": 1}
+    assert left["capability_denominator"] == trial_denominator
+    assert left["exception_count"] == sum(excluded.values())
+    assert left["exceptions"] == excluded
+    # Two attempts at the same task still contribute only one task unit.
     assert left["pass_any_first_k"][0]["denominator"] == 1
 
 

@@ -62,7 +62,8 @@ timeout becomes a failure only under the explicit opt-in.
   one loss and four ties; seed versus candidate has one win, one loss and three
   ties. The unavailable sixth pair remains an explicit refusal.
 - **54 result/config source files** remained byte-identical. The replay CLI
-  completed and **58 focused tests passed**. External experiment spend: **$0**.
+  completed; **58 focused behavior tests and 75 analysis-contract tests passed**.
+  External experiment spend: **$0**.
 
 **Decision: retain the baseline; do not promote this candidate on this evidence.**
 This is a reused development sample, not an independent generalization test or

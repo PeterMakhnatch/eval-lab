@@ -1,0 +1,54 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000792",
+  "variant_digest": "sha256:d5ce92ab296ea28690db4beaaafb1c7566a33f514b96069ab94a486f13550b68",
+  "variant_harbor_digest": "sha256:f7f694d9b14dff22ddde6560148774a8791acdfe9e066ab970602ae47678de69",
+  "parent": {
+    "digest": "sha256:e54ec9025ce43b8b4bc3c52456e2baa9a971a3e69750efad69774d6456447d09",
+    "harbor_digest": "sha256:66dbdebac3e296db7229e160ed60f687d839a27d8818aef85f35f4138168e02d",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "tasks/format-code-task-000792",
+      "record": null
+    }
+  },
+  "transform": "probe-image-checks@1",
+  "components_changed": [
+    "solution"
+  ],
+  "files": [
+    {
+      "path": "solution/solve.sh",
+      "before_sha256": null,
+      "after_sha256": "sha256:8f6b235b049154ceef879bd4448d4d8766b1b5d9599bd81d5e76a329d416a3a4",
+      "content": "#!/bin/bash\n# HAR-161 probe-image-checks@1: read-only image checks, run by Harbor's oracle\n# agent as root in the locked sandbox after setup and before grading. It\n# changes nothing, so the verifier grades the untouched repository.\nM=/var/lib/mimo\nCWD=\nfor d in /testbed /workspace/repo /app; do [ -d \"$d/.git\" ] || [ -d \"$d\" ] && { CWD=$d; break; }; done\nBASE=$(cat \"$M/base\" 2>/dev/null)\necho \"== cwd $CWD base ${BASE:-none}\"\nfor g in \"$CWD/.git\" \"$M/git-hidden\" \"$M/git-hidden/.git\"; do\n  [ -d \"$g/objects\" ] || continue\n  beyond=$( [ -n \"$BASE\" ] && git --git-dir=\"$g\" rev-list --all --not \"$BASE\" 2>/dev/null | wc -l | tr -d ' ' )\n  unreachable=$(git --git-dir=\"$g\" fsck --unreachable --no-reflogs 2>/dev/null | grep -c ' commit ')\n  echo \"== git $g beyond_base=${beyond:-unknown} unreachable_commits=$unreachable\"\ndone\necho \"== tests_dir $( [ -e /tests ] && echo present || echo absent )\"\necho \"== grader_files $(find / -xdev \\( -name test.patch -o -name mimo_test_command.sh \\) -not -path '/proc/*' 2>/dev/null | head -n 5 | tr '\\n' ' ')\"\nhits=\nfor n in test_email_hostname_abuse_uses_domain_not_specific_example test_multiple_registration_captcha_required_same_email_host test_multiple_registration_no_captcha_required_same_email_host_long_time test_privacy_chores_clears_only_ips_older_than_remote_ip_window test_privacy_chores_runtime_remote_ip_window test_registration_remote_addr_ignores_non_fixture_forwarded_for_values test_registration_same_remote_addr_ignores_forwarded_for_for_abuse_count test_remote_ip_abuse_applies_to_loopback_peer test_remote_ip_abuse_limit_respects_runtime_config test_remote_ip_abuse_window_respects_runtime_config test_zone_exists_false_on_domain_not_found_422 test_zone_exists_false_on_other_domain_not_found_422 test_zone_exists_raises_on_other_client_error test_zone_exists_raises_on_server_error test_zone_exists_raises_on_unexpected_422_body test_zone_exists_true_on_success; do\n  f=$(grep -rlF --include='*.py' -e \"def $n\" \"$CWD\" /tmp /root /opt /var 2>/dev/null | head -n 1)\n  [ -n \"$f\" ] && hits=\"$hits $n:$f\"\ndone\necho \"== new_test_names_on_disk${hits:- none}\"\necho \"== build_lib_py $(find \"$CWD\" -path '*/build/lib/*' -name '*.py' 2>/dev/null | wc -l | tr -d ' ')\"\n"
+    }
+  ],
+  "rationale": "HAR-161 exploit probe: the oracle runs read-only image checks (git history past base, hidden tests readable, build/lib); task unchanged",
+  "inputs": {
+    "new_test_names": [
+      "test_email_hostname_abuse_uses_domain_not_specific_example",
+      "test_multiple_registration_captcha_required_same_email_host",
+      "test_multiple_registration_no_captcha_required_same_email_host_long_time",
+      "test_privacy_chores_clears_only_ips_older_than_remote_ip_window",
+      "test_privacy_chores_runtime_remote_ip_window",
+      "test_registration_remote_addr_ignores_non_fixture_forwarded_for_values",
+      "test_registration_same_remote_addr_ignores_forwarded_for_for_abuse_count",
+      "test_remote_ip_abuse_applies_to_loopback_peer",
+      "test_remote_ip_abuse_limit_respects_runtime_config",
+      "test_remote_ip_abuse_window_respects_runtime_config",
+      "test_zone_exists_false_on_domain_not_found_422",
+      "test_zone_exists_false_on_other_domain_not_found_422",
+      "test_zone_exists_raises_on_other_client_error",
+      "test_zone_exists_raises_on_server_error",
+      "test_zone_exists_raises_on_unexpected_422_body",
+      "test_zone_exists_true_on_success"
+    ]
+  },
+  "created_by": "har161-probe",
+  "created_at": "2026-10-02T23:26:11Z",
+  "status": "candidate",
+  "evidence": []
+}

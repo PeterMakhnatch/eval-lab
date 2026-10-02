@@ -689,6 +689,13 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
     )
     if request.agent in CONTROL_AGENTS:
         return _validate_modelfree_setup(fingerprint, repo_root)
+    from evallab.exploit_probe import PREAMBLE as EXPLOIT_PROBE_PREAMBLE
+
+    if getattr(spec, "extra_instruction_path", None) == EXPLOIT_PROBE_PREAMBLE:
+        # HAR-161 exploit probe: an adversarial task-quality check, not a
+        # capability measurement, so there is no reference setup to match.
+        # It keeps the gates that matter: locked sandbox and ledger binding.
+        return _validate_modelfree_setup(fingerprint, repo_root)
     name = spec.reference_profile
     if not name:
         raise ValueError(

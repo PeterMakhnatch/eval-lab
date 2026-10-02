@@ -145,7 +145,7 @@ inputs:
   - path: src/evallab/harbor_common.py
     digest: sha256:9d8fcd39bab5db27cb11d9ee5ff58efb71a2dc4787c9b83eba4a53da55738637
   - path: src/evallab/harbor_daytona.py
-    digest: sha256:57c07e347709339d3b8b622fdbfb572fbc1a410b1a1c9bea6de05f1af17b0993
+    digest: sha256:e85f27c554ef23fc59257972078ed547c5b6a86324536d06aafe9791cee6a6d6
   - path: src/evallab/harbor_deepseek.py
     digest: sha256:e54d726c085e2f26942863736382d628904ab2e4059c44e4dc29b858fff09a56
   - path: src/evallab/harbor_glm_selfhosted.py

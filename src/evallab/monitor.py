@@ -546,11 +546,13 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None)
             profile = {"model": args.model, "endpoint": args.endpoint,
                        "input_usd_per_million": args.input_price,
                        "output_usd_per_million": args.output_price,
-                       "disable_thinking": args.disable_thinking}
+                       "disable_thinking": args.disable_thinking,
+                       "response_format": args.response_format}
             # Validate hosted transport before creating a persistent budget.
             transport = OpenAIInvestigator(endpoint=args.endpoint, model=args.model,
                                            api_key=key, timeout_seconds=limits.timeout_seconds,
-                                           disable_thinking=args.disable_thinking)
+                                           disable_thinking=args.disable_thinking,
+                                           response_format=args.response_format)
             output_root = _analysis_root(out_dir, roots)
             budget = InvestigationBudget(_safe_path(output_root, output_root / "spend.jsonl"),
                                          budget_usd=args.budget_usd, max_calls=args.max_calls,
@@ -596,6 +598,9 @@ def build_investigate_parser(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--api-key-env", default="OPENAI_API_KEY", help="Credential environment variable name")
             command.add_argument("--disable-thinking", action="store_true",
                                  help="Explicit thinking.type=disabled for compatible providers")
+            command.add_argument("--response-format", choices=("json_schema", "json_object"),
+                                 default="json_schema",
+                                 help="Explicit provider JSON capability; never falls back automatically")
             command.add_argument("--budget-usd", type=float, required=True, help="Lifetime aggregate reservation ceiling")
             command.add_argument("--input-price", type=float, required=True, help="Pinned USD per million input tokens")
             command.add_argument("--output-price", type=float, required=True, help="Pinned USD per million output tokens")

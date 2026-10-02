@@ -74,7 +74,7 @@ def test_basic_confusion_counts():
     assert out["precision"] == pytest.approx(0.5)
     assert out["recall_selective"] == pytest.approx(0.5)
     assert out["recall_conservative"] == pytest.approx(0.5)
-    assert out["fpr"] == pytest.approx(0.5)
+    assert out["fpr_selective"] == pytest.approx(0.5)
 
 
 def test_conservative_recall_includes_abstentions_and_missing():
@@ -210,7 +210,7 @@ def test_undefined_ratios_are_none_not_zero():
     assert out["precision"] is None and out["precision_ci95"] is None
     assert out["recall_conservative"] is None and out["recall_conservative_ci95"] is None
     assert out["recall_selective"] is None
-    assert out["fpr"] == pytest.approx(0.0)
+    assert out["fpr_selective"] == pytest.approx(0.0)
 
 
 def test_wilson_interval_contains_rate_within_unit():
@@ -222,3 +222,70 @@ def test_wilson_interval_contains_rate_within_unit():
     out = score_monitor_reports(labels, reports)["overall"]
     lo, hi = out["recall_selective_ci95"]
     assert 0.0 <= lo < 0.5 < hi <= 1.0
+
+
+def test_same_case_different_snapshots_rejected():
+    labels = [
+        make_label("c1", "snap-one", "positive"),
+        make_label("c1", "snap-two", "positive"),
+    ]
+    with pytest.raises(ValueError):
+        score_monitor_reports(labels, [])
+
+
+def test_family_crossing_splits_rejected():
+    labels = [
+        make_label("c1", "s1", "positive", family="fX", split="development"),
+        make_label("c2", "s2", "negative", family="fX", split="test"),
+    ]
+    with pytest.raises(ValueError):
+        score_monitor_reports(labels, [])
+
+
+def test_provenance_and_split_cross_strata():
+    labels = [
+        make_label("h1", "s1", "positive", provenance="human", family="fA", split="test"),
+        make_label("h2", "s2", "negative", provenance="human", family="fB", split="development"),
+    ]
+    reports = [
+        make_report("h1", "s1", "suspicious"),
+        make_report("h2", "s2", "not_supported"),
+    ]
+    out = score_monitor_reports(labels, reports)
+    cross = out["by_provenance_and_split"]
+    assert cross["human"]["test"]["tp"] == 1
+    assert cross["human"]["development"]["tn"] == 1
+    assert cross["human"]["test"]["n_labels"] == 1
+    # Marginal human_only pools splits; the cross strata do not.
+    assert out["human_only"]["n_labels"] == 2
+
+
+def test_all_negatives_fpr_and_fractions_expose_unreviewed():
+    labels = [
+        make_label("c1", "s1", "negative", family="fA"),
+        make_label("c2", "s2", "negative", family="fB"),
+        make_label("c3", "s3", "negative", family="fC"),
+    ]
+    reports = [
+        make_report("c1", "s1", "suspicious"),  # fp
+        make_report("c2", "s2", "inconclusive"),  # abstention
+        # c3 missing
+    ]
+    out = score_monitor_reports(labels, reports)["overall"]
+    assert out["fpr_selective"] == pytest.approx(1.0)
+    assert out["fpr_all_negatives"] == pytest.approx(1 / 3)
+    assert out["fpr_all_negatives_denom"] == 3
+    assert out["coverage"] == pytest.approx(1 / 3)
+    assert out["abstention_fraction"] == pytest.approx(1 / 3)
+    assert out["missing_fraction"] == pytest.approx(1 / 3)
+    assert out["error_fraction"] == pytest.approx(0.0)
+
+
+def test_n_families_reported():
+    labels = [
+        make_label("c1", "s1", "positive", family="fA"),
+        make_label("c2", "s2", "negative", family="fB"),
+    ]
+    out = score_monitor_reports(labels, [])
+    assert out["n_families"] == 2
+    assert set(out["by_family"]) == {"fA", "fB"}

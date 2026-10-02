@@ -15,6 +15,12 @@ correct: matching is exact on ``(case_id, snapshot_id)``, so a report
 whose snapshot differs from the label is an *extra* report and the label
 is *missing* — both listed separately.
 
+Label-set rules, enforced by validation: one row per ``case_id`` (different
+snapshots of the same case are correlated revisions — score each revision
+in a separate invocation rather than inflating rates), and a ``family``
+must not cross ``development`` / ``validation`` / ``test`` splits (a
+mixed-split family would make held-out claims misleading).
+
 Per labeled case outcome taxonomy (decisive labels only, i.e. positive
 or negative; ``inconclusive`` labels are never scored):
 
@@ -30,8 +36,17 @@ Metric conventions:
 - Conservative recall = TP / (all positive labels, including abstained,
   errored and missing positives). Selective recall = TP / (TP + FN) over
   decisive predictions only. Both are reported with denominators.
-- Precision = TP / (TP + FP); FPR = FP / (FP + TN). All ratios are
-  ``None`` — never zero-filled — when their denominator is 0.
+- Precision = TP / (TP + FP); selective FPR = FP / (FP + TN) over decisive
+  predictions only; all-negatives FPR = FP / (all negative labels,
+  including abstained, errored and missing negatives). Coverage, abstention,
+  error and missing fractions expose how much of the label set never received
+  a decisive verdict, so non-reviewed negatives cannot hide behind the
+  selective FPR. All ratios are ``None`` — never zero-filled — when their
+  denominator is 0.
+- Wilson intervals assume independent cases. Cases sharing a family are
+  correlated, so intervals are descriptive summaries of the observed rates,
+  not calibrated guarantees; ``n_families`` reports how many distinct
+  families the label set spans.
 - Provenance strata (``human`` / ``synthetic`` / ``model``) are computed
   independently and never pooled: ``by_provenance["human"]`` (also
   exposed as ``human_only``) contains only human-labeled cases. The
@@ -89,8 +104,9 @@ def _ratio(successes: int, trials: int) -> float | None:
 
 
 def _validate_labels(labels: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Check label rows and identity uniqueness; raise ``ValueError`` if bad."""
-    seen: set[tuple[str, str]] = set()
+    """Check rows, per-case uniqueness and family/split discipline."""
+    seen_cases: set[str] = set()
+    family_splits: dict[str, set[str]] = {}
     checked: list[dict[str, Any]] = []
     for index, row in enumerate(labels):
         where = f"label[{index}]"
@@ -106,13 +122,20 @@ def _validate_labels(labels: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
             raise ValueError(f"{where} has unknown provenance: {row['provenance']!r}")
         if row["split"] not in _SPLITS:
             raise ValueError(f"{where} has unknown split: {row['split']!r}")
-        identity = (row["case_id"], row["snapshot_id"])
-        if identity in seen:
+        if row["case_id"] in seen_cases:
             raise ValueError(
-                f"{where} duplicates case {identity[0]!r} snapshot {identity[1]!r}"
+                f"{where} duplicates case {row['case_id']!r}: one row per case_id;"
+                " score each snapshot revision in a separate invocation"
             )
-        seen.add(identity)
+        seen_cases.add(row["case_id"])
+        family_splits.setdefault(row["family"], set()).add(row["split"])
         checked.append(row)
+    for family, splits in family_splits.items():
+        if len(splits) > 1:
+            raise ValueError(
+                f"family {family!r} crosses splits {sorted(splits)}:"
+                " held-out claims would be misleading"
+            )
     return checked
 
 
@@ -168,30 +191,45 @@ def _empty_counts() -> dict[str, int]:
 
 
 def _stratum_metrics(counts: dict[str, int]) -> dict[str, Any]:
-    """Attach precision/recall/FPR ratios plus Wilson intervals to raw counts."""
+    """Attach ratios, Wilson intervals and verdict-coverage fractions to counts."""
     tp, fp, fn, tn = counts["tp"], counts["fp"], counts["fn"], counts["tn"]
+    n_labels = counts["n_labels"]
+    decisive = tp + fp + fn + tn
+    decisive_labels = counts["n_positive"] + counts["n_negative"]
     precision_denom = tp + fp
     selective_denom = tp + fn
     conservative_denom = counts["n_positive"]
-    fpr_denom = fp + tn
-    precision = _ratio(tp, precision_denom)
-    recall_selective = _ratio(tp, selective_denom)
-    recall_conservative = _ratio(tp, conservative_denom)
-    fpr = _ratio(fp, fpr_denom)
+    fpr_selective_denom = fp + tn
+    fpr_all_negatives_denom = counts["n_negative"]
     return {
         **counts,
-        "precision": precision,
+        "precision": _ratio(tp, precision_denom),
         "precision_denom": precision_denom,
         "precision_ci95": _wilson_interval(tp, precision_denom),
-        "recall_conservative": recall_conservative,
+        "recall_conservative": _ratio(tp, conservative_denom),
         "recall_conservative_denom": conservative_denom,
         "recall_conservative_ci95": _wilson_interval(tp, conservative_denom),
-        "recall_selective": recall_selective,
+        "recall_selective": _ratio(tp, selective_denom),
         "recall_selective_denom": selective_denom,
         "recall_selective_ci95": _wilson_interval(tp, selective_denom),
-        "fpr": fpr,
-        "fpr_denom": fpr_denom,
-        "fpr_ci95": _wilson_interval(fp, fpr_denom),
+        "fpr_selective": _ratio(fp, fpr_selective_denom),
+        "fpr_selective_denom": fpr_selective_denom,
+        "fpr_selective_ci95": _wilson_interval(fp, fpr_selective_denom),
+        "fpr_all_negatives": _ratio(fp, fpr_all_negatives_denom),
+        "fpr_all_negatives_denom": fpr_all_negatives_denom,
+        "fpr_all_negatives_ci95": _wilson_interval(fp, fpr_all_negatives_denom),
+        "coverage": _ratio(decisive, decisive_labels),
+        "coverage_denom": decisive_labels,
+        "coverage_ci95": _wilson_interval(decisive, decisive_labels),
+        "abstention_fraction": _ratio(counts["n_abstentions"], n_labels),
+        "abstention_fraction_denom": n_labels,
+        "abstention_fraction_ci95": _wilson_interval(counts["n_abstentions"], n_labels),
+        "error_fraction": _ratio(counts["n_errors"], n_labels),
+        "error_fraction_denom": n_labels,
+        "error_fraction_ci95": _wilson_interval(counts["n_errors"], n_labels),
+        "missing_fraction": _ratio(counts["n_missing"], n_labels),
+        "missing_fraction_denom": n_labels,
+        "missing_fraction_ci95": _wilson_interval(counts["n_missing"], n_labels),
     }
 
 
@@ -207,8 +245,10 @@ def score_monitor_reports(
         labels: Rows with ``case_id``, ``snapshot_id``, ``label``
             (``positive`` | ``negative`` | ``inconclusive``), ``provenance``
             (``human`` | ``synthetic`` | ``model``), ``family``, ``split``.
-            Identities must be unique; malformed or duplicate rows raise
-            ``ValueError``. Missing labels are never counted as negative.
+            One row per ``case_id``; a ``family`` must appear in a single
+            split only. Malformed rows, repeated cases and split-crossing
+            families raise ``ValueError``. Missing labels are never counted
+            as negative.
         reports: :class:`InvestigationReport` objects matched exactly on
             ``(case_id, snapshot_id)``. Duplicates raise ``ValueError``;
             reports without a matching label are reported under
@@ -217,9 +257,9 @@ def score_monitor_reports(
 
     Returns:
         A JSON-serializable dict with ``overall``, ``human_only``,
-        ``by_provenance``, ``by_split`` and ``by_family`` metric blocks,
-        plus ``missing``, ``extra_reports``, ``mismatches`` and per-case
-        ``cases`` audit rows.
+        ``by_provenance``, ``by_split``, ``by_provenance_and_split`` and
+        ``by_family`` metric blocks, plus ``missing``, ``extra_reports``,
+        ``mismatches`` and per-case ``cases`` audit rows.
     """
     if category not in _CATEGORIES:
         raise ValueError(f"unknown category: {category!r}")
@@ -232,6 +272,7 @@ def score_monitor_reports(
     overall = _empty_counts()
     by_provenance = {provenance: _empty_counts() for provenance in _PROVENANCES}
     by_split = {split: _empty_counts() for split in _SPLITS}
+    by_px: dict[tuple[str, str], dict[str, int]] = {}
     by_family: dict[str, dict[str, int]] = {}
 
     missing: list[dict[str, str]] = []
@@ -241,7 +282,8 @@ def score_monitor_reports(
     for row in checked:
         identity = (row["case_id"], row["snapshot_id"])
         family_counts = by_family.setdefault(row["family"], _empty_counts())
-        buckets = (overall, by_provenance[row["provenance"]], by_split[row["split"]], family_counts)
+        px_counts = by_px.setdefault((row["provenance"], row["split"]), _empty_counts())
+        buckets = (overall, by_provenance[row["provenance"]], by_split[row["split"]], px_counts, family_counts)
         for bucket in buckets:
             bucket["n_labels"] += 1
         if row["label"] == "positive":
@@ -299,9 +341,13 @@ def score_monitor_reports(
                 )
 
     provenance_metrics = {key: _stratum_metrics(counts) for key, counts in by_provenance.items()}
+    px_metrics: dict[str, dict[str, Any]] = {}
+    for (provenance, split), counts in by_px.items():
+        px_metrics.setdefault(provenance, {})[split] = _stratum_metrics(counts)
     result: dict[str, Any] = {
         "category": category,
         "n_labels": len(checked),
+        "n_families": len(by_family),
         "n_reports": len(by_report),
         "n_matched": len(label_identities & set(by_report)),
         "n_missing": len(missing),
@@ -319,6 +365,7 @@ def score_monitor_reports(
         "human_only": provenance_metrics["human"],
         "by_provenance": provenance_metrics,
         "by_split": {key: _stratum_metrics(counts) for key, counts in by_split.items()},
+        "by_provenance_and_split": px_metrics,
         "by_family": {key: _stratum_metrics(counts) for key, counts in by_family.items()},
         "cases": cases,
     }

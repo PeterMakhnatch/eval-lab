@@ -18,6 +18,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from evallab.edit_signals import blank_quoted_and_heredocs
 from evallab.trial_diagnosis import sanitize_excerpt
 
 CLIP_CHARS = 160
@@ -382,7 +383,8 @@ def _is_edit(command: str, tool: str) -> bool:
         return True
     if re.search(r"""open\(\s*['\"][^'\"]+['\"]\s*,\s*['\"][wa]""", command):
         return True
-    for tokens in _segments(command):
+    unquoted = blank_quoted_and_heredocs(command)
+    for tokens in _segments(unquoted):
         found = _program(tokens)
         if found is None:
             continue
@@ -441,7 +443,8 @@ def repo_edit_paths(tool: str, command: str) -> list[str]:
         return assigns.get(name)
 
     paths: list[str] = []
-    for match in _WRITE_REDIRECT_RE.finditer(command):
+    unquoted = blank_quoted_and_heredocs(command)
+    for match in _WRITE_REDIRECT_RE.finditer(unquoted):
         if match.group(1) not in ("&1", "&2", "1", "2"):
             paths.append(match.group(1))
     for match in _OPEN_WRITE_RE.finditer(command):

@@ -64,7 +64,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
+from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES, blank_quoted_and_heredocs
 
 TOKEN_FLOW_SCHEMA = "token_flow/v1"
 
@@ -85,7 +85,7 @@ CHARS_PER_TOKEN = 4
 
 _SUMMARIZATION_MARKER = "context summarization"
 
-_REDIRECT_TARGET_RE = re.compile(r"(?:^|[;&|\n])\s*[^>&|]*?>\s*([^\s;|&\"']+)")
+_REDIRECT_TARGET_RE = re.compile(r"(?:^|[;&|\n])\s*[^>&|]*?>>?\s*([^\s;|&\"'>]+)")
 _TEE_TARGET_RE = re.compile(r"\btee\s+(?:-[a-z]+\s+)*([^\s;|&\"']+)")
 _PATCH_FILE_RE = re.compile(
     r"^\*\*\*\s+(?:Update File|Add File|Delete File):\s*(\S+)", re.MULTILINE
@@ -124,7 +124,7 @@ def normalized_command(text: str) -> str:
 #: space is not a word boundary). The redirect alternative below covers
 #: shell ``>``/``>>`` writes the shared patterns miss; ``2>``/``>&``/``->``
 #: are excluded.
-_EDIT_REDIRECT_RE = re.compile(r"(?<![\-<>0-9&])>\s*[^\s;|&\"'>]+|\btee\b")
+_EDIT_REDIRECT_RE = re.compile(r"(?<![\-<0-9&])(?:>>|>)\s*[^\s;|&\"'>]+|\btee\b")
 
 #: Write signals inside embedded scripts (heredocs, ``python -c``). The
 #: shared patterns match any ``open(``, including read-only probes such as
@@ -223,11 +223,12 @@ def _is_edit(step: dict[str, Any]) -> tuple[bool, str]:
             continue
         if _WRITE_SIGNAL_RE.search(keys):
             return True, "write-call"
-        if EDIT_COMMAND_PATTERNS.search(keys) and not (
+        unquoted = blank_quoted_and_heredocs(keys)
+        if EDIT_COMMAND_PATTERNS.search(unquoted) and not (
             _PYTHON_READ_RE.search(keys) and not _WRITE_SIGNAL_RE.search(keys)
         ):
             return True, "command-pattern"
-        if _EDIT_REDIRECT_RE.search(keys):
+        if _EDIT_REDIRECT_RE.search(unquoted):
             return True, "shell-redirect"
     return False, ""
 
@@ -238,11 +239,12 @@ def _touched_paths(step: dict[str, Any]) -> list[str]:
     for _, keys in _step_calls(step):
         if not keys:
             continue
-        for match in _REDIRECT_TARGET_RE.finditer(keys):
+        unquoted = blank_quoted_and_heredocs(keys)
+        for match in _REDIRECT_TARGET_RE.finditer(unquoted):
             candidate = match.group(1).strip().strip("'\"")
             if _looks_like_path(candidate):
                 paths.append(candidate)
-        for match in _TEE_TARGET_RE.finditer(keys):
+        for match in _TEE_TARGET_RE.finditer(unquoted):
             candidate = match.group(1).strip().strip("'\"")
             if _looks_like_path(candidate):
                 paths.append(candidate)

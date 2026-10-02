@@ -1068,3 +1068,24 @@ def test_first_failure_is_null_for_a_clean_run(tmp_path: Path) -> None:
         "confidence": None,
     }
     assert "- First failure: none found." in markdown
+
+
+def test_repo_edit_paths_ignores_quoted_greater_than() -> None:
+    from evallab.interpretation.outside_fetch import repo_edit_paths
+
+    assert repo_edit_paths("bash", "awk 'NR>=125 && NR<=240' schema.py") == []
+    assert repo_edit_paths("bash", 'python3 -c "print(1>0)"') == []
+    assert repo_edit_paths("bash", "grep -n 'a>b' f") == []
+    assert repo_edit_paths("bash", "cat > repo/fix.py <<'EOF'\nx\nEOF") == ["repo/fix.py"]
+    assert repo_edit_paths("bash", "cmd >> repo/out.txt") == ["repo/out.txt"]
+
+
+def test_first_failure_does_not_flag_awk_as_bad_edit(tmp_path: Path) -> None:
+    # An awk read probe with subsequent tool error should NOT produce a 'bad_edit' failure.
+    steps = [
+        _bash(1, 5, "awk 'NR>=125 && NR<=240' /workspace/repo/schema.py", "contents"),
+        _bash(2, 10, "pytest -q", "assertion failed", code=1),
+    ]
+    report = build_run_report(_trial(tmp_path, steps))
+    first_failure = report["outcome"]["first_failure"]
+    assert first_failure.get("kind") != "bad_edit"

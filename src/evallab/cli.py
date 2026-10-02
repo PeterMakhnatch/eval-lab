@@ -4308,6 +4308,77 @@ def _traj_pack_command(
         return 1
 
 
+def _review_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.interpretation.blind_review import (
+        DEFAULT_GUIDE_PATH,
+        review_freeze,
+        review_join,
+        review_prepare,
+    )
+
+    cmd = getattr(args, "review_command", None)
+    if cmd == "prepare":
+        job_dirs = (
+            [_resolve(root, p) for p in args.job_dir]
+            if getattr(args, "job_dir", None)
+            else None
+        )
+        mask_text_files = [_resolve(root, p) for p in (args.mask_text_file or [])]
+        out_dir = _resolve(root, args.out)
+        return review_prepare(
+            job_dirs=job_dirs,
+            jobs_glob=args.jobs_glob,
+            arm_regex=args.arm_regex,
+            mask_text_files=mask_text_files,
+            mask_regexes=args.mask_regex or [],
+            out_dir=out_dir,
+            raters=args.raters,
+            per_agent=args.per_agent,
+            seed=args.seed,
+            id_prefix=args.id_prefix,
+        )
+    elif cmd == "freeze":
+        review_dir = _resolve(root, args.dir)
+        labels_dir = _resolve(root, args.labels)
+        guide_path = (
+            _resolve(root, args.guide)
+            if getattr(args, "guide", None)
+            else _resolve(root, DEFAULT_GUIDE_PATH)
+        )
+        return review_freeze(
+            review_dir=review_dir,
+            labels_dir=labels_dir,
+            guide_path=guide_path,
+        )
+    elif cmd == "join":
+        review_dir = _resolve(root, args.dir)
+        predictions = (
+            _resolve(root, args.predictions)
+            if getattr(args, "predictions", None)
+            else None
+        )
+        out_tables = (
+            _resolve(root, args.out_tables)
+            if getattr(args, "out_tables", None)
+            else None
+        )
+        out_report = (
+            _resolve(root, args.out_report)
+            if getattr(args, "out_report", None)
+            else None
+        )
+        return review_join(
+            review_dir=review_dir,
+            baseline=getattr(args, "baseline", None),
+            predictions_dir=predictions,
+            out_tables=out_tables,
+            out_report=out_report,
+        )
+    return 2
+
 # ---------------------------------------------------------------------------
 # Declarative CLI Parser Construction
 # ---------------------------------------------------------------------------
@@ -6329,6 +6400,122 @@ def parser() -> argparse.ArgumentParser:
     )
     results_backfill.add_argument("--home", type=Path, default=None)
     results_backfill.set_defaults(func=_results_backfill_command)
+    review = commands.add_parser("review", help="Repeatable blind trace-review workflow")
+    review_subparsers = review.add_subparsers(dest="review_command", required=True)
+
+    review_prepare_parser = review_subparsers.add_parser(
+        "prepare", help="Sanitize multi-arm trial runs into blind rater packs"
+    )
+    review_prepare_parser.add_argument(
+        "--job-dir",
+        type=Path,
+        action="append",
+        help="Job directory containing trials (repeatable)",
+    )
+    review_prepare_parser.add_argument(
+        "--jobs-glob",
+        type=str,
+        help="Glob pattern matching job directories",
+    )
+    review_prepare_parser.add_argument(
+        "--arm-regex",
+        type=str,
+        default=r"-(?P<arm>stock|tuned|gepa)(-r\d+)?__",
+        help="Regex with named group 'arm' matched against trial names",
+    )
+    review_prepare_parser.add_argument(
+        "--mask-text-file",
+        type=Path,
+        action="append",
+        default=[],
+        help="File containing prompt text to delete (repeatable)",
+    )
+    review_prepare_parser.add_argument(
+        "--mask-regex",
+        type=str,
+        action="append",
+        default=[],
+        help="Regex pattern to strip from prompts and outputs (repeatable)",
+    )
+    review_prepare_parser.add_argument(
+        "--out",
+        type=Path,
+        required=True,
+        help="Output review directory",
+    )
+    review_prepare_parser.add_argument(
+        "--raters",
+        type=int,
+        default=2,
+        help="Number of independent raters (default: 2)",
+    )
+    review_prepare_parser.add_argument(
+        "--per-agent",
+        type=int,
+        default=6,
+        help="Number of trials per rater batch (default: 6)",
+    )
+    review_prepare_parser.add_argument(
+        "--seed",
+        type=str,
+        default=None,
+        help="Random seed for shuffling (default: random from os.urandom)",
+    )
+    review_prepare_parser.add_argument(
+        "--id-prefix",
+        type=str,
+        default="b-",
+        help="Prefix for opaque blind trial IDs (default: b-)",
+    )
+    review_prepare_parser.set_defaults(func=_review_command)
+
+    review_freeze_parser = review_subparsers.add_parser(
+        "freeze", help="Freeze blind labels and metrics with SHA256 manifest"
+    )
+    review_freeze_parser.add_argument("dir", type=Path, help="Review directory")
+    review_freeze_parser.add_argument(
+        "--labels",
+        type=Path,
+        required=True,
+        help="Labels directory containing rater_a/ and rater_b/ folders",
+    )
+    review_freeze_parser.add_argument(
+        "--guide",
+        type=Path,
+        default=None,
+        help="Canonical rater guide path (default: research/explorations/trace-lab/review/RATER_GUIDE.md)",
+    )
+    review_freeze_parser.set_defaults(func=_review_command)
+
+    review_join_parser = review_subparsers.add_parser(
+        "join", help="Verify freeze and join arm map onto blind labels and metrics"
+    )
+    review_join_parser.add_argument("dir", type=Path, help="Review directory")
+    review_join_parser.add_argument(
+        "--baseline",
+        type=str,
+        default=None,
+        help="Baseline arm for paired comparisons (default: first sorted arm)",
+    )
+    review_join_parser.add_argument(
+        "--predictions",
+        type=Path,
+        default=None,
+        help="Directory with tool prediction .jsonl files",
+    )
+    review_join_parser.add_argument(
+        "--out-tables",
+        type=Path,
+        default=None,
+        help="Output TABLES.md path override",
+    )
+    review_join_parser.add_argument(
+        "--out-report",
+        type=Path,
+        default=None,
+        help="Output REPORT.md path override",
+    )
+    review_join_parser.set_defaults(func=_review_command)
     # Live trial monitoring (Traces lane). The command function lives in
     # evallab.live_watch; this block only wires arguments, so the other
     # builder editing cli.py keeps a clean merge.
@@ -6340,6 +6527,20 @@ def parser() -> argparse.ArgumentParser:
     build_telemetry_parser(commands)
     return root
 
+def _normalize_review_argv(argv: Sequence[str] | None) -> Sequence[str] | None:
+    if argv is None:
+        argv = sys.argv[1:]
+    normalized: list[str] = []
+    i = 0
+    while i < len(argv):
+        if argv[i] == "--arm-regex" and i + 1 < len(argv) and not argv[i + 1].startswith("--"):
+            normalized.append(f"{argv[i]}={argv[i + 1]}")
+            i += 2
+        else:
+            normalized.append(argv[i])
+            i += 1
+    return normalized
+
 
 def run_cli(
     argv: Sequence[str] | None = None,
@@ -6349,7 +6550,7 @@ def run_cli(
 ) -> int:
     root = workspace if workspace is not None else repo_root()
     load_local_env(root / ".env")
-    args = parser().parse_args(argv)
+    args = parser().parse_args(_normalize_review_argv(argv))
     instrument_openinference()
     try:
         handler: Callable[..., int] | None = getattr(args, "func", None)

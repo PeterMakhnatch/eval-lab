@@ -42,7 +42,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 CENSUS = ROOT / "research/experiments/har108-python-census/task_health.parquet"
 VARIANTS = ROOT / "library/task-variants"
-REPAIR_BY = {"har113-repair", "har115-repair", "har146-repair"}
+REPAIR_BY = {"har113-repair", "har115-repair", "har146-repair", "har158-repair"}
 LEAK = "leak-close-pypi@1"
 #: Grading-time network fetch, repaired by pre-downloading during setup: the
 #: census nop (no lock) is sound on the original, but the mandatory egress
@@ -75,6 +75,13 @@ RUN_DEFECTS = {
         "sha256:541d416818c79503818c096a4e7ba4c2bc6ee37ba05684534a46a12464c3e18c",
         "image leaks the fix: /testbed/build/lib holds the fixed module, copied in "
         "G2 001269-a2-r2 (Traces HAR-128 labels_g2_tail; Cdx 1 HAR-127 11:01Z)",
+    ),
+    "format-code-task-002078": (
+        "sha256:425d3bc13b8404c73571c213f66637b2360f5c692ab1e2bb767fe43a3d959cff",
+        "broken under the egress lock (HAR-146 har146-lnop-002078): numpy's Cython test "
+        "build fails, Cython 3.0.12 rejects checks.pyx:248 (cannot assign "
+        "'NpyIter_GetMultiIndexFunc *' to 'NpyIter_GetMultiIndexFunc'); a compile error, not "
+        "a network fetch, so no prefetch repair (HAR-158 diagnosis)",
     ),
 }
 COLUMNS = (

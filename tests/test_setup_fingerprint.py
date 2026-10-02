@@ -345,3 +345,24 @@ def test_native_reference_gate_uses_native_setup(tmp_path: Path, step_limit: int
     else:
         with pytest.raises(ValueError, match="budgets.step_limit"):
             validate_request(request, repo_root=root)
+def test_modelfree_nop_of_a_registered_variant_passes_before_the_ledger_runs_it(
+    tmp_path: Path,
+) -> None:
+    root, digest = make_repo_root(
+        tmp_path,
+        with_parser=True,
+        task_id="format-code-task-900002",
+        task_name=MIMO_TASK_NAME,
+        ledger_task_id="format-code-task-900001",
+    )
+    records = root / "library/task-variants/mimo-v2.6-rl__format-code-task-900002"
+    records.mkdir(parents=True)
+    record = {"task_name": "mimo-v2.6-rl/format-code-task-900002", "variant_digest": digest}
+    (records / "abc.json").write_text(json.dumps(record))
+    spec = make_nop_spec("format-code-task-900002", digest)
+    validate_request(make_nop_request(root, "format-code-task-900002", spec), repo_root=root)
+    # A variant of another task does not lift the refusal.
+    record["task_name"] = "mimo-v2.6-rl/format-code-task-900003"
+    (records / "abc.json").write_text(json.dumps(record))
+    with pytest.raises(ValueError, match="outside the ledger"):
+        validate_request(make_nop_request(root, "format-code-task-900002", spec), repo_root=root)

@@ -429,6 +429,66 @@ HAR146_REPAIRS: dict[str, tuple[Step, ...]] = {
     ),
 }
 
+#: HAR-158: the rest of HAR-146's locked-nop finds whose grading reaches the
+#: network. Each setup runs the verifier's own install step while the network
+#: is open; the verifier's later install then finds everything present (its
+#: script has no ``set -e``, so the offline retry failing is harmless).
+HAR158_REPAIRS: dict[str, tuple[Step, ...]] = {
+    "002289": (
+        (
+            "prefetch",
+            "the verifier runs `python setup.py develop` in /opt/venv, which resolves guillotina's "
+            "requirements from PyPI; offline it fails, the egg-link is missing and conftest raises "
+            "DistributionNotFound: guillotina",
+            ". /opt/venv/bin/activate && python setup.py develop",
+        ),
+    ),
+    "002452": (
+        (
+            "prefetch",
+            "the verifier creates /testbed/.venv and pip-installs satpy[cf] and its test "
+            "dependencies on every run",
+            "if [ ! -x /testbed/.venv/bin/python3 ] || [ ! -f /testbed/.venv/pyvenv.cfg ]; then "
+            "rm -rf /testbed/.venv && python3 -m venv /testbed/.venv; fi && "
+            "/testbed/.venv/bin/python3 -m pip install -U pip setuptools wheel && "
+            "/testbed/.venv/bin/python3 -m pip install -e '.[cf]' pytest 'dask[array]' netCDF4 "
+            "h5netcdf 'numpy<2.0' 'zarr<3' 'xarray==2022.12.0' 'pandas<2.0'",
+        ),
+    ),
+    "002488": (
+        (
+            "prefetch",
+            "the verifier pip-installs pyarrow==0.14.1 into pyenv 3.7.17 when it is missing; "
+            "offline, conftest fails with No module named 'pyarrow'",
+            "P=/root/.pyenv/versions/3.7.17/bin/python && "
+            "{ $P -c 'import pyarrow' 2>/dev/null || $P -m pip install pyarrow==0.14.1; }",
+        ),
+    ),
+    "002755": (
+        (
+            "prefetch",
+            "the verifier creates /testbed/.venv under Python 3.12 and pip-installs strawberry's "
+            "extras, sanic and the pytest plugins on every run; offline, pytest<8 is missing",
+            "dev-switch python3 3.12 && { [ -d /testbed/.venv ] || python3 -m venv /testbed/.venv; } && "
+            ". /testbed/.venv/bin/activate && "
+            "pip install --no-input '.[aiohttp,asgi,django,flask,fastapi,chalice,debug]' && "
+            "pip install --no-input 'sanic>=22.12,<23' 'sanic-testing>=22.9,<23' && "
+            "pip install --no-input 'pytest>=7.2,<8' 'pytest-asyncio>=0.20,<0.21' pytest-mock "
+            "pytest-django pytest-flask freezegun pytest-aiohttp pytest-emoji pytest-benchmark "
+            "pytest-snapshot pytest-mypy-plugins mypy",
+        ),
+    ),
+    "002975": (
+        (
+            "prefetch",
+            "the verifier pip-installs setuptools_scm>=7.1,<8 into .build_env/venv before "
+            "`setup.py egg_info`",
+            ". /testbed/.build_env/venv/bin/activate && "
+            "python -m pip install 'setuptools_scm>=7.1.0,<8.0.0'",
+        ),
+    ),
+}
+
 
 def short(task_id: str) -> str:
     return task_id.removeprefix("format-code-task-")
@@ -473,6 +533,7 @@ def build(
         label = card.upper().replace("HAR", "HAR-")
         spec = nop_spec(package_rel(done), name, f"{label} {what} repair of {task_id}")
         spec["submitted_by"] = f"{card}-variants"
+        spec["task_id"] = task_id
         (specs / f"{name}.json").write_text(json.dumps(spec, indent=1) + "\n")
         out[task_id] = {
             "repair": what,
@@ -487,7 +548,16 @@ def build(
     return out
 
 
+#: ``repair_variants.py [har146|har158]``: the per-card repair sets after HAR-113's.
+CARD_REPAIRS = {"har146": HAR146_REPAIRS, "har158": HAR158_REPAIRS}
+
+
 def main() -> None:
+    if len(sys.argv) > 1:
+        card = sys.argv[1]
+        out = build(CARD_REPAIRS[card], card=card)
+        print(json.dumps({task: row["nop_job"] for task, row in out.items()}, indent=1))
+        return
     out = build(REPAIRS)
     (HERE / "repair_variants.json").write_text(json.dumps({"tasks": out}, indent=1) + "\n")
     print(f"{len(out)} repaired tasks; nop specs in {SPECS.name}/")

@@ -157,7 +157,10 @@ def select_cases(
         related_keys = _related_trials(corpus, primary, related)
         selected_keys = {primary.trial_key, *related_keys}
         subset = MonitorCorpus(
-            trials=tuple(trial for trial in corpus.trials if trial.trial_key in selected_keys),
+            trials=tuple(sorted(
+                (trial for trial in corpus.trials if trial.trial_key in selected_keys),
+                key=lambda trial: trial.trial_key,
+            )),
             limitations=corpus.limitations,
         )
         case = InvestigationCase(
@@ -240,6 +243,12 @@ def prepare_watch(
     created, unchanged, deferred = 0, 0, 0
     current_ids: list[str] = []
     with _preparation_lock(root):
+        status_file = _safe_path(root, root / "status.json")
+        prior_ids: list[str] = []
+        if status_file.exists():
+            # Verify existing identities before preserving them. A vanished
+            # source must not make a prior concern disappear from the report.
+            prior_ids = [case.case_id for case, _, _ in latest_cases(root)]
         for case, subset in selected:
             current_ids.append(case.case_id)
             case_root = root / "cases" / case.case_id
@@ -273,7 +282,9 @@ def prepare_watch(
             "new_revisions": created,
             "unchanged": unchanged,
             "coalesced_live_updates": deferred,
-            "case_ids": current_ids,
+            "case_ids": current_ids + sorted(set(prior_ids) - set(current_ids)),
+            "active_case_ids": current_ids,
+            "inactive_case_ids": sorted(set(prior_ids) - set(current_ids)),
             "limitations": list(corpus.limitations),
             "policy": {
                 "unflagged_sample": unflagged,
@@ -288,13 +299,16 @@ def prepare_watch(
     return summary
 
 
-def latest_cases(root: Path) -> list[tuple[InvestigationCase, MonitorCorpus, Path]]:
+def latest_cases(
+    root: Path, *, active_only: bool = False,
+) -> list[tuple[InvestigationCase, MonitorCorpus, Path]]:
     status = _read_json(_safe_path(root, root / "status.json"))
     if status.get("schema") != MONITOR_SCHEMA:
         raise ValueError("unsupported monitor status schema")
     cases = []
     seen: set[str] = set()
-    for case_id in status.get("case_ids", []):
+    identities = status.get("active_case_ids" if active_only else "case_ids", [])
+    for case_id in identities:
         if not isinstance(case_id, str) or not _CASE_ID.fullmatch(case_id) or case_id in seen:
             raise ValueError("invalid or duplicate monitor case identity")
         seen.add(case_id)
@@ -369,7 +383,7 @@ def run_prepared(
     _write_json(root, root / "profiles" / f"{profile_key}.json", identity, immutable=True)
     reports: list[InvestigationReport] = []
     started = 0
-    for case, corpus, revision in latest_cases(root):
+    for case, corpus, revision in latest_cases(root, active_only=True):
         work_dir = _safe_path(root, revision / "analyses" / profile_key)
         existing = _safe_path(root, work_dir / "report.json")
         if existing.exists():
@@ -410,9 +424,16 @@ def render_monitor_report(root: Path) -> str:
         "# Monitor investigations", "",
         "Read-only analysis hypotheses, not adjudicated hacks or revised rewards.", "",
     ]
+    status = _read_json(_safe_path(root, root / "status.json"))
+    inactive = set(status.get("inactive_case_ids", []))
     for case, corpus, revision in latest_cases(root):
         primary = next(trial for trial in corpus.trials if trial.trial_key == case.primary_trial)
         records = {record.record_id: record for trial in corpus.trials for record in trial.records}
+        if case.case_id in inactive:
+            lines.extend([
+                "**Source not present in the current selection.** Retained evidence only; "
+                "no new provider call is dispatched for this case.", "",
+            ])
         lines.extend([
             f"## {_text(primary.job)} / {_text(primary.trial)}", "",
             f"Case `{case.case_id}` · snapshot `{case.snapshot_id}`", "",
@@ -524,10 +545,12 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None)
                                          timeout_seconds=args.timeout)
             profile = {"model": args.model, "endpoint": args.endpoint,
                        "input_usd_per_million": args.input_price,
-                       "output_usd_per_million": args.output_price}
+                       "output_usd_per_million": args.output_price,
+                       "disable_thinking": args.disable_thinking}
             # Validate hosted transport before creating a persistent budget.
             transport = OpenAIInvestigator(endpoint=args.endpoint, model=args.model,
-                                           api_key=key, timeout_seconds=limits.timeout_seconds)
+                                           api_key=key, timeout_seconds=limits.timeout_seconds,
+                                           disable_thinking=args.disable_thinking)
             output_root = _analysis_root(out_dir, roots)
             budget = InvestigationBudget(_safe_path(output_root, output_root / "spend.jsonl"),
                                          budget_usd=args.budget_usd, max_calls=args.max_calls,
@@ -571,6 +594,8 @@ def build_investigate_parser(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--model", required=True, help="Explicit hosted model selector")
             command.add_argument("--endpoint", required=True, help="HTTPS OpenAI-compatible API base")
             command.add_argument("--api-key-env", default="OPENAI_API_KEY", help="Credential environment variable name")
+            command.add_argument("--disable-thinking", action="store_true",
+                                 help="Explicit thinking.type=disabled for compatible providers")
             command.add_argument("--budget-usd", type=float, required=True, help="Lifetime aggregate reservation ceiling")
             command.add_argument("--input-price", type=float, required=True, help="Pinned USD per million input tokens")
             command.add_argument("--output-price", type=float, required=True, help="Pinned USD per million output tokens")

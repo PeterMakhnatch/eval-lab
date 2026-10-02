@@ -68,16 +68,44 @@ class SandboxRpc:
     def execute(self, command: str, cwd: str = "", timeout: int | None = None) -> dict:
         return self._request("exec", command=command, cwd=cwd or self.cwd, timeout=timeout or 300)
 
-    def execute_detached(self, command: str, cwd: str = "", timeout: int | None = None, **_kwargs) -> dict:
+    def execute_detached(
+        self, command: str, cwd: str = "", timeout: int | None = None, **_kwargs
+    ) -> dict:
         return self.execute(command, cwd=cwd, timeout=timeout)
 
-    def copy_to(self, src_path: str, dest_path: str, *, timeout: int = 300, max_retries: int = 10) -> None:
+    def copy_to(
+        self, src_path: str, dest_path: str, *, timeout: int = 300, max_retries: int = 10
+    ) -> None:
         # Native write creates this controller-side tempfile. No task tool may
         # access the host filesystem; only the trusted transport uploads it.
         self._request("upload", source=src_path, target=dest_path, timeout=timeout)
 
     def get_template_vars(self) -> dict:
         return {"cwd": self.cwd, "timeout": 300}
+
+
+def proxy_budget_reason(status_code: Any, body_text: Any) -> str | None:
+    """Preserve a proxy budget refusal, never mistake provider throttling for it."""
+    if status_code != 429 or not isinstance(body_text, str):
+        return None
+    try:
+        payload = json.loads(body_text)
+    except ValueError:
+        payload = None
+    if isinstance(payload, dict):
+        error = payload.get("error")
+        if isinstance(error, dict):
+            reasons = (error.get("reason"), error.get("message"), payload.get("reason"))
+        else:
+            reasons = (payload.get("reason"), error, payload.get("message"))
+    else:
+        reasons = (body_text.strip(),)
+    for reason in reasons:
+        if isinstance(reason, str) and (
+            "trial budget exhausted" in reason or reason.startswith("ceiling:")
+        ):
+            return reason
+    return None
 
 
 def main() -> None:
@@ -152,18 +180,23 @@ def main() -> None:
         except ValueError:
             payload = {}
         choices = payload.get("choices") or []
-        rpc.emit({
-            "event": "model_call",
-            "name": local.name,
-            "assistant_index": local.assistant_index,
-            "sampling": {key: request.get(key) for key in SAMPLING},
-            "response_status": response.status_code,
-            "usage": payload.get("usage"),
-            "finish_reason": choices[0].get("finish_reason") if choices else None,
-        })
+        rpc.emit(
+            {
+                "event": "model_call",
+                "name": local.name,
+                "assistant_index": local.assistant_index,
+                "sampling": {key: request.get(key) for key in SAMPLING},
+                "response_status": response.status_code,
+                "usage": payload.get("usage"),
+                "finish_reason": choices[0].get("finish_reason") if choices else None,
+                "proxy_budget_reason": proxy_budget_reason(response.status_code, response.text),
+            }
+        )
 
     model.client._client.event_hooks["response"].append(record_response)
-    agent = DefaultAgent(model=model, env=rpc, msg_path=logs.agent_msg_path("main"), **config["agent"])
+    agent = DefaultAgent(
+        model=model, env=rpc, msg_path=logs.agent_msg_path("main"), **config["agent"]
+    )
     logs.register_agent("main", agent)
     status, result = None, None
     try:
@@ -172,14 +205,30 @@ def main() -> None:
     finally:
         # Official native serialization is retained for parity comparisons; it
         # does not serialize model_kwargs, so no proxy capability enters it.
-        save_traj(agent, Path(initial["native_trajectory_path"]), print_path=False,
-                  exit_status=status, result=result, log_context=logs,
-                  extra_info={"native_revision": NATIVE_REVISION, "swe_sha256": SWE_SHA256,
-                              "sampling": SAMPLING, "antihack": False})
+        save_traj(
+            agent,
+            Path(initial["native_trajectory_path"]),
+            print_path=False,
+            exit_status=status,
+            result=result,
+            log_context=logs,
+            extra_info={
+                "native_revision": NATIVE_REVISION,
+                "swe_sha256": SWE_SHA256,
+                "sampling": SAMPLING,
+                "antihack": False,
+            },
+        )
         model.client.close()
         logs.close()
-    rpc.emit({"event": "finished", "exit_status": status, "result": result,
-              "model_stats": {"api_calls": model.n_calls, **vars(model.token_stats)}})
+    rpc.emit(
+        {
+            "event": "finished",
+            "exit_status": status,
+            "result": result,
+            "model_stats": {"api_calls": model.n_calls, **vars(model.token_stats)},
+        }
+    )
 
 
 if __name__ == "__main__":

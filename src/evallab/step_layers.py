@@ -76,7 +76,7 @@ import hashlib
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
@@ -89,6 +89,7 @@ from evallab.mimo_tool_calls import (
 )
 
 __all__ = [
+    "CEILING_STOP_PREFIX",
     "STEP_LAYERS_KEY",
     "STEP_LAYERS_SCHEMA",
     "TRUNCATION_MARKER_RE",
@@ -111,12 +112,14 @@ __all__ = [
     "executed_output",
     "execution_problems",
     "feedback_error_text",
+    "limit_hit_summary",
     "observed_layer",
     "parse_observed_output",
     "proposed_layer",
     "reconstruct_layers",
     "segment_fingerprint",
     "stitch_steps",
+    "stop_category",
     "summarize_layers",
     "synthesize_atif_calls",
     "verifier_outcome",
@@ -136,6 +139,25 @@ StopReason = Literal[
     "prose_completion",
     "agent_timeout",
     "trial_budget_exhausted",
+    "loop_break",
+    "harness_step_limit",
+    "error",
+    "unknown",
+]
+#: A ``ceiling:<dimension>`` stop reason names the binding trial-budget
+#: ceiling (``input_tokens``, ``output_tokens``, ``requests``, ``cost`` or
+#: ``total_tokens``); the dimension suffix is dynamic, so these reasons are
+#: plain ``str`` rather than members of the ``StopReason`` literal.
+CEILING_STOP_PREFIX = "ceiling:"
+#: Whose limit (if any) stopped the trial. ``our_limit`` is a lab-imposed
+#: budget or loop stop; ``harness_step_limit`` is the agent harness's own
+#: step cap; ``task_timeout`` is Harbor's outer wall timeout (recorded as
+#: ``agent_timeout``); ``model_end`` is the model finishing on its own.
+StopCategory = Literal[
+    "our_limit",
+    "harness_step_limit",
+    "task_timeout",
+    "model_end",
     "error",
     "unknown",
 ]
@@ -212,9 +234,7 @@ class StitchStats:
 # --------------------------------------------------------------------------- #
 
 
-def proposed_layer(
-    message: Any, reasoning: Any, *, reason: str | None = None
-) -> dict[str, Any]:
+def proposed_layer(message: Any, reasoning: Any, *, reason: str | None = None) -> dict[str, Any]:
     """The model emission as generated: raw text plus reasoning."""
     text = message if isinstance(message, str) else None
     think = reasoning if isinstance(reasoning, str) and reasoning else None
@@ -303,9 +323,8 @@ def wrap_layers(
         "observed": dict(observed),
     }
 
-def attach_layers(
-    extra: Mapping[str, Any] | None, layers: Mapping[str, Any]
-) -> dict[str, Any]:
+
+def attach_layers(extra: Mapping[str, Any] | None, layers: Mapping[str, Any]) -> dict[str, Any]:
     """Return a copy of a step ``extra`` mapping carrying ``layers``."""
     merged = dict(extra) if isinstance(extra, Mapping) else {}
     merged[STEP_LAYERS_KEY] = dict(layers)
@@ -336,8 +355,7 @@ def build_recorded_layers(
     already ran, never a re-parse.
     """
     calls: list[dict[str, Any]] = [
-        {"keystrokes": keys, "duration_sec": duration}
-        for keys, duration in commands
+        {"keystrokes": keys, "duration_sec": duration} for keys, duration in commands
     ]
     if task_complete:
         calls.append({"task_complete": True})
@@ -368,9 +386,7 @@ def build_recorded_layers(
             None, None, sent_at=None, timeout=None, reason=not_executed_reason
         )
     else:
-        executed = executed_layer(
-            keystrokes_sent, durations_sec, sent_at=sent_at, timeout=timeout
-        )
+        executed = executed_layer(keystrokes_sent, durations_sec, sent_at=sent_at, timeout=timeout)
     return wrap_layers(
         "recorded",
         proposed_layer(message, reasoning),
@@ -543,14 +559,9 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
                     else None
                 ),
             )
-    command_calls = [
-        call for call in (calls or [])
-        if isinstance(call.get("keystrokes"), str)
-    ]
+    command_calls = [call for call in (calls or []) if isinstance(call.get("keystrokes"), str)]
     if calls is None:
-        executed = executed_layer(
-            None, None, reason="parse_error: nothing executed"
-        )
+        executed = executed_layer(None, None, reason="parse_error: nothing executed")
     else:
         sent: list[str] = []
         durations: list[float | None] = []
@@ -560,9 +571,7 @@ def reconstruct_layers(step: Mapping[str, Any], *, parse: ParserFn) -> dict[str,
                 continue
             sent.append(executed_keystrokes(text))
             duration = call.get("duration_sec")
-            durations.append(
-                duration if isinstance(duration, (int, float)) else None
-            )
+            durations.append(duration if isinstance(duration, (int, float)) else None)
         executed = executed_layer(
             sent,
             durations,
@@ -739,17 +748,15 @@ def _sha256(path: Path) -> str | None:
         return None
 
 
-def _part_stats(payload: Any) -> tuple[bool, str | None, int | None, int | None, int | None, str | None]:
+def _part_stats(
+    payload: Any,
+) -> tuple[bool, str | None, int | None, int | None, int | None, str | None]:
     if not isinstance(payload, dict):
         return False, "top-level JSON is not an object", None, None, None, None
     steps = payload.get("steps")
     if not isinstance(steps, list):
         return False, "no steps list", None, None, None, None
-    agent = sum(
-        1
-        for step in steps
-        if isinstance(step, Mapping) and step.get("source") == "agent"
-    )
+    agent = sum(1 for step in steps if isinstance(step, Mapping) and step.get("source") == "agent")
     copied = sum(1 for step in steps if isinstance(step, Mapping) and step.get("is_copied_context"))
     session = payload.get("session_id")
     return True, None, len(steps), copied, agent, session if isinstance(session, str) else None
@@ -781,17 +788,28 @@ def discover_trajectory_parts(agent_dir: Path) -> list[TrajectoryPart]:
         except (OSError, ValueError) as exc:
             parts.append(
                 TrajectoryPart(
-                    name=entry.name, kind=kind, index=index, path=entry,
-                    readable=False, reason=f"{type(exc).__name__}",
+                    name=entry.name,
+                    kind=kind,
+                    index=index,
+                    path=entry,
+                    readable=False,
+                    reason=f"{type(exc).__name__}",
                 )
             )
             continue
         readable, reason, steps, copied, agent, session = _part_stats(payload)
         parts.append(
             TrajectoryPart(
-                name=entry.name, kind=kind, index=index, path=entry,
-                sha256=_sha256(entry), readable=readable, reason=reason,
-                steps=steps, copied_steps=copied, agent_steps=agent,
+                name=entry.name,
+                kind=kind,
+                index=index,
+                path=entry,
+                sha256=_sha256(entry),
+                readable=readable,
+                reason=reason,
+                steps=steps,
+                copied_steps=copied,
+                agent_steps=agent,
                 session_id=session,
             )
         )
@@ -957,9 +975,7 @@ def coverage_record(
     for name, target in sorted(duplicates.items()):
         notes.append(f"{name} repeats an earlier segment ({target})")
     if stats.duplicated_steps:
-        notes.append(
-            f"{stats.duplicated_steps} step(s) shared across parts counted once"
-        )
+        notes.append(f"{stats.duplicated_steps} step(s) shared across parts counted once")
     return {
         "trajectory_head": head is not None and head.readable,
         "continuation_indices": present,
@@ -999,9 +1015,7 @@ def verifier_outcome(rewards: Mapping[str, Any]) -> VerifierOutcome:
     values = [
         float(value)
         for value in rewards.values()
-        if not isinstance(value, bool)
-        and isinstance(value, (int, float))
-        and math.isfinite(value)
+        if not isinstance(value, bool) and isinstance(value, (int, float)) and math.isfinite(value)
     ]
     judged = values[0] if len(values) == 1 else None
     if not values:
@@ -1028,29 +1042,107 @@ def classify_stop_reason(
     exception_info: Mapping[str, Any] | None,
     last_task_complete: bool | None = None,
     last_prose_completion: bool | None = None,
-) -> tuple[StopReason, str]:
+    native_exit_status: str | None = None,
+) -> tuple[str, str]:
     """Return (stop_reason, detail). Unknown stays unknown, never a default.
 
     ``last_task_complete`` / ``last_prose_completion`` describe the final
     accepted agent turn (from step layers) for trials that raised nothing.
+    Xiaomi's pinned ``BaseAgent`` returns ``Idle`` when the model issues no
+    tool call and ``LimitsExceeded`` at its step cap (or for an empty model
+    response, identified by ``native_exit_result``). Native failures remain
+    errors; a binding trial-budget ceiling reads ``ceiling:<dimension>``.
     """
     metadata = agent_metadata if isinstance(agent_metadata, Mapping) else {}
-    if metadata.get("stop_reason") == "trial_budget_exhausted":
-        return "trial_budget_exhausted", "agent metadata stop_reason"
+    recorded = metadata.get("stop_reason")
+    if isinstance(recorded, str) and (
+        recorded in ("trial_budget_exhausted", "loop_break", "harness_step_limit", "agent_timeout")
+        or recorded.startswith(CEILING_STOP_PREFIX)
+    ):
+        return recorded, "agent metadata stop_reason"
+    # A nudge alone does not mean the loop break ended the trial.
+    loop_break = metadata.get("loop_break")
+    if isinstance(loop_break, Mapping) and loop_break.get("stop_call") is not None:
+        return "loop_break", "agent metadata loop_break record stopped the trial"
     exc_type = _exception_type(exception_info) or ""
     if "TrialBudgetExhausted" in exc_type:
         return "trial_budget_exhausted", f"exception {exc_type}"
+    if "LoopBreakStop" in exc_type:
+        return "loop_break", f"exception {exc_type}"
     if "AgentTimeout" in exc_type or "Timeout" in exc_type:
         return "agent_timeout", f"exception {exc_type}"
     if exc_type:
         return "error", f"exception {exc_type}"
+    if native_exit_status is None:
+        value = metadata.get("native_exit_status")
+        native_exit_status = value if isinstance(value, str) else None
+    if native_exit_status == "LimitsExceeded":
+        if metadata.get("native_exit_result") == "Empty assistant response":
+            return "error", "native exit_status LimitsExceeded: empty assistant response"
+        return "harness_step_limit", "native exit_status LimitsExceeded (native step cap)"
+    if native_exit_status in ("ModelQueryError", "InfraError"):
+        return "error", f"native exit_status {native_exit_status} with no recorded exception"
     if last_prose_completion:
         return "prose_completion", "final turn mapped prose_completion to task_complete"
+    if native_exit_status == "Idle":
+        return "task_complete", "native exit_status Idle (model issued no tool call)"
     if last_task_complete:
         return "task_complete", "final turn accepted task_complete"
     if last_task_complete is False:
         return "unknown", "no exception but final turn did not complete"
     return "unknown", "no exception and no accepted final turn found"
+
+
+def stop_category(reason: str | None) -> StopCategory:
+    """Whose limit (if any) stopped the trial, for setup-limit rollups.
+
+    ``trial_budget_exhausted``, ``loop_break`` and any ``ceiling:<dimension>``
+    reason are ``our_limit``; ``harness_step_limit`` is the agent harness's
+    own step cap; ``agent_timeout`` is Harbor's outer wall timeout
+    (``task_timeout``); ``task_complete``/``prose_completion`` are the model
+    finishing on its own (``model_end``). Anything else — including
+    ``error`` and unrecognized labels — reads ``error``, except a missing or
+    ``unknown`` reason, which stays ``unknown``.
+    """
+    if reason is None or reason == "unknown":
+        return "unknown"
+    if not isinstance(reason, str):
+        return "unknown"
+    if (
+        reason == "trial_budget_exhausted"
+        or reason == "loop_break"
+        or reason.startswith(CEILING_STOP_PREFIX)
+    ):
+        return "our_limit"
+    if reason == "harness_step_limit":
+        return "harness_step_limit"
+    if reason == "agent_timeout":
+        return "task_timeout"
+    if reason in ("task_complete", "task_complete_confirmed", "prose_completion"):
+        return "model_end"
+    return "error"
+
+
+def limit_hit_summary(reasons: Iterable[str | None]) -> dict[str, Any]:
+    """Roll stop reasons up to a setup-limit summary.
+
+    Returns ``{"trials", "limit_hit_trials", "limit_hit_share",
+    "setup_limited"}``: a trial counts as limit-hit when its
+    :func:`stop_category` is ``our_limit``. ``limit_hit_share`` is ``None``
+    with no trials; ``setup_limited`` is a strict ``> 0.05`` share so a
+    lone limit stop in a large sweep does not flag the setup.
+    """
+    trials = hits = 0
+    for reason in reasons:
+        trials += 1
+        hits += stop_category(reason) == "our_limit"
+    share = (hits / trials) if trials else None
+    return {
+        "trials": trials,
+        "limit_hit_trials": hits,
+        "limit_hit_share": share,
+        "setup_limited": share is not None and share > 0.05,
+    }
 
 
 def _provider_400s(provider_usage: Any) -> tuple[int | None, int | None]:
@@ -1068,9 +1160,7 @@ def _provider_400s(provider_usage: Any) -> tuple[int | None, int | None]:
         error = call.get("error")
         reason = call.get("reason")
         unreconciled = state != "reconciled"
-        text_400 = any(
-            isinstance(value, str) and "400" in value for value in (error, reason)
-        )
+        text_400 = any(isinstance(value, str) and "400" in value for value in (error, reason))
         if (status == 400 or text_400) and unreconciled:
             bad += 1
     unresolved = provider_usage.get("unresolved_requests")
@@ -1098,9 +1188,7 @@ def _ledger_unreconciled(provider_usage: Any) -> bool | None:
         if isinstance(call, Mapping) and call.get("state") != "reconciled":
             return True
     unresolved = provider_usage.get("unresolved_requests")
-    return (
-        isinstance(unresolved, int) and not isinstance(unresolved, bool) and unresolved > 0
-    )
+    return isinstance(unresolved, int) and not isinstance(unresolved, bool) and unresolved > 0
 
 
 def execution_problems(

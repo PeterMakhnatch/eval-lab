@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from evallab.step_layers import (
     STEP_LAYERS_KEY,
     STEP_LAYERS_SCHEMA,
@@ -19,9 +21,11 @@ from evallab.step_layers import (
     executed_output,
     execution_problems,
     feedback_error_text,
+    limit_hit_summary,
     reconstruct_layers,
     segment_fingerprint,
     stitch_steps,
+    stop_category,
     summarize_layers,
     synthesize_atif_calls,
     verifier_outcome,
@@ -113,10 +117,20 @@ def test_recorded_layers_pass_through_untouched() -> None:
             "prose_shaped": False,
             "reason": None,
         },
-        {"keystrokes_sent": ["ls\n"], "durations_sec": [0.1],
-         "sent_at": None, "timeout": False, "reason": None},
-        {"output": "app\n", "truncated": False, "truncated_bytes": None,
-         "timeout_template": False, "reason": None},
+        {
+            "keystrokes_sent": ["ls\n"],
+            "durations_sec": [0.1],
+            "sent_at": None,
+            "timeout": False,
+            "reason": None,
+        },
+        {
+            "output": "app\n",
+            "truncated": False,
+            "truncated_bytes": None,
+            "timeout_template": False,
+            "reason": None,
+        },
     )
     step = _agent("m", **{STEP_LAYERS_KEY: recorded})
     assert reconstruct_layers(step, parse=_parse) == recorded
@@ -126,8 +140,10 @@ def test_prompt_steps_get_no_layers_even_with_example_commands() -> None:
     # Terminus's instruction prompt shows an example response; HAR-90's
     # 0036-e report counted its commands as three executed tool calls.
     example = json.dumps(
-        {"commands": [{"keystrokes": "ls -la\n"}, {"keystrokes": "cd project\n"}],
-         "task_complete": True}
+        {
+            "commands": [{"keystrokes": "ls -la\n"}, {"keystrokes": "cd project\n"}],
+            "task_complete": True,
+        }
     )
     for source in ("user", "system"):
         step = {"source": source, "message": f"Respond like this:\n{example}"}
@@ -158,8 +174,28 @@ def test_feedback_detector_and_executed_verdict() -> None:
     assert feedback_error_text("plain output") is None
     assert feedback_error_text(None) is None
     assert executed_output({"observation": {"results": [{"content": "hi\n"}]}}) == "hi\n"
-    assert executed_output({"observation": {"results": [{"content": "Previous response had parsing errors:\nERROR: x"}]}}) is None
-    assert executed_output({"observation": {"results": [{"content": "Technical difficulties. Please continue with the task."}]}}) is None
+    assert (
+        executed_output(
+            {
+                "observation": {
+                    "results": [{"content": "Previous response had parsing errors:\nERROR: x"}]
+                }
+            }
+        )
+        is None
+    )
+    assert (
+        executed_output(
+            {
+                "observation": {
+                    "results": [
+                        {"content": "Technical difficulties. Please continue with the task."}
+                    ]
+                }
+            }
+        )
+        is None
+    )
     assert executed_output({"observation": {"results": [{"content": "  "}]}}) is None
     assert executed_output({}) is None
 
@@ -178,8 +214,7 @@ def _doc(*messages: str, session: str = "s", copied: int = 0) -> dict[str, Any]:
         for index, message in enumerate(messages)
     ]
     for index in range(copied):
-        steps.append({"source": "agent", "message": f"old-{index}",
-                      "is_copied_context": True})
+        steps.append({"source": "agent", "message": f"old-{index}", "is_copied_context": True})
     return {"session_id": session, "steps": steps}
 
 
@@ -197,24 +232,30 @@ def test_prefix_overlap_and_copied_context() -> None:
     assert stats.duplicated_steps == 2
     assert stats.copied_context_steps == 2
 
+
 def test_timeless_steps_never_merge() -> None:
     # Without a timestamp a repeat is indistinguishable from a re-emitted
     # turn (a loop of identical calls), so it is always kept.
-    timeless = {"steps": [
-        {"source": "agent", "message": "same"},
-        {"source": "agent", "message": "same"},
-    ]}
+    timeless = {
+        "steps": [
+            {"source": "agent", "message": "same"},
+            {"source": "agent", "message": "same"},
+        ]
+    }
     unique, stats = stitch_steps([timeless])
     assert len(unique) == 2
     assert stats.duplicated_steps == 0
 
+
 def test_within_part_repeats_are_kept() -> None:
     # A loop of identical timestamped calls inside one part is evidence,
     # not a recording duplicate: only cross-part repeats merge.
-    loop = {"steps": [
-        {"source": "agent", "message": "same", "timestamp": "2026-09-01T00:02:00Z"},
-        {"source": "agent", "message": "same", "timestamp": "2026-09-01T00:02:00Z"},
-    ]}
+    loop = {
+        "steps": [
+            {"source": "agent", "message": "same", "timestamp": "2026-09-01T00:02:00Z"},
+            {"source": "agent", "message": "same", "timestamp": "2026-09-01T00:02:00Z"},
+        ]
+    }
     unique, stats = stitch_steps([loop])
     assert len(unique) == 2
     assert stats.duplicated_steps == 0
@@ -228,8 +269,11 @@ def test_whole_duplicate_segments_use_sft_vocabulary() -> None:
     assert segment_fingerprint(steps_a) != segment_fingerprint(steps_c)
     assert segment_fingerprint(None) is None
     assert duplicate_segments(
-        [("trajectory.json", steps_a), ("trajectory.cont-1.json", steps_b),
-         ("trajectory.cont-2.json", steps_c)]
+        [
+            ("trajectory.json", steps_a),
+            ("trajectory.cont-1.json", steps_b),
+            ("trajectory.cont-2.json", steps_c),
+        ]
     ) == {"trajectory.cont-1.json": "duplicate_of:trajectory.json"}
 
 
@@ -240,19 +284,25 @@ def test_coverage_uses_capture_names(tmp_path: Path) -> None:
     _write(agent / "trajectory.cont-3.json", _doc("b"))
     parts = discover_trajectory_parts(agent)
     assert [part.name for part in parts] == [
-        "trajectory.json", "trajectory.cont-1.json", "trajectory.cont-3.json"]
+        "trajectory.json",
+        "trajectory.cont-1.json",
+        "trajectory.cont-3.json",
+    ]
     docs = [json.loads((agent / part.name).read_text()) for part in parts]
     unique, stats = stitch_steps(docs)
     assert len(unique) == 2
     coverage = coverage_record(
-        parts, stats, summarization_count=3,
+        parts,
+        stats,
+        summarization_count=3,
         step_lists={part.name: docs[index].get("steps") for index, part in enumerate(parts)},
     )
     assert coverage["trajectory_head"] is True
     assert coverage["continuation_indices"] == [1, 3]
     assert coverage["continuations_missing"] == [2]
     assert coverage["duplicate_segments"] == {
-        "trajectory.cont-1.json": "duplicate_of:trajectory.json"}
+        "trajectory.cont-1.json": "duplicate_of:trajectory.json"
+    }
     assert coverage["unique_steps"] == 2
     assert coverage["complete"] is True
     assert any("counted once" in note for note in coverage["notes"])
@@ -273,7 +323,9 @@ def test_chain_union_finds_unreferenced_continuations(tmp_path: Path) -> None:
     _write(agent / "trajectory.cont-1.json", _doc("a", "b"))
     resolution = _resolve_chain_segments(agent / "trajectory.json", head, tmp_path)
     assert [path.name for path, _, _ in resolution.segments] == [
-        "trajectory.json", "trajectory.cont-1.json"]
+        "trajectory.json",
+        "trajectory.cont-1.json",
+    ]
     assert resolution.complete is True
 
 
@@ -308,24 +360,104 @@ def test_scored_timeout_stops_as_timeout_not_infra() -> None:
         exception_info={"exception_type": "TrialBudgetExhaustedError"},
     )
     assert reason == "trial_budget_exhausted"
-    reason, _ = classify_stop_reason(
-        agent_metadata={}, exception_info={}, last_task_complete=True
-    )
+    reason, _ = classify_stop_reason(agent_metadata={}, exception_info={}, last_task_complete=True)
     assert reason == "task_complete"
     reason, detail = classify_stop_reason(agent_metadata={}, exception_info={})
     assert reason == "unknown" and isinstance(detail, str) and detail
 
 
+@pytest.mark.parametrize(
+    ("metadata", "exception", "expected"),
+    [
+        ({"stop_reason": "loop_break"}, {}, "loop_break"),
+        ({}, {"exception_type": "LoopBreakStop"}, "loop_break"),
+        ({"loop_break": {"fired": True, "stop_call": 8}}, {}, "loop_break"),
+        ({"loop_break": {"fired": True, "stop_call": None}}, {}, "task_complete"),
+        (
+            {"stop_reason": "ceiling:input_tokens"},
+            {"exception_type": "TrialBudgetExhaustedError"},
+            "ceiling:input_tokens",
+        ),
+        ({"native_exit_status": "LimitsExceeded"}, {}, "harness_step_limit"),
+        (
+            {
+                "native_exit_status": "LimitsExceeded",
+                "native_exit_result": "Empty assistant response",
+            },
+            {},
+            "error",
+        ),
+        ({"native_exit_status": "Idle"}, {}, "task_complete"),
+        ({"native_exit_status": "Idle"}, {"exception_type": "AgentTimeoutError"}, "agent_timeout"),
+        ({"native_exit_status": "ModelQueryError"}, {}, "error"),
+        ({"native_exit_status": "InfraError"}, {}, "error"),
+    ],
+)
+def test_recorded_stops_take_precedence_over_completion(metadata, exception, expected) -> None:
+    reason, _ = classify_stop_reason(
+        agent_metadata=metadata, exception_info=exception, last_task_complete=True
+    )
+    assert reason == expected
+
+
+@pytest.mark.parametrize(
+    ("reason", "category"),
+    [
+        ("trial_budget_exhausted", "our_limit"),
+        ("loop_break", "our_limit"),
+        ("ceiling:output_tokens", "our_limit"),
+        ("harness_step_limit", "harness_step_limit"),
+        ("agent_timeout", "task_timeout"),
+        ("task_complete", "model_end"),
+        ("task_complete_confirmed", "model_end"),
+        ("prose_completion", "model_end"),
+        ("error", "error"),
+        ("unknown", "unknown"),
+        (None, "unknown"),
+    ],
+)
+def test_stop_categories_keep_limit_ownership_separate(reason, category) -> None:
+    assert stop_category(reason) == category
+
+
+def test_limit_hit_summary_strict_threshold_and_unknown_denominator() -> None:
+    assert limit_hit_summary(iter(())) == {
+        "trials": 0,
+        "limit_hit_trials": 0,
+        "limit_hit_share": None,
+        "setup_limited": False,
+    }
+    boundary = limit_hit_summary(iter(["loop_break", *([None] * 19)]))
+    assert boundary == {
+        "trials": 20,
+        "limit_hit_trials": 1,
+        "limit_hit_share": 0.05,
+        "setup_limited": False,
+    }
+    assert limit_hit_summary(["ceiling:requests", *([None] * 18)])["setup_limited"] is True
+    assert limit_hit_summary(["harness_step_limit", "agent_timeout"]) == {
+        "trials": 2,
+        "limit_hit_trials": 0,
+        "limit_hit_share": 0.0,
+        "setup_limited": False,
+    }
+
+
 def test_execution_problems_keep_unknowns_null() -> None:
     summary = {"parse_errors": 2, "prose_completions": 1}
-    lab = {"provider_usage": {
-        "calls": [
-            {"status": None, "state": "unresolved",
-             "reason": "provider_http_400_usage_unknown"},
-            {"status": 200, "state": "reconciled"},
-        ],
-        "unresolved_requests": 1,
-    }}
+    lab = {
+        "provider_usage": {
+            "calls": [
+                {
+                    "status": None,
+                    "state": "unresolved",
+                    "reason": "provider_http_400_usage_unknown",
+                },
+                {"status": 200, "state": "reconciled"},
+            ],
+            "unresolved_requests": 1,
+        }
+    }
     problems = execution_problems(layer_summary=summary, lab_metadata=lab)
     assert problems["parse_errors"] == 2
     assert problems["http_400_no_usage"] == 1
@@ -356,8 +488,7 @@ def test_missing_layers_read_unknown_not_zero() -> None:
     assert summary["executed_calls"] is None
     assert summary["task_complete_turns"] is None
     assert summary["layers_unknown_reason"] == (
-        "layers missing for 2 of 2 agent steps: "
-        "no recorded step_layers and no reconstructed layers"
+        "layers missing for 2 of 2 agent steps: no recorded step_layers and no reconstructed layers"
     )
     problems = execution_problems(layer_summary=summary, lab_metadata={})
     assert problems["parse_errors"] is None
@@ -397,13 +528,15 @@ def test_copied_step_without_layers_is_copied_not_missing() -> None:
 
 
 def test_ledger_reconciled_is_false_not_none() -> None:
-    lab = {"provider_usage": {
-        "calls": [
-            {"status": 200, "state": "reconciled"},
-            {"status": 200, "state": "reconciled"},
-        ],
-        "unresolved_requests": 0,
-    }}
+    lab = {
+        "provider_usage": {
+            "calls": [
+                {"status": 200, "state": "reconciled"},
+                {"status": 200, "state": "reconciled"},
+            ],
+            "unresolved_requests": 0,
+        }
+    }
     problems = execution_problems(layer_summary={}, lab_metadata=lab)
     assert problems["proxy_usage_unreconciled"] is False
     assert problems["proxy_unresolved_requests"] == 0
@@ -413,7 +546,10 @@ def test_ledger_reconciled_is_false_not_none() -> None:
 def test_diagnose_atif_scored_timeout_is_scored() -> None:
     trajectory = {"steps": [{"source": "agent", "message": "hi"}]}
     scored = diagnose_atif(
-        trajectory, trial_id="t", trial_name="t", reward=1.0,
+        trajectory,
+        trial_id="t",
+        trial_name="t",
+        reward=1.0,
         exception_class="AgentTimeoutError",
     )
     assert scored.outcome == "scored"
@@ -421,7 +557,10 @@ def test_diagnose_atif_scored_timeout_is_scored() -> None:
     assert scored.exception_class == "AgentTimeoutError"
     assert scored.modes == ()
     infra = diagnose_atif(
-        trajectory, trial_id="t", trial_name="t", reward=None,
+        trajectory,
+        trial_id="t",
+        trial_name="t",
+        reward=None,
         exception_class="AgentTimeoutError",
     )
     assert infra.outcome == "infra_failed"

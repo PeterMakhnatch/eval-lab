@@ -174,7 +174,6 @@ def test_process_job_decision_renders_counts_single_path(tmp_path: Path) -> None
     assert record["decision"] is None
 
 
-
 def _har116_usage_fixture() -> dict:
     path = Path(__file__).parent / "fixtures/process_job/har116-001181-token-ledger.json"
     return json.loads(path.read_text(encoding="utf-8"))
@@ -184,9 +183,7 @@ def test_har116_proxy_tokens_include_usage_missing_from_native_totals(tmp_path: 
     fixture = _har116_usage_fixture()
     job = tmp_path / fixture["source"]["job"]
     job.mkdir()
-    trial = _write_trial(
-        job, fixture["source"]["trial"], n_loop=1, reward=0.0, ceiling=True
-    )
+    trial = _write_trial(job, fixture["source"]["trial"], n_loop=1, reward=0.0, ceiling=True)
     result_path = trial / "result.json"
     result = json.loads(result_path.read_text(encoding="utf-8"))
     result["agent_result"] = fixture["agent_result"]
@@ -249,3 +246,140 @@ def test_unavailable_ledger_never_falls_back_to_native_tokens(
     assert saved["tokens_proxy"]["output_tokens"] is None
     assert saved["tokens_attempted_proxy"] is None
     assert saved["decision"]["facts"]["tokens"]["input_tokens"] is None
+
+
+def _write_stop_trial(
+    job: Path,
+    name: str,
+    *,
+    stop: str | None = None,
+    exception: str | None = None,
+    completion: bool = False,
+    reward: float = 0.0,
+) -> Path:
+    trial = _write_trial(job, name, n_loop=1, reward=reward, ceiling=False)
+    result = json.loads((trial / "result.json").read_text(encoding="utf-8"))
+    result["agent_result"] = {"metadata": {"stop_reason": stop} if stop else {}}
+    if exception:
+        result["exception_info"] = {"exception_type": exception}
+    (trial / "result.json").write_text(json.dumps(result), encoding="utf-8")
+    if completion:
+        step = _step(1, json.dumps({"commands": [], "task_complete": True}))
+        step["extra"] = {
+            "step_layers": {
+                "schema": "evallab.step_layers/v1",
+                "provenance": "recorded",
+                "accepted": {"kind": "calls", "calls": [], "task_complete": True},
+            }
+        }
+        (trial / "agent" / "trajectory.json").write_text(
+            json.dumps({"steps": [step]}), encoding="utf-8"
+        )
+    return trial
+
+
+@pytest.mark.parametrize(
+    ("stop", "exception", "completion", "reward", "expected_reason", "category"),
+    [
+        ("ceiling:requests", None, False, 0.0, "ceiling:requests", "our_limit"),
+        ("loop_break", None, False, 0.0, "loop_break", "our_limit"),
+        ("harness_step_limit", None, False, 0.0, "harness_step_limit", "harness_step_limit"),
+        (None, "AgentTimeoutError", False, 1.0, "agent_timeout", "task_timeout"),
+        (None, None, True, 0.0, "task_complete_confirmed", "model_end"),
+        (None, None, False, 0.0, "unknown", "unknown"),
+    ],
+)
+def test_process_job_separates_stop_category_from_counts(
+    tmp_path: Path,
+    stop: str | None,
+    exception: str | None,
+    completion: bool,
+    reward: float,
+    expected_reason: str,
+    category: str,
+) -> None:
+    job = tmp_path / "job"
+    _write_stop_trial(
+        job, "trial", stop=stop, exception=exception, completion=completion, reward=reward
+    )
+    out = tmp_path / "processed"
+
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
+    saved = json.loads((out / "trial-trial.json").read_text(encoding="utf-8"))
+    markdown = (out / "trial-trial.md").read_text(encoding="utf-8")
+
+    assert saved["stop_reason"] == expected_reason
+    assert saved["stop_category"] == category
+    assert saved["decision"]["facts"]["stop_category"] == category
+    assert saved["counts"]["verdict"] == ("counted_pass" if reward == 1.0 else "counted_fail")
+    assert report["summary"]["n_pass"] == int(reward == 1.0)
+    assert report["trials"][0]["stop_category"] == category
+    assert f"stop category: `{category}`" in markdown
+    assert "job limit-hit share:" in markdown
+
+
+@pytest.mark.parametrize(("trials", "flagged"), [(20, False), (19, True)])
+def test_process_job_limit_share_counts_all_trials_at_strict_boundary(
+    tmp_path: Path, trials: int, flagged: bool
+) -> None:
+    job = tmp_path / "job"
+    for index in range(trials):
+        _write_stop_trial(
+            job,
+            f"trial-{index:02}",
+            stop="loop_break" if index == 0 else "harness_step_limit",
+        )
+    out = tmp_path / "processed"
+
+    report = process_job(job, output_dir=out, ingest=False, publish=False)
+    limits = report["summary"]["limit_hit_summary"]
+    saved = json.loads((out / "trial-trial-00.json").read_text(encoding="utf-8"))
+    run_markdown = (out / "trial-trial-00.md").read_text(encoding="utf-8")
+    job_markdown = (out / "job.md").read_text(encoding="utf-8")
+
+    assert limits == {
+        "trials": trials,
+        "limit_hit_trials": 1,
+        "limit_hit_share": 1 / trials,
+        "setup_limited": flagged,
+    }
+    assert saved["job_limit_hit_summary"] == limits
+    assert f"setup-limited: `{str(flagged).lower()}`" in run_markdown
+    assert f"setup-limited: `{str(flagged).lower()}`" in job_markdown
+    assert ("flagged: over 5%" in run_markdown) is flagged
+    assert ("flagged: over 5%" in job_markdown) is flagged
+
+
+@pytest.mark.parametrize(
+    ("status", "detail", "completion", "reason", "category"),
+    [
+        ("LimitsExceeded", None, True, "harness_step_limit", "harness_step_limit"),
+        ("LimitsExceeded", "Empty assistant response", True, "error", "error"),
+        ("Idle", None, False, "task_complete", "model_end"),
+    ],
+)
+def test_process_job_native_exit_takes_precedence_over_an_earlier_completion(
+    tmp_path: Path,
+    status: str,
+    detail: str | None,
+    completion: bool,
+    reason: str,
+    category: str,
+) -> None:
+    job = tmp_path / "job"
+    trial = _write_stop_trial(job, "trial", completion=completion)
+    result = json.loads((trial / "result.json").read_text(encoding="utf-8"))
+    result["agent_result"]["metadata"] = {
+        "native_exit_status": status,
+        "native_exit_result": detail,
+    }
+    (trial / "result.json").write_text(json.dumps(result), encoding="utf-8")
+    out = tmp_path / "processed"
+
+    process_job(job, output_dir=out, ingest=False, publish=False)
+    saved = json.loads((out / "trial-trial.json").read_text(encoding="utf-8"))
+
+    assert saved["stop_reason"] == reason
+    assert saved["stop_category"] == category
+    assert saved["decision"]["facts"]["stop_category"] == category
+    assert saved["counts"]["verdict"] == "counted_fail"

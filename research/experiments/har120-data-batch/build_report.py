@@ -55,6 +55,8 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
+from evallab.step_layers import classify_stop_reason, limit_hit_summary, stop_category
+
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 SPEC_RE = re.compile(r"^har120-(\d+)-(a\d+)(-r2)?\.json$")
@@ -188,6 +190,17 @@ def read_job(job_dir: Path, derived_root: Path) -> dict:
     }
     exc_info = tres.get("exception_info") or {}
     row["exception_message"] = exc_info.get("exception_message")
+    reason = row["stop_reason_raw"]
+    if reason in (None, "unknown"):
+        reason, _ = classify_stop_reason(
+            agent_metadata=(tres.get("agent_result") or {}).get("metadata"),
+            exception_info={
+                **exc_info,
+                "exception_type": row["exception_class"] or exc_info.get("exception_type"),
+            },
+        )
+    row["stop_reason"] = reason
+    row["stop_category"] = stop_category(reason)
     row["task_name"] = trial.get("task_name")
     row["task_package_digest"] = trial.get("task_package_digest")
     # Capture-link receipt under the derived root.
@@ -718,13 +731,27 @@ def render_results_md(
     )
     A(ctx["g2_closed"])
     A("")
+    limits = limit_hit_summary(r.get("stop_reason") for r in rows if r.get("finished"))
+    share = limits["limit_hit_share"]
+    share_text = "n/a" if share is None else f"{share:.1%}"
+    A(
+        f"Limit-hit share over all finished trials: {limits['limit_hit_trials']}/"
+        f"{limits['trials']} ({share_text}); "
+        f"setup-limited: `{str(limits['setup_limited']).lower()}`."
+        + (
+            " Flagged: over 5% of trials hit our limits; treat this batch as setup-limited."
+            if limits["setup_limited"]
+            else ""
+        )
+    )
+    A("")
     A("## 2. Per-task table")
     A("")
     A(
         "| task | att | job | raw | counted | in / out (settled) | "
-        "calls | stop | nudge -> stop | capture |"
+        "calls | stop | stop category | nudge -> stop | capture |"
     )
-    A("|---|---|---|---|---|---|---|---|---|---|---|")
+    A("|---|---|---|---|---|---|---|---|---|---|---|---|")
     for r in rows:
         if r.get("which") == "r2" and r.get("status") == "absent":
             continue
@@ -752,6 +779,7 @@ def render_results_md(
             f"{counted_outcome(r)} | {tok} | "
             f"{_num((r.get('ledger_tokens') or {}).get('requests'))} | "
             f"{canonical_stop(r) if r.get('finished') else r.get('status')} | "
+            f"{r.get('stop_category') if r.get('finished') else 'n/a'} | "
             f"{nudge} | {cap} |"
         )
     A("")
@@ -1071,6 +1099,8 @@ def main(argv=None) -> int:
                 "round",
                 "outcome",
                 "stop",
+                "stop_reason",
+                "stop_category",
                 "raw_reward",
                 "verdict",
                 "reasons",

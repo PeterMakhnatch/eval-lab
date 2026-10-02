@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import shutil
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -14,6 +15,7 @@ from evallab.setup_fingerprint import (
     build_intended_fingerprint,
     compare_fingerprint,
     load_reference_profile,
+    render_spec_preflight,
     resolve_repo_root,
     trial_fingerprint,
 )
@@ -98,7 +100,7 @@ def make_spec(
         deviations=deviations or [],
         timeout_seconds=3600,
         submitted_by="test",
-        max_requests=120,
+        max_requests=500,
         max_input_tokens=2500000,
         max_output_tokens=131072,
         max_total_tokens=2631072,
@@ -120,13 +122,15 @@ def make_request(
         concurrency=1,
         timeout_seconds=3600,
         allow_billable=True,
-        max_requests=120,
-        max_input_tokens=2500000,
-        max_output_tokens=131072,
-        max_total_tokens=2631072,
-        cost_limit_usd=0.01,
+        max_requests=spec.max_requests,
+        max_input_tokens=spec.max_input_tokens,
+        max_output_tokens=spec.max_output_tokens,
+        max_total_tokens=spec.max_total_tokens,
+        cost_limit_usd=spec.cost_limit_usd,
         egress_lock=egress_lock,
         experiment_spec=spec,
+        harness_tree_path=root / spec.harness_tree_path if spec.harness_tree_path else None,
+        harness_tree_sha256=spec.harness_tree_sha256,
     )
 
 
@@ -306,6 +310,135 @@ def test_modelfree_nop_outside_ledger_refused(tmp_path: Path) -> None:
     request = make_nop_request(root, "format-code-task-900002", spec)
     with pytest.raises(ValueError, match="outside the ledger"):
         validate_request(request, repo_root=root)
+
+
+def test_reference_default_200_request_ceiling_refused(tmp_path: Path) -> None:
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    spec = make_spec(TASK_ID, digest, deviations=COVERING_DEVIATIONS).model_copy(
+        update={"max_requests": 200}
+    )
+    with pytest.raises(ValueError, match="budgets.max_requests"):
+        validate_request(make_request(root, TASK_ID, spec), repo_root=root)
+    path = root / "spec.json"
+    path.write_text(spec.model_dump_json())
+    text, ok = render_spec_preflight(path, root)
+    assert not ok
+    assert (
+        "budgets.max_requests=200: reference budgets.step_limit=500; binds before reference" in text
+    )
+
+
+def test_declared_request_ceiling_deviation_passes_preflight(tmp_path: Path) -> None:
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    spec = make_spec(
+        TASK_ID,
+        digest,
+        deviations=[
+            *COVERING_DEVIATIONS,
+            {"field": "budgets.max_requests", "value": 200, "reason": "diagnostic only"},
+        ],
+    ).model_copy(update={"max_requests": 200})
+    validate_request(make_request(root, TASK_ID, spec), repo_root=root)
+    path = root / "spec.json"
+    path.write_text(spec.model_dump_json())
+    text, ok = render_spec_preflight(path, root)
+    assert ok
+    assert "budgets.max_requests=200 (diagnostic only)" in text
+
+
+def test_reference_gate_checks_effective_request_not_spec_claim(tmp_path: Path) -> None:
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    spec = make_spec(TASK_ID, digest, deviations=COVERING_DEVIATIONS)
+    request = replace(make_request(root, TASK_ID, spec), max_requests=200)
+    with pytest.raises(ValueError, match="budgets.max_requests"):
+        validate_request(request, repo_root=root)
+
+
+@pytest.mark.parametrize(
+    "field", ["max_input_tokens", "max_output_tokens", "max_total_tokens", "cost_limit_usd"]
+)
+def test_reference_budget_refuses_lower_ceiling(tmp_path: Path, field: str) -> None:
+    import yaml
+
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    spec = make_spec(TASK_ID, digest, deviations=COVERING_DEVIATIONS)
+    path = root / "research/setup-profiles/xiaomi-mimo-rl.yaml"
+    profile = yaml.safe_load(path.read_text())
+    profile["budgets"][field] = {"value": getattr(spec, field) + 1, "source": "fixture reference"}
+    path.write_text(yaml.safe_dump(profile))
+    with pytest.raises(ValueError, match=f"budgets.{field}"):
+        validate_request(make_request(root, TASK_ID, spec), repo_root=root)
+
+
+@pytest.mark.parametrize("additions", [{"loop_break": True}, {"output_cap_chars": 2000}])
+def test_reference_harness_addition_refused(tmp_path: Path, additions: dict) -> None:
+    from evallab.terminus_harness import load_harness_tree
+
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    tree = root / "candidate"
+    (tree / "terminus").mkdir(parents=True)
+    (tree / "terminus/config.json").write_text(json.dumps(additions))
+    pinned = load_harness_tree(tree)
+    spec = make_spec(TASK_ID, digest, deviations=COVERING_DEVIATIONS).model_copy(
+        update={"harness_tree_path": "candidate", "harness_tree_sha256": pinned.sha256}
+    )
+    with pytest.raises(ValueError, match="harness.additions"):
+        validate_request(make_request(root, TASK_ID, spec), repo_root=root)
+    path = root / "spec.json"
+    path.write_text(spec.model_dump_json())
+    text, ok = render_spec_preflight(path, root)
+    assert not ok
+    assert "harness.additions" in text
+
+
+def test_declared_harness_addition_passes(tmp_path: Path) -> None:
+    from evallab.terminus_harness import load_harness_tree
+
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    tree = root / "candidate"
+    (tree / "terminus").mkdir(parents=True)
+    (tree / "terminus/config.json").write_text('{"loop_break": true}')
+    pinned = load_harness_tree(tree)
+    spec = make_spec(
+        TASK_ID,
+        digest,
+        deviations=[
+            *COVERING_DEVIATIONS,
+            {
+                "field": "harness.additions",
+                "value": {"loop_break": True},
+                "reason": "loop treatment",
+            },
+        ],
+    ).model_copy(update={"harness_tree_path": "candidate", "harness_tree_sha256": pinned.sha256})
+    validate_request(make_request(root, TASK_ID, spec), repo_root=root)
+
+
+def test_native_harness_fingerprint_uses_real_sampling_and_step_limit(tmp_path: Path) -> None:
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    spec = make_spec(
+        TASK_ID,
+        digest,
+        deviations=[
+            item
+            for item in COVERING_DEVIATIONS
+            if item["field"] not in {"harness.id", "sampling.temperature"}
+        ],
+    ).model_copy(update={"agent": "mimoagent", "max_requests": 5000})
+    request = replace(make_request(root, TASK_ID, spec), agent="mimoagent")
+    validate_request(request, repo_root=root)
+    fingerprint = build_intended_fingerprint(
+        spec=spec,
+        task_dir=Path(request.task),
+        model=request.model,
+        agent=request.agent,
+        environment=request.environment,
+        repo_root=root,
+        request=request,
+    )
+    assert fingerprint["harness"]["id"] == "mimoagent-default"
+    assert fingerprint["budgets"]["step_limit"] == 500
+    assert fingerprint["sampling"]["temperature"] == 1.0
 
 
 def test_modelfree_nop_of_a_registered_variant_passes_before_the_ledger_runs_it(

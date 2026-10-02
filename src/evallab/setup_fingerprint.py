@@ -45,6 +45,7 @@ TASK_VARIANTS_RELATIVE = "library/task-variants"
 #: lock.mode and the task ledger binding are hard gates, never deviations.
 COMPARED_FIELDS = (
     "harness.id",
+    "harness.additions",
     "server.tool_call_parser",
     "server.reasoning_parser",
     "server.context_length",
@@ -53,11 +54,26 @@ COMPARED_FIELDS = (
     "sampling.top_k",
     "lock.mode",
     "budgets.step_limit",
+    "budgets.max_requests",
+    "budgets.max_input_tokens",
+    "budgets.max_output_tokens",
+    "budgets.max_total_tokens",
+    "budgets.cost_limit_usd",
 )
 
 #: Compared fields a spec deviation may cover. The lock and the ledger
 #: binding cannot be waived by declaration.
 DEVIATION_ELIGIBLE_FIELDS = frozenset(name for name in COMPARED_FIELDS if name != "lock.mode")
+
+# Request caps are compared to native steps; cumulative token ceilings only to
+# sourced reference token budgets, never to the per-call context window.
+CEILING_REFERENCES = {
+    "budgets.max_requests": "budgets.step_limit",
+    "budgets.max_input_tokens": "budgets.max_input_tokens",
+    "budgets.max_output_tokens": "budgets.max_output_tokens",
+    "budgets.max_total_tokens": "budgets.max_total_tokens",
+    "budgets.cost_limit_usd": "budgets.cost_limit_usd",
+}
 
 
 def package_repo_root() -> Path:
@@ -270,6 +286,47 @@ def ledger_binding(
     }
 
 
+def _harness_settings(
+    spec: Any, agent: str, repo_root: Path, request: Any = None
+) -> tuple[dict[str, Any], int | None]:
+    """Read the same pinned tree the runner loads; additions default off."""
+    additions: dict[str, Any] = {}
+    step_limit = 500 if agent == "mimoagent" else None
+    tree_path = getattr(request, "harness_tree_path", None)
+    tree_digest = getattr(request, "harness_tree_sha256", None)
+    if tree_path is None and spec is not None and spec.harness_tree_path:
+        tree_path = repo_root / spec.harness_tree_path
+        tree_digest = spec.harness_tree_sha256
+    if tree_path is not None:
+        from evallab.terminus_harness import load_harness_tree
+
+        tree = load_harness_tree(tree_path, tree_digest)
+        step_limit = tree.config.get("max_turns")
+        for key in ("loop_break", "output_cap_chars", "completion_fix"):
+            if tree.config.get(key):
+                additions[key] = tree.config[key]
+        if tree.config.get("loop_break"):
+            for key in ("loop_command_run_min", "loop_message_run_min", "loop_grace_calls"):
+                if key in tree.config:
+                    additions[key] = tree.config[key]
+        if tree.rules_path is not None:
+            additions["rules"] = str(tree.rules_path.relative_to(tree.root))
+        if tree.skill_roots:
+            additions["skills"] = [str(path.relative_to(tree.root)) for path in tree.skill_roots]
+    extra = getattr(request, "extra_instruction_path", None)
+    if extra is None and spec is not None:
+        extra = spec.extra_instruction_path
+    if extra is not None:
+        extra_path = Path(extra)
+        with suppress(ValueError):
+            extra_path = extra_path.relative_to(repo_root)
+        additions["extra_instruction"] = str(extra_path)
+    skills = getattr(request, "resolved_skills", ())
+    if skills:
+        additions["extra_skills"] = list(skills)
+    return additions, step_limit
+
+
 def build_intended_fingerprint(
     *,
     spec: Any,
@@ -278,6 +335,7 @@ def build_intended_fingerprint(
     agent: str,
     environment: str = "docker",
     repo_root: Path,
+    request: Any = None,
 ) -> dict[str, Any]:
     """The setup a dispatch is about to run, from the real $0 path."""
     from evallab.execution_contracts import resolve_egress_lock
@@ -303,6 +361,20 @@ def build_intended_fingerprint(
         else dict(item)
         for item in ((spec.deviations or ()) if spec is not None else ())
     ]
+    additions, step_limit = _harness_settings(spec, agent, repo_root, request)
+    if agent == "mimoagent":
+        from evallab.mimoagent_worker import NATIVE_REVISION, SAMPLING
+
+        sampling = {
+            **SAMPLING,
+            "source": "proxy-enforced xiaomi-rl sampling profile for native mimoagent",
+        }
+        harness_version = NATIVE_REVISION
+        version_source = "pinned native mimoagent revision"
+    else:
+        harness_version = spec.harness_tree_sha256 if spec is not None else None
+        version_source = "spec harness_tree_sha256" if harness_version else "stock harbor agent"
+    limits = request if request is not None else spec
     return {
         "schema": FINGERPRINT_SCHEMA,
         "subject": {
@@ -312,13 +384,10 @@ def build_intended_fingerprint(
         },
         "reference_profile": spec.reference_profile if spec is not None else None,
         "harness": {
-            "id": agent,
-            "version": spec.harness_tree_sha256 if spec is not None else None,
-            "version_source": (
-                "spec harness_tree_sha256"
-                if spec is not None and spec.harness_tree_sha256
-                else "stock harbor agent (no harness tree pinned)"
-            ),
+            "id": "mimoagent-default" if agent == "mimoagent" else agent,
+            "version": harness_version,
+            "version_source": version_source,
+            "additions": additions,
         },
         "server": {
             "model_revision": serve.get("model_revision"),
@@ -354,14 +423,18 @@ def build_intended_fingerprint(
             "source": "registry.compute_task_digests(task).package; ledger via counts.task_index_for",
         },
         "budgets": {
-            "timeout_seconds": spec.timeout_seconds if spec is not None else None,
-            "max_requests": spec.max_requests if spec is not None else None,
-            "max_input_tokens": spec.max_input_tokens if spec is not None else None,
-            "max_output_tokens": spec.max_output_tokens if spec is not None else None,
-            "max_total_tokens": spec.max_total_tokens if spec is not None else None,
-            "cost_limit_usd": spec.cost_limit_usd if spec is not None else None,
-            "step_limit": None,
-            "step_limit_source": "terminus harness step cap is not pinned in the spec",
+            "timeout_seconds": limits.timeout_seconds if limits is not None else None,
+            "max_requests": limits.max_requests if limits is not None else None,
+            "max_input_tokens": limits.max_input_tokens if limits is not None else None,
+            "max_output_tokens": limits.max_output_tokens if limits is not None else None,
+            "max_total_tokens": limits.max_total_tokens if limits is not None else None,
+            "cost_limit_usd": limits.cost_limit_usd if limits is not None else None,
+            "step_limit": step_limit,
+            "step_limit_source": (
+                "pinned native swe.yaml step_limit"
+                if agent == "mimoagent"
+                else "pinned Terminus tree max_turns, or uncapped when absent"
+            ),
         },
         "deviations": deviations,
     }
@@ -476,13 +549,15 @@ def compare_fingerprint(
     """
     diffs: list[dict[str, Any]] = []
     for field in COMPARED_FIELDS:
-        expected, sourced, source = _reference_value(profile, field)
+        reference_field = CEILING_REFERENCES.get(field, field)
+        expected, sourced, source = _reference_value(profile, reference_field)
         if not sourced:
             continue
         actual = _fingerprint_value(fingerprint, field)
         if actual is None:
             continue
-        if actual != expected:
+        differs = actual < expected if field in CEILING_REFERENCES else actual != expected
+        if differs:
             diffs.append(
                 {
                     "field": field,
@@ -587,11 +662,11 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
     keep the gates that matter: the effective egress-lock resolution and the
     ledger binding.
     """
-    from evallab.execution_contracts import CONTROL_AGENTS, is_mimo_run
+    from evallab.execution_contracts import CONTROL_AGENTS
 
     spec = request.experiment_spec
-    if spec is None or not is_mimo_run(request.task, request.model):
-        raise ValueError("validate_mimo_setup requires a spec-driven MiMo request")
+    if spec is None:
+        raise ValueError("validate_mimo_setup requires a spec-driven request")
     task_dir = Path(request.task)
     fingerprint = build_intended_fingerprint(
         spec=spec,
@@ -600,6 +675,7 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
         agent=request.agent,
         environment=request.environment,
         repo_root=repo_root,
+        request=request,
     )
     if request.agent in CONTROL_AGENTS:
         return _validate_modelfree_setup(fingerprint, repo_root)
@@ -703,6 +779,7 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
         "",
         "fingerprint:",
         f"  harness: {fingerprint['harness']['id']} (version={fingerprint['harness']['version']})",
+        f"  harness additions: {fingerprint['harness']['additions']!r}",
         f"  server: revision={fingerprint['server']['model_revision']} "
         f"image={_short(fingerprint['server']['sglang_image'])} "
         f"parser={fingerprint['server']['tool_call_parser']} "
@@ -719,13 +796,14 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
         f"ledger={fingerprint['task']['ledger_status']} "
         f"(match={fingerprint['task']['ledger_match']})",
         f"  budgets: timeout={fingerprint['budgets']['timeout_seconds']} "
+        f"steps={fingerprint['budgets']['step_limit']} "
         f"requests={fingerprint['budgets']['max_requests']} "
         f"tokens={fingerprint['budgets']['max_input_tokens']}/"
         f"{fingerprint['budgets']['max_output_tokens']}/"
         f"{fingerprint['budgets']['max_total_tokens']} "
         f"cost={fingerprint['budgets']['cost_limit_usd']}",
     ]
-    if not is_mimo_run(task_rel, spec.model):
+    if not is_mimo_run(task_rel, spec.model) and not spec.reference_profile:
         lines += ["", "not a MiMo run: reference gate does not apply."]
         return ("\n".join(lines) + "\n", True)
     if spec.agent in CONTROL_AGENTS:
@@ -756,6 +834,21 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
         profile = load_reference_profile(profile_root, profile_name)
     except ValueError as exc:
         return ("\n".join(lines) + f"\n\nREFUSED: {exc}\n", False)
+    lines += ["", "ceiling comparison (cumulative trial budgets):"]
+    for field, reference_field in CEILING_REFERENCES.items():
+        expected, sourced, source = _reference_value(profile, reference_field)
+        actual = _fingerprint_value(fingerprint, field)
+        comparison = (
+            f"reference {reference_field}={expected!r}; "
+            + (
+                "binds before reference"
+                if actual is not None and actual < expected
+                else "not lower"
+            )
+            if sourced
+            else "reference trial budget unsourced; no ceiling comparison"
+        )
+        lines.append(f"  - {field}={actual!r}: {comparison}")
     diffs = compare_fingerprint(fingerprint, profile)
     uncovered, stale = check_deviations(diffs, fingerprint["deviations"])
     hard: list[str] = []

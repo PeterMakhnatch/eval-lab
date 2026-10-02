@@ -1747,7 +1747,9 @@ def _validate_setup_fingerprint(request: RunRequest, repo_root: Path | None) -> 
     untouched.
     """
     spec = request.experiment_spec
-    if spec is None or not is_mimo_run(request.task, request.model):
+    if spec is None or (
+        not is_mimo_run(request.task, request.model) and not spec.reference_profile
+    ):
         return
     from evallab.setup_fingerprint import resolve_repo_root, validate_mimo_setup
 
@@ -1852,7 +1854,9 @@ def build_command(request: RunRequest) -> list[str]:
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     if resolve_egress_lock(request):
         if request.environment != "daytona" or request.agent not in EGRESS_LOCK_DAYTONA_AGENTS:
-            raise ValueError("egress_lock=true requires a host-side controller or control on daytona")
+            raise ValueError(
+                "egress_lock=true requires a host-side controller or control on daytona"
+            )
         command.extend(["--environment-kwarg", "egress_lock=true"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     if request.verifier_repeat_n is not None:

@@ -25,7 +25,7 @@ inputs:
   - path: docs/agent-profiles.md
     digest: sha256:25a39ca8addc9a13867db38340b7bd3606ca87b733a54dd0facb101d7ef8c5cc
   - path: docs/analysis-loop.md
-    digest: sha256:39c554b6628bfaaf22abfd0d96da997ec065f99240f1652ec2308444c0578923
+    digest: sha256:6595fd8257a3ea3aa21a5992b71488fb140db56dcfb07399570ca13cc1102eee
   - path: docs/analysis-worker.md
     digest: sha256:e371abf23361ab2a2f75408801e57c57c7332267ad787bfd3996dddb5f48e966
   - path: docs/architecture.md
@@ -47,7 +47,7 @@ inputs:
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
-    digest: sha256:e2e65e84ada60fd38f0b134405e49681af819abd3e8be586f43f19341ba11d81
+    digest: sha256:3119327758b8bdccd57f87163d38ad4c74d3428de235373819d5d9ab464b3731
   - path: docs/craft.md
     digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
   - path: docs/dashboard.md
@@ -72,6 +72,8 @@ inputs:
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
+  - path: docs/live-watch.md
+    digest: sha256:8d97890384cf5bc7d7bff2ae58ded45df43d2ac728da6c4427b33ece2ceed51f
   - path: docs/lora-sft-runbook.md
     digest: sha256:ccb1d4e90898bd2aae019fa912081daa4cdb13c0be65e03c9487d62f12ecf7f6
   - path: docs/mimo-task-catalog.md
@@ -129,7 +131,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trial-treatment.md
-    digest: sha256:8ed1e28981c8003e1940a6e31a1b78bc57733a7a6e597854aa9cacf93715f41c
+    digest: sha256:01254ade64b2387188dd6b40cda7fd70656422e63500dfa687b9ea90e6cf8ce3
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
@@ -231,6 +233,7 @@ an operator can see what is archived.
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
@@ -332,6 +335,7 @@ an operator can see what is archived.
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |

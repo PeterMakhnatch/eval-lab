@@ -41,6 +41,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -281,6 +282,7 @@ PROVIDERS: dict[str, Any] = {
 }
 
 PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
+_LIVE_DIR_ENV = "EVALLAB_PROXY_LIVE_DIR"
 
 
 def _provider_name() -> str:
@@ -851,7 +853,107 @@ class TrialBudget:
         # the first reservation and every later call must agree. A zero-call
         # ledger keeps ``pricing: null``: no rate is invented without a call.
         self._pricing: dict[str, int] | None = None
+        live_dir_raw = os.environ.get(_LIVE_DIR_ENV)
+        self._live_dir: Path | None = Path(live_dir_raw).resolve() if live_dir_raw else None
         self._persist_locked()
+        self._write_live_limits_locked()
+
+    def _write_live_limits_locked(self) -> None:
+        if self._live_dir is None:
+            return
+        try:
+            self._live_dir.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "schema_version": 1,
+                "attempt_id": self._attempt_id,
+                "limits": self._limits,
+                "pricing": self._pricing,
+                "updated_at": datetime.now(UTC).isoformat(),
+            }
+            encoded = (json.dumps(payload, sort_keys=True, indent=2) + "\n").encode()
+            target = self._live_dir / "limits.json"
+            temporary = target.with_name(f".limits.{os.getpid()}.{threading.get_ident()}.tmp")
+            descriptor = os.open(
+                temporary,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC,
+                0o600,
+            )
+            try:
+                with open(descriptor, "wb", closefd=True) as dest:
+                    dest.write(encoded)
+                    dest.flush()
+                    os.fsync(dest.fileno())
+            except Exception:
+                with contextlib.suppress(OSError):
+                    temporary.unlink()
+                raise
+            os.replace(temporary, target)
+        except Exception as exc:
+            import sys
+
+            sys.stderr.write(f"warning: proxy failed to write live limits: {exc}\n")
+
+    def _append_live_call_locked(
+        self,
+        *,
+        call_id: int,
+        state: str,
+        status: int | None,
+        input_tokens: int,
+        output_tokens: int,
+        cost_micros: int,
+        latency_ms: float | None = None,
+        error: str | None = None,
+    ) -> None:
+        if self._live_dir is None:
+            return
+        try:
+            self._live_dir.mkdir(parents=True, exist_ok=True)
+            used_requests = 0
+            used_input = 0
+            used_output = 0
+            used_cost = 0
+            for call in self._calls:
+                st = call.get("state")
+                if st in ("reconciled", "exceeded"):
+                    used_requests += 1
+                    used_input += int(call.get("input_tokens", 0) or 0)
+                    used_output += int(call.get("output_tokens", 0) or 0)
+                    used_cost += int(call.get("cost_micros", 0) or 0)
+            record = {
+                "call_id": call_id,
+                "attempt_id": self._attempt_id,
+                "state": state,
+                "status": status,
+                "input_tokens": input_tokens,
+                "output_tokens": output_tokens,
+                "cost_micros": cost_micros,
+                "cumulative_totals": {
+                    "requests": used_requests,
+                    "input_tokens": used_input,
+                    "output_tokens": used_output,
+                    "total_tokens": used_input + used_output,
+                    "cost_micros": used_cost,
+                },
+                "timestamp": datetime.now(UTC).isoformat(),
+                "latency_ms": latency_ms,
+            }
+            if error is not None:
+                record["error"] = error
+            encoded = (json.dumps(record, sort_keys=True) + "\n").encode()
+            target = self._live_dir / "calls.jsonl"
+            descriptor = os.open(
+                target,
+                os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_CLOEXEC,
+                0o600,
+            )
+            with open(descriptor, "ab", closefd=True) as dest:
+                dest.write(encoded)
+                dest.flush()
+        except Exception as exc:
+            import sys
+
+            sys.stderr.write(f"warning: proxy failed to append live call: {exc}\n")
 
     def _freeze_pricing_locked(self, rates: tuple[int, int]) -> None:
         if self._pricing is None:
@@ -859,6 +961,7 @@ class TrialBudget:
                 "input_cost_micros_per_million": rates[0],
                 "output_cost_micros_per_million": rates[1],
             }
+            self._write_live_limits_locked()
         elif self._pricing != {
             "input_cost_micros_per_million": rates[0],
             "output_cost_micros_per_million": rates[1],
@@ -980,20 +1083,29 @@ class TrialBudget:
             self._output_tokens = next_output
             self._cost_micros = next_cost
             call_id = len(self._calls) + 1
-            self._calls.append(
-                {
-                    "call_id": call_id,
-                    "state": "reserved",
-                    "reserved_input_tokens": input_tokens,
-                    "reserved_output_tokens": output_tokens,
-                    "reserved_cost_micros": cost_micros,
-                    "requested_model": requested_model,
-                    **({"shaping_applied": True} if shaping_applied else {}),
-                    **({"sampling": sampling} if sampling is not None else {}),
-                }
-            )
+            call = {
+                "call_id": call_id,
+                "state": "reserved",
+                "reserved_input_tokens": input_tokens,
+                "reserved_output_tokens": output_tokens,
+                "reserved_cost_micros": cost_micros,
+                "requested_model": requested_model,
+                "_reserved_at_mono": time.monotonic(),
+                **({"shaping_applied": True} if shaping_applied else {}),
+                **({"sampling": sampling} if sampling is not None else {}),
+            }
+            self._calls.append(call)
             self._sequence += 1
             self._persist_locked()
+            self._append_live_call_locked(
+                call_id=call_id,
+                state="reserved",
+                status=None,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_micros=cost_micros,
+                latency_ms=None,
+            )
             return call_id
 
     def reconcile(
@@ -1010,6 +1122,9 @@ class TrialBudget:
     ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
+            now_mono = time.monotonic()
+            reserved_at = call.get("_reserved_at_mono", now_mono)
+            latency_ms = round((now_mono - reserved_at) * 1000.0, 2)
             delta_input = used_input - call["reserved_input_tokens"]
             delta_output = used_output - call["reserved_output_tokens"]
             delta_cost = used_cost - call["reserved_cost_micros"]
@@ -1030,6 +1145,16 @@ class TrialBudget:
             )
             self._sequence += 1
             self._persist_locked()
+            self._append_live_call_locked(
+                call_id=call_id,
+                state="reconciled",
+                status=status,
+                input_tokens=used_input,
+                output_tokens=used_output,
+                cost_micros=used_cost,
+                latency_ms=latency_ms,
+                error=error,
+            )
 
     def mark_unresolved(
         self,
@@ -1041,6 +1166,9 @@ class TrialBudget:
     ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
+            now_mono = time.monotonic()
+            reserved_at = call.get("_reserved_at_mono", now_mono)
+            latency_ms = round((now_mono - reserved_at) * 1000.0, 2)
             call.update(
                 {
                     "state": "unresolved",
@@ -1051,6 +1179,16 @@ class TrialBudget:
             )
             self._sequence += 1
             self._persist_locked()
+            self._append_live_call_locked(
+                call_id=call_id,
+                state="unresolved",
+                status=None,
+                input_tokens=call.get("reserved_input_tokens", 0),
+                output_tokens=call.get("reserved_output_tokens", 0),
+                cost_micros=call.get("reserved_cost_micros", 0),
+                latency_ms=latency_ms,
+                error=reason,
+            )
 
     def mark_in_flight_unresolved(self, *, reason: str) -> None:
         """Fail closed on every call still reserved: its usage is unknown."""
@@ -1058,10 +1196,24 @@ class TrialBudget:
             in_flight = [call for call in self._calls if call["state"] == "reserved"]
             if not in_flight:
                 return
+            now_mono = time.monotonic()
             for call in in_flight:
                 call.update({"state": "unresolved", "reason": reason})
                 self._sequence += 1
             self._persist_locked()
+            for call in in_flight:
+                reserved_at = call.get("_reserved_at_mono", now_mono)
+                latency_ms = round((now_mono - reserved_at) * 1000.0, 2)
+                self._append_live_call_locked(
+                    call_id=call["call_id"],
+                    state="unresolved",
+                    status=None,
+                    input_tokens=call.get("reserved_input_tokens", 0),
+                    output_tokens=call.get("reserved_output_tokens", 0),
+                    cost_micros=call.get("reserved_cost_micros", 0),
+                    latency_ms=latency_ms,
+                    error=reason,
+                )
 
     def mark_exceeded(
         self,
@@ -1074,6 +1226,9 @@ class TrialBudget:
     ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
+            now_mono = time.monotonic()
+            reserved_at = call.get("_reserved_at_mono", now_mono)
+            latency_ms = round((now_mono - reserved_at) * 1000.0, 2)
             delta_input = input_tokens - call["reserved_input_tokens"]
             delta_output = output_tokens - call["reserved_output_tokens"]
             delta_cost = cost_micros - call["reserved_cost_micros"]
@@ -1091,6 +1246,16 @@ class TrialBudget:
             )
             self._sequence += 1
             self._persist_locked()
+            self._append_live_call_locked(
+                call_id=call_id,
+                state="exceeded",
+                status=429,
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                cost_micros=cost_micros,
+                latency_ms=latency_ms,
+                error=reason,
+            )
 
     def remaining_output(self) -> int:
         with self._lock:
@@ -1736,7 +1901,10 @@ def serve(
     port: int | None = None,
     max_workers: int = MAX_CONCURRENT_WORKERS,
     ready_file: Path | str | None = None,
+    live_dir: Path | str | None = None,
 ) -> ProxyServer:
+    if live_dir is not None:
+        os.environ[_LIVE_DIR_ENV] = str(Path(live_dir).resolve())
     bound_port = int(os.environ.get("PORT", "8080") if port is None else port)
     # Fail closed at startup on a misconfigured upstream. Providers with a
     # default always pass; providers without one (mimo_selfhosted) refuse to
@@ -1765,6 +1933,11 @@ def _host_entrypoint_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=None)
     parser.add_argument("--ready-file", default=None)
     parser.add_argument(
+        "--live-dir",
+        default=None,
+        help="Optional path to directory where live limits.json and calls.jsonl are published",
+    )
+    parser.add_argument(
         "--provider",
         choices=sorted(PROVIDERS),
         default=None,
@@ -1789,6 +1962,8 @@ if __name__ == "__main__":
     _entry_args = _host_entrypoint_args()
     if _entry_args.provider is not None:
         os.environ[PROVIDER_ENV] = _entry_args.provider
+    if _entry_args.live_dir is not None:
+        os.environ[_LIVE_DIR_ENV] = str(Path(_entry_args.live_dir).resolve())
     _provider_name()  # fail closed on an unknown provider before binding
     _serve_until_terminated(
         serve(

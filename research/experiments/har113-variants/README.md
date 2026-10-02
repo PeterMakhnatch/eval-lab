@@ -118,7 +118,7 @@ so a repaired package keeps PyPI blocked (`repair_variants.py`,
 | login-path (`env-login-path@1`) | the grader runs the test command in a non-login `sh -c` whose PATH misses the interpreter the image puts on the login shell's PATH (`/testbed/.venv`, pyenv, `/opt/*-venv`); setup writes `/usr/local/bin` exec wrappers | 12 |
 | login-path-pyenv (`env-login-path@2`) | as @1, resolving a pyenv shim with the login shell's `pyenv which` (000984: under @1 the shim picked pyenv's global `system` version, found the wrapper again and exec'd in a loop until the 1800 s timeout) | 1 |
 | pin (`env-pin-dependency@1`) | setup installs what the image has wrong: a clean setuptools over a mixed install (000655, 002496), `Cython==3.0.12` for numpy's Cython test build (002078), twisted's own distribution metadata via `setup.py egg_info` (002893: pytest's unittest plugin reads it; the C test extension does not build on Python 3.11) | 4 |
-
+| prefetch (`env-prefetch-network@1`, HAR-146) | grading itself needs the network, which the HAR-140 egress lock blocks; setup fetches it while the network is open (000450: the verifier's `pip install`; 002978: kwave's binary download on import) | 2 |
 Every repair, with its nop before (the census nop) and after:
 
 | task | cause | repair | nop before | nop after | variant | status |
@@ -281,6 +281,27 @@ estimate): unknown nops $1.7127 (428), repair nops $0.2926 (58), diagnoses
 $0.3867 (32), leak probes $0.0303 (20), leak nops $0.0166 (14). The 000984 loop
 cost $0.3501 of that (its @1 nop hit the 1800 s test timeout, and its
 diagnosis ran to the agent timeout before it was cancelled). No model calls.
+
+## 6. HAR-146 locked-nop repairs
+
+HAR-140 made the Daytona egress lock mandatory for MiMo runs, and its locked
+nop check found two ledger-`usable` tasks whose grading needs the network
+(both labelled `broken_environment` under the lock, `sound` without it). Both
+are repaired with the `prefetch` kind above (`repair_variants.py`
+`HAR146_REPAIRS`, records `created_by` `har146-repair`): setup pre-installs
+or pre-downloads what grading needs, while the network is still open. Only
+dependencies and binaries are fetched; the tests are unchanged and no answer
+is leaked.
+
+| task | grading's network need | setup prefetch | locked nop after | variant | status |
+|---|---|---|---|---|---|
+| 000450 (hera) | the verifier's `mimo_test_command.sh` runs `pip install --upgrade pip setuptools wheel` and `pip install -e ".[yaml]" pytest jsonpath-ng` when `hera`/`pytest`/`yaml` is missing | create `/testbed/.venv` if missing, then the same two `pip install` commands when the imports fail | sound `har146-rnop-000450-69ba6817fcd3` | `69ba6817fcd3` | validated |
+| 002978 (kwave) | importing `kwave` calls `install_binaries()`, which downloads the k-Wave C++ binaries with `urlretrieve` | `python3 -c "from kwave.kgrid import kWaveGrid"`, asserting `binaries_present()` afterwards | sound `har146-rnop-002978-7d9cd91f5843` | `7d9cd91f5843` | validated |
+
+The ledger (`../python-task-ledger/build.py`) runs the validated prefetch
+variant for census-`sound` tasks too (`PREFETCH`), so both rows moved from
+`original` to `repair`. Validation spend: about $0.01 of Daytona for the two
+`har146-rnop-*` nops (cap $0.10).
 
 ## Reproduce
 

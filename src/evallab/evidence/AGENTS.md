@@ -19,7 +19,7 @@ extraction for evaluation telemetry.
    explicit approval (`evidence_store.py` and `state_events.py` remain at root).
 
 ## Tests or checks
-- Targeted unit tests: `pytest tests/test_atif.py tests/test_evidence_facts.py tests/test_event_mart.py`
+- Targeted tests: `pytest tests/test_pipeline.py tests/test_terminus2_analysis.py tests/test_event_mart.py`; add `tests/test_ingest_verify.py` when changing projection completeness.
 
 ## What not to add here
 Do not place raw model execution or subjective evaluator logic here.

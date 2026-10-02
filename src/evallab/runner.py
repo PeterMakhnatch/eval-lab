@@ -75,6 +75,8 @@ from evallab.execution_contracts import (
     OPENROUTER_SECRET_FILE_ENV,
     OPENROUTER_SECRET_PATH_ENV,
     OPENROUTER_UPSTREAM_ENV,
+    PROXY_LIVE_DIR_ENV,
+    PROXY_LIVE_DIR_NAME,
     REDACTED_SECRET_VALUE,
     RLM_AGENT,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
@@ -798,6 +800,7 @@ def _capture_route_token(upstream: str | None, attempt_id: str) -> dict[str, str
         return {}
     return {CAPTURE_ROUTE_TOKEN_ENV: token}
 
+
 def capture_dir_from_environment() -> Path | None:
     """This job's capture directory, or ``None`` when capture is off.
 
@@ -898,7 +901,6 @@ def maybe_link_capture(
         return None
 
 
-
 def _record_capture_link(job_dir: str | Path, receipt: dict[str, Any]) -> None:
     """Merge a capture-link summary into ``lab-metadata.json``; best-effort."""
     job_path = Path(job_dir)
@@ -927,6 +929,7 @@ def _record_capture_link(job_dir: str | Path, receipt: dict[str, Any]) -> None:
             secrets=tuple(value.encode() for value in collected_secret_values()),
         )
 
+
 def _terminus_proxy_env(
     *,
     provider: str,
@@ -940,10 +943,9 @@ def _terminus_proxy_env(
     mimo_native: str | None = None,
     openrouter_spec: OpenRouterRoute | None = None,
     mimo_sampling_profile: str = "generation-config",
+    live_dir: Path | None = None,
 ) -> dict[str, str]:
     """Build the minimal environment for the host-supervised proxy instance.
-
-    Only budget/identity knobs are passed. The real provider key is never an
     env value: the proxy reads it from the owner-only secret file. Ambient
     parent-process proxy state is not inherited.
     """
@@ -955,6 +957,8 @@ def _terminus_proxy_env(
     env["PYTHONDONTWRITEBYTECODE"] = "1"
     env["PYTHONUNBUFFERED"] = "1"
     env["EVALLAB_PROXY_PROVIDER"] = provider
+    if live_dir is not None:
+        env[PROXY_LIVE_DIR_ENV] = str(live_dir)
     if provider == MIMO_SELFHOSTED_PROXY_PROVIDER:
         if mimo_native not in MIMO_SELFHOSTED_NATIVE_MODELS:
             raise ValueError("mimo_selfhosted proxy env requires the parsed native model")
@@ -1066,6 +1070,7 @@ def _start_terminus_proxy(
     mimo_native: str | None = None,
     openrouter_spec: OpenRouterRoute | None = None,
     mimo_sampling_profile: str = "generation-config",
+    live_dir: Path | None = None,
 ) -> tuple[subprocess.Popen[bytes], str]:
     """Start the per-trial loopback proxy; return (process, proxy URL).
 
@@ -1092,22 +1097,26 @@ def _start_terminus_proxy(
         mimo_native=mimo_native,
         openrouter_spec=openrouter_spec,
         mimo_sampling_profile=mimo_sampling_profile,
+        live_dir=live_dir,
     )
+    cmd = [
+        sys.executable,
+        str(script),
+        "--provider",
+        provider,
+        "--host",
+        _TERMINUS_PROXY_HOST,
+        "--port",
+        "0",
+        "--ready-file",
+        str(ready_path),
+    ]
+    if live_dir is not None:
+        cmd.extend(["--live-dir", str(live_dir)])
     with open(stderr_path, "wb") as stderr_handle:
         os.chmod(stderr_path, 0o600)
         process = subprocess.Popen(
-            [
-                sys.executable,
-                str(script),
-                "--provider",
-                provider,
-                "--host",
-                _TERMINUS_PROXY_HOST,
-                "--port",
-                "0",
-                "--ready-file",
-                str(ready_path),
-            ],
+            cmd,
             stdin=subprocess.DEVNULL,
             stdout=subprocess.DEVNULL,
             stderr=stderr_handle,
@@ -1249,6 +1258,8 @@ def run_harbor_process(
     proxy_pricing: dict[str, int] | None = None
     terminus_proxy: subprocess.Popen[bytes] | None = None
     try:
+        if job_dir is not None:
+            runtime_environment[PROXY_LIVE_DIR_ENV] = str(job_dir / PROXY_LIVE_DIR_NAME)
         if deepseek_lane:
             if proxy_attempt_id is None or proxy_limits is None:
                 raise ValueError("DeepSeek execution requires a bound trial capability")
@@ -1633,9 +1644,9 @@ def run_harbor_process(
                 mimo_sampling_profile=(
                     "xiaomi-rl" if MIMO_AGENT_IMPORT_PATH in command else "generation-config"
                 ),
+                live_dir=(job_dir / PROXY_LIVE_DIR_NAME) if job_dir is not None else None,
             )
             if mimo_client:
-                runtime_environment[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
                 # litellm's openai-compatible lookup reads this in the
                 # controller process; the adapter overwrites it with the
                 # capability before any call. Never a task-container value.
@@ -2111,6 +2122,7 @@ def _write_run_metadata(
         secrets=tuple(value.encode() for value in collected_secret_values()),
     )
 
+
 def _network_adaptation_path(request: RunRequest) -> Path:
     return request.jobs_dir / ".executor" / f"{request.name}.network-adaptation.json"
 
@@ -2347,7 +2359,9 @@ def _check_daytona_admission(request: RunRequest) -> dict[str, Any] | None:
             storage_mb = environment.get("storage_mb")
         resources = {
             "cpu": cpu if cpu is not None else caps["cpu"],
-            "memory_gib": (memory_mb + 1023) // 1024 if memory_mb is not None else caps["memory_gib"],
+            "memory_gib": (memory_mb + 1023) // 1024
+            if memory_mb is not None
+            else caps["memory_gib"],
             "disk_gib": (storage_mb + 1023) // 1024 if storage_mb is not None else caps["disk_gib"],
             "gpu": environment.get("gpus") or 0,
         }
@@ -2366,7 +2380,7 @@ def _check_daytona_admission(request: RunRequest) -> dict[str, Any] | None:
 
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
-    validate_request(request)
+    validate_request(request, repo_root=repo_root)
     if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT, MIMO_AGENT}:
         decision = preflight_request(request)
         if not decision.proceed:
@@ -2614,6 +2628,34 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     f"{provider_label} proxy has unreconciled provider calls{cleanup_detail}",
                 )
         job = load_job(job_dir)
+        # Setup fingerprint into the batch and every trial (HAR-149): the
+        # intended setup plus the per-trial observed lock. Best-effort: the
+        # trial already ran, so a persistence failure is recorded, not raised.
+        from evallab.setup_fingerprint import (
+            build_intended_fingerprint,
+            maybe_write_fingerprints,
+        )
+
+        _fingerprint_error: str | None = None
+        try:
+            _intended = build_intended_fingerprint(
+                spec=request.experiment_spec,
+                task_dir=request.task,
+                model=request.model,
+                agent=request.agent,
+                environment=request.environment,
+                repo_root=repo_root,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _intended = {}
+            _fingerprint_error = f"{type(exc).__name__}: {exc}"
+        if _intended:
+            _fingerprint_error = maybe_write_fingerprints(job_dir, _intended)
+        if _fingerprint_error is not None:
+            with suppress(Exception):
+                (job_dir / "setup-fingerprint-error.txt").write_text(
+                    f"{_fingerprint_error}\n", encoding="utf-8"
+                )
 
         # Validate trial outcomes and evidence fidelity:
         metadata_path = job_dir / JOB_METADATA_PATH

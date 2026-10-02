@@ -264,6 +264,61 @@ def test_comparison_ranks_only_with_paired_tasks_interval_and_elicitation(
     assert "n_tasks=30, k=1" in markdown
 
 
+def _paired_for(
+    tmp_path: Path, name: str, *, n_wins: int, n_ties: int = 0, flipped: bool = False
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    base_tasks: dict[str, list[float]] = {}
+    candidate_tasks: dict[str, list[float]] = {}
+    for index in range(n_wins):
+        key = f"task-{index:02d}"
+        base_tasks[key] = [1.0] if flipped else [0.0]
+        candidate_tasks[key] = [0.0] if flipped else [1.0]
+    for index in range(n_ties):
+        key = f"tie-{index:02d}"
+        base_tasks[key] = candidate_tasks[key] = [1.0]
+    _write_job(
+        tmp_path, name=f"{name}-base", agent="agent-a", model="model-a",
+        task_rewards=base_tasks,
+    )
+    _write_job(
+        tmp_path, name=f"{name}-cand", agent="agent-b", model="model-b",
+        task_rewards=candidate_tasks,
+    )
+    report = compare(_spec(f"{name}-base", f"{name}-cand"), repo_root=tmp_path)
+    return report, report["paired"][0]
+
+
+def test_few_decisive_task_wins_refuse_despite_clearing_bootstrap(tmp_path: Path) -> None:
+    for n_wins, expected_p in ((2, 0.5), (5, 0.0625)):
+        _, paired = _paired_for(tmp_path, f"small-{n_wins}", n_wins=n_wins)
+        assert paired["bootstrap_95"] == [1.0, 1.0]
+        assert paired["rankable"] is False
+        assert paired["ranking"] is None
+        assert paired["paired_exact_p_value"] == expected_p
+
+
+def test_six_decisive_task_wins_rank(tmp_path: Path) -> None:
+    _, paired = _paired_for(tmp_path, "six", n_wins=6)
+    assert paired["rankable"] is True
+    assert paired["ranking"] == "candidate > baseline"
+    assert paired["paired_exact_p_value"] == 0.03125
+
+
+def test_mirrored_losses_share_p_and_reverse_ranking(tmp_path: Path) -> None:
+    _, wins = _paired_for(tmp_path, "wins", n_wins=6)
+    _, losses = _paired_for(tmp_path, "losses", n_wins=6, flipped=True)
+    assert losses["paired_exact_p_value"] == wins["paired_exact_p_value"]
+    assert losses["rankable"] is True
+    assert losses["ranking"] == "baseline > candidate"
+
+
+def test_two_decisive_wins_among_ties_refuse(tmp_path: Path) -> None:
+    _, paired = _paired_for(tmp_path, "ties", n_wins=2, n_ties=6)
+    assert (paired["wins"], paired["ties"], paired["losses"]) == (2, 6, 0)
+    assert paired["paired_exact_p_value"] == 0.5
+    assert paired["rankable"] is False
+
+
 def test_comparison_prints_literal_refusal_when_model_pin_is_missing(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:

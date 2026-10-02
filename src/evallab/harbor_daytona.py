@@ -21,6 +21,7 @@ import re
 import shlex
 import subprocess
 import tempfile
+import time
 from collections.abc import Iterator
 from datetime import UTC, datetime
 from pathlib import Path
@@ -50,6 +51,12 @@ _PROXY_UID = 65532
 EGRESS_LOCK_RECORD = "egress-lock.json"
 DAYTONA_USAGE_RECORD = "daytona-usage.json"
 DAYTONA_MONITOR_SECONDS = 15
+#: Daytona deletes asynchronously: right after ``delete`` the sandbox still
+#: answers, so a single check never released the admission reservation and
+#: every finished trial held its quota until the reservation's TTL (HAR-146).
+#: ``stop`` now polls for the 404 within this bound before releasing.
+DAYTONA_RELEASE_WAIT_SECONDS = 120
+DAYTONA_RELEASE_POLL_SECONDS = 5
 
 
 def render_proxy_overlay(source: Path) -> dict[str, Any]:
@@ -508,9 +515,15 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         await super().stop(delete=True)
         if sandbox_id is not None and self._daytona_sandbox_name is not None:
             try:
-                gone = await asyncio.to_thread(self._daytona_guard.sandbox_missing, sandbox_id)
-                if gone:
-                    await asyncio.to_thread(self._daytona_guard.release, self._daytona_sandbox_name)
+                deadline = time.monotonic() + DAYTONA_RELEASE_WAIT_SECONDS
+                while True:
+                    gone = await asyncio.to_thread(self._daytona_guard.sandbox_missing, sandbox_id)
+                    if gone:
+                        await asyncio.to_thread(self._daytona_guard.release, self._daytona_sandbox_name)
+                        break
+                    if time.monotonic() >= deadline:
+                        break
+                    await asyncio.sleep(DAYTONA_RELEASE_POLL_SECONDS)
             except GuardUnavailable as unavailable:
                 self._daytona_usage["monitor_error"] = str(unavailable)
                 self._write_daytona_usage()

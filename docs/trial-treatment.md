@@ -6,7 +6,6 @@ audience:
 ---
 
 # Trial treatment keys and capture records
-
 A pass rate or a learnability call may only pool trials that ran under the same setup. `evallab.trial_treatment` makes that check mechanical. It gives every trial:
 
 - a **treatment key**: a hash of every setting that changes behaviour;
@@ -20,6 +19,30 @@ Both are paired catalog tables, with catalog root `derived/parquet/external/task
 | `trial_capture.parquet` | trial | the same command |
 
 `treatment-collect` merges into the existing pair, replacing rows for trials it has seen before without duplicating them. The trial identity is `(job_name, trial_name)`. `evallab attach` exposes both tables as top-level and `z3` views.
+## Setup fingerprints (HAR-149)
+
+On 2026-10-01 every MiMo trial ran with the sandbox network open and nobody
+noticed. The setup fingerprint closes that gap: every batch carries
+`setup-fingerprint.json`, and every trial carries its own copy with the lock
+as applied (trial `egress-lock.json` → `applied`; an absent file reads `open`,
+the pre-HAR-140 default). The fingerprint records harness id and version, the
+server (model revision, SGLang image digest, tool-call parser, reasoning
+parser, context length), the sampling actually sent (proxy-enforced
+temperature/top_p/top_k on the self-hosted route), the lock posture, task
+bytes and digest with the ledger status at launch, and step and token budgets.
+Schema: `evallab.setup_fingerprint/v1` (`src/evallab/setup_fingerprint.py`).
+
+A MiMo batch names its measured setup (`reference_profile`, e.g.
+`xiaomi-mimo-rl` in `research/setup-profiles/`) and declares every intended
+difference (`deviations: [{field, value, reason}]`). Dispatch refuses an
+uncovered difference, a missing reference, an undeclared lock, a task outside
+the ledger, or a missing parser — with the reason, before anything is spent.
+Model-free runs (nop/oracle) skip the reference and the harness/server/
+sampling comparisons and keep the effective lock resolution plus the ledger
+binding. The run page prints each declared deviation. `evallab preflight --spec X
+[--root CHECKOUT]` runs the same comparison at $0 without Daytona or Modal;
+values only knowable at run time (the lock as applied) show as resolved
+intent in preflight and as observed values in the trial fingerprint.
 
 ## Collection publication and recovery
 

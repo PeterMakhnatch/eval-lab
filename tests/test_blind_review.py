@@ -9,6 +9,8 @@ import pytest
 
 from evallab.cli import run_cli
 from evallab.interpretation.blind_review import (
+    extract_task_id,
+    leak_scan_file,
     leak_scan_pack,
     review_freeze,
     review_join,
@@ -400,3 +402,80 @@ def test_cli_end_to_end(tmp_path: Path) -> None:
     assert (review_dir / "TABLES.md").is_file()
     assert (review_dir / "tables.json").is_file()
     assert (review_dir / "REPORT.md").is_file()
+
+def test_harbor_dict_task_id_blinding_regression(tmp_path: Path) -> None:
+    """Real Harbor result.json with dict task_id does not leak arm tokens or bypass prompt identity."""
+    jobs_root = tmp_path / "jobs"
+    jobs_root.mkdir()
+
+    base_prompt = "You are solving a bug in root@12345678-1234-1234-1234-123456789abc:/repo#\nFix it."
+    addendum = "CRITICAL ADVICE: change your diagnostic before retrying.\n"
+
+    # Stock job with Harbor-style dict task_id embedding arm name in exec-stage path
+    stock_job = jobs_root / "job-stock"
+    t_stock = _make_mock_trial(stock_job, "trial-000001-stock__aaa", "000001", base_prompt)
+    res_stock = json.loads((t_stock / "result.json").read_text())
+    res_stock["task_id"] = {"path": "/runs/.exec-stage/ovn-g5-000001-stock"}
+    (t_stock / "result.json").write_text(json.dumps(res_stock), encoding="utf-8")
+
+    # GEPA job with Harbor-style dict task_id embedding arm name and unmasked addendum
+    gepa_job = jobs_root / "job-gepa"
+    gepa_prompt = "You are solving a bug in root@abcdef01-abcd-abcd-abcd-abcdef012345:/repo#\n" + addendum + "Fix it."
+    t_gepa = _make_mock_trial(gepa_job, "trial-000001-gepa__bbb", "000001", gepa_prompt)
+    res_gepa = json.loads((t_gepa / "result.json").read_text())
+    res_gepa["task_id"] = {"path": "/runs/.exec-stage/ovn-g5-000001-gepa"}
+    (t_gepa / "result.json").write_text(json.dumps(res_gepa), encoding="utf-8")
+
+    # 1. Unmasked: must fail hard because both trials are grouped under task '000001'
+    out_unmasked = tmp_path / "review_unmasked"
+    with pytest.raises(ValueError, match="First prompts of task 000001 differ across arms"):
+        review_prepare(
+            job_dirs=[stock_job, gepa_job],
+            arm_regex=r"-(?P<arm>stock|gepa)__",
+            out_dir=out_unmasked,
+        )
+
+    # 2. Masked: must pass
+    mask_file = tmp_path / "addendum.txt"
+    mask_file.write_text(addendum, encoding="utf-8")
+
+    out_masked = tmp_path / "review_masked"
+    rc = review_prepare(
+        job_dirs=[stock_job, gepa_job],
+        arm_regex=r"-(?P<arm>stock|gepa)__",
+        mask_text_files=[mask_file],
+        out_dir=out_masked,
+    )
+    assert rc == 0
+
+    # 3. Sealed arm map has clean string task, not dict
+    arm_map = json.loads((out_masked / "SEALED_arm_map.json").read_text())
+    for _oid, entry in arm_map.items():
+        assert entry["task"] == "000001"
+        assert not isinstance(entry["task"], dict)
+        assert "path" not in str(entry["task"])
+
+    # 4. No arm token appears in rater_batches.json
+    batches_text = (out_masked / "rater_batches.json").read_text()
+    assert "stock" not in batches_text
+    assert "gepa" not in batches_text
+    assert "000001" in batches_text
+
+
+def test_leak_scan_catches_arm_token_in_rater_batches(tmp_path: Path) -> None:
+    """Leak scan flags arm tokens surviving in rater_batches.json or PACK_FORMAT.md."""
+    aux_file = tmp_path / "rater_batches.json"
+    aux_file.write_text(json.dumps([{"task_prompt": "Label this stock run"}]), encoding="utf-8")
+    leaks = leak_scan_file(aux_file, "rater_batches.json", forbidden_tokens=["stock"])
+    assert len(leaks) >= 1
+    assert leaks[0]["file"] == "rater_batches.json"
+    assert leaks[0]["token"] == "stock"
+
+
+def test_extract_task_id_refuses_dict_and_fails_loudly(tmp_path: Path) -> None:
+    """extract_task_id never stringifies a dict and fails loudly when unresolvable."""
+    res_file = tmp_path / "result.json"
+    # Dict task_id without task_name or 6d regex
+    res_file.write_text(json.dumps({"task_id": {"path": "/foo/bar"}}), encoding="utf-8")
+    with pytest.raises(ValueError, match="Could not derive task id"):
+        extract_task_id(res_file, "arbitrary-trial-name", "arbitrary-job-name")

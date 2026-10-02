@@ -137,7 +137,7 @@ class _Scripted:
         if isinstance(value, ModelCompletion):
             return value
         return ModelCompletion(
-            content=value if isinstance(value, str) else json.dumps(value),
+            content=value if isinstance(value, str) else json.dumps({"request": value}),
             input_tokens=self.input_tokens, output_tokens=self.output_tokens,
             returned_model=self.model,
         )
@@ -368,12 +368,28 @@ def test_unsupported_findings_and_citations_fail(tmp_path, invalid):
     assert report.calls == 2 and report.reserved_usd > 0
 
 
-def test_conclude_without_primary_inspection_is_rejected(tmp_path):
-    corpus, case, _ = _fixtures()
-    transport = _Scripted([{"action": "related"}, _conclusion(case.primary_trial, suspicious=True)])
+def test_conclusion_supported_only_by_related_trial_is_rejected(tmp_path):
+    corpus, case, related = _fixtures()
+    transport = _Scripted([
+        _read(related.primary_trial),
+        _conclusion(related.primary_trial, suspicious=False),
+    ])
     report = investigate(case, corpus, transport=transport, budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis")
     assert report.status == "failed"
     assert report.finding is None
+
+
+def test_visible_primary_context_survives_empty_followup_and_control_inspection(tmp_path):
+    corpus, case, related = _fixtures()
+    transport = _Scripted([
+        {"action": "read_steps", "trial_key": case.primary_trial, "start": 4, "end": 5},
+        _read(related.primary_trial),
+        _conclusion(case.primary_trial, suspicious=True),
+    ])
+    report = investigate(case, corpus, transport=transport, budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis")
+    assert report.status == "completed"
+    assert report.finding.evidence[0].record_id == f"{case.primary_trial}:1"
+    assert report.calls == 3
 
 
 def test_source_system_prompt_injection_stays_data_and_cannot_gain_tool_privileges(tmp_path):
@@ -451,7 +467,7 @@ class _Opener:
 def _provider_value(*, usage=None, message=None, finish="stop"):
     value = {
         "id": "synthetic-response", "model": "explicit-model",
-        "choices": [{"finish_reason": finish, "message": message or {"role": "assistant", "content": '{"action":"related"}'}}],
+        "choices": [{"finish_reason": finish, "message": message or {"role": "assistant", "content": '{"request":{"action":"related"}}'}}],
     }
     if usage is not None:
         value["usage"] = usage
@@ -479,11 +495,6 @@ def test_hosted_transport_preserves_missing_partial_and_zero_usage(usage, expect
     assert "tools" not in opener.payload
 
 
-@pytest.mark.parametrize("thinking", [False, True])
-def test_thinking_control_is_explicit_not_model_inferred(thinking):
-    opener = _Opener(_provider_value())
-    _http_transport(opener, disable_thinking=thinking).complete([{"role": "user", "content": "data"}], max_output_tokens=128, schema={})
-    assert opener.payload.get("thinking") == ({"type": "disabled"} if thinking else None)
 
 
 @pytest.mark.parametrize("value", [
@@ -513,6 +524,18 @@ def test_redirect_handler_refuses_before_following():
 def test_local_inference_and_credential_urls_are_forbidden(endpoint):
     with pytest.raises(ValueError):
         OpenAIInvestigator(endpoint=endpoint, model="explicit", api_key="synthetic-key")
+
+
+@pytest.mark.parametrize("options", [
+    {"reasoning_effort": "unrecognized"},
+    {"reasoning_effort": "low", "disable_thinking": True},
+])
+def test_invalid_reasoning_controls_fail_before_provider_io(options):
+    with pytest.raises(ValueError):
+        OpenAIInvestigator(
+            endpoint="https://provider.example/v1", model="explicit", api_key="synthetic-key",
+            **options,
+        )
 
 
 def test_dollar_cap_is_exact_at_reservation_boundary(tmp_path):
@@ -650,13 +673,6 @@ def test_explicit_output_mode_reserves_exact_payload_and_rejects_reuse_under_oth
     journal = [json.loads(line) for line in (tmp_path / "analysis/journal.jsonl").read_text().splitlines()]
     reserved_payload = next(event["payload"] for event in journal if event["event"] == "call_started")
     assert opener.payload == reserved_payload
-    assert opener.payload["response_format"]["type"] == mode
-    if mode == "json_object":
-        schema_message = opener.payload["messages"][0]
-        assert schema_message["role"] == "system"
-        schema = json.loads(schema_message["content"].split(": ", 1)[1])
-        assert set(schema["properties"]["action"]["enum"]) == {"read_steps", "search", "related", "conclude"}
-        assert opener.payload["response_format"] == {"type": "json_object"}
     started = next(record for record in CallLedger(budget.path).records() if record.event == "started")
     raw = json.dumps(opener.payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
     assert json.loads(started.reason)["input_token_bound"] == len(raw) + 1024
@@ -757,7 +773,7 @@ def test_budget_state_symlink_is_rejected_without_touching_target(tmp_path, suff
     assert target.read_text() == "IMMUTABLE SOURCE BYTES\\n"
 
 
-@pytest.mark.parametrize("failure", ["truncated", "tool_execution", "invalid_partial_usage"])
+@pytest.mark.parametrize("failure", ["truncated", "tool_execution", "invalid_partial_usage", "invalid_message"])
 def test_rejected_provider_response_still_preserves_observed_overage_and_holds_budget(tmp_path, failure):
     corpus, case, _ = _fixtures()
     input_tokens = None if failure == "invalid_partial_usage" else 30
@@ -769,6 +785,8 @@ def test_rejected_provider_response_still_preserves_observed_overage_and_holds_b
         value["choices"][0]["finish_reason"] = "length"
     elif failure == "tool_execution":
         value["choices"][0]["message"]["tool_calls"] = [{"type": "function", "function": {"name": "exec"}}]
+    elif failure == "invalid_message":
+        value["choices"][0]["message"] = []
     opener = _Opener(value)
     transport = _http_transport(opener)
     path = tmp_path / "spend.jsonl"

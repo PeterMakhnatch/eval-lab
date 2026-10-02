@@ -689,12 +689,14 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None)
                        "output_usd_per_million": args.output_price,
                        "disable_thinking": args.disable_thinking,
                        "response_format": args.response_format,
+                       "reasoning_effort": args.reasoning_effort,
                        "credential_env": args.api_key_env}
             # Validate hosted transport before creating a persistent budget.
             transport = OpenAIInvestigator(endpoint=args.endpoint, model=args.model,
                                            api_key=key, timeout_seconds=limits.timeout_seconds,
                                            disable_thinking=args.disable_thinking,
-                                           response_format=args.response_format)
+                                           response_format=args.response_format,
+                                           reasoning_effort=args.reasoning_effort)
             output_root = _analysis_root(out_dir, roots)
             budget = InvestigationBudget(_safe_path(output_root, output_root / "spend.jsonl"),
                                          budget_usd=args.budget_usd, max_calls=args.max_calls,
@@ -753,8 +755,12 @@ def build_investigate_parser(commands: argparse._SubParsersAction) -> None:
             command.add_argument("--model", required=True, help="Explicit hosted model selector")
             command.add_argument("--endpoint", required=True, help="HTTPS OpenAI-compatible API base")
             command.add_argument("--api-key-env", default="OPENAI_API_KEY", help="Credential environment variable name")
-            command.add_argument("--disable-thinking", action="store_true",
-                                 help="Explicit thinking.type=disabled for compatible providers")
+            thinking = command.add_mutually_exclusive_group()
+            thinking.add_argument("--disable-thinking", action="store_true",
+                                  help="Explicit thinking.type=disabled for compatible providers")
+            thinking.add_argument("--reasoning-effort",
+                                  choices=("none", "minimal", "low", "medium", "high", "xhigh", "max"),
+                                  help="Explicit provider reasoning level; no automatic model-specific mapping")
             command.add_argument("--response-format", choices=("json_schema", "json_object"),
                                  default="json_schema",
                                  help="Explicit provider JSON capability; never falls back automatically")

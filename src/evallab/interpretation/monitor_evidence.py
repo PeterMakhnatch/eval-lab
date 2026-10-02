@@ -827,6 +827,7 @@ def _snapshot_row(
         records.append(record)
         if record.truncated:
             trial_limits.append(f"verifier record truncated: {rel}")
+            complete = False
 
     alerts, alerts_redacted, alerts_dropped = _row_alerts(row, job=job, trial=trial, task=task_text)
     if alerts_redacted:

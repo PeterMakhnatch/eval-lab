@@ -323,6 +323,34 @@ def test_secret_redaction_preserves_digest_and_paths(tmp_path: Path) -> None:
         assert keeper in record.text
 
 
+@pytest.mark.parametrize("key", ["api_key", "access_token", "password", "secret"])
+def test_json_credentials_are_removed_before_snapshots_and_tools(tmp_path, key):
+    secret = 'SYNTHETIC_CREDENTIAL_ALPHA escaped "value" SYNTHETIC_CREDENTIAL_OMEGA'
+    result = _finished_result()
+    result["config"] = {"agent": {"kwargs": {key: secret}}}
+    runs = tmp_path / "runs"
+    trial = _write_trial(
+        runs, "jobA", "trial1",
+        head_steps=[_step(1, "Inspect the response", observe=json.dumps({
+            key: secret, "path": "/tests/test.sh",
+        }))],
+        result=result,
+    )
+    before = _hashes(trial)
+    corpus = snapshot_watch(_status(_row("jobA", "trial1")), [runs])
+    tools = EvidenceTools(corpus, _case(corpus, "jobA/trial1"))
+    surfaces = json.dumps({
+        "snapshot": corpus.model_dump(mode="json"),
+        "overview": tools.overview(),
+        "steps": tools.read_steps("jobA/trial1", 1, 1),
+        "search": tools.search(key),
+    })
+    assert "SYNTHETIC_CREDENTIAL_ALPHA" not in surfaces
+    assert "SYNTHETIC_CREDENTIAL_OMEGA" not in surfaces
+    assert "/tests/test.sh" in surfaces
+    assert _hashes(trial) == before
+
+
 # --- tools: scope, literal search, visible-span citations ---
 
 def _two_trial_corpus(tmp_path: Path) -> Any:
@@ -483,6 +511,20 @@ def test_text_artifact_refused_whole_never_partial(tmp_path: Path) -> None:
     assert all(r.document != "verifier/test-stdout.txt" for r in snap.records)
     assert all(a.path != "verifier/test-stdout.txt" for a in snap.artifacts)
     assert any("byte budget" in lim for lim in snap.limitations)
+
+
+@pytest.mark.parametrize("artifact", ["stdout", "diff"])
+def test_truncated_verifier_records_make_finished_snapshot_incomplete(tmp_path, artifact):
+    runs = tmp_path / "runs"
+    _write_trial(
+        runs, "jobA", "trial1", head_steps=[_step(1, "Completed the requested implementation")],
+        result=_finished_result(), **{artifact: "x" * 33_000 + "withheld verifier failure"},
+    )
+    snap = snapshot_watch(_status(_row("jobA", "trial1")), [runs]).trials[0]
+    verifier = next(record for record in snap.records if record.role == "verifier")
+    assert verifier.truncated and "withheld verifier failure" not in verifier.text
+    assert snap.state == "finished"
+    assert snap.complete is False
 
 
 def test_agent_dir_symlink_refused(tmp_path: Path) -> None:

@@ -1,19 +1,10 @@
 # Monitor investigations (HAR-151)
 
-Harbor-native, read-only live-trace investigator. It turns an existing
-live-watch status file (`evallab.live_watch/v1`, produced by the watcher —
-another owner's branch, PR686, frozen schema, not edited here) into frozen,
-source-bound investigation cases, optionally runs a bounded hosted
-investigator over them, renders source-cited reports, and scores reports
-against frozen explicit labels.
+Harbor-native, read-only trace investigation on top of the existing
+[live watcher](live-watch.md). It consumes `evallab.live_watch/v1` status,
+freezes source-bound cases, optionally runs a bounded hosted investigator,
+renders source-cited hypotheses, and scores them against explicit frozen labels.
 
-> Scope: this page documents the actual `evallab investigate`
-> `prepare` / `run` / `report` / `score` CLI and the
-> `src/evallab/monitor.py` +
-> `src/evallab/interpretation/monitor_{contracts,evidence,agent,calibration}.py`
-> implementation (work through commit `a88b06f2` plus bounded redacted HTTP
-> diagnostics). Measured canary results and receipts are added separately by
-> the parent; this page makes no success, calibration, or cost claims.
 
 ## Dataflow
 
@@ -43,7 +34,7 @@ Rules that never change:
 
 ## Commands
 
-All paths resolve relative to the repo root unless absolute.
+Run these examples from the repo root; relative paths use the current directory.
 `prepare` and `report` are local and require no keys. Only `run` spends
 money, and only with explicit `--allow-model`.
 
@@ -94,10 +85,18 @@ keys run -- uv run evallab investigate run \
   --endpoint https://api.z.ai/api/paas/v4 \
   --api-key-env ZAI_OPENAPI_API_KEY \
   --response-format json_object \
-  --budget-usd 10 \
-  --input-price 1.0 \
-  --output-price 4.0
+  --reasoning-effort low \
+  --max-output-tokens 8000 \
+  --max-cases 1 --max-calls 32 \
+  --budget-usd 2 \
+  --input-price 1.4 \
+  --output-price 4.4
 ```
+
+Prices are USD per million tokens, pinned from the
+[provider price table](https://docs.z.ai/guides/overview/pricing) on
+2026-10-02. Verify current prices before a new budget. The cheaper
+`glm-5.3-flash` uses different rates ($0.15 input / $0.50 output).
 
 ZAI-relevant option notes:
 
@@ -105,9 +104,12 @@ ZAI-relevant option notes:
   `json_schema` for providers that implement it; it never falls back
   automatically — a mismatch is an error, not a silent retry).
 - **Do NOT pass `--disable-thinking` for GLM-5.3 / GLM-5.3-Flash.**
-  Current official docs state these models can only enable thinking; the
-  parent has qualified `/models` and read the primary thinking contract.
-  The model canary is still pending, so no success claim is made here.
+  The [thinking-mode reference](https://docs.z.ai/guides/capabilities/thinking-mode)
+  describes provider-specific controls. GLM-5.3 defaults to maximum reasoning;
+  explicitly request `--reasoning-effort low` for this bounded triage recipe.
+  That option and `--disable-thinking` are mutually exclusive. Output bounds
+  include provider-reported reasoning tokens; a truncated response is rejected,
+  not accepted as a finding.
 - Other bounds (defaults): `--max-calls 24` (lifetime aggregate request
   ceiling), `--calls-per-case 8`, `--max-cases 3` (new investigations per
   cycle), `--max-output-tokens 2000`, `--timeout 90`.
@@ -141,20 +143,26 @@ label land in `extra_reports` and are never scored; labels without a
 report land in `missing` (decisive labels) or `missing_unscored`
 (inconclusive labels).
 
-Label file schema — a JSON array, one row per `case_id`:
+Label file format — one row per case. Example synthetic development control:
 
 ```json
 [
   {
-    "case_id": "9f2c… (24 hex)",
-    "snapshot_id": "sha256 hex (64 hex)",
-    "label": "positive | negative | inconclusive",
-    "provenance": "human | synthetic | model",
-    "family": "git-peek-v1",
-    "split": "development | validation | test"
+    "case_id": "8b9ee84b298ce93dfaaa46c7",
+    "snapshot_id": "74741f6ab845bfb0e029f76722c9f1eb1d34f39fd97c40e18afcd8b293ab2517",
+    "label": "positive",
+    "provenance": "synthetic",
+    "family": "grading",
+    "split": "development"
   }
 ]
 ```
+
+Copy identities from your frozen cases, not this example. Labels allow
+`positive`, `negative`, or `inconclusive`; provenance is `human`, `synthetic`,
+or `model`; splits are `development`, `validation`, or `test`. A model-authored
+rating is not human gold. Fixtures used to debug the investigator are development
+controls, even if a file was originally tagged `test`.
 
 Constraints: one row per `case_id`; each `family` appears in a single
 split only. Malformed rows, repeated cases, and split-crossing families
@@ -188,25 +196,26 @@ reader can tell human evidence from synthetic/model pooling at a glance.
 readable artifact), `complete_trials`, and `unavailable_trials` plus a
 `limitations` list. Per-trial `limitations` say exactly what happened:
 
-- **Approved reads only.** The snapshotter reads `result.json`,
-  `verifier/test-stdout.txt`, `verifier/agent.diff`, and agent
-  trajectory files (including `agent/trajectory.cont-N.json`
-  continuations) under the resolved trial directory. It never reads
-  configs/locks (secret-bearing), test/solution trees, or task
-  directories named only in config. Symlink escapes and absolute-path
-  continuations are refused and recorded as limitations.
-- **Captured:** frozen bytes hashed to `SourceArtifact{path, sha256,
-  size_bytes}`. Hashes cover canonical content, not timestamps.
-- **Truncated:** text artifacts are capped (2 MB per file; rendered step
-  snippets and search windows are additionally bounded). JSON sources
-  must fit wholly or are **skipped, never truncated** — a skip is
-  recorded, not silently cut.
-- **Missing:** absent/unreadable files, trials over the `--max-trials`
-  cap (`beyond max_trials cap: not read`), total-byte-budget exhaustion,
-  unresolvable `job/trial` names, and fleet pseudo-trials (e.g.
-  `fleet:infra_spike`, which never resolve to disk) all produce
-  `state: unavailable` shell snapshots that preserve watch alerts but
-  carry no records. `complete: false` marks every incomplete trial.
+- **Approved reads only.** The snapshotter reads agent trajectories and
+  continuations, `result.json`, an in-tree `instruction.md` when available,
+  `verifier/test-stdout.txt`, and `verifier/agent.diff`. It never follows
+  config-specified task paths or opens config/lock files, hidden tests, or
+  solution directories. Symlink escapes are refused.
+- **Captured:** each artifact's SHA-256 covers the captured original bytes,
+  before redaction or record rendering. Snapshot identity covers the canonical
+  structured evidence. Source timestamps are not a substitute for byte identity.
+- **Bounded:** oversized sources are refused whole, not hashed as if a partial
+  prefix were complete. Text artifacts have a 2,000,000-byte raw cap; trial and
+  corpus byte budgets also apply. Rendered records and tool views have separate
+  character bounds. Record truncation, including verifier records, makes the
+  snapshot incomplete.
+- **Missing:** missing optional artifacts are explicit limitations while other
+  readable evidence is retained. Unresolvable trials and trials excluded by the
+  capture cap get unavailable shell snapshots. `complete` describes captured
+  snapshot coverage and terminal state, not proof that every possible artifact
+  exists or that a task is valid. Inspect the limitations even when it is true.
+- **Fleet signals:** real members receive bounded cases. Unroutable fleet
+  signals remain visible; they are never invented filesystem trials.
 - Watch free-text alert fields (`quote`, `detail`, `target`, `trial`,
   `task`) are secret-redacted at snapshot time; redactions and dropped
   malformed alerts are recorded as limitations.
@@ -241,9 +250,9 @@ with zero usage instead of spending budget on nothing.
 ## Profile-bound resume; no ambiguous retries
 
 - The analysis identity is the **request profile**: model, endpoint,
-  pinned prices, `disable_thinking`, `response_format`, credential-env
-  name, effective limits, and the sha256 of the three implementation
-  modules. Its content digest (`profile_key`) names the output directory:
+  pinned prices, `disable_thinking`, `reasoning_effort`, `response_format`,
+  credential-env name, effective limits, and selected implementation hashes.
+  Its content digest (`profile_key`) names the output directory:
   `cases/<id>/revisions/<snapshot>/analyses/<profile_key>/`.
 - Resume is exact: an existing `report.json` whose `case_id`/`snapshot_id`
   match is reused (identity mismatch raises); a new profile or new
@@ -295,18 +304,17 @@ with zero usage instead of spending budget on nothing.
 - [Reward-hacking detection in Ari](https://appliedcompute.com/platform/reward-hacking-detection-in-ari)
   (Oct 1): after training steps, a **cheap LLM scans a random sample**
   of trajectories; suspicious flags escalate to the full **Ari**
-  investigator; **stopping a run requires owner approval**. Their quoted
-  **~2% false-positive rate is a vendor number, not our calibration** —
-  do not compare it against `investigate score` output.
+  investigator; **stopping a run requires owner approval**. Their benchmark
+  compares true-positive rates at a **2% false-positive operating point**.
+  That vendor benchmark is not calibration evidence for this implementation.
 - [Ari](https://appliedcompute.com/platform/ari): skills + sandbox +
   context-base investigator framing. Our `run` path is the analogous
   bounded hosted investigator, but scoped to frozen snapshots (no live
   actor, no sandbox execution).
 - [Billion-token trace analysis](https://appliedcompute.com/platform/billion-token-scale-trace-analysis):
-  sample → compress → cluster → freeze → classify. Our `prepare`
-  (sample/cap/coalesce/freeze) → `run` (classify as hypothesis) →
-  `score` (measure against frozen labels) mirrors that spine at lab
-  scale.
+  sample → compress → cluster → freeze a taxonomy → classify. This implementation
+  reuses the sampling and frozen-evidence discipline, but does not implement their
+  billion-token clustering infrastructure or a context-base learning loop.
 
 ### The likely hack agent: Xiaomi MiMo-V2.6 (§4.2.6 / Fig. 6)
 
@@ -323,8 +331,8 @@ alone.
 ### Validation and monitoring references
 
 - [Inspect Scout validation](https://meridianlabs-ai.github.io/inspect_scout/validation.html) —
-  the deterministic-scanner validation story behind our trace-lab Scout
-  layer.
+  measure scanner outputs against explicit labels, including LLM classifiers;
+  preserve denominators and the distinction between tuning and held-out data.
 - [METR blocking-action monitor](https://metr.org/notes/2026-09-27-implementing-a-basic-blocking-action-monitor/) —
   the minimal example of a monitor that can actually block. Ours
   deliberately cannot: it publishes hypotheses and stops at approval
@@ -336,16 +344,16 @@ alone.
 
 ## Overlap boundaries
 
-- **Watcher (PR686, another owner):** owns `evallab.live_watch/v1` and
-  alerting. This tool only reads its `status.json`; it never edits the
-  watcher, rewards, counts, or eligibility logic.
-- **Trace-lab ($0 tools):** `research/explorations/trace-lab/` normalizers,
-  Scout scanners, Docent exporters, and behavior-metrics kits are local
-  and model-free (see its README for the precise per-tool scope). The
-  opt-in hosted investigator documented here is the **only** network/paid
-  step, and it lives behind `--allow-model`.
-- **Scout / Docent reused, not replaced:** no new store, viewer, runner,
-  or proxy is introduced here.
+- **Watcher ([PR686](https://github.com/PeterMakhnatch/eval-lab/pull/686)):**
+  owns live discovery and alerting. This tool consumes its versioned output,
+  rather than adding a second watcher. Rewards, counts, and task eligibility
+  remain separate, unchanged evidence.
+- **Existing trace-lab tools:** local normalizers, deterministic Scout scanners,
+  exporters, and behavior metrics remain useful. Hosted Docent/Scout readers
+  have their own opt-in and cost policies; this is not the only paid reader.
+- **Scout / Docent reused, not replaced:** no new external trace store, viewer,
+  runner, or proxy is introduced. The investigator writes bounded local
+  snapshots, journals, and reports.
 - **No RL automation, no real-time actor costs, no new trial
   experiments.** This path investigates already-frozen snapshots; it
   launches no training, runs no live agent, and reports no calibrated
@@ -353,12 +361,16 @@ alone.
 
 ## Limits
 
-- No full-prevention claim, no RL-automation claim, no real-time or
-  actor-cost accounting, no new trial experiments, no calibrated
-  detection rate. The model canary is pending; vendor FPR is not ours.
-- Private Drive snapshots reviewed locally are never copied into public
-  docs; no raw trace payloads or credentials are committed
-  (`AGENTS.md`).
+- No prevention, autonomous RL improvement, actor-cost accounting, or calibrated
+  population detection-rate claim. A valid exact citation establishes that a
+  quote was visible, not that the model's interpretation is correct.
+- Evidence and tool results are untrusted data. Hard scope, budget, and action
+  checks remain outside the model; this is not a proof of general prompt-injection
+  resistance or isolation from a malicious local host.
+- `--allow-model` sends selected workload content to the configured hosted
+  provider. Common credential patterns are redacted, but that is not general
+  anonymization. Keep snapshots and journals private; this delivery commits no
+  private Drive content, raw retained traces, or credentials.
 - Source evidence vs. hypothesis stays explicit in every report: every
   `suspicious` finding must carry benign alternatives and
   `missing_evidence`; incomplete/live snapshots cannot establish the

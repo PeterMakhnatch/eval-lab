@@ -136,28 +136,41 @@ class MonitorFinding(MonitorModel):
         return self
 
 
-class InvestigationAction(MonitorModel):
-    action: Literal["read_steps", "search", "related", "conclude"]
-    trial_key: str | None = None
-    start: int | None = Field(default=None, ge=1)
-    end: int | None = Field(default=None, ge=1)
-    query: str | None = Field(default=None, min_length=1, max_length=300)
-    finding: MonitorFinding | None = None
+class ReadStepsAction(MonitorModel):
+    action: Literal["read_steps"]
+    trial_key: str
+    start: int = Field(ge=1, description="Inclusive 1-based start.")
+    end: int = Field(ge=1, description="Inclusive end.")
 
     @model_validator(mode="after")
-    def valid_action(self) -> InvestigationAction:
-        if self.action == "read_steps":
-            if self.trial_key is None or self.start is None or self.end is None:
-                raise ValueError("read_steps requires trial_key, start and end")
-            if self.end < self.start:
-                raise ValueError("read_steps end precedes start")
-        if self.action == "search" and self.query is None:
-            raise ValueError("search requires a literal query")
-        if self.action == "conclude" and self.finding is None:
-            raise ValueError("conclude requires a finding")
-        if self.action != "conclude" and self.finding is not None:
-            raise ValueError("only conclude accepts a finding")
+    def valid_range(self) -> ReadStepsAction:
+        if self.end < self.start:
+            raise ValueError("read_steps end precedes start")
         return self
+
+
+class SearchAction(MonitorModel):
+    action: Literal["search"]
+    query: str = Field(min_length=1, max_length=300)
+    trial_key: str | None = None
+
+
+class RelatedAction(MonitorModel):
+    action: Literal["related"]
+
+
+class ConcludeAction(MonitorModel):
+    action: Literal["conclude"]
+    finding: MonitorFinding
+
+
+type EvidenceAction = ReadStepsAction | SearchAction | RelatedAction | ConcludeAction
+
+
+class InvestigationAction(MonitorModel):
+    # A root object keeps this compatible with strict structured-output APIs;
+    # the union makes operation-specific required/forbidden fields explicit.
+    request: EvidenceAction
 
 
 class InvestigationLimits(MonitorModel):

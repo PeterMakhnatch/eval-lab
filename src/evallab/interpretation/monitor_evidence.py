@@ -25,7 +25,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import ValidationError
 
@@ -58,7 +58,6 @@ _TEXT_ARTIFACT_CAP = 2_000_000
 #: Approved artifact names relative to a trial directory. Nothing else is
 #: ever read: no config/lock (secret-bearing), no tests/solution trees, no
 #: task directories named only in config.
-_HEAD_REL = "agent/trajectory.json"
 _RESULT_REL = "result.json"
 _VERIFIER_RELS = ("verifier/test-stdout.txt", "verifier/agent.diff")
 
@@ -292,7 +291,7 @@ def _reward_from_result(result: Any) -> tuple[float | None, str | None]:
     return value, None
 
 
-def _finished_state(result_ok: bool, result: Any) -> tuple[str, str | None]:
+def _finished_state(result_ok: bool, result: Any) -> tuple[Literal["running", "finished"], str | None]:
     """Derive running/finished from a plausible recorded timestamp string."""
     if not result_ok or not isinstance(result, dict):
         return "running", None
@@ -597,7 +596,7 @@ def _snapshot_row(
             entries = []
         conts = sorted(
             (entry.name for entry in entries if _CONT_RE.fullmatch(entry.name)),
-            key=lambda name: int(_CONT_RE.fullmatch(name).group(1)),  # type: ignore[union-attr]
+            key=lambda name: int(name.removeprefix("trajectory.cont-").removesuffix(".json")),
         )
         if len(conts) > 512:
             trial_limits.append(
@@ -605,7 +604,7 @@ def _snapshot_row(
             conts = conts[:512]
             complete = False
         part_refs.extend(
-            (f"agent/{name}", f"cont-{_CONT_RE.fullmatch(name).group(1)}")  # type: ignore[union-attr]
+            (f"agent/{name}", name.removeprefix("trajectory.").removesuffix(".json"))
             for name in conts
         )
     elif agent_path.is_symlink():
@@ -841,7 +840,7 @@ def _snapshot_row(
         trial=str(trial),
         task=task_text,
         source_path=str(trial_dir),
-        state=state,  # type: ignore[arg-type]
+        state=state,
         reward=reward,
         complete=complete,
         artifacts=tuple(artifacts),

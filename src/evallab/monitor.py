@@ -197,11 +197,12 @@ def _candidates(corpus: MonitorCorpus, unflagged: int, related: int) -> list[_Ca
 
 def _build_case(corpus: MonitorCorpus, candidate: _Candidate) -> tuple[InvestigationCase, MonitorCorpus]:
     selected_keys = {candidate.primary_trial, *candidate.related_trials}
+    selected_trials: tuple[TrialSnapshot, ...] = tuple(sorted(
+        (trial for trial in corpus.trials if trial.trial_key in selected_keys),
+        key=lambda trial: trial.trial_key,
+    ))
     subset = MonitorCorpus(
-        trials=tuple(sorted(
-            (trial for trial in corpus.trials if trial.trial_key in selected_keys),
-            key=lambda trial: trial.trial_key,
-        )),
+        trials=selected_trials,
         fleet_alerts=tuple(alert for alert in candidate.alerts if alert.scope == "fleet"),
         limitations=corpus.limitations,
     )

@@ -70,6 +70,8 @@ inputs:
     digest: sha256:e9bead9abe3e94658028e68f592ff3ef8cf4d43bb86b5199d8031fb19a2cbbe5
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
+  - path: docs/live-watch.md
+    digest: sha256:0a96974e44e5ddf1c4162cf1954001f863e361de7a4107c3e9a33eceb4438d2a
   - path: docs/lora-sft-runbook.md
     digest: sha256:ccb1d4e90898bd2aae019fa912081daa4cdb13c0be65e03c9487d62f12ecf7f6
   - path: docs/mimo-task-catalog.md
@@ -227,6 +229,7 @@ an operator can see what is archived.
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lancedb.md` | LanceDB vector store | `living` | `analyst, builder` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/parquet-compaction.md` | Parquet Compaction Engine | `living` | `operator, analyst` |
@@ -327,6 +330,7 @@ an operator can see what is archived.
 | `docs/har136-source-audit-2026-10-01.md` | HAR-136 source inventory and retirement decisions | `living` | `builder, analyst, operator` |
 | `docs/ladder.md` | LADDER: Evaluation Grid Generator | `living` | `runner, analyst, operator` |
 | `docs/lineage.md` | Artifact Lineage Walker (E14) | `living` | `builder, analyst, operator` |
+| `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |

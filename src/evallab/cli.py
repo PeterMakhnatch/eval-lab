@@ -6329,6 +6329,12 @@ def parser() -> argparse.ArgumentParser:
     )
     results_backfill.add_argument("--home", type=Path, default=None)
     results_backfill.set_defaults(func=_results_backfill_command)
+    # Live trial monitoring (Traces lane). The command function lives in
+    # evallab.live_watch; this block only wires arguments, so the other
+    # builder editing cli.py keeps a clean merge.
+    from evallab.live_watch import build_watch_parser as _build_watch_parser
+
+    _build_watch_parser(commands)
     from evallab.run_telemetry import build_telemetry_parser
 
     build_telemetry_parser(commands)

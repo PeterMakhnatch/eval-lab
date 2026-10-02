@@ -8,7 +8,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
-from evallab.cohort import TIMEOUT_BUDGET_EXCEPTION_CLASSES, compare
+from evallab.cohort import _effective_reward, compare
 from evallab.evidence.facts import digest_json
 from evallab.schemas import (
     CapabilityCurveReport,
@@ -48,9 +48,7 @@ def _safe_path(root: Path, relative: str) -> Path:
     return path
 
 
-def _qualify_comparison_report(
-    report: JsonObject, *, source: CurveComparisonSource
-) -> None:
+def _qualify_comparison_report(report: JsonObject, *, source: CurveComparisonSource) -> None:
     """Enforce the curve's applicable comparison contract at the consumer boundary.
 
     A pinned digest proves bytes, not compatibility: live and frozen comparison
@@ -59,8 +57,7 @@ def _qualify_comparison_report(
     """
     if source.comparison_artifact is not None:
         origin = (
-            f"frozen comparison artifact {source.comparison_artifact!r} "
-            f"for level {source.level!r}"
+            f"frozen comparison artifact {source.comparison_artifact!r} for level {source.level!r}"
         )
     else:
         origin = f"comparison {report.get('comparison_id')!r} for level {source.level!r}"
@@ -247,10 +244,6 @@ def _controlled_tuple(member: JsonObject, treatment_binding: str | None) -> Json
     }
 
 
-def _budget_failure(member: JsonObject, enabled: bool) -> bool:
-    return bool(enabled and member.get("exception_class") in TIMEOUT_BUDGET_EXCEPTION_CLASSES)
-
-
 def _control_fingerprint(
     members: list[JsonObject],
     pair_set: list[str],
@@ -262,10 +255,12 @@ def _control_fingerprint(
         _controlled_tuple(member, treatment_binding)
         for member in members
         if member.get("task_block_id") in pair_set
-        and (
-            (member.get("exception_class") is None and member.get("reward") is not None)
-            or _budget_failure(member, budget_exhaustion_is_failure)
+        and _effective_reward(
+            member.get("reward"),
+            member.get("exception_class"),
+            budget_exhaustion_is_failure=budget_exhaustion_is_failure,
         )
+        is not None
     ]
     selected.sort(key=lambda item: json.dumps(item, sort_keys=True))
     return digest_json(selected)
@@ -279,8 +274,14 @@ def _exclusions(
     censored: set[str] = set()
     for member in members:
         exception = member.get("exception_class")
-        is_budget_failure = _budget_failure(member, budget_exhaustion_is_failure)
-        if exception is not None and not is_budget_failure:
+        scored = _effective_reward(
+            member.get("reward"),
+            exception,
+            budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+        )
+        if scored is not None:
+            continue
+        if exception is not None:
             exceptions.append(
                 CurveExceptionReport(
                     trial_id=str(member["trial_id"]),
@@ -294,7 +295,7 @@ def _exclusions(
             )
             if member.get("task_block_id") is not None:
                 censored.add(str(member["task_block_id"]))
-        elif member.get("reward") is None and not is_budget_failure:
+        else:
             missing_rewards.append(str(member["trial_id"]))
             if member.get("task_block_id") is not None:
                 censored.add(str(member["task_block_id"]))

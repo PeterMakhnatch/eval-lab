@@ -323,6 +323,16 @@ Produce a machine-readable result before prose. Useful initial summaries are:
 Small samples are shown as small samples. A single pass or failure is a trajectory
 to inspect, not an estimate of general capability.
 
+Preserve a finite verifier grade after a recognized agent stop
+(`AgentTimeoutError`, `TrialBudgetExhaustedError`, or `LoopBreakStop`): the agent
+stopped, but the verifier still measured its output. This applies to zero,
+fractional and passing grades under both values of
+`budget_exhaustion_is_failure`; the raw exception remains in member provenance.
+That option imputes a failure only for an **ungraded** timeout/budget stop.
+Unrelated infrastructure exceptions remain excluded even when a grade exists.
+Cohort denominators, task pairing, cost-per-solved and curve exclusions use the
+same effective-reward rule. Missing or non-finite grades are not valid outcomes.
+
 Paired binary `pass_any_first_k` rankings additionally require an **exact
 two-sided paired sign/McNemar p-value below .05**, computed from task wins and
 losses with ties excluded. JSON exposes `paired_exact_p_value` and

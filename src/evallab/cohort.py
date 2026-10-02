@@ -17,6 +17,7 @@ import psycopg
 from psycopg.types.json import Jsonb
 from pydantic import ValidationError
 
+from evallab.database import AGENT_STOP_EXCEPTIONS
 from evallab.evidence.facts import TrialFact, digest_json, extract_trial_fact
 from evallab.results import JobRecord, TrialRecord, load_job, load_jobs
 from evallab.schemas import CohortComparisonSpec, CohortSelector
@@ -277,6 +278,7 @@ def _path_key(value: str) -> str:
     """Normalize separators and dots without resolving symlink-sensitive parents."""
     return PurePosixPath(value).as_posix()
 
+
 @dataclass(frozen=True)
 class HarnessTreeBinding:
     """One job's retained harness-tree binding after full evidence verification."""
@@ -358,9 +360,7 @@ def _tree_skill_identities(
                 resolved[skill_dir.name] = _skill_directory_digest(skill_dir)
     except OSError:
         return None
-    return tuple(
-        {"name": name, "digest": digest} for name, digest in sorted(resolved.items())
-    )
+    return tuple({"name": name, "digest": digest} for name, digest in sorted(resolved.items()))
 
 
 def _recorded_harness_binding(job: JobRecord) -> tuple[HarnessTreeBinding | None, str | None]:
@@ -454,9 +454,7 @@ def _recorded_harness_binding(job: JobRecord) -> tuple[HarnessTreeBinding | None
     tree_rules = RULES_PATH if tree.rules_path is not None else None
     if tree_rules != (rules_relative.as_posix() if rules_relative is not None else None):
         return None, "retained tree rules do not match the recorded rules_path"
-    tree_skill_roots = sorted(
-        path.relative_to(tree.root).as_posix() for path in tree.skill_roots
-    )
+    tree_skill_roots = sorted(path.relative_to(tree.root).as_posix() for path in tree.skill_roots)
     if tree_skill_roots != sorted(skill_roots):
         return None, "retained tree skill roots do not match the recorded skill_roots"
 
@@ -476,9 +474,7 @@ def _recorded_harness_binding(job: JobRecord) -> tuple[HarnessTreeBinding | None
     )
     if list(rendered_rule_paths) != expected_rule_paths:
         return None, "rendered rule paths do not match the staged tree rules argv"
-    expected_rendered_roots = sorted(
-        str(PurePosixPath(staged_root) / root) for root in skill_roots
-    )
+    expected_rendered_roots = sorted(str(PurePosixPath(staged_root) / root) for root in skill_roots)
     if sorted(rendered_skill_paths) != expected_rendered_roots:
         return None, "rendered skill paths do not match the staged skill root argv"
     # Skill content identities come from the retained bytes under the job,
@@ -496,9 +492,7 @@ def _recorded_harness_binding(job: JobRecord) -> tuple[HarnessTreeBinding | None
             rendered_skill_paths=tuple(rendered_skill_paths),
             execution_settings=execution_settings,
             rules_content_sha256=(
-                "sha256:" + hashlib.sha256(rules_bytes).hexdigest()
-                if rules_bytes.strip()
-                else None
+                "sha256:" + hashlib.sha256(rules_bytes).hexdigest() if rules_bytes.strip() else None
             ),
             skill_identities=skill_identities,
         ),
@@ -549,9 +543,7 @@ def _verified_harness_identities(
     """
     if _json_object(agent_lock.get("kwargs")) != binding.rendered_agent_kwargs:
         return None, "frozen agent kwargs do not equal the recorded rendered kwargs"
-    if "skills" in agent_lock and list(agent_lock["skills"]) != list(
-        binding.rendered_skill_paths
-    ):
+    if "skills" in agent_lock and list(agent_lock["skills"]) != list(binding.rendered_skill_paths):
         return None, "frozen agent skills do not match the rendered skill paths"
     frozen_skills = _frozen_skill_identities(trial)
     expected_skills = sorted((item["name"], item["digest"]) for item in binding.skill_identities)
@@ -1015,10 +1007,7 @@ def _comparability_condition(
 def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMember]) -> list[str]:
     observed = {
         field: sorted(
-            {
-                _comparability_condition(member, field, spec.declared_variable)
-                for member in members
-            },
+            {_comparability_condition(member, field, spec.declared_variable) for member in members},
             key=lambda value: "" if value is None else value,
         )
         for field in CONSEQUENTIAL_FIELDS
@@ -1102,9 +1091,7 @@ def _validate_comparability(spec: CohortComparisonSpec, members: list[CohortMemb
             }
         )
         if unverified:
-            warnings.append(
-                "harness binding is missing or unverified: " + "; ".join(unverified)
-            )
+            warnings.append("harness binding is missing or unverified: " + "; ".join(unverified))
     undeclared = [field for field in differing_fields if field not in allowed_differences]
     if spec.declared_variable not in differing_fields:
         warnings.append(f"declared variable {spec.declared_variable!r} does not differ")
@@ -1535,16 +1522,38 @@ def clustered_power_requirements(
     return rows
 
 
-def _budget_exhaustion(member: CohortMember) -> bool:
-    return member.exception_class in TIMEOUT_BUDGET_EXCEPTION_CLASSES
-
-
-def _effective_reward(member: CohortMember, *, budget_exhaustion_is_failure: bool) -> float | None:
-    if member.exception_class is not None:
-        if budget_exhaustion_is_failure and _budget_exhaustion(member):
-            return 0.0
+def _finite_reward(value: Any) -> float | None:
+    """Usable verifier grade, or ``None`` when missing, non-numeric, or non-finite."""
+    if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    return float(member.reward) if member.reward is not None else None
+    try:
+        reward = float(value)
+    except OverflowError:
+        return None
+    return reward if math.isfinite(reward) else None
+
+
+def _effective_reward(
+    reward: Any,
+    exception_class: str | None,
+    *,
+    budget_exhaustion_is_failure: bool,
+) -> float | None:
+    """Scored reward shared by cohort members and serialized curve members.
+
+    A finite verifier grade on an ordinary trial or a recognized agent stop
+    (``database.AGENT_STOP_EXCEPTIONS``) is an agent outcome under both budget
+    policies. The flag only imputes ``0.0`` for an ungraded timeout/budget stop;
+    unrelated errors stay excluded even when graded.
+    """
+    finite = _finite_reward(reward)
+    if finite is not None:
+        if exception_class is None or exception_class in AGENT_STOP_EXCEPTIONS:
+            return finite
+        return None
+    if budget_exhaustion_is_failure and exception_class in TIMEOUT_BUDGET_EXCEPTION_CLASSES:
+        return 0.0
+    return None
 
 
 def _eligible_task_groups(
@@ -1556,8 +1565,14 @@ def _eligible_task_groups(
     groups: dict[str, list[CohortMember]] = defaultdict(list)
     missing_pairing_key = 0
     for member in members:
-        is_budget_failure = budget_exhaustion_is_failure and _budget_exhaustion(member)
-        if (member.exception_class is not None or member.reward is None) and not is_budget_failure:
+        if (
+            _effective_reward(
+                member.reward,
+                member.exception_class,
+                budget_exhaustion_is_failure=budget_exhaustion_is_failure,
+            )
+            is None
+        ):
             continue
         key = _pairing_value(member, pairing_key)
         if key is None:
@@ -1613,7 +1628,8 @@ def _task_evidence(
             for item in selected
             if (
                 reward := _effective_reward(
-                    item,
+                    item.reward,
+                    item.exception_class,
                     budget_exhaustion_is_failure=budget_exhaustion_is_failure,
                 )
             )
@@ -1734,7 +1750,8 @@ def _unbiased_metric(
         successes = 0
         for item in attempts:
             reward = _effective_reward(
-                item,
+                item.reward,
+                item.exception_class,
                 budget_exhaustion_is_failure=budget_exhaustion_is_failure,
             )
             if reward is not None and reward >= threshold:
@@ -1758,6 +1775,7 @@ def _unbiased_metric(
         "missing_pairing_key_trials": missing_pairing_key,
         "task_estimates": task_estimates,
     }
+
 
 def _cost_per_solved_task(
     cohort: list[CohortMember],
@@ -1784,7 +1802,8 @@ def _cost_per_solved_task(
     solved_tasks: set[str] = set()
     for member in cohort:
         reward = _effective_reward(
-            member,
+            member.reward,
+            member.exception_class,
             budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
         )
         if reward is None or reward < spec.pass_threshold:
@@ -1808,9 +1827,7 @@ def _cost_per_solved_task(
         "missing_or_invalid_cost_trial_count": missing_or_invalid,
         "solved_task_count": len(solved_tasks),
         "pairing_key": spec.pairing_key,
-        "cost_per_solved_task_usd": (
-            total / len(solved_tasks) if reason is None else None
-        ),
+        "cost_per_solved_task_usd": (total / len(solved_tasks) if reason is None else None),
         "unavailable_reason": reason,
     }
 
@@ -1825,18 +1842,30 @@ def _summarize_cohort(
         member.exception_class
         for member in cohort
         if member.exception_class is not None
-        and not (spec.budget_exhaustion_is_failure and _budget_exhaustion(member))
+        and _effective_reward(
+            member.reward,
+            member.exception_class,
+            budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+        )
+        is None
     )
     missing_rewards = [
         member.trial_id
         for member in cohort
-        if member.exception_class is None and member.reward is None
+        if member.exception_class is None
+        and _effective_reward(
+            member.reward,
+            member.exception_class,
+            budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
+        )
+        is None
     ]
     capability = [
         member
         for member in cohort
         if _effective_reward(
-            member,
+            member.reward,
+            member.exception_class,
             budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
         )
         is not None
@@ -1852,7 +1881,8 @@ def _summarize_cohort(
         "trial_pass_count": sum(
             (
                 _effective_reward(
-                    member,
+                    member.reward,
+                    member.exception_class,
                     budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
                 )
                 or 0.0
@@ -1866,7 +1896,8 @@ def _summarize_cohort(
                 for member in capability
                 if (
                     reward := _effective_reward(
-                        member,
+                        member.reward,
+                        member.exception_class,
                         budget_exhaustion_is_failure=spec.budget_exhaustion_is_failure,
                     )
                 )
@@ -2259,9 +2290,21 @@ def summarize_job_evidence(
         ),
         "elicitation": elicitation,
         "elicitation_reasons": elicitation_reasons,
-        "exception_count": sum(member.exception_class is not None for member in members),
+        "exception_count": sum(
+            member.exception_class is not None
+            and _effective_reward(
+                member.reward, member.exception_class, budget_exhaustion_is_failure=False
+            )
+            is None
+            for member in members
+        ),
         "missing_reward_count": sum(
-            member.exception_class is None and member.reward is None for member in members
+            member.exception_class is None
+            and _effective_reward(
+                member.reward, member.exception_class, budget_exhaustion_is_failure=False
+            )
+            is None
+            for member in members
         ),
         "insufficient_tasks": insufficient,
         "unavailable_order_groups": dict(sorted(order_unavailable.items())),
@@ -2331,11 +2374,13 @@ def render_markdown(report: dict[str, Any]) -> str:
     if report["declared_variable"] == "harness_tree_sha256":
         lines.extend(["## Verified harness treatment", "", "| cohort | tree digest |", "|---|---|"])
         for cohort in report["cohorts"]:
-            digests = sorted({
-                member["harness_tree_sha256"]
-                for member in cohort["members"]
-                if member["harness_tree_sha256"] is not None
-            })
+            digests = sorted(
+                {
+                    member["harness_tree_sha256"]
+                    for member in cohort["members"]
+                    if member["harness_tree_sha256"] is not None
+                }
+            )
             identities = "<br>".join(f"`{digest}`" for digest in digests) or "unverified"
             lines.append(f"| {cohort['label']} | {identities} |")
         lines.append("")

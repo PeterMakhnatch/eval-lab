@@ -233,3 +233,40 @@ def test_unfinished_analysis_profile_is_visible_in_report(tmp_path: Path, monkey
     journal.write_text('{"event":"request_started"}\\n')
     rendered = monitor.render_monitor_report(out)
     assert profile in rendered
+
+
+def test_provider_failure_stops_later_cases_and_live_cycles(tmp_path: Path, monkeypatch, capsys) -> None:
+    from evallab import cli
+    from evallab.interpretation import monitor_agent
+
+    out, _ = _prepare(tmp_path, monkeypatch, MonitorCorpus(trials=(
+        _trial("a"), _trial("b"), _trial("c"),
+    )))
+    instances = []
+
+    class FailedProvider(monitor_agent.OpenAIInvestigator):
+        calls = 0
+
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            instances.append(self)
+
+        def complete(self, *args, **kwargs):
+            self.calls += 1
+            raise monitor_agent.InvestigatorError("SENSITIVE-FAIL-SECRET", http_status=401)
+
+    monkeypatch.setattr(monitor_agent, "OpenAIInvestigator", FailedProvider)
+    monkeypatch.setattr(cli, "instrument_openinference", lambda: None)
+    monkeypatch.setenv("MONITOR_TEST_KEY", "synthetic-credential")
+    code = cli.run_cli([
+        "investigate", "run", "--watch-state", str(tmp_path / "watch.json"),
+        "--runs-dir", str(tmp_path / "runs"), "--out", str(out),
+        "--allow-model", "--model", "explicit-model", "--endpoint", "https://provider.example/v1",
+        "--api-key-env", "MONITOR_TEST_KEY", "--input-price", "1", "--output-price", "2",
+        "--budget-usd", "1", "--max-cases", "3", "--cycles", "3", "--interval", "0.01",
+    ], workspace=tmp_path)
+    assert code == 3
+    assert instances[0].calls == 1
+    reports = list((out / "cases").glob("*/revisions/*/analyses/*/report.json"))
+    assert len(reports) == 1
+    assert "SENSITIVE-FAIL-SECRET" not in capsys.readouterr().out

@@ -784,3 +784,36 @@ def test_rejected_provider_response_still_preserves_observed_overage_and_holds_b
     )
     with pytest.raises(BudgetExhausted, match="budget_on_hold"):
         _budget(path).reserve(pass_id="another-case", payload={"max_tokens": 128}, max_output_tokens=128)
+
+
+def test_profile_revisions_have_separate_request_costs_but_one_lifetime_budget(tmp_path):
+    corpus, case, _ = _fixtures()
+    budget = _budget(tmp_path / "spend.jsonl")
+    reports = []
+    for profile in ("1" * 64, "2" * 64):
+        transport = _Scripted([_read(case.primary_trial), _conclusion(case.primary_trial, suspicious=True)])
+        reports.append(investigate(
+            case, corpus, transport=transport, budget=budget,
+            work_dir=tmp_path / profile, request_profile=profile,
+        ))
+    assert [report.calls for report in reports] == [2, 2]
+    assert [report.input_tokens for report in reports] == [60, 60]
+    assert budget.totals()[0] == 4
+    assert sum(report.reserved_usd for report in reports) == pytest.approx(budget.totals()[1])
+
+
+def test_http_status_is_retained_without_auth_bearing_error_text(tmp_path):
+    corpus, case, _ = _fixtures()
+    opener = _Opener(urllib.error.HTTPError(
+        "https://provider.example", 401, "SENSITIVE-FAIL-SECRET", {}, None,
+    ))
+    report = investigate(
+        case, corpus, transport=_http_transport(opener),
+        budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis",
+    )
+    events = [json.loads(line) for line in (tmp_path / "analysis/journal.jsonl").read_text().splitlines()]
+    failure = next(event for event in events if event["event"] == "request_failed")
+    assert failure["provider_http_status"] == 401
+    assert report.status == "failed" and report.calls == 1
+    assert report.estimated_usage_usd is None
+    assert "SENSITIVE-FAIL-SECRET" not in json.dumps(events)

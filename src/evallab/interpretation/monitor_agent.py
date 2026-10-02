@@ -101,10 +101,15 @@ class InvestigatorError(RuntimeError):
     """An unsafe, unsupported, or malformed provider response."""
 
     def __init__(
-        self, message: str, *, observed_usage: tuple[int | None, int | None] | None = None
+        self, message: str, *, observed_usage: tuple[int | None, int | None] | None = None,
+        http_status: int | None = None,
     ) -> None:
         super().__init__(message)
         self.observed_usage = observed_usage
+        self.http_status = (
+            http_status if isinstance(http_status, int) and not isinstance(http_status, bool)
+            and 100 <= http_status <= 599 else None
+        )
 
 
 class BudgetExhausted(RuntimeError):
@@ -252,7 +257,7 @@ class OpenAIInvestigator:
                 raw = response.read(_MAX_RESPONSE_BYTES + 1)
         except urllib.error.HTTPError as exc:
             # Deliberately discard response bodies, headers, URLs, and auth-bearing errors.
-            raise InvestigatorError(f"provider HTTP status {exc.code}") from None
+            raise InvestigatorError("provider HTTP request rejected", http_status=exc.code) from None
         except (urllib.error.URLError, TimeoutError, OSError):
             raise InvestigatorError("provider transport failed; not retried") from None
         if len(raw) > _MAX_RESPONSE_BYTES:
@@ -608,6 +613,7 @@ def investigate(
     budget: InvestigationBudget,
     work_dir: Path,
     limits: InvestigationLimits | None = None,
+    request_profile: str | None = None,
 ) -> InvestigationReport:
     """Investigate once, with durable before-cost journaling and restart abstention.
 
@@ -616,6 +622,10 @@ def investigate(
     without that report is ambiguous, including crashes before provider I/O.
     """
     limits = limits or InvestigationLimits()
+    if request_profile is not None and (
+        len(request_profile) != 64 or set(request_profile) - set("0123456789abcdef")
+    ):
+        raise ValueError("request_profile must be a SHA-256 profile identity")
     if case.snapshot_id != corpus.digest:
         raise ValueError("case snapshot digest does not match corpus")
     work_dir = Path(work_dir).resolve()
@@ -641,6 +651,8 @@ def investigate(
         "response_format": getattr(transport, "response_format", "json_schema"),
         "limits": limits.model_dump(mode="json"),
         "budget_config": budget.config,
+        "request_profile": request_profile,
+        "prompt_sha256": content_digest(_SYSTEM_PROMPT),
     }
     pass_id = content_digest(identity)
     source_limits = _source_limits(case, corpus)
@@ -829,7 +841,13 @@ def investigate(
             finding = None
             # Do not persist arbitrary exception text: transports may embed API credentials.
             error = f"investigation_{stage}_failed"
-            _append_event(journal_path, {"event": "request_failed", "reason": error, "stage": stage, "exception_type": type(exc).__name__})
+            http_status = exc.http_status if isinstance(exc, InvestigatorError) else None
+            if http_status is not None:
+                extra_limits.append(f"Provider HTTP status {http_status}; response body not retained.")
+            _append_event(journal_path, {
+                "event": "request_failed", "reason": error, "stage": stage,
+                "exception_type": type(exc).__name__, "provider_http_status": http_status,
+            })
 
         calls, reserved = budget.totals(pass_id)
         if calls != len(completions) + observed_failed_calls:

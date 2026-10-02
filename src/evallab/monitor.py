@@ -39,6 +39,11 @@ MAX_JSON_BYTES = 160_000_000
 _CASE_ID = re.compile(r"^[a-f0-9]{24}$")
 _DIGEST = re.compile(r"^[a-f0-9]{64}$")
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
+_PROVIDER_STOP_ERRORS = frozenset({
+    "investigation_transport_failed", "investigation_usage_bound_failed",
+    "investigation_model_failed", "investigation_accounting_failed",
+    "investigation_budget_failed", "investigation_journal_failed",
+})
 
 
 def _read_json(path: Path, *, limit: int = MAX_JSON_BYTES) -> Any:
@@ -503,7 +508,8 @@ def run_prepared(
                 _write_json(root, existing, report.model_dump(mode="json"), immutable=True)
             else:
                 report = monitor_agent.investigate(case, corpus, transport=transport, budget=budget,
-                                                   work_dir=work_dir, limits=effective)
+                                                   work_dir=work_dir, limits=effective,
+                                                   request_profile=profile_key)
             if report.case_id != case.case_id or report.snapshot_id != case.snapshot_id:
                 raise ValueError("investigator returned a different case identity")
             # The engine publishes before returning; no inferred success.
@@ -511,7 +517,7 @@ def run_prepared(
                 raise ValueError("investigator did not persist its report")
         reports.append(report)
         started += 1
-        if report.status == "budget_exhausted":
+        if report.status == "budget_exhausted" or report.error in _PROVIDER_STOP_ERRORS:
             break
     return reports
 
@@ -682,7 +688,8 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None)
                        "input_usd_per_million": args.input_price,
                        "output_usd_per_million": args.output_price,
                        "disable_thinking": args.disable_thinking,
-                       "response_format": args.response_format}
+                       "response_format": args.response_format,
+                       "credential_env": args.api_key_env}
             # Validate hosted transport before creating a persistent budget.
             transport = OpenAIInvestigator(endpoint=args.endpoint, model=args.model,
                                            api_key=key, timeout_seconds=limits.timeout_seconds,
@@ -693,18 +700,28 @@ def _command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None)
                                          budget_usd=args.budget_usd, max_calls=args.max_calls,
                                          input_usd_per_million=args.input_price,
                                          output_usd_per_million=args.output_price)
+        result_code = 0
         for cycle in range(args.cycles):
             summary = prepare_watch(status_path, roots, out_dir, unflagged=args.unflagged,
                                     related=args.related, min_new_steps=args.min_new_steps,
                                     max_cases=args.prepare_max_cases, max_trials=args.max_trials)
+            stop_provider = False
             if transport is not None and budget is not None:
                 reports = run_prepared(out_dir, transport=transport, budget=budget,
                                        profile=profile, limits=limits, max_cases=args.max_cases)
                 summary["investigations"] = [report.model_dump(mode="json") for report in reports]
+                if any(report.status == "failed" for report in reports):
+                    result_code = 3
+                stop_provider = any(
+                    report.status == "budget_exhausted" or report.error in _PROVIDER_STOP_ERRORS
+                    for report in reports
+                )
             print(json.dumps(summary, indent=2), flush=True)
+            if stop_provider:
+                return 3
             if cycle + 1 < args.cycles:
                 time.sleep(args.interval)
-        return 0
+        return result_code
     except (OSError, ValueError, ValidationError) as exc:
         print(f"investigate: {exc}")
         return 2

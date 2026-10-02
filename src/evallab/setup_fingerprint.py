@@ -523,14 +523,48 @@ def check_deviations(
     return uncovered, stale
 
 
+def _validate_modelfree_setup(fingerprint: dict[str, Any]) -> dict[str, Any]:
+    """Gates for model-free (nop/oracle) MiMo runs: lock resolution and ledger.
+
+    No reference profile, no harness/server/sampling comparison: there is no
+    model setup to compare. The lock passes on the effective resolution (the
+    default locks MiMo tasks on Daytona; an explicit opt-out is already
+    refused by the egress-lock validation), so census specs pass unchanged.
+    """
+    reasons: list[str] = []
+    lock = fingerprint["lock"]
+    if lock["effective"] != "locked":
+        reasons.append(
+            f"lock: effective resolution is {lock['effective']} "
+            f"(declared={lock['declared']!r}); model-free MiMo runs require "
+            "the sandbox locked"
+        )
+    task = fingerprint["task"]
+    if task.get("error"):
+        reasons.append(f"task: unreadable: {task['error']}")
+    elif not task.get("ledger_match"):
+        reasons.append(
+            f"task {fingerprint['subject']['task']}: outside the ledger "
+            f"(status={task.get('ledger_status')}; {task.get('ledger_reason')})"
+        )
+    if reasons:
+        raise ValueError("MiMo model-free setup refused: " + "; ".join(reasons))
+    return fingerprint
+
+
 def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
     """Refuse a MiMo batch whose setup differs from its named reference.
 
     Lives on the real dispatch validate path: ``validate_request`` calls it
     for every spec-driven MiMo run, before anything is approved or spent.
     Returns the intended fingerprint for the caller to persist.
+
+    Model-free agents (nop/oracle) have no model, sampling, server or harness
+    setup, so they skip the reference requirement and those comparisons. They
+    keep the gates that matter: the effective egress-lock resolution and the
+    ledger binding.
     """
-    from evallab.execution_contracts import is_mimo_run
+    from evallab.execution_contracts import CONTROL_AGENTS, is_mimo_run
 
     spec = request.experiment_spec
     if spec is None or not is_mimo_run(request.task, request.model):
@@ -544,6 +578,8 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
         environment=request.environment,
         repo_root=repo_root,
     )
+    if request.agent in CONTROL_AGENTS:
+        return _validate_modelfree_setup(fingerprint)
     name = spec.reference_profile
     if not name:
         raise ValueError(
@@ -592,9 +628,35 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
     return fingerprint
 
 
+def _render_modelfree_preflight(lines: list[str], fingerprint: dict[str, Any]) -> tuple[str, bool]:
+    """Preflight text for a model-free MiMo spec: lock resolution and ledger only."""
+    lines = [
+        *lines,
+        "",
+        "model-free run (nop/oracle): no reference profile, no harness/server/"
+        "sampling comparison; gates are the lock resolution and the ledger binding.",
+    ]
+    problems: list[str] = []
+    if fingerprint["lock"]["effective"] != "locked":
+        problems.append(
+            f"lock: effective resolution is {fingerprint['lock']['effective']} "
+            f"(declared={fingerprint['lock']['declared']!r})"
+        )
+    if not fingerprint["task"]["ledger_match"]:
+        problems.append(
+            f"task: outside the ledger (status={fingerprint['task']['ledger_status']}; "
+            f"{fingerprint['task']['ledger_reason']})"
+        )
+    if problems:
+        lines += ["", "REFUSED:", *(f"  - {problem}" for problem in problems)]
+        return ("\n".join(lines) + "\n", False)
+    lines += ["", "OK: model-free setup passes (lock resolves locked; ledger matches)."]
+    return ("\n".join(lines) + "\n", True)
+
+
 def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
     """Dry-run one spec file against its reference at $0. Returns (text, ok)."""
-    from evallab.execution_contracts import is_mimo_run
+    from evallab.execution_contracts import CONTROL_AGENTS, is_mimo_run
     from evallab.schemas import ExperimentSpec
 
     try:
@@ -643,6 +705,8 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
     if not is_mimo_run(task_rel, spec.model):
         lines += ["", "not a MiMo run: reference gate does not apply."]
         return ("\n".join(lines) + "\n", True)
+    if spec.agent in CONTROL_AGENTS:
+        return _render_modelfree_preflight(lines, fingerprint)
     profile_name = spec.reference_profile
     if profile_name is None:
         profile_name = default_profile_name(repo_root) or default_profile_name(package_repo_root())

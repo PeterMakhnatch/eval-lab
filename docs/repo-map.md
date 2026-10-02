@@ -383,7 +383,7 @@ inputs:
   - path: src/evallab/seqgen.py
     digest: sha256:0b895d33ff3846e71e1d2e66401860c92450fabe07a96da006f4ea675e0b9948
   - path: src/evallab/setup_fingerprint.py
-    digest: sha256:8057a1c66b419e590a1a05e9bc223655d05e692ea4943344a5f67ea1be7a9af3
+    digest: sha256:dae056323d0356fd43987f13e074986614513c5eb697a23816f4854a1e07af85
   - path: src/evallab/sft_glm.py
     digest: sha256:9d61f7257f84e912b1dc25963dd9dfa9acc4c2fde706bfc2e4d9588ac6d15594
   - path: src/evallab/sft_records.py

@@ -37,7 +37,9 @@ A MiMo batch names its measured setup (`reference_profile`, e.g.
 difference (`deviations: [{field, value, reason}]`). Dispatch refuses an
 uncovered difference, a missing reference, an undeclared lock, a task outside
 the ledger, or a missing parser — with the reason, before anything is spent.
-The run page prints each declared deviation. `evallab preflight --spec X
+Model-free runs (nop/oracle) skip the reference and the harness/server/
+sampling comparisons and keep the effective lock resolution plus the ledger
+binding. The run page prints each declared deviation. `evallab preflight --spec X
 [--root CHECKOUT]` runs the same comparison at $0 without Daytona or Modal;
 values only knowable at run time (the lock as applied) show as resolved
 intent in preflight and as observed values in the trial fingerprint.

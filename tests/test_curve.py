@@ -52,8 +52,7 @@ def test_empirical_curve_composes_cohort_metrics_without_fit_or_score() -> None:
     report = _build()
     block_ids = _level(report, 1).exact_pair_set
 
-    assert report.rankable is True
-    assert report.refuse_to_rank_reasons == []
+    assert report.rankable is False
     assert len(block_ids) == 2
     assert all(value.startswith("sha256:") for value in block_ids)
     assert [_level(report, value).role for value in (1, 2, 3)] == [
@@ -78,7 +77,7 @@ def test_empirical_curve_composes_cohort_metrics_without_fit_or_score() -> None:
     assert (primary.wins, primary.ties, primary.losses) == (0, 0, 2)
     assert primary.pass_all_first_k_delta == -1.0
     assert primary.pass_all_first_k_interval_95 == [-1.0, -1.0]
-    assert primary.rankable is True
+    assert primary.rankable is False
     serialized = report.model_dump(mode="json")
     primary_level = next(level for level in serialized["levels"] if level["level"] == 3)
     assert "pass_any_first_k" in primary_level
@@ -333,7 +332,7 @@ def test_curve_cli_json_roundtrip_and_invalid_json_error(tmp_path: Path, capsys)
     )
     validated = json.loads(capsys.readouterr().out)
     assert validated["curve_id"] == "m047-depth-contract"
-    assert validated["rankable"] is True
+    assert validated["rankable"] is False
 
     output = tmp_path / "curve.json"
     assert (
@@ -352,7 +351,7 @@ def test_curve_cli_json_roundtrip_and_invalid_json_error(tmp_path: Path, capsys)
         == 0
     )
     built = json.loads(capsys.readouterr().out)
-    assert built["rankable"] is True
+    assert built["rankable"] is False
     assert output.is_file()
 
     assert cli.run_cli(["curve", "report", str(output)], workspace=REPO_ROOT) == 0
@@ -451,11 +450,13 @@ def test_frozen_comparison_artifacts_qualify_and_match_the_live_curve(
         produced_at=PRODUCED_AT,
     )
 
-    assert frozen.rankable is True
-    assert frozen.refuse_to_rank_reasons == []
+    assert frozen.rankable is False
+    assert any(
+        "paired exact two-sided" in reason for reason in frozen.refuse_to_rank_reasons
+    )
     assert frozen.levels == live.levels
     assert frozen.common_controlled_fingerprint == live.common_controlled_fingerprint
-    assert _level(frozen, 3).contrasts[0].rankable is True
+    assert _level(frozen, 3).contrasts[0].rankable is False
 
     spec_path = tmp_path / "frozen-curve-spec.json"
     spec_path.write_text(frozen_spec.model_dump_json(indent=2), encoding="utf-8")
@@ -464,7 +465,7 @@ def test_frozen_comparison_artifacts_qualify_and_match_the_live_curve(
         spec_path, repo_root=tmp_path, output_path=output_path, produced_by="test-curve"
     )
     assert load_curve_report(output_path) == written
-    assert written.rankable is True
+    assert written.rankable is False
     assert written.levels == live.levels
 
 

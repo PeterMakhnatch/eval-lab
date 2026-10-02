@@ -1995,6 +1995,9 @@ def _paired_results(
     spec: CohortComparisonSpec,
     warnings: list[str],
 ) -> list[dict[str, Any]]:
+    # Delayed import: power's planning functions import this module.
+    from evallab.power import sign_test_p_value
+
     baseline = spec.cohorts[0].label
     results: list[dict[str, Any]] = []
     for selector in spec.cohorts[1:]:
@@ -2034,6 +2037,12 @@ def _paired_results(
                 - float(baseline_tasks[key]["mean_reward"])
                 for key in paired_keys
             ]
+            wins = sum(value > 0 for value in pass_deltas)
+            ties = sum(value == 0 for value in pass_deltas)
+            losses = sum(value < 0 for value in pass_deltas)
+            paired_exact_p_value = min(
+                1.0, 2.0 * sign_test_p_value(max(wins, losses), min(wins, losses))
+            )
             interval = bootstrap_mean_interval(
                 pass_deltas,
                 seed=_bootstrap_seed(spec.comparison_id, baseline, selector.label, k),
@@ -2090,6 +2099,11 @@ def _paired_results(
                 reasons.append(
                     f"the paired 95% interval [{interval[0]:.3f}, {interval[1]:.3f}] includes zero"
                 )
+            if paired_exact_p_value >= 0.05:
+                reasons.append(
+                    f"the paired exact two-sided sign/McNemar p={paired_exact_p_value:.3f} "
+                    f"({wins} wins, {losses} losses, {ties} ties) does not clear .05"
+                )
             reasons = list(dict.fromkeys(reasons))
             if reasons:
                 statement = f"{NOT_COMPARABLE}: {'; '.join(reasons)}"
@@ -2101,7 +2115,8 @@ def _paired_results(
                     ranking = f"{baseline} > {selector.label}"
                 statement = (
                     f"Ranking: {ranking}; n_tasks={len(paired_keys)}, k={k}, "
-                    f"paired bootstrap 95% interval=[{interval[0]:.3f}, {interval[1]:.3f}]."
+                    f"paired bootstrap 95% interval=[{interval[0]:.3f}, {interval[1]:.3f}], "
+                    f"paired exact two-sided sign/McNemar p={paired_exact_p_value:.4g}."
                 )
             else:  # Guarded above; retained so static analysis sees total assignment.
                 raise AssertionError("interval unexpectedly unavailable")
@@ -2132,9 +2147,14 @@ def _paired_results(
                     "mean_reward_delta": (
                         statistics.fmean(reward_deltas) if reward_deltas else None
                     ),
-                    "wins": sum(value > 0 for value in pass_deltas),
-                    "ties": sum(value == 0 for value in pass_deltas),
-                    "losses": sum(value < 0 for value in pass_deltas),
+                    "wins": wins,
+                    "ties": ties,
+                    "losses": losses,
+                    "paired_exact_p_value": paired_exact_p_value,
+                    "paired_exact_method": (
+                        "two-sided exact paired binary sign/McNemar on discordant "
+                        "tasks (ties excluded)"
+                    ),
                     "elicitation": {
                         baseline: baseline_elicitation,
                         selector.label: comparison_elicitation,
@@ -2327,9 +2347,12 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines.append("")
         lines.append(paired["statement"])
         lines.append("")
+        exact_p = paired.get("paired_exact_p_value")
+        exact_text = f"{exact_p:.4g}" if isinstance(exact_p, (int, float)) else "n/a"
         lines.append(
             f"Paired task delta={paired['mean_pass_any_first_k_delta']}; "
-            f"wins/ties/losses={paired['wins']}/{paired['ties']}/{paired['losses']}."
+            f"wins/ties/losses={paired['wins']}/{paired['ties']}/{paired['losses']}; "
+            f"paired exact two-sided sign/McNemar p={exact_text}."
         )
         lines.append("")
         lines.extend(["Elicitation tuples:", ""])
@@ -2343,9 +2366,12 @@ def render_markdown(report: dict[str, Any]) -> str:
             "## Interpretation boundary",
             "",
             "Attempts within one task are clustered into one evidence unit. Every interval above ",
-            "resamples tasks, and every two-cohort decision uses task-paired deltas. A ranking is ",
-            "printed only when the paired interval excludes zero and both elicitation tuples are ",
-            "complete; otherwise the report states the refusal reason.",
+            "resamples tasks, and every two-cohort decision uses task-paired deltas. New comparisons ",
+            "print a ranking only when the paired interval excludes zero, the paired exact two-sided ",
+            "sign/McNemar p on discordant tasks (ties excluded) clears .05, and both elicitation ",
+            "tuples are complete; otherwise the report states the refusal reason.",
+            "Older retained reports may lack the exact statistic; rendering does not recompute ",
+            "their historical decisions. This per-contrast test does not correct repeated searches.",
             "",
         ]
     )

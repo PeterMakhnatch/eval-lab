@@ -70,7 +70,9 @@ from evallab.step_layers import (
     discover_trajectory_parts,
     effective_tool_calls,
     execution_problems,
+    limit_hit_summary,
     reconstruct_layers,
+    stop_category,
     summarize_layers,
     verifier_outcome,
 )
@@ -771,7 +773,11 @@ def render_daytona_usage_lines(usage: dict[str, Any] | None) -> list[str]:
     rows: list[list[str]] = []
     for dim in _DAYTONA_DIMENSIONS:
         quota = limits.get(dim)
-        cap = quota * safety if isinstance(quota, (int, float)) and not isinstance(quota, bool) else None
+        cap = (
+            quota * safety
+            if isinstance(quota, (int, float)) and not isinstance(quota, bool)
+            else None
+        )
         rows.append(
             [
                 dim,
@@ -804,7 +810,11 @@ def render_daytona_usage_lines(usage: dict[str, Any] | None) -> list[str]:
         )
     disappearance = usage.get("disappearance")
     if isinstance(disappearance, dict):
-        name = disappearance.get("sandbox_name") or disappearance.get("sandbox_id") or "unknown sandbox"
+        name = (
+            disappearance.get("sandbox_name")
+            or disappearance.get("sandbox_id")
+            or "unknown sandbox"
+        )
         when = disappearance.get("observed_at") or "unknown time"
         cause = disappearance.get("cause")
         strength = disappearance.get("evidence_strength")
@@ -2042,7 +2052,9 @@ def _first_failure(
         and (cycle.get("end_step") or 0) >= total_steps - 1
     ):
         commands = " / ".join(
-            clipped for command in (cycle.get("commands") or [])[:2] if (clipped := _clip(command, 60))
+            clipped
+            for command in (cycle.get("commands") or [])[:2]
+            if (clipped := _clip(command, 60))
         )
         return {
             "step": cycle["start_step"],
@@ -2093,8 +2105,6 @@ def _first_failure(
                 "confidence": "medium",
             }
     return none
-
-
 
 
 def _binding_ceiling(trial_dir: Path, result: dict[str, Any]) -> str | None:
@@ -2322,6 +2332,10 @@ def _outcome(
         "verifier_outcome": verifier_outcome(rewards),
         "stop_reason": stop_reason,
         "stop_detail": stop_detail,
+        # HAR-156: execution lens on how the run ended, separate from the
+        # verifier verdict above. A scored timeout still passes or fails on
+        # its reward; the category says whose limit (if any) stopped it.
+        "stop_category": stop_category(stop_reason),
         "completion": completion,
         "execution_problems": dict(problems) if problems is not None else {},
         "final_agent_message": _clip(final_message, 600) if final_message else None,
@@ -2533,6 +2547,8 @@ def build_run_report(
     trial_dir: str | Path, *, timeline_limit: int | None = DEFAULT_TIMELINE_LIMIT
 ) -> dict[str, Any]:
     """Build the ``evallab.run_report/v1`` dictionary for one Harbor trial directory."""
+    from evallab.process_job import _setup_deviations
+
     trial = Path(trial_dir).resolve()
     result_path = trial / "result.json"
     try:
@@ -2738,6 +2754,9 @@ def build_run_report(
         # Environment monitor evidence is additive and optional: None means
         # the trial predates the monitor (or ran off-Daytona), never zero use.
         "daytona_usage": _daytona_usage(trial),
+        # HAR-156: declared setup deviations, same file the process-job run
+        # page reads; [] when the job carries no fingerprint.
+        "setup_deviations": _setup_deviations(trial.parent),
         # HAR-92: per-step model/harness/execution/observation layers,
         # continuation coverage, and the outcome/execution split.
         "step_layers": layer_summary,
@@ -2778,6 +2797,8 @@ def build_job_report(
                 "model": r["identity"]["model"],
                 "verdict": r["outcome"]["verdict"],
                 "reward": r["outcome"]["reward"],
+                "stop_reason": r["outcome"].get("stop_reason"),
+                "stop_category": r["outcome"].get("stop_category"),
                 "wall_seconds": r["timing"]["total_seconds"],
                 "agent_seconds": r["timing"]["phases"]["agent_execution"]["seconds"],
                 "steps": r["timeline"]["total_steps"],
@@ -2830,8 +2851,13 @@ def build_job_report(
         "total_repeated_actions": sum(row["repeated_actions"] for row in rows),
         "total_subagents": sum(row["subagents"] for row in rows),
         "verdicts": dict(Counter(row["verdict"] for row in rows)),
+        # HAR-156: limit-hit share over all trials; setup_limited is strictly
+        # above a 5% our_limit share. Counts/verdict semantics untouched.
+        "limit_hit_summary": limit_hit_summary(row["stop_reason"] for row in rows),
         "rows": rows,
     }
+    for report in reports:
+        report["job_limit_hit_summary"] = dict(job_report["limit_hit_summary"])
     return job_report, reports
 
 
@@ -2931,6 +2957,8 @@ def _table(headers: Sequence[str], rows: Iterable[Sequence[Any]]) -> list[str]:
 
 def render_run_report_markdown(report: dict[str, Any]) -> str:
     """Render an ``evallab.run_report/v1`` dictionary as Markdown."""
+    from evallab.process_job import _job_limit_hit_lines, _setup_deviation_lines
+
     identity = report["identity"]
     outcome = report["outcome"]
     timing = report["timing"]
@@ -2979,6 +3007,14 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
         f"; stop reason: {outcome.get('stop_reason') or 'unknown'}"
         + (f" ({outcome['stop_detail']})" if outcome.get("stop_detail") else "")
     )
+    # HAR-156: execution lens, separate from the verdict line above. A scored
+    # timeout still passes or fails on its reward; the category says whose
+    # limit (if any) stopped the run.
+    lines.append(
+        f"- Stop category: `{outcome.get('stop_category') or 'unknown'}`"
+        " (how the run ended; the verdict above is the verifier reading)."
+    )
+    lines += _job_limit_hit_lines(report)
     if outcome.get("completion"):
         lines.append(f"- {outcome['completion']}")
     problems = outcome.get("execution_problems") or {}
@@ -3411,6 +3447,9 @@ def render_run_report_markdown(report: dict[str, Any]) -> str:
     if domain_lines:
         lines += [""] + domain_lines
     lines += render_daytona_usage_lines(report.get("daytona_usage"))
+    # HAR-156: declared setup deviations, same wording as the process-job run
+    # page; absent evidence renders nothing.
+    lines += _setup_deviation_lines(report.get("setup_deviations"))
     lines += ["", "## Timeline"]
     if timeline["windows"]:
         lines.append("By tenth of the run:")
@@ -3521,10 +3560,27 @@ def render_job_report_markdown(job_report: dict[str, Any]) -> str:
         f"subagents {job_report['total_subagents']}.",
         "",
     ]
+    # HAR-156: limit-hit share over all trials with the >5% setup-limited flag.
+    # Tolerant of older payloads without the rollup (renders n/a, never crashes).
+    limit_hit = job_report.get("limit_hit_summary") or {}
+    share = limit_hit.get("limit_hit_share")
+    flagged = bool(limit_hit.get("setup_limited"))
+    lines.append(
+        f"Limit hits: {limit_hit.get('limit_hit_trials', 0)}/{limit_hit.get('trials', 0)} trials "
+        f"(share {_fmt_pct(share)}); setup-limited: `{str(flagged).lower()}`"
+        + (
+            " — flagged: over 5% of trials hit our limits, so treat the job as setup-limited."
+            if flagged
+            else "."
+        )
+    )
+    lines.append("")
     lines += _table(
         [
             "Trial",
             "Verdict",
+            "Stop reason",
+            "Stop category",
             "Reward",
             "Wall",
             "Agent",
@@ -3540,6 +3596,8 @@ def render_job_report_markdown(job_report: dict[str, Any]) -> str:
             [
                 r["trial"],
                 r["verdict"],
+                r.get("stop_reason"),
+                r.get("stop_category"),
                 r["reward"],
                 _fmt_seconds(r["wall_seconds"]),
                 _fmt_seconds(r["agent_seconds"]),

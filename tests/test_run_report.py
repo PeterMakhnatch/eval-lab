@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from evallab.cli import run_cli
 from evallab.interpretation.run_report import build_job_report, build_run_report, write_reports
 
@@ -1028,7 +1030,7 @@ def test_first_failure_prefers_unrecovered_missing_dependency(tmp_path: Path) ->
         _bash(
             1,
             5,
-            "python3 -c \"import tqdm\"",
+            'python3 -c "import tqdm"',
             "ModuleNotFoundError: No module named 'tqdm'",
             code=1,
         ),
@@ -1089,3 +1091,118 @@ def test_first_failure_does_not_flag_awk_as_bad_edit(tmp_path: Path) -> None:
     report = build_run_report(_trial(tmp_path, steps))
     first_failure = report["outcome"]["first_failure"]
     assert first_failure.get("kind") != "bad_edit"
+
+
+@pytest.mark.parametrize(
+    ("metadata", "exception", "completion", "reward", "reason", "category"),
+    [
+        ({"stop_reason": "ceiling:requests"}, None, False, 0.0, "ceiling:requests", "our_limit"),
+        ({"stop_reason": "loop_break"}, None, False, 0.0, "loop_break", "our_limit"),
+        (
+            {"native_exit_status": "LimitsExceeded"},
+            None,
+            False,
+            0.0,
+            "harness_step_limit",
+            "harness_step_limit",
+        ),
+        ({}, "AgentTimeoutError", False, 1.0, "agent_timeout", "task_timeout"),
+        ({}, None, True, 0.0, "prose_completion", "model_end"),
+        ({"native_exit_status": "Idle"}, None, False, 0.0, "task_complete", "model_end"),
+        ({}, None, False, 0.0, "unknown", "unknown"),
+    ],
+)
+def test_run_report_stop_categories_do_not_replace_verifier_verdict(
+    tmp_path: Path,
+    metadata: dict[str, Any],
+    exception: str | None,
+    completion: bool,
+    reward: float,
+    reason: str,
+    category: str,
+) -> None:
+    from evallab.interpretation.run_report import render_run_report_markdown
+
+    result = _result(
+        agent_result={"metadata": metadata},
+        verifier_result={"rewards": {"reward": reward}},
+    )
+    if exception:
+        result["exception_info"] = {"exception_type": exception}
+    accepted = _claim_layer() if completion else _calls_layer("ls")
+    trial = _trial(tmp_path, [_layered(1, 1, accepted)], result=result)
+
+    report = build_run_report(trial)
+
+    assert report["outcome"]["stop_reason"] == reason
+    assert report["outcome"]["stop_category"] == category
+    assert report["outcome"]["verdict"] == ("passed" if reward == 1.0 else "failed")
+    assert f"Stop category: `{category}`" in render_run_report_markdown(report)
+
+
+@pytest.mark.parametrize(("trials", "flagged"), [(20, False), (19, True)])
+def test_job_report_limit_hit_share_over_all_trials_has_strict_boundary(
+    tmp_path: Path, trials: int, flagged: bool
+) -> None:
+    from evallab.interpretation.run_report import (
+        render_job_report_markdown,
+        render_run_report_markdown,
+    )
+
+    for index in range(trials):
+        metadata = (
+            {"stop_reason": "loop_break"}
+            if index == 0
+            else {"native_exit_status": "LimitsExceeded"}
+        )
+        _trial(
+            tmp_path,
+            [_layered(1, 1, _calls_layer("ls"))],
+            name=f"trial-{index:02}",
+            result=_result(
+                agent_result={"metadata": metadata},
+                verifier_result={"rewards": {"reward": 0.0}},
+            ),
+        )
+
+    report, runs = build_job_report(tmp_path)
+    limits = report["limit_hit_summary"]
+    markdown = render_job_report_markdown(report)
+
+    assert limits == {
+        "trials": trials,
+        "limit_hit_trials": 1,
+        "limit_hit_share": 1 / trials,
+        "setup_limited": flagged,
+    }
+    assert report["verdicts"] == {"failed": trials}
+    assert runs[0]["outcome"]["stop_category"] == "our_limit"
+    assert runs[1]["outcome"]["stop_category"] == "harness_step_limit"
+    assert f"setup-limited: `{str(flagged).lower()}`" in markdown
+    assert ("flagged: over 5%" in markdown) is flagged
+    for run in runs:
+        page = render_run_report_markdown(run)
+        assert f"({1}/{trials} trials hit our limits" in page
+        assert f"setup-limited: `{str(flagged).lower()}`" in page
+
+
+def test_run_report_shows_declared_setup_deviations_on_both_run_pages(tmp_path: Path) -> None:
+    from evallab.interpretation.run_report import render_run_report_markdown
+    from evallab.process_job import process_job
+
+    trial = _trial(tmp_path, [_layered(1, 1, _calls_layer("ls"))])
+    deviations = [{"field": "limits.max_requests", "value": 12, "reason": "declared trial cap"}]
+    (tmp_path / "setup-fingerprint.json").write_text(
+        json.dumps({"deviations": deviations}), encoding="utf-8"
+    )
+
+    report = build_run_report(trial)
+    out = tmp_path / "processed"
+    process_job(tmp_path, output_dir=out, ingest=False, publish=False)
+    process_page = (out / "trial-trial.md").read_text(encoding="utf-8")
+
+    assert report["setup_deviations"] == deviations
+    report_page = render_run_report_markdown(report)
+    for page in (report_page, process_page):
+        assert "`limits.max_requests`=`12`" in page
+        assert "declared trial cap" in page

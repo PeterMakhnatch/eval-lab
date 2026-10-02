@@ -83,6 +83,7 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
     {
         "AGY_AUTH_JSON_PATH",
         "AGY_FORCE_AUTH_JSON",
+        "EVALLAB_PROXY_LIVE_DIR",
         "CLAUDE_FORCE_OAUTH",
         "CODEX_HOME",
         "CODEX_FORCE_AUTH_JSON",
@@ -243,6 +244,10 @@ ZAI_OPENAPI_PROXY_USAGE_FILE_ENV = "EVALLAB_ZAI_OPENAPI_USAGE_FILE"
 ZAI_OPENAPI_ALLOWED_MODEL_ENV = "EVALLAB_ZAI_OPENAPI_ALLOWED_MODEL"
 ZAI_OPENAPI_INPUT_COST_MICROS_PER_MILLION = 150_000
 ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION = 500_000
+PROXY_LIVE_DIR_ENV = "EVALLAB_PROXY_LIVE_DIR"
+PROXY_LIVE_DIR_NAME = "proxy-live"
+PROXY_LIVE_CALLS_FILE = "calls.jsonl"
+PROXY_LIVE_LIMITS_FILE = "limits.json"
 ZAI_OPENAPI_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     {
         ZAI_OPENAPI_PROXY_CAPABILITY_ENV,
@@ -1552,7 +1557,7 @@ def uses_provider_proxy(agent: str, model: str | None) -> bool:
     )
 
 
-def validate_request(request: RunRequest) -> None:
+def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> None:
     """Validate that a RunRequest adheres to directory, name, timeout, and billable invariants."""
     if not request.task.is_dir():
         raise ValueError(f"Task directory does not exist: {request.task}")
@@ -1726,6 +1731,23 @@ def validate_request(request: RunRequest) -> None:
         load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
 
     _validate_egress_lock(request)
+    _validate_setup_fingerprint(request, repo_root)
+
+
+def _validate_setup_fingerprint(request: RunRequest, repo_root: Path | None) -> None:
+    """Refuse a spec-driven MiMo run whose setup differs from its reference (HAR-149).
+
+    Ad-hoc and prepared-task requests carry no experiment spec and keep the
+    previous behaviour; every queue dispatch carries one. Non-MiMo runs are
+    untouched.
+    """
+    spec = request.experiment_spec
+    if spec is None or not is_mimo_run(request.task, request.model):
+        return
+    from evallab.setup_fingerprint import resolve_repo_root, validate_mimo_setup
+
+    root = resolve_repo_root(repo_root, request.task)
+    validate_mimo_setup(request, root)
 
 
 def resolve_harbor_agent(agent: str, model: str | None = None) -> str:

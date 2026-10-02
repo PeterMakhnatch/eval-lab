@@ -65,6 +65,7 @@ TOP_LEVEL_COMMANDS = (
     "process-job",
     "results",
     "review",
+    "watch",
     "telemetry",
 )
 

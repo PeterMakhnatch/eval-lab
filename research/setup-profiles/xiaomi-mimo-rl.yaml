@@ -1,0 +1,91 @@
+name: xiaomi-mimo-rl
+schema_version: 1
+description: >-
+  Xiaomi MiMo RL training setup (HAR-148): the measured setup MiMo evals
+  compare against. Every compared field cites its source: a mimoagent or verl
+  file:line from the mimo-oss snapshots, or is marked unsourced with the
+  reason. Do not guess values into sourced fields.
+compared_fields:
+  - harness.id
+  - server.tool_call_parser
+  - server.reasoning_parser
+  - server.context_length
+  - sampling.temperature
+  - sampling.top_p
+  - sampling.top_k
+  - lock.mode
+  - budgets.step_limit
+harness:
+  id:
+    value: mimoagent-default
+    source: >-
+      example_configs/swe.yaml carries no agent.type key, and
+      src/mimoagent/agents/factory.py:10 says type defaults to "default",
+      the DefaultAgent native tool-calling loop.
+  version:
+    unsourced: true
+    reason: >-
+      the mimo-oss snapshot carries no version pin for the harness itself.
+  tools:
+    value: [bash, read, write, edit, agent]
+    source: >-
+      example_configs/swe.yaml:4-11 (bash with timeout 300, read, write,
+      edit, plus the agent subagent tool).
+  prompt:
+    value: "Fix the following issue:"
+    source: example_configs/swe.yaml:18-21 (instance_template).
+server:
+  model_revision:
+    unsourced: true
+    reason: >-
+      training started from multiple policy checkpoints; the oss sources pin
+      no single weights revision for the measured run.
+  sglang_image:
+    unsourced: true
+    reason: >-
+      the oss configs pin rollout sampling, not the serving container digest.
+  tool_call_parser:
+    value: qwen3_coder
+    source: >-
+      recipes/code/config/train.yaml:59 (multi_turn.format: qwen3_coder),
+      implemented by Qwen3XMLToolParser at
+      verl/verl/experimental/agent_loop/tool_parser.py:189-192.
+  reasoning_parser:
+    unsourced: true
+    reason: >-
+      the oss rollout configs pin no named reasoning parser; reasoning
+      handling is harness-side, not a pinned server flag.
+  context_length:
+    value: 262144
+    source: >-
+      recipes/code/config/train.yaml:22 (max_model_len: 262144;
+      prompt_length 8192 + response_length 253952); same default as
+      recipes/code/run_train.sh:51 (MAXLEN=262144).
+sampling:
+  temperature:
+    value: 1.0
+    source: >-
+      recipes/code/config/train.yaml:23 and recipes/code/run_train.sh:74
+      (ROLLOUT_TEMPERATURE default 1.0); the harness default is also 1.0
+      (example_configs/swe.yaml:44).
+  top_p:
+    value: 0.95
+    source: >-
+      recipes/code/config/train.yaml:24 and recipes/code/run_train.sh:75
+      (ROLLOUT_TOP_P default 0.95).
+  top_k:
+    value: 20
+    source: >-
+      recipes/code/config/train.yaml:25 and recipes/code/run_train.sh:76
+      (ROLLOUT_TOP_K default 20).
+lock:
+  mode:
+    value: locked
+    source: >-
+      example_configs/swe.yaml:28-36 (environment block forwards no egress
+      proxy; the forward-proxy lines stay commented out, so rollouts get no
+      egress route); the dataset layer only needs its answer-leak blocklist
+budgets:
+  step_limit:
+    value: 500
+    source: "example_configs/swe.yaml:24 (step_limit: 500)."

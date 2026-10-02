@@ -99,6 +99,14 @@ that usage. Continuation views retain earlier non-copied steps with their
 original document, hash, and step coordinates. Missing, escaping, or cyclic
 continuations are unavailable/degraded evidence, not a complete partial head.
 
+The raw ATIF projection follows file references from every embedded subagent
+document as well as the outer document. Relative references use the enclosing
+source file's directory; targets must remain inside the same trial directory.
+Reachable files outside `agent/` are included, and repeated or cyclic links do
+not duplicate documents or steps. Missing and escaping targets remain invalid
+evidence rather than fabricated documents. This traversal does not authorize
+summing parent and child usage totals.
+
 Native usage estimates, physical-call proxy accounting, and provider invoices
 are different records. Some producers omit `llm_call_count`, and some upstream
 length-interrupted calls are absent from native token totals. Neither zero
@@ -314,6 +322,21 @@ Produce a machine-readable result before prose. Useful initial summaries are:
 
 Small samples are shown as small samples. A single pass or failure is a trajectory
 to inspect, not an estimate of general capability.
+
+Paired binary `pass_any_first_k` rankings additionally require an **exact
+two-sided paired sign/McNemar p-value below .05**, computed from task wins and
+losses with ties excluded. JSON exposes `paired_exact_p_value` and
+`paired_exact_method`; Markdown includes the same statistic. The task-bootstrap
+interval remains descriptive and must still exclude zero, but it is not enough
+on its own: two wins can produce `[1, 1]` while exact `p = .5`, so they must not
+be ranked. Five unanimous discordant tasks give `p = .0625`; six give
+`p = .03125`. Additional tied tasks do not manufacture decisive evidence.
+
+This is a per-contrast decision rule for independent paired task units, not
+proof that an observational cohort is causal and not a multiple-comparison or
+repeated-search correction. All identity, pairing, ordering and comparability
+refusals still apply. Existing preregistered one-sided publication gates are
+unchanged.
 
 For a pinned Terminus harness experiment, declare
 `harness_tree_sha256` as the treatment. The comparator verifies the retained

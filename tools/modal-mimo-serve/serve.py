@@ -51,6 +51,7 @@ VOLUME_NAME = "evallab-mimo-v26-9b-weights"
 SECRET_NAME = "evallab-mimo-v26-9b-api-key"
 GPU = "A100-80GB"
 CONTEXT_LENGTH = 65_536
+TOOL_CALL_PARSER = "mimo"
 PORT = 8000
 MINUTES = 60
 WEIGHTS_ROOT = Path("/weights")
@@ -118,6 +119,8 @@ def sglang_command(api_key: str) -> list[str]:
         MODEL_ID,
         "--reasoning-parser",
         "mimo",
+        "--tool-call-parser",
+        TOOL_CALL_PARSER,
         "--context-length",
         str(CONTEXT_LENGTH),
         # Capture decode CUDA graphs only for the batch sizes one trial lane

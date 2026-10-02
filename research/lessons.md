@@ -8,6 +8,32 @@ inputs:
     digest: sha256:43de4eb22e4da069629cc8136f7b340537f92bee5d72929cb55efeaa35178fc0
   - path: derived/parquet/craft/craft.parquet
     digest: sha256:3da7da05aee98176033d205a577aa80724d809c7f48a5f8333446d68be2e13bd
+  - path: derived/parquet/job_id=09db1898-8495-4f26-abe9-b0fa8a27716d/trial_id=99a9912f-6e3f-4ebf-8a93-9ffa68df4446/trial_facts.parquet
+    digest: sha256:227747221b25e6b1548d58de2f2cbb813930713326056b3bbbc02c0160688a41
+  - path: derived/parquet/job_id=57eab0f2-1fb0-4934-89b7-2db6d6f0d758/trial_id=02263ac3-45c9-41ba-9629-64eb9eadc69c/trial_facts.parquet
+    digest: sha256:5f50da2736eb22c365c1dfa3f61694ee4c55ef3ca70d7e6f2a6e9b96d38859b2
+  - path: derived/parquet/job_id=625b8d16-dbc9-4300-86c1-ce959d82cf22/trial_id=3b6a6338-2950-4611-b8c3-12f50de5c2b0/trial_facts.parquet
+    digest: sha256:e3be772a81af3c24028f581c58d9ccca65082f226fc3d9e6b7c5be4cf9e8fbdb
+  - path: derived/parquet/job_id=65cab574-ed13-45f6-859c-e10ee2cc1fb9/trial_id=694971e4-1830-4f3f-85fd-4d792f40184f/trial_facts.parquet
+    digest: sha256:0c87a79d8d67ad448099204f0b226eebfbd566269adfccd46442be28ee397500
+  - path: derived/parquet/job_id=68112772-68cf-4937-8a57-3b71b1e5e265/trial_id=92e81d55-4dcc-4a96-a213-a1ec82128245/trial_facts.parquet
+    digest: sha256:6f22b665524eaa42a4426eadc28fd30d0edfa8c30a800fc9f9c38e7e287f0caf
+  - path: derived/parquet/job_id=8506d5ba-3018-4df5-8ed4-eb253c23cb31/trial_id=6df64a8f-56de-49cc-b382-15602ed8273b/trial_facts.parquet
+    digest: sha256:ad772bdd63371d8164737e1b12089ab34e329481faa2cf4ca3be02c578900c5c
+  - path: derived/parquet/job_id=8f1772b0-f783-4f25-8dc7-d9b140e162d7/trial_id=0f8e4b11-0b93-4d24-a78e-153d23321e2e/trial_facts.parquet
+    digest: sha256:5e70e7df26d49ed33d8de6cd1db4b2d8469e7a0c3d88184d5b83797cd2b4ba4d
+  - path: derived/parquet/job_id=90800fdb-5fb8-4142-a385-1ea53db60ac4/trial_id=def914fe-492a-4dcf-9ebe-562789080462/trial_facts.parquet
+    digest: sha256:b842abf05aeb6b89ec2ee8fb0b807b530b602dbc3f248aad6d208ac3b42e0c76
+  - path: derived/parquet/job_id=9cea10be-9275-4ca4-8f03-b4236191a51d/trial_id=adae3bb2-1ac4-46ab-832b-5897a0564341/trial_facts.parquet
+    digest: sha256:751fd759f31a8191b162d8cfec65c710755bfcdf533b4c1b6cc32d425bfb33d7
+  - path: derived/parquet/job_id=aec02ca4-aa30-420c-807e-6cd690c51740/trial_id=9c8d38a6-be1a-4243-8cde-0d47d544a68c/trial_facts.parquet
+    digest: sha256:0d3fcea4d27a2c18c7f055bdc0f6a8539fa60b1548703282f7e0b5b195758225
+  - path: derived/parquet/job_id=c405dfdb-78c4-4286-9fc9-d4018a6644c1/trial_id=f5c41587-5071-415f-8612-536be528dfda/trial_facts.parquet
+    digest: sha256:e0d1d56669f826e8ed6916e56d8d22ad00b1842f68308acf0ac56b51efc66cd4
+  - path: derived/parquet/job_id=d6bebbb8-6508-4690-8e53-6fb63b1086a8/trial_id=585d05ff-be74-4414-a90b-2018075f7d6d/trial_facts.parquet
+    digest: sha256:499650bae1d819a6e412914012d0477414a69f690cad018e8d0302410ff000d5
+  - path: derived/parquet/job_id=f84040b2-a5be-48a0-820a-2c467877b491/trial_id=39eb5d96-6c58-4f2a-a17c-f28640e36f21/trial_facts.parquet
+    digest: sha256:d81a326eb31f3083899cf234bd112be224a62e01a2a34fc523f7350a6aa37336
   - path: derived/parquet/trajectory_quality_reports.parquet
     digest: sha256:652a23a3a642c6e0d3bea70a70a9391e386ac3c83f447298abe65bf5dc8ab341
   - path: research/explorations/harbor-021/captures/analyze/analysis.json
@@ -69,7 +95,7 @@ inputs:
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-09-03 16:51:07Z
+- **Generated at:** 2026-10-02 08:48:21Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
 - **Corpus Summary:** 551 craft tasks, 263 trials, 25 observation records, 0 analysis sidecars
 - **Evidence Quality Ledger:** 238 evaluated trials (pass 27, warn 178, fail 24, quarantine 9)

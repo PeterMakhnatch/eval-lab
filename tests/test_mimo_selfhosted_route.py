@@ -327,6 +327,7 @@ def _launch_mimo_proxy(
     mimo_upstream: ThreadingHTTPServer,
     capability: str,
     limits: ProxyTrialLimits,
+    sampling_profile: str = "generation-config",
 ) -> tuple[subprocess.Popen[bytes], str, Path]:
     secret_file = tmp_path / "provider-key"
     secret_file.write_text(f"{SECRET_SENTINEL}\n")
@@ -346,6 +347,7 @@ def _launch_mimo_proxy(
         timeout_seconds=60.0,
         work_dir=work_dir,
         mimo_native=MIMO_SELFHOSTED_NATIVE_MODEL,
+        mimo_sampling_profile=sampling_profile,
     )
     return process, url, usage_path
 
@@ -370,11 +372,17 @@ def _post(
         return exc.code, exc.read()
 
 
+@pytest.mark.parametrize(
+    ("sampling_profile", "temperature"),
+    [("generation-config", 0.6), ("xiaomi-rl", 1.0)],
+)
 def test_mimo_proxy_enforces_generation_config_and_strips_effort(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any,
+    sampling_profile: str, temperature: float,
 ) -> None:
     process, url, usage_path = _launch_mimo_proxy(
-        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits(),
+        sampling_profile=sampling_profile,
     )
     try:
         status, body = _post(
@@ -383,7 +391,7 @@ def test_mimo_proxy_enforces_generation_config_and_strips_effort(
                 "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
                 "messages": [{"role": "user", "content": "hi"}],
                 "max_tokens": 100,
-                "temperature": 1.0,
+                "temperature": 0.2,
                 "top_p": 0.1,
                 "top_k": 5,
                 "reasoning_effort": "none",
@@ -397,10 +405,9 @@ def test_mimo_proxy_enforces_generation_config_and_strips_effort(
         assert status == 200, body
         assert len(_MimoUpstream.seen) == 1
         forwarded = _MimoUpstream.seen[0]
-        # The proxy rewrote the selector to the served-model-name id and
-        # forced the model's generation_config over caller values.
+        # The harness profile overrides caller sampling and the model selector.
         assert forwarded["model"] == MIMO_SELFHOSTED_NATIVE_MODEL
-        assert forwarded["temperature"] == 0.6
+        assert forwarded["temperature"] == temperature
         assert forwarded["top_p"] == 0.95
         assert forwarded["top_k"] == 20
         # reasoning_effort is stripped in both places; the caller's other
@@ -416,6 +423,9 @@ def test_mimo_proxy_enforces_generation_config_and_strips_effort(
         usage = json.loads(usage_path.read_text())
         assert usage["calls"][0]["requested_model"] == MIMO_SELFHOSTED_MODEL_SELECTOR
         assert usage["calls"][0]["shaping_applied"] is True
+        assert usage["calls"][0]["sampling"] == {
+            "temperature": temperature, "top_p": 0.95, "top_k": 20,
+        }
         # Zero per-token rates: the ledger prices and costs nothing.
         assert usage["pricing"] == {
             "input_cost_micros_per_million": 0,

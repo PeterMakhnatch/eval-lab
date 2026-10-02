@@ -117,6 +117,44 @@ def _output_lines(text: str) -> Iterable[str]:
         yield line
 
 
+def _trajectory_steps(trajectory: dict) -> Iterable[tuple[Any, dict]]:
+    """Visit embedded child work before the parent's next turn, without repeats."""
+    documents: list[dict] = []
+    by_id: dict[str, dict] = {}
+
+    def collect(document: dict) -> None:
+        documents.append(document)
+        if document.get("trajectory_id"):
+            by_id[document["trajectory_id"]] = document
+        for child in document.get("subagent_trajectories") or []:
+            if isinstance(child, dict):
+                collect(child)
+
+    collect(trajectory)
+    visited: set[int] = set()
+
+    def walk(document: dict) -> Iterable[tuple[Any, dict]]:
+        if id(document) in visited:
+            return
+        visited.add(id(document))
+        for step in document.get("steps") or []:
+            if not isinstance(step, dict):
+                continue
+            step_id = step.get("step_id")
+            if document is not trajectory:
+                step_id = f"{document.get('trajectory_id', 'subagent')}:{step_id}"
+            yield step_id, step
+            for result in (step.get("observation") or {}).get("results") or []:
+                for reference in (result or {}).get("subagent_trajectory_ref") or []:
+                    child = by_id.get(reference.get("trajectory_id"))
+                    if child is not None:
+                        yield from walk(child)
+
+    # Unlinked legacy children still receive a scan; no causal order is asserted.
+    for document in documents:
+        yield from walk(document)
+
+
 def _agent_steps(trial_dir: Path) -> list[tuple[Any, str, str]]:
     """(step_id, commands, observation incl. spilled full output) per agent step."""
     try:
@@ -127,7 +165,7 @@ def _agent_steps(trial_dir: Path) -> list[tuple[Any, str, str]]:
         return []
     spill_dir = trial_dir / "agent" / "evallab-output"
     steps = []
-    for step in trajectory.get("steps") or []:
+    for step_id, step in _trajectory_steps(trajectory):
         if not isinstance(step, dict) or step.get("source") != "agent":
             continue
         commands = []
@@ -140,7 +178,7 @@ def _agent_steps(trial_dir: Path) -> list[tuple[Any, str, str]]:
         for name in dict.fromkeys(_SPILL.findall(observation)):
             with contextlib.suppress(OSError):
                 observation += "\n" + (spill_dir / name).read_text(errors="replace")
-        steps.append((step.get("step_id"), "\n".join(commands), observation))
+        steps.append((step_id, "\n".join(commands), observation))
     return steps
 
 

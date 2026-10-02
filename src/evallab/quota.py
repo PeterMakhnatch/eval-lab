@@ -56,6 +56,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 from evallab.execution_contracts import (
+    MIMO_AGENT,
     TERMINUS_AGENT,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
@@ -67,7 +68,7 @@ from evallab.results import discover_job_dirs
 
 #: Agents with a supported consumption reader. Free controls are excluded.
 PAID_AGENTS: frozenset[str] = frozenset(
-    {"codex", "claude-code", "cursor-cli", "antigravity-cli", "terminus-2"}
+    {"codex", "claude-code", "cursor-cli", "antigravity-cli", "terminus-2", MIMO_AGENT}
 )
 
 #: The account named in operator-facing billing and allowance messages. These
@@ -79,11 +80,12 @@ PROVIDER_SUBSCRIPTIONS: dict[str, str] = {
     "cursor-cli": "Cursor subscription/API-key policy state",
     "antigravity-cli": "Peter's Google subscription (Antigravity OAuth)",
     "terminus-2": "configured Terminus model provider (model-specific)",
+    MIMO_AGENT: "self-hosted Modal SGLang GPU (time-billed, no per-token charge)",
 }
 
 
 def provider_subscription_description(agent: str, model: str | None = None) -> str:
-    if agent == TERMINUS_AGENT:
+    if agent in {TERMINUS_AGENT, MIMO_AGENT}:
         if model == TERMINUS_LOCAL_MODEL_SELECTOR:
             return "local Ollama compute (no provider API charge)"
         if is_mimo_selfhosted_model(model):

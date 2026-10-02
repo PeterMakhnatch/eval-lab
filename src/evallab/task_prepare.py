@@ -20,6 +20,7 @@ from evallab.execution_contracts import (
     GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     MAX_TRIAL_TIMEOUT_SECONDS,
+    MIMO_AGENT,
     RLM_AGENT,
     SAFE_JOB_NAME,
     TERMINUS_AGENT,
@@ -282,6 +283,8 @@ def prepare_task(
         raise ValueError("paid harness preparation requires an explicit model selector")
     if agent in CONTROL_AGENTS and model is not None:
         raise ValueError(f"the {agent} control does not accept a model")
+    if agent == MIMO_AGENT:
+        parse_mimo_selfhosted_model(model)
     if agent == TERMINUS_AGENT and model is not None:
         if is_tinker_terminus_model(model):
             # Fail closed on unknown bases/malformed checkpoints at prepare

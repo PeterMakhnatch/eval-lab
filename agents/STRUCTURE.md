@@ -266,3 +266,8 @@ The change log below is historical, not a current inventory or work order.
   the Modal TRL LoRA SFT toolchain for the HAR-81 self-hosted MiMo student.
   Kept out of the root graph because the lab shells out to it and GPU
   training deps live only in its Modal image, never in the root `uv.lock`.
+- 2026-10-02 — `tools/mimoagent-harbor/` added under the `tools/` bucket
+  rule for HAR-148: the pinned Xiaomi native controller and unchanged
+  `swe.yaml`, invoked only by an isolated Python 3.12 subprocess. Its
+  OpenAI 3.x graph is incompatible with Harbor/LiteLLM's OpenAI 2.x graph;
+  neither the toolchain nor its dependencies enter the root `uv.lock`.

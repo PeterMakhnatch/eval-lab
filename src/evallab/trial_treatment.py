@@ -433,6 +433,7 @@ def collect_treatment(job_dir: Path, trial_dir: Path, sources: CommitSources) ->
         else None
     )
     openrouter = openrouter_model is not None
+    native_mimo = agent_name == "mimoagent" or agent_path == "evallab.harbor_mimoagent:NativeMimoAgent"
 
     if no_model:
         for name in (
@@ -454,9 +455,19 @@ def collect_treatment(job_dir: Path, trial_dir: Path, sources: CommitSources) ->
         _sampling_fields(
             t, kwargs, llm, selfhosted, openrouter_model, lab, commit, commit_note, sources
         )
-        _parser_field(t, selfhosted, openrouter, commit, commit_note, sources)
+        if native_mimo:
+            text = sources.read(commit, SERVE_SOURCE)
+            t.set("parser_digest", source_digest(text) if isinstance(text, str) else None,
+                  f"SGLang native tool parser {SERVE_SOURCE} {commit_note}")
+        else:
+            _parser_field(t, selfhosted, openrouter, commit, commit_note, sources)
 
     harness = harness_config(agent_name, kwargs, job_dir)
+    if native_mimo:
+        native_config = sources.read(commit, "tools/mimoagent-harbor/swe.yaml")
+        harness["native_swe_sha256"] = _sha256(native_config) if isinstance(native_config, str) else None
+        trajectory = _read_json(trial_dir / "agent/trajectory.json")
+        harness["native_revision"] = _dict(trajectory.get("agent")).get("version")
     t.set(
         "harness_config_digest",
         _sha256(_canonical(harness)),
@@ -679,6 +690,16 @@ def _sampling_fields(
         if selfhosted and not calls:
             for name in ("temperature", "top_p", "top_k", "thinking"):
                 t.set(name, None, "unknown: MiMo route without a proxy ledger")
+        return
+    # HAR-148 records the supervisor-selected native/legacy sampling on every
+    # proxy request. Prefer these observed values over source-code inference.
+    if all(isinstance(call.get("sampling"), dict) for call in calls):
+        for name in requested:
+            values = [call["sampling"].get(name) for call in calls]
+            consistent = bool(values) and all(value == values[0] for value in values)
+            t.set(name, values[0] if consistent else None,
+                  "provider_usage.calls sampling" if consistent else "unknown: mixed per-call sampling")
+        t.set("thinking", "enable_thinking=true", "MiMo proxy shaping (every ledger call shaping_applied)")
         return
     text = sources.read(commit, PROXY_SOURCE)
     if not isinstance(text, str):

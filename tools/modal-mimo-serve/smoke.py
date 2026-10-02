@@ -214,12 +214,64 @@ def concurrent_streams(
     }
 
 
+def structured_tool_calls(base: str, key: str, definitions: list[dict[str, Any]]) -> dict[str, Any]:
+    """Exactly five native tool requests plus one plain-chat request (HAR-148)."""
+    prompts = {
+        "bash": "Use bash to run printf 'HAR148_TOOL_OK\\n'.",
+        "read": "Use read to inspect lines 1 through 10 of /app/example.py.",
+        "write": "Use write to create /app/har148.txt containing exactly hello.",
+        "edit": "The complete, already-read /app/example.py contains old_value. Call edit now with path /app/example.py, old_str old_value, and new_str new_value; do not read the file again.",
+        "agent": "Use agent with subagent_type explore to inspect the project and explain its layout.",
+    }
+    if {tool["function"]["name"] for tool in definitions} != set(prompts):
+        raise ValueError("tool smoke requires the five pinned native SWE definitions")
+    sampling = {"temperature": 1.0, "top_p": 0.95, "top_k": 20}
+    rows = []
+    for name, prompt in prompts.items():
+        body = {
+            "model": MODEL_ID,
+            "messages": [{"role": "user", "content": prompt}],
+            "tools": [tool for tool in definitions if tool["function"]["name"] == name],
+            "tool_choice": "auto",
+            "max_tokens": 2048,
+            "stream": False,
+            **sampling,
+            **THINKING,
+        }
+        with _post(base, key, body, timeout=300) as response:
+            payload = json.load(response)
+        choice = payload["choices"][0]
+        calls = choice["message"].get("tool_calls") or []
+        matching = [call for call in calls if call["function"]["name"] == name]
+        structured = bool(matching) and all(
+            isinstance(json.loads(call["function"]["arguments"]), dict) for call in matching
+        )
+        rows.append({"prompt": prompt, "expected_tool": name, "structured": structured,
+                     "tool_calls": calls, "message": choice["message"],
+                     "finish_reason": choice.get("finish_reason"),
+                     "usage": payload.get("usage"), "sampling": sampling})
+    with _post(base, key, {
+        "model": MODEL_ID, "messages": [{"role": "user", "content": "Reply exactly HAR148_CHAT_OK."}],
+        "max_tokens": 512, "stream": False, **sampling, **THINKING,
+    }, timeout=300) as response:
+        plain = json.load(response)
+    message = plain["choices"][0]["message"]
+    chat_ok = (message.get("content") or "").strip() == "HAR148_CHAT_OK" and not message.get("tool_calls")
+    return {"tool_requests": rows, "plain_chat": {"ok": chat_ok, "message": message,
+                                                "usage": plain.get("usage"), "sampling": sampling},
+            "ok": all(row["structured"] for row in rows) and chat_ok}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument("--cold-start-budget-s", type=float, default=1200)
+    parser.add_argument("--tools-only", action="store_true", help="Only five native tool calls and plain chat; no throughput runs")
+    parser.add_argument("--tool-definitions", type=Path, help="Definitions exported by the pinned native ToolRegistry")
     args = parser.parse_args(argv)
+    if args.tools_only and args.tool_definitions is None:
+        parser.error("--tools-only requires --tool-definitions")
     base = os.environ.get("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", "").rstrip("/")
     key = os.environ.get("MIMO_SELFHOSTED_API_KEY", "")
     if not base or not key:
@@ -228,6 +280,13 @@ def main(argv: list[str] | None = None) -> int:
 
     report: dict[str, Any] = {"model": MODEL_ID, "server": base}
     report["cold_start"] = wait_cold_start(base, key, args.cold_start_budget_s)
+    if args.tools_only:
+        report["structured_tools"] = structured_tool_calls(base, key, json.loads(args.tool_definitions.read_text()))
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(json.dumps(report, indent=2) + "\n")
+        json.dump(report, sys.stdout, indent=2)
+        print()
+        return 0 if report["structured_tools"]["ok"] else 1
     report["reasoning_split"] = reasoning_split(base, key)
     report["terminus_json_turn"] = terminus_json_turn(base, key)
     short = "Write a detailed essay about the history of the Unix shell."

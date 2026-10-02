@@ -20,6 +20,11 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
   reasoning-split probe) and a README covering deploy, stop and cost. It is
   invoked only as `uv run --project tools/modal-mimo-serve --locked modal ...`;
   the lab reaches the server through the `mimo_selfhosted` proxy provider.
+- `mimoagent-harbor/` — Xiaomi's pinned native controller (Python 3.12,
+  OpenAI 3.x) and byte-identical `swe.yaml`, isolated from Harbor/LiteLLM's
+  OpenAI 2.x dependency graph. Install with
+  `uv sync --project tools/mimoagent-harbor --locked`; Harbor invokes
+  `src/evallab/mimoagent_worker.py` through this interpreter with `-I`.
 - `modal-mimo-sft/` — the Modal TRL LoRA SFT toolchain for HAR-81
   (`modal==1.5.5`, `transformers==5.12.1`, CPU-only lock; GPU deps pinned
   inside the Modal image): `sft.py` (`dry-run` offline render/mask/cost

@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from evallab.copy_check import copy_check
 from evallab.counts import classify_counts
 
@@ -109,3 +111,37 @@ def test_copied_code_excludes_a_pass_and_leaves_a_failure_counted() -> None:
     assert passed["evidence"][0]["detector"] == "copy_check"
     failed = classify_counts(reward=0.0, scored=True, taint=[flag])
     assert failed["verdict"] == "counted_fail"
+
+
+@pytest.mark.parametrize("parent_writes_first", [False, True])
+def test_delegated_copy_respects_parent_child_causality(
+    tmp_path: Path, parent_writes_first: bool
+) -> None:
+    write = "cat > /testbed/pkg/core.py <<'EOF'\n" + "\n".join(FIX) + "\nEOF\n"
+    commands = [(write, ""), ("delegate lookup", "answer found")]
+    if not parent_writes_first:
+        commands.reverse()
+    trial = _trial(tmp_path, commands, FIX)
+    path = trial / "agent" / "trajectory.json"
+    trajectory = json.loads(path.read_text())
+    delegation = trajectory["steps"][1 if parent_writes_first else 0]
+    delegation["observation"]["results"][0]["subagent_trajectory_ref"] = [
+        {"trajectory_id": "child"}
+    ]
+    trajectory["subagent_trajectories"] = [{
+        "trajectory_id": "child",
+        "steps": [{
+            "step_id": 1,
+            "source": "agent",
+            "tool_calls": [{"arguments": {"path": "/tmp/download/pkg/core.py"}}],
+            "observation": {"results": [{"content": "\n".join(FIX)}]},
+        }],
+    }]
+    path.write_text(json.dumps(trajectory))
+    flag = copy_check(trial)
+    if parent_writes_first:
+        assert flag is None
+    else:
+        assert flag is not None
+        assert flag["matched_lines"] == len(FIX)
+        assert [source["step"] for source in flag["source_steps"]] == ["child:1"]

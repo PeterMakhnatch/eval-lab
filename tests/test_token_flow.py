@@ -335,3 +335,55 @@ def test_process_job_carries_token_flow(tmp_path: Path) -> None:
     assert flow["loop_onset"]["step_id"] == 2
     assert "token flow (HAR-114)" in (out / "trial-trial-a.md").read_text(encoding="utf-8")
     assert report["trials"][0]["trial_name"] == "trial-a"
+
+
+def test_quoted_greater_than_is_not_an_edit(tmp_path: Path) -> None:
+    from evallab.token_flow import _is_edit
+
+    non_edit_commands = [
+        "awk 'NR>=125 && NR<=240' f",
+        'python3 -c "print(1>0)"',
+        "grep -n 'a>b' f",
+        "echo 'a>b'",
+        "cat 'a>b'",
+        "sed -n 's/a>b/c/' f",
+        "cat <<'EOF'\nif a > b: pass\nEOF",
+        "python - <<'EOF'\nprint(1 > 0)\nEOF",
+    ]
+    for cmd in non_edit_commands:
+        step = _step(1, cmd, prompt=1000)
+        is_ed, kind = _is_edit(step)
+        assert not is_ed, f"Command unexpectedly marked as edit ({kind}): {cmd}"
+
+
+def test_real_redirects_and_appends_count_as_edits(tmp_path: Path) -> None:
+    from evallab.token_flow import _is_edit
+
+    real_edit_commands = [
+        ("echo x > f", "shell-redirect"),
+        ("cat > f <<'EOF'\nhello\nEOF", "shell-redirect"),
+        ("cat <<'EOF' > f\nhello\nEOF", "shell-redirect"),
+        ("cmd >> f", "shell-redirect"),
+        ("echo hi | tee f", "command-pattern"),
+        ("sed -n 1p f >/tmp/x", "shell-redirect"),
+        ("sed -i 's/a/b/' file", "command-pattern"),
+        ("python3 -c \"open('/repo/x','w').write('hi')\"", "write-call"),
+    ]
+    for cmd, expected_kind in real_edit_commands:
+        step = _step(1, cmd, prompt=1000)
+        is_ed, kind = _is_edit(step)
+        assert is_ed, f"Real edit missed: {cmd}"
+        assert kind == expected_kind, f"Expected {expected_kind}, got {kind} for {cmd}"
+
+
+def test_awk_probe_trial_has_no_useful_edit(tmp_path: Path) -> None:
+    steps = [
+        _step(1, "awk 'NR>=125 && NR<=240' schema.py", prompt=1000),
+        _step(2, 'python3 -c "print(1>0)"', prompt=1100),
+        _step(3, "grep -n 'a>b' schema.py", prompt=1200),
+        _step(4, "pytest -q", prompt=1300),
+    ]
+    trial = _write_trial(tmp_path, "trial-no-edit", steps)
+    flow = analyze_token_flow(trial)
+    assert flow["last_useful_edit"]["step_id"] is None
+    assert flow["last_useful_edit"]["reason"] == "no edit-like command in any agent step"

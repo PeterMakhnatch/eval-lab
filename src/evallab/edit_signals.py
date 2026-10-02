@@ -39,3 +39,37 @@ EDIT_COMMAND_PATTERNS = re.compile(
     r"node\s+.*(?:writeFileSync|writeFile)|fs\.writeFileSync"
     r")\b"
 )
+
+
+_HEREDOC_START_RE = re.compile(r"<<-?\s*['\"]?([A-Za-z0-9_]+)['\"]?")
+_QUOTED_SPAN_RE = re.compile(r"'[^']*'|\"(?:\\.|[^\"\\])*\"")
+
+
+def blank_quoted_and_heredocs(command: str) -> str:
+    """Blank out quoted spans and heredoc bodies before regex matching.
+
+    Prevents comparison operators (e.g. ``awk 'NR>=125 && NR<=240'``,
+    ``python3 -c "print(1>0)"``, ``grep -n 'a>b'``) from being mistaken
+    for shell redirects. Real redirects on the command line (e.g.
+    ``cat <<'EOF' > f``, ``echo x > f``, ``cmd >> f``) are preserved
+    because the opening command line is kept and only the heredoc body
+    and quoted spans are blanked.
+    """
+    if not command:
+        return ""
+    lines = command.split("\n")
+    kept: list[str] = []
+    terminator: str | None = None
+    for line in lines:
+        if terminator is not None:
+            if line.strip() == terminator:
+                terminator = None
+            continue
+        match = _HEREDOC_START_RE.search(line)
+        if match:
+            terminator = match.group(1)
+            kept.append(line)
+            continue
+        kept.append(line)
+    text = "\n".join(kept)
+    return _QUOTED_SPAN_RE.sub(" ", text)

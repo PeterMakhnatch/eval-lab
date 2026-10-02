@@ -124,10 +124,16 @@ class WatchThresholds:
     stalled_minutes: float = 10.0
     budget_fraction: float = 0.8
     budget_quiet_steps: int = 20
+    spend_fraction: float = 0.8
+    spend_cap_usd: float | None = None
     repetition_run: int = 8
     completion_claims: int = 5
     infra_spike_count: int = 3
     infra_spike_minutes: float = 15.0
+    proxy_error_spike_count: int = 3
+    proxy_error_spike_minutes: float = 10.0
+    parse_error_threshold: int = 3
+    parse_error_streak_threshold: int = 3
     notify_minutes: float = 15.0
     default_input_token_limit: int = 2_500_000
     default_output_token_limit: int = 131_072
@@ -639,8 +645,8 @@ def _harness_log_hits(agent_steps: list[dict[str, Any]]) -> list[dict[str, Any]]
 
 def _upstream_status(
     agent_steps: list[dict[str, Any]], trial_dir: Path
-) -> tuple[int, list[dict[str, Any]]]:
-    """``(attempt count, confirmed acquisitions)`` via the shared classifier."""
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """``(attempts, confirmed)`` findings via the shared classifier."""
     from evallab.upstream_fetch import assess_upstream_fetch, confirmed_fetch
 
     try:
@@ -648,9 +654,131 @@ def _upstream_status(
             [("head", step) for step in agent_steps], {}, trial_dir=trial_dir
         )
     except Exception:  # noqa: BLE001 -- detector must never kill the watch
-        return 0, []
+        return [], []
     confirmed = [flag for flag in flags if confirmed_fetch(flag)]
-    return len(flags), confirmed
+    return flags, confirmed
+
+
+_PARSE_REJECTION_RE = re.compile(
+    r"Previous response had (?:parsing errors|warnings):|"
+    r"ERROR:\s*(?:No valid JSON|Invalid JSON|Failed to parse|Missing 'commands'|Malformed)",
+    re.IGNORECASE,
+)
+
+
+def _parse_error_stats(
+    steps: list[dict[str, Any]],
+) -> tuple[int, int, str | None, int | None]:
+    """Return (total_count, max_streak, first_quote, first_step)."""
+    total = 0
+    current_streak = 0
+    max_streak = 0
+    first_quote: str | None = None
+    first_step: int | None = None
+    for step in steps:
+        obs = step.get("observation") or {}
+        obs_text = " ".join(
+            str(r.get("content") or "") for r in (obs.get("results") or []) if isinstance(r, dict)
+        )
+        match = _PARSE_REJECTION_RE.search(obs_text)
+        if match:
+            total += 1
+            current_streak += 1
+            max_streak = max(max_streak, current_streak)
+            if first_quote is None:
+                first_quote = match.group(0)[:120]
+                sid = step.get("step_id")
+                first_step = sid if isinstance(sid, int) else None
+        else:
+            current_streak = 0
+    return total, max_streak, first_quote, first_step
+
+
+def _read_proxy_live(job_dir: Path, trial_dir: Path) -> dict[str, Any] | None:
+    live_dirs = [
+        trial_dir / "proxy-live",
+        job_dir / "proxy-live",
+        trial_dir.parent / "proxy-live",
+    ]
+    live_dir = next((d for d in live_dirs if d.is_dir()), None)
+    if live_dir is None:
+        return None
+    limits_path = live_dir / "limits.json"
+    calls_path = live_dir / "calls.jsonl"
+    limits_data = _read_json(limits_path) if limits_path.is_file() else None
+
+    calls: list[dict[str, Any]] = []
+    if calls_path.is_file():
+        try:
+            for line in calls_path.read_text(encoding="utf-8").splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    payload = json.loads(line)
+                    if isinstance(payload, dict):
+                        calls.append(payload)
+                except ValueError:
+                    continue
+        except OSError:
+            pass
+
+    trial_config = _read_json(trial_dir / TRIAL_CONFIG) or {}
+    attempt_id = trial_config.get("attempt_id") or trial_config.get("proxy_attempt_id")
+    if not attempt_id and "__" in trial_dir.name:
+        candidate = trial_dir.name.split("__")[-1]
+        if any(c.get("attempt_id") == candidate for c in calls):
+            attempt_id = candidate
+    if attempt_id:
+        trial_calls = [c for c in calls if c.get("attempt_id") == attempt_id]
+        if trial_calls:
+            calls = trial_calls
+
+    if not calls and not limits_data:
+        return None
+
+    last_call = calls[-1] if calls else {}
+    cum = last_call.get("cumulative_totals") or {}
+    cost_micros = cum.get("cost_micros", 0)
+    input_tokens = cum.get("input_tokens", 0)
+    output_tokens = cum.get("output_tokens", 0)
+
+    proxy_errors: list[dict[str, Any]] = []
+    for c in calls:
+        status = c.get("status")
+        state = c.get("state")
+        error_msg = str(c.get("error") or "")
+        if (isinstance(status, int) and status >= 500) or (
+            status == 429
+            and state != "exceeded"
+            and "trial budget exhausted" not in error_msg.lower()
+        ):
+            proxy_errors.append(c)
+
+    latest_timestamp = None
+    if calls:
+        latest_timestamp = _parse_time(last_call.get("timestamp"))
+
+    limits_dict = (limits_data.get("limits") or {}) if isinstance(limits_data, dict) else {}
+    cost_limit_micros = limits_dict.get("max_cost_micros")
+    cost_limit_usd = (
+        (cost_limit_micros / 1_000_000.0)
+        if isinstance(cost_limit_micros, (int, float)) and cost_limit_micros > 0
+        else None
+    )
+    input_token_limit = limits_dict.get("max_input_tokens")
+
+    return {
+        "present": True,
+        "cost_usd": cost_micros / 1_000_000.0,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "cost_limit_usd": cost_limit_usd,
+        "input_token_limit": input_token_limit,
+        "latest_timestamp": latest_timestamp,
+        "proxy_errors": proxy_errors,
+        "calls_count": len(calls),
+    }
 
 
 def _is_infra_exception(exc_type: str | None) -> bool:
@@ -681,14 +809,26 @@ def trial_signals(
     finished = (trial_dir / TRIAL_RESULT).is_file()
     exception = result.get("exception_info") if isinstance(result, dict) else None
     exc_type = exception.get("exception_type") if isinstance(exception, dict) else None
+
+    proxy_live = _read_proxy_live(job_dir, trial_dir)
+    live_cost_usd = proxy_live["cost_usd"] if proxy_live else 0.0
+    cost_limit_usd = proxy_live["cost_limit_usd"] if proxy_live else None
+    proxy_errors = proxy_live["proxy_errors"] if proxy_live else []
+    if proxy_live and proxy_live.get("input_token_limit"):
+        limit_in = proxy_live["input_token_limit"]
+
+    last_activity_time = 0.0
     if traj_path is not None:
         try:
             stat = traj_path.stat()
-            age_minutes = max(0.0, (now - stat.st_mtime) / 60.0)
+            last_activity_time = max(last_activity_time, stat.st_mtime)
         except OSError:
-            age_minutes = 0.0
-    else:
-        age_minutes = 0.0
+            pass
+    if proxy_live and proxy_live.get("latest_timestamp") is not None:
+        last_activity_time = max(last_activity_time, proxy_live["latest_timestamp"])
+    age_minutes = max(0.0, (now - last_activity_time) / 60.0) if last_activity_time > 0 else 0.0
+
+    total_parse, max_parse_streak, first_parse_quote, first_parse_step = _parse_error_stats(steps)
 
     trailing_run, max_run, trailing_cmd = _command_runs(agent_steps)
     completions, first_completion = _completion_count(agent_steps)
@@ -723,6 +863,8 @@ def trial_signals(
         "episodes": len(agent_steps),
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
+        "cost_usd": live_cost_usd,
+        "cost_limit_usd": cost_limit_usd,
         "input_token_limit": limit_in,
         "output_token_limit": limit_out,
         "input_token_pct": round(100.0 * prompt_tokens / limit_in, 2) if limit_in else 0.0,
@@ -734,7 +876,14 @@ def trial_signals(
         "first_completion_step": first_completion,
         "first_repo_edit": first_edit,
         "recent_repo_edit": recent_edit,
-        "upstream_attempts": attempts,
+        "upstream_attempts": [
+            {
+                "step": flag.get("step"),
+                "target": flag.get("target"),
+                "command": str(flag.get("command") or "")[:200],
+            }
+            for flag in attempts
+        ],
         "upstream_confirmed": [
             {
                 "step": flag.get("step"),
@@ -746,6 +895,12 @@ def trial_signals(
         "grader_tamper": tamper,
         "hidden_reads": hidden,
         "harness_log_reads": harness_logs,
+        "proxy_errors": proxy_errors,
+        "total_parse_errors": total_parse,
+        "max_parse_error_streak": max_parse_streak,
+        "first_parse_error_quote": first_parse_quote,
+        "first_parse_error_step": first_parse_step,
+        "live_proxy_present": bool(proxy_live and proxy_live.get("present")),
         "exception_type": exc_type if isinstance(exc_type, str) else None,
         "finished_at": result.get("finished_at"),
         "open_alerts": [],
@@ -788,7 +943,23 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
     trial = status["trial"]
     task = status["task"]
 
-    for hit in status["upstream_confirmed"]:
+    for hit in status.get("upstream_attempts", []):
+        alerts.append(
+            _alert(
+                rule="fetch_attempt",
+                severity="medium",
+                job=job,
+                trial=trial,
+                task=task,
+                step=hit.get("step"),
+                quote=str(hit.get("command") or ""),
+                detail=f"upstream fetch attempt: {hit.get('target')}",
+                extra={"target": hit.get("target")},
+            )
+        )
+        break
+
+    for hit in status.get("upstream_confirmed", []):
         alerts.append(
             _alert(
                 rule="copy_acquired",
@@ -803,7 +974,6 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
             )
         )
         break  # one copy alert per trial; the signal keeps every acquisition
-
     for hit in status["grader_tamper"]:
         alerts.append(
             _alert(
@@ -922,6 +1092,76 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
                 ),
             )
         )
+    if status.get("cost_limit_usd") and status.get("cost_usd") is not None:
+        cost_frac = status["cost_usd"] / status["cost_limit_usd"]
+        if cost_frac >= thresholds.spend_fraction:
+            alerts.append(
+                _alert(
+                    rule="spend",
+                    severity="medium",
+                    job=job,
+                    trial=trial,
+                    task=task,
+                    step=None,
+                    quote="",
+                    detail=(
+                        f"{round(cost_frac * 100, 1)}% of cost limit spent "
+                        f"(${status['cost_usd']:.4f} / ${status['cost_limit_usd']:.2f})"
+                    ),
+                )
+            )
+    elif status.get("input_token_limit") and status.get("prompt_tokens") is not None:
+        token_frac = status["prompt_tokens"] / status["input_token_limit"]
+        if token_frac >= thresholds.spend_fraction:
+            alerts.append(
+                _alert(
+                    rule="spend",
+                    severity="medium",
+                    job=job,
+                    trial=trial,
+                    task=task,
+                    step=None,
+                    quote="",
+                    detail=(
+                        f"{round(token_frac * 100, 1)}% of input token limit spent "
+                        f"({status['prompt_tokens']} / {status['input_token_limit']})"
+                    ),
+                )
+            )
+
+    for err in status.get("proxy_errors", []):
+        alerts.append(
+            _alert(
+                rule="proxy_errors",
+                severity="high",
+                job=job,
+                trial=trial,
+                task=task,
+                step=None,
+                quote=f"HTTP {err.get('status')}",
+                detail=f"proxy error HTTP {err.get('status')}: {err.get('error', 'upstream error')}",
+            )
+        )
+        break
+
+    total_parse = status.get("total_parse_errors", 0)
+    streak_parse = status.get("max_parse_error_streak", 0)
+    if (
+        total_parse >= thresholds.parse_error_threshold
+        or streak_parse >= thresholds.parse_error_streak_threshold
+    ):
+        alerts.append(
+            _alert(
+                rule="parse_errors",
+                severity="medium",
+                job=job,
+                trial=trial,
+                task=task,
+                step=status.get("first_parse_error_step"),
+                quote=str(status.get("first_parse_error_quote") or "parse error"),
+                detail=f"{total_parse} parse/format rejections (max streak: {streak_parse})",
+            )
+        )
 
     if status["state"] == "finished" and _is_infra_exception(status.get("exception_type")):
         alerts.append(
@@ -984,6 +1224,76 @@ def evaluate_fleet_alerts(
                 detail=(
                     f"{thresholds.infra_spike_count}+ infra errors within "
                     f"{thresholds.infra_spike_minutes} min across trials"
+                ),
+                scope="fleet",
+            )
+        )
+    if thresholds.spend_cap_usd is not None and thresholds.spend_cap_usd > 0:
+        total_running_cost = sum(
+            float(s.get("cost_usd", 0.0) or 0.0) for s in statuses if s.get("state") == "running"
+        )
+        if total_running_cost >= thresholds.spend_cap_usd:
+            alerts.append(
+                _alert(
+                    rule="spend_cap_exceeded",
+                    severity="high",
+                    job="fleet",
+                    trial="fleet:spend_cap",
+                    task="fleet",
+                    step=None,
+                    quote="",
+                    detail=(
+                        f"total running cost ${total_running_cost:.2f} exceeds "
+                        f"cap of ${thresholds.spend_cap_usd:.2f}"
+                    ),
+                    scope="fleet",
+                )
+            )
+        elif total_running_cost >= thresholds.spend_fraction * thresholds.spend_cap_usd:
+            alerts.append(
+                _alert(
+                    rule="spend_cap_warning",
+                    severity="medium",
+                    job="fleet",
+                    trial="fleet:spend_cap",
+                    task="fleet",
+                    step=None,
+                    quote="",
+                    detail=(
+                        f"total running cost ${total_running_cost:.2f} at "
+                        f"{round(100.0 * total_running_cost / thresholds.spend_cap_usd, 1)}% "
+                        f"of cap ${thresholds.spend_cap_usd:.2f}"
+                    ),
+                    scope="fleet",
+                )
+            )
+
+    proxy_err_times: list[float] = []
+    for s in statuses:
+        for err in s.get("proxy_errors", []):
+            ts = _parse_time(err.get("timestamp")) or now
+            proxy_err_times.append(ts)
+    proxy_err_times.sort()
+    p_window = thresholds.proxy_error_spike_minutes * 60.0
+    p_spike = any(
+        proxy_err_times[j] - proxy_err_times[i] <= p_window
+        for i in range(len(proxy_err_times))
+        for j in range(i + thresholds.proxy_error_spike_count - 1, len(proxy_err_times))
+        if j - i + 1 >= thresholds.proxy_error_spike_count
+    )
+    if p_spike and proxy_err_times:
+        alerts.append(
+            _alert(
+                rule="proxy_error_spike",
+                severity="high",
+                job="fleet",
+                trial="fleet:proxy_error_spike",
+                task="fleet",
+                step=None,
+                quote="",
+                detail=(
+                    f"{thresholds.proxy_error_spike_count}+ proxy errors within "
+                    f"{thresholds.proxy_error_spike_minutes} min across trials"
                 ),
                 scope="fleet",
             )
@@ -1060,14 +1370,18 @@ def _write_board(
         lines.append(f"## {job}")
         lines.append("")
         lines.append(
-            "| trial | state | steps | episodes | tokens % | updated (min) | open alerts |"
+            "| trial | state | steps | episodes | tokens % | cost ($) | updated (min) | open alerts |"
         )
-        lines.append("| --- | --- | --- | --- | --- | --- | --- |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
         for status in sorted(by_job[job], key=lambda item: item["trial"]):
             open_rules = ",".join(alert["rule"] for alert in status.get("open_alerts", [])) or "-"
+            cost_val = status.get("cost_usd")
+            cost_str = (
+                f"{cost_val:.4f}" if isinstance(cost_val, (int, float)) and cost_val > 0 else "-"
+            )
             lines.append(
                 f"| {status['trial']} | {status['state']} | {status['steps']} | "
-                f"{status['episodes']} | {status['input_token_pct']} | "
+                f"{status['episodes']} | {status['input_token_pct']} | {cost_str} | "
                 f"{status['minutes_since_update']} | {open_rules} |"
             )
         lines.append("")
@@ -1200,7 +1514,9 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
         path if path.is_absolute() else (root / path).resolve() for path in (args.runs_dir or [])
     ]
     out_dir = args.out if args.out.is_absolute() else (root / args.out).resolve()
-    thresholds = WatchThresholds()
+    thresholds = WatchThresholds(
+        spend_cap_usd=getattr(args, "spend_cap_usd", None),
+    )
     if args.interval and args.interval > 0 and not args.once:
         cache: dict[str, TrialScan] = {}
         while True:
@@ -1261,6 +1577,12 @@ def build_watch_parser(commands: argparse._SubParsersAction) -> None:
         "--notify-lin",
         default=None,
         help="Linear issue id for batched high/medium alerts (off by default)",
+    )
+    watch.add_argument(
+        "--spend-cap-usd",
+        type=float,
+        default=None,
+        help="Fleet spend cap in USD for running trials (alerts at 80% and 100%)",
     )
     watch.set_defaults(func=_watch_command)
 

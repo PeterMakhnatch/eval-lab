@@ -76,8 +76,9 @@ def test_native_wrapper_stop_paths_preserve_verifier_eligible_budget_errors(
     expected,
     error_type,
 ):
-    pytest.importorskip("harbor")
-    from harbor.models.agent.context import AgentContext
+    # Other adapter tests install a top-level Harbor stub when the optional
+    # controller dependency is absent; require the real submodule, not that stub.
+    AgentContext = pytest.importorskip("harbor.models.agent.context").AgentContext
 
     import evallab.harbor_mimoagent as module
     from evallab.execution_contracts import (

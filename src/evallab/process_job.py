@@ -499,7 +499,32 @@ def _process_trial(
     # decision None until attached.
     record["grader_evidence"] = (analysis or {}).get("grader_evidence") if analysis else None
     record["decision"] = None
+    record["setup_deviations"] = _setup_deviations(job_dir)
     return record
+
+
+def _setup_deviations(job_dir: Path) -> list[dict[str, Any]]:
+    """Declared setup deviations from the batch fingerprint, if present."""
+    try:
+        payload = json.loads((Path(job_dir) / "setup-fingerprint.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        return []
+    if not isinstance(payload, dict):
+        return []
+    items = payload.get("deviations")
+    if not isinstance(items, list):
+        return []
+    return [dict(item) for item in items if isinstance(item, dict)]
+
+
+def _setup_deviation_lines(deviations: list[dict[str, Any]] | None) -> list[str]:
+    """One run-page line per declared setup deviation (HAR-149)."""
+    if not deviations:
+        return []
+    lines = ["- setup deviations (declared vs the named reference):"]
+    for item in deviations:
+        lines.append(f"  - `{item.get('field')}`=`{item.get('value')}` ({item.get('reason')})")
+    return lines
 
 
 def _job_task_identity(job_dir: Path) -> dict[str, Any | None]:
@@ -629,6 +654,7 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
             ),
             f"- flags: {', '.join(f'`{flag}`' for flag in record['flags']) or 'none'}",
         ]
+        + _setup_deviation_lines(record.get("setup_deviations"))
     )
     if record.get("token_flow") is not None:
         from evallab.token_flow import markdown_lines as _token_flow_lines
@@ -822,6 +848,7 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"- cost: `{summary.get('cost_usd')}` ({summary.get('cost_source')})"
         + (allocated if allocated is not None else legacy_estimate),
         f"- ingest: {summary.get('ingest')}",
+        *_setup_deviation_lines(report.get("setup_deviations")),
         "",
         "| trial | reward | verdict | stop reason | tokens used/attempted | cost | flags |",
         "|---|---|---|---|---|---|---|",
@@ -1028,6 +1055,7 @@ def process_job(
         "job_dir": str(job_path),
         "ledger": ledger,
         "trials": rows,
+        "setup_deviations": _setup_deviations(job_path),
         "summary": {
             "n_trials": len(trial_reports),
             "n_pass": sum(1 for record in scored if (record["reward"] or 0) >= 1.0),

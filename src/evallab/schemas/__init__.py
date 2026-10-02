@@ -235,6 +235,22 @@ class ProviderRoute(ContractModel):
     max_cost_usd: float = Field(gt=0)
 
 
+class ReferenceDeviation(ContractModel):
+    """One declared difference from the named setup reference (HAR-149).
+
+    A MiMo batch names its measured setup (``reference_profile``) and lists
+    every intended difference here. Dispatch refuses any fingerprint
+    difference the list does not cover, and the run page prints each entry.
+    ``field`` names a compared fingerprint field (``research/setup-profiles``
+    ``compared_fields``); the lock and the ledger binding are hard gates and
+    cannot be waived by declaration.
+    """
+
+    field: str = Field(min_length=1)
+    value: Any = None
+    reason: str = Field(min_length=1)
+
+
 #: Explicit Linear card attribution (``HAR-126``). Free-form guesses are
 #: refused at validation: only ``HAR-NNN`` (case-insensitive, optional
 #: hyphen, leading zeros allowed) normalizes; anything else raises.
@@ -332,6 +348,23 @@ class ExperimentSpec(ContractModel):
         pattern=r"^sha256:[0-9a-f]{64}$",
         exclude_if=lambda value: value is None,
         description="content digest of the complete pinned Terminus harness tree",
+    )
+    reference_profile: str | None = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "measured setup this batch compares against (HAR-149), a name in "
+            "research/setup-profiles/ (e.g. 'xiaomi-mimo-rl'). A MiMo run "
+            "without one is refused at dispatch; a non-MiMo run ignores it."
+        ),
+    )
+    deviations: list[ReferenceDeviation] = Field(
+        default_factory=list,
+        description=(
+            "declared differences from the named reference (HAR-149), each "
+            "{field, value, reason}. Dispatch refuses any fingerprint "
+            "difference this list does not cover; the run page prints each entry."
+        ),
     )
     agent: str = Field(min_length=1)
     model: str | None = None

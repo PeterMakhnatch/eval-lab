@@ -2355,7 +2355,7 @@ def _check_daytona_admission(request: RunRequest) -> dict[str, Any] | None:
 
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
-    validate_request(request)
+    validate_request(request, repo_root=repo_root)
     if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
         decision = preflight_request(request)
         if not decision.proceed:
@@ -2604,6 +2604,34 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     f"{provider_label} proxy has unreconciled provider calls{cleanup_detail}",
                 )
         job = load_job(job_dir)
+        # Setup fingerprint into the batch and every trial (HAR-149): the
+        # intended setup plus the per-trial observed lock. Best-effort: the
+        # trial already ran, so a persistence failure is recorded, not raised.
+        from evallab.setup_fingerprint import (
+            build_intended_fingerprint,
+            maybe_write_fingerprints,
+        )
+
+        _fingerprint_error: str | None = None
+        try:
+            _intended = build_intended_fingerprint(
+                spec=request.experiment_spec,
+                task_dir=request.task,
+                model=request.model,
+                agent=request.agent,
+                environment=request.environment,
+                repo_root=repo_root,
+            )
+        except Exception as exc:  # noqa: BLE001
+            _intended = {}
+            _fingerprint_error = f"{type(exc).__name__}: {exc}"
+        if _intended:
+            _fingerprint_error = maybe_write_fingerprints(job_dir, _intended)
+        if _fingerprint_error is not None:
+            with suppress(Exception):
+                (job_dir / "setup-fingerprint-error.txt").write_text(
+                    f"{_fingerprint_error}\n", encoding="utf-8"
+                )
 
         # Validate trial outcomes and evidence fidelity:
         metadata_path = job_dir / JOB_METADATA_PATH

@@ -36,6 +36,8 @@ inputs:
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
     digest: sha256:9c7476d169ae4df601c52ba273e438cd6cf8b8f4e9d9be16b5149127af71cf0b
+  - path: docs/blind-review.md
+    digest: sha256:7f133de2910eec169b03e21af24d239aa02c87bc74aed5db6c66f82731312d79
   - path: docs/canaries.md
     digest: sha256:a2e1f3126b86cd8f6201578a8b7cac18b5a52588d535220c067aa66ec06bc544
   - path: docs/catalog-tables.md
@@ -161,6 +163,7 @@ an operator can see what is archived.
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
 | `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
+| `docs/blind-review.md` | Repeatable Blind Trace-Review Workflow | `living` | `builder, analyst, operator` |
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
@@ -215,6 +218,7 @@ an operator can see what is archived.
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/behavior-analysis.md` | Behavioral Analysis | `living` | `analyst, builder` |
+| `docs/blind-review.md` | Repeatable Blind Trace-Review Workflow | `living` | `builder, analyst, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |
 | `docs/contracts.md` | Platform Contracts (E00) | `living` | `builder, analyst` |
 | `docs/craft.md` | CRAFT: the task-corpus scanner, and where determinism stops | `living` | `builder, analyst` |
@@ -314,6 +318,7 @@ an operator can see what is archived.
 | `docs/architecture.md` | Architecture and scaling decisions | `living` | `builder, analyst, runner, operator` |
 | `docs/attach-surface.md` | Unified Attach Surface (E04) | `living` | `builder, analyst, operator` |
 | `docs/authoring.md` | BUILDER authoring pipeline | `living` | `builder, operator` |
+| `docs/blind-review.md` | Repeatable Blind Trace-Review Workflow | `living` | `builder, analyst, operator` |
 | `docs/canaries.md` | Canary suite and drift interpretation | `living` | `runner, operator` |
 | `docs/catalog-tables.md` | Catalog Tables and Views: Suites, Suite Members, and Quota | `living` | `builder, operator` |
 | `docs/context-packs.md` | Context Pack Compiler (WS-B) | `living` | `builder, analyst, runner, operator` |

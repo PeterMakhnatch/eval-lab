@@ -15,10 +15,10 @@ import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
-from decimal import Decimal, ROUND_CEILING
+from decimal import ROUND_CEILING, Decimal
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -190,7 +190,7 @@ class OpenAIInvestigator:
         if address is not None and not address.is_global:
             raise ValueError("local/private API endpoints are forbidden")
         try:
-            parsed.port
+            _ = parsed.port
         except ValueError as exc:
             raise ValueError("invalid HTTPS endpoint port") from exc
         if not isinstance(model, str) or not model.strip() or len(model) > 300:
@@ -488,14 +488,11 @@ class InvestigationBudget:
         if completion is not None:
             observed_usage = (completion.input_tokens, completion.output_tokens)
         if observed_usage is not None:
-            try:
+            # Malformed usage is unknown, never a free call.
+            with suppress(InvestigatorError):
                 input_count = _token_count(observed_usage[0], "input tokens")
-            except InvestigatorError:
-                pass  # Malformed usage is unknown, never a free call.
-            try:
+            with suppress(InvestigatorError):
                 output_count = _token_count(observed_usage[1], "output tokens")
-            except InvestigatorError:
-                pass
         usage = None
         if input_count is not None and output_count is not None:
             usage = InvocationUsage(input_tokens=input_count, output_tokens=output_count)

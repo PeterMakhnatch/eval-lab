@@ -470,3 +470,174 @@ def test_failure_dump_is_parseable_but_never_a_pass() -> None:
     assert outline.total_completion_tokens == 200
     assert outline.total_cached_tokens == 100
     assert outline.total_cost_usd == pytest.approx(0.0016)
+
+def _write_extra(trial_dir: Path, relative: str, payload: dict) -> None:
+    target = trial_dir / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(payload))
+
+
+def _user_step(step_id: int) -> dict:
+    return {
+        "step_id": step_id,
+        "timestamp": "2026-09-23T12:00:00+00:00",
+        "source": "user",
+        "message": "work",
+    }
+
+
+def test_nested_child_continuation_outside_agent_is_followed(tmp_path: Path) -> None:
+    """An embedded child's continued ref resolves outside agent/ but inside the trial."""
+    tail = _doc("sess-nested-tail", [_user_step(1), _agent_step(2, 30, 3)], None, None)
+    child = dict(
+        _doc(
+            "sess-nested-child",
+            [_user_step(1), _agent_step(2, 20, 2)],
+            None,
+            "../retained/child-tail.json",
+        )
+    )
+    child["trajectory_id"] = "child-1"
+    parent = dict(_doc("sess-nested", [_user_step(1), _agent_step(2, 10, 1)], None, None))
+    parent["subagent_trajectories"] = [child]
+    job = _write_job(
+        tmp_path, {"trial-nested": ({"trajectory.json": parent}, _result("trial-nested"))}
+    )
+    trial_dir = job / "trial-nested"
+    _write_extra(trial_dir, "retained/child-tail.json", tail)
+    projection = project_trial(load_job(job), load_job(job).trials[0])
+    assert [t.validation_status for t in projection.trajectories] == ["valid"] * 3
+    by_session = {t.session_id: t for t in projection.trajectories}
+    assert set(by_session) == {"sess-nested", "sess-nested-child", "sess-nested-tail"}
+    assert by_session["sess-nested-tail"].source_path == "retained/child-tail.json"
+    assert by_session["sess-nested-tail"].step_count == 2
+
+
+def test_nested_observation_file_reference_is_followed(tmp_path: Path) -> None:
+    """An embedded child's observation file ref is queued like a root-level ref."""
+    sub = _doc("sess-obs-tail", [_user_step(1), _agent_step(2, 40, 4)], None, None)
+    child_step = {
+        "step_id": 2,
+        "timestamp": "2026-09-23T12:00:00+00:00",
+        "source": "agent",
+        "model_name": RETURNED_MODEL,
+        "message": "work",
+        "tool_calls": [
+            {
+                "tool_call_id": "call-sub-1",
+                "function_name": "bash_command",
+                "arguments": {"keystrokes": "ls\n", "duration": 1},
+            }
+        ],
+        "observation": {
+            "results": [
+                {
+                    "source_call_id": "call-sub-1",
+                    "subagent_trajectory_ref": [
+                        {
+                            "trajectory_id": "sess-obs-tail",
+                            "trajectory_path": "../retained/obs-tail.json",
+                        }
+                    ],
+                }
+            ]
+        },
+    }
+    child = dict(_doc("sess-obs-child", [_user_step(1), child_step], None, None))
+    child["trajectory_id"] = "child-obs"
+    parent = dict(_doc("sess-obs", [_user_step(1), _agent_step(2, 10, 1)], None, None))
+    parent["subagent_trajectories"] = [child]
+    job = _write_job(tmp_path, {"trial-obs": ({"trajectory.json": parent}, _result("trial-obs"))})
+    trial_dir = job / "trial-obs"
+    _write_extra(trial_dir, "retained/obs-tail.json", sub)
+    projection = project_trial(load_job(job), load_job(job).trials[0])
+    assert [t.validation_status for t in projection.trajectories] == ["valid"] * 3
+    by_session = {t.session_id: t for t in projection.trajectories}
+    assert by_session["sess-obs-tail"].source_path == "retained/obs-tail.json"
+    assert by_session["sess-obs-tail"].step_count == 2
+
+
+def test_duplicate_and_cyclic_nested_links_project_once(tmp_path: Path) -> None:
+    """Duplicate/cyclic nested links resolve to one document each, not loops."""
+    tail = _doc(
+        "sess-dup-tail", [_user_step(1), _agent_step(2, 30, 3)], None, "../agent/trajectory.json"
+    )
+    child = dict(
+        _doc(
+            "sess-dup-child",
+            [_user_step(1), _agent_step(2, 20, 2)],
+            None,
+            "../retained/dup-tail.json",
+        )
+    )
+    child["trajectory_id"] = "child-dup"
+    parent = dict(
+        _doc(
+            "sess-dup",
+            [_user_step(1), _agent_step(2, 10, 1)],
+            None,
+            "../retained/dup-tail.json",
+        )
+    )
+    parent["subagent_trajectories"] = [child]
+    job = _write_job(tmp_path, {"trial-dup": ({"trajectory.json": parent}, _result("trial-dup"))})
+    trial_dir = job / "trial-dup"
+    _write_extra(trial_dir, "retained/dup-tail.json", tail)
+    projection = project_trial(load_job(job), load_job(job).trials[0])
+    assert sorted(t.session_id for t in projection.trajectories) == [
+        "sess-dup",
+        "sess-dup-child",
+        "sess-dup-tail",
+    ]
+    assert all(t.validation_status == "valid" for t in projection.trajectories)
+    assert [
+        step.step_id for step in projection.steps if step.source_path == "retained/dup-tail.json"
+    ] == [1, 2]
+
+
+def test_nested_escape_and_missing_references_stay_invalid(tmp_path: Path) -> None:
+    """Nested escape/missing refs keep failure behavior: invalid, never followed."""
+    bad_child = dict(
+        _doc("sess-bad-child", [_user_step(1), _agent_step(2, 20, 2)], None, "../../secret.json")
+    )
+    bad_child["trajectory_id"] = "child-bad"
+    bad_parent = dict(_doc("sess-bad", [_user_step(1), _agent_step(2, 10, 1)], None, None))
+    bad_parent["subagent_trajectories"] = [bad_child]
+    missing_child = dict(
+        _doc(
+            "sess-miss-child",
+            [_user_step(1), _agent_step(2, 20, 2)],
+            None,
+            "../retained/gone.json",
+        )
+    )
+    missing_child["trajectory_id"] = "child-miss"
+    missing_parent = dict(_doc("sess-miss", [_user_step(1), _agent_step(2, 10, 1)], None, None))
+    missing_parent["subagent_trajectories"] = [missing_child]
+    job = _write_job(
+        tmp_path,
+        {
+            "trial-escape": ({"trajectory.json": bad_parent}, _result("trial-escape")),
+            "trial-missing": (
+                {"trajectory.json": missing_parent},
+                _result("trial-missing"),
+            ),
+        },
+    )
+    _write_extra(
+        job,
+        "secret.json",
+        _doc("must-not-be-read", [_user_step(1), _agent_step(2, 90, 9)], None, None),
+    )
+    loaded = load_job(job)
+    by_name = {t.path.name: t for t in loaded.trials}
+    escape = project_trial(loaded, by_name["trial-escape"])
+    assert {t.validation_status for t in escape.trajectories} == {"valid", "invalid"}
+    escape_bad = next(t for t in escape.trajectories if t.session_id == "sess-bad-child")
+    assert escape_bad.validation_status == "invalid"
+    assert {t.session_id for t in escape.trajectories} == {"sess-bad", "sess-bad-child"}
+    missing = project_trial(loaded, by_name["trial-missing"])
+    assert {t.validation_status for t in missing.trajectories} == {"valid", "invalid"}
+    miss_bad = next(t for t in missing.trajectories if t.session_id == "sess-miss-child")
+    assert miss_bad.validation_status == "invalid"
+    assert {t.session_id for t in missing.trajectories} == {"sess-miss", "sess-miss-child"}

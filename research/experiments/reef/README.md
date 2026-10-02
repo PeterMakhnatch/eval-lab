@@ -1,18 +1,37 @@
-# Reef: learning from agent experience
+# Eval Lab experiments, with Reef as an optional tool
 
-**Owner:** Reef <> EvalLab. **Work queue:** [HAR-138](https://linear.app/petermakhnatch/issue/HAR-138).
-**Status:** SDK repair and CPU protocol replay verified locally; public SDK/upstream delivery needs approval. No live experiment is authorized by this page.
+**Owner:** Reef <> EvalLab. **Work queue:** [HAR-150](https://linear.app/petermakhnatch/issue/HAR-150).
+**Status:** Lab-first evidence/comparison work; Reef contribution work is parked.
 
-This remains regular, scoped work in **both repositories**: repairs and reusable
-client/recipe behavior in Reef; experiment inputs, replay tools and evidence in
-Eval Lab. Use owned branches and PRs, not changes in another writer's checkout.
-Source delivery is separate from permission to run paid infrastructure.
+Peter's October 1 scope correction supersedes the earlier two-repository
+contribution plan: improve Trace Lab/Eval Lab without making Reef maintenance
+or upstream review a prerequisite. No further Reef/SDK commits or submissions
+are planned, and the former publication approval request is withdrawn.
 
-## Current task (HAR-138): prove the Lab-evidence -> Reef -> served-harness flow
+For October 2's overnight work, Peter authorized building and optional runs with
+a **$10 maximum**, not a spending target. HAR-150 uses local CPU controls and
+already-published evidence; no paid experiment launches are planned. Its two
+targets are small-sample paired rankings and references lost from embedded ATIF
+documents. Existing run, ownership, isolation and deployment gates still apply.
 
-Before any new learning loop, the release contract between Lab evidence and a
-served Reef harness must work end to end. The deliverable is a runnable
-CPU-only replay, not a fake live experiment:
+Local verification is recorded in [HAR-150's receipt](har150-receipt.json):
+
+- Exact enumeration of the 16 equiprobable two-task Bernoulli(.5) null outcomes:
+  erroneous rankings dropped from **2/16 to 0/16**. This is a small synthetic
+  control, not evidence of model improvement or a general error-rate estimate.
+- An embedded child's valid continuation now produces all **3 documents/steps**
+  instead of silently losing the third; containment and cycle controls remain.
+- **20 published HAR-116 trials** replayed with unchanged existing projections
+  and source JSON hashes. **85 focused tests passed**, and the actual curve CLI
+  refuses the previously ranked two-task comparison.
+- External experiment spend: **$0**. No model calls, cloud launches or new agent
+  trials were needed. Coding-session invoice totals are not exposed by the
+  token-accounting helper and are not claimed as measured dollars.
+
+## Retained protocol study (HAR-138, parked)
+
+This earlier CPU-only replay proved a local SDK/service contract, not improved
+agent behavior. It is retained evidence, not a prerequisite to Lab-native work:
 [`replay_har138_flow.py`](replay_har138_flow.py).
 
 It imports one saved Harbor trial as a labelled trajectory **projection**
@@ -40,7 +59,7 @@ Output is `receipt.json` (source hashes, protocol checks, fixture decisions,
 implementation hashes and limits), `pull-head/`, and `pull-pinned/`.
 No raw private prompts are copied into the receipt.
 
-### Source and approval gate
+### Source and publication boundary
 
 The replay requires the repaired SDK source at local commit
 `fff27d59d75ebdf347ab83001f5bf9f3f438de2b`, editable-installed from the owned Reef
@@ -49,9 +68,10 @@ this is **not** a new published release, and installing PyPI `0.2.1` does not
 install the repair. The replay checks the release-ID API and refuses an
 incompatible SDK rather than substituting a raw-HTTP implementation.
 
-The SDK is a separate upstream repository. Its publication, maintainer review
-and PyPI release are prerequisites to normal Reef dependency adoption. Local
-Reef/SDK commits are prepared and tested, not claimed merged upstream.
+The SDK is a separate upstream repository. A fixed publication is needed for
+normal upstream package adoption, but **not** for using this existing patched
+snapshot locally. The local Reef/SDK commits are not merged upstream; public
+contribution work is parked rather than waiting on an approval from Peter.
 
 ### Observed repair and checks
 
@@ -80,9 +100,9 @@ unscored trial, an ambiguous multi-trial job, and an existing output directory
 (the existing receipt stayed byte-identical).
 
 Prepared local revisions: SDK `fff27d59d75ebdf347ab83001f5bf9f3f438de2b`;
-Reef integration `b64254f55f76ed0c79fa06a2db61cbeb10131014`. The Reef worktree is
-locked while the unpublished SDK dependency awaits review; it is not a deployed
-shared runtime.
+Reef integration `b64254f55f76ed0c79fa06a2db61cbeb10131014`. The locked Reef
+worktree preserves optional research material; it is not a deployed shared
+runtime or an adopted dependency for the current Lab work.
 
 ## Superseded campaign (ideas retained, not current)
 

@@ -30,7 +30,7 @@ from typing import Any, Literal
 from pydantic import ValidationError
 
 from evallab.explorer import redact_text
-from evallab.step_layers import stitch_steps
+from evallab.step_layers import TRUNCATION_MARKER_RE, stitch_steps
 
 from .monitor_contracts import (
     EvidenceRecord,
@@ -383,6 +383,90 @@ def _render_step_text(step: Mapping[str, Any]) -> str:
     elif isinstance(observation, str) and observation.strip():
         parts.append(observation.strip())
     return "\n".join(parts)
+
+#: Producer-truncated terminal output whose full text lives in a sandbox
+#: spill file outside snapshot scope. Exact marker written by
+#: ``evallab.loopfix.cap_output`` (also matched by
+#: ``evallab.upstream_fetch._OUTPUT_SPILL_RE`` when hydrating retained
+#: output); the spill file is never read here, so a match means evidence is
+#: missing, not merely mentioned. A bare spill path without this marker --
+#: e.g. an agent ``cat``/``grep`` command naming it -- is benign and matches
+#: nothing here.
+_SPILL_MARKER_RE = re.compile(
+    r"\[\.\.\. output limited to (?P<limit>\d+) characters; \d+ characters omitted\. "
+    r"Full output: /logs/agent/evallab-output/step-\d{4,}\.txt — grep or read it there \.\.\.\]"
+)
+
+#: Sandbox spill failure appended by harbor_terminus when the full output
+#: could not be saved at all: there is no fuller text anywhere in scope.
+_NOT_SAVED_RE = re.compile(r"\[full output was not saved:[^\]]*\]")
+
+#: Step keys whose nonempty out-of-line ``*_ref`` without its inline
+#: counterpart means content this snapshot never read: refs are never
+#: hydrated and no new paths are followed.
+_REF_INLINE_PAIRS = (
+    ("message_ref", "message"),
+    ("reasoning_content_ref", "reasoning_content"),
+    ("content_ref", "content"),
+)
+
+
+def _has_inline(value: Any) -> bool:
+    """Whether an inline content slot actually carries readable content."""
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, (list, dict)):
+        return len(value) > 0
+    return False
+
+
+def _nonempty_ref(value: Any) -> bool:
+    """Whether an out-of-line content ref names something beyond this file."""
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _step_content_gaps(step: Mapping[str, Any]) -> tuple[bool, bool]:
+    """Report ``(unexpanded_ref, producer_truncated)`` for one stitched step.
+
+    Only inline message/reasoning/observation strings and their ``*_ref``
+    counterparts are inspected. Tool-call command text is never scanned, so
+    an agent command that merely names a spill path stays a benign mention;
+    only the producers' own truncation markers count as missing output.
+    """
+    unexpanded = any(
+        _nonempty_ref(step.get(ref_key)) and not _has_inline(step.get(inline_key))
+        for ref_key, inline_key in _REF_INLINE_PAIRS
+    )
+    inline_texts: list[str] = []
+    for key in ("message", "reasoning_content", "content"):
+        value = step.get(key)
+        if isinstance(value, str) and value.strip():
+            inline_texts.append(value)
+    result_lists: list[Any] = []
+    observation = step.get("observation")
+    if isinstance(observation, dict):
+        results = observation.get("results")
+        if isinstance(results, list):
+            result_lists.append(results)
+    flat = step.get("observation_results")
+    if isinstance(flat, list):
+        result_lists.append(flat)
+    for results in result_lists:
+        for item in results:
+            if not isinstance(item, dict):
+                continue
+            if _nonempty_ref(item.get("content_ref")) and not _has_inline(item.get("content")):
+                unexpanded = True
+            content = item.get("content")
+            if isinstance(content, str) and content.strip():
+                inline_texts.append(content)
+    truncated = any(
+        _SPILL_MARKER_RE.search(text) is not None
+        or TRUNCATION_MARKER_RE.search(text) is not None
+        or _NOT_SAVED_RE.search(text) is not None
+        for text in inline_texts
+    )
+    return unexpanded, truncated
 
 
 def _bound(text: str, limit: int) -> tuple[str, bool]:
@@ -739,6 +823,8 @@ def _snapshot_row(
     n_steps = len(step_records)
     truncated_count = 0
     redacted_count = 0
+    ref_gap_steps = 0
+    capped_source_steps = 0
     orphan_steps = 0
     ordinal = 0
     for step in step_records:
@@ -752,6 +838,11 @@ def _snapshot_row(
         document, step_ref = info[0], info[2]
         part_sha = captures[document].sha256
         raw_text = _render_step_text(step)
+        gap_ref, gap_capped = _step_content_gaps(step)
+        if gap_ref:
+            ref_gap_steps += 1
+        if gap_capped:
+            capped_source_steps += 1
         redacted_text = redact_text(raw_text)
         was_redacted = redacted_text != raw_text
         if was_redacted:
@@ -778,6 +869,18 @@ def _snapshot_row(
         complete = False
     if truncated_count:
         trial_limits.append(f"{truncated_count} step records truncated to {max_record_chars} chars")
+        complete = False
+    if ref_gap_steps:
+        trial_limits.append(
+            f"{ref_gap_steps} steps reference out-of-line content not read in this snapshot, "
+            "not treated as clean"
+        )
+        complete = False
+    if capped_source_steps:
+        trial_limits.append(
+            f"{capped_source_steps} steps contain producer-truncated output outside snapshot scope, "
+            "not treated as clean"
+        )
         complete = False
     if redacted_count:
         trial_limits.append(f"{redacted_count} step records secret-redacted, digest is pre-redaction")

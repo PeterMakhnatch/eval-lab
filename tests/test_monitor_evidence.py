@@ -685,3 +685,111 @@ def test_growing_source_cannot_turn_a_bounded_read_into_following_eof(tmp_path: 
     snap = snapshot_watch(_status(_row("jobA", "trial1")), [runs], max_trial_bytes=1024).trials[0]
     assert not snap.complete
     assert any("changed during read" in limitation for limitation in snap.limitations)
+
+
+# --- unexpanded refs and producer-truncated source content ---
+
+def _raw_step(step_id: int, **fields: Any) -> dict[str, Any]:
+    step: dict[str, Any] = {
+        "step_id": step_id,
+        "source": "agent",
+        "timestamp": f"2026-10-02T00:00:{step_id:02d}Z",
+    }
+    step.update(fields)
+    return step
+
+
+def _snap_one(runs: Path, steps: list[dict[str, Any]]) -> Any:
+    _write_trial(runs, "jobA", "trial1", head_steps=steps, result=_finished_result())
+    return snapshot_watch(_status(_row("jobA", "trial1")), [runs]).trials[0]
+
+
+def test_unexpanded_observation_content_ref_is_not_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    steps = [_raw_step(1, observation={"results": [
+        {"content_ref": "cas://sha256/" + "0" * 64, "content_bytes": 4096}]})]
+    snap = _snap_one(runs, steps)
+    assert snap.complete is False
+    assert any("out-of-line" in lim for lim in snap.limitations)
+    assert snap.records[0].text == ""
+
+
+def test_step_level_refs_without_inline_are_not_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    steps = [
+        _raw_step(1, message_ref="cas://sha256/" + "1" * 64),
+        _raw_step(2, message="working",
+                  reasoning_content_ref="cas://sha256/" + "2" * 64),
+    ]
+    snap = _snap_one(runs, steps)
+    assert snap.complete is False
+    assert any("2 steps" in lim and "out-of-line" in lim for lim in snap.limitations)
+
+
+def test_flat_observation_results_ref_is_not_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    steps = [_raw_step(1, message="done", observation_results=[
+        {"content_ref": "cas://sha256/" + "5" * 64}])]
+    snap = _snap_one(runs, steps)
+    assert snap.complete is False
+    assert any("out-of-line" in lim for lim in snap.limitations)
+
+
+def test_refs_with_inline_content_stay_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    steps = [_raw_step(1, message="did the thing",
+                       message_ref="cas://sha256/" + "3" * 64,
+                       observation={"results": [
+                           {"content": "ok",
+                            "content_ref": "cas://sha256/" + "4" * 64}]})]
+    snap = _snap_one(runs, steps)
+    assert snap.complete is True
+    assert not any("out-of-line" in lim for lim in snap.limitations)
+
+
+def test_blank_refs_and_empty_observations_stay_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    steps = [_raw_step(1, message="working", message_ref="  ",
+                       observation={"results": [
+                           {"content": None}, "plain string", {"content": "  "}]})]
+    snap = _snap_one(runs, steps)
+    assert snap.complete is True
+    assert not any("out-of-line" in lim for lim in snap.limitations)
+
+
+def test_producer_spill_marker_is_not_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    marker = ("[... output limited to 2000 characters; 782 characters omitted. "
+              "Full output: /logs/agent/evallab-output/step-0001.txt — grep or read it there ...]")
+    snap = _snap_one(runs, [_step(1, "ran command", observe="head text\n" + marker + "\ntail text")])
+    assert snap.complete is False
+    assert any("producer-truncated" in lim for lim in snap.limitations)
+    assert marker in snap.records[0].text
+
+
+def test_bytes_truncation_marker_is_not_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    snap = _snap_one(runs, [_step(
+        1, "ran command",
+        observe="output\n[... output limited to 10000 bytes; 7 interior bytes omitted ...]\nmore")])
+    assert snap.complete is False
+    assert any("producer-truncated" in lim for lim in snap.limitations)
+
+
+def test_spill_save_failure_marker_is_not_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    snap = _snap_one(runs, [_step(
+        1, "ran command", observe="partial\n[full output was not saved: spill write failed]")])
+    assert snap.complete is False
+    assert any("producer-truncated" in lim for lim in snap.limitations)
+
+
+def test_benign_spill_path_mentions_stay_clean(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    snap = _snap_one(runs, [_step(
+        1, "checking earlier output via grep /logs/agent/evallab-output/step-0001.txt",
+        command="cat /logs/agent/evallab-output/step-0001.txt",
+        observe="earlier full output recovered by the agent")])
+    assert snap.complete is True
+    assert not any("producer-truncated" in lim or "out-of-line" in lim
+                   for lim in snap.limitations)

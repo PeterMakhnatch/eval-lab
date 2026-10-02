@@ -1582,7 +1582,7 @@ def build_watch_parser(commands: argparse._SubParsersAction) -> None:
         "--spend-cap-usd",
         type=float,
         default=None,
-        help="Fleet spend cap in USD for running trials (alerts at 80% and 100%)",
+        help="Fleet spend cap in USD for running trials (alerts at 80%% and 100%%)",
     )
     watch.set_defaults(func=_watch_command)
 

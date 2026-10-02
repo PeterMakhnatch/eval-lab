@@ -6516,6 +6516,12 @@ def parser() -> argparse.ArgumentParser:
         help="Output REPORT.md path override",
     )
     review_join_parser.set_defaults(func=_review_command)
+    # Live trial monitoring (Traces lane). The command function lives in
+    # evallab.live_watch; this block only wires arguments, so the other
+    # builder editing cli.py keeps a clean merge.
+    from evallab.live_watch import build_watch_parser as _build_watch_parser
+
+    _build_watch_parser(commands)
     from evallab.run_telemetry import build_telemetry_parser
 
     build_telemetry_parser(commands)

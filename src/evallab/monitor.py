@@ -599,6 +599,7 @@ def render_monitor_report(root: Path) -> str:
                 found = True
                 lines.extend([
                     f"### {_text(report.model)} — {report.status}", "",
+                    f"Analysis profile `{directory.name}`.", "",
                     f"Calls: {report.calls}; conservative reservation: ${report.reserved_usd:.6f}; "
                     "usage-priced estimate: " + (
                         f"${report.estimated_usage_usd:.6f}" if report.estimated_usage_usd is not None

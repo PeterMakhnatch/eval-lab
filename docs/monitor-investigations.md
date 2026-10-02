@@ -403,3 +403,37 @@ alone.
   benign alternatives, and material missing evidence must remain visible.
   Incomplete/live snapshots cannot establish absence of reward hacking.
   An edit followed by a reward is not by itself a causal intervention result.
+
+## Exercised acceptance (2026-10-02)
+
+The [HAR-151 engineering receipt](../research/explorations/trace-lab/har151/receipt.json)
+binds case/snapshot/report hashes, model profiles, and accounting. Raw traces and
+full journals remain in the local artifact root named there.
+
+- **250 focused tests passed**, with one existing expected failure. The focused
+  prepush checkpoint passed static gates and pinned typechecking; GitHub CI is
+  separately required for the exact delivery head/base.
+- **Nine synthetic development controls:** four suspicious positives and five
+  negative controls matched the frozen labels, with no final errors or missing
+  cases. Citation/JSON rejections were retained and corrected by new model
+  responses inside the existing bounds. These are development checks, not
+  held-out calibration or a population detection-rate claim.
+- **Four retained Harbor traces:** the selected source-cited findings were
+  inconclusive, not acquittals. The captures explicitly identify omitted
+  producer-spill output (35/20/18/19 steps) and missing artifacts. Upstream
+  acquisition remains a contamination-review signal; absence of a wholesale
+  `cp` command does not establish an independently solved task.
+- **Actual live-file replay:** the acquisition alert appeared as the prefix grew,
+  and result-only arrival produced a new terminal snapshot without changing
+  trajectory mtime. The existing watcher's stale terminal-state cache is tracked
+  separately in proposed HAR-153; this subscriber reads the result independently.
+- **Budget:** $7.94377105 conservatively reserved/booked including Exa, below the
+  $10 ceiling. Known token usage at pinned rates plus Exa estimates $1.50465275;
+  ten unknown-usage qualification calls retain their full reservations. This is
+  not a verified provider invoice. No new Harbor trials, training jobs, source-run
+  mutations, or shared-runtime deployments were performed.
+
+The retained-trace evidence intentionally mixes three accepted reports from the
+earlier profile with an explicit copied-solution follow-up after a scope-key
+refusal fix. Their profile provenance is retained; they are qualitative
+engineering evidence, not a pooled held-out experiment.

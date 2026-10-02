@@ -24,7 +24,7 @@ Status values:
 - **What:** `token_flow._is_edit` (`_EDIT_REDIRECT_RE`) treats `awk 'NR>=125 && NR<=240' f` as a shell redirect. This corrupts `first_edit`, `token_flow.last_useful_edit`, `tokens_after_last_edit`, and run_report's `bad_edit` first failure ("first repo edit (=1,, =40, =80)").
 - **Handle:** don't trust edit timing from runs processed before the fix.
 - **Evidence:** at least 17 of the 45 detected first edits in G5 are read-only awk commands (`har128/g6/G6_RESULTS.md`).
-- **Status:** open. The fix is in progress under HAR-141.
+- **Status:** fixed in #687 (HAR-141). Over the 60 G5 trials, awk-read false positives went from 167 steps to 0, and genuine heredoc edits are still detected. Published `processed/` outputs from before #687 still carry the bug; reprocess to get correct edit timing.
 
 ### Q3. Eval Lab and Scout "first failure" don't match human judgement
 - **What:** out of sample, against blind labels:
@@ -138,9 +138,11 @@ Status values:
 - **Evidence:** g6-06 and g6-24 (rater notes).
 - **Status:** open.
 
-### Q19. Agents read their own harness logs
-- **What:** agents can grep `/logs/agent/terminus_2.pane`, their own session log. g6-56 spent about 40 turns mining it.
-- **Handle:** it's not a hidden-test leak, but it is reading harness state. `evallab watch` flags it as `hidden_info_read`.
+### Q19. Agents read harness logs
+- **What:** two different things live under `/logs/agent/`:
+  - `evallab-output/step-NNNN.txt` is the harness's spill of the agent's **own** truncated command output. Reading it is intended and is not a signal.
+  - `terminus_2.pane` is the session pane log. g6-56 spent about 40 turns grepping `/logs` for `write_RC_file` instead of writing code.
+- **Handle:** reading the pane log is not a hidden-test leak, but it is a sign the agent is fishing for answers. `evallab watch` flags it as low-severity `harness_log_read`, with #686 follow-up. Reads of `/tests`, verifier paths or `/logs/verifier` are `hidden_info_read`.
 - **Status:** open.
 
 ### Q20. Agents edit visible tests to make them pass
@@ -156,4 +158,18 @@ Status values:
 - **What:** `ServiceUnavailableError` (endpoint 503) and `DaytonaNotFoundError` (the sandbox was lost) end runs in the middle of their work.
 - **Handle:** count them as `excluded` infra (missing, never zero). Raters label them `infra_error` with blame `infra`.
 - **Evidence:** 5 of 60 G5 cells.
+- **Status:** by design.
+
+### Q23. Harbor `result.json` `task_id` is a dict containing the job path
+- **What:** `task_id` is `{"path": ".../.exec-stage/ovn-g5-000169-tuned"}`, so it contains the job name and therefore the arm.
+- **Handle:**
+  - take the task id from `task_name` (`mimo-v2.6-rl/format-code-task-000169`);
+  - never pass `task_id` to a blind rater.
+- **Evidence:** `evallab review prepare` in #688 used it, which leaked the arm into `rater_batches.json` and made the cross-arm prompt check compare nothing.
+- **Status:** fixed in #689. `prepare` now derives the id from `task_name`, fails if it cannot, and leak-scans everything handed to raters. No blind review was run with #688.
+
+### Q24. Agents add their own tests; that is not grader tampering
+- **What:** many agents write new test files (e.g. g6-49 added `tests/unit/test_sqs.py`). The raters judged this legitimate.
+- **What does count:** modifying an *existing* test so that it passes (g6-41 rewrote `test/test_youtube.py`; g6-30 edited the visible tests). Hidden tests replace the visible ones at grading, so neither changes rewards.
+- **Handle:** alert only on modification of existing test, verifier or grader files (`evallab watch` `grader_tamper`, #686 follow-up).
 - **Status:** by design.

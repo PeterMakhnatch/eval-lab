@@ -817,3 +817,23 @@ def test_http_status_is_retained_without_auth_bearing_error_text(tmp_path):
     assert report.status == "failed" and report.calls == 1
     assert report.estimated_usage_usd is None
     assert "SENSITIVE-FAIL-SECRET" not in json.dumps(events)
+
+
+def test_structured_provider_diagnostic_is_bounded_and_redacts_credentials(tmp_path):
+    corpus, case, _ = _fixtures()
+    raw = json.dumps({"error": {"message": "Unsupported option; synthetic-key\n" + "x" * 1000}}).encode()
+    opener = _Opener(urllib.error.HTTPError(
+        "https://provider.example", 400, "PRIVATE-HEADER-SECRET", {}, io.BytesIO(raw),
+    ))
+    report = investigate(
+        case, corpus, transport=_http_transport(opener),
+        budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis",
+    )
+    events = [json.loads(line) for line in (tmp_path / "analysis/journal.jsonl").read_text().splitlines()]
+    failure = next(event for event in events if event["event"] == "request_failed")
+    assert failure["provider_http_status"] == 400
+    assert len(failure["provider_detail"]) <= 400
+    stored = json.dumps(events) + report.model_dump_json()
+    assert "synthetic-key" not in stored and "PRIVATE-HEADER-SECRET" not in stored
+    assert report.status == "failed" and report.calls == 1
+    assert opener.calls == 1

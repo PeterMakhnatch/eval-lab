@@ -345,6 +345,16 @@ def test_tools_enforce_case_scope(tmp_path: Path) -> None:
     assert scoped["hits"] and all(h["trial_key"] == "jobA/trial1" for h in scoped["hits"])
 
 
+@pytest.mark.parametrize("start", [1, 2])
+def test_window_beyond_trace_end_does_not_report_nonexistent_evidence_as_omitted(tmp_path, start):
+    corpus = _two_trial_corpus(tmp_path)
+    tools = EvidenceTools(corpus, _case(corpus, "jobA/trial1"))
+    result = tools.read_steps("jobA/trial1", start, 10)
+    assert result["total_steps"] == 1
+    assert [record["ordinal"] for record in result["records"]] == ([1] if start == 1 else [])
+    assert result["omitted"] == {}
+
+
 def test_search_is_literal_not_regex(tmp_path: Path) -> None:
     runs = tmp_path / "runs"
     _write_trial(runs, "jobA", "trial1",

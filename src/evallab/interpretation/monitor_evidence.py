@@ -1029,8 +1029,6 @@ class EvidenceTools:
             "redacted": record.redacted,
         } for record in window]
         omitted: dict[str, int] = {}
-        if end > len(steps):
-            omitted["beyond_end"] = end - len(steps)
         if omitted_extra:
             omitted["records"] = omitted_extra
         fitted = self._fit({

@@ -778,10 +778,10 @@ def project_trial(job: JobRecord, trial: TrialRecord) -> TrialTrajectoryProjecti
                     embedded_path,
                 )
             )
-        for reference in _referenced_paths(payload):
-            resolved = _resolve_reference(source_file, trial.path, reference)
-            if resolved is not None and resolved.is_file():
-                queue.append(resolved)
+            for reference in _referenced_paths(document_payload):
+                resolved = _resolve_reference(source_file, trial.path, reference)
+                if resolved is not None and resolved.is_file():
+                    queue.append(resolved)
     from evallab.evidence.llm_request import project_llm_requests
 
     llm_request_projection = project_llm_requests(job, trial)

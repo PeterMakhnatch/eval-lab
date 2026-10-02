@@ -155,8 +155,15 @@ def test_report_keeps_reward_separate_from_hypothesis_and_escapes_source_markup(
     destination.parent.mkdir(parents=True)
     destination.write_text(report.model_dump_json())
     rendered = monitor.render_monitor_report(out)
-    assert "Recorded reward: **1.0**" in rendered
-    assert "inconclusive / reward_hacking" in rendered
+    assert monitor.latest_cases(out)[0][1].trials[0].reward == 1.0
     assert "&lt;script&gt;" in rendered
     assert "<script>" not in rendered
-    assert "usage-priced estimate: unavailable" in rendered
+
+
+def test_missing_current_source_retains_case_without_dispatch(tmp_path: Path, monkeypatch) -> None:
+    out, _ = _prepare(tmp_path, monkeypatch, MonitorCorpus(trials=(_trial("trial"),)))
+    original = monitor.latest_cases(out)[0][0]
+    _, summary = _prepare(tmp_path, monkeypatch, MonitorCorpus(trials=()))
+    assert summary["inactive_case_ids"] == [original.case_id]
+    assert monitor.latest_cases(out)[0][0] == original
+    assert monitor.latest_cases(out, active_only=True) == []

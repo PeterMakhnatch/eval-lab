@@ -177,7 +177,6 @@ def login_pythonpath(setup: str, _arg: str | None) -> str:
     return before_blocklist(setup, LOGIN_PYTHONPATH_BLOCK)
 
 
-
 def pin(setup: str, command: str | None) -> str:
     if not command:
         raise SystemExit("pin needs a command")
@@ -185,6 +184,19 @@ def pin(setup: str, command: str | None) -> str:
         "\n# HAR-113 env-pin-dependency@1: setup has network; the blocklist comes after.\n"
         f'if ! ( cd "$CWD" && {command} ) > "$M/har113-pin.log" 2>&1; then\n'
         f'  tail -n 20 "$M/har113-pin.log" >&2; fail "HAR-113 pin failed: {command}"\n'
+        "fi\n"
+    )
+    return before_blocklist(setup, block)
+
+
+def prefetch(setup: str, command: str | None) -> str:
+    if not command:
+        raise SystemExit("prefetch needs a command")
+    quoted = command.replace("'", "'\"'\"'")
+    block = (
+        "\n# HAR-146 env-prefetch-network@1: grading needs the network; setup fetches while it is open.\n"
+        f'if ! ( cd "$CWD" && {command} ) > "$M/har146-prefetch.log" 2>&1; then\n'
+        f"  tail -n 20 \"$M/har146-prefetch.log\" >&2; fail 'HAR-146 prefetch failed: {quoted}'\n"
         "fi\n"
     )
     return before_blocklist(setup, block)
@@ -259,6 +271,15 @@ KINDS = {
         "starts (network is open during setup; the blocklist is applied after), failing "
         "setup if it fails, and environment/setup is re-embedded in the healthcheck "
         f"payload. {UNCHANGED}",
+        lambda arg: {"command": arg},
+    ),
+    "prefetch": Kind(
+        "env-prefetch-network@1",
+        prefetch,
+        "grading needs the network ({cause}); setup fetches it before the lock (`{arg}` "
+        "runs before the agent starts, while the network is open; the egress lock is taken "
+        "after), failing setup if it fails, and environment/setup is re-embedded in the "
+        f"healthcheck payload. {UNCHANGED}",
         lambda arg: {"command": arg},
     ),
 }
@@ -378,6 +399,32 @@ REPAIRS: dict[str, tuple[Step, ...]] = {
             "unittest plugin reads; its C test extension does not build on Python 3.11, so "
             "write only the metadata",
             "/usr/bin/python3 setup.py -q egg_info --egg-base /usr/local/lib/python3.11/dist-packages",
+        ),
+    ),
+}
+
+#: HAR-146 locked-nop repairs: task -> steps, same shape as REPAIRS. The egress
+#: lock blocks grading's network, so setup (network open) pre-fetches it.
+HAR146_REPAIRS: dict[str, tuple[Step, ...]] = {
+    "000450": (
+        (
+            "prefetch",
+            "the hidden verifier pip-installs test dependencies (mimo_test_command.sh runs "
+            '`pip install -e ".[yaml]" pytest jsonpath-ng` when hera/pytest/yaml is missing), '
+            "which fails once the egress lock blocks the network",
+            "if [ ! -x /testbed/.venv/bin/python ]; then python3 -m venv /testbed/.venv; fi && "
+            'if ! /testbed/.venv/bin/python -c "import hera, pytest, yaml" >/dev/null 2>&1; then '
+            "/testbed/.venv/bin/python -m pip install --upgrade pip setuptools wheel && "
+            '/testbed/.venv/bin/python -m pip install -e ".[yaml]" pytest jsonpath-ng; fi',
+        ),
+    ),
+    "002978": (
+        (
+            "prefetch",
+            "importing kwave downloads the k-Wave C++ binaries (kwave/__init__.py install_binaries "
+            "via urlretrieve), which fails once the egress lock blocks the network",
+            'python3 -c "from kwave.kgrid import kWaveGrid" && python3 -c "import kwave; '
+            "assert getattr(kwave, 'binaries_present', lambda: True)()\"",
         ),
     ),
 }

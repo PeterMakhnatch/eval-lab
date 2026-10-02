@@ -42,8 +42,12 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 CENSUS = ROOT / "research/experiments/har108-python-census/task_health.parquet"
 VARIANTS = ROOT / "library/task-variants"
-REPAIR_BY = {"har113-repair", "har115-repair"}
+REPAIR_BY = {"har113-repair", "har115-repair", "har146-repair"}
 LEAK = "leak-close-pypi@1"
+#: Grading-time network fetch, repaired by pre-downloading during setup: the
+#: census nop (no lock) is sound on the original, but the mandatory egress
+#: lock breaks grading, so the row runs the validated prefetch variant.
+PREFETCH = "env-prefetch-network@1"
 #: Diagnosed defects whose census evidence alone does not say why there is no
 #: repair (``research/experiments/har115-census/README.md``).
 REASONS = {
@@ -155,6 +159,21 @@ def ledger_row(
             run = "leak-closed"
         else:
             status, reason = "review", "pypi_fix_released with no leak-closed variant"
+    if status == "usable" and run == "original":
+        prefetched = [
+            item
+            for item in variants
+            if item[0]["created_by"] in REPAIR_BY
+            and item[0]["status"] == "validated"
+            and item[0]["transform"] == PREFETCH
+        ]
+        if prefetched:
+            chosen = latest(prefetched)
+            run = "repair"
+            reason = (
+                f"census {label}; grading needs the network under the egress lock, "
+                f"repaired by {chosen[0]['transform']}, nop sound"
+            )
     if status == "usable" and not reason:
         reason = "nop sound" + (", leak closed" if run == "leak-closed" else "")
     if chosen is not None:

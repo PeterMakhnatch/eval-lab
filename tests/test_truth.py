@@ -33,8 +33,9 @@ def _write_job(
     name: str,
     agent: str,
     model: str | None,
-    task_rewards: dict[str, list[float]],
+    task_rewards: dict[str, list[float | None]],
     with_atif: bool = False,
+    exception_types: dict[str, str] | None = None,
 ) -> Path:
     job = root / name
     trials: list[Path] = []
@@ -83,8 +84,12 @@ def _write_job(
                         "n_output_tokens": 5,
                         "cost_usd": 0.02,
                     },
-                    "verifier_result": {"rewards": {"reward": reward}},
-                    "exception_info": None,
+                    "verifier_result": {"rewards": {} if reward is None else {"reward": reward}},
+                    "exception_info": (
+                        {"exception_type": exception_types[trial.name]}
+                        if exception_types is not None and trial.name in exception_types
+                        else None
+                    ),
                     "started_at": f"2026-08-14T12:00:{trial_index:02d}Z",
                     "finished_at": f"2026-08-14T12:01:{trial_index:02d}Z",
                 },
@@ -191,13 +196,16 @@ def _write_job(
     return job
 
 
-def _spec(left: str, right: str, *, k: int = 1) -> CohortComparisonSpec:
+def _spec(
+    left: str, right: str, *, k: int = 1, budget_exhaustion_is_failure: bool = False
+) -> CohortComparisonSpec:
     return CohortComparisonSpec.model_validate(
         {
             "comparison_id": "known-truth",
             "experiment_id": "known-truth",
             "declared_variable": "agent_name",
             "pass_k": [k],
+            "budget_exhaustion_is_failure": budget_exhaustion_is_failure,
             "cohorts": [
                 {"label": "baseline", "paths": [left]},
                 {"label": "candidate", "paths": [right]},
@@ -277,11 +285,17 @@ def _paired_for(
         key = f"tie-{index:02d}"
         base_tasks[key] = candidate_tasks[key] = [1.0]
     _write_job(
-        tmp_path, name=f"{name}-base", agent="agent-a", model="model-a",
+        tmp_path,
+        name=f"{name}-base",
+        agent="agent-a",
+        model="model-a",
         task_rewards=base_tasks,
     )
     _write_job(
-        tmp_path, name=f"{name}-cand", agent="agent-b", model="model-b",
+        tmp_path,
+        name=f"{name}-cand",
+        agent="agent-b",
+        model="model-b",
         task_rewards=candidate_tasks,
     )
     report = compare(_spec(f"{name}-base", f"{name}-cand"), repo_root=tmp_path)
@@ -532,3 +546,113 @@ def test_completed_spec_drafts_eval_card_with_digests_intervals_and_threats(
         == 0
     )
     assert "config digest: sha256:" in capsys.readouterr().out
+
+
+def test_graded_agent_stops_preserve_verifier_reward_under_both_policies(
+    tmp_path: Path,
+) -> None:
+    stops = ["AgentTimeoutError", "TrialBudgetExhaustedError", "LoopBreakStop"]
+    grades = [0.0, 1.0, 0.5]
+    tasks = {f"stop-task-{index}": [grade] for index, grade in enumerate(grades)}
+    stopped = {f"stop-task-{index}__01": stop for index, stop in enumerate(stops)}
+    _write_job(tmp_path, name="plain-job", agent="agent-a", model="model-a", task_rewards=tasks)
+    _write_job(
+        tmp_path,
+        name="stopped-job",
+        agent="agent-b",
+        model="model-b",
+        task_rewards=tasks,
+        exception_types=stopped,
+    )
+    for flag in (False, True):
+        report = compare(
+            _spec("plain-job", "stopped-job", budget_exhaustion_is_failure=flag),
+            repo_root=tmp_path,
+        )
+        baseline, candidate = report["cohorts"]
+        assert baseline["capability_denominator"] == 3
+        assert candidate["capability_denominator"] == 3
+        assert candidate["exception_count"] == 0
+        assert candidate["missing_reward_count"] == 0
+        assert candidate["trial_pass_count"] == baseline["trial_pass_count"] == 1
+        assert candidate["reward"]["mean"] == pytest.approx(0.5)
+        assert baseline["reward"]["mean"] == pytest.approx(0.5)
+        assert candidate["pass_any_first_k"][0]["passes"] == 1
+        assert candidate["pass_any_first_k"][0]["n_tasks"] == 3
+        paired = report["paired"][0]
+        assert paired["n_pairs"] == 3
+        assert (paired["wins"], paired["ties"], paired["losses"]) == (0, 3, 0)
+        assert paired["unpaired_tasks"] == []
+        assert candidate["cost_per_solved_task"]["solved_task_count"] == 1
+        assert candidate["cost_per_solved_task"]["cost_per_solved_task_usd"] == pytest.approx(
+            baseline["cost_per_solved_task"]["cost_per_solved_task_usd"]
+        )
+
+
+def test_ungraded_budget_stop_excluded_by_default_and_imputed_on_opt_in(
+    tmp_path: Path,
+) -> None:
+    _write_job(
+        tmp_path,
+        name="plain-job",
+        agent="agent-a",
+        model="model-a",
+        task_rewards={"solo-task": [1.0]},
+    )
+    _write_job(
+        tmp_path,
+        name="timeout-job",
+        agent="agent-b",
+        model="model-b",
+        task_rewards={"solo-task": [None]},
+        exception_types={"solo-task__01": "AgentTimeoutError"},
+    )
+    censored = compare(_spec("plain-job", "timeout-job"), repo_root=tmp_path)
+    assert censored["cohorts"][1]["capability_denominator"] == 0
+    assert censored["cohorts"][1]["exception_count"] == 1
+    assert censored["paired"][0]["n_pairs"] == 0
+    assert len(censored["paired"][0]["unpaired_tasks"]) == 1
+
+    imputed = compare(
+        _spec("plain-job", "timeout-job", budget_exhaustion_is_failure=True),
+        repo_root=tmp_path,
+    )
+    assert imputed["cohorts"][1]["capability_denominator"] == 1
+    assert imputed["cohorts"][1]["exception_count"] == 0
+    assert imputed["cohorts"][1]["trial_pass_count"] == 0
+    assert imputed["paired"][0]["n_pairs"] == 1
+    assert (
+        imputed["paired"][0]["wins"],
+        imputed["paired"][0]["ties"],
+        imputed["paired"][0]["losses"],
+    ) == (0, 0, 1)
+
+
+def test_graded_unrelated_error_stays_excluded_under_both_policies(
+    tmp_path: Path,
+) -> None:
+    _write_job(
+        tmp_path,
+        name="plain-job",
+        agent="agent-a",
+        model="model-a",
+        task_rewards={"solo-task": [1.0]},
+    )
+    _write_job(
+        tmp_path,
+        name="infra-job",
+        agent="agent-b",
+        model="model-b",
+        task_rewards={"solo-task": [1.0]},
+        exception_types={"solo-task__01": "DockerInfrastructureError"},
+    )
+    for flag in (False, True):
+        report = compare(
+            _spec("plain-job", "infra-job", budget_exhaustion_is_failure=flag),
+            repo_root=tmp_path,
+        )
+        candidate = report["cohorts"][1]
+        assert candidate["capability_denominator"] == 0
+        assert candidate["exception_count"] == 1
+        assert candidate["trial_pass_count"] == 0
+        assert report["paired"][0]["n_pairs"] == 0

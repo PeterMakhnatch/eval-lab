@@ -12,7 +12,14 @@ import pytest
 
 from evallab import cli
 from evallab.cohort import compare
-from evallab.curve import build_curve, load_curve_report, load_curve_spec, write_curve
+from evallab.curve import (
+    _control_fingerprint,
+    _exclusions,
+    build_curve,
+    load_curve_report,
+    load_curve_spec,
+    write_curve,
+)
 from evallab.report import build_eval_card
 from evallab.schemas import CapabilityCurveSpec, CohortComparisonSpec
 
@@ -440,9 +447,7 @@ def test_frozen_comparison_artifacts_qualify_and_match_the_live_curve(
 ) -> None:
     payload = _spec_payload()
     live = _build(payload)
-    frozen_spec = _freeze_comparisons(
-        payload, _comparison_reports(payload), tmp_path, "frozen"
-    )
+    frozen_spec = _freeze_comparisons(payload, _comparison_reports(payload), tmp_path, "frozen")
     frozen = build_curve(
         frozen_spec,
         repo_root=tmp_path,
@@ -451,9 +456,7 @@ def test_frozen_comparison_artifacts_qualify_and_match_the_live_curve(
     )
 
     assert frozen.rankable is False
-    assert any(
-        "paired exact two-sided" in reason for reason in frozen.refuse_to_rank_reasons
-    )
+    assert any("paired exact two-sided" in reason for reason in frozen.refuse_to_rank_reasons)
     assert frozen.levels == live.levels
     assert frozen.common_controlled_fingerprint == live.common_controlled_fingerprint
     assert _level(frozen, 3).contrasts[0].rankable is False
@@ -509,9 +512,7 @@ def test_missing_primary_k_is_an_actionable_refusal_not_stopiteration(
 
     spec = _freeze_comparisons(payload, reports, tmp_path, "missing-primary-k")
     with pytest.raises(ValueError, match="k=2"):
-        build_curve(
-            spec, repo_root=tmp_path, produced_by="test-curve", produced_at=PRODUCED_AT
-        )
+        build_curve(spec, repo_root=tmp_path, produced_by="test-curve", produced_at=PRODUCED_AT)
 
 
 def test_failed_controlled_comparison_cannot_keep_a_rankable_primary_contrast(
@@ -539,3 +540,69 @@ def test_failed_controlled_comparison_cannot_keep_a_rankable_primary_contrast(
     assert primary.paired_delta == -1.0
     assert primary.paired_interval_95 == [-1.0, -1.0]
     assert _level(report, 3).pass_any_first_k[0].rate == 0.0
+
+
+def _curve_member(
+    trial_id: str, block_id: str, reward: Any, exception_class: str | None
+) -> dict[str, Any]:
+    return {
+        "trial_id": trial_id,
+        "task_block_id": block_id,
+        "reward": reward,
+        "exception_class": exception_class,
+    }
+
+
+def test_curve_keeps_scored_agent_stops_eligible_under_both_policies() -> None:
+    stopped = [
+        _curve_member("t1", "b1", 1.0, "AgentTimeoutError"),
+        _curve_member("t2", "b2", 0.0, "TrialBudgetExhaustedError"),
+        _curve_member("t3", "b3", 0.5, "LoopBreakStop"),
+    ]
+    plain = [
+        _curve_member("t1", "b1", 1.0, None),
+        _curve_member("t2", "b2", 0.0, None),
+        _curve_member("t3", "b3", 0.5, None),
+    ]
+    pair_set = ["b1", "b2", "b3"]
+    for flag in (False, True):
+        exceptions, missing, censored = _exclusions(stopped, budget_exhaustion_is_failure=flag)
+        assert exceptions == []
+        assert missing == []
+        assert censored == []
+        assert _control_fingerprint(
+            stopped, pair_set, None, budget_exhaustion_is_failure=flag
+        ) == _control_fingerprint(plain, pair_set, None, budget_exhaustion_is_failure=flag)
+
+
+def test_curve_ungraded_loop_break_stop_is_not_a_budget_failure() -> None:
+    member = [_curve_member("t1", "b1", None, "LoopBreakStop")]
+    for flag in (False, True):
+        exceptions, missing, censored = _exclusions(member, budget_exhaustion_is_failure=flag)
+        assert [item.trial_id for item in exceptions] == ["t1"]
+        assert missing == []
+        assert censored == ["b1"]
+
+    timeout = [_curve_member("t1", "b1", None, "AgentTimeoutError")]
+    exceptions, _, censored = _exclusions(timeout, budget_exhaustion_is_failure=False)
+    assert [item.trial_id for item in exceptions] == ["t1"]
+    assert censored == ["b1"]
+    assert _exclusions(timeout, budget_exhaustion_is_failure=True) == ([], [], [])
+
+
+def test_curve_graded_infrastructure_error_stays_censored() -> None:
+    member = [_curve_member("t1", "b1", 1.0, "DockerInfrastructureError")]
+    for flag in (False, True):
+        exceptions, missing, censored = _exclusions(member, budget_exhaustion_is_failure=flag)
+        assert [item.trial_id for item in exceptions] == ["t1"]
+        assert missing == []
+        assert censored == ["b1"]
+
+
+@pytest.mark.parametrize("reward", [float("nan"), float("inf"), float("-inf"), "1.0", True])
+def test_curve_unusable_grades_are_not_scored_outcomes(reward: Any) -> None:
+    member = [_curve_member("bad-grade", "b1", reward, None)]
+    assert _exclusions(member, budget_exhaustion_is_failure=False) == ([], ["bad-grade"], ["b1"])
+    assert _control_fingerprint(
+        member, ["b1"], None, budget_exhaustion_is_failure=False
+    ) == _control_fingerprint([], ["b1"], None, budget_exhaustion_is_failure=False)

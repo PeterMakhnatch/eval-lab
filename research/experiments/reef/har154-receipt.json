@@ -1,0 +1,566 @@
+{
+  "schema_version": 1,
+  "issue": "HAR-154",
+  "purpose": "Apply the repaired comparison path to existing development data; do not promote a candidate from reused development evidence.",
+  "reproduction": "uv run --no-sync python research/experiments/reef/replay_har154_comparison.py --results-root <published-results-root> --out <new-output-directory>",
+  "generated_outputs": "The driver regenerates the full comparison specs, JSON and Markdown. This compact receipt retains observed decisions and source hashes, not the generated full reports.",
+  "replay": {
+    "cells": [
+      {
+        "arm": "gepa-candidate",
+        "job": "har110-dev-000383-cfe31418",
+        "job_config_sha256": "sha256:a3d5c1e423661a808e659793f09803a53c168fadc5df3326769af6aedca36d5b",
+        "job_dir": "2026-09-30/HAR-110-har110-dev-000383-cfe31418",
+        "job_result_sha256": "sha256:0e0f1b0a9e01a03f27df8b24f4e760d96453da57144291e5904cfa995cb0384f",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "000383",
+        "trial_name": "har110-dev-000383-cfe31418__L7nGNNi",
+        "trial_result_sha256": "sha256:96a6ef9d0395c308177b5461c21df04fdd6bbe3572bf4966d66bb76ab3ac411d"
+      },
+      {
+        "arm": "gepa-candidate",
+        "job": "har110-dev-001832-cfe31418",
+        "job_config_sha256": "sha256:4fb60036014d3744161144c32ff141ce86ae8ba10d95f4582bf20ce74cb11621",
+        "job_dir": "2026-09-30/HAR-110-har110-dev-001832-cfe31418",
+        "job_result_sha256": "sha256:6e6b3e66bf2d9b8930145a183a5cb5251bad4bf7acc13c052f0ebf9b10e098e8",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "001832",
+        "trial_name": "har110-dev-001832-cfe31418__DbqpN36",
+        "trial_result_sha256": "sha256:e706c09d05a3cbf9692b8d51eeedd0651f89b5efe34c732d7580952839c5ace8"
+      },
+      {
+        "arm": "gepa-candidate",
+        "job": "gepa-terminus-2-format-code-task-001-d1471e1b2701d6d1765ff1df",
+        "job_config_sha256": "sha256:5a976e75db4ad38090e5e1663aea8af10bb2e40104424c1803aebd46b146a09f",
+        "job_dir": "2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-d1471e1b2701d6d1765ff1df",
+        "job_result_sha256": "sha256:c396ab8144a0c6db5b8b7456a1c4db8f59bded79676ef0507cc5ba1a6d3c877e",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "001896",
+        "trial_name": "gepa-terminus-2-format-code-task__7RJJeFg",
+        "trial_result_sha256": "sha256:a672b6b2e7848eb1d968127e735c7e678708b09b564e13236d8cac00f5484118"
+      },
+      {
+        "arm": "gepa-candidate",
+        "job": "har110-dev-002256-cfe31418",
+        "job_config_sha256": "sha256:d8842075ea71ca4299af1ca90b4d7d049602074f8d499467e5933ddcf46901e0",
+        "job_dir": "2026-09-30/HAR-110-har110-dev-002256-cfe31418",
+        "job_result_sha256": "sha256:a4c7f5596c64ed658859fc44738158bd192bf21138131c0c375d8a6fac46ffed",
+        "retained_reward": null,
+        "retained_stop": "BadGatewayError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": null,
+        "task": "002256",
+        "trial_name": "har110-dev-002256-cfe31418__uDRp4Vb",
+        "trial_result_sha256": "sha256:c4368daa0438e8e787eeb7ccc2c0331a89b26a2babf76a8324f16ed34528b0f9"
+      },
+      {
+        "arm": "gepa-candidate",
+        "job": "har110-dev-002391-cfe31418",
+        "job_config_sha256": "sha256:e595745abb7268daef003b6ac8000cda95857a3ede4fb6a30489ba532443c2f4",
+        "job_dir": "2026-09-30/HAR-110-har110-dev-002391-cfe31418",
+        "job_result_sha256": "sha256:02267a73cdc995e0cd564079df9cf6b983df77e77d770be6f62b5c9ada468791",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "002391",
+        "trial_name": "har110-dev-002391-cfe31418__MvXkrso",
+        "trial_result_sha256": "sha256:72a35191dfe9d10aaed2d6d133047368180bfc98bd8f81327d5caef0691ae53e"
+      },
+      {
+        "arm": "gepa-candidate",
+        "job": "har110-dev-002864-cfe31418",
+        "job_config_sha256": "sha256:410c556d8b22758c8c0e9fd1b3f73e4f83f60bb407d64aaf89728b71ffc7516d",
+        "job_dir": "2026-09-30/HAR-110-har110-dev-002864-cfe31418",
+        "job_result_sha256": "sha256:0921dcd71d5d477aa57c33c1cfab4941791f561c9f9d56110a8a0cd38a1bbaf4",
+        "retained_reward": 1,
+        "retained_stop": "agent_finished",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 1,
+        "task": "002864",
+        "trial_name": "har110-dev-002864-cfe31418__g7pfCqC",
+        "trial_result_sha256": "sha256:0f3d79f08ac51814858e63d9d147a8296f6967c71e1c96e80051fec7ac048c37"
+      },
+      {
+        "arm": "plain",
+        "job": "har104-d-000383",
+        "job_config_sha256": "sha256:a92d45ecc35bdb55ee6bb9bae26ec5266b67477e716dce15ec37ad93e4f577c2",
+        "job_dir": "2026-09-30/HAR-104-har104-d-000383",
+        "job_result_sha256": "sha256:25a17983d6be33a5ce46a805b2f77f89e966099efadfe672bde41c5a860c5a08",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-104 (retained, $0)",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "000383",
+        "trial_name": "har104-d-000383__PmZMZ6z",
+        "trial_result_sha256": "sha256:5fca68d63355457e2db6fe17ab9f98cd980ed438d04b85512db733f4c5f4b44b"
+      },
+      {
+        "arm": "plain",
+        "job": "har104-d-001832",
+        "job_config_sha256": "sha256:535ee31f7ca6ab03f403eb376f213dda02701969d2763c7c4db6b8099b52c833",
+        "job_dir": "2026-09-30/HAR-104-har104-d-001832",
+        "job_result_sha256": "sha256:2565a6d5cbd4503914557d407290a6cad16f9e3b38ae509caaa2b1f449a8c855",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-104 (retained, $0)",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "001832",
+        "trial_name": "har104-d-001832__d7Hop8E",
+        "trial_result_sha256": "sha256:3983fcd9ad374ed8806bcc1f7bb503172f13788041f2fbb1dddd67f5b28792f4"
+      },
+      {
+        "arm": "plain",
+        "job": "har104-d-001896",
+        "job_config_sha256": "sha256:64c193e15ee62d9233bbd853b112153dae9ea20a1e9a4eb7185a2fd70618accd",
+        "job_dir": "2026-09-30/HAR-104-har104-d-001896",
+        "job_result_sha256": "sha256:b89fb3573c52373cfa3572d176ff645183b86c92632426454ef190807bf373ff",
+        "retained_reward": 0,
+        "retained_stop": "agent_finished",
+        "source": "HAR-104 (retained, $0)",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "001896",
+        "trial_name": "har104-d-001896__MDkTErY",
+        "trial_result_sha256": "sha256:10015f887b27d87f541c6ab5dcf2600ec85243305aa2151fb7cfa282eb058fd6"
+      },
+      {
+        "arm": "plain",
+        "job": "har104-d-002256",
+        "job_config_sha256": "sha256:c1062e9e9f05739446fbfe6171a4d1e9ca8c5bb1e2552f3c4473ab507d132c7b",
+        "job_dir": "2026-09-30/HAR-104-har104-d-002256",
+        "job_result_sha256": "sha256:391b8d8a5a0e965f59afe2b9e47e16404eaa164e255094e9bbbb7de7cc13c7b3",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-104 (retained, $0)",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "002256",
+        "trial_name": "har104-d-002256__RDffvXQ",
+        "trial_result_sha256": "sha256:78661f307b26397556cfb20c941975296dab159596499d06b4c85eb9a5a6d2c0"
+      },
+      {
+        "arm": "plain",
+        "job": "har104-d-002391",
+        "job_config_sha256": "sha256:b8a7872fc1e4402e9a56f3e6407fefccd221c32f0a4f04dcb7a1e48bc1119d9a",
+        "job_dir": "2026-09-30/HAR-104-har104-d-002391",
+        "job_result_sha256": "sha256:90ea8f879bea94f3a1ed35a0c8a67751b2727cccbf8fb09adf5a4dfb3bb49cc8",
+        "retained_reward": 1,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-104 (retained, $0)",
+        "table_fetch": [],
+        "table_gepa_score": 1,
+        "task": "002391",
+        "trial_name": "har104-d-002391__WxBjcjX",
+        "trial_result_sha256": "sha256:a93476c58aab4fb5f4bafc2d5aae150eeffe4ca99cb52e17879d103de5ae9ed2"
+      },
+      {
+        "arm": "plain",
+        "job": "har104-d-002864",
+        "job_config_sha256": "sha256:5c1abc6bfafcfd989c92aa68739174e9b4c5a047cd5a3bdf38e0d033ee8bd629",
+        "job_dir": "2026-09-30/HAR-104-har104-d-002864",
+        "job_result_sha256": "sha256:6cdf23570ed600d641fe931ab78599f94d6ce41b556d429380708607f2eecd59",
+        "retained_reward": 1,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-104 (retained, $0)",
+        "table_fetch": [],
+        "table_gepa_score": 1,
+        "task": "002864",
+        "trial_name": "har104-d-002864__B7cJ4cG",
+        "trial_result_sha256": "sha256:0162d4eb34741ca88a9d83838368e1813dd491bf4b1f351f53f98993df63a1ea"
+      },
+      {
+        "arm": "seed-addendum",
+        "job": "gepa-terminus-2-format-code-task-000-9862796a5e5624e818ab5f04",
+        "job_config_sha256": "sha256:e66841bce07ea84ce3e0a46d5f720f036232523cc46f91e89b9860ead0ac6ccf",
+        "job_dir": "2026-09-30/HAR-110-gepa-terminus-2-format-code-task-000-9862796a5e5624e818ab5f04",
+        "job_result_sha256": "sha256:77ab47e96c9c1ced775694c14ca32273dd1b1ac49275c72369ad6e9ddb88d370",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "000383",
+        "trial_name": "gepa-terminus-2-format-code-task__bo5YsYL",
+        "trial_result_sha256": "sha256:ba8c3aaf3f59920349896f71bff79bf0e567ebaf56ccd2226961afc31ff45368"
+      },
+      {
+        "arm": "seed-addendum",
+        "job": "gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33",
+        "job_config_sha256": "sha256:604d1b06012901fc39657c50f013347d7ad57107c538418468524840f4dc19c2",
+        "job_dir": "2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33",
+        "job_result_sha256": "sha256:a1e940185205237190630a6471d3d2e033477871f41d84b25fe62399f1c19600",
+        "retained_reward": 1,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [
+          "pip-download-remote-package"
+        ],
+        "table_gepa_score": 0,
+        "task": "001832",
+        "trial_name": "gepa-terminus-2-format-code-task__CFCbfps",
+        "trial_result_sha256": "sha256:de0c71706b8a16f1cd9ebd2ae4763ad1b0746a7daf283bcd272daf4ea2b46b3e"
+      },
+      {
+        "arm": "seed-addendum",
+        "job": "gepa-terminus-2-format-code-task-001-f1d48fcf652ab5d801068db1",
+        "job_config_sha256": "sha256:ef17ec72dc38e81b7a402df28253e002f4115ed9fd16426e0afda208ed7d9358",
+        "job_dir": "2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-f1d48fcf652ab5d801068db1",
+        "job_result_sha256": "sha256:064bc0decf9da64dc383e568ea0997eeb744b7519fa2d1d4b463ad13160e36bd",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "001896",
+        "trial_name": "gepa-terminus-2-format-code-task__XuSksWC",
+        "trial_result_sha256": "sha256:398311c8f6798c1dedef992ff85c5d85020554839fd798a902b105f3bf568c8e"
+      },
+      {
+        "arm": "seed-addendum",
+        "job": "gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+        "job_config_sha256": "sha256:d43d9d722cd3e52f8d5a7184cbf82cd0112a8a0ab82c4b978b0f4eb977c1f78e",
+        "job_dir": "2026-09-30/HAR-110-gepa-terminus-2-format-code-task-002-2700aa59352626e20aff4ed8",
+        "job_result_sha256": "sha256:33c15b2ee423d05ec673308a0b6350cab8de425060841d6c33d63f33fcc0205a",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "002256",
+        "trial_name": "gepa-terminus-2-format-code-task__X2dMzMw",
+        "trial_result_sha256": "sha256:adb54b515124857812c14eefd01c6a36bb8154b047c92c3ea29bd242e3f0eabf"
+      },
+      {
+        "arm": "seed-addendum",
+        "job": "gepa-terminus-2-format-code-task-002-a951229932dc90303c90215d",
+        "job_config_sha256": "sha256:cd7e6ca751043aa6ee45a12e9f36de804d91daadc608956fb30e1a42aad7a82f",
+        "job_dir": "2026-09-30/HAR-110-gepa-terminus-2-format-code-task-002-a951229932dc90303c90215d",
+        "job_result_sha256": "sha256:12b10752c87ff758e446c8e53dac07d565db11faddaae4c5ab3a0ae7a5d24f1e",
+        "retained_reward": 0,
+        "retained_stop": "TrialBudgetExhaustedError",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "002391",
+        "trial_name": "gepa-terminus-2-format-code-task__8FqvKUU",
+        "trial_result_sha256": "sha256:c7c72b4c832188fe7236028c691b4b1051673c5153206fedabbdd240dcd208ca"
+      },
+      {
+        "arm": "seed-addendum",
+        "job": "gepa-terminus-2-format-code-task-002-f785358f50e70ab387a1ba6c",
+        "job_config_sha256": "sha256:06734447aa31b27f5d357b6d4a719e67ac88177b52459a5eae105fb6d1f39cf2",
+        "job_dir": "2026-09-30/HAR-110-gepa-terminus-2-format-code-task-002-f785358f50e70ab387a1ba6c",
+        "job_result_sha256": "sha256:4a4b39ae7ee88ff29e1075fd13a628153fac5ccebd56fa4aa745ed31aced6985",
+        "retained_reward": 0,
+        "retained_stop": "agent_finished",
+        "source": "HAR-110",
+        "table_fetch": [],
+        "table_gepa_score": 0,
+        "task": "002864",
+        "trial_name": "gepa-terminus-2-format-code-task__Ey8Vxsr",
+        "trial_result_sha256": "sha256:bb7d951f32312fafa341a17f17a8a533767a0a1660445c231aedda01b6c58d97"
+      }
+    ],
+    "code_hashes": {
+      "evallab_cohort": "sha256:2c833546e1d5038753e436bb429e14653a33e95a1fc8fec3514df4a6184e6d93",
+      "script": "sha256:41a394e87b9384a5c959c35f2219f5387bff9b6e9a5e9874e283af38ca0c9ed4"
+    },
+    "comparisons": [
+      {
+        "baseline": "plain",
+        "cohort_outcomes": [
+          {
+            "capability_denominator": 6,
+            "exception_count": 0,
+            "label": "plain",
+            "missing_reward_count": 0,
+            "n_total": 6,
+            "trial_pass_count": 2
+          },
+          {
+            "capability_denominator": 5,
+            "exception_count": 1,
+            "label": "gepa-candidate",
+            "missing_reward_count": 0,
+            "n_total": 6,
+            "trial_pass_count": 1
+          }
+        ],
+        "comparison": "gepa-candidate",
+        "comparison_id": "har154-plain-vs-candidate",
+        "json_path": "har154-plain-vs-candidate.json",
+        "losses": 1,
+        "markdown_path": "har154-plain-vs-candidate.md",
+        "n_pairs": 5,
+        "paired_exact_p_value": 1,
+        "rankable": false,
+        "ranking": null,
+        "refusal_reasons": [
+          "1 eligible task(s) are not paired across cohorts",
+          "the paired 95% interval [-0.600, 0.000] includes zero",
+          "the paired exact two-sided sign/McNemar p=1.000 (0 wins, 1 losses, 4 ties) does not clear .05"
+        ],
+        "spec_digest": "sha256:906ef152246d065372f554b7d78fe1f07a25ff0252c497b89f56f1449e44aabc",
+        "spec_path": "har154-plain-vs-candidate.spec.json",
+        "statement": "not distinguishable / not comparable: 1 eligible task(s) are not paired across cohorts; the paired 95% interval [-0.600, 0.000] includes zero; the paired exact two-sided sign/McNemar p=1.000 (0 wins, 1 losses, 4 ties) does not clear .05",
+        "ties": 4,
+        "validity_warnings": [],
+        "wins": 0
+      },
+      {
+        "baseline": "seed-addendum",
+        "cohort_outcomes": [
+          {
+            "capability_denominator": 6,
+            "exception_count": 0,
+            "label": "seed-addendum",
+            "missing_reward_count": 0,
+            "n_total": 6,
+            "trial_pass_count": 1
+          },
+          {
+            "capability_denominator": 5,
+            "exception_count": 1,
+            "label": "gepa-candidate",
+            "missing_reward_count": 0,
+            "n_total": 6,
+            "trial_pass_count": 1
+          }
+        ],
+        "comparison": "gepa-candidate",
+        "comparison_id": "har154-seed-addendum-vs-candidate",
+        "json_path": "har154-seed-addendum-vs-candidate.json",
+        "losses": 1,
+        "markdown_path": "har154-seed-addendum-vs-candidate.md",
+        "n_pairs": 5,
+        "paired_exact_p_value": 1,
+        "rankable": false,
+        "ranking": null,
+        "refusal_reasons": [
+          "1 eligible task(s) are not paired across cohorts",
+          "the paired 95% interval [-0.600, 0.600] includes zero",
+          "the paired exact two-sided sign/McNemar p=1.000 (1 wins, 1 losses, 3 ties) does not clear .05"
+        ],
+        "spec_digest": "sha256:79389551a62922819c102a61df64c1e2f435b2aa0a3396db9942ba98b36e0ed6",
+        "spec_path": "har154-seed-addendum-vs-candidate.spec.json",
+        "statement": "not distinguishable / not comparable: 1 eligible task(s) are not paired across cohorts; the paired 95% interval [-0.600, 0.600] includes zero; the paired exact two-sided sign/McNemar p=1.000 (1 wins, 1 losses, 3 ties) does not clear .05",
+        "ties": 3,
+        "validity_warnings": [],
+        "wins": 1
+      }
+    ],
+    "experiment": "har154-comparison-replay",
+    "external_spend_usd": 0,
+    "limitations": "n=1 per task and arm on development tasks only; a first-look audit, not evidence of an effect and not an adoption claim. 002256/gepa-candidate has no verifier reward (infra BadGatewayError); it stays null, never zero-filled. GEPA policy scores apply the upstream-fetch-zero rule and are not interchangeable with raw verifier rewards. Comparisons run in causal mode so setup mismatches refuse instead of relaxing.",
+    "policy_score_note": "GEPA policy score equals the retained verifier reward except that a run with upstream fetch evidence scores 0 (upstream_fetch_zero). Scores are reported side by side and are not interchangeable; comparisons use raw verifier rewards only.",
+    "raw_verifier_reward_summary": {
+      "gepa-candidate": {
+        "fetch_flagged_trials": 0,
+        "n": 6,
+        "policy_passes": 1,
+        "policy_scores": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          null
+        ],
+        "raw_passes": 1,
+        "raw_unscored_null": 1,
+        "raw_verifier_rewards": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          null
+        ]
+      },
+      "plain": {
+        "fetch_flagged_trials": 0,
+        "n": 6,
+        "policy_passes": 2,
+        "policy_scores": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ],
+        "raw_passes": 2,
+        "raw_unscored_null": 0,
+        "raw_verifier_rewards": [
+          0,
+          0,
+          0,
+          0,
+          1,
+          1
+        ]
+      },
+      "seed-addendum": {
+        "fetch_flagged_trials": 1,
+        "n": 6,
+        "policy_passes": 0,
+        "policy_scores": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        "raw_passes": 1,
+        "raw_unscored_null": 0,
+        "raw_verifier_rewards": [
+          0,
+          0,
+          0,
+          0,
+          0,
+          1
+        ]
+      }
+    },
+    "repo_sources": {
+      "results": {
+        "path": "research/experiments/har110-python-gepa/RESULTS.md",
+        "sha256": "sha256:a0c9abcbfb9714318ece8be2f63570f9b402109b8b2ac4b797fb89fc979ff212"
+      },
+      "split": {
+        "path": "research/experiments/har110-python-gepa/split.json",
+        "sha256": "sha256:51e1ee836f4a4f89759179319c8f25748429f80cf70e2ccb258a297dcc35c590",
+        "split_digest": "sha256:8bf591e4d08e4630395a906ff341290e63e4068007aff9d307ffdb7168617c4b"
+      },
+      "table": {
+        "development_cells": 18,
+        "path": "research/experiments/har110-python-gepa/results-v2-trials.jsonl",
+        "sha256": "sha256:42d3837998f938e1a778a70528f224ce04c5787afc60195e3a1122275f107a56"
+      }
+    },
+    "source_preservation": {
+      "files_checked": 54,
+      "scope": "trial results, job results, job configs",
+      "unchanged": true
+    }
+  },
+  "before_after": {
+    "baseline": "43b9d92f74be080b2dfe61cccb015f43cfc42a2e",
+    "kind": "same-retained-data analysis-code comparison, not a new model experiment",
+    "unique_selected_trials": 18,
+    "before_eligible": 3,
+    "after_eligible": 17,
+    "source_hashes_unchanged": true,
+    "external_spend_usd": 0,
+    "comparisons": [
+      {
+        "comparison_id": "har154-plain-vs-candidate",
+        "before": {
+          "plain": {
+            "n_total": 6,
+            "capability_denominator": 1,
+            "trial_pass_count": 0,
+            "exception_count": 5
+          },
+          "gepa-candidate": {
+            "n_total": 6,
+            "capability_denominator": 1,
+            "trial_pass_count": 1,
+            "exception_count": 5
+          }
+        },
+        "after": {
+          "plain": {
+            "n_total": 6,
+            "capability_denominator": 6,
+            "trial_pass_count": 2,
+            "exception_count": 0
+          },
+          "gepa-candidate": {
+            "n_total": 6,
+            "capability_denominator": 5,
+            "trial_pass_count": 1,
+            "exception_count": 1
+          }
+        },
+        "before_pairs": 0,
+        "after_pairs": 5,
+        "after_rankable": false
+      },
+      {
+        "comparison_id": "har154-seed-addendum-vs-candidate",
+        "before": {
+          "seed-addendum": {
+            "n_total": 6,
+            "capability_denominator": 1,
+            "trial_pass_count": 0,
+            "exception_count": 5
+          },
+          "gepa-candidate": {
+            "n_total": 6,
+            "capability_denominator": 1,
+            "trial_pass_count": 1,
+            "exception_count": 5
+          }
+        },
+        "after": {
+          "seed-addendum": {
+            "n_total": 6,
+            "capability_denominator": 6,
+            "trial_pass_count": 1,
+            "exception_count": 0
+          },
+          "gepa-candidate": {
+            "n_total": 6,
+            "capability_denominator": 5,
+            "trial_pass_count": 1,
+            "exception_count": 1
+          }
+        },
+        "before_pairs": 1,
+        "after_pairs": 5,
+        "after_rankable": false
+      }
+    ],
+    "baseline_code_scope": "cohort.py loaded from the stated baseline revision with unchanged comparison dependencies; current results also confirmed after formatting by the full replay"
+  },
+  "decision": {
+    "disposition": "retain_baseline_no_candidate_promotion",
+    "basis": [
+      "Both contrasts have five scored pairs, one unavailable pair and exact two-sided p=1; neither is rankable.",
+      "The six development tasks were used during optimization and cannot establish independent generalization.",
+      "Raw verifier rewards and the source study's upstream-fetch-adjusted GEPA scores remain separate. This replay does not recertify task validity or earned success."
+    ],
+    "next_milestone": "HAR-155: qualify one trace-grounded intervention against a cheap baseline before seeking permission for a bounded paid pilot."
+  },
+  "verification": {
+    "focused_tests": {
+      "command": "uv run --no-sync pytest -o addopts='' -q tests/test_truth.py tests/test_curve.py tests/test_antigravity.py tests/test_power_gate.py",
+      "passed": 58
+    },
+    "runtime": "All 18 retained arm/task cells validated; two existing write_comparison API calls completed through the replay CLI; 54 result/config file hashes remained unchanged.",
+    "new_model_trials": 0,
+    "external_experiment_spend_usd": 0,
+    "coding_session_invoice_total": "not exposed; not claimed as measured experiment spending"
+  }
+}

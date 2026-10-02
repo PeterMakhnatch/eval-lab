@@ -1,18 +1,19 @@
 # Eval Lab experiments, with Reef as an optional tool
 
-**Owner:** Reef <> EvalLab. **Work queue:** [HAR-150](https://linear.app/petermakhnatch/issue/HAR-150).
-**Status:** Lab-first evidence/comparison work; Reef contribution work is parked.
+**Owner:** Reef <> EvalLab. **Current receipt:** [HAR-154](https://linear.app/petermakhnatch/issue/HAR-154).
+**Mission:** turn retained experience into defensible, testable Eval Lab decisions.
 
 Peter's October 1 scope correction supersedes the earlier two-repository
 contribution plan: improve Trace Lab/Eval Lab without making Reef maintenance
 or upstream review a prerequisite. No further Reef/SDK commits or submissions
 are planned, and the former publication approval request is withdrawn.
 
+## Completed measurement repairs (HAR-150)
+
 For October 2's overnight work, Peter authorized building and optional runs with
-a **$10 maximum**, not a spending target. HAR-150 uses local CPU controls and
-already-published evidence; no paid experiment launches are planned. Its two
-targets are small-sample paired rankings and references lost from embedded ATIF
-documents. Existing run, ownership, isolation and deployment gates still apply.
+a **$10 maximum**, not a spending target. [HAR-150](https://linear.app/petermakhnatch/issue/HAR-150)
+used local CPU controls and already-published evidence. Its two repairs were
+small-sample paired rankings and references lost from embedded ATIF documents.
 
 Local verification is recorded in [HAR-150's receipt](har150-receipt.json):
 
@@ -27,6 +28,88 @@ Local verification is recorded in [HAR-150's receipt](har150-receipt.json):
 - External experiment spend: **$0**. No model calls, cloud launches or new agent
   trials were needed. Coding-session invoice totals are not exposed by the
   token-accounting helper and are not claimed as measured dollars.
+
+The practical gain is fewer false “candidate wins” and less silently missing
+trace evidence. It is **not** a demonstrated improvement in the agent itself.
+The changes are merged source; older pinned checkouts and retained reports do
+not update themselves. Shared-runtime adoption remains with its existing owner.
+
+## Self-directed roadmap (Peter, October 2)
+
+The unit of progress is a decision a Lab user can act on, not commit count or
+the number of external frameworks integrated. Keep one bounded item active,
+record its evidence and disposition, and select the next item from what failed.
+
+### Short term: use the measurement path on a real decision
+
+**Executed: HAR-154.** Replayed the 18 retained development trials from the
+existing HAR-110 study (six tasks, three arms), without new model runs or
+changing its original results. The actual consumer probe found a plain run
+graded `1.0` after `TrialBudgetExhaustedError` being dropped, or changed to zero
+by the ungraded-budget option. Its recorded tie with the candidate disappeared.
+
+The repair preserves finite verifier grades after recognized agent stops under
+both budget policies. Infrastructure failures stay excluded, and an ungraded
+timeout becomes a failure only under the explicit opt-in.
+
+- Eligible graded outcomes across the three arms: **3/18 before, 17/18 after**.
+  The remaining upstream infrastructure failure is still unscored.
+- Raw passes: plain **2/6**, seed **1/6**, candidate **1/5 plus one unscored**.
+  The study's separate upstream-fetch policy makes the seed's score **0/6**;
+  the replay reports both, without relabeling raw grades as earned successes.
+- Both candidate contrasts have **five scored pairs, exact two-sided `p = 1`,
+  and no rankable winner**. Plain versus candidate has zero candidate wins,
+  one loss and four ties; seed versus candidate has one win, one loss and three
+  ties. The unavailable sixth pair remains an explicit refusal.
+- **54 result/config source files** remained byte-identical. The replay CLI
+  completed and **58 focused tests passed**. External experiment spend: **$0**.
+
+**Decision: retain the baseline; do not promote this candidate on this evidence.**
+This is a reused development sample, not an independent generalization test or
+proof that the candidate is inferior. The gain is a trustworthy, actionable
+interpretation of already-paid-for evidence—not an improved agent.
+
+The [compact receipt](har154-receipt.json) records all 18 job/trial identities,
+source hashes, before/after counts and refusal reasons.
+[`replay_har154_comparison.py`](replay_har154_comparison.py) regenerates the full
+JSON/Markdown comparisons through the existing Lab comparator:
+
+```sh
+uv run --no-sync python research/experiments/reef/replay_har154_comparison.py \
+  --results-root /path/to/eval-lab-results --out runs/har154-replay
+```
+
+The output directory must be new and outside the read-only published-results
+root. No original study, grade, held-out label or comparison guard is changed.
+
+### Medium term: test one useful intervention
+
+**Proposed: [HAR-155](https://linear.app/petermakhnatch/issue/HAR-155).** Select one
+uncovered failure family from admissible development evidence. Reuse the
+existing Lab/GEPA path to compare trace-grounded feedback with score-only
+feedback or a simple frozen intervention at matched effort. Freeze the model,
+baseline, task/verifier identities, candidate allowance, cost cap and stopping
+rule; do not use final-evaluation labels to choose the intervention.
+
+First establish mechanism and data fidelity. A small pilot is not superiority
+evidence. Continue to an independent held-out check only if the signal is worth
+testing and the comparison is affordable. A null or negative result retains the
+baseline; it is not a reason to add more machinery or retry until a win appears.
+
+### Longer term: an auditable experience-to-improvement loop
+
+Use the existing Lab evidence, execution and artifact surfaces for:
+`recorded run -> diagnosis -> versioned candidate -> bounded comparison ->
+retain or reject -> regression check`. Keep the evidence and cost of each
+decision recoverable, including unsuccessful attempts and rollback conditions.
+Productize only a method that demonstrates repeatable value; Reef stays an
+optional method source, never a prerequisite.
+
+**Autonomy boundary:** source work, tests, CPU replays and normal author-owned
+delivery proceed without asking Peter to invent another task. Paid execution,
+new capacity/admission, shared deployments and Reef publication still require
+their applicable explicit authorization. The earlier overnight $10 window is
+not a rolling spending grant; the current saved-data task has $0 external spend.
 
 ## Retained protocol study (HAR-138, parked)
 
@@ -103,35 +186,6 @@ Prepared local revisions: SDK `fff27d59d75ebdf347ab83001f5bf9f3f438de2b`;
 Reef integration `b64254f55f76ed0c79fa06a2db61cbeb10131014`. The locked Reef
 worktree preserves optional research material; it is not a deployed shared
 runtime or an adopted dependency for the current Lab work.
-
-## Superseded campaign (ideas retained, not current)
-
-The failure-evidence learning loop below was the previous immediate program.
-It is superseded by HAR-138 above; its ideas stay as later research options,
-and none of it is authorized spend or a live experiment.
-
-### 1. Failure evidence into a reusable harness improvement
-
-Pick one recurring failure family from existing, eligible development runs.
-Freeze the target model and baseline harness. Compare a Reef-generated change
-with the unchanged agent and one simple, frozen hand-written rule. The first
-controlled contrast is **score-only feedback versus concrete failure
-evidence**, with the same proposer, candidate allowance and evaluation budget.
-Measure earned task success, regressions, tokens, and total
-proposal-plus-evaluation cost. Inspect the mechanism on a small pilot first.
-
-### 2. Test whether a second cycle compounds or overfits
-
-Only after one useful cycle: retain its accepted change and learn on a second
-failure family. Compare with restarting from the original harness, and re-check
-the first family. Freeze the check set before either cycle.
-
-### 3. Let the experiments choose the code work
-
-Fix a named bottleneck in the repository that owns it. Weight training is a
-later option if a fixed-model harness cannot address the observed limitation.
-No large sweep, general-purpose memory subsystem, or GPU training campaign is
-the starting deliverable.
 
 ## Reuse rather than collide
 

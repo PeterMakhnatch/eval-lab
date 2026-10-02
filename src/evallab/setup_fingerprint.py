@@ -115,6 +115,7 @@ def read_serve_config(repo_root: Path) -> dict[str, Any]:
         "sglang_image": None,
         "context_length": None,
         "reasoning_parser": None,
+        "tool_call_parser": None,
     }
     if not path.is_file():
         return {"path": path.as_posix(), "missing": "serve config not found", **fields}
@@ -153,6 +154,7 @@ def read_serve_config(repo_root: Path) -> dict[str, Any]:
     parser = _sglang_flag_text(path, "--reasoning-parser")
     if parser is not None:
         fields["reasoning_parser"] = parser
+    fields["tool_call_parser"] = constants.get("TOOL_CALL_PARSER")
     fields["path"] = path.as_posix()
     return fields
 
@@ -287,11 +289,11 @@ def ledger_binding(
 
 
 def _harness_settings(
-    spec: Any, agent: str, repo_root: Path, request: Any = None
+    spec: Any, repo_root: Path, request: Any = None
 ) -> tuple[dict[str, Any], int | None]:
     """Read the same pinned tree the runner loads; additions default off."""
     additions: dict[str, Any] = {}
-    step_limit = 500 if agent == "mimoagent" else None
+    step_limit = None
     tree_path = getattr(request, "harness_tree_path", None)
     tree_digest = getattr(request, "harness_tree_sha256", None)
     if tree_path is None and spec is not None and spec.harness_tree_path:
@@ -343,6 +345,31 @@ def build_intended_fingerprint(
     serve = read_serve_config(repo_root)
     parser, parser_source = tool_call_parser_name(repo_root)
     sampling = sampling_sent(model)
+    additions, step_limit = _harness_settings(spec, repo_root, request)
+    harness_id = agent
+    harness_version = spec.harness_tree_sha256 if spec is not None else None
+    harness_version_source = (
+        "spec harness_tree_sha256"
+        if harness_version
+        else "stock harbor agent (no harness tree pinned)"
+    )
+    step_limit_source = "pinned Terminus tree max_turns, or uncapped when absent"
+    if agent == "mimoagent":
+        from evallab.mimoagent_worker import NATIVE_REVISION, SAMPLING
+
+        harness_id = "mimoagent-default"
+        harness_version = NATIVE_REVISION
+        harness_version_source = "mimoagent_worker.NATIVE_REVISION (validated by the isolated SDK)"
+        parser = serve.get("tool_call_parser")
+        parser_source = f"{SERVE_CONFIG_RELATIVE} TOOL_CALL_PARSER"
+        sampling = {
+            **SAMPLING,
+            "source": "mimoagent_worker.SAMPLING; runner selects proxy-enforced xiaomi-rl",
+        }
+        native_config = repo_root / "tools/mimoagent-harbor/swe.yaml"
+        config = yaml.safe_load(native_config.read_text(encoding="utf-8"))
+        step_limit = config["agent"]["step_limit"]
+        step_limit_source = "tools/mimoagent-harbor/swe.yaml agent.step_limit"
     task_id = spec.task_id or task_dir.name if spec is not None else task_dir.name
     try:
         task_bytes, task_digest = task_bytes_and_digest(task_dir)
@@ -361,19 +388,6 @@ def build_intended_fingerprint(
         else dict(item)
         for item in ((spec.deviations or ()) if spec is not None else ())
     ]
-    additions, step_limit = _harness_settings(spec, agent, repo_root, request)
-    if agent == "mimoagent":
-        from evallab.mimoagent_worker import NATIVE_REVISION, SAMPLING
-
-        sampling = {
-            **SAMPLING,
-            "source": "proxy-enforced xiaomi-rl sampling profile for native mimoagent",
-        }
-        harness_version = NATIVE_REVISION
-        version_source = "pinned native mimoagent revision"
-    else:
-        harness_version = spec.harness_tree_sha256 if spec is not None else None
-        version_source = "spec harness_tree_sha256" if harness_version else "stock harbor agent"
     limits = request if request is not None else spec
     return {
         "schema": FINGERPRINT_SCHEMA,
@@ -384,9 +398,9 @@ def build_intended_fingerprint(
         },
         "reference_profile": spec.reference_profile if spec is not None else None,
         "harness": {
-            "id": "mimoagent-default" if agent == "mimoagent" else agent,
+            "id": harness_id,
             "version": harness_version,
-            "version_source": version_source,
+            "version_source": harness_version_source,
             "additions": additions,
         },
         "server": {
@@ -430,11 +444,7 @@ def build_intended_fingerprint(
             "max_total_tokens": limits.max_total_tokens if limits is not None else None,
             "cost_limit_usd": limits.cost_limit_usd if limits is not None else None,
             "step_limit": step_limit,
-            "step_limit_source": (
-                "pinned native swe.yaml step_limit"
-                if agent == "mimoagent"
-                else "pinned Terminus tree max_turns, or uncapped when absent"
-            ),
+            "step_limit_source": step_limit_source,
         },
         "deviations": deviations,
     }

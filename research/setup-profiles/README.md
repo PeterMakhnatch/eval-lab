@@ -37,6 +37,12 @@ refuses on any uncovered difference. See `docs/contracts.md` and
 - Model-free agents (nop/oracle) skip the reference and the harness/server/
   sampling comparisons; they keep the effective lock resolution and the ledger
   binding.
+- The native Harbor `mimoagent` wrapper is fingerprinted as
+  `mimoagent-default`, with its validated SDK revision, the committed
+  `swe.yaml` step limit and the Xiaomi sampling enforced by the proxy.
+  Its server parser comes from `serve.py` rather than the Terminus
+  response normalizer. The existing `mimo` parser and 64K context still
+  need explicit deviations from the training reference.
 - Request ceilings are lower-bound comparisons, not exact matches: a cap below
   the reference `budgets.step_limit` requires a `budgets.max_requests`
   deviation. Cumulative token ceilings are compared only when the reference

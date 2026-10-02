@@ -39,6 +39,8 @@ __all__ = [
     "first_edit_step",
     "metrics_for_trial",
     "mask_text_content",
+    "extract_task_id",
+    "leak_scan_file",
     "leak_scan_pack",
     "review_prepare",
     "review_freeze",
@@ -288,6 +290,57 @@ def sanitize_trajectory_step(
     return cleaned
 
 
+def leak_scan_file(
+    file_path: Path,
+    rel_name: str,
+    forbidden_tokens: Sequence[str],
+    forbidden_regexes: Sequence[str] = (),
+) -> list[dict[str, Any]]:
+    """Scan a single file for forbidden leak tokens or regexes."""
+    leaks: list[dict[str, Any]] = []
+    scan_strings: set[str] = set()
+    for tok in forbidden_tokens:
+        if not tok or len(tok.strip()) == 0:
+            continue
+        scan_strings.add(tok)
+        escaped = json.dumps(tok)[1:-1]
+        if escaped != tok:
+            scan_strings.add(escaped)
+
+    compiled_regexes = [re.compile(r) for r in forbidden_regexes if r]
+
+    try:
+        content = file_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return leaks
+
+    for s in scan_strings:
+        if s in content:
+            idx = content.find(s)
+            start = max(0, idx - 40)
+            end = min(len(content), idx + len(s) + 40)
+            snippet = content[start:end].replace("\n", "\\n")
+            leaks.append(
+                {
+                    "file": rel_name,
+                    "token": s,
+                    "snippet": snippet,
+                }
+            )
+    for creg in compiled_regexes:
+        match = creg.search(content)
+        if match:
+            snippet = match.group(0)[:80].replace("\n", "\\n")
+            leaks.append(
+                {
+                    "file": rel_name,
+                    "token": creg.pattern,
+                    "snippet": snippet,
+                }
+            )
+    return leaks
+
+
 def leak_scan_pack(
     pack_dir: Path,
     forbidden_tokens: Sequence[str],
@@ -295,53 +348,51 @@ def leak_scan_pack(
 ) -> list[dict[str, Any]]:
     """Scan all files in a pack directory for forbidden leak tokens or regexes."""
     leaks: list[dict[str, Any]] = []
-    # Build list of patterns to check, including JSON-escaped versions of strings
-    scan_strings: set[str] = set()
-    for tok in forbidden_tokens:
-        if not tok or len(tok.strip()) == 0:
-            continue
-        scan_strings.add(tok)
-        # Add JSON-escaped form
-        escaped = json.dumps(tok)[1:-1]
-        if escaped != tok:
-            scan_strings.add(escaped)
-
-    compiled_regexes = [re.compile(r) for r in forbidden_regexes if r]
-
     for root, _, files in os.walk(pack_dir):
         for f in sorted(files):
             file_path = Path(root) / f
             rel_path = file_path.relative_to(pack_dir).as_posix()
-            try:
-                content = file_path.read_text(encoding="utf-8", errors="replace")
-            except Exception:
-                continue
-
-            for s in scan_strings:
-                if s in content:
-                    idx = content.find(s)
-                    start = max(0, idx - 40)
-                    end = min(len(content), idx + len(s) + 40)
-                    snippet = content[start:end].replace("\n", "\\n")
-                    leaks.append(
-                        {
-                            "file": f"{pack_dir.name}/{rel_path}",
-                            "token": s,
-                            "snippet": snippet,
-                        }
-                    )
-            for creg in compiled_regexes:
-                match = creg.search(content)
-                if match:
-                    snippet = match.group(0)[:80].replace("\n", "\\n")
-                    leaks.append(
-                        {
-                            "file": f"{pack_dir.name}/{rel_path}",
-                            "token": creg.pattern,
-                            "snippet": snippet,
-                        }
-                    )
+            leaks.extend(
+                leak_scan_file(
+                    file_path,
+                    f"{pack_dir.name}/{rel_path}",
+                    forbidden_tokens,
+                    forbidden_regexes,
+                )
+            )
     return leaks
+
+
+def extract_task_id(res_file: Path, trial_name: str, job_name: str) -> str:
+    """Derive deterministic task id from task_name or string fields. Never str() a dict."""
+    if res_file.is_file():
+        with contextlib.suppress(Exception):
+            r_payload = json.loads(res_file.read_text(encoding="utf-8"))
+            task_name = r_payload.get("task_name")
+            if isinstance(task_name, str) and task_name.strip():
+                match_6d = re.search(r"(\d{6})", task_name)
+                if match_6d:
+                    return match_6d.group(1)
+                task_base = task_name.split("/")[-1].strip()
+                if task_base:
+                    cleaned = re.sub(r"^(?:format-code-)?task-", "", task_base)
+                    return cleaned or task_base
+
+            task_id_field = r_payload.get("task_id")
+            if isinstance(task_id_field, str) and task_id_field.strip():
+                match_6d = re.search(r"(\d{6})", task_id_field)
+                if match_6d:
+                    return match_6d.group(1)
+                return task_id_field.strip()
+
+    t_match = re.search(r"(\d{6})", trial_name) or re.search(r"(\d{6})", job_name)
+    if t_match:
+        return t_match.group(1)
+
+    raise ValueError(
+        f"Could not derive task id for trial '{trial_name}' (job '{job_name}'). "
+        "Expected task_name or string task_id in result.json, or 6-digit id in trial/job name."
+    )
 
 
 def rater_view(row: dict[str, Any]) -> dict[str, Any]:
@@ -477,20 +528,7 @@ def review_prepare(
                 )
             arm = arm_match.group("arm")
 
-            # Extract task id
-            task = None
-            if res_file.is_file():
-                with contextlib.suppress(Exception):
-                    r_payload = json.loads(res_file.read_text())
-                    task = r_payload.get("task_id")
-                    if not task:
-                        task_name = r_payload.get("task_name", "")
-                        t_match = re.search(r"(\d{6})", task_name)
-                        if t_match:
-                            task = t_match.group(1)
-            if not task:
-                t_match = re.search(r"(\d{6})", trial_name) or re.search(r"(\d{6})", jd.name)
-                task = t_match.group(1) if t_match else trial_name
+            task = extract_task_id(res_file, trial_name, jd.name)
             raw_trials.append(
                 {
                     "trial_dir": sub,
@@ -500,7 +538,6 @@ def review_prepare(
                     "task": str(task),
                 }
             )
-
     if not raw_trials:
         raise ValueError(f"No trial directories discovered under {len(discovered_jobs)} jobs.")
 
@@ -717,62 +754,7 @@ def review_prepare(
                         dest_file.write_text(sanitized_v, encoding="utf-8")
                     except UnicodeDecodeError:
                         shutil.copy2(v_entry, dest_file)
-
-    # 7. Leak Scan across all packs
-    forbidden_tokens = set(mask_texts)
-    for info in sealed_arm_map.values():
-        forbidden_tokens.add(info["trial"])
-        if "__" in info["trial"]:
-            forbidden_tokens.add(info["trial"].split("__")[0])
-        forbidden_tokens.add(Path(info["job_path"]).name)
-        # Scan arm tokens (e.g. "tuned", "gepa", "stock")
-        forbidden_tokens.add(info["arm"])
-
-    all_leaks: list[dict[str, Any]] = []
-    total_files_scanned = 0
-    for p_entry in packs_dir.iterdir():
-        if p_entry.is_dir():
-            for _, _, fnames in os.walk(p_entry):
-                total_files_scanned += len(fnames)
-            leaks = leak_scan_pack(p_entry, list(forbidden_tokens), mask_regexes)
-            all_leaks.extend(leaks)
-
-    leak_scan_path = out_dir / "leak_scan.json"
-    leak_scan_data = {
-        "scanned_files": total_files_scanned,
-        "leaks_found": len(all_leaks),
-        "leaks": all_leaks,
-    }
-    leak_scan_path.write_text(json.dumps(leak_scan_data, indent=2) + "\n", encoding="utf-8")
-
-    if all_leaks:
-        leak_msg = "\n".join(f"  {leak['file']}: leaked '{leak['token']}' (snippet: {leak['snippet']})" for leak in all_leaks[:10])
-        raise ValueError(f"Leak scan failed with {len(all_leaks)} leaks:\n{leak_msg}")
-
-    # 8. Write SEALED_arm_map.json (mode 0400)
-    sealed_map_path = out_dir / "SEALED_arm_map.json"
-    if sealed_map_path.exists():
-        os.chmod(sealed_map_path, 0o600)
-    sealed_map_path.write_text(
-        json.dumps(sealed_arm_map, indent=1, sort_keys=True) + "\n", encoding="utf-8"
-    )
-    os.chmod(sealed_map_path, 0o400)
-
-    # 9. Write metrics_blind.jsonl
-    metrics_rows: list[dict[str, Any]] = []
-    for oid in sorted(sealed_arm_map):
-        info = sealed_arm_map[oid]
-        trial_dir = Path(info["job_path"]) / info["trial"]
-        m_row = {"id": oid, "task": info["task"], **metrics_for_trial(trial_dir)}
-        metrics_rows.append(m_row)
-
-    metrics_path = out_dir / "metrics_blind.jsonl"
-    metrics_path.write_text(
-        "".join(json.dumps(r, sort_keys=True) + "\n" for r in metrics_rows),
-        encoding="utf-8",
-    )
-
-    # 10. Write rater_batches.json
+    # 7. Write rater_batches.json (before leak scan so it is audited)
     all_oids = sorted(sealed_arm_map.keys())
     rater_names = [f"rater_{chr(ord('a') + i)}" for i in range(raters)]
     rater_batches: list[dict[str, Any]] = []
@@ -812,7 +794,7 @@ def review_prepare(
     batches_path = out_dir / "rater_batches.json"
     batches_path.write_text(json.dumps(rater_batches, indent=2) + "\n", encoding="utf-8")
 
-    # 11. Write PACK_FORMAT.md
+    # 8. Write PACK_FORMAT.md (before leak scan so it is audited)
     pack_format_content = """# Blind Evidence Pack Format
 
 Packs are sanitized trial bundles with all arm tokens, model identifiers, and job/trial names removed.
@@ -836,8 +818,72 @@ Packs are sanitized trial bundles with all arm tokens, model identifiers, and jo
 """
     (out_dir / "PACK_FORMAT.md").write_text(pack_format_content, encoding="utf-8")
 
-    print(
-        f"evallab review prepare complete: prepared {len(shuffled_trials)} packs in {out_dir}"
+    # 9. Leak Scan across all packs AND everything handed to raters
+    forbidden_tokens = set(mask_texts)
+    for info in sealed_arm_map.values():
+        forbidden_tokens.add(info["trial"])
+        if "__" in info["trial"]:
+            forbidden_tokens.add(info["trial"].split("__")[0])
+        forbidden_tokens.add(Path(info["job_path"]).name)
+        forbidden_tokens.add(info["arm"])
+    all_leaks: list[dict[str, Any]] = []
+    total_files_scanned = 0
+    for p_entry in packs_dir.iterdir():
+        if p_entry.is_dir():
+            for _, _, fnames in os.walk(p_entry):
+                total_files_scanned += len(fnames)
+            leaks = leak_scan_pack(p_entry, list(forbidden_tokens), mask_regexes)
+            all_leaks.extend(leaks)
+
+    for aux_name in ("rater_batches.json", "PACK_FORMAT.md"):
+        aux_file = out_dir / aux_name
+        if aux_file.is_file():
+            total_files_scanned += 1
+            all_leaks.extend(
+                leak_scan_file(
+                    aux_file,
+                    aux_name,
+                    list(forbidden_tokens),
+                    mask_regexes,
+                )
+            )
+
+    leak_scan_path = out_dir / "leak_scan.json"
+    leak_scan_data = {
+        "scanned_files": total_files_scanned,
+        "leaks_found": len(all_leaks),
+        "leaks": all_leaks,
+    }
+    leak_scan_path.write_text(json.dumps(leak_scan_data, indent=2) + "\n", encoding="utf-8")
+
+    if all_leaks:
+        leak_msg = "\n".join(
+            f"  {leak['file']}: leaked '{leak['token']}' (snippet: {leak['snippet']})"
+            for leak in all_leaks[:10]
+        )
+        raise ValueError(f"Leak scan failed with {len(all_leaks)} leaks:\n{leak_msg}")
+
+    # 10. Write SEALED_arm_map.json (mode 0400)
+    sealed_map_path = out_dir / "SEALED_arm_map.json"
+    if sealed_map_path.exists():
+        os.chmod(sealed_map_path, 0o600)
+    sealed_map_path.write_text(
+        json.dumps(sealed_arm_map, indent=1, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    os.chmod(sealed_map_path, 0o400)
+
+    # 11. Write metrics_blind.jsonl
+    metrics_rows: list[dict[str, Any]] = []
+    for oid in sorted(sealed_arm_map):
+        info = sealed_arm_map[oid]
+        trial_dir = Path(info["job_path"]) / info["trial"]
+        m_row = {"id": oid, "task": info["task"], **metrics_for_trial(trial_dir)}
+        metrics_rows.append(m_row)
+
+    metrics_path = out_dir / "metrics_blind.jsonl"
+    metrics_path.write_text(
+        "".join(json.dumps(r, sort_keys=True) + "\n" for r in metrics_rows),
+        encoding="utf-8",
     )
     return 0
 

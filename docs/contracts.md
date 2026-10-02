@@ -64,6 +64,19 @@ controls on `daytona` resolve the bounded environment with a provider TTL.
 locks every MiMo run on Daytona (MiMo-family model or MiMo-dataset task,
 nop/oracle census runs included) and leaves other runs unlocked; an explicit
 `false` on a MiMo Daytona run is refused at dispatch.
+`reference_profile` (default absent) names the measured setup in
+`research/setup-profiles/` a MiMo batch compares against (HAR-149), with
+`deviations` (`[{field, value, reason}]`) declaring every intended
+difference. Dispatch refuses a spec-driven MiMo run with no named reference,
+with an undeclared `egress_lock` (only an explicit `true` counts as locked —
+implicit defaults caused the 2026-10-01 open-network run), with a task
+outside `research/experiments/python-task-ledger/ledger.csv`, with a missing
+tool-call parser, or with any other fingerprint difference the deviations do
+not cover. Model-free agents (nop/oracle) have no model setup to compare, so
+they skip the reference requirement and the harness/server/sampling
+comparisons; they keep the effective lock resolution and the ledger binding,
+and census nop specs pass unchanged. `evallab preflight --spec` runs the
+same comparison at $0.
 Adding a field does not justify repinning unrelated titles, descriptions, or
 incidental generated-schema details.
 

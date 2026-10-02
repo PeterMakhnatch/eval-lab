@@ -1,0 +1,453 @@
+{
+  "schema": "har150-offline-correctness/v1",
+  "issue": "https://linear.app/petermakhnatch/issue/HAR-150",
+  "baseline": "985205a81b447ea3bf29d0b64ccaec20072bf762",
+  "implementation_sha256": {
+    "src/evallab/cohort.py": "7a4aea221229ccd3838e5bc536dac6432357127c62628c7157be97a5be044cee",
+    "src/evallab/evidence/atif.py": "89d2b47ab67dc8425b344c470ee541eca731dc21881b5d108de65234a105ca98"
+  },
+  "scope": "CPU controls and read-only saved-evidence replay, not new agent trials or capability improvement",
+  "budget": {
+    "authorized_experiment_ceiling_usd": 10,
+    "external_experiment_spend_usd": 0,
+    "paid_model_calls": 0,
+    "cloud_launches": 0,
+    "native_coding_workers": 4,
+    "assistant_billing_usd": null,
+    "billing_limit": "OMP helper exposes token counts, not dollar billing; no claim about subscription/assistant invoice total"
+  },
+  "paired_null_control": {
+    "distribution": "Two independent tasks; independent Bernoulli(0.5) outcomes in each arm",
+    "equiprobable_configurations": 16,
+    "before_false_rankings": 2,
+    "after_false_rankings": 0,
+    "before_false_ranking_rate": 0.125,
+    "after_false_ranking_rate": 0,
+    "all_wins": {
+      "bootstrap_95": [
+        1,
+        1
+      ],
+      "exact_two_sided_p": 0.5,
+      "before_rankable": true,
+      "after_rankable": false
+    },
+    "positive_control": {
+      "discordant_task_wins": 6,
+      "exact_two_sided_p": 0.03125,
+      "rankable": true,
+      "verification": "focused behavioral tests"
+    },
+    "limit": "Exact enumeration for this small null only; not an empirical model or multiple-testing performance claim"
+  },
+  "nested_reference_control": {
+    "source": "Synthetic valid ATIF root + embedded child + retained continuation outside agent/ but inside trial",
+    "before_documents": 2,
+    "after_documents": 3,
+    "after_steps": 3,
+    "all_after_documents_valid": true
+  },
+  "actual_cli": {
+    "command": "evallab curve build tests/fixtures/curve/curve-spec.json --output runs/har150/curve.json --produced-by HAR-150",
+    "exit_code": 0,
+    "curve_id": "m047-depth-contract",
+    "rankable": false,
+    "reason": "two discordant task losses, exact paired two-sided p=0.5"
+  },
+  "focused_verification": {
+    "command": "uv run --no-sync pytest -o addopts='' -q tests/test_truth.py tests/test_curve.py tests/test_antigravity.py tests/test_terminus2_analysis.py tests/test_pipeline.py tests/test_ingest_verify.py tests/test_event_mart.py tests/test_power_gate.py",
+    "passed": 85,
+    "warnings": "two existing semantic_facts construct-shadowing warnings"
+  },
+  "corpus_replay": {
+    "kind": "read_only_saved_evidence_projection_replay",
+    "base": "985205a81b447ea3bf29d0b64ccaec20072bf762",
+    "selection": "first 20 lexical HAR-116 jobs published 2026-10-01; replay coverage, not performance estimate",
+    "jobs": 20,
+    "trials": 20,
+    "changed_projections": 0,
+    "paid_experiment_spend_usd": 0,
+    "rows": [
+      {
+        "job": "HAR-116-har116-a-000383-baseline",
+        "trial": "har116-a-000383-baseline__igrXg8R",
+        "source_json_manifest_sha256": "1c25945bea55b3b5b93744d5b34d9a698574acb331a8f090a24a0d569d7a9f97",
+        "before_counts": {
+          "trajectories": 4,
+          "steps": 213,
+          "tool_calls": 223,
+          "observations": 201
+        },
+        "after_counts": {
+          "trajectories": 4,
+          "steps": 213,
+          "tool_calls": 223,
+          "observations": 201
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-000383-loopfix",
+        "trial": "har116-a-000383-loopfix__wgujpBQ",
+        "source_json_manifest_sha256": "0d18ef9743881553f230449ddd2f1a4cfd11f8d590edfa5aa6aac85086a18733",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-000383-loopfix-r2",
+        "trial": "har116-a-000383-loopfix-r2__cNEHjBa",
+        "source_json_manifest_sha256": "f1b6c099fd1d63401097e643fa4d10f98492931909e6e41e5a69ebf2a84e6600",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 64,
+          "tool_calls": 74,
+          "observations": 63
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 64,
+          "tool_calls": 74,
+          "observations": 63
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-000495-baseline",
+        "trial": "har116-a-000495-baseline__DiGmEPC",
+        "source_json_manifest_sha256": "c7cd19e065ea4200a5b67b747aa95a880c75f3efc0cadafd4ec8424a5a9bf445",
+        "before_counts": {
+          "trajectories": 4,
+          "steps": 266,
+          "tool_calls": 280,
+          "observations": 254
+        },
+        "after_counts": {
+          "trajectories": 4,
+          "steps": 266,
+          "tool_calls": 280,
+          "observations": 254
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-000495-loopfix",
+        "trial": "har116-a-000495-loopfix__rXR8je7",
+        "source_json_manifest_sha256": "b45054dbc335f58ab980d690cd36686850459240555b145d3c201d9565b2cc31",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-000495-loopfix-r2",
+        "trial": "har116-a-000495-loopfix-r2__42F3G5T",
+        "source_json_manifest_sha256": "faa1e521d71c567dd04829453dd98094caa1855b24168162607eb7ab4e349c37",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 88,
+          "tool_calls": 96,
+          "observations": 87
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 88,
+          "tool_calls": 96,
+          "observations": 87
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-000587-baseline",
+        "trial": "har116-a-000587-baseline__Vuxk2nX",
+        "source_json_manifest_sha256": "7202805126df3a3148059b508fc86863a2fc37cf1d9f465b4daa219fc7c47b22",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 87,
+          "tool_calls": 89,
+          "observations": 86
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 87,
+          "tool_calls": 89,
+          "observations": 86
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-000587-loopfix",
+        "trial": "har116-a-000587-loopfix__X5SAhvg",
+        "source_json_manifest_sha256": "d1a4cf29b1e5c6fbdeb33353b7ad99768d6ea34ccc2ab6a2e4561d43e3df30a7",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-000587-loopfix-r2",
+        "trial": "har116-a-000587-loopfix-r2__RmCmzbQ",
+        "source_json_manifest_sha256": "0814e5ce70cdaeec1a4935f6e26851b09f1b1d38ac6496ec6d0f53247ba1b0c9",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 67,
+          "tool_calls": 70,
+          "observations": 66
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 67,
+          "tool_calls": 70,
+          "observations": 66
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001161-baseline",
+        "trial": "har116-a-001161-baseline__DwYZaia",
+        "source_json_manifest_sha256": "b3b1cbe27180c187e90b28615c0ccaf600e46622eefb251bc2c48077dc0482b7",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 87,
+          "tool_calls": 88,
+          "observations": 86
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 87,
+          "tool_calls": 88,
+          "observations": 86
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001161-loopfix",
+        "trial": "har116-a-001161-loopfix__WxP98h8",
+        "source_json_manifest_sha256": "b32bcc2a0c8ccaf6a79c1ea9c5b96d745163c29757ec7f66ed6ac89058b61434",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001161-loopfix-r2",
+        "trial": "har116-a-001161-loopfix-r2__uo7QDVh",
+        "source_json_manifest_sha256": "f4a423668be0cf75a47d93b0c78e1d88f1b12098ec4fc0fe0d5f46fe4bc2da4b",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 96,
+          "tool_calls": 102,
+          "observations": 95
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 96,
+          "tool_calls": 102,
+          "observations": 95
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001181-baseline",
+        "trial": "har116-a-001181-baseline__cK5qZMf",
+        "source_json_manifest_sha256": "4f7d8c8e820b82c45f75f19638f70c6e56c9f7e5a8cb275a6b22d13cb024fad1",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 89,
+          "tool_calls": 90,
+          "observations": 88
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 89,
+          "tool_calls": 90,
+          "observations": 88
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001181-loopfix",
+        "trial": "har116-a-001181-loopfix__Cd9chGm",
+        "source_json_manifest_sha256": "425c382dd9f275252875598b6cd60878e4d73040046a4d6f2e1a92102629f4a4",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001181-loopfix-r2",
+        "trial": "har116-a-001181-loopfix-r2__ZhWHNno",
+        "source_json_manifest_sha256": "311429e572579aa5f751d2e888d7c16c4b650f622d5dfe63de49ac653cfdedf7",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 87,
+          "tool_calls": 88,
+          "observations": 86
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 87,
+          "tool_calls": 88,
+          "observations": 86
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001832-baseline",
+        "trial": "har116-a-001832-baseline__9jhqCTW",
+        "source_json_manifest_sha256": "c3eea5f24cea2325cf2679ea5e3820df85a91f14a3879ddd70861e6da14f5949",
+        "before_counts": {
+          "trajectories": 4,
+          "steps": 233,
+          "tool_calls": 259,
+          "observations": 221
+        },
+        "after_counts": {
+          "trajectories": 4,
+          "steps": 233,
+          "tool_calls": 259,
+          "observations": 221
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001832-loopfix",
+        "trial": "har116-a-001832-loopfix__rw7cJJ4",
+        "source_json_manifest_sha256": "a96ba5f01a84cd2210d698340ebc3fbb9501d74f044b23d3dd60b8da835e884e",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001832-loopfix-r2",
+        "trial": "har116-a-001832-loopfix-r2__RL4Q8AX",
+        "source_json_manifest_sha256": "60c86e8336ab77e9a7da3100115a622439de4e19b0b58b3565cac40373d35eaf",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 64,
+          "tool_calls": 83,
+          "observations": 63
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 64,
+          "tool_calls": 83,
+          "observations": 63
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001896-baseline",
+        "trial": "har116-a-001896-baseline__mBFMKax",
+        "source_json_manifest_sha256": "4dfb52ca57ba7691fba4725492c429851347a9536494f60558bbdba0638d3553",
+        "before_counts": {
+          "trajectories": 4,
+          "steps": 177,
+          "tool_calls": 73,
+          "observations": 165
+        },
+        "after_counts": {
+          "trajectories": 4,
+          "steps": 177,
+          "tool_calls": 73,
+          "observations": 165
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      },
+      {
+        "job": "HAR-116-har116-a-001896-loopfix",
+        "trial": "har116-a-001896-loopfix__n5p224u",
+        "source_json_manifest_sha256": "9237a2310ec3be4f7a1d9c738291e159bd2ef877dceb5bc02b29a5448dcf1aa9",
+        "before_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "after_counts": {
+          "trajectories": 1,
+          "steps": 1,
+          "tool_calls": 0,
+          "observations": 0
+        },
+        "byte_equivalent_projection": true,
+        "source_unchanged": true
+      }
+    ]
+  }
+}

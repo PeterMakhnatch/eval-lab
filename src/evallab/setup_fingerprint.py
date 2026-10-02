@@ -98,6 +98,7 @@ def read_serve_config(repo_root: Path) -> dict[str, Any]:
         "sglang_image": None,
         "context_length": None,
         "reasoning_parser": None,
+        "tool_call_parser": None,
     }
     if not path.is_file():
         return {"path": path.as_posix(), "missing": "serve config not found", **fields}
@@ -136,6 +137,7 @@ def read_serve_config(repo_root: Path) -> dict[str, Any]:
     parser = _sglang_flag_text(path, "--reasoning-parser")
     if parser is not None:
         fields["reasoning_parser"] = parser
+    fields["tool_call_parser"] = constants.get("TOOL_CALL_PARSER")
     fields["path"] = path.as_posix()
     return fields
 
@@ -284,6 +286,31 @@ def build_intended_fingerprint(
     serve = read_serve_config(repo_root)
     parser, parser_source = tool_call_parser_name(repo_root)
     sampling = sampling_sent(model)
+    harness_id = agent
+    harness_version = spec.harness_tree_sha256 if spec is not None else None
+    harness_version_source = (
+        "spec harness_tree_sha256"
+        if harness_version
+        else "stock harbor agent (no harness tree pinned)"
+    )
+    step_limit = None
+    step_limit_source = "terminus harness step cap is not pinned in the spec"
+    if agent == "mimoagent":
+        from evallab.mimoagent_worker import NATIVE_REVISION, SAMPLING
+
+        harness_id = "mimoagent-default"
+        harness_version = NATIVE_REVISION
+        harness_version_source = "mimoagent_worker.NATIVE_REVISION (validated by the isolated SDK)"
+        parser = serve.get("tool_call_parser")
+        parser_source = f"{SERVE_CONFIG_RELATIVE} TOOL_CALL_PARSER"
+        sampling = {
+            **SAMPLING,
+            "source": "mimoagent_worker.SAMPLING; runner selects proxy-enforced xiaomi-rl",
+        }
+        native_config = repo_root / "tools/mimoagent-harbor/swe.yaml"
+        config = yaml.safe_load(native_config.read_text(encoding="utf-8"))
+        step_limit = config["agent"]["step_limit"]
+        step_limit_source = "tools/mimoagent-harbor/swe.yaml agent.step_limit"
     task_id = spec.task_id or task_dir.name if spec is not None else task_dir.name
     try:
         task_bytes, task_digest = task_bytes_and_digest(task_dir)
@@ -311,13 +338,9 @@ def build_intended_fingerprint(
         },
         "reference_profile": spec.reference_profile if spec is not None else None,
         "harness": {
-            "id": agent,
-            "version": spec.harness_tree_sha256 if spec is not None else None,
-            "version_source": (
-                "spec harness_tree_sha256"
-                if spec is not None and spec.harness_tree_sha256
-                else "stock harbor agent (no harness tree pinned)"
-            ),
+            "id": harness_id,
+            "version": harness_version,
+            "version_source": harness_version_source,
         },
         "server": {
             "model_revision": serve.get("model_revision"),
@@ -359,8 +382,8 @@ def build_intended_fingerprint(
             "max_output_tokens": spec.max_output_tokens if spec is not None else None,
             "max_total_tokens": spec.max_total_tokens if spec is not None else None,
             "cost_limit_usd": spec.cost_limit_usd if spec is not None else None,
-            "step_limit": None,
-            "step_limit_source": "terminus harness step cap is not pinned in the spec",
+            "step_limit": step_limit,
+            "step_limit_source": step_limit_source,
         },
         "deviations": deviations,
     }

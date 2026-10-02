@@ -306,3 +306,42 @@ def test_modelfree_nop_outside_ledger_refused(tmp_path: Path) -> None:
     request = make_nop_request(root, "format-code-task-900002", spec)
     with pytest.raises(ValueError, match="outside the ledger"):
         validate_request(request, repo_root=root)
+
+
+@pytest.mark.parametrize("step_limit", [500, 501])
+def test_native_reference_gate_uses_native_setup(tmp_path: Path, step_limit: int) -> None:
+    from dataclasses import replace
+
+    root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    config = root / "tools/mimoagent-harbor/swe.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text(f"agent:\n  step_limit: {step_limit}\n")
+    spec = make_spec(
+        TASK_ID,
+        digest,
+        deviations=[
+            {"field": "server.tool_call_parser", "value": "mimo", "reason": "served parser"},
+            {"field": "server.context_length", "value": 65536, "reason": "served context"},
+        ],
+    ).model_copy(
+        update={
+            "agent": "mimoagent",
+            "max_requests": 500_000,
+            "max_input_tokens": 32_768_000_000,
+            "max_output_tokens": 32_768_000_000,
+            "max_total_tokens": 65_536_000_000,
+        }
+    )
+    request = replace(
+        make_request(root, TASK_ID, spec),
+        agent="mimoagent",
+        max_requests=spec.max_requests,
+        max_input_tokens=spec.max_input_tokens,
+        max_output_tokens=spec.max_output_tokens,
+        max_total_tokens=spec.max_total_tokens,
+    )
+    if step_limit == 500:
+        validate_request(request, repo_root=root)
+    else:
+        with pytest.raises(ValueError, match="budgets.step_limit"):
+            validate_request(request, repo_root=root)

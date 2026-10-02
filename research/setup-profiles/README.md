@@ -43,3 +43,17 @@ refuses on any uncovered difference. See `docs/contracts.md` and
   Its server parser comes from `serve.py` rather than the Terminus
   response normalizer. The existing `mimo` parser and 64K context still
   need explicit deviations from the training reference.
+- Request ceilings are lower-bound comparisons, not exact matches: a cap below
+  the reference `budgets.step_limit` requires a `budgets.max_requests`
+  deviation. Cumulative token ceilings are compared only when the reference
+  cites a cumulative token budget; an unsourced budget is shown as unknown in
+  preflight, not inferred from the context window. Runaway backstops remain
+  explicit spec fields.
+- `harness.additions` records enabled loop breaking, output caps, completion
+  fixes, and extra instructions/rules/skills. These are absent from the native
+  reference and require a declared deviation when enabled.
+- Reports keep verifier outcomes separate from stop categories. Proxy ceilings,
+  trial budgets and loop breaking are `our_limit`; native step caps are
+  `harness_step_limit`, distinct from task timeouts and model completion. A
+  job with more than 5% `our_limit` stops is marked **setup-limited** in the job
+  rollup and each run page; this never changes rewards or attempt counts.

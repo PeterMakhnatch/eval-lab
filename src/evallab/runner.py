@@ -2648,6 +2648,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 agent=request.agent,
                 environment=request.environment,
                 repo_root=repo_root,
+                request=request,
             )
         except Exception as exc:  # noqa: BLE001
             _intended = {}

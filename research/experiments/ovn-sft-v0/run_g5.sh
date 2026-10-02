@@ -17,8 +17,9 @@
 #      (retries, never a redeploy); abort unless both pass
 #   8. capture server (own OS-assigned port, endpoint read from capture.json
 #      after the bind; explicit --port fails before any tick when taken),
-#      telemetry sampler, watchdog stopping the app once ITS billed cost
-#      today reaches --modal-app-day-limit-usd
+#      telemetry sampler, watchdog that stops NEW launches (never the app or a
+#      live trial) once the app's billed cost today reaches
+#      --modal-app-day-limit-usd (HAR-156: money gates stop launches only)
 #   9. tick position waves serially (all first arms, then seconds, then thirds),
 #      approving each wave just before its tick, at one pinned --parallel;
 #      between waves re-check /health; a wave advances only when every spec of
@@ -298,12 +299,17 @@ done
   --queue-dir queue --modal-app "$APP" --interval 15.0 >>"$OUT/telemetry.log" 2>&1 &
 SAMPLER_PID=$!
 # (app_cost and MODAL_BASELINE were taken before the deploy, so the cold start counts.)
+# HAR-156: the watchdog never stops the app mid-wave (that would end live trials
+# by our money gate, not by the model or the task). It drops a marker; the wave
+# loop launches nothing after it, the in-flight wave finishes, and the EXIT
+# trap stops the app.
+STOP_MARKER="$OUT/stop-launches"
 (
   while sleep 180; do
     cost=$(app_cost) || continue
     if "$PY" -c "import sys; sys.exit(0 if float(sys.argv[1]) >= float(sys.argv[2]) else 1)" "$cost" "$MODAL_APP_DAY_LIMIT_USD"; then
-      echo "$(date -u +%FT%TZ) WATCHDOG: $APP billed \$$cost today, app-day limit \$$MODAL_APP_DAY_LIMIT_USD; stopping" >>"$LOG"
-      "${MODAL[@]}" app stop --yes "$APP" >>"$LOG" 2>&1
+      echo "$(date -u +%FT%TZ) WATCHDOG: $APP billed \$$cost today, app-day limit \$$MODAL_APP_DAY_LIMIT_USD; no further launches (in-flight trials finish)" >>"$LOG"
+      echo "$cost" >"$STOP_MARKER"
       exit 0
     fi
   done
@@ -319,6 +325,12 @@ PREV_SPENT=0
 ROUND_STATUS=0
 for wave in $WAVES; do
   position=$(basename "$wave" .txt)
+  if [ -e "$STOP_MARKER" ]; then
+    manifest gate_failure "{\"wave\": \"$position\", \"reason\": \"app-day limit reached; launches stopped\", \"billed_usd\": $(cat "$STOP_MARKER")}"
+    log "$position: not launched: app-day limit reached (in-flight trials were allowed to finish)"
+    ROUND_STATUS=3
+    break
+  fi
   if [ "$(curl -s -o /dev/null -w '%{http_code}' -m 20 "$URL/health")" != 200 ]; then
     warm "$position" || die "server unhealthy before $position and warm smoke failed"
   fi

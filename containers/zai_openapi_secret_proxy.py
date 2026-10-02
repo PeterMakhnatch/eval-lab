@@ -1578,9 +1578,10 @@ class Handler(BaseHTTPRequestHandler):
 
         # Native Xiaomi (xiaomi-rl sampling) is the reference no-output-cap
         # protocol: a cumulative reservation must never become a sent cap.
-        native_no_cap = _provider_name() == "mimo_selfhosted" and os.environ.get(
-            "EVALLAB_MIMO_SAMPLING_PROFILE", "generation-config"
-        ) == "xiaomi-rl"
+        native_no_cap = (
+            _provider_name() == "mimo_selfhosted"
+            and os.environ.get("EVALLAB_MIMO_SAMPLING_PROFILE", "generation-config") == "xiaomi-rl"
+        )
         try:
             input_tokens = _estimate_tokens(payload)
             requested_output = payload.get("max_tokens")

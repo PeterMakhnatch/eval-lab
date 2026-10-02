@@ -267,8 +267,10 @@ class _MimoUpstream(BaseHTTPRequestHandler):
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length))
         limit = type(self).context_tokens
-        if limit is not None and isinstance(body.get("max_tokens"), int) and (
-            body["max_tokens"] > limit
+        if (
+            limit is not None
+            and isinstance(body.get("max_tokens"), int)
+            and (body["max_tokens"] > limit)
         ):
             overflow = {
                 "object": "error",
@@ -397,11 +399,18 @@ def _post(
     [("generation-config", 0.6), ("xiaomi-rl", 1.0)],
 )
 def test_mimo_proxy_enforces_generation_config_and_strips_effort(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any,
-    sampling_profile: str, temperature: float,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mimo_upstream: Any,
+    sampling_profile: str,
+    temperature: float,
 ) -> None:
     process, url, usage_path = _launch_mimo_proxy(
-        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits(),
+        tmp_path,
+        monkeypatch,
+        mimo_upstream,
+        CAPABILITY_SENTINEL,
+        _proxy_limits(),
         sampling_profile=sampling_profile,
     )
     try:
@@ -444,7 +453,9 @@ def test_mimo_proxy_enforces_generation_config_and_strips_effort(
         assert usage["calls"][0]["requested_model"] == MIMO_SELFHOSTED_MODEL_SELECTOR
         assert usage["calls"][0]["shaping_applied"] is True
         assert usage["calls"][0]["sampling"] == {
-            "temperature": temperature, "top_p": 0.95, "top_k": 20,
+            "temperature": temperature,
+            "top_p": 0.95,
+            "top_k": 20,
         }
         # Zero per-token rates: the ledger prices and costs nothing.
         assert usage["pricing"] == {

@@ -47,7 +47,7 @@ inputs:
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
-    digest: sha256:e2e65e84ada60fd38f0b134405e49681af819abd3e8be586f43f19341ba11d81
+    digest: sha256:3119327758b8bdccd57f87163d38ad4c74d3428de235373819d5d9ab464b3731
   - path: docs/craft.md
     digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
   - path: docs/dashboard.md
@@ -131,7 +131,7 @@ inputs:
   - path: docs/tidy.md
     digest: sha256:c46efe94ba278fcfec9144f3794cddc6b994d5583ed892f194aec81406fc3d6f
   - path: docs/trial-treatment.md
-    digest: sha256:8ed1e28981c8003e1940a6e31a1b78bc57733a7a6e597854aa9cacf93715f41c
+    digest: sha256:01254ade64b2387188dd6b40cda7fd70656422e63500dfa687b9ea90e6cf8ce3
   - path: docs/verdicts.md
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md

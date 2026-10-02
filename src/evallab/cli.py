@@ -392,7 +392,22 @@ def _preflight_command(
     directories and `queue/` alone. `provider_reported_exhaustion` is passed in
     rather than reimplemented so this surface and the dispatch gate can never
     disagree about what the provider said.
+
+    With `--spec`, dry-runs each spec file against its named setup reference
+    instead (HAR-149): same comparison dispatch enforces, before anything is
+    approved. Needs no Daytona or Modal; `--root` points the task paths,
+    ledger, and serve config at another checkout (read-only).
     """
+    if getattr(args, "spec", None):
+        from evallab.setup_fingerprint import render_spec_preflight
+
+        checkout = Path(args.preflight_root) if args.preflight_root else root
+        ok = True
+        for spec_path in args.spec:
+            text, spec_ok = render_spec_preflight(_resolve(root, spec_path), checkout)
+            print(text, end="" if text.endswith("\n") else "\n")
+            ok = ok and spec_ok
+        return 0 if ok else 1
     target = _resolve(root, args.preflight_from) if args.preflight_from else root
     report = build_preflight_report(
         target,
@@ -4465,6 +4480,27 @@ def parser() -> argparse.ArgumentParser:
         dest="preflight_from",
         type=Path,
         help="Repository root to read (default: this checkout)",
+    )
+    preflight.add_argument(
+        "--spec",
+        type=Path,
+        nargs="+",
+        default=None,
+        help=(
+            "Dry-run spec file(s) against their named setup reference (HAR-149): "
+            "the same fingerprint comparison dispatch enforces, before anything "
+            "is approved. Needs no Daytona or Modal."
+        ),
+    )
+    preflight.add_argument(
+        "--root",
+        dest="preflight_root",
+        type=Path,
+        default=None,
+        help=(
+            "Checkout the spec task paths, ledger, and serve config resolve "
+            "against (default: this checkout). Read-only."
+        ),
     )
     preflight.set_defaults(func=_preflight_command)
 

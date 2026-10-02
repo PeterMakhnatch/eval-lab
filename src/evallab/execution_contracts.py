@@ -1557,7 +1557,7 @@ def uses_provider_proxy(agent: str, model: str | None) -> bool:
     )
 
 
-def validate_request(request: RunRequest) -> None:
+def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> None:
     """Validate that a RunRequest adheres to directory, name, timeout, and billable invariants."""
     if not request.task.is_dir():
         raise ValueError(f"Task directory does not exist: {request.task}")
@@ -1731,6 +1731,23 @@ def validate_request(request: RunRequest) -> None:
         load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
 
     _validate_egress_lock(request)
+    _validate_setup_fingerprint(request, repo_root)
+
+
+def _validate_setup_fingerprint(request: RunRequest, repo_root: Path | None) -> None:
+    """Refuse a spec-driven MiMo run whose setup differs from its reference (HAR-149).
+
+    Ad-hoc and prepared-task requests carry no experiment spec and keep the
+    previous behaviour; every queue dispatch carries one. Non-MiMo runs are
+    untouched.
+    """
+    spec = request.experiment_spec
+    if spec is None or not is_mimo_run(request.task, request.model):
+        return
+    from evallab.setup_fingerprint import resolve_repo_root, validate_mimo_setup
+
+    root = resolve_repo_root(repo_root, request.task)
+    validate_mimo_setup(request, root)
 
 
 def resolve_harbor_agent(agent: str, model: str | None = None) -> str:

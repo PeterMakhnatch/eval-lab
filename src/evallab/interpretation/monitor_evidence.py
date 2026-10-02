@@ -21,9 +21,10 @@ import math
 import os
 import re
 import stat
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from itertools import chain
 from pathlib import Path
 from typing import Any, Literal
 
@@ -31,6 +32,7 @@ from pydantic import ValidationError
 
 from evallab.explorer import redact_text
 from evallab.step_layers import TRUNCATION_MARKER_RE, stitch_steps
+from evallab.upstream_fetch import _OUTPUT_SPILL_RE
 
 from .monitor_contracts import (
     EvidenceRecord,
@@ -354,12 +356,36 @@ def _render_call(call: Any) -> str | None:
     return f"$ {keys}"
 
 
+def _observation_content(step: Mapping[str, Any]) -> Iterator[tuple[Any, Any]]:
+    """Share the same observation slots between rendering and coverage checks."""
+    observation = step.get("observation")
+    if observation is not None and not isinstance(observation, dict):
+        yield observation, None
+    for results in (
+        observation.get("results") if isinstance(observation, dict) else None,
+        step.get("observation_results"),
+    ):
+        if results is None:
+            continue
+        if not isinstance(results, list):
+            yield results, None
+            continue
+        for item in results:
+            if isinstance(item, dict):
+                yield item.get("content"), item.get("content_ref")
+            else:
+                yield item, None
+
+
 def _render_step_text(step: Mapping[str, Any]) -> str:
     """Render one trajectory step as plain inspection text (data, not verdict)."""
     parts: list[str] = []
     message = step.get("message")
     if isinstance(message, str) and message.strip():
         parts.append(message.strip())
+    content = step.get("content")
+    if isinstance(content, str) and content.strip() and content != message:
+        parts.append(content.strip())
     reasoning = step.get("reasoning_content")
     if isinstance(reasoning, str) and reasoning.strip():
         parts.append("reasoning: " + reasoning.strip())
@@ -369,33 +395,11 @@ def _render_step_text(step: Mapping[str, Any]) -> str:
             rendered = _render_call(call)
             if rendered:
                 parts.append(rendered)
-    observation = step.get("observation")
-    if isinstance(observation, dict):
-        results = observation.get("results")
-        if isinstance(results, list):
-            for result in results:
-                if isinstance(result, str) and result.strip():
-                    parts.append(result.strip())
-                elif isinstance(result, dict):
-                    content = result.get("content")
-                    if isinstance(content, str) and content.strip():
-                        parts.append(content.strip())
-    elif isinstance(observation, str) and observation.strip():
-        parts.append(observation.strip())
+    for content, _ in _observation_content(step):
+        if isinstance(content, str) and content.strip():
+            parts.append(content.strip())
     return "\n".join(parts)
 
-#: Producer-truncated terminal output whose full text lives in a sandbox
-#: spill file outside snapshot scope. Exact marker written by
-#: ``evallab.loopfix.cap_output`` (also matched by
-#: ``evallab.upstream_fetch._OUTPUT_SPILL_RE`` when hydrating retained
-#: output); the spill file is never read here, so a match means evidence is
-#: missing, not merely mentioned. A bare spill path without this marker --
-#: e.g. an agent ``cat``/``grep`` command naming it -- is benign and matches
-#: nothing here.
-_SPILL_MARKER_RE = re.compile(
-    r"\[\.\.\. output limited to (?P<limit>\d+) characters; \d+ characters omitted\. "
-    r"Full output: /logs/agent/evallab-output/step-\d{4,}\.txt — grep or read it there \.\.\.\]"
-)
 
 #: Sandbox spill failure appended by harbor_terminus when the full output
 #: could not be saved at all: there is no fuller text anywhere in scope.
@@ -412,12 +416,8 @@ _REF_INLINE_PAIRS = (
 
 
 def _has_inline(value: Any) -> bool:
-    """Whether an inline content slot actually carries readable content."""
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, (list, dict)):
-        return len(value) > 0
-    return False
+    """Whether the renderer actually reads this inline content."""
+    return isinstance(value, str) and bool(value.strip())
 
 
 def _nonempty_ref(value: Any) -> bool:
@@ -426,47 +426,22 @@ def _nonempty_ref(value: Any) -> bool:
 
 
 def _step_content_gaps(step: Mapping[str, Any]) -> tuple[bool, bool]:
-    """Report ``(unexpanded_ref, producer_truncated)`` for one stitched step.
-
-    Only inline message/reasoning/observation strings and their ``*_ref``
-    counterparts are inspected. Tool-call command text is never scanned, so
-    an agent command that merely names a spill path stays a benign mention;
-    only the producers' own truncation markers count as missing output.
-    """
-    unexpanded = any(
-        _nonempty_ref(step.get(ref_key)) and not _has_inline(step.get(inline_key))
-        for ref_key, inline_key in _REF_INLINE_PAIRS
-    )
-    inline_texts: list[str] = []
-    for key in ("message", "reasoning_content", "content"):
-        value = step.get(key)
-        if isinstance(value, str) and value.strip():
-            inline_texts.append(value)
-    result_lists: list[Any] = []
-    observation = step.get("observation")
-    if isinstance(observation, dict):
-        results = observation.get("results")
-        if isinstance(results, list):
-            result_lists.append(results)
-    flat = step.get("observation_results")
-    if isinstance(flat, list):
-        result_lists.append(flat)
-    for results in result_lists:
-        for item in results:
-            if not isinstance(item, dict):
-                continue
-            if _nonempty_ref(item.get("content_ref")) and not _has_inline(item.get("content")):
-                unexpanded = True
-            content = item.get("content")
-            if isinstance(content, str) and content.strip():
-                inline_texts.append(content)
-    truncated = any(
-        _SPILL_MARKER_RE.search(text) is not None
-        or TRUNCATION_MARKER_RE.search(text) is not None
-        or _NOT_SAVED_RE.search(text) is not None
-        for text in inline_texts
-    )
-    return unexpanded, truncated
+    """Report unread content and producer truncation, without following refs."""
+    unread, truncated = False, False
+    slots = ((step.get(inline), step.get(ref)) for ref, inline in _REF_INLINE_PAIRS)
+    for value, reference in chain(slots, _observation_content(step)):
+        if (
+            _nonempty_ref(reference) and not _has_inline(value)
+            or value is not None and not isinstance(value, str)
+        ):
+            unread = True
+        if isinstance(value, str) and (
+            _OUTPUT_SPILL_RE.search(value) is not None
+            or TRUNCATION_MARKER_RE.search(value) is not None
+            or _NOT_SAVED_RE.search(value) is not None
+        ):
+            truncated = True
+    return unread, truncated
 
 
 def _bound(text: str, limit: int) -> tuple[str, bool]:
@@ -823,7 +798,7 @@ def _snapshot_row(
     n_steps = len(step_records)
     truncated_count = 0
     redacted_count = 0
-    ref_gap_steps = 0
+    content_gap_steps = 0
     capped_source_steps = 0
     orphan_steps = 0
     ordinal = 0
@@ -838,9 +813,9 @@ def _snapshot_row(
         document, step_ref = info[0], info[2]
         part_sha = captures[document].sha256
         raw_text = _render_step_text(step)
-        gap_ref, gap_capped = _step_content_gaps(step)
-        if gap_ref:
-            ref_gap_steps += 1
+        gap_content, gap_capped = _step_content_gaps(step)
+        if gap_content:
+            content_gap_steps += 1
         if gap_capped:
             capped_source_steps += 1
         redacted_text = redact_text(raw_text)
@@ -870,9 +845,9 @@ def _snapshot_row(
     if truncated_count:
         trial_limits.append(f"{truncated_count} step records truncated to {max_record_chars} chars")
         complete = False
-    if ref_gap_steps:
+    if content_gap_steps:
         trial_limits.append(
-            f"{ref_gap_steps} steps reference out-of-line content not read in this snapshot, "
+            f"{content_gap_steps} steps contain out-of-line or non-text content not read in this snapshot, "
             "not treated as clean"
         )
         complete = False

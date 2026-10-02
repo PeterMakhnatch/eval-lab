@@ -793,3 +793,24 @@ def test_benign_spill_path_mentions_stay_clean(tmp_path: Path) -> None:
     assert snap.complete is True
     assert not any("producer-truncated" in lim or "out-of-line" in lim
                    for lim in snap.limitations)
+
+
+@pytest.mark.parametrize("payload", [{"text": "unrendered"}, ["unrendered"]])
+def test_nontext_content_cannot_count_as_fully_read(tmp_path, payload):
+    snap = _snap_one(tmp_path / "runs", [
+        _raw_step(1, message="inspect", observation={"results": [{"content": payload}]}),
+    ])
+    assert snap.complete is False
+
+
+@pytest.mark.parametrize("form", ["direct", "nested_string", "flat_string"])
+def test_all_rendered_observation_forms_preserve_producer_omissions(tmp_path, form):
+    marker = "[... output limited to 10 bytes; 200 interior bytes omitted ...]"
+    fields = {
+        "direct": {"observation": marker},
+        "nested_string": {"observation": {"results": [marker]}},
+        "flat_string": {"observation_results": [marker]},
+    }[form]
+    snap = _snap_one(tmp_path / "runs", [_raw_step(1, message="inspect", **fields)])
+    assert marker in snap.records[0].text
+    assert snap.complete is False

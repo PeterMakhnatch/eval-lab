@@ -209,6 +209,10 @@ readable artifact), `complete_trials`, and `unavailable_trials` plus a
   corpus byte budgets also apply. Rendered records and tool views have separate
   character bounds. Record truncation, including verifier records, makes the
   snapshot incomplete.
+- **Unexpanded source content:** known producer spill/truncation markers,
+  references without readable inline content, and unsupported non-text payloads
+  make the snapshot incomplete. Spill files are not automatically hydrated or
+  followed. A plain command mentioning a spill path is not an omission marker.
 - **Missing:** missing optional artifacts are explicit limitations while other
   readable evidence is retained. Unresolvable trials and trials excluded by the
   capture cap get unavailable shell snapshots. `complete` describes captured
@@ -263,6 +267,17 @@ with zero usage instead of spending budget on nothing.
   that case raises until a human inspects the retained journal. A
   possibly-paid call is never automatically retried. Per-case locks turn
   concurrent runs into an explicit "already being investigated" error.
+- **Bounded model correction is not a transport retry.** A received, accounted
+  response with malformed JSON, a non-verbatim citation, or an absence claim over
+  incomplete evidence receives code-generated feedback within the same call,
+  context, and spend limits. The model must produce a new valid candidate; the
+  controller never patches JSON, loosens quote matching, or publishes a rejected
+  candidate. Journals and report limitations retain these rejections.
+- Actions use an operation-specific typed request inside a root object, e.g.
+  `{"request":{"action":"related"}}`. `conclude` requires a complete finding;
+  arguments belonging to other actions are not accepted. Cached terminal
+  failures are retained, not silently rerun under the same profile. A run with
+  zero new requests is not a claim that prior analyses succeeded.
 
 ## Budgets: reservations are not invoices
 
@@ -277,10 +292,11 @@ with zero usage instead of spending budget on nothing.
   estimates, not provider invoices — actual billed cost is unknown to the
   tool. Unknown actual costs are surfaced as limitations, never netted
   against the reservation.
-- `budget_exhausted`, provider-stop errors, and `failed` reports halt the
-  batch (exit 3 for stop/budget). Reports always carry `reserved_usd`,
-  `input_tokens` / `output_tokens` (`null` when unknown), and the
-  accounting limitation string.
+- Exhaustion and provider/usage-bound/model/accounting/journal failures stop
+  later requests and live cycles. Candidate-validation failures remain visible
+  per case; other selected cases may still run. Any failed case or hard stop
+  gives CLI exit 3. Reports carry `reserved_usd`, token counts (`null` when
+  unknown), and explicit accounting limitations.
 
 ## Human approval gates
 
@@ -371,7 +387,7 @@ alone.
   provider. Common credential patterns are redacted, but that is not general
   anonymization. Keep snapshots and journals private; this delivery commits no
   private Drive content, raw retained traces, or credentials.
-- Source evidence vs. hypothesis stays explicit in every report: every
-  `suspicious` finding must carry benign alternatives and
-  `missing_evidence`; incomplete/live snapshots cannot establish the
-  absence of reward hacking.
+- Source evidence vs. hypothesis stays explicit: suspicious findings require
+  benign alternatives, and material missing evidence must remain visible.
+  Incomplete/live snapshots cannot establish absence of reward hacking.
+  An edit followed by a reward is not by itself a causal intervention result.

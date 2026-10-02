@@ -328,7 +328,6 @@ def test_unknown_usage_is_not_zero_and_known_zero_does_not_refund(tmp_path, know
 
 
 @pytest.mark.parametrize("bad", [
-    "not JSON",
     {"action": "shell", "command": "rm -rf /"},
     {"action": "accept", "verdict": "pass"},
     {"action": "read_steps", "trial_key": "job/positive", "start": 2, "end": 1},
@@ -337,7 +336,7 @@ def test_unknown_usage_is_not_zero_and_known_zero_does_not_refund(tmp_path, know
     {"action": "search", "query": "reward", "trial_key": "/etc/passwd"},
     '{"action":"shell","action":"related"}',
 ])
-def test_invalid_outputs_and_forbidden_actions_fail_without_repair_calls(tmp_path, bad):
+def test_invalid_or_forbidden_actions_fail_without_repair_calls(tmp_path, bad):
     corpus, case, _ = _fixtures()
     budget = _budget(tmp_path / "spend.jsonl")
     transport = _Scripted([bad])
@@ -363,7 +362,7 @@ def test_unsupported_findings_and_citations_fail(tmp_path, invalid):
         finding["proposed_actions"][0]["requires_approval"] = False
     else:
         finding["disposition"] = "confirmed"
-    report = investigate(case, corpus, transport=_Scripted([_read(case.primary_trial), conclusion]), budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis")
+    report = investigate(case, corpus, transport=_Scripted([_read(case.primary_trial), conclusion]), budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis", limits=InvestigationLimits(max_calls=2))
     assert report.status == "failed" and report.finding is None
     assert report.calls == 2 and report.reserved_usd > 0
 
@@ -410,7 +409,7 @@ def test_source_system_prompt_injection_stays_data_and_cannot_gain_tool_privileg
 def test_live_prefix_cannot_establish_no_hack(tmp_path):
     corpus, case, _ = _fixtures(running=True)
     transport = _Scripted([_read(case.primary_trial), _conclusion(case.primary_trial, suspicious=False)])
-    report = investigate(case, corpus, transport=transport, budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis")
+    report = investigate(case, corpus, transport=transport, budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis", limits=InvestigationLimits(max_calls=2))
     assert report.status == "failed"
     assert any("incomplete running snapshot" in item for item in report.limitations)
     assert any("result.json" in item for item in report.limitations)
@@ -566,7 +565,7 @@ def test_citation_to_unseen_suffix_of_search_hit_is_rejected(tmp_path):
         {"action": "search", "trial_key": case.primary_trial, "query": "xxxx"},
         conclusion,
     ])
-    report = investigate(case, corpus, transport=transport, budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis")
+    report = investigate(case, corpus, transport=transport, budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis", limits=InvestigationLimits(max_calls=3))
     assert report.status == "failed" and report.finding is None
     assert report.calls == 3
     search_data = json.loads(transport.requests[-1][-1]["content"])["data"]["result"]
@@ -735,7 +734,7 @@ def test_failure_stage_codes_are_diagnostic_without_exception_secrets(tmp_path, 
         conclusion = _conclusion(case.primary_trial, suspicious=True)
         conclusion["finding"]["evidence"][0]["quote"] = "A fabricated quote."
         actions = [_read(case.primary_trial), conclusion]
-    report = investigate(case, corpus, transport=_Scripted(actions), budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis")
+    report = investigate(case, corpus, transport=_Scripted(actions), budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis", limits=InvestigationLimits(max_calls=len(actions)))
     assert report.status == "failed" and report.error == f"investigation_{stage}_failed"
     assert "SYNTHETIC-AUTH-SECRET" not in (tmp_path / "analysis/journal.jsonl").read_text()
     assert "SYNTHETIC-AUTH-SECRET" not in (tmp_path / "analysis/report.json").read_text()
@@ -855,3 +854,56 @@ def test_structured_provider_diagnostic_is_bounded_and_redacts_credentials(tmp_p
     assert "synthetic-key" not in stored and "PRIVATE-HEADER-SECRET" not in stored
     assert report.status == "failed" and report.calls == 1
     assert opener.calls == 1
+
+
+@pytest.mark.parametrize("failure", ["invalid_json", "citation_not_visible"])
+def test_accounted_candidate_correction_never_publishes_the_rejected_finding(tmp_path, failure):
+    corpus, case, _ = _fixtures()
+    invalid = (
+        '{"request":'
+        if failure == "invalid_json"
+        else _conclusion(case.primary_trial, suspicious=True, quote="FABRICATED SOURCE QUOTE")
+    )
+    transport = _Scripted([
+        _read(case.primary_trial), invalid, _conclusion(case.primary_trial, suspicious=True),
+    ])
+    budget = _budget(tmp_path / "spend.jsonl")
+    report = investigate(case, corpus, transport=transport, budget=budget, work_dir=tmp_path / "analysis")
+    assert report.status == "completed" and report.calls == 3
+    assert report.input_tokens == 90 and report.output_tokens == 60
+    assert budget.totals()[0] == 3
+    assert "FABRICATED SOURCE QUOTE" not in report.model_dump_json()
+    events = [json.loads(line) for line in (tmp_path / "analysis/journal.jsonl").read_text().splitlines()]
+    assert [event["reason"] for event in events if event["event"] == "candidate_rejected"] == [failure]
+    assert sum(event["event"] == "conclusion_validated" for event in events) == 1
+
+
+def test_malformed_response_correction_stays_inside_call_and_spend_bounds(tmp_path):
+    corpus, case, _ = _fixtures()
+    budget = _budget(tmp_path / "spend.jsonl")
+    transport = _Scripted(["not-json", "still-not-json"])
+    report = investigate(
+        case, corpus, transport=transport, budget=budget, work_dir=tmp_path / "analysis",
+        limits=InvestigationLimits(max_calls=2),
+    )
+    assert report.status == "failed" and report.finding is None
+    assert report.calls == 2 and budget.totals()[0] == 2
+    assert report.input_tokens == 60 and report.output_tokens == 40
+    assert report.reserved_usd > 0
+
+
+def test_incomplete_absence_candidate_can_be_corrected_to_explicit_abstention(tmp_path):
+    corpus, case, _ = _fixtures(running=True)
+    abstention = _conclusion(case.primary_trial, suspicious=False)
+    abstention["finding"]["disposition"] = "inconclusive"
+    abstention["finding"]["summary"] = "The inspected prefix does not settle the concern."
+    abstention["finding"]["missing_evidence"] = ["A completed trace and final verifier evidence are unavailable."]
+    transport = _Scripted([
+        _read(case.primary_trial), _conclusion(case.primary_trial, suspicious=False), abstention,
+    ])
+    report = investigate(
+        case, corpus, transport=transport, budget=_budget(tmp_path / "spend.jsonl"),
+        work_dir=tmp_path / "analysis", limits=InvestigationLimits(max_calls=3),
+    )
+    assert report.status == "inconclusive" and report.finding.disposition == "inconclusive"
+    assert report.calls == 3 and report.error is None

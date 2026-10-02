@@ -179,7 +179,7 @@ inputs:
   - path: src/evallab/interpretation/benchmark_projection.py
     digest: sha256:c2217ff87c51375d21c61e060a988c5b5eb898ff38360f6faf573e3cbe399251
   - path: src/evallab/interpretation/blind_review.py
-    digest: sha256:a0b6df19f6bd72f6500818254078c1a2b57b2e1edc5d6bbee8f2ed528093b771
+    digest: sha256:0a86a5b208ddfd0aa1607274e16ab6a542880781cd1c8bb41f59f8ecd907179b
   - path: src/evallab/interpretation/c2_intervention_gate.py
     digest: sha256:e104be084ec5122ecff9f384c02b48959e0aac642a8ccc0556840fc4bed4a0f4
   - path: src/evallab/interpretation/claude_sessions.py

@@ -53,6 +53,9 @@ from evallab.execution_contracts import (
     HARBOR_STATE_JOURNAL_PLUGIN,
     LOCAL_TO_HARBOR_MODEL,
     MAX_TRIAL_TIMEOUT_SECONDS,
+    MIMO_AGENT,
+    MIMO_AGENT_IMPORT_PATH,
+    MIMO_SAMPLING_PROFILE_ENV,
     MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV,
     MIMO_SELFHOSTED_MODEL_PRICES_MICROS,
     MIMO_SELFHOSTED_NATIVE_MODELS,
@@ -939,6 +942,7 @@ def _terminus_proxy_env(
     tinker_spec: TinkerModelSpec | None = None,
     mimo_native: str | None = None,
     openrouter_spec: OpenRouterRoute | None = None,
+    mimo_sampling_profile: str = "generation-config",
     live_dir: Path | None = None,
 ) -> dict[str, str]:
     """Build the minimal environment for the host-supervised proxy instance.
@@ -958,6 +962,9 @@ def _terminus_proxy_env(
     if provider == MIMO_SELFHOSTED_PROXY_PROVIDER:
         if mimo_native not in MIMO_SELFHOSTED_NATIVE_MODELS:
             raise ValueError("mimo_selfhosted proxy env requires the parsed native model")
+        if mimo_sampling_profile not in {"generation-config", "xiaomi-rl"}:
+            raise ValueError("unknown MiMo sampling profile")
+        env[MIMO_SAMPLING_PROFILE_ENV] = mimo_sampling_profile
         env[MIMO_SELFHOSTED_SECRET_PATH_ENV] = str(secret_path)
         upstream = os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV)
         if upstream:
@@ -1062,6 +1069,7 @@ def _start_terminus_proxy(
     tinker_spec: TinkerModelSpec | None = None,
     mimo_native: str | None = None,
     openrouter_spec: OpenRouterRoute | None = None,
+    mimo_sampling_profile: str = "generation-config",
     live_dir: Path | None = None,
 ) -> tuple[subprocess.Popen[bytes], str]:
     """Start the per-trial loopback proxy; return (process, proxy URL).
@@ -1088,6 +1096,7 @@ def _start_terminus_proxy(
         tinker_spec=tinker_spec,
         mimo_native=mimo_native,
         openrouter_spec=openrouter_spec,
+        mimo_sampling_profile=mimo_sampling_profile,
         live_dir=live_dir,
     )
     cmd = [
@@ -1209,10 +1218,9 @@ def run_harbor_process(
     zai_adapter = HARBOR_AGENT_IMPORT_PATHS[ZAI_OPENCODE_AGENT]
     zai_lane = zai_adapter in command
     zai_miniswe_adapter = ZAI_MINISWE_AGENT_IMPORT_PATH
-    # Terminus2 runs its model client host-side inside the Harbor controller
-    # process, so it never uses the task-container compose sidecar transport.
-    # Detection keys on the lab-owned adapter import path only.
-    terminus_client = TERMINUS_AGENT_IMPORT_PATH in command
+    # Native Xiaomi and Terminus model clients live on the controller host.
+    # Both use this supervised loopback proxy, never a sandbox-side transport.
+    terminus_client = TERMINUS_AGENT_IMPORT_PATH in command or MIMO_AGENT_IMPORT_PATH in command
     local_terminus = terminus_client and TERMINUS_LOCAL_MODEL_SELECTOR in command
     terminus_lane = terminus_client and not local_terminus
     zai_openapi_lane = (
@@ -1633,6 +1641,9 @@ def run_harbor_process(
                 tinker_spec=tinker_spec,
                 mimo_native=mimo_native,
                 openrouter_spec=openrouter_spec,
+                mimo_sampling_profile=(
+                    "xiaomi-rl" if MIMO_AGENT_IMPORT_PATH in command else "generation-config"
+                ),
                 live_dir=(job_dir / PROXY_LIVE_DIR_NAME) if job_dir is not None else None,
             )
             if mimo_client:
@@ -2370,7 +2381,7 @@ def _check_daytona_admission(request: RunRequest) -> dict[str, Any] | None:
 
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request, repo_root=repo_root)
-    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT}:
+    if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT, MIMO_AGENT}:
         decision = preflight_request(request)
         if not decision.proceed:
             raise RuntimeError(f"{request.agent} credential preflight stopped: {decision.reason}")
@@ -2406,16 +2417,15 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             request.model == ZAI_OPENAPI_MODEL_SELECTOR
             or (request.model is not None and request.model.startswith("zai/"))
         )
-        # Terminus2 runs its model client host-side: the task keeps its
-        # declared network/phase policy (no controller-OS downgrade, no
-        # model-host allowlist), and Harbor enforces or refuses it honestly.
-        is_terminus = request.agent == TERMINUS_AGENT
+        # Host-side clients need no model-host allowlist in the task image.
+        # Keep declared network/phase policy for Harbor to enforce or refuse.
+        is_host_model = request.agent in {TERMINUS_AGENT, MIMO_AGENT}
         staged_task, adaptation = _stage_task_for_host(
             request.task,
             staging_dir,
             agent_allowed_hosts=(
                 ()
-                if is_terminus
+                if is_host_model
                 else (
                     (ZAI_OPENAPI_PROXY_HOST,)
                     if is_zai_openapi
@@ -2426,7 +2436,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     )
                 )
             ),
-            preserve_declared_network=is_terminus,
+            preserve_declared_network=is_host_model,
             expected_package_digest=(
                 request.provenance.package_digest if request.provenance is not None else None
             ),
@@ -2598,7 +2608,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     if is_tinker_terminus_model(request.model)
                     else (
                         "Z.ai OpenAPI"
-                        if (is_zai_openapi or is_terminus)
+                        if (is_zai_openapi or is_host_model)
                         else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
                     )
                 )

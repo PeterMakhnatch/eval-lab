@@ -237,6 +237,26 @@ def test_parser_and_limit_changes_split_the_pool_and_name_the_fields(
     assert "parser_digest" in check.render()
 
 
+def test_native_prompt_change_splits_clean_committed_treatments(
+    repo: Path, tmp_path: Path
+) -> None:
+    sources = _base_sources()
+    sources["tools/mimoagent-harbor/swe.yaml"] = (
+        "agent:\n  system_template: You are a coding agent.\n"
+    )
+    base = _commit(repo, sources, "native prompt")
+    changed = _commit(
+        repo,
+        {"tools/mimoagent-harbor/swe.yaml": "agent:\n  system_template: Explain before editing.\n"},
+        "change native prompt",
+    )
+    first = _row(repo, *_job(tmp_path / "runs", "native-a", base, agent_name="mimoagent"))
+    second = _row(repo, *_job(tmp_path / "runs", "native-b", changed, agent_name="mimoagent"))
+    check = pool_check([first, second])
+    assert not check.ok
+    assert set(check.differing) == {"harness_config_digest"}
+
+
 def test_route_shaping_overrides_requested_sampling(repo: Path, tmp_path: Path) -> None:
     commit = _commit(repo, _base_sources(), "base")
     requested = _row(

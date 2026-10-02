@@ -36,6 +36,7 @@ from evallab.execution_contracts import (
     GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
     GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS,
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
+    MIMO_AGENT,
     MIMO_SELFHOSTED_MODEL_SELECTOR,
     MIMO_SELFHOSTED_MODEL_SELECTORS,
     OPENCODE_AUTH_RELATIVE_PATH,
@@ -854,6 +855,22 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     "--reasoning-parser mimo; generation_config T=0.6/top_p 0.95/"
                     "top_k 20 enforced by the proxy; 64K context as served; "
                     "GPU time billed by Modal, no per-token charge",
+                ),
+            ),
+            AgentProfile(
+                profile_id="mimoagent-selfhosted-mimo-v2-6-9b",
+                adapter=MIMO_AGENT,
+                model=MIMO_SELFHOSTED_MODEL_SELECTOR,
+                auth_mode="api-key-environment",
+                secret_source="env:MIMO_SELFHOSTED_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
                 ),
             ),
             AgentProfile(

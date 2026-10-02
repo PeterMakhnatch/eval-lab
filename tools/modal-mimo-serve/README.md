@@ -1,6 +1,6 @@
 # tools/modal-mimo-serve
 
-Serves `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` on Modal with SGLang. This is the backend for Eval Lab's Terminus-2 route `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` (proxy provider `mimo_selfhosted`; see `docs/execution-tiers.md`).
+Serves `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` on Modal with SGLang. Eval Lab reaches this backend through the host-side `mimo_selfhosted` proxy, using either Terminus-2 or Xiaomi's native `mimoagent` controller (see `docs/execution-tiers.md`).
 
 ## What it runs
 
@@ -9,7 +9,7 @@ Serves `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` on Modal with SGLang. This is the 
 | App | `evallab-mimo-v26-9b` (Modal Server `MimoServer`) |
 | Image | `lmsysorg/sglang:v0.5.20-runtime`, pinned by digest `sha256:00b02004…6f800` (qwen3_5 model + `mimo` reasoning parser; CUDA 13.0) |
 | Weights | Modal Volume `evallab-mimo-v26-9b-weights`, HF revision `2367e865d009c13ac81713a2878291d33ab28177` |
-| GPU | 1× A100-80GB. `--context-length 65536`, `--reasoning-parser mimo`, `--served-model-name XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` |
+| GPU | 1× A100-80GB. `--context-length 65536`, `--reasoning-parser mimo`, `--tool-call-parser mimo`, `--served-model-name XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` |
 | Scaling | `max_containers=1`, `min_containers=0`, scales to zero after 5 idle minutes |
 | Auth | SGLang `--api-key` from Modal Secret `evallab-mimo-v26-9b-api-key` (`SGLANG_API_KEY`) |
 
@@ -31,6 +31,32 @@ EVALLAB_MIMO_SELFHOSTED_UPSTREAM=<url> MIMO_SELFHOSTED_API_KEY=<key> \
 uv run --project tools/modal-mimo-serve --locked modal app stop evallab-mimo-v26-9b
 ```
 
+### Native structured-tools acceptance
+
+SGLang 0.5.20's `mimo` tool parser accepts the distill's function/parameter XML
+and returns OpenAI `message.tool_calls`; no Terminus command translation is used
+by the native controller. HAR-148 proved separate bash/read/write/edit/agent
+calls plus plain chat with native `tool_choice=auto`, submitting the matching
+native schema for each tool probe. This does not force a five-schema agent to
+choose the requested tool. A call to a function absent from the submitted
+schema stays unparsed; a forced-function grammar probe was not equivalent
+to the native agent's automatic tool selection.
+
+```bash
+# Explicit approval required: five native tools requests plus one plain chat.
+keys run -- uv run --project tools/modal-mimo-serve --locked \
+  python tools/modal-mimo-serve/smoke.py --tools-only \
+  --tool-definitions <native-tools.json> --out <smoke.json>
+```
+
+The native controller requires its isolated pinned runtime:
+`uv sync --project tools/mimoagent-harbor --locked`. Warm the server with
+authenticated health requests before paid task dispatch; a deployed app alone
+is not readiness, and the native retry policy does not cover a three-minute
+cold start. The existing Terminus sampling profile stays 0.6/0.95/20; the native
+Xiaomi profile is explicitly 1.0/0.95/20.
+
+
 ## Cost
 
 Modal bills per second:
@@ -48,6 +74,35 @@ A trial's cost is time-based, not token-based:
   server $/h ($2.8149 for GPU, CPU and memory together) × trial hours ÷ concurrent trials + Daytona sandbox time
 
 A cold start and the 5-minute idle tail are billed once per warm period.
+
+## Context sizing (HAR-148, 2026-10-02)
+
+Keep the deployed 65,536-token window. The full available HAR-126 census has
+9,016 known prompt counts among 9,664 captures, with 648 missing usage records:
+327 prompts exceed 48,000 tokens (3.63% of known prompts), none exceed 60,000,
+and the maximum is 57,920. These are prompt counts, not proof that every
+prompt-plus-completion fits, nor qualification of the new 500-step controller.
+The largest observed prompt leaves 7,616 tokens for its response at 64K.
+
+The new controller exposed that headroom boundary in a real paired smoke:
+SGLang rejected 39,781 input tokens plus a 26,160-token completion allowance
+(65,941 total) at the unchanged 65,536 limit. That wrapped run and its direct
+control both stopped with native `ModelQueryError`, but the direct control
+hit its 20-request diagnostic ceiling instead. Do not interpret their common
+stop category as identical model behavior or the old census as native-loop
+qualification. No completion clipping or context increase was introduced.
+
+The pinned hybrid model has eight full-attention layers, four KV heads of
+dimension 256 and BF16 KV storage: 32 KiB per cached token. A fully populated
+sequence therefore needs 2/4/8 GiB of attention KV at 64K/128K/262,144,
+plus roughly 50 MiB of linear-attention state and runtime overhead. Weights
+occupy about 17.53 GiB. Sixteen fully populated 128K contexts already require
+about 81.5 GiB before other state or activations; they cannot fit an A100-80GB.
+For an illustrative fixed 40 GiB KV pool, full-window concurrency is 20/10/5,
+not a measured throughput claim (the current request limit is 16). Longer
+limits do not force every short request to fill that window. No context or
+concurrency change is authorized by this census.
+
 
 ## Base + adapter on one server (`serve_lora.py`, HAR-129)
 

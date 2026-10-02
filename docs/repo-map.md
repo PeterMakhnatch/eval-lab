@@ -39,7 +39,7 @@ inputs:
   - path: src/evallab/calibrate.py
     digest: sha256:e8991096d3b9e309992480c7f84bc227e7908f88c9ebf1b80b92b3c04ec1e3c1
   - path: src/evallab/campaigns.py
-    digest: sha256:843db6ca4a0aae87431c783d77bd3abe3824c4e318e592ae340abb9144c674f1
+    digest: sha256:9bf5135b54e0842779038e52f9861239c5d907fe91adf67ce17dad6123702f00
   - path: src/evallab/canary.py
     digest: sha256:9418394fbce95588758102631c1d80ff311189fd43847c9577abb67111714213
   - path: src/evallab/capability_contract.py
@@ -55,13 +55,13 @@ inputs:
   - path: src/evallab/continuous_control_plane.py
     digest: sha256:a6d9d6a1f40cadae3e82583fcff4265632b435e284592b1822cafad13743eb96
   - path: src/evallab/copy_check.py
-    digest: sha256:1709f81b1a1a037481ba1a0c50644ddeb49178e0280942bc0d8afd69ece61fe8
+    digest: sha256:b5ac3e06a1b83275a3dd17af5c551c539f699a0f3f2ee56767eff5e623edcdbb
   - path: src/evallab/counts.py
     digest: sha256:58b0be5f8633db972b448a7c64794c57636722a653f6d30fe82f66104d8b17c4
   - path: src/evallab/craft.py
     digest: sha256:e4b40e28d960f994ba63871c7fcaab610aafd7ece3e4e9d2167dce11ca3ca01e
   - path: src/evallab/credentials.py
-    digest: sha256:45cadc6a533cf574d3929efddbfb913d63b008efd25c21609b7b36c139c3af9e
+    digest: sha256:27e139e40e2325f603d606335355047077b7bd91c98b6c969814e47c53a8f195
   - path: src/evallab/curve.py
     digest: sha256:b9b2712aa1dfb58d7f95f7dc5eb9e2291cc8e9f7cc6d30a6d95120ad82f806cf
   - path: src/evallab/database.py
@@ -101,7 +101,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:6002a2555540ec8a3388335fce2addec7e448326b05ba29d02d05161a0c0cb08
+    digest: sha256:651122d3bf430ba0a0ab7d1042bf01c493e39ebeb16e40a2da45192dedebf6c2
   - path: src/evallab/explorer.py
     digest: sha256:31820b8d3d4ec1894970e9907dffa829a4ca69088aeed6c7334b3800da6b7484
   - path: src/evallab/fetch.py
@@ -150,6 +150,8 @@ inputs:
     digest: sha256:e54d726c085e2f26942863736382d628904ab2e4059c44e4dc29b858fff09a56
   - path: src/evallab/harbor_glm_selfhosted.py
     digest: sha256:868a7ecba6f889d4cc3a9ab5aac5319a729fbd90cb5aa068a51a283833180dc0
+  - path: src/evallab/harbor_mimoagent.py
+    digest: sha256:18d5bfa42a70121095bf72f65fcccd01551d32c95392a5eac02c7db9954c0b85
   - path: src/evallab/harbor_network.py
     digest: sha256:afacb92ed92744bff3be78f75c86ed48a6f26102c16079cfd6679dbb7d1715d3
   - path: src/evallab/harbor_repeat_verifier.py
@@ -282,6 +284,10 @@ inputs:
     digest: sha256:a04dba52ff47f5380ca9670aa01089a45b8dd98049cfd1f5af98a936a2c577c9
   - path: src/evallab/mimo_tool_calls.py
     digest: sha256:c3fa6d7d6b87fd5d73992cc425175742b42210779cb7037582e609a32da9c2f6
+  - path: src/evallab/mimoagent_trajectory.py
+    digest: sha256:f8a69fe4dcb85bdf3d7c9a2d5af4622831dfd2e4bd24a428daa2c75bd60cbc49
+  - path: src/evallab/mimoagent_worker.py
+    digest: sha256:12f053d7bdb9dc59cf3a5da02fcb0eed04798c4a5b8854b9f8a54f12eaae8414
   - path: src/evallab/mini_observation_masking.py
     digest: sha256:332e2a92b2db066699d7b4582992e40d710f884146705a9699dfa8ec24d17883
   - path: src/evallab/modal_billing.py
@@ -309,7 +315,7 @@ inputs:
   - path: src/evallab/process_job.py
     digest: sha256:d7d17a5ecba1759307700afda471ae3570e25012e951a94cec97a39a181d8f59
   - path: src/evallab/profiles.py
-    digest: sha256:c7c80fa9093fc9744db88b91c14e93ad1a931c592d1fdf1e0f38128ff8de2ff3
+    digest: sha256:d21371f2ec6ec48a0552258697400ae7540e25a9909f70cd55e96eec08cdb79f
   - path: src/evallab/provenance.py
     digest: sha256:8b76204b8281dc651babfe786a51a88688c3e462adf6e274a8b172d9b6c09807
   - path: src/evallab/quality_audit.py
@@ -317,7 +323,7 @@ inputs:
   - path: src/evallab/queue.py
     digest: sha256:2d34db2337c3f91a34a9e95565ca54344727b9e835f3a09ed7239b5ccc713246
   - path: src/evallab/quota.py
-    digest: sha256:34c4352fb1448b3ab5ae2388157bd80120f0684b5925917735923c61143f5043
+    digest: sha256:b02ac34b1dc5453d5648e31f1d2297b25ead6609fbd3276680915a7e479ba57e
   - path: src/evallab/recovery/__init__.py
     digest: sha256:7d1cf972820e3632cf8efc788c6528d630030ddf73a1cc50c5b6ec889cb615dc
   - path: src/evallab/recovery/bundle.py
@@ -373,7 +379,7 @@ inputs:
   - path: src/evallab/run_telemetry.py
     digest: sha256:84a91d9e7652d78a1236825ec5bca5516c10d82f674cba6ef786a32531dcf1b7
   - path: src/evallab/runner.py
-    digest: sha256:591c12afe63281f4cd54285b5c42993888ad765d74225be604edbaabf0944bab
+    digest: sha256:0a95f802c5210dcb9b9da3f5e17644f3fe85616ada935ac5cbb6f8fcfa2fe6ca
   - path: src/evallab/schemas/__init__.py
     digest: sha256:997c2d36c062bef8566fb9bdfaa1c779d43f863553d0d2037b3c9a16b7358e0f
   - path: src/evallab/screen.py
@@ -439,7 +445,7 @@ inputs:
   - path: src/evallab/task_lint.py
     digest: sha256:4704670a031a07a1e5713d96117035d8d6a299270d4b6ce4749462556fa1bf99
   - path: src/evallab/task_prepare.py
-    digest: sha256:df512f28e2c473d05239048740aef87af847e11e02e68b85fb175f000b8a0d36
+    digest: sha256:8f108eee10efa1c9c6f21f66baa98bb7c98d38bc5f9b8b467b1ff167bcc9b802
   - path: src/evallab/task_qualification.py
     digest: sha256:30ffe9ec7d6c68bd1092515b293334c690e1619953633a7a882dbd202b76404b
   - path: src/evallab/task_stability.py
@@ -578,6 +584,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `harbor_daytona` | 600 | Daytona transport for the existing GLM proxy, without changing the agent loop. | — |
 | `harbor_deepseek` | 100 | DeepSeek credential isolation for Harbor's generic mini-swe-agent adapter. | — |
 | `harbor_glm_selfhosted` | 200 | GLM self-hosted and fine-tuned credential isolation for Harbor's mini-swe-agent adapter. | — |
+| `harbor_mimoagent` | 200 | Native Xiaomi DefaultAgent outside the task sandbox, with Harbor tool transport. | — |
 | `harbor_network` | 300 | Platform-aware Harbor Docker network policy for the execution staging adapter. | — |
 | `harbor_repeat_verifier` | 300 | Repeat-verification Harbor verifier for HAR-83 verifier stability (§4.2.1). | — |
 | `harbor_rlm` | 200 | Lab-owned Harbor agent running dspy.RLM under a named harness policy. | — |
@@ -644,6 +651,8 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `mcp_substrate` | 1900 | Shared FastMCP multi-container task-authoring substrate and runtime middleware. | — |
 | `mimo_exploit` | 400 | MiMo hack-probe exploit detector (HAR-83). | — |
 | `mimo_tool_calls` | 600 | Deterministic normalizer for MiMo's native tool calls on the Terminus-2 route. | — |
+| `mimoagent_trajectory` | 100 | Native Xiaomi messages to Harbor ATIF, without changing the agent's history. | — |
+| `mimoagent_worker` | 200 | Pinned Xiaomi controller subprocess; its SDK must not share Harbor's interpreter. | — |
 | `mini_observation_masking` | 100 | Opt-in mini-swe-agent 2.4.6 Chat Completions context policy. | — |
 | `modal_billing` | 300 | Modal billing reconcile: billed GPU-seconds versus lab-computed cost. | — |
 | `modal_ops` | 400 | Self-hosted Modal lifecycle: auto-stop on queue drain plus read-only probes. | — |
@@ -742,7 +751,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `trajectory_loss_manifest` | 800 | Trajectory Loss Manifest and Fidelity Auditor (P1). | — |
 | `trial_decision` | 900 | One-page trial decision, composed from records already on disk. | — |
 | `trial_diagnosis` | 1300 | Deterministic trial diagnosis: trajectory -> failure modes + bounded Reef feedback. | — |
-| `trial_treatment` | 1300 | Per-trial treatment keys and capture records (HAR-93). | — |
+| `trial_treatment` | 1400 | Per-trial treatment keys and capture records (HAR-93). | — |
 | `upstream_adapter` | 600 | Offline, file-only boundaries for pinned upstream evaluation results. | — |
 | `upstream_fetch` | 1100 | Detect agent trials that fetched upstream remote content (answer-leak guard). | — |
 | `verdicts` | 500 | Verdict persistence, validation, and query engine (§2.1, §2.2). | — |

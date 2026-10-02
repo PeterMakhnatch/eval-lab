@@ -69,7 +69,7 @@ inputs:
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-09-03 16:51:07Z
+- **Generated at:** 2026-10-02 08:48:21Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
 - **Corpus Summary:** 551 craft tasks, 263 trials, 25 observation records, 0 analysis sidecars
 - **Evidence Quality Ledger:** 238 evaluated trials (pass 27, warn 178, fail 24, quarantine 9)

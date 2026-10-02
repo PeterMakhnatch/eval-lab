@@ -423,6 +423,29 @@ def test_family_report_joins_parquet_to_raw_atif_and_explains_results(
     assert (output_root / "family-task-family.md").is_file()
 
 
+def test_family_report_reads_compacted_and_recent_partitions(tmp_path: Path) -> None:
+    jobs = [
+        _write_job(
+            tmp_path / "runs",
+            name=name,
+            agent="agent-a",
+            model="model-a",
+            task_rewards={"mixed-family": [reward]},
+        )
+        for name, reward in (("compacted", 1.0), ("recent", 0.0))
+    ]
+    parquet = tmp_path / "derived/parquet"
+    rebuild_from_raw([load_job(path) for path in jobs], parquet)
+    source = next(parquet.rglob("trial_facts.parquet"))
+    destination = parquet / "compact/dt=2026-10-02/trial_facts.parquet"
+    destination.parent.mkdir(parents=True)
+    source.rename(destination)
+
+    report = family_report("mixed-family", parquet_root=parquet, raw_roots=[tmp_path / "runs"])
+    assert report["n_trials"] == 2
+    assert report["n_jobs"] == 2
+
+
 def test_family_report_does_not_call_zero_steps_a_trajectory_length(tmp_path: Path) -> None:
     job_path = _write_job(
         tmp_path / "runs",

@@ -159,6 +159,9 @@ DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
     }
 )
 RLM_AGENT = "rlm"
+MIMO_AGENT = "mimoagent"
+MIMO_AGENT_IMPORT_PATH = "evallab.harbor_mimoagent:NativeMimoAgent"
+MIMO_SAMPLING_PROFILE_ENV = "EVALLAB_MIMO_SAMPLING_PROFILE"
 TERMINUS_AGENT = "terminus-2"
 TERMINUS_AGENT_IMPORT_PATH = "evallab.harbor_terminus:SecretSafeTerminus2"
 TERMINUS_PROXY_URL_ENV = "EVALLAB_TERMINUS_PROXY_URL"
@@ -573,12 +576,9 @@ def is_mimo_run(task: str | Path | None, model: str | None) -> bool:
     return is_mimo_family_model(model) or is_mimo_dataset_task(task)
 
 
-#: Agents that may run under the Daytona egress lock (HAR-140): the host-side
-#: Terminus route (its model client never needs sandbox egress) and the
-#: model-free controls. Any other agent runs its model client inside the
-#: sandbox (an installed agent or an in-sandbox model proxy) and cannot be
-#: locked.
-EGRESS_LOCK_DAYTONA_AGENTS = frozenset({TERMINUS_AGENT, *CONTROL_AGENTS})
+#: Host-side controllers and model-free controls may run under the Daytona
+#: lock. Installed model clients and in-sandbox proxies require sandbox egress.
+EGRESS_LOCK_DAYTONA_AGENTS = frozenset({TERMINUS_AGENT, MIMO_AGENT, *CONTROL_AGENTS})
 
 
 def resolve_egress_lock(request: RunRequest) -> bool:
@@ -881,6 +881,7 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     "zai-opencode": "evallab.harbor_zai_opencode:SecretSafeZaiOpenCodeAgent",
     RLM_AGENT: "evallab.harbor_rlm:LabRlmAgent",
     TERMINUS_AGENT: TERMINUS_AGENT_IMPORT_PATH,
+    MIMO_AGENT: MIMO_AGENT_IMPORT_PATH,
 }
 
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-flash"
@@ -1552,7 +1553,7 @@ def uses_provider_proxy(agent: str, model: str | None) -> bool:
     selector reaches `validate_request`'s model grammar check and is refused
     with that reason rather than a misleading ceiling error.
     """
-    return agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT} or (
+    return agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, MIMO_AGENT} or (
         agent == TERMINUS_AGENT and model != TERMINUS_LOCAL_MODEL_SELECTOR
     )
 
@@ -1617,6 +1618,10 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
             raise ValueError(f"{request.agent} requires explicit provider ceilings")
         if request.attempts != 1 or request.concurrency != 1:
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
+    if request.agent == MIMO_AGENT:
+        parse_mimo_selfhosted_model(request.model)
+        if request.environment != "daytona":
+            raise ValueError("mimoagent requires the locked Daytona task environment")
     if request.agent == TERMINUS_AGENT:
         model = request.model
         if is_tinker_terminus_model(model):
@@ -1846,10 +1851,8 @@ def build_command(request: RunRequest) -> list[str]:
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     if resolve_egress_lock(request):
-        if request.environment != "daytona" or request.agent not in {"terminus-2", "nop", "oracle"}:
-            raise ValueError(
-                "egress_lock=true is only supported for terminus-2/nop/oracle on daytona"
-            )
+        if request.environment != "daytona" or request.agent not in EGRESS_LOCK_DAYTONA_AGENTS:
+            raise ValueError("egress_lock=true requires a host-side controller or control on daytona")
         command.extend(["--environment-kwarg", "egress_lock=true"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     if request.verifier_repeat_n is not None:
@@ -1977,6 +1980,8 @@ def build_command(request: RunRequest) -> list[str]:
                 "0",
             ]
         )
+    if request.agent == MIMO_AGENT:
+        command.extend(["--n-concurrent-agents", "1", "--n-tasks", "1", "--max-retries", "0"])
     if request.agent == TERMINUS_AGENT:
         command.extend(["--n-concurrent-agents", "1", "--n-tasks", "1", "--max-retries", "0"])
         for key, value in sorted(terminus_agent_kwargs(request).items()):

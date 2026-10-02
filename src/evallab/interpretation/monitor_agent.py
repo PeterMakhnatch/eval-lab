@@ -100,6 +100,12 @@ class InvestigatorTransport(Protocol):
 class InvestigatorError(RuntimeError):
     """An unsafe, unsupported, or malformed provider response."""
 
+    def __init__(
+        self, message: str, *, observed_usage: tuple[int | None, int | None] | None = None
+    ) -> None:
+        super().__init__(message)
+        self.observed_usage = observed_usage
+
 
 class BudgetExhausted(RuntimeError):
     """A lifetime reservation would exceed the pinned cap."""
@@ -117,17 +123,29 @@ def _json(value: Any) -> str:
 def _payload(
     model: str, messages: list[dict[str, str]], max_output_tokens: int, schema: dict[str, Any],
     *, disable_thinking: bool = False,
+    response_format: Literal["json_schema", "json_object"] = "json_schema",
 ) -> dict[str, Any]:
+    output_format: dict[str, Any]
+    if response_format not in {"json_schema", "json_object"}:
+        raise ValueError("response_format must be explicitly json_schema or json_object")
+    if response_format == "json_object":
+        messages = [{
+            "role": "system",
+            "content": "Return one JSON object satisfying this trusted output schema: " + _json(schema),
+        }, *messages]
+        output_format = {"type": "json_object"}
+    else:
+        output_format = {
+            "type": "json_schema",
+            "json_schema": {"name": "investigation_action", "strict": True, "schema": schema},
+        }
     result = {
         "model": model,
         "messages": messages,
         "max_tokens": max_output_tokens,
         "stream": False,
         "n": 1,
-        "response_format": {
-            "type": "json_schema",
-            "json_schema": {"name": "investigation_action", "strict": True, "schema": schema},
-        },
+        "response_format": output_format,
     }
     if disable_thinking:
         result["thinking"] = {"type": "disabled"}
@@ -148,6 +166,7 @@ class OpenAIInvestigator:
     def __init__(
         self, *, endpoint: str, model: str, api_key: str, timeout_seconds: float = 90,
         disable_thinking: bool = False,
+        response_format: Literal["json_schema", "json_object"] = "json_schema",
     ) -> None:
         parsed = urllib.parse.urlsplit(endpoint)
         host = parsed.hostname or ""
@@ -189,6 +208,9 @@ class OpenAIInvestigator:
         if not isinstance(disable_thinking, bool):
             raise ValueError("disable_thinking must be an explicit boolean")
         self.disable_thinking = disable_thinking
+        if response_format not in {"json_schema", "json_object"}:
+            raise ValueError("response_format must be explicitly json_schema or json_object")
+        self.response_format = response_format
         self._api_key = api_key
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), _NoRedirect())
 
@@ -209,6 +231,7 @@ class OpenAIInvestigator:
         encoded = _json(_payload(
             self.model, messages, max_output_tokens, schema,
             disable_thinking=self.disable_thinking,
+            response_format=self.response_format,
         )).encode("utf-8")
         if len(encoded) > _MAX_REQUEST_BYTES:
             raise ValueError("provider request exceeds byte bound")
@@ -234,8 +257,26 @@ class OpenAIInvestigator:
             raise InvestigatorError("provider transport failed; not retried") from None
         if len(raw) > _MAX_RESPONSE_BYTES:
             raise InvestigatorError("provider response exceeds byte bound")
+        observed_usage: tuple[int | None, int | None] | None = None
         try:
             value = json.loads(raw)
+            if not isinstance(value, dict):
+                raise InvestigatorError("malformed provider response")
+            usage = value.get("usage")
+            if usage is not None and not isinstance(usage, dict):
+                raise InvestigatorError("invalid provider usage")
+            if usage is not None:
+                counts: list[int | None] = []
+                malformed_usage = False
+                for name in ("prompt_tokens", "completion_tokens"):
+                    try:
+                        counts.append(_token_count(usage.get(name), name))
+                    except InvestigatorError:
+                        counts.append(None)
+                        malformed_usage = True
+                observed_usage = (counts[0], counts[1])
+                if malformed_usage:
+                    raise InvestigatorError("invalid provider usage")
             choices = value["choices"]
             if not isinstance(choices, list) or len(choices) != 1:
                 raise InvestigatorError("exactly one provider choice is required")
@@ -256,10 +297,6 @@ class OpenAIInvestigator:
             content = message["content"]
             if not isinstance(content, str):
                 raise InvestigatorError("provider content must be JSON text")
-            usage = value.get("usage")
-            if usage is not None and not isinstance(usage, dict):
-                raise InvestigatorError("invalid provider usage")
-            usage = usage or {}
             returned_model = value.get("model")
             request_id = value.get("id")
             if returned_model is not None and not isinstance(returned_model, str):
@@ -268,13 +305,16 @@ class OpenAIInvestigator:
                 raise InvestigatorError("invalid provider request ID")
             return ModelCompletion(
                 content=content,
-                input_tokens=_token_count(usage.get("prompt_tokens"), "input tokens"),
-                output_tokens=_token_count(usage.get("completion_tokens"), "output tokens"),
+                input_tokens=observed_usage[0] if observed_usage is not None else None,
+                output_tokens=observed_usage[1] if observed_usage is not None else None,
                 returned_model=returned_model,
                 request_id=request_id,
             )
+        except InvestigatorError as exc:
+            exc.observed_usage = observed_usage
+            raise
         except (KeyError, TypeError, ValueError):
-            raise InvestigatorError("malformed provider response") from None
+            raise InvestigatorError("malformed provider response", observed_usage=observed_usage) from None
 
 
 @dataclass(frozen=True)
@@ -287,8 +327,33 @@ class _Reservation:
     output_token_bound: int
 
 
+def _reject_state_symlink(path: Path) -> None:
+    if path.is_symlink():
+        raise ValueError("analysis state symlinks are forbidden")
+
+
+def _read_state(path: Path) -> str:
+    _reject_state_symlink(path)
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    with os.fdopen(descriptor, "r", encoding="utf-8") as handle:
+        return handle.read()
+
+
+@contextmanager
+def _state_lock(path: Path):
+    _reject_state_symlink(path)
+    descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "a+", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield handle
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+
+
 def _write_json(path: Path, value: Any) -> None:
     durable_mkdir(path.parent)
+    _reject_state_symlink(path)
     descriptor, temporary = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
     source = Path(temporary)
     try:
@@ -300,7 +365,9 @@ def _write_json(path: Path, value: Any) -> None:
 
 
 def _append_event(path: Path, event: dict[str, Any]) -> None:
-    with path.open("a", encoding="utf-8") as handle:
+    _reject_state_symlink(path)
+    descriptor = os.open(path, os.O_WRONLY | os.O_APPEND | os.O_CREAT | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(descriptor, "a", encoding="utf-8") as handle:
         handle.write(_json(event) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
@@ -311,9 +378,10 @@ class InvestigationBudget:
     """Lifetime cap backed by the current CallLedger schema and file lock.
 
     CallLedger.reserve's calendar/policy-specific admission is not compatible
-    with this separately authorized lifetime cap. Its locked record reader and
-    durable writer are reused, without changing standing execution policy.
-    Reservations are never refunded; known usage is a separate estimate.
+    with this separately authorized lifetime cap. Its record reader and durable
+    writer are reused inside a no-follow file lock, without changing standing
+    execution policy. Reservations are never refunded; known usage is a separate
+    estimate. Observed usage-bound breaches durably hold all future reservations.
     """
 
     def __init__(
@@ -346,12 +414,15 @@ class InvestigationBudget:
             "accounting": "full-request-utf8-bytes-plus-1024-framing-v1",
         }
         durable_mkdir(self.path.parent)
-        self._ledger = CallLedger(self.path)
+        self.hold_path = self.path.with_name(self.path.name + ".hold.json")
         config_path = self.path.with_name(self.path.name + ".config.json")
-        with self._ledger._locked_file() as handle:
+        for state_path in (self.path, config_path, self.hold_path):
+            _reject_state_symlink(state_path)
+        self._ledger = CallLedger(self.path)
+        with _state_lock(self.path) as handle:
             records = self._ledger._read_descriptor(handle)
             if config_path.exists():
-                if json.loads(config_path.read_text()) != self.config:
+                if json.loads(_read_state(config_path)) != self.config:
                     raise ValueError("budget configuration is immutable; use the original pinned config")
             elif records:
                 raise ValueError("budget ledger lacks its immutable configuration")
@@ -373,7 +444,10 @@ class InvestigationBudget:
         input_bound = len(encoded) + _FRAMING_TOKEN_ALLOWANCE
         exact = (self.input_rate * input_bound + self.output_rate * max_output_tokens) / 1_000_000
         charge = exact.quantize(Decimal("0.000000001"), rounding=ROUND_CEILING)
-        with self._ledger._locked_file() as handle:
+        with _state_lock(self.path) as handle:
+            _reject_state_symlink(self.hold_path)
+            if self.hold_path.exists():
+                raise BudgetExhausted("budget_on_hold_usage_bound_breach")
             records = self._ledger._read_descriptor(handle)
             started = [record for record in records if record.event == "started"]
             if len(started) >= self.max_calls:
@@ -406,31 +480,69 @@ class InvestigationBudget:
             fsync_directory(self.path.parent)
         return _Reservation(invocation_id, pass_id, now.date(), float(charge), input_bound, max_output_tokens)
 
-    def finish(self, reservation: _Reservation, completion: ModelCompletion | None, *, failed: bool) -> None:
-        usage = None
+    def finish(
+        self, reservation: _Reservation, completion: ModelCompletion | None, *, failed: bool,
+        observed_usage: tuple[int | None, int | None] | None = None,
+    ) -> None:
+        input_count = output_count = None
         if completion is not None:
+            observed_usage = (completion.input_tokens, completion.output_tokens)
+        if observed_usage is not None:
             try:
-                input_count = _token_count(completion.input_tokens, "input tokens")
-                output_count = _token_count(completion.output_tokens, "output tokens")
-                if input_count is not None and output_count is not None:
-                    usage = InvocationUsage(input_tokens=input_count, output_tokens=output_count)
+                input_count = _token_count(observed_usage[0], "input tokens")
             except InvestigatorError:
                 pass  # Malformed usage is unknown, never a free call.
-        self._ledger.finish(
-            invocation_id=reservation.invocation_id,
-            pass_id=reservation.pass_id,
-            role="analyst",
-            day=reservation.day,
-            event="failed" if failed else "completed",
-            usage=usage,
-            reason="reservation retained; usage unknown" if usage is None else "reservation retained; usage estimated",
+            try:
+                output_count = _token_count(observed_usage[1], "output tokens")
+            except InvestigatorError:
+                pass
+        usage = None
+        if input_count is not None and output_count is not None:
+            usage = InvocationUsage(input_tokens=input_count, output_tokens=output_count)
+        breach = (
+            input_count is not None and input_count > reservation.input_token_bound
+        ) or (
+            output_count is not None and output_count > reservation.output_token_bound
         )
+        observed = {
+            "input_tokens": input_count,
+            "output_tokens": output_count,
+            "estimated_usage_usd": self.usage_cost(input_count, output_count) if input_count is not None and output_count is not None else None,
+        }
+        with _state_lock(self.path) as handle:
+            _reject_state_symlink(self.hold_path)
+            if breach and not self.hold_path.exists():
+                # Publish the hold first: a crash cannot admit another request
+                # between an observed overage and its ledger completion record.
+                _write_json(self.hold_path, {
+                    "schema_version": "evallab.monitor_budget_hold/v1",
+                    "reason": "usage_bound_breach",
+                    "invocation_id": reservation.invocation_id,
+                    "pass_id": reservation.pass_id,
+                    "config_digest": content_digest(self.config),
+                    "input_token_bound": reservation.input_token_bound,
+                    "output_token_bound": reservation.output_token_bound,
+                    "reserved_usd": reservation.reserved_usd,
+                    "observed": observed,
+                    "resolution": "Operator reconciliation required; no automatic retry or release.",
+                })
+            self._ledger._append_descriptor(handle, CallLedgerRecord(
+                invocation_id=reservation.invocation_id,
+                pass_id=reservation.pass_id,
+                role="analyst",
+                day=reservation.day,
+                occurred_at=datetime.now(UTC),
+                event="failed" if failed or breach else "completed",
+                usage=usage,
+                reason=_json({"reservation_retained": True, "usage_bound_breach": breach, "observed": observed}),
+            ))
 
     def totals(self, pass_id: str | None = None) -> tuple[int, float]:
-        started = [
-            record for record in self._ledger.records()
-            if record.event == "started" and (pass_id is None or record.pass_id == pass_id)
-        ]
+        with _state_lock(self.path) as handle:
+            started = [
+                record for record in self._ledger._read_descriptor(handle)
+                if record.event == "started" and (pass_id is None or record.pass_id == pass_id)
+            ]
         charge = sum((Decimal(str(record.attributed_cost_usd)) for record in started), Decimal(0))
         return len(started), float(charge)
 
@@ -441,13 +553,11 @@ class InvestigationBudget:
 @contextmanager
 def _request_lock(work_dir: Path):
     durable_mkdir(work_dir)
-    with (work_dir / "request.lock").open("a", encoding="utf-8") as handle:
-        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
-        try:
-            fsync_directory(work_dir)
-            yield
-        finally:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    for name in ("request.lock", "request.json", "report.json", "journal.jsonl"):
+        _reject_state_symlink(work_dir / name)
+    with _state_lock(work_dir / "request.lock"):
+        fsync_directory(work_dir)
+        yield
 
 
 def _data_message(kind: str, value: Any) -> dict[str, str]:
@@ -531,6 +641,7 @@ def investigate(
         "model": model,
         "endpoint": getattr(transport, "endpoint", None),
         "disable_thinking": getattr(transport, "disable_thinking", False),
+        "response_format": getattr(transport, "response_format", "json_schema"),
         "limits": limits.model_dump(mode="json"),
         "budget_config": budget.config,
     }
@@ -541,14 +652,14 @@ def investigate(
         report_path = work_dir / "report.json"
         journal_path = work_dir / "journal.jsonl"
         if request_path.exists():
-            if json.loads(request_path.read_text()) != identity:
+            if json.loads(_read_state(request_path)) != identity:
                 raise ValueError("work_dir is already bound to a different immutable request")
         else:
             if journal_path.exists() or report_path.exists():
                 raise ValueError("analysis state is missing immutable request identity")
             _write_json(request_path, identity)
         if report_path.exists():
-            report = InvestigationReport.model_validate_json(report_path.read_text())
+            report = InvestigationReport.model_validate_json(_read_state(report_path))
             if (report.case_id, report.snapshot_id, report.model) != (case.case_id, case.snapshot_id, model):
                 raise ValueError("persisted report identity mismatch")
             return report
@@ -573,6 +684,7 @@ def investigate(
         ]
         _append_event(journal_path, {"event": "initial_context", "messages": messages, "schema": schema})
         completions: list[ModelCompletion] = []
+        observed_failed_calls = 0
         input_known = output_known = True
         input_tokens = output_tokens = 0
         primary_inspected = False
@@ -589,57 +701,97 @@ def investigate(
         status: Literal["completed", "budget_exhausted", "failed", "inconclusive"] = "inconclusive"
         error: str | None = None
         extra_limits: list[str] = []
+        stage = "context"
 
         try:
             for index in range(limits.max_calls):
+                stage = "context"
                 payload = _payload(
                     model, messages, limits.max_output_tokens, schema,
                     disable_thinking=getattr(transport, "disable_thinking", False),
+                    response_format=getattr(transport, "response_format", "json_schema"),
                 )
                 if len(_json(payload)) > limits.max_context_chars:
                     extra_limits.append("Context bound reached; evidence was not silently discarded.")
                     break
                 try:
+                    stage = "budget"
                     reservation = budget.reserve(pass_id=pass_id, payload=payload, max_output_tokens=limits.max_output_tokens)
                 except BudgetExhausted as exc:
                     status = "budget_exhausted"
                     error = str(exc)
                     break
+                stage = "journal"
                 _append_event(journal_path, {"event": "call_started", "index": index + 1, "invocation_id": reservation.invocation_id, "reserved_usd": reservation.reserved_usd, "payload": payload})
                 completion = None
+                accounted = False
                 try:
+                    stage = "transport"
                     completion = transport.complete(messages, max_output_tokens=limits.max_output_tokens, schema=schema)
                     if not isinstance(completion, ModelCompletion) or not isinstance(completion.content, str):
                         raise InvestigatorError("transport returned an invalid completion")
                     _append_event(journal_path, {"event": "call_completed", "index": index + 1, "invocation_id": reservation.invocation_id, "completion": completion.__dict__})
+                    stage = "usage"
                     input_count = _token_count(completion.input_tokens, "input tokens")
                     output_count = _token_count(completion.output_tokens, "output tokens")
-                    if input_count is not None and input_count > reservation.input_token_bound:
-                        raise InvestigatorError("provider input usage exceeded conservative reservation")
-                    if output_count is not None and output_count > reservation.output_token_bound:
-                        raise InvestigatorError("provider output usage exceeded requested bound")
                     input_known = input_known and input_count is not None
                     output_known = output_known and output_count is not None
                     input_tokens += input_count or 0
                     output_tokens += output_count or 0
                     completions.append(completion)
+                    stage = "accounting"
+                    budget.finish(reservation, completion, failed=False)
+                    accounted = True
+                    stage = "usage_bound"
+                    if input_count is not None and input_count > reservation.input_token_bound:
+                        raise InvestigatorError("provider input usage exceeded conservative reservation")
+                    if output_count is not None and output_count > reservation.output_token_bound:
+                        raise InvestigatorError("provider output usage exceeded requested bound")
+                    stage = "model"
                     if completion.returned_model is not None and completion.returned_model != model:
                         raise InvestigatorError("provider returned a different model; fallback is forbidden")
                     if len(completion.content.encode("utf-8")) > _MAX_RESPONSE_BYTES:
                         raise InvestigatorError("completion exceeds response bound")
+                    stage = "action"
                     action = _parse_action(completion.content)
-                    budget.finish(reservation, completion, failed=False)
-                except Exception:
-                    budget.finish(reservation, completion if isinstance(completion, ModelCompletion) else None, failed=True)
+                except Exception as exc:
+                    if not accounted:
+                        error_usage = exc.observed_usage if isinstance(exc, InvestigatorError) else None
+                        if completion is None and error_usage is not None:
+                            input_count = _token_count(error_usage[0], "input tokens")
+                            output_count = _token_count(error_usage[1], "output tokens")
+                            input_known = input_known and input_count is not None
+                            output_known = output_known and output_count is not None
+                            input_tokens += input_count or 0
+                            output_tokens += output_count or 0
+                            observed_failed_calls += 1
+                            if (
+                                input_count is not None and input_count > reservation.input_token_bound
+                            ) or (
+                                output_count is not None and output_count > reservation.output_token_bound
+                            ):
+                                stage = "usage_bound"
+                        budget.finish(
+                            reservation, completion if isinstance(completion, ModelCompletion) else None,
+                            failed=True, observed_usage=error_usage,
+                        )
+                        if completion is None and error_usage is not None:
+                            _append_event(journal_path, {
+                                "event": "provider_error_usage", "invocation_id": reservation.invocation_id,
+                                "input_tokens": input_count, "output_tokens": output_count,
+                            })
                     raise
 
                 messages.append({"role": "assistant", "content": completion.content})
                 if action.action == "conclude":
+                    stage = "conclusion"
                     if not tool_requests or not primary_inspected:
                         raise InvestigatorError("conclude requires a real tool request and inspected primary evidence")
                     finding = action.finding
                     assert finding is not None
+                    stage = "citation"
                     tools.validate_finding(finding)
+                    stage = "conclusion"
                     if finding.disposition != "inconclusive" and not any(
                         citation.record_id in primary_ids for citation in finding.evidence
                     ):
@@ -653,6 +805,7 @@ def investigate(
                     status = "inconclusive" if finding.disposition == "inconclusive" else "completed"
                     _append_event(journal_path, {"event": "conclusion_validated", "finding": finding.model_dump(mode="json")})
                     break
+                stage = "tool"
                 if action.action == "read_steps":
                     assert action.trial_key is not None and action.start is not None and action.end is not None
                     result = tools.read_steps(action.trial_key, action.start, action.end)
@@ -678,11 +831,11 @@ def investigate(
             status = "failed"
             finding = None
             # Do not persist arbitrary exception text: transports may embed API credentials.
-            error = f"investigation rejected ({type(exc).__name__})"
-            _append_event(journal_path, {"event": "request_failed", "reason": error})
+            error = f"investigation_{stage}_failed"
+            _append_event(journal_path, {"event": "request_failed", "reason": error, "stage": stage, "exception_type": type(exc).__name__})
 
         calls, reserved = budget.totals(pass_id)
-        if calls != len(completions):
+        if calls != len(completions) + observed_failed_calls:
             input_known = output_known = False
         report = InvestigationReport(
             case_id=case.case_id, snapshot_id=case.snapshot_id, model=model,

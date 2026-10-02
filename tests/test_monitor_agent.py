@@ -458,10 +458,11 @@ def _provider_value(*, usage=None, message=None, finish="stop"):
     return value
 
 
-def _http_transport(opener, *, disable_thinking=False):
+def _http_transport(opener, *, disable_thinking=False, response_format="json_schema"):
     transport = OpenAIInvestigator(
         endpoint="https://provider.example/v1", model="explicit-model", api_key="synthetic-key",
         disable_thinking=disable_thinking,
+        response_format=response_format,
     )
     transport._opener = opener
     return transport
@@ -636,3 +637,150 @@ def test_provider_that_ignores_disabled_thinking_fails_without_retry():
             [{"role": "user", "content": "data"}], max_output_tokens=128, schema={},
         )
     assert opener.calls == 1
+
+
+@pytest.mark.parametrize("mode", ["json_schema", "json_object"])
+def test_explicit_output_mode_reserves_exact_payload_and_rejects_reuse_under_other_mode(tmp_path, mode):
+    corpus, case, _ = _fixtures()
+    opener = _Opener(_provider_value())
+    transport = _http_transport(opener, response_format=mode)
+    budget = _budget(tmp_path / "spend.jsonl")
+    report = investigate(case, corpus, transport=transport, budget=budget, work_dir=tmp_path / "analysis", limits=InvestigationLimits(max_calls=1))
+    assert report.status == "inconclusive"
+    journal = [json.loads(line) for line in (tmp_path / "analysis/journal.jsonl").read_text().splitlines()]
+    reserved_payload = next(event["payload"] for event in journal if event["event"] == "call_started")
+    assert opener.payload == reserved_payload
+    assert opener.payload["response_format"]["type"] == mode
+    if mode == "json_object":
+        schema_message = opener.payload["messages"][0]
+        assert schema_message["role"] == "system"
+        schema = json.loads(schema_message["content"].split(": ", 1)[1])
+        assert set(schema["properties"]["action"]["enum"]) == {"read_steps", "search", "related", "conclude"}
+        assert opener.payload["response_format"] == {"type": "json_object"}
+    started = next(record for record in CallLedger(budget.path).records() if record.event == "started")
+    raw = json.dumps(opener.payload, ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode()
+    assert json.loads(started.reason)["input_token_bound"] == len(raw) + 1024
+    before = budget.totals()
+    transport.response_format = "json_object" if mode == "json_schema" else "json_schema"
+    with pytest.raises(ValueError):
+        investigate(case, corpus, transport=transport, budget=budget, work_dir=tmp_path / "analysis", limits=InvestigationLimits(max_calls=1))
+    assert opener.calls == 1 and budget.totals() == before
+
+
+def test_output_mode_never_falls_back_after_provider_failure():
+    opener = _Opener(urllib.error.HTTPError("https://provider.example", 400, "unsupported", {}, None))
+    transport = _http_transport(opener, response_format="json_schema")
+    with pytest.raises(InvestigatorError):
+        transport.complete([{"role": "user", "content": "data"}], max_output_tokens=128, schema={})
+    assert opener.calls == 1 and transport.response_format == "json_schema"
+
+
+@pytest.mark.parametrize("dimension", ["input", "output", "partial_output"])
+def test_observed_usage_breach_is_accounted_and_holds_all_later_cases_after_restart(tmp_path, dimension):
+    corpus, positive, benign = _fixtures()
+    path = tmp_path / "spend.jsonl"
+    input_tokens = 1_000_000 if dimension == "input" else None if dimension == "partial_output" else 30
+    output_tokens = 20 if dimension == "input" else 3000
+    budget = _budget(path)
+    first = investigate(positive, corpus, transport=_Scripted([
+        _read(positive.primary_trial),
+    ], input_tokens=input_tokens, output_tokens=output_tokens), budget=budget, work_dir=tmp_path / "positive")
+    assert first.status == "failed" and first.error == "investigation_usage_bound_failed"
+    assert first.input_tokens == input_tokens and first.output_tokens == output_tokens
+    expected_cost = budget.usage_cost(input_tokens, output_tokens) if input_tokens is not None else None
+    assert first.estimated_usage_usd == expected_cost
+    hold = json.loads(budget.hold_path.read_text())
+    assert hold["reason"] == "usage_bound_breach"
+    assert hold["observed"] == {"input_tokens": input_tokens, "output_tokens": output_tokens, "estimated_usage_usd": expected_cost}
+    failed = next(record for record in CallLedger(path).records() if record.event == "failed")
+    observed = json.loads(failed.reason)["observed"]
+    assert observed == hold["observed"]
+    if input_tokens is not None:
+        assert failed.usage.input_tokens == input_tokens and failed.usage.output_tokens == output_tokens
+    else:
+        assert failed.usage is None
+    before = budget.totals()
+    next_transport = _Scripted([])
+    second = investigate(benign, corpus, transport=next_transport, budget=_budget(path), work_dir=tmp_path / "benign")
+    assert second.status == "budget_exhausted"
+    assert second.error == "budget_on_hold_usage_bound_breach"
+    assert second.calls == 0 and next_transport.requests == []
+    assert _budget(path).totals() == before
+
+
+@pytest.mark.parametrize("stage", ["transport", "action", "citation"])
+def test_failure_stage_codes_are_diagnostic_without_exception_secrets(tmp_path, stage):
+    corpus, case, _ = _fixtures()
+    if stage == "transport":
+        actions = [InvestigatorError("SYNTHETIC-AUTH-SECRET")]
+    elif stage == "action":
+        actions = [{"action": "shell", "command": "execute"}]
+    else:
+        conclusion = _conclusion(case.primary_trial, suspicious=True)
+        conclusion["finding"]["evidence"][0]["quote"] = "A fabricated quote."
+        actions = [_read(case.primary_trial), conclusion]
+    report = investigate(case, corpus, transport=_Scripted(actions), budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis")
+    assert report.status == "failed" and report.error == f"investigation_{stage}_failed"
+    assert "SYNTHETIC-AUTH-SECRET" not in (tmp_path / "analysis/journal.jsonl").read_text()
+    assert "SYNTHETIC-AUTH-SECRET" not in (tmp_path / "analysis/report.json").read_text()
+
+
+@pytest.mark.parametrize("name", ["journal.jsonl", "request.lock", "request.json", "report.json"])
+def test_output_state_symlink_never_mutates_source_target(tmp_path, name):
+    corpus, case, _ = _fixtures()
+    source = tmp_path / "source/trial"
+    source.mkdir(parents=True)
+    target = source / "trajectory.json"
+    target.write_text("IMMUTABLE SOURCE BYTES\\n")
+    primary = corpus.trials[0].model_copy(update={"source_path": str(source)})
+    corpus = corpus.model_copy(update={"trials": (primary, corpus.trials[1])})
+    case = case.model_copy(update={"snapshot_id": corpus.digest})
+    output = tmp_path / "analysis"
+    output.mkdir()
+    (output / name).symlink_to(target)
+    transport = _Scripted([])
+    budget = _budget(tmp_path / "spend.jsonl")
+    with pytest.raises(ValueError, match="symlinks"):
+        investigate(case, corpus, transport=transport, budget=budget, work_dir=output)
+    assert target.read_text() == "IMMUTABLE SOURCE BYTES\\n"
+    assert transport.requests == [] and budget.totals() == (0, 0)
+
+
+@pytest.mark.parametrize("suffix", ["", ".config.json", ".hold.json"])
+def test_budget_state_symlink_is_rejected_without_touching_target(tmp_path, suffix):
+    target = tmp_path / "immutable-source.json"
+    target.write_text("IMMUTABLE SOURCE BYTES\\n")
+    path = tmp_path / "spend.jsonl"
+    Path(str(path) + suffix).symlink_to(target)
+    with pytest.raises(ValueError, match="symlinks"):
+        _budget(path)
+    assert target.read_text() == "IMMUTABLE SOURCE BYTES\\n"
+
+
+@pytest.mark.parametrize("failure", ["truncated", "tool_execution", "invalid_partial_usage"])
+def test_rejected_provider_response_still_preserves_observed_overage_and_holds_budget(tmp_path, failure):
+    corpus, case, _ = _fixtures()
+    input_tokens = None if failure == "invalid_partial_usage" else 30
+    value = _provider_value(usage={
+        "prompt_tokens": -1 if input_tokens is None else input_tokens,
+        "completion_tokens": 3000,
+    })
+    if failure == "truncated":
+        value["choices"][0]["finish_reason"] = "length"
+    elif failure == "tool_execution":
+        value["choices"][0]["message"]["tool_calls"] = [{"type": "function", "function": {"name": "exec"}}]
+    opener = _Opener(value)
+    transport = _http_transport(opener)
+    path = tmp_path / "spend.jsonl"
+    budget = _budget(path)
+    report = investigate(case, corpus, transport=transport, budget=budget, work_dir=tmp_path / "analysis")
+    assert report.status == "failed" and report.error == "investigation_usage_bound_failed"
+    assert report.input_tokens == input_tokens and report.output_tokens == 3000
+    assert budget.hold_path.is_file()
+    assert opener.calls == 1
+    assert not any(
+        json.loads(line)["event"] == "call_completed"
+        for line in (tmp_path / "analysis/journal.jsonl").read_text().splitlines()
+    )
+    with pytest.raises(BudgetExhausted, match="budget_on_hold"):
+        _budget(path).reserve(pass_id="another-case", payload={"max_tokens": 128}, max_output_tokens=128)

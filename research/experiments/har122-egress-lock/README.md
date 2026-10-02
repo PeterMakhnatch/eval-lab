@@ -173,6 +173,19 @@ The ledger runs the validated prefetch variant for both rows
 (`../python-task-ledger/build.py` `PREFETCH`). Validation spend: about $0.01
 of Daytona for the two nops (cap $0.10).
 
+**Resumed check** (`har146-locked-nop.csv`: `task_id, unlocked_nop,
+locked_nop, changed`; every graded trial had the lock applied). All 1,149
+usable tasks ran: 1,141 grade the same, 6 newly change grading under the lock
+(`sound` to `broken_environment`), 0 infra, 0 not run. The two repaired rows
+above grade `sound` locked on their variants (`note` `repaired:<digest12>`).
+The 6 newly changed tasks are found and pending, not repaired in this PR:
+
+| task | grading's network need under the lock |
+|---|---|
+| 002452 (satpy), 002488, 002755 (starlette), 002975 (vyper) | `pip install` during verification, the same kind as 000450 |
+| 002078 (numpy) | `meson compile` failed during verification |
+| 002289 (guillotina) | ImportError loading conftest; cause not yet established |
+
 ## What the block cuts off
 
 Everything outbound, for the agent and the verifier. What an agent might legitimately need:

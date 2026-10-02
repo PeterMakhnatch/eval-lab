@@ -289,3 +289,64 @@ def test_n_families_reported():
     out = score_monitor_reports(labels, [])
     assert out["n_families"] == 2
     assert set(out["by_family"]) == {"fA", "fB"}
+
+
+def test_inconclusive_missing_failed_abstained_stay_unscored():
+    labels = [
+        make_label("c1", "s1", "positive"),
+        make_label("c2", "s2", "inconclusive"),
+        make_label("c3", "s3", "inconclusive"),
+        make_label("c4", "s4", "inconclusive"),
+    ]
+    reports = [
+        make_report("c1", "s1", "suspicious"),  # tp
+        # c2 has no report -> unscored missing
+        make_report("c3", "s3", status="failed"),  # unscored error
+        make_report("c4", "s4", "inconclusive"),  # unscored abstention
+    ]
+    out = score_monitor_reports(labels, reports)
+    overall = out["overall"]
+    assert overall["tp"] == 1
+    assert overall["n_missing"] == 0
+    assert overall["n_errors"] == 0
+    assert overall["n_abstentions"] == 0
+    assert overall["n_inconclusive_labels"] == 3
+    assert out["n_missing_total"] == 1
+    assert out["missing_unscored"] == [{"case_id": "c2", "snapshot_id": "s2"}]
+    assert overall["coverage"] == pytest.approx(1.0)
+    assert overall["coverage_denom"] == 1
+    assert overall["missing_fraction"] == pytest.approx(0.0)
+    assert overall["missing_fraction_denom"] == 1
+    rows = {c["case_id"]: c for c in out["cases"]}
+    assert rows["c2"]["outcome"] == "unscored_inconclusive"
+    assert rows["c2"]["report_present"] is False
+    assert rows["c2"]["report_status"] is None
+    assert rows["c3"]["report_present"] is True
+    assert rows["c3"]["report_status"] == "failed"
+    assert rows["c3"]["predicted"] is None
+    assert rows["c4"]["report_status"] == "completed"
+    assert rows["c4"]["predicted"] is None
+
+
+def test_mixed_provenance_split_and_family_flagged():
+    labels = [
+        make_label("h1", "s1", "positive", provenance="human", family="fA", split="test"),
+        make_label("m1", "s2", "negative", provenance="model", family="fB", split="test"),
+    ]
+    reports = [
+        make_report("h1", "s1", "suspicious"),
+        make_report("m1", "s2", "not_supported"),
+    ]
+    out = score_monitor_reports(labels, reports)
+    split = out["by_split"]["test"]
+    assert split["provenance_counts"] == {"human": 1, "synthetic": 0, "model": 1}
+    assert split["pooled_provenance"] is True
+    assert split["not_human_evidence"] is True
+    assert out["by_family"]["fA"]["pooled_provenance"] is False
+    assert out["by_family"]["fA"]["not_human_evidence"] is False
+    assert out["overall"]["pooled_provenance"] is True
+    assert out["overall"]["not_human_evidence"] is True
+    human_only = score_monitor_reports([make_label("h1", "s1", "positive")], [make_report("h1", "s1", "suspicious")])
+    assert human_only["overall"]["pooled_provenance"] is False
+    assert human_only["overall"]["not_human_evidence"] is False
+    assert human_only["overall"]["provenance_counts"] == {"human": 1, "synthetic": 0, "model": 0}

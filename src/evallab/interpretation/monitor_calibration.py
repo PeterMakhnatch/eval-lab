@@ -21,15 +21,21 @@ in a separate invocation rather than inflating rates), and a ``family``
 must not cross ``development`` / ``validation`` / ``test`` splits (a
 mixed-split family would make held-out claims misleading).
 
-Per labeled case outcome taxonomy (decisive labels only, i.e. positive
-or negative; ``inconclusive`` labels are never scored):
+Per labeled case outcome taxonomy. ``inconclusive`` labels are branched off
+first: they stay auditable as ``unscored_inconclusive`` rows carrying report
+availability and status, but never enter confusion, missing, error or
+abstention counts. All scored outcomes below apply to decisive labels
+(positive or negative) only:
 
 - ``tp`` / ``tn`` / ``fp`` / ``fn`` — decisive prediction vs decisive label.
 - ``abstention`` — matched report with no usable verdict (no finding,
   ``inconclusive`` disposition/status, or ``budget_exhausted``).
 - ``error`` — matched report with ``status == "failed"``, or
   ``status == "completed"`` with no finding (invalid completed report).
-- ``missing`` — no report with the exact ``(case_id, snapshot_id)``.
+- ``missing`` — decisive label with no report under the exact
+  ``(case_id, snapshot_id)``. ``n_missing_total`` counts every label without
+  a report including unscored ones; ``missing_unscored`` lists the unscored
+  subset.
 
 Metric conventions:
 
@@ -39,19 +45,20 @@ Metric conventions:
 - Precision = TP / (TP + FP); selective FPR = FP / (FP + TN) over decisive
   predictions only; all-negatives FPR = FP / (all negative labels,
   including abstained, errored and missing negatives). Coverage, abstention,
-  error and missing fractions expose how much of the label set never received
-  a decisive verdict, so non-reviewed negatives cannot hide behind the
+  error and missing fractions share the decisive-label denominator, so the
+  four fractions sum to 1; non-reviewed negatives cannot hide behind the
   selective FPR. All ratios are ``None`` — never zero-filled — when their
   denominator is 0.
 - Wilson intervals assume independent cases. Cases sharing a family are
   correlated, so intervals are descriptive summaries of the observed rates,
   not calibrated guarantees; ``n_families`` reports how many distinct
   families the label set spans.
-- Provenance strata (``human`` / ``synthetic`` / ``model``) are computed
-  independently and never pooled: ``by_provenance["human"]`` (also
-  exposed as ``human_only``) contains only human-labeled cases. The
-  ``overall`` block pools provenances and is explicitly marked as mixed;
-  it MUST NOT be cited as human ground-truth evidence.
+- Every metric block carries ``provenance_counts`` plus computed
+  ``pooled_provenance`` (more than one provenance represented) and
+  ``not_human_evidence`` (any synthetic/model label present) flags, so
+  mixed ``by_split`` / ``by_family`` / ``overall`` blocks cannot be mistaken
+  for human ground truth. Cross ``by_provenance_and_split`` strata stay
+  available for unpooled inspection.
 """
 
 from __future__ import annotations
@@ -177,6 +184,9 @@ def _classify_report(report: InvestigationReport, category: str) -> str:
 def _empty_counts() -> dict[str, int]:
     return {
         "n_labels": 0,
+        "n_human": 0,
+        "n_synthetic": 0,
+        "n_model": 0,
         "n_positive": 0,
         "n_negative": 0,
         "n_inconclusive_labels": 0,
@@ -191,9 +201,13 @@ def _empty_counts() -> dict[str, int]:
 
 
 def _stratum_metrics(counts: dict[str, int]) -> dict[str, Any]:
-    """Attach ratios, Wilson intervals and verdict-coverage fractions to counts."""
+    """Attach ratios, Wilson intervals and verdict-coverage fractions to counts.
+
+    Missing, error and abstention counts — and therefore their fractions —
+    cover decisive labels only, sharing the coverage denominator, so
+    coverage + abstention + error + missing fractions sum to 1.
+    """
     tp, fp, fn, tn = counts["tp"], counts["fp"], counts["fn"], counts["tn"]
-    n_labels = counts["n_labels"]
     decisive = tp + fp + fn + tn
     decisive_labels = counts["n_positive"] + counts["n_negative"]
     precision_denom = tp + fp
@@ -201,8 +215,17 @@ def _stratum_metrics(counts: dict[str, int]) -> dict[str, Any]:
     conservative_denom = counts["n_positive"]
     fpr_selective_denom = fp + tn
     fpr_all_negatives_denom = counts["n_negative"]
+    provenance_counts = {
+        "human": counts["n_human"],
+        "synthetic": counts["n_synthetic"],
+        "model": counts["n_model"],
+    }
+    base = {k: v for k, v in counts.items() if k not in ("n_human", "n_synthetic", "n_model")}
     return {
-        **counts,
+        **base,
+        "provenance_counts": provenance_counts,
+        "pooled_provenance": sum(1 for v in provenance_counts.values() if v > 0) > 1,
+        "not_human_evidence": (provenance_counts["synthetic"] + provenance_counts["model"]) > 0,
         "precision": _ratio(tp, precision_denom),
         "precision_denom": precision_denom,
         "precision_ci95": _wilson_interval(tp, precision_denom),
@@ -221,15 +244,15 @@ def _stratum_metrics(counts: dict[str, int]) -> dict[str, Any]:
         "coverage": _ratio(decisive, decisive_labels),
         "coverage_denom": decisive_labels,
         "coverage_ci95": _wilson_interval(decisive, decisive_labels),
-        "abstention_fraction": _ratio(counts["n_abstentions"], n_labels),
-        "abstention_fraction_denom": n_labels,
-        "abstention_fraction_ci95": _wilson_interval(counts["n_abstentions"], n_labels),
-        "error_fraction": _ratio(counts["n_errors"], n_labels),
-        "error_fraction_denom": n_labels,
-        "error_fraction_ci95": _wilson_interval(counts["n_errors"], n_labels),
-        "missing_fraction": _ratio(counts["n_missing"], n_labels),
-        "missing_fraction_denom": n_labels,
-        "missing_fraction_ci95": _wilson_interval(counts["n_missing"], n_labels),
+        "abstention_fraction": _ratio(counts["n_abstentions"], decisive_labels),
+        "abstention_fraction_denom": decisive_labels,
+        "abstention_fraction_ci95": _wilson_interval(counts["n_abstentions"], decisive_labels),
+        "error_fraction": _ratio(counts["n_errors"], decisive_labels),
+        "error_fraction_denom": decisive_labels,
+        "error_fraction_ci95": _wilson_interval(counts["n_errors"], decisive_labels),
+        "missing_fraction": _ratio(counts["n_missing"], decisive_labels),
+        "missing_fraction_denom": decisive_labels,
+        "missing_fraction_ci95": _wilson_interval(counts["n_missing"], decisive_labels),
     }
 
 
@@ -258,8 +281,10 @@ def score_monitor_reports(
     Returns:
         A JSON-serializable dict with ``overall``, ``human_only``,
         ``by_provenance``, ``by_split``, ``by_provenance_and_split`` and
-        ``by_family`` metric blocks, plus ``missing``, ``extra_reports``,
-        ``mismatches`` and per-case ``cases`` audit rows.
+        ``by_family`` metric blocks, plus scorable ``missing``,
+        ``missing_unscored`` / ``n_missing_total`` (total including
+        unscored), ``extra_reports``, ``mismatches`` and per-case
+        ``cases`` audit rows.
     """
     if category not in _CATEGORIES:
         raise ValueError(f"unknown category: {category!r}")
@@ -276,6 +301,8 @@ def score_monitor_reports(
     by_family: dict[str, dict[str, int]] = {}
 
     missing: list[dict[str, str]] = []
+    missing_unscored: list[dict[str, str]] = []
+    n_missing_total = 0
     mismatches: list[dict[str, str]] = []
     cases: list[dict[str, Any]] = []
 
@@ -286,6 +313,7 @@ def score_monitor_reports(
         buckets = (overall, by_provenance[row["provenance"]], by_split[row["split"]], px_counts, family_counts)
         for bucket in buckets:
             bucket["n_labels"] += 1
+            bucket[f"n_{row['provenance']}"] += 1
         if row["label"] == "positive":
             for bucket in buckets:
                 bucket["n_positive"] += 1
@@ -297,6 +325,22 @@ def score_monitor_reports(
                 bucket["n_inconclusive_labels"] += 1
 
         report = by_report.get(identity)
+        if report is None:
+            n_missing_total += 1
+        if row["label"] == "inconclusive":
+            # No ground truth: auditable but never entering confusion,
+            # missing, error or abstention counts.
+            if report is None:
+                missing_unscored.append({"case_id": row["case_id"], "snapshot_id": row["snapshot_id"]})
+                cases.append({**{k: row[k] for k in ("case_id", "snapshot_id", "label", "provenance", "family", "split")}, "outcome": "unscored_inconclusive", "report_present": False, "report_status": None, "predicted": None})
+            else:
+                verdict = _classify_report(report, category)
+                predicted = None
+                if verdict in ("flag", "no_flag"):
+                    predicted = "positive" if verdict == "flag" else "negative"
+                cases.append({**{k: row[k] for k in ("case_id", "snapshot_id", "label", "provenance", "family", "split")}, "outcome": "unscored_inconclusive", "report_present": True, "report_status": report.status, "predicted": predicted})
+            continue
+
         if report is None:
             for bucket in buckets:
                 bucket["n_missing"] += 1
@@ -313,12 +357,6 @@ def score_monitor_reports(
             continue
 
         predicted_positive = verdict == "flag"
-        if row["label"] == "inconclusive":
-            # Inconclusive labels carry no ground truth; record the
-            # prediction for audit without entering any confusion count.
-            cases.append({**{k: row[k] for k in ("case_id", "snapshot_id", "label", "provenance", "family", "split")}, "outcome": "unscored_inconclusive", "predicted": "positive" if predicted_positive else "negative"})
-            continue
-
         if row["label"] == "positive":
             outcome = "tp" if predicted_positive else "fn"
         else:
@@ -351,17 +389,15 @@ def score_monitor_reports(
         "n_reports": len(by_report),
         "n_matched": len(label_identities & set(by_report)),
         "n_missing": len(missing),
+        "n_missing_total": n_missing_total,
         "n_extra": len(extra_reports),
         "n_errors": overall["n_errors"],
         "n_abstentions": overall["n_abstentions"],
         "missing": missing,
+        "missing_unscored": missing_unscored,
         "extra_reports": extra_reports,
         "mismatches": mismatches,
-        "overall": {
-            **_stratum_metrics(overall),
-            "pooled_provenance": True,
-            "not_human_evidence": True,
-        },
+        "overall": _stratum_metrics(overall),
         "human_only": provenance_metrics["human"],
         "by_provenance": provenance_metrics,
         "by_split": {key: _stratum_metrics(counts) for key, counts in by_split.items()},

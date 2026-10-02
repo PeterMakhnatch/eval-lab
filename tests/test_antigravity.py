@@ -328,7 +328,8 @@ def test_stream_trajectory_ingests_nonzero_facts(tmp_path: Path) -> None:
     preamble_result = cohort._paired_results(
         preamble_members, preamble_comparison, preamble_warnings
     )[0]
-    assert preamble_result["rankable"] is True
+    assert preamble_result["rankable"] is False
+    assert preamble_result["paired_exact_p_value"] == 0.5
     missing_content = [
         replace(
             item,

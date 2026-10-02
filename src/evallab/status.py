@@ -305,6 +305,7 @@ def _queue_items(
     *,
     empty_label: str,
     kind: str,
+    watch_root: Path | None = None,
 ) -> tuple[Availability, list[StatusItem]]:
     items: list[StatusItem] = []
     for state in states:
@@ -319,11 +320,20 @@ def _queue_items(
                     )
                 )
                 continue
+            detail = f"{state} {spec.task} agent={spec.agent}"
+            # HAR-162: running jobs show their dispatch-attached watch
+            # output (alert count plus the latest critical rule, if any).
+            if state == "running" and watch_root is not None:
+                from evallab import auto_watch as _auto_watch
+
+                suffix = _auto_watch.watch_status_suffix(watch_root / spec.jobs_dir / spec.name)
+                if suffix is not None:
+                    detail = f"{detail}; {suffix}"
             items.append(
                 StatusItem(
                     availability="observed",
                     label=spec.name,
-                    detail=f"{state} {spec.task} agent={spec.agent}",
+                    detail=detail,
                     kind=kind,
                     experiment_id=spec.spec_id,
                 )
@@ -462,6 +472,7 @@ def build_status_snapshot(
         ("approved", "running"),
         empty_label="no approved or running work",
         kind="current",
+        watch_root=layout.root,
     )
     next_availability, next_items = _queue_items(
         entries,

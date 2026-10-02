@@ -9,7 +9,12 @@ audience:
 
 `evallab watch` reads Harbor trial directories **while runs are in progress**
 and raises deterministic alerts. It is strictly read-only: it never touches
-`runner.py`, the model proxy, or any trial file. Terminus-2 rewrites
+`runner.py`, the model proxy, or any trial file. Since HAR-162 dispatch
+attaches it automatically: every agent job gets a watch for the whole run
+(`nop`/`oracle` controls are skipped), alerts land in
+`<job>/watch/alerts.jsonl`, and the job page plus `evallab status` render
+them with no manual step. A watcher that fails never fails the job; the
+failure is recorded as a `watcher_error` alert. Terminus-2 rewrites
 `agent/trajectory.json` after every episode, so trajectories are
 live-readable; `result.json` appears only when the trial finishes.
 
@@ -36,6 +41,10 @@ unchanged. `--limits-from-config` reads token limits from the trial/job
 - `--notify-lin HAR-NNN` (off by default) posts one batched `lin comment`
   with new high/medium alerts, at most every 15 minutes (shared Linear rate
   limit). Tests never call `lin`.
+- Auto-attached dispatch watches notify only when the spec opts in with
+  `watch_notify_lin: true` (requires `linear_card`): critical alerts
+  (stall, infra spike, spend) are posted to that card, each kind at most
+  once per job. Off by default.
 
 ## Signals per trial
 

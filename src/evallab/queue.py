@@ -1307,6 +1307,9 @@ class Executor:
         parallel: int = 1,
         capacity: DispatchCapacity | None = None,
         modal_teardown: ModalTeardownHook | None = None,
+        watch_enabled: bool = True,
+        watch_interval_seconds: float = 60.0,
+        notify_runner: Callable[..., Any] | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -1334,6 +1337,11 @@ class Executor:
         self.parallel = parallel
         self.capacity = capacity
         self._modal_teardown = modal_teardown
+        if watch_interval_seconds <= 0:
+            raise ValueError("watch_interval_seconds must be positive")
+        self._watch_enabled = watch_enabled
+        self._watch_interval_seconds = watch_interval_seconds
+        self._notify_runner = notify_runner
         self.last_tick_reason: str | None = None
 
     def _repo_headroom(self, agent: str) -> Headroom:
@@ -1436,16 +1444,12 @@ class Executor:
                     pass
         agent_res = trial.result.get("agent_result")
         exit_code = (
-            agent_res.get("exit_code")
-            if isinstance(agent_res, dict)
-            else None
+            agent_res.get("exit_code") if isinstance(agent_res, dict) else None
         ) or trial.result.get("exit_code")
         if exit_code is not None and exit_code != 0 and not has_valid_atif:
             task_success = False
         else:
-            task_success = (
-                trial.primary_reward == 1.0 if trial.primary_reward is not None else None
-            )
+            task_success = trial.primary_reward == 1.0 if trial.primary_reward is not None else None
         bundle = TrialEvidenceBundle(
             settlement=PlatformSettlement(
                 job_id=job.id,
@@ -1817,7 +1821,9 @@ class Executor:
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
                 state = "waiting" if deferred else "failed"
-                self._report_progress(f"{state} {spec.name} ({failure.reason_code}); state: {state}")
+                self._report_progress(
+                    f"{state} {spec.name} ({failure.reason_code}); state: {state}"
+                )
             else:
                 failure = self._settle_post_run(
                     job_dir,
@@ -1936,9 +1942,7 @@ class Executor:
                     break
                 if self._dispatch_one(path, spec, authorizations, credentials):
                     dispatched += 1
-            self._maybe_stop_selfhosted_app(
-                running_before, [spec for _, spec in approved_specs]
-            )
+            self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
         dispatched = 0
         with ThreadPoolExecutor(max_workers=parallel) as pool:
@@ -1949,9 +1953,7 @@ class Executor:
             for future in futures:
                 if future.result():
                     dispatched += 1
-        self._maybe_stop_selfhosted_app(
-            running_before, [spec for _, spec in approved_specs]
-        )
+        self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
         return dispatched
 
     def _maybe_stop_selfhosted_app(
@@ -2266,6 +2268,27 @@ class Executor:
         return job_dir
 
     def _run_with_transient_retries(
+        self,
+        spec: ExperimentSpec,
+        request: RunRequest,
+    ) -> Path:
+        # HAR-162: every agent job gets a read-only live watch, stopped on
+        # every terminal path (success, failure, cancel) in the finally.
+        # Model-free agents are skipped inside; watch faults never fail here.
+        from evallab import auto_watch as _auto_watch
+
+        watch = _auto_watch.start_for_request(
+            request,
+            enabled=self._watch_enabled,
+            interval_seconds=self._watch_interval_seconds,
+            notify_runner=self._notify_runner,
+        )
+        try:
+            return self._run_with_transient_retries_watched(spec, request)
+        finally:
+            _auto_watch.stop_auto_watch(watch, notify_runner=self._notify_runner)
+
+    def _run_with_transient_retries_watched(
         self,
         spec: ExperimentSpec,
         request: RunRequest,

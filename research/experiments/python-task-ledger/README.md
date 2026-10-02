@@ -25,7 +25,8 @@ judgment-based discards to `usable`.
 | heldout | 132 | 0 | 1 | 0 | 133 |
 | all | 1149 | 0 | 31 | 0 | 1180 |
 
-- **usable 1149:** 850 run the original, 189 a leak-closed variant (`pypi_fix_released`), 110 a validated repair variant.
+- **usable 1149:** 848 run the original, 189 a leak-closed variant (`pypi_fix_released`), 112 a validated repair variant.
+  - Two of the repairs are HAR-146 `env-prefetch-network@1` variants: the census nop (no lock) is sound on the original, but grading needs the network the mandatory egress lock blocks, so the row runs the prefetch variant (000450 hera, 002978 kwave).
   - The leak-closed variants only add PyPI hosts to the `/etc/hosts` blocklist, which a root agent can rewrite. They are not a leak guarantee; network isolation is.
 - **discarded 31:**
   - 18 broken environments (census nop) with no validated repair; for 8 a repair was tried and its nop rejected it;

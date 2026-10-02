@@ -292,6 +292,13 @@ def _provider_name() -> str:
     return name
 
 
+def _mimo_sampling() -> dict[str, float | int]:
+    profile = os.environ.get("EVALLAB_MIMO_SAMPLING_PROFILE", "generation-config")
+    if profile not in {"generation-config", "xiaomi-rl"}:
+        raise ValueError(f"unknown MiMo sampling profile {profile!r}")
+    return {"temperature": 1.0 if profile == "xiaomi-rl" else 0.6, "top_p": 0.95, "top_k": 20}
+
+
 def _profile() -> dict[str, Any]:
     return PROVIDERS[_provider_name()]
 
@@ -1054,6 +1061,7 @@ class TrialBudget:
         requested_model: str,
         rates: tuple[int, int],
         shaping_applied: bool = False,
+        sampling: dict[str, float | int] | None = None,
     ) -> int | None:
         with self._lock:
             self._freeze_pricing_locked(rates)
@@ -1084,6 +1092,7 @@ class TrialBudget:
                 "requested_model": requested_model,
                 "_reserved_at_mono": time.monotonic(),
                 **({"shaping_applied": True} if shaping_applied else {}),
+                **({"sampling": sampling} if sampling is not None else {}),
             }
             self._calls.append(call)
             self._sequence += 1
@@ -1593,6 +1602,7 @@ class Handler(BaseHTTPRequestHandler):
                 requested_model=full_model,
                 rates=rates,
                 shaping_applied=_provider_name() in _SHAPED_PROVIDERS,
+                sampling=_mimo_sampling() if _provider_name() == "mimo_selfhosted" else None,
             )
         except (OSError, ValueError):
             self._reject(503, b"budget accounting unavailable\n")
@@ -1633,24 +1643,17 @@ class Handler(BaseHTTPRequestHandler):
         if requested_stream:
             forwarded["stream_options"] = {"include_usage": True}
         if _provider_name() == "mimo_selfhosted":
-            # Proxy-enforced generation_config for the self-hosted MiMo
-            # route only. SGLang's ``mimo`` reasoning parser only splits
-            # ``<think>`` when enable_thinking=True; without it reasoning
-            # lands in content and breaks Terminus JSON. Values mirror
-            # MIMO_SELFHOSTED_* in execution_contracts.py (this standalone
-            # script cannot import it). reasoning_effort — e.g. the HAR-81
-            # student's "none", top-level or inside chat_template_kwargs —
-            # would map into thinking modes that silently disable MiMo
-            # thinking, so it is stripped in both places.
+            # Sampling is pinned by the supervisor's harness profile, never
+            # caller kwargs. Default generation_config remains T=0.6; native
+            # Xiaomi uses the RL recipe's T=1.0/top_p=.95/top_k=20.
+            # Thinking must stay enabled for the mimo reasoning parser.
             forwarded.pop("reasoning_effort", None)
             template = forwarded.get("chat_template_kwargs")
             template = dict(template) if isinstance(template, dict) else {}
             template.pop("reasoning_effort", None)
             template["enable_thinking"] = True
             forwarded["chat_template_kwargs"] = template
-            forwarded["temperature"] = 0.6
-            forwarded["top_p"] = 0.95
-            forwarded["top_k"] = 20
+            forwarded.update(_mimo_sampling())
         if _provider_name() == "openrouter":
             # Proxy-enforced request shaping for the OpenRouter route only.
             # The model's provider pin fixes which upstream endpoint serves

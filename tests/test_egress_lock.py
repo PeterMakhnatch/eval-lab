@@ -446,3 +446,56 @@ def test_nop_locks_on_the_verifier_first_exec(tmp_path: Path) -> None:
     assert record["requested"] is True
     assert record["applied"] is True
     assert record["network_block_all"] is True
+
+
+# --- admission reservation is released once Daytona's async delete lands -----
+
+
+class _DeletingGuard:
+    """Daytona answers for the sandbox a few polls after ``delete``, then 404s."""
+
+    def __init__(self, polls_until_gone: int | None) -> None:
+        self.polls_until_gone = polls_until_gone
+        self.polls = 0
+        self.released: list[str] = []
+
+    def sandbox_missing(self, sandbox_id: str) -> bool:
+        self.polls += 1
+        return self.polls_until_gone is not None and self.polls > self.polls_until_gone
+
+    def release(self, name: str) -> None:
+        self.released.append(name)
+
+
+def _stopping_env(tmp_path: Path, guard: _DeletingGuard) -> BoundedDaytonaEnvironment:
+    trial_dir = tmp_path / "trial"
+    trial_dir.mkdir()
+    env = _env(trial_dir, locked=False)
+    env._daytona_monitor = None
+    env._daytona_guard = guard
+    env._daytona_sandbox_name = "evallab-res"
+    env._daytona_usage = {"schema_version": 1}
+    env._sandbox = SimpleNamespace(id="sbx-del", network_block_all=False)
+    return env
+
+
+def test_stop_releases_reservation_after_async_delete(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("evallab.harbor_daytona.DAYTONA_RELEASE_POLL_SECONDS", 0)
+    guard = _DeletingGuard(polls_until_gone=2)
+    env = _stopping_env(tmp_path, guard)
+    asyncio.run(env.stop(delete=True))
+    assert guard.polls == 3
+    assert guard.released == ["evallab-res"]
+
+
+def test_stop_keeps_reservation_while_sandbox_still_answers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("evallab.harbor_daytona.DAYTONA_RELEASE_POLL_SECONDS", 0)
+    monkeypatch.setattr("evallab.harbor_daytona.DAYTONA_RELEASE_WAIT_SECONDS", 0)
+    guard = _DeletingGuard(polls_until_gone=None)
+    env = _stopping_env(tmp_path, guard)
+    asyncio.run(env.stop(delete=True))
+    assert guard.released == []

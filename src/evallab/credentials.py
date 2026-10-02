@@ -19,6 +19,7 @@ from pathlib import Path
 from evallab.execution_contracts import (
     GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
+    MIMO_AGENT,
     OPENCODE_AUTH_RELATIVE_PATH,
     RLM_AGENT,
     TERMINUS_AGENT,
@@ -67,6 +68,7 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     ("mini-swe-agent", GLM_SELFHOSTED_FT_MODEL_SELECTOR): GLM_SELFHOSTED_API_CREDENTIAL,
     ZAI_OPENCODE_AGENT: ZAI_OPENCODE_AUTH,
     RLM_AGENT: ZAI_OPENCODE_AUTH,
+    MIMO_AGENT: MIMO_SELFHOSTED_API_CREDENTIAL,
     TERMINUS_AGENT: ZAI_OPENAPI_API_CREDENTIAL,
     (TERMINUS_AGENT, TERMINUS_LOCAL_MODEL_SELECTOR): LOCAL_OLLAMA_ENDPOINT,
 }
@@ -302,7 +304,7 @@ def missing_credential_for(
             return None if ZAI_OPENAPI_API_CREDENTIAL in available else ZAI_OPENAPI_API_CREDENTIAL
         if agent == TERMINUS_AGENT and model.startswith("tinker/"):
             return None if TINKER_API_CREDENTIAL in available else TINKER_API_CREDENTIAL
-        if agent == TERMINUS_AGENT and model.startswith("selfhosted/"):
+        if agent in {TERMINUS_AGENT, MIMO_AGENT} and model.startswith("selfhosted/"):
             return None if MIMO_SELFHOSTED_API_CREDENTIAL in available else MIMO_SELFHOSTED_API_CREDENTIAL
         if agent == TERMINUS_AGENT and model.startswith("openrouter-metered/"):
             return (
@@ -341,6 +343,7 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     (TERMINUS_AGENT, "tinker/Qwen/Qwen3.5-9B"): "terminus-2-tinker-qwen3-5-9b",
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
     RLM_AGENT: "rlm-glm-5.3-flash",
+    MIMO_AGENT: "mimoagent-selfhosted-mimo-v2-6-9b",
     TERMINUS_AGENT: "terminus-2-glm-5.3-flash",
     (TERMINUS_AGENT, TERMINUS_LOCAL_MODEL_SELECTOR): "terminus-2-qwen2.5-7b-local",
 }

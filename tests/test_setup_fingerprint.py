@@ -32,7 +32,14 @@ def _real_profile_source() -> Path:
     return resolve_repo_root(None, Path(__file__)) / "research" / "setup-profiles"
 
 
-def make_repo_root(base: Path, *, with_parser: bool, task_id: str) -> tuple[Path, str]:
+def make_repo_root(
+    base: Path,
+    *,
+    with_parser: bool,
+    task_id: str,
+    task_name: str = "fixture",
+    ledger_task_id: str | None = None,
+) -> tuple[Path, str]:
     """Minimal fixture checkout: serve config, reference profile, ledger, task."""
     from evallab.registry import compute_task_digests
 
@@ -54,13 +61,13 @@ def make_repo_root(base: Path, *, with_parser: bool, task_id: str) -> tuple[Path
         (parser_dir / "mimo_tool_calls.py").write_text("# fixture presence marker\n")
     task_dir = root / "tasks" / task_id
     task_dir.mkdir(parents=True)
-    (task_dir / "task.toml").write_text('[task]\nname = "fixture"\n')
+    (task_dir / "task.toml").write_text(f'[task]\nname = "{task_name}"\n')
     digest = compute_task_digests(task_dir).package
     ledger_dir = root / "research" / "experiments" / "python-task-ledger"
     ledger_dir.mkdir(parents=True)
     (ledger_dir / "ledger.csv").write_text(
         LEDGER_HEADER
-        + f"\n{task_id},train,fixture,100,usable,fixture sound,original,"
+        + f"\n{ledger_task_id or task_id},train,fixture,100,usable,fixture sound,original,"
         + f"{digest},,,sound,fp-test-job,fixture evidence,none_found,fixture-evidence\n",
         encoding="utf-8",
     )
@@ -236,3 +243,66 @@ def test_compare_skips_unsourced_reference_fields(tmp_path: Path) -> None:
         "budgets": {"step_limit": 500},
     }
     assert compare_fingerprint(fingerprint, profile) == []
+
+
+MIMO_TASK_NAME = "mimo-v2.6-rl__format-code-task-900001"
+
+
+def make_nop_spec(task_id: str, digest: str, *, egress_lock: bool | None = None) -> ExperimentSpec:
+    """Census-nop shape: model-free, no reference, no deviations."""
+    return ExperimentSpec(
+        name="fp-nop-001",
+        hypothesis="model-free census gate behaviour test",
+        purpose="comparison",
+        task=f"tasks/{task_id}",
+        task_path=f"tasks/{task_id}",
+        task_id=task_id,
+        task_package_digest=digest,
+        agent="nop",
+        model=None,
+        environment="daytona",
+        egress_lock=egress_lock,
+        timeout_seconds=3600,
+        submitted_by="test",
+    )
+
+
+def make_nop_request(
+    root: Path, task_id: str, spec: ExperimentSpec, *, egress_lock: bool | None = None
+) -> RunRequest:
+    return RunRequest(
+        task=root / "tasks" / task_id,
+        agent="nop",
+        name="fp-nop-001",
+        jobs_dir=root / "runs",
+        environment="daytona",
+        model=None,
+        attempts=1,
+        concurrency=1,
+        timeout_seconds=3600,
+        allow_billable=False,
+        egress_lock=egress_lock,
+        experiment_spec=spec,
+    )
+
+
+def test_modelfree_nop_passes_without_reference(tmp_path: Path) -> None:
+    root, digest = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=MIMO_TASK_NAME
+    )
+    spec = make_nop_spec(TASK_ID, digest)
+    validate_request(make_nop_request(root, TASK_ID, spec), repo_root=root)
+
+
+def test_modelfree_nop_outside_ledger_refused(tmp_path: Path) -> None:
+    root, digest = make_repo_root(
+        tmp_path,
+        with_parser=True,
+        task_id="format-code-task-900002",
+        task_name=MIMO_TASK_NAME,
+        ledger_task_id="format-code-task-900001",
+    )
+    spec = make_nop_spec("format-code-task-900002", digest)
+    request = make_nop_request(root, "format-code-task-900002", spec)
+    with pytest.raises(ValueError, match="outside the ledger"):
+        validate_request(request, repo_root=root)

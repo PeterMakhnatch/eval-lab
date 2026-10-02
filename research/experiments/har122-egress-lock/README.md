@@ -155,6 +155,37 @@ Result at the 23:00Z hard stop: 563 of 1,149 usable tasks ran (lightest images f
 
 Spend: $2.01 Daytona (rate card on trial lifetimes: 563 nops $1.99, probe $0.0197).
 
+## HAR-146: repairs for the two tasks whose grading needs the network
+
+Both tasks from the table above are repaired as task variants with the
+HAR-113/HAR-115 repair-kind mechanism (new kind `prefetch`,
+`env-prefetch-network@1` in `../har113-variants/repair_variants.py`): setup
+runs while the network is open, so it pre-fetches what grading needs and
+grading itself makes no network calls. Only dependencies and binaries are
+fetched; the tests are unchanged.
+
+| task | setup prefetch | locked nop after (`egress-lock.json` `applied: true`) | variant record |
+|---|---|---|---|
+| 000450 (hera) | create `/testbed/.venv` if missing, then the verifier's own `pip install --upgrade pip setuptools wheel` and `pip install -e ".[yaml]" pytest jsonpath-ng` when `hera`/`pytest`/`yaml` is missing | sound `har146-rnop-000450-69ba6817fcd3` | `library/task-variants/mimo-v2.6-rl__format-code-task-000450/69ba6817fcd3.json` (validated) |
+| 002978 (kwave) | `python3 -c "from kwave.kgrid import kWaveGrid"`, asserting `binaries_present()` | sound `har146-rnop-002978-7d9cd91f5843` | `library/task-variants/mimo-v2.6-rl__format-code-task-002978/7d9cd91f5843.json` (validated) |
+
+The ledger runs the validated prefetch variant for both rows
+(`../python-task-ledger/build.py` `PREFETCH`). Validation spend: about $0.01
+of Daytona for the two nops (cap $0.10).
+
+**Resumed check** (`har146-locked-nop.csv`: `task_id, unlocked_nop,
+locked_nop, changed`; every graded trial had the lock applied). All 1,149
+usable tasks ran: 1,141 grade the same, 6 newly change grading under the lock
+(`sound` to `broken_environment`), 0 infra, 0 not run. The two repaired rows
+above grade `sound` locked on their variants (`note` `repaired:<digest12>`).
+The 6 newly changed tasks are found and pending, not repaired in this PR:
+
+| task | grading's network need under the lock |
+|---|---|
+| 002452 (satpy), 002488, 002755 (starlette), 002975 (vyper) | `pip install` during verification, the same kind as 000450 |
+| 002078 (numpy) | `meson compile` failed during verification |
+| 002289 (guillotina) | ImportError loading conftest; cause not yet established |
+
 ## What the block cuts off
 
 Everything outbound, for the agent and the verifier. What an agent might legitimately need:

@@ -31,6 +31,9 @@ refuses on any uncovered difference. See `docs/contracts.md` and
   fingerprint but never compared: the reference pins behaviour, not which
   container serves it.
 - `lock.mode` and the task ledger binding are hard gates, never deviations:
-  a MiMo run pins `egress_lock: true` explicitly (implicit defaults caused the
+  a MiMo agent run pins `egress_lock: true` explicitly (implicit defaults caused the
   2026-10-01 open-network run) and its task must sit in
   `research/experiments/python-task-ledger/ledger.csv` with a matching digest.
+- Model-free agents (nop/oracle) skip the reference and the harness/server/
+  sampling comparisons; they keep the effective lock resolution and the ledger
+  binding.

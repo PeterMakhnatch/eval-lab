@@ -148,6 +148,62 @@ Execution requires Docker Desktop on Apple Silicon with a kernel that supports
 Harbor's broker network allowlist; on unsupported kernels, the run fails
 closed during container network configuration before model requests can issue.
 
+### Xiaomi native mimoagent on locked Daytona (HAR-148)
+
+Use `--agent mimoagent` with the admitted MiMo self-hosted model selector.
+The Harbor adapter runs Xiaomi's actual `DefaultAgent` from
+`mimo-oss@467f0a19016f0ac4d63b8d17a1f0da9ba07f232c` in an isolated
+Python 3.12 subprocess, not a rewritten loop or Terminus prompt. Install it
+with `uv sync --project tools/mimoagent-harbor --locked`; its OpenAI 3.x graph
+must not be combined with Harbor/LiteLLM's OpenAI 2.x graph.
+
+`tools/mimoagent-harbor/swe.yaml` is byte-identical to Xiaomi's pinned file:
+bash, read, write, edit **and agent delegation**, the original system template
+and `Fix the following issue:` prefix, 500 steps, and antihack off. Native
+parallel tools and no-tool-call → `Idle` remain unchanged. The host loop's
+sandbox RPC maps execution and file uploads to Harbor's environment methods;
+the task image receives neither the native controller nor a model credential.
+Model queries run through the existing controller-side proxy under per-spec
+authorization and request/token ceilings. This route requires Daytona's
+provider-enforced deny-all lock and refuses an explicitly unlocked spec.
+Harbor's recorded outer wall timeout can still interrupt the 500-step loop;
+such a short smoke is not the original benchmark protocol.
+
+The explicit Xiaomi RL sampling profile is temperature 1.0/top_p 0.95/top_k
+20, with thinking enabled. Every completed HTTP response records its sampling,
+status, finish reason and available usage; the proxy also records actual
+shaping. Terminus retains its separate 0.6/0.95/20 generation-config profile.
+SGLang 0.5.20 serves `--tool-call-parser mimo`; native OpenAI structured tools
+are not translated into Terminus commands. Native messages, raw tool arguments
+and logs remain available under `agent/mimoagent/`. Harbor ATIF includes
+delegated trajectories and references so copy-check inspects child actions.
+Unobserved usage is unknown, and a total is populated only when every relevant
+call supplied that metric. Native `ModelQueryError`/`InfraError` stops are
+preserved and surfaced as Harbor run errors, not ordinary verifier failures.
+Family reporting reads IDs from the Parquet columns rather than inferring
+uniform Hive partitions, so compacted and recent trial facts can coexist.
+
+
+Remaining differences from Xiaomi's evaluation setup are the MiMo model and
+endpoint in place of the YAML's default GPT-5, Harbor Daytona exec/uploads in
+place of Kubernetes, the task image's actual working directory, the explicit
+RL top_p/top_k overlay, 64K rather than 262K context, Harbor's outer budgets,
+and the ATIF representation. The serving README records the capture census and
+memory/concurrency recommendation; context remains unchanged.
+Harbor instructions are passed verbatim into the original Xiaomi user
+template; an instruction already prefixed with `Fix the following issue:`
+therefore retains both prefixes. This matches the direct control, not a
+rewritten benchmark prompt. The paired smoke also exposed a real 64K
+prompt-plus-completion rejection; see the serving README for that boundary.
+
+
+The no-model HAR-148 allowlist probe **did not qualify** an in-container
+MiMo/mini-SWE route: Daytona's domain allowlist left unrelated raw-IP TCP
+connections open even after root rewrote `/etc/hosts`; CIDR allowlisting blocked
+DNS resolution of the endpoint until it was pinned and admitted shared endpoint
+IPs directly. No endpoint-only production lock mode or two-task mini-SWE smoke
+is enabled. The existing host-side deny-all route remains the supported path.
+
 ### Terminus 2 with native Harbor tasks
 
 Use `--agent terminus-2`. Eval Lab subclasses Harbor's upstream **Terminus 2**

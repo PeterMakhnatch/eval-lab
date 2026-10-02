@@ -32,7 +32,7 @@ def _read_parquet_rows(root: Path, filename: str) -> list[JsonObject]:
     parquet_glob = (root / "**" / filename).as_posix()
     with duckdb.connect(database=":memory:") as connection:
         cursor = connection.execute(
-            "SELECT * FROM read_parquet(?, hive_partitioning = true, union_by_name = true)",
+            "SELECT * FROM read_parquet(?, hive_partitioning = false, union_by_name = true)",
             [parquet_glob],
         )
         names = [str(item[0]) for item in cursor.description]

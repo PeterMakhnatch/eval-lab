@@ -72,7 +72,11 @@ with an undeclared `egress_lock` (only an explicit `true` counts as locked —
 implicit defaults caused the 2026-10-01 open-network run), with a task
 outside `research/experiments/python-task-ledger/ledger.csv`, with a missing
 tool-call parser, or with any other fingerprint difference the deviations do
-not cover. `evallab preflight --spec` runs the same comparison at $0.
+not cover. Model-free agents (nop/oracle) have no model setup to compare, so
+they skip the reference requirement and the harness/server/sampling
+comparisons; they keep the effective lock resolution and the ledger binding,
+and census nop specs pass unchanged. `evallab preflight --spec` runs the
+same comparison at $0.
 Adding a field does not justify repinning unrelated titles, descriptions, or
 incidental generated-schema details.
 

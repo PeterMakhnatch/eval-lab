@@ -42,6 +42,8 @@ from evallab.evidence_store import (
 )
 from evallab.execution_contracts import (
     DEEPSEEK_MODEL_SELECTOR,
+    MIMO_AGENT,
+    MIMO_SELFHOSTED_MODEL_SELECTORS,
     TERMINUS_AGENT,
     ZAI_OPENAPI_MODEL_SELECTOR,
     ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
@@ -385,15 +387,16 @@ class CampaignDefinitionAttempt(_FrozenContract):
         if self.spec.timeout_seconds > self.limits.max_wall_clock_seconds:
             raise ValueError("spec timeout exceeds the trial wall-clock ceiling")
         if self.spec.billable:
-            if self.spec.agent not in {"mini-swe-agent", TERMINUS_AGENT}:
+            if self.spec.agent not in {"mini-swe-agent", TERMINUS_AGENT, MIMO_AGENT}:
                 raise ValueError(
-                    "billable campaigns require a metered mini-swe-agent or terminus-2 adapter"
+                    "billable campaigns require a metered mini-swe-agent, terminus-2 or mimoagent adapter"
                 )
-            allowed_models = (
-                set(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)
-                if self.spec.agent == TERMINUS_AGENT
-                else {DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR}
-            )
+            if self.spec.agent == MIMO_AGENT:
+                allowed_models = set(MIMO_SELFHOSTED_MODEL_SELECTORS)
+            elif self.spec.agent == TERMINUS_AGENT:
+                allowed_models = set(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)
+            else:
+                allowed_models = {DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR}
             model_ok = (
                 self.spec.model in allowed_models
                 or (
@@ -1481,6 +1484,7 @@ class CampaignOrchestrator:
                 per_agent_active_trials={
                     "mini-swe-agent": parallel,
                     TERMINUS_AGENT: parallel,
+                    MIMO_AGENT: parallel,
                 },
             ),
         )

@@ -1,0 +1,14 @@
+[project]
+name = "evallab-mimoagent-harbor"
+version = "0.1.0"
+description = "Isolated native Xiaomi mimoagent controller for Harbor (HAR-148)"
+requires-python = "==3.12.*"
+dependencies = [
+    "mimoagent",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+mimoagent = { git = "https://github.com/XiaomiMiMo/mimoagent", rev = "467f0a19016f0ac4d63b8d17a1f0da9ba07f232c" }

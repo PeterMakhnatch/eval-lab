@@ -21,20 +21,24 @@ judgment-based discards to `usable`.
 
 | split | usable | review | discarded | unchecked | total |
 |---|---|---|---|---|---|
-| train | 1017 | 0 | 30 | 0 | 1047 |
+| train | 1016 | 0 | 31 | 0 | 1047 |
 | heldout | 132 | 0 | 1 | 0 | 133 |
-| all | 1149 | 0 | 31 | 0 | 1180 |
+| all | 1148 | 0 | 32 | 0 | 1180 |
 
-- **usable 1149:** 848 run the original, 189 a leak-closed variant (`pypi_fix_released`), 112 a validated repair variant.
-  - Two of the repairs are HAR-146 `env-prefetch-network@1` variants: the census nop (no lock) is sound on the original, but grading needs the network the mandatory egress lock blocks, so the row runs the prefetch variant (000450 hera, 002978 kwave).
+- **usable 1148:** 843 run the original, 189 a leak-closed variant (`pypi_fix_released`), 116 a validated repair variant.
+  - Seven of the repairs are `env-prefetch-network@1` variants: the census nop (no lock) is sound on the original, but grading needs the network the mandatory egress lock blocks, so the row runs the prefetch variant. HAR-146: 000450 hera, 002978 kwave. HAR-158: 002289 guillotina, 002452 satpy, 002488 ray, 002755 strawberry, 002975 vyper (each locked nop sound, `har158-rnop-*`).
   - The leak-closed variants only add PyPI hosts to the `/etc/hosts` blocklist, which a root agent can rewrite. They are not a leak guarantee; network isolation is.
-- **discarded 31:**
+- **discarded 32:**
   - 18 broken environments (census nop) with no validated repair; for 8 a repair was tried and its nop rejected it;
   - 5 whose image never built on Daytona (`SandboxBuildFailedError`);
   - 4 census `grader_suspect` whose grade cannot be confirmed (000124, 000183, 001146, 001150);
   - 3 diagnosed with no repair kind (000393, 002595, 002848);
-  - 1 defect found in a real run, bound to the digest that showed it (`RUN_DEFECTS` in `build.py`): 001269's image holds the fixed module under `/testbed/build/lib`, and G2's 001269-a2-r2 copied it.
+  - 2 defects found after the census, bound to the digest that showed them (`RUN_DEFECTS` in `build.py`): 001269's image holds the fixed module under `/testbed/build/lib`, and G2's 001269-a2-r2 copied it; 002078's Cython test build fails under the egress lock (a compile error, not a network fetch).
   - `reason` gives each one's evidence.
+
+## Run history
+
+[`task_history.csv`](task_history.csv), built by [`history.py`](history.py): one row per ledger task with its stored agent runs (controls excluded) and how they ended: `clean_pass`, `copied_pass` (HAR-143 copy check; unknown, not a failure), `fail`, `infra` (no verifier reward), plus `last_run` and the trial paths. Re-run it after new runs land. A clean pass is the first direct evidence that a task is solvable.
 
 ## Status rule
 

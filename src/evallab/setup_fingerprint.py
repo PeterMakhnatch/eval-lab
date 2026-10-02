@@ -37,6 +37,7 @@ SETUP_PROFILES_DIRNAME = "research/setup-profiles"
 SERVE_CONFIG_RELATIVE = "tools/modal-mimo-serve/serve.py"
 PARSER_SOURCE_RELATIVE = "src/evallab/mimo_tool_calls.py"
 TASK_LEDGER_RELATIVE = "research/experiments/python-task-ledger/ledger.csv"
+TASK_VARIANTS_RELATIVE = "library/task-variants"
 
 #: Fingerprint fields compared against the reference. Deployment identity
 #: (server.model_revision, server.sglang_image) is recorded but never
@@ -598,13 +599,33 @@ def check_deviations(
     return uncovered, stale
 
 
-def _validate_modelfree_setup(fingerprint: dict[str, Any]) -> dict[str, Any]:
+def registered_variant(repo_root: Path, task_id: str | None, digest: str | None) -> str | None:
+    """Record path of a ``library/task-variants`` variant of ``task_id`` with this digest."""
+    if not task_id or not digest:
+        return None
+    for path in sorted((repo_root / TASK_VARIANTS_RELATIVE).glob("*/*.json")):
+        try:
+            record = json.loads(path.read_text())
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (
+            record.get("variant_digest") == digest
+            and str(record.get("task_name") or "").split("/", 1)[-1] == task_id
+        ):
+            return str(path.relative_to(repo_root))
+    return None
+
+
+def _validate_modelfree_setup(fingerprint: dict[str, Any], repo_root: Path) -> dict[str, Any]:
     """Gates for model-free (nop/oracle) MiMo runs: lock resolution and ledger.
 
     No reference profile, no harness/server/sampling comparison: there is no
     model setup to compare. The lock passes on the effective resolution (the
     default locks MiMo tasks on Daytona; an explicit opt-out is already
     refused by the egress-lock validation), so census specs pass unchanged.
+    A registered task variant of the named task (``library/task-variants``,
+    any status) also passes: its nop is how a repair gets validated before
+    the ledger can run it.
     """
     reasons: list[str] = []
     lock = fingerprint["lock"]
@@ -617,7 +638,9 @@ def _validate_modelfree_setup(fingerprint: dict[str, Any]) -> dict[str, Any]:
     task = fingerprint["task"]
     if task.get("error"):
         reasons.append(f"task: unreadable: {task['error']}")
-    elif not task.get("ledger_match"):
+    elif not task.get("ledger_match") and not registered_variant(
+        repo_root, fingerprint["subject"]["task"], task.get("digest")
+    ):
         reasons.append(
             f"task {fingerprint['subject']['task']}: outside the ledger "
             f"(status={task.get('ledger_status')}; {task.get('ledger_reason')})"
@@ -655,7 +678,7 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
         request=request,
     )
     if request.agent in CONTROL_AGENTS:
-        return _validate_modelfree_setup(fingerprint)
+        return _validate_modelfree_setup(fingerprint, repo_root)
     name = spec.reference_profile
     if not name:
         raise ValueError(

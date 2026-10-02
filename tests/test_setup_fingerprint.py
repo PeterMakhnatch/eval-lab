@@ -439,3 +439,26 @@ def test_native_harness_fingerprint_uses_real_sampling_and_step_limit(tmp_path: 
     assert fingerprint["harness"]["id"] == "mimoagent-default"
     assert fingerprint["budgets"]["step_limit"] == 500
     assert fingerprint["sampling"]["temperature"] == 1.0
+
+
+def test_modelfree_nop_of_a_registered_variant_passes_before_the_ledger_runs_it(
+    tmp_path: Path,
+) -> None:
+    root, digest = make_repo_root(
+        tmp_path,
+        with_parser=True,
+        task_id="format-code-task-900002",
+        task_name=MIMO_TASK_NAME,
+        ledger_task_id="format-code-task-900001",
+    )
+    records = root / "library/task-variants/mimo-v2.6-rl__format-code-task-900002"
+    records.mkdir(parents=True)
+    record = {"task_name": "mimo-v2.6-rl/format-code-task-900002", "variant_digest": digest}
+    (records / "abc.json").write_text(json.dumps(record))
+    spec = make_nop_spec("format-code-task-900002", digest)
+    validate_request(make_nop_request(root, "format-code-task-900002", spec), repo_root=root)
+    # A variant of another task does not lift the refusal.
+    record["task_name"] = "mimo-v2.6-rl/format-code-task-900003"
+    (records / "abc.json").write_text(json.dumps(record))
+    with pytest.raises(ValueError, match="outside the ledger"):
+        validate_request(make_nop_request(root, "format-code-task-900002", spec), repo_root=root)

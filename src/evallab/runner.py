@@ -57,6 +57,7 @@ from evallab.execution_contracts import (
     MIMO_AGENT_IMPORT_PATH,
     MIMO_SAMPLING_PROFILE_ENV,
     MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV,
+    MIMO_SELFHOSTED_CONTEXT_TOKENS,
     MIMO_SELFHOSTED_MODEL_PRICES_MICROS,
     MIMO_SELFHOSTED_NATIVE_MODELS,
     MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV,
@@ -966,6 +967,7 @@ def _terminus_proxy_env(
             raise ValueError("unknown MiMo sampling profile")
         env[MIMO_SAMPLING_PROFILE_ENV] = mimo_sampling_profile
         env[MIMO_SELFHOSTED_SECRET_PATH_ENV] = str(secret_path)
+        env["EVALLAB_MIMO_SELFHOSTED_CONTEXT_TOKENS"] = str(MIMO_SELFHOSTED_CONTEXT_TOKENS)
         upstream = os.environ.get(MIMO_SELFHOSTED_UPSTREAM_ENV)
         if upstream:
             env[MIMO_SELFHOSTED_UPSTREAM_ENV] = upstream
@@ -1651,6 +1653,7 @@ def run_harbor_process(
                 # controller process; the adapter overwrites it with the
                 # capability before any call. Never a task-container value.
                 runtime_environment["OPENAI_API_KEY"] = capability
+                runtime_environment[MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
             elif openrouter_client:
                 runtime_environment[OPENROUTER_PROXY_CAPABILITY_ENV] = capability
                 # litellm's openai-compatible lookup reads this in the

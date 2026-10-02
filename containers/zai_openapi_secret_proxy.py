@@ -1576,16 +1576,31 @@ class Handler(BaseHTTPRequestHandler):
             self._reject(400, b"invalid stream field\n")
             return
 
+        # Native Xiaomi (xiaomi-rl sampling) is the reference no-output-cap
+        # protocol: a cumulative reservation must never become a sent cap.
+        native_no_cap = _provider_name() == "mimo_selfhosted" and os.environ.get(
+            "EVALLAB_MIMO_SAMPLING_PROFILE", "generation-config"
+        ) == "xiaomi-rl"
         try:
             input_tokens = _estimate_tokens(payload)
-            max_output = _int_env(_env("MAX_OUTPUT_TOKENS"))
             requested_output = payload.get("max_tokens")
-            if requested_output is None or int(requested_output) <= 0:
-                output_tokens = max_output
+            if native_no_cap:
+                # Explicit values reserve verbatim and omitted calls reserve
+                # the served-context bound the supervisor pins in this env;
+                # over-budget is rejected by reserve() below, never clamped.
+                # A missing/unusable bound fails closed via the 400 below.
+                if requested_output is not None and int(requested_output) > 0:
+                    output_tokens = int(requested_output)
+                else:
+                    output_tokens = _int_env(_env("CONTEXT_TOKENS"))
             else:
-                output_tokens = min(int(requested_output), max_output)
-            remaining_output = self._budget().remaining_output()
-            output_tokens = min(output_tokens, remaining_output)
+                max_output = _int_env(_env("MAX_OUTPUT_TOKENS"))
+                if requested_output is None or int(requested_output) <= 0:
+                    output_tokens = max_output
+                else:
+                    output_tokens = min(int(requested_output), max_output)
+                remaining_output = self._budget().remaining_output()
+                output_tokens = min(output_tokens, remaining_output)
             if output_tokens <= 0:
                 self._reject(429, b"trial budget exhausted\n")
                 return
@@ -1634,7 +1649,12 @@ class Handler(BaseHTTPRequestHandler):
             name: payload[name] for name in _profile()["forwarded_fields"] if name in payload
         }
         forwarded["model"] = model
-        if "max_tokens" in payload and payload["max_tokens"] is not None:
+        if native_no_cap:
+            # Preserve the SDK setting: omitted stays omitted, explicit
+            # passes through as the caller's integer.
+            if "max_tokens" in payload and payload["max_tokens"] is not None:
+                forwarded["max_tokens"] = int(payload["max_tokens"])
+        elif "max_tokens" in payload and payload["max_tokens"] is not None:
             forwarded["max_tokens"] = min(int(payload["max_tokens"]), output_tokens)
         else:
             forwarded["max_tokens"] = output_tokens

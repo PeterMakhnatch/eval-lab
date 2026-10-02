@@ -56,6 +56,22 @@ is not readiness, and the native retry policy does not cover a three-minute
 cold start. The existing Terminus sampling profile stays 0.6/0.95/20; the native
 Xiaomi profile is explicitly 1.0/0.95/20.
 
+The host runner binds both the loopback proxy URL and
+`EVALLAB_MIMO_SELFHOSTED_PROXY_CAPABILITY` for the native adapter. The
+capability authenticates only that trial's proxy; it is not the upstream
+provider key and must never enter the task container. A native trace plus
+`egress-lock.json` with `applied: true` proves the adapter passed this gate;
+successful deployment or zero-spend preflight alone does not.
+Native cumulative token backstops do not add or clamp a completion
+`max_tokens` setting. Omitted SDK limits stay omitted; new calls reserve the
+supervisor's served-context upper bound and are refused when that reservation
+does not fit. An explicit SDK limit reserves its original value.
+
+Readiness is time-sensitive: the server scales to zero after five idle
+minutes. Refresh authenticated health immediately before dispatch if
+preparation pauses; an earlier successful health probe is not proof of
+current readiness.
+
 
 ## Cost
 

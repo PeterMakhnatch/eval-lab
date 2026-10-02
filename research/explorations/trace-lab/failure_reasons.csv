@@ -1,0 +1,51 @@
+cohort,task_id,trial,reason_class,reason,evidence
+HAR-157-baseline-v1,format-code-task-000495,har157-mimo-base-000495__iWVCGhy,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-000552,har157-mimo-base-000552__Xkq8oXf,harness,mimoagent launched without host proxy URL / trial capability,result.json RuntimeError: mimoagent requires the runner's host proxy URL and trial capability
+HAR-157-baseline-v1,format-code-task-000587,har157-mimo-base-000587__bgiLo4j,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-000803,har157-mimo-base-000803__wYpUM6c,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-000838,har157-mimo-base-000838__A7JsKvJ,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-000941,har157-mimo-base-000941__aXbgyLE,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-001661,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001870,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002256,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002391,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002402,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002416,har157-mimo-base-002416__5vJUdqx,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-002552,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002555,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002864,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002938,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002139,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002172,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-000311,har157-mimo-base-000311__9eLdoLm,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-002648,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001711,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002775,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001886,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001914,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002674,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002486,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001400,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-000980,har157-mimo-base-000980__f4dHVmm,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-000870,har157-mimo-base-000870__GuHUaUX,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-001416,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-000854,har157-mimo-base-000854__BUb2FX4,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-001208,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001220,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-002459,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001109,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-000792,har157-mimo-base-000792__8GB9rh3,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-001985,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-000420,har157-mimo-base-000420__Vd8nHkR,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-002587,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001198,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-000090,har157-mimo-base-000090__emyUK54,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-001068,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-000517,har157-mimo-base-000517__JYQNMvE,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-001837,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001013,har157-mimo-base-001013__EMDKN2m,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-000527,har157-mimo-base-000527__bfojbHP,infra,Daytona admission refused (projected memory over cap),result.json AdmissionRefused: Daytona admission refused: projected-memory_gib-over-cap
+HAR-157-baseline-v1,format-code-task-003016,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-001127,,not_run,never dispatched (no job dir),rows.csv state=missing
+HAR-157-baseline-v1,format-code-task-000084,har157-mimo-base-000084__NUg9Yjo,infra,"model endpoint error before the first agent turn (5 requests, 0 agent steps)",result.json RuntimeError: native Xiaomi agent stopped on ModelQueryError; watch proxy_errors
+HAR-157-baseline-v1,format-code-task-003058,,not_run,never dispatched (no job dir),rows.csv state=missing

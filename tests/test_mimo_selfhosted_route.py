@@ -253,6 +253,9 @@ class _MimoUpstream(BaseHTTPRequestHandler):
     #: Scripted replies served before any success: (status, JSON body) or
     #: (status, raw bytes, content type) for non-JSON upstream errors.
     errors: list[Any] = []
+    #: When set, an explicit max_tokens above this served-context bound is
+    #: rejected with a 400 like SGLang; unset leaves the default success.
+    context_tokens: int | None = None
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path != "/v1/chat/completions":
@@ -263,6 +266,24 @@ class _MimoUpstream(BaseHTTPRequestHandler):
             return
         length = int(self.headers.get("Content-Length", 0))
         body = json.loads(self.rfile.read(length))
+        limit = type(self).context_tokens
+        if (
+            limit is not None
+            and isinstance(body.get("max_tokens"), int)
+            and (body["max_tokens"] > limit)
+        ):
+            overflow = {
+                "object": "error",
+                "message": (
+                    "Requested token count exceeds the model's maximum context "
+                    f"length of {limit} tokens."
+                ),
+                "type": "BadRequestError",
+                "param": None,
+                "code": 400,
+            }
+            self._reply(400, json.dumps(overflow).encode(), content_type="application/json")
+            return
         type(self).seen.append(body)
         if type(self).errors:
             scripted = type(self).errors.pop(0)
@@ -300,6 +321,7 @@ class _MimoUpstream(BaseHTTPRequestHandler):
 def mimo_upstream() -> Any:
     _MimoUpstream.seen = []
     _MimoUpstream.errors = []
+    _MimoUpstream.context_tokens = None
     server = ThreadingHTTPServer(("127.0.0.1", 0), _MimoUpstream)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -377,11 +399,18 @@ def _post(
     [("generation-config", 0.6), ("xiaomi-rl", 1.0)],
 )
 def test_mimo_proxy_enforces_generation_config_and_strips_effort(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any,
-    sampling_profile: str, temperature: float,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mimo_upstream: Any,
+    sampling_profile: str,
+    temperature: float,
 ) -> None:
     process, url, usage_path = _launch_mimo_proxy(
-        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits(),
+        tmp_path,
+        monkeypatch,
+        mimo_upstream,
+        CAPABILITY_SENTINEL,
+        _proxy_limits(),
         sampling_profile=sampling_profile,
     )
     try:
@@ -424,7 +453,9 @@ def test_mimo_proxy_enforces_generation_config_and_strips_effort(
         assert usage["calls"][0]["requested_model"] == MIMO_SELFHOSTED_MODEL_SELECTOR
         assert usage["calls"][0]["shaping_applied"] is True
         assert usage["calls"][0]["sampling"] == {
-            "temperature": temperature, "top_p": 0.95, "top_k": 20,
+            "temperature": temperature,
+            "top_p": 0.95,
+            "top_k": 20,
         }
         # Zero per-token rates: the ledger prices and costs nothing.
         assert usage["pricing"] == {
@@ -475,6 +506,105 @@ def test_mimo_proxy_enforces_request_ceiling(
         status, body = _post(f"{url}/v1/chat/completions", payload, capability=CAPABILITY_SENTINEL)
         assert status == 429
         assert b"trial budget exhausted" in body
+    finally:
+        process.terminate()
+        process.wait(10)
+
+
+def test_native_xiaomi_omitted_cap_passes_served_context_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    # Omitted stays a real no-cap call: with a 200k cumulative budget the
+    # old injected 200k cap fails the stub's 64k context check, while the
+    # preserved omission succeeds; an over-budget explicit value 429s
+    # before reaching upstream at all.
+    monkeypatch.setenv(
+        "EVALLAB_MIMO_SELFHOSTED_CONTEXT_TOKENS", str(MIMO_SELFHOSTED_CONTEXT_TOKENS)
+    )
+    _MimoUpstream.context_tokens = MIMO_SELFHOSTED_CONTEXT_TOKENS
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path,
+        monkeypatch,
+        mimo_upstream,
+        CAPABILITY_SENTINEL,
+        _proxy_limits(max_output_tokens=200_000, max_total_tokens=300_000),
+        sampling_profile="xiaomi-rl",
+    )
+    try:
+        endpoint = f"{url}/v1/chat/completions"
+        status, body = _post(
+            endpoint,
+            {
+                "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+                "messages": [{"role": "user", "content": "hi"}],
+            },
+            capability=CAPABILITY_SENTINEL,
+        )
+        assert status == 200, body
+        status, body = _post(
+            endpoint,
+            {
+                "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 500_000,
+            },
+            capability=CAPABILITY_SENTINEL,
+        )
+        assert status == 429
+        assert b"trial budget exhausted" in body
+        assert len(_MimoUpstream.seen) == 1
+        usage = json.loads(usage_path.read_text())
+        assert usage["totals"]["requests"] == 1
+        assert usage["totals"]["output_tokens"] == UPSTREAM_USAGE["completion_tokens"]
+        assert usage["attempted"]["requests"] == 0
+    finally:
+        process.terminate()
+        process.wait(10)
+
+
+def test_native_xiaomi_concurrent_no_cap_calls_both_succeed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    # Each no-cap call reserves only the served-context bound, so two
+    # in-flight calls share a budget a full-remaining reservation would
+    # exhaust after the first; both succeed and real usage is charged.
+    monkeypatch.setenv(
+        "EVALLAB_MIMO_SELFHOSTED_CONTEXT_TOKENS", str(MIMO_SELFHOSTED_CONTEXT_TOKENS)
+    )
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path,
+        monkeypatch,
+        mimo_upstream,
+        CAPABILITY_SENTINEL,
+        _proxy_limits(max_output_tokens=200_000, max_total_tokens=300_000),
+        sampling_profile="xiaomi-rl",
+    )
+    try:
+        endpoint = f"{url}/v1/chat/completions"
+        outcomes: list[tuple[int, bytes]] = []
+
+        def _call() -> None:
+            outcomes.append(
+                _post(
+                    endpoint,
+                    {
+                        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+                        "messages": [{"role": "user", "content": "hi"}],
+                    },
+                    capability=CAPABILITY_SENTINEL,
+                )
+            )
+
+        workers = [threading.Thread(target=_call) for _ in range(2)]
+        for worker in workers:
+            worker.start()
+        for worker in workers:
+            worker.join(30)
+        assert sorted(status for status, _ in outcomes) == [200, 200]
+        usage = json.loads(usage_path.read_text())
+        assert usage["totals"]["requests"] == 2
+        assert usage["totals"]["output_tokens"] == 2 * UPSTREAM_USAGE["completion_tokens"]
+        assert usage["attempted"]["requests"] == 0
     finally:
         process.terminate()
         process.wait(10)

@@ -414,31 +414,41 @@ def test_declared_harness_addition_passes(tmp_path: Path) -> None:
     validate_request(make_request(root, TASK_ID, spec), repo_root=root)
 
 
-def test_native_harness_fingerprint_uses_real_sampling_and_step_limit(tmp_path: Path) -> None:
+@pytest.mark.parametrize("step_limit", [500, 501])
+def test_native_reference_gate_uses_native_setup(tmp_path: Path, step_limit: int) -> None:
     root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    config = root / "tools/mimoagent-harbor/swe.yaml"
+    config.parent.mkdir(parents=True)
+    config.write_text(f"agent:\n  step_limit: {step_limit}\n")
     spec = make_spec(
         TASK_ID,
         digest,
         deviations=[
-            item
-            for item in COVERING_DEVIATIONS
-            if item["field"] not in {"harness.id", "sampling.temperature"}
+            {"field": "server.tool_call_parser", "value": "mimo", "reason": "served parser"},
+            {"field": "server.context_length", "value": 65536, "reason": "served context"},
         ],
-    ).model_copy(update={"agent": "mimoagent", "max_requests": 5000})
-    request = replace(make_request(root, TASK_ID, spec), agent="mimoagent")
-    validate_request(request, repo_root=root)
-    fingerprint = build_intended_fingerprint(
-        spec=spec,
-        task_dir=Path(request.task),
-        model=request.model,
-        agent=request.agent,
-        environment=request.environment,
-        repo_root=root,
-        request=request,
+    ).model_copy(
+        update={
+            "agent": "mimoagent",
+            "max_requests": 500_000,
+            "max_input_tokens": 32_768_000_000,
+            "max_output_tokens": 32_768_000_000,
+            "max_total_tokens": 65_536_000_000,
+        }
     )
-    assert fingerprint["harness"]["id"] == "mimoagent-default"
-    assert fingerprint["budgets"]["step_limit"] == 500
-    assert fingerprint["sampling"]["temperature"] == 1.0
+    request = replace(
+        make_request(root, TASK_ID, spec),
+        agent="mimoagent",
+        max_requests=spec.max_requests,
+        max_input_tokens=spec.max_input_tokens,
+        max_output_tokens=spec.max_output_tokens,
+        max_total_tokens=spec.max_total_tokens,
+    )
+    if step_limit == 500:
+        validate_request(request, repo_root=root)
+    else:
+        with pytest.raises(ValueError, match="budgets.step_limit"):
+            validate_request(request, repo_root=root)
 
 
 def test_modelfree_nop_of_a_registered_variant_passes_before_the_ledger_runs_it(

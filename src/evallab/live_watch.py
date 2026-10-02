@@ -660,21 +660,26 @@ def _upstream_status(
 
 
 _PARSE_REJECTION_RE = re.compile(
-    r"Previous response had (?:parsing errors|warnings):|"
+    r"Previous response had parsing errors:|"
     r"ERROR:\s*(?:No valid JSON|Invalid JSON|Failed to parse|Missing 'commands'|Malformed)",
+    re.IGNORECASE,
+)
+_FORMAT_WARNING_RE = re.compile(
+    r"Previous response had warnings:",
     re.IGNORECASE,
 )
 
 
 def _parse_error_stats(
     steps: list[dict[str, Any]],
-) -> tuple[int, int, str | None, int | None]:
-    """Return (total_count, max_streak, first_quote, first_step)."""
+) -> tuple[int, int, str | None, int | None, int]:
+    """Return (parse_error_count, max_parse_streak, first_quote, first_step, format_warnings)."""
     total = 0
     current_streak = 0
     max_streak = 0
     first_quote: str | None = None
     first_step: int | None = None
+    format_warnings = 0
     for step in steps:
         obs = step.get("observation") or {}
         obs_text = " ".join(
@@ -691,7 +696,10 @@ def _parse_error_stats(
                 first_step = sid if isinstance(sid, int) else None
         else:
             current_streak = 0
-    return total, max_streak, first_quote, first_step
+
+        if _FORMAT_WARNING_RE.search(obs_text):
+            format_warnings += 1
+    return total, max_streak, first_quote, first_step, format_warnings
 
 
 def _read_proxy_live(job_dir: Path, trial_dir: Path) -> dict[str, Any] | None:
@@ -828,7 +836,9 @@ def trial_signals(
         last_activity_time = max(last_activity_time, proxy_live["latest_timestamp"])
     age_minutes = max(0.0, (now - last_activity_time) / 60.0) if last_activity_time > 0 else 0.0
 
-    total_parse, max_parse_streak, first_parse_quote, first_parse_step = _parse_error_stats(steps)
+    total_parse, max_parse_streak, first_parse_quote, first_parse_step, format_warnings = (
+        _parse_error_stats(steps)
+    )
 
     trailing_run, max_run, trailing_cmd = _command_runs(agent_steps)
     completions, first_completion = _completion_count(agent_steps)
@@ -900,6 +910,7 @@ def trial_signals(
         "max_parse_error_streak": max_parse_streak,
         "first_parse_error_quote": first_parse_quote,
         "first_parse_error_step": first_parse_step,
+        "format_warnings": format_warnings,
         "live_proxy_present": bool(proxy_live and proxy_live.get("present")),
         "exception_type": exc_type if isinstance(exc_type, str) else None,
         "finished_at": result.get("finished_at"),
@@ -1159,7 +1170,7 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
                 task=task,
                 step=status.get("first_parse_error_step"),
                 quote=str(status.get("first_parse_error_quote") or "parse error"),
-                detail=f"{total_parse} parse/format rejections (max streak: {streak_parse})",
+                detail=f"{total_parse} parse rejections (max streak: {streak_parse})",
             )
         )
 
@@ -1370,19 +1381,21 @@ def _write_board(
         lines.append(f"## {job}")
         lines.append("")
         lines.append(
-            "| trial | state | steps | episodes | tokens % | cost ($) | updated (min) | open alerts |"
+            "| trial | state | steps | episodes | tokens % | cost ($) | warnings | updated (min) | open alerts |"
         )
-        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for status in sorted(by_job[job], key=lambda item: item["trial"]):
             open_rules = ",".join(alert["rule"] for alert in status.get("open_alerts", [])) or "-"
             cost_val = status.get("cost_usd")
             cost_str = (
                 f"{cost_val:.4f}" if isinstance(cost_val, (int, float)) and cost_val > 0 else "-"
             )
+            warn_val = status.get("format_warnings", 0)
+            warn_str = str(warn_val) if warn_val else "-"
             lines.append(
                 f"| {status['trial']} | {status['state']} | {status['steps']} | "
                 f"{status['episodes']} | {status['input_token_pct']} | {cost_str} | "
-                f"{status['minutes_since_update']} | {open_rules} |"
+                f"{warn_str} | {status['minutes_since_update']} | {open_rules} |"
             )
         lines.append("")
     if fleet:

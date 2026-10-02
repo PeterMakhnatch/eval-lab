@@ -273,7 +273,7 @@ inputs:
   - path: src/evallab/lineage.py
     digest: sha256:d4cb657bc9ed6d0f7f951490126175cccde655ed869cd179d0621e74b3b0679d
   - path: src/evallab/live_watch.py
-    digest: sha256:ed09eb1a825ceafffa6b108d2f8c84e023ced782fbf43f0c02f96e22a89283ac
+    digest: sha256:189f512359520bc6fecdc27d16ddb458aadb799991856edd91ae8a69549de118
   - path: src/evallab/loopfix.py
     digest: sha256:c3b84df9b0f7d904d7298f58626b045c5793937dfecb3d54b8a478e6c3b0843f
   - path: src/evallab/mcp_substrate.py

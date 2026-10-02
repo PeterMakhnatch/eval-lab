@@ -815,10 +815,43 @@ def test_watch_fetch_attempt_rule(tmp_path: Path) -> None:
 
 
 def test_watch_parse_errors_rule(tmp_path: Path) -> None:
-    runs = tmp_path / "runs"
     out = tmp_path / "state"
-    # 3 steps with parsing errors
-    steps = [
+
+    # 1. Soft warnings alone (e.g. default duration, missing newline) do NOT alert,
+    # but format_warnings count is tracked for information.
+    runs_warn = tmp_path / "runs_warn"
+    warn_steps = [
+        _step(
+            1,
+            "echo 1",
+            content="Previous response had warnings:\nWARNINGS: - Command 1: Missing duration field, using default 1.0",
+        ),
+        _step(
+            2,
+            "echo 2",
+            content="Previous response had warnings:\nWARNINGS: - Command 1 should end with a newline",
+        ),
+        _step(
+            3,
+            "echo 3",
+            content="Previous response had warnings:\nWARNINGS: - Command 1: Missing duration field, using default 1.0",
+        ),
+        _step(
+            4,
+            "echo 4",
+            content="Previous response had warnings:\nWARNINGS: - Command 1: Missing duration field, using default 1.0",
+        ),
+    ]
+    _write_trial(runs_warn, "job-warn", "task-warn__1", warn_steps)
+    summary_warn = run_watch(runs_dirs=[runs_warn], out_dir=out / "warn")
+    st_warn = summary_warn["statuses"][0]
+    assert st_warn["format_warnings"] == 4
+    assert st_warn["total_parse_errors"] == 0
+    assert "parse_errors" not in [a["rule"] for a in st_warn["open_alerts"]]
+
+    # 2. Real parsing-error rejections DO alert when >=3
+    runs_err = tmp_path / "runs_err"
+    err_steps = [
         _step(
             1,
             "echo 1",
@@ -832,28 +865,30 @@ def test_watch_parse_errors_rule(tmp_path: Path) -> None:
         _step(
             3,
             "echo 3",
-            content="Previous response had warnings:\nWARNINGS: - No valid JSON object found",
+            content="Previous response had parsing errors:\nERROR: No valid JSON found in response",
         ),
     ]
-    _write_trial(runs, "job-parse", "taskA__1", steps)
-    summary = run_watch(runs_dirs=[runs], out_dir=out)
-    rules = [a["rule"] for a in summary["statuses"][0]["open_alerts"]]
-    assert "parse_errors" in rules
-    alert = next(a for a in summary["statuses"][0]["open_alerts"] if a["rule"] == "parse_errors")
+    _write_trial(runs_err, "job-err", "task-err__1", err_steps)
+    summary_err = run_watch(runs_dirs=[runs_err], out_dir=out / "err")
+    st_err = summary_err["statuses"][0]
+    assert st_err["total_parse_errors"] == 3
+    assert "parse_errors" in [a["rule"] for a in st_err["open_alerts"]]
+    alert = next(a for a in st_err["open_alerts"] if a["rule"] == "parse_errors")
     assert alert["severity"] == "medium"
-    assert "3 parse/format rejections" in alert["detail"]
+    assert "3 parse rejections" in alert["detail"]
 
-    # Negative: only 1 parse error -> no alert
+    # 3. Negative: only 1 real parse error -> no alert
     runs_neg = tmp_path / "runs_neg"
     _write_trial(
         runs_neg,
-        "job-parse",
-        "taskB__1",
-        [_step(1, "echo 1", content="Previous response had warnings:")],
+        "job-neg",
+        "task-neg__1",
+        [_step(1, "echo 1", content="Previous response had parsing errors:\nERROR: Malformed")],
     )
     summary_neg = run_watch(runs_dirs=[runs_neg], out_dir=out / "neg")
-    rules_neg = [a["rule"] for a in summary_neg["statuses"][0]["open_alerts"]]
-    assert "parse_errors" not in rules_neg
+    st_neg = summary_neg["statuses"][0]
+    assert st_neg["total_parse_errors"] == 1
+    assert "parse_errors" not in [a["rule"] for a in st_neg["open_alerts"]]
 
 
 def test_proxy_live_e2e_real_socket(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

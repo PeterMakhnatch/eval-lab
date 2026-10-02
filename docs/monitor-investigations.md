@@ -1,3 +1,10 @@
+---
+status: living
+audience:
+  - analyst
+  - operator
+---
+
 # Monitor investigations (HAR-151)
 
 Harbor-native, read-only trace investigation on top of the existing
@@ -27,6 +34,9 @@ Rules that never change:
   `confirmed`, never a numeric confidence. Alerts and rewards are not
   proof of a hack; the investigator must seek counterevidence and benign
   alternatives.
+  A negative finding can be grounded in primary-trial counterevidence; it need
+  not manufacture supporting evidence for the original suspicion. Suspicious
+  findings still require supporting primary evidence.
 - **Operator proposals are inert data.** Every `ProposedAction` carries
   `requires_approval: true`. The investigator has no shell, filesystem,
   network, grading, or deployment tools and cannot execute proposals.
@@ -268,9 +278,11 @@ with zero usage instead of spending budget on nothing.
   possibly-paid call is never automatically retried. Per-case locks turn
   concurrent runs into an explicit "already being investigated" error.
 - **Bounded model correction is not a transport retry.** A received, accounted
-  response with malformed JSON, a non-verbatim citation, or an absence claim over
-  incomplete evidence receives code-generated feedback within the same call,
-  context, and spend limits. The model must produce a new valid candidate; the
+  response with malformed JSON, a non-verbatim citation, an absence claim over
+  incomplete evidence, or a refused scoped tool request receives feedback
+  within the same call, context, and spend limits. Refused trial keys are never
+  case-folded or aliased; the model must select an exact allowed identifier.
+  The model must produce a new valid candidate; the
   controller never patches JSON, loosens quote matching, or publishes a rejected
   candidate. Journals and report limitations retain these rejections.
 - Actions use an operation-specific typed request inside a root object, e.g.

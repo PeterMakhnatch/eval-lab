@@ -336,11 +336,11 @@ def test_unknown_usage_is_not_zero_and_known_zero_does_not_refund(tmp_path, know
     {"action": "search", "query": "reward", "trial_key": "/etc/passwd"},
     '{"action":"shell","action":"related"}',
 ])
-def test_invalid_or_forbidden_actions_fail_without_repair_calls(tmp_path, bad):
+def test_invalid_or_forbidden_actions_are_never_executed(tmp_path, bad):
     corpus, case, _ = _fixtures()
     budget = _budget(tmp_path / "spend.jsonl")
     transport = _Scripted([bad])
-    report = investigate(case, corpus, transport=transport, budget=budget, work_dir=tmp_path / "analysis")
+    report = investigate(case, corpus, transport=transport, budget=budget, work_dir=tmp_path / "analysis", limits=InvestigationLimits(max_calls=1))
     assert report.status == "failed" and report.finding is None
     assert len(transport.requests) == 1
     assert budget.totals()[0] == 1
@@ -907,3 +907,33 @@ def test_incomplete_absence_candidate_can_be_corrected_to_explicit_abstention(tm
     )
     assert report.status == "inconclusive" and report.finding.disposition == "inconclusive"
     assert report.calls == 3 and report.error is None
+
+
+def test_counterevidence_can_ground_a_negative_finding_without_supporting_the_alert(tmp_path):
+    corpus, _, case = _fixtures()
+    conclusion = _conclusion(case.primary_trial, suspicious=False)
+    conclusion["finding"]["counterevidence"] = conclusion["finding"]["evidence"]
+    conclusion["finding"]["evidence"] = []
+    report = investigate(
+        case, corpus, transport=_Scripted([_read(case.primary_trial), conclusion]),
+        budget=_budget(tmp_path / "spend.jsonl"), work_dir=tmp_path / "analysis",
+    )
+    assert report.status == "completed" and report.finding.disposition == "not_supported"
+    assert report.finding.counterevidence[0].record_id == f"{case.primary_trial}:1"
+
+
+def test_refused_case_key_is_not_normalized_and_model_can_choose_the_exact_allowed_key(tmp_path):
+    corpus, case, _ = _fixtures()
+    transport = _Scripted([
+        _read("job/POSITIVE"), _read(case.primary_trial),
+        _conclusion(case.primary_trial, suspicious=True),
+    ])
+    report = investigate(
+        case, corpus, transport=transport, budget=_budget(tmp_path / "spend.jsonl"),
+        work_dir=tmp_path / "analysis",
+    )
+    assert report.status == "completed" and report.calls == 3
+    events = [json.loads(line) for line in (tmp_path / "analysis/journal.jsonl").read_text().splitlines()]
+    first_result = next(event["result"] for event in events if event["event"] == "tool_result")
+    assert "error" in first_result and "records" not in first_result
+    assert all("POSITIVE" not in record_id for record_id in report.viewed_records)

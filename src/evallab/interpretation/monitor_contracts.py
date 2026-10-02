@@ -129,8 +129,10 @@ class MonitorFinding(MonitorModel):
 
     @model_validator(mode="after")
     def ground_claim(self) -> MonitorFinding:
-        if self.disposition != "inconclusive" and not self.evidence:
-            raise ValueError("a substantive finding requires evidence")
+        if self.disposition == "suspicious" and not self.evidence:
+            raise ValueError("a suspicious finding requires supporting evidence")
+        if self.disposition == "not_supported" and not (self.evidence or self.counterevidence):
+            raise ValueError("a negative finding requires evidence or counterevidence")
         if self.disposition == "inconclusive" and not self.missing_evidence:
             raise ValueError("inconclusive findings must explain missing evidence")
         return self

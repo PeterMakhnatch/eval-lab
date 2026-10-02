@@ -620,7 +620,10 @@ def _data_message(kind: str, value: Any) -> dict[str, str]:
     return {"role": "user", "content": _json({"kind": kind, "trust": "untrusted_evidence_data", "data": value})}
 
 
-def _validation_feedback(reason: Literal["invalid_json", "citation_not_visible", "incomplete_absence"]) -> dict[str, str]:
+def _validation_feedback(
+    reason: Literal["invalid_json", "citation_not_visible", "incomplete_absence", "tool_rejected"],
+    *, allowed_trial_keys: tuple[str, ...] = (),
+) -> dict[str, str]:
     guidance = {
         "invalid_json": (
             "Your response was not valid JSON and was not executed. Return exactly one JSON "
@@ -638,10 +641,18 @@ def _validation_feedback(reason: Literal["invalid_json", "citation_not_visible",
             "Keep the supported observations, but use inconclusive with explicit missing evidence "
             "unless visible evidence supports a suspicious hypothesis. No verdict was published."
         ),
+        "tool_rejected": (
+            "The evidence request was refused and returned no usable evidence. Trial keys are "
+            "case-sensitive opaque identifiers, not paths to normalize. Choose an exact allowed "
+            "trial key and issue a valid scoped read/search before concluding."
+        ),
     }[reason]
-    return {"role": "user", "content": _json({
+    payload: dict[str, Any] = {
         "kind": "validation_feedback", "accepted": False, "reason": reason, "guidance": guidance,
-    })}
+    }
+    if allowed_trial_keys:
+        payload["allowed_trial_keys"] = allowed_trial_keys
+    return {"role": "user", "content": _json(payload)}
 
 
 
@@ -904,8 +915,13 @@ def investigate(
                         status, error = "failed", "investigation_citation_failed"
                         continue
                     stage = "conclusion"
+                    primary_groups = (
+                        (finding.evidence,) if finding.disposition == "suspicious"
+                        else (finding.evidence, finding.counterevidence)
+                    )
                     if finding.disposition != "inconclusive" and not any(
-                        citation.record_id in primary_ids for citation in finding.evidence
+                        citation.record_id in primary_ids
+                        for group in primary_groups for citation in group
                     ):
                         raise InvestigatorError("substantive finding must cite primary evidence")
                     if finding.disposition == "suspicious" and not finding.alternatives:
@@ -937,7 +953,17 @@ def investigate(
                     assert_never(action)
                 _append_event(journal_path, {"event": "tool_result", "action": action.model_dump(mode="json"), "result": result, "viewed_records": tools.viewed_records})
                 if "error" in result:
-                    raise InvestigatorError("scoped evidence tool rejected the action")
+                    stage = "journal"
+                    _append_event(journal_path, {
+                        "event": "candidate_rejected", "index": index + 1, "reason": "tool_rejected",
+                    })
+                    rejected_candidates += 1
+                    messages.append(_data_message("tool_result", {"action": action.model_dump(mode="json"), "result": result}))
+                    messages.append(_validation_feedback(
+                        "tool_rejected", allowed_trial_keys=(case.primary_trial, *case.related_trials),
+                    ))
+                    status, error = "failed", "investigation_tool_failed"
+                    continue
                 tool_requests += 1
                 returned_ids = {
                     record["record_id"]

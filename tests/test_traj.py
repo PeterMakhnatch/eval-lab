@@ -882,3 +882,33 @@ def test_attach_surface_exposes_trajectory_features(repo_root: Path) -> None:
         assert projection.featured_count > 0
         assert row is not None
         assert row[1] == "featured"
+
+
+def test_is_edit_action_ignores_quoted_greater_than() -> None:
+    from evallab.traj import _is_edit_action
+
+    non_edits = [
+        "awk 'NR>=125 && NR<=240' f",
+        'python3 -c "print(1>0)"',
+        "grep -n 'a>b' f",
+        "echo 'a>b'",
+        "cat 'a>b'",
+        "sed -n 's/a>b/c/' f",
+    ]
+    for cmd in non_edits:
+        assert not _is_edit_action("bash", cmd), f"Unexpectedly matched edit action: {cmd}"
+
+
+def test_is_edit_action_detects_real_edits() -> None:
+    from evallab.traj import _is_edit_action
+
+    real_edits = [
+        ("bash", "sed -i 's/a/b/' f"),
+        ("bash", "touch file.txt"),
+        ("bash", "truncate f"),
+        ("bash", "echo hi | tee f"),
+        ("write", "some text"),
+        ("edit", "some text"),
+    ]
+    for tool, cmd in real_edits:
+        assert _is_edit_action(tool, cmd), f"Real edit action missed: {tool} {cmd}"

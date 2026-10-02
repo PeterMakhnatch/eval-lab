@@ -91,7 +91,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
+from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES, blank_quoted_and_heredocs
 from evallab.labels import propose_heuristic_label
 from evallab.step_layers import (
     STEP_LAYERS_KEY,
@@ -274,9 +274,10 @@ def _silence_is_expected(command: str | None, tool_name: str | None = None) -> b
         return True
     if (tool_name or "").lower() == "execute":
         return False
-    if _HEREDOC_RE.search(code) or _REDIRECT_RE.search(code):
+    unquoted = blank_quoted_and_heredocs(code)
+    if _HEREDOC_RE.search(unquoted) or _REDIRECT_RE.search(unquoted):
         return True
-    return bool(_INPLACE_EDIT_RE.search(code))
+    return bool(_INPLACE_EDIT_RE.search(unquoted))
 
 
 _WRITE_REDIRECT_RE = re.compile(r"(<<-?\s*['\"]?\w|\d?>>?\s*\S)")
@@ -295,11 +296,14 @@ def _is_edit_call(tool_name: str | None, command: str | None) -> bool:
     lowered = (tool_name or "").lower()
     if lowered in EDIT_TOOL_NAMES:
         return True
-    if command and EDIT_COMMAND_PATTERNS.search(command):
-        return True
-    if not command or lowered not in _SHELL_TOOLS:
+    if not command:
         return False
-    return bool(_WRITE_REDIRECT_RE.search(command) or _SQL_WRITE_RE.search(command))
+    unquoted = blank_quoted_and_heredocs(command)
+    if EDIT_COMMAND_PATTERNS.search(unquoted):
+        return True
+    if lowered not in _SHELL_TOOLS:
+        return False
+    return bool(_WRITE_REDIRECT_RE.search(unquoted) or _SQL_WRITE_RE.search(command))
 
 
 def _task_involves_files(views: list[_StepView]) -> bool:

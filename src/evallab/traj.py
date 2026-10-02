@@ -27,7 +27,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES
+from evallab.edit_signals import EDIT_COMMAND_PATTERNS, EDIT_TOOL_NAMES, blank_quoted_and_heredocs
 from evallab.results import sha256_file
 from evallab.step_layers import StitchStats, effective_tool_calls, stitch_steps
 from evallab.storage.paths import (
@@ -667,7 +667,10 @@ def _extract_command_string(call_args: Any) -> str | None:
 def _is_edit_action(tool_name: str | None, command_snippet: str | None) -> bool:
     if tool_name and tool_name.lower() in EDIT_TOOL_NAMES:
         return True
-    return bool(command_snippet and EDIT_COMMAND_PATTERNS.search(command_snippet))
+    if not command_snippet:
+        return False
+    unquoted = blank_quoted_and_heredocs(command_snippet)
+    return bool(EDIT_COMMAND_PATTERNS.search(unquoted))
 
 
 def _analyze_loop_suspicion(steps: Sequence[LoopStepView]) -> LoopSuspicion:

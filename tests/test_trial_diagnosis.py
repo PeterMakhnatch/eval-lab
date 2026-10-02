@@ -815,3 +815,37 @@ def test_cli_rejects_unknown_path(tmp_path: Path) -> None:
 
     with pytest.raises(SystemExit):
         main([str(tmp_path / "absent")])
+
+
+def test_is_edit_call_ignores_quoted_greater_than() -> None:
+    from evallab.trial_diagnosis import _is_edit_call
+
+    non_edits = [
+        ("bash", "awk 'NR>=125 && NR<=240' f"),
+        ("bash", 'python3 -c "print(1>0)"'),
+        ("bash", "grep -n 'a>b' f"),
+        ("bash", "echo 'a>b'"),
+        ("bash", "cat 'a>b'"),
+        ("bash", "sed -n 's/a>b/c/' f"),
+        ("bash", "cat <<'EOF'\nif a > b: pass\nEOF"),
+        ("bash", "python - <<'EOF'\nprint(1 > 0)\nEOF"),
+    ]
+    for tool, cmd in non_edits:
+        assert not _is_edit_call(tool, cmd), f"Unexpected edit call: {tool} {cmd}"
+
+
+def test_is_edit_call_detects_real_redirects_and_sql() -> None:
+    from evallab.trial_diagnosis import _is_edit_call
+
+    real_edits = [
+        ("bash", "echo x > f"),
+        ("bash", "cat > f <<'EOF'\nhello\nEOF"),
+        ("bash", "cat <<'EOF' > f\nhello\nEOF"),
+        ("bash", "cmd >> f"),
+        ("bash", "echo hi | tee f"),
+        ("bash", "sed -n 1p f >/tmp/x"),
+        ("bash", "sqlite3 db 'UPDATE t SET x = 1'"),
+        ("bash", 'psql db -c "INSERT INTO t VALUES (1)"'),
+    ]
+    for tool, cmd in real_edits:
+        assert _is_edit_call(tool, cmd), f"Real edit missed: {tool} {cmd}"

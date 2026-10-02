@@ -564,6 +564,14 @@ def _setup_deviation_lines(deviations: list[dict[str, Any]] | None) -> list[str]
     return lines
 
 
+def _watch_job_lines(report: dict[str, Any]) -> list[str]:
+    """Live-watch alert section for the job page (HAR-162; [] when clean)."""
+    from evallab import auto_watch as _auto_watch
+
+    watch = report.get("watch") or {}
+    return _auto_watch.format_watch_lines(watch.get("alerts") or [])
+
+
 def _job_task_identity(job_dir: Path) -> dict[str, Any | None]:
     """Canonical task identity for counts, read once per job.
 
@@ -741,6 +749,15 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
     from evallab.interpretation.run_report import render_daytona_usage_lines
 
     lines.extend(render_daytona_usage_lines(record.get("daytona_usage")))
+    # HAR-162: dispatch-attached watch alerts for this trial; records built
+    # before the rollup carry none and render unchanged.
+    from evallab import auto_watch as _auto_watch
+
+    lines.extend(
+        _auto_watch.format_watch_lines(
+            record.get("watch_alerts") or [], trial=record.get("trial_name")
+        )
+    )
     lines.append("")
     return "\n".join(lines)
 
@@ -916,6 +933,7 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         + (allocated if allocated is not None else legacy_estimate),
         f"- ingest: {summary.get('ingest')}",
         *_setup_deviation_lines(report.get("setup_deviations")),
+        *_watch_job_lines(report),
         "",
         "| trial | reward | verdict | stop reason | stop category | tokens used/attempted | cost | flags |",
         "|---|---|---|---|---|---|---|---|",
@@ -1012,6 +1030,11 @@ def process_job(
 
     trial_reports: list[dict[str, Any]] = []
     task_identity = _job_task_identity(job_path)
+    # HAR-162: alerts the dispatch-attached watch wrote while the job ran.
+    # Read once here; absent watch output keeps every page byte-identical.
+    from evallab import auto_watch as _auto_watch
+
+    job_watch_alerts = _auto_watch.read_watch_alerts(job_path)
     for trial_path in trials:
         record = _process_trial(trial_path, job_path, nop_runs_dir=nop_runs_dir)
         trial_result = _read_json(trial_path / "result.json") or {}
@@ -1049,6 +1072,9 @@ def process_job(
             record, trial_result, label_root=label_root, task_identity=task_identity
         )
         _attach_decision(record, trial_path)
+        record["watch_alerts"] = [
+            alert for alert in job_watch_alerts if str(alert.get("trial")) == record["trial_name"]
+        ]
         trial_reports.append(record)
 
     # HAR-156: the job rollup lands before any page is written, so every run
@@ -1136,6 +1162,10 @@ def process_job(
         "ledger": ledger,
         "trials": rows,
         "setup_deviations": _setup_deviations(job_path),
+        "watch": {
+            **_auto_watch.summarize_watch_alerts(job_watch_alerts),
+            "alerts": job_watch_alerts,
+        },
         "summary": {
             "n_trials": len(trial_reports),
             "n_pass": sum(1 for record in scored if (record["reward"] or 0) >= 1.0),

@@ -297,6 +297,14 @@ class ExperimentSpec(ContractModel):
             "run provenance and spend ledgers; never inferred"
         ),
     )
+    watch_notify_lin: bool = Field(
+        default=False,
+        description=(
+            "opt-in live-watch notification (HAR-162): post critical watch "
+            "alerts (stall, infra spike, spend) to linear_card via "
+            "`lin comment`, each alert kind at most once per job; off by default"
+        ),
+    )
     elicitation: ElicitationSpec | None = Field(
         default=None,
         description="elicitation tuple (preamble_hash, toolset, env_overrides)",
@@ -515,11 +523,12 @@ class ExperimentSpec(ContractModel):
     def linear_card_is_explicit(cls, value: str | None) -> str | None:
         return normalize_linear_card(value)
 
-
     @model_validator(mode="after")
     def controls_and_campaigns_are_bounded(self) -> ExperimentSpec:
         if self.agent in {"oracle", "nop"} and self.model:
             raise ValueError(f"the {self.agent} control does not accept a model")
+        if self.watch_notify_lin and not self.linear_card:
+            raise ValueError("watch_notify_lin requires linear_card")
         if self.extra_instruction_sha256 and not self.extra_instruction_path:
             raise ValueError("extra_instruction_sha256 requires extra_instruction_path")
         if bool(self.toolbox_path) != bool(self.toolbox_sha256):
@@ -553,9 +562,7 @@ class ExperimentSpec(ContractModel):
                 )
             route_maximum = sum(route.max_cost_usd for route in self.provider_routes)
             if not math.isclose(route_maximum, self.provider_failover_max_cost_usd):
-                raise ValueError(
-                    "provider route costs must equal provider_failover_max_cost_usd"
-                )
+                raise ValueError("provider route costs must equal provider_failover_max_cost_usd")
             if self.est_cost_usd < self.provider_failover_max_cost_usd:
                 raise ValueError(
                     "est_cost_usd must cover the full authorized provider failover maximum"
@@ -1611,7 +1618,11 @@ class TaskLimits(ContractModel):
     @field_validator("timeout_seconds", mode="before")
     @classmethod
     def _validate_timeout_seconds(cls, value: Any) -> Any:
-        if isinstance(value, (int, float)) and not isinstance(value, bool) and not (1 <= value <= 28_800):
+        if (
+            isinstance(value, (int, float))
+            and not isinstance(value, bool)
+            and not (1 <= value <= 28_800)
+        ):
             raise ValueError(
                 "timeout_seconds must be between 1 and 28800 seconds "
                 "(TB4 v4.0.0 official agent.timeout_sec=28800)"
@@ -1644,9 +1655,7 @@ class ControlEvidenceRef(ContractModel):
     #: discovery has already bound to this exact source package; refs minted
     #: from direct source runs leave them None and bind the registry task_id.
     staged_task_name: str | None = Field(default=None, min_length=1)
-    staged_harbor_digest: str | None = Field(
-        default=None, pattern=r"^sha256:[0-9a-f]{64}$"
-    )
+    staged_harbor_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
 
     @field_validator("evidence_path")
     @classmethod
@@ -1839,6 +1848,7 @@ class TaskRegistryRecord(ContractModel):
         if not isinstance(value, str) or not value.strip():
             raise ValueError("version must be a non-empty string")
         return value.strip()
+
     task_path: str = Field(min_length=1)
     digests: TaskDigests
     source_uri: str = Field(min_length=1)
@@ -2280,7 +2290,9 @@ class GridFactor(ContractModel):
             if level < 1:
                 raise ValueError(f"binding {self.binding!r} requires levels >= 1")
             if self.binding == "timeout_seconds" and level > 28_800:
-                raise ValueError("timeout_seconds factor levels must be <= 28800 (TB4 v4.0.0 official agent.timeout_sec)")
+                raise ValueError(
+                    "timeout_seconds factor levels must be <= 28800 (TB4 v4.0.0 official agent.timeout_sec)"
+                )
         return self
 
 

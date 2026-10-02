@@ -6519,6 +6519,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.run_telemetry import build_telemetry_parser
 
     build_telemetry_parser(commands)
+    from evallab.monitor import build_investigate_parser
+
+    build_investigate_parser(commands)
     return root
 
 def _normalize_review_argv(argv: Sequence[str] | None) -> Sequence[str] | None:

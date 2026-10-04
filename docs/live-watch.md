@@ -27,8 +27,10 @@ uv run evallab watch --runs-dir runs --out state/watch-01 --interval 60 \
 Each `--runs-dir` is either a job directory (children are `<task>__<id>`
 trial dirs) or a runs root (children are job directories). `--once` (or no
 `--interval`) does a single pass; `--interval SECONDS` loops until
-interrupted, skipping recompute for trials whose trajectory mtime+size are
-unchanged. `--limits-from-config` reads token limits from the trial/job
+interrupted. Each pass reuses a trial's previous signals only while its
+trajectory, `result.json` and live proxy ledger are all unchanged (mtime and
+size); a reused status still ages `minutes_since_update`, so `stalled` fires
+and a late `result.json` flips the trial to finished. `--limits-from-config` reads token limits from the trial/job
 `config.json` or the job `experiment-spec.json` instead of the defaults.
 
 ## Outputs (`--out`)

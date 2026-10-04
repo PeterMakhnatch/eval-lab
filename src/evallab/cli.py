@@ -516,6 +516,9 @@ def _tick_command(
         progress=print,
         capacity=capacity,
         modal_teardown=stop_selfhosted_app_if_drained,
+        selfhosted_warmup_seconds=float(getattr(args, "selfhosted_warmup_seconds", 600.0)),
+        selfhosted_probe_stale_seconds=float(getattr(args, "selfhosted_probe_stale_seconds", 60.0)),
+        smoke_gate_enabled=not bool(getattr(args, "no_smoke_gate", False)),
     )
     for spec_id in args.spec_id:
         selected_path = executor.queue.locate(spec_id)
@@ -4394,6 +4397,7 @@ def _review_command(
         )
     return 2
 
+
 # ---------------------------------------------------------------------------
 # Declarative CLI Parser Construction
 # ---------------------------------------------------------------------------
@@ -4568,6 +4572,30 @@ def parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="Optional path to a CanarySuite YAML for opt-in replenishment before dispatch",
+    )
+    tick.add_argument(
+        "--no-smoke-gate",
+        action="store_true",
+        help=(
+            "Disable the default smoke-trial gate for multi-model batches "
+            "(the opt-out is recorded in queue/events.jsonl)"
+        ),
+    )
+    tick.add_argument(
+        "--selfhosted-warmup-seconds",
+        type=float,
+        default=600.0,
+        metavar="SECONDS",
+        help="Bounded warm-up wait for a cold self-hosted endpoint (default: 600)",
+    )
+    tick.add_argument(
+        "--selfhosted-probe-stale-seconds",
+        type=float,
+        default=60.0,
+        metavar="SECONDS",
+        help=(
+            "Reuse a passing self-hosted probe for later launches within this window (default: 60)"
+        ),
     )
     tick.set_defaults(func=_tick_command)
 
@@ -6565,6 +6593,7 @@ def parser() -> argparse.ArgumentParser:
 
     build_investigate_parser(commands)
     return root
+
 
 def _normalize_review_argv(argv: Sequence[str] | None) -> Sequence[str] | None:
     if argv is None:

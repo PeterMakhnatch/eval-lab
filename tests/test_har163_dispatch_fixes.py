@@ -219,6 +219,31 @@ def test_infra_spike_stops_dispatch(tmp_path: Path) -> None:
     assert service.last_tick_reason == "infra_spike_stop"
 
 
+def test_mid_tick_spike_stops_remaining(tmp_path: Path) -> None:
+    """A spike alert from the just-finished job fences the rest of the tick."""
+    calls: list[str] = []
+
+    def run(request: RunRequest) -> Path:
+        calls.append(request.name)
+        job = _mkdir_job(request)
+        if len(calls) == 1:
+            watch = job / "watch"
+            watch.mkdir(parents=True, exist_ok=True)
+            (watch / "alerts.jsonl").write_text(
+                json.dumps({"rule": "infra_spike", "severity": "high"}) + "\n",
+                encoding="utf-8",
+            )
+        return job
+
+    service = _service(tmp_path, runner=run)
+    for name in ("mid-a", "mid-b", "mid-c"):
+        _approve(service, _spec(name))
+    assert service.tick() == 1
+    assert len(calls) == 1
+    assert (tmp_path / "queue" / "STOP").is_file()
+    assert "infra_spike:infra_spike" in _reason_codes(service)
+
+
 def test_daytona_memory_clamp(tmp_path: Path) -> None:
     """The tick plan fits the memory cap up front; trimmed specs stay approved."""
     progress: list[str] = []

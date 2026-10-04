@@ -44,6 +44,7 @@ from evallab.dispatch_guards import (
     is_daytona_spec,
     is_model_backed,
     is_selfhosted_spec,
+    read_spike_alerts,
     resolve_selfhosted_endpoint,
     resolve_selfhosted_key,
     scan_spike_alerts,
@@ -1818,10 +1819,11 @@ class Executor:
     def _stop_on_infra_spike(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> bool:
         """Fence the queue when a watch alert reports an infra spike.
 
-        Scans the ``watch/alerts.jsonl`` of every runs root behind the
-        approved batch for ``proxy_error_spike``/``infra_spike``. On a hit,
-        sets the existing ``STOP`` fence so no further specs dispatch;
-        running trials are never touched. Returns whether the fence was set.
+        Full scan of the ``watch/alerts.jsonl`` of every runs root behind
+        the approved batch for ``proxy_error_spike``/``infra_spike``; runs
+        once per tick. On a hit, sets the existing ``STOP`` fence so no
+        further specs dispatch; running trials are never touched. Returns
+        whether the fence was set.
         """
         if not approved_specs:
             return False
@@ -1837,9 +1839,34 @@ class Executor:
         alerts = scan_spike_alerts(roots)
         if not alerts:
             return False
-        rule = str(alerts[0].get("rule") or "infra_spike")
+        return self._fence_for_spike(
+            str(alerts[0].get("rule") or "infra_spike"), len(alerts), approved_specs
+        )
+
+    def _stop_on_job_spike(
+        self, job_dir: Path, remaining: list[tuple[Path, ExperimentSpec]]
+    ) -> bool:
+        """Fence the queue when a just-finished job reports an infra spike.
+
+        Reads only that job's own ``watch/alerts.jsonl`` (the watch final
+        pass lands there synchronously at dispatch end), so a 100-spec tick
+        pays one file probe per dispatch instead of one full scan.
+        """
+        if not remaining:
+            return False
+        alerts = read_spike_alerts(job_dir)
+        if not alerts:
+            return False
+        return self._fence_for_spike(
+            str(alerts[0].get("rule") or "infra_spike"), len(alerts), remaining
+        )
+
+    def _fence_for_spike(
+        self, rule: str, count: int, specs: list[tuple[Path, ExperimentSpec]]
+    ) -> bool:
+        """Set the existing ``STOP`` fence and record why; never touches running trials."""
         self.queue.stop()
-        for _, spec in approved_specs:
+        for _, spec in specs:
             self.queue.append_event(
                 QueueEvent(
                     event_id=new_ulid(),
@@ -1853,10 +1880,17 @@ class Executor:
             )
         self.last_tick_reason = "infra_spike_stop"
         self._report_progress(
-            f"stopped launches on {rule} ({len(alerts)} alert(s)); "
+            f"stopped launches on {rule} ({count} alert(s)); "
             "running trials untouched; clear with `evallab resume`"
         )
         return True
+
+    def _job_dir_for(self, spec: ExperimentSpec) -> Path | None:
+        """Best-effort job directory for a spec; ``None`` when unresolvable."""
+        try:
+            return self._safe_repo_path(spec.jobs_dir) / spec.name
+        except ValueError:
+            return None
 
     def _observe_daytona(self) -> dict[str, Any]:
         """Read the Daytona admission snapshot (injectable for tests)."""
@@ -2200,7 +2234,10 @@ class Executor:
         smoke_ran = self._dispatch_one(smoke_path, smoke_spec, authorizations, credentials)
         if smoke_ran:
             dispatched += 1
-        if self.queue.stop_path.exists() or self._stop_on_infra_spike(rest):
+        smoke_job_dir = self._job_dir_for(smoke_spec) if smoke_ran else None
+        if self.queue.stop_path.exists() or (
+            smoke_job_dir is not None and self._stop_on_job_spike(smoke_job_dir, rest)
+        ):
             self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
         if smoke_ran:
@@ -2272,10 +2309,11 @@ class Executor:
         for index, (path, spec) in enumerate(batch):
             if self.queue.stop_path.exists():
                 break
-            if self._stop_on_infra_spike(batch[index:]):
-                break
             if self._dispatch_one(path, spec, authorizations, credentials):
                 dispatched += 1
+                job_dir = self._job_dir_for(spec)
+                if job_dir is not None and self._stop_on_job_spike(job_dir, batch[index + 1 :]):
+                    break
         return dispatched
 
     def _dispatch_batch(

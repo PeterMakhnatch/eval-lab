@@ -335,7 +335,7 @@ inputs:
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
-    digest: sha256:329fb315c6f0ff0eb85aaa6bef807e8036ecdc834ba04b1adc944d2b6bafc851
+    digest: sha256:bc117b8dda28ab9622479354195e49e568abd021426259b7e4232f19029e1954
   - path: src/evallab/quota.py
     digest: sha256:b02ac34b1dc5453d5648e31f1d2297b25ead6609fbd3276680915a7e479ba57e
   - path: src/evallab/recovery/__init__.py

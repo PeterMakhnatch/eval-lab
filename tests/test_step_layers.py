@@ -391,6 +391,11 @@ def test_scored_timeout_stops_as_timeout_not_infra() -> None:
         ({"native_exit_status": "Idle"}, {"exception_type": "AgentTimeoutError"}, "agent_timeout"),
         ({"native_exit_status": "ModelQueryError"}, {}, "error"),
         ({"native_exit_status": "InfraError"}, {}, "error"),
+        (
+            {"native_exit_status": "ModelQueryError", "stop_reason": "infra_error"},
+            {"exception_type": "RuntimeError"},
+            "infra_error",
+        ),
     ],
 )
 def test_recorded_stops_take_precedence_over_completion(metadata, exception, expected) -> None:
@@ -412,6 +417,7 @@ def test_recorded_stops_take_precedence_over_completion(metadata, exception, exp
         ("task_complete_confirmed", "model_end"),
         ("prose_completion", "model_end"),
         ("error", "error"),
+        ("infra_error", "error"),
         ("unknown", "unknown"),
         (None, "unknown"),
     ],

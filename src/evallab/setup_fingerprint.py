@@ -355,11 +355,12 @@ def build_intended_fingerprint(
     )
     step_limit_source = "pinned Terminus tree max_turns, or uncapped when absent"
     if agent == "mimoagent":
-        from evallab.mimoagent_worker import NATIVE_REVISION, SAMPLING
+        from evallab.mimoagent_worker import NATIVE_REVISION, SAMPLING, WRAPPER_ADDITIONS
 
         harness_id = "mimoagent-default"
         harness_version = NATIVE_REVISION
         harness_version_source = "mimoagent_worker.NATIVE_REVISION (validated by the isolated SDK)"
+        additions.update(WRAPPER_ADDITIONS)
         parser = serve.get("tool_call_parser")
         parser_source = f"{SERVE_CONFIG_RELATIVE} TOOL_CALL_PARSER"
         sampling = {

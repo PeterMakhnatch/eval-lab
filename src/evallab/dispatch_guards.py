@@ -4,12 +4,11 @@ Four small guards, one per failure mode, all enforced on the real tick path:
 
 1. Self-hosted readiness probe (cold Modal endpoint): a minimal
    ``POST /v1/chat/completions`` (``max_tokens=1``) against the resolved
-   upstream before any self-hosted-model spec dispatches. A 503 or
+   upstream before every self-hosted-model dispatch. A 503 or
    connection error waits with backoff inside a bounded warm-up window and
    launches on the first 200; an endpoint still cold at the bound defers
    the spec with ``selfhosted_endpoint_not_ready``. Never launches into
-   a 503. One probe per tick per endpoint, re-probed only after
-   ``stale_seconds`` since the last success.
+   a 503. Every launch re-probes: no cached-ready reuse.
 2. Infra-spike stop: a ``proxy_error_spike``/``infra_spike`` alert in any
    job ``watch/alerts.jsonl`` sets the existing queue ``STOP`` fence, so
    no further specs dispatch. Running trials are untouched (``stop()``
@@ -19,14 +18,17 @@ Four small guards, one per failure mode, all enforced on the real tick path:
    from ``DaytonaGuard.observe()``, so admission never refuses an
    over-planned tick. Guard unavailable falls back to one launch.
 4. Smoke gate: a batch with more than one model-backed spec dispatches
-   one first. If that trial is ungradable with an exception outside
-   ``AGENT_STOP_EXCEPTIONS`` (infra or wiring, e.g. the missing proxy URL
-   that failed smoke trial 000552), the rest stay approved with
-   ``smoke_gate_blocked``. Gradable smoke lets the rest launch.
+   one first. Fail-closed: the rest stay approved with
+   ``smoke_gate_blocked`` (plus the durable queue ``STOP`` fence) unless
+   every smoke trial carries a finite verifier reward with no unexpected
+   exception. A canonical ``AGENT_STOP_EXCEPTIONS`` stop still needs its
+   finite grade to release; the stop name alone never releases. Missing,
+   unreadable, empty, non-finite, or ungraded smoke evidence blocks.
+   Gradable smoke lets the rest launch.
    Default-on; ``--no-smoke-gate`` opts out and is recorded.
 
-Stubs only: nothing here calls Modal, Daytona, or a model. The only
-network call is the localhost-or-configured upstream probe.
+These guards do not deploy resources. Readiness performs a real, authenticated
+minimal chat-completions request against the configured model upstream.
 """
 
 from __future__ import annotations
@@ -42,6 +44,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from evallab.database import AGENT_STOP_EXCEPTIONS
 from evallab.execution_contracts import (
     MIMO_SELFHOSTED_PROXY_TOKEN,
     MIMO_SELFHOSTED_SECRET_FILE_ENV,
@@ -57,8 +60,6 @@ SELFHOSTED_KEY_ENV = "MIMO_SELFHOSTED_API_KEY"
 DEFAULT_SELFHOSTED_WARMUP_SECONDS = 600.0
 #: Single probe attempt timeout.
 DEFAULT_SELFHOSTED_PROBE_TIMEOUT_SECONDS = 10.0
-#: Re-probe a cached-ready endpoint only after this long since success.
-DEFAULT_SELFHOSTED_PROBE_STALE_SECONDS = 60.0
 #: Backoff between probe attempts while the endpoint reports cold.
 PROBE_BACKOFF_BASE_SECONDS = 2.0
 PROBE_BACKOFF_CAP_SECONDS = 10.0
@@ -256,34 +257,48 @@ def _finite_reward(value: Any) -> bool:
 def smoke_trial_blocks(job: Any) -> tuple[bool, str]:
     """Whether a finished smoke job blocks the rest of its batch.
 
-    Blocks only on positive infra/wiring evidence: at least one trial
-    with no verifier reward whose exception sits outside
-    ``AGENT_STOP_EXCEPTIONS`` (agent timeouts, budget stops, loop breaks
-    are agent outcomes, not infrastructure). Missing or unreadable job
-    evidence never blocks: the gate needs a signal, not an absence.
+    Fail-closed: returns ``False`` only on nonempty observed gradable
+    evidence — every trial carries a finite verifier reward
+    (``results.TrialRecord.primary_reward`` semantics) and no trial
+    carries an unexpected exception. Missing, unreadable, empty,
+    non-finite, or ungraded evidence blocks, as does any infrastructure
+    or wiring exception, even when a reward is present. A canonical
+    ``database.AGENT_STOP_EXCEPTIONS`` stop still needs its finite grade
+    to release: the stop name alone, without grading, is absence of
+    evidence, not evidence of health.
     """
     if job is None:
-        return False, "smoke job evidence unavailable"
-    trials = list(getattr(job, "trials", ()) or ())
-    if not trials:
-        return False, "smoke job has no trials"
+        return True, "smoke job evidence unavailable"
     try:
-        from evallab.database import AGENT_STOP_EXCEPTIONS
+        trials = list(getattr(job, "trials", ()) or ())
     except Exception:
-        AGENT_STOP_EXCEPTIONS = frozenset()
+        return True, "smoke job evidence unreadable"
+    if not trials:
+        return True, "smoke job has no trials"
     for trial in trials:
-        reward = getattr(trial, "primary_reward", None)
-        if _finite_reward(reward):
-            continue
-        result = getattr(trial, "result", None)
-        exception_info = result.get("exception_info") if isinstance(result, dict) else None
+        try:
+            name = getattr(trial, "name", None) or getattr(trial, "path", "?")
+            reward = getattr(trial, "primary_reward", None)
+            result = getattr(trial, "result", None)
+        except Exception:
+            return True, "smoke trial evidence unreadable"
+        if not _finite_reward(reward):
+            return True, f"smoke trial {name} ungraded (no finite verifier reward)"
+        if not isinstance(result, dict):
+            return True, f"smoke trial {name} has invalid result evidence"
+        exception_info = result.get("exception_info")
+        if exception_info is not None and not isinstance(exception_info, dict):
+            return True, f"smoke trial {name} has invalid exception evidence"
         exception_type = (
             exception_info.get("exception_type") if isinstance(exception_info, dict) else None
         )
-        if exception_type is not None and str(exception_type) in AGENT_STOP_EXCEPTIONS:
+        if not exception_type:
             continue
-        name = getattr(trial, "name", None) or getattr(trial, "path", "?")
-        return True, f"smoke trial {name} ungradable ({exception_type or 'no exception'})"
+        if str(exception_type) not in AGENT_STOP_EXCEPTIONS:
+            return True, (
+                f"smoke trial {name} carries an unexpected exception "
+                f"({exception_type}) despite its grade"
+            )
     return False, "smoke trial gradable"
 
 

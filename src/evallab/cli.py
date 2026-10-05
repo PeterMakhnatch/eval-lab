@@ -517,7 +517,6 @@ def _tick_command(
         capacity=capacity,
         modal_teardown=stop_selfhosted_app_if_drained,
         selfhosted_warmup_seconds=float(getattr(args, "selfhosted_warmup_seconds", 600.0)),
-        selfhosted_probe_stale_seconds=float(getattr(args, "selfhosted_probe_stale_seconds", 60.0)),
         smoke_gate_enabled=not bool(getattr(args, "no_smoke_gate", False)),
     )
     for spec_id in args.spec_id:
@@ -4340,9 +4339,7 @@ def _review_command(
     cmd = getattr(args, "review_command", None)
     if cmd == "prepare":
         job_dirs = (
-            [_resolve(root, p) for p in args.job_dir]
-            if getattr(args, "job_dir", None)
-            else None
+            [_resolve(root, p) for p in args.job_dir] if getattr(args, "job_dir", None) else None
         )
         mask_text_files = [_resolve(root, p) for p in (args.mask_text_file or [])]
         out_dir = _resolve(root, args.out)
@@ -4374,20 +4371,10 @@ def _review_command(
     elif cmd == "join":
         review_dir = _resolve(root, args.dir)
         predictions = (
-            _resolve(root, args.predictions)
-            if getattr(args, "predictions", None)
-            else None
+            _resolve(root, args.predictions) if getattr(args, "predictions", None) else None
         )
-        out_tables = (
-            _resolve(root, args.out_tables)
-            if getattr(args, "out_tables", None)
-            else None
-        )
-        out_report = (
-            _resolve(root, args.out_report)
-            if getattr(args, "out_report", None)
-            else None
-        )
+        out_tables = _resolve(root, args.out_tables) if getattr(args, "out_tables", None) else None
+        out_report = _resolve(root, args.out_report) if getattr(args, "out_report", None) else None
         return review_join(
             review_dir=review_dir,
             baseline=getattr(args, "baseline", None),
@@ -4587,15 +4574,6 @@ def parser() -> argparse.ArgumentParser:
         default=600.0,
         metavar="SECONDS",
         help="Bounded warm-up wait for a cold self-hosted endpoint (default: 600)",
-    )
-    tick.add_argument(
-        "--selfhosted-probe-stale-seconds",
-        type=float,
-        default=60.0,
-        metavar="SECONDS",
-        help=(
-            "Reuse a passing self-hosted probe for later launches within this window (default: 60)"
-        ),
     )
     tick.set_defaults(func=_tick_command)
 

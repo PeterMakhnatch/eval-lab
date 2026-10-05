@@ -416,6 +416,8 @@ def test_declared_harness_addition_passes(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("step_limit", [500, 501])
 def test_native_reference_gate_uses_native_setup(tmp_path: Path, step_limit: int) -> None:
+    from evallab.mimoagent_worker import WRAPPER_ADDITIONS
+
     root, digest = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
     config = root / "tools/mimoagent-harbor/swe.yaml"
     config.parent.mkdir(parents=True)
@@ -426,6 +428,11 @@ def test_native_reference_gate_uses_native_setup(tmp_path: Path, step_limit: int
         deviations=[
             {"field": "server.tool_call_parser", "value": "mimo", "reason": "served parser"},
             {"field": "server.context_length", "value": 65536, "reason": "served context"},
+            {
+                "field": "harness.additions",
+                "value": WRAPPER_ADDITIONS,
+                "reason": "Declared HAR-164 transport and task-boundary adapters.",
+            },
         ],
     ).model_copy(
         update={

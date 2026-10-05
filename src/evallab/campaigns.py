@@ -1977,7 +1977,9 @@ class CampaignOrchestrator:
         reasons = [
             event.reason_code
             for event in load_events(self.executor.queue.events_path)
-            if event.spec_id == attempt.spec_id and event.reason_code
+            if event.spec_id == attempt.spec_id
+            and event.to_state == "failed"
+            and event.reason_code
         ]
         if reasons:
             return reasons[-1]

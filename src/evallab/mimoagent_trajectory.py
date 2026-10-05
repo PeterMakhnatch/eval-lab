@@ -28,14 +28,36 @@ def _totals(calls: list[dict]) -> dict:
     return result
 
 
+def _child_observation(content: str) -> tuple[str, str | None]:
+    """Replace only the native agent tool's controller log locator, not its output."""
+    output, separator, metadata = content.rpartition("\n\nTool metadata: ")
+    if not separator:
+        return content, None
+    try:
+        details = ast.literal_eval(metadata)
+    except (ValueError, SyntaxError):
+        return content, None
+    if not isinstance(details, dict) or not isinstance(details.get("log_file"), str):
+        return content, None
+    child_name = PurePosixPath(details["log_file"]).stem
+    details["log_file"] = f"childlog://{child_name}"
+    return f"{output}{separator}{details!r}", child_name
+
+
 def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model_name: str) -> dict:
     """Keep original tool IDs, raw arguments, observations, reasoning and usage.
 
     Missing usage remains missing, rather than becoming an invented zero. A
     rejected malformed-arguments call remains in evidence even though ATIF
     requires arguments to be an object. Root totals include all child calls.
+    Failed requests without an assistant answer remain structured evidence, not
+    invented agent steps. The worker records infrastructure stops as safe native
+    info, never as a terminal diagnostic user message. Explicit per-agent stops
+    describe failed children without turning a recovered root run into a failure.
+    Task and sandbox content are not classified or path-sanitized.
     """
     trajectories: list[dict] = []
+    agent_stops = native.get("info", {}).get("agent_stops", {})
     for name, conversation in native["trajs"].items():
         if not conversation["messages"]:
             continue
@@ -52,18 +74,11 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
                     raise ValueError(f"native observation has no tool call: {call_id}")
                 result: dict[str, Any] = {"source_call_id": call_id, "content": message.get("content")}
                 if message.get("name") == "agent" and isinstance(message.get("content"), str):
-                    _, separator, metadata = message["content"].rpartition("\n\nTool metadata: ")
-                    if separator:
-                        try:
-                            details = ast.literal_eval(metadata)
-                        except (ValueError, SyntaxError):
-                            details = None
-                        if isinstance(details, dict) and isinstance(details.get("log_file"), str):
-                            child_name = PurePosixPath(details["log_file"]).stem
-                            if child_name in native["trajs"]:
-                                result["subagent_trajectory_ref"] = [
-                                    {"trajectory_id": f"{trajectory_id}:{child_name}"}
-                                ]
+                    result["content"], child_name = _child_observation(message["content"])
+                    if child_name in native["trajs"]:
+                        result["subagent_trajectory_ref"] = [
+                            {"trajectory_id": f"{trajectory_id}:{child_name}"}
+                        ]
                 owner.setdefault("observation", {"results": []})["results"].append(result)
                 continue
             if role not in {"system", "user", "assistant"}:
@@ -113,6 +128,19 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
                 if tool_calls:
                     step["tool_calls"] = tool_calls
             steps.append(step)
+        stop = agent_stops.get(name, {})
+        extra = {
+            "native_exit_status": stop.get("exit_status", native.get("info", {}).get("exit_status"))
+        }
+        for key in ("stop_reason", "infra_error"):
+            if key in stop:
+                extra[key] = stop[key]
+        unanswered = [
+            call for call in own_calls
+            if call.get("assistant_index") not in range(assistant_index)
+        ]
+        if unanswered:
+            extra["unanswered_model_calls"] = unanswered
         trajectories.append({
             "schema_version": "ATIF-v1.7",
             "trajectory_id": trajectory_id if name == "main" else f"{trajectory_id}:{name}",
@@ -122,7 +150,7 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
                                 "antihack": False, "sampling": SAMPLING}},
             "steps": steps,
             "final_metrics": _totals(own_calls),
-            "extra": {"native_exit_status": native.get("info", {}).get("exit_status")},
+            "extra": extra,
         })
     main = next((trajectory for trajectory in trajectories if trajectory["agent"]["extra"]["native_name"] == "main"), None)
     if main is None:
@@ -130,4 +158,11 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
     main["subagent_trajectories"] = [trajectory for trajectory in trajectories if trajectory is not main]
     main["final_metrics"] = _totals(calls)
     main["extra"]["native_model_stats"] = native.get("info", {}).get("model_stats")
+    for key in ("stop_reason", "infra_error"):
+        if key in native.get("info", {}):
+            main["extra"][key] = native["info"][key]
+    emitted_names = {trajectory["agent"]["extra"]["native_name"] for trajectory in trajectories}
+    unassigned = [call for call in calls if call["name"] not in emitted_names]
+    if unassigned:
+        main["extra"]["unassigned_model_calls"] = unassigned
     return main

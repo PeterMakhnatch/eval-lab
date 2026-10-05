@@ -137,6 +137,33 @@ for a billable spec at all, so listing a paid agent there changes nothing. Full
 semantics, including the fail-closed cases, are in `docs/operations.md`,
 "Paid execution requires a recorded authorisation".
 
+### Batch launch safety (HAR-163, repaired by HAR-164)
+
+Every self-hosted launch requires a fresh authenticated
+`POST /v1/chat/completions` readiness probe; a prior success is never cached
+for another launch. Cold endpoints wait with backoff inside
+`--selfhosted-warmup-seconds` (default 600 seconds). A still-cold or rejected
+endpoint defers the spec rather than launching a trial into that failure.
+
+For a batch with multiple model-backed specs, the first selected model spec
+runs alone even when capacity or Daytona memory headroom clamps the batch to
+one launch. The remaining specs launch only after that dispatch completes
+successfully and its complete, immutable Harbor evidence contains nonempty
+finite verifier grades without an infrastructure or wiring exception.
+A grade of zero is a valid task failure, not a broken harness. Agent timeouts,
+trial-budget stops, and loop stops also require a finite grade; a stop name
+without grading is not proof of a healthy run. Graded files left behind by
+a failed dispatch cannot release the batch.
+
+An undispatched, ungraded, unavailable, unreadable, or otherwise blocked smoke
+sets `queue/STOP` **before** any further launch or failure-event recording.
+All remaining specs, including free controls, stay queued across later ticks
+and fresh executors. Running trials are not killed or changed. Resolve the
+cause before an operator uses `evallab resume`; no automatic resume or trial
+retry is implied. Controls-only and intentionally selected single-model
+dispatches do not become smoke batches. `--no-smoke-gate` is an explicit,
+recorded opt-out, not the default or a substitute for paid authorisation.
+
 ### Z.ai OpenCode on Docker Desktop
 
 The default `zai-opencode` profile selects `zai-coding-plan/glm-5.3-flash`.

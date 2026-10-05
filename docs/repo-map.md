@@ -77,7 +77,7 @@ inputs:
   - path: src/evallab/digest.py
     digest: sha256:5fb598fe93b5168d0b5f9c6fd0e81a9fa67712235730cc4f70004a8d8c1a0561
   - path: src/evallab/dispatch_guards.py
-    digest: sha256:cc1a73bb2bf0c4303c9e216364c0fbaaa86024746dda6a6d8b515182ab723f41
+    digest: sha256:7f351cb7f0a00d1b29b5824496ca1df6359aad231832c12ca798a049bba42c90
   - path: src/evallab/docindex.py
     digest: sha256:c57bd3db7a2bea5b3aa756f4481a9432510ee15fb77127bd603f91651b4781b4
   - path: src/evallab/edit_signals.py
@@ -335,7 +335,7 @@ inputs:
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
-    digest: sha256:bc117b8dda28ab9622479354195e49e568abd021426259b7e4232f19029e1954
+    digest: sha256:46b4414425b9291de2379b68b3de32f29b103958b7d22aa96b23b28d021bda92
   - path: src/evallab/quota.py
     digest: sha256:b02ac34b1dc5453d5648e31f1d2297b25ead6609fbd3276680915a7e479ba57e
   - path: src/evallab/recovery/__init__.py

@@ -1,5 +1,6 @@
 """Property-based state machine fuzz for DirectoryQueue and Executor using Hypothesis."""
 
+import json
 import os
 import tempfile
 import threading
@@ -386,15 +387,21 @@ def test_property_vanished_file_tolerance(specs_data: list[tuple[str, float, boo
 )
 @settings(max_examples=50, deadline=None)
 def test_property_credential_deferral_preserves_approved_state(agents: list[str]) -> None:
-    """When credentials are missing, approved specs stay in approved/ and log dispatch_deferred."""
+    """When credentials are missing, approved specs stay in approved/ and nothing launches."""
     with tempfile.TemporaryDirectory() as tmpdir:
         root = Path(tmpdir)
         queue = DirectoryQueue(root / "queue")
+        launched: list[str] = []
+
+        def never_runs(req: RunRequest) -> Path:
+            launched.append(req.name)
+            return req.jobs_dir / req.name
+
         exec_service = Executor(
             repo_root=root,
             queue=queue,
             policy=policy(),
-            runner=lambda req: req.jobs_dir / req.name,
+            runner=never_runs,
             ingester=lambda _path: None,
             spent_today=lambda: 0.0,
             consecutive_harness_failures=lambda: 0,
@@ -409,22 +416,56 @@ def test_property_credential_deferral_preserves_approved_state(agents: list[str]
             approved = queue.approve(str(queue.load(waiting).spec_id), actor="peter")
             spec_ids.append(str(queue.load(approved).spec_id))
 
-        # First tick with NO credentials -> 0 dispatched
+        # No credentials -> 0 dispatched and the runner never fires
         assert exec_service.tick() == 0
+        assert launched == []
 
-        # Every spec MUST still be in approved/
+        # Every spec MUST still be in approved/; none may run or leave the queue
         approved_specs = {str(s.spec_id) for _, s in queue.list_specs("approved")}
         for sid in spec_ids:
             assert sid in approved_specs, (
                 f"Spec {sid} was lost from approved/ on credential deferral"
             )
+        assert queue.list_specs("running") == []
 
-        # Events must record dispatch_deferred
-        events = load_events(queue.events_path)
-        deferred_events = [e for e in events if e.event == "dispatch_deferred"]
-        assert len(deferred_events) == len(agents)
-        for e in deferred_events:
-            assert e.reason_code is not None and e.reason_code.startswith("missing_credential:")
+
+GRADED_JOB_FINISHED_AT = "2026-10-04T00:00:10+00:00"
+
+
+def _write_graded_job(req: RunRequest, *, reward: float = 0.0) -> Path:
+    """Write a finished Harbor job dir with one finite-grade trial (root result,
+    root config/lock, trial result/config/lock) so smoke can grade the evidence."""
+    job = Path(req.jobs_dir) / req.name
+    job.mkdir(parents=True, exist_ok=True)
+    (job / "result.json").write_text(
+        json.dumps(
+            {
+                "id": f"job-{req.name}",
+                "n_total_trials": 1,
+                "stats": {},
+                "finished_at": GRADED_JOB_FINISHED_AT,
+            }
+        ),
+        encoding="utf-8",
+    )
+    for stub in ("config.json", "lock.json"):
+        (job / stub).write_text("{}", encoding="utf-8")
+    trial = job / "trial-0"
+    trial.mkdir(exist_ok=True)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "trial-0",
+                "trial_name": "trial-0",
+                "task_name": "canary/event-summary",
+                "verifier_result": {"rewards": {"reward": reward}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    for stub in ("config.json", "lock.json"):
+        (trial / stub).write_text("{}", encoding="utf-8")
+    return job
 
 
 @given(
@@ -452,9 +493,7 @@ def test_property_quota_never_exceeded_mid_tick(costs: list[float]) -> None:
         total_catalog_spent = [0.0]
 
         def stub_runner(req: RunRequest) -> Path:
-            destination = req.jobs_dir / req.name
-            destination.mkdir(parents=True, exist_ok=True)
-            return destination
+            return _write_graded_job(req, reward=0.0)
 
         def stub_ingester(path: Path) -> None:
             for _pth, s in queue.list_specs("running"):
@@ -481,6 +520,9 @@ def test_property_quota_never_exceeded_mid_tick(costs: list[float]) -> None:
 
         dispatched = exec_service.tick()
 
+        # Gradable smoke evidence must release the batch, never fence it.
+        assert not queue.stop_path.exists()
+
         assert total_catalog_spent[0] <= ceiling, (
             f"Catalog spend {total_catalog_spent[0]} exceeded daily ceiling {ceiling}"
         )
@@ -489,9 +531,15 @@ def test_property_quota_never_exceeded_mid_tick(costs: list[float]) -> None:
         if dispatched < len(costs):
             assert len(waiting_specs) > 0, "Undispatched specs did not land in waiting/"
             for _, ws in waiting_specs:
-                reason_path = root / "queue" / "reasons" / f"{ws.spec_id}.json"
-                if reason_path.is_file():
-                    assert "daily_spend_limit" in reason_path.read_text()
+                reason_files = sorted((root / "queue" / "reasons").glob(f"{ws.spec_id}-*.json"))
+                assert reason_files, f"No policy reason recorded for waiting spec {ws.name}"
+                codes = {
+                    json.loads(path.read_text(encoding="utf-8")).get("code")
+                    for path in reason_files
+                }
+                assert "daily_cost_ceiling" in codes, (
+                    f"Waiting spec {ws.name} refused without the daily ceiling policy: {codes}"
+                )
 
 
 # --- M020: Lease and Parallel Concurrency Properties ---

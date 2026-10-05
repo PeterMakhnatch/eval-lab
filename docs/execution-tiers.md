@@ -156,13 +156,17 @@ without grading is not proof of a healthy run. Graded files left behind by
 a failed dispatch cannot release the batch.
 
 An undispatched, ungraded, unavailable, unreadable, or otherwise blocked smoke
-sets `queue/STOP` **before** any further launch or failure-event recording.
+sets `queue/STOP` **before** any further launch or smoke-block event recording.
 All remaining specs, including free controls, stay queued across later ticks
 and fresh executors. Running trials are not killed or changed. Resolve the
 cause before an operator uses `evallab resume`; no automatic resume or trial
 retry is implied. Controls-only and intentionally selected single-model
 dispatches do not become smoke batches. `--no-smoke-gate` is an explicit,
 recorded opt-out, not the default or a substitute for paid authorisation.
+
+Campaign failure classification uses the terminal transition into `failed`,
+not later smoke-fence diagnostics. A post-run compliance refusal still opens
+the campaign circuit and quarantines its remaining attempts.
 
 ### Z.ai OpenCode on Docker Desktop
 

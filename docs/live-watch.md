@@ -71,6 +71,10 @@ kept in `laminar.json` and the spans are retried on the next pass.
 `evallab laminar signals` creates or updates the four Signals defined in
 `evallab.laminar.SIGNALS` (`copied_upstream_fix`, `stuck_loop`,
 `false_completion_claim`, `infra_not_model`; root-span trigger, no filters).
+On Laminar Cloud the API creates a Signal only with a BYOK LLM profile
+(observed 2026-10-05, contrary to the API reference), so create each Signal
+once in the UI under that exact name; the command then patches its prompt,
+schema, trigger and filters, which works without a profile.
 `evallab laminar compare --runs-dir <job> --out <dir>` writes a per-trial
 table of Eval Lab's verdict vs each Signal event (`signals-vs-evallab.md`).
 

@@ -27,6 +27,31 @@ from evallab.credentials import (
     available_credentials,
     missing_credential_for,
 )
+from evallab.dispatch_guards import (
+    DAYTONA_FALLBACK_ALLOWANCE,
+    DAYTONA_REASON_CLAMPED,
+    DAYTONA_REASON_GUARD_UNAVAILABLE,
+    INFRA_STOP_EVENT,
+    SELFHOSTED_REASON_KEY_MISSING,
+    SELFHOSTED_REASON_NOT_READY,
+    SELFHOSTED_REASON_READY,
+    SELFHOSTED_REASON_REJECTED,
+    SELFHOSTED_REASON_UNCONFIGURED,
+    SMOKE_REASON_BLOCKED,
+    SMOKE_REASON_DISABLED,
+    SelfhostedProbeOutcome,
+    daytona_tick_allowance,
+    is_daytona_spec,
+    is_model_backed,
+    is_selfhosted_spec,
+    read_spike_alerts,
+    resolve_selfhosted_endpoint,
+    resolve_selfhosted_key,
+    scan_spike_alerts,
+    selfhosted_probe_model,
+    smoke_trial_blocks,
+    wait_for_selfhosted_ready,
+)
 from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
 from evallab.evidence_store import EvidenceArchive, archive_evidence
@@ -1307,6 +1332,14 @@ class Executor:
         parallel: int = 1,
         capacity: DispatchCapacity | None = None,
         modal_teardown: ModalTeardownHook | None = None,
+        watch_enabled: bool = True,
+        watch_interval_seconds: float = 60.0,
+        selfhosted_warmup_seconds: float = 600.0,
+        selfhosted_probe_timeout_seconds: float = 10.0,
+        selfhosted_probe_fn: Callable[[str, str, str, float], SelfhostedProbeOutcome] | None = None,
+        daytona_observe_fn: Callable[[], dict[str, Any]] | None = None,
+        smoke_gate_enabled: bool = True,
+        notify_runner: Callable[..., Any] | None = None,
     ) -> None:
         self.repo_root = repo_root.resolve()
         self.queue = queue
@@ -1334,6 +1367,20 @@ class Executor:
         self.parallel = parallel
         self.capacity = capacity
         self._modal_teardown = modal_teardown
+        if watch_interval_seconds <= 0:
+            raise ValueError("watch_interval_seconds must be positive")
+        self._watch_enabled = watch_enabled
+        self._watch_interval_seconds = watch_interval_seconds
+        self._notify_runner = notify_runner
+        if selfhosted_warmup_seconds <= 0:
+            raise ValueError("selfhosted_warmup_seconds must be positive")
+        if selfhosted_probe_timeout_seconds <= 0:
+            raise ValueError("selfhosted_probe_timeout_seconds must be positive")
+        self._selfhosted_warmup_seconds = selfhosted_warmup_seconds
+        self._selfhosted_probe_timeout_seconds = selfhosted_probe_timeout_seconds
+        self._selfhosted_probe_fn = selfhosted_probe_fn
+        self._daytona_observe_fn = daytona_observe_fn
+        self._smoke_gate_enabled = smoke_gate_enabled
         self.last_tick_reason: str | None = None
 
     def _repo_headroom(self, agent: str) -> Headroom:
@@ -1355,6 +1402,9 @@ class Executor:
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
         create_queue: bool = True,
         modal_teardown: ModalTeardownHook | None = None,
+        selfhosted_warmup_seconds: float = 600.0,
+        selfhosted_probe_timeout_seconds: float = 10.0,
+        smoke_gate_enabled: bool = True,
     ) -> Executor:
         return cls(
             repo_root=root,
@@ -1365,6 +1415,9 @@ class Executor:
             progress=progress,
             max_transient_retries=max_transient_retries,
             modal_teardown=modal_teardown,
+            selfhosted_warmup_seconds=selfhosted_warmup_seconds,
+            selfhosted_probe_timeout_seconds=selfhosted_probe_timeout_seconds,
+            smoke_gate_enabled=smoke_gate_enabled,
         )
 
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
@@ -1436,16 +1489,12 @@ class Executor:
                     pass
         agent_res = trial.result.get("agent_result")
         exit_code = (
-            agent_res.get("exit_code")
-            if isinstance(agent_res, dict)
-            else None
+            agent_res.get("exit_code") if isinstance(agent_res, dict) else None
         ) or trial.result.get("exit_code")
         if exit_code is not None and exit_code != 0 and not has_valid_atif:
             task_success = False
         else:
-            task_success = (
-                trial.primary_reward == 1.0 if trial.primary_reward is not None else None
-            )
+            task_success = trial.primary_reward == 1.0 if trial.primary_reward is not None else None
         bundle = TrialEvidenceBundle(
             settlement=PlatformSettlement(
                 job_id=job.id,
@@ -1676,6 +1725,224 @@ class Executor:
                 "queued campaign spec differs from its frozen attempt",
             )
 
+    def _defer_spec_event(self, spec: ExperimentSpec, reason_code: str) -> None:
+        """Record a deferral that leaves the spec approved for a later tick."""
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(spec.spec_id),
+                occurred_at=datetime.now(UTC),
+                event="dispatch_deferred",
+                actor="executor",
+                reason_code=reason_code,
+                job_name=spec.name,
+            )
+        )
+
+    def _ensure_selfhosted_ready(self, spec: ExperimentSpec) -> bool:
+        """Probe the self-hosted upstream before dispatch; never launch into a 503.
+
+        Non-self-hosted specs pass through. Every self-hosted dispatch
+        re-probes the authenticated ``/v1/chat/completions`` upstream with
+        a fresh probe: no cached-ready reuse. Cold endpoints wait inside
+        ``selfhosted_warmup_seconds``; a still-cold endpoint defers the
+        spec (stays approved) with a clear reason code.
+        """
+        if not is_selfhosted_spec(spec):
+            return True
+        endpoint = resolve_selfhosted_endpoint()
+        if endpoint is None:
+            self._defer_spec_event(spec, SELFHOSTED_REASON_UNCONFIGURED)
+            self._report_progress(
+                f"deferred {spec.name} ({SELFHOSTED_REASON_UNCONFIGURED}); state: approved"
+            )
+            return False
+        key = resolve_selfhosted_key()
+        if not key:
+            self._defer_spec_event(spec, SELFHOSTED_REASON_KEY_MISSING)
+            self._report_progress(
+                f"deferred {spec.name} ({SELFHOSTED_REASON_KEY_MISSING}); state: approved"
+            )
+            return False
+        model = selfhosted_probe_model(spec.model)
+        started = time.time()
+        ready, attempts, rejected = wait_for_selfhosted_ready(
+            endpoint,
+            model,
+            key,
+            warmup_seconds=self._selfhosted_warmup_seconds,
+            timeout_seconds=self._selfhosted_probe_timeout_seconds,
+            probe_fn=self._selfhosted_probe_fn,
+            sleeper=self._sleeper,
+            clock=time.time,
+        )
+        waited = time.time() - started
+        if ready:
+            self.queue.append_event(
+                QueueEvent(
+                    event_id=new_ulid(),
+                    spec_id=str(spec.spec_id),
+                    occurred_at=datetime.now(UTC),
+                    event=SELFHOSTED_REASON_READY,
+                    actor="executor",
+                    reason_code=SELFHOSTED_REASON_READY,
+                    job_name=spec.name,
+                )
+            )
+            self._report_progress(
+                f"self-hosted probe ready for {spec.name} "
+                f"(attempts={attempts}, waited={waited:.1f}s)"
+            )
+            return True
+        reason = SELFHOSTED_REASON_REJECTED if rejected else SELFHOSTED_REASON_NOT_READY
+        self._defer_spec_event(spec, reason)
+        self._report_progress(
+            f"deferred {spec.name} ({reason} after {attempts} probe(s)); state: approved"
+        )
+        return False
+
+    def _stop_on_infra_spike(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> bool:
+        """Fence the queue when a watch alert reports an infra spike.
+
+        Full scan of the ``watch/alerts.jsonl`` of every runs root behind
+        the approved batch for ``proxy_error_spike``/``infra_spike``; runs
+        once per tick. On a hit, sets the existing ``STOP`` fence so no
+        further specs dispatch; running trials are never touched. Returns
+        whether the fence was set.
+        """
+        if not approved_specs:
+            return False
+        roots: dict[Path, None] = {}
+        for _, spec in approved_specs:
+            try:
+                roots[self._safe_repo_path(spec.jobs_dir)] = None
+            except ValueError:
+                continue
+        default_runs = self.repo_root / "runs"
+        if default_runs.is_dir():
+            roots[default_runs] = None
+        alerts = scan_spike_alerts(roots)
+        if not alerts:
+            return False
+        return self._fence_for_spike(
+            str(alerts[0].get("rule") or "infra_spike"), len(alerts), approved_specs
+        )
+
+    def _stop_on_job_spike(
+        self, job_dir: Path, remaining: list[tuple[Path, ExperimentSpec]]
+    ) -> bool:
+        """Fence the queue when a just-finished job reports an infra spike.
+
+        Reads only that job's own ``watch/alerts.jsonl`` (the watch final
+        pass lands there synchronously at dispatch end), so a 100-spec tick
+        pays one file probe per dispatch instead of one full scan.
+        """
+        if not remaining:
+            return False
+        alerts = read_spike_alerts(job_dir)
+        if not alerts:
+            return False
+        return self._fence_for_spike(
+            str(alerts[0].get("rule") or "infra_spike"), len(alerts), remaining
+        )
+
+    def _fence_for_spike(
+        self, rule: str, count: int, specs: list[tuple[Path, ExperimentSpec]]
+    ) -> bool:
+        """Set the existing ``STOP`` fence and record why; never touches running trials."""
+        self.queue.stop()
+        for _, spec in specs:
+            self.queue.append_event(
+                QueueEvent(
+                    event_id=new_ulid(),
+                    spec_id=str(spec.spec_id),
+                    occurred_at=datetime.now(UTC),
+                    event=INFRA_STOP_EVENT,
+                    actor="executor",
+                    reason_code=f"infra_spike:{rule}",
+                    job_name=spec.name,
+                )
+            )
+        self.last_tick_reason = "infra_spike_stop"
+        self._report_progress(
+            f"stopped launches on {rule} ({count} alert(s)); "
+            "running trials untouched; clear with `evallab resume`"
+        )
+        return True
+
+    def _job_dir_for(self, spec: ExperimentSpec) -> Path | None:
+        """Best-effort job directory for a spec; ``None`` when unresolvable."""
+        try:
+            return self._safe_repo_path(spec.jobs_dir) / spec.name
+        except ValueError:
+            return None
+
+    def _observe_daytona(self) -> dict[str, Any]:
+        """Read the Daytona admission snapshot (injectable for tests)."""
+        if self._daytona_observe_fn is not None:
+            return self._daytona_observe_fn()
+        from evallab.daytona_guard import DaytonaGuard
+
+        return DaytonaGuard().observe()
+
+    def _apply_daytona_clamp(
+        self, approved_specs: list[tuple[Path, ExperimentSpec]]
+    ) -> list[tuple[Path, ExperimentSpec]]:
+        """Clamp the tick plan to Daytona's memory cap up front.
+
+        Non-Daytona specs always pass. Daytona launches are capped at the
+        guard's memory allowance (one sandbox held in reserve), preserving
+        queue order, so admission never refuses an over-planned tick.
+        Trimmed specs stay approved for a later tick.
+        """
+        daytona_count = sum(1 for _, spec in approved_specs if is_daytona_spec(spec))
+        if daytona_count == 0:
+            return approved_specs
+        try:
+            snapshot = self._observe_daytona()
+        except Exception as exc:
+            allowance = DAYTONA_FALLBACK_ALLOWANCE
+            self._report_progress(
+                f"daytona guard unavailable ({type(exc).__name__}); "
+                f"falling back conservatively to {allowance} launch(es) this tick"
+            )
+            reason = DAYTONA_REASON_GUARD_UNAVAILABLE
+            detail: str | None = None
+        else:
+            allowance, detail = daytona_tick_allowance(snapshot)
+            self._report_progress(f"daytona tick clamp: {detail}")
+            reason = DAYTONA_REASON_CLAMPED
+        if daytona_count <= allowance:
+            return approved_specs
+        kept = 0
+        selected: list[tuple[Path, ExperimentSpec]] = []
+        for path, spec in approved_specs:
+            if not is_daytona_spec(spec):
+                selected.append((path, spec))
+                continue
+            if kept < allowance:
+                kept += 1
+                selected.append((path, spec))
+                continue
+            self._defer_spec_event(spec, reason)
+            self._report_progress(
+                f"deferred {spec.name} ({reason}"
+                + (f": {detail}" if detail else "")
+                + "); state: approved"
+            )
+        if not any(is_daytona_spec(spec) for _, spec in selected):
+            self.last_tick_reason = reason
+        return selected
+
+    def _load_smoke_job(self, spec: ExperimentSpec) -> Any | None:
+        """Best-effort load of a just-dispatched smoke job; never raises."""
+        try:
+            from evallab.results import load_job
+
+            return load_job(self._safe_repo_path(spec.jobs_dir) / spec.name)
+        except Exception:
+            return None
+
     def _dispatch_one(
         self,
         path: Path,
@@ -1716,6 +1983,8 @@ class Executor:
                 )
             )
             return False
+        if not self._ensure_selfhosted_ready(spec):
+            return False
         authorization = authorizations.get(str(spec.spec_id))
         if authorization is not None and (
             authorization.approved_spec_digest != approved_spec_digest(spec)
@@ -1736,10 +2005,20 @@ class Executor:
             )
             self.queue.write_reason(self.queue.load(failed), failure)
             return False
+        # PolicyGate.decide reads cost/consecutive inputs only inside
+        # ``spec.billable``; non-billable dispatch skips the catalog and
+        # event-ledger accounting it never inspects. Billable flow is
+        # unchanged (effective spend with reservations, harness failures).
+        if spec.billable:
+            spent_today_usd = self._effective_spend_today()
+            consecutive_harness_failures = self._consecutive_harness_failures()
+        else:
+            spent_today_usd = 0.0
+            consecutive_harness_failures = 0
         decision = self.gate.decide(
             spec,
-            spent_today_usd=self._effective_spend_today(),
-            consecutive_harness_failures=self._consecutive_harness_failures(),
+            spent_today_usd=spent_today_usd,
+            consecutive_harness_failures=consecutive_harness_failures,
             authorization=authorization,
         )
         if not decision.admitted:
@@ -1817,7 +2096,9 @@ class Executor:
                 )
                 self.queue.write_reason(self.queue.load(failed), failure)
                 state = "waiting" if deferred else "failed"
-                self._report_progress(f"{state} {spec.name} ({failure.reason_code}); state: {state}")
+                self._report_progress(
+                    f"{state} {spec.name} ({failure.reason_code}); state: {state}"
+                )
             else:
                 failure = self._settle_post_run(
                     job_dir,
@@ -1924,34 +2205,174 @@ class Executor:
             approved_specs = [
                 (path, spec) for path, spec in approved_specs if spec.spec_id in allowed
             ]
+        # Smoke eligibility is a property of the tick's approved batch,
+        # not of the post-clamp selection: capacity/daytona clamps that
+        # leave a single model-backed spec of a multi-model batch must not
+        # silently drop the gate. A standalone single model-backed spec is
+        # still not a batch (no new smoke requirement).
+        smoke_batch = approved_specs
+        smoke_required = self._smoke_gate_index(smoke_batch) is not None
         approved_specs = self._capacity_batch(approved_specs)
         if not approved_specs:
             self._maybe_stop_selfhosted_app(running_before, [])
             return 0
+        if self._stop_on_infra_spike(approved_specs):
+            self._maybe_stop_selfhosted_app(running_before, [])
+            return 0
+        approved_specs = self._apply_daytona_clamp(approved_specs)
+        if not approved_specs:
+            self._maybe_stop_selfhosted_app(running_before, [])
+            return 0
 
-        if parallel == 1:
-            dispatched = 0
-            for path, spec in approved_specs:
-                if self.queue.stop_path.exists():
-                    break
-                if self._dispatch_one(path, spec, authorizations, credentials):
-                    dispatched += 1
-            self._maybe_stop_selfhosted_app(
-                running_before, [spec for _, spec in approved_specs]
+        smoke_index = (
+            next(
+                (
+                    position
+                    for position, (_, item) in enumerate(approved_specs)
+                    if is_model_backed(item)
+                ),
+                None,
             )
+            if smoke_required
+            else None
+        )
+        if smoke_index is None:
+            self._record_smoke_opt_out(smoke_batch)
+            dispatched = self._dispatch_batch(approved_specs, parallel, authorizations, credentials)
+            self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
+        smoke_path, smoke_spec = approved_specs[smoke_index]
+        rest = approved_specs[:smoke_index] + approved_specs[smoke_index + 1 :]
+        dispatched = 0
+        smoke_ran = self._dispatch_one(smoke_path, smoke_spec, authorizations, credentials)
+        if smoke_ran:
+            dispatched += 1
+        smoke_job_dir = self._job_dir_for(smoke_spec) if smoke_ran else None
+        if self.queue.stop_path.exists() or (
+            smoke_job_dir is not None and self._stop_on_job_spike(smoke_job_dir, rest)
+        ):
+            self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
+            return dispatched
+        if not smoke_ran:
+            blocks, why = True, "smoke trial did not dispatch; holding batch"
+        else:
+            # A dispatched attempt may fail while an older or partial graded
+            # job remains at its path. That evidence cannot release this batch.
+            try:
+                self.queue.locate(str(smoke_spec.spec_id), ("done",))
+            except (OSError, ValueError):
+                blocks, why = True, "smoke dispatch did not complete successfully"
+            else:
+                blocks, why = smoke_trial_blocks(self._load_smoke_job(smoke_spec))
+        if blocks:
+            self._fence_batch_on_smoke_block(smoke_spec, smoke_batch, why)
+            self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
+            return dispatched
+        self._report_progress(f"smoke gate passed on {smoke_spec.name} ({why})")
+        dispatched += self._dispatch_batch(rest, parallel, authorizations, credentials)
+        self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
+        return dispatched
+
+    def _smoke_gate_index(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> int | None:
+        """Position of the smoke trial, or ``None`` when the gate is off.
+
+        Default-on for batches with more than one model-backed spec: the
+        first model-backed spec runs alone so an infra or wiring failure
+        blocks the rest before they spend.
+        """
+        if not self._smoke_gate_enabled:
+            return None
+        backed = [index for index, (_, spec) in enumerate(approved_specs) if is_model_backed(spec)]
+        if len(backed) < 2:
+            return None
+        return backed[0]
+
+    def _fence_batch_on_smoke_block(
+        self,
+        smoke_spec: ExperimentSpec,
+        batch: list[tuple[Path, ExperimentSpec]],
+        why: str,
+    ) -> None:
+        """Fence future launches durably before recording the smoke failure."""
+        self.queue.stop()
+        self.last_tick_reason = SMOKE_REASON_BLOCKED
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(smoke_spec.spec_id),
+                occurred_at=datetime.now(UTC),
+                event=SMOKE_REASON_BLOCKED,
+                actor="executor",
+                reason_code=SMOKE_REASON_BLOCKED,
+                job_name=smoke_spec.name,
+            )
+        )
+        for _, spec in batch:
+            if spec.spec_id != smoke_spec.spec_id:
+                self._defer_spec_event(spec, f"{SMOKE_REASON_BLOCKED}:{smoke_spec.name}")
+        self._report_progress(
+            f"smoke gate blocked batch on {smoke_spec.name} ({why}); "
+            "remaining specs stay approved; clear STOP only after resolving the cause"
+        )
+
+    def _record_smoke_opt_out(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> None:
+        """Record an explicit ``--no-smoke-gate`` tick on the run's events."""
+        if self._smoke_gate_enabled:
+            return
+        backed = [spec for _, spec in approved_specs if is_model_backed(spec)]
+        if len(backed) < 2:
+            return
+        first = backed[0]
+        self.queue.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id=str(first.spec_id),
+                occurred_at=datetime.now(UTC),
+                event=SMOKE_REASON_DISABLED,
+                actor="executor",
+                reason_code=SMOKE_REASON_DISABLED,
+                job_name=first.name,
+            )
+        )
+        self._report_progress(
+            f"smoke gate disabled by opt-out for batch of {len(backed)} model-backed specs"
+        )
+
+    def _dispatch_serial(
+        self,
+        batch: list[tuple[Path, ExperimentSpec]],
+        authorizations: dict[str, PaidRunAuthorization],
+        credentials: frozenset[str],
+    ) -> int:
+        dispatched = 0
+        for index, (path, spec) in enumerate(batch):
+            if self.queue.stop_path.exists():
+                break
+            if self._dispatch_one(path, spec, authorizations, credentials):
+                dispatched += 1
+                job_dir = self._job_dir_for(spec)
+                if job_dir is not None and self._stop_on_job_spike(job_dir, batch[index + 1 :]):
+                    break
+        return dispatched
+
+    def _dispatch_batch(
+        self,
+        batch: list[tuple[Path, ExperimentSpec]],
+        parallel: int,
+        authorizations: dict[str, PaidRunAuthorization],
+        credentials: frozenset[str],
+    ) -> int:
+        if parallel == 1:
+            return self._dispatch_serial(batch, authorizations, credentials)
         dispatched = 0
         with ThreadPoolExecutor(max_workers=parallel) as pool:
             futures = [
                 pool.submit(self._dispatch_one, path, spec, authorizations, credentials)
-                for path, spec in approved_specs
+                for path, spec in batch
             ]
             for future in futures:
                 if future.result():
                     dispatched += 1
-        self._maybe_stop_selfhosted_app(
-            running_before, [spec for _, spec in approved_specs]
-        )
         return dispatched
 
     def _maybe_stop_selfhosted_app(
@@ -2266,6 +2687,27 @@ class Executor:
         return job_dir
 
     def _run_with_transient_retries(
+        self,
+        spec: ExperimentSpec,
+        request: RunRequest,
+    ) -> Path:
+        # HAR-162: every agent job gets a read-only live watch, stopped on
+        # every terminal path (success, failure, cancel) in the finally.
+        # Model-free agents are skipped inside; watch faults never fail here.
+        from evallab import auto_watch as _auto_watch
+
+        watch = _auto_watch.start_for_request(
+            request,
+            enabled=self._watch_enabled,
+            interval_seconds=self._watch_interval_seconds,
+            notify_runner=self._notify_runner,
+        )
+        try:
+            return self._run_with_transient_retries_watched(spec, request)
+        finally:
+            _auto_watch.stop_auto_watch(watch, notify_runner=self._notify_runner)
+
+    def _run_with_transient_retries_watched(
         self,
         spec: ExperimentSpec,
         request: RunRequest,

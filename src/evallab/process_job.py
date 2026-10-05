@@ -149,8 +149,6 @@ def _step_token_sums(steps: list[Any]) -> dict[str, Any]:
     }
 
 
-
-
 def _taint_flags(
     agent_seq: list[tuple[str, dict]], info: dict, trial_dir: Path
 ) -> list[dict[str, Any]]:
@@ -373,6 +371,39 @@ def _process_trial(
         loop_cost = None
         task_name = result.get("task_name") or "unknown"
         model_name = "unknown"
+    # Preserve probe-03's binding ceiling and confirmed-completion labels,
+    # while recognizing native harness stops and recorded final-turn flags.
+    from evallab.step_layers import classify_stop_reason
+
+    final_accepted: dict[str, Any] = {}
+    for step in reversed(unique_steps):
+        if (
+            not isinstance(step, dict)
+            or step.get("source") != "agent"
+            or step.get("is_copied_context")
+        ):
+            continue
+        extra = step.get("extra") or {}
+        layers = extra.get("step_layers") if isinstance(extra, dict) else None
+        accepted = layers.get("accepted") if isinstance(layers, dict) else None
+        if isinstance(accepted, dict):
+            final_accepted = accepted
+        break
+    shared_stop, _ = classify_stop_reason(
+        agent_metadata=agent_metadata,
+        exception_info=result.get("exception_info"),
+        last_task_complete=final_accepted.get("task_complete"),
+        last_prose_completion=final_accepted.get("kind") == "prose_completion" or None,
+    )
+    if (
+        stop_reason in (None, "unknown")
+        or shared_stop in ("loop_break", "harness_step_limit")
+        or shared_stop.startswith("ceiling:")
+        or (shared_stop == "trial_budget_exhausted" and not str(stop_reason).startswith("ceiling:"))
+        or agent_metadata.get("native_exit_status")
+        in ("LimitsExceeded", "ModelQueryError", "InfraError")
+    ):
+        stop_reason = shared_stop
 
     # Cost: job ledger block split across trials happens at the job level;
     # the per-trial record carries the proxy totals for reference.
@@ -436,6 +467,12 @@ def _process_trial(
         # the trial predates the monitor (or ran off-Daytona), never zero use.
         "daytona_usage": _read_json(trial_dir / "daytona-usage.json"),
     }
+    # HAR-156: execution lens shared with the interpretation run pages. Mapped
+    # from the probe-03 stop reason (ceiling:*, loop_break, agent_timeout, ...),
+    # never from the counts verdict.
+    from evallab.step_layers import stop_category
+
+    record["stop_category"] = stop_category(stop_reason)
 
     # Flags: one short string per fired detector for the summary table.
     flags: list[str] = []
@@ -527,6 +564,14 @@ def _setup_deviation_lines(deviations: list[dict[str, Any]] | None) -> list[str]
     return lines
 
 
+def _watch_job_lines(report: dict[str, Any]) -> list[str]:
+    """Live-watch alert section for the job page (HAR-162; [] when clean)."""
+    from evallab import auto_watch as _auto_watch
+
+    watch = report.get("watch") or {}
+    return _auto_watch.format_watch_lines(watch.get("alerts") or [])
+
+
 def _job_task_identity(job_dir: Path) -> dict[str, Any | None]:
     """Canonical task identity for counts, read once per job.
 
@@ -595,6 +640,12 @@ def _attach_decision(record: dict[str, Any], trial_dir: Path) -> None:
             counts=record.get("counts") if isinstance(record.get("counts"), dict) else None,
         )
         decision_error = None
+        # HAR-156: the execution lens rides along in the decision facts for
+        # readers correlating stops with outcomes. Counts are untouched: the
+        # page still renders HAR-78's verdict from the counts field as-is.
+        decision = record.get("decision")
+        if isinstance(decision, dict) and isinstance(decision.get("facts"), dict):
+            decision["facts"]["stop_category"] = record.get("stop_category")
     except Exception as exc:  # noqa: BLE001 -- one bad trial must not kill the job
         record["decision"] = None
         decision_error = f"{type(exc).__name__}: {exc}"
@@ -610,6 +661,30 @@ def _jsonable(value: Any) -> Any:
     if isinstance(value, (str, int, float, bool)) or value is None:
         return value
     return str(value)
+
+
+def _job_limit_hit_lines(record: dict[str, Any]) -> list[str]:
+    """The job's limit-hit share on a run page, or [] before the rollup lands.
+
+    Records built by direct ``_process_trial`` callers carry no job rollup;
+    those pages render no share line rather than a guessed one.
+    """
+    summary = record.get("job_limit_hit_summary")
+    if not isinstance(summary, dict):
+        return []
+    share = summary.get("limit_hit_share")
+    share_text = "n/a" if share is None else f"{share * 100:.1f}%"
+    flagged = bool(summary.get("setup_limited"))
+    return [
+        f"- job limit-hit share: `{share_text}` "
+        f"({summary.get('limit_hit_trials')}/{summary.get('trials')} trials hit our limits; "
+        f"setup-limited: `{str(flagged).lower()}`)"
+        + (
+            " — flagged: over 5% of trials hit our limits, so treat the job as setup-limited."
+            if flagged
+            else ""
+        )
+    ]
 
 
 def _render_trial_markdown(record: dict[str, Any]) -> str:
@@ -631,6 +706,9 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
             f"- reward: `{record['reward']}` (scored={record['scored']}, {record['reward_source']})",
             _counts_line(record),
             f"- stop reason: `{record['stop_reason']}`",
+            # HAR-156: execution lens, separate from the counts verdict above.
+            f"- stop category: `{record.get('stop_category') or 'unknown'}`"
+            " (how the run ended; the counts verdict above is unchanged)",
             _tokens_line(record),
             _cost_line(record),
             f"- steps: stitched {record['stitched_steps']}"
@@ -655,6 +733,7 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
             f"- flags: {', '.join(f'`{flag}`' for flag in record['flags']) or 'none'}",
         ]
         + _setup_deviation_lines(record.get("setup_deviations"))
+        + _job_limit_hit_lines(record)
     )
     if record.get("token_flow") is not None:
         from evallab.token_flow import markdown_lines as _token_flow_lines
@@ -670,6 +749,15 @@ def _render_trial_markdown(record: dict[str, Any]) -> str:
     from evallab.interpretation.run_report import render_daytona_usage_lines
 
     lines.extend(render_daytona_usage_lines(record.get("daytona_usage")))
+    # HAR-162: dispatch-attached watch alerts for this trial; records built
+    # before the rollup carry none and render unchanged.
+    from evallab import auto_watch as _auto_watch
+
+    lines.extend(
+        _auto_watch.format_watch_lines(
+            record.get("watch_alerts") or [], trial=record.get("trial_name")
+        )
+    )
     lines.append("")
     return "\n".join(lines)
 
@@ -751,9 +839,7 @@ def _trial_proxy_tokens(totals: dict[str, Any], n_trials: int) -> dict[str, Any]
     if not isinstance(used, dict):
         tokens["reason"] = totals.get("error") or "proxy ledger missing"
     elif n_trials != 1:
-        tokens["reason"] = (
-            f"job ledger covers {n_trials} trials without per-trial attribution"
-        )
+        tokens["reason"] = f"job ledger covers {n_trials} trials without per-trial attribution"
     else:
         tokens.update(
             input_tokens=used["input_tokens"],
@@ -817,10 +903,7 @@ def _session_spend_suffix(summary: dict[str, Any]) -> str | None:
             f"; session spend `${total:.4f}` (billed GPU share `${modal:.4f}`"
             f" + Daytona estimate `${daytona:.4f}`; {provenance})"
         )
-    return (
-        f"; session spend: billed GPU share `${modal:.4f}`, sandbox unknown"
-        f" ({provenance})"
-    )
+    return f"; session spend: billed GPU share `${modal:.4f}`, sandbox unknown ({provenance})"
 
 
 def _render_job_markdown(report: dict[str, Any]) -> str:
@@ -843,21 +926,24 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
         f"fail {summary.get('n_counted_fail')}, "
         f"excluded {summary.get('n_excluded')} ({summary.get('excluded_reasons') or {}})",
         f"- stop reasons: {summary.get('stop_reasons') or 'none'}",
+        *_job_limit_hit_lines({"job_limit_hit_summary": summary.get("limit_hit_summary")}),
         f"- tokens: step-sum used `{summary.get('tokens_used')}` "
         f"vs attributable attempted ceiling `{summary.get('tokens_attempted')}`",
         f"- cost: `{summary.get('cost_usd')}` ({summary.get('cost_source')})"
         + (allocated if allocated is not None else legacy_estimate),
         f"- ingest: {summary.get('ingest')}",
         *_setup_deviation_lines(report.get("setup_deviations")),
+        *_watch_job_lines(report),
         "",
-        "| trial | reward | verdict | stop reason | tokens used/attempted | cost | flags |",
-        "|---|---|---|---|---|---|---|",
+        "| trial | reward | verdict | stop reason | stop category | tokens used/attempted | cost | flags |",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for row in report.get("trials") or []:
         tokens = f"{row.get('tokens_used')}/{row.get('tokens_attempted')}"
         lines.append(
             f"| `{row['trial_name']}` | {row.get('reward')} | `{row.get('verdict')}` "
-            f"| `{row.get('stop_reason')}` | {tokens} | {row.get('cost')} "
+            f"| `{row.get('stop_reason')}` | `{row.get('stop_category')}` "
+            f"| {tokens} | {row.get('cost')} "
             f"| {', '.join(f'`{flag}`' for flag in row.get('flags') or [])} |"
         )
     lines.append("")
@@ -918,9 +1004,13 @@ def process_job(
     if publish:
         from evallab.results_home import results_root
 
-        home = Path(results_home).resolve() if results_home is not None else results_root().resolve()
+        home = (
+            Path(results_home).resolve() if results_home is not None else results_root().resolve()
+        )
         if out_dir.is_relative_to(home):
-            raise ValueError("Processed report input must be outside the results home when publishing")
+            raise ValueError(
+                "Processed report input must be outside the results home when publishing"
+            )
     out_dir.mkdir(parents=True, exist_ok=True)
     repo_root = Path(root).resolve() if root is not None else job_path.parent
     from evallab.counts import find_label_root, summarize_counts
@@ -940,6 +1030,11 @@ def process_job(
 
     trial_reports: list[dict[str, Any]] = []
     task_identity = _job_task_identity(job_path)
+    # HAR-162: alerts the dispatch-attached watch wrote while the job ran.
+    # Read once here; absent watch output keeps every page byte-identical.
+    from evallab import auto_watch as _auto_watch
+
+    job_watch_alerts = _auto_watch.read_watch_alerts(job_path)
     for trial_path in trials:
         record = _process_trial(trial_path, job_path, nop_runs_dir=nop_runs_dir)
         trial_result = _read_json(trial_path / "result.json") or {}
@@ -968,8 +1063,7 @@ def process_job(
         estimate, estimate_reason = _selfhosted_estimate(record, trial_result)
         record["cost_estimate_usd"] = estimate
         record["cost_estimate_reason"] = (
-            "shared GPU, not additive; excludes sandbox and warm periods; "
-            "see evallab spend day"
+            "shared GPU, not additive; excludes sandbox and warm periods; see evallab spend day"
             if estimate is not None
             else estimate_reason
         )
@@ -978,13 +1072,24 @@ def process_job(
             record, trial_result, label_root=label_root, task_identity=task_identity
         )
         _attach_decision(record, trial_path)
+        record["watch_alerts"] = [
+            alert for alert in job_watch_alerts if str(alert.get("trial")) == record["trial_name"]
+        ]
         trial_reports.append(record)
-        trial_file = out_dir / f"trial-{trial_path.name}.json"
+
+    # HAR-156: the job rollup lands before any page is written, so every run
+    # page carries the job's limit-hit share next to its own stop category.
+    from evallab.step_layers import limit_hit_summary
+
+    job_limits = limit_hit_summary(record.get("stop_reason") for record in trial_reports)
+    for record in trial_reports:
+        record["job_limit_hit_summary"] = dict(job_limits)
+        trial_file = out_dir / f"trial-{record['trial_name']}.json"
         trial_file.write_text(
             json.dumps(_jsonable(record), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
-        (out_dir / f"trial-{trial_path.name}.md").write_text(
+        (out_dir / f"trial-{record['trial_name']}.md").write_text(
             _render_trial_markdown(record), encoding="utf-8"
         )
 
@@ -1041,6 +1146,7 @@ def process_job(
             "verdict": (record.get("counts") or {}).get("verdict"),
             "reasons": (record.get("counts") or {}).get("reasons") or [],
             "stop_reason": record["stop_reason"],
+            "stop_category": record["stop_category"],
             "tokens_used": (record["tokens_steps"] or {}).get("total_tokens"),
             "tokens_attempted": record["tokens_attempted_proxy"],
             "cost": record["cost_usd"],
@@ -1056,12 +1162,17 @@ def process_job(
         "ledger": ledger,
         "trials": rows,
         "setup_deviations": _setup_deviations(job_path),
+        "watch": {
+            **_auto_watch.summarize_watch_alerts(job_watch_alerts),
+            "alerts": job_watch_alerts,
+        },
         "summary": {
             "n_trials": len(trial_reports),
             "n_pass": sum(1 for record in scored if (record["reward"] or 0) >= 1.0),
             "n_fail": sum(1 for record in scored if (record["reward"] or 0) < 1.0),
             "n_unscored": sum(1 for record in trial_reports if not record["scored"]),
             "stop_reasons": stop_histogram,
+            "limit_hit_summary": job_limits,
             "tokens_used": sum(measured_used) if measured_used else None,
             "tokens_used_measured": len(measured_used),
             "tokens_attempted": sum(measured_attempted) if measured_attempted else None,

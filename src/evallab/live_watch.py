@@ -139,13 +139,41 @@ class WatchThresholds:
     default_output_token_limit: int = 131_072
 
 
+#: Per-file stat entry: ``(path, mtime_ns, size)``; ``None`` fields when absent.
+FileStamp = tuple[str, int | None, int | None]
+
+
 @dataclass
 class TrialScan:
-    """Cached per-trial read: skip recompute when mtime+size are unchanged."""
+    """Cached per-trial read, reused while none of the trial's input files change.
 
-    mtime_ns: int = 0
-    size: int = -1
+    ``inputs`` stamps every file :func:`trial_signals` reads (trajectory,
+    ``result.json``, the live proxy ledger). ``scanned_at`` lets a reused
+    status age its ``minutes_since_update`` instead of freezing it.
+    """
+
+    inputs: tuple[FileStamp, ...]
+    scanned_at: float
     status: dict[str, Any] = field(default_factory=dict)
+
+
+def _stamp(path: Path) -> FileStamp:
+    try:
+        stat = path.stat()
+    except OSError:
+        return (str(path), None, None)
+    return (str(path), stat.st_mtime_ns, stat.st_size)
+
+
+def _trial_inputs(job_dir: Path, trial_dir: Path) -> tuple[FileStamp, ...]:
+    """Stamp every file whose change can alter the trial's signals."""
+    traj_path = _trajectory_path(trial_dir)
+    paths = [trial_dir / TRIAL_TRAJECTORY if traj_path is None else traj_path, trial_dir / TRIAL_RESULT]
+    for live_dir in dict.fromkeys(
+        (trial_dir / "proxy-live", job_dir / "proxy-live", trial_dir.parent / "proxy-live")
+    ):
+        paths.extend((live_dir / "limits.json", live_dir / "calls.jsonl"))
+    return tuple(_stamp(path) for path in paths)
 
 
 def discover_trials(runs_dirs: list[Path]) -> list[tuple[Path, Path]]:
@@ -1464,27 +1492,20 @@ def run_watch(
     statuses: list[dict[str, Any]] = []
     for job_dir, trial_dir in discover_trials(runs_dirs):
         key = str(trial_dir)
-        traj_path = _trajectory_path(trial_dir)
-        try:
-            stat = traj_path.stat() if traj_path is not None else None
-        except OSError:
-            stat = None
+        inputs = _trial_inputs(job_dir, trial_dir)
         cached = cache.get(key) if cache is not None else None
-        if (
-            cached is not None
-            and stat is not None
-            and cached.mtime_ns == stat.st_mtime_ns
-            and cached.size == stat.st_size
-            and cached.status
-        ):
-            statuses.append(cached.status)
+        if cached is not None and cached.inputs == inputs and cached.status:
+            # Same inputs, so the last activity is unchanged; only its age grows.
+            aged = cached.status["minutes_since_update"] + (moment - cached.scanned_at) / 60.0
+            statuses.append({**cached.status, "minutes_since_update": round(max(0.0, aged), 2)})
             continue
         status = trial_signals(
             job_dir, trial_dir, thresholds=limits, from_config=from_config, now=moment
         )
         statuses.append(status)
-        if cache is not None and stat is not None:
-            cache[key] = TrialScan(mtime_ns=stat.st_mtime_ns, size=stat.st_size, status=status)
+        # Without a trajectory there is no activity time to age, so rescan each pass.
+        if cache is not None and inputs[0][1] is not None:
+            cache[key] = TrialScan(inputs=inputs, scanned_at=moment, status=status)
 
     open_alerts: list[dict[str, Any]] = []
     for status in statuses:

@@ -516,6 +516,8 @@ def _tick_command(
         progress=print,
         capacity=capacity,
         modal_teardown=stop_selfhosted_app_if_drained,
+        selfhosted_warmup_seconds=float(getattr(args, "selfhosted_warmup_seconds", 600.0)),
+        smoke_gate_enabled=not bool(getattr(args, "no_smoke_gate", False)),
     )
     for spec_id in args.spec_id:
         selected_path = executor.queue.locate(spec_id)
@@ -4337,9 +4339,7 @@ def _review_command(
     cmd = getattr(args, "review_command", None)
     if cmd == "prepare":
         job_dirs = (
-            [_resolve(root, p) for p in args.job_dir]
-            if getattr(args, "job_dir", None)
-            else None
+            [_resolve(root, p) for p in args.job_dir] if getattr(args, "job_dir", None) else None
         )
         mask_text_files = [_resolve(root, p) for p in (args.mask_text_file or [])]
         out_dir = _resolve(root, args.out)
@@ -4371,20 +4371,10 @@ def _review_command(
     elif cmd == "join":
         review_dir = _resolve(root, args.dir)
         predictions = (
-            _resolve(root, args.predictions)
-            if getattr(args, "predictions", None)
-            else None
+            _resolve(root, args.predictions) if getattr(args, "predictions", None) else None
         )
-        out_tables = (
-            _resolve(root, args.out_tables)
-            if getattr(args, "out_tables", None)
-            else None
-        )
-        out_report = (
-            _resolve(root, args.out_report)
-            if getattr(args, "out_report", None)
-            else None
-        )
+        out_tables = _resolve(root, args.out_tables) if getattr(args, "out_tables", None) else None
+        out_report = _resolve(root, args.out_report) if getattr(args, "out_report", None) else None
         return review_join(
             review_dir=review_dir,
             baseline=getattr(args, "baseline", None),
@@ -4393,6 +4383,7 @@ def _review_command(
             out_report=out_report,
         )
     return 2
+
 
 # ---------------------------------------------------------------------------
 # Declarative CLI Parser Construction
@@ -4568,6 +4559,21 @@ def parser() -> argparse.ArgumentParser:
         default=None,
         metavar="PATH",
         help="Optional path to a CanarySuite YAML for opt-in replenishment before dispatch",
+    )
+    tick.add_argument(
+        "--no-smoke-gate",
+        action="store_true",
+        help=(
+            "Disable the default smoke-trial gate for multi-model batches "
+            "(the opt-out is recorded in queue/events.jsonl)"
+        ),
+    )
+    tick.add_argument(
+        "--selfhosted-warmup-seconds",
+        type=float,
+        default=600.0,
+        metavar="SECONDS",
+        help="Bounded warm-up wait for a cold self-hosted endpoint (default: 600)",
     )
     tick.set_defaults(func=_tick_command)
 
@@ -6568,6 +6574,7 @@ def parser() -> argparse.ArgumentParser:
 
     build_investigate_parser(commands)
     return root
+
 
 def _normalize_review_argv(argv: Sequence[str] | None) -> Sequence[str] | None:
     if argv is None:

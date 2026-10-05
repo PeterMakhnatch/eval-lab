@@ -39,9 +39,14 @@ elif name == "sleep":
     time.sleep(0.02 if args != ["180"] else 1)
 elif name == "uv":
     if "deploy" in args:
+        (root / "deployed").write_text("1")
         print("https://g5-test.modal.direct")
     elif "billing" in args:
-        print("[]")
+        billed = os.environ.get("G5_BILLED_AFTER_DEPLOY")
+        if billed and (root / "deployed").exists():
+            print(json.dumps([{"description": "g5-test-app", "cost": billed}]))
+        else:
+            print("[]")
     elif "list" in args:
         print('[{"description":"g5-test-app","state":"stopped"}]')
 elif name == "evallab":
@@ -66,6 +71,7 @@ elif name == "evallab":
     elif args[0] == "tick":
         for spec in (root / "specs").glob("ovn-g5-*.json"):
             (root / "runs" / spec.stem).mkdir(parents=True, exist_ok=True)
+        time.sleep(float(os.environ.get("G5_TICK_SECONDS", "0")))
         print("stub tick complete")
         sys.exit(int(os.environ["G5_TICK_STATUS"]))
     elif args[:2] == ["capture", "link"]:
@@ -85,7 +91,14 @@ def _executable(path: Path, content: str) -> None:
     path.chmod(0o755)
 
 
-def _run_round(tmp_path: Path, *, tick_status: int, outcome_status: int, waves: int = 1):
+def _run_round(
+    tmp_path: Path,
+    *,
+    tick_status: int,
+    outcome_status: int,
+    waves: int = 1,
+    extra_env: dict[str, str] | None = None,
+):
     root = tmp_path / "repo"
     root.mkdir()
     fake_bin = root / "bin"
@@ -150,6 +163,7 @@ def _run_round(tmp_path: Path, *, tick_status: int, outcome_status: int, waves: 
             "G5_TEST_ROOT": str(root),
             "G5_TICK_STATUS": str(tick_status),
             "G5_OUTCOME_STATUS": str(outcome_status),
+            **(extra_env or {}),
         },
         text=True,
         capture_output=True,
@@ -214,3 +228,26 @@ def test_successful_last_wave_finalizes_without_failure(tmp_path: Path) -> None:
     assert "gate_failure" not in manifest
     assert manifest["capture"]["lines"] == 1
     assert manifest["teardown"]["exit_status"] == 0
+
+
+def test_app_day_watchdog_stops_launches_not_the_live_wave(tmp_path: Path) -> None:
+    """HAR-156: the money watchdog never stops the app while a wave is in flight."""
+    result, manifest, commands, out = _run_round(
+        tmp_path,
+        tick_status=0,
+        outcome_status=0,
+        waves=2,
+        # Billed past the $35 app-day limit once deployed; wave 1's tick outlives
+        # one watchdog cycle (the stub's `sleep 180` lasts 1 s).
+        extra_env={"G5_BILLED_AFTER_DEPLOY": "40", "G5_TICK_SECONDS": "3"},
+    )
+    assert result.returncode == 3, result.stdout + result.stderr
+    ticks = [i for i, c in enumerate(commands) if c[:2] == ["evallab", "tick"]]
+    assert len(ticks) == 1
+    stops = [i for i, c in enumerate(commands) if "stop" in c and "g5-test-app" in c]
+    # The only app stop is the EXIT-trap teardown, after the in-flight tick.
+    assert stops and min(stops) > ticks[0]
+    assert manifest["gate_failure"]["wave"] == "wave-2"
+    assert "launches stopped" in manifest["gate_failure"]["reason"]
+    assert (out / "stop-launches").read_text().strip() == "40.0"
+    assert manifest["teardown"]["state"] == "stopped"

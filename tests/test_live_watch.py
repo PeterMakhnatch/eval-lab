@@ -488,6 +488,32 @@ def test_alerts_jsonl_is_append_only_and_deduped(tmp_path: Path) -> None:
     assert "task__a1" in board and "copy_acquired" in board
 
 
+def test_interval_cache_sees_result_and_ages_quiet_trials(tmp_path: Path) -> None:
+    # HAR-153: result.json can land while the trajectory stays byte-identical.
+    runs = tmp_path / "runs"
+    out = tmp_path / "state"
+    now = time.time()
+    trial = _write_trial(runs, "job", "task__a1", [_step(1, "ls\n")], mtime_ago_min=5.0)
+    traj = trial / "agent" / "trajectory.json"
+    cache: dict = {}
+
+    first = run_watch(runs_dirs=[runs], out_dir=out, now=now, cache=cache)
+    assert first["statuses"][0]["state"] == "running"
+    assert "stalled" not in {a["rule"] for a in first["statuses"][0]["open_alerts"]}
+
+    # Ten quiet minutes on a cached trial must age it into a stall.
+    quiet = run_watch(runs_dirs=[runs], out_dir=out, now=now + 600, cache=cache)
+    assert quiet["statuses"][0]["minutes_since_update"] >= 15.0
+    assert "stalled" in {a["rule"] for a in quiet["statuses"][0]["open_alerts"]}
+
+    before = traj.stat()
+    (trial / "result.json").write_text(json.dumps(_finished()), encoding="utf-8")
+    assert (traj.stat().st_mtime_ns, traj.stat().st_size) == (before.st_mtime_ns, before.st_size)
+    done = run_watch(runs_dirs=[runs], out_dir=out, now=now + 660, cache=cache)
+    assert done["statuses"][0]["state"] == "finished"
+    assert "stalled" not in {a["rule"] for a in done["statuses"][0]["open_alerts"]}
+
+
 def test_notify_uses_injected_runner_only(tmp_path: Path) -> None:
     out = tmp_path / "state"
     runs = tmp_path / "runs"

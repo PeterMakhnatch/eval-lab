@@ -69,9 +69,16 @@ uv run evallab reject <spec-id> --actor peter --reason "not this week"
 
 An approval does not override the hard per-job or daily cost ceiling. Pause new
 dispatch after the current trial with `uv run evallab stop`; re-enable it
-with `uv run evallab resume`. A restart reconciles `queue/running/` against
-completed immutable Harbor jobs before starting new work. The cost-policy day
-is UTC: both catalog spend and durable attempt reservations cross the daily
+with `uv run evallab resume`. A `proxy_error_spike` or `infra_spike` watch
+alert stops launches the same way (running trials are untouched); the tick
+names the rule and `evallab resume` clears it. A restart reconciles
+`queue/running/` against completed immutable Harbor jobs before starting new
+work. Self-hosted-model specs probe the upstream first: a cold endpoint waits
+up to `--selfhosted-warmup-seconds` (default 600) for a 200 and otherwise
+defers the spec approved. Daytona batches are clamped up front to the memory
+cap, and multi-model batches run one smoke trial first unless passed
+`--no-smoke-gate` (recorded in `queue/events.jsonl`).
+The cost-policy day is UTC: both catalog spend and durable attempt reservations cross the daily
 ceiling boundary at 00:00 UTC, regardless of the host or PostgreSQL session
 timezone. The researcher call ledger uses that same UTC budget day before it
 combines attributed researcher reservations with catalog spend, and resamples

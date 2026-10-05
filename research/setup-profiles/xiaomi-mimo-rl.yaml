@@ -7,6 +7,7 @@ description: >-
   reason. Do not guess values into sourced fields.
 compared_fields:
   - harness.id
+  - harness.additions
   - server.tool_call_parser
   - server.reasoning_parser
   - server.context_length
@@ -15,6 +16,11 @@ compared_fields:
   - sampling.top_k
   - lock.mode
   - budgets.step_limit
+  - budgets.max_requests
+  - budgets.max_input_tokens
+  - budgets.max_output_tokens
+  - budgets.max_total_tokens
+  - budgets.cost_limit_usd
 harness:
   id:
     value: mimoagent-default
@@ -34,6 +40,12 @@ harness:
   prompt:
     value: "Fix the following issue:"
     source: example_configs/swe.yaml:18-21 (instance_template).
+  additions:
+    value: {}
+    source: >-
+      example_configs/swe.yaml:3-24 configures the native DefaultAgent tools
+      and prompts only; Eval Lab loop nudges, output caps and completion fixes
+      are not part of that harness.
 server:
   model_revision:
     unsourced: true

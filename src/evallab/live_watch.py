@@ -34,12 +34,16 @@ import json
 import posixpath
 import re
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from evallab.laminar import LaminarExporter
 
 LIVE_WATCH_SCHEMA = "evallab.live_watch/v1"
 
@@ -966,7 +970,11 @@ def _alert(
         "job": job,
         "trial": trial,
         "task": task,
-        "step_ref": f"head#{step}" if isinstance(step, int) else None,
+        # ATIF step ids are strings in Terminus/mimoagent trajectories ("21"), ints in older ones.
+        "step_ref": f"head#{step}"
+        if isinstance(step, int) and not isinstance(step, bool)
+        or (isinstance(step, str) and step.strip())
+        else None,
         "quote": quote[:300],
         "detail": detail,
     }
@@ -1478,6 +1486,7 @@ def run_watch(
     now: float | None = None,
     cache: dict[str, TrialScan] | None = None,
     notify_runner: Callable[..., Any] = subprocess.run,
+    laminar: LaminarExporter | None = None,
 ) -> dict[str, Any]:
     """Single watch pass: scan trials, evaluate alerts, write outputs.
 
@@ -1503,6 +1512,10 @@ def run_watch(
             job_dir, trial_dir, thresholds=limits, from_config=from_config, now=moment
         )
         statuses.append(status)
+        if laminar is not None:
+            status["laminar_trace_id"] = laminar.sync_trial(
+                job_dir, trial_dir, finished=status["state"] == "finished"
+            )
         # Without a trajectory there is no activity time to age, so rescan each pass.
         if cache is not None and inputs[0][1] is not None:
             cache[key] = TrialScan(inputs=inputs, scanned_at=moment, status=status)
@@ -1514,6 +1527,10 @@ def run_watch(
         open_alerts.extend(trial_alerts)
     fleet = evaluate_fleet_alerts(statuses, thresholds=limits, now=moment)
     open_alerts.extend(fleet)
+    laminar_outcome = None
+    if laminar is not None:
+        laminar.sync_alerts(open_alerts)
+        laminar_outcome = laminar.flush()
 
     known = _read_existing_alert_keys(out_dir)
     fresh = [alert for alert in open_alerts if (alert["trial"], alert["rule"]) not in known]
@@ -1539,6 +1556,7 @@ def run_watch(
         "notified": notified,
         "statuses": statuses,
         "fleet_alerts": fleet,
+        "laminar": laminar_outcome,
     }
 
 
@@ -1551,37 +1569,39 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
     thresholds = WatchThresholds(
         spend_cap_usd=getattr(args, "spend_cap_usd", None),
     )
-    if args.interval and args.interval > 0 and not args.once:
-        cache: dict[str, TrialScan] = {}
-        while True:
-            summary = run_watch(
-                runs_dirs=runs_dirs,
-                out_dir=out_dir,
-                thresholds=thresholds,
-                from_config=args.limits_from_config,
-                notify_lin=args.notify_lin,
-                cache=cache,
-            )
-            print(
-                f"watch: {summary['trials']} trials, "
-                f"{summary['open_alerts']} open alerts "
-                f"({summary['new_alerts']} new)"
-            )
-            time.sleep(args.interval)
-    else:
+    laminar = None
+    if getattr(args, "laminar", False):
+        from evallab.laminar import LAMINAR_KEY_ENV, exporter_from_env
+
+        laminar = exporter_from_env(out_dir)
+        if laminar is None:
+            print(f"watch: --laminar needs {LAMINAR_KEY_ENV} (use `keys run --`)", file=sys.stderr)
+            return 2
+    cache: dict[str, TrialScan] = {}
+    while True:
         summary = run_watch(
             runs_dirs=runs_dirs,
             out_dir=out_dir,
             thresholds=thresholds,
             from_config=args.limits_from_config,
             notify_lin=args.notify_lin,
+            cache=cache,
+            laminar=laminar,
         )
+        exported = summary["laminar"]
+        suffix = ""
+        if exported is not None:
+            suffix = f"; laminar {exported['spans']} spans" + (
+                "" if exported["ok"] else f" FAILED ({exported['error']}), will retry"
+            )
         print(
             f"watch: {summary['trials']} trials, "
             f"{summary['open_alerts']} open alerts "
-            f"({summary['new_alerts']} new)"
+            f"({summary['new_alerts']} new){suffix}"
         )
-    return 0
+        if not args.interval or args.interval <= 0 or args.once:
+            return 0
+        time.sleep(args.interval)
 
 
 def build_watch_parser(commands: argparse._SubParsersAction) -> None:
@@ -1618,6 +1638,12 @@ def build_watch_parser(commands: argparse._SubParsersAction) -> None:
         default=None,
         help="Fleet spend cap in USD for running trials (alerts at 80%% and 100%%)",
     )
+    watch.add_argument(
+        "--laminar",
+        action="store_true",
+        help="Export each trial as a live Laminar trace with alerts as span events "
+        "(needs LMNR_PROJECT_API_KEY)",
+    )
     watch.set_defaults(func=_watch_command)
 
 
@@ -1626,36 +1652,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     build_watch_parser(sub)
     args = parser.parse_args(argv)
-    out_dir = Path(args.out)
-    if args.interval and args.interval > 0 and not args.once:
-        cache: dict[str, TrialScan] = {}
-        while True:
-            summary = run_watch(
-                runs_dirs=[Path(path) for path in args.runs_dir],
-                out_dir=out_dir,
-                from_config=args.limits_from_config,
-                notify_lin=args.notify_lin,
-                cache=cache,
-            )
-            print(
-                f"watch: {summary['trials']} trials, "
-                f"{summary['open_alerts']} open alerts "
-                f"({summary['new_alerts']} new)"
-            )
-            time.sleep(args.interval)
-        return 0
-    summary = run_watch(
-        runs_dirs=[Path(path) for path in args.runs_dir],
-        out_dir=out_dir,
-        from_config=args.limits_from_config,
-        notify_lin=args.notify_lin,
-    )
-    print(
-        f"watch: {summary['trials']} trials, "
-        f"{summary['open_alerts']} open alerts "
-        f"({summary['new_alerts']} new)"
-    )
-    return 0
+    return _watch_command(args, Path.cwd())
 
 
 if __name__ == "__main__":

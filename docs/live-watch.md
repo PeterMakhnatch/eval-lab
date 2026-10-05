@@ -48,6 +48,32 @@ and a late `result.json` flips the trial to finished. `--limits-from-config` rea
   (stall, infra spike, spend) are posted to that card, each kind at most
   once per job. Off by default.
 
+## Laminar (`--laminar`)
+
+`evallab watch --laminar` (and every auto-attached watch when
+`LMNR_PROJECT_API_KEY` is set; `EVALLAB_LAMINAR=off` disables it) exports
+each trial to Laminar Cloud as one trace, live:
+
+- the trace id is derived from the trial name, so passes and replays address
+  the same trace (`evallab.laminar.laminar_trace_uuid`);
+- each ATIF step becomes a span once the next step exists: agent turns are
+  `LLM` spans with a `TOOL` child per call, attributed `evallab.step_id`;
+- the `harbor.trial` root span (session = job; metadata job, trial, task,
+  reward, exception) is sent when `result.json` lands, which is what triggers
+  Signals;
+- each new trial alert becomes an `evallab.alert.<rule>` span with an event of
+  the same name, under the span of the step it cites.
+
+Text is clipped to 16k characters, known provider secrets are replaced, and a
+value matching a secret pattern is withheld. Export is fail-open: errors are
+kept in `laminar.json` and the spans are retried on the next pass.
+
+`evallab laminar signals` creates or updates the four Signals defined in
+`evallab.laminar.SIGNALS` (`copied_upstream_fix`, `stuck_loop`,
+`false_completion_claim`, `infra_not_model`; root-span trigger, no filters).
+`evallab laminar compare --runs-dir <job> --out <dir>` writes a per-trial
+table of Eval Lab's verdict vs each Signal event (`signals-vs-evallab.md`).
+
 ## Signals per trial
 
 Steps and episodes (agent turns) so far; cumulative prompt/completion tokens

@@ -1050,13 +1050,17 @@ def classify_stop_reason(
     accepted agent turn (from step layers) for trials that raised nothing.
     Xiaomi's pinned ``BaseAgent`` returns ``Idle`` when the model issues no
     tool call and ``LimitsExceeded`` at its step cap (or for an empty model
-    response, identified by ``native_exit_result``). Native failures remain
-    errors; a binding trial-budget ceiling reads ``ceiling:<dimension>``.
+    response, identified by ``native_exit_result``). Structured infrastructure
+    stops retain ``infra_error``; other native failures remain errors, and a
+    binding trial-budget ceiling reads ``ceiling:<dimension>``.
     """
     metadata = agent_metadata if isinstance(agent_metadata, Mapping) else {}
     recorded = metadata.get("stop_reason")
     if isinstance(recorded, str) and (
-        recorded in ("trial_budget_exhausted", "loop_break", "harness_step_limit", "agent_timeout")
+        recorded in (
+            "trial_budget_exhausted", "loop_break", "harness_step_limit",
+            "agent_timeout", "infra_error",
+        )
         or recorded.startswith(CEILING_STOP_PREFIX)
     ):
         return recorded, "agent metadata stop_reason"

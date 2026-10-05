@@ -33,6 +33,19 @@ _NATIVE_CONFIG = _RUNTIME_ROOT / "tools/mimoagent-harbor/swe.yaml"
 _WORKER = Path(__file__).with_name("mimoagent_worker.py")
 
 
+def _dataset_task_body(instruction: str) -> str:
+    """Undo FineEnvs' issue header before the pinned Xiaomi template adds it.
+
+    Xiaomi's batch adapter passes ``problem_statement`` directly to the agent.
+    FineEnvs bakes this header into ``instruction.md``; strip only that one
+    leading header, preserving the issue body and any header inside it.
+    """
+    for prefix in ("Fix the following issue:\n\n", "Fix the following issue:\r\n\r\n"):
+        if instruction.startswith(prefix):
+            return instruction[len(prefix):]
+    return instruction
+
+
 class NativeMimoAgent(BaseAgent):
     SUPPORTS_ATIF = True
 
@@ -88,6 +101,8 @@ class NativeMimoAgent(BaseAgent):
             context.metadata["native_exit_result"] = self._native["info"].get("result")
         if self._native["info"].get("stop_reason") is not None:
             context.metadata["stop_reason"] = self._native["info"]["stop_reason"]
+        if isinstance(self._native["info"].get("infra_error"), dict):
+            context.metadata["infra_error"] = self._native["info"]["infra_error"]
 
     async def run(
         self, instruction: str, environment: BaseEnvironment, context: AgentContext
@@ -111,7 +126,7 @@ class NativeMimoAgent(BaseAgent):
         ):
             raise RuntimeError("cannot determine native task working directory")
         initial = {
-            "instruction": instruction,
+            "instruction": _dataset_task_body(instruction),
             "cwd": cwd_result.stdout.strip(),
             "model_name": self.model_name,
             "proxy_url": proxy_url,
@@ -189,7 +204,9 @@ class NativeMimoAgent(BaseAgent):
                     else:
                         response["error"] = "native file upload timed out"
                 except Exception as exc:
-                    response["error"] = str(exc)
+                    response["error"] = (
+                        f"{type(exc).__name__}: native sandbox transport failed"
+                    )
                 async with response_lock:
                     if process.returncode is None:
                         stdin.write((json.dumps(response) + "\n").encode())

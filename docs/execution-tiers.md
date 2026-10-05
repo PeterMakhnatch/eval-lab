@@ -137,6 +137,37 @@ for a billable spec at all, so listing a paid agent there changes nothing. Full
 semantics, including the fail-closed cases, are in `docs/operations.md`,
 "Paid execution requires a recorded authorisation".
 
+### Batch launch safety (HAR-163, repaired by HAR-164)
+
+Every self-hosted launch requires a fresh authenticated
+`POST /v1/chat/completions` readiness probe; a prior success is never cached
+for another launch. Cold endpoints wait with backoff inside
+`--selfhosted-warmup-seconds` (default 600 seconds). A still-cold or rejected
+endpoint defers the spec rather than launching a trial into that failure.
+
+For a batch with multiple model-backed specs, the first selected model spec
+runs alone even when capacity or Daytona memory headroom clamps the batch to
+one launch. The remaining specs launch only after that dispatch completes
+successfully and its complete, immutable Harbor evidence contains nonempty
+finite verifier grades without an infrastructure or wiring exception.
+A grade of zero is a valid task failure, not a broken harness. Agent timeouts,
+trial-budget stops, and loop stops also require a finite grade; a stop name
+without grading is not proof of a healthy run. Graded files left behind by
+a failed dispatch cannot release the batch.
+
+An undispatched, ungraded, unavailable, unreadable, or otherwise blocked smoke
+sets `queue/STOP` **before** any further launch or smoke-block event recording.
+All remaining specs, including free controls, stay queued across later ticks
+and fresh executors. Running trials are not killed or changed. Resolve the
+cause before an operator uses `evallab resume`; no automatic resume or trial
+retry is implied. Controls-only and intentionally selected single-model
+dispatches do not become smoke batches. `--no-smoke-gate` is an explicit,
+recorded opt-out, not the default or a substitute for paid authorisation.
+
+Campaign failure classification uses the terminal transition into `failed`,
+not later smoke-fence diagnostics. A post-run compliance refusal still opens
+the campaign circuit and quarantines its remaining attempts.
+
 ### Z.ai OpenCode on Docker Desktop
 
 The default `zai-opencode` profile selects `zai-coding-plan/glm-5.3-flash`.
@@ -153,7 +184,12 @@ closed during container network configuration before model requests can issue.
 Use `--agent mimoagent` with the admitted MiMo self-hosted model selector.
 The Harbor adapter runs Xiaomi's actual `DefaultAgent` from
 `mimo-oss@467f0a19016f0ac4d63b8d17a1f0da9ba07f232c` in an isolated
-Python 3.12 subprocess, not a rewritten loop or Terminus prompt. Install it
+Python 3.12 subprocess. Its tools, prompts, parallelism, and step limits use
+the pinned SDK; ordinary successful-answer behavior is unchanged, and no
+Terminus prompt is substituted. HAR-164 adapts only transport, terminal errors,
+child-log paths, and the task boundary (300s known-cold retry, structured
+terminal-error metadata, logical childlog refs, and single-copy issue-header
+strip), declared as `harness.additions` in the setup fingerprint. Install it
 with `uv sync --project tools/mimoagent-harbor --locked`; its OpenAI 3.x graph
 must not be combined with Harbor/LiteLLM's OpenAI 2.x graph.
 
@@ -169,6 +205,12 @@ provider-enforced deny-all lock and refuses an explicitly unlocked spec.
 Harbor's recorded outer wall timeout can still interrupt the 500-step loop;
 such a short smoke is not the original benchmark protocol.
 
+The ordinary initial query keeps the SDK's 3600s read timeout; only explicit
+transient failed transports retry, inside a 300s known-cold recovery window —
+not a 300s cap on ordinary generation. A real HTTP 200 is never requeried, even
+with an empty or malformed body; auth/permanent 4xx and proxy-budget refusals
+fail fast, and retried attempts reuse the exact prefix.
+
 The explicit Xiaomi RL sampling profile is temperature 1.0/top_p 0.95/top_k
 20, with thinking enabled. Every completed HTTP response records its sampling,
 status, finish reason and available usage; the proxy also records actual
@@ -177,9 +219,16 @@ SGLang 0.5.20 serves `--tool-call-parser mimo`; native OpenAI structured tools
 are not translated into Terminus commands. Native messages, raw tool arguments
 and logs remain available under `agent/mimoagent/`. Harbor ATIF includes
 delegated trajectories and references so copy-check inspects child actions.
-Unobserved usage is unknown, and a total is populated only when every relevant
-call supplied that metric. Native `ModelQueryError`/`InfraError` stops are
-preserved and surfaced as Harbor run errors, not ordinary verifier failures.
+Unobserved usage stays unknown — a failed call with no response contributes no
+invented tokens — and a total is populated only when every relevant call
+supplied that metric. Terminal typed `ModelQueryError`/`InfraError` stops are
+safe structured stop metadata (`stop_reason: infra_error` with error type, last
+response status, and retry-window detail), never synthetic user turns, and carry
+no traceback or host paths; they surface as Harbor run errors, not ordinary
+verifier failures. A child failure is reported child-specifically and does not
+override a recovered root `Idle`. The trusted AgentTool `log_file` becomes
+`childlog://<stem>` before model history, raw native output, and ATIF; on-disk
+logs are unchanged.
 Family reporting reads IDs from the Parquet columns rather than inferring
 uniform Hive partitions, so compacted and recent trial facts can coexist.
 
@@ -189,12 +238,23 @@ endpoint in place of the YAML's default GPT-5, Harbor Daytona exec/uploads in
 place of Kubernetes, the task image's actual working directory, the explicit
 RL top_p/top_k overlay, 64K rather than 262K context, Harbor's outer budgets,
 and the ATIF representation. The serving README records the capture census and
-memory/concurrency recommendation; context remains unchanged.
-Harbor instructions are passed verbatim into the original Xiaomi user
-template; an instruction already prefixed with `Fix the following issue:`
-therefore retains both prefixes. This matches the direct control, not a
-rewritten benchmark prompt. The paired smoke also exposed a real 64K
-prompt-plus-completion rejection; see the serving README for that boundary.
+memory/concurrency recommendation; context remains unchanged. The worker's
+`WRAPPER_ADDITIONS` is captured as a declared `harness.additions` treatment in
+the setup fingerprint and specs, so these departures are explicit.
+The pinned Xiaomi path adds its header once:
+[`batch.py`](https://github.com/XiaomiMiMo/mimoagent/blob/467f0a19016f0ac4d63b8d17a1f0da9ba07f232c/src/mimoagent/run/extra/batch.py)
+passes the raw `problem_statement` to `agent.run`, and
+[`swe.yaml`](https://github.com/XiaomiMiMo/mimoagent/blob/467f0a19016f0ac4d63b8d17a1f0da9ba07f232c/example_configs/swe.yaml)
+renders `Fix the following issue:\n\n{{task}}` (config SHA `a03457e6...`).
+The [RL-oss source rows](https://huggingface.co/datasets/XiaomiMiMo/MiMo-V2.6-RL-oss)
+at `639865fd3374018d6cb29b9fb82dd531406fcf5f` carry the raw issue body, while the
+[FineEnvs Harbor conversion](https://huggingface.co/datasets/FineEnvs/MiMo-V2.6-RL-harbor-code)
+at `5746e2f0c5c61` bakes the header into `instruction.md`. The parent adapter strips one
+leading `Fix the following issue:` blank-line header (LF or CRLF) and preserves
+every other byte. The HAR-148 double-prefix direct control remains a historical
+observation, not proof of Xiaomi-pipeline equivalence. The paired smoke also
+exposed a real 64K prompt-plus-completion rejection; see the serving README
+for that boundary.
 
 
 The no-model HAR-148 allowlist probe **did not qualify** an in-container

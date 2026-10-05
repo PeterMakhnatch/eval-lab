@@ -50,10 +50,14 @@ keys run -- uv run --project tools/modal-mimo-serve --locked \
 ```
 
 The native controller requires its isolated pinned runtime:
-`uv sync --project tools/mimoagent-harbor --locked`. Warm the server with
-authenticated health requests before paid task dispatch; a deployed app alone
-is not readiness, and the native retry policy does not cover a three-minute
-cold start. The existing Terminus sampling profile stays 0.6/0.95/20; the native
+`uv sync --project tools/mimoagent-harbor --locked`. Qualify the server with an
+authenticated real `/v1/chat/completions` round trip before paid task dispatch:
+a deployed app alone is not readiness, and a bare `/health` pass does not prove
+the model path. The HAR-157 replacement run requests freshness 0 for every
+dispatch — accept no cached pass (merged default: probe cache 60s, optional 0).
+The native retry window covers explicit transient failed transports inside its 300s
+known-cold recovery; it is not server-cold qualification and never re-queries
+an HTTP 200. The existing Terminus sampling profile stays 0.6/0.95/20; the native
 Xiaomi profile is explicitly 1.0/0.95/20.
 
 The host runner binds both the loopback proxy URL and
@@ -68,9 +72,9 @@ supervisor's served-context upper bound and are refused when that reservation
 does not fit. An explicit SDK limit reserves its original value.
 
 Readiness is time-sensitive: the server scales to zero after five idle
-minutes. Refresh authenticated health immediately before dispatch if
-preparation pauses; an earlier successful health probe is not proof of
-current readiness.
+minutes. Re-run the authenticated chat/completions readiness immediately before
+dispatch if preparation pauses; an earlier pass is not proof of current
+readiness.
 
 
 ## Cost
@@ -106,7 +110,9 @@ SGLang rejected 39,781 input tokens plus a 26,160-token completion allowance
 control both stopped with native `ModelQueryError`, but the direct control
 hit its 20-request diagnostic ceiling instead. Do not interpret their common
 stop category as identical model behavior or the old census as native-loop
-qualification. No completion clipping or context increase was introduced.
+qualification. Such terminal stops surface as structured `infra_error` metadata
+without tracebacks, not as verifier failures. No completion clipping or context
+increase was introduced.
 
 The pinned hybrid model has eight full-attention layers, four KV heads of
 dimension 256 and BF16 KV storage: 32 KiB per cached token. A fully populated

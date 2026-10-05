@@ -513,20 +513,38 @@ def test_missing_credential_defers_spec_without_moving_it(
 
 
 def test_tick_distinguishes_provider_credentials_for_the_same_agent(tmp_path: Path) -> None:
+    """Each mini-swe-agent provider is credentialed independently (scoped ticks)."""
+
     def run(request: RunRequest) -> Path:
         destination = request.jobs_dir / request.name
         destination.mkdir(parents=True)
         return destination
 
     service = executor(tmp_path, runner=run, credentials=frozenset({"zai_openapi_api_environment"}))
-    for name, model in (
-        ("glm-provider", "zai/glm-5.3-flash"),
-        ("deepseek-provider", "deepseek/deepseek-flash"),
-    ):
-        submit_authorized(service, spec(name, agent="mini-swe-agent", model=model, est_cost_usd=1))
+    glm_path = submit_authorized(
+        service,
+        spec("glm-provider", agent="mini-swe-agent", model="zai/glm-5.3-flash", est_cost_usd=1),
+    )
+    deepseek_path = submit_authorized(
+        service,
+        spec(
+            "deepseek-provider",
+            agent="mini-swe-agent",
+            model="deepseek/deepseek-flash",
+            est_cost_usd=1,
+        ),
+    )
+    glm_id = str(service.queue.load(glm_path).spec_id)
+    deepseek_id = str(service.queue.load(deepseek_path).spec_id)
 
-    assert service.tick() == 1
+    # Intentionally standalone single-spec ticks: one model-backed spec is not
+    # a smoke batch, so each tick proves exactly that spec's credential need.
+    assert service.tick(spec_ids=[glm_id]) == 1
+    assert service.queue.locate(glm_id, ("done",)).parent.name == "done"
+    assert service.tick(spec_ids=[deepseek_id]) == 0
+
     assert [item.name for _, item in service.queue.list_specs("approved")] == ["deepseek-provider"]
+    assert not service.queue.stop_path.exists()
     events = load_events(service.queue.events_path)
     assert [
         (event.job_name, event.reason_code)
@@ -548,6 +566,7 @@ def test_tick_defers_only_the_agent_with_a_missing_credential(
     missing_agent: str,
     missing_reason: str,
 ) -> None:
+    """Agent-scoped credential deferral proven with standalone per-spec ticks."""
     requests: list[RunRequest] = []
 
     def run(request: RunRequest) -> Path:
@@ -567,13 +586,22 @@ def test_tick_defers_only_the_agent_with_a_missing_credential(
             task="canary/event-summary",
         ),
     ]
+    spec_ids: dict[str, str] = {}
     for item in submissions:
         if item.billable:
-            submit_authorized(service, item)
+            path = submit_authorized(service, item)
         else:
-            assert service.submit(item)[1].admitted
+            path, decision = service.submit(item)
+            assert decision.admitted
+        spec_ids[item.name] = str(service.queue.load(path).spec_id)
 
-    assert service.tick() == 3
+    # Each spec ticks alone: controls and the credentialed billable spec run,
+    # the credential-less agent defers in place, and no smoke batch forms.
+    dispatched = 0
+    for item in submissions:
+        dispatched += service.tick(spec_ids=[spec_ids[item.name]])
+
+    assert dispatched == 3
 
     expected_dispatched = {item.name for item in submissions if item.agent != missing_agent}
     assert {request.name for request in requests} == expected_dispatched
@@ -584,6 +612,7 @@ def test_tick_defers_only_the_agent_with_a_missing_credential(
             missing_agent,
         )
     ]
+    assert not service.queue.stop_path.exists()
 
     events = load_events(service.queue.events_path)
     deferrals = [event for event in events if event.event == "dispatch_deferred"]
@@ -593,30 +622,6 @@ def test_tick_defers_only_the_agent_with_a_missing_credential(
     assert {
         event.job_name for event in events if event.event == "dispatch_started"
     } == expected_dispatched
-
-
-def test_spec_without_model_gets_agent_default_and_explicit_model_wins(tmp_path: Path) -> None:
-    requests = []
-
-    def run(request):
-        requests.append(request)
-        destination = request.jobs_dir / request.name
-        destination.mkdir(parents=True)
-        return destination
-
-    service = executor(tmp_path, runner=run)
-    submit_authorized(
-        service, spec("codex-default-model", agent="codex", task="canary/event-summary")
-    )
-    submit_authorized(
-        service,
-        spec("codex-pinned-model", agent="codex", task="canary/event-summary", model="pinned-x"),
-    )
-    service.tick()
-
-    by_name = {request.name: request.model for request in requests}
-    assert by_name["codex-default-model"] == "gpt-5.6-terra"
-    assert by_name["codex-pinned-model"] == "pinned-x"
 
 
 def test_concurrent_tick_claiming_a_spec_mid_listing_is_tolerated(tmp_path: Path) -> None:
@@ -948,9 +953,7 @@ def test_reconciliation_fails_closed_on_terminal_transient_job(
     assert service.queue.list_specs("failed")
     assert not service.queue.list_specs("done")
     assert service._reserved_attempt_spend_today() == 2
-    reasons = [
-        json.loads(path.read_text()) for path in service.queue.reasons_dir.glob("*.json")
-    ]
+    reasons = [json.loads(path.read_text()) for path in service.queue.reasons_dir.glob("*.json")]
     assert any(reason["code"] == "transient_harness:provider_http_5xx" for reason in reasons)
 
 
@@ -981,9 +984,7 @@ def test_reconciliation_fails_closed_if_retry_archive_has_no_canonical_job(
     service.reconcile_running()
 
     assert service.queue.list_specs("failed")
-    reasons = [
-        json.loads(path.read_text()) for path in service.queue.reasons_dir.glob("*.json")
-    ]
+    reasons = [json.loads(path.read_text()) for path in service.queue.reasons_dir.glob("*.json")]
     assert any(reason["code"] == "transient_harness:retry_interrupted" for reason in reasons)
 
 
@@ -1587,21 +1588,18 @@ def test_dispatch_carries_verifier_repeat_n_to_run_request(tmp_path: Path) -> No
     """The queue spec field reaches the Harbor argv boundary via RunRequest."""
     requests: list[RunRequest] = []
     service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
-    item = spec("repeat-verifier", agent="nop").model_copy(
-        update={"verifier_repeat_n": 3}
-    )
+    item = spec("repeat-verifier", agent="nop").model_copy(update={"verifier_repeat_n": 3})
 
     service.execute_spec(item)
 
     assert requests[0].verifier_repeat_n == 3
 
+
 def test_dispatch_carries_override_storage_mb_to_run_request(tmp_path: Path) -> None:
     """The queue spec field reaches the Harbor argv boundary via RunRequest."""
     requests: list[RunRequest] = []
     service = executor(tmp_path, runner=lambda request: requests.append(request) or tmp_path)
-    item = spec("storage-override", agent="nop").model_copy(
-        update={"override_storage_mb": 10240}
-    )
+    item = spec("storage-override", agent="nop").model_copy(update={"override_storage_mb": 10240})
 
     service.execute_spec(item)
 

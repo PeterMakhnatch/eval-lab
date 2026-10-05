@@ -133,3 +133,6 @@ def test_apply_signals_creates_missing_and_patches_existing() -> None:
     created = {name for method, _, name in writes if method == "POST"}
     assert created == {d["name"] for d in SIGNALS} - {"stuck_loop"}
     assert all(body["filters"] == [] for _, _, body in calls[1:]), "every trace must be evaluated"
+    for _, _, body in calls[1:]:
+        schema = body["structuredOutput"]
+        assert schema["required"] == list(schema["properties"]), "the API rejects schemas without required"

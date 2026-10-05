@@ -588,8 +588,12 @@ def _json_call(
         method=method,
         headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
     )
-    with opener(request, timeout=30) as response:
-        raw = response.read()
+    try:
+        with opener(request, timeout=30) as response:
+            raw = response.read()
+    except HTTPError as exc:
+        detail = exc.read().decode(errors="replace")[:500]
+        raise RuntimeError(f"Laminar {method} {path} -> HTTP {exc.code}: {detail}") from None
     return json.loads(raw) if raw else None
 
 
@@ -601,7 +605,10 @@ def apply_signals(
     existing = {s["name"]: s for s in (listed or {}).get("signals", [])}
     applied = []
     for definition in SIGNALS:
-        body = {**_SIGNAL_DEFAULTS, **definition}
+        schema = definition["structuredOutput"]
+        # The API rejects a schema without ``required`` (docs say it is auto-filled; it is not).
+        output = {**schema, "required": list(schema["properties"])}
+        body = {**_SIGNAL_DEFAULTS, **definition, "structuredOutput": output}
         current = existing.get(definition["name"])
         if current is None:
             applied.append(
@@ -731,7 +738,14 @@ def _laminar_command(args: Any, root: Path, *, harbor: Any | None = None) -> int
         return 2
     endpoint = os.environ.get(LAMINAR_ENDPOINT_ENV, "").strip() or LAMINAR_ENDPOINT
     if args.laminar_action == "signals":
-        for signal in apply_signals(api_key=key, endpoint=endpoint):
+        try:
+            applied = apply_signals(api_key=key, endpoint=endpoint)
+        except RuntimeError as exc:
+            # Laminar Cloud only creates API Signals with a BYOK LLM profile; Signals created
+            # in the UI (Laminar's own model) are patched here by exact name.
+            print(f"laminar: {exc}", file=sys.stderr)
+            return 1
+        for signal in applied:
             print(f"signal {signal['name']}: id {signal['id']} version {signal['version']}")
         return 0
     runs = [p if p.is_absolute() else (root / p).resolve() for p in args.runs_dir]

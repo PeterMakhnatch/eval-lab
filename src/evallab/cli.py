@@ -6564,6 +6564,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.live_watch import build_watch_parser as _build_watch_parser
 
     _build_watch_parser(commands)
+    from evallab.interpretation.features import build_features_parser as _build_features_parser
+
+    _build_features_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)

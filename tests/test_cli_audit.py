@@ -66,6 +66,7 @@ TOP_LEVEL_COMMANDS = (
     "results",
     "review",
     "watch",
+    "features",
     "laminar",
     "telemetry",
     "investigate",

@@ -256,7 +256,13 @@ def unpack_setup_blob(blob: str) -> dict[str, bytes]:
     """Unpack a healthcheck payload blob into ``{arcname: bytes}`` (tests)."""
     buffer = io.BytesIO(gzip.decompress(base64.b64decode(blob)))
     with tarfile.open(fileobj=buffer, mode="r") as tar:
-        return {member.name: tar.extractfile(member).read() for member in tar.getmembers()}
+        out: dict[str, bytes] = {}
+        for member in tar.getmembers():
+            extracted = tar.extractfile(member)
+            if extracted is None:
+                raise VariantInvalid(f"setup payload entry {member.name!r} has no file content")
+            out[member.name] = extracted.read()
+        return out
 
 
 def build_changes(

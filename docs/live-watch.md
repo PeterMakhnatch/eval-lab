@@ -33,6 +33,26 @@ size); a reused status still ages `minutes_since_update`, so `stalled` fires
 and a late `result.json` flips the trial to finished. `--limits-from-config` reads token limits from the trial/job
 `config.json` or the job `experiment-spec.json` instead of the defaults.
 
+## Native MiMo's live Laminar view
+
+An authorized native `mimoagent` launch can also publish a live, redacted
+Laminar span tree. This is separate from `evallab watch`: it neither raises
+admission decisions nor replaces the canonical local watcher, result, proxy
+usage or copy-check evidence. One session identifies the Harbor job and one
+trace identifies each trial, including its automatic OpenAI calls, tools,
+delegated agents, setup, egress acknowledgment, verifier/reward and stop.
+
+Use the [pinned host/native setup and central-key boundary](observability.md#live-laminar-tracing-for-native-mimo-har-165).
+Observe the authenticated private Cloud trace while the trial is still
+running; completed child spans should arrive before root closure. Then bind
+the actual trace URL/UUID to that trial's `laminar-trace.json`, result, stop
+reason and copy verdict. A local sink, SDK export attempt or syntactically
+plausible URL is not proof of remote ingestion.
+
+Cloud lag or exporter failure must not change an answer or stop a trial.
+Tracing does not authorize a task, prove physical deny-all, certify a
+verifier or establish billed cost. Keep unknown observations unknown.
+
 ## Outputs (`--out`)
 
 - `status.json` — every trial's live signals plus fleet alerts.
@@ -51,18 +71,23 @@ and a late `result.json` flips the trial to finished. `--limits-from-config` rea
 ## Laminar (`--laminar`)
 
 `evallab watch --laminar` (and every auto-attached watch when
-`LMNR_PROJECT_API_KEY` is set; `EVALLAB_LAMINAR=off` disables it) exports
-each trial to Laminar Cloud as one trace, live:
+`LMNR_PROJECT_API_KEY` is set; `EVALLAB_LAMINAR=off` disables it) uses one
+Cloud trace per trial:
 
-- the trace id is derived from the trial name, so passes and replays address
-  the same trace (`evallab.laminar.laminar_trace_uuid`);
-- each ATIF step becomes a span once the next step exists: agent turns are
-  `LLM` spans with a `TOOL` child per call, attributed `evallab.step_id`;
-- the `harbor.trial` root span (session = job; metadata job, trial, task,
-  reward, exception) is sent when `result.json` lands, which is what triggers
-  Signals;
-- each new trial alert becomes an `evallab.alert.<rule>` span with an event of
-  the same name, under the span of the step it cites.
+- Native live-SDK trials reuse the actual UUID and root span ID in
+  `laminar-trace.json`. Watch never projects duplicate roots, LLM calls or
+  tools for those trials. New alerts are redacted, derived-watch spans
+  attached to the actual SDK root, not to invented SDK step identities.
+  Their timestamps record the watch observation, which may happen after
+  trial closure. An unavailable SDK identity stays unknown; local alerts
+  still work and no synthetic replacement trace or parent is exported.
+- Trials without an SDK sidechannel retain the live ATIF projection:
+  the trial-name-derived ID is stable across passes and replays
+  (`evallab.laminar.laminar_trace_uuid`); completed agent steps are `LLM`
+  spans with `TOOL` children attributed `evallab.step_id`.
+  `harbor.trial` (session = job; metadata job, trial, task, reward, exception)
+  is sent when `result.json` lands. New alerts attach beneath the projected
+  step they cite.
 
 Text is clipped to 16k characters, known provider secrets are replaced, and a
 value matching a secret pattern is withheld. Export is fail-open: errors are
@@ -78,7 +103,8 @@ the `evallab-zai` workspace profile once (Z.ai `glm-5.3-flash`, key from
 input tokens per trace for all four (about $0.02). Without it, the command
 can only patch Signals already created in the UI under the same names.
 `evallab laminar compare --runs-dir <job> --out <dir>` writes a per-trial
-table of Eval Lab's verdict vs each Signal event (`signals-vs-evallab.md`).
+table of Eval Lab's verdict vs each Signal event (`signals-vs-evallab.md`),
+querying the actual SDK UUID when present rather than a projected duplicate.
 
 ## Signals per trial
 

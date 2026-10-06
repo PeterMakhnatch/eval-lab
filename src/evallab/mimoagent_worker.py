@@ -33,6 +33,7 @@ import sys
 import threading
 import time
 from concurrent.futures import Future
+from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
@@ -82,9 +83,7 @@ def _error_status(error: BaseException) -> int | None:
 
 def _error_budget_reason(error: BaseException) -> str | None:
     response = getattr(error, "response", None)
-    return proxy_budget_reason(
-        _error_status(error), getattr(response, "text", None)
-    )
+    return proxy_budget_reason(_error_status(error), getattr(response, "text", None))
 
 
 def _safe_budget_reason(reason: str | None) -> str | None:
@@ -144,7 +143,11 @@ class SandboxRpc:
         return future.result()
 
     def execute(self, command: str, cwd: str = "", timeout: int | None = None) -> dict:
-        return self._request("exec", command=command, cwd=cwd or self.cwd, timeout=timeout or 300)
+        result = self._request("exec", command=command, cwd=cwd or self.cwd, timeout=timeout or 300)
+        # Observe-only: report the actual transport returncode to an active
+        # traced-tool recorder; the returned result is never altered.
+        _record_exec_result(result)
+        return result
 
     def execute_detached(
         self, command: str, cwd: str = "", timeout: int | None = None, **_kwargs
@@ -160,6 +163,73 @@ class SandboxRpc:
 
     def get_template_vars(self) -> dict:
         return {"cwd": self.cwd, "timeout": 300}
+
+
+_EXEC_RECORDERS = threading.local()
+
+
+def _push_exec_recorder() -> list:
+    """Begin collecting observed exec returncodes in this thread; nestable."""
+    recorder: list = []
+    stack = getattr(_EXEC_RECORDERS, "stack", None)
+    if stack is None:
+        stack = []
+        _EXEC_RECORDERS.stack = stack
+    stack.append(recorder)
+    return recorder
+
+
+def _pop_exec_recorder(recorder: list) -> None:
+    """End this thread's collection, restoring any enclosing recorder."""
+    try:
+        stack = getattr(_EXEC_RECORDERS, "stack", None)
+        if stack and stack[-1] is recorder:
+            stack.pop()
+    except Exception:
+        pass
+
+
+def _record_exec_result(result: Any) -> None:
+    """Append an actually observed exec returncode to the innermost recorder.
+
+    Records exactly what the sandbox transport returned (including -1 for a
+    client-side timeout); missing/non-integer codes stay unknown (None).
+    Never raises; never alters the result.
+    """
+    try:
+        stack = getattr(_EXEC_RECORDERS, "stack", None)
+        if not stack:
+            return
+        code = result.get("returncode") if isinstance(result, dict) else None
+        stack[-1].append(code if isinstance(code, int) else None)
+    except Exception:
+        pass
+
+
+def _tool_exit_metadata(tool_name: Any, codes: list, output: Any) -> dict:
+    """Tracing-only exit telemetry; the original tool output is untouched.
+
+    Process-backed tools report every exec returncode honestly observed during
+    the span (multiple subcommands included) with the most recent as primary;
+    no exec observed means unknown (None), never an invented 0. The agent tool
+    has no process exit code: explicit null code plus the real
+    metadata.exit_status when the tool reported one.
+    """
+    status = None
+    if isinstance(output, dict):
+        inner = output.get("metadata")
+        if isinstance(inner, dict):
+            candidate = inner.get("exit_status")
+            status = candidate if isinstance(candidate, str) else None
+    if tool_name == "agent":
+        metadata: dict = {"exit_code": None}
+        if status is not None:
+            metadata["exit_status"] = status
+        return metadata
+    metadata = {"exit_codes": list(codes), "exit_code": codes[-1] if codes else None}
+    if status is not None:
+        metadata["exit_status"] = status
+    return metadata
 
 
 def proxy_budget_reason(status_code: Any, body_text: Any) -> str | None:
@@ -186,8 +256,76 @@ def proxy_budget_reason(status_code: Any, body_text: Any) -> str | None:
     return None
 
 
+def _load_trace_runtime(tracing_config: dict, initial: dict):
+    """Initialize standalone Laminar tracing; fail-open to None on any error.
+
+    The core module is loaded by explicit sibling file path so the trusted
+    ``-I`` worker keeps its interpreter isolation (no sys.path broadening, no
+    package import). A missing module, missing key, or any initialization
+    failure leaves the worker exactly untraced; callers check for None.
+    """
+    if not tracing_config:
+        return None
+    try:
+        import importlib.util
+
+        tracing_path = Path(__file__).with_name("laminar_tracing.py")
+        spec = importlib.util.spec_from_file_location(
+            "evallab_laminar_tracing_standalone", tracing_path
+        )
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        host_paths = tuple(
+            path
+            for path in (
+                initial.get("native_logs_dir"),
+                initial.get("global_config_dir"),
+                initial.get("config_path"),
+            )
+            if isinstance(path, str) and path
+        )
+        # Both host credentials that reach this worker are redaction needles
+        # before the encoded sink: the proxy capability and the LMNR key.
+        secrets = tuple(
+            secret
+            for secret in (
+                initial.get("capability"),
+                os.environ.get("LMNR_PROJECT_API_KEY"),
+            )
+            if isinstance(secret, str) and secret
+        )
+        bearer = tracing_config.get("bearer_pattern")
+        runtime = module.initialize_tracing(
+            automatic_openai=True,
+            secrets=secrets,
+            host_paths=host_paths,
+            native_sink=tracing_config.get("native_sink"),
+            bearer_pattern=bearer if isinstance(bearer, str) else None,
+        )
+        return runtime if runtime is not None and runtime.enabled else None
+    except Exception:
+        return None
+
+
 def main() -> None:
     initial = json.loads(sys.stdin.readline())
+    tracing_config = initial.get("tracing")
+    if not isinstance(tracing_config, dict):
+        tracing_config = {}
+    # Actual automatic OpenAI instrumentation is initialized here, before the
+    # model is constructed or called. Fail-open: None means run untraced.
+    trace_runtime = _load_trace_runtime(tracing_config, initial)
+    trace_session = tracing_config.get("session_id")
+    if not isinstance(trace_session, str):
+        trace_session = None
+    trace_parent = tracing_config.get("parent_context")
+    if not isinstance(trace_parent, str):
+        trace_parent = None
+    trace_metadata = tracing_config.get("metadata")
+    if not isinstance(trace_metadata, dict):
+        trace_metadata = {}
     # Prevent mimoagent's global .env loader from importing an unrelated host
     # configuration. This directory is created and owned by the Harbor agent.
     os.environ["MIMOAGENT_GLOBAL_CONFIG_DIR"] = initial["global_config_dir"]
@@ -226,6 +364,19 @@ def main() -> None:
     local = threading.local()
     query_states: dict[str, dict] = {}
     infrastructure_stops: dict[str, dict] = {}
+    # Explicit tracing parentage for reused pool threads: agent-run span
+    # contexts by live agent identity, plus the active tool span in each
+    # executing thread so a child run nests under its invoking agent tool.
+    agent_span_contexts: dict[int, str] = {}
+    agent_span_lock = threading.Lock()
+    tool_span_state = threading.local()
+
+    def _quietly(call, *args, **kwargs):
+        """Run a telemetry call fail-open; tracing never changes the trial."""
+        try:
+            return call(*args, **kwargs)
+        except Exception:
+            return None
 
     def name_of(agent=None, messages=None) -> str:
         with logs._lock:
@@ -280,7 +431,9 @@ def main() -> None:
                     "last_response_status": state.get("last_response_status", _error_status(root)),
                     "retry_window_seconds": COLD_START_BUDGET_S,
                     "retry_rounds": max(0, state.get("attempts", 1) - 1),
-                    "retry_window_exhausted": isinstance(error.__cause__, ColdStartDeadlineExceeded),
+                    "retry_window_exhausted": isinstance(
+                        error.__cause__, ColdStartDeadlineExceeded
+                    ),
                     "budget_refusal": _safe_budget_reason(_error_budget_reason(root)),
                 }
                 with evidence_lock:
@@ -296,6 +449,51 @@ def main() -> None:
                 return type(error).__name__, str(error)
 
     BaseAgent.run = run_without_infrastructure_turn
+    if trace_runtime is not None:
+
+        def traced_agent_run(agent, task: str | dict, **kwargs) -> tuple[str, str]:
+            # Observe actual execution only. The infrastructure-safe loop runs
+            # exactly once below with unchanged requests, tools, and stops.
+            try:
+                agent_name = name_of(agent=agent)
+            except Exception:
+                agent_name = None
+            parent_context = getattr(tool_span_state, "current", None)
+            if not isinstance(parent_context, str):
+                # The root agent joins the host trial span. A child agent always
+                # runs inside its invoking agent-tool span, bound above.
+                parent_context = trace_parent
+            span = _quietly(
+                trace_runtime.start_span,
+                f"agent.run {agent_name or 'unknown'}",
+                span_type="DEFAULT",
+                parent_context=parent_context,
+                session_id=trace_session,
+                metadata={**trace_metadata, "agent": agent_name or "unknown"},
+                input=task,
+                tags=["mimoagent-native"],
+            )
+            if span is None:
+                return run_without_infrastructure_turn(agent, task, **kwargs)
+            span_context = _quietly(span.serialized_context)
+            if isinstance(span_context, str):
+                with agent_span_lock:
+                    agent_span_contexts[id(agent)] = span_context
+            try:
+                with span:
+                    try:
+                        status, result = run_without_infrastructure_turn(agent, task, **kwargs)
+                    except BaseException as error:
+                        _quietly(span.end, error_type=type(error).__name__)
+                        raise
+                    _quietly(span.set_output, {"status": status, "result": result})
+                    return status, result
+            finally:
+                if isinstance(span_context, str):
+                    with agent_span_lock:
+                        agent_span_contexts.pop(id(agent), None)
+
+        BaseAgent.run = traced_agent_run
 
     original_execute_tool = DefaultAgent._execute_tool
 
@@ -308,6 +506,77 @@ def main() -> None:
             raise InfraError("native tool transport failed") from error
 
     DefaultAgent._execute_tool = safe_execute_tool
+    if trace_runtime is not None:
+
+        def traced_execute_tool(agent, action: dict) -> dict:
+            # Observe the actual tool call. Transport and error semantics stay
+            # in safe_execute_tool, which runs exactly once below.
+            tool_name = action.get("tool") if isinstance(action, dict) else None
+            params = action.get("params") if isinstance(action, dict) else None
+            try:
+                invoking_name = name_of(agent=agent)
+            except Exception:
+                invoking_name = None
+            with agent_span_lock:
+                parent_context = agent_span_contexts.get(id(agent))
+            span = _quietly(
+                trace_runtime.start_span,
+                f"tool {tool_name or 'unknown'}",
+                span_type="TOOL",
+                parent_context=parent_context,
+                session_id=trace_session,
+                metadata={**trace_metadata, "agent": invoking_name or "unknown"},
+                input={"tool": tool_name, "params": params},
+                tags=["mimoagent-native"],
+            )
+            if span is None:
+                return safe_execute_tool(agent, action)
+            with span:
+                span_context = _quietly(span.serialized_context)
+                previous = getattr(tool_span_state, "current", None)
+                if isinstance(span_context, str):
+                    # A child agent.run executes synchronously in this thread.
+                    # Explicit per-thread binding keeps reused pool threads
+                    # isolated; the finally below always restores the thread.
+                    tool_span_state.current = span_context
+                try:
+                    # Collect exec returncodes actually observed during this
+                    # tool in this thread. Nested child tool spans push their
+                    # own recorder, so each span attributes only its window;
+                    # the finally below restores the enclosing recorder.
+                    recorder = _push_exec_recorder()
+                    try:
+                        output = safe_execute_tool(agent, action)
+                    except BaseException as error:
+                        _quietly(
+                            span.set_metadata,
+                            _tool_exit_metadata(tool_name, recorder, None),
+                        )
+                        _quietly(span.end, error_type=type(error).__name__)
+                        raise
+                    finally:
+                        _pop_exec_recorder(recorder)
+                    # Original ToolOutput dict only: tracing attributes carry
+                    # the observed exit codes, never a fabricated code, and
+                    # the output itself is never altered.
+                    _quietly(
+                        span.set_output,
+                        output if isinstance(output, dict) else {"output": output},
+                    )
+                    _quietly(
+                        span.set_metadata,
+                        _tool_exit_metadata(tool_name, recorder, output),
+                    )
+                    return output
+                finally:
+                    if isinstance(span_context, str):
+                        if previous is None:
+                            with suppress(AttributeError):
+                                del tool_span_state.current
+                        else:
+                            tool_span_state.current = previous
+
+        DefaultAgent._execute_tool = traced_execute_tool
     original_format_observation = DefaultAgent._format_observation
 
     def logical_child_observation(agent, output: dict) -> str:
@@ -318,9 +587,7 @@ def main() -> None:
             and isinstance(metadata.get("log_file"), str)
         ):
             output = output | {
-                "metadata": metadata | {
-                    "log_file": "childlog://" + Path(metadata["log_file"]).stem
-                }
+                "metadata": metadata | {"log_file": "childlog://" + Path(metadata["log_file"]).stem}
             }
         return original_format_observation(agent, output)
 
@@ -341,7 +608,8 @@ def main() -> None:
             attempt_model = copy.copy(self)
             while True:
                 remaining = (
-                    COLD_START_BUDGET_S if local.cold_deadline is None
+                    COLD_START_BUDGET_S
+                    if local.cold_deadline is None
                     else local.cold_deadline - time.monotonic()
                 )
                 if remaining <= 0:
@@ -359,7 +627,8 @@ def main() -> None:
                     pool=min(native_timeout.pool or remaining, remaining),
                     write=min(native_timeout.write or remaining, remaining),
                     read=(
-                        native_timeout.read if local.cold_deadline is None
+                        native_timeout.read
+                        if local.cold_deadline is None
                         else min(native_timeout.read or remaining, remaining)
                     ),
                 )
@@ -389,7 +658,8 @@ def main() -> None:
                         )
                     transient = (
                         isinstance(error, openai.APIConnectionError)
-                        or status is not None and (500 <= status <= 599 or status == 429)
+                        or status is not None
+                        and (500 <= status <= 599 or status == 429)
                     )
                     if (
                         local.received_answer
@@ -489,7 +759,8 @@ def main() -> None:
                 "stop_reason": "infra_error",
                 "infra_error": details,
             }
-            for name, details in infrastructure_stops.items() if name != "main"
+            for name, details in infrastructure_stops.items()
+            if name != "main"
         }
         if child_stops:
             stop_metadata["agent_stops"] = child_stops
@@ -518,6 +789,11 @@ def main() -> None:
         )
         model.client.close()
         logs.close()
+        if trace_runtime is not None:
+            # Bounded local-only drain of SDK spans to the native sink before
+            # the finished event; never a Cloud request or wait. The host
+            # forwards the file. Failures leave completion unchanged.
+            _quietly(trace_runtime.flush_native)
     rpc.emit(
         {
             "event": "finished",

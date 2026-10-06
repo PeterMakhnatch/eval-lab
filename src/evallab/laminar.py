@@ -1,7 +1,7 @@
 """Laminar (laminar.sh) export for Harbor trials, live alerts, and Signals as code.
 
-Harbor does not emit Laminar traces, so ``evallab watch`` builds one per trial
-from the live ATIF trajectory:
+For trials without live SDK instrumentation, ``evallab watch`` builds a
+Laminar trace from the live ATIF trajectory:
 
 * trace id is derived from the trial name, so every watch pass (and a replay)
   addresses the same trace;
@@ -14,6 +14,9 @@ from the live ATIF trajectory:
 * every new watch alert becomes an ``evallab.alert.<rule>`` span carrying an
   OTel event of the same name, parented to the span of the step the alert cites
   (the root span when it cites none).
+Live SDK trials reuse ``laminar-trace.json`` identity instead: no duplicate
+root, LLM or tool spans are projected. Watch alerts are derived observations
+attached to the actual SDK root, not invented SDK/ATIF step spans.
 
 Export is fail-open: an unreachable Laminar or a bad response is recorded in
 ``laminar.json`` and the spans are retried next pass; watch never fails on it.
@@ -65,6 +68,34 @@ def laminar_trace_uuid(trial_name: str) -> str:
     return str(uuid.UUID(hex=trial_trace_id(trial_name)))
 
 
+def _sdk_trace_reference(trial_dir: Path) -> tuple[str | None, str | None] | None:
+    """None means no SDK marker; unknown SDK identity never becomes a projection."""
+    try:
+        raw = (trial_dir / "laminar-trace.json").read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None, None
+    try:
+        data = json.loads(raw)
+        if not isinstance(data, dict) or data.get("trial_name") != trial_dir.name:
+            return None, None
+        trace = uuid.UUID(data["trace_id"])
+        if not trace.int:
+            return None, None
+        root = data.get("root_span_id")
+        if not isinstance(root, str) or len(root) != 16 or not 0 < int(root, 16) < 1 << 64:
+            root = None
+        return str(trace), root
+    except (ValueError, TypeError, KeyError):
+        return None, None
+
+
+def _trial_cloud_trace_uuid(trial_dir: Path) -> str | None:
+    reference = _sdk_trace_reference(trial_dir)
+    return reference[0] if reference is not None else laminar_trace_uuid(trial_dir.name)
+
+
 def _ns(stamp: Any) -> int | None:
     if not isinstance(stamp, str) or not stamp:
         return None
@@ -77,6 +108,9 @@ def _ns(stamp: Any) -> int | None:
 class _Sanitizer:
     def __init__(self, secrets: Iterable[str]) -> None:
         self.secrets = tuple(sorted((s for s in secrets if len(s) >= 8), key=len, reverse=True))
+        from evallab.laminar_tracing import _Sanitizer as SdkSanitizer
+
+        self._sdk = SdkSanitizer(self.secrets, host_paths=(Path.cwd(), Path.home()))
         from evallab.interpretation.trajectory_hydration import secret_pattern_hits
 
         self._hits = secret_pattern_hits
@@ -86,11 +120,15 @@ class _Sanitizer:
         text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
         for secret in self.secrets:
             text = text.replace(secret, REDACTED)
+        text = self._sdk.value(text)
         if self._hits(text):
             self.withheld += 1
             return WITHHELD
         if len(text) > MAX_VALUE_CHARS:
-            text = text[:MAX_VALUE_CHARS] + f"\n<<evallab: clipped {len(text) - MAX_VALUE_CHARS} chars>>"
+            text = (
+                text[:MAX_VALUE_CHARS]
+                + f"\n<<evallab: clipped {len(text) - MAX_VALUE_CHARS} chars>>"
+            )
         return text
 
 
@@ -267,14 +305,19 @@ def root_span(
     )
 
 
-def alert_span(alert: dict[str, Any], now_ns: int) -> dict[str, Any]:
-    """An ``evallab.alert.<rule>`` span with one event, under the cited step's span."""
-    trial = str(alert["trial"])
+def alert_span(
+    alert: dict[str, Any],
+    now_ns: int,
+    *,
+    clean: _Sanitizer,
+    trace_id: str,
+    parent_id: str | None,
+) -> dict[str, Any]:
+    """A derived watch observation under a cited projected step or actual SDK root."""
     rule = str(alert["rule"])
-    trace_id = trial_trace_id(trial)
     ref = alert.get("step_ref")
     step = ref.split("#", 1)[1] if isinstance(ref, str) and "#" in ref else None
-    parent = _span_id(trace_id, f"step:{step}" if step else "root")
+    parent = parent_id or _span_id(trace_id, f"step:{step}" if step else "root")
     fields = {
         "evallab.alert.rule": rule,
         "evallab.alert.severity": alert.get("severity"),
@@ -282,6 +325,10 @@ def alert_span(alert: dict[str, Any], now_ns: int) -> dict[str, Any]:
         "evallab.alert.quote": alert.get("quote"),
         "evallab.alert.step_ref": ref,
     }
+    fields = {
+        key: clean(value) if isinstance(value, str) else value for key, value in fields.items()
+    }
+    fields["evallab.alert.evidence_scope"] = "derived_watch_observation"
     return _span(
         trace_id,
         _span_id(trace_id, f"alert:{rule}"),
@@ -290,7 +337,9 @@ def alert_span(alert: dict[str, Any], now_ns: int) -> dict[str, Any]:
         now_ns,
         now_ns,
         {**fields, "lmnr.span.type": "DEFAULT"},
-        events=[{"name": rule, "time_ns": now_ns, "attributes": {k: v for k, v in fields.items() if v}}],
+        events=[
+            {"name": rule, "time_ns": now_ns, "attributes": {k: v for k, v in fields.items() if v}}
+        ],
     )
 
 
@@ -344,7 +393,9 @@ def encode_spans(spans: list[dict[str, Any]]) -> bytes:
         resource_spans=[
             ResourceSpans(
                 resource=Resource(attributes=attrs({"service.name": "evallab"})),
-                scope_spans=[ScopeSpans(scope=InstrumentationScope(name="evallab.watch"), spans=encoded)],
+                scope_spans=[
+                    ScopeSpans(scope=InstrumentationScope(name="evallab.watch"), spans=encoded)
+                ],
             )
         ]
     )
@@ -388,6 +439,7 @@ class LaminarExporter:
             self.state = {}
         self.state.setdefault("exported", {})
         self.state.setdefault("errors", [])
+        self._sdk_references: dict[str, tuple[str | None, str | None]] = {}
 
     def _queue(self, spans: Iterable[dict[str, Any]]) -> None:
         done = self.state["exported"]
@@ -395,9 +447,14 @@ class LaminarExporter:
             if span["span_id"] not in done.get(span["trace_id"], ()):
                 self._pending.append(span)
 
-    def sync_trial(self, job_dir: Path, trial_dir: Path, *, finished: bool) -> str:
-        """Queue the trial's not-yet-exported spans; returns the Laminar trace UUID."""
+    def sync_trial(self, job_dir: Path, trial_dir: Path, *, finished: bool) -> str | None:
+        """Project only non-SDK trials; return the actual known Cloud trace identity."""
         from evallab.live_watch import TRIAL_RESULT, _read_steps
+
+        reference = _sdk_trace_reference(trial_dir)
+        if reference is not None:
+            self._sdk_references[trial_dir.name] = reference
+            return reference[0]
 
         steps, _ = _read_steps(trial_dir)
         now_ns = time.time_ns()
@@ -429,12 +486,26 @@ class LaminarExporter:
         for alert in alerts:
             if alert.get("scope") == "fleet" or not alert.get("trial"):
                 continue
-            self._queue([alert_span(alert, now_ns)])
+            reference = self._sdk_references.get(str(alert["trial"]))
+            if reference is not None:
+                trace, parent = reference
+                if trace is None or parent is None:
+                    continue
+                trace_id = uuid.UUID(trace).hex
+            else:
+                trace_id, parent = trial_trace_id(str(alert["trial"])), None
+            self._queue(
+                [alert_span(alert, now_ns, clean=self._clean, trace_id=trace_id, parent_id=parent)]
+            )
 
     def flush(self) -> dict[str, Any]:
         """POST queued spans once; never raises. Failed spans retry next pass."""
         pending, self._pending = self._pending, []
-        outcome: dict[str, Any] = {"spans": len(pending), "ok": True, "withheld": self._clean.withheld}
+        outcome: dict[str, Any] = {
+            "spans": len(pending),
+            "ok": True,
+            "withheld": self._clean.withheld,
+        }
         if pending:
             headers = {
                 "authorization": f"Bearer {self._key}",
@@ -501,7 +572,14 @@ SIGNALS: tuple[dict[str, Any], ...] = (
             "properties": {
                 "source": {
                     "type": "string",
-                    "enum": ["pip_download", "pip_install", "git", "http_fetch", "preinstalled_copy", "other"],
+                    "enum": [
+                        "pip_download",
+                        "pip_install",
+                        "git",
+                        "http_fetch",
+                        "preinstalled_copy",
+                        "other",
+                    ],
                     "description": "Where the upstream code came from",
                 },
                 "evidence_step": {
@@ -544,7 +622,13 @@ SIGNALS: tuple[dict[str, Any], ...] = (
                 "claim_step": {"type": "string", "description": "evallab.step_id of the claim"},
                 "reason": {
                     "type": "string",
-                    "enum": ["no_edit", "checks_failing", "never_verified", "contradicts_output", "other"],
+                    "enum": [
+                        "no_edit",
+                        "checks_failing",
+                        "never_verified",
+                        "contradicts_output",
+                        "other",
+                    ],
                 },
             },
         },
@@ -563,7 +647,14 @@ SIGNALS: tuple[dict[str, Any], ...] = (
             "properties": {
                 "kind": {
                     "type": "string",
-                    "enum": ["model_endpoint", "sandbox", "harness", "network", "dependency", "other"],
+                    "enum": [
+                        "model_endpoint",
+                        "sandbox",
+                        "harness",
+                        "network",
+                        "dependency",
+                        "other",
+                    ],
                 },
                 "step": {"type": "string", "description": "evallab.step_id where it shows"},
             },
@@ -652,7 +743,14 @@ def apply_signals(
         current = existing.get(definition["name"])
         if current is None:
             applied.append(
-                _json_call("POST", "/v1/signals", api_key=api_key, endpoint=endpoint, body=body, opener=opener)
+                _json_call(
+                    "POST",
+                    "/v1/signals",
+                    api_key=api_key,
+                    endpoint=endpoint,
+                    body=body,
+                    opener=opener,
+                )
             )
         else:
             applied.append(
@@ -669,7 +767,9 @@ def apply_signals(
 
 
 def _sql(query: str, parameters: dict[str, Any], **call: Any) -> list[dict[str, Any]]:
-    data = _json_call("POST", "/v1/sql/query", body={"query": query, "parameters": parameters}, **call)
+    data = _json_call(
+        "POST", "/v1/sql/query", body={"query": query, "parameters": parameters}, **call
+    )
     return list((data or {}).get("data") or [])
 
 
@@ -691,7 +791,9 @@ def our_verdicts(job_dir: Path, trial_dir: Path, status: dict[str, Any]) -> dict
     return {
         "copied_upstream_fix": "copy_acquired" in rules or "copied_fix" in reasons,
         "stuck_loop": bool(rules & {"repetition", "completion_loop"}),
-        "false_completion_claim": None if reward is None else bool(status.get("completions")) and reward == 0,
+        "false_completion_claim": None
+        if reward is None
+        else bool(status.get("completions")) and reward == 0,
         "infra_not_model": bool(rules & {"infra_error", "proxy_errors"}) or "infra" in reasons,
     }
 
@@ -716,8 +818,8 @@ def compare_signals(
         if s["name"] in {d["name"] for d in SIGNALS}
     }
     trials = [(job, trial) for job, trial in discover_trials(runs_dirs) if trial.name in by_trial]
-    ids = [laminar_trace_uuid(trial.name) for _, trial in trials]
-    params = {"ids": ids, "signals": list(names)}
+    ids = [_trial_cloud_trace_uuid(trial) for _, trial in trials]
+    params = {"ids": [trace for trace in ids if trace is not None], "signals": list(names)}
     fired = {
         (str(row["trace_id"]), names.get(str(row["signal_id"]))): row.get("payload")
         for row in _sql(

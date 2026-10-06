@@ -78,6 +78,22 @@ remain separate app residuals without complete window/card evidence.
 See [execution tiers](execution-tiers.md#shared-daytona-capacity-admission-har-144),
 [capture](model-capture.md), and [spend](lora-sft-runbook.md).
 
+**2026-10-06 native observability update (HAR-165):** Optional Laminar tracing
+joins automatic native OpenAI calls, tool/child-agent execution and Harbor
+setup, egress acknowledgment, verifier/reward and stop under one trial root
+and job session. The host/native SDK pins preserve separate OpenAI graphs;
+pre-export redaction and bounded asynchronous export leave business content,
+exceptions and cancellation unchanged. Private Cloud observations remain
+derived evidence, not canonical grades, source/model validity or paid
+admission. The three tracing smokes and frozen HAR-157 twelve retain their
+separate delegate approvals and shared $8 compute/environment cap.
+The companion watch and Signal comparison reuse actual SDK identity instead
+of duplicating native trials with an ATIF-derived root/LLM/tool tree; watch
+alerts remain explicitly derived observations under the real SDK root.
+Standalone SDK CI installs its actual OpenAI client explicitly, without
+depending on the optional Harbor runtime being installed.
+See [live Laminar observability](observability.md#live-laminar-tracing-for-native-mimo-har-165).
+
 The usable analysis corpus is the `status = 'featured'` slice, not the full
 feature table. Do not add a feature without a named consumer and a
 denominator. Do not report rates over rows with `status != 'featured'`.

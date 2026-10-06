@@ -9,8 +9,10 @@ import re
 import shlex
 import signal
 import uuid
+from collections.abc import Callable
+from contextlib import suppress
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from harbor.agents.base import BaseAgent  # ty: ignore[unresolved-import]
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
@@ -33,6 +35,95 @@ _NATIVE_CONFIG = _RUNTIME_ROOT / "tools/mimoagent-harbor/swe.yaml"
 _WORKER = Path(__file__).with_name("mimoagent_worker.py")
 
 
+_laminar_worker_context: Callable[[str | None], dict[str, Any]] | None = None
+_laminar_trace_runtime: Callable[[], Any] | None = None
+try:
+    from evallab.harbor_laminar import native_worker_context, trace_runtime
+
+    _laminar_worker_context = native_worker_context
+    _laminar_trace_runtime = trace_runtime
+except Exception:  # Lifecycle tracing unavailable; native run stays untraced.
+    pass
+
+
+def _laminar_payload(line: bytes) -> str | None:
+    """Extract the OTLP base64 payload from one native sink line, fail-open."""
+    try:
+        text = line.decode("utf-8").strip()
+    except (UnicodeDecodeError, AttributeError):
+        return None
+    if not text:
+        return None
+    try:
+        payload = json.loads(text)
+    except ValueError:
+        return None
+    if isinstance(payload, dict) and isinstance(payload.get("otlp"), str):
+        return payload["otlp"]
+    return None
+
+
+async def _forward_native_spans(sink_path: str, state: dict, stop: asyncio.Event) -> None:
+    """Tail sanitized native OTLP lines into the host trace runtime.
+
+    Fail-open: exporter errors never change trial completion or cancellation.
+    Only complete newline-terminated lines are forwarded; the final drain
+    after worker exit picks up the remainder from ``state['offset']``.
+    """
+    try:
+        if _laminar_trace_runtime is None:
+            return
+        runtime = _laminar_trace_runtime()
+        if runtime is None or not runtime.enabled:
+            return
+    except Exception:
+        return
+    path = Path(sink_path)
+    while not stop.is_set():
+        offset = state.get("offset", 0)
+        try:
+            with path.open("rb") as source:
+                source.seek(offset)
+                data = source.read()
+        except OSError:
+            data = b""
+        newline = data.rfind(b"\n")
+        if newline >= 0:
+            for line in data[:newline].splitlines():
+                payload = _laminar_payload(line)
+                if payload is None:
+                    continue
+                with suppress(Exception):
+                    runtime.export_native(payload)
+            state["offset"] = offset + newline + 1
+        with suppress(TimeoutError):
+            await asyncio.wait_for(stop.wait(), timeout=0.5)
+
+
+def _drain_native_sink(sink_path: str, offset: int) -> None:
+    """Forward remaining local sink lines without waiting for Cloud."""
+    try:
+        if _laminar_trace_runtime is None:
+            return
+        runtime = _laminar_trace_runtime()
+        if runtime is None or not runtime.enabled:
+            return
+    except Exception:
+        return
+    try:
+        with Path(sink_path).open("rb") as source:
+            source.seek(offset)
+            data = source.read()
+    except OSError:
+        return
+    for line in data.splitlines():
+        payload = _laminar_payload(line)
+        if payload is None:
+            continue
+        with suppress(Exception):
+            runtime.export_native(payload)
+
+
 def _dataset_task_body(instruction: str) -> str:
     """Undo FineEnvs' issue header before the pinned Xiaomi template adds it.
 
@@ -42,7 +133,7 @@ def _dataset_task_body(instruction: str) -> str:
     """
     for prefix in ("Fix the following issue:\n\n", "Fix the following issue:\r\n\r\n"):
         if instruction.startswith(prefix):
-            return instruction[len(prefix):]
+            return instruction[len(prefix) :]
     return instruction
 
 
@@ -78,7 +169,10 @@ class NativeMimoAgent(BaseAgent):
         if not self._native["trajs"].get("main", {}).get("messages"):
             return
         atif = native_to_atif(
-            self._native, self._calls, trajectory_id=self._trajectory_id, model_name=self.model_name
+            self._native,
+            self._calls,
+            trajectory_id=self._trajectory_id,
+            model_name=cast(str, self.model_name),
         )
         payload = Trajectory.model_validate(atif).model_dump(mode="json", exclude_none=True)
         text = redact_secret_material(
@@ -125,6 +219,32 @@ class NativeMimoAgent(BaseAgent):
             or not cwd_result.stdout.strip().startswith("/")
         ):
             raise RuntimeError("cannot determine native task working directory")
+        laminar_context: dict[str, Any] = {}
+        if _laminar_worker_context is not None:
+            try:
+                context_id = str(self.context_id) if self.context_id is not None else None
+                laminar_context = _laminar_worker_context(context_id) or {}
+            except Exception:
+                laminar_context = {}
+        if not isinstance(laminar_context, dict):
+            laminar_context = {}
+        # Model-invisible tracing join: the worker never renders this into
+        # prompts or messages; it only parents spans and names the sink file.
+        # Unknown lifecycle values stay unknown (null), never inferred here.
+        tracing: dict[str, Any] | None = None
+        if laminar_context.get("parent_context") or laminar_context.get("session_id"):
+            metadata = laminar_context.get("metadata")
+            bearer = laminar_context.get("bearer_pattern")
+            if not isinstance(bearer, str) and isinstance(metadata, dict):
+                fallback = metadata.get("bearer_pattern")
+                bearer = fallback if isinstance(fallback, str) else None
+            tracing = {
+                "parent_context": laminar_context.get("parent_context"),
+                "session_id": laminar_context.get("session_id"),
+                "metadata": metadata if isinstance(metadata, dict) else {},
+                "bearer_pattern": bearer,
+                "native_sink": str(native_logs / "laminar-spans.jsonl"),
+            }
         initial = {
             "instruction": _dataset_task_body(instruction),
             "cwd": cwd_result.stdout.strip(),
@@ -136,12 +256,20 @@ class NativeMimoAgent(BaseAgent):
             "native_logs_dir": str(native_logs),
             "native_trajectory_path": str(native_logs / "native-trajectory.json"),
         }
+        if tracing is not None:
+            initial["tracing"] = tracing
         worker_env = {
             key: value
             for key, value in os.environ.items()
             if key in {"PATH", "TMPDIR", "LANG", "LC_ALL"}
         }
         worker_env["PYTHONUNBUFFERED"] = "1"
+        if tracing is not None:
+            # Only the LMNR host credential is admitted additionally, and only
+            # for a traced trial. Never agent/sandbox extra_env credentials.
+            lmnr_key = os.environ.get("LMNR_PROJECT_API_KEY")
+            if lmnr_key:
+                worker_env["LMNR_PROJECT_API_KEY"] = lmnr_key
         tasks: set[asyncio.Task] = set()
         response_lock = asyncio.Lock()
         finished = False
@@ -159,6 +287,16 @@ class NativeMimoAgent(BaseAgent):
             )
             stdin = process.stdin
             assert stdin is not None and process.stdout is not None
+            # Nonblocking tail of the worker's sanitized native sink into the
+            # host trace runtime. No stdout transport additions, no Cloud
+            # waits; exporter failures leave completion/cancellation unchanged.
+            laminar_state: dict[str, Any] = {"offset": 0}
+            laminar_stop = asyncio.Event()
+            laminar_drain: asyncio.Task | None = None
+            if tracing is not None:
+                laminar_drain = asyncio.create_task(
+                    _forward_native_spans(tracing["native_sink"], laminar_state, laminar_stop)
+                )
 
             async def tool_request(request: dict) -> None:
                 response: dict = {"id": request["id"]}
@@ -204,9 +342,7 @@ class NativeMimoAgent(BaseAgent):
                     else:
                         response["error"] = "native file upload timed out"
                 except Exception as exc:
-                    response["error"] = (
-                        f"{type(exc).__name__}: native sandbox transport failed"
-                    )
+                    response["error"] = f"{type(exc).__name__}: native sandbox transport failed"
                 async with response_lock:
                     if process.returncode is None:
                         stdin.write((json.dumps(response) + "\n").encode())
@@ -289,11 +425,16 @@ class NativeMimoAgent(BaseAgent):
                 self._native["info"]["exit_status"] = "HarborCancelled"
                 raise
             finally:
+                laminar_stop.set()
                 for task in tasks:
                     if not task.done():
                         task.cancel()
+                if laminar_drain is not None and not laminar_drain.done():
+                    laminar_drain.cancel()
                 if tasks:
                     await asyncio.gather(*tasks, return_exceptions=True)
+                if laminar_drain is not None:
+                    await asyncio.gather(laminar_drain, return_exceptions=True)
                 if process.returncode is None:
                     os.killpg(process.pid, signal.SIGTERM)
                     try:
@@ -301,6 +442,10 @@ class NativeMimoAgent(BaseAgent):
                     except TimeoutError:
                         os.killpg(process.pid, signal.SIGKILL)
                         await process.wait()
+                if tracing is not None:
+                    # Local-only drain of lines the tail had not yet seen;
+                    # export_native only enqueues, never waits for Cloud.
+                    _drain_native_sink(tracing["native_sink"], laminar_state["offset"])
                 stdin.close()
                 self._persist(context)
                 for path in native_logs.rglob("*"):

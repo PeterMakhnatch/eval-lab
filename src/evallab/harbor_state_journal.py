@@ -113,6 +113,16 @@ class StateJournalPlugin:
         self.image: str | None = None
         self.image_error: str | None = None
         self.monitors: dict[str, Monitor] = {}
+        # HAR-165: single CLI plugin constraint keeps Harbor's --plugin list at
+        # one entry. Laminar lifecycle rides along here without touching the
+        # Docker observer below.
+        self._laminar: Any | None = None
+        try:
+            from evallab.harbor_laminar import LaminarTrialPlugin
+
+            self._laminar = LaminarTrialPlugin()
+        except Exception:
+            self._laminar = None
 
     async def on_job_start(self, job: Any) -> None:
         try:
@@ -123,10 +133,24 @@ class StateJournalPlugin:
         job.on_agent_ended(self._on_agent_ended)
         job.on_trial_ended(self._on_trial_ended)
         job.on_trial_cancelled(self._on_trial_ended)
+        if self._laminar is not None:
+            try:
+                await self._laminar.on_job_start(job)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                pass
 
     async def on_job_end(self, _job_result: Any) -> None:
         for trial_id in list(self.monitors):
             await self._stop(trial_id)
+        if self._laminar is not None:
+            try:
+                await self._laminar.on_job_end(_job_result)
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                pass
 
     def _output_dir(self, event: Any) -> Path:
         return Path(event.config.trials_dir) / event.trial_name / "state-journal"

@@ -12,13 +12,73 @@ Where a human looks when asking "what happened?" — and what each surface owns.
 | Surface | Owns | Does not own |
 |---|---|---|
 | **Phoenix** (`http://127.0.0.1:6006`) | Span trees: ATIF agent steps, tool calls, later LiteLLM/DSPy/researcher calls | Job pass/fail, spend vs ceiling, queue state |
+| **Laminar Cloud** (opt-in native `mimoagent`) | Live automatic OpenAI LLM spans, native tools/child agents and Harbor lifecycle under one trial trace | Canonical grades, copy verdicts, spend admission, paid-run approval or packet-level lock proof |
 | **`harbor view <jobs-dir>`** | Single-trial drill-down of Harbor artifacts (instruction, logs, reward) | Cross-trial trends |
 | **`digests/YYYY-MM-DD.md`** | Morning one-pager: dispatches, canaries, spend, quarantine | Span timings |
 | **Streamlit** (brief 11) | Research overview over the catalog | Writes, approvals, traces |
 | **PostgreSQL catalog** | Searchable job/trial index (rebuildable) | Canonical evidence |
 
 Harbor job directories under `runs/` remain the immutable source of truth.
-Phoenix is a derived view.
+Phoenix and Laminar are derived views; neither replaces those artifacts.
+
+## Live Laminar tracing for native MiMo (HAR-165)
+
+Install the checkout-pinned host runtime and the separate native runtime:
+
+```bash
+uv sync --locked --extra laminar
+uv sync --project tools/mimoagent-harbor --locked
+```
+
+The host extra pins Harbor `0.21.0` and `lmnr` `0.7.64`; the native lock pins
+the same SDK alongside OpenAI `3.3.1`. Keep that graph isolated from the lab's
+OpenAI 2.x graph. A native launch inheriting `LMNR_PROJECT_API_KEY` selects
+the checkout's Harbor executable. Load the centrally stored key with
+`keys run -- <authorized-launch-command>`; retain `--extra laminar` when
+using `uv run --locked`. The key is host-only, never a sandbox credential,
+native-worker credential or model request. No key means no Laminar tracing.
+
+The existing state-journal plugin opens one `harbor.trial` root on public
+trial START, before setup; the session is the Harbor job name. Setup,
+cached egress acknowledgment, agent execution, verifier, its actual reward
+and cleanup/stop spans share that trace. The native process initializes
+automatic OpenAI instrumentation before constructing its client. Native
+tool spans carry actual input, output and process exit codes; an `agent`
+tool nests its delegated agent below itself. A delegated agent without a
+process exit code records it as unknown, not a fabricated zero.
+
+The native SDK writes sanitized OTLP frames locally; the host tails complete
+new frames and forwards them through a bounded asynchronous Cloud queue.
+The SDK's 250 ms batch interval and host's 500 ms tail interval allow
+completed child spans to appear while the trial root is still running.
+There are no added model headers, messages, answer retries or termination
+decisions. Broken/stalled exporters are best-effort and cannot become a
+trial's business exception or hold its process exit.
+
+Export copies redact known secrets, authorization bearer values and host
+paths across span names, attributes, events, status, resources, scopes and
+links. Original prompts, tool results and errors remain unchanged. Logical
+task paths such as `/testbed/...` remain useful in the trace.
+
+Metadata includes actual trial/task identity, card, arm, job name, intended
+setup-fingerprint hash, configured model revision/source and lock state.
+Configured revision is not proof of loaded weight identity; the cached
+Daytona deny-all acknowledgment is not a packet probe. Unobserved values
+remain unknown. `laminar-trace.json` records the real SDK trace UUID, actual
+root span ID and closure alongside the Harbor result. The companion watch
+reuses that identity for derived alert observations; it does not project a
+second root/LLM/tool tree. It does **not** attest Cloud ingestion or
+manufacture a deep link: observe the authenticated private Cloud trace and
+record its actual URL separately. Laminar IDs are not Phoenix's
+deterministically derived ATIF IDs.
+
+Source availability does not authorize execution. In HAR-165, the three
+independently approved tracing smokes must complete and be observed live
+before the unchanged frozen HAR-157 twelve; both stages share the existing
+$8 Modal/bridge/Daytona cap. Local scripted-SDK fixtures are not those
+smokes, model capability evidence, paid-run approval or remote cleanup
+proof.
+
 
 ## Phoenix
 

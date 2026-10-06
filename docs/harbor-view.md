@@ -57,6 +57,46 @@ evallab results-viewer --once                          # one sync pass, print th
   `INSTALLED` beside the venv records the commit. Logs:
   `~/Library/Logs/evallab/com.petermakhnatch.evallab.results-viewer.{out,err}`.
 
+## Task pages (`task-<id>`) and trace readers (HAR-176)
+
+Each pass of the always-on viewer also keeps one page per task. Open
+`task-000792` at http://127.0.0.1:8100 to see every trial of that task from the
+trusted jobs (`HAR-168-*` by default; repeat `--trusted-job GLOB` to change it).
+
+- **Trial list.** Each trial shows its reward dims plus flag dims (`1` means
+  flagged): `copied.copy_check`, `copied.rewardkit`, `copied.laminar`,
+  `reward_hacking.analyze`, `stuck_loop.laminar`, `false_completion.laminar` and
+  `task_spec.analyze`. The attempt (`a1`, `a2`, …) is the dataset column.
+- **Job Analysis tab.** One card per trial: raw/gated reward, stop reason, task
+  health tags, a `harbor check` summary, watch alerts, and a pass/fail badge for
+  every source and check.
+- **Trial Analysis tab** (`analysis.md`). A clickable **Open this trial in
+  Laminar** link, a "Copied?" table with every source's verdict and evidence, the
+  other reader checks, the task's `harbor check` table and the watch alerts.
+
+Reader verdicts live in `~/Library/Application Support/evallab/readers`
+(`$EVALLAB_READERS_STORE`, or `--readers-store`) as
+`<job>/<trial>/<reader>.json` (`evallab.reader_verdict/v1`). Task checks are at
+`_tasks/<task>/harbor_check.json`. A page is rebuilt when a member trial, a
+verdict or the task's `task-health-tags@1` record changes.
+
+| Reader | How it runs | Copy recall (H12 / copy benchmark) | False positives |
+|---|---|---|---|
+| Laminar Signal `copied_upstream_fix` | Automatic: Laminar Cloud on every trace (Z.ai `glm-5.3-flash`, about $0.013 per trial for the 3 kept Signals). The viewer pulls verdicts every 5 min when `LMNR_PROJECT_API_KEY` is set; the installer runs it under `keys run --`. | 2/2, 8/8 | 0/9, 0/19 |
+| `harbor analyze` (default rubric) | Manual: `python -m evallab.readers.harbor_analyze analyze <trial>` (mini-swe-agent, `glm-5.3-flash`, about $0.018 per trial, about 3 min) | 1/2, 1/8 | 0/8, 0/5 |
+| `harbor check` | Manual, once per task: `... harbor_analyze check <task> --task-name <name>` (about $0.032 per task) | n/a | n/a |
+
+- **Analyze inputs are blinded.** Its copy omits Eval Lab labels (`integrity`,
+  `reward_gated`, `reward-details.json`, processed/watch files) and our integrity
+  machinery. Before that, it simply re-ran our own copy detector shipped in the
+  task's grading files. Only verdicts with
+  `input_policy=evallab.reader_input/blind-v2` are shown.
+- **Dropped readers.** Inspect Scout with METR's `reward_hacking` / `broken_env`
+  scanners caught 0/2 copied H12 passes and 1/5 copy-benchmark passes. Those
+  numbers come from an adapted, not native, setup, and it was dropped. The
+  `infra_not_model` Signal is paused: it found 0/5 labelled infra failures, so
+  infra stays on the watch's rules.
+
 ## Filter historical jobs by task health
 
 ```bash

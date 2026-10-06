@@ -47,6 +47,13 @@ from evallab.harbor_view import (
     mirror_job,
 )
 from evallab.results_home import results_root
+from evallab.task_pages import (
+    DEFAULT_TRUSTED_GLOBS,
+    DEFAULT_VARIANTS_DIR,
+    PAGE_RECORD,
+    TaskPages,
+    default_store,
+)
 
 SOURCE_RECORD = ".evallab-results-viewer.json"
 #: v2: hard-linked mirrors. A v1 (symlinked) viewer job is dropped and rebuilt.
@@ -118,16 +125,28 @@ class SyncReport:
     unsettled: list[str] = field(default_factory=list)
     failed: dict[str, str] = field(default_factory=dict)
     jobs: int = 0
+    task_pages: dict[str, list[str]] = field(default_factory=dict)
 
     @property
     def changed(self) -> bool:
-        return bool(self.added or self.rebuilt or self.removed or self.failed)
+        return bool(
+            self.added
+            or self.rebuilt
+            or self.removed
+            or self.failed
+            or any(self.task_pages.values())
+        )
 
     def summary(self) -> str:
+        pages = (
+            " task_pages=" + ",".join(f"{k}:{len(v)}" for k, v in sorted(self.task_pages.items()))
+            if self.task_pages
+            else ""
+        )
         return (
             f"jobs={self.jobs} added={len(self.added)} rebuilt={len(self.rebuilt)} "
             f"removed={len(self.removed)} unsettled={len(self.unsettled)} "
-            f"failed={len(self.failed)}"
+            f"failed={len(self.failed)}{pages}"
         )
 
 
@@ -166,6 +185,7 @@ class ResultsViewerRoot:
         settle_seconds: float = DEFAULT_SETTLE_SECONDS,
         clock: Callable[[], float] = time.time,
         log: Callable[[str], None] | None = None,
+        task_pages: TaskPages | None = None,
     ) -> None:
         self.root = root
         self.sources = sources
@@ -175,13 +195,15 @@ class ResultsViewerRoot:
         self.staging = root.parent / f".{root.name}.staging"
         #: Signatures that failed to mirror; retried only once they change.
         self._failed: dict[str, Signature] = {}
+        #: Per-task pages (``task-<id>``) built beside the mirrored jobs.
+        self.task_pages = task_pages
 
     def _index(self) -> dict[str, tuple[str, Signature | None]]:
         """``source -> (viewer job name, signature)`` read from the root."""
         index: dict[str, tuple[str, Signature | None]] = {}
         for job in self.root.iterdir():
-            if not job.is_dir() or job.is_symlink():
-                continue
+            if not job.is_dir() or job.is_symlink() or (job / PAGE_RECORD).is_file():
+                continue  # task pages are kept by TaskPages
             record = _read_record(job)
             if record is None or not isinstance(record.get("source"), str):
                 # Not ours (or a pre-record leftover): derived, drop and rebuild.
@@ -287,6 +309,8 @@ class ResultsViewerRoot:
             (report.rebuilt if existing else report.added).append(name)
         shutil.rmtree(self.staging, ignore_errors=True)
         report.jobs = len(index)
+        if self.task_pages is not None:
+            report.task_pages = self.task_pages.sync(jobs)
         return report
 
 
@@ -403,11 +427,21 @@ def serve(viewer: ResultsViewerRoot, *, host: str, port: int, interval: float) -
 def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     del root
     sources = [path.expanduser().resolve() for path in args.sources] or [results_root()]
+    variants = args.task_variants.expanduser() if args.task_variants else DEFAULT_VARIANTS_DIR
     viewer = ResultsViewerRoot(
         args.root.expanduser(),
         sources,
         settle_seconds=args.settle,
         log=lambda msg: print(msg, file=sys.stderr),
+        task_pages=None
+        if args.no_task_pages
+        else TaskPages(
+            args.root.expanduser(),
+            store=(args.readers_store or default_store()).expanduser(),
+            variants_dir=variants if variants.is_dir() else None,
+            trusted_globs=args.trusted_job or DEFAULT_TRUSTED_GLOBS,
+            laminar_api_key=os.environ.get("LMNR_PROJECT_API_KEY") or None,
+        ),
     )
     if args.once:
         report = viewer.sync()
@@ -457,6 +491,26 @@ def build_results_viewer_parser(commands: argparse._SubParsersAction) -> None:
         default=DEFAULT_SETTLE_SECONDS,
         help="Mirror a job only after its tree has been quiet this long (default: 60)",
     )
+    parser.add_argument(
+        "--readers-store",
+        type=Path,
+        help="Reader verdict store <store>/<job>/<trial>/<reader>.json "
+        "(default: $EVALLAB_READERS_STORE or ~/Library/Application Support/evallab/readers)",
+    )
+    parser.add_argument(
+        "--trusted-job",
+        action="append",
+        default=[],
+        metavar="GLOB",
+        help="Job-name glob whose trials get task pages (repeatable; default: HAR-168-*)",
+    )
+    parser.add_argument(
+        "--task-variants",
+        type=Path,
+        help="task-variants tree for health/solve tags "
+        "(default: ~/Developer/eval-lab/library/task-variants)",
+    )
+    parser.add_argument("--no-task-pages", action="store_true", help="Do not build task-<id> pages")
     parser.add_argument(
         "--once",
         action="store_true",

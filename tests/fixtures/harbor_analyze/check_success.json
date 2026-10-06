@@ -1,0 +1,60 @@
+{
+  "provenance": {
+    "harbor_version": "0.24.0",
+    "source": "/private/tmp/har176/jobs/har176-check-mimo-v2-6-rl-format-code-task-000792-c09dce868b59/check_report.json",
+    "model": "openai/glm-5.3-flash",
+    "input_policy": "original task, as required for harbor check",
+    "extraction": "Unchanged task_name, checks, cost_usd, error from native report."
+  },
+  "result": {
+    "task_name": "mimo-v2-6-rl-format-code-task-000792-c09dce868b59",
+    "checks": {
+      "behavior_in_task_description": {
+        "explanation": "instruction.md explicitly states each behavior the hidden tests check: per-source counting on the actual remote peer address (not forwarding headers), configurable limit + time window with the existing captcha/account-lock flow, email hostname/domain abuse counting that triggers captcha regardless of remote IP, old registrations not triggering captcha, privacy cleanup clearing registration_remote_ip per the remote-IP window, and zone_exists() returning True/False/raising. The required 422 'Could not find domain' literal is given as an exact-match contract. Tests for forwarded-header evasion, runtime limit/window overrides, same-email-host abuse, out-of-window no-captcha, privacy-chores clearing and zone_exists 200/422-literal/other-422/403/500 all map to a stated outcome; the loopback-peer variant is a robustness case of the 'actual remote peer address' requirement.",
+        "outcome": "pass"
+      },
+      "behavior_in_tests": {
+        "explanation": "test.patch covers every stated outcome: test_registration_same_remote_addr_ignores_forwarded_for_for_abuse_count and ..._non_fixture_forwarded_for_values (header evasion), test_remote_ip_abuse_limit_respects_runtime_config / ..._window_respects_runtime_config (configurable limit and window), test_remote_ip_abuse_applies_to_loopback_peer, three email-hostname tests (limit met, window expiry, randomized domain), the two privacy-chores tests (static and runtime window), and six ZoneExistsTest cases (200 True, 422 with the literal False (two bodies), unexpected 422/403/500 raise). Existing behavior is guarded by the 'base' run in mimo_test_command.sh, so regressions also fail.",
+        "outcome": "pass"
+      },
+      "informative_test_structure": {
+        "explanation": "Tests are grouped into focused classes (ZoneExistsTest, PrivacyChoresCommandTest, RegistrationTest) with shared helpers (_unique_email, _register, _override_abuse_settings, _AbuseSettingsProxy) and self-documenting test names; mimo_test_command.sh separates 'base' (pre-existing) from 'new' (task behavior) via a commented case statement. The vendored integrity modules and run_integrity.py are documented and clearly separated from the task's own grading path.",
+        "outcome": "pass"
+      },
+      "anti_cheating_measures": {
+        "explanation": "Tests/solution are not present in the runtime image (Dockerfile only FROMs a digest-pinned base); the hidden test patch is applied by test.sh at grading after resetting the touched files. setup.sh hides .git when history is not truncated at base, writes an /etc/hosts blocklist of GitHub/PyPI/stack-overflow hosts, and clears caches/logs. Integrity criteria (copy_check_v1, upstream_fetch, out_of_base_read, grader_tamper) gate the reward on leaked/copied code, grader tampering or egress bypass. No answer strings are embedded in the environment; the 'Could not find domain' literal in the instruction is a stated contract the tests assert, not a giveaway. Tests use randomized emails/domains and token-based settings proxies, so hard-coded example values cannot pass.",
+        "outcome": "pass"
+      },
+      "structured_data_schema": {
+        "explanation": "The task requires code changes to the desec API only; no structured artifact (JSON/CSV/API payload file/DB schema) is produced or validated by the tests, so no schema needs documenting.",
+        "outcome": "not_applicable"
+      },
+      "pinned_dependencies": {
+        "explanation": "The runtime image is pinned by digest in both task.toml ([environment].docker_image) and the Dockerfile. The test runner pins the in-image interpreter (pyenv global 3.5.10) and installs no new packages; the integrity fallback is stdlib-only, so there are no unpinned test dependencies.",
+        "outcome": "pass"
+      },
+      "typos": {
+        "explanation": "No typos found in filenames, paths, settings names, test names or commands. The 'privacy-chores' dashed module name matches the upstream desec command name, and the referenced pre-existing tests (test_multiple_registration_captcha_required_same_ip_short_time, test_send_captcha_email_manually) exist unchanged in the base file per the patch hunk layout.",
+        "outcome": "pass"
+      },
+      "tests_or_solution_in_image": {
+        "explanation": "environment/Dockerfile contains only the FROM line; no COPY/ADD of tests/, tests/test.patch or any solution, and setup.sh copies only the blocklist and does not stage test or solution content into the workspace.",
+        "outcome": "pass"
+      },
+      "test_deps_in_image": {
+        "explanation": "No test-only dependencies are installed during the image build. The grading path only uses what the image already provides (pyenv Python 3.5.10, Django, requests) plus the stdlib-only vendored integrity scorer; the RewardKit path is optional and degrades gracefully.",
+        "outcome": "pass"
+      },
+      "hardcoded_solution": {
+        "explanation": "No solution/ or reference patch is shipped with the task; grading is entirely the hidden test suite, so there is no scripted answer to echo.",
+        "outcome": "not_applicable"
+      },
+      "file_reference_mentioned": {
+        "explanation": "The instruction names the only external interface the agent must honor (desecapi.pdns.zone_exists and the registration/privacy-chores behavior); the agent modifies existing repo sources and is not required to create any new output file that tests consume.",
+        "outcome": "not_applicable"
+      }
+    },
+    "cost_usd": 0.017626830000000003,
+    "error": null
+  }
+}

@@ -375,7 +375,11 @@ def _setup_fields(
         step_limit = config["agent"]["step_limit"]
         step_limit_source = "tools/mimoagent-harbor/swe.yaml agent.step_limit"
     declared = (
-        request.egress_lock if request is not None else spec.egress_lock if spec is not None else None
+        request.egress_lock
+        if request is not None
+        else spec.egress_lock
+        if spec is not None
+        else None
     )
     effective = bool(
         resolve_egress_lock(_egress_request(task_dir, agent, model, declared, environment))
@@ -452,6 +456,7 @@ def build_intended_fingerprint(
         task_bytes, task_digest = 0, ""
         task_error = f"{type(exc).__name__}: {exc}"
     ledger = ledger_binding(repo_root, task_id, task_digest or None)
+    lineage = variant_lineage_summary(repo_root, task_id, task_digest or None)
     return {
         "schema": FINGERPRINT_SCHEMA,
         "subject": {
@@ -468,6 +473,10 @@ def build_intended_fingerprint(
             "ledger_status": ledger.get("status"),
             "ledger_match": ledger.get("matched"),
             "ledger_reason": ledger.get("reason"),
+            "variant_record": lineage.get("record"),
+            "variant_status": lineage.get("status"),
+            "variant_parent_digest": lineage.get("parent_digest"),
+            "variant_transform_chain": lineage.get("transform_chain"),
             "error": task_error,
             "source": "registry.compute_task_digests(task).package; ledger via counts.task_index_for",
         },
@@ -700,6 +709,144 @@ def registered_variant(repo_root: Path, task_id: str | None, digest: str | None)
     return None
 
 
+#: Transforms that never change the behavior under test: verifier-only scoring
+#: (``rewardkit-integrity@1``) or task-health metadata (``task-health-tags@1``).
+#: A task package is admitted by lineage only when every transform in its
+#: variant chain is on this allowlist (HAR-173). Environment and instruction
+#: transforms (e.g. ``env-prefetch-network@1``) are never admitted this way.
+LINEAGE_ALLOWLISTED_TRANSFORMS = frozenset({"rewardkit-integrity@1", "task-health-tags@1"})
+
+#: The only variant-record status that counts as verified for lineage admission.
+#: Matches the ``validated`` verdict ``counts`` and the task ledger already use;
+#: a ``candidate`` record has not had its locked nop validated yet.
+LINEAGE_VERIFIED_STATUS = "validated"
+
+
+def variant_lineage_summary(
+    repo_root: Path, task_id: str | None, digest: str | None
+) -> dict[str, Any]:
+    """Best-effort lineage of a task package for the fingerprint (HAR-173).
+
+    Returns ``record`` (repo-relative lineage-record path), ``status``,
+    ``parent_digest`` (the newest record's parent package digest),
+    ``parent_digests`` (every ancestor package digest, newest first),
+    ``transform_chain`` (every transform, newest first) and ``chain_error``.
+    All record fields are None/empty when the package is not a recorded variant.
+    Never raises: the gate turns gaps into refusals, not crashes.
+    """
+    from evallab.task_variants import RECORDS_DIRNAME, LineageError, lineage_chain
+
+    summary: dict[str, Any] = {
+        "record": None,
+        "status": None,
+        "parent_digest": None,
+        "parent_digests": [],
+        "transform_chain": [],
+        "chain_error": None,
+    }
+    if not task_id or not digest:
+        return summary
+    rel: str | None = None
+    payload: dict[str, Any] | None = None
+    for path in sorted((repo_root / TASK_VARIANTS_RELATIVE).glob("*/*.json")):
+        try:
+            candidate = json.loads(path.read_text())
+        except (OSError, ValueError, UnicodeDecodeError):
+            continue
+        if (
+            isinstance(candidate, dict)
+            and candidate.get("variant_digest") == digest
+            and str(candidate.get("task_name") or "").split("/", 1)[-1] == task_id
+        ):
+            rel = str(path.relative_to(repo_root))
+            payload = candidate
+            break
+    if rel is None or payload is None:
+        return summary
+    summary["record"] = rel
+    summary["status"] = payload.get("status")
+    try:
+        steps = lineage_chain(repo_root / rel, repo_root=repo_root, records_dir=RECORDS_DIRNAME)
+    except LineageError as exc:
+        parent = payload.get("parent")
+        summary["parent_digest"] = parent.get("digest") if isinstance(parent, dict) else None
+        transform = payload.get("transform")
+        summary["transform_chain"] = [transform] if isinstance(transform, str) else []
+        summary["chain_error"] = f"lineage record is invalid ({rel}): {exc}"
+        return summary
+    seen: set[str] = set()
+    for step in steps:
+        if step.record.variant_digest in seen:
+            summary["chain_error"] = f"lineage cycle detected at {step.record.variant_digest}"
+            break
+        seen.add(step.record.variant_digest)
+        summary["transform_chain"].append(step.record.transform)
+        summary["parent_digests"].append(step.record.parent.digest)
+        if step.parent_error:
+            summary["chain_error"] = step.parent_error
+            break
+    summary["parent_digest"] = summary["parent_digests"][0] if summary["parent_digests"] else None
+    return summary
+
+
+def lineage_ledger_binding(
+    repo_root: Path, task_id: str | None, package_digest: str | None
+) -> dict[str, Any]:
+    """Admit a verified verifier-only variant by lineage against the ledger (HAR-173).
+
+    The gate admits the package only when ALL hold: (a) its variant record is
+    verified (``validated`` — the same verdict ``counts`` and the ledger use,
+    since the gate cannot re-run the locked nop itself); (b) every transform in
+    its chain is verifier-only or metadata-only (``rewardkit-integrity@1``,
+    ``task-health-tags@1``); (c) its parent chain reaches the ledger's
+    ``run_digest`` for that task, so the ledger stays the root of trust.
+    Returns ``admitted`` plus the ``reason`` and the lineage fields.
+    """
+    from evallab.counts import task_index_for
+
+    summary = variant_lineage_summary(repo_root, task_id, package_digest)
+    binding = {**summary, "admitted": False, "reason": ""}
+    if summary["record"] is None:
+        binding["reason"] = f"no variant record for package digest {package_digest}"
+        return binding
+    if summary["status"] != LINEAGE_VERIFIED_STATUS:
+        binding["reason"] = (
+            f"variant record {summary['record']} is {summary['status']!r}, not "
+            f"{LINEAGE_VERIFIED_STATUS!r}: validate its locked nop first"
+        )
+        return binding
+    if summary["chain_error"]:
+        binding["reason"] = f"variant lineage is broken: {summary['chain_error']}"
+        return binding
+    outside = [t for t in summary["transform_chain"] if t not in LINEAGE_ALLOWLISTED_TRANSFORMS]
+    if outside:
+        binding["reason"] = (
+            f"variant transform {outside[0]!r} is not verifier-only/metadata-only "
+            f"(allowlist: {sorted(LINEAGE_ALLOWLISTED_TRANSFORMS)})"
+        )
+        return binding
+    try:
+        run_digest = task_index_for(repo_root).status_for(task_id, package_digest).get("run_digest")
+    except Exception as exc:  # noqa: BLE001 — unreadable ledger refuses closed
+        binding["reason"] = f"task ledger unreadable: {type(exc).__name__}: {exc}"
+        return binding
+    if run_digest is None:
+        binding["reason"] = f"no ledger row for task {task_id}"
+        return binding
+    if run_digest not in summary["parent_digests"]:
+        binding["reason"] = (
+            f"variant parent chain does not reach the ledger run_digest "
+            f"{run_digest} for task {task_id}"
+        )
+        return binding
+    binding["admitted"] = True
+    binding["reason"] = (
+        f"verified variant {summary['record']} (chain "
+        f"{' <- '.join(summary['transform_chain'])}) reaches ledger {run_digest}"
+    )
+    return binding
+
+
 def _validate_modelfree_setup(fingerprint: dict[str, Any], repo_root: Path) -> dict[str, Any]:
     """Gates for model-free (nop/oracle) MiMo runs: lock resolution and ledger.
 
@@ -792,10 +939,15 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
     if task.get("error"):
         reasons.append(f"task: unreadable: {task['error']}")
     elif not task.get("ledger_match"):
-        reasons.append(
-            f"task {fingerprint['subject']['task']}: outside the ledger "
-            f"(status={task.get('ledger_status')}; {task.get('ledger_reason')})"
+        binding = lineage_ledger_binding(
+            repo_root, fingerprint["subject"]["task"], task.get("digest")
         )
+        if not binding["admitted"]:
+            reasons.append(
+                f"task {fingerprint['subject']['task']}: outside the ledger "
+                f"(status={task.get('ledger_status')}; {task.get('ledger_reason')}); "
+                f"lineage refused: {binding['reason']}"
+            )
     if fingerprint["server"]["tool_call_parser"] == "none":
         reasons.append(
             "server.tool_call_parser: reference requires a parser for the "
@@ -818,7 +970,9 @@ def validate_mimo_setup(request: Any, repo_root: Path) -> dict[str, Any]:
     return fingerprint
 
 
-def _render_modelfree_preflight(lines: list[str], fingerprint: dict[str, Any]) -> tuple[str, bool]:
+def _render_modelfree_preflight(
+    lines: list[str], fingerprint: dict[str, Any], repo_root: Path
+) -> tuple[str, bool]:
     """Preflight text for a model-free MiMo spec: lock resolution and ledger only."""
     lines = [
         *lines,
@@ -832,7 +986,9 @@ def _render_modelfree_preflight(lines: list[str], fingerprint: dict[str, Any]) -
             f"lock: effective resolution is {fingerprint['lock']['effective']} "
             f"(declared={fingerprint['lock']['declared']!r})"
         )
-    if not fingerprint["task"]["ledger_match"]:
+    if not fingerprint["task"]["ledger_match"] and not registered_variant(
+        repo_root, fingerprint["subject"]["task"], fingerprint["task"].get("digest")
+    ):
         problems.append(
             f"task: outside the ledger (status={fingerprint['task']['ledger_status']}; "
             f"{fingerprint['task']['ledger_reason']})"
@@ -886,6 +1042,10 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
         f"digest={_short(fingerprint['task']['digest'])} "
         f"ledger={fingerprint['task']['ledger_status']} "
         f"(match={fingerprint['task']['ledger_match']})",
+        f"  variant: {fingerprint['task'].get('variant_record') or 'none'} "
+        f"(status={fingerprint['task'].get('variant_status')}; "
+        f"parent={_short(fingerprint['task'].get('variant_parent_digest'))}; "
+        f"chain={fingerprint['task'].get('variant_transform_chain')})",
         f"  budgets: timeout={fingerprint['budgets']['timeout_seconds']} "
         f"steps={fingerprint['budgets']['step_limit']} "
         f"requests={fingerprint['budgets']['max_requests']} "
@@ -898,7 +1058,7 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
         lines += ["", "not a MiMo run: reference gate does not apply."]
         return ("\n".join(lines) + "\n", True)
     if spec.agent in CONTROL_AGENTS:
-        return _render_modelfree_preflight(lines, fingerprint)
+        return _render_modelfree_preflight(lines, fingerprint, repo_root)
     profile_name = spec.reference_profile
     if profile_name is None:
         profile_name = default_profile_name(repo_root) or default_profile_name(package_repo_root())
@@ -950,11 +1110,18 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
             f"resolved intent={fingerprint['lock']['effective']})"
         )
     if not fingerprint["task"]["ledger_match"]:
-        hard.append(
-            f"task: outside the ledger (status="
-            f"{fingerprint['task']['ledger_status']}; "
-            f"{fingerprint['task']['ledger_reason']})"
+        binding = lineage_ledger_binding(
+            repo_root, fingerprint["subject"]["task"], fingerprint["task"].get("digest")
         )
+        if binding["admitted"]:
+            lines.append("")
+            lines.append(f"lineage: admitted: {binding['reason']}")
+        else:
+            hard.append(
+                f"task: outside the ledger (status="
+                f"{fingerprint['task']['ledger_status']}; "
+                f"{fingerprint['task']['ledger_reason']}); lineage refused: {binding['reason']}"
+            )
     if fingerprint["server"]["tool_call_parser"] == "none":
         hard.append("server.tool_call_parser: missing (reference requires a parser)")
     lines.append("")

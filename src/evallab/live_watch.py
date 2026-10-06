@@ -723,6 +723,8 @@ def _parse_error_stats(
     steps: list[dict[str, Any]],
 ) -> tuple[int, int, str | None, int | None, int]:
     """Return (parse_error_count, max_parse_streak, first_quote, first_step, format_warnings)."""
+    from evallab.probe03 import obs_content
+
     total = 0
     current_streak = 0
     max_streak = 0
@@ -730,10 +732,7 @@ def _parse_error_stats(
     first_step: int | None = None
     format_warnings = 0
     for step in steps:
-        obs = step.get("observation") or {}
-        obs_text = " ".join(
-            str(r.get("content") or "") for r in (obs.get("results") or []) if isinstance(r, dict)
-        )
+        obs_text = obs_content(step) or ""
         match = _PARSE_REJECTION_RE.search(obs_text)
         if match:
             total += 1

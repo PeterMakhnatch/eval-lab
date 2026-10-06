@@ -383,3 +383,52 @@ def test_process_job_native_exit_takes_precedence_over_an_earlier_completion(
     assert saved["stop_category"] == category
     assert saved["decision"]["facts"]["stop_category"] == category
     assert saved["counts"]["verdict"] == "counted_fail"
+
+
+def test_local_projection_retains_native_identity_and_reward_dimensions(tmp_path: Path) -> None:
+    import pyarrow.parquet as pq
+
+    from evallab.step_layers import stop_category
+
+    job = _job(tmp_path)
+    (job / "result.json").write_text(json.dumps({
+        "id": "viewer-aggregate",
+        "stats": {},
+        "n_total_trials": 2,
+        "finished_at": "2026-10-06T12:00:00Z",
+    }))
+    for name in ("trial-loop", "trial-pass"):
+        result_path = job / name / "result.json"
+        result = json.loads(result_path.read_text())
+        result.update({
+            "id": name,
+            "config": {"job_id": f"native-{name}"},
+            "agent_info": {"name": "mimoagent"},
+        })
+        result["verifier_result"]["rewards"].update({"integrity": 0, "reward_gated": 0.0})
+        if name == "trial-pass":
+            result["agent_result"] = {"metadata": {"native_exit_status": "Idle"}}
+        result_path.write_text(json.dumps(result))
+    parquet_root = tmp_path / "derived/parquet"
+
+    process_job(
+        job, root=tmp_path, output_dir=tmp_path / "reports",
+        ingest=False, publish=False, parquet_root=parquet_root,
+    )
+
+    for name, reward, category in (
+        ("trial-loop", 0.0, "our_limit"),
+        ("trial-pass", 1.0, "model_end"),
+    ):
+        partition = parquet_root / f"job_id=native-{name}" / f"trial_id={name}"
+        fact = pq.ParquetFile(partition / "trial_facts.parquet").read().to_pylist()[0]
+        rewards = pq.ParquetFile(partition / "reward_facts.parquet").read().to_pylist()
+        feature = pq.ParquetFile(partition / "features.parquet").read().to_pylist()[0]
+        assert (fact["job_id"], fact["trial_id"], fact["primary_reward"]) == (
+            f"native-{name}", name, reward,
+        )
+        assert {row["reward_name"]: row["reward_value"] for row in rewards} == {
+            "reward": reward, "integrity": 0.0, "reward_gated": 0.0,
+        }
+        assert stop_category(feature["stop_reason"]) == category
+    assert not (parquet_root / "job_id=viewer-aggregate").exists()

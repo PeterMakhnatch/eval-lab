@@ -6,6 +6,8 @@ from evallab.storage.paths import (
     discover_parquet_partitions,
     resolve_derived_root,
     shared_checkout_root,
+    trials_derived_roots,
+    trials_roots,
 )
 
 
@@ -145,3 +147,43 @@ def test_partition_discovery_classifies_every_supported_layout(tmp_path: Path) -
 
     jobs_patterns = discovery.table_patterns("jobs", prefer_job_level=True)
     assert jobs_patterns == (str(root / "job_id=*/jobs.parquet"),)
+
+
+def test_trials_census_includes_all_checkouts_and_jobs_without_duplicate_roots(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    primary, worktree = linked_worktree(tmp_path)
+    other = primary / ".worktrees/other"
+    expected = {
+        primary / "runs",
+        primary / "jobs",
+        primary / "research/evidence/runs",
+        worktree / "runs",
+        other / "jobs",
+        tmp_path / "configured-runs",
+    }
+    for path in expected:
+        path.mkdir(parents=True)
+    (primary / ".worktrees/alias").symlink_to(primary, target_is_directory=True)
+    monkeypatch.setenv("EVALLAB_RUNS_ROOT", str(tmp_path / "configured-runs"))
+
+    roots = trials_roots(worktree)
+
+    assert set(roots) == expected
+    assert len(roots) == len(expected)
+
+
+def test_trials_census_reuses_existing_shared_and_historical_projections(
+    tmp_path: Path, monkeypatch,
+) -> None:
+    primary, worktree = linked_worktree(tmp_path)
+    configured = tmp_path / "configured-parquet"
+    expected = {configured, primary / "derived/parquet", worktree / "derived/parquet"}
+    for path in expected:
+        path.mkdir(parents=True)
+    monkeypatch.setenv(DERIVED_ROOT_ENV, str(configured))
+
+    roots = trials_derived_roots(worktree)
+
+    assert set(roots) == expected
+    assert roots[0] == configured

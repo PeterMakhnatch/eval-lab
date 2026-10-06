@@ -69,6 +69,44 @@ def resolve_runs_roots(repo_root: Path, runs_root: Path | None = None) -> list[P
     return roots
 
 
+def _trials_checkouts(repo_root: Path) -> tuple[Path, ...]:
+    """Checkouts whose existing run/projection trees belong to the census."""
+    primary = shared_checkout_root(repo_root)
+    candidates = [primary, repo_root.resolve()]
+    worktrees = primary / ".worktrees"
+    if worktrees.is_dir():
+        candidates.extend(path for path in sorted(worktrees.iterdir()) if path.is_dir())
+    return tuple(dict.fromkeys(path.resolve() for path in candidates))
+
+
+def trials_roots(repo_root: Path) -> tuple[Path, ...]:
+    """All existing main/worktree runs and jobs roots, not just the active lane.
+
+    The configured runs root is an additional source, not a census restriction.
+    Explicit CLI source selection bypasses this machine-wide discovery.
+    """
+    candidates = [
+        checkout / relative
+        for checkout in _trials_checkouts(repo_root)
+        for relative in ("runs", "jobs", "research/evidence/runs", "evidence/runs")
+    ]
+    configured = os.environ.get("EVALLAB_RUNS_ROOT")
+    if configured:
+        candidates.append(Path(configured).expanduser())
+    return tuple(dict.fromkeys(path.resolve() for path in candidates if path.is_dir()))
+
+
+def trials_derived_roots(repo_root: Path) -> tuple[Path, ...]:
+    """Read existing projections, including historical worktree-local copies.
+
+    Backfills still write through ``derived_root_from_environment`` to the one
+    selected store; finding an old copy does not create another store.
+    """
+    candidates = [derived_root_from_environment(repo_root)]
+    candidates.extend(checkout / "derived/parquet" for checkout in _trials_checkouts(repo_root))
+    return tuple(dict.fromkeys(path.resolve() for path in candidates if path.is_dir()))
+
+
 @dataclass(frozen=True)
 class DerivedRootResolution:
     """Where the derived Parquet root came from, and whose tree it belongs to.
@@ -361,3 +399,8 @@ def _parquet_layout_pattern(layout: ParquetLayout, table: str) -> str:
         "root": f"{table}.parquet",
     }
     return patterns[layout]
+
+
+def trial_parquet_path(root: Path, job_id: str, trial_id: str, table: str) -> Path:
+    """Canonical hot-file destination for an already validated native pair."""
+    return root / f"job_id={job_id}" / f"trial_id={trial_id}" / f"{table}.parquet"

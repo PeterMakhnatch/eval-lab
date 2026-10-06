@@ -163,6 +163,11 @@ Episodes are agent-source steps, approximating the harness's final
 `n_episodes`. `minutes_since_update` uses the latest advance across both
 the trajectory mtime and the live proxy ledger timestamp.
 
+Parse/format signals use the shared observation-content reader. Unsupported or
+missing observation shapes contribute no observed rejection text, rather than
+crashing the watch/HAR-159 feature projection. That absence is not proof that a
+response was accepted; structured rejection and warning signals remain separate.
+
 ## Live proxy ledger (`proxy-live/`)
 
 When running with metered model providers, the supervisor creates `<job_dir>/proxy-live/`:

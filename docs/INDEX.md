@@ -31,7 +31,7 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
-    digest: sha256:f25d3359de4679c08f86887b991cadcab0bf2e386ebb61d5325d63a1fd09e315
+    digest: sha256:1e05e7496aac0f1fdf93380f42772ec576afbeb75140d68fad6b61e823301fbf
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
@@ -77,7 +77,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:6b21d8eab050ffb10af7b67c976682fd6fbc7d739c5c81393d8f8a9750e88e7b
+    digest: sha256:f77a07a0d5425f66fa833ee8a423f1bbfa866aea3bfadba73e37e3f83ffff885
   - path: docs/lora-sft-runbook.md
     digest: sha256:ccb1d4e90898bd2aae019fa912081daa4cdb13c0be65e03c9487d62f12ecf7f6
   - path: docs/mimo-task-catalog.md

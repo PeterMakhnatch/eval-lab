@@ -64,10 +64,12 @@ Metadata includes actual trial/task identity, card, arm, job name, intended
 setup-fingerprint hash, configured model revision/source and lock state.
 Configured revision is not proof of loaded weight identity; the cached
 Daytona deny-all acknowledgment is not a packet probe. Unobserved values
-remain unknown. `laminar-trace.json` records the real SDK trace ID and root
-closure alongside the Harbor result. It does **not** attest Cloud ingestion
-or manufacture a deep link: observe the authenticated private Cloud trace
-and record its actual URL separately. Laminar IDs are not Phoenix's
+remain unknown. `laminar-trace.json` records the real SDK trace UUID, actual
+root span ID and closure alongside the Harbor result. The companion watch
+reuses that identity for derived alert observations; it does not project a
+second root/LLM/tool tree. It does **not** attest Cloud ingestion or
+manufacture a deep link: observe the authenticated private Cloud trace and
+record its actual URL separately. Laminar IDs are not Phoenix's
 deterministically derived ATIF IDs.
 
 Source availability does not authorize execution. In HAR-165, the three

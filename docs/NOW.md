@@ -87,6 +87,9 @@ exceptions and cancellation unchanged. Private Cloud observations remain
 derived evidence, not canonical grades, source/model validity or paid
 admission. The three tracing smokes and frozen HAR-157 twelve retain their
 separate delegate approvals and shared $8 compute/environment cap.
+The companion watch and Signal comparison reuse actual SDK identity instead
+of duplicating native trials with an ATIF-derived root/LLM/tool tree; watch
+alerts remain explicitly derived observations under the real SDK root.
 See [live Laminar observability](observability.md#live-laminar-tracing-for-native-mimo-har-165).
 
 The usable analysis corpus is the `status = 'featured'` slice, not the full

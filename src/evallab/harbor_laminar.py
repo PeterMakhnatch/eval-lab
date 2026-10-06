@@ -24,6 +24,7 @@ import functools
 import json
 import os
 import threading
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -510,6 +511,11 @@ def _write_sidechannel(trace: _TrialTrace, directory: Path | None) -> None:
             "trial_name": trace.trial_name,
             "status": "closed" if trace.closed else "open",
         }
+        if trace.root_context is not None:
+            with contextlib.suppress(ValueError, TypeError, KeyError, AttributeError):
+                root_id = uuid.UUID(json.loads(trace.root_context)["span_id"]).int
+                if 0 < root_id < 1 << 64:
+                    payload["root_span_id"] = f"{root_id:016x}"
         if trace.closed:
             payload["close_reason"] = trace.close_reason or _UNKNOWN
             rewards = _safe_rewards(trace.latest_rewards)

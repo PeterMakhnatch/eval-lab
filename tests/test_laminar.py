@@ -279,3 +279,16 @@ def test_byok_route_is_sent_with_every_signal() -> None:
     apply_signals(api_key="k", opener=opener, llm_profile_id="p-1", model="glm-5.3-flash")
     assert len(bodies) == len(SIGNALS)
     assert all((b["llmProfileId"], b["model"]) == ("p-1", "glm-5.3-flash") for b in bodies)
+
+
+def test_infra_death_is_an_error_span_in_the_trace(tmp_path: Path) -> None:
+    runs, out, rec = tmp_path / "runs", tmp_path / "out", Recorder()
+    death = {"exception_type": "DaytonaNotFoundError", "exception_message": "sandbox not found"}
+    _write(runs, STEPS, {"finished_at": "2026-10-05T10:01:00+00:00", "exception_info": death})
+    _pass(runs, out, rec)
+    spans = rec.posts[-1]
+    names = [s.name for s in spans]
+    exc = spans[names.index("harbor.exception")]
+    assert exc.status.code == exc.status.STATUS_CODE_ERROR
+    assert "DaytonaNotFoundError: sandbox not found" in exc.status.message
+    assert names.index("harbor.exception") < names.index("harbor.trial")

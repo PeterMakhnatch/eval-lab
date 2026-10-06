@@ -12,13 +12,17 @@ from evallab.mimoagent_worker import NATIVE_REVISION, SAMPLING, SWE_SHA256
 
 def _totals(calls: list[dict]) -> dict:
     known = [call["usage"] for call in calls if isinstance(call.get("usage"), dict)]
-    result: dict[str, Any] = {"extra": {
-        "model_requests": len(calls),
-        "requests_without_usage": len(calls) - len(known),
-        "api_pricing": "no per-token charge; Modal GPU time is accounted separately",
-    }}
-    for key, field in (("total_prompt_tokens", "prompt_tokens"),
-                       ("total_completion_tokens", "completion_tokens")):
+    result: dict[str, Any] = {
+        "extra": {
+            "model_requests": len(calls),
+            "requests_without_usage": len(calls) - len(known),
+            "api_pricing": "no per-token charge; Modal GPU time is accounted separately",
+        }
+    }
+    for key, field in (
+        ("total_prompt_tokens", "prompt_tokens"),
+        ("total_completion_tokens", "completion_tokens"),
+    ):
         values = [usage[field] for usage in known if isinstance(usage.get(field), int)]
         if values and len(values) == len(calls):
             result[key] = sum(values)
@@ -72,7 +76,10 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
                 owner = tool_steps.get(call_id)
                 if owner is None:
                     raise ValueError(f"native observation has no tool call: {call_id}")
-                result: dict[str, Any] = {"source_call_id": call_id, "content": message.get("content")}
+                result: dict[str, Any] = {
+                    "source_call_id": call_id,
+                    "content": message.get("content"),
+                }
                 if message.get("name") == "agent" and isinstance(message.get("content"), str):
                     result["content"], child_name = _child_observation(message["content"])
                     if child_name in native["trajs"]:
@@ -92,7 +99,9 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
                 if message.get("reasoning_content"):
                     step["reasoning_content"] = message["reasoning_content"]
                 if message.get("reasoning_signature"):
-                    step.setdefault("extra", {})["reasoning_signature"] = message["reasoning_signature"]
+                    step.setdefault("extra", {})["reasoning_signature"] = message[
+                        "reasoning_signature"
+                    ]
                 group = [call for call in own_calls if call["assistant_index"] == assistant_index]
                 assistant_index += 1
                 if group:
@@ -122,8 +131,14 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
                     call_id = tool["id"]
                     if not isinstance(call_id, str) or not call_id or call_id in tool_steps:
                         raise ValueError("native tool call IDs must be nonempty and unique")
-                    tool_calls.append({"tool_call_id": call_id, "function_name": function["name"],
-                                       "arguments": arguments, "extra": extra})
+                    tool_calls.append(
+                        {
+                            "tool_call_id": call_id,
+                            "function_name": function["name"],
+                            "arguments": arguments,
+                            "extra": extra,
+                        }
+                    )
                     tool_steps[call_id] = step
                 if tool_calls:
                     step["tool_calls"] = tool_calls
@@ -132,33 +147,52 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
         extra = {
             "native_exit_status": stop.get("exit_status", native.get("info", {}).get("exit_status"))
         }
-        for key in ("stop_reason", "infra_error"):
+        for key in ("stop_reason", "infra_error", "context_exhaustion"):
             if key in stop:
                 extra[key] = stop[key]
         unanswered = [
-            call for call in own_calls
-            if call.get("assistant_index") not in range(assistant_index)
+            call for call in own_calls if call.get("assistant_index") not in range(assistant_index)
         ]
         if unanswered:
             extra["unanswered_model_calls"] = unanswered
-        trajectories.append({
-            "schema_version": "ATIF-v1.8",
-            "trajectory_id": trajectory_id if name == "main" else f"{trajectory_id}:{name}",
-            "agent": {"name": "mimoagent", "version": NATIVE_REVISION,
-                      "model_name": model_name, "tool_definitions": conversation.get("tools"),
-                      "extra": {"native_name": name, "swe_sha256": SWE_SHA256, "step_limit": 500,
-                                "antihack": False, "sampling": SAMPLING}},
-            "steps": steps,
-            "final_metrics": _totals(own_calls),
-            "extra": extra,
-        })
-    main = next((trajectory for trajectory in trajectories if trajectory["agent"]["extra"]["native_name"] == "main"), None)
+        trajectories.append(
+            {
+                "schema_version": "ATIF-v1.8",
+                "trajectory_id": trajectory_id if name == "main" else f"{trajectory_id}:{name}",
+                "agent": {
+                    "name": "mimoagent",
+                    "version": NATIVE_REVISION,
+                    "model_name": model_name,
+                    "tool_definitions": conversation.get("tools"),
+                    "extra": {
+                        "native_name": name,
+                        "swe_sha256": SWE_SHA256,
+                        "step_limit": 500,
+                        "antihack": False,
+                        "sampling": SAMPLING,
+                    },
+                },
+                "steps": steps,
+                "final_metrics": _totals(own_calls),
+                "extra": extra,
+            }
+        )
+    main = next(
+        (
+            trajectory
+            for trajectory in trajectories
+            if trajectory["agent"]["extra"]["native_name"] == "main"
+        ),
+        None,
+    )
     if main is None:
         raise ValueError("native trajectory contains no main-agent messages")
-    main["subagent_trajectories"] = [trajectory for trajectory in trajectories if trajectory is not main]
+    main["subagent_trajectories"] = [
+        trajectory for trajectory in trajectories if trajectory is not main
+    ]
     main["final_metrics"] = _totals(calls)
     main["extra"]["native_model_stats"] = native.get("info", {}).get("model_stats")
-    for key in ("stop_reason", "infra_error"):
+    for key in ("stop_reason", "infra_error", "context_exhaustion"):
         if key in native.get("info", {}):
             main["extra"][key] = native["info"][key]
     emitted_names = {trajectory["agent"]["extra"]["native_name"] for trajectory in trajectories}

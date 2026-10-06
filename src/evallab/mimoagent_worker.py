@@ -14,7 +14,10 @@ the pinned SDK (never inside site-packages):
   Permanent 4xx/auth errors and proxy budget refusals fail fast; failed
   attempts reuse the exact prefix. Dispatch readiness is handled separately.
 * Terminal ModelQueryError/InfraError diagnostics become structured finished
-  metadata, never a synthetic user turn or a traceback in native history.
+  metadata, never a synthetic user turn or a traceback in native history. A
+  400 context-length refusal instead ends as ContextExhausted with stop
+  reason context_exhausted (no truncation or summary turn), so Harbor grades
+  the final state.
   Agent-tool log_file metadata uses a logical childlog://<stem> identity;
   internal on-disk log locations remain untouched.
 
@@ -29,6 +32,7 @@ import hashlib
 import importlib.metadata
 import json
 import os
+import re
 import sys
 import threading
 import time
@@ -97,6 +101,87 @@ def _safe_budget_reason(reason: str | None) -> str | None:
         if dimension and all(char.isalnum() or char == "_" for char in dimension):
             return marker + dimension
     return "trial budget exhausted"
+
+
+#: Terminal status when the served context fills. The rollout ends and the
+#: final sandbox state is graded, mirroring Xiaomi's RL runner (only
+#: ``InfraError`` skips grading; every other status is graded with
+#: ``termination_kind=truncated``). Distinct from ``ModelQueryError`` and
+#: ``InfraError`` so Harbor runs the verifier and records
+#: ``context_exhausted``, never ``infra_error``.
+CONTEXT_EXHAUSTED_STATUS = "ContextExhausted"
+CONTEXT_EXHAUSTED_STOP = "context_exhausted"
+
+#: Provider-side wordings of an HTTP 400 context-length refusal. SGLang's two
+#: exact messages come from ``tokenizer_manager._validate_one_request``; the
+#: rest cover the equivalent vLLM/OpenAI phrasings and OpenAI's
+#: ``string_above_max_length`` code. Matched only against the provider's
+#: error body, never agent/task content, so other 400s (schema, auth,
+#: params) stay ``ModelQueryError``.
+_CONTEXT_LENGTH_PATTERNS = (
+    re.compile(r"context[_\s-]?length", re.IGNORECASE),
+    re.compile(r"context[_\s-]?window", re.IGNORECASE),
+    re.compile(r"max(?:imum)?[_\s-]?context", re.IGNORECASE),
+    re.compile(r"max_model_len"),
+    re.compile(r"requested token count exceeds", re.IGNORECASE),
+    re.compile(r"string_above_max_length"),
+    re.compile(r"tokens?.{0,40}exceed|exceed.{0,40}tokens?", re.IGNORECASE),
+    re.compile(r"prompt.{0,40}too long|too long.{0,40}prompt", re.IGNORECASE),
+    re.compile(r"input.{0,40}too large|too large.{0,40}input", re.IGNORECASE),
+)
+
+
+def _provider_error_text(error: BaseException) -> str:
+    """Provider-side error body for a failed model call, never agent content.
+
+    Only the HTTP response body (when present), the SDK's structured body,
+    and its message are read. The worker records no part of this text —
+    details carry fixed vocabulary plus status/token integers — it only
+    decides whether the served context filled.
+    """
+    parts: list[str] = []
+    response = getattr(error, "response", None)
+    for candidate in (getattr(response, "text", None), getattr(error, "body", None)):
+        if isinstance(candidate, str) and candidate:
+            parts.append(candidate)
+        elif isinstance(candidate, dict):
+            with suppress(Exception):
+                parts.append(json.dumps(candidate))
+    message = getattr(error, "message", None)
+    if isinstance(message, str) and message and message not in parts:
+        parts.append(message)
+    if not parts:
+        parts.append(str(error))
+    return "\n".join(parts)
+
+
+def _is_context_length_error(
+    error: BaseException,
+    *,
+    last_prompt_tokens: int | None = None,
+    served_context_tokens: int | None = None,
+) -> bool:
+    """Whether a failed model call means the served context filled.
+
+    Only an HTTP 400 whose provider body names the context limit, or a 400
+    when the previous successful call already sat at/above the served limit
+    (history only grows, so the next prefix necessarily overflows). Budget
+    refusals and every other failure — other 400s, 5xx, transport errors —
+    are not context exhaustion.
+    """
+    if _error_status(error) != 400:
+        return False
+    if _error_budget_reason(error) is not None:
+        return False
+    text = _provider_error_text(error)
+    if any(pattern.search(text) is not None for pattern in _CONTEXT_LENGTH_PATTERNS):
+        return True
+    return (
+        isinstance(last_prompt_tokens, int)
+        and isinstance(served_context_tokens, int)
+        and served_context_tokens > 0
+        and last_prompt_tokens >= served_context_tokens
+    )
 
 
 class SandboxRpc:
@@ -364,6 +449,19 @@ def main() -> None:
     local = threading.local()
     query_states: dict[str, dict] = {}
     infrastructure_stops: dict[str, dict] = {}
+    context_stops: dict[str, dict] = {}
+    # Served context window in tokens, when the host adapter knows it. Only
+    # corroborates an HTTP 400 (the previous prefix already filled the
+    # window, so the next one necessarily overflows); never ends a rollout
+    # on its own, so observing never changes what the model sees.
+    served_context_tokens = initial.get("served_context_tokens")
+    if (
+        isinstance(served_context_tokens, bool)
+        or not isinstance(served_context_tokens, int)
+        or served_context_tokens <= 0
+    ):
+        served_context_tokens = None
+
     # Explicit tracing parentage for reused pool threads: agent-run span
     # contexts by live agent identity, plus the active tool span in each
     # executing thread so a child run nests under its invoking agent tool.
@@ -428,7 +526,9 @@ def main() -> None:
             name = name_of(agent=agent)
             with evidence_lock:
                 if name not in names_started:
-                    rpc.emit({"event": "agent_start", "name": name, **agent.get_model_query_kwargs()})
+                    rpc.emit(
+                        {"event": "agent_start", "name": name, **agent.get_model_query_kwargs()}
+                    )
                     names_started.add(name)
                 rpc.emit({"event": "message", "name": name, "message": agent.messages[-1]})
         except Exception as error:
@@ -467,6 +567,32 @@ def main() -> None:
                 name = name_of(agent=agent)
                 root = _root_error(error)
                 state = query_states.get(name, {}) if isinstance(error, ModelQueryError) else {}
+                if isinstance(error, ModelQueryError) and _is_context_length_error(
+                    root,
+                    last_prompt_tokens=state.get("last_prompt_tokens"),
+                    served_context_tokens=served_context_tokens,
+                ):
+                    # The served context filled: end the rollout like every
+                    # other terminal model failure, but record a context stop
+                    # (never infra_error) so Harbor grades the final state.
+                    # History is untouched: no truncation, no summary turn.
+                    details = {
+                        "error_type": type(error).__name__,
+                        "root_error_type": type(root).__name__,
+                        "last_response_status": state.get(
+                            "last_response_status", _error_status(root)
+                        ),
+                        "last_prompt_tokens": state.get("last_prompt_tokens"),
+                        "served_context_tokens": served_context_tokens,
+                    }
+                    with evidence_lock:
+                        context_stops[name] = details
+                    # A child ContextExhausted becomes a normal tool result
+                    # (only InfraError propagates); fixed vocabulary, never
+                    # provider bytes or traceback.
+                    summary = f"native context exhausted: {details['error_type']}"
+                    notify_step_complete(agent, previous_step)
+                    return CONTEXT_EXHAUSTED_STATUS, summary
                 details = {
                     "error_type": type(error).__name__,
                     "root_error_type": type(root).__name__,
@@ -641,7 +767,13 @@ def main() -> None:
         def _query(self, messages: list[dict], **kwargs):
             local.name = name_of(messages=messages)
             local.assistant_index = sum(message["role"] == "assistant" for message in messages)
-            state = {"attempts": 0, "last_response_status": None}
+            with evidence_lock:
+                previous_prompt_tokens = query_states.get(local.name, {}).get("last_prompt_tokens")
+            state = {
+                "attempts": 0,
+                "last_response_status": None,
+                "last_prompt_tokens": previous_prompt_tokens,
+            }
             with evidence_lock:
                 query_states[local.name] = state
             local.query_state = state
@@ -774,6 +906,13 @@ def main() -> None:
             refusal = proxy_budget_reason(
                 response.status_code, body.decode("utf-8", errors="replace")
             )
+            # Server-reported prefix size for the 400 corroboration: history
+            # only grows, so a prefix already at the served limit proves the
+            # next call overflows. Usage integers only, never message text.
+            usage_block = payload.get("usage")
+            if isinstance(usage_block, dict) and isinstance(usage_block.get("prompt_tokens"), int):
+                local.query_state["last_prompt_tokens"] = usage_block["prompt_tokens"]
+
             rpc.emit(
                 {
                     "event": "model_call",
@@ -806,9 +945,23 @@ def main() -> None:
             for name, details in infrastructure_stops.items()
             if name != "main"
         }
-        if child_stops:
-            stop_metadata["agent_stops"] = child_stops
-        if status in {"ModelQueryError", "InfraError"}:
+        child_context_stops = {
+            name: {
+                "exit_status": CONTEXT_EXHAUSTED_STATUS,
+                "stop_reason": CONTEXT_EXHAUSTED_STOP,
+                "context_exhaustion": details,
+            }
+            for name, details in context_stops.items()
+            if name != "main"
+        }
+        if child_stops or child_context_stops:
+            stop_metadata["agent_stops"] = {**child_stops, **child_context_stops}
+        if status == CONTEXT_EXHAUSTED_STATUS:
+            stop_metadata |= {
+                "stop_reason": CONTEXT_EXHAUSTED_STOP,
+                "context_exhaustion": context_stops["main"],
+            }
+        elif status in {"ModelQueryError", "InfraError"}:
             stop_metadata |= {
                 "stop_reason": "infra_error",
                 "infra_error": infrastructure_stops["main"],

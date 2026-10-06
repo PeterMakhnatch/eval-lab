@@ -397,11 +397,11 @@ def _process_trial(
     )
     if (
         stop_reason in (None, "unknown")
-        or shared_stop in ("loop_break", "harness_step_limit")
+        or shared_stop in ("loop_break", "harness_step_limit", "context_exhausted")
         or shared_stop.startswith("ceiling:")
         or (shared_stop == "trial_budget_exhausted" and not str(stop_reason).startswith("ceiling:"))
         or agent_metadata.get("native_exit_status")
-        in ("LimitsExceeded", "ModelQueryError", "InfraError")
+        in ("LimitsExceeded", "ModelQueryError", "InfraError", "ContextExhausted")
     ):
         stop_reason = shared_stop
 

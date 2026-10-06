@@ -6015,6 +6015,17 @@ def parser() -> argparse.ArgumentParser:
     )
     fetch.set_defaults(func=_fetch_command)
 
+    probe_exploit = commands.add_parser(
+        "probe-exploit",
+        help="HAR-161 exploit probe: write a task's exploit/image-check specs, or judge jobs",
+    )
+    probe_exploit.add_argument("probe_command", choices=("specs", "verdict"))
+    probe_exploit.add_argument("tasks", nargs="+", help="format-code-task-NNNNNN ids")
+    probe_exploit.add_argument("--out", type=Path, help="specs: directory for the spec files")
+    probe_exploit.add_argument("--runs", type=Path, default=Path("runs"), help="verdict: jobs dir")
+    probe_exploit.add_argument("--prefix", default="har161", help="job-name prefix")
+    probe_exploit.set_defaults(func=_probe_exploit_command)
+
     gc = commands.add_parser(
         "gc",
         help="Plan or apply compression/pruning of unpromoted ingested runs",
@@ -6595,6 +6606,16 @@ def _normalize_review_argv(argv: Sequence[str] | None) -> Sequence[str] | None:
             normalized.append(argv[i])
             i += 1
     return normalized
+
+
+def _probe_exploit_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.exploit_probe import run_command
+
+    return run_command(
+        args.probe_command, args.tasks, root=root, out=args.out, runs=args.runs, prefix=args.prefix
+    )
 
 
 def run_cli(

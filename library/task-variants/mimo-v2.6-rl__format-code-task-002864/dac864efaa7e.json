@@ -1,0 +1,44 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002864",
+  "variant_digest": "sha256:dac864efaa7ed2b562fdcb939ce16f9a52a39f8dbd0382d4b3521b7121b0d9dc",
+  "variant_harbor_digest": "sha256:cc71d836d9a34f02a1a4e4c7cc7f8cffcb5f06d9f03b999f011ad8c83162a318",
+  "parent": {
+    "digest": "sha256:25b94c8b4e4ea29e695aef58e6a0db3f78dbdb16240f98f09d85600e1a778599",
+    "harbor_digest": "sha256:e5054a9d5050094664207f56492a77d524638303a5529b5081af36bfffea8182",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002864/25b94c8b4e4e.json"
+    }
+  },
+  "transform": "probe-image-checks@1",
+  "components_changed": [
+    "solution"
+  ],
+  "files": [
+    {
+      "path": "solution/solve.sh",
+      "before_sha256": null,
+      "after_sha256": "sha256:db6640d5e1f9f61b92f1a45d17430206a456f7424c6a4b9a881df55bbce872b3",
+      "content": "#!/bin/bash\n# HAR-161 probe-image-checks@1: read-only image checks, run by Harbor's oracle\n# agent as root in the locked sandbox after setup and before grading. It\n# changes nothing, so the verifier grades the untouched repository.\nM=/var/lib/mimo\nCWD=\nfor d in /testbed /workspace/repo /app; do [ -d \"$d/.git\" ] || [ -d \"$d\" ] && { CWD=$d; break; }; done\nBASE=$(cat \"$M/base\" 2>/dev/null)\necho \"== cwd $CWD base ${BASE:-none}\"\nfor g in \"$CWD/.git\" \"$M/git-hidden\" \"$M/git-hidden/.git\"; do\n  [ -d \"$g/objects\" ] || continue\n  beyond=$( [ -n \"$BASE\" ] && git --git-dir=\"$g\" rev-list --all --not \"$BASE\" 2>/dev/null | wc -l | tr -d ' ' )\n  unreachable=$(git --git-dir=\"$g\" fsck --unreachable --no-reflogs 2>/dev/null | grep -c ' commit ')\n  echo \"== git $g beyond_base=${beyond:-unknown} unreachable_commits=$unreachable\"\ndone\necho \"== tests_dir $( [ -e /tests ] && echo present || echo absent )\"\necho \"== grader_files $(find / -xdev \\( -name test.patch -o -name mimo_test_command.sh \\) -not -path '/proc/*' 2>/dev/null | head -n 5 | tr '\\n' ' ')\"\nhits=\nfor n in test_json_query_issue_full_statement test_json_query_preserves_existing_options test_json_query_with_array_wrapper test_json_query_with_wrapper test_json_query_without_array_wrapper test_json_query_without_wrapper; do\n  f=$(grep -rlF --include='*.py' -e \"def $n\" \"$CWD\" /tmp /root /opt /var 2>/dev/null | head -n 1)\n  [ -n \"$f\" ] && hits=\"$hits $n:$f\"\ndone\necho \"== new_test_names_on_disk${hits:- none}\"\necho \"== build_lib_py $(find \"$CWD\" -path '*/build/lib/*' -name '*.py' 2>/dev/null | wc -l | tr -d ' ')\"\n"
+    }
+  ],
+  "rationale": "HAR-161 exploit probe: the oracle runs read-only image checks (git history past base, hidden tests readable, build/lib); task unchanged",
+  "inputs": {
+    "new_test_names": [
+      "test_json_query_issue_full_statement",
+      "test_json_query_preserves_existing_options",
+      "test_json_query_with_array_wrapper",
+      "test_json_query_with_wrapper",
+      "test_json_query_without_array_wrapper",
+      "test_json_query_without_wrapper"
+    ]
+  },
+  "created_by": "har161-probe",
+  "created_at": "2026-10-02T23:26:10Z",
+  "status": "candidate",
+  "evidence": []
+}

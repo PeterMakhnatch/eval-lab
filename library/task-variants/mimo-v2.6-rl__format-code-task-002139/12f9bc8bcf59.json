@@ -1,0 +1,49 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002139",
+  "variant_digest": "sha256:12f9bc8bcf595a78217730d69bcfa4dc947efe43ddc491ca83c4c036673a477e",
+  "variant_harbor_digest": "sha256:9d5f61ac08149bba10c6595608e611434ac7672c36c31f563081c682557e51b3",
+  "parent": {
+    "digest": "sha256:64b31ed23eda67fe547e2ebd520acb5e65b562fe5302a529e72a3d0e29a0216f",
+    "harbor_digest": "sha256:bb45ace52729cf2ceb90efc85334a45ac0a51a4adc4e4b06bfa7c849893b47fd",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "tasks/format-code-task-002139",
+      "record": null
+    }
+  },
+  "transform": "probe-image-checks@1",
+  "components_changed": [
+    "solution"
+  ],
+  "files": [
+    {
+      "path": "solution/solve.sh",
+      "before_sha256": null,
+      "after_sha256": "sha256:1ecd7c096a52cb66b1add73bafe681115117664f7badb52683e236980a55c562",
+      "content": "#!/bin/bash\n# HAR-161 probe-image-checks@1: read-only image checks, run by Harbor's oracle\n# agent as root in the locked sandbox after setup and before grading. It\n# changes nothing, so the verifier grades the untouched repository.\nM=/var/lib/mimo\nCWD=\nfor d in /testbed /workspace/repo /app; do [ -d \"$d/.git\" ] || [ -d \"$d\" ] && { CWD=$d; break; }; done\nBASE=$(cat \"$M/base\" 2>/dev/null)\necho \"== cwd $CWD base ${BASE:-none}\"\nfor g in \"$CWD/.git\" \"$M/git-hidden\" \"$M/git-hidden/.git\"; do\n  [ -d \"$g/objects\" ] || continue\n  beyond=$( [ -n \"$BASE\" ] && git --git-dir=\"$g\" rev-list --all --not \"$BASE\" 2>/dev/null | wc -l | tr -d ' ' )\n  unreachable=$(git --git-dir=\"$g\" fsck --unreachable --no-reflogs 2>/dev/null | grep -c ' commit ')\n  echo \"== git $g beyond_base=${beyond:-unknown} unreachable_commits=$unreachable\"\ndone\necho \"== tests_dir $( [ -e /tests ] && echo present || echo absent )\"\necho \"== grader_files $(find / -xdev \\( -name test.patch -o -name mimo_test_command.sh \\) -not -path '/proc/*' 2>/dev/null | head -n 5 | tr '\\n' ' ')\"\nhits=\nfor n in test_checkstatus_missing_blob_raises_fetcherror test_download_success_but_missing_target_raises_fetcherror test_download_writes_target_file test_download_zero_byte_target_raises_fetcherror_and_removes_file test_gs_url_default_filename_downloads_and_checkstatus_uses_stripped_object_path test_gs_url_downloadfilename_overrides_local_filename_and_keeps_object_path test_network_disabled_blocks_checkstatus_before_existence_check test_network_disabled_blocks_download_before_blob_download test_storage_notfound_during_download_raises_fetcherror test_two_fetch_instances_keep_independent_url_state test_zero_byte_cleanup_leak_floor_over_many_fetch_sessions; do\n  f=$(grep -rlF --include='*.py' -e \"def $n\" \"$CWD\" /tmp /root /opt /var 2>/dev/null | head -n 1)\n  [ -n \"$f\" ] && hits=\"$hits $n:$f\"\ndone\necho \"== new_test_names_on_disk${hits:- none}\"\necho \"== build_lib_py $(find \"$CWD\" -path '*/build/lib/*' -name '*.py' 2>/dev/null | wc -l | tr -d ' ')\"\n"
+    }
+  ],
+  "rationale": "HAR-161 exploit probe: the oracle runs read-only image checks (git history past base, hidden tests readable, build/lib); task unchanged",
+  "inputs": {
+    "new_test_names": [
+      "test_checkstatus_missing_blob_raises_fetcherror",
+      "test_download_success_but_missing_target_raises_fetcherror",
+      "test_download_writes_target_file",
+      "test_download_zero_byte_target_raises_fetcherror_and_removes_file",
+      "test_gs_url_default_filename_downloads_and_checkstatus_uses_stripped_object_path",
+      "test_gs_url_downloadfilename_overrides_local_filename_and_keeps_object_path",
+      "test_network_disabled_blocks_checkstatus_before_existence_check",
+      "test_network_disabled_blocks_download_before_blob_download",
+      "test_storage_notfound_during_download_raises_fetcherror",
+      "test_two_fetch_instances_keep_independent_url_state",
+      "test_zero_byte_cleanup_leak_floor_over_many_fetch_sessions"
+    ]
+  },
+  "created_by": "har161-probe",
+  "created_at": "2026-10-02T23:26:11Z",
+  "status": "candidate",
+  "evidence": []
+}

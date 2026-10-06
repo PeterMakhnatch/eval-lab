@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import pytest
@@ -224,7 +225,7 @@ def test_native_dims_trials_pass_through_byte_identical(tmp_path: Path) -> None:
     report = build_viewer_root([src / "job-a"], out)
 
     trial_out = out / "job-a" / "trial-n"
-    assert trial_out.is_symlink()
+    assert _resolves_inside(trial_out, out)
     assert (trial_out / "result.json").read_bytes() == before
     assert not (out / "job-a" / "trial-n" / "reward-details.json").exists()
     assert report["jobs"]["job-a"]["native"] == 1
@@ -243,7 +244,7 @@ def test_unscored_trials_get_no_dims(tmp_path: Path, rewards: dict | None) -> No
     report = build_viewer_root([src / "job-a"], out)
 
     trial_out = out / "job-a" / "trial-u"
-    assert trial_out.is_symlink()
+    assert _resolves_inside(trial_out, out)
     assert not (out / "job-a" / "trial-u" / "reward-details.json").exists()
     assert report["jobs"]["job-a"]["unscored"] == 1
     assert report["jobs"]["job-a"]["scored"] == 0
@@ -263,6 +264,42 @@ def test_sources_are_never_mutated(tmp_path: Path) -> None:
     )
     before = _snapshot(src)
     build_viewer_root([src / "job-a"], tmp_path / "view")
+    assert _snapshot(src) == before
+
+
+def _resolves_inside(path: Path, root: Path) -> bool:
+    """Harbor's viewer serves a trial or file only if it resolves inside its root."""
+    resolved_root = root.resolve()
+    return all(
+        resolved_root in p.resolve().parents for p in [path, *path.rglob("*")]
+    )
+
+
+def test_every_viewer_path_resolves_inside_the_root(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    job = _make_job(
+        src,
+        "job-a",
+        {
+            "trial-t": {"reward": 1.0},
+            "trial-n": {"reward": 1.0, "integrity": 1, "reward_gated": 1.0},
+            "trial-u": None,
+        },
+        trajectories={name: _benign_trajectory() for name in ("trial-t", "trial-n", "trial-u")},
+    )
+    out = tmp_path / "view"
+    build_viewer_root([job], out)
+
+    for trial in ("trial-t", "trial-n", "trial-u"):
+        mirrored = out / "job-a" / trial
+        assert _resolves_inside(mirrored, out)
+        assert (mirrored / "agent" / "trajectory.json").read_bytes() == (
+            job / trial / "agent" / "trajectory.json"
+        ).read_bytes()
+
+    # Dropping the view root leaves every source file in place.
+    before = _snapshot(src)
+    shutil.rmtree(out)
     assert _snapshot(src) == before
 
 

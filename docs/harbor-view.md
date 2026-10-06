@@ -24,6 +24,39 @@ the viewer is launched via `uv tool run --from harbor==0.24.0 harbor view …`,
 which resolves from the local uv cache offline once fetched. The 0.21 viewer
 has no `chart-trials`, hence no Outcomes or Pareto; 0.24 is required.
 
+## Always-on results viewer
+
+`evallab view` is a snapshot: it serves the jobs named at launch, from a
+fresh temp root. `evallab results-viewer` keeps one persistent root in step
+with the results home and serves it at **<http://127.0.0.1:8100>**:
+
+```bash
+scripts/ops/launchd/install-results-viewer.sh --load   # install / upgrade the LaunchAgent
+evallab results-viewer --once                          # one sync pass, print the summary
+```
+
+- Every `--interval` (60 s) a pass mirrors new jobs with the same overlay as
+  `evallab view`, rebuilds jobs whose `result.json` changed (republished)
+  and drops jobs whose source is gone. Discovery goes two levels below each
+  source, so `<date>/<job>/` in the results home is found.
+- A job is mirrored only once its tree has been quiet for `--settle` (60 s):
+  `process-job` publishes by copying in place. Each viewer job is staged
+  beside the root and renamed in, so the viewer never lists a partial job.
+- The root is the state. Each viewer job carries
+  `.evallab-results-viewer.json` (source path, source signature), so a
+  restart resumes without rebuilding. A first pass over ~3,000 jobs takes
+  about 4.5 minutes; newest jobs are mirrored first and appear as they land.
+- Read-only by construction: only GET/HEAD with a loopback `Host` reach
+  Harbor. The 0.24 viewer's run launcher, Analyze/Summarize, Hub upload and
+  Delete buttons answer 405, and a DNS-rebinding page gets 403.
+- `--merge` and task-health selection stay in `evallab view`; the always-on
+  root holds one viewer job per published job.
+- The LaunchAgent runs a non-editable snapshot installed under
+  `~/Library/Application Support/evallab/results-viewer/venv`, not a
+  worktree. Re-run the installer from an updated checkout to upgrade it;
+  `INSTALLED` beside the venv records the commit. Logs:
+  `~/Library/Logs/evallab/com.petermakhnatch.evallab.results-viewer.{out,err}`.
+
 ## Filter historical jobs by task health
 
 ```bash
@@ -93,13 +126,17 @@ new current-package capability estimate.
 
 New runs get `reward` / `integrity` / `reward_gated` natively from RewardKit
 inside the verifier (HAR-169). Existing jobs predate that, so `evallab view`
-backfills the same dims in overlay trial dirs:
+backfills the same dims in overlay trial dirs. Sources are mirrored without
+copying bytes: directories are recreated and files hard-linked (a symlink
+only across filesystems). Symlinks would not do: the 0.24 viewer refuses a
+trial or file whose resolved path leaves its jobs root, so a symlinked trial
+answers "Invalid trial name" and a symlinked file "Access denied".
 
-- trials whose `verifier_result.rewards` already carry `integrity` pass
-  through as symlinks, byte-identical (native RewardKit runs);
-- unscored trials (no numeric `reward`) pass through with no dims invented;
-- every other scored trial gets an overlay trial dir: symlinks to every
-  original child, except a rewritten `result.json` whose rewards add
+- trials whose `verifier_result.rewards` already carry `integrity` are
+  mirrored byte-identical (native RewardKit runs);
+- unscored trials (no numeric `reward`) are mirrored with no dims invented;
+- every other scored trial gets an overlay trial dir: every original child
+  mirrored, except a rewritten `result.json` whose rewards add
   `integrity` (0/1) and `reward_gated` (`reward * integrity`) while keeping
   `reward` unchanged, plus a new `reward-details.json` with the fired rule
   ids, evidence, provenance, and rule versions.
@@ -287,6 +324,8 @@ the two `harbor view` next-actions in `src/evallab/explorer.py` now point at
   evidence (fired rules, provenance) is one level down — visible in the
   overlay trial dir, not in the UI. Trial-level "why gated" still needs the
   processed pages above.
-- `harbor view` also serves Upload/Delete endpoints; `evallab view` roots
-  are built read-only by construction (symlinks + overlays), but the UI
-  buttons are still shown. Do not use them on a view root.
+- `harbor view` also serves Run, Summarize, Upload and Delete endpoints.
+  Deleting from an `evallab view` root only unlinks the root's names, but a
+  hard-linked file shares its source's bytes, so nothing may write through
+  a view root: do not use those buttons on one. The always-on results viewer
+  refuses every non-GET request.

@@ -9,11 +9,27 @@ audience:
 
 Where a human looks when asking "what happened?" — and what each surface owns.
 
+## Start here
+
+| Question | Look at |
+|---|---|
+| What finished, and how did it score? Read one run step by step. | **<http://127.0.0.1:8100>**: every job in `~/Developer/eval-lab-results`, in Harbor's viewer with `reward` / `integrity` / `reward_gated`. Always on (LaunchAgent `com.petermakhnatch.evallab.results-viewer`); new and republished jobs appear within about two minutes. |
+| Why was this run counted or excluded? Taint, loop kind, token flow. | `<job>/processed/trial-*.md` (and `.json`) beside the job, linked from `~/Developer/eval-lab-results/INDEX.md`. |
+| What is running right now? | `evallab watch` (`<job>/watch/BOARD.md`) and, for native MiMo, the live Laminar trace. |
+| One machine-readable account of a trial (for agents). | `evallab report run <trial-or-job> --json`, or the viewer's JSON API (`/api/jobs?q=…`, `/api/jobs/<job>/trials/<trial>/trajectory`). |
+
+The always-on viewer is `evallab results-viewer`: it mirrors the results
+home into a persistent root with the same overlay as `evallab view`
+([harbor-view.md](harbor-view.md)) and serves it read-only. Install or
+upgrade it with `scripts/ops/launchd/install-results-viewer.sh --load`;
+see [harbor-view.md](harbor-view.md#always-on-results-viewer).
+
 | Surface | Owns | Does not own |
 |---|---|---|
+| **Results viewer** (`http://127.0.0.1:8100`) | Every published job: trial list, trajectory, verifier output, reward dims, Outcomes/Pareto per job | Counts verdicts and taint reasons (processed pages), live runs |
 | **Phoenix** (`http://127.0.0.1:6006`) | Span trees: ATIF agent steps, tool calls, later LiteLLM/DSPy/researcher calls | Job pass/fail, spend vs ceiling, queue state |
 | **Laminar Cloud** (opt-in native `mimoagent`) | Live automatic OpenAI LLM spans, native tools/child agents and Harbor lifecycle under one trial trace | Canonical grades, copy verdicts, spend admission, paid-run approval or packet-level lock proof |
-| **`harbor view <jobs-dir>`** | Single-trial drill-down of Harbor artifacts (instruction, logs, reward) | Cross-trial trends |
+| **`evallab view <jobs>`** | Ad hoc snapshot of chosen jobs, with `--merge` for cross-job Outcomes/Pareto | Staying current |
 | **`digests/YYYY-MM-DD.md`** | Morning one-pager: dispatches, canaries, spend, quarantine | Span timings |
 | **Streamlit** (brief 11) | Research overview over the catalog | Writes, approvals, traces |
 | **PostgreSQL catalog** | Searchable job/trial index (rebuildable) | Canonical evidence |

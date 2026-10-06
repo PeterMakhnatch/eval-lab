@@ -72,6 +72,7 @@ TOP_LEVEL_COMMANDS = (
     "telemetry",
     "investigate",
     "view",
+    "results-viewer",
 )
 
 

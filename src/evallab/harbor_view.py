@@ -6,14 +6,16 @@ backfilling the HAR-024 reward dims (``reward`` / ``integrity`` /
 ``reward_gated``) for trials that predate native RewardKit dims, then serves
 that root with the Harbor 0.24 viewer.
 
-Overlay design (sources are never mutated):
+Overlay design (sources are never mutated). Sources are mirrored without
+copying bytes: directories are recreated and files hard-linked (see
+:func:`_link`), so every path resolves inside the viewer root, which Harbor's
+viewer requires before it serves a trial or file.
 
 * trials whose ``verifier_result.rewards`` already carry ``integrity`` are
-  symlinked through as-is (native RewardKit runs);
-* unscored trials (no numeric ``reward``) are symlinked through with no dims
-  invented;
-* every other scored trial gets an overlay trial directory: symlinks to every
-  original child, except a rewritten ``result.json`` whose
+  mirrored as-is (native RewardKit runs);
+* unscored trials (no numeric ``reward``) are mirrored with no dims invented;
+* every other scored trial gets an overlay trial directory: every original
+  child mirrored, except a rewritten ``result.json`` whose
   ``verifier_result.rewards`` adds ``integrity`` (0/1) and
   ``reward_gated`` (``reward * integrity``) while keeping ``reward``
   unchanged, plus a new ``reward-details.json`` with the fired rule ids and
@@ -43,9 +45,11 @@ from __future__ import annotations
 
 import argparse
 import datetime as _datetime
+import errno
 import fnmatch
 import importlib.metadata
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -364,8 +368,37 @@ def _scored_reward(rewards: Any) -> float | int | None:
     return reward
 
 
+#: ``os.link`` failures that mean "no hard links here", not a broken source.
+_NO_HARD_LINK = frozenset({errno.EXDEV, errno.EPERM, errno.ENOTSUP, errno.EMLINK})
+
+
 def _link(source: Path, dest: Path) -> None:
-    dest.symlink_to(source)
+    """Mirror ``source`` at ``dest`` without copying bytes.
+
+    Directories are recreated and files hard-linked, so every mirrored path
+    resolves inside the viewer root. Harbor's viewer refuses a trial or file
+    whose resolved path leaves its jobs root ("Invalid trial name", "Access
+    denied"), which any symlink back to the source does. Symlinks inside the
+    source stay symlinks (to the same absolute target). Where hard links are
+    impossible (another filesystem), a file falls back to a symlink.
+
+    A hard link shares the source inode: never write through a mirrored
+    name. Callers skip every name they rewrite and write a new file instead.
+    """
+    if source.is_symlink():
+        dest.symlink_to(source.parent / os.readlink(source))
+        return
+    if source.is_dir():
+        dest.mkdir()
+        for child in source.iterdir():
+            _link(child, dest / child.name)
+        return
+    try:
+        os.link(source, dest, follow_symlinks=False)
+    except OSError as exc:
+        if exc.errno not in _NO_HARD_LINK:
+            raise
+        dest.symlink_to(source)
 
 
 def _unique_job_name(name: str, taken: set[str]) -> str:
@@ -778,6 +811,8 @@ def write_merged_trial(
     if original is None:
         dest.mkdir(parents=True, exist_ok=False)
         for child in sorted(trial_dir.iterdir(), key=lambda p: p.name):
+            if child.name == ".evallab-source.json":
+                continue
             _link(child, dest / child.name)
         _write_source_record(
             dest, trial=trial_name, source_job=source_job, arm=arm

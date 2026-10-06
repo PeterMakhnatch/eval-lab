@@ -254,6 +254,19 @@
           "title": "Harbor Task Digest",
           "type": "string"
         },
+        "harbor_version": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Harbor Version"
+        },
         "job_name": {
           "minLength": 1,
           "title": "Job Name",

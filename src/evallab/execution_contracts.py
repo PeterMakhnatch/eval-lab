@@ -1264,6 +1264,7 @@ def collected_secret_values(
         ),
         *((key, OPENROUTER_PROXY_TOKEN) for key in OPENROUTER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
+        ("LMNR_PROJECT_API_KEY", ""),
     ):
         value = source.get(key)
         if value and value != placeholder:
@@ -1432,6 +1433,7 @@ def subscription_environment(
     include_zai_openapi_credentials: bool = False,
     include_glm_selfhosted_credentials: bool = False,
     include_daytona_credentials: bool = False,
+    include_laminar_credentials: bool = False,
 ) -> dict[str, str]:
     """Build Harbor's environment from explicit non-secret allowlists.
     DeepSeek and Z.ai provider keys never enter this mapping. The metered agent
@@ -1443,6 +1445,8 @@ def subscription_environment(
         for key in DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS:
             if source.get(key):
                 sanitized[key] = source[key]
+    if include_laminar_credentials and source.get("LMNR_PROJECT_API_KEY"):
+        sanitized["LMNR_PROJECT_API_KEY"] = source["LMNR_PROJECT_API_KEY"]
     if include_deepseek_credentials:
         for key in (
             DEEPSEEK_SECRET_FILE_ENV,
@@ -2040,6 +2044,14 @@ def subscription_command(
     repo_root: Path,
 ) -> list[str]:
     """Add the credential transport required by subscription or API-key profiles."""
+    if request.agent == MIMO_AGENT and os.environ.get("LMNR_PROJECT_API_KEY"):
+        executable = repo_root / ".venv/bin/harbor"
+        if not executable.is_file():
+            raise RuntimeError(
+                "Laminar-enabled mimoagent requires the pinned host runtime: "
+                "uv sync --locked --extra laminar"
+            )
+        return [str(executable), *harbor_command[1:]]
     if request.agent == "claude-code":
         wrapper = (repo_root / "scripts/with-claude-auth").resolve()
         if not wrapper.is_file():

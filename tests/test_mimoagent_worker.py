@@ -11,7 +11,13 @@ from pathlib import Path
 
 import pytest
 
-from evallab.mimoagent_worker import SAMPLING
+from evallab.mimoagent_worker import (
+    SAMPLING,
+    _pop_exec_recorder,
+    _push_exec_recorder,
+    _record_exec_result,
+    _tool_exit_metadata,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 NATIVE_PYTHON = ROOT / "tools/mimoagent-harbor/.venv/bin/python"
@@ -121,8 +127,7 @@ def test_cold_endpoint_outlasts_native_five_attempt_limit_without_changing_prefi
     requests, events, calls, native, finished, stderr = _run_worker(
         tmp_path,
         lambda attempt, request: (
-            (503, {"error": {"message": "starting"}})
-            if attempt <= 6 else (200, _answer())
+            (503, {"error": {"message": "starting"}}) if attempt <= 6 else (200, _answer())
         ),
         budget=1,
     )
@@ -133,7 +138,9 @@ def test_cold_endpoint_outlasts_native_five_attempt_limit_without_changing_prefi
     assert finished["exit_status"] == "Idle"
     assert finished["model_stats"]["api_calls"] == 1
     assert [message["role"] for message in native["trajs"]["main"]["messages"]] == [
-        "system", "user", "assistant"
+        "system",
+        "user",
+        "assistant",
     ]
     assert finished["result"] == "native answer"
     assert "stop_reason" not in finished
@@ -209,8 +216,7 @@ def test_known_cold_http200_body_retains_native_read_timeout(tmp_path):
     requests, events, calls, native, finished, stderr = _run_worker(
         tmp_path,
         lambda attempt, request: (
-            (503, {"error": {"message": "starting"}})
-            if attempt == 1 else (200, _answer(), 0.35)
+            (503, {"error": {"message": "starting"}}) if attempt == 1 else (200, _answer(), 0.35)
         ),
         budget=0.2,
     )
@@ -224,9 +230,7 @@ def test_initial_ordinary_generation_keeps_native_preheader_read_timeout(tmp_pat
         time.sleep(0.15)
         return 200, _answer()
 
-    requests, events, calls, native, finished, stderr = _run_worker(
-        tmp_path, respond, budget=0.05
-    )
+    requests, events, calls, native, finished, stderr = _run_worker(tmp_path, respond, budget=0.05)
     assert [call["response_status"] for call in calls] == [200]
     assert finished["exit_status"] == "Idle"
     assert finished["result"] == "native answer"
@@ -239,9 +243,7 @@ def test_known_cold_retry_preheaders_cannot_wait_through_native_generation_timeo
         time.sleep(0.25)
         return 503, {"error": {"message": "still starting"}}
 
-    requests, events, calls, native, finished, stderr = _run_worker(
-        tmp_path, respond, budget=0.06
-    )
+    requests, events, calls, native, finished, stderr = _run_worker(tmp_path, respond, budget=0.06)
     assert [call["response_status"] for call in calls] == [503, None]
     assert calls[-1]["transport_error_type"] == "APITimeoutError"
     assert finished["infra_error"]["retry_window_exhausted"] is True
@@ -253,7 +255,8 @@ def test_provider_throttling_recovers_but_is_not_classified_as_budget_exhaustion
         tmp_path,
         lambda attempt, request: (
             (429, {"error": {"message": "provider rate limit exceeded"}})
-            if attempt == 1 else (200, _answer())
+            if attempt == 1
+            else (200, _answer())
         ),
     )
     assert [call["response_status"] for call in calls] == [429, 200]
@@ -267,7 +270,9 @@ def test_child_log_identity_is_logical_before_parent_model_consumes_it(tmp_path)
         "type": "function",
         "function": {
             "name": "agent",
-            "arguments": json.dumps({"subagent_type": "explore", "prompt": "Inspect /testbed/task.py"}),
+            "arguments": json.dumps(
+                {"subagent_type": "explore", "prompt": "Inspect /testbed/task.py"}
+            ),
         },
     }
     instruction = "Keep legitimate /testbed paths and the words ModelQueryError Traceback"
@@ -275,7 +280,8 @@ def test_child_log_identity_is_logical_before_parent_model_consumes_it(tmp_path)
         tmp_path,
         lambda attempt, request: (
             (200, _answer(None, tool_calls=[tool_call]))
-            if attempt == 1 else (200, _answer("child answer" if attempt == 2 else "root answer"))
+            if attempt == 1
+            else (200, _answer("child answer" if attempt == 2 else "root answer"))
         ),
         instruction=instruction,
     )
@@ -297,7 +303,9 @@ def test_child_query_failure_is_recorded_without_falsely_stopping_completed_root
         "type": "function",
         "function": {
             "name": "agent",
-            "arguments": json.dumps({"subagent_type": "explore", "prompt": "Inspect /testbed/task.py"}),
+            "arguments": json.dumps(
+                {"subagent_type": "explore", "prompt": "Inspect /testbed/task.py"}
+            ),
         },
     }
 
@@ -319,7 +327,8 @@ def test_child_query_failure_is_recorded_without_falsely_stopping_completed_root
     assert child_stop["infra_error"]["last_response_status"] == 400
     assert native["info"]["agent_stops"] == finished["agent_stops"]
     assert [message["role"] for message in native["trajs"]["explore_1"]["messages"]] == [
-        "system", "user"
+        "system",
+        "user",
     ]
     parent_result = requests[-1]["messages"][-1]
     assert parent_result["tool_call_id"] == "failed-child-call"
@@ -327,3 +336,18 @@ def test_child_query_failure_is_recorded_without_falsely_stopping_completed_root
     exported = json.dumps({"events": events, "native": native, "requests": requests})
     assert str(ROOT) not in exported
     assert "Traceback (most recent call last)" not in exported
+
+
+def test_nested_empty_tool_does_not_steal_parent_exec_attribution():
+    parent = _push_exec_recorder()
+    child = _push_exec_recorder()
+    try:
+        _pop_exec_recorder(child)
+        _record_exec_result({"returncode": 7})
+        assert _tool_exit_metadata("bash", parent, None) == {
+            "exit_codes": [7],
+            "exit_code": 7,
+        }
+    finally:
+        _pop_exec_recorder(child)
+        _pop_exec_recorder(parent)

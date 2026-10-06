@@ -193,6 +193,18 @@ strip), declared as `harness.additions` in the setup fingerprint. Install it
 with `uv sync --project tools/mimoagent-harbor --locked`; its OpenAI 3.x graph
 must not be combined with Harbor/LiteLLM's OpenAI 2.x graph.
 
+Live Laminar tracing is an independent host-side opt-in, not a new harness
+treatment. Install the host with `uv sync --locked --extra laminar` and inherit
+the central `LMNR_PROJECT_API_KEY` through `keys run --` for an already
+authorized launch. Preserve that extra in subsequent `uv run --locked`
+commands: traced native launches use this checkout's pinned Harbor `0.21.0`,
+not an unrelated globally installed CLI. The host and isolated native graphs
+both pin `lmnr==0.7.64`; SDK initialization precedes the native OpenAI client.
+The key never enters the task image, native worker or model traffic.
+See [live Laminar observability](observability.md#live-laminar-tracing-for-native-mimo-har-165)
+for identity, live export, privacy and exporter-failure boundaries.
+
+
 `tools/mimoagent-harbor/swe.yaml` is byte-identical to Xiaomi's pinned file:
 bash, read, write, edit **and agent delegation**, the original system template
 and `Fix the following issue:` prefix, 500 steps, and antihack off. Native

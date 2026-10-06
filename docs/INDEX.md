@@ -13,7 +13,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:583f3bbdcae1095dfd75f45bafb336e8f27f7ecd0114d4abbe5ba3400a85eab3
+    digest: sha256:f8bcabebdca237b4608f519d9f4755a6cc24890304bd10c0fb23d7377db062f4
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
   - path: docs/SYSTEM.md
@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:31cd13374fe4eedffbcd1b79a6a4b8a16e6ab5aa2caeb01f8430a71712b21a14
+    digest: sha256:10aac568fe746c582a7b81cf3135c9040cd75e67b8254b93fac056d0e1df5097
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/join-spine.md
@@ -73,7 +73,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:ff7b254d32858de711ad1fd9a9d50cc1602bdc4d6c18cf93fefb10683c4056af
+    digest: sha256:5f3de83b2e33ca04ff148bb0ab96a89f9d8b4517eafbd8ee472a7f375ca03ee3
   - path: docs/lora-sft-runbook.md
     digest: sha256:ccb1d4e90898bd2aae019fa912081daa4cdb13c0be65e03c9487d62f12ecf7f6
   - path: docs/mimo-task-catalog.md
@@ -83,7 +83,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:cf974b6909349070858dbac82b2cd261f683912bf033de74f946000d05409d33
   - path: docs/observability.md
-    digest: sha256:33a3d815435eb7ea2af8f24793dd69529e7155b465f96ecea2aa00900bf31547
+    digest: sha256:fb0202d7425e58820545de8a37e80b253d3bd28e16cbf27c3b2752331b89e981
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md

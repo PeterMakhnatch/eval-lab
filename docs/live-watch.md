@@ -33,6 +33,26 @@ size); a reused status still ages `minutes_since_update`, so `stalled` fires
 and a late `result.json` flips the trial to finished. `--limits-from-config` reads token limits from the trial/job
 `config.json` or the job `experiment-spec.json` instead of the defaults.
 
+## Native MiMo's live Laminar view
+
+An authorized native `mimoagent` launch can also publish a live, redacted
+Laminar span tree. This is separate from `evallab watch`: it neither raises
+admission decisions nor replaces the canonical local watcher, result, proxy
+usage or copy-check evidence. One session identifies the Harbor job and one
+trace identifies each trial, including its automatic OpenAI calls, tools,
+delegated agents, setup, egress acknowledgment, verifier/reward and stop.
+
+Use the [pinned host/native setup and central-key boundary](observability.md#live-laminar-tracing-for-native-mimo-har-165).
+Observe the authenticated private Cloud trace while the trial is still
+running; completed child spans should arrive before root closure. Then bind
+the actual trace URL/UUID to that trial's `laminar-trace.json`, result, stop
+reason and copy verdict. A local sink, SDK export attempt or syntactically
+plausible URL is not proof of remote ingestion.
+
+Cloud lag or exporter failure must not change an answer or stop a trial.
+Tracing does not authorize a task, prove physical deny-all, certify a
+verifier or establish billed cost. Keep unknown observations unknown.
+
 ## Outputs (`--out`)
 
 - `status.json` — every trial's live signals plus fleet alerts.

@@ -19,6 +19,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+laminar = [
+    "harbor==0.21.0",
+    "lmnr==0.7.64",
+]
 verifier = [
     "llm-verifier>=0.2.0",
 ]
@@ -48,6 +52,7 @@ dev = [
     # executable resolver runs instead of a live `uv run --with pip` resolution.
     "pip==26.1.2",
     "harbor-atif2otel>=0.1.0",
+    "lmnr==0.7.64",
     "hypothesis>=6.100,<7",
     "pytest>=8.4,<9",
     "pytest-xdist>=3.8,<4",
@@ -58,6 +63,7 @@ lance = [
 ]
 observability = [
     "harbor-atif2otel>=0.1.0",
+    "lmnr==0.7.64",
     "arize-phoenix-client>=3.3.0",
     "opentelemetry-exporter-otlp>=1.38.0",
     "opentelemetry-proto>=1.38.0",

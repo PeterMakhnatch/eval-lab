@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Isolated native Xiaomi mimoagent controller for Harbor (HAR-148)"
 requires-python = "==3.12.*"
 dependencies = [
+    "lmnr==0.7.64",
     "mimoagent",
 ]
 

@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from evallab.execution_contracts import (
+    _BEARER_HEADER,
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
     BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
     CAPTURE_DIR_ENV,
@@ -1199,6 +1200,7 @@ def run_harbor_process(
     lease_generation: str | None = None,
     proxy_attempt_id: str | None = None,
     proxy_limits: ProxyTrialLimits | None = None,
+    laminar_metadata: dict[str, Any] | None = None,
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
 ) -> HarborProcessResult:
     """Run Harbor while redacting provider credentials before log persistence."""
@@ -1242,6 +1244,7 @@ def run_harbor_process(
         include_deepseek_credentials=deepseek_lane,
         include_zai_credentials=zai_lane,
         include_zai_openapi_credentials=zai_openapi_lane,
+        include_laminar_credentials=MIMO_AGENT_IMPORT_PATH in command,
         include_daytona_credentials=environment_selector
         in {
             "daytona",
@@ -1249,6 +1252,8 @@ def run_harbor_process(
             BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
         },
     )
+    if MIMO_AGENT_IMPORT_PATH in command and laminar_metadata is not None:
+        runtime_environment["EVALLAB_LAMINAR_METADATA"] = json.dumps(laminar_metadata)
     if local_terminus:
         runtime_environment[TERMINUS_LOCAL_ENDPOINT_ENV] = local_ollama_endpoint()
     secret_values = collected_secret_values()
@@ -2498,6 +2503,53 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 secrets=(),
             )
 
+        from evallab.setup_fingerprint import (
+            build_intended_fingerprint,
+            maybe_write_fingerprints,
+        )
+
+        _intended: dict[str, Any] | None = None
+        _fingerprint_error: str | None = None
+        laminar_metadata: dict[str, Any] | None = None
+        if request.agent == MIMO_AGENT and os.environ.get("LMNR_PROJECT_API_KEY"):
+            provenance = request.provenance
+            laminar_metadata = {
+                "card": provenance.linear_card if provenance else None,
+                "arm": provenance.arm_id if provenance else None,
+                "task": request.task.name,
+                "job_name": request.name,
+                "intended_setup_fingerprint": None,
+                "model_revision": None,
+                "model_revision_source": None,
+                "intended_lock_mode": None,
+                "bearer_pattern": _BEARER_HEADER.pattern.decode("ascii"),
+            }
+            try:
+                _intended = build_intended_fingerprint(
+                    spec=request.experiment_spec,
+                    task_dir=request.task,
+                    model=request.model,
+                    agent=request.agent,
+                    environment=request.environment,
+                    repo_root=repo_root,
+                    request=request,
+                )
+                laminar_metadata.update(
+                    {
+                        "task": _intended["subject"]["task"],
+                        "intended_setup_fingerprint": "sha256:"
+                        + hashlib.sha256(
+                            json.dumps(_intended, sort_keys=True, separators=(",", ":")).encode()
+                        ).hexdigest(),
+                        "model_revision": _intended["server"]["model_revision"],
+                        "model_revision_source": _intended["server"]["sources"]["model_revision"],
+                        "intended_lock_mode": _intended["lock"]["mode"],
+                    }
+                )
+            except Exception as exc:  # fingerprint telemetry cannot fail execution
+                _intended = {}
+                _fingerprint_error = f"{type(exc).__name__}: {exc}"
+
         harbor_command = build_command(staged_request)
         command = subscription_command(staged_request, harbor_command, repo_root=_RUNTIME_ROOT)
         containers_before = harbor_container_ids(staged_request.task)
@@ -2519,6 +2571,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 lease_generation=request.lease_generation,
                 proxy_attempt_id=_proxy_attempt_id(request),
                 proxy_limits=_proxy_trial_limits(request),
+                laminar_metadata=laminar_metadata,
             )
         except BaseException:
             _write_executor_state(
@@ -2634,25 +2687,20 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         # Setup fingerprint into the batch and every trial (HAR-149): the
         # intended setup plus the per-trial observed lock. Best-effort: the
         # trial already ran, so a persistence failure is recorded, not raised.
-        from evallab.setup_fingerprint import (
-            build_intended_fingerprint,
-            maybe_write_fingerprints,
-        )
-
-        _fingerprint_error: str | None = None
-        try:
-            _intended = build_intended_fingerprint(
-                spec=request.experiment_spec,
-                task_dir=request.task,
-                model=request.model,
-                agent=request.agent,
-                environment=request.environment,
-                repo_root=repo_root,
-                request=request,
-            )
-        except Exception as exc:  # noqa: BLE001
-            _intended = {}
-            _fingerprint_error = f"{type(exc).__name__}: {exc}"
+        if _intended is None:
+            try:
+                _intended = build_intended_fingerprint(
+                    spec=request.experiment_spec,
+                    task_dir=request.task,
+                    model=request.model,
+                    agent=request.agent,
+                    environment=request.environment,
+                    repo_root=repo_root,
+                    request=request,
+                )
+            except Exception as exc:  # fingerprint persistence cannot fail a run
+                _intended = {}
+                _fingerprint_error = f"{type(exc).__name__}: {exc}"
         if _intended:
             _fingerprint_error = maybe_write_fingerprints(job_dir, _intended)
         if _fingerprint_error is not None:

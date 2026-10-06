@@ -260,6 +260,22 @@ def test_daytona_key_is_redacted_from_persisted_executor_errors(tmp_path: Path) 
     assert destination.read_text() == ("Daytona request failed with credential <redacted>")
 
 
+def test_laminar_credential_is_explicitly_host_scoped_and_redacted(tmp_path: Path) -> None:
+    secret = "private-laminar-project-credential"
+    source = {"LMNR_PROJECT_API_KEY": secret, "OPENAI_API_KEY": "unrelated-model-key"}
+    assert "LMNR_PROJECT_API_KEY" not in subscription_environment(source)
+    admitted = subscription_environment(source, include_laminar_credentials=True)
+    assert admitted["LMNR_PROJECT_API_KEY"] == secret
+    assert "OPENAI_API_KEY" not in admitted
+    destination = tmp_path / "executor.log"
+    persist_private_bytes(
+        destination,
+        f"Trace export failed with credential {secret}".encode(),
+        secrets=tuple(value.encode() for value in collected_secret_values(source)),
+    )
+    assert destination.read_text() == "Trace export failed with credential <redacted>"
+
+
 def test_new_ulid_format_and_monotonicity() -> None:
     """new_ulid generates 26-character sortable Crockford Base32 identifiers."""
     u1 = new_ulid(timestamp_ms=1000, randomness=1)
@@ -474,6 +490,7 @@ def test_validate_request_accepts_repeat_bounds(tmp_path: Path, repeat_n: int | 
         verifier_repeat_n=repeat_n,
     )
     validate_request(req)
+
 
 @pytest.mark.parametrize("storage_mb", [0, 1, 1023, 1048577, -5])
 def test_validate_request_rejects_storage_out_of_range(tmp_path: Path, storage_mb: int) -> None:

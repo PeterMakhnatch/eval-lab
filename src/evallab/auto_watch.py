@@ -101,9 +101,16 @@ class WatchHandle:
 def _default_run_watch(*, runs_dirs: list[Path], out_dir: Path) -> dict[str, Any]:
     # Imported here so tests can stub ``evallab.live_watch.run_watch``
     # and so this module stays cheap to import from the executor.
+    from evallab.laminar import exporter_from_env
     from evallab.live_watch import WatchThresholds, run_watch
 
-    return run_watch(runs_dirs=runs_dirs, out_dir=out_dir, thresholds=WatchThresholds())
+    # Laminar export is on whenever LMNR_PROJECT_API_KEY is set (EVALLAB_LAMINAR=off disables).
+    return run_watch(
+        runs_dirs=runs_dirs,
+        out_dir=out_dir,
+        thresholds=WatchThresholds(),
+        laminar=exporter_from_env(out_dir),
+    )
 
 
 def start_auto_watch(

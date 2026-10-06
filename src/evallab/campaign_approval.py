@@ -366,8 +366,21 @@ def load_approved_campaign(
     return campaign, approval
 
 
-def expected_sampling(model: str | None) -> CampaignSampling:
-    """Pinned sampling for a model, from the same source admission compares."""
+def intended_sampling(agent: str | None, model: str | None) -> CampaignSampling:
+    """Pinned sampling for an agent+model, from the same source preflight prints.
+
+    Mirrors ``setup_fingerprint._setup_fields``: the mimoagent route sends
+    ``mimoagent_worker.SAMPLING`` (temperature 1.0), every other route sends
+    ``sampling_sent(model)``. A model-only comparison is wrong for mimoagent.
+    """
+    if agent == "mimoagent":
+        from evallab.mimoagent_worker import SAMPLING
+
+        return CampaignSampling(
+            temperature=float(SAMPLING["temperature"]),
+            top_p=float(SAMPLING["top_p"]),
+            top_k=int(SAMPLING["top_k"]),
+        )
     from evallab.setup_fingerprint import sampling_sent
 
     sent = sampling_sent(model)
@@ -435,7 +448,7 @@ def check_campaign_admission(
                 f"{campaign.agent}/{campaign.model}/{campaign.environment}"
             ),
         )
-    actual_sampling = expected_sampling(spec.model)
+    actual_sampling = intended_sampling(spec.agent, spec.model)
     if actual_sampling != campaign.sampling:
         for field in ("temperature", "top_p", "top_k"):
             expected = getattr(campaign.sampling, field)
@@ -946,10 +959,11 @@ def validate_campaign_content(repo_root: Path, campaign: ExperimentCampaign) -> 
         load_reference_profile(repo_root, campaign.reference_profile)
     except (OSError, ValueError, KeyError) as exc:
         errors.append(f"reference_profile {campaign.reference_profile!r}: {exc}")
-    if expected_sampling(campaign.model) != campaign.sampling:
+    if intended_sampling(campaign.agent, campaign.model) != campaign.sampling:
         errors.append(
             f"sampling {campaign.sampling.model_dump(mode='json')} does not match "
-            f"model {campaign.model!r} (compute it with sampling_sent)"
+            f"agent {campaign.agent!r} model {campaign.model!r} "
+            "(pin what that agent+model actually sends)"
         )
     if not Path(campaign.queue_cwd).is_dir():
         errors.append(f"queue_cwd {campaign.queue_cwd!r} is not a directory")

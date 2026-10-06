@@ -50,8 +50,6 @@ PAGE_PREFIX = "task-"
 PAGE_RECORD = ".evallab-task-page.json"
 PAGE_SCHEMA = "evallab.task_page/v1"
 STORE_ENV = "EVALLAB_READERS_STORE"
-#: The primary checkout is kept on main by the sync-primary agent; only read here.
-DEFAULT_VARIANTS_DIR = Path.home() / "Developer" / "eval-lab" / "library" / "task-variants"
 #: Jobs on the trusted Harbor 0.24 setup (native integrity in the reward).
 DEFAULT_TRUSTED_GLOBS = ("HAR-168-*",)
 #: Attempt label from the job name (``...-a1``, ``...-a2-infra-r1``).

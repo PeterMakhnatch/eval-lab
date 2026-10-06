@@ -411,7 +411,7 @@ inputs:
   - path: src/evallab/results_home.py
     digest: sha256:bba6f44c622a2f664713d11b1317514b624f5fa765e4f988ab2456ef721e2002
   - path: src/evallab/results_viewer.py
-    digest: sha256:bbaa2ea86c73525c7f8c68df1eef12698a884689d18b09e0bfa9d9c5e71ad704
+    digest: sha256:b34bbbbac5689679314f19f4da89e9d95bbe3c0bdd3feab5cde7fb2f3694af8b
   - path: src/evallab/rlm/__init__.py
     digest: sha256:72ec828d553f09b8218b61f95eee8873ec978e227c040adad6d5281fd8acfb45
   - path: src/evallab/rlm/bench/__init__.py
@@ -513,7 +513,7 @@ inputs:
   - path: src/evallab/task_lint.py
     digest: sha256:4704670a031a07a1e5713d96117035d8d6a299270d4b6ce4749462556fa1bf99
   - path: src/evallab/task_pages.py
-    digest: sha256:5a299526f45d2a35f20304e9a0c115dfc569226c14a1c0c65223b10c61dab7b3
+    digest: sha256:58c7134cd43f76d2a1d9498c852ffbf6b786a9248148d3fd51acfffc28652540
   - path: src/evallab/task_prepare.py
     digest: sha256:8f108eee10efa1c9c6f21f66baa98bb7c98d38bc5f9b8b467b1ff167bcc9b802
   - path: src/evallab/task_qualification.py

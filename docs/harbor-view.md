@@ -78,7 +78,10 @@ Reader verdicts live in `~/Library/Application Support/evallab/readers`
 (`$EVALLAB_READERS_STORE`, or `--readers-store`) as
 `<job>/<trial>/<reader>.json` (`evallab.reader_verdict/v1`). Task checks are at
 `_tasks/<task>/harbor_check.json`. A page is rebuilt when a member trial, a
-verdict or the task's `task-health-tags@1` record changes.
+verdict or the task's `task-health-tags@1` record changes. The installer copies
+`library/task-variants` from the checkout it installs into the service's
+`variant-records` snapshot (passed as `--variant-records`); re-run it to pick up
+new health records.
 
 | Reader | How it runs | Copy recall (H12 / copy benchmark) | False positives |
 |---|---|---|---|

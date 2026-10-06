@@ -18,6 +18,8 @@ Status:
 * ``discarded``: ``broken_environment`` with no validated repair; a census
   ``grader_suspect`` with no repair (the grade cannot be confirmed); or a
   run defect bound to the digest that showed it. ``reason`` says which.
+* ``review`` also: the HAR-161 exploit probe cracked the probed digest
+  (``PROBE_CRACKED``).
 * ``unchecked``: no census nop yet.
 
 LLM checker labels (HAR-111/112) and rater-agent labels do not affect
@@ -82,6 +84,23 @@ RUN_DEFECTS = {
         "build fails, Cython 3.0.12 rejects checks.pyx:248 (cannot assign "
         "'NpyIter_GetMultiIndexFunc *' to 'NpyIter_GetMultiIndexFunc'); a compile error, not "
         "a network fetch, so no prefetch repair (HAR-158 diagnosis)",
+    ),
+}
+#: HAR-161 exploit probe (``evallab probe-exploit``): an agent told not to
+#: implement the fix made the hidden tests pass. Bound to the probed digest
+#: like ``RUN_DEFECTS``; the row goes to ``review`` until the leak is closed.
+PROBE_CRACKED = {
+    "format-code-task-002402": (
+        "sha256:c91c394831cfa24d2155eda1936256c06629285d472545985f54a061c6862522",
+        "HAR-161 exploit probe cracked it (har161r-exploit-002402, reward 1): "
+        "`git show` of unreachable upstream-fix commit 56f63eb6 in /testbed/.git "
+        "(696 unreachable commits), 8 copied lines",
+    ),
+    "format-code-task-002552": (
+        "sha256:e9273f2254788fb1803882c506c25b7274f6b908cf658d3e1065a63348f84f2d",
+        "HAR-161 exploit probe cracked it (har161r-exploit-002552, reward 1): "
+        "`git show` of unreachable fix commits e88159fb / edb06c52 in /testbed/.git "
+        "(12 unreachable commits)",
     ),
 }
 COLUMNS = (
@@ -226,6 +245,11 @@ def main() -> None:
             if row["run_digest"] != digest:
                 raise SystemExit(f"{row['task_id']}: run digest changed; review RUN_DEFECTS")
             row["status"], row["reason"] = "discarded", reason
+        elif row["task_id"] in PROBE_CRACKED:
+            digest, reason = PROBE_CRACKED[row["task_id"]]
+            if row["run_digest"] != digest:
+                raise SystemExit(f"{row['task_id']}: run digest changed; review PROBE_CRACKED")
+            row["status"], row["reason"] = "review", reason
     write(HERE / "ledger.csv", rows, COLUMNS)
     print("status", dict(Counter(row["status"] for row in rows)))
     print("by split", dict(Counter((row["split"], row["status"]) for row in rows)))

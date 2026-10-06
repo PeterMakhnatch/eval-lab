@@ -21,8 +21,10 @@
 	<true/>
 	<key>ThrottleInterval</key>
 	<integer>30</integer>
+	<!-- Not Background: launchd then throttles disk I/O and the job list
+	     (thousands of result.json reads) stops answering within 20 s. -->
 	<key>ProcessType</key>
-	<string>Background</string>
+	<string>Interactive</string>
 	<key>WorkingDirectory</key>
 	<string>__WORKDIR__</string>
 	<key>EnvironmentVariables</key>

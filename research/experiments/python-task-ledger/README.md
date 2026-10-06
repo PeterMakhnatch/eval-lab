@@ -40,6 +40,50 @@ judgment-based discards to `usable`.
 
 [`task_history.csv`](task_history.csv), built by [`history.py`](history.py): one row per ledger task with its stored agent runs (controls excluded) and how they ended: `clean_pass`, `copied_pass` (HAR-143 copy check; unknown, not a failure), `fail`, `infra` (no verifier reward), plus `last_run` and the trial paths. Re-run it after new runs land. A clean pass is the first direct evidence that a task is solvable.
 
+### Same-failing-test evidence (HAR-179)
+
+[`failing_tests.csv`](failing_tests.csv), built by [`failing_tests.py`](failing_tests.py),
+is one evidence row per ledger task for HAR-177, **not a keep/fix/discard verdict**:
+
+```bash
+uv run python research/experiments/python-task-ledger/failing_tests.py
+```
+
+Inputs are the exact paths in `task_history.csv`, the HAR-146 locked-nop manifest,
+and retained HAR-140/HAR-146 publications under `~/Developer/eval-lab-results`.
+`--history`, `--locked-nops`, `--results`, `--snapshot-tasks` and `--output`
+support explicit local inputs. No model, sandbox, network or raw-run write occurs.
+The command prints input/output hashes, coverage and candidate tasks with trial paths.
+
+- `runs` preserves the history's publication count; `unique_runs` deduplicates
+  native `result.json.id`. The frozen input has 262 entries but 259 physical
+  trials on 91 tasks. `models` counts distinct declared `model_names`, including
+  the named adapter; unknown identities are counted separately.
+- These retained trials have **no CTRF**. The opt-in `probe03._verifier_passage`
+  reader prefers CTRF when available, otherwise uses terminal pytest/unittest
+  records, explicitly labelled in `verifier_sources`. `ctrf_runs` never includes
+  stdout recovery; `verifier_runs` reports usable evidence of either kind.
+  Incomplete/mixed sessions, malformed evidence and missing verifier output do
+  not become failures. Setup/collection errors and skips are not assertion failures.
+- `always_failing_tests` requires complete evidence from **every** physical model
+  trial, including the infra attempts in its denominator.
+  `observed_common_failing_tests` is separately labelled when coverage is partial;
+  `model_evidence_state` distinguishes partial/missing coverage from a clean result.
+- `test_evidence` contains per-test assertions, literal instruction membership
+  (`true`/`false`/`null`), instruction paths/hashes, and nop overlap
+  (`yes`/`no`/`mixed`/`unknown`). Lists/objects are JSON inside CSV cells.
+  An empty assertion list means unsupported or unavailable, **not absent**.
+  Instructions come from recorded task paths or digest-matched, instruction-preserving
+  ancestry into the pinned HF snapshot; a newer ledger variant is never substituted.
+- Locked controls require both `applied: true` and `network_block_all: true`.
+  Pre-repair and repaired controls retain their separate trial paths.
+  A nop's `sound` label means grading ran, not that its tests passed.
+- `candidate_broken_test` is true only when a common failed test has the **same
+  supported literal absent from the instruction in every model trial**.
+  Unsupported/computed assertions and missing instructions cannot satisfy it.
+  This is a review signal: concrete fixture strings can legitimately be absent
+  from a specification, and repeated failures from one model do not prove a broken test.
+
 ## Status rule
 
 | status | rule |

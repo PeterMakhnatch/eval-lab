@@ -51,11 +51,13 @@ replaced by the local equivalents in this module):
   the R-COMP loop_token_cost attachment, and the R-REC-02 unrecovered-wedge
   secondary.
 * ``budget_caps`` / ``ceiling_which`` (ceiling:input_tokens and siblings),
-  ``_verifier_passage``, ``contract_evidence`` (R-COMP-03 submit-contract
-  signaling), ``completion_grader_check`` (deliverable_not_in_instruction),
+  ``_verifier_passage`` (with the HAR-179 ``test_records`` stdout/CTRF
+  opt-in), ``contract_evidence`` (R-COMP-03 submit-contract signaling),
+  ``completion_grader_check`` (deliverable_not_in_instruction),
   ``suspect_grader_evidence`` (R-ENV-02 setup-error and guard-only paths),
   ``protected_file_writes`` (R-ENV-02 guard_mutation_steps),
-  ``env_wrestling_span``, ``source_text_assertion`` (GRADER-SRC-ASSERT),
+  ``env_wrestling_span``, ``source_text_assertion`` (GRADER-SRC-ASSERT) with
+  ``verifier_asserted_literals`` (HAR-179 per-test literal extraction),
   ``grader_collection_error``, ``_unsubmitted_keystroke_loop``,
   ``_repro_attempt_ref`` / ``_submit_invoke_ref`` and their REPRO / SUBMIT /
   ENV_WRESTLE / GUARD_REJECT / IMPORT_ERROR / MISSING_MODULE / PIP_INSTALL
@@ -98,6 +100,7 @@ Adaptations (mechanical, no rule changes):
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 from collections.abc import Iterable
@@ -268,6 +271,7 @@ def fallback_normalize(message: str) -> str | None:
         {"analysis": "", "plan": "", "commands": [{"keystrokes": ks} for ks in keystrokes]}
     )
 
+
 # ---------------------------------------------------------------------------
 # Trajectory assembly: head + cont-N in order with leading-prefix drop.
 # Parent-measured semantics (README ASM-*): drop any leading run of a cont
@@ -279,9 +283,9 @@ CONT_RE = re.compile(r"trajectory\.cont-(\d+)\.json$")
 
 
 def same_step(left: dict, right: dict) -> bool:
-    return left.get("source") == right.get("source") and str(
-        left.get("message", "")
-    ) == str(right.get("message", ""))
+    return left.get("source") == right.get("source") and str(left.get("message", "")) == str(
+        right.get("message", "")
+    )
 
 
 def assemble_trial(trial_dir: Path) -> tuple[dict, list[tuple[str, dict]]]:
@@ -505,6 +509,7 @@ def _step_tokens(step: dict) -> tuple[int | None, int | None]:
         int(completion) if isinstance(completion, (int, float)) else None,
     )
 
+
 # ---------------------------------------------------------------------------
 # WEDGE (HAR-99): wedged terminal -- the model keeps typing commands while
 # the shell is not at a prompt (pager, `>` continuation, a program reading
@@ -557,9 +562,7 @@ def terminal_state(observation: str, keystrokes: list[str]) -> tuple[str, str]:
     if INTERACTIVE_LINE_RE.search(last):
         return "interactive", last
     submitted = any(
-        key.endswith("\n")
-        or key.strip() in ("Enter", "C-m")
-        or INTERRUPT_KEY_RE.match(key.strip())
+        key.endswith("\n") or key.strip() in ("Enter", "C-m") or INTERRUPT_KEY_RE.match(key.strip())
         for key in keystrokes
     )
     if not submitted:
@@ -621,9 +624,7 @@ def wedged_terminal(model_seq: list[tuple[str, dict]], info: dict) -> dict:
     previous = None
     for turn in executed:
         landed_wedged = (
-            previous is not None
-            and previous["state"] in WEDGED_STATES
-            and not turn["at_prompt"]
+            previous is not None and previous["state"] in WEDGED_STATES and not turn["at_prompt"]
         )
         if current is not None and not landed_wedged:
             # The prompt was back before this turn: it landed at a prompt.
@@ -743,9 +744,7 @@ def loop_token_cost(
     without metrics (the summarization hand-off question turn, cont-N#3)
     are counted in `steps_without_metrics`, never as 0 tokens; a sum with
     no metered step at all is `null`."""
-    position = {
-        (doc, step.get("step_id")): index for index, (doc, step) in enumerate(model_seq)
-    }
+    position = {(doc, step.get("step_id")): index for index, (doc, step) in enumerate(model_seq)}
 
     def span(start_ref: tuple, end_ref: tuple) -> set[int]:
         start, end = position.get(start_ref), position.get(end_ref)
@@ -821,7 +820,9 @@ def loop_token_cost(
 
 
 MIMO_EXEC_FUNCTIONS = frozenset({"exec", "exec_command", "bash"})
-NATIVE_SIGNATURE_RE = re.compile(r"<function=(?:exec|exec_command|bash)><parameter=(?:command|keystrokes)>")
+NATIVE_SIGNATURE_RE = re.compile(
+    r"<function=(?:exec|exec_command|bash)><parameter=(?:command|keystrokes)>"
+)
 _PARAM_NAME_RE = re.compile(r"<parameter=([^>\s]+)>")
 _ALLOWED_PARAMS = frozenset({"command", "keystrokes", "duration"})
 HARNESS_STANDIN = "Technical difficulties. Please continue with the task."
@@ -839,9 +840,7 @@ FILE_CHANGE_RES = (
 REDIRECT_TARGET_RE = re.compile(
     r"(?<![->\w&])>\s*([~/][^\s|;&]+|[A-Za-z0-9_][\w.~-]*\.[A-Za-z0-9]{1,6})"
 )
-SED_TARGET_RE = re.compile(
-    r"sed\s+(?:-[^\s|;&]+\s+)*(?:'[^']*'\s+|\"[^\"]*\"\s+)?([^\s|;&'\"]+)"
-)
+SED_TARGET_RE = re.compile(r"sed\s+(?:-[^\s|;&]+\s+)*(?:'[^']*'\s+|\"[^\"]*\"\s+)?([^\s|;&'\"]+)")
 PACKAGING_PATH_RE = re.compile(
     r"setup\.(cfg|py)$|\.egg-info|requirements.*\.txt$|pyproject\.toml$|/tmp/",
     re.IGNORECASE,
@@ -851,12 +850,8 @@ ENV_WRESTLE_RE = re.compile(
     re.IGNORECASE,
 )
 GUARD_REJECT_RE = re.compile(r"anti_hack_guard:\s*REJECT\s*(\S+)")
-IMPORT_ERROR_RE = re.compile(
-    r"ModuleNotFoundError|No module named|ImportError|cannot import name"
-)
-PIP_INSTALL_RE = re.compile(
-    r"pip3?\s+install\s+((?:-[^\s]+\s+)*)([A-Za-z0-9_.\-\[\]]+)"
-)
+IMPORT_ERROR_RE = re.compile(r"ModuleNotFoundError|No module named|ImportError|cannot import name")
+PIP_INSTALL_RE = re.compile(r"pip3?\s+install\s+((?:-[^\s]+\s+)*)([A-Za-z0-9_.\-\[\]]+)")
 # "ModuleNotFoundError: No module named 'x'" must capture x, not "No": the
 # bare-exception branch only applies when "No module named" does not follow.
 MISSING_MODULE_RE = re.compile(
@@ -1141,15 +1136,12 @@ def _runs_and_trailing(
     trailing = [
         run
         for run in runs
-        if (run["end_doc"], run["end"]) in pos
-        and last_idx - pos[(run["end_doc"], run["end"])] <= 1
+        if (run["end_doc"], run["end"]) in pos and last_idx - pos[(run["end_doc"], run["end"])] <= 1
     ]
     return runs, trailing
 
 
-def _rejected_calls(
-    agent_seq: list[tuple[str, dict]], info: dict
-) -> tuple[str, Any, dict] | None:
+def _rejected_calls(agent_seq: list[tuple[str, dict]], info: dict) -> tuple[str, Any, dict] | None:
     """Earliest rejected turn the normalizer recovers calls for."""
     for doc, step in agent_seq:
         cell = info.get((doc, step.get("step_id")), {})
@@ -1158,7 +1150,9 @@ def _rejected_calls(
     return None
 
 
-def _recovered(agent_seq: list[tuple[str, dict]], info: dict, after_doc: str, after_sid: Any) -> bool:
+def _recovered(
+    agent_seq: list[tuple[str, dict]], info: dict, after_doc: str, after_sid: Any
+) -> bool:
     """Later accepted turn exists (mechanical recovery; no NLP)."""
     seen = False
     for doc, step in agent_seq:
@@ -1246,9 +1240,7 @@ def confirmation_loop(
         starts = [
             pos
             for pos in prompt_positions
-            if all(
-                COMPLETION_CLAIM_RE.search(_stripped(step)) for _doc, step in agent_seq[pos:]
-            )
+            if all(COMPLETION_CLAIM_RE.search(_stripped(step)) for _doc, step in agent_seq[pos:])
         ]
         if not starts:
             return None
@@ -1371,16 +1363,310 @@ def ceiling_which(
     return f"ceiling:{best}"
 
 
-def _verifier_passage(trial_dir: Path) -> dict:
+# A pytest terminal summary, wrapped (`=== 1 failed, 2 passed in 0.07s ===`)
+# or bare dot-mode (`2 passed in 0.46s`): counts + duration, full line only.
+_PYTEST_SUMMARY_WRAPPED_RE = re.compile(r"^=+\s*(?P<body>.+?)\s*=+\s*$", re.MULTILINE)
+_PYTEST_SUMMARY_BARE_RE = re.compile(
+    r"^(?P<body>(?:\d+\s+[A-Za-z]+\s*,?\s*)+in\s+[\d.]+\s*s)\s*$", re.MULTILINE
+)
+_PYTEST_COUNT_RE = re.compile(r"(?P<n>\d+)\s+(?P<kind>[A-Za-z]+)")
+_PYTEST_CORE_KINDS = {"failed", "passed", "skipped", "error", "errors"}
+_PYTEST_SHORT_HDR_RE = re.compile(r"^=+\s*short test summary info\s*=+\s*$", re.MULTILINE)
+_PYTEST_OUTCOME_RE = re.compile(r"^(?P<kind>FAILED|ERROR)\s+(?P<name>.+?)\s*$", re.MULTILINE)
+_PYTEST_BLOCK_HDR_RE = re.compile(r"^_{2,}\s*(?P<name>.+?)\s*(?:_{2,})?\s*$", re.MULTILINE)
+_PYTEST_SESSION_START_RE = re.compile(r"^=+\s*test session starts\s*=+\s*$", re.MULTILINE)
+
+_UNITTEST_HEADING_RE = re.compile(r"^(?P<kind>FAIL|ERROR):\s+(?P<name>.+?)\s*$", re.MULTILINE)
+_UNITTEST_RAN_RE = re.compile(r"^Ran\s+(?P<n>\d+)\s+tests?\b.*$")
+_UNITTEST_OK_RE = re.compile(r"^OK\s*(\([^)]*\))?\s*$")
+_UNITTEST_FAILED_RE = re.compile(r"^FAILED\s*\((?P<inner>[^)]*)\)\s*$")
+_UNITTEST_SEP_RE = re.compile(r"^={40,}\s*$", re.MULTILINE)
+_UNITTEST_DASH_RE = re.compile(r"^-{5,}\s*$")
+_UNITTEST_TALLY_RE = re.compile(
+    r"(?<!expected )(?P<k>failures?|errors?|unexpected successes?)\s*=\s*(?P<n>\d+)"
+)
+
+
+def _pytest_summary_counts(body: str) -> dict[str, int] | None:
+    """Count map of a pytest terminal-summary body, or None when the line is
+    not a session summary (no failed/passed/skipped/error token)."""
+    if " in " not in body:
+        return None
+    counts = {m.group("kind").lower(): int(m.group("n")) for m in _PYTEST_COUNT_RE.finditer(body)}
+    if not (set(counts) & _PYTEST_CORE_KINDS):
+        return None
+    return counts
+
+
+def _pytest_nodeid(summary: str) -> str:
+    """Drop pytest's failure message, retaining spaces inside parameter IDs."""
+    depth = 0
+    for index, char in enumerate(summary):
+        if char == "[":
+            depth += 1
+        elif char == "]":
+            depth = max(0, depth - 1)
+        elif depth == 0 and summary.startswith(" - ", index):
+            return summary[:index]
+    return summary
+
+
+def _match_pytest_block(blocks: list[tuple[str, str]], name: str) -> str | None:
+    """Failure-block body for one FAILED nodeid, or None when no (or more
+    than one) block matches. Headers use dotted short names
+    (`TestCls.test_x`, `test_y[param]`) while records keep full nodeids, so
+    matching is suffix-based after `::` -> `.` normalization."""
+    norm = name.replace("::", ".")
+    hits = [body for header, body in blocks if norm == header or norm.endswith("." + header)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def _pytest_blocks(segment: str) -> list[tuple[str, str]]:
+    """`(header name, body)` for each `___ name ___` failure block in
+    one session segment. Bare-underscore separators carry no name and are
+    skipped."""
+    headers = [
+        m for m in _PYTEST_BLOCK_HDR_RE.finditer(segment) if re.search(r"[^\W_]", m.group("name"))
+    ]
+    stops = sorted(
+        [m.start() for m in headers[1:]]
+        + [m.start() for m in _PYTEST_SHORT_HDR_RE.finditer(segment)]
+        + [m.start() for m in _PYTEST_SUMMARY_WRAPPED_RE.finditer(segment)]
+    )
+    out = []
+    for m in headers:
+        ends = [p for p in stops if p > m.start()]
+        body = segment[m.end() : (min(ends) if ends else len(segment))].strip()
+        if body:
+            out.append((m.group("name"), body))
+    return out
+
+
+def _parse_pytest_sessions(text: str) -> tuple[list[dict], bool] | None:
+    """Per-session pytest failure/error records, or None when no terminal
+    summary exists. Each summary line closes a session running back to the
+    previous summary (or file start); names come only from that session's
+    own short-summary section, never mixed across sessions. Complete only
+    when every session's FAILED/ERROR names reconcile with its counts (and
+    no strict-xpass outcome hides unrecorded). ERROR records (setup /
+    collection) carry no trace: they are infra, never assert-fail evidence."""
+    bounds: list[tuple[int, int, dict[str, int]]] = []
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        stripped = line.strip()
+        body = None
+        wrapped = _PYTEST_SUMMARY_WRAPPED_RE.match(stripped)
+        if wrapped:
+            body = wrapped.group("body")
+        else:
+            bare = _PYTEST_SUMMARY_BARE_RE.match(stripped)
+            if bare:
+                body = bare.group("body")
+        if body is not None:
+            counts = _pytest_summary_counts(body)
+            if counts is not None:
+                bounds.append((offset, offset + len(line), counts))
+        offset += len(line)
+    if not bounds:
+        return None
+    records: list[dict] = []
+    complete = True
+    for index, (_start, end, counts) in enumerate(bounds):
+        segment = text[bounds[index - 1][1] if index else 0 : end]
+        failed = counts.get("failed", 0)
+        errors = counts.get("error", 0) + counts.get("errors", 0)
+        headers = list(_PYTEST_SHORT_HDR_RE.finditer(segment))
+        names_f: list[str] = []
+        names_e: list[str] = []
+        if headers:
+            for m in _PYTEST_OUTCOME_RE.finditer(segment, headers[-1].end()):
+                (names_f if m.group("kind") == "FAILED" else names_e).append(
+                    _pytest_nodeid(m.group("name"))
+                )
+        blocks = _pytest_blocks(segment) if names_f else []
+        ok = len(names_f) == failed and len(names_e) == errors and counts.get("xpassed", 0) == 0
+        if (failed or errors) and not headers:
+            ok = False
+        session_no = index + 1
+        for name in names_f:
+            records.append(
+                {
+                    "name": name,
+                    "status": "failed",
+                    "session": session_no,
+                    "trace": _match_pytest_block(blocks, name),
+                }
+            )
+        for name in names_e:
+            records.append({"name": name, "status": "error", "session": session_no, "trace": None})
+        complete = complete and ok
+    residue = text[bounds[-1][1] :]
+    if (
+        _PYTEST_SHORT_HDR_RE.search(residue)
+        or _PYTEST_OUTCOME_RE.search(residue)
+        or _PYTEST_SESSION_START_RE.search(residue)
+    ):
+        complete = False
+    return records, complete
+
+
+def _parse_unittest_sessions(text: str) -> tuple[list[dict], bool] | None:
+    """Per-session unittest failure/error records, or None when no
+    `Ran N tests` + `OK`/`FAILED (...)` footer exists. Names and traces come
+    only from `FAIL:`/`ERROR:` headings inside the same footer session;
+    head-truncated or count-mismatched sessions keep their observed records
+    but force complete=False. `skipped` never yields records."""
+    lines = text.splitlines(keepends=True)
+    offs = []
+    pos = 0
+    for line in lines:
+        offs.append(pos)
+        pos += len(line)
+    footers: list[tuple[int, int, int, int, int]] = []
+    for i, line in enumerate(lines):
+        if not _UNITTEST_RAN_RE.match(line.strip()):
+            continue
+        found: tuple[int, int, int, int] | None = None
+        for j in range(i + 1, len(lines)):
+            stripped = lines[j].strip()
+            if _UNITTEST_RAN_RE.match(stripped):
+                break
+            if _UNITTEST_OK_RE.match(stripped):
+                found = (0, 0, 0, offs[j] + len(lines[j]))
+                break
+            failed_match = _UNITTEST_FAILED_RE.match(stripped)
+            if failed_match:
+                n_fail = n_err = n_unexp = 0
+                for tally in _UNITTEST_TALLY_RE.finditer(failed_match.group("inner")):
+                    kind = tally.group("k")
+                    if kind.startswith("fail"):
+                        n_fail = int(tally.group("n"))
+                    elif kind.startswith("error"):
+                        n_err = int(tally.group("n"))
+                    else:
+                        n_unexp = int(tally.group("n"))
+                found = (n_fail, n_err, n_unexp, offs[j] + len(lines[j]))
+                break
+        if found is None:
+            continue
+        footers.append((offs[i], *found))
+    if not footers:
+        return None
+    records: list[dict] = []
+    complete = True
+    for index, (ran_pos, n_fail, n_err, n_unexp, _end) in enumerate(footers):
+        scope = text[footers[index - 1][4] if index else 0 : ran_pos]
+        headings = list(_UNITTEST_HEADING_RE.finditer(scope))
+        names_f = [m for m in headings if m.group("kind") == "FAIL"]
+        names_e = [m for m in headings if m.group("kind") == "ERROR"]
+        seps = [m.start() for m in _UNITTEST_SEP_RE.finditer(scope)]
+        ok = len(names_f) == n_fail and len(names_e) == n_err and not n_unexp
+        for m in headings:
+            stops = [p for p in seps if p > m.start()]
+            stop = min(stops) if stops else len(scope)
+            body = scope[m.end() : stop].splitlines()
+            while body and _UNITTEST_DASH_RE.match(body[0].strip()):
+                body.pop(0)
+            while body and _UNITTEST_DASH_RE.match(body[-1].strip()):
+                body.pop()
+            trace = "\n".join(body).strip() or None
+            records.append(
+                {
+                    "name": m.group("name"),
+                    "status": "failed" if m.group("kind") == "FAIL" else "error",
+                    "session": index + 1,
+                    "trace": trace,
+                }
+            )
+        complete = complete and ok
+    residue = text[footers[-1][4] :]
+    if _UNITTEST_HEADING_RE.search(residue) or _UNITTEST_RAN_RE.search(residue):
+        complete = False
+    return records, complete
+
+
+def _trial_test_records(trial_dir: Path) -> tuple[list[dict] | None, str, bool]:
+    """Opt-in HAR-179 test-record recovery for :func:`_verifier_passage`.
+
+    Prefers real CTRF (every listed test, ``ctrf``); otherwise parses terminal
+    named outcomes from ``verifier/test-stdout.txt`` then
+    ``verifier/test_output.log`` (``<file>.pytest`` / ``<file>.unittest``).
+    ``missing`` when no source yields a session. Never writes CTRF and never
+    labels a stdout recovery as CTRF."""
+    try:
+        ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
+        results = ctrf.get("results") if isinstance(ctrf, dict) else None
+        tests = results.get("tests") if isinstance(results, dict) else None
+        if isinstance(tests, list) and tests:
+            records = []
+            complete = True
+            for test in tests:
+                if (
+                    not isinstance(test, dict)
+                    or not isinstance(test.get("name"), str)
+                    or not test["name"]
+                    or not isinstance(test.get("status"), str)
+                ):
+                    complete = False
+                    continue
+                status = test.get("status")
+                trace = str(test.get("trace") or "") + str(test.get("message") or "")
+                records.append(
+                    {
+                        "name": str(test.get("name")),
+                        "status": status,
+                        "session": 1,
+                        "trace": trace if trace and status != "passed" else None,
+                        "filePath": test.get("filePath"),
+                    }
+                )
+            return records, "ctrf", complete
+    except (OSError, ValueError):
+        pass
+    for filename, stem in (
+        ("test-stdout.txt", "test-stdout"),
+        ("test_output.log", "test_output"),
+    ):
+        try:
+            text = (trial_dir / "verifier" / filename).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        pytest = _parse_pytest_sessions(text)
+        unittest = _parse_unittest_sessions(text)
+        if pytest is not None and unittest is not None:
+            # Neither parser alone covers a mixed-framework verifier.
+            return pytest[0] + unittest[0], f"{stem}.mixed", False
+        if pytest is not None:
+            return pytest[0], f"{stem}.pytest", pytest[1]
+        if unittest is not None:
+            return unittest[0], f"{stem}.unittest", unittest[1]
+    return None, "missing", False
+
+
+def _verifier_passage(
+    trial_dir: Path, *, failing_test_limit: int | None = 8, include_test_records: bool = False
+) -> dict:
     """Trial's own verifier passage: ctrf test counts (with failing test
     names), test-stdout.txt fallback counts, setup-error flag, guard-reject
-    reason, and whether the verifier ran no tests at all."""
+    reason, and whether the verifier ran no tests at all.
+
+    ``failing_test_limit`` caps ``failing_tests`` (default 8, HAR-179 passes
+    ``None`` for all names); counts are never truncated. ``include_test_records``
+    adds ``test_records`` (per-test ``name``/``status``/``session``/``trace``;
+    None when no source yields a session), ``test_records_source`` (``ctrf``,
+    ``test-stdout.pytest`` / ``test-stdout.unittest`` (or ``.mixed``),
+    the corresponding ``test_output`` sources, or ``missing``) and
+    ``test_records_complete`` (every parsed session's names reconcile with
+    its counts). Default calls return exactly the historical keys."""
     passes = total = None
     failing: list[str] = []
     stdout = ""
     try:
         ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
-        tests = ((ctrf.get("results") or {}).get("tests")) or []
+        results = ctrf.get("results") if isinstance(ctrf, dict) else None
+        tests = results.get("tests") if isinstance(results, dict) else None
+        if not isinstance(tests, list):
+            raise ValueError("CTRF results.tests is not a list")
         total = len(tests)
         passes = sum(
             1 for test in tests if isinstance(test, dict) and test.get("status") == "passed"
@@ -1389,7 +1675,9 @@ def _verifier_passage(trial_dir: Path) -> dict:
             str(test.get("name"))
             for test in tests
             if isinstance(test, dict) and test.get("status") != "passed"
-        ][:8]
+        ]
+        if failing_test_limit is not None:
+            failing = failing[:failing_test_limit]
     except (OSError, ValueError):
         pass
     try:
@@ -1421,7 +1709,7 @@ def _verifier_passage(trial_dir: Path) -> dict:
         or IMPORT_ERROR_RE.search(stdout)
     )
     no_tests = not total and not re.search(r"(\d+) (failed|passed)", stdout)
-    return {
+    out = {
         "passes": passes,
         "total": total,
         "fails": fails,
@@ -1431,6 +1719,12 @@ def _verifier_passage(trial_dir: Path) -> dict:
         "no_tests": bool(no_tests),
         "stdout": stdout,
     }
+    if include_test_records:
+        test_records, records_source, records_complete = _trial_test_records(trial_dir)
+        out["test_records"] = test_records
+        out["test_records_source"] = records_source
+        out["test_records_complete"] = records_complete
+    return out
 
 
 PY_OPEN_WRITE_RE = re.compile(r"open\(\s*([^,()]+?)\s*,\s*['\"][wax]b?\+?['\"]")
@@ -1501,9 +1795,7 @@ def _task_targets(text: str) -> set[str]:
     }
 
 
-def protected_file_writes(
-    agent_seq: list[tuple[str, dict]], guard_reject: str | None
-) -> list[str]:
+def protected_file_writes(agent_seq: list[tuple[str, dict]], guard_reject: str | None) -> list[str]:
     """Model steps whose EXECUTED keystrokes write the file the anti-hack
     guard names (`protected_file_mutated:<path>`). Matched on a path suffix
     at a component boundary, since the model often edits relative to a `cd`
@@ -1529,9 +1821,7 @@ def protected_file_writes(
     return refs
 
 
-def suspect_grader_evidence(
-    trial_dir: Path, nop_runs_dir: str | None
-) -> dict | None:
+def suspect_grader_evidence(trial_dir: Path, nop_runs_dir: str | None) -> dict | None:
     """R-ENV-02 suspect-grader evidence (HAR-81): the verifier fails at
     setup/collection (session-fixture errors) rather than on the model's
     behavior, or the verifier ran no tests at all with only a guard reject
@@ -1621,9 +1911,7 @@ def suspect_grader_evidence(
     return None
 
 
-def _resolve_nop_trial(
-    trial_dir: Path, nop_runs_dir: str | None
-) -> tuple[str | None, str | None]:
+def _resolve_nop_trial(trial_dir: Path, nop_runs_dir: str | None) -> tuple[str | None, str | None]:
     """Same-task nop/qual control trial under --nop-runs-dir (matched by
     task_name): (trial path str or None, verifier test-stdout text or None)."""
     if not nop_runs_dir:
@@ -1664,9 +1952,7 @@ def _instruction_text(trial_dir: Path) -> tuple[str | None, int | None]:
     path (job lab-metadata.json experiment.task_path, resolved against the
     runs dir); (None, None) when it cannot be located."""
     try:
-        lab = json.loads(
-            (trial_dir.parent / "lab-metadata.json").read_text(encoding="utf-8")
-        )
+        lab = json.loads((trial_dir.parent / "lab-metadata.json").read_text(encoding="utf-8"))
         task_path = ((lab.get("experiment") or {}).get("task_path")) or ""
         # The prepared-task path is relative to the eval-lab worktree root
         # (e.g. 'runs/.prepared-tasks/...'): resolve against the ancestor
@@ -1699,9 +1985,7 @@ def completion_grader_check(trial_dir: Path, verifier_message: str) -> str | Non
     tokens: set[str] = set()
     for quoted in re.findall(r"'([^']+)'|\"([^\"]+)\"", verifier_message or ""):
         tokens.update(part for part in quoted if part)
-    tokens.update(
-        re.findall(r"\b[\w.-]+\.(?:sh|py|json|patch|diff)\b", verifier_message or "")
-    )
+    tokens.update(re.findall(r"\b[\w.-]+\.(?:sh|py|json|patch|diff)\b", verifier_message or ""))
     tokens.update(
         match for match in re.findall(r"\b(PoC|poc|exploit|submit)\b", verifier_message or "")
     )
@@ -1709,9 +1993,7 @@ def completion_grader_check(trial_dir: Path, verifier_message: str) -> str | Non
     instruction_text, instruction_size = _instruction_text(trial_dir)
     if instruction_text is None:
         return "instruction.md not located; deliverable check skipped"
-    missing = [
-        token for token in sorted(tokens) if token.lower() not in instruction_text.lower()
-    ]
+    missing = [token for token in sorted(tokens) if token.lower() not in instruction_text.lower()]
     if tokens and len(missing) == len(tokens):
         return (
             f"deliverable_not_in_instruction: verifier names "
@@ -1755,9 +2037,7 @@ def _unsubmitted_keystroke_loop(
     command was typed but never submitted (0036 head#17-121)."""
     if not longest:
         return False
-    positions = {
-        (doc, step.get("step_id")): index for index, (doc, step) in enumerate(agent_seq)
-    }
+    positions = {(doc, step.get("step_id")): index for index, (doc, step) in enumerate(agent_seq)}
     start = positions.get((longest["start_doc"], longest["start"]))
     end = positions.get((longest["end_doc"], longest["end"]))
     if start is None or end is None or end < start:
@@ -1883,9 +2163,7 @@ def _change_targets(text: str) -> set[str]:
     return targets
 
 
-def env_wrestling_span(
-    model_seq: list[tuple[str, dict]], info: dict | None = None
-) -> dict | None:
+def env_wrestling_span(model_seq: list[tuple[str, dict]], info: dict | None = None) -> dict | None:
     """Consecutive model steps whose commands wrestle the environment (pip
     installs, packaging/setup edits) rather than the task. Returns
     {start_doc, start, end_doc, end, steps, targets} or None."""
@@ -1956,9 +2234,7 @@ def progress_block(
         prev_keystrokes = keystrokes if keystrokes else None
         if not keystrokes:
             run_start = None
-    longest_keys = (
-        max(keystroke_runs, key=lambda run: run[1] - run[0]) if keystroke_runs else None
-    )
+    longest_keys = max(keystroke_runs, key=lambda run: run[1] - run[0]) if keystroke_runs else None
     passes = total = None
     try:
         ctrf = json.loads((trial_dir / "verifier" / "ctrf.json").read_text(encoding="utf-8"))
@@ -2178,8 +2454,7 @@ def compute_first_failure(
                 "evidence_step_refs": [_ref(doc, sid)],
                 "recovered": recovered,
                 "note": (
-                    f"model-emitted surface the normalizer declines ({cause}); "
-                    "A-NON-NATIVE-MODEL"
+                    f"model-emitted surface the normalizer declines ({cause}); A-NON-NATIVE-MODEL"
                 ),
             }
             _attach_feedback(failure, cell)
@@ -2332,9 +2607,7 @@ def compute_outcome_failure(
     # contract-seen-only -> model (knew the deliverable); never engaged
     # -> not this gate. Submitted-but-unscored -> unclear (mismatch).
     contract = contract_evidence(agent_seq, info)
-    engaged = (
-        contract["attempted_repro"] or contract["poc_reproduced"] or contract["contract_seen"]
-    )
+    engaged = contract["attempted_repro"] or contract["poc_reproduced"] or contract["contract_seen"]
     claim_signal = list(completion_refs or [])
     if scored and (reward or 0) < 1.0 and engaged:
         if contract["submitted"]:
@@ -2409,12 +2682,7 @@ def compute_outcome_failure(
     # never confirmed completion (that path is handled below). The
     # instruction does not state the deliverable, so attribution is
     # `unclear` (57589: source reading + identical grep loop to budget).
-    if (
-        scored
-        and (reward or 0) < 1.0
-        and not engaged
-        and stop_reason != "task_complete_confirmed"
-    ):
+    if scored and (reward or 0) < 1.0 and not engaged and stop_reason != "task_complete_confirmed":
         try:
             submit_verdict = json.loads(
                 (trial_dir / "verifier" / "result.json").read_text(encoding="utf-8")
@@ -2493,9 +2761,7 @@ def compute_outcome_failure(
                     _d, step_c = window[pos]
                     if not is_claim(_d, step_c):
                         continue
-                    claims_here = sum(
-                        1 for _d2, step2 in window[pos:] if is_claim(_d2, step2)
-                    )
+                    claims_here = sum(1 for _d2, step2 in window[pos:] if is_claim(_d2, step2))
                     if claims_here * 2 >= len(window) - pos:
                         claim_start = step_c.get("step_id")
                         claim_doc = _d
@@ -2617,9 +2883,7 @@ def compute_outcome_failure(
         passage = _verifier_passage(trial_dir)
         grader_note = completion_grader_check(trial_dir, verifier_message)
         engaged = (
-            contract["attempted_repro"]
-            or contract["poc_reproduced"]
-            or contract["contract_seen"]
+            contract["attempted_repro"] or contract["poc_reproduced"] or contract["contract_seen"]
         )
         first_claim = completion_refs[0]
         first_sid = None
@@ -2712,9 +2976,7 @@ def compute_outcome_failure(
                     + ")"
                 ),
             }
-            notes = [
-                note for note in (grader_note, source_text_assertion(trial_dir)) if note
-            ]
+            notes = [note for note in (grader_note, source_text_assertion(trial_dir)) if note]
             if notes:
                 out["grader_note"] = "; ".join(notes)
             return out
@@ -2869,8 +3131,7 @@ def compute_outcome_failure(
                 "rule_id": "R-TOOL-02",
                 "evidence_step_refs": [_ref(doc, sid)],
                 "note": (
-                    f"model-emitted surface the normalizer declines ({cause}); "
-                    "A-NON-NATIVE-MODEL"
+                    f"model-emitted surface the normalizer declines ({cause}); A-NON-NATIVE-MODEL"
                 ),
             }
             _attach_feedback(out, cell)
@@ -2905,9 +3166,7 @@ def compute_outcome_failure(
         task_edits = []
         for doc, step in agent_seq:
             text = _step_command_text(doc, step, info)
-            if any(pattern.search(text) for pattern in FILE_CHANGE_RES) and _task_targets(
-                text
-            ):
+            if any(pattern.search(text) for pattern in FILE_CHANGE_RES) and _task_targets(text):
                 task_edits.append(_ref(doc, step.get("step_id")))
         if not task_edits:
             # An absence claim cites the span it scanned, so every outcome
@@ -2999,7 +3258,116 @@ def compute_outcome_failure(
 
 
 # The failing pytest line of a membership assertion: `>   assert "<lit>" in x`.
-FAILING_IN_ASSERT_RE = re.compile(r"^>\s+assert\s+(['\"])(.+?)\1\s+in\s+(\w+)", re.MULTILINE)
+# The quoted token allows backslash escapes so an escaped quote does not end
+# the literal early (`"a\"b"` parses as `a"b`).
+FAILING_IN_ASSERT_RE = re.compile(
+    r"^>\s+assert\s+('(?:[^'\\\n]|\\.)*'|\"(?:[^\"\\\n]|\\.)*\")\s+in\s+(\w+)",
+    re.MULTILINE,
+)
+
+# A `> assert ...` source line pytest echoes for the failing statement.
+_FAILING_ASSERT_LINE_RE = re.compile(r"^>\s*(assert\b[^\n]*)", re.MULTILINE)
+
+
+def _parse_expected_literal(token: str | ast.AST) -> tuple[bool, str | int | float | None]:
+    """Safely parsed string/number literal, or (False, None) when the token
+    is not an explicit one. Only `ast.literal_eval` constants qualify (never
+    evaluated code); bools are excluded (`True`/`False` parse as `int`)."""
+    try:
+        value = ast.literal_eval(token.strip() if isinstance(token, str) else token)
+    except (ValueError, SyntaxError, TypeError, MemoryError, RecursionError):
+        return False, None
+    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+        return False, None
+    return True, value
+
+
+def _source_read_witness(trace: str, var: str | None) -> bool:
+    """Whether the trace shows the asserted container was read from a file:
+    the generic `read_text()` + `in source` shape (0036-f), or (when a
+    failing `assert "<lit>" in <var>` line matched) an assignment of that var
+    from `open(...).read()` / `.read_text()`."""
+    if "read_text()" in trace and " in source" in trace:
+        return True
+    if not var:
+        return False
+    return bool(
+        re.search(
+            rf"\b{re.escape(var)}\s*=\s*[^\n]*"
+            r"(?:\.read_text\(|open\([^\n]*\)\.read\()",
+            trace,
+        )
+    )
+
+
+def _comparison_literal(line: str) -> str | int | float | None:
+    """One explicit equality/membership expectation, not an optional branch."""
+    try:
+        statements = ast.parse(line).body
+    except (SyntaxError, ValueError, MemoryError, RecursionError):
+        return None
+    if len(statements) != 1 or not isinstance(statements[0], ast.Assert):
+        return None
+    expression = statements[0].test
+    if not isinstance(expression, ast.Compare) or len(expression.ops) != 1:
+        return None
+    operation = expression.ops[0]
+    if not isinstance(operation, (ast.Eq, ast.In)):
+        return None
+    left_ok, left = _parse_expected_literal(expression.left)
+    right_ok, right = _parse_expected_literal(expression.comparators[0])
+    if isinstance(operation, ast.In):
+        return left if (left_ok and not right_ok) else None
+    if left_ok == right_ok:
+        return None
+    return left if left_ok else right
+
+
+def verifier_asserted_literals(test: dict, instruction_text: str | None) -> list[dict]:
+    """Asserted string/number literals of one verifier test, for HAR-179.
+
+    Each record holds ``literal`` (parsed string/number), ``in_instruction``
+    (substring check, or None when ``instruction_text`` is None -- a missing
+    instruction never reads as absent), ``kind`` (``source_membership`` for a
+    failing `assert "<lit>" in <var>` whose container was read from a file,
+    else ``literal_comparison`` for a straightforward `==` / `in` pin), and
+    ``evidence`` (the minimal failing `assert` line).
+
+    Only the actual failing `assert` source lines pytest echoes (`> assert
+    ...`) are read; `E ...` detail lines and other traceback literals never
+    contribute. Unsupported, computed, or ambiguous comparisons yield no
+    record (unknown), never a guess."""
+    if not isinstance(test, dict):
+        return []
+    if test.get("status") in ("error", "skipped"):
+        # Setup/collection errors and skips pin no assert-fail evidence.
+        return []
+    trace = str(test.get("trace") or "") + str(test.get("message") or "")
+    records: list[dict] = []
+
+    def in_instruction(literal: str | int | float) -> bool | None:
+        if instruction_text is None:
+            return None
+        text = literal if isinstance(literal, str) else str(literal)
+        return text in instruction_text
+
+    for line_match in _FAILING_ASSERT_LINE_RE.finditer(trace):
+        raw = line_match.group(0)
+        line = line_match.group(1).strip()
+        expected = _comparison_literal(line)
+        if expected is None:
+            continue
+        member = FAILING_IN_ASSERT_RE.search(raw)
+        source_read = member is not None and _source_read_witness(trace, member.group(2))
+        records.append(
+            {
+                "literal": expected,
+                "in_instruction": in_instruction(expected),
+                "kind": "source_membership" if source_read else "literal_comparison",
+                "evidence": line,
+            }
+        )
+    return records
 
 
 def source_text_assertion(trial_dir: Path) -> str | None:
@@ -3024,21 +3392,15 @@ def source_text_assertion(trial_dir: Path) -> str | None:
             continue
         trace = str(test.get("trace") or "") + str(test.get("message") or "")
         failing = FAILING_IN_ASSERT_RE.search(trace)
-        read_from_file = bool(failing) and bool(
-            re.search(
-                rf"\b{re.escape(failing.group(3))}\s*=\s*[^\n]*"
-                r"(?:\.read_text\(|open\([^\n]*\)\.read\()",
-                trace,
-            )
-        )
-        if not (("read_text()" in trace and " in source" in trace) or read_from_file):
+        if not _source_read_witness(trace, failing.group(2) if failing else None):
             continue
         note = (
             "source_text_assertion: failing verifier test asserts literal "
             f"source strings ({test.get('name')})"
         )
         if failing:
-            literal = failing.group(2)
+            ok, parsed = _parse_expected_literal(failing.group(1))
+            literal = parsed if ok and isinstance(parsed, str) else failing.group(1)[1:-1]
             instruction_text, _size = _instruction_text(trial_dir)
             if instruction_text is not None:
                 where = "appears in" if literal in instruction_text else "is not in"
@@ -3101,9 +3463,7 @@ def analyze_trial_core(
     exception = result.get("exception_info")
     if isinstance(exception, dict):
         exc_type = (
-            exception.get("className")
-            or exception.get("exception_type")
-            or exception.get("type")
+            exception.get("className") or exception.get("exception_type") or exception.get("type")
         )
         exc_message = str(exception.get("exception_message") or "")[:300]
     elif exception is None:
@@ -3226,9 +3586,7 @@ def analyze_trial_core(
         }
         if cause:
             bucket = rejection_causes.setdefault(doc, {})
-            entry = bucket.setdefault(
-                cause, {"count": 0, "first_step": step.get("step_id")}
-            )
+            entry = bucket.setdefault(cause, {"count": 0, "first_step": step.get("step_id")})
             entry["count"] += 1
         if is_standin:
             # STANDIN: Harbor's stand-in reply, not model output -- counted
@@ -3293,9 +3651,7 @@ def analyze_trial_core(
     # stays first_failure. Only a prose-completion outcome (R-COMP-01) or an
     # infra/grader outcome (R-ENV-*) is kept.
     if livelock and outcome["rule_id"] not in ("R-COMP-01", "R-ENV-01", "R-ENV-02"):
-        boundary = (
-            _ref(trailing[0]["start_doc"], trailing[0]["start"]) if trailing else None
-        )
+        boundary = _ref(trailing[0]["start_doc"], trailing[0]["start"]) if trailing else None
         outcome = {
             "step_id": None,
             "step_ref": boundary,
@@ -3389,7 +3745,12 @@ def analyze_trial_core(
         last_edit = outcome["progress"].get("last_file_changing_step")
         if last_edit and not outcome["evidence_step_refs"]:
             outcome["evidence_step_refs"] = [last_edit]
-    if first is not None and first.get("rule_id") == "R-UNC-01" and limit_stop and "progress" not in outcome:
+    if (
+        first is not None
+        and first.get("rule_id") == "R-UNC-01"
+        and limit_stop
+        and "progress" not in outcome
+    ):
         first["progress"] = progress_block(model_seq, info, metadata, trial_dir)
     for failure in [f for f in (first, outcome) if f]:
         if failure.get("rule_id") in ("R-COMP-01", "R-COMP-02"):

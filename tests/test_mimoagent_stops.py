@@ -195,37 +195,63 @@ def test_live_prefixes_are_isolated_nonblocking_and_cannot_overwrite_final(
         {"event": "agent_start", "name": "main", "tools": [], "tool_choice": "auto"},
         {"event": "message", "name": "main", "message": {"role": "user", "content": "fix"}},
         {
-            "event": "model_call", "name": "main", "assistant_index": 0,
-            "usage": {"prompt_tokens": 7, "completion_tokens": 3}, "response_status": 200,
+            "event": "model_call",
+            "name": "main",
+            "assistant_index": 0,
+            "usage": {"prompt_tokens": 7, "completion_tokens": 3},
+            "response_status": 200,
         },
         {
-            "event": "message", "name": "main",
+            "event": "message",
+            "name": "main",
             "message": {
-                "role": "assistant", "content": "working",
-                "tool_calls": [{
-                    "id": "first-call", "type": "function",
-                    "function": {"name": "bash", "arguments": '{"command":"pwd"}'},
-                }],
+                "role": "assistant",
+                "content": "working",
+                "tool_calls": [
+                    {
+                        "id": "first-call",
+                        "type": "function",
+                        "function": {"name": "bash", "arguments": '{"command":"pwd"}'},
+                    }
+                ],
             },
         },
         {
-            "event": "message", "name": "main",
+            "event": "message",
+            "name": "main",
             "message": {
-                "role": "tool", "name": "bash", "tool_call_id": "first-call",
+                "role": "tool",
+                "name": "bash",
+                "tool_call_id": "first-call",
                 "content": "/testbed\nBearer test-capability",
             },
         },
         {"event": "step_complete", "name": "main", "native_step": 1, "message_count": 3},
-        {"event": "tool", "id": 1, "method": "exec", "command": "next", "cwd": "/testbed", "timeout": 30},
+        {
+            "event": "tool",
+            "id": 1,
+            "method": "exec",
+            "command": "next",
+            "cwd": "/testbed",
+            "timeout": 30,
+        },
     ]
     suffix = [
         {
-            "event": "model_call", "name": "main", "assistant_index": 1,
-            "usage": {"prompt_tokens": 7, "completion_tokens": 3}, "response_status": 200,
+            "event": "model_call",
+            "name": "main",
+            "assistant_index": 1,
+            "usage": {"prompt_tokens": 7, "completion_tokens": 3},
+            "response_status": 200,
         },
         {"event": "message", "name": "main", "message": {"role": "assistant", "content": "done"}},
         {"event": "step_complete", "name": "main", "native_step": 2, "message_count": 4},
-        {"event": "finished", "exit_status": "Idle", "result": "done", "model_stats": {"api_calls": 2}},
+        {
+            "event": "finished",
+            "exit_status": "Idle",
+            "result": "done",
+            "model_stats": {"api_calls": 2},
+        },
     ]
     pid_path = tmp_path / "pid"
     worker = tmp_path / "interactive-worker.py"
@@ -237,11 +263,15 @@ def test_live_prefixes_are_isolated_nonblocking_and_cannot_overwrite_final(
         "for event in prefix:\n"
         "    print(json.dumps(event), flush=True)\n"
         "assert json.loads(sys.stdin.readline())['id'] == 1\n"
-        + ("time.sleep(60)\n" if cancel else (
-            f"suffix = {suffix!r}\n"
-            "for event in suffix:\n"
-            "    print(json.dumps(event), flush=True)\n"
-        ))
+        + (
+            "time.sleep(60)\n"
+            if cancel
+            else (
+                f"suffix = {suffix!r}\n"
+                "for event in suffix:\n"
+                "    print(json.dumps(event), flush=True)\n"
+            )
+        )
     )
     monkeypatch.setattr(module, "_NATIVE_PYTHON", Path(sys.executable))
     monkeypatch.setattr(module, "_WORKER", worker)
@@ -316,19 +346,25 @@ def test_live_prefixes_are_isolated_nonblocking_and_cannot_overwrite_final(
     final = json.loads((agent.logs_dir / "trajectory.json").read_text())
     expected = module.Trajectory.model_validate(
         module.native_to_atif(
-            agent._native, agent._calls,
-            trajectory_id=agent._trajectory_id, model_name=agent.model_name,
+            agent._native,
+            agent._calls,
+            trajectory_id=agent._trajectory_id,
+            model_name=agent.model_name,
         )
     ).model_dump(mode="json", exclude_none=True)
-    expected = json.loads(module.redact_secret_material(
-        json.dumps(expected, ensure_ascii=False, indent=2).encode(), agent._secrets
-    ))
+    expected = json.loads(
+        module.redact_secret_material(
+            json.dumps(expected, ensure_ascii=False, indent=2).encode(), agent._secrets
+        )
+    )
     if fail_later:
         assert final == published[0]
         assert final["final_metrics"]["total_prompt_tokens"] == 7
     else:
         assert final == expected
-        assert [len(document["steps"]) for document in published] == ([2, 2] if cancel else [2, 3, 3])
+        assert [len(document["steps"]) for document in published] == (
+            [2, 2] if cancel else [2, 3, 3]
+        )
     assert published[-1] == final
     assert published[0]["final_metrics"]["total_prompt_tokens"] == 7
     observation = published[0]["steps"][1]["observation"]["results"][0]
@@ -350,7 +386,8 @@ def test_redaction_failure_preserves_last_valid_trajectory(tmp_path, monkeypatch
 
     agent = module.NativeMimoAgent(logs_dir=tmp_path, model_name=MIMO_SELFHOSTED_MODEL_SELECTOR)
     agent._native["trajs"]["main"] = {
-        "messages": [{"role": "user", "content": "unchanged /testbed content"}], "tools": [],
+        "messages": [{"role": "user", "content": "unchanged /testbed content"}],
+        "tools": [],
     }
     agent._publish(*agent._snapshot())
     path = tmp_path / "trajectory.json"
@@ -375,13 +412,16 @@ def test_bearer_redaction_keeps_latest_trajectory_json_intact(tmp_path, suffix):
 
     agent = module.NativeMimoAgent(logs_dir=tmp_path, model_name=MIMO_SELFHOSTED_MODEL_SELECTOR)
     agent._native["trajs"]["main"] = {
-        "messages": [{"role": "user", "content": "unchanged /testbed content"}], "tools": [],
+        "messages": [{"role": "user", "content": "unchanged /testbed content"}],
+        "tools": [],
     }
     agent._publish(*agent._snapshot())
-    agent._native["trajs"]["main"]["messages"].append({
-        "role": "assistant",
-        "content": f"Authorization: Bearer final-only-token{suffix}",
-    })
+    agent._native["trajs"]["main"]["messages"].append(
+        {
+            "role": "assistant",
+            "content": f"Authorization: Bearer final-only-token{suffix}",
+        }
+    )
     agent._publish(*agent._snapshot())
 
     data = (tmp_path / "trajectory.json").read_bytes()
@@ -399,7 +439,8 @@ def test_partial_temporary_write_never_exposes_torn_trajectory(tmp_path, monkeyp
 
     agent = module.NativeMimoAgent(logs_dir=tmp_path, model_name=MIMO_SELFHOSTED_MODEL_SELECTOR)
     agent._native["trajs"]["main"] = {
-        "messages": [{"role": "user", "content": "first intact document"}], "tools": [],
+        "messages": [{"role": "user", "content": "first intact document"}],
+        "tools": [],
     }
     agent._publish(*agent._snapshot())
     trajectory_path = tmp_path / "trajectory.json"
@@ -440,5 +481,89 @@ def test_partial_temporary_write_never_exposes_torn_trajectory(tmp_path, monkeyp
     if fail_write:
         assert trajectory_path.read_bytes() == good
     else:
-        assert [step["message"] for step in published["steps"]] == ["first intact document", "second"]
+        assert [step["message"] for step in published["steps"]] == [
+            "first intact document",
+            "second",
+        ]
     assert not (tmp_path / ".trajectory.json.tmp").exists()
+
+
+def test_context_exhausted_ends_cleanly_with_verifier_eligible_stop(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    AgentContext = pytest.importorskip("harbor.models.agent.context").AgentContext
+
+    import evallab.harbor_mimoagent as module
+    from evallab.execution_contracts import (
+        MIMO_SELFHOSTED_CONTEXT_TOKENS,
+        MIMO_SELFHOSTED_MODEL_SELECTOR,
+        MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
+        TERMINUS_PROXY_URL_ENV,
+    )
+
+    exhaustion = {
+        "error_type": "ModelQueryError",
+        "root_error_type": "BadRequestError",
+        "last_response_status": 400,
+        "last_prompt_tokens": 65041,
+        "served_context_tokens": MIMO_SELFHOSTED_CONTEXT_TOKENS,
+    }
+    events = [
+        {"event": "agent_start", "name": "main", "tools": [], "tool_choice": "auto"},
+        {
+            "event": "message",
+            "name": "main",
+            "message": {"role": "user", "content": "fix the task"},
+        },
+        {
+            "event": "model_call",
+            "name": "main",
+            "assistant_index": 0,
+            "response_status": 400,
+            "usage": None,
+            "proxy_budget_reason": None,
+        },
+        {
+            "event": "finished",
+            "exit_status": "ContextExhausted",
+            "result": "native context exhausted: ModelQueryError",
+            "model_stats": {},
+            "stop_reason": "context_exhausted",
+            "context_exhaustion": exhaustion,
+        },
+    ]
+    event_file = tmp_path / "events.json"
+    event_file.write_text(json.dumps(events))
+    worker = tmp_path / "worker.py"
+    worker.write_text(
+        "import json, pathlib, sys\n"
+        "initial = json.loads(sys.stdin.readline())\n"
+        f"events = json.loads(pathlib.Path({str(event_file)!r}).read_text())\n"
+        'assert initial.get("served_context_tokens") == '
+        f"{MIMO_SELFHOSTED_CONTEXT_TOKENS}\n"
+        "for event in events:\n"
+        "    print(json.dumps(event), flush=True)\n"
+    )
+    monkeypatch.setattr(module, "_NATIVE_PYTHON", Path(sys.executable))
+    monkeypatch.setattr(module, "_WORKER", worker)
+    monkeypatch.setenv(TERMINUS_PROXY_URL_ENV, "http://127.0.0.1:1/v1")
+    monkeypatch.setenv(MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, "test-capability")
+
+    class Environment:
+        async def exec(self, *_args, **_kwargs):
+            return SimpleNamespace(return_code=0, stdout="/testbed\n")
+
+    agent = module.NativeMimoAgent(
+        logs_dir=tmp_path / "agent", model_name=MIMO_SELFHOSTED_MODEL_SELECTOR
+    )
+    context = AgentContext()
+    # No exception: Harbor proceeds to the verifier on the final state.
+    asyncio.run(agent.run("fix the task", Environment(), context))
+    assert context.metadata["native_exit_status"] == "ContextExhausted"
+    assert context.metadata["stop_reason"] == "context_exhausted"
+    assert context.metadata["context_exhaustion"] == exhaustion
+    assert "infra_error" not in context.metadata
+    reason, _ = classify_stop_reason(agent_metadata=context.metadata, exception_info={})
+    assert reason == "context_exhausted"
+    trajectory_path = tmp_path / "agent" / "trajectory.json"
+    assert json.loads(trajectory_path.read_text())["extra"]["stop_reason"] == ("context_exhausted")

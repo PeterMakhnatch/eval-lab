@@ -39,7 +39,13 @@ def _answer(content="native answer", *, tool_calls=None):
 
 
 def _run_worker(
-    tmp_path, respond, *, budget=0.2, instruction="Repair /testbed/task.py", observer_fault=None
+    tmp_path,
+    respond,
+    *,
+    budget=0.2,
+    instruction="Repair /testbed/task.py",
+    observer_fault=None,
+    served_context_tokens=None,
 ):
     if not NATIVE_PYTHON.is_file():
         pytest.skip("separate pinned Xiaomi interpreter is not installed")
@@ -85,6 +91,9 @@ def _run_worker(
         "native_logs_dir": str(logs),
         "native_trajectory_path": str(logs / "native-trajectory.json"),
     }
+    if served_context_tokens is not None:
+        initial["served_context_tokens"] = served_context_tokens
+
     # Private fixture-only override, not a production config/environment knob.
     # SDK requests and parsing still run in the actual pinned interpreter.
     bootstrap = (
@@ -98,7 +107,9 @@ def _run_worker(
             "OSError('secret observer failure at /controller/private')); "
         )
         if observer_fault == "message_file":
-            bootstrap += "from mimoagent.agents.base import BaseAgent; BaseAgent._append_msg_to_file=fail; "
+            bootstrap += (
+                "from mimoagent.agents.base import BaseAgent; BaseAgent._append_msg_to_file=fail; "
+            )
         else:
             bootstrap += "import mimoagent.run.utils.save as save; save.save_traj=fail; "
     bootstrap += "n['main']()"
@@ -414,3 +425,118 @@ def test_native_observer_file_failure_preserves_idle_history_and_usage(tmp_path,
         assert native["trajs"]["main"]["messages"] == messages
     else:
         assert native is None
+
+
+SGLANG_CONTEXT_BODY = {
+    "object": "error",
+    "message": "The input (65686 tokens) is longer than the model's context length (65536 tokens).",
+    "type": "BadRequestError",
+    "param": None,
+    "code": 400,
+}
+
+SGLANG_TOTAL_OVERFLOW_BODY = {
+    "object": "error",
+    "message": (
+        "Requested token count exceeds the model's maximum context length of 65536 tokens. "
+        "You requested a total of 66000 tokens: 65686 tokens from the input messages and "
+        "314 tokens for the completion. Please reduce the number of tokens in the input "
+        "messages or the completion to fit within the limit."
+    ),
+    "type": "BadRequest",
+    "param": None,
+    "code": 400,
+}
+
+
+@pytest.mark.parametrize("body", [SGLANG_CONTEXT_BODY, SGLANG_TOTAL_OVERFLOW_BODY])
+def test_sglang_context_400_ends_rollout_as_context_exhausted(tmp_path, body):
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path, lambda attempt, request: (400, body)
+    )
+    assert len(requests) == 1
+    assert [call["response_status"] for call in calls] == [400]
+    assert finished["exit_status"] == "ContextExhausted"
+    assert finished["stop_reason"] == "context_exhausted"
+    assert "infra_error" not in finished
+    exhaustion = finished["context_exhaustion"]
+    assert exhaustion["error_type"] == "ModelQueryError"
+    assert exhaustion["root_error_type"] == "BadRequestError"
+    assert exhaustion["last_response_status"] == 400
+    assert finished["result"] == "native context exhausted: ModelQueryError"
+    # No synthetic user turn and no step boundary: history is untouched.
+    main = native["trajs"]["main"]["messages"]
+    assert [message["role"] for message in main] == ["system", "user"]
+    assert len([event for event in events if event["event"] == "message"]) == 2
+    assert not any(event["event"] == "step_complete" for event in events)
+    assert native["info"]["stop_reason"] == "context_exhausted"
+    assert native["info"]["context_exhaustion"] == exhaustion
+    assert "infra_error" not in native["info"]
+    exported = json.dumps({"events": events, "native": native})
+    assert "Traceback (most recent call last)" not in exported
+    assert "native transport retry" not in stderr
+
+
+def test_non_context_400_stays_model_query_error(tmp_path):
+    body = {
+        "object": "error",
+        "message": "Invalid schema for tool 'bash': property 'command' is required.",
+        "type": "BadRequestError",
+        "param": None,
+        "code": 400,
+    }
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path, lambda attempt, request: (400, body)
+    )
+    assert finished["exit_status"] == "ModelQueryError"
+    assert finished["stop_reason"] == "infra_error"
+    assert "context_exhaustion" not in finished
+    _assert_no_infrastructure_turn(native, events, finished, tmp_path)
+
+
+def test_uninformative_400_at_served_limit_ends_as_context_exhausted(tmp_path):
+    tool_call = {
+        "id": "child-call",
+        "type": "function",
+        "function": {
+            "name": "agent",
+            "arguments": json.dumps(
+                {"subagent_type": "explore", "prompt": "Inspect /testbed/task.py"}
+            ),
+        },
+    }
+    first = _answer(None, tool_calls=[tool_call])
+    first["usage"] = {
+        "prompt_tokens": 65536,
+        "completion_tokens": 12,
+        "total_tokens": 65548,
+    }
+
+    def respond(attempt, request):
+        if attempt == 1:
+            return 200, first
+        if attempt == 2:
+            return 200, _answer("child done")
+        return 400, {"error": {"message": "request failed"}}
+
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path, respond, served_context_tokens=65536
+    )
+    # The child answers, then the parent's next prefix (past the served
+    # window) fails with an uninformative 400: still context exhaustion.
+    assert finished["exit_status"] == "ContextExhausted"
+    assert finished["stop_reason"] == "context_exhausted"
+    assert finished["context_exhaustion"]["last_prompt_tokens"] == 65536
+    assert finished["context_exhaustion"]["served_context_tokens"] == 65536
+    assert finished["result"] == "native context exhausted: ModelQueryError"
+
+
+def test_small_prefix_uninformative_400_stays_model_query_error(tmp_path):
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path,
+        lambda attempt, request: (400, {"error": {"message": "request failed"}}),
+        served_context_tokens=65536,
+    )
+    assert finished["exit_status"] == "ModelQueryError"
+    assert finished["stop_reason"] == "infra_error"
+    _assert_no_infrastructure_turn(native, events, finished, tmp_path)

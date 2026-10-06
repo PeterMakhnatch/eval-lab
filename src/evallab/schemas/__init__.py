@@ -505,6 +505,26 @@ class ExperimentSpec(ContractModel):
         pattern=r"^sha256:[0-9a-f]{64}$",
     )
     campaign_evidence_store: str | None = None
+    campaign_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=80,
+        pattern=r"^[a-z0-9][a-z0-9-]*$",
+        description=(
+            "claim on an approved experiment campaign (HAR-175): the spec is "
+            "admitted automatically only when every campaign check passes; "
+            "specs without a claim keep the per-ID human approval path"
+        ),
+    )
+    campaign_replaces: str | None = Field(
+        default=None,
+        min_length=1,
+        description=(
+            "lineage for an automatic campaign replacement (HAR-175): the "
+            "spec_id of the infra-excluded spec this spec replaces; a "
+            "replacement's own infra failure is never replaced again"
+        ),
+    )
 
     @field_validator(
         "task",
@@ -578,6 +598,8 @@ class ExperimentSpec(ContractModel):
                 )
         elif self.provider_failover_max_cost_usd is not None:
             raise ValueError("provider_failover_max_cost_usd requires provider_routes")
+        if self.campaign_replaces is not None and self.campaign_id is None:
+            raise ValueError("campaign_replaces requires campaign_id")
         campaign_fields = (
             self.campaign_ledger,
             self.campaign_cell_id,

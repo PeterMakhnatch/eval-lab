@@ -17,6 +17,8 @@ _CAMPAIGN_FIELDS: tuple[str, ...] = (
     "campaign_manifest_digest",
     "campaign_spec_digest",
     "campaign_evidence_store",
+    "campaign_id",
+    "campaign_replaces",
 )
 
 
@@ -108,7 +110,6 @@ def replay_spec_for_candidate(
     for field in _CAMPAIGN_FIELDS:
         update[field] = None
     return ExperimentSpec.model_validate(base_spec.model_dump(mode="json") | update)
-
 
 
 def replay_spec_for_model(

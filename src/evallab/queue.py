@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from pydantic import ValidationError
 
-from evallab import database
+from evallab import campaign_approval, database
 from evallab.credentials import (
     DEFAULT_AGENT_MODELS,
     available_credentials,
@@ -532,11 +532,24 @@ class PolicyGate:
                 ),
             )
 
+        campaign_rule: str | None = None
+        if spec.campaign_id is not None:
+            # HAR-175: one approval per experiment. A spec that claims an
+            # approved campaign is admitted by that approval when every
+            # campaign check passes; any mismatch refuses with its own
+            # reason and the spec is never silently admitted. Specs without
+            # a claim keep the per-ID path below unchanged.
+            refusal = campaign_approval.campaign_admission_refusal(self, spec)
+            if refusal is not None:
+                return refusal
+            campaign_rule = f"campaign:{spec.campaign_id}"
+
         if spec.billable:
-            # Paid execution is authorised one spec at a time by a named human.
+            # Paid execution is authorised one spec at a time by a named human,
+            # or once per experiment by a named campaign approval (above).
             # No standing rule is consulted below this point for billable work,
             # so an unattended cycle cannot reach Harbor with a paid agent.
-            if authorization is None:
+            if authorization is None and campaign_rule is None:
                 # The refusal is also where the operator first sees what the run
                 # would cost them: they are about to be asked to authorise it.
                 return PolicyDecision(
@@ -547,7 +560,7 @@ class PolicyGate:
                         f"{render_headroom_notice(self.headroom(spec.agent), agent=spec.agent, model=spec.model)}"
                     ),
                 )
-            if spec.submitted_at is None:
+            if authorization is not None and spec.submitted_at is None:
                 return PolicyDecision(
                     admitted=False,
                     reason_code="paid_run_authorization_mismatch",
@@ -557,7 +570,11 @@ class PolicyGate:
                         "`uv run evallab submit` and authorise the id that prints"
                     ),
                 )
-            if authorization.authorized_at < spec.submitted_at:
+            if (
+                authorization is not None
+                and spec.submitted_at is not None
+                and authorization.authorized_at < spec.submitted_at
+            ):
                 return PolicyDecision(
                     admitted=False,
                     reason_code="paid_run_authorization_stale",
@@ -577,7 +594,8 @@ class PolicyGate:
             # every branch below carries `render_headroom_notice`.
             headroom = self.headroom(spec.agent)
             exhausted = provider_reported_exhaustion(headroom)
-            if exhausted is not None and not authorization.quota_override:
+            override = authorization is not None and authorization.quota_override
+            if exhausted is not None and not override:
                 return PolicyDecision(
                     admitted=False,
                     reason_code="subscription_quota_exhausted",
@@ -594,7 +612,7 @@ class PolicyGate:
             threshold_reached = lab_threshold_reached(
                 headroom, threshold=self.policy.refuse_billable_at_used_percent
             )
-            if threshold_reached is not None and not authorization.quota_override:
+            if threshold_reached is not None and not override:
                 return PolicyDecision(
                     admitted=False,
                     reason_code="subscription_quota_ceiling",
@@ -633,6 +651,23 @@ class PolicyGate:
                         "quarantine billable dispatch"
                     ),
                 )
+
+        if campaign_rule is not None:
+            notes = [
+                f"admitted by {campaign_rule} approval recorded for campaign {spec.campaign_id}"
+            ]
+            if spec.billable:
+                # Whoever approved the campaign is entitled to see, in the
+                # admission itself, the allowance this spec spends against.
+                admitted_headroom = self.headroom(spec.agent)
+                notes.append(
+                    render_headroom_notice(admitted_headroom, agent=spec.agent, model=spec.model)
+                )
+            return PolicyDecision(
+                admitted=True,
+                policy_rule=campaign_rule,
+                message="\n".join(notes),
+            )
 
         if authorization is not None:
             notes = [
@@ -1464,12 +1499,24 @@ class Executor:
         )
 
     def submit(self, spec: ExperimentSpec) -> tuple[Path, PolicyDecision]:
-        return self.queue.submit(
+        path, decision = self.queue.submit(
             spec,
             gate=self.gate,
             spent_today_usd=self._effective_spend_today(),
             consecutive_harness_failures=self._consecutive_harness_failures(),
         )
+        if (
+            spec.campaign_id is not None
+            and not decision.admitted
+            and campaign_approval.should_escalate(decision.reason_code)
+        ):
+            # Breach or defect: page Research-Harbor once per (spec, reason).
+            # Budget exhaustion also fences the queue: new launches stop via
+            # the existing STOP mechanism while running trials finish alone.
+            campaign_approval.escalate_after_refusal(self.repo_root, spec, decision)
+            if decision.reason_code == campaign_approval.REASON_BUDGET_EXHAUSTED:
+                self.queue.stop()
+        return path, decision
 
     def tick(
         self,
@@ -1485,7 +1532,15 @@ class Executor:
                 self.last_tick_reason = "executor_busy"
                 return 0
             self.last_tick_reason = None
-            return self._tick_locked(parallel=effective_parallel, spec_ids=spec_ids)
+            dispatched = self._tick_locked(parallel=effective_parallel, spec_ids=spec_ids)
+        # HAR-175: one automatic replacement per infra-excluded campaign
+        # trial. The scan is a no-op without campaign state and never fails
+        # the tick; escalation on a refused replacement rides submit.
+        try:
+            campaign_approval.reconcile_campaign_replacements(self, report=self._report_progress)
+        except Exception as exc:  # noqa: BLE001 -- replacement scan never fails dispatch
+            self._report_progress(f"campaign replacement scan failed: {type(exc).__name__}: {exc}")
+        return dispatched
 
     def _report_progress(self, message: str) -> None:
         if self._progress is not None:
@@ -2079,6 +2134,14 @@ class Executor:
             authorization=authorization,
         )
         if not decision.admitted:
+            if spec.campaign_id is not None and campaign_approval.should_escalate(
+                decision.reason_code
+            ):
+                # Same breach/defect escalation as submit (deduplicated per
+                # spec and reason); budget exhaustion fences new launches.
+                campaign_approval.escalate_after_refusal(self.repo_root, spec, decision)
+                if decision.reason_code == campaign_approval.REASON_BUDGET_EXHAUSTED:
+                    self.queue.stop()
             try:
                 waiting = self.queue.transition(
                     path,

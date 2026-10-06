@@ -329,17 +329,17 @@ def _harness_settings(
     return additions, step_limit
 
 
-def build_intended_fingerprint(
+def _setup_fields(
     *,
     spec: Any,
     task_dir: Path,
     model: str | None,
     agent: str,
-    environment: str = "docker",
+    environment: str,
     repo_root: Path,
     request: Any = None,
 ) -> dict[str, Any]:
-    """The setup a dispatch is about to run, from the real $0 path."""
+    """Behavior inputs shared by the recorded fingerprint and Harbor's lock."""
     from evallab.execution_contracts import resolve_egress_lock
 
     serve = read_serve_config(repo_root)
@@ -347,7 +347,9 @@ def build_intended_fingerprint(
     sampling = sampling_sent(model)
     additions, step_limit = _harness_settings(spec, repo_root, request)
     harness_id = agent
-    harness_version = spec.harness_tree_sha256 if spec is not None else None
+    harness_version = getattr(request, "harness_tree_sha256", None) or (
+        spec.harness_tree_sha256 if spec is not None else None
+    )
     harness_version_source = (
         "spec harness_tree_sha256"
         if harness_version
@@ -371,33 +373,14 @@ def build_intended_fingerprint(
         config = yaml.safe_load(native_config.read_text(encoding="utf-8"))
         step_limit = config["agent"]["step_limit"]
         step_limit_source = "tools/mimoagent-harbor/swe.yaml agent.step_limit"
-    task_id = spec.task_id or task_dir.name if spec is not None else task_dir.name
-    try:
-        task_bytes, task_digest = task_bytes_and_digest(task_dir)
-        task_error: str | None = None
-    except (OSError, ValueError) as exc:
-        task_bytes, task_digest = 0, ""
-        task_error = f"{type(exc).__name__}: {exc}"
-    ledger = ledger_binding(repo_root, task_id, task_digest or None)
-    declared = spec.egress_lock if spec is not None else None
+    declared = (
+        request.egress_lock if request is not None else spec.egress_lock if spec is not None else None
+    )
     effective = bool(
         resolve_egress_lock(_egress_request(task_dir, agent, model, declared, environment))
     )
-    deviations = [
-        {"field": item.field, "value": item.value, "reason": item.reason}
-        if hasattr(item, "field")
-        else dict(item)
-        for item in ((spec.deviations or ()) if spec is not None else ())
-    ]
     limits = request if request is not None else spec
     return {
-        "schema": FINGERPRINT_SCHEMA,
-        "subject": {
-            "spec": spec.name if spec is not None else None,
-            "task": task_id,
-            "model": model,
-        },
-        "reference_profile": spec.reference_profile if spec is not None else None,
         "harness": {
             "id": harness_id,
             "version": harness_version,
@@ -427,16 +410,6 @@ def build_intended_fingerprint(
                 "resolve_egress_lock (effective intent)"
             ),
         ),
-        "task": {
-            "bytes": task_bytes,
-            "digest": task_digest,
-            "declared_digest": spec.task_package_digest if spec is not None else None,
-            "ledger_status": ledger.get("status"),
-            "ledger_match": ledger.get("matched"),
-            "ledger_reason": ledger.get("reason"),
-            "error": task_error,
-            "source": "registry.compute_task_digests(task).package; ledger via counts.task_index_for",
-        },
         "budgets": {
             "timeout_seconds": limits.timeout_seconds if limits is not None else None,
             "max_requests": limits.max_requests if limits is not None else None,
@@ -447,8 +420,103 @@ def build_intended_fingerprint(
             "step_limit": step_limit,
             "step_limit_source": step_limit_source,
         },
-        "deviations": deviations,
     }
+
+
+def build_intended_fingerprint(
+    *,
+    spec: Any,
+    task_dir: Path,
+    model: str | None,
+    agent: str,
+    environment: str = "docker",
+    repo_root: Path,
+    request: Any = None,
+) -> dict[str, Any]:
+    """The setup a dispatch is about to run, from the real $0 path."""
+    setup = _setup_fields(
+        spec=spec,
+        task_dir=task_dir,
+        model=model,
+        agent=agent,
+        environment=environment,
+        repo_root=repo_root,
+        request=request,
+    )
+    task_id = (spec.task_id or task_dir.name) if spec is not None else task_dir.name
+    try:
+        task_bytes, task_digest = task_bytes_and_digest(task_dir)
+        task_error: str | None = None
+    except (OSError, ValueError) as exc:
+        task_bytes, task_digest = 0, ""
+        task_error = f"{type(exc).__name__}: {exc}"
+    ledger = ledger_binding(repo_root, task_id, task_digest or None)
+    return {
+        "schema": FINGERPRINT_SCHEMA,
+        "subject": {
+            "spec": spec.name if spec is not None else None,
+            "task": task_id,
+            "model": model,
+        },
+        "reference_profile": spec.reference_profile if spec is not None else None,
+        **setup,
+        "task": {
+            "bytes": task_bytes,
+            "digest": task_digest,
+            "declared_digest": spec.task_package_digest if spec is not None else None,
+            "ledger_status": ledger.get("status"),
+            "ledger_match": ledger.get("matched"),
+            "ledger_reason": ledger.get("reason"),
+            "error": task_error,
+            "source": "registry.compute_task_digests(task).package; ledger via counts.task_index_for",
+        },
+        "deviations": [
+            {"field": item.field, "value": item.value, "reason": item.reason}
+            if hasattr(item, "field")
+            else dict(item)
+            for item in ((spec.deviations or ()) if spec is not None else ())
+        ],
+    }
+
+
+def lock_setup_fingerprint(request: Any, *, repo_root: Path | None = None) -> str:
+    """Canonical behavior inputs carried in Harbor's lock-covered agent env.
+
+    Task bytes, ledger status, spec names and explanatory source paths are not
+    behavior inputs: including them would defeat Harbor's task-semver reuse and
+    regrade rules. Native agent/environment kwargs remain independently locked.
+    """
+    from evallab.execution_contracts import is_mimo_family_model
+
+    root = resolve_repo_root(repo_root, request.task)
+    setup = _setup_fields(
+        spec=request.experiment_spec,
+        task_dir=request.task,
+        model=request.model,
+        agent=request.agent,
+        environment=request.environment,
+        repo_root=root,
+        request=request,
+    )
+    excluded = {"source", "sources", "version_source", "step_limit_source"}
+    inputs = {
+        section: {key: value for key, value in fields.items() if key not in excluded}
+        for section, fields in setup.items()
+        if section not in {"server", "sampling"} or is_mimo_family_model(request.model)
+    }
+    # Harbor content-locks instructions and skills itself; their temporary
+    # staging locations must not invalidate otherwise identical setup inputs.
+    inputs["harness"]["additions"] = {
+        key: value
+        for key, value in inputs["harness"]["additions"].items()
+        if key not in {"rules", "skills", "extra_instruction", "extra_skills"}
+    }
+    return json.dumps(
+        {"schema": FINGERPRINT_SCHEMA, **inputs},
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    )
 
 
 def _egress_request(

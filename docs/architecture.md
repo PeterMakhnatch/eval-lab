@@ -319,6 +319,16 @@ Every experiment should preserve:
 The included control matrix changes only the agent adapter (`oracle` versus
 `nop`). All task, environment, and verifier inputs stay fixed.
 
+Harbor 0.24 owns the reuse/regrade/rerun classification. The Lab's
+[`job_diff`](../src/evallab/job_diff.py) feeds it execution-equivalent staged
+inputs and gates cross-version source locks; it does not maintain a second
+trial comparator. Setup behavior is bound into `TrialLock` through the native
+agent environment. An all-reuse queue completion references existing trial IDs,
+never fabricates a new job or new experimental observations. Local job regrade
+uses [`regrade`](../src/evallab/regrade.py) to preserve both original and
+re-scored reward dimensions in separate receipts. See the
+[operator contract](execution-tiers.md#harbor-native-reuse-and-local-regrade-har-171).
+
 ## Security and cost boundaries
 
 - Local controls require no model secrets.

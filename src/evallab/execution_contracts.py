@@ -985,6 +985,7 @@ class RunRequest:
     provider_returned_model_id: str | None = None
     inference_settings: ProfileInferenceSettings | None = None
     egress_lock: bool | None = None
+    diff_sources: tuple[Path, ...] = ()
 
     @property
     def trial_watchdog_seconds(self) -> int:
@@ -1904,8 +1905,12 @@ def terminus_agent_kwargs(request: RunRequest) -> dict[str, Any]:
     return kwargs
 
 
-def build_command(request: RunRequest) -> list[str]:
+def build_command(
+    request: RunRequest, *, setup_fingerprint: str | None = None
+) -> list[str]:
     """Build the exact Harbor CLI invocation command for a RunRequest."""
+    from evallab.setup_fingerprint import lock_setup_fingerprint
+
     environment = request.environment
     zai_daytona = (
         environment == "daytona"
@@ -1934,6 +1939,17 @@ def build_command(request: RunRequest) -> list[str]:
         "--n-attempts",
         str(request.attempts),
     ]
+    command.extend(
+        [
+            "--agent-env",
+            "EVALLAB_SETUP_FINGERPRINT="
+            + (setup_fingerprint if setup_fingerprint is not None else lock_setup_fingerprint(request)),
+        ]
+    )
+    for source in request.diff_sources:
+        command.extend(["--diff", str(source)])
+    if request.diff_sources:
+        command.append("--yes")
     if request.environment == "daytona":
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60

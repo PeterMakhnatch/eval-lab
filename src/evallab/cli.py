@@ -406,8 +406,26 @@ def _preflight_command(
         for spec_path in args.spec:
             text, spec_ok = render_spec_preflight(_resolve(root, spec_path), checkout)
             print(text, end="" if text.endswith("\n") else "\n")
+            if spec_ok:
+                from evallab.job_diff import render_diff
+                from evallab.preflight import preview_spec_diff
+                from evallab.schemas import ExperimentSpec
+
+                try:
+                    spec = ExperimentSpec.model_validate_json(_resolve(root, spec_path).read_text())
+                    sources = getattr(args, "diff_sources", None)
+                    if sources:
+                        spec = spec.model_copy(
+                            update={"diff_sources": [str(_resolve(checkout, path)) for path in sources]}
+                        )
+                    print(render_diff(preview_spec_diff(spec, checkout)), end="")
+                except (OSError, ValueError, RuntimeError, ImportError) as exc:
+                    print(f"DIFF REFUSED: {exc}")
+                    spec_ok = False
             ok = ok and spec_ok
         return 0 if ok else 1
+    if getattr(args, "diff_sources", None):
+        raise ValueError("--diff requires --spec; persist diff_sources in the spec before approval")
     target = _resolve(root, args.preflight_from) if args.preflight_from else root
     report = build_preflight_report(
         target,
@@ -417,7 +435,7 @@ def _preflight_command(
         useful_effect=args.useful_effect,
     )
     print(render_preflight(report))
-    return 1 if report.refusals() else 0
+    return 1 if report.refusals() or report.diff_errors else 0
 
 
 def _run_preflight_command(
@@ -2688,39 +2706,35 @@ def _evidence_archive_command(
     return 0
 
 
-def _regrade_verifier_command(
+def _regrade_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
-    from evallab.regrade import verifier_identity
-
-    identity = verifier_identity(_resolve(root, args.task))
-    if args.json:
-        print(json.dumps(identity.model_dump(mode="json"), indent=2, sort_keys=True))
-    else:
-        print(
-            f"{identity.task_name or identity.task_dir} "
-            f"mode={identity.environment_mode} "
-            f"files={identity.context_file_count} {identity.digest}"
-        )
-    return 0 if identity.environment_mode == "separate" else 1
-
-
-def _regrade_trial_command(
-    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
-) -> int:
-    from evallab.regrade import regrade_trial, render_receipt
-
-    receipt = regrade_trial(
-        trial_dir=_resolve(root, args.trial),
-        task_dir=_resolve(root, args.task),
-        trials_dir=_resolve(root, args.trials_dir),
-        environment=args.environment,
+    from evallab.regrade import (
+        plan_regrade_job,
+        regrade_job,
+        render_job_plan,
+        render_job_receipt,
     )
-    if args.json:
-        print(json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True))
-    else:
-        print(render_receipt(receipt))
-    return 1 if receipt.refused else 0
+
+    options: dict[str, Any] = {
+        "job_dir": _resolve(root, args.job),
+        "task_dir": _resolve(root, args.task) if args.task else None,
+        "jobs_dir": _resolve(root, args.jobs_dir),
+        "name": args.name,
+    }
+    if args.dry_run:
+        plan = plan_regrade_job(**options)
+        print(
+            json.dumps(plan.model_dump(mode="json"), indent=2, sort_keys=True)
+            if args.json else render_job_plan(plan)
+        )
+        return 0 if plan.runnable else 1
+    receipt = regrade_job(**options)
+    print(
+        json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True)
+        if args.json else render_job_receipt(receipt)
+    )
+    return 1 if receipt.refused or receipt.n_refused else 0
 
 
 def _evidence_restore_command(
@@ -4526,6 +4540,13 @@ def parser() -> argparse.ArgumentParser:
             "Checkout the spec task paths, ledger, and serve config resolve "
             "against (default: this checkout). Read-only."
         ),
+    )
+    preflight.add_argument(
+        "--diff",
+        dest="diff_sources",
+        action="append",
+        type=Path,
+        help="Preview against a local prior job (repeatable); requires --spec. Dispatch uses the spec's approval-bound diff_sources.",
     )
     preflight.set_defaults(func=_preflight_command)
 
@@ -6459,29 +6480,20 @@ def parser() -> argparse.ArgumentParser:
         "regrade",
         help="Re-score recorded trials with a task's current verifier at zero model cost",
     )
-    regrade_commands = regrade_parser.add_subparsers(dest="regrade_command", required=True)
-    regrade_verifier = regrade_commands.add_parser(
-        "verifier", help="Show a task's verifier content identity digest"
+    regrade_parser.add_argument("job", type=Path, help="Stored Harbor job directory")
+    regrade_parser.add_argument(
+        "--task", type=Path, help="Current separate-verifier task or task collection"
     )
-    regrade_verifier.add_argument("--task", type=Path, required=True, help="Task directory")
-    regrade_verifier.add_argument("--json", action="store_true")
-    regrade_verifier.set_defaults(func=_regrade_verifier_command)
-    regrade_trial_parser = regrade_commands.add_parser(
-        "trial", help="Re-score one recorded trial and write a typed regrade receipt"
-    )
-    regrade_trial_parser.add_argument("trial", type=Path, help="Recorded trial directory")
-    regrade_trial_parser.add_argument(
-        "--task", type=Path, required=True, help="Task directory providing the verifier"
-    )
-    regrade_trial_parser.add_argument(
-        "--trials-dir",
+    regrade_parser.add_argument(
+        "--jobs-dir",
         type=Path,
-        default=Path("derived/regrades"),
-        help="Parent directory for the new regrade trial",
+        default=Path("runs"),
+        help="Parent directory for the new regrade job; the source is never changed",
     )
-    regrade_trial_parser.add_argument("--environment", default="docker")
-    regrade_trial_parser.add_argument("--json", action="store_true")
-    regrade_trial_parser.set_defaults(func=_regrade_trial_command)
+    regrade_parser.add_argument("--name", help="Explicit new job name")
+    regrade_parser.add_argument("--dry-run", action="store_true", help="Preview without running a verifier")
+    regrade_parser.add_argument("--json", action="store_true")
+    regrade_parser.set_defaults(func=_regrade_command)
     process_job_parser = commands.add_parser(
         "process-job",
         help="Process a landed Harbor job: ingest, detectors, run/job reports",

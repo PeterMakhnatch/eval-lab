@@ -15,6 +15,7 @@ import time
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager, suppress
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -73,6 +74,7 @@ from evallab.interpretation.trajectory_compliance import (
     TrialEvidenceBundle,
     evaluate_trial_compliance,
 )
+from evallab.job_diff import DiffPreview, preview_diff, render_diff
 
 if TYPE_CHECKING:
     from evallab.modal_ops import ModalTeardownHook
@@ -1983,8 +1985,6 @@ class Executor:
                 )
             )
             return False
-        if not self._ensure_selfhosted_ready(spec):
-            return False
         authorization = authorizations.get(str(spec.spec_id))
         if authorization is not None and (
             authorization.approved_spec_digest != approved_spec_digest(spec)
@@ -2034,6 +2034,9 @@ class Executor:
             except (FileNotFoundError, FileExistsError, ValueError):
                 pass
             return False
+        no_agent_execution = self._spec_runs_no_agent(spec)
+        if not no_agent_execution and not self._ensure_selfhosted_ready(spec):
+            return False
         lease_generation = secrets.token_hex(16)
         lease_path = self.queue.acquire_lease(
             spec,
@@ -2054,16 +2057,33 @@ class Executor:
             self.queue.release_lease(spec, lease_generation=lease_generation)
             return False
         self._report_progress(f"dispatching {spec.name} (spec {spec.spec_id}, agent {spec.agent})")
-        self._report_progress(
-            f"child started for {spec.name}; progress log: "
-            f"{self.repo_root / spec.jobs_dir / '.executor' / (spec.name + '.log')}"
-        )
         try:
             try:
                 job_dir = self.execute_spec(
                     spec,
                     lease_generation=lease_generation,
+                    allow_rerun=not no_agent_execution,
                 )
+                if isinstance(job_dir, DiffPreview):
+                    self.queue.write_reason(
+                        spec,
+                        PolicyDecision(
+                            admitted=True,
+                            reason_code="diff_all_reused",
+                            message=json.dumps(job_dir.to_dict(), sort_keys=True),
+                            policy_rule=decision.policy_rule,
+                        ),
+                    )
+                    self.queue.transition(
+                        running,
+                        "done",
+                        actor="executor",
+                        event="dispatch_reused",
+                        reason_code="diff_all_reused",
+                        policy_rule=decision.policy_rule,
+                    )
+                    self._report_progress(f"reused {spec.name}; no new trials or spend")
+                    return True
             except Exception as execution_error:
                 failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
                 failure_error = execution_error
@@ -2229,7 +2249,7 @@ class Executor:
                 (
                     position
                     for position, (_, item) in enumerate(approved_specs)
-                    if is_model_backed(item)
+                    if is_model_backed(item) and not self._spec_runs_no_agent(item)
                 ),
                 None,
             )
@@ -2273,6 +2293,18 @@ class Executor:
         self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
         return dispatched
 
+    def _spec_runs_no_agent(self, spec: ExperimentSpec) -> bool:
+        if spec.diff_sources == [] or (
+            spec.diff_sources is None and not (spec.grid_id or spec.campaign_attempt_id)
+        ):
+            return False
+        try:
+            return preview_diff(self.prepare_request(spec), repo_root=self.repo_root).counts["rerun"] == 0
+        except (OSError, ValueError, RuntimeError, ImportError):
+            # The authoritative dispatch records the refusal; a failed preview
+            # must never exempt real execution from the smoke gate.
+            return False
+
     def _smoke_gate_index(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> int | None:
         """Position of the smoke trial, or ``None`` when the gate is off.
 
@@ -2282,7 +2314,11 @@ class Executor:
         """
         if not self._smoke_gate_enabled:
             return None
-        backed = [index for index, (_, spec) in enumerate(approved_specs) if is_model_backed(spec)]
+        backed = [
+            index
+            for index, (_, spec) in enumerate(approved_specs)
+            if is_model_backed(spec) and not self._spec_runs_no_agent(spec)
+        ]
         if len(backed) < 2:
             return None
         return backed[0]
@@ -2414,12 +2450,12 @@ class Executor:
             elif reason not in (None, "queue-not-drained"):
                 self._report_progress(f"modal teardown skipped: {reason}")
 
-    def execute_spec(
+    def prepare_request(
         self,
         spec: ExperimentSpec,
         *,
         lease_generation: str | None = None,
-    ) -> Path:
+    ) -> RunRequest:
         if spec.provider_routes:
             raise ExecutionFailure(
                 "provider_routes_unsupported",
@@ -2682,7 +2718,39 @@ class Executor:
                 linear_card=spec.linear_card,
             ),
         )
+        return request
+
+    def execute_spec(
+        self,
+        spec: ExperimentSpec,
+        *,
+        lease_generation: str | None = None,
+        allow_rerun: bool = True,
+    ) -> Path | DiffPreview:
+        request = self.prepare_request(spec, lease_generation=lease_generation)
+        try:
+            preview = preview_diff(request, repo_root=self.repo_root)
+        except (OSError, ValueError, ImportError) as exc:
+            raise ExecutionFailure("diff_preflight_failed", str(exc)) from exc
+        self._report_progress(render_diff(preview).rstrip())
+        if preview.all_reused:
+            return preview
+        if preview.counts["rerun"] and not allow_rerun:
+            raise ExecutionFailure(
+                "diff_inputs_changed",
+                "diff changed after the readiness decision; re-preflight before execution",
+            )
+        self._report_progress(
+            f"child started for {spec.name}; progress log: "
+            f"{self.repo_root / spec.jobs_dir / '.executor' / (spec.name + '.log')}"
+        )
+        request = replace(request, diff_sources=preview.sources)
         job_dir = self._run_with_transient_retries(spec, request)
+        if preview.sources or preview.warnings:
+            (job_dir / "diff.json").write_text(
+                json.dumps(preview.to_dict(), indent=2, sort_keys=True) + "\n",
+                encoding="utf-8",
+            )
         self._assert_persistent_artifacts_safe(spec, job_dir)
         return job_dir
 

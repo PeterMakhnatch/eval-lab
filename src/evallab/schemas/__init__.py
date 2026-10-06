@@ -401,6 +401,15 @@ class ExperimentSpec(ContractModel):
         ),
     )
     jobs_dir: str = EXPLORATION_JOBS_ROOT
+    diff_sources: list[str] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Harbor diff source jobs (local paths). None discovers finished jobs "
+            "in the same explicit grid cell or exact campaign attempt; [] requests "
+            "fresh independent attempts. Explicit sources are part of the approval digest."
+        ),
+    )
     attempts: int = Field(default=1, ge=1)
     concurrency: int = Field(default=1, ge=1)
     timeout_seconds: int = Field(default=1_800, ge=1, le=28_800)

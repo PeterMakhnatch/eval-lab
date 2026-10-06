@@ -1,0 +1,90 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002078",
+  "variant_digest": "sha256:b1297d3e1ece271ad43eee006b47b80c256b520726c60745e2456d7748e1a96f",
+  "variant_harbor_digest": "sha256:b463d7750dfb5a6e632e650ea782af0a9c670ba7147648e352e67d3c6b1af964",
+  "parent": {
+    "digest": "sha256:425d3bc13b8404c73571c213f66637b2360f5c692ab1e2bb767fe43a3d959cff",
+    "harbor_digest": "sha256:45307bb0f8f9325f884d4e22807e56e6b119c230bca76ef144c472ca2cccacef",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002078/425d3bc13b84.json"
+    }
+  },
+  "transform": "task-health-tags@1",
+  "components_changed": [
+    "task_toml"
+  ],
+  "files": [
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:ad6c4b68d635e44ebe173aee020f29faa966fa2b3fbb59818d271b7ed610d10c",
+      "after_sha256": "sha256:3259ad6c8ea40fb79fcac06284a8bf86a5c2fe30b9aee6447d8ba6e5c8c54d28",
+      "content": "schema_version = \"1.4\"\n\n[task]\nname = \"mimo-v2.6-rl/format-code-task-002078\"\ndescription = \"Calling `NpyIter_GetIterNext` from Cython via the bundled numpy pxd doesn't work\"\nkeywords = [\"mimo-v2.6-rl\", \"code\"]\n\n[metadata]\nadapter = \"mimo_harbor 1.1.0\"\ncategory = \"Python\"\ndomain = \"code\"\nkeywords = [\"code\", \"Python\"]\nreference_harness = \"XiaomiMiMo/verl a2ad9f6 + XiaomiMiMo/mimoagent 467f0a1\"\nreference_step_limit = 500\nsource_dataset = \"XiaomiMiMo/MiMo-V2.6-RL-oss\"\nsource_id = \"format-code-task-002078\"\nsource_revision = \"639865fd3374018d6cb29b9fb82dd531406fcf5f\"\ntitle = \"Calling `NpyIter_GetIterNext` from Cython via the bundled numpy pxd doesn't work\"\ntags = [\"health:discarded\", \"solve:never-run\"]\n\n[agent]\ntimeout_sec = 3600.0\n\n[verifier]\ntimeout_sec = 2100.0\nuser = \"root\"\n\n[environment]\ndocker_image = \"docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:6c136e41eb2e4a293016f151c75b356d426b0a014dc48250314e2f507f05b1b5\"\nworkdir = \"/testbed\"\ncpus = 2\nmemory_mb = 8192\nnetwork_mode = \"public\"\nbuild_timeout_sec = 1800.0\n\n[environment.healthcheck]\n# one-time setup before the agent (environment/setup/setup.sh)\ncommand = \"bash -c 'test -f /var/lib/mimo/ready || { mkdir -p /var/lib/mimo && echo H4sIAAAAAAAC/+1XfW/bNhrP3/4Uz5ygeblKcrLsAiRIsVxXXAesd4d2wB3QFQYlURJjSlRJyo7T9rvvR8ovUmI3O+A2YDizqCM+fPi8vzETkpsoliqZSGHs3u+xRlgXo5H/O3r89/S70enyu4Wfji7O/7pHo70/YDXGMg32e/+fa59KUSpilZlxHUjOJrQKBjpyZyznlT0ejEL/j3JhiyYOE1WuQLPZLNwAZrXYBNZsid0YrhNVWdDvYSQq5VKxdNNtFd/yxJonKOSQftPtDnz7VStZ/1YsbNwkE25DpfMV1KhGJzwDiIcVt10C4YTrisseelJoVYqmDHOlcuScv923V5VqJdLtCC0o16wu+vI1uQlX9LtMhTENN6EyJsia+/u+JTcDp2HKpz0fPoSB3b2QkoWlav92OdZa3c2hgmRV3jeXV/0RuJ7kAPfot/o/jrDH4FiA2kO8R8AUvnP/waYLLmwpwy1nhjOdFGGs2fSBCyxLJmrKdSbVzJ/8yfPfcNvUoSl+Tx5P1P+L84uzfv0H6Px8V///kPr/TYSEiWJmisE+vW0qQ6pK+HNihrRS9jnFrsZxsgUn3wpcDmhrLuk107HSh4be82oqtKpKV0sLzqQtkoInkw/UVDXyxeCyMJQpmXJNorIKrKIp05EUcbToPylpxxzFk/7OK66Z5SnFc9+exoVndYW85MAw9PbVzQ9vXoGipkLNiLOkgFi8ppLV4KboP4KhGkI23Ky4MeHgzXWP4+A9BRkND95EmrN0PqQP9OwZ8TthaTRIilKlhJB1CMNBxoQ8OqZPxJNC0dCnzCUdnAzpxbOzq/bS6RV9gVbeSk/1Uhi3rqWAfpA04jaJCmWgFbRdW1mLvLDEMutMZmE1mF1KM5hpYfl4RdfLldRek6w/yw09cL11EkLEl+iul7SShjrOM1HKLIN+JlI1r9p+M3btOKzn9BdClLgvHxxOUn5XS8SGXrqOjqBYhA38F6WqZJDa3XQsj8PBy3//cB1ZbmzM0wHaJBp9lYmcgiCXKmYSHyxNybCMh6nQ6PNKz6EE7g0HSbr4os+fyXmEhpWimdIT1Htao7fYIqNvXCcmzadBzbThjouwARDpRYR2E1WNlHT24hk8B10qItonBhUR663iZDWHpXIxdUHnzwyXouKQuyyFHZDnICr8BB9d+Lit0yC4We6ChNygEVas5Nc+0pcQDutID/oeHmLShcCCsKMWlGt2MItEuwl4Wdv5IBODv928e3V9cNTX7zVyAvqsdDtGiB982ne4XyjgH+l8hCBfGS9RjUypUo6EUXLaZrjjuZRCVAtjtmF/4Cgh5NuoAt4QwfRjiSAy5IwWN0JammG4ImS794VFKCQ+kZldkQ/pxww1BjY1jv1zf5CJO2olijm5jCTVWFKZN6JU+XPwMopCb3BktUhTuGxWIOI7OeOiwfhaUuN2jNLjSwQmptQNBYOfbn5+9bZjOJ+Y3rr4daZYKtkxI32mwskTVPQdvnONKgMfhs6S0I8fD3TpSklkyzpypg0hbrurGQpPZ2cxUqQiW+C6RBg/BJ54/A77K3Lk9eI4kaxJeTDq7U7W9Hi53NVNXXPLuR6D0tgPh3yM4czVCOA84tAVyteR8Naoarsktw7xZP295OuiIO18jlFetlOp545hoLLA9ZoebEEvbLfjBCWet6DxuJ777Xi8nXKuAs9/QQbFs0qZTk27RaCkNeJ+sb0XedeKPgnWO4TvVnOV9UmIn6XzYpR8/4nKiHq0somdMXOyWVineBR6fVZCb1GLuybRO8oEYj1CyBgUDHzzGtl3SgHeT3B+H7ecuNoX1C1+1GZM+415VmQCdXxxpK3IGF5ZV7TohBcX/9WtVizfbhHNgZ3XyPBNUi2TaK3kskfXKIfINfNRRif457Noy1mdjx8kzZpsRxLX+Oe409mqKldpvBbQVWk69Dl4+NvEbb1X1WU09l5YAGIW4/nnM2gB6YXxV0SFH9ld68dzCvA1XYiFvjxBLptEi9oKVYUlahLKRwGBwXCZa9HJE5K737b5YkCpEMnpHYofv0skasl1hU49hssbVIAOOFaYaDAIlDUKN+aEzlFYNGYy7wCmvEpRdNcADH86RaXTtosGXeounWmCp+B4MeYg5Tocpq6G9Bh0t6Er75J3GTK8yW0Xpc2qNQDe7x9XfQpvWCUy+Cu0qpRdoR8SCv2DMHCNpwNN0VeCis+MnYPsg3Fj0Dq6DYvybBV9vxytAjB494+bf717/c+fw1um4U/1+CRoZxTzFQxfL54475P55Xhz6ehH+20jBYtcMAjJ069htp6JfNCbth8EfuOqbQ8lZbzc1m420TqJ2kQwm4+hjQl+Q8GN2T2XfTSfHxgf32MY8PPCkIIcjwL60M6JmPrKaTuKRm4caadsN1q2Q8kQCO3AtJyC3GDRm4QOPrkp43J0eXr25bKdab420AzdyLdPr2/eBqen37p5PahFBUdhRMelZP796SX5RwleO5ipuHXXrtqBa/X+gL/coObeE2E7Hh/ReqbGuIqR38IGZT0PXIb5ZyGqVgG3YBitRb18g/hZaeFH11IOX3qs6+tvw1F4enZIx4shEW8vCOyEdRV12Bm2YSPrplAMVWejjbj+ZdVOqkvFceYhPL383wnrjfvwUTUYWNXgSbl+Hg46Tz9KUQSHg73d2q3d2q3d2q3d2q3d2q3d2q3d2q3d2q0/xfoViWtZRwAoAAA= | base64 -d | tar -xzf - -C /var/lib/mimo && bash /var/lib/mimo/setup.sh; }'\"\ntimeout_sec = 1200.0\nretries = 0\ninterval_sec = 5.0\n"
+    }
+  ],
+  "rationale": "Harbor health/solve metadata from recorded task evidence; no admission or new grades",
+  "inputs": {
+    "sources": {
+      "ledger": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har172/research/experiments/python-task-ledger/ledger.csv",
+        "sha256": "79f817b774546da51361e56d303446f0a7694e977e93c2c204e759cecfbefd07"
+      },
+      "locked_nop": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har172/research/experiments/har122-egress-lock/har146-locked-nop.csv",
+        "sha256": "b32ee7e6278fe8747cdedc63c6e221931218fbcfd73dbdd19baf717988b51861"
+      },
+      "history": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har172/research/experiments/python-task-ledger/task_history.csv",
+        "sha256": "e8e81e22012c87bead5a6e01d24663a046afabb6efc752ca7442a24ea259480d"
+      },
+      "pool": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har172/research/experiments/har108-python-census/pool.json",
+        "sha256": "6c4a82f47cc82807c268b11d8d85a45b4502be770b929fc558fa3f0382193126"
+      },
+      "exploit": {
+        "status": "not supplied; not a clean verdict"
+      }
+    },
+    "assessment": {
+      "task_id": "format-code-task-002078",
+      "parent_digest": "sha256:425d3bc13b8404c73571c213f66637b2360f5c692ab1e2bb767fe43a3d959cff",
+      "tags": [
+        "health:discarded",
+        "solve:never-run"
+      ],
+      "ledger_status": "discarded",
+      "ledger_reason": "broken under the egress lock (HAR-146 har146-lnop-002078): numpy's Cython test build fails, Cython 3.0.12 rejects checks.pyx:248 (cannot assign 'NpyIter_GetMultiIndexFunc *' to 'NpyIter_GetMultiIndexFunc'); a compile error, not a network fetch, so no prefetch repair (HAR-158 diagnosis)",
+      "locked_nop": {
+        "task_id": "format-code-task-002078",
+        "unlocked_nop": "sound",
+        "locked_nop": "broken_environment",
+        "changed": "1",
+        "note": ""
+      },
+      "solve": {
+        "tag": "solve:never-run",
+        "runs": 0,
+        "clean_pass": 0,
+        "copied_pass": 0,
+        "fail": 0,
+        "infra": 0,
+        "known_attempts": 0,
+        "last_run": "",
+        "scope": "task history; copied and infra excluded; not current-package capability"
+      },
+      "exploit": {
+        "verdict": "not-probed",
+        "digest_match": null,
+        "binding": null
+      }
+    }
+  },
+  "created_by": "har172-task-health",
+  "created_at": "2026-10-06T03:48:24Z",
+  "status": "candidate",
+  "evidence": []
+}

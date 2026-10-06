@@ -108,6 +108,66 @@ Python API: `derive_task`, `materialize`, `verify`, `load_records`,
 `load_variant_records` (plain dicts for catalog builders), `lineage_chain`,
 `append_status_evidence` in `evallab.task_variants`.
 
+## Task-health metadata
+
+`evallab tasks health-tags` derives a metadata-only variant for **every Python
+ledger task**, including review/discarded tasks. It does not admit, run, repair,
+or relabel a trial. The parent package must match the ledger's full
+`run_digest`; an unavailable or changed parent fails rather than disappearing
+from the output. Only `[metadata].tags` changes: other tags, instructions,
+environment, verifier and solution bytes are preserved.
+
+```bash
+evallab tasks health-tags \
+  --variants-root derived/task-health/variants \
+  --view-root derived/task-health/view \
+  --output derived/task-health/manifest.json
+harbor view derived/task-health/view --tasks
+```
+
+Lineage records use the existing `library/task-variants/` schema and the
+`task-health-tags@1` transform. They bind the source-file hashes and assessment;
+repeating the command reuses matching records and rebuilds missing packages.
+The flat viewer collection links to those packages, not modified originals.
+Use `--records-dir` as well as `--variants-root` to isolate a smoke run.
+`--task format-code-task-001269` selects an explicit subset; without it all
+ledger rows are processed.
+
+Sources are `python-task-ledger/ledger.csv`, HAR-146's locked-nop CSV and
+`python-task-ledger/task_history.csv`, with optional `--exploit-verdicts` JSON
+from `probe-exploit verdict`. Probe outcomes must bind to the parent through
+the retained Lab provenance or native task lock; a different or unknown
+package cannot decide its health. No supplied probe means **not probed**, not
+clean. The manifest exposes the binding and the original evidence rows.
+
+- `health:cracked` / `health:leak-found` take precedence over favorable evidence.
+  Ledger image-leak diagnoses therefore retain `health:leak-found` even when
+  an old nop was sound (including 001269's `build/lib` leak).
+- `health:repaired` denotes a validated ledger repair. A locked-nop failure
+  explicitly bound to that same repair still wins. `health:sound` denotes
+  a usable ledger task with a sound locked nop, **not semantic certification
+  or proof against every exploit**. Other states remain explicit:
+  `health:review`, `health:discarded`, `health:unchecked`,
+  `health:broken-environment`, and `health:grader-suspect`.
+- `solve:never-run`, `solve:0-of-n`, `solve:mixed`, and `solve:always` summarize
+  the recorded history's **clean-pass + fail** denominator. `n` is reported as
+  `known_attempts` in the manifest, not embedded in the tag. Copies and infra
+  are excluded, not failures; an all-excluded history is `solve:unscored`, and
+  missing history is `solve:unknown`. These are task-level historical labels
+  across the recorded packages/models/harnesses, not a current-package
+  capability estimate or a replacement for canonical counted verdicts.
+
+Harbor 0.24 natively filters these tags in **task-definition mode** (`--tasks`).
+Its jobs-mode `TrialSummary` has no metadata-tag filter. For historical jobs,
+use the existing read-only [`evallab view` adapter](harbor-view.md) with
+`--task-health derived/task-health/manifest.json --tag health:sound`.
+It joins retained task-package identities, selects trials before building the
+viewer projection, then launches the unchanged Harbor jobs UI. Repeated tags
+are ANDed; unbound or different-package trials are explicitly excluded.
+The manifest carries both Lab and Harbor parent/variant digests for this join.
+Neither command changes original task packages, trials, locks, or frozen specs.
+
+
 ## Relationship to task candidates (HAR-67)
 
 `evallab.task_candidate.build_instruction_candidate` is now a policy on top

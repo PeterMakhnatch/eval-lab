@@ -136,3 +136,17 @@ def test_apply_signals_creates_missing_and_patches_existing() -> None:
     for _, _, body in calls[1:]:
         schema = body["structuredOutput"]
         assert schema["required"] == list(schema["properties"]), "the API rejects schemas without required"
+
+
+def test_byok_route_is_sent_with_every_signal() -> None:
+    bodies: list[Any] = []
+
+    def opener(request: Any, timeout: float) -> Any:
+        if request.get_method() == "GET":
+            return io.BytesIO(b'{"signals": []}')
+        bodies.append(json.loads(request.data))
+        return io.BytesIO(json.dumps({**bodies[-1], "id": "x", "version": 1}).encode())
+
+    apply_signals(api_key="k", opener=opener, llm_profile_id="p-1", model="glm-5.3-flash")
+    assert len(bodies) == len(SIGNALS)
+    assert all((b["llmProfileId"], b["model"]) == ("p-1", "glm-5.3-flash") for b in bodies)

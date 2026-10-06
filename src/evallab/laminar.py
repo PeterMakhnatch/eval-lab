@@ -597,18 +597,58 @@ def _json_call(
     return json.loads(raw) if raw else None
 
 
+#: BYOK route for Signals on Laminar Cloud: Z.ai's OpenAI-compatible pay-as-you-go endpoint.
+ZAI_PROFILE_NAME = "evallab-zai"
+ZAI_BASE_URL = "https://api.z.ai/api/paas/v4"
+ZAI_SIGNAL_MODEL = "glm-5.3-flash"
+ZAI_KEY_ENV = "ZAI_OPENAPI_API_KEY"
+
+
+def ensure_zai_profile(
+    *, api_key: str, zai_key: str, endpoint: str = LAMINAR_ENDPOINT, opener: Callable[..., Any] = urlopen
+) -> str:
+    """Id of the workspace LLM profile that routes Signals to Z.ai, creating it once."""
+    call = {"api_key": api_key, "endpoint": endpoint, "opener": opener}
+    profiles = (_json_call("GET", "/v1/llm-profiles", **call) or {}).get("llmProfiles", [])
+    found = next((p for p in profiles if p.get("name") == ZAI_PROFILE_NAME), None)
+    if found is not None:
+        return str(found["id"])
+    created = _json_call(
+        "POST",
+        "/v1/llm-profiles",
+        body={
+            "name": ZAI_PROFILE_NAME,
+            "provider": "custom",
+            "config": {"baseUrl": ZAI_BASE_URL, "auth": {"type": "api_key"}},
+            "secrets": {"apiKey": zai_key},
+            "models": [ZAI_SIGNAL_MODEL],
+        },
+        **call,
+    )
+    return str(created["id"])
+
+
 def apply_signals(
-    *, api_key: str, endpoint: str = LAMINAR_ENDPOINT, opener: Callable[..., Any] = urlopen
+    *,
+    api_key: str,
+    endpoint: str = LAMINAR_ENDPOINT,
+    opener: Callable[..., Any] = urlopen,
+    llm_profile_id: str | None = None,
+    model: str = ZAI_SIGNAL_MODEL,
 ) -> list[dict[str, Any]]:
-    """Create or update each of :data:`SIGNALS` by exact name; returns the server's Signals."""
+    """Create or update each of :data:`SIGNALS` by exact name; returns the server's Signals.
+
+    Laminar Cloud creates API Signals only with an LLM profile (``llm_profile_id``).
+    """
     listed = _json_call("GET", "/v1/signals", api_key=api_key, endpoint=endpoint, opener=opener)
     existing = {s["name"]: s for s in (listed or {}).get("signals", [])}
+    route = {"llmProfileId": llm_profile_id, "model": model} if llm_profile_id else {}
     applied = []
     for definition in SIGNALS:
         schema = definition["structuredOutput"]
         # The API rejects a schema without ``required`` (docs say it is auto-filled; it is not).
         output = {**schema, "required": list(schema["properties"])}
-        body = {**_SIGNAL_DEFAULTS, **definition, "structuredOutput": output}
+        body = {**_SIGNAL_DEFAULTS, **definition, "structuredOutput": output, **route}
         current = existing.get(definition["name"])
         if current is None:
             applied.append(
@@ -739,10 +779,16 @@ def _laminar_command(args: Any, root: Path, *, harbor: Any | None = None) -> int
     endpoint = os.environ.get(LAMINAR_ENDPOINT_ENV, "").strip() or LAMINAR_ENDPOINT
     if args.laminar_action == "signals":
         try:
-            applied = apply_signals(api_key=key, endpoint=endpoint)
+            profile = None
+            if args.byok_zai:
+                zai_key = os.environ.get(ZAI_KEY_ENV, "").strip()
+                if not zai_key:
+                    print(f"laminar: --byok-zai needs {ZAI_KEY_ENV}", file=sys.stderr)
+                    return 2
+                profile = ensure_zai_profile(api_key=key, zai_key=zai_key, endpoint=endpoint)
+            applied = apply_signals(api_key=key, endpoint=endpoint, llm_profile_id=profile)
         except RuntimeError as exc:
-            # Laminar Cloud only creates API Signals with a BYOK LLM profile; Signals created
-            # in the UI (Laminar's own model) are patched here by exact name.
+            # Without --byok-zai, Laminar Cloud only accepts patches to Signals made in the UI.
             print(f"laminar: {exc}", file=sys.stderr)
             return 1
         for signal in applied:
@@ -763,7 +809,13 @@ def build_laminar_parser(commands: Any) -> None:
     """Register ``evallab laminar signals`` and ``evallab laminar compare``."""
     laminar = commands.add_parser("laminar", help="Laminar Signals as code and comparison")
     actions = laminar.add_subparsers(dest="laminar_action", required=True)
-    actions.add_parser("signals", help="Create or update the four HAR-166 Signals by name")
+    signals = actions.add_parser("signals", help="Create or update the four HAR-166 Signals by name")
+    signals.add_argument(
+        "--byok-zai",
+        action="store_true",
+        help=f"Run the Signals on Z.ai {ZAI_SIGNAL_MODEL} through a workspace LLM profile "
+        f"(needs {ZAI_KEY_ENV}; required to create Signals through the Cloud API)",
+    )
     compare = actions.add_parser(
         "compare", help="Per-trial table: Eval Lab detectors vs Laminar Signal events"
     )

@@ -1312,6 +1312,13 @@ def record_projection_failures(
         )
 
 
+def _safe_repo_path(repo_root: Path, relative: str) -> Path:
+    candidate = (repo_root / relative).resolve()
+    if candidate != repo_root and repo_root not in candidate.parents:
+        raise ValueError(f"path escapes repository: {relative}")
+    return candidate
+
+
 class Executor:
     """The sole application boundary allowed to start Harbor experiments."""
 
@@ -1457,7 +1464,7 @@ class Executor:
     ) -> EvidenceArchive:
         return archive_evidence(
             job_dir,
-            self._safe_repo_path(spec.campaign_evidence_store or "derived/evidence-cas"),
+            _safe_repo_path(self.repo_root, spec.campaign_evidence_store or "derived/evidence-cas"),
             record_id=str(spec.campaign_attempt_id or spec.spec_id),
             kind="post-run-compliance",
         )
@@ -1522,7 +1529,7 @@ class Executor:
         report = evaluate_trial_compliance(bundle)
         payload = (report.model_dump_json(indent=2) + "\n").encode()
         report_dir = (
-            self._safe_repo_path(spec.campaign_evidence_store or "derived/evidence-cas")
+            _safe_repo_path(self.repo_root, spec.campaign_evidence_store or "derived/evidence-cas")
             / "records/trial-compliance"
         )
         report_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -1556,7 +1563,7 @@ class Executor:
         job_dir: Path,
     ) -> None:
         secrets = collected_secret_values()
-        jobs_root = self._safe_repo_path(spec.jobs_dir)
+        jobs_root = _safe_repo_path(self.repo_root, spec.jobs_dir)
         executor_root = jobs_root / ".executor"
         paths = [
             job_dir,
@@ -1817,7 +1824,7 @@ class Executor:
         roots: dict[Path, None] = {}
         for _, spec in approved_specs:
             try:
-                roots[self._safe_repo_path(spec.jobs_dir)] = None
+                roots[_safe_repo_path(self.repo_root, spec.jobs_dir)] = None
             except ValueError:
                 continue
         default_runs = self.repo_root / "runs"
@@ -1875,7 +1882,7 @@ class Executor:
     def _job_dir_for(self, spec: ExperimentSpec) -> Path | None:
         """Best-effort job directory for a spec; ``None`` when unresolvable."""
         try:
-            return self._safe_repo_path(spec.jobs_dir) / spec.name
+            return _safe_repo_path(self.repo_root, spec.jobs_dir) / spec.name
         except ValueError:
             return None
 
@@ -1941,7 +1948,7 @@ class Executor:
         try:
             from evallab.results import load_job
 
-            return load_job(self._safe_repo_path(spec.jobs_dir) / spec.name)
+            return load_job(_safe_repo_path(self.repo_root, spec.jobs_dir) / spec.name)
         except Exception:
             return None
 
@@ -2085,7 +2092,7 @@ class Executor:
                     self._report_progress(f"reused {spec.name}; no new trials or spend")
                     return True
             except Exception as execution_error:
-                failed_job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
+                failed_job_dir = _safe_repo_path(self.repo_root, spec.jobs_dir) / spec.name
                 failure_error = execution_error
                 try:
                     self._assert_persistent_artifacts_safe(spec, failed_job_dir)
@@ -2299,7 +2306,8 @@ class Executor:
         ):
             return False
         try:
-            return preview_diff(self.prepare_request(spec), repo_root=self.repo_root).counts["rerun"] == 0
+            request = self.prepare_request(spec, repo_root=self.repo_root)
+            return preview_diff(request, repo_root=self.repo_root).counts["rerun"] == 0
         except (OSError, ValueError, RuntimeError, ImportError):
             # The authoritative dispatch records the refusal; a failed preview
             # must never exempt real execution from the smoke gate.
@@ -2450,19 +2458,23 @@ class Executor:
             elif reason not in (None, "queue-not-drained"):
                 self._report_progress(f"modal teardown skipped: {reason}")
 
+    @staticmethod
     def prepare_request(
-        self,
         spec: ExperimentSpec,
         *,
+        repo_root: Path,
+        lease_path: Path | None = None,
         lease_generation: str | None = None,
     ) -> RunRequest:
+        """Resolve execution inputs without opening policy, leases, or storage."""
+        repo_root = repo_root.resolve()
         if spec.provider_routes:
             raise ExecutionFailure(
                 "provider_routes_unsupported",
                 "provider route constraints require a route-aware executor; "
                 "this executor cannot dispatch them as an unconstrained single route",
             )
-        task_path = self._safe_repo_path(spec.executable_task_path)
+        task_path = _safe_repo_path(repo_root, spec.executable_task_path)
         task_version = spec.task_version
         verifier_digest = spec.verifier_digest
         package_digest = None
@@ -2471,14 +2483,14 @@ class Executor:
         task_id = spec.task_id
 
         if spec.task.startswith("registered/"):
-            reg = TaskRegistry.from_repo(self.repo_root)
-            resolved = reg.resolve_spec(spec, self.repo_root)
+            reg = TaskRegistry.from_repo(repo_root)
+            resolved = reg.resolve_spec(spec, repo_root)
             if resolved is None:
                 raise ExecutionFailure(
                     "unregistered_task",
                     f"task {spec.task!r} is not registered in library/registry/",
                 )
-            task_path = self._safe_repo_path(resolved.task_path)
+            task_path = _safe_repo_path(repo_root, resolved.task_path)
             canonical_task_path = resolved.task_path
             task_version = resolved.version
             verifier_digest = resolved.digests.verifier
@@ -2580,11 +2592,11 @@ class Executor:
                     "stored point_id does not match canonical runnable coordinates",
                 )
 
-        jobs_dir = self._safe_repo_path(spec.jobs_dir)
+        jobs_dir = _safe_repo_path(repo_root, spec.jobs_dir)
         # A field the dispatcher never forwards is the defect class this repo keeps
         # finding, so the elicitation preamble is resolved here beside jobs_dir.
         extra_instruction_path = (
-            self._safe_repo_path(spec.extra_instruction_path)
+            _safe_repo_path(repo_root, spec.extra_instruction_path)
             if spec.extra_instruction_path
             else None
         )
@@ -2607,7 +2619,7 @@ class Executor:
                 f"preamble {spec.extra_instruction_path!r} no longer matches "
                 f"declared digest {declared_preamble_hash}",
             )
-        toolbox_path = self.repo_root / spec.toolbox_path if spec.toolbox_path else None
+        toolbox_path = repo_root / spec.toolbox_path if spec.toolbox_path else None
         if bool(toolbox_path) != bool(spec.toolbox_sha256):
             raise ExecutionFailure(
                 "toolbox_pair_required",
@@ -2648,7 +2660,7 @@ class Executor:
                     "toolbox execution requires environment='docker'",
                 )
             try:
-                validate_toolbox_source(toolbox_path, spec.toolbox_sha256, repo_root=self.repo_root)
+                validate_toolbox_source(toolbox_path, spec.toolbox_sha256, repo_root=repo_root)
             except ValueError as exc:
                 raise ExecutionFailure("toolbox_validation_failed", str(exc)) from exc
 
@@ -2658,7 +2670,7 @@ class Executor:
             toolbox_path=toolbox_path,
             toolbox_sha256=spec.toolbox_sha256,
             harness_tree_path=(
-                self._safe_repo_path(spec.harness_tree_path) if spec.harness_tree_path else None
+                _safe_repo_path(repo_root, spec.harness_tree_path) if spec.harness_tree_path else None
             ),
             harness_tree_sha256=spec.harness_tree_sha256,
             agent=spec.agent,
@@ -2681,7 +2693,7 @@ class Executor:
             harness_policy=spec.harness_policy,
             verifier_repeat_n=spec.verifier_repeat_n,
             override_storage_mb=spec.override_storage_mb,
-            lease_path=self.queue.lease_path(spec),
+            lease_path=lease_path,
             lease_generation=lease_generation,
             experiment_spec=spec.model_copy(deep=True),
             provenance=RunProvenance(
@@ -2727,7 +2739,12 @@ class Executor:
         lease_generation: str | None = None,
         allow_rerun: bool = True,
     ) -> Path | DiffPreview:
-        request = self.prepare_request(spec, lease_generation=lease_generation)
+        request = self.prepare_request(
+            spec,
+            repo_root=self.repo_root,
+            lease_path=self.queue.lease_path(spec),
+            lease_generation=lease_generation,
+        )
         try:
             preview = preview_diff(request, repo_root=self.repo_root)
         except (OSError, ValueError, ImportError) as exc:
@@ -2991,7 +3008,7 @@ class Executor:
         return checks
 
     def _running_state_timed_out(self, spec: ExperimentSpec) -> bool:
-        state_path = self._safe_repo_path(spec.jobs_dir) / ".executor" / f"{spec.name}.state.json"
+        state_path = _safe_repo_path(self.repo_root, spec.jobs_dir) / ".executor" / f"{spec.name}.state.json"
         try:
             state = json.loads(state_path.read_text())
             started = datetime.fromisoformat(str(state["started_at"]))
@@ -3022,12 +3039,12 @@ class Executor:
                     message=(
                         "executor state exceeded the spec timeout; the child was "
                         "not observed to settle after restart. Inspect the progress "
-                        f"log under {self._safe_repo_path(spec.jobs_dir) / '.executor'}"
+                        f"log under {_safe_repo_path(self.repo_root, spec.jobs_dir) / '.executor'}"
                     ),
                 )
                 continue
-            job_dir = self._safe_repo_path(spec.jobs_dir) / spec.name
-            archive_root = self._safe_repo_path(spec.jobs_dir) / ".transient-attempts" / spec.name
+            job_dir = _safe_repo_path(self.repo_root, spec.jobs_dir) / spec.name
+            archive_root = _safe_repo_path(self.repo_root, spec.jobs_dir) / ".transient-attempts" / spec.name
             if not job_dir.exists():
                 try:
                     interrupted_retry = archive_root.is_dir() and any(
@@ -3142,12 +3159,6 @@ class Executor:
             policy_rule=spec.policy_rule,
         )
         self.queue.write_reason(self.queue.load(failed), decision)
-
-    def _safe_repo_path(self, relative: str) -> Path:
-        candidate = (self.repo_root / relative).resolve()
-        if candidate != self.repo_root and self.repo_root not in candidate.parents:
-            raise ValueError(f"path escapes repository: {relative}")
-        return candidate
 
     def _run_harbor(self, request: RunRequest) -> Path:
         return run_experiment(request, repo_root=self.repo_root)

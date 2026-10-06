@@ -24,6 +24,7 @@ comparison before anything is approved, at $0, without Daytona or Modal.
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 from contextlib import suppress
 from pathlib import Path
@@ -511,6 +512,10 @@ def lock_setup_fingerprint(request: Any, *, repo_root: Path | None = None) -> st
         for key, value in inputs["harness"]["additions"].items()
         if key not in {"rules", "skills", "extra_instruction", "extra_skills"}
     }
+    if inputs.get("server", {}).get("tool_call_parser") == "mimo-native":
+        inputs["server"]["tool_call_parser_digest"] = (
+            "sha256:" + hashlib.sha256((root / PARSER_SOURCE_RELATIVE).read_bytes()).hexdigest()
+        )
     return json.dumps(
         {"schema": FINGERPRINT_SCHEMA, **inputs},
         sort_keys=True,

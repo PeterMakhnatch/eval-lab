@@ -11,12 +11,6 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-pytest.importorskip("harbor.job_diff")
-
-from harbor.models.trial.result import AgentInfo, TrialResult
-from harbor.models.verifier.result import VerifierResult
-from harbor.trial.regrade import local_task_name
-
 from evallab.execution_contracts import RunRequest
 from evallab.job_diff import _local_plan, diff_sources, preview_diff
 from evallab.queue import DirectoryQueue, Executor, approved_spec_digest, load_events
@@ -49,6 +43,11 @@ def request(root: Path, **changes) -> RunRequest:
 
 
 def stored_job(root: Path, original: RunRequest, *, complete: bool = True) -> Path:
+    pytest.importorskip("harbor.job_diff", reason="native diff requires the Harbor 0.24 runtime")
+    from harbor.models.trial.result import AgentInfo, TrialResult
+    from harbor.models.verifier.result import VerifierResult
+    from harbor.trial.regrade import local_task_name
+
     job = original.jobs_dir / original.name
     job.mkdir(parents=True)
     with TemporaryDirectory() as temporary:
@@ -251,6 +250,26 @@ def test_question_refs_do_not_reuse_independent_replicates(tmp_path: Path) -> No
     next_attempt = spec.model_copy(update={"name": "independent-replicate"})
     target = replace(original, name=next_attempt.name, experiment_spec=next_attempt)
     assert diff_sources(target, repo_root=tmp_path) == ()
+    assert preview_diff(target, repo_root=tmp_path).counts == {
+        "reuse": 0, "regrade": 0, "rerun": 1
+    }
+
+
+def test_parser_code_change_under_same_name_forces_rerun(tmp_path: Path) -> None:
+    parser = tmp_path / "src/evallab/mimo_tool_calls.py"
+    parser.parent.mkdir(parents=True)
+    parser.write_text("def normalize(text):\n    return text\n")
+    original = request(
+        tmp_path,
+        agent="terminus-2",
+        environment="daytona",
+        egress_lock=True,
+        model="selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+    )
+    source = stored_job(tmp_path, original)
+    target = replace(original, name="changed-parser", diff_sources=(source,))
+    assert preview_diff(target, repo_root=tmp_path).all_reused
+    parser.write_text("def normalize(text):\n    return text.strip()\n")
     assert preview_diff(target, repo_root=tmp_path).counts == {
         "reuse": 0, "regrade": 0, "rerun": 1
     }

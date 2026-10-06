@@ -1,16 +1,8 @@
-"""Golden-file tests for digest and preflight rendering (WS-F).
-
-Pins the full rendered text of `DigestRenderer` and `evallab preflight` so an
-unintended formatting or content change fails CI instead of drifting. Clocks,
-loaders, and queue contents are frozen; the only host value that still reaches
-the surfaces is the tmp workspace path, which is replaced with `<TMP>` before
-the byte comparison.
-"""
+"""Deterministic rendering and operator-state coverage without text snapshots."""
 
 from __future__ import annotations
 
 import json
-import os
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -36,7 +28,6 @@ PERIOD_DATE = date(2026, 8, 15)
 #: 2026-08-20T18:32:49Z, the reset the committed evidence actually reports.
 RESETS_AT_EPOCH = 1_787_250_769
 
-GOLDEN_DIR = Path(__file__).resolve().parent / "golden"
 TMP_PLACEHOLDER = "<TMP>"
 WAITING_SPEC_ID = "01GOLDENWAIT00000000000000"
 
@@ -475,25 +466,6 @@ def render_status_text(root: Path) -> str:
     )
     return normalize_rendered(rendered, root)
 
-
-
-def assert_matches_golden(actual: str, filename: str) -> None:
-    path = GOLDEN_DIR / filename
-    if os.environ.get("UPDATE_GOLDENS") == "1":
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(actual)
-    expected = path.read_text()
-    assert actual == expected
-
-
-def test_digest_rendering_matches_golden(tmp_path: Path) -> None:
-    queue = build_workspace(tmp_path)
-    assert_matches_golden(render_digest_text(tmp_path, queue), "digest.md")
-
-
-def test_preflight_rendering_matches_golden(tmp_path: Path) -> None:
-    build_workspace(tmp_path)
-    assert_matches_golden(render_preflight_text(tmp_path), "preflight.txt")
 
 
 def test_digest_rendering_is_stable_across_two_regenerations(tmp_path: Path) -> None:

@@ -45,7 +45,7 @@ from evallab.preflight import (
     survey_queue,
 )
 from evallab.queue import DirectoryQueue, provider_reported_exhaustion
-from evallab.schemas import AutoRunRule, StandingApprovalsPolicy
+from evallab.schemas import AutoRunRule, ExperimentSpec, StandingApprovalsPolicy
 
 #: Fixed instant. Every staleness assertion is a difference against this.
 NOW = datetime(2026, 8, 16, 18, 0, 0, tzinfo=UTC)
@@ -721,3 +721,23 @@ def test_the_cli_exits_non_zero_when_a_provider_refuses(
     printed = capsys.readouterr().out
     assert "VERDICT: billable work would be refused" in printed
     assert "the provider reports used_percent 100.0 of the window" in printed
+
+
+def test_trial_preview_does_not_require_or_create_admission_state(tmp_path: Path) -> None:
+    spec = ExperimentSpec(
+        name="read-only-preview",
+        hypothesis="inspect a fresh control without admitting it",
+        purpose="drift",
+        task="canary/event-summary",
+        agent="nop",
+        attempts=2,
+        submitted_by="tester",
+        diff_sources=[],
+    )
+
+    preview = preflight_module.preview_spec_diff(spec, tmp_path)
+
+    assert preview.counts == {"reuse": 0, "regrade": 0, "rerun": 2}
+    assert not (tmp_path / "policy").exists()
+    assert not (tmp_path / "queue").exists()
+    assert not (tmp_path / "runs").exists()

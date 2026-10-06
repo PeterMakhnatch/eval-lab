@@ -110,9 +110,11 @@ The setup fingerprint is carried by the lock-covered
 `agent.env.EVALLAB_SETUP_FINGERPRINT`, alongside native agent options and
 environment kwargs such as `egress_lock`. Sampling, harness, parser/server
 pins, budgets and lock posture therefore participate in comparison without
-inventing an unknown strict `AgentOptions` kwarg. Task/ledger bookkeeping,
-spec names and transient staging paths are excluded; Harbor locks task,
-instruction and skill contents independently.
+inventing an unknown strict `AgentOptions` kwarg. The local MiMo normalizer's
+implementation bytes are hashed too: keeping its name while changing its
+behavior cannot reuse old trials. Task/ledger bookkeeping, spec names and
+transient staging paths are excluded; Harbor locks task, instruction and skill
+contents independently.
 
 All-reuse dispatch records `dispatch_reused` and source trial IDs/lock digests
 in `queue/reasons/`; it starts no child, reserves no new attempt and does not

@@ -412,8 +412,8 @@ def preview_spec_diff(spec: ExperimentSpec, repo_root: Path) -> DiffPreview:
     """Resolve the exact dispatcher request without creating a queue or a job."""
     from evallab.queue import Executor
 
-    executor = Executor.from_repo(repo_root, create_queue=False)
-    return preview_diff(executor.prepare_request(spec), repo_root=repo_root)
+    request = Executor.prepare_request(spec, repo_root=repo_root)
+    return preview_diff(request, repo_root=repo_root)
 
 
 def build_preflight_report(

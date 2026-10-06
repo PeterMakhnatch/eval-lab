@@ -97,9 +97,11 @@ kept in `laminar.json` and the spans are retried on the next pass.
 `evallab.laminar.SIGNALS` (`copied_upstream_fix`, `stuck_loop`,
 `false_completion_claim`, `infra_not_model`; root-span trigger, no filters).
 On Laminar Cloud the API creates a Signal only with a BYOK LLM profile
-(observed 2026-10-05, contrary to the API reference), so create each Signal
-once in the UI under that exact name; the command then patches its prompt,
-schema, trigger and filters, which works without a profile.
+(observed 2026-10-05, contrary to the API reference). `--byok-zai` creates
+the `evallab-zai` workspace profile once (Z.ai `glm-5.3-flash`, key from
+`ZAI_OPENAPI_API_KEY`) and routes the Signals through it, at about 160k
+input tokens per trace for all four (about $0.02). Without it, the command
+can only patch Signals already created in the UI under the same names.
 `evallab laminar compare --runs-dir <job> --out <dir>` writes a per-trial
 table of Eval Lab's verdict vs each Signal event (`signals-vs-evallab.md`),
 querying the actual SDK UUID when present rather than a projected duplicate.

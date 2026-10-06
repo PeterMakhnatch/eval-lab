@@ -265,3 +265,17 @@ def test_signal_comparison_reads_runs_of_the_actual_sdk_trace(tmp_path: Path) ->
     rows = compare_signals(runs_dirs=[runs], out_dir=out, api_key="fixture", opener=opener)
     assert rows[0]["trace_id"] is None
     assert all(rows[0][definition["name"]]["signal"] is None for definition in SIGNALS)
+
+
+def test_byok_route_is_sent_with_every_signal() -> None:
+    bodies: list[Any] = []
+
+    def opener(request: Any, timeout: float) -> Any:
+        if request.get_method() == "GET":
+            return io.BytesIO(b'{"signals": []}')
+        bodies.append(json.loads(request.data))
+        return io.BytesIO(json.dumps({**bodies[-1], "id": "x", "version": 1}).encode())
+
+    apply_signals(api_key="k", opener=opener, llm_profile_id="p-1", model="glm-5.3-flash")
+    assert len(bodies) == len(SIGNALS)
+    assert all((b["llmProfileId"], b["model"]) == ("p-1", "glm-5.3-flash") for b in bodies)

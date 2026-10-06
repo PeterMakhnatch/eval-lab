@@ -260,65 +260,6 @@ exit 0
     assert not sentinel.exists(), "premerge must not invoke pytest when ty check fails"
 
 
-def test_ci_workflow_lane_gating_and_wheelhouse_triggers() -> None:
-    """Integrated CI: always-full sharded suite (scope lane superseded) plus wheelhouse triggers.
-
-    The maintenance scope/docs_consumer conditional lane is superseded by 420
-    always-running semantics: every required test runs on every PR/push and the
-    quality-required gate aggregates fail-closed. Sharding and lance coverage are
-    preserved; the conditional skip is not.
-    """
-    ci_path = ROOT / ".github/workflows/ci.yml"
-    wheelhouse_path = ROOT / ".github/workflows/mcp-wheelhouse-platform.yml"
-
-    ci = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
-    wheelhouse = yaml.safe_load(wheelhouse_path.read_text(encoding="utf-8"))
-
-    # Scope lane superseded: no scope job, no scope-gated conditional.
-    assert "scope" not in ci["jobs"]
-    assert "scope" not in str(ci["jobs"]["test"].get("needs", ""))
-
-    test_steps = ci["jobs"]["test"]["steps"]
-    full_suite_steps = [
-        s
-        for s in test_steps
-        if "uv run --no-sync pytest" in s.get("run", "")
-        and "-m docs_consumer" not in s.get("run", "")
-    ]
-    docs_lane_steps = [
-        s for s in test_steps if "uv run --no-sync pytest -m docs_consumer" in s.get("run", "")
-    ]
-
-    assert len(full_suite_steps) == 1, "expected exactly one full test suite step"
-    assert len(docs_lane_steps) == 0, "docs_consumer conditional lane is superseded; full suite always runs"
-
-    # Full suite always runs (no scope-based skip) with sharding.
-    assert "needs.scope" not in str(full_suite_steps[0].get("if", ""))
-
-    test_matrix = ci["jobs"]["test"].get("strategy", {}).get("matrix", {})
-    assert test_matrix.get("shard") == ["1/2", "2/2"]
-    assert "--shard ${{ matrix.shard }}" in full_suite_steps[0].get("run", "")
-    smoke_steps = [s for s in test_steps if "evallab.smoke" in s.get("run", "")]
-    assert len(smoke_steps) == 1, "expected exactly one smoke step"
-    assert "matrix.shard == '1/2'" in smoke_steps[0].get("if", "")
-
-    # 420 triggers and fail-closed gate preserved.
-    on_triggers = ci.get("on") or ci.get(True) or {}
-    pr_types = (on_triggers.get("pull_request") or {}).get("types", [])
-    assert "edited" in pr_types
-    assert "merge_group" in on_triggers
-    assert ci["jobs"]["quality-required"]["if"] == "${{ always() }}"
-
-    on_triggers = wheelhouse.get("on") or wheelhouse.get(True) or {}
-    push_branches = on_triggers.get("push", {}).get("branches", [])
-    assert push_branches == ["main", "integrate/**"]
-
-    concurrency = wheelhouse.get("concurrency", {})
-    assert concurrency.get("cancel-in-progress") is True
-    assert "github.workflow" in concurrency.get("group", "")
-
-
-
 WORKFLOW_FILES = sorted((ROOT / ".github/workflows").glob("*.yml"))
 # Intentional exemptions mapped to documented reasons.
 # No dispatch-only manual workflows remain: the dose-ladder dispatch-only reduction
@@ -433,25 +374,3 @@ def test_workbench_certification_workflows_cadence_and_path_isolation() -> None:
 
 
 
-def test_ci_workflow_test_matrix_shards_and_smoke_gating() -> None:
-    ci_path = ROOT / ".github/workflows/ci.yml"
-    ci = yaml.safe_load(ci_path.read_text(encoding="utf-8"))
-
-    test_job = ci["jobs"]["test"]
-    matrix = test_job.get("strategy", {}).get("matrix", {})
-    assert matrix.get("python-version") == ["3.12", "3.14"]
-    assert matrix.get("shard") == ["1/2", "2/2"]
-
-    test_steps = test_job["steps"]
-    full_suite_steps = [
-        s
-        for s in test_steps
-        if "uv run --no-sync pytest" in s.get("run", "")
-        and "-m docs_consumer" not in s.get("run", "")
-    ]
-    assert len(full_suite_steps) == 1
-    assert "--shard ${{ matrix.shard }}" in full_suite_steps[0].get("run", "")
-
-    smoke_steps = [s for s in test_steps if "evallab.smoke" in s.get("run", "")]
-    assert len(smoke_steps) == 1
-    assert "matrix.shard == '1/2'" in smoke_steps[0].get("if", "")

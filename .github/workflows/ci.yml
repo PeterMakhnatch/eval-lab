@@ -83,6 +83,11 @@ jobs:
         run: uv run --no-sync pytest --shard ${{ matrix.shard }}
       - if: matrix.python-version == '3.12' && matrix.shard == '1/2'
         run: uv run --no-sync python -m evallab.smoke --docker-free
+      - name: Native Harbor diff and regrade contracts
+        run: |
+          uv sync --locked --no-group observability --group benchmarks --group lance --extra laminar
+          uv run --no-sync python -c 'import harbor.job_diff'
+          uv run --no-sync pytest tests/test_job_diff.py tests/test_regrade.py --shard ${{ matrix.shard }} -n 0
 
   quality-required:
     name: quality-required

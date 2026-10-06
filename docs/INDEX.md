@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:b77af21165bedb3b23be2f6c49d39ba3c5228463ed4c4913c5a72438b1c097db
+    digest: sha256:fe4c2bcabb98473836e6b34fc709002a8ec6dff4d2a0a51b5b42caceacc9be08
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/har136-source-audit-2026-10-01.md

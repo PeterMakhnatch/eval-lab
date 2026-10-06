@@ -373,7 +373,7 @@ inputs:
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
-    digest: sha256:155f7784c4698feec8393bc0e2a65edd9d7c54902e8c30d98c923428e34e6448
+    digest: sha256:e9b1f3fcfc0a051add3ca32bd0b39dcf1ce8183dcaf0c2d4e369e223e6c57c30
   - path: src/evallab/quota.py
     digest: sha256:b02ac34b1dc5453d5648e31f1d2297b25ead6609fbd3276680915a7e479ba57e
   - path: src/evallab/recovery/__init__.py
@@ -443,7 +443,7 @@ inputs:
   - path: src/evallab/seqgen.py
     digest: sha256:0b895d33ff3846e71e1d2e66401860c92450fabe07a96da006f4ea675e0b9948
   - path: src/evallab/setup_fingerprint.py
-    digest: sha256:e50284f6c073d5ed7c29c79e345d07c93167fe7604c770f63d62a5292c138b5e
+    digest: sha256:d8baffb5c9764c5c832f93ba223d649d5032ace000f9ef26f1a5eece5ec020fa
   - path: src/evallab/sft_glm.py
     digest: sha256:9d61f7257f84e912b1dc25963dd9dfa9acc4c2fde706bfc2e4d9588ac6d15594
   - path: src/evallab/sft_records.py

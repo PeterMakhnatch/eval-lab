@@ -83,6 +83,11 @@ downloads nothing. Only finished local source jobs with the same
 `lock.json` → `harbor.version` are comparable; older-version jobs remain
 readable evidence but are not reused.
 
+These native paths require the pinned Harbor runtime in the Lab interpreter:
+use `uv run --extra laminar evallab ...` or install it with
+`uv sync --locked --extra laminar`. A separate global `harbor` executable is
+not sufficient for in-process diff planning.
+
 Select sources in the experiment spec before approval:
 
 ```json
@@ -126,9 +131,9 @@ model; a cloud verifier still requires the existing paid authorization.
 For a stored job and a current separate-verifier task:
 
 ```bash
-uv run evallab regrade runs/prior-job --task path/to/separate-verifier-task \
+uv run --extra laminar evallab regrade runs/prior-job --task path/to/separate-verifier-task \
   --name verifier-replay --dry-run
-uv run evallab regrade runs/prior-job --task path/to/separate-verifier-task \
+uv run --extra laminar evallab regrade runs/prior-job --task path/to/separate-verifier-task \
   --name verifier-replay --json
 ```
 
@@ -143,8 +148,13 @@ Partial/refused scoring exits nonzero. The Python trial-level receipt API
 remains available; the CLI uses the job as its reproducible unit.
 
 MiMo's `reward`, `integrity`, and `reward_gated` dimensions come from the
-separate-verifier variant (HAR-169), not from this replay wrapper. A successful
-local replay proves verifier operation, not task validity or model improvement.
+separate-verifier variant (HAR-169), not from this replay wrapper. Compose
+`rewardkit-integrity@1` **before** `separate-verifier@1`. The source must have
+successfully collected the declared workspace and `/logs/agent/trajectory.json`;
+a failed or missing required artifact is not reconstructed from pristine task
+files. The [separate-verifier evidence](../research/experiments/har169-separate-verifier/results.md)
+records the supported layout and controls. A successful local replay proves
+verifier operation, not task validity or model improvement.
 
 
 ## Offline LEGO capture checks (CPU only)

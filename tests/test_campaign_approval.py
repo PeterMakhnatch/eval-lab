@@ -78,6 +78,10 @@ def make_campaign(
     budget_usd: float = 10.0,
     task_id: str = TASK_ID,
     card: str = "HAR-175",
+    agent: str = "codex",
+    model: str | None = "test-model",
+    environment: str = "docker",
+    sampling: CampaignSampling | None = None,
 ) -> ExperimentCampaign:
     campaign = ExperimentCampaign(
         campaign_id=campaign_id,
@@ -93,10 +97,10 @@ def make_campaign(
             max_total_tokens=1000,
             cost_limit_usd=0.5,
         ),
-        agent="codex",
-        model="test-model",
-        environment="docker",
-        sampling=CampaignSampling(),
+        agent=agent,
+        model=model,
+        environment=environment,
+        sampling=CampaignSampling() if sampling is None else sampling,
         queue_cwd=str(root),
         linear_card=card,
         submitted_by="test",
@@ -114,7 +118,9 @@ def make_spec(
     task_id: str = TASK_ID,
     egress_lock: bool | None = True,
     deviations: list[ReferenceDeviation] | None = None,
+    agent: str = "codex",
     model: str | None = "test-model",
+    environment: str = "docker",
     est_cost_usd: float = 1.0,
     campaign_id: str | None = CAMPAIGN_ID,
     max_requests: int | None = 10,
@@ -125,9 +131,9 @@ def make_spec(
         purpose="practice",
         task=TASK_REF,
         task_path=TASK_REF,
-        agent="codex",
+        agent=agent,
         model=model,
-        environment="docker",
+        environment=environment,
         egress_lock=egress_lock,
         reference_profile="xiaomi-mimo-rl",
         deviations=[] if deviations is None else deviations,
@@ -440,4 +446,85 @@ def test_per_id_path_unchanged_without_campaign(tmp_path: Path) -> None:
     path, decision = service.submit(make_spec("campaign-noclaim-a", digest, campaign_id=None))
     assert not decision.admitted
     assert decision.reason_code == "paid_run_unauthorized"
+    assert path.parent.name == "waiting"
+
+
+MIMO_MODEL = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
+MIMO_SAMPLING = CampaignSampling(temperature=1.0, top_p=0.95, top_k=20)
+
+
+def test_campaign_mimoagent_sampling_pins_what_agent_sends(tmp_path: Path) -> None:
+    """The mimoagent route sends 1.0, not the model-only proxy config (0.6)."""
+    assert cap.intended_sampling("mimoagent", MIMO_MODEL) == MIMO_SAMPLING
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    make_campaign(
+        tmp_path,
+        digest,
+        agent="mimoagent",
+        model=MIMO_MODEL,
+        environment="daytona",
+        sampling=MIMO_SAMPLING,
+    )
+
+    path, decision = service.submit(
+        make_spec(
+            "campaign-mimo-a",
+            digest,
+            agent="mimoagent",
+            model=MIMO_MODEL,
+            environment="daytona",
+        )
+    )
+    assert decision.admitted
+    assert decision.policy_rule == f"campaign:{CAMPAIGN_ID}"
+    assert path.parent.name == "approved"
+
+
+def test_campaign_mimoagent_wrong_sampling_fails_validate(tmp_path: Path) -> None:
+    """A campaign pinning 0.6 for agent mimoagent contradicts what it sends."""
+    digest = seed_task(tmp_path)
+    good = make_campaign(
+        tmp_path,
+        digest,
+        agent="mimoagent",
+        model=MIMO_MODEL,
+        environment="daytona",
+        sampling=MIMO_SAMPLING,
+    )
+    bad = good.model_copy(
+        update={
+            "sampling": CampaignSampling(temperature=0.6, top_p=0.95, top_k=20),
+        }
+    )
+    errors = cap.validate_campaign_content(tmp_path, bad)
+    assert any("sampling" in error for error in errors)
+
+
+def test_campaign_terminus_spec_refused_on_mimoagent_campaign(tmp_path: Path) -> None:
+    """Same model, different agent: the setup (and sampling) does not match."""
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    make_campaign(
+        tmp_path,
+        digest,
+        agent="mimoagent",
+        model=MIMO_MODEL,
+        environment="daytona",
+        sampling=MIMO_SAMPLING,
+    )
+
+    path, decision = service.submit(
+        make_spec(
+            "campaign-terminus-a",
+            digest,
+            agent="terminus-2",
+            model=MIMO_MODEL,
+            environment="daytona",
+        )
+    )
+    assert not decision.admitted
+    assert decision.reason_code == "campaign_setup_mismatch"
+    assert "terminus-2" in decision.message
+    assert "mimoagent" in decision.message
     assert path.parent.name == "waiting"

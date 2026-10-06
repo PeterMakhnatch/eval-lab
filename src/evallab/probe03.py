@@ -271,7 +271,6 @@ def fallback_normalize(message: str) -> str | None:
         {"analysis": "", "plan": "", "commands": [{"keystrokes": ks} for ks in keystrokes]}
     )
 
-
 # ---------------------------------------------------------------------------
 # Trajectory assembly: head + cont-N in order with leading-prefix drop.
 # Parent-measured semantics (README ASM-*): drop any leading run of a cont
@@ -283,9 +282,9 @@ CONT_RE = re.compile(r"trajectory\.cont-(\d+)\.json$")
 
 
 def same_step(left: dict, right: dict) -> bool:
-    return left.get("source") == right.get("source") and str(left.get("message", "")) == str(
-        right.get("message", "")
-    )
+    return left.get("source") == right.get("source") and str(
+        left.get("message", "")
+    ) == str(right.get("message", ""))
 
 
 def assemble_trial(trial_dir: Path) -> tuple[dict, list[tuple[str, dict]]]:
@@ -509,7 +508,6 @@ def _step_tokens(step: dict) -> tuple[int | None, int | None]:
         int(completion) if isinstance(completion, (int, float)) else None,
     )
 
-
 # ---------------------------------------------------------------------------
 # WEDGE (HAR-99): wedged terminal -- the model keeps typing commands while
 # the shell is not at a prompt (pager, `>` continuation, a program reading
@@ -562,7 +560,9 @@ def terminal_state(observation: str, keystrokes: list[str]) -> tuple[str, str]:
     if INTERACTIVE_LINE_RE.search(last):
         return "interactive", last
     submitted = any(
-        key.endswith("\n") or key.strip() in ("Enter", "C-m") or INTERRUPT_KEY_RE.match(key.strip())
+        key.endswith("\n")
+        or key.strip() in ("Enter", "C-m")
+        or INTERRUPT_KEY_RE.match(key.strip())
         for key in keystrokes
     )
     if not submitted:
@@ -624,7 +624,9 @@ def wedged_terminal(model_seq: list[tuple[str, dict]], info: dict) -> dict:
     previous = None
     for turn in executed:
         landed_wedged = (
-            previous is not None and previous["state"] in WEDGED_STATES and not turn["at_prompt"]
+            previous is not None
+            and previous["state"] in WEDGED_STATES
+            and not turn["at_prompt"]
         )
         if current is not None and not landed_wedged:
             # The prompt was back before this turn: it landed at a prompt.
@@ -744,7 +746,9 @@ def loop_token_cost(
     without metrics (the summarization hand-off question turn, cont-N#3)
     are counted in `steps_without_metrics`, never as 0 tokens; a sum with
     no metered step at all is `null`."""
-    position = {(doc, step.get("step_id")): index for index, (doc, step) in enumerate(model_seq)}
+    position = {
+        (doc, step.get("step_id")): index for index, (doc, step) in enumerate(model_seq)
+    }
 
     def span(start_ref: tuple, end_ref: tuple) -> set[int]:
         start, end = position.get(start_ref), position.get(end_ref)
@@ -820,9 +824,7 @@ def loop_token_cost(
 
 
 MIMO_EXEC_FUNCTIONS = frozenset({"exec", "exec_command", "bash"})
-NATIVE_SIGNATURE_RE = re.compile(
-    r"<function=(?:exec|exec_command|bash)><parameter=(?:command|keystrokes)>"
-)
+NATIVE_SIGNATURE_RE = re.compile(r"<function=(?:exec|exec_command|bash)><parameter=(?:command|keystrokes)>")
 _PARAM_NAME_RE = re.compile(r"<parameter=([^>\s]+)>")
 _ALLOWED_PARAMS = frozenset({"command", "keystrokes", "duration"})
 HARNESS_STANDIN = "Technical difficulties. Please continue with the task."
@@ -840,7 +842,9 @@ FILE_CHANGE_RES = (
 REDIRECT_TARGET_RE = re.compile(
     r"(?<![->\w&])>\s*([~/][^\s|;&]+|[A-Za-z0-9_][\w.~-]*\.[A-Za-z0-9]{1,6})"
 )
-SED_TARGET_RE = re.compile(r"sed\s+(?:-[^\s|;&]+\s+)*(?:'[^']*'\s+|\"[^\"]*\"\s+)?([^\s|;&'\"]+)")
+SED_TARGET_RE = re.compile(
+    r"sed\s+(?:-[^\s|;&]+\s+)*(?:'[^']*'\s+|\"[^\"]*\"\s+)?([^\s|;&'\"]+)"
+)
 PACKAGING_PATH_RE = re.compile(
     r"setup\.(cfg|py)$|\.egg-info|requirements.*\.txt$|pyproject\.toml$|/tmp/",
     re.IGNORECASE,
@@ -850,8 +854,12 @@ ENV_WRESTLE_RE = re.compile(
     re.IGNORECASE,
 )
 GUARD_REJECT_RE = re.compile(r"anti_hack_guard:\s*REJECT\s*(\S+)")
-IMPORT_ERROR_RE = re.compile(r"ModuleNotFoundError|No module named|ImportError|cannot import name")
-PIP_INSTALL_RE = re.compile(r"pip3?\s+install\s+((?:-[^\s]+\s+)*)([A-Za-z0-9_.\-\[\]]+)")
+IMPORT_ERROR_RE = re.compile(
+    r"ModuleNotFoundError|No module named|ImportError|cannot import name"
+)
+PIP_INSTALL_RE = re.compile(
+    r"pip3?\s+install\s+((?:-[^\s]+\s+)*)([A-Za-z0-9_.\-\[\]]+)"
+)
 # "ModuleNotFoundError: No module named 'x'" must capture x, not "No": the
 # bare-exception branch only applies when "No module named" does not follow.
 MISSING_MODULE_RE = re.compile(
@@ -1136,12 +1144,15 @@ def _runs_and_trailing(
     trailing = [
         run
         for run in runs
-        if (run["end_doc"], run["end"]) in pos and last_idx - pos[(run["end_doc"], run["end"])] <= 1
+        if (run["end_doc"], run["end"]) in pos
+        and last_idx - pos[(run["end_doc"], run["end"])] <= 1
     ]
     return runs, trailing
 
 
-def _rejected_calls(agent_seq: list[tuple[str, dict]], info: dict) -> tuple[str, Any, dict] | None:
+def _rejected_calls(
+    agent_seq: list[tuple[str, dict]], info: dict
+) -> tuple[str, Any, dict] | None:
     """Earliest rejected turn the normalizer recovers calls for."""
     for doc, step in agent_seq:
         cell = info.get((doc, step.get("step_id")), {})
@@ -1150,9 +1161,7 @@ def _rejected_calls(agent_seq: list[tuple[str, dict]], info: dict) -> tuple[str,
     return None
 
 
-def _recovered(
-    agent_seq: list[tuple[str, dict]], info: dict, after_doc: str, after_sid: Any
-) -> bool:
+def _recovered(agent_seq: list[tuple[str, dict]], info: dict, after_doc: str, after_sid: Any) -> bool:
     """Later accepted turn exists (mechanical recovery; no NLP)."""
     seen = False
     for doc, step in agent_seq:
@@ -1240,7 +1249,9 @@ def confirmation_loop(
         starts = [
             pos
             for pos in prompt_positions
-            if all(COMPLETION_CLAIM_RE.search(_stripped(step)) for _doc, step in agent_seq[pos:])
+            if all(
+                COMPLETION_CLAIM_RE.search(_stripped(step)) for _doc, step in agent_seq[pos:]
+            )
         ]
         if not starts:
             return None
@@ -1795,7 +1806,9 @@ def _task_targets(text: str) -> set[str]:
     }
 
 
-def protected_file_writes(agent_seq: list[tuple[str, dict]], guard_reject: str | None) -> list[str]:
+def protected_file_writes(
+    agent_seq: list[tuple[str, dict]], guard_reject: str | None
+) -> list[str]:
     """Model steps whose EXECUTED keystrokes write the file the anti-hack
     guard names (`protected_file_mutated:<path>`). Matched on a path suffix
     at a component boundary, since the model often edits relative to a `cd`
@@ -1821,7 +1834,9 @@ def protected_file_writes(agent_seq: list[tuple[str, dict]], guard_reject: str |
     return refs
 
 
-def suspect_grader_evidence(trial_dir: Path, nop_runs_dir: str | None) -> dict | None:
+def suspect_grader_evidence(
+    trial_dir: Path, nop_runs_dir: str | None
+) -> dict | None:
     """R-ENV-02 suspect-grader evidence (HAR-81): the verifier fails at
     setup/collection (session-fixture errors) rather than on the model's
     behavior, or the verifier ran no tests at all with only a guard reject
@@ -1911,7 +1926,9 @@ def suspect_grader_evidence(trial_dir: Path, nop_runs_dir: str | None) -> dict |
     return None
 
 
-def _resolve_nop_trial(trial_dir: Path, nop_runs_dir: str | None) -> tuple[str | None, str | None]:
+def _resolve_nop_trial(
+    trial_dir: Path, nop_runs_dir: str | None
+) -> tuple[str | None, str | None]:
     """Same-task nop/qual control trial under --nop-runs-dir (matched by
     task_name): (trial path str or None, verifier test-stdout text or None)."""
     if not nop_runs_dir:
@@ -1952,7 +1969,9 @@ def _instruction_text(trial_dir: Path) -> tuple[str | None, int | None]:
     path (job lab-metadata.json experiment.task_path, resolved against the
     runs dir); (None, None) when it cannot be located."""
     try:
-        lab = json.loads((trial_dir.parent / "lab-metadata.json").read_text(encoding="utf-8"))
+        lab = json.loads(
+            (trial_dir.parent / "lab-metadata.json").read_text(encoding="utf-8")
+        )
         task_path = ((lab.get("experiment") or {}).get("task_path")) or ""
         # The prepared-task path is relative to the eval-lab worktree root
         # (e.g. 'runs/.prepared-tasks/...'): resolve against the ancestor
@@ -1985,7 +2004,9 @@ def completion_grader_check(trial_dir: Path, verifier_message: str) -> str | Non
     tokens: set[str] = set()
     for quoted in re.findall(r"'([^']+)'|\"([^\"]+)\"", verifier_message or ""):
         tokens.update(part for part in quoted if part)
-    tokens.update(re.findall(r"\b[\w.-]+\.(?:sh|py|json|patch|diff)\b", verifier_message or ""))
+    tokens.update(
+        re.findall(r"\b[\w.-]+\.(?:sh|py|json|patch|diff)\b", verifier_message or "")
+    )
     tokens.update(
         match for match in re.findall(r"\b(PoC|poc|exploit|submit)\b", verifier_message or "")
     )
@@ -1993,7 +2014,9 @@ def completion_grader_check(trial_dir: Path, verifier_message: str) -> str | Non
     instruction_text, instruction_size = _instruction_text(trial_dir)
     if instruction_text is None:
         return "instruction.md not located; deliverable check skipped"
-    missing = [token for token in sorted(tokens) if token.lower() not in instruction_text.lower()]
+    missing = [
+        token for token in sorted(tokens) if token.lower() not in instruction_text.lower()
+    ]
     if tokens and len(missing) == len(tokens):
         return (
             f"deliverable_not_in_instruction: verifier names "
@@ -2037,7 +2060,9 @@ def _unsubmitted_keystroke_loop(
     command was typed but never submitted (0036 head#17-121)."""
     if not longest:
         return False
-    positions = {(doc, step.get("step_id")): index for index, (doc, step) in enumerate(agent_seq)}
+    positions = {
+        (doc, step.get("step_id")): index for index, (doc, step) in enumerate(agent_seq)
+    }
     start = positions.get((longest["start_doc"], longest["start"]))
     end = positions.get((longest["end_doc"], longest["end"]))
     if start is None or end is None or end < start:
@@ -2163,7 +2188,9 @@ def _change_targets(text: str) -> set[str]:
     return targets
 
 
-def env_wrestling_span(model_seq: list[tuple[str, dict]], info: dict | None = None) -> dict | None:
+def env_wrestling_span(
+    model_seq: list[tuple[str, dict]], info: dict | None = None
+) -> dict | None:
     """Consecutive model steps whose commands wrestle the environment (pip
     installs, packaging/setup edits) rather than the task. Returns
     {start_doc, start, end_doc, end, steps, targets} or None."""
@@ -2761,7 +2788,9 @@ def compute_outcome_failure(
                     _d, step_c = window[pos]
                     if not is_claim(_d, step_c):
                         continue
-                    claims_here = sum(1 for _d2, step2 in window[pos:] if is_claim(_d2, step2))
+                    claims_here = sum(
+                        1 for _d2, step2 in window[pos:] if is_claim(_d2, step2)
+                    )
                     if claims_here * 2 >= len(window) - pos:
                         claim_start = step_c.get("step_id")
                         claim_doc = _d
@@ -2883,7 +2912,9 @@ def compute_outcome_failure(
         passage = _verifier_passage(trial_dir)
         grader_note = completion_grader_check(trial_dir, verifier_message)
         engaged = (
-            contract["attempted_repro"] or contract["poc_reproduced"] or contract["contract_seen"]
+            contract["attempted_repro"]
+            or contract["poc_reproduced"]
+            or contract["contract_seen"]
         )
         first_claim = completion_refs[0]
         first_sid = None
@@ -2976,7 +3007,9 @@ def compute_outcome_failure(
                     + ")"
                 ),
             }
-            notes = [note for note in (grader_note, source_text_assertion(trial_dir)) if note]
+            notes = [
+                note for note in (grader_note, source_text_assertion(trial_dir)) if note
+            ]
             if notes:
                 out["grader_note"] = "; ".join(notes)
             return out
@@ -3166,7 +3199,9 @@ def compute_outcome_failure(
         task_edits = []
         for doc, step in agent_seq:
             text = _step_command_text(doc, step, info)
-            if any(pattern.search(text) for pattern in FILE_CHANGE_RES) and _task_targets(text):
+            if any(pattern.search(text) for pattern in FILE_CHANGE_RES) and _task_targets(
+                text
+            ):
                 task_edits.append(_ref(doc, step.get("step_id")))
         if not task_edits:
             # An absence claim cites the span it scanned, so every outcome
@@ -3463,7 +3498,9 @@ def analyze_trial_core(
     exception = result.get("exception_info")
     if isinstance(exception, dict):
         exc_type = (
-            exception.get("className") or exception.get("exception_type") or exception.get("type")
+            exception.get("className")
+            or exception.get("exception_type")
+            or exception.get("type")
         )
         exc_message = str(exception.get("exception_message") or "")[:300]
     elif exception is None:
@@ -3586,7 +3623,9 @@ def analyze_trial_core(
         }
         if cause:
             bucket = rejection_causes.setdefault(doc, {})
-            entry = bucket.setdefault(cause, {"count": 0, "first_step": step.get("step_id")})
+            entry = bucket.setdefault(
+                cause, {"count": 0, "first_step": step.get("step_id")}
+            )
             entry["count"] += 1
         if is_standin:
             # STANDIN: Harbor's stand-in reply, not model output -- counted

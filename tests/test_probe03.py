@@ -7,7 +7,9 @@ from pathlib import Path
 
 from evallab import probe03
 
-MESSAGE = json.dumps({"analysis": "", "plan": "", "commands": [{"keystrokes": "echo stuck"}]})
+MESSAGE = json.dumps(
+    {"analysis": "", "plan": "", "commands": [{"keystrokes": "echo stuck"}]}
+)
 
 
 def _step(step_id: int, message: str = MESSAGE) -> dict:
@@ -20,7 +22,9 @@ def _step(step_id: int, message: str = MESSAGE) -> dict:
     }
 
 
-def _write_trial(root: Path, name: str, *, n_loop: int, reward: float, ceiling: bool) -> Path:
+def _write_trial(
+    root: Path, name: str, *, n_loop: int, reward: float, ceiling: bool
+) -> Path:
     trial = root / name
     agent = trial / "agent"
     agent.mkdir(parents=True)
@@ -44,7 +48,9 @@ def test_ceiling_loop_trial_stop_runs_and_reward(tmp_path: Path) -> None:
     job = tmp_path / "job"
     job.mkdir()
     (job / "lab-metadata.json").write_text(
-        json.dumps({"trial_budget": {"max_input_tokens": 12078, "max_output_tokens": 200000}}),
+        json.dumps(
+            {"trial_budget": {"max_input_tokens": 12078, "max_output_tokens": 200000}}
+        ),
         encoding="utf-8",
     )
     trial = _write_trial(job, "trial-loop", n_loop=12, reward=0.0, ceiling=True)
@@ -53,7 +59,9 @@ def test_ceiling_loop_trial_stop_runs_and_reward(tmp_path: Path) -> None:
     assert (reward, scored) == (0.0, True)
     analysis = probe03.analyze_trial_core(trial, job)
     assert analysis["stop_reason"] == "ceiling:input_tokens"
-    assert [(r["start"], r["end"], r["length"]) for r in analysis["runs"]] == [(1, 12, 12)]
+    assert [(r["start"], r["end"], r["length"]) for r in analysis["runs"]] == [
+        (1, 12, 12)
+    ]
     # A mechanically clean identical loop with no claim is not a failure.
     assert analysis["first_failure"] is None
 
@@ -62,7 +70,9 @@ def test_native_loop_break_preserves_scored_verifier_outcome(tmp_path: Path) -> 
     job = tmp_path / "job"
     job.mkdir()
     for reward in (0.0, 1.0):
-        trial = _write_trial(job, f"loop-break-{reward}", n_loop=12, reward=reward, ceiling=False)
+        trial = _write_trial(
+            job, f"loop-break-{reward}", n_loop=12, reward=reward, ceiling=False
+        )
         result_path = trial / "result.json"
         result = json.loads(result_path.read_text())
         result["exception_info"] = {
@@ -84,7 +94,10 @@ def test_distinct_steps_are_no_run(tmp_path: Path) -> None:
     trial.mkdir(parents=True)
     agent = trial / "agent"
     agent.mkdir()
-    steps = [_step(i, json.dumps({"commands": [{"keystrokes": f"echo {i}"}]})) for i in range(1, 4)]
+    steps = [
+        _step(i, json.dumps({"commands": [{"keystrokes": f"echo {i}"}]}))
+        for i in range(1, 4)
+    ]
     (agent / "trajectory.json").write_text(json.dumps({"steps": steps}), encoding="utf-8")
     (trial / "result.json").write_text(
         json.dumps(

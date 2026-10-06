@@ -22,6 +22,19 @@ Status:
   (``PROBE_CRACKED``).
 * ``unchecked``: no census nop yet.
 
+Verdict (HAR-177: one keep/fix/discard per task for the Data lane).
+Default-strip semantics: the sample proves ``strip-future-history@1`` removes
+the future-history leak and every derive is digest-checked, so the leak is
+fixed by default:
+
+* ``discard``: status is ``discarded``.
+* ``fix``: no ``strip-future-history@1`` variant, or its locked nop failed
+  (``STRIP_NOP_FAILED``).
+* ``keep``: otherwise — a validated or candidate strip variant suffices.
+
+``verdict_evidence`` cites the deciding input only (evidence pointers, no
+prose). Verdict never changes ``status`` or any existing selection.
+
 LLM checker labels (HAR-111/112) and rater-agent labels do not affect
 status. ``har120_proposal.csv`` is a frozen HAR-120 input and is no longer
 written here.
@@ -46,6 +59,18 @@ CENSUS = ROOT / "research/experiments/har108-python-census/task_health.parquet"
 VARIANTS = ROOT / "library/task-variants"
 REPAIR_BY = {"har113-repair", "har115-repair", "har146-repair", "har158-repair"}
 LEAK = "leak-close-pypi@1"
+STRIP = "strip-future-history@1"
+#: Locked-nop failures on the strip variant: task -> failed job dirs. Empty
+#: after the re-derive (10/10 re-nops pass); extend here if a future strip
+#: nop fails. History: 000076's setup failed twice under the old fsck
+#: exit-code gate (``runs/har177-snop-000076-8d223f9cd1fb``,
+#: ``runs/har177-snop2-000076``) until the transform fix.
+STRIP_NOP_FAILED: dict[str, tuple[str, ...]] = {}
+#: Tasks whose strip variant needed the fixed transform (shallow-boundary
+#: images): task -> passing re-nop job dir, cited in ``verdict_evidence``.
+STRIP_FIXED_TRANSFORM = {
+    "format-code-task-000076": ("runs/har177-r2nop-000076-80e446f0f122",),
+}
 #: Grading-time network fetch, repaired by pre-downloading during setup: the
 #: census nop (no lock) is sound on the original, but the mandatory egress
 #: lock breaks grading, so the row runs the validated prefetch variant.
@@ -119,6 +144,8 @@ COLUMNS = (
     "census_evidence",
     "leak_channel",
     "evidence",
+    "verdict",
+    "verdict_evidence",
 )
 
 
@@ -136,6 +163,35 @@ def load_variants() -> dict[str, list[tuple[dict, Path]]]:
 
 def latest(records: list[tuple[dict, Path]]) -> tuple[dict, Path] | None:
     return max(records, key=lambda item: item[0]["created_at"]) if records else None
+
+
+def strip_pick(records: list[tuple[dict, Path]]) -> tuple[dict, Path] | None:
+    """Latest ``strip-future-history@1`` record for a task, if any."""
+    strips = [item for item in records if item[0]["transform"] == STRIP]
+    return latest(strips)
+
+
+def verdict_for(
+    status: str,
+    task_id: str,
+    strip: tuple[dict, Path] | None,
+) -> tuple[str, str]:
+    """Deterministic HAR-177 verdict plus its evidence pointer (no prose)."""
+    if status == "discarded":
+        return "discard", "ledger:status=discarded"
+    if task_id in STRIP_NOP_FAILED:
+        jobs = " ".join(STRIP_NOP_FAILED[task_id])
+        return "fix", f"{jobs}:strip-nop-failed"
+    if strip is not None:
+        record, path = strip
+        evidence = f"{rel(path)}:{STRIP}={record['status']}"
+        if task_id in PROBE_CRACKED:
+            evidence += f" build.py:PROBE_CRACKED#{task_id}"
+        if task_id in STRIP_FIXED_TRANSFORM:
+            jobs = " ".join(STRIP_FIXED_TRANSFORM[task_id])
+            evidence += f" {jobs}:strip-nop-pass-fixed-transform"
+        return "keep", evidence
+    return "fix", f"library/task-variants:{STRIP}=absent"
 
 
 def ledger_row(
@@ -250,6 +306,11 @@ def main() -> None:
             if row["run_digest"] != digest:
                 raise SystemExit(f"{row['task_id']}: run digest changed; review PROBE_CRACKED")
             row["status"], row["reason"] = "review", reason
+    for row in rows:
+        strip = strip_pick(variants.get(row["task_id"], []))
+        row["verdict"], row["verdict_evidence"] = verdict_for(row["status"], row["task_id"], strip)
+    print("verdict", dict(Counter(row["verdict"] for row in rows)))
+    print("fix", sorted(row["task_id"] for row in rows if row["verdict"] == "fix"))
     write(HERE / "ledger.csv", rows, COLUMNS)
     print("status", dict(Counter(row["status"] for row in rows)))
     print("by split", dict(Counter((row["split"], row["status"]) for row in rows)))

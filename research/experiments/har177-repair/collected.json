@@ -1,0 +1,95 @@
+{
+  "collected_at": "2026-10-06T18:42:04.067154+00:00",
+  "rows": [
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har177-verdicts-20261006/runs/har177-repair/final/har177-final-002402-listing/repaired-format-code-task-002402__T8dgxoN",
+      "reward": 0.0,
+      "reward_txt": "0",
+      "listing": [
+        "== cwd /testbed base a9c9fc6615edd4a61dbab0eb8e4fe971a7f58a72",
+        "== git /testbed/.git beyond_base=0 unreachable_commits=0",
+        "== git /var/lib/mimo/git-hidden absent",
+        "== git /var/lib/mimo/git-hidden/.git absent",
+        "== known_future_commit absent",
+        "== tests_dir absent"
+      ]
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har177-verdicts-20261006/runs/har177-repair/final/har177-final-002402-nop/repaired-format-code-task-002402__ConyPUW",
+      "reward": 0.0,
+      "reward_txt": "0"
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har177-verdicts-20261006/runs/har177-repair/final/har177-final-002402-oracle/repaired-format-code-task-002402__hXULpm6",
+      "reward": 1.0,
+      "reward_txt": "1",
+      "listing": [
+        "== cwd /testbed base a9c9fc6615edd4a61dbab0eb8e4fe971a7f58a72",
+        "== git /testbed/.git beyond_base=0 unreachable_commits=0",
+        "== git /var/lib/mimo/git-hidden absent",
+        "== git /var/lib/mimo/git-hidden/.git absent",
+        "== known_future_commit absent",
+        "== tests_dir absent",
+        "har177-repair oracle: reference fix applied"
+      ]
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har177-verdicts-20261006/runs/har177-repair/final/har177-final-002402-parent-listing/orig-format-code-task-002402-lis__qRPFbW9",
+      "reward": 0.0,
+      "reward_txt": "0",
+      "listing": [
+        "== cwd /testbed base a9c9fc6615edd4a61dbab0eb8e4fe971a7f58a72",
+        "== git /testbed/.git beyond_base=0 unreachable_commits=696",
+        "== git /var/lib/mimo/git-hidden absent",
+        "== git /var/lib/mimo/git-hidden/.git absent",
+        "== known_future_commit observable",
+        "== tests_dir absent"
+      ]
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har177-verdicts-20261006/runs/har177-repair/final/har177-final-002552-listing/repaired-format-code-task-002552__QBfjtad",
+      "reward": 0.0,
+      "reward_txt": "0",
+      "listing": [
+        "== cwd /testbed base d5179059d927ed7ababa536da842de2680b52724",
+        "== git /testbed/.git beyond_base=0 unreachable_commits=0",
+        "== git /var/lib/mimo/git-hidden absent",
+        "== git /var/lib/mimo/git-hidden/.git absent",
+        "== known_future_commit absent",
+        "== tests_dir absent"
+      ]
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har177-verdicts-20261006/runs/har177-repair/final/har177-final-002552-nop/repaired-format-code-task-002552__iqx2wp7",
+      "reward": 0.0,
+      "reward_txt": "0"
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har177-verdicts-20261006/runs/har177-repair/final/har177-final-002552-oracle/repaired-format-code-task-002552__FD5xEvP",
+      "reward": 1.0,
+      "reward_txt": "1",
+      "listing": [
+        "== cwd /testbed base d5179059d927ed7ababa536da842de2680b52724",
+        "== git /testbed/.git beyond_base=0 unreachable_commits=0",
+        "== git /var/lib/mimo/git-hidden absent",
+        "== git /var/lib/mimo/git-hidden/.git absent",
+        "== known_future_commit absent",
+        "== tests_dir absent",
+        "har177-repair oracle: reference fix applied"
+      ]
+    },
+    {
+      "trial_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har177-verdicts-20261006/runs/har177-repair/final/har177-final-002552-parent-listing/orig-format-code-task-002552-lis__YvTz7N5",
+      "reward": 0.0,
+      "reward_txt": "0",
+      "listing": [
+        "== cwd /testbed base d5179059d927ed7ababa536da842de2680b52724",
+        "== git /testbed/.git beyond_base=0 unreachable_commits=12",
+        "== git /var/lib/mimo/git-hidden absent",
+        "== git /var/lib/mimo/git-hidden/.git absent",
+        "== known_future_commit observable",
+        "== tests_dir absent"
+      ]
+    }
+  ]
+}

@@ -90,10 +90,11 @@ uv export --frozen --no-dev --no-default-groups --no-hashes --no-editable \
 uv venv --clear --python 3.12 "$VENV"
 uv pip install --python "$VENV/bin/python" -r "$REQ"
 uv pip install --python "$VENV/bin/python" --no-deps "$ROOT"
-# Task pages read health/solve tags from task-health-tags@1 variant records. Like the
-# venv, they are a snapshot of this checkout: re-run the installer to refresh them.
-VARIANTS_DIR="$RV_DIR/task-variants"
-rsync -a --delete "$ROOT/library/task-variants/" "$VARIANTS_DIR/"
+# Task pages read health/solve tags from the variant records (task_variants.RECORDS_DIRNAME).
+# Like the venv they are a snapshot of this checkout: re-run the installer to refresh them.
+RECORDS_REL="$("$VENV/bin/python" -c 'from evallab.task_variants import RECORDS_DIRNAME; print(RECORDS_DIRNAME)')"
+VARIANTS_DIR="$RV_DIR/variant-records"
+rsync -a --delete "$ROOT/$RECORDS_REL/" "$VARIANTS_DIR/"
 
 "$EVALLAB" --help >/dev/null
 HARBOR_VERSION="$("$VENV/bin/python" -c 'import importlib.metadata as m; print(m.version("harbor"))')"

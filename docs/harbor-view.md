@@ -80,8 +80,8 @@ Reader verdicts live in `~/Library/Application Support/evallab/readers`
 `_tasks/<task>/harbor_check.json`. A page is rebuilt when a member trial, a
 verdict or the task's `task-health-tags@1` record changes. The installer copies
 `library/task-variants` from the checkout it installs into the service's
-`task-variants` snapshot (passed as `--task-variants`); re-run it to pick up new
-health records.
+`variant-records` snapshot (passed as `--variant-records`); re-run it to pick up
+new health records.
 
 | Reader | How it runs | Copy recall (H12 / copy benchmark) | False positives |
 |---|---|---|---|

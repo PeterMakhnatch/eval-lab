@@ -426,7 +426,7 @@ def serve(viewer: ResultsViewerRoot, *, host: str, port: int, interval: float) -
 def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     del root
     sources = [path.expanduser().resolve() for path in args.sources] or [results_root()]
-    variants = args.task_variants.expanduser() if args.task_variants else None
+    variants = args.variant_records.expanduser() if args.variant_records else None
     viewer = ResultsViewerRoot(
         args.root.expanduser(),
         sources,
@@ -504,9 +504,9 @@ def build_results_viewer_parser(commands: argparse._SubParsersAction) -> None:
         help="Job-name glob whose trials get task pages (repeatable; default: HAR-168-*)",
     )
     parser.add_argument(
-        "--task-variants",
+        "--variant-records",
         type=Path,
-        help="task-variants tree for health/solve tags (the installer passes a snapshot of "
+        help="Variant-record tree for health/solve tags (the installer passes a snapshot of "
         "library/task-variants; without it pages show 'no record')",
     )
     parser.add_argument("--no-task-pages", action="store_true", help="Do not build task-<id> pages")

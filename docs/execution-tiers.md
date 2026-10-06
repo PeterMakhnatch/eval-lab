@@ -74,6 +74,89 @@ Oracle/nop controls and verifier runs stay exactly as `AGENTS.md` prescribes:
 through `evallab` wrappers, jobs under `runs/`, ≤2 concurrent. The larger VM
 just means `local-heavy` tasks no longer fail on memory.
 
+## Harbor-native reuse and local regrade (HAR-171)
+
+`evallab preflight --spec <candidate.json>` reports **reuse, regrade, or rerun
+per target trial**, using Harbor 0.24's `job_diff` over the same locally staged
+task bytes and command inputs as dispatch. It creates no job or sandbox and
+downloads nothing. Only finished local source jobs with the same
+`lock.json` → `harbor.version` are comparable; older-version jobs remain
+readable evidence but are not reused.
+
+These native paths require the pinned Harbor runtime in the Lab interpreter:
+use `uv run --extra laminar evallab ...` or install it with
+`uv sync --locked --extra laminar`. A separate global `harbor` executable is
+not sufficient for in-process diff planning.
+
+Select sources in the experiment spec before approval:
+
+```json
+{"diff_sources": ["runs/prior-job"]}
+```
+
+Omitting `diff_sources` discovers finished jobs in the same explicit grid
+cell or exact campaign attempt identity. A card label or research question
+alone is **not** a cohort; ad-hoc new runs remain fresh. Set
+`"diff_sources": []` for **fresh independent stochastic attempts** within an
+existing grid. Harbor consumes each source trial UUID at most once per target
+plan: growing an N-attempt job requires new trials for unmatched slots.
+`preflight --spec <candidate.json> --diff <prior-job>` is a preview override
+only; persist the source list in the spec before approval. Changing that list
+changes the approval digest, rather than bypassing it through a sidecar.
+
+An identical completed trial or a patch-version task change is reused; a
+minor-version change regrades when the task supports a separate verifier;
+major-version or non-task input changes rerun. Missing versions cannot be
+reused, and changed task bytes under an unchanged version fail closed.
+Preflight displays Harbor's downgrade/refusal reasons instead of silently
+turning them into evidence.
+
+The setup fingerprint is carried by the lock-covered
+`agent.env.EVALLAB_SETUP_FINGERPRINT`, alongside native agent options and
+environment kwargs such as `egress_lock`. Sampling, harness, parser/server
+pins, budgets and lock posture therefore participate in comparison without
+inventing an unknown strict `AgentOptions` kwarg. The local MiMo normalizer's
+implementation bytes are hashed too: keeping its name while changing its
+behavior cannot reuse old trials. Task/ledger bookkeeping, spec names and
+transient staging paths are excluded; Harbor locks task, instruction and skill
+contents independently.
+
+All-reuse dispatch records `dispatch_reused` and source trial IDs/lock digests
+in `queue/reasons/`; it starts no child, reserves no new attempt and does not
+re-ingest old trials as new observations. Partial dispatch retains the normal
+approval, lease, readiness, capacity and spend gates and passes `--diff` to
+the existing guarded Harbor subprocess. Regrade-only work does not warm a
+model; a cloud verifier still requires the existing paid authorization.
+
+For a stored job and a current separate-verifier task:
+
+```bash
+uv run --extra laminar evallab regrade runs/prior-job --task path/to/separate-verifier-task \
+  --name verifier-replay --dry-run
+uv run --extra laminar evallab regrade runs/prior-job --task path/to/separate-verifier-task \
+  --name verifier-replay --json
+```
+
+The job-level command runs Harbor's verifier-only regrade on **local Docker
+only**, with no model call or cloud opt-in. It requires recorded `agent/` and
+`artifacts/manifest.json`; a vanished staged task path requires an explicit
+`--task`. Task names and multi-task coverage must match. Source evidence is
+never overwritten or resumed in place. The new `runs/<name>/<trial>` outputs
+retain native locks/manifests plus `regrade-job-receipt.json` and per-trial
+receipts, separating recorded rewards from new dimensions and deltas.
+Partial/refused scoring exits nonzero. The Python trial-level receipt API
+remains available; the CLI uses the job as its reproducible unit.
+
+MiMo's `reward`, `integrity`, and `reward_gated` dimensions come from the
+separate-verifier variant (HAR-169), not from this replay wrapper. Compose
+`rewardkit-integrity@1` **before** `separate-verifier@1`. The source must have
+successfully collected the declared workspace and `/logs/agent/trajectory.json`;
+a failed or missing required artifact is not reconstructed from pristine task
+files. The [separate-verifier evidence](../research/experiments/har169-separate-verifier/results.md)
+records the supported layout and controls. A successful local replay proves
+verifier operation, not task validity or model improvement.
+
+
 ## Offline LEGO capture checks (CPU only)
 
 Inspect saved `proxy_capture.json` files without starting Harbor, a proxy,

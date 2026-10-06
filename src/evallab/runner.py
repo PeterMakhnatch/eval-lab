@@ -2387,6 +2387,38 @@ def _check_daytona_admission(request: RunRequest) -> dict[str, Any] | None:
         ) from error
 
 
+def stage_request_task(
+    request: RunRequest, staging_dir: Path
+) -> tuple[Path, NetworkAdaptation | None]:
+    """Prepare task bytes identically for execution and read-only diff planning."""
+    is_zai_openapi = request.agent == "mini-swe-agent" and (
+        request.model == ZAI_OPENAPI_MODEL_SELECTOR
+        or (request.model is not None and request.model.startswith("zai/"))
+    )
+    is_host_model = request.agent in {TERMINUS_AGENT, MIMO_AGENT}
+    return _stage_task_for_host(
+        request.task,
+        staging_dir,
+        agent_allowed_hosts=(
+            ()
+            if is_host_model
+            else (
+                (ZAI_OPENAPI_PROXY_HOST,)
+                if is_zai_openapi
+                else (
+                    (DEEPSEEK_PROXY_HOST,)
+                    if request.agent == "mini-swe-agent"
+                    else ((ZAI_PROXY_HOST,) if request.agent == ZAI_OPENCODE_AGENT else ())
+                )
+            )
+        ),
+        preserve_declared_network=is_host_model,
+        expected_package_digest=(
+            request.provenance.package_digest if request.provenance is not None else None
+        ),
+    )
+
+
 def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     validate_request(request, repo_root=repo_root)
     if request.agent in {"mini-swe-agent", ZAI_OPENCODE_AGENT, TERMINUS_AGENT, MIMO_AGENT}:
@@ -2421,34 +2453,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
     executor_log = _executor_log_path(request)
     started = datetime.now(UTC)
     try:
-        is_zai_openapi = request.agent == "mini-swe-agent" and (
-            request.model == ZAI_OPENAPI_MODEL_SELECTOR
-            or (request.model is not None and request.model.startswith("zai/"))
-        )
-        # Host-side clients need no model-host allowlist in the task image.
-        # Keep declared network/phase policy for Harbor to enforce or refuse.
-        is_host_model = request.agent in {TERMINUS_AGENT, MIMO_AGENT}
-        staged_task, adaptation = _stage_task_for_host(
-            request.task,
-            staging_dir,
-            agent_allowed_hosts=(
-                ()
-                if is_host_model
-                else (
-                    (ZAI_OPENAPI_PROXY_HOST,)
-                    if is_zai_openapi
-                    else (
-                        (DEEPSEEK_PROXY_HOST,)
-                        if request.agent == "mini-swe-agent"
-                        else ((ZAI_PROXY_HOST,) if request.agent == ZAI_OPENCODE_AGENT else ())
-                    )
-                )
-            ),
-            preserve_declared_network=is_host_model,
-            expected_package_digest=(
-                request.provenance.package_digest if request.provenance is not None else None
-            ),
-        )
+        staged_task, adaptation = stage_request_task(request, staging_dir)
         staged_request: RunRequest = replace(request, task=staged_task)
         staged_harness: Path | None = None
         harness_meta: dict[str, Any] | None = None
@@ -2505,6 +2510,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
 
         from evallab.setup_fingerprint import (
             build_intended_fingerprint,
+            lock_setup_fingerprint,
             maybe_write_fingerprints,
         )
 
@@ -2550,7 +2556,10 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 _intended = {}
                 _fingerprint_error = f"{type(exc).__name__}: {exc}"
 
-        harbor_command = build_command(staged_request)
+        harbor_command = build_command(
+            staged_request,
+            setup_fingerprint=lock_setup_fingerprint(request, repo_root=repo_root),
+        )
         command = subscription_command(staged_request, harbor_command, repo_root=_RUNTIME_ROOT)
         containers_before = harbor_container_ids(staged_request.task)
         _write_executor_state(
@@ -2664,7 +2673,14 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     if is_tinker_terminus_model(request.model)
                     else (
                         "Z.ai OpenAPI"
-                        if (is_zai_openapi or is_host_model)
+                        if (
+                            request.agent in {TERMINUS_AGENT, MIMO_AGENT}
+                            or (
+                                request.agent == "mini-swe-agent"
+                                and request.model is not None
+                                and request.model.startswith("zai/")
+                            )
+                        )
                         else ("Z.ai" if request.agent == ZAI_OPENCODE_AGENT else "DeepSeek")
                     )
                 )

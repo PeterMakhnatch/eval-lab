@@ -56,6 +56,7 @@ trigger and dependency handling fail closed, including merge-group support.
 | Registry audit | `uv run evallab registry audit --json` | locked; clean-checkout task/inventory audit |
 | Lessons freshness | `uv run python -m evallab.lessons` | locked; statistical lessons lineage |
 | Tests | `uv run pytest` (CI: `--shard ${{ matrix.shard }}`) | locked pytest; Python 3.12 and 3.14 across a two-shard matrix (`test (3.12, 1/2)`, `test (3.12, 2/2)`, `test (3.14, 1/2)`, `test (3.14, 2/2)`) |
+| Native Harbor diff/regrade | After the base suite, each test shard installs the locked `laminar` extra, requires `harbor.job_diff` to import, then runs `tests/test_job_diff.py tests/test_regrade.py` with the same shard selector | Python 3.12 and 3.14; the optional-runtime skips in the base suite are not native coverage |
 | Types | `uvx ty@0.0.71 check src/ --output-format=concise` | Python 3.12; zero-diagnostic gate (runs before tests in premerge) |
 
 The ty job fails on any diagnostic. Keep the local premerge baseline and the

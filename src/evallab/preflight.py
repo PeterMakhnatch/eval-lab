@@ -44,6 +44,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from evallab.cohort import minimum_detectable_effect, pass_at_k_probability
+from evallab.job_diff import DiffPreview, preview_diff, render_diff
 from evallab.quota import (
     PAID_AGENTS,
     Headroom,
@@ -202,6 +203,8 @@ class PreflightReport:
     queue: QueueSurvey
     power: PowerAssessment
     refuse_at_used_percent: float | None = None
+    trial_diffs: tuple[tuple[str, DiffPreview], ...] = ()
+    diff_errors: tuple[str, ...] = ()
 
     def refusals(self) -> tuple[str, ...]:
         """Every provider-stated reason a billable dispatch would refuse."""
@@ -405,6 +408,14 @@ def _default_refusal() -> RefusalReader:
     return provider_reported_exhaustion
 
 
+def preview_spec_diff(spec: ExperimentSpec, repo_root: Path) -> DiffPreview:
+    """Resolve the exact dispatcher request without creating a queue or a job."""
+    from evallab.queue import Executor
+
+    request = Executor.prepare_request(spec, repo_root=repo_root)
+    return preview_diff(request, repo_root=repo_root)
+
+
 def build_preflight_report(
     repo_root: Path,
     *,
@@ -415,6 +426,7 @@ def build_preflight_report(
     refusal: RefusalReader | None = None,
     refuse_at_used_percent: float | None = None,
     useful_effect: float | None = None,
+    diff_reader: Callable[[ExperimentSpec, Path], DiffPreview] = preview_spec_diff,
 ) -> PreflightReport:
     """Everything preflight reports, from disk only.
 
@@ -434,6 +446,17 @@ def build_preflight_report(
         for agent in sorted(paid_agents)
     )
     survey = survey_queue(queue_root if queue_root is not None else root / "queue")
+    trial_diffs = []
+    diff_errors = []
+    for group in survey.groups.values():
+        for item in group:
+            if item.state == "running":
+                continue
+            try:
+                spec = ExperimentSpec.model_validate_json(item.path.read_text())
+                trial_diffs.append((item.name, diff_reader(spec, root)))
+            except (OSError, ValueError, RuntimeError, ImportError) as exc:
+                diff_errors.append(f"{item.name}: {exc}")
     return PreflightReport(
         generated_at=now,
         repo_root=root,
@@ -442,6 +465,8 @@ def build_preflight_report(
         queue=survey,
         power=assess_power(survey, useful_effect=useful_effect),
         refuse_at_used_percent=refuse_at_used_percent,
+        trial_diffs=tuple(trial_diffs),
+        diff_errors=tuple(diff_errors),
     )
 
 
@@ -563,11 +588,16 @@ def render_preflight(report: PreflightReport) -> str:
     lines.extend(_queue_lines(report.queue))
     lines.append("")
     lines.extend(_power_lines(report.power))
+    for name, preview in report.trial_diffs:
+        lines += ["", f"spec: {name}", render_diff(preview).rstrip()]
+    lines.extend(f"DIFF REFUSED: {error}" for error in report.diff_errors)
 
     lines.append("")
     refusals = report.refusals()
     hard_stops = report.hard_stopped()
-    if refusals:
+    if report.diff_errors:
+        lines.append("VERDICT: trial diff refused — " + "; ".join(report.diff_errors))
+    elif refusals:
         lines.append("VERDICT: billable work would be refused — " + "; ".join(refusals))
     elif hard_stops:
         lines.append(

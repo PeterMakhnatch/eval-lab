@@ -29,7 +29,7 @@ inputs:
   - path: docs/analysis-worker.md
     digest: sha256:e371abf23361ab2a2f75408801e57c57c7332267ad787bfd3996dddb5f48e966
   - path: docs/architecture.md
-    digest: sha256:8e437f7f76b2147c8478d3ba17a31fd1a5a8bb07680c9b9ab02723d0a6f5632e
+    digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
     digest: sha256:f25d3359de4679c08f86887b991cadcab0bf2e386ebb61d5325d63a1fd09e315
   - path: docs/authoring.md
@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:10aac568fe746c582a7b81cf3135c9040cd75e67b8254b93fac056d0e1df5097
+    digest: sha256:fe4c2bcabb98473836e6b34fc709002a8ec6dff4d2a0a51b5b42caceacc9be08
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/har136-source-audit-2026-10-01.md

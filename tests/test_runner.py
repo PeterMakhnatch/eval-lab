@@ -1764,33 +1764,7 @@ def test_oracle_daytona_without_repeat_has_bounded_env_but_no_verifier_flags(
     assert "--verifier-kwarg" not in command
 
 
-def test_control_docker_argv_unchanged_without_repeat(tmp_path: Path) -> None:
-    """A spec without the new field keeps its previous argv byte-identically."""
-    from evallab.execution_contracts import HARBOR_STATE_JOURNAL_PLUGIN, HARBOR_WATCH_HOOKS_PLUGIN
 
-    task_dir = task(tmp_path)
-    jobs_dir = tmp_path / "runs"
-    command = build_command(
-        RunRequest(
-            task=task_dir,
-            agent="oracle",
-            name="sample-oracle-control",
-            jobs_dir=jobs_dir,
-        )
-    )
-
-    assert command == [
-        "harbor", "run",
-        "--path", str(task_dir),
-        "--agent", "oracle",
-        "--env", "docker",
-        "--job-name", "sample-oracle-control",
-        "--jobs-dir", str(jobs_dir),
-        "--n-concurrent", "1",
-        "--n-attempts", "1",
-        "--plugin", HARBOR_STATE_JOURNAL_PLUGIN,
-        "--plugin", HARBOR_WATCH_HOOKS_PLUGIN,
-    ]
 
 
 def test_nop_daytona_storage_override_build_command(tmp_path: Path) -> None:

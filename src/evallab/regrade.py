@@ -26,6 +26,18 @@ came from — the source trajectory digest and the verifier identity digest — 
 re-scoring can never be mistaken for, or silently substituted into, the original
 observation. Harbor's own regrade never modifies the source trial; neither does
 anything here.
+
+Job-level regrading (`regrade_job`) extends the same machinery to whole Harbor
+jobs via `harbor job regrade`, which Harbor derives as one regrade trial per
+recorded source trial, matched by task name. The job receipt carries one
+trial-level receipt per source trial — each with its own source/verifier
+identity and old/new reward dimensions — plus the exact job command Harbor ran.
+`plan_regrade_job` previews the same resolution without invoking anything, for
+CLI dry-runs. Both refuse closed (typed reason codes, no silent skips) when the
+source job is missing or empty, when verifier tasks cannot be resolved or do
+not cover the job's tasks, or when a layout this module cannot verify
+(multi-step sources) is present. Only the local `$0` Docker path runs;
+anything else raises before any work starts, with no bypass flag.
 """
 
 from __future__ import annotations
@@ -34,6 +46,7 @@ import json
 import subprocess
 import tomllib
 from collections.abc import Iterable, Mapping, Sequence
+from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
 from typing import Any
@@ -44,26 +57,58 @@ from evallab.benchmark_program_contracts import canonical_json, compute_prefixed
 from evallab.schemas import ContractModel
 
 __all__ = [
-    "REGRADE_TRIAL_NAME_SUFFIX",
+    "LOCAL_REGRADE_ENVIRONMENTS",
+    "REGRADE_JOB_RECEIPT_FILENAME",
+    "REGRADE_TRIAL_RECEIPT_FILENAME",
     "RegradeExecution",
     "RegradeInvocation",
+    "RegradeJobInvocation",
+    "RegradeJobPlan",
+    "RegradeJobPlanTrial",
+    "RegradeJobReceiptV1",
+    "RegradeJobVerdict",
     "RegradeReceiptV1",
     "RegradeRefusalCode",
     "RegradeVerdict",
     "RewardObservation",
     "SourceTrialIdentity",
     "VerifierIdentity",
+    "build_job_regrade_command",
     "build_regrade_command",
+    "default_regrade_job_name",
+    "expand_task_dirs",
+    "plan_regrade_job",
     "read_reward_observation",
+    "regrade_job",
+    "regrade_many",
     "regrade_trial",
+    "render_job_plan",
+    "render_job_receipt",
+    "render_receipt",
     "source_trial_identity",
     "verifier_identity",
 ]
+
 
 #: Marker appended to generated regrade trial names. Regrade outputs are trials
 #: in their own right; the suffix keeps them recognisable in a jobs tree without
 #: parsing `config.source_trial`.
 REGRADE_TRIAL_NAME_SUFFIX = "regrade"
+
+#: The only verifier environment the regrade path may use. Regrade is a `$0`
+#: local-Docker operation: it never invokes a model, and the verifier runs
+#: inside Harbor's Docker environment. Anything else — cloud runners, custom
+#: import paths — raises before any work starts. There is no opt-in flag: a
+#: caller boolean is not the queue's paid approval ledger.
+LOCAL_REGRADE_ENVIRONMENTS = frozenset({"docker"})
+
+#: Job-level receipt filename, written at the new job root. The source job is
+#: never written to.
+REGRADE_JOB_RECEIPT_FILENAME = "regrade-job-receipt.json"
+
+#: Per-trial receipt filename inside a regrade output trial. A later
+#: determinism probe reads it to learn which verifier digest scored the trial.
+REGRADE_TRIAL_RECEIPT_FILENAME = "regrade-receipt.json"
 
 #: The verifier's build inputs live here relative to the task directory. Harbor
 #: builds the separate verifier image from this context, so its content is the
@@ -91,6 +136,19 @@ class RegradeRefusalCode(StrEnum):
     HARBOR_INVOCATION_FAILED = "harbor_invocation_failed"
     REGRADE_RESULT_UNREADABLE = "regrade_result_unreadable"
     REGRADE_REWARD_ABSENT = "regrade_reward_absent"
+    #: The source job directory does not exist.
+    SOURCE_JOB_MISSING = "source_job_missing"
+    #: The source job holds no trial with a result.json to re-score.
+    SOURCE_JOB_EMPTY = "source_job_empty"
+    #: task_dir was omitted and no trial's saved config resolves to a live task.
+    TASK_UNRESOLVED = "task_unresolved"
+    #: A given task_dir leaves source tasks without a verifier.
+    TASK_COVERAGE_GAP = "task_coverage_gap"
+    #: A single given task names nothing in the source job. Refusing beats
+    #: silently scoring unrelated tasks.
+    TASK_NAME_MISMATCH = "task_name_mismatch"
+    #: Two task directories claim the same task name.
+    TASK_AMBIGUOUS = "task_ambiguous"
 
 
 class RegradeVerdict(StrEnum):
@@ -157,6 +215,9 @@ class VerifierIdentity(ContractModel):
 
     task_dir: str
     task_name: str | None = None
+    #: Effective mode under Harbor's resolution: an explicit
+    #: `environment_mode`, else `"separate"` when `[verifier.environment]` is
+    #: present, else None. Identity comparison uses `digest`, never this.
     environment_mode: str | None = None
     context_file_count: int = Field(ge=0)
     digest: str
@@ -204,6 +265,101 @@ class RegradeReceiptV1(ContractModel):
     def refused(self) -> bool:
         """Whether the receipt carries no usable reward comparison."""
         return self.verdict is RegradeVerdict.REFUSED
+
+
+class RegradeJobVerdict(StrEnum):
+    """Outcome of a job-level regrade."""
+
+    #: Every in-scope source trial was re-scored and compared.
+    COMPLETE = "complete"
+    #: At least one trial was compared and at least one was refused.
+    PARTIAL = "partial"
+    #: Nothing was compared. Either preconditions failed before Harbor ran,
+    #: or the Harbor invocation produced no usable reward comparison.
+    REFUSED = "refused"
+
+
+class RegradeJobInvocation(ContractModel):
+    """The exact `harbor job regrade` command a job receipt corresponds to."""
+
+    command: list[str]
+    jobs_dir: str
+    job_name: str
+
+
+class RegradeJobPlanTrial(ContractModel):
+    """What a preview decided about one source trial, before anything runs."""
+
+    source_trial_dir: str
+    task_name: str | None = None
+    #: Verifier task directory matched to this trial, if resolution succeeded.
+    task_dir: str | None = None
+    eligible: bool = False
+    refusals: list[RegradeRefusalCode] = Field(default_factory=list)
+
+
+class RegradeJobPlan(ContractModel):
+    """A runnable-or-refused preview of `regrade_job`. No side effects."""
+
+    source_job_dir: str
+    source_harbor_version: str | None = None
+    job_name: str
+    jobs_dir: str
+    #: Where Harbor would write the new job. Never inside the source job.
+    job_dir: str
+    task_dirs: list[str] = Field(default_factory=list)
+    environment: str = "docker"
+    #: Empty when the plan is not runnable.
+    command: list[str] = Field(default_factory=list)
+    trials: list[RegradeJobPlanTrial] = Field(default_factory=list)
+    refusals: list[RegradeRefusalCode] = Field(default_factory=list)
+    runnable: bool = False
+
+
+class RegradeJobReceiptV1(ContractModel):
+    """One `harbor job regrade` run over a recorded job, fully receipted.
+
+    `trials` carries one trial-level receipt per source trial, each with its
+    own source/verifier identity and old/new reward dimensions. Per-trial
+    receipts never carry the job command: `invocation`/`execution` describe
+    the single Harbor invocation that produced them all. Anything that could
+    not be compared appears as a REFUSED trial receipt with typed refusals —
+    never as a fabricated comparison.
+    """
+
+    schema_version: str = "regrade-job-receipt/v1"
+    source_job_dir: str
+    #: `harbor.version` from the source job's lock.json, when present. Kept
+    #: as provenance; lock-content digests differ across Harbor versions, so
+    #: any lock comparison must key on this.
+    source_harbor_version: str | None = None
+    job_name: str
+    jobs_dir: str
+    #: The new Harbor job directory in standard jobs-root/job/trial shape.
+    job_dir: str
+    #: Verifier task directories passed as `-p`, in command order.
+    task_dirs: list[str] = Field(default_factory=list)
+    environment: str = "docker"
+    verdict: RegradeJobVerdict
+    trials: list[RegradeReceiptV1] = Field(default_factory=list)
+    refusals: list[RegradeRefusalCode] = Field(default_factory=list)
+    invocation: RegradeJobInvocation | None = None
+    execution: RegradeExecution | None = None
+
+    @property
+    def refused(self) -> bool:
+        """Whether the receipt carries no usable reward comparison."""
+        return self.verdict is RegradeJobVerdict.REFUSED
+
+    @property
+    def n_compared(self) -> int:
+        """Trials with a real recorded-vs-regraded comparison."""
+        return sum(1 for trial in self.trials if not trial.refused)
+
+    @property
+    def n_refused(self) -> int:
+        """Trials refused closed, with reasons on each entry."""
+        return sum(1 for trial in self.trials if trial.refused)
 
 
 def _load_json(path: Path) -> Any | None:
@@ -303,11 +459,10 @@ def verifier_identity(task_dir: Path) -> VerifierIdentity:
         "verifier": json.loads(canonical_json(_jsonable(verifier_map))),
         "context": [list(entry) for entry in files],
     }
-    mode = verifier_map.get("environment_mode")
     return VerifierIdentity(
         task_dir=str(task_dir),
         task_name=_optional_str(task_map.get("name")),
-        environment_mode=str(mode) if isinstance(mode, str) else None,
+        environment_mode=_verifier_effective_mode(verifier_map),
         context_file_count=len(files),
         digest=compute_prefixed_sha256(payload),
     )
@@ -330,6 +485,88 @@ def _load_json_toml(path: Path) -> Mapping[str, Any] | None:
             return tomllib.load(handle)
     except (OSError, tomllib.TOMLDecodeError):
         return None
+
+
+def _check_regrade_environment(environment: str) -> None:
+    """Refuse any verifier environment other than local Docker.
+
+    A regrade never invokes a model, but a cloud `--env` would still spend on
+    a sandbox, and a custom import path would execute unknown code. This task
+    is `$0`: anything but `"docker"` raises before any work starts, with no
+    bypass flag.
+    """
+    if environment in LOCAL_REGRADE_ENVIRONMENTS:
+        return
+    raise ValueError(
+        f"Refusing {environment!r} verifier environment: regrade runs on local "
+        "Docker only."
+    )
+
+
+def _verifier_effective_mode(verifier: Mapping[str, Any] | None) -> str | None:
+    """Resolve a `[verifier]` table to its effective environment mode.
+
+    Mirrors Harbor's authoritative resolution (`verifier_mode._resolve_mode`):
+    an explicit `environment_mode` wins, otherwise a `[verifier.environment]`
+    table implies `"separate"`. Anything else (including an explicit
+    `"shared"`, which Harbor rejects alongside an environment table) is not
+    isolated and cannot be regraded.
+    """
+    verifier_map: Mapping[str, Any] = verifier if isinstance(verifier, Mapping) else {}
+    mode = verifier_map.get("environment_mode")
+    if isinstance(mode, str) and mode:
+        return mode
+    if isinstance(verifier_map.get("environment"), Mapping):
+        return "separate"
+    return None
+
+
+def _task_regradable_error(config: Mapping[str, Any]) -> str | None:
+    """Mirror Harbor's `check_task_regradable` over a parsed task.toml.
+
+    Single-step tasks must resolve to a separate verifier; multi-step tasks
+    need every step separate. Returns the reason, or None when Harbor itself
+    would accept the task as a regrade verifier.
+    """
+    verifier = config.get("verifier")
+    verifier_map: Mapping[str, Any] = verifier if isinstance(verifier, Mapping) else {}
+    steps = config.get("steps")
+    if steps:
+        if not isinstance(steps, list):
+            return "task steps are unreadable"
+        shared = sorted(
+            str(step.get("name", index))
+            for index, step in enumerate(steps)
+            if isinstance(step, Mapping)
+            and _step_effective_mode(verifier_map, step) != "separate"
+        )
+        if shared:
+            return f"shared-mode verifier step(s): {', '.join(shared)}"
+        return None
+    if _verifier_effective_mode(verifier_map) != "separate":
+        return "task resolves to a shared-mode verifier"
+    return None
+
+
+def _step_effective_mode(
+    task_verifier: Mapping[str, Any], step: Mapping[str, Any]
+) -> str | None:
+    """Resolve one step's verifier mode, inheriting the task level.
+
+    Mirrors Harbor's `resolve_step_verifier_mode`: explicit step mode first,
+    then a step `[verifier.environment]` table, then the task-level
+    resolution.
+    """
+    step_verifier = step.get("verifier")
+    step_map: Mapping[str, Any] = (
+        step_verifier if isinstance(step_verifier, Mapping) else {}
+    )
+    mode = step_map.get("environment_mode")
+    if isinstance(mode, str) and mode:
+        return mode
+    if isinstance(step_map.get("environment"), Mapping):
+        return "separate"
+    return _verifier_effective_mode(task_verifier)
 
 
 def _preflight(trial_dir: Path, task_dir: Path) -> list[RegradeRefusalCode]:
@@ -360,7 +597,7 @@ def _preflight(trial_dir: Path, task_dir: Path) -> list[RegradeRefusalCode]:
     verifier_map: Mapping[str, Any] = verifier if isinstance(verifier, Mapping) else {}
     if verifier_map.get("disable") is True:
         refusals.append(RegradeRefusalCode.VERIFIER_DISABLED)
-    if verifier_map.get("environment_mode") != "separate":
+    if _verifier_effective_mode(verifier_map) != "separate":
         refusals.append(RegradeRefusalCode.VERIFIER_NOT_ISOLATED)
     if not (task_dir / _VERIFIER_CONTEXT_DIR).is_dir():
         refusals.append(RegradeRefusalCode.VERIFIER_CONTEXT_MISSING)
@@ -443,7 +680,7 @@ def _recorded_verifier_digest(trial_dir: Path) -> str | None:
     A regrade trial produced by this module carries its own receipt, which is
     how a later determinism probe knows the verifier was byte-identical.
     """
-    receipt = _load_json(trial_dir / "regrade-receipt.json")
+    receipt = _load_json(trial_dir / REGRADE_TRIAL_RECEIPT_FILENAME)
     if isinstance(receipt, Mapping):
         verifier = receipt.get("verifier")
         if isinstance(verifier, Mapping):
@@ -464,7 +701,9 @@ def regrade_trial(
 
     Never mutates the source trial. Refuses closed with typed reason codes when
     any precondition fails, rather than producing an unattributable reward.
+    Only local Docker runs: any other verifier environment raises.
     """
+    _check_regrade_environment(environment)
     trial_dir = Path(trial_dir)
     task_dir = Path(task_dir)
     trials_dir = Path(trials_dir)
@@ -487,6 +726,7 @@ def regrade_trial(
         )
 
     trial_name = _regrade_trial_name(source, verifier)
+    _validate_regrade_destination(trial_dir, trials_dir, trial_name)
     command = build_regrade_command(
         trial_dir=trial_dir,
         task_dir=task_dir,
@@ -571,7 +811,7 @@ def regrade_trial(
         regrade_trial_dir=str(regrade_dir),
     )
     if write_receipt:
-        (regrade_dir / "regrade-receipt.json").write_text(
+        (regrade_dir / REGRADE_TRIAL_RECEIPT_FILENAME).write_text(
             json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
             encoding="utf-8",
         )
@@ -615,3 +855,634 @@ def regrade_many(
         )
         for trial_dir in trial_dirs
     ]
+
+
+def default_regrade_job_name(job_dir: Path) -> str:
+    """Name a regrade job after its source so reruns stay traceable."""
+    stamp = datetime.now(UTC).strftime("%Y-%m-%d__%H-%M-%S")
+    base = Path(job_dir).name or "job"
+    return f"{base}__regrade-{stamp}"
+
+
+def build_job_regrade_command(
+    *,
+    job_dir: Path,
+    task_dirs: Sequence[Path],
+    jobs_dir: Path,
+    job_name: str,
+    environment: str = "docker",
+) -> list[str]:
+    """Build the exact `harbor job regrade` invocation for a job re-scoring.
+
+    One place constructs Harbor argv and the receipt records it verbatim. The
+    command carries no agent or model flags: Harbor derives regrade trials
+    that restore recorded outputs and run only separate verifiers, so no model
+    is ever invoked. Task scripts are never executed on the host either — the
+    verifier runs inside Harbor's Docker environment.
+    """
+    command = ["harbor", "job", "regrade", str(job_dir)]
+    for task_dir in task_dirs:
+        command += ["--task-path", str(task_dir)]
+    command += ["--env", environment, "--jobs-dir", str(jobs_dir), "--job-name", job_name]
+    return command
+
+
+def expand_task_dirs(path: Path) -> list[Path]:
+    """Expand a `-p` argument into verifier task directories.
+
+    Mirrors Harbor's `expand_task_path`: either a task directory (contains
+    `task.toml`) or a parent whose children are task directories.
+    """
+    path = Path(path)
+    if not path.is_dir():
+        raise ValueError(f"Task path does not exist or is not a directory: {path}")
+    if (path / "task.toml").is_file():
+        return [path]
+    children = sorted(
+        child for child in path.iterdir() if child.is_dir() and (child / "task.toml").is_file()
+    )
+    if not children:
+        raise ValueError(
+            f"{path} is neither a task directory (no task.toml) nor a "
+            "directory containing task directories."
+        )
+    return children
+
+
+def _read_task_name(task_dir: Path) -> str | None:
+    """A task's `[task].name` from task.toml, else the directory name.
+
+    Mirrors Harbor's `local_task_name`. None when task.toml is unreadable.
+    """
+    config = _load_json_toml(task_dir / "task.toml")
+    if config is None:
+        return None
+    task = config.get("task")
+    if isinstance(task, Mapping):
+        name = _optional_str(task.get("name"))
+        if name:
+            return name
+    return task_dir.name
+
+
+def _trial_task_name(trial_dir: Path) -> str | None:
+    """The task a recorded trial ran, from its own result.json."""
+    result = _load_json(trial_dir / "result.json")
+    if isinstance(result, Mapping):
+        return _optional_str(result.get("task_name"))
+    return None
+
+
+def _trial_result_id(trial_dir: Path) -> str | None:
+    """A recorded trial's id, used to match regrade outputs back to sources."""
+    result = _load_json(trial_dir / "result.json")
+    if isinstance(result, Mapping):
+        raw = result.get("id")
+        return str(raw) if isinstance(raw, str | int) and str(raw) else None
+    return None
+
+
+def _saved_task_dir(source_trial: Path) -> Path | None:
+    """The task directory a trial's own config says scored it, if recorded."""
+    config = _load_json(source_trial / "config.json")
+    if not isinstance(config, Mapping):
+        return None
+    task = config.get("task")
+    if not isinstance(task, Mapping):
+        return None
+    raw = task.get("path")
+    if not isinstance(raw, str) or not raw:
+        return None
+    return Path(raw)
+
+
+def _harbor_version_of(job_dir: Path) -> str | None:
+    """`harbor.version` from a job's lock.json, when present."""
+    lock = _load_json(job_dir / "lock.json")
+    if isinstance(lock, Mapping):
+        harbor = lock.get("harbor")
+        if isinstance(harbor, Mapping):
+            return _optional_str(harbor.get("version"))
+    return None
+
+
+def _is_multi_step_source(trial_dir: Path) -> bool:
+    """Whether a recorded trial ran a multi-step task.
+
+    The trial-level machinery (identity digests, reward readers) is
+    single-step shaped, so multi-step sources are an unsupported layout and
+    refuse closed rather than producing an unverifiable comparison.
+    """
+    if (trial_dir / "steps").is_dir():
+        return True
+    config = _load_json(trial_dir / "config.json")
+    return isinstance(config, Mapping) and bool(config.get("steps"))
+
+
+def _source_job_trials(job_dir: Path) -> list[Path]:
+    """Source trials Harbor would derive from: subdirs with a scored result.
+
+    Hidden scratch (`.sources`) and job-level files are skipped, mirroring
+    Harbor's derivation, which only iterates trial directories — and like
+    Harbor (whose `TrialResult` requires `task_name`), directories without a
+    named scored result are not trials to re-score.
+    """
+    found: list[Path] = []
+    for child in sorted(job_dir.iterdir(), key=lambda p: p.name):
+        if not child.is_dir() or child.name.startswith("."):
+            continue
+        result = _load_json(child / "result.json")
+        if isinstance(result, Mapping) and _optional_str(result.get("task_name")):
+            found.append(child)
+    return found
+
+
+def _gate_matched_tasks(
+    dirs_by_name: dict[str, Path], task_names: set[str]
+) -> list[RegradeRefusalCode]:
+    """Refuse when Harbor itself would reject a matched verifier task.
+
+    Mirrors the derivation gate in Harbor's regrade job builder: only tasks
+    that actually grade trials matter, and every one of those must resolve to
+    separate verifiers (implicit `[verifier.environment]` counts).
+    """
+    for name in sorted(task_names):
+        task_dir = dirs_by_name[name]
+        config = _load_json_toml(task_dir / "task.toml")
+        if config is None or _task_regradable_error(config) is not None:
+            return [RegradeRefusalCode.VERIFIER_NOT_ISOLATED]
+    return []
+
+
+def _resolve_job_task_dirs(
+    *,
+    source_trials: list[Path],
+    task_dir: Path | None,
+) -> tuple[list[Path], dict[str, Path], list[RegradeRefusalCode]]:
+    """Resolve verifier task directories for every source task name.
+
+    Returns `(ordered task dirs for -p, dirs by source task name, refusals)`.
+    A given `task_dir` is expanded like Harbor's `-p` and must cover every
+    task in the job — a single task that matches nothing is a name mismatch,
+    never a silent scoring of unrelated tasks. An omitted `task_dir` resolves
+    each trial's task from its own saved config, and only when that config
+    still points at a live task with the same name.
+    """
+    source_names: dict[str, list[Path]] = {}
+    for source in source_trials:
+        name = _trial_task_name(source)
+        if name is not None:
+            source_names.setdefault(name, []).append(source)
+
+    if task_dir is not None:
+        given = Path(task_dir)
+        if not given.is_dir():
+            return ([], {}, [RegradeRefusalCode.TASK_DIR_MISSING])
+        try:
+            expanded = expand_task_dirs(given)
+        except ValueError:
+            return ([], {}, [RegradeRefusalCode.TASK_CONFIG_UNREADABLE])
+        dirs_by_name: dict[str, Path] = {}
+        for candidate in expanded:
+            name = _read_task_name(candidate)
+            if name is None:
+                return ([], {}, [RegradeRefusalCode.TASK_CONFIG_UNREADABLE])
+            if name in dirs_by_name:
+                return ([], {}, [RegradeRefusalCode.TASK_AMBIGUOUS])
+            dirs_by_name[name] = candidate
+        uncovered = sorted(set(source_names) - set(dirs_by_name))
+        if uncovered:
+            if len(expanded) == 1 and not (set(source_names) & set(dirs_by_name)):
+                return ([], {}, [RegradeRefusalCode.TASK_NAME_MISMATCH])
+            return ([], {}, [RegradeRefusalCode.TASK_COVERAGE_GAP])
+        gate = _gate_matched_tasks(dirs_by_name, set(source_names))
+        if gate:
+            return ([], {}, gate)
+        return (expanded, {name: dirs_by_name[name] for name in source_names}, [])
+
+    dirs_by_name: dict[str, Path] = {}
+    for name, trials in source_names.items():
+        saved: Path | None = None
+        for trial in trials:
+            candidate = _saved_task_dir(trial)
+            if (
+                candidate is None
+                or not candidate.is_dir()
+                or _read_task_name(candidate) != name
+            ):
+                return ([], {}, [RegradeRefusalCode.TASK_UNRESOLVED])
+            if saved is None:
+                saved = candidate
+            elif saved.resolve() != candidate.resolve():
+                return ([], {}, [RegradeRefusalCode.TASK_AMBIGUOUS])
+        assert saved is not None
+        dirs_by_name[name] = saved
+    gate = _gate_matched_tasks(dirs_by_name, set(source_names))
+    if gate:
+        return ([], {}, gate)
+    ordered: list[Path] = []
+    seen: set[str] = set()
+    for name in source_names:
+        key = str(dirs_by_name[name].resolve())
+        if key not in seen:
+            seen.add(key)
+            ordered.append(dirs_by_name[name])
+    return (ordered, dirs_by_name, [])
+
+
+def _validate_regrade_destination(source: Path, parent: Path, name: str) -> None:
+    """A replay must never create or resume output within its immutable input."""
+    if not name or Path(name).name != name or name in {".", ".."}:
+        raise ValueError("regrade name must be a single directory name")
+    source = source.resolve()
+    destination = (parent / name).resolve()
+    if destination == source or destination.is_relative_to(source) or source.is_relative_to(destination):
+        raise ValueError("regrade output must be disjoint from the source evidence")
+    if destination.exists():
+        raise ValueError("regrade output already exists; choose a new explicit name")
+
+
+def plan_regrade_job(
+    *,
+    job_dir: Path,
+    task_dir: Path | None = None,
+    jobs_dir: Path,
+    name: str | None = None,
+    environment: str = "docker",
+) -> RegradeJobPlan:
+    """Preview a job regrade without running anything or writing anywhere.
+
+    Resolves verifier tasks, checks every source trial the way `regrade_job`
+    will, and reports the exact command Harbor would run. The preview for a
+    parent CLI dry-run: print it, exit non-zero when not runnable.
+    """
+    _check_regrade_environment(environment)
+    job_dir = Path(job_dir)
+    jobs_dir = Path(jobs_dir)
+    job_name = name or default_regrade_job_name(job_dir)
+    _validate_regrade_destination(job_dir, jobs_dir, job_name)
+    base: dict[str, Any] = {
+        "source_job_dir": str(job_dir),
+        "source_harbor_version": _harbor_version_of(job_dir) if job_dir.is_dir() else None,
+        "job_name": job_name,
+        "jobs_dir": str(jobs_dir),
+        "job_dir": str(jobs_dir / job_name),
+        "environment": environment,
+    }
+    if not job_dir.is_dir():
+        return RegradeJobPlan(
+            **base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_MISSING]
+        )
+    sources = _source_job_trials(job_dir)
+    if not sources:
+        return RegradeJobPlan(
+            **base, trials=[], refusals=[RegradeRefusalCode.SOURCE_JOB_EMPTY]
+        )
+    ordered, dirs_by_name, task_refusals = _resolve_job_task_dirs(
+        source_trials=sources, task_dir=task_dir
+    )
+    trials: list[RegradeJobPlanTrial] = []
+    for source in sources:
+        task_name = _trial_task_name(source)
+        matched = dirs_by_name.get(task_name) if task_name else None
+        if _is_multi_step_source(source):
+            trials.append(
+                RegradeJobPlanTrial(
+                    source_trial_dir=str(source),
+                    task_name=task_name,
+                    task_dir=str(matched) if matched else None,
+                    eligible=False,
+                    refusals=[RegradeRefusalCode.MULTI_STEP_TASK],
+                )
+            )
+        elif matched is None:
+            # Unreachable when the plan is runnable: coverage then holds for
+            # every enumerated trial. Otherwise the job-level refusals are
+            # the operative cause, echoed here so no trial looks unexplained.
+            trials.append(
+                RegradeJobPlanTrial(
+                    source_trial_dir=str(source),
+                    task_name=task_name,
+                    eligible=False,
+                    refusals=list(task_refusals),
+                )
+            )
+        else:
+            preflight = _preflight(source, matched)
+            trials.append(
+                RegradeJobPlanTrial(
+                    source_trial_dir=str(source),
+                    task_name=task_name,
+                    task_dir=str(matched),
+                    eligible=not preflight,
+                    refusals=preflight,
+                )
+            )
+    runnable = not task_refusals and any(trial.eligible for trial in trials)
+    return RegradeJobPlan(
+        **base,
+        task_dirs=[str(path) for path in ordered],
+        command=(
+            build_job_regrade_command(
+                job_dir=job_dir,
+                task_dirs=ordered,
+                jobs_dir=jobs_dir,
+                job_name=job_name,
+                environment=environment,
+            )
+            if runnable
+            else []
+        ),
+        trials=trials,
+        refusals=list(dict.fromkeys([
+            *task_refusals,
+            *(code for trial in trials for code in trial.refusals),
+        ])),
+        runnable=runnable,
+    )
+
+
+def _refused_job_trial(
+    *,
+    source: Path,
+    task_dir: Path,
+    refusals: Sequence[RegradeRefusalCode],
+    new_trial_dir: Path | None,
+) -> RegradeReceiptV1:
+    """A closed refusal for one job trial: identities, no comparison."""
+    verifier = verifier_identity(task_dir)
+    recorded = read_reward_observation(source)
+    prior_digest = _recorded_verifier_digest(source)
+    return RegradeReceiptV1(
+        source=source_trial_identity(source),
+        verifier=verifier,
+        verdict=RegradeVerdict.REFUSED,
+        recorded=recorded,
+        same_verifier=prior_digest is not None and prior_digest == verifier.digest,
+        refusals=list(refusals),
+        regrade_trial_dir=str(new_trial_dir) if new_trial_dir is not None else None,
+    )
+
+
+def _compare_job_trial(
+    *,
+    source: Path,
+    task_dir: Path,
+    new_trial_dir: Path,
+) -> RegradeReceiptV1:
+    """Compare one regraded job trial against its recorded source.
+
+    Both rewards are read from Harbor-written result.json files and kept
+    separately attributed. Anything missing yields a refusal, never a zero
+    standing in for a score Harbor never produced.
+    """
+    recorded = read_reward_observation(source)
+    regraded = read_reward_observation(new_trial_dir)
+    verifier = verifier_identity(task_dir)
+    prior_digest = _recorded_verifier_digest(source)
+    same_verifier = prior_digest is not None and prior_digest == verifier.digest
+    base: dict[str, Any] = {
+        "source": source_trial_identity(source),
+        "verifier": verifier,
+        "recorded": recorded,
+        "regraded": regraded,
+        "same_verifier": same_verifier,
+        "regrade_trial_dir": str(new_trial_dir),
+    }
+    if recorded is None or regraded is None:
+        missing = (
+            RegradeRefusalCode.REGRADE_REWARD_ABSENT
+            if regraded is None
+            else RegradeRefusalCode.SOURCE_REWARD_ABSENT
+        )
+        return RegradeReceiptV1(
+            **base, verdict=RegradeVerdict.REFUSED, refusals=[missing]
+        )
+    verdict, delta = _classify(
+        recorded=recorded, regraded=regraded, same_verifier=same_verifier
+    )
+    return RegradeReceiptV1(**base, verdict=verdict, reward_delta=delta)
+
+
+def _index_regrade_outputs(
+    new_job_dir: Path,
+) -> tuple[dict[str, Path], dict[str, Path]]:
+    """Map regrade output trials back to their sources.
+
+    Harbor records the derivation in each new trial's config.json
+    (`source_trial.path` for local sources, `trial_id` for hub ones); that
+    record — not name guessing — is the mapping. Returns `(by source path,
+    by source trial id)`.
+    """
+    by_path: dict[str, Path] = {}
+    by_id: dict[str, Path] = {}
+    for child in sorted(new_job_dir.iterdir(), key=lambda p: p.name):
+        if not child.is_dir() or child.name.startswith("."):
+            continue
+        config = _load_json(child / "config.json")
+        if not isinstance(config, Mapping):
+            continue
+        source_trial = config.get("source_trial")
+        if not isinstance(source_trial, Mapping):
+            continue
+        raw_path = source_trial.get("path")
+        if isinstance(raw_path, str) and raw_path:
+            by_path.setdefault(str(Path(raw_path).resolve()), child)
+        raw_id = source_trial.get("trial_id")
+        if isinstance(raw_id, str | int) and str(raw_id):
+            by_id.setdefault(str(raw_id), child)
+    return by_path, by_id
+
+
+def _collect_job_trials(
+    *,
+    plan: RegradeJobPlan,
+    new_job_dir: Path,
+) -> list[RegradeReceiptV1]:
+    """Build one trial receipt per planned source trial from Harbor outputs."""
+    by_path, by_id = _index_regrade_outputs(new_job_dir)
+    entries: list[RegradeReceiptV1] = []
+    for planned in plan.trials:
+        source = Path(planned.source_trial_dir)
+        task_dir = Path(planned.task_dir) if planned.task_dir else None
+        if task_dir is None:  # Unreachable when the plan was runnable.
+            continue
+        new_trial_dir = by_path.get(str(source.resolve()))
+        if new_trial_dir is None:
+            source_id = _trial_result_id(source)
+            if source_id is not None:
+                new_trial_dir = by_id.get(source_id)
+        if not planned.eligible:
+            entries.append(
+                _refused_job_trial(
+                    source=source,
+                    task_dir=task_dir,
+                    refusals=planned.refusals,
+                    new_trial_dir=new_trial_dir,
+                )
+            )
+        elif new_trial_dir is None or not new_trial_dir.is_dir():
+            entries.append(
+                _refused_job_trial(
+                    source=source,
+                    task_dir=task_dir,
+                    refusals=[RegradeRefusalCode.REGRADE_RESULT_UNREADABLE],
+                    new_trial_dir=new_trial_dir,
+                )
+            )
+        else:
+            entries.append(
+                _compare_job_trial(
+                    source=source, task_dir=task_dir, new_trial_dir=new_trial_dir
+                )
+            )
+    return entries
+
+
+def _write_job_receipts(receipt: RegradeJobReceiptV1, new_job_dir: Path) -> None:
+    """Persist per-trial and job receipts inside the new job only.
+
+    The source job is never written to. Per-trial receipts pin the verifier
+    digest beside the regraded reward so later determinism probes work.
+    """
+    for entry in receipt.trials:
+        if entry.regrade_trial_dir is None:
+            continue
+        target = Path(entry.regrade_trial_dir)
+        if target.is_dir():
+            (target / REGRADE_TRIAL_RECEIPT_FILENAME).write_text(
+                json.dumps(entry.model_dump(mode="json"), indent=2, sort_keys=True)
+                + "\n",
+                encoding="utf-8",
+            )
+    (new_job_dir / REGRADE_JOB_RECEIPT_FILENAME).write_text(
+        json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def regrade_job(
+    *,
+    job_dir: Path,
+    task_dir: Path | None = None,
+    jobs_dir: Path,
+    name: str | None = None,
+    environment: str = "docker",
+    runner: Any = subprocess.run,
+    write_receipt: bool = True,
+) -> RegradeJobReceiptV1:
+    """Re-score every trial of a recorded Harbor job at zero model cost.
+
+    Runs the real `harbor job regrade` (Harbor derives one regrade trial per
+    recorded source trial, matched by task name) and receipts each output as
+    a trial-level comparison with its own source/verifier identity and
+    old/new reward dimensions. `task_dir` is optional only when every
+    trial's saved config still resolves to its live task; a given `task_dir`
+    must cover the job's tasks or the run refuses instead of silently
+    scoring unrelated tasks.
+
+    Never mutates the source job: `lock.json`, `artifacts/manifest.json`,
+    and all provenance stay byte-identical; receipts land in the new job
+    directory, which has the standard jobs-root/job/trial shape. A failed
+    Harbor invocation refuses the whole job rather than cherry-picking
+    partial outputs. Only local Docker runs: any other verifier environment
+    raises.
+    """
+    _check_regrade_environment(environment)
+    plan = plan_regrade_job(
+        job_dir=job_dir,
+        task_dir=task_dir,
+        jobs_dir=jobs_dir,
+        name=name,
+        environment=environment,
+    )
+    base: dict[str, Any] = {
+        "source_job_dir": plan.source_job_dir,
+        "source_harbor_version": plan.source_harbor_version,
+        "job_name": plan.job_name,
+        "jobs_dir": plan.jobs_dir,
+        "job_dir": plan.job_dir,
+        "task_dirs": plan.task_dirs,
+        "environment": plan.environment,
+    }
+    if not plan.runnable:
+        return RegradeJobReceiptV1(
+            **base, verdict=RegradeJobVerdict.REFUSED, trials=[], refusals=plan.refusals
+        )
+
+    invocation = RegradeJobInvocation(
+        command=plan.command, jobs_dir=plan.jobs_dir, job_name=plan.job_name
+    )
+    Path(plan.jobs_dir).mkdir(parents=True, exist_ok=True)
+    completed = runner(plan.command, capture_output=True, text=True, check=False)
+    exit_code = int(getattr(completed, "returncode", 1))
+    stderr = getattr(completed, "stderr", "") or ""
+    execution = RegradeExecution(exit_code=exit_code, stderr_tail=stderr[-2000:])
+
+    new_job_dir = Path(plan.job_dir)
+    if exit_code != 0 or not new_job_dir.is_dir():
+        return RegradeJobReceiptV1(
+            **base,
+            verdict=RegradeJobVerdict.REFUSED,
+            trials=[],
+            refusals=[
+                RegradeRefusalCode.HARBOR_INVOCATION_FAILED
+                if exit_code != 0
+                else RegradeRefusalCode.REGRADE_RESULT_UNREADABLE
+            ],
+            invocation=invocation,
+            execution=execution,
+        )
+
+    entries = _collect_job_trials(plan=plan, new_job_dir=new_job_dir)
+    compared = sum(1 for entry in entries if not entry.refused)
+    verdict = (
+        RegradeJobVerdict.COMPLETE
+        if compared == len(entries) and entries
+        else RegradeJobVerdict.PARTIAL
+        if compared
+        else RegradeJobVerdict.REFUSED
+    )
+    receipt = RegradeJobReceiptV1(
+        **base,
+        verdict=verdict,
+        trials=entries,
+        invocation=invocation,
+        execution=execution,
+    )
+    if write_receipt:
+        _write_job_receipts(receipt, new_job_dir)
+    return receipt
+
+
+def render_job_plan(plan: RegradeJobPlan) -> str:
+    """Human summary of a preview for CLI dry-run output."""
+    head = (
+        f"{'runnable' if plan.runnable else 'refused'}: "
+        f"{sum(1 for trial in plan.trials if trial.eligible)}/{len(plan.trials)} "
+        f"trial(s) {plan.source_job_dir} -> {plan.job_dir}"
+    )
+    lines = [head]
+    if plan.refusals:
+        lines.append("job refusals: " + ", ".join(code.value for code in plan.refusals))
+    for trial in plan.trials:
+        state = "eligible" if trial.eligible else "refused"
+        detail = "" if trial.eligible else " [" + ", ".join(
+            code.value for code in trial.refusals
+        ) + "]"
+        lines.append(
+            f"  {state}: {Path(trial.source_trial_dir).name} "
+            f"task={trial.task_name}{detail}"
+        )
+    return "\n".join(lines)
+
+
+def render_job_receipt(receipt: RegradeJobReceiptV1) -> str:
+    """Human summary of a job receipt for CLI output."""
+    head = (
+        f"{receipt.verdict.value}: {receipt.n_compared} compared, "
+        f"{receipt.n_refused} refused — {receipt.source_job_dir} -> {receipt.job_dir}"
+    )
+    if receipt.refused and receipt.refusals:
+        head += " [" + ", ".join(code.value for code in receipt.refusals) + "]"
+    return "\n".join([head, *(render_receipt(trial) for trial in receipt.trials)])

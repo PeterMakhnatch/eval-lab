@@ -84,6 +84,15 @@ def _sha256_file(path: Path) -> str | None:
         return None
 
 
+def _job_lock_version(trial_dir: Path) -> str | None:
+    """Harbor version stamp from the trial's job lock (trial locks carry none)."""
+    try:
+        job_lock = json.loads((trial_dir.parent / "lock.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeError):
+        return None
+    return facts.lock_harbor_version(job_lock)
+
+
 class AnalysisRequest(BaseModel):
     """Frozen identity of one trial's analysis. Never edited after creation."""
 
@@ -104,6 +113,7 @@ class AnalysisRequest(BaseModel):
     result_sha256: str
     trajectory_sha256: str | None  # None = trial has no trajectory file
     lock_sha256: str | None  # Harbor lock bytes: source of task/verifier truth
+    lock_harbor_version: str | None = None  # Job lock's harbor.version at freeze time
     task_digest: str | None
     verifier_digest: str | None
     rubric_sha256: str
@@ -471,6 +481,7 @@ def freeze_request(
         "result_sha256": result_sha,
         "trajectory_sha256": _sha256_file(trial.path / "agent" / "trajectory.json"),
         "lock_sha256": _sha256_file(trial.path / "lock.json"),
+        "lock_harbor_version": facts.lock_harbor_version(job.lock),
         "task_digest": facts._task_digest(trial),
         "verifier_digest": facts._verifier_digest(job, trial),
         "rubric_sha256": rubric_sha,
@@ -561,6 +572,14 @@ def admit(
     if request.lock_sha256 is not None and current_lock is None:
         return Admission("quarantine", "evidence_missing:lock.json")
     if current_lock != request.lock_sha256:
+        current_version = job.harbor_version if job is not None else _job_lock_version(trial_dir)
+        version_change = facts.lock_version_change_reason(
+            request.lock_harbor_version, current_version
+        )
+        if version_change is not None:
+            # A Harbor upgrade rewrites lock bytes without touching the trial:
+            # a declared version change, not tampered evidence.
+            return Admission("defer", version_change)
         return Admission("quarantine", "evidence_tampered:lock.json")
 
     # Quality Ledger Gate: Failed, quarantined, or unevaluated evidence cannot enter analysis.

@@ -172,6 +172,23 @@ ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
 )
+#: ``reasoning_effort`` values Harbor 0.24 admits for terminus-2
+#: (``Terminus2Options`` in ``harbor/agents/terminus_2/terminus_2.py``).
+#: Anything else is refused by Harbor preflight (``extra=forbid``), so the
+#: terminus lane validates it here with a lab reason instead.
+TERMINUS_REASONING_EFFORT_VALUES: frozenset[str] = frozenset(
+    {"none", "minimal", "low", "medium", "high", "xhigh", "max", "default"}
+)
+#: Agents whose Harbor 0.24 ``capabilities`` admit skills
+#: (``harbor/trial/trial.py`` ``_validate_agent_capabilities``). Every other
+#: lane is refused at Harbor preflight when skills are configured, so
+#: ``validate_request`` fails those early with a lab reason instead.
+AGENTS_WITH_SKILLS_SUPPORT: frozenset[str] = frozenset({TERMINUS_AGENT, ZAI_OPENCODE_AGENT})
+#: Agents whose Harbor 0.24 ``capabilities`` admit MCP servers. Same
+#: preflight gate as skills.
+AGENTS_WITH_MCP_SUPPORT: frozenset[str] = frozenset(
+    {"mini-swe-agent", TERMINUS_AGENT, ZAI_OPENCODE_AGENT}
+)
 ZAI_AUTH_PROVIDER = "zai-coding-plan"
 OPENCODE_AUTH_RELATIVE_PATH = Path(".local/share/opencode/auth.json")
 ZAI_CREDENTIAL_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
@@ -1709,10 +1726,12 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
     if request.toolbox_path is not None or request.toolbox_sha256 is not None:
         if request.toolbox_path is None or request.toolbox_sha256 is None:
             raise ValueError("toolbox_path and toolbox_sha256 must be provided together")
-        if request.agent not in {"oracle", "nop", ZAI_OPENCODE_AGENT}:
+        if request.agent not in AGENTS_WITH_SKILLS_SUPPORT:
             raise ValueError(
-                f"Agent {request.agent!r} does not support toolbox skills; "
-                f"supported agents are 'oracle', 'nop', and {ZAI_OPENCODE_AGENT!r}"
+                f"Agent {request.agent!r} does not support toolbox skills under Harbor 0.24: "
+                "trial.py _validate_agent_capabilities refuses skills for agents "
+                "without capabilities.skills, so Harbor preflight would refuse the trial; "
+                f"supported agents are {sorted(AGENTS_WITH_SKILLS_SUPPORT)}"
             )
         if request.agent == ZAI_OPENCODE_AGENT:
             model = request.model or "zai-coding-plan/glm-5.3-flash"
@@ -1739,8 +1758,64 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
 
         load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
 
+    _validate_agent_capabilities(request)
     _validate_egress_lock(request)
     _validate_setup_fingerprint(request, repo_root)
+
+
+def _task_has_mcp_servers(task: Path) -> bool:
+    """Whether the task declares environment MCP servers (Harbor 0.24 capability gate input)."""
+    try:
+        document = tomllib.loads((task / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        return False
+    environment = document.get("environment")
+    if not isinstance(environment, dict):
+        return False
+    servers = environment.get("mcp_servers")
+    return isinstance(servers, list) and len(servers) > 0
+
+
+def _validate_agent_capabilities(request: RunRequest) -> None:
+    """Mirror Harbor 0.24's pre-sandbox capability gate in our preflight.
+
+    Harbor 0.24 ``trial.py`` ``_validate_agent_capabilities`` refuses a trial
+    whose task or agent config carries skills/MCP the agent's
+    ``capabilities`` do not admit. Fail those specs here with a lab reason
+    instead of burning a dispatch on Harbor's preflight refusal.
+    """
+    known_lanes = {
+        *AGENTS_WITH_SKILLS_SUPPORT,
+        *AGENTS_WITH_MCP_SUPPORT,
+        RLM_AGENT,
+        MIMO_AGENT,
+        *CONTROL_AGENTS,
+    }
+    if request.agent not in known_lanes:
+        # Passthrough agents (codex, antigravity, ...): Harbor's own preflight
+        # validates their 0.24 capabilities; the lab pins no allowlist for them.
+        return
+    skill_roots: list[str] = []
+    if request.harness_tree_path is not None:
+        from evallab.terminus_harness import load_harness_tree
+
+        tree = load_harness_tree(request.harness_tree_path, request.harness_tree_sha256)
+        skill_roots.extend(str(root) for root in tree.skill_roots)
+    if (request.resolved_skills or skill_roots) and request.agent not in AGENTS_WITH_SKILLS_SUPPORT:
+        raise ValueError(
+            f"Agent {request.agent!r} does not support skills under Harbor 0.24 "
+            "(capabilities.skills is false); the trial would be refused at Harbor "
+            "preflight. Remove the skill sources or use one of "
+            f"{sorted(AGENTS_WITH_SKILLS_SUPPORT)}."
+        )
+    if _task_has_mcp_servers(request.task) and request.agent not in AGENTS_WITH_MCP_SUPPORT:
+        raise ValueError(
+            f"Agent {request.agent!r} does not support MCP servers under Harbor 0.24 "
+            "(capabilities.mcp_servers is false) but the task declares "
+            "environment.mcp_servers; the trial would be refused at Harbor "
+            "preflight. Use one of "
+            f"{sorted(AGENTS_WITH_MCP_SUPPORT)}."
+        )
 
 
 def _validate_setup_fingerprint(request: RunRequest, repo_root: Path | None) -> None:
@@ -1804,7 +1879,13 @@ def terminus_agent_kwargs(request: RunRequest) -> dict[str, Any]:
         }
     }
     if request.inference_settings and request.inference_settings.effort is not None:
-        kwargs["reasoning_effort"] = request.inference_settings.effort
+        effort = request.inference_settings.effort
+        if isinstance(effort, bool) or str(effort) not in TERMINUS_REASONING_EFFORT_VALUES:
+            raise ValueError(
+                f"Terminus reasoning_effort {effort!r} is refused by Harbor 0.24 "
+                f"(Terminus2Options admits {sorted(TERMINUS_REASONING_EFFORT_VALUES)})"
+            )
+        kwargs["reasoning_effort"] = effort
     if request.harness_tree_path is not None:
         from evallab.terminus_harness import load_harness_tree
 

@@ -1682,19 +1682,39 @@ def test_validate_request_toolbox_invariants(tmp_path: Path) -> None:
             )
         )
 
-    # Valid request with oracle
+    # Oracle and nop toolbox skills are refused by Harbor 0.24's capability
+    # gate (trial.py _validate_agent_capabilities): neither declares
+    # capabilities.skills, so our preflight fails them early here.
+    for control in ("oracle", "nop"):
+        with pytest.raises(ValueError, match="does not support toolbox skills under Harbor 0.24"):
+            validate_request(
+                RunRequest(
+                    task=task_dir,
+                    agent=control,
+                    name=f"toolbox-{control}-refused",
+                    jobs_dir=tmp_path / "runs",
+                    toolbox_path=toolbox_file,
+                    toolbox_sha256=toolbox_sha,
+                )
+            )
+
+    # Valid request with the skills-capable zai-opencode lane
     valid_req = RunRequest(
         task=task_dir,
-        agent="oracle",
+        agent="zai-opencode",
+        model="zai-coding-plan/glm-5.3-flash",
         name="toolbox-valid",
         jobs_dir=tmp_path / "runs",
         toolbox_path=toolbox_file,
         toolbox_sha256=toolbox_sha,
+        allow_billable=True,
+        max_requests=10,
+        max_input_tokens=100000,
+        max_output_tokens=8192,
+        max_total_tokens=108192,
+        cost_limit_usd=2.5,
     )
     validate_request(valid_req)
-    (task_dir / "task.toml").write_text('[environment]\nskills_dir = "/different-location"\n')
-    with pytest.raises(ValueError):
-        validate_request(valid_req)
 
 
 def test_nop_daytona_repeat_verifier_build_command(tmp_path: Path) -> None:
@@ -1770,6 +1790,7 @@ def test_control_docker_argv_unchanged_without_repeat(tmp_path: Path) -> None:
         "--n-attempts", "1",
         "--plugin", HARBOR_STATE_JOURNAL_PLUGIN,
     ]
+
 
 def test_nop_daytona_storage_override_build_command(tmp_path: Path) -> None:
     """A nop daytona spec with override_storage_mb=10240 yields the storage flag."""

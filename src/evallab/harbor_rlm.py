@@ -28,8 +28,10 @@ from harbor.agents.dspy_rlm import (  # ty: ignore[unresolved-import]
     EnvironmentToolBridge,
     _format_exec_result,
 )
+from harbor.agents.options import AgentOptions  # ty: ignore[unresolved-import]
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
 from harbor.models.agent.context import AgentContext  # ty: ignore[unresolved-import]
+from pydantic import Field
 
 from evallab.execution_contracts import ZAI_SECRET_FILE_ENV, read_owner_secret_file
 from evallab.rlm.harness import (
@@ -95,8 +97,27 @@ class ContainerPythonBridge(EnvironmentToolBridge):
         return [*super().get_tools(), self.run_python]
 
 
+class LabRlmOptions(AgentOptions):
+    """User-facing ``--agent-kwarg`` schema for :class:`LabRlmAgent`.
+
+    Harbor 0.24 validates ``--agent-kwarg`` against the resolved agent
+    class's ``options_model`` with ``extra=forbid`` at preflight. The
+    stock ``DspyRlmOptions`` knows neither ``policy`` nor
+    ``cost_limit_usd``, so without this model the rlm lane's kwargs would
+    be refused as unknown options.
+    """
+
+    policy: str = Field(default="stock", description="Harness policy id or policy JSON path.")
+    cost_limit_usd: float = Field(default=1.0, description="Trial model-spend ceiling in USD.")
+    tool_timeout_sec: int = Field(default=30, description="Per-tool execution timeout in seconds.")
+    working_dir: str = Field(default="/", description="Working directory for tool execution.")
+    verbose: bool = Field(default=False, description="Verbose RLM progress logging.")
+
+
 class LabRlmAgent(BaseAgent):
     """Harbor agent: dspy.RLM (host-side) + Harbor environment tools, under a policy."""
+
+    options_model = LabRlmOptions
 
     def __init__(
         self,

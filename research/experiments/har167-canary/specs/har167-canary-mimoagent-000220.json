@@ -1,0 +1,48 @@
+{
+ "agent": "mimoagent",
+ "attempts": 1,
+ "concurrency": 1,
+ "cost_limit_usd": 0.01,
+ "deviations": [
+  {
+   "field": "harness.additions",
+   "reason": "NativeMimoAgent wrapper harness additions (HAR-90 prose completion, HAR-96 completion fix plumbing, loop spill paths): the mimoagent lane setup, not the terminus reference route.",
+   "value": {
+    "agent_log_paths": "logical_childlog",
+    "cold_start_retry_window_seconds": 300.0,
+    "fineenv_issue_header": "strip_one_leading_copy",
+    "infrastructure_errors": "stop_metadata"
+   }
+  },
+  {
+   "field": "server.tool_call_parser",
+   "reason": "NativeMimoAgent maps native MiMo exec_command calls directly (mimo_tool_calls); the terminus reference route uses qwen3_coder.",
+   "value": "mimo"
+  },
+  {
+   "field": "server.context_length",
+   "reason": "Served MiMo-V2.6-Distill-Qwen-9B window is 64K; the 262144 reference value describes the terminus Qwen3 route.",
+   "value": 65536
+  }
+ ],
+ "egress_lock": true,
+ "environment": "daytona",
+ "hypothesis": "HAR-167 Harbor 0.24 upgrade canary: one mimoagent trial on the self-hosted MiMo route grades on Daytona under the HAR-140 egress lock and writes ATIF v1.8 trajectory, lock.json and egress record.",
+ "jobs_dir": "runs",
+ "linear_card": "HAR-167",
+ "max_input_tokens": 2500000,
+ "max_output_tokens": 131072,
+ "max_requests": 500,
+ "max_total_tokens": 2631072,
+ "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",
+ "name": "har167-canary-mimoagent-000220",
+ "override_storage_mb": 10240,
+ "purpose": "calibration",
+ "question_ref": "har167-harbor-024",
+ "reference_profile": "xiaomi-mimo-rl",
+ "schema_version": 1,
+ "submitted_by": "har167-canary",
+ "task": "derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000220",
+ "task_package_digest": "sha256:033658cae2ea50b003510f2958ba0e5fd40dbc914d094338ad39d58eb253b119",
+ "timeout_seconds": 5400
+}

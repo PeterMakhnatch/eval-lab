@@ -32,7 +32,7 @@ from pydantic import ValidationError
 from evallab.cohort import (
     summarize_job_evidence,
 )
-from evallab.evidence.facts import digest_json
+from evallab.evidence.facts import digest_json, lock_harbor_version
 from evallab.results import (
     JobRecord,
     discover_job_dirs,
@@ -356,7 +356,7 @@ def build_eval_card(
 
     job_path_str = _relative(job.path, root)
     job_lock_digest = digest_json(job.lock)
-
+    job_lock_harbor_version = lock_harbor_version(job.lock)
     inputs = [
         {"path": spec_path_str, "digest": spec_digest},
         {"path": job_path_str, "digest": job_lock_digest},
@@ -377,6 +377,7 @@ def build_eval_card(
         "job_path": job_path_str,
         "job_id": job.id,
         "job_lock_digest": job_lock_digest,
+        "job_lock_harbor_version": job_lock_harbor_version,
         "task": spec.task if spec else str(spec_dict.get("task", "unknown")),
         "hypothesis": spec.hypothesis if spec else str(spec_dict.get("hypothesis", "")),
         "numbers": {

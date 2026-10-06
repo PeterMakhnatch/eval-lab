@@ -111,6 +111,17 @@ def _should_ignore_file(path: Path) -> bool:
     return path.suffix in IGNORED_EXTENSIONS
 
 
+def _job_lock_harbor_version(job_lock_path: Path) -> str | None:
+    """Harbor version stamp from a job lock file (trial locks carry none)."""
+    from evallab.evidence.facts import lock_harbor_version
+
+    try:
+        job_lock = json.loads(job_lock_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, UnicodeError):
+        return None
+    return lock_harbor_version(job_lock)
+
+
 def compute_subpath_digest(
     path: Path,
     should_ignore: Callable[[Path], bool] | None = None,
@@ -802,6 +813,7 @@ def discover_control_evidence(
                 continue
             evidence_path = result_path.relative_to(repo_root).as_posix()
             job_name = result_path.parent.parent.name
+            job_harbor_version = _job_lock_harbor_version(result_path.parent.parent / "lock.json")
             ref = ControlEvidenceRef(
                 job_name=job_name,
                 trial_name=data["trial_name"],
@@ -817,6 +829,7 @@ def discover_control_evidence(
                 declared_task_name=declared_task_name,
                 staged_task_name=staged_task_name,
                 staged_harbor_digest=staged_harbor_digest,
+                harbor_version=job_harbor_version,
             )
             matches[agent_name].append((observed_at, ref))
 
@@ -1275,6 +1288,18 @@ def verify_control_evidence(root: Path, record: TaskRegistryRecord) -> None:
                 f"{agent_name} control evidence digest mismatch for {record.task_id!r}"
             )
         if current_lock_digest != evidence_ref.lock_digest:
+            from evallab.evidence.facts import lock_version_change_reason
+
+            current_version = _job_lock_harbor_version(evidence_path.parent.parent / "lock.json")
+            version_change = lock_version_change_reason(
+                evidence_ref.harbor_version, current_version
+            )
+            if version_change is not None:
+                raise TaskControlEvidenceError(
+                    f"{agent_name} control evidence {version_change} for {record.task_id!r}: "
+                    "the lock was rewritten by a Harbor upgrade, not tampered with; "
+                    "re-establish the control evidence under the current Harbor version"
+                )
             raise TaskControlEvidenceError(
                 f"{agent_name} control evidence lock digest mismatch for {record.task_id!r}"
             )

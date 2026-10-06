@@ -59,8 +59,12 @@ from pathlib import Path
 from typing import Any
 
 from harbor.agents.installed.base import NonZeroAgentExitCodeError  # ty: ignore[unresolved-import]
-from harbor.agents.terminus_2.terminus_2 import Terminus2  # ty: ignore[unresolved-import]
+from harbor.agents.terminus_2.terminus_2 import (  # ty: ignore[unresolved-import]
+    Terminus2,
+    Terminus2Options,
+)
 from harbor.llms.lite_llm import LiteLLM  # ty: ignore[unresolved-import]
+from pydantic import Field
 
 from evallab.execution_contracts import (
     MIMO_SELFHOSTED_CONTEXT_TOKENS,
@@ -116,6 +120,7 @@ from evallab.token_flow import COMMAND_RUN_MIN
 __all__ = [
     "LoopBreakStop",
     "SecretSafeTerminus2",
+    "SecretSafeTerminus2Options",
     "TrialBudgetExhaustedError",
     "apply_mimo_blocklist",
     "mimo_replay_parser",
@@ -465,6 +470,35 @@ def _scrubbed_extra_env(
     return env
 
 
+class SecretSafeTerminus2Options(Terminus2Options):
+    """Lab harness knobs on top of upstream ``Terminus2Options``.
+
+    Harbor 0.24 validates ``--agent-kwarg`` against the resolved agent
+    class's ``options_model`` with ``extra=forbid`` at preflight, before
+    the constructor runs. These knobs are consumed by
+    :class:`SecretSafeTerminus2.__init__` as named parameters, so without
+    this model preflight would refuse them as unknown options while
+    construction would have accepted them.
+    """
+
+    loop_break: bool = Field(default=False, description="Enable the HAR-116 loop nudge-and-stop.")
+    output_cap_chars: int | None = Field(
+        default=None, description="Cap fed-back terminal output; spill the full text to a file."
+    )
+    completion_fix: bool = Field(
+        default=False, description="End the episode on a native completion signal."
+    )
+    loop_command_run_min: int | None = Field(
+        default=None, description="Minimum run-command evidence before a loop verdict."
+    )
+    loop_message_run_min: int | None = Field(
+        default=None, description="Minimum message evidence before a loop verdict."
+    )
+    loop_grace_calls: int | None = Field(
+        default=None, description="Calls after the nudge before the loop stop fires."
+    )
+
+
 class SecretSafeTerminus2(Terminus2):
     """Terminus2 with either a metered proxy or a qualified local Ollama client.
 
@@ -476,6 +510,8 @@ class SecretSafeTerminus2(Terminus2):
     adapter must validate the exact route before delegating, so a second
     positional can never smuggle an unvalidated model past the guard.
     """
+
+    options_model = SecretSafeTerminus2Options
 
     def __init__(
         self,

@@ -458,6 +458,10 @@ def test_proxy_route_table_mirrors_contract_table() -> None:
 # ---------------------------------------------------------------------------
 
 
+class _FakeTerminus2Options:
+    """Upstream Terminus2Options stand-in (Harbor 0.24 options_model base)."""
+
+
 class _FakeTerminus2:
     """Upstream stand-in recording transport and kwargs."""
 
@@ -519,7 +523,11 @@ def terminus_module(monkeypatch: pytest.MonkeyPatch) -> Any:
     monkeypatch.setitem(
         sys.modules,
         "harbor.agents.terminus_2.terminus_2",
-        _module("harbor.agents.terminus_2.terminus_2", Terminus2=_FakeTerminus2),
+        _module(
+            "harbor.agents.terminus_2.terminus_2",
+            Terminus2=_FakeTerminus2,
+            Terminus2Options=_FakeTerminus2Options,
+        ),
     )
     sys.modules.pop("evallab.harbor_terminus", None)
     try:

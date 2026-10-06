@@ -61,6 +61,35 @@ def digest_json(value: Any) -> str:
     return _digest_bytes(_canonical_bytes(value))
 
 
+def lock_harbor_version(lock: Any) -> str | None:
+    """Harbor version stamp from a job or trial lock mapping.
+
+    Job locks carry ``harbor.version`` (Harbor stamps it when the lock is
+    built); trial locks carry no version stamp. Missing or malformed stamps
+    read None so 0.21-era locks without the field still compare.
+    """
+    if not isinstance(lock, dict):
+        return None
+    harbor = lock.get("harbor")
+    if not isinstance(harbor, dict):
+        return None
+    version = harbor.get("version")
+    return version if isinstance(version, str) and version else None
+
+
+def lock_version_change_reason(recorded: str | None, current: str | None) -> str | None:
+    """Declared version-change reason when two lock digests differ.
+
+    A 0.21 lock vs a 0.24 lock reports
+    ``harbor_version_change:<old>-><new>`` instead of a digest mismatch;
+    identical stamps (including both unknown) report None, a genuine
+    content mismatch the caller still refuses.
+    """
+    if recorded == current:
+        return None
+    return f"harbor_version_change:{recorded or 'unknown'}->{current or 'unknown'}"
+
+
 def _string(value: Any) -> str | None:
     return str(value) if value is not None else None
 

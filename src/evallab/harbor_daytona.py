@@ -413,8 +413,11 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
 
     @contextlib.contextmanager
     def scoped_exec_env(self, env: dict[str, str]) -> Iterator[None]:
-        # Harbor 0.21 runs agent.setup() inside the first top-level scope
-        # (trial.py _setup_agent); leaving it marks setup as finished.
+        # Harbor 0.24 splits setup into three sibling scopes (trial.py
+        # _setup_agent, _setup_user_agent, _setup_bridge); 0.21 had one.
+        # Our lanes never configure a user agent or bridge, so those scopes
+        # issue no exec: the flag still goes due exactly when agent setup is
+        # finished, and the agent phase's first exec takes the lock.
         self._egress_scope_depth += 1
         try:
             with super().scoped_exec_env(env):
@@ -551,6 +554,9 @@ class SecretSafeDaytonaEnvironment(BoundedDaytonaEnvironment):
                 "network_allowlist": True,
                 "network_allowlist_hostnames": True,
                 "dynamic_network_policy": True,
+                # Harbor 0.24 added SSH stream support; the GLM proxy compose
+                # transport has no lease-based SSH path, so streaming stays off.
+                "stream": False,
             })
         return capabilities
 

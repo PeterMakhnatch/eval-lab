@@ -60,8 +60,22 @@ KNOWN_TAGS = frozenset(
         "solve:0-of-n",
         "solve:always",
         "solve:mixed",
+        "verdict:keep",
+        "verdict:fix",
+        "verdict:discard",
     }
 )
+
+
+_VERDICTS = ("keep", "fix", "discard")
+
+
+def verdict_tag(ledger: Mapping[str, str]) -> str:
+    """HAR-177 keep/fix/discard projection of the ledger verdict column."""
+    verdict = ledger.get("verdict")
+    if verdict not in _VERDICTS:
+        raise ValueError(f"ledger: unsupported verdict {verdict!r}")
+    return f"verdict:{verdict}"
 
 
 def _path(root: Path, value: Path) -> Path:
@@ -175,8 +189,15 @@ def health_tag(
     return "health:unchecked"
 
 
-def metadata_bytes(original: bytes, tags: Sequence[str]) -> bytes:
-    """Replace only our tag namespaces while preserving other TOML fields."""
+def metadata_bytes(
+    original: bytes, tags: Sequence[str], *, description: str | None = None
+) -> bytes:
+    """Replace only our tag namespaces while preserving other TOML fields.
+
+    ``description`` sets ``[metadata] description`` (the one-line ledger
+    reason ``harbor view --tasks`` shows for an actionable task); ``None``
+    preserves whatever the parent package carries.
+    """
     before = tomllib.loads(original.decode("utf-8"))
     document = tomlkit.parse(original.decode("utf-8"))
     if "metadata" not in document:
@@ -187,16 +208,21 @@ def metadata_bytes(original: bytes, tags: Sequence[str]) -> bytes:
     existing = metadata.get("tags", [])
     if not isinstance(existing, list) or any(not isinstance(tag, str) for tag in existing):
         raise ValueError("task.toml metadata.tags must be a string array")
-    combined = list(
-        dict.fromkeys(
-            [tag for tag in existing if not tag.startswith(("health:", "solve:"))] + list(tags)
-        )
-    )
+    for stale in ("health:", "solve:", "verdict:"):
+        existing = [tag for tag in existing if not tag.startswith(stale)]
+    combined = list(dict.fromkeys([*existing, *tags]))
     document["metadata"]["tags"] = combined
+    if description is not None:
+        if not description or not description.strip():
+            raise ValueError("description must be a non-empty one-line reason")
+        document["metadata"]["description"] = " ".join(description.split())
     output = tomlkit.dumps(document).encode("utf-8")
     after = tomllib.loads(output.decode("utf-8"))
+    expected_metadata = {**before.get("metadata", {}), "tags": combined}
+    if description is not None:
+        expected_metadata["description"] = " ".join(description.split())
     expected = dict(before)
-    expected["metadata"] = {**before.get("metadata", {}), "tags": combined}
+    expected["metadata"] = expected_metadata
     if after != expected:
         raise ValueError("health tags changed non-tag task configuration")
     return output
@@ -307,7 +333,16 @@ def generate_health_tags(
         (
             "ledger",
             ledger_path,
-            {"task_id", "status", "reason", "run", "run_digest", "run_variant_status"},
+            {
+                "task_id",
+                "status",
+                "reason",
+                "run",
+                "run_digest",
+                "run_variant_status",
+                "verdict",
+                "verdict_evidence",
+            },
         ),
         ("locked_nop", locked_nop_path, {"task_id", "locked_nop", "note"}),
         ("history", history_path, {"task_id", "runs", *_OUTCOMES}),
@@ -379,9 +414,14 @@ def generate_health_tags(
             exploit_verdict=probe["verdict"] if bound_probe and probe else None,
         )
         solve = solve_summary(data["history"].get(task_id))
-        tags = [health, solve["tag"]]
+        verdict = verdict_tag(row)
+        tags = [health, solve["tag"], verdict]
+        # Actionable tasks surface the one-line ledger reason where
+        # ``harbor view --tasks`` shows it ([metadata] description); keep
+        # tasks preserve the parent description untouched.
+        description = row["reason"] if row["verdict"] in ("fix", "discard") else None
         original = (parent / "task.toml").read_bytes()
-        updated = metadata_bytes(original, tags)
+        updated = metadata_bytes(original, tags, description=description)
         task_name = tomllib.loads(original.decode("utf-8")).get("task", {}).get("name", parent.name)
         assessment = {
             "task_id": task_id,
@@ -389,6 +429,8 @@ def generate_health_tags(
             "tags": tags,
             "ledger_status": row["status"],
             "ledger_reason": row["reason"],
+            "ledger_verdict": row["verdict"],
+            "ledger_verdict_evidence": row["verdict_evidence"],
             "locked_nop": data["locked_nop"].get(task_id),
             "solve": solve,
             "exploit": {

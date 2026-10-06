@@ -1,0 +1,64 @@
+{
+  "schema": "evallab.har177_repair_nop_plan/v1",
+  "linear_card": "HAR-177",
+  "status": "proposed-not-submitted",
+  "agent": "nop",
+  "environment": "daytona",
+  "egress_lock": true,
+  "attempts_per_task": 1,
+  "automatic_retries": false,
+  "model_cost_usd": 0,
+  "resources_per_trial": {"cpus": 2, "memory_gib": 8, "disk_gib": 10},
+  "price_basis": {
+    "source": "research/experiments/mimo-daytona-nop/results/qualification.json",
+    "rate_card_date": "2026-09-28",
+    "vcpu_hour_usd": 0.0504,
+    "memory_gib_hour_usd": 0.0162,
+    "storage_gib_hour_usd": 0.000108,
+    "free_storage_gib": 5,
+    "trial_hour_usd": 0.23094,
+    "method": "prior HAR-169 locked-nop started-to-finished wall seconds * dated list resource rate; an estimate, not billed cost",
+    "limitation": "HAR-169 lab-metadata reports cost_usd=null because no model proxy usage exists; sandbox creation/teardown billing and cold startup may differ from trial wall time"
+  },
+  "checks": [
+    {
+      "task_id": "format-code-task-002402",
+      "variant_digest": "sha256:aee31dca2e10d0d99d596d83eb7b2906b0fc97a289cc3778e367077b6b18a084",
+      "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002402/aee31dca2e10.json",
+      "prior_locked_nop_result": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-06/HAR-169-har169-vnop-002402-3a486a70bea9/har169-vnop-002402-3a486a70bea9__CTLhSXf/result.json",
+      "prior_reward": 0,
+      "prior_egress_lock_requested": true,
+      "prior_egress_lock_applied": true,
+      "prior_wall_seconds": 20.448095,
+      "historical_wall_based_estimate_usd": 0.001312,
+      "conservative_expected_usd": 0.005
+    },
+    {
+      "task_id": "format-code-task-002552",
+      "variant_digest": "sha256:3efa6a29bc46225ac697ca0d4c3e6581ed42619b026ed04c2fff1c6bcef85d1a",
+      "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002552/3efa6a29bc46.json",
+      "prior_locked_nop_result": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-06/HAR-169-har169-vnop-002552-c0c76e4ec11d/har169-vnop-002552-c0c76e4ec11d__zwPw6q3/result.json",
+      "prior_reward": 0,
+      "prior_egress_lock_requested": true,
+      "prior_egress_lock_applied": true,
+      "prior_wall_seconds": 34.938358,
+      "historical_wall_based_estimate_usd": 0.002241,
+      "conservative_expected_usd": 0.005
+    }
+  ],
+  "total_historical_wall_based_estimate_usd": 0.003553,
+  "total_conservative_expected_usd": 0.01,
+  "recommended_pair_approval_cap_usd": 0.02,
+  "parent_card_shared_cap_usd": 1.0,
+  "acceptance": [
+    "Run only the exact proposed variant bytes through the normal admitted runner, never the oracle/listing-staged packages",
+    "reward=0 with no infrastructure exception",
+    "egress lock requested/applied and effective setup fingerprint locked",
+    "preserve the original BASE SHA and verifier bytes",
+    "attach exact task digest, run path and reward/lock evidence before promoting candidate repair status"
+  ],
+  "execution_gate": "Parent must approve this pair after reviewing the final local Docker pilot; this artifact grants no admission or spend authority",
+  "actual_daytona_runs_started": 0,
+  "actual_model_runs_started": 0,
+  "actual_paid_spend_usd": 0
+}

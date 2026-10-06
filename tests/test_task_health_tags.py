@@ -130,7 +130,16 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, dict]:
     task_id = "format-code-task-000001"
     _csv(
         root / "ledger.csv",
-        ["task_id", "status", "reason", "run", "run_digest", "run_variant_status"],
+        [
+            "task_id",
+            "status",
+            "reason",
+            "run",
+            "run_digest",
+            "run_variant_status",
+            "verdict",
+            "verdict_evidence",
+        ],
         [
             {
                 "task_id": task_id,
@@ -139,6 +148,8 @@ def _inputs(tmp_path: Path) -> tuple[Path, Path, dict]:
                 "run": "original",
                 "run_digest": digest,
                 "run_variant_status": "",
+                "verdict": "keep",
+                "verdict_evidence": "ledger:status=usable",
             },
         ],
     )
@@ -189,7 +200,7 @@ def test_generator_pins_parent_and_reuses_rebuildable_metadata_variant(tmp_path:
     before = task_directory_digest(parent)
     first = generate_health_tags(root, **options)
     row = first["tasks"][0]
-    assert row["tags"] == ["health:sound", "solve:mixed"]
+    assert row["tags"] == ["health:sound", "solve:mixed", "verdict:keep"]
     package = Path(row["package"])
     record_path = Path(row["record"])
     record_bytes = record_path.read_bytes()
@@ -229,7 +240,7 @@ def test_exploit_verdict_is_bound_to_the_executed_package_not_task_name(tmp_path
         json.dumps({"format-code-task-000001": {"verdict": "cracked", "trial": str(trial)}})
     )
     report = generate_health_tags(root, exploit_path=verdict, **options)
-    assert report["tasks"][0]["tags"] == ["health:cracked", "solve:mixed"]
+    assert report["tasks"][0]["tags"] == ["health:cracked", "solve:mixed", "verdict:keep"]
     assert report["tasks"][0]["exploit"]["digest_match"] is True
     # An explicit conflicting package binding cannot fall back to the native
     # lock or reuse the result merely because the task-id key is the same.
@@ -245,5 +256,5 @@ def test_exploit_verdict_is_bound_to_the_executed_package_not_task_name(tmp_path
         )
     )
     report = generate_health_tags(root, exploit_path=verdict, **options)
-    assert report["tasks"][0]["tags"] == ["health:sound", "solve:mixed"]
+    assert report["tasks"][0]["tags"] == ["health:sound", "solve:mixed", "verdict:keep"]
     assert report["tasks"][0]["exploit"]["digest_match"] is False

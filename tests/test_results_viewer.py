@@ -12,7 +12,9 @@ from evallab.results_viewer import ResultsViewerRoot, allowed_hosts, read_only
 
 
 def _write_json(path: Path, payload: object) -> None:
+    """Write a fresh file, as publishing does (unlink, then copy)."""
     path.parent.mkdir(parents=True, exist_ok=True)
+    path.unlink(missing_ok=True)
     path.write_text(json.dumps(payload) + "\n", encoding="utf-8")
 
 
@@ -99,7 +101,7 @@ def test_sync_follows_publish_republish_and_removal(tmp_path: Path) -> None:
 def test_dropping_a_viewer_job_never_deletes_source_files(tmp_path: Path) -> None:
     home, root = tmp_path / "results", tmp_path / "viewer" / "jobs"
     job = _publish(home, "2026-10-05", "HAR-1-a")
-    # A native-dims trial is linked through as a whole directory symlink.
+    # A native-dims trial is mirrored whole, with no overlay file of its own.
     _write_json(
         job / "HAR-1-a__t2" / "result.json",
         {
@@ -110,14 +112,14 @@ def test_dropping_a_viewer_job_never_deletes_source_files(tmp_path: Path) -> Non
     _age(job, 600)
     viewer = ResultsViewerRoot(root, [home], settle_seconds=60)
     viewer.sync()
-    assert (root / "HAR-1-a" / "HAR-1-a__t2").is_symlink()
     before = _tree_digest(job)
 
     _write_json(job / "result.json", {"job": "HAR-1-a", "republished": True})
     _age(job, 600)
     assert viewer.sync().rebuilt == ["HAR-1-a"]
     after = _tree_digest(job)
-    assert after.keys() == before.keys()
+    del before["result.json"], after["result.json"]
+    assert after == before
 
 
 def test_restart_resumes_from_root_and_keeps_same_name_jobs_apart(tmp_path: Path) -> None:

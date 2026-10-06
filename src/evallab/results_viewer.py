@@ -14,9 +14,9 @@ serves it with Harbor 0.24's viewer app at one fixed URL:
 * each viewer job is staged beside the root and renamed in, so the viewer
   never lists a half-built job.
 
-Sources are only read. The root holds symlinks and small rewritten
-``result.json`` / ``reward-details.json`` files; removing a viewer job never
-follows a symlink into a source.
+Sources are only read. The root holds hard links (see ``harbor_view._link``)
+and small rewritten ``result.json`` / ``reward-details.json`` files; removing
+a viewer job only unlinks the root's names, never a source's.
 
 The served app is guarded: only GET/HEAD requests with a loopback ``Host``
 header reach Harbor. The 0.24 viewer also exposes POST endpoints that launch
@@ -49,7 +49,8 @@ from evallab.harbor_view import (
 from evallab.results_home import results_root
 
 SOURCE_RECORD = ".evallab-results-viewer.json"
-SOURCE_RECORD_SCHEMA = "results_viewer/source/v1"
+#: v2: hard-linked mirrors. A v1 (symlinked) viewer job is dropped and rebuilt.
+SOURCE_RECORD_SCHEMA = "results_viewer/source/v2"
 DEFAULT_ROOT = (
     Path.home() / "Library" / "Application Support" / "evallab" / "results-viewer" / "jobs"
 )
@@ -202,14 +203,16 @@ class ResultsViewerRoot:
         trash = self.staging / f"trash-{uuid.uuid4().hex}"
         trash.parent.mkdir(parents=True, exist_ok=True)
         job.rename(trash)
-        # rmtree removes symlinks without following them into sources.
+        # rmtree unlinks names (hard links, symlinks) without touching sources.
         shutil.rmtree(trash, ignore_errors=True)
 
     def _build(self, source: Path, name: str, signature: Signature) -> Path:
         staged = self.staging / f"build-{uuid.uuid4().hex}" / name
         try:
             mirror_job(source, staged)
-            (staged / SOURCE_RECORD).write_text(
+            record_path = staged / SOURCE_RECORD
+            record_path.unlink(missing_ok=True)  # never write through a hard link
+            record_path.write_text(
                 json.dumps(
                     {
                         "schema": SOURCE_RECORD_SCHEMA,

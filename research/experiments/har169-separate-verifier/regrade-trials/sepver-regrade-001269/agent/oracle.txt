@@ -1,0 +1,11 @@
+=== separate-verifier agent-env probe ===
+--- ls /tests:
+ls: cannot access '/tests': No such file or directory
+--- marker grep (test_activate_strict_unfired_raises) over workspace:
+grep_rc=1
+=== oracle fix: strict activate decorator ===
+patched responses/__init__.py
+=== oracle smoke check ===
+oracle smoke check passed
+=== synthetic dirty ATIF trajectory (copy pattern) ===
+wrote /logs/agent/trajectory.json (6-line copy pattern)

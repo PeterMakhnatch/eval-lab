@@ -1,0 +1,24 @@
+============================= test session starts ==============================
+platform linux -- Python 3.9.23, pytest-6.2.5, py-1.10.0, pluggy-1.0.0 -- /usr/local/bin/python
+cachedir: .pytest_cache
+rootdir: /testbed, configfile: tox.ini
+plugins: env-0.6.2
+collecting ... collected 15 items
+
+tests/commands/hook_impl_test.py::test_run_ns_post_rewrite PASSED        [  6%]
+tests/commands/hook_impl_test.py::test_check_args_length_post_rewrite_too_few PASSED [ 13%]
+tests/commands/hook_impl_test.py::test_check_args_length_post_rewrite_too_many PASSED [ 20%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[pre-commit-args0] PASSED [ 26%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[pre-merge-commit-args1] PASSED [ 33%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[pre-push-args2] PASSED [ 40%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[commit-msg-args3] PASSED [ 46%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[post-commit-args4] PASSED [ 53%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[post-merge-args5] PASSED [ 60%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[post-rewrite-args6] PASSED [ 66%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[post-checkout-args7] PASSED [ 73%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[prepare-commit-msg-args8] PASSED [ 80%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[prepare-commit-msg-args9] PASSED [ 86%]
+tests/commands/hook_impl_test.py::test_check_args_length_ok[prepare-commit-msg-args10] PASSED [ 93%]
+tests/commands/run_test.py::test_rewrite_command PASSED                  [100%]
+
+============================= 15 passed in 13.32s ==============================

@@ -1,0 +1,48 @@
+{
+    "schema_version": 2,
+    "task": {
+        "name": "e0633f90aead",
+        "type": "local",
+        "digest": "sha256:1d6561fc04dfd0d97ae1b2e34b5a36bd50eb1d65323df27aa2464d95cec4f900",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001269/e0633f90aead"
+    },
+    "install_only": false,
+    "timeout_multiplier": 1.0,
+    "agent": {
+        "name": "oracle",
+        "skills": [],
+        "resume_trajectory": false,
+        "extra_allowed_hosts": [],
+        "kwargs": {},
+        "mcp_servers": []
+    },
+    "bridge_inputs": {},
+    "skills": [],
+    "environment": {
+        "type": "docker",
+        "force_build": false,
+        "delete": true,
+        "stream": false,
+        "cpu_enforcement_policy": "auto",
+        "memory_enforcement_policy": "auto",
+        "extra_docker_compose": [],
+        "kwargs": {},
+        "extra_allowed_hosts": []
+    },
+    "verifier": {
+        "disable": false,
+        "environment_mode": "separate"
+    },
+    "source_trial": {
+        "action": "regrade",
+        "type": "local",
+        "trial_id": "7dd565ca-a4c4-4fa3-9177-f611bc914d15",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har169-integrity-20261006/runs/har169-sepver/sepver-001269-traj-oracle/har169-sepver-traj__xqjrUCv",
+        "task": {
+            "name": "har169-sepver-traj",
+            "type": "local",
+            "digest": "sha256:cf72dc840bf746eaf23a196941542779fb240f072772c058b61f87fa4f7fc973",
+            "path": "/tmp/har169-sepver-traj"
+        }
+    }
+}

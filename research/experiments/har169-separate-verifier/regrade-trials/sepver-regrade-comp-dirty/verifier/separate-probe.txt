@@ -1,0 +1,3 @@
+== marker in /tests ==
+/tests/test.sh
+/tests/test.patch

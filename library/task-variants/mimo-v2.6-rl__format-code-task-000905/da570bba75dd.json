@@ -1,0 +1,69 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000905",
+  "variant_digest": "sha256:da570bba75dd28503882bdd72a1a3826eb1779ad203d5038a579960bcfc50633",
+  "variant_harbor_digest": "sha256:41941a1425e4283002067abaa21175fb0a2bfaebf52bb3916f26cd622a177b02",
+  "parent": {
+    "digest": "sha256:bf0e19c83a7e9bae92170fb481626a2276c88dd7ffe10158426a8b29795f6a26",
+    "harbor_digest": "sha256:b946ce8d7a6bd46983e106e2393a83f894cf54a26dbedb4255cdae5be981ff68",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "tasks/format-code-task-000905",
+      "record": null
+    }
+  },
+  "transform": "separate-verifier@1",
+  "components_changed": [
+    "task_toml",
+    "verifier",
+    "solution"
+  ],
+  "files": [
+    {
+      "path": "solution/solve.sh",
+      "before_sha256": null,
+      "after_sha256": "sha256:16598177250f285ac0fd0e51b70add62623e0ea1e7d83d6b4d2514604f17bb11",
+      "content": "#!/bin/bash\n# Oracle reference solution for format-code-task-000905 (Weight negative/high fix).\n# Runs in the agent environment; stdout goes to the trial's agent/oracle.txt log.\nset -u\ncd /testbed\n\necho \"=== separate-verifier agent-env probe ===\"\necho \"--- ls /tests:\"\nls -la /tests 2>&1\necho \"--- marker grep (TestWeightNegativeAndHighFix) over workspace:\"\ngrep -rl \"TestWeightNegativeAndHighFix\" \"/testbed\" /tmp \\\n  --exclude-dir=.git --exclude-dir=.venv --exclude-dir=venv \\\n  --exclude-dir=node_modules 2>/dev/null\necho \"grep_rc=$?\"\n\necho \"=== oracle fix: Weight.calculate clamps out-of-range sums ===\"\npython3 - <<'PYEOF'\nfrom pathlib import Path\n\npath = Path(\"/testbed/quark/utils/weight.py\")\nsrc = path.read_text(encoding=\"utf-8\")\n\nold_tail = \"\"\"        else:\n            raise ValueError(\"Weight calculate failed\")\n\"\"\"\nnew_tail = \"\"\"        else:\n            if total_weight > level_five_threshold:\n                return red(LEVEL_INFO.High.value)\n            return green(LEVEL_INFO.LOW.value)\n\"\"\"\nassert src.count(old_tail) == 1, \"weight else-branch not found exactly once\"\nsrc = src.replace(old_tail, new_tail)\npath.write_text(src, encoding=\"utf-8\")\nprint(\"patched quark/utils/weight.py\")\nPYEOF\n\necho \"=== oracle smoke check ===\"\npython3 - <<'PYEOF'\nfrom quark.utils.weight import Weight\n\nassert Weight(20, -10).calculate().endswith(\"Low Risk\\x1b[0m\"), Weight(20, -10).calculate()\nassert Weight(20, 100).calculate().endswith(\"High Risk\\x1b[0m\")\nassert Weight(20, 8).calculate().endswith(\"Moderate Risk\\x1b[0m\")\nassert Weight(20, 1).calculate().endswith(\"Low Risk\\x1b[0m\")\nassert Weight(20, 15).calculate().endswith(\"High Risk\\x1b[0m\")\nprint(\"oracle smoke check passed\")\nPYEOF\n"
+    },
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:ad76a9e129d71df568cdf7633dd8c6f7bf66aa655fdcba6a0a3dd01e1141125b",
+      "after_sha256": "sha256:1a3a35684101a49ca1d22e3b9616f37dc4427b43f4969beb45893d7af2001237",
+      "content": "schema_version = \"1.4\"\n\nartifacts = [\n    \"/var/tmp/mimo-separate\",\n    \"/logs/agent/trajectory.json\",\n]\n\n[task]\nname = \"mimo-v2.6-rl/format-code-task-000905\"\ndescription = \"ValueError when analyzing non-malicious APKs with new rule weights\"\nkeywords = [\"mimo-v2.6-rl\", \"code\"]\n\n[metadata]\nadapter = \"mimo_harbor 1.1.0\"\ncategory = \"Python\"\ndomain = \"code\"\nkeywords = [\"code\", \"Python\"]\nreference_harness = \"XiaomiMiMo/verl a2ad9f6 + XiaomiMiMo/mimoagent 467f0a1\"\nreference_step_limit = 500\nsource_dataset = \"XiaomiMiMo/MiMo-V2.6-RL-oss\"\nsource_id = \"format-code-task-000905\"\nsource_revision = \"639865fd3374018d6cb29b9fb82dd531406fcf5f\"\ntitle = \"ValueError when analyzing non-malicious APKs with new rule weights\"\n\n[agent]\ntimeout_sec = 3600.0\n\n[verifier]\nenvironment_mode = \"separate\"\ntimeout_sec = 2100.0\nuser = \"root\"\n\n[environment]\ndocker_image = \"docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a23d8194c7b64880f10b8a25479ce88ea06e0c27ca6038ce5cad620ccf58d14b\"\nworkdir = \"/testbed\"\ncpus = 2\nmemory_mb = 8192\nnetwork_mode = \"public\"\nbuild_timeout_sec = 1800.0\n\n[environment.healthcheck]\n# one-time setup before the agent (environment/setup/setup.sh)\ncommand = \"bash -c 'test -f /var/lib/mimo/ready || { mkdir -p /var/lib/mimo && echo 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 | base64 -d | tar -xzf - -C /var/lib/mimo && bash /var/lib/mimo/setup.sh; }'\"\ntimeout_sec = 1200.0\nretries = 0\ninterval_sec = 5.0\n\n# separate-verifier@1: snapshot the agent workspace for the verifier.\n# The probe hook runs first so the snapshot tarballs are not scanned.\n[[verifier.collect]]\nservice = \"main\"\ncommand = 'SNAP=\"/var/tmp/mimo-separate\"; CWD=\"/testbed\"; mkdir -p \"$SNAP\"; { echo \"== ls /tests ==\"; ls -la /tests 2>&1; echo \"== grep marker TestWeightNegativeAndHighFix ==\"; grep -rl \"TestWeightNegativeAndHighFix\" \"$CWD\" /tmp --exclude-dir=.git --exclude-dir=.venv --exclude-dir=venv --exclude-dir=node_modules 2>/dev/null; echo \"grep_rc=$?\"; } > \"$SNAP/probe-agent-env.txt\" 2>&1; cat \"$SNAP/probe-agent-env.txt\"; true'\ntimeout_sec = 300.0\nuser = \"root\"\n\n[[verifier.collect]]\nservice = \"main\"\ncommand = 'SNAP=\"/var/tmp/mimo-separate\"; CWD=\"/testbed\"; M=\"/var/lib/mimo\"; mkdir -p \"$SNAP\"; cp \"$M/base\" \"$SNAP/base\"; rm -rf \"$SNAP/stage\"; if [ -d \"$M/git-hidden\" ]; then tar -czf \"$SNAP/git-hidden.tgz\" -C \"$M\" git-hidden; elif [ -d \"$CWD/.git\" ]; then mkdir -p \"$SNAP/stage/git-hidden\"; cp -r \"$CWD/.git/.\" \"$SNAP/stage/git-hidden/\"; tar -czf \"$SNAP/git-hidden.tgz\" -C \"$SNAP/stage\" git-hidden; rm -rf \"$SNAP/stage\"; fi; tar --exclude=.git -czf \"$SNAP/workspace.tgz\" -C \"$CWD\" .; ls -la \"$SNAP\"; true'\ntimeout_sec = 600.0\nuser = \"root\"\n"
+    },
+    {
+      "path": "tests/Dockerfile",
+      "before_sha256": null,
+      "after_sha256": "sha256:5bfcd5b384b0ca5df2151c3b60cb8d1f4b671982d6d8e89515b6b23a2fce4478",
+      "content": "# Separate-verifier image (separate-verifier@1): pristine repo checkout\n# plus the hidden tests bundled in. The agent image never sees /tests.\nFROM --platform=linux/amd64 docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a23d8194c7b64880f10b8a25479ce88ea06e0c27ca6038ce5cad620ccf58d14b\nCOPY . /tests\nRUN chmod +x /tests/test.sh /tests/test-orig.sh\n"
+    },
+    {
+      "path": "tests/test-orig.sh",
+      "before_sha256": null,
+      "after_sha256": "sha256:26c3009156040183516d7185a3b12178b2caeb0001abe6715268c8d34397b359",
+      "content": "#!/bin/bash\n# Code grading, mimoagent opensource_code.py: reset the files the hidden test patch touches, apply it, run the\n# task's test command; reward 1 when it exits 0. A testbed failure (reset or apply) writes no reward: not scored.\nM=/var/lib/mimo\nCWD=/testbed\nV=/logs/verifier\nmkdir -p \"$V\"\nBASE=$(cat \"$M/base\" 2>/dev/null) || { echo \"setup never ran (no $M/base)\" >&2; exit 1; }\ncd \"$CWD\" || exit 1\nif [ -d \"$M/git-hidden\" ]; then rm -rf \"$CWD/.git\"; mv \"$M/git-hidden\" \"$CWD/.git\"; fi\n# the agent's change against the base, so its own commits count too\ngit add -A >/dev/null 2>&1 && git -c core.fileMode=false diff --cached \"$BASE\" > \"$V/agent.diff\"\ngit reset -q\nif ! (\nwhile IFS= read -r tf; do\n  [ -z \"$tf\" ] && continue\n  if git cat-file -e $BASE:\"$tf\" 2>/dev/null; then\n    git checkout $BASE -- \"$tf\" 2>/dev/null || true\n  else\n    git rm -f --cached \"$tf\" >/dev/null 2>&1 || true\n    rm -f \"$tf\"\n  fi\ndone <<'EOF_RESET_TEST_FILES'\ntest_commands.json\ntests/utils/test_weight.py\nmimo_test_command.sh\nEOF_RESET_TEST_FILES\n\n); then echo \"could not reset the test files (testbed problem, not scored)\" >&2; exit 1; fi\nif ! git apply --verbose /tests/test.patch > \"$V/apply.log\" 2>&1; then\n  cat \"$V/apply.log\" >&2\n  echo \"the hidden tests could not be applied (testbed problem, not scored)\" >&2\n  exit 1\nfi\ntimeout 1800 sh -c \"$(cat /tests/test_command.sh)\" > \"$V/test_output.log\" 2>&1\nRC=$?\ntail -c 12000 \"$V/test_output.log\"\nif [ $RC -eq 0 ]; then echo 1 > \"$V/reward.txt\"; else echo 0 > \"$V/reward.txt\"; fi\necho \"test command exited $RC\"\n"
+    },
+    {
+      "path": "tests/test.sh",
+      "before_sha256": "sha256:26c3009156040183516d7185a3b12178b2caeb0001abe6715268c8d34397b359",
+      "after_sha256": "sha256:ef073d6fd246b438bb944da5b82fda17e63a4646a8065581faa0d5f395319bc9",
+      "content": "#!/bin/bash\n# separate-verifier@1 entry: restore the agent snapshot captured by the\n# [[verifier.collect]] snapshot hook, then run the original grading\n# script (tests/test-orig.sh) unmodified.\nset -u\nSNAP=\"/var/tmp/mimo-separate\"\nM=\"/var/lib/mimo\"\nCWD=\"/testbed\"\nV=/logs/verifier\nmkdir -p \"$V\" \"$M\"\n# Verifier-side probe: the marker must be present here (bundled tests).\n{\necho \"== marker in /tests ==\";\ngrep -rl \"TestWeightNegativeAndHighFix\" /tests 2>/dev/null || echo \"MARKER NOT FOUND IN /tests\";\n} > \"$V/separate-probe.txt\" 2>&1\ntest -f \"$SNAP/base\" || { echo \"snapshot missing: $SNAP/base\" >&2; exit 1; }\ntest -f \"$SNAP/workspace.tgz\" || { echo \"snapshot missing: $SNAP/workspace.tgz\" >&2; exit 1; }\ncp \"$SNAP/base\" \"$M/base\"\nif [ -f \"$SNAP/git-hidden.tgz\" ]; then\n  rm -rf \"$CWD/.git\" \"$M/git-hidden\";\n  tar -xzf \"$SNAP/git-hidden.tgz\" -C \"$M\";\nfi\ncd \"$CWD\"\nfind \"$CWD\" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +\ntar -xzf \"$SNAP/workspace.tgz\" -C \"$CWD\"\nexec /tests/test-orig.sh\n"
+    }
+  ],
+  "rationale": "HAR-169 prototype: bundle hidden tests into a separate verifier environment; pass the agent workspace as a declared artifact. Ships an oracle-control reference solution for oracle|nop grading comparison.",
+  "inputs": {
+    "parent_task": "mimo-v2.6-rl/format-code-task-000905",
+    "workdir": "/testbed",
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a23d8194c7b64880f10b8a25479ce88ea06e0c27ca6038ce5cad620ccf58d14b",
+    "marker": "TestWeightNegativeAndHighFix",
+    "snapshot_dir": "/var/tmp/mimo-separate",
+    "trajectory_artifact": "/logs/agent/trajectory.json",
+    "solution": "sha256:16598177250f285ac0fd0e51b70add62623e0ea1e7d83d6b4d2514604f17bb11"
+  },
+  "created_by": "har169-separate-verifier",
+  "created_at": "2026-10-06T04:33:52Z",
+  "status": "candidate",
+  "evidence": []
+}

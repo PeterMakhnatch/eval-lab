@@ -1,0 +1,4 @@
+== ls /tests ==
+ls: cannot access '/tests': No such file or directory
+== grep marker test_activate_strict_unfired_raises ==
+grep_rc=1

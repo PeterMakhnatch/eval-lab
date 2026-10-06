@@ -1,0 +1,35 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.18, pytest-7.2.0, pluggy-0.13.1 -- /usr/local/bin/python
+cachedir: .pytest_cache
+rootdir: /testbed, configfile: pyproject.toml
+plugins: httpserver-1.0.6, rerunfailures-10.2
+collecting ... collected 19 items / 6 deselected / 13 selected
+
+tests/unit/test_sqs.py::test_msg_size_body_within_limit_no_attributes_passes PASSED [  7%]
+tests/unit/test_sqs.py::test_msg_size_body_within_limit_empty_attributes_passes PASSED [ 15%]
+tests/unit/test_sqs.py::test_msg_size_body_only_at_limit_passes PASSED   [ 23%]
+tests/unit/test_sqs.py::test_msg_size_body_only_exceeds_limit_raises PASSED [ 30%]
+tests/unit/test_sqs.py::test_msg_size_body_at_limit_with_attributes_raises PASSED [ 38%]
+tests/unit/test_sqs.py::test_msg_size_body_plus_attributes_exactly_at_limit_passes PASSED [ 46%]
+tests/unit/test_sqs.py::test_msg_size_body_plus_attributes_over_limit_by_one_raises PASSED [ 53%]
+tests/unit/test_sqs.py::test_msg_size_attributes_counted_via_name_type_and_value PASSED [ 61%]
+tests/unit/test_sqs.py::test_msg_size_multiple_attributes_summed PASSED  [ 69%]
+tests/unit/test_sqs.py::test_msg_size_issue_reproduction_exact PASSED    [ 76%]
+tests/unit/test_sqs.py::test_batch_size_includes_attributes_raises PASSED [ 84%]
+tests/unit/test_sqs.py::test_batch_size_with_attributes_at_limit_passes PASSED [ 92%]
+tests/unit/test_sqs.py::test_batch_size_without_attributes_preserved PASSED [100%]
+
+=============================== warnings summary ===============================
+../usr/local/lib/python3.10/site-packages/boto/plugin.py:40
+  /usr/local/lib/python3.10/site-packages/boto/plugin.py:40: DeprecationWarning: the imp module is deprecated in favour of importlib and slated for removal in Python 3.12; see the module's documentation for alternative uses
+    import imp
+
+tests/unit/test_sqs.py: 39 warnings
+  /testbed/localstack/testing/pytest/snapshot.py:44: DeprecationWarning: Use get_result() which forces correct exception handling
+    report: TestReport = result.result
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================ 13 passed, 6 deselected, 40 warnings in 0.54s =================
+Still running threads after pytest unconfigure: [<_MainThread(MainThread, started 140737473218368)>], Count: 1
+Thread actions: [{"file_name": "/testbed/localstack/testing/pytest/detect_thread_leakage.py", "function_name": "<listcomp>", "line_no": 16, "frame_traceback": ["  File \"/usr/local/lib/python3.10/runpy.py\", line 196, in _run_module_as_main\n    return _run_code(code, main_globals, None,\n", "  File \"/usr/local/lib/python3.10/runpy.py\", line 86, in _run_code\n    exec(code, run_globals)\n", "  File \"/usr/local/lib/python3.10/site-packages/pytest/__main__.py\", line 5, in <module>\n    raise SystemExit(pytest.console_main())\n", "  File \"/usr/local/lib/python3.10/site-packages/_pytest/config/__init__.py\", line 190, in console_main\n    code = main()\n", "  File \"/usr/local/lib/python3.10/site-packages/_pytest/config/__init__.py\", line 167, in main\n    ret: Union[ExitCode, int] = config.hook.pytest_cmdline_main(\n", "  File \"/usr/local/lib/python3.10/site-packages/pluggy/hooks.py\", line 286, in __call__\n    return self._hookexec(self, self.get_hookimpls(), kwargs)\n", "  File \"/usr/local/lib/python3.10/site-packages/pluggy/manager.py\", line 93, in _hookexec\n    return self._inner_hookexec(hook, methods, kwargs)\n", "  File \"/usr/local/lib/python3.10/site-packages/pluggy/manager.py\", line 84, in <lambda>\n    self._inner_hookexec = lambda hook, methods, kwargs: hook.multicall(\n", "  File \"/usr/local/lib/python3.10/site-packages/pluggy/callers.py\", line 187, in _multicall\n    res = hook_impl.function(*args)\n", "  File \"/usr/local/lib/python3.10/site-packages/_pytest/main.py\", line 317, in pytest_cmdline_main\n    return wrap_session(config, _main)\n", "  File \"/usr/local/lib/python3.10/site-packages/_pytest/main.py\", line 312, in wrap_session\n    config._ensure_unconfigure()\n", "  File \"/usr/local/lib/python3.10/site-packages/_pytest/config/__init__.py\", line 1042, in _ensure_unconfigure\n    self.hook.pytest_unconfigure(config=self)\n", "  File \"/usr/local/lib/python3.10/site-packages/pluggy/hooks.py\", line 286, in __call__\n    return self._hookexec(self, self.get_hookimpls(), kwargs)\n", "  File \"/usr/local/lib/python3.10/site-packages/pluggy/manager.py\", line 93, in _hookexec\n    return self._inner_hookexec(hook, methods, kwargs)\n", "  File \"/usr/local/lib/python3.10/site-packages/pluggy/manager.py\", line 84, in <lambda>\n    self._inner_hookexec = lambda hook, methods, kwargs: hook.multicall(\n", "  File \"/usr/local/lib/python3.10/site-packages/pluggy/callers.py\", line 187, in _multicall\n    res = hook_impl.function(*args)\n", "  File \"/testbed/localstack/testing/pytest/detect_thread_leakage.py\", line 19, in pytest_unconfigure\n    info_tuples = [\n", "  File \"/testbed/localstack/testing/pytest/detect_thread_leakage.py\", line 16, in <listcomp>\n    thread_frames = [\n"], "thread_name": "MainThread", "thread_target": "None", "thread_target_file": null}]
+Subprocesses: []

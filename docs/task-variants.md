@@ -163,8 +163,13 @@ use the existing read-only [`evallab view` adapter](harbor-view.md) with
 `--task-health derived/task-health/manifest.json --tag health:sound`.
 It joins retained task-package identities, selects trials before building the
 viewer projection, then launches the unchanged Harbor jobs UI. Repeated tags
-are ANDed; unbound or different-package trials are explicitly excluded.
+are ANDed; unbound or unresolvable-package trials are explicitly excluded.
 The manifest carries both Lab and Harbor parent/variant digests for this join.
+For derived verifier packages, the filter walks retained `VariantRecord`
+parent digests transitively to the nearest manifest identity, retaining each
+hop's record hash. The launcher reads `library/task-variants`; use repeatable
+`--task-variants DIR` for additional canonical record trees. Inherited tags
+describe the ancestor's evidence, not fresh validation of the descendant.
 Neither command changes original task packages, trials, locks, or frozen specs.
 
 

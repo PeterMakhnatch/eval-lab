@@ -19,6 +19,10 @@ Binding precedence per trial:
    agrees with, so it cannot label another task in a multi-task job.
 3. Otherwise the executed lock digest may match a manifest parent/variant
    Harbor digest directly.
+4. If no manifest row has that identity, recorded variants are followed by
+   parent digest to the nearest manifest ancestor. Full/Harbor parent pairs
+   must agree; missing links, conflicts and cycles never inherit a label.
+   These are the ancestor's health labels, not independent variant validation.
 
 Missing/unmatched identities stay excluded with explicit reasons; nothing is
 guessed from name suffixes and nothing unverified is reported as sound.
@@ -30,10 +34,13 @@ import hashlib
 import json
 import os
 import re
+from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from evallab.task_health_tags import KNOWN_TAGS, SCHEMA
+from evallab.task_variants import VariantRecord
 
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
@@ -63,10 +70,31 @@ def _read_json(path: Path) -> Any | None:
         return None
 
 
+@dataclass(frozen=True)
+class _VariantLink:
+    record: VariantRecord
+    path: Path
+    sha256: str
+
+    def proof(self) -> dict[str, str]:
+        return {
+            "record": str(self.path),
+            "record_sha256": self.sha256,
+            "variant_digest": self.record.variant_digest,
+            "variant_harbor_digest": self.record.variant_harbor_digest,
+            "parent_digest": self.record.parent.digest,
+            "parent_harbor_digest": self.record.parent.harbor_digest,
+            "transform": self.record.transform,
+            "variant_status": self.record.status,
+        }
+
+
 class TaskHealthFilter:
     """Filter Harbor trials by manifest tags, bound by package evidence."""
 
-    def __init__(self, manifest_path: Path, tags: list[str]) -> None:
+    def __init__(
+        self, manifest_path: Path, tags: list[str], *, records_dirs: Sequence[Path] = ()
+    ) -> None:
         self._manifest_path = Path(manifest_path)
         try:
             raw = self._manifest_path.read_bytes()
@@ -99,6 +127,26 @@ class TaskHealthFilter:
                 self._package.setdefault(digest, []).append(index)
             for digest in {row["parent_harbor_digest"], row["variant_harbor_digest"]}:
                 self._harbor.setdefault(digest, []).append(index)
+        self._lineage_packages: dict[str, list[_VariantLink]] = {}
+        self._lineage_harbor: dict[str, list[_VariantLink]] = {}
+        seen_paths: set[Path] = set()
+        for directory in records_dirs:
+            directory = directory.resolve()
+            if not directory.is_dir():
+                raise ValueError(f"task-variant records directory is missing: {directory}")
+            for path in sorted(directory.rglob("*.json")):
+                path = path.resolve()
+                if path in seen_paths:
+                    continue
+                seen_paths.add(path)
+                try:
+                    raw = path.read_bytes()
+                    record = VariantRecord.model_validate_json(raw)
+                except (OSError, ValueError) as exc:
+                    raise ValueError(f"invalid task-variant record: {path}: {exc}") from exc
+                link = _VariantLink(record, path, hashlib.sha256(raw).hexdigest())
+                self._lineage_packages.setdefault(record.variant_digest, []).append(link)
+                self._lineage_harbor.setdefault(record.variant_harbor_digest, []).append(link)
 
     @staticmethod
     def _checked_row(index: int, row: Any) -> dict[str, Any]:
@@ -218,33 +266,82 @@ class TaskHealthFilter:
                 "staged_harbor_digest": executed,
                 "source_package_digest": source,
             }
-            rows = self._package.get(source, [])
-            if not rows:
-                return {
-                    "status": DIGEST_MISMATCH,
-                    "binding": binding,
-                    "reason": (
-                        f"verified source package digest {source} "
-                        "matches no manifest parent/variant"
-                    ),
-                }
-            if len(rows) > 1:
-                return self._ambiguous(rows, binding, source)
-            return self._tagged(self._rows[rows[0]], binding)
+            return self._resolve("package", source, binding)
         binding = {**base, "via": "native-lock"}
-        rows = self._harbor.get(executed, [])
-        if not rows:
+        return self._resolve("harbor", executed, binding)
+
+    def _resolve(self, kind: str, digest: str, binding: dict[str, Any]) -> dict[str, Any]:
+        """Walk retained identities, independent of old parent source paths."""
+        seen: set[str] = set()
+        lineage: list[dict[str, str]] = []
+        expected_harbor: str | None = None
+
+        def failure(code: str, reason: str, *, ambiguous: bool = False) -> dict[str, Any]:
             return {
-                "status": DIGEST_MISMATCH,
-                "binding": binding,
-                "reason": (
-                    f"executed lock digest {executed} "
-                    "matches no manifest parent/variant Harbor digest"
-                ),
+                "status": AMBIGUOUS if ambiguous else DIGEST_MISMATCH,
+                "binding": {**binding, "lineage": lineage, "lineage_error": code},
+                "reason": reason,
             }
-        if len(rows) > 1:
-            return self._ambiguous(rows, binding, executed)
-        return self._tagged(self._rows[rows[0]], binding)
+
+        while True:
+            rows = (self._package if kind == "package" else self._harbor).get(digest, [])
+            trace_binding = {**binding, "lineage": lineage} if lineage else binding
+            if len(rows) > 1:
+                return self._ambiguous(rows, trace_binding, digest)
+            if rows:
+                row = self._rows[rows[0]]
+                if expected_harbor is not None and not any(
+                    row[package] == digest and row[harbor] == expected_harbor
+                    for package, harbor in (
+                        ("parent_digest", "parent_harbor_digest"),
+                        ("variant_digest", "variant_harbor_digest"),
+                    )
+                ):
+                    return failure(
+                        "parent-harbor-mismatch",
+                        f"lineage parent {digest} disagrees with the manifest Harbor digest",
+                    )
+                # Stop at the nearest identity even when its tags do not match.
+                return self._tagged(row, trace_binding)
+
+            links = (self._lineage_packages if kind == "package" else self._lineage_harbor).get(
+                digest, []
+            )
+            if not links:
+                return failure(
+                    "missing-record",
+                    f"{kind} digest {digest} matches no manifest identity or retained variant",
+                )
+            identities = {
+                (
+                    link.record.variant_digest,
+                    link.record.variant_harbor_digest,
+                    link.record.parent.digest,
+                    link.record.parent.harbor_digest,
+                )
+                for link in links
+            }
+            if len(identities) != 1:
+                return failure(
+                    "conflicting-records",
+                    f"{kind} digest {digest} has conflicting variant lineage records: "
+                    + ", ".join(str(link.path) for link in links),
+                    ambiguous=True,
+                )
+            link = links[0]
+            record = link.record
+            if expected_harbor is not None and record.variant_harbor_digest != expected_harbor:
+                return failure(
+                    "parent-harbor-mismatch",
+                    f"lineage parent {digest} disagrees with its retained Harbor digest",
+                )
+            if record.variant_digest in seen:
+                return failure("cycle", f"lineage cycle at {record.variant_digest}")
+            seen.add(record.variant_digest)
+            lineage.append(link.proof())
+            kind = "package"
+            digest = record.parent.digest
+            expected_harbor = record.parent.harbor_digest
 
     @staticmethod
     def _executed_digest(

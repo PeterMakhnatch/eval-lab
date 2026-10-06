@@ -905,6 +905,7 @@ def build_viewer_root(
     arm_pattern: re.Pattern[str] | None = None,
     health_manifest: Path | None = None,
     tags: list[str] | None = None,
+    variant_records_dirs: list[Path] | None = None,
 ) -> dict[str, Any]:
     """Build the viewer jobs root at ``out`` (created empty).
 
@@ -913,12 +914,14 @@ def build_viewer_root(
     """
     selected_trials = None
     selection_report = None
-    if health_manifest is not None or tags:
+    if health_manifest is not None or tags or variant_records_dirs:
         if health_manifest is None or not tags:
             raise ValueError("--task-health and at least one --tag must be supplied together")
         from evallab.task_health_filter import TaskHealthFilter
 
-        selector = TaskHealthFilter(health_manifest, tags)
+        selector = TaskHealthFilter(
+            health_manifest, tags, records_dirs=variant_records_dirs or ()
+        )
         selected_trials, selection_report = selector.select(
             {job: _iter_trial_dirs(job) for job in job_dirs}
         )
@@ -1066,6 +1069,15 @@ def _view_command(
                 if health_manifest.is_absolute()
                 else (root / health_manifest).resolve()
             )
+        from evallab.task_variants import RECORDS_DIRNAME
+
+        variant_records_dirs = [
+            path.resolve() if path.is_absolute() else (root / path).resolve()
+            for path in (getattr(args, "task_variants", None) or [])
+        ]
+        canonical_records = root / RECORDS_DIRNAME
+        if health_manifest is not None and canonical_records.is_dir():
+            variant_records_dirs.insert(0, canonical_records)
         arm_pattern = compile_arm_pattern(getattr(args, "arm_regex", None))
     except ValueError as exc:
         print(f"evallab view: {exc}", file=sys.stderr)
@@ -1079,6 +1091,7 @@ def _view_command(
         report = build_viewer_root(
             jobs, dest, merges=merges, arm_pattern=arm_pattern,
             health_manifest=health_manifest, tags=getattr(args, "tag", None),
+            variant_records_dirs=variant_records_dirs,
         )
     except (OSError, ValueError) as exc:
         print(f"evallab view: {exc}", file=sys.stderr)
@@ -1172,6 +1185,15 @@ def build_view_parser(commands: argparse._SubParsersAction) -> None:
         action="append",
         default=[],
         help="Select trials by health/solve tag before viewing (repeat = AND; requires --task-health)",
+    )
+    view.add_argument(
+        "--task-variants",
+        type=Path,
+        action="append",
+        default=[],
+        metavar="DIR",
+        help="Additional variant-record tree for task-health lineage (repeatable; "
+        "library/task-variants is included when present)",
     )
     view.add_argument(
         "--no-launch",

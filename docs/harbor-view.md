@@ -60,9 +60,30 @@ the original ledger package. A contradictory verified source cannot fall
 back to a favorable native match. A different task in a multi-task job
 cannot inherit the sidecar's labels.
 
+Derived packages such as HAR-169's `rewardkit-integrity@1` need not appear
+directly in the health manifest. The filter follows strict `VariantRecord`
+links (`variant_digest` → `parent.digest`) to the **nearest** manifest
+identity, checking the full-package/Harbor digest pair at every parent.
+This works across multiple transforms and when a record's parent source is
+`local`; an old source path is not a lookup key. A nearer ancestor's tags
+always win, even when they exclude the trial.
+
+The launcher includes `library/task-variants` under its repository root
+when present. For canonical records retained elsewhere, add
+`--task-variants runs/har168/task-variants` (repeatable for additional trees).
+Programmatic callers pass `records_dirs` to `TaskHealthFilter`, or
+`variant_records_dirs` to `build_viewer_root`; neither implicitly scans the
+process's working directory. Missing links, digest-pair mismatches and cycles
+are excluded; conflicting identities are ambiguous. Identical copied
+records do not create false ambiguity. Malformed record inputs fail closed.
+Inherited tags are evidence about the manifest ancestor, **not** independent
+health validation or admission of the derived verifier/package.
+
 The CLI reports included, tag-mismatch, unbound, digest-mismatch and ambiguous
 counts. `.evallab-view.json` retains the manifest hash and every trial's join
-or exclusion reason. Missing identity is **not** labeled healthy. All
+or exclusion reason. Transitive bindings include the leaf-to-ancestor
+`binding.lineage`: each record path/hash, transform and parent/child digests.
+Missing identity is **not** labeled healthy. All
 original config, lock, result, trajectory and provenance bytes stay untouched.
 Task-health labels are the manifest's evidence snapshot; historical
 `solve:*` counts retain their documented clean-pass/fail denominator, not a

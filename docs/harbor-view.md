@@ -126,13 +126,17 @@ new current-package capability estimate.
 
 New runs get `reward` / `integrity` / `reward_gated` natively from RewardKit
 inside the verifier (HAR-169). Existing jobs predate that, so `evallab view`
-backfills the same dims in overlay trial dirs:
+backfills the same dims in overlay trial dirs. Sources are mirrored without
+copying bytes: directories are recreated and files hard-linked (a symlink
+only across filesystems). Symlinks would not do: the 0.24 viewer refuses a
+trial or file whose resolved path leaves its jobs root, so a symlinked trial
+answers "Invalid trial name" and a symlinked file "Access denied".
 
-- trials whose `verifier_result.rewards` already carry `integrity` pass
-  through as symlinks, byte-identical (native RewardKit runs);
-- unscored trials (no numeric `reward`) pass through with no dims invented;
-- every other scored trial gets an overlay trial dir: symlinks to every
-  original child, except a rewritten `result.json` whose rewards add
+- trials whose `verifier_result.rewards` already carry `integrity` are
+  mirrored byte-identical (native RewardKit runs);
+- unscored trials (no numeric `reward`) are mirrored with no dims invented;
+- every other scored trial gets an overlay trial dir: every original child
+  mirrored, except a rewritten `result.json` whose rewards add
   `integrity` (0/1) and `reward_gated` (`reward * integrity`) while keeping
   `reward` unchanged, plus a new `reward-details.json` with the fired rule
   ids, evidence, provenance, and rule versions.
@@ -320,6 +324,8 @@ the two `harbor view` next-actions in `src/evallab/explorer.py` now point at
   evidence (fired rules, provenance) is one level down — visible in the
   overlay trial dir, not in the UI. Trial-level "why gated" still needs the
   processed pages above.
-- `harbor view` also serves Upload/Delete endpoints; `evallab view` roots
-  are built read-only by construction (symlinks + overlays), but the UI
-  buttons are still shown. Do not use them on a view root.
+- `harbor view` also serves Run, Summarize, Upload and Delete endpoints.
+  Deleting from an `evallab view` root only unlinks the root's names, but a
+  hard-linked file shares its source's bytes, so nothing may write through
+  a view root: do not use those buttons on one. The always-on results viewer
+  refuses every non-GET request.

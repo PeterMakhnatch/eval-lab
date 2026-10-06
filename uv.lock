@@ -20,19 +20,6 @@ wheels = [
 ]
 
 [[package]]
-name = "aioboto3"
-version = "15.5.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiobotocore", extra = ["boto3"] },
-    { name = "aiofiles" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/a2/01/92e9ab00f36e2899315f49eefcd5b4685fbb19016c7f19a9edf06da80bb0/aioboto3-15.5.0.tar.gz", hash = "sha256:ea8d8787d315594842fbfcf2c4dce3bac2ad61be275bc8584b2ce9a3402a6979", size = 255069, upload-time = "2025-10-30T13:37:16.122Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/3e/e8f5b665bca646d43b916763c901e00a07e40f7746c9128bdc912a089424/aioboto3-15.5.0-py3-none-any.whl", hash = "sha256:cc880c4d6a8481dd7e05da89f41c384dbd841454fc1998ae25ca9c39201437a6", size = 35913, upload-time = "2025-10-30T13:37:14.549Z" },
-]
-
-[[package]]
 name = "aiobotocore"
 version = "2.25.1"
 source = { registry = "https://pypi.org/simple" }
@@ -48,11 +35,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/62/94/2e4ec48cf1abb89971cb2612d86f979a6240520f0a659b53a43116d344dc/aiobotocore-2.25.1.tar.gz", hash = "sha256:ea9be739bfd7ece8864f072ec99bb9ed5c7e78ebb2b0b15f29781fbe02daedbc", size = 120560, upload-time = "2025-10-28T22:33:21.787Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/95/2a/d275ec4ce5cd0096665043995a7d76f5d0524853c76a3d04656de49f8808/aiobotocore-2.25.1-py3-none-any.whl", hash = "sha256:eb6daebe3cbef5b39a0bb2a97cffbe9c7cb46b2fcc399ad141f369f3c2134b1f", size = 86039, upload-time = "2025-10-28T22:33:19.949Z" },
-]
-
-[package.optional-dependencies]
-boto3 = [
-    { name = "boto3" },
 ]
 
 [[package]]
@@ -1070,7 +1052,7 @@ observability = [
 requires-dist = [
     { name = "daytona", specifier = ">=0.210.0" },
     { name = "duckdb", specifier = ">=1.5.5" },
-    { name = "harbor", marker = "extra == 'laminar'", specifier = "==0.21.0" },
+    { name = "harbor", marker = "extra == 'laminar'", specifier = "==0.24.0" },
     { name = "huggingface-hub", specifier = ">=1.29.0" },
     { name = "llm-verifier", marker = "extra == 'verifier'", specifier = ">=0.2.0" },
     { name = "lmnr", marker = "extra == 'laminar'", specifier = "==0.7.64" },
@@ -1097,8 +1079,8 @@ dev = [
     { name = "ruff", specifier = ">=0.12,<1" },
 ]
 inspect = [
-    { name = "inspect-ai", specifier = "==0.3.261" },
-    { name = "inspect-harbor", specifier = "==0.7.4" },
+    { name = "inspect-ai", specifier = "==0.3.276" },
+    { name = "inspect-harbor", specifier = "==1.0.0" },
 ]
 lance = [{ name = "lancedb", specifier = ">=0.37,<1" }]
 observability = [
@@ -1485,7 +1467,7 @@ wheels = [
 
 [[package]]
 name = "harbor"
-version = "0.21.0"
+version = "0.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "dirhash" },
@@ -1493,6 +1475,7 @@ dependencies = [
     { name = "filelock" },
     { name = "httpx" },
     { name = "jinja2" },
+    { name = "jsonschema" },
     { name = "litellm" },
     { name = "packaging" },
     { name = "pathspec" },
@@ -1503,6 +1486,7 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
     { name = "rich" },
+    { name = "semver" },
     { name = "shortuuid" },
     { name = "supabase" },
     { name = "tenacity" },
@@ -1510,9 +1494,9 @@ dependencies = [
     { name = "typer" },
     { name = "uvicorn" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d1/30/c854dcf2b6cbc67f97265e1fd07de02b29419007d4258cded336c23d6356/harbor-0.21.0.tar.gz", hash = "sha256:93f7c2e4b150b2983a90b226c61daf071c35a9dd0f76e1053413d9ee0d738395", size = 1690211, upload-time = "2026-08-10T20:52:34.767Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/82/7d/16e21cfd52938260dce71ff77ec1ed156bd8c327642760fe66163b0cd3ce/harbor-0.24.0.tar.gz", hash = "sha256:6c5185e6a76abc677ed3f95e688dc0dbf8597e4fa50847cb9a37a4448c91b1e5", size = 2090577, upload-time = "2026-10-05T05:04:46.252Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2a/a4/b3e8aafbc0a002501c11c91958fc31a5098c2bd9376c46225af615373329/harbor-0.21.0-py3-none-any.whl", hash = "sha256:c77d779a03f1a9e8ecb3c449e17f39a9728b82238832f1fd28632eb9426c0a21", size = 1896665, upload-time = "2026-08-10T20:52:32.305Z" },
+    { url = "https://files.pythonhosted.org/packages/9e/63/0e3d788e8d1ed116125507c6a01e3fb95cf82be71f2ea7040a1458709d21/harbor-0.24.0-py3-none-any.whl", hash = "sha256:23b7ba616a3aae4eff561ced5e2c51c7186f2981e53a770dea9c689d3969877c", size = 2331740, upload-time = "2026-10-05T05:04:42.088Z" },
 ]
 
 [[package]]
@@ -1806,11 +1790,11 @@ wheels = [
 
 [[package]]
 name = "inspect-ai"
-version = "0.3.261"
+version = "0.3.276"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "agent-client-protocol" },
-    { name = "aioboto3" },
+    { name = "aiobotocore" },
     { name = "anyio" },
     { name = "beautifulsoup4" },
     { name = "boto3" },
@@ -1826,6 +1810,7 @@ dependencies = [
     { name = "jsonpath-ng" },
     { name = "jsonref" },
     { name = "jsonschema" },
+    { name = "markdown-it-py" },
     { name = "mmh3" },
     { name = "nest-asyncio2" },
     { name = "numpy" },
@@ -1849,23 +1834,26 @@ dependencies = [
     { name = "zipp" },
     { name = "zstandard" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/f2/50/b80fb15dd5cd6c7a989bef1f574f895ea237a88fbb58448c7fd773f8fc69/inspect_ai-0.3.261.tar.gz", hash = "sha256:58d40586052589383ffb09c43b12835f39f05f982d2a4325afa46ac9fd9fe2bc", size = 35427927, upload-time = "2026-08-30T17:51:30.831Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/33/31/59dc578e591e79c4a3a2fe3436e2a828d6dfd5a43de9f1c107835fc55ee3/inspect_ai-0.3.276.tar.gz", hash = "sha256:14cb59b52961cf962bd4a37d44e5040c0c521cb18b131950530f795663e8c45d", size = 36080195, upload-time = "2026-10-02T15:01:27.093Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e3/19/a11c5b267f576c03af2701984b1e40a8f7874ec2d3e5940ba0e8447cdd85/inspect_ai-0.3.261-py3-none-any.whl", hash = "sha256:b30e4c2c4d380343072ec9e14019eae46e9e41401bed34d2ca1c79adeb700be6", size = 34134727, upload-time = "2026-08-30T17:51:21.291Z" },
+    { url = "https://files.pythonhosted.org/packages/01/be/a060879d207660229446d96b173969c036eec8604e1ab7f022b78cc8987b/inspect_ai-0.3.276-py3-none-any.whl", hash = "sha256:42849799ba4f51d272a7ca2385e8e78ea3ef911ec9a71a3054fb115bd4e78dbf", size = 34896487, upload-time = "2026-10-02T15:01:18.81Z" },
 ]
 
 [[package]]
 name = "inspect-harbor"
-version = "0.7.4"
+version = "1.0.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "harbor" },
+    { name = "httpx" },
     { name = "inspect-ai" },
+    { name = "packaging" },
+    { name = "pydantic" },
     { name = "pyyaml" },
+    { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8f/a3/1949d0fe10bf24f315e0328c32b79583fd879aaffb49a81a45d1f2d6087d/inspect_harbor-0.7.4.tar.gz", hash = "sha256:f61540aa213b807ec1a7ca7a945a5cc038018d4cb505da278d1c02f2c943c761", size = 37355, upload-time = "2026-08-24T10:56:03.751Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5d/5c/7e7b50aad657d9d6721624a02620bf0244ea0c8b8188dcb8bf4253c34cc2/inspect_harbor-1.0.0.tar.gz", hash = "sha256:7b788e06b5382baec335d723a1061fe229159e1cde1933d046025cc4d178618b", size = 62381, upload-time = "2026-09-23T14:32:17.845Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/4f/f4/6b92db94e0830ccb7de13046d2cbf917454982b3c7e1f1e9c23928b422d2/inspect_harbor-0.7.4-py3-none-any.whl", hash = "sha256:fa301a22e4beb16dfae950ab2f417a3a72334a8c5d1c88c896f11216da121563", size = 38771, upload-time = "2026-08-24T10:56:02.559Z" },
+    { url = "https://files.pythonhosted.org/packages/b0/b6/575dec5da4f483468f67ef0177417976fadce538423c3b4848590da41438/inspect_harbor-1.0.0-py3-none-any.whl", hash = "sha256:669deb618c5e8dff13a66f08bfc25c3d3104e6741e56c52c471ea80a8b82abf3", size = 68139, upload-time = "2026-09-23T14:32:16.501Z" },
 ]
 
 [[package]]

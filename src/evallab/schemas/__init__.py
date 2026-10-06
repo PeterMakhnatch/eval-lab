@@ -1656,6 +1656,10 @@ class ControlEvidenceRef(ContractModel):
     #: from direct source runs leave them None and bind the registry task_id.
     staged_task_name: str | None = Field(default=None, min_length=1)
     staged_harbor_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+    #: Harbor version stamp from the trial's job lock at mint time
+    #: (``harbor.version``). Keys lock-digest comparisons: a 0.21 lock vs a
+    #: 0.24 lock reports a declared version change, not a digest mismatch.
+    harbor_version: str | None = Field(default=None, min_length=1)
 
     @field_validator("evidence_path")
     @classmethod

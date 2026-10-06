@@ -20,7 +20,7 @@ dependencies = [
 
 [project.optional-dependencies]
 laminar = [
-    "harbor==0.21.0",
+    "harbor==0.24.0",
     "lmnr==0.7.64",
 ]
 verifier = [
@@ -42,8 +42,8 @@ benchmarks = [
     "fastmcp==3.4.7",
 ]
 inspect = [
-    "inspect-ai==0.3.261",
-    "inspect-harbor==0.7.4",
+    "inspect-ai==0.3.276",
+    "inspect-harbor==1.0.0",
 ]
 dev = [
     # Pinned resolver pip is the immutable wheel-download engine for FastMCP

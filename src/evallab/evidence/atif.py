@@ -19,7 +19,7 @@ from evallab.step_layers import effective_tool_calls
 
 JsonObject = dict[str, Any]
 ValidationStatus = Literal["valid", "invalid", "unsupported"]
-SUPPORTED_SCHEMA_VERSIONS = {f"ATIF-v1.{minor}" for minor in range(8)}
+SUPPORTED_SCHEMA_VERSIONS = {f"ATIF-v1.{minor}" for minor in range(9)}
 
 
 def _canonical_bytes(value: Any) -> bytes:

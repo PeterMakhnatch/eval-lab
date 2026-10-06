@@ -12,7 +12,7 @@ import duckdb
 from pydantic import ValidationError
 
 from evallab.cohort import summarize_job_evidence
-from evallab.evidence.facts import digest_json
+from evallab.evidence.facts import digest_json, lock_harbor_version
 from evallab.results import JobRecord, TrialRecord, load_job, load_jobs
 from evallab.schemas import ExperimentSpec
 
@@ -444,6 +444,7 @@ def build_eval_card(
         "job_path": _relative(job.path, repo_root),
         "job_id": job.id,
         "job_lock_digest": digest_json(job.lock),
+        "job_lock_harbor_version": lock_harbor_version(job.lock),
         "task": spec.task,
         "hypothesis": spec.hypothesis,
         "numbers": {

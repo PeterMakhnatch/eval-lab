@@ -1,11 +1,11 @@
 """Live Laminar tracing lifecycle for Harbor mimoagent trials (HAR-165).
 
 One live Laminar trace per actual Harbor trial. The root opens on Harbor's
-public ``START`` hook (before sandbox setup) and closes in a narrow
-``Trial.run`` finally (after existing cleanup) so early failures and a missing
-``END`` still close the root. Stage spans for sandbox setup, agent setup,
-agent run, provider-acknowledged egress lock, verifier (actual reward) and
-stop are children of that root.
+public lifecycle hooks. ``END`` closes it after Harbor's existing cleanup;
+a narrow ``Trial.run`` finally closes early failures and a missing ``END``.
+Public phase hooks open sandbox, agent and verifier spans. Narrow completion
+wrappers cover only boundaries Harbor does not expose: setup/verifier end,
+agent setup, provider-acknowledged egress lock and environment stop.
 
 Fail-open by construction: every telemetry call is guarded, ``Exception``
 never escapes into Harbor execution, and ``CancelledError``/``KeyboardInterrupt``
@@ -25,6 +25,7 @@ import json
 import os
 import threading
 import uuid
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, cast
@@ -37,7 +38,6 @@ KEY_ENV = "LMNR_PROJECT_API_KEY"
 TRACE_FILENAME = "laminar-trace.json"
 SIDECHANNEL_SCHEMA_VERSION = 1
 
-MIMO_AGENT_NAME = "mimoagent"
 MIMO_AGENT_IMPORT_PATH = "evallab.harbor_mimoagent:NativeMimoAgent"
 
 _METADATA_KEYS = (
@@ -72,17 +72,27 @@ class _TrialTrace:
     root: Any = None
     trace_id: str | None = None
     root_context: str | None = None
-    agent_parent_context: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     trials_dir: str | None = None
     latest_rewards: Any = None
     native_stop: dict[str, Any] | None = None
+    phase_spans: dict[int, Any] = field(default_factory=dict)
     closed: bool = False
     close_reason: str | None = None
 
 
 _TRACES: dict[str, _TrialTrace] = {}
 _TRACES_LOCK = threading.Lock()
+
+_ENVIRONMENT_PHASE: ContextVar[tuple[str, Any] | None] = ContextVar(
+    "evallab_laminar_environment_phase", default=None
+)
+_AGENT_PHASE: ContextVar[tuple[str, Any] | None] = ContextVar(
+    "evallab_laminar_agent_phase", default=None
+)
+_VERIFIER_PHASE: ContextVar[tuple[str, Any] | None] = ContextVar(
+    "evallab_laminar_verifier_phase", default=None
+)
 
 
 # ---------------------------------------------------------------------------
@@ -121,7 +131,7 @@ def native_worker_context(context_id: str | None) -> dict[str, Any]:
                 None
                 if trace is None
                 else (
-                    trace.agent_parent_context or trace.root_context,
+                    _active_parent(trace),
                     trace.session_id,
                     dict(trace.metadata),
                     trace.trace_id,
@@ -238,13 +248,16 @@ def _agent_ref(config: Any) -> str:
 
 def _is_mimo_config(config: Any) -> bool:
     try:
+        from harbor.agents.factory import AgentFactory  # ty: ignore[unresolved-import]
+
+        from evallab.harbor_mimoagent import NativeMimoAgent
+
         agent = getattr(config, "agent", None)
         if agent is None:
             return False
-        if getattr(agent, "import_path", None) == MIMO_AGENT_IMPORT_PATH:
-            return True
-        name = getattr(agent, "name", None)
-        return str(name) == MIMO_AGENT_NAME
+        # Use the same resolution as Harbor: --agent stores an import path in
+        # name, and built-in names take precedence over an explicit import path.
+        return AgentFactory.get_agent_class_from_config(agent) is NativeMimoAgent
     except Exception:
         return False
 
@@ -643,6 +656,10 @@ def _close_trial_root(
                 "stop_reason": native_stop.get("stop_reason"),
             }
         root = trace.root
+        phases = tuple(trace.phase_spans.values())
+        trace.phase_spans.clear()
+    for span in phases:
+        _end_span(span, error_type=exception_type)
     try:
         final_metadata: dict[str, Any] = {"close_reason": _safe_text(reason, limit=64)}
         safe_rewards = _safe_rewards(rewards if rewards is not None else trace.latest_rewards)
@@ -726,7 +743,46 @@ def _trial_uuid_of(instance: Any) -> str | None:
 
 
 def _active_parent(trace: _TrialTrace) -> str | None:
-    return trace.agent_parent_context or trace.root_context
+    phase = _AGENT_PHASE.get()
+    if phase is not None and phase[0] == trace.trial_id:
+        return _serialized(phase[1]) or trace.root_context
+    return trace.root_context
+
+
+def _open_phase(
+    trace: _TrialTrace,
+    scope: ContextVar[tuple[str, Any] | None],
+    name: str,
+    *,
+    span_type: str = "DEFAULT",
+) -> None:
+    span = _start_child(
+        trace_runtime(),
+        name,
+        parent_context=trace.root_context,
+        session_id=trace.session_id,
+        metadata={"trial_id": trace.trial_id, "trial_name": trace.trial_name},
+        span_type=span_type,
+    )
+    if span is None:
+        scope.set(None)
+        return
+    with _TRACES_LOCK:
+        trace.phase_spans[id(span)] = span
+    scope.set((trace.trial_id, span))
+
+
+def _phase_for(trace: _TrialTrace, scope: ContextVar[tuple[str, Any] | None]) -> Any:
+    phase = scope.get()
+    return phase[1] if phase is not None and phase[0] == trace.trial_id else None
+
+
+def _finish_phase(trace: _TrialTrace, span: Any, *, error_type: str | None = None) -> None:
+    if span is None:
+        return
+    with _TRACES_LOCK:
+        trace.phase_spans.pop(id(span), None)
+    _end_span(span, error_type=error_type)
 
 
 def _wrap_trial_method(cls: Any, name: str, *, span_name: str, kind: str) -> None:
@@ -736,19 +792,34 @@ def _wrap_trial_method(cls: Any, name: str, *, span_name: str, kind: str) -> Non
 
     @functools.wraps(original)
     async def wrapped(self: Any, *args: Any, **kwargs: Any) -> Any:
-        trial_id = _trial_uuid_of(self)
-        trace = _lookup_trial(trial_id) if trial_id is not None else None
-        runtime = trace_runtime()
-        if trace is None or trace.closed or not getattr(runtime, "enabled", False):
+        try:
+            trial_id = _trial_uuid_of(self)
+            trace = _lookup_trial(trial_id) if trial_id is not None else None
+            runtime = trace_runtime()
+            enabled = getattr(runtime, "enabled", False)
+        except Exception:
+            trace, runtime, enabled = None, None, False
+        if trace is None or trace.closed or not enabled:
             return await original(self, *args, **kwargs)
-        if kind == "agent_run":
-            return await _observed_agent_run(self, trace, runtime, original, args, kwargs)
+        if kind == "environment":
+            error_type = None
+            try:
+                return await original(self, *args, **kwargs)
+            except asyncio.CancelledError:
+                error_type = "CancelledError"
+                raise
+            except Exception as exc:
+                error_type = type(exc).__name__
+                raise
+            finally:
+                with contextlib.suppress(Exception):
+                    span = _phase_for(trace, _ENVIRONMENT_PHASE)
+                    _ENVIRONMENT_PHASE.set(None)
+                    _finish_phase(trace, span, error_type=error_type)
         if kind == "stop":
             return await _observed_stop(self, trace, runtime, original, args, kwargs)
         if kind in ("shared_verifier", "separate_verifier"):
-            return await _observed_verifier(
-                self, trace, runtime, original, args, kwargs, span_name=span_name
-            )
+            return await _observed_verifier(self, trace, runtime, original, args, kwargs)
         span = _start_child(
             runtime,
             span_name,
@@ -769,52 +840,6 @@ def _wrap_trial_method(cls: Any, name: str, *, span_name: str, kind: str) -> Non
 
     cast(Any, wrapped).__evallab_laminar_wrapped__ = True
     setattr(cls, name, wrapped)
-
-
-async def _observed_agent_run(
-    trial: Any,
-    trace: _TrialTrace,
-    runtime: Any,
-    original: Any,
-    args: Any,
-    kwargs: Any,
-) -> Any:
-    span = _start_child(
-        runtime,
-        "harbor.agent_run",
-        parent_context=trace.root_context,
-        session_id=trace.session_id,
-        metadata={"trial_id": trace.trial_id, "trial_name": trace.trial_name},
-        span_type="TOOL",
-    )
-    context = _serialized(span)
-    if context is not None:
-        with _TRACES_LOCK:
-            live = _TRACES.get(trace.trial_id)
-            if live is not None and not live.closed:
-                live.agent_parent_context = context
-    target = kwargs.get("target", args[0] if args else None)
-
-    def _observe() -> None:
-        # Finally-semantics: the actual metadata present on success, error,
-        # or cancellation. Never raises, never reinterprets the result.
-        stop = _native_stop_from_target(target)
-        _attach_native_stop(span, stop)
-        _stash_native_stop(trace, stop)
-
-    try:
-        result = await original(trial, *args, **kwargs)
-    except asyncio.CancelledError:
-        _observe()
-        _end_span(span, error_type="CancelledError")
-        raise
-    except Exception as exc:
-        _observe()
-        _end_span(span, error_type=type(exc).__name__)
-        raise
-    _observe()
-    _end_span(span)
-    return result
 
 
 async def _observed_stop(
@@ -860,23 +885,16 @@ async def _observed_verifier(
     original: Any,
     args: Any,
     kwargs: Any,
-    *,
-    span_name: str,
 ) -> Any:
-    span = _start_child(
-        runtime,
-        span_name,
-        parent_context=trace.root_context,
-        session_id=trace.session_id,
-        metadata={"trial_id": trace.trial_id, "trial_name": trace.trial_name},
-    )
+    span = _phase_for(trace, _VERIFIER_PHASE)
+    _VERIFIER_PHASE.set(None)
     try:
         result = await original(trial, *args, **kwargs)
     except asyncio.CancelledError:
-        _end_span(span, error_type="CancelledError")
+        _finish_phase(trace, span, error_type="CancelledError")
         raise
     except Exception as exc:
-        _end_span(span, error_type=type(exc).__name__)
+        _finish_phase(trace, span, error_type=type(exc).__name__)
         raise
     try:
         rewards = _safe_rewards(getattr(result, "rewards", None))
@@ -898,7 +916,8 @@ async def _observed_verifier(
             _end_span(reward_span)
     except Exception:
         pass
-    _end_span(span)
+    finally:
+        _finish_phase(trace, span)
     return result
 
 
@@ -1044,12 +1063,9 @@ def _ensure_wrappers_installed() -> None:
             Trial,
             "_setup_agent_environment",
             span_name="harbor.sandbox_setup",
-            kind="setup",
+            kind="environment",
         )
         _wrap_trial_method(Trial, "_setup_agent", span_name="harbor.agent_setup", kind="setup")
-        _wrap_trial_method(
-            Trial, "_run_agent_phase", span_name="harbor.agent_run", kind="agent_run"
-        )
         _wrap_trial_method(
             Trial,
             "_run_shared_verifier",
@@ -1089,9 +1105,15 @@ class LaminarTrialPlugin:
             _JOB_SESSION = self._session_id
             _ensure_runtime()
             _ensure_wrappers_installed()
-            job.on_trial_started(self._on_trial_started)
-            job.on_trial_ended(self._on_trial_ended)
-            job.on_trial_cancelled(self._on_trial_cancelled)
+            from harbor.trial.hooks import TrialEvent  # ty: ignore[unresolved-import]
+
+            job.add_hook(TrialEvent.START, self._on_trial_started)
+            job.add_hook(TrialEvent.ENVIRONMENT_START, self._on_environment_started)
+            job.add_hook(TrialEvent.AGENT_START, self._on_agent_started)
+            job.add_hook(TrialEvent.AGENT_END, self._on_agent_ended)
+            job.add_hook(TrialEvent.VERIFICATION_START, self._on_verification_started)
+            job.add_hook(TrialEvent.END, self._on_trial_ended)
+            job.add_hook(TrialEvent.CANCEL, self._on_trial_cancelled)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1119,6 +1141,50 @@ class LaminarTrialPlugin:
             _open_trial_root(event, session_id=session_id)
         except asyncio.CancelledError:
             raise
+        except Exception:
+            pass
+
+    async def _on_environment_started(self, event: Any) -> None:
+        try:
+            trace = _lookup_trial(event.trial_id)
+            if trace is not None and not trace.closed:
+                _open_phase(trace, _ENVIRONMENT_PHASE, "harbor.sandbox_setup")
+        except Exception:
+            pass
+
+    async def _on_agent_started(self, event: Any) -> None:
+        try:
+            trace = _lookup_trial(event.trial_id)
+            if trace is not None and not trace.closed:
+                _open_phase(trace, _AGENT_PHASE, "harbor.agent_run", span_type="TOOL")
+        except Exception:
+            pass
+
+    async def _on_agent_ended(self, event: Any) -> None:
+        try:
+            trace = _lookup_trial(event.trial_id)
+            if trace is None or trace.closed:
+                return
+            span = _phase_for(trace, _AGENT_PHASE)
+            _AGENT_PHASE.set(None)
+            stop = _native_stop_from_result(event.result)
+            _attach_native_stop(span, stop)
+            _stash_native_stop(trace, stop)
+            status = stop.get("native_exit_status")
+            error_type = (
+                "CancelledError"
+                if status == "HarborCancelled"
+                else status if status in {"ModelQueryError", "InfraError"} else None
+            )
+            _finish_phase(trace, span, error_type=error_type)
+        except Exception:
+            pass
+
+    async def _on_verification_started(self, event: Any) -> None:
+        try:
+            trace = _lookup_trial(event.trial_id)
+            if trace is not None and not trace.closed:
+                _open_phase(trace, _VERIFIER_PHASE, "harbor.verifier")
         except Exception:
             pass
 
@@ -1154,3 +1220,6 @@ def _reset_for_tests() -> None:
     _WRAPPERS_INSTALLED = False
     with _TRACES_LOCK:
         _TRACES.clear()
+    _ENVIRONMENT_PHASE.set(None)
+    _AGENT_PHASE.set(None)
+    _VERIFIER_PHASE.set(None)

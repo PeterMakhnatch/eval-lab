@@ -21,6 +21,30 @@ Where a human looks when asking "what happened?" — and what each surface owns.
 Harbor job directories under `runs/` remain the immutable source of truth.
 Phoenix and Laminar are derived views; neither replaces those artifacts.
 
+## Incremental native ATIF (HAR-168)
+
+Native MiMo publishes `agent/trajectory.json` in ATIF-v1.8 after each completed
+assistant/tool step, including child-agent steps. The completion marker is
+observational: it does not add a query, tool, retry or termination decision.
+Failed queries do not advance the native completed-step counter.
+
+Each marker freezes the complete captured prefix before handing it to a
+dedicated FIFO physical writer. Conversion, Harbor schema normalization,
+secret redaction and revalidation precede private temporary-file replacement.
+Readers see a complete schema-valid document, never an in-place partial write;
+child references and tool-result `source_call_id` links remain native.
+Model calls, known usage and unknown-usage accounting are captured independently
+of trajectory publication; unknown usage is not fabricated as zero.
+
+Finalization closes prefix admission, drains earlier snapshots, then publishes
+the authoritative final snapshot. A conversion, redaction or filesystem fault
+retains the last valid trajectory instead of becoming the trial's business
+exception. Cancellation awaits physical writer completion before cleanup so
+an old prefix cannot later overwrite the final file. This is not a filesystem
+latency guarantee: stalled writes can delay that join, and no hard backlog or
+publication-latency bound is claimed.
+
+
 ## Live Laminar tracing for native MiMo (HAR-165)
 
 Install the checkout-pinned host runtime and the separate native runtime:
@@ -30,7 +54,7 @@ uv sync --locked --extra laminar
 uv sync --project tools/mimoagent-harbor --locked
 ```
 
-The host extra pins Harbor `0.21.0` and `lmnr` `0.7.64`; the native lock pins
+The host extra pins Harbor `0.24.0` and `lmnr` `0.7.64`; the native lock pins
 the same SDK alongside OpenAI `3.3.1`. Keep that graph isolated from the lab's
 OpenAI 2.x graph. A native launch inheriting `LMNR_PROJECT_API_KEY` selects
 the checkout's Harbor executable. Load the centrally stored key with
@@ -38,14 +62,18 @@ the checkout's Harbor executable. Load the centrally stored key with
 using `uv run --locked`. The key is host-only, never a sandbox credential,
 native-worker credential or model request. No key means no Laminar tracing.
 
-The existing state-journal plugin opens one `harbor.trial` root on public
-trial START, before setup; the session is the Harbor job name. Setup,
-cached egress acknowledgment, agent execution, verifier, its actual reward
-and cleanup/stop spans share that trace. The native process initializes
-automatic OpenAI instrumentation before constructing its client. Native
-tool spans carry actual input, output and process exit codes; an `agent`
-tool nests its delegated agent below itself. A delegated agent without a
-process exit code records it as unknown, not a fabricated zero.
+The state-journal plugin installs public `Job.add_hook` lifecycle observers
+and opens one `harbor.trial` root on trial START, before setup; the session is
+the Harbor job name. SDK admission resolves the actual `AgentFactory` class,
+so the canonical native class name with a null `import_path` works and a
+built-in agent such as `nop` is never traced as native MiMo.
+Setup, cached egress acknowledgment, agent execution, verifier, actual reward
+and cleanup/stop spans share that trace. Narrow observers cover only phases
+without public completion hooks; they do not replace native lifecycle methods.
+The native process initializes automatic OpenAI instrumentation before its
+client. Tool spans carry actual input, output and process exit codes; an
+`agent` tool nests its delegated agent below itself. A delegated agent without
+a process exit code records it as unknown, not a fabricated zero.
 
 The native SDK writes sanitized OTLP frames locally; the host tails complete
 new frames and forwards them through a bounded asynchronous Cloud queue.
@@ -72,12 +100,23 @@ manufacture a deep link: observe the authenticated private Cloud trace and
 record its actual URL separately. Laminar IDs are not Phoenix's
 deterministically derived ATIF IDs.
 
-Source availability does not authorize execution. In HAR-165, the three
-independently approved tracing smokes must complete and be observed live
-before the unchanged frozen HAR-157 twelve; both stages share the existing
-$8 Modal/bridge/Daytona cap. Local scripted-SDK fixtures are not those
-smokes, model capability evidence, paid-run approval or remote cleanup
-proof.
+Source availability does not authorize execution. The original HAR-165 three
+paid smokes graded `1/0/1` but produced no native SDK sidecars: canonical agent
+name admission was broken. They remain failed SDK qualification, not evidence
+of Cloud ingestion, and their consumed spec IDs must never be reused.
+HAR-168 corrects admission and lifecycle hooks on the protected Harbor upgrade.
+Local real-SDK fixtures exercise exports, nested tools, content/accounting
+parity, exporter/observer failures and cancellation; they are not paid-model,
+Cloud-live, capability or remote-cleanup qualification.
+
+The successor campaign retains the original $8 envelope, including its carried
+old exposure; attempts two through four have a separate $10 allocation under
+the shared $30 ceiling. The removed SSH/code-server $2 is global reserve, not
+experiment headroom. Exact new specs require independent named-delegate
+approval and shared source/runtime gates. Qualifying three new SDK trials as
+the first three **within** the twelve, rather than extra paid retries, remains
+a proposal until its canonical grouping is approved. Actual authenticated
+Cloud observation of that immutable prefix gates the remaining nine.
 
 
 ## Phoenix

@@ -3,8 +3,8 @@
 Behavioral boundaries only: one trace across phases, per-trial isolation,
 early-failure/missing-END closure, fail-open telemetry, actual reward
 handling, cancellation preservation, mimo-only targeting, and safe
-sidechannels. Uses fake Harbor events and a fake runtime; native AgentContext
-cases require the optional Harbor extra. No network or Docker dependency.
+sidechannels. Public phase cases exercise Harbor's actual agent-phase method;
+the exporter is a fake runtime. No network or Docker dependency.
 """
 
 from __future__ import annotations
@@ -12,6 +12,8 @@ from __future__ import annotations
 import asyncio
 import json
 import uuid
+from contextlib import asynccontextmanager, nullcontext
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -90,7 +92,7 @@ def _mimo_config(trials_dir, trial_name="trial-a"):
         trial_name=trial_name,
         trials_dir=Path(trials_dir),
         job_id="job-1",
-        agent=SimpleNamespace(name="mimoagent", import_path=hl.MIMO_AGENT_IMPORT_PATH),
+        agent=SimpleNamespace(name=hl.MIMO_AGENT_IMPORT_PATH, import_path=None),
     )
 
 
@@ -154,101 +156,83 @@ def _persist_like_native(target, *, exit_status, stop_reason=None):
         target.agent_result.metadata["stop_reason"] = stop_reason
 
 
-def test_agent_run_unknown_stop_when_persist_never_ran(fake_runtime, tmp_path):
+@pytest.mark.parametrize(
+    ("status", "stop_reason", "error", "span_error"),
+    [
+        (None, None, None, None),
+        ("InfraError", None, RuntimeError("boom"), "InfraError"),
+        ("LimitsExceeded", "trial_budget_exhausted", None, None),
+        ("HarborCancelled", None, asyncio.CancelledError(), "CancelledError"),
+    ],
+)
+def test_public_agent_phase_preserves_native_stop_and_termination(
+    fake_runtime, tmp_path, status, stop_reason, error, span_error
+):
     AgentContext = pytest.importorskip("harbor.models.agent.context").AgentContext
-
+    Trial = pytest.importorskip("harbor.trial.trial").Trial
     trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
-    target = SimpleNamespace(agent_result=None)
+    event = _event(config, trial_id)
+    plugin = hl.LaminarTrialPlugin()
+    target = event.result
 
-    async def original(trial, *, target, **kwargs):
-        # ``_persist`` returns early without main messages: metadata stays None.
-        target.agent_result = AgentContext()
-        return None
+    class Agent:
+        extra_env = {}
 
-    trial = SimpleNamespace(_id=trial_id)
-    assert (
-        asyncio.run(
-            hl._observed_agent_run(trial, trace, fake_runtime, original, (), {"target": target})
-        )
-        is None
+        async def run(self, *, context, **kwargs):
+            assert isinstance(context, AgentContext)
+            if status is not None:
+                _persist_like_native(target, exit_status=status, stop_reason=stop_reason)
+            if error is not None:
+                raise error
+
+    @asynccontextmanager
+    async def network_scope(*args, **kwargs):
+        yield
+
+    async def emit(phase):
+        if phase.value == "agent-start":
+            await plugin._on_agent_started(event)
+        elif phase.value == "agent-end":
+            await plugin._on_agent_ended(event)
+
+    environment = SimpleNamespace(
+        with_default_user=lambda user: nullcontext(),
+        scoped_exec_env=lambda env: nullcontext(),
+        stream_enabled=False,
     )
-    span = fake_runtime.spans[-1]
-    assert span.metadata["native_exit_status"] is None
-    assert span.metadata["stop_reason"] is None
-    assert span.error_type is None
-
-
-def test_agent_run_error_preserves_exception_and_stop(fake_runtime, tmp_path):
-    AgentContext = pytest.importorskip("harbor.models.agent.context").AgentContext
-
-    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
-    target = SimpleNamespace(agent_result=None)
-
-    async def original(trial, *, target, **kwargs):
-        target.agent_result = AgentContext()
-        _persist_like_native(target, exit_status="InfraError")
-        raise RuntimeError("boom")
-
-    trial = SimpleNamespace(_id=trial_id)
-    with pytest.raises(RuntimeError, match="boom"):
-        asyncio.run(
-            hl._observed_agent_run(trial, trace, fake_runtime, original, (), {"target": target})
-        )
-    span = fake_runtime.spans[-1]
-    assert span.metadata["native_exit_status"] == "InfraError"
-    assert span.metadata["stop_reason"] is None
-    assert span.error_type == "RuntimeError"
-
-
-def test_agent_run_limits_exceeded_is_attribution_not_exception(fake_runtime, tmp_path):
-    AgentContext = pytest.importorskip("harbor.models.agent.context").AgentContext
-
-    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
-    target = SimpleNamespace(agent_result=None)
-
-    async def original(trial, *, target, **kwargs):
-        target.agent_result = AgentContext()
-        _persist_like_native(
-            target, exit_status="LimitsExceeded", stop_reason="trial_budget_exhausted"
-        )
-        return None
-
-    trial = SimpleNamespace(_id=trial_id)
-    assert (
-        asyncio.run(
-            hl._observed_agent_run(trial, trace, fake_runtime, original, (), {"target": target})
-        )
-        is None
+    trial = SimpleNamespace(
+        _emit=emit,
+        _now=lambda: datetime.now(UTC),
+        agent=Agent(),
+        user_agent=None,
+        agent_environment=environment,
+        _network_plan=lambda step: SimpleNamespace(agent_env_baseline=None, agent_phase=None),
+        _phase_network_policy=network_scope,
+        _log_context=lambda *args: nullcontext(),
+        paths=SimpleNamespace(agent_dir=tmp_path),
     )
-    span = fake_runtime.spans[-1]
-    assert span.error_type is None
-    assert span.metadata["native_exit_status"] == "LimitsExceeded"
-    assert span.metadata["stop_reason"] == "trial_budget_exhausted"
+
+    async def exercise():
+        call = Trial._run_agent_phase(
+            trial, target=target, instruction="fixture", timeout_sec=None, user=None
+        )
+        if error is None:
+            await call
+        else:
+            with pytest.raises(type(error)) as raised:
+                await call
+            assert raised.value is error
+
+    asyncio.run(exercise())
+    span = next(span for span in fake_runtime.spans if span.name == "harbor.agent_run")
+    assert span.ended
+    assert span.metadata["native_exit_status"] == status
+    assert span.metadata["stop_reason"] == stop_reason
+    assert span.error_type == span_error
     assert "native_exit_result" not in span.metadata
-
-
-def test_agent_run_cancel_preserves_cancellation_and_stop(fake_runtime, tmp_path):
-    AgentContext = pytest.importorskip("harbor.models.agent.context").AgentContext
-
-    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
-    target = SimpleNamespace(agent_result=None)
-
-    async def original(trial, *, target, **kwargs):
-        target.agent_result = AgentContext()
-        _persist_like_native(target, exit_status="HarborCancelled")
-        raise asyncio.CancelledError()
-
-    trial = SimpleNamespace(_id=trial_id)
-    with pytest.raises(asyncio.CancelledError):
-        asyncio.run(
-            hl._observed_agent_run(trial, trace, fake_runtime, original, (), {"target": target})
-        )
-    span = fake_runtime.spans[-1]
-    assert span.error_type == "CancelledError"
-    assert span.metadata["native_exit_status"] == "HarborCancelled"
     assert hl._TRACES[str(trial_id)].native_stop == {
-        "native_exit_status": "HarborCancelled",
-        "stop_reason": None,
+        "native_exit_status": status,
+        "stop_reason": stop_reason,
     }
 
 
@@ -338,10 +322,10 @@ def test_telemetry_failures_cannot_change_result_or_cancellation(fake_runtime):
         trace = hl._TRACES[str(trial_id)]
         trace.closed = False
         with pytest.raises(ValueError, match="original"):
-            await hl._observed_agent_run(trial, trace, hl._RUNTIME, boom, (), {})
+            await hl._observed_stop(trial, trace, hl._RUNTIME, boom, (), {})
         trace.closed = False
         with pytest.raises(asyncio.CancelledError):
-            await hl._observed_agent_run(trial, trace, hl._RUNTIME, cancelled, (), {})
+            await hl._observed_stop(trial, trace, hl._RUNTIME, cancelled, (), {})
 
     asyncio.run(_check())
 
@@ -364,6 +348,7 @@ def test_reward_boundaries_preserved(fake_runtime, tmp_path, rewards, expected):
 
 
 def test_non_mimo_and_disabled_are_noops(tmp_path, monkeypatch):
+    pytest.importorskip("harbor.trial.hooks")
     hl._reset_for_tests()
     monkeypatch.delenv(hl.KEY_ENV, raising=False)
     plugin = hl.LaminarTrialPlugin()
@@ -372,28 +357,21 @@ def test_non_mimo_and_disabled_are_noops(tmp_path, monkeypatch):
         config = SimpleNamespace(job_name="job-x")
         _id = "job-1"
 
-        def on_trial_started(self, cb):
-            self.started = cb
-            return self
-
-        def on_trial_ended(self, cb):
-            self.ended = cb
-            return self
-
-        def on_trial_cancelled(self, cb):
-            self.cancelled = cb
+        def add_hook(self, event, callback):
+            setattr(self, event.value.replace("-", "_"), callback)
             return self
 
     job = Job()
     asyncio.run(plugin.on_job_start(job))
     # Disabled runtime: no root even for mimo.
     trial_id = uuid.uuid4()
-    asyncio.run(job.started(_event(_mimo_config(tmp_path), trial_id, event_value="start")))
+    asyncio.run(job.start(_event(_mimo_config(tmp_path), trial_id, event_value="start")))
     assert hl.native_worker_context(str(trial_id)) == {}
     assert hl.trace_runtime().enabled is False
 
 
 def test_mimo_gating_and_metadata_unknowns(fake_runtime):
+    pytest.importorskip("harbor.agents.factory")
     assert hl._is_mimo_config(_mimo_config("/tmp")) is True
     assert hl._is_mimo_config(_other_config("/tmp")) is False
     assert hl._is_mimo_event(_event(_other_config("/tmp"), uuid.uuid4())) is False
@@ -406,6 +384,29 @@ def test_mimo_gating_and_metadata_unknowns(fake_runtime):
     assert "model_revision_scope" not in meta
     assert meta["egress_lock_observed"] == "pending"
     assert "trial_uri" not in json.dumps(meta) and "capability" not in json.dumps(meta)
+
+
+def test_canonical_cli_agent_identity_opens_sdk_trace_but_builtin_precedence_does_not(
+    fake_runtime, tmp_path
+):
+    AgentConfig = pytest.importorskip("harbor.models.trial.config").AgentConfig
+    plugin = hl.LaminarTrialPlugin()
+    config = _mimo_config(tmp_path)
+    config.agent = AgentConfig(name=hl.MIMO_AGENT_IMPORT_PATH)
+    trial_id = uuid.uuid4()
+    event = _event(config, trial_id, event_value="start")
+    asyncio.run(plugin._on_trial_started(event))
+    trace = hl._TRACES[str(trial_id)]
+    assert hl.native_worker_context(str(trial_id))["trace_id"] == trace.trace_id
+    sidechannel = json.loads((tmp_path / config.trial_name / hl.TRACE_FILENAME).read_text())
+    assert sidechannel["trace_id"] == trace.trace_id
+
+    other = _other_config(tmp_path)
+    other.agent = AgentConfig(name="nop", import_path=hl.MIMO_AGENT_IMPORT_PATH)
+    other_id = uuid.uuid4()
+    asyncio.run(plugin._on_trial_started(_event(other, other_id, event_value="start")))
+    assert str(other_id) not in hl._TRACES
+    assert not (tmp_path / other.trial_name / hl.TRACE_FILENAME).exists()
 
 
 def test_sidechannel_never_leaks_paths_or_keys(fake_runtime, tmp_path, monkeypatch):

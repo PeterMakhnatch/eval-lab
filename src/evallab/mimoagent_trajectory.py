@@ -142,7 +142,7 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
         if unanswered:
             extra["unanswered_model_calls"] = unanswered
         trajectories.append({
-            "schema_version": "ATIF-v1.7",
+            "schema_version": "ATIF-v1.8",
             "trajectory_id": trajectory_id if name == "main" else f"{trajectory_id}:{name}",
             "agent": {"name": "mimoagent", "version": NATIVE_REVISION,
                       "model_name": model_name, "tool_definitions": conversation.get("tools"),

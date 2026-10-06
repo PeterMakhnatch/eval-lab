@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import queue
 import re
 import shlex
 import signal
+import threading
 import uuid
 from collections.abc import Callable
 from contextlib import suppress
@@ -15,6 +17,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from harbor.agents.base import BaseAgent  # ty: ignore[unresolved-import]
+from harbor.agents.capabilities import AgentCapabilities  # ty: ignore[unresolved-import]
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
 from harbor.models.agent.context import AgentContext  # ty: ignore[unresolved-import]
 from harbor.models.trajectories.trajectory import Trajectory  # ty: ignore[unresolved-import]
@@ -26,7 +29,7 @@ from evallab.execution_contracts import (
     parse_mimo_selfhosted_model,
     redact_secret_material,
 )
-from evallab.mimoagent_trajectory import native_to_atif
+from evallab.mimoagent_trajectory import _totals, native_to_atif
 from evallab.mimoagent_worker import NATIVE_REVISION
 
 _RUNTIME_ROOT = Path(__file__).resolve().parents[2]
@@ -137,8 +140,55 @@ def _dataset_task_body(instruction: str) -> str:
     return instruction
 
 
+class _TrajectoryPublisher:
+    """One physical writer; every admitted prefix is written in FIFO order."""
+
+    def __init__(
+        self, publish: Callable[[dict, list[dict]], None], record_call: Callable[[dict], None]
+    ):
+        self._publish = publish
+        self._record_call = record_call
+        self._queue: queue.SimpleQueue = queue.SimpleQueue()
+        self._closed = False
+        self._thread = threading.Thread(target=self._run, name="mimoagent-atif")
+        self._thread.start()
+
+    def submit(self, native: dict, calls: list[dict]) -> None:
+        if not self._closed:
+            self._queue.put((self._publish, native, calls))
+
+    def record_call(self, event: dict) -> None:
+        if not self._closed:
+            self._queue.put((self._record_call, event))
+
+    def stop_admitting(self) -> None:
+        self._closed = True
+
+    def _run(self) -> None:
+        while (item := self._queue.get()) is not None:
+            operation, *args = item
+            operation(*args)
+
+    async def finish(self, native: dict, calls: list[dict]) -> None:
+        # Never cancel the physical writer. FIFO puts the authoritative final
+        # capture after every promised live prefix, including any in-flight I/O.
+        self.stop_admitting()
+        self._queue.put((self._publish, native, calls))
+        self._queue.put(None)
+        joined = asyncio.create_task(asyncio.to_thread(self._thread.join))
+        cancelled = None
+        while not joined.done():
+            try:
+                await asyncio.shield(joined)
+            except asyncio.CancelledError as error:
+                cancelled = error
+        await joined
+        if cancelled is not None:
+            raise cancelled
+
+
 class NativeMimoAgent(BaseAgent):
-    SUPPORTS_ATIF = True
+    capabilities = AgentCapabilities(atif=True)
 
     def __init__(self, logs_dir: Path, model_name: str | None = None, **kwargs: Any):
         super().__init__(logs_dir=logs_dir, model_name=model_name, **kwargs)
@@ -165,23 +215,61 @@ class NativeMimoAgent(BaseAgent):
         if not _NATIVE_CONFIG.is_file():
             raise RuntimeError("pinned native swe.yaml is missing")
 
-    def _persist(self, context: AgentContext) -> None:
-        if not self._native["trajs"].get("main", {}).get("messages"):
+    def _observer_failure(self, category: str, error: Exception) -> None:
+        # Only a fixed category and the type, never arbitrary paths/content.
+        with suppress(Exception):
+            self.logger.warning("native observer failure: %s %s", category, type(error).__name__)
+
+    def _snapshot(self) -> tuple[dict, list[dict]]:
+        # The stdout pump alone mutates these append-only histories. Freeze the
+        # registry and all list bounds now; message/call values are never edited.
+        native = {
+            "trajectory_format": self._native["trajectory_format"],
+            "info": dict(self._native["info"]),
+            "trajs": {
+                name: conversation | {"messages": conversation["messages"][:]}
+                for name, conversation in self._native["trajs"].items()
+            },
+        }
+        return native, self._calls[:]
+
+    def _publish(self, native: dict, calls: list[dict]) -> None:
+        if not native["trajs"].get("main", {}).get("messages"):
             return
-        atif = native_to_atif(
-            self._native,
-            self._calls,
-            trajectory_id=self._trajectory_id,
-            model_name=cast(str, self.model_name),
-        )
-        payload = Trajectory.model_validate(atif).model_dump(mode="json", exclude_none=True)
-        text = redact_secret_material(
-            json.dumps(payload, ensure_ascii=False, indent=2).encode(), self._secrets
-        )
         temporary = self.logs_dir / ".trajectory.json.tmp"
-        temporary.write_bytes(text + b"\n")
-        temporary.replace(self.logs_dir / "trajectory.json")
-        totals = payload["final_metrics"]
+        try:
+            atif = native_to_atif(
+                native,
+                calls,
+                trajectory_id=self._trajectory_id,
+                model_name=cast(str, self.model_name),
+            )
+            payload = Trajectory.model_validate(atif).model_dump(mode="json", exclude_none=True)
+            text = redact_secret_material(
+                json.dumps(payload, ensure_ascii=False, indent=2).encode(), self._secrets
+            )
+            # A redactor is also an observer: never promote invalid JSON/ATIF.
+            Trajectory.model_validate_json(text)
+            temporary.write_bytes(text + b"\n")
+            temporary.replace(self.logs_dir / "trajectory.json")
+        except Exception as error:
+            self._observer_failure("trajectory", error)
+        finally:
+            with suppress(Exception):
+                temporary.unlink(missing_ok=True)
+
+    def _publish_call(self, event: dict) -> None:
+        try:
+            text = redact_secret_material(json.dumps(event).encode(), self._secrets).decode()
+            with (self.logs_dir / "mimoagent" / "model-calls.jsonl").open("a") as handle:
+                handle.write(text + "\n")
+        except Exception as error:
+            self._observer_failure("model_calls", error)
+
+    def _update_context(self, context: AgentContext) -> None:
+        # Accounting/stop metadata is independent of conversion, redaction and
+        # disk success, and includes failed/unmetered requests without zeros.
+        totals = _totals(self._calls)
         context.n_input_tokens = totals.get("total_prompt_tokens")
         context.n_output_tokens = totals.get("total_completion_tokens")
         context.n_cache_tokens = totals.get("total_cached_tokens")
@@ -348,6 +436,7 @@ class NativeMimoAgent(BaseAgent):
                         stdin.write((json.dumps(response) + "\n").encode())
                         await stdin.drain()
 
+            publisher = _TrajectoryPublisher(self._publish, self._publish_call)
             try:
                 stdin.write((json.dumps(initial) + "\n").encode())
                 await stdin.drain()
@@ -365,18 +454,33 @@ class NativeMimoAgent(BaseAgent):
                         }
                     elif kind == "message":
                         self._native["trajs"][event["name"]]["messages"].append(event["message"])
-                        self._persist(context)
+                    elif kind == "step_complete":
+                        try:
+                            conversation = self._native["trajs"][event["name"]]
+                            if (
+                                not isinstance(event["native_step"], int)
+                                or event["native_step"] <= 0
+                                or event["message_count"] != len(conversation["messages"])
+                            ):
+                                raise ValueError("invalid native completed-step boundary")
+                            publisher.submit(*self._snapshot())
+                        except Exception as error:
+                            self._observer_failure("step_complete", error)
                     elif kind == "model_call":
                         self._calls.append(
                             {key: value for key, value in event.items() if key != "event"}
                         )
-                        with (native_logs / "model-calls.jsonl").open("a") as handle:
-                            handle.write(
-                                redact_secret_material(
-                                    json.dumps(event).encode(), self._secrets
-                                ).decode()
-                                + "\n"
-                            )
+                        publisher.record_call(event)
+                    elif kind == "observer_failure":
+                        # Ancillary native save/log diagnostics are observer-only:
+                        # fixed category only, never a user turn or unknown-event.
+                        try:
+                            category = event.get("category")
+                            if not isinstance(category, str):
+                                raise ValueError("invalid observer diagnostic")
+                            self._observer_failure(category, Exception(category))
+                        except Exception as error:
+                            self._observer_failure("observer_failure", error)
                     elif kind == "finished":
                         finished = True
                         self._native["info"] = {
@@ -425,32 +529,43 @@ class NativeMimoAgent(BaseAgent):
                 self._native["info"]["exit_status"] = "HarborCancelled"
                 raise
             finally:
-                laminar_stop.set()
-                for task in tasks:
-                    if not task.done():
-                        task.cancel()
-                if laminar_drain is not None and not laminar_drain.done():
-                    laminar_drain.cancel()
-                if tasks:
-                    await asyncio.gather(*tasks, return_exceptions=True)
-                if laminar_drain is not None:
-                    await asyncio.gather(laminar_drain, return_exceptions=True)
-                if process.returncode is None:
-                    os.killpg(process.pid, signal.SIGTERM)
+                publisher.stop_admitting()
+                self._update_context(context)
+                try:
+                    laminar_stop.set()
+                    for task in tasks:
+                        if not task.done():
+                            task.cancel()
+                    if laminar_drain is not None and not laminar_drain.done():
+                        laminar_drain.cancel()
+                    if tasks:
+                        await asyncio.gather(*tasks, return_exceptions=True)
+                    if laminar_drain is not None:
+                        await asyncio.gather(laminar_drain, return_exceptions=True)
+                    if process.returncode is None:
+                        os.killpg(process.pid, signal.SIGTERM)
+                        try:
+                            await asyncio.wait_for(process.wait(), timeout=5)
+                        except TimeoutError:
+                            os.killpg(process.pid, signal.SIGKILL)
+                            await process.wait()
+                    if tracing is not None:
+                        # Local-only drain of lines the tail had not yet seen;
+                        # export_native only enqueues, never waits for Cloud.
+                        _drain_native_sink(tracing["native_sink"], laminar_state["offset"])
+                    stdin.close()
+                finally:
+                    # Settle every physical write even if subprocess/tracing
+                    # cleanup itself raises or receives another cancellation.
                     try:
-                        await asyncio.wait_for(process.wait(), timeout=5)
-                    except TimeoutError:
-                        os.killpg(process.pid, signal.SIGKILL)
-                        await process.wait()
-                if tracing is not None:
-                    # Local-only drain of lines the tail had not yet seen;
-                    # export_native only enqueues, never waits for Cloud.
-                    _drain_native_sink(tracing["native_sink"], laminar_state["offset"])
-                stdin.close()
-                self._persist(context)
-                for path in native_logs.rglob("*"):
-                    if path.is_file():
-                        text = path.read_bytes()
-                        safe = redact_secret_material(text, self._secrets)
-                        if safe != text:
-                            path.write_bytes(safe)
+                        await publisher.finish(*self._snapshot())
+                    finally:
+                        try:
+                            for path in native_logs.rglob("*"):
+                                if path.is_file():
+                                    text = path.read_bytes()
+                                    safe = redact_secret_material(text, self._secrets)
+                                    if safe != text:
+                                        path.write_bytes(safe)
+                        except Exception as error:
+                            self._observer_failure("native_redaction", error)

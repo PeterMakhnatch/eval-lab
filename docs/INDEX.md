@@ -13,7 +13,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:42a4d95bb2396ae6dcbeae2a6aae1eb305df44e3749a8e4b46ab53ce2699f04c
+    digest: sha256:4d122cf34953730c72f6ac890e851026353cba88b7e9a22bc8dc14f3c07d45c9
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
   - path: docs/SYSTEM.md
@@ -87,7 +87,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:cf974b6909349070858dbac82b2cd261f683912bf033de74f946000d05409d33
   - path: docs/observability.md
-    digest: sha256:c205631e14ae6ba9c4e22ce43f35705a17d0b92a0d187591df7fb69998091569
+    digest: sha256:907667860b17f4984f81db5235fdaadb502acc0d4a3566e03ce6c0005fb469d5
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md

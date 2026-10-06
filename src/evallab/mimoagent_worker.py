@@ -385,16 +385,54 @@ def main() -> None:
                     return name
         raise RuntimeError("native agent was not registered for trajectory capture")
 
+    def observer_failure(category: str, error: Exception) -> None:
+        with suppress(Exception):
+            sys.stderr.write(f"native observer failure: {category} {type(error).__name__}\n")
+            sys.stderr.flush()
+
+    original_append_msg_to_file = BaseAgent._append_msg_to_file
+
+    def safe_append_msg_to_file(agent, message: dict) -> None:
+        # Native add_message has already appended the original history. Only
+        # its ancillary formatted file dump is fail-open, not initialization.
+        try:
+            original_append_msg_to_file(agent, message)
+        except Exception as error:
+            observer_failure("message_file", error)
+
+    BaseAgent._append_msg_to_file = safe_append_msg_to_file
+
+    def notify_step_complete(agent, previous_step: int) -> None:
+        # Failed queries/step-limit checks have no new assistant boundary.
+        try:
+            if agent._steps_taken <= previous_step:
+                return
+            name = name_of(agent=agent)
+            with evidence_lock:
+                rpc.emit(
+                    {
+                        "event": "step_complete",
+                        "name": name,
+                        "native_step": agent._steps_taken,
+                        "message_count": len(agent.messages),
+                    }
+                )
+        except Exception as error:
+            observer_failure("step_complete", error)
+
     original_add_message = BaseAgent.add_message
 
     def observe_message(agent, role: str, content: str, **kwargs) -> None:
         original_add_message(agent, role, content, **kwargs)
-        name = name_of(agent=agent)
-        with evidence_lock:
-            if name not in names_started:
-                names_started.add(name)
-                rpc.emit({"event": "agent_start", "name": name, **agent.get_model_query_kwargs()})
-            rpc.emit({"event": "message", "name": name, "message": agent.messages[-1]})
+        try:
+            name = name_of(agent=agent)
+            with evidence_lock:
+                if name not in names_started:
+                    rpc.emit({"event": "agent_start", "name": name, **agent.get_model_query_kwargs()})
+                    names_started.add(name)
+                rpc.emit({"event": "message", "name": name, "message": agent.messages[-1]})
+        except Exception as error:
+            observer_failure("message_capture", error)
 
     BaseAgent.add_message = observe_message
 
@@ -414,13 +452,17 @@ def main() -> None:
         else:
             agent.add_message("user", task)
         while True:
+            previous_step = agent._steps_taken
             try:
                 if agent.step() is None:
+                    notify_step_complete(agent, previous_step)
                     return agent.IDLE_STATUS, agent._last_assistant_text()
                 agent.after_step()
+                notify_step_complete(agent, previous_step)
             except NonTerminatingException as error:
                 agent.add_message("user", str(error))
                 agent.after_step()
+                notify_step_complete(agent, previous_step)
             except (ModelQueryError, InfraError) as error:
                 name = name_of(agent=agent)
                 root = _root_error(error)
@@ -443,9 +485,11 @@ def main() -> None:
                 summary = f"native infrastructure failure: {details['error_type']}"
                 if details["budget_refusal"]:
                     summary += f"; {details['budget_refusal']}"
+                notify_step_complete(agent, previous_step)
                 return type(error).__name__, summary
             except TerminatingException as error:
                 agent.add_message("user", str(error))
+                notify_step_complete(agent, previous_step)
                 return type(error).__name__, str(error)
 
     BaseAgent.run = run_without_infrastructure_turn
@@ -772,21 +816,24 @@ def main() -> None:
     finally:
         # Official native serialization is retained for parity comparisons; it
         # does not serialize model_kwargs, so no proxy capability enters it.
-        save_traj(
-            agent,
-            Path(initial["native_trajectory_path"]),
-            print_path=False,
-            exit_status=status,
-            result=result,
-            log_context=logs,
-            extra_info={
-                "native_revision": NATIVE_REVISION,
-                "swe_sha256": SWE_SHA256,
-                "sampling": SAMPLING,
-                "antihack": False,
-                **stop_metadata,
-            },
-        )
+        try:
+            save_traj(
+                agent,
+                Path(initial["native_trajectory_path"]),
+                print_path=False,
+                exit_status=status,
+                result=result,
+                log_context=logs,
+                extra_info={
+                    "native_revision": NATIVE_REVISION,
+                    "swe_sha256": SWE_SHA256,
+                    "sampling": SAMPLING,
+                    "antihack": False,
+                    **stop_metadata,
+                },
+            )
+        except Exception as error:
+            observer_failure("native_trajectory", error)
         model.client.close()
         logs.close()
         if trace_runtime is not None:

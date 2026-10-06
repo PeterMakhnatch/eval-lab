@@ -38,7 +38,9 @@ def _answer(content="native answer", *, tool_calls=None):
     }
 
 
-def _run_worker(tmp_path, respond, *, budget=0.2, instruction="Repair /testbed/task.py"):
+def _run_worker(
+    tmp_path, respond, *, budget=0.2, instruction="Repair /testbed/task.py", observer_fault=None
+):
     if not NATIVE_PYTHON.is_file():
         pytest.skip("separate pinned Xiaomi interpreter is not installed")
     requests = []
@@ -88,8 +90,18 @@ def _run_worker(tmp_path, respond, *, budget=0.2, instruction="Repair /testbed/t
     bootstrap = (
         "import runpy,sys; n=runpy.run_path(sys.argv[1]); "
         "g=n['main'].__globals__; g['COLD_START_BUDGET_S']=float(sys.argv[2]); "
-        "g['_retry_delay']=lambda attempts: 0.005; n['main']()"
+        "g['_retry_delay']=lambda attempts: 0.005; "
     )
+    if observer_fault is not None:
+        bootstrap += (
+            "fail=lambda *a,**k: (_ for _ in ()).throw("
+            "OSError('secret observer failure at /controller/private')); "
+        )
+        if observer_fault == "message_file":
+            bootstrap += "from mimoagent.agents.base import BaseAgent; BaseAgent._append_msg_to_file=fail; "
+        else:
+            bootstrap += "import mimoagent.run.utils.save as save; save.save_traj=fail; "
+    bootstrap += "n['main']()"
     try:
         process = subprocess.run(
             [str(NATIVE_PYTHON), "-I", "-c", bootstrap, str(WORKER), str(budget)],
@@ -105,7 +117,8 @@ def _run_worker(tmp_path, respond, *, budget=0.2, instruction="Repair /testbed/t
         server.server_close()
         thread.join()
     events = [json.loads(line) for line in process.stdout.splitlines()]
-    native = json.loads((logs / "native-trajectory.json").read_text())
+    native_path = logs / "native-trajectory.json"
+    native = json.loads(native_path.read_text()) if native_path.is_file() else None
     finished = next(event for event in events if event["event"] == "finished")
     calls = [event for event in events if event["event"] == "model_call"]
     return requests, events, calls, native, finished, process.stderr
@@ -115,6 +128,7 @@ def _assert_no_infrastructure_turn(native, events, finished, tmp_path):
     main = native["trajs"]["main"]["messages"]
     assert [message["role"] for message in main] == ["system", "user"]
     assert len([event for event in events if event["event"] == "message"]) == 2
+    assert not any(event["event"] == "step_complete" for event in events)
     assert finished["stop_reason"] == "infra_error"
     assert native["info"]["infra_error"] == finished["infra_error"]
     exported = json.dumps({"events": events, "native": native})
@@ -295,6 +309,26 @@ def test_child_log_identity_is_logical_before_parent_model_consumes_it(tmp_path)
     assert (tmp_path / "native/agent_msgs/explore_1.log").is_file()
     assert finished["result"] == "root answer"
     assert str(ROOT) not in json.dumps({"events": events, "native": native})
+    histories = {}
+    boundaries = []
+    for event in events:
+        name = event.get("name")
+        if event["event"] == "agent_start":
+            histories[name] = []
+        elif event["event"] == "message":
+            histories[name].append(event["message"])
+        elif event["event"] == "step_complete":
+            messages = histories[name]
+            assert event["message_count"] == len(messages)
+            assert event["native_step"] == sum(m["role"] == "assistant" for m in messages)
+            boundaries.append((name, event["native_step"], messages[-1]["role"]))
+            if name == "main" and event["native_step"] == 1:
+                assert messages[-1]["tool_call_id"] == "child-call"
+    assert boundaries == [
+        ("explore_1", 1, "assistant"),
+        ("main", 1, "tool"),
+        ("main", 2, "assistant"),
+    ]
 
 
 def test_child_query_failure_is_recorded_without_falsely_stopping_completed_root(tmp_path):
@@ -336,6 +370,11 @@ def test_child_query_failure_is_recorded_without_falsely_stopping_completed_root
     exported = json.dumps({"events": events, "native": native, "requests": requests})
     assert str(ROOT) not in exported
     assert "Traceback (most recent call last)" not in exported
+    assert [
+        (event["name"], event["native_step"])
+        for event in events
+        if event["event"] == "step_complete"
+    ] == [("main", 1), ("main", 2)]
 
 
 def test_nested_empty_tool_does_not_steal_parent_exec_attribution():
@@ -351,3 +390,27 @@ def test_nested_empty_tool_does_not_steal_parent_exec_attribution():
     finally:
         _pop_exec_recorder(child)
         _pop_exec_recorder(parent)
+
+
+@pytest.mark.parametrize("observer_fault", ["message_file", "native_trajectory"])
+def test_native_observer_file_failure_preserves_idle_history_and_usage(tmp_path, observer_fault):
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path, lambda *_: (200, _answer("unchanged answer")), observer_fault=observer_fault
+    )
+    assert len(requests) == 1
+    assert finished["exit_status"] == "Idle"
+    assert finished["result"] == "unchanged answer"
+    assert finished["model_stats"]["api_calls"] == 1
+    assert finished["model_stats"]["input_tokens"] == 7
+    assert finished["model_stats"]["output_tokens"] == 3
+    messages = [event["message"] for event in events if event["event"] == "message"]
+    assert [message["role"] for message in messages] == ["system", "user", "assistant"]
+    assert messages[-1]["content"] == "unchanged answer"
+    assert calls[0]["usage"]["prompt_tokens"] == 7
+    assert f"native observer failure: {observer_fault} OSError" in stderr
+    assert "secret observer failure" not in stderr
+    assert "/controller/private" not in stderr
+    if observer_fault == "message_file":
+        assert native["trajs"]["main"]["messages"] == messages
+    else:
+        assert native is None

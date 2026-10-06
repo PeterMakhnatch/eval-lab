@@ -18,6 +18,7 @@ from evallab.setup_fingerprint import (
     render_spec_preflight,
     resolve_repo_root,
     trial_fingerprint,
+    validate_mimo_setup,
 )
 
 MIMO_MODEL = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
@@ -499,3 +500,149 @@ def test_modelfree_nop_of_a_registered_variant_passes_before_the_ledger_runs_it(
     (records / "abc.json").write_text(json.dumps(record))
     with pytest.raises(ValueError, match="outside the ledger"):
         validate_request(make_nop_request(root, "format-code-task-900002", spec), repo_root=root)
+
+
+VARIANT_TASK_NAME = "mimo-v2.6-rl/format-code-task-900001"
+
+INTEGRITY_PROBE = b'"""Verifier-only probe criterion (HAR-173 behaviour test)."""\n'
+
+
+def make_variant_package(
+    root: Path,
+    base: Path,
+    *,
+    transform: str,
+    parent_task_id: str = TASK_ID,
+    changes: dict | None = None,
+) -> tuple:
+    """Derive a real variant record (via ``derive_task``) of the fixture task."""
+    from evallab.task_variants import derive_task
+
+    parent = root / "tasks" / parent_task_id
+    record = derive_task(
+        parent,
+        changes=changes or {"tests/integrity/probe_criterion.py": INTEGRITY_PROBE},
+        transform=transform,
+        rationale="HAR-173 lineage-gate behaviour test",
+        created_by="har173-test",
+        parent_source={"kind": "local", "path": str(parent)},
+        repo_root=root,
+        variants_root=base / "variants-store",
+    )
+    package = base / "variants-store" / record.task_slug / record.digest12
+    return record, package
+
+
+def mark_validated(root: Path, record):
+    """Append the locked-nop validation verdict a real repair earns (HAR-113 flow)."""
+    from evallab.task_variants import append_status_evidence
+
+    return append_status_evidence(
+        record,
+        "validated",
+        evidence="locked nop sound (har173-test)",
+        by="har173-test",
+        repo_root=root,
+    )
+
+
+def stage_variant_package(root: Path, package: Path) -> Path:
+    """Copy the derived package under the fixture root (specs stay repo-relative)."""
+    dest = root / "variant-tasks" / TASK_ID
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(package, dest)
+    return dest
+
+
+def make_variant_spec(root: Path, record, package: Path):
+    """Reference-gated spec running the derived variant package."""
+    dest = stage_variant_package(root, package)
+    rel = str(dest.relative_to(root))
+    spec = make_spec(TASK_ID, record.variant_digest, deviations=COVERING_DEVIATIONS)
+    return spec.model_copy(update={"task": rel, "task_path": rel})
+
+
+def make_variant_request(root: Path, spec: ExperimentSpec, package: Path) -> RunRequest:
+    """Dispatch request running the derived variant package."""
+    return replace(make_request(root, TASK_ID, spec), task=root / (spec.task_path or spec.task))
+
+
+def test_reference_gate_admits_validated_verifier_only_variant_by_lineage(
+    tmp_path: Path,
+) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(root, tmp_path, transform="rewardkit-integrity@1")
+    record = mark_validated(root, record)
+    spec = make_variant_spec(root, record, package)
+    request = make_variant_request(root, spec, package)
+    fingerprint = validate_mimo_setup(request, root)
+    assert fingerprint["task"]["variant_parent_digest"] == record.parent.digest
+    assert fingerprint["task"]["variant_transform_chain"] == ["rewardkit-integrity@1"]
+    validate_request(request, repo_root=root)
+    spec_path = root / "specs" / "fp-variant-001.json"
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
+    spec_path.write_text(spec.model_dump_json(indent=2))
+    text, ok = render_spec_preflight(spec_path, root)
+    assert ok, text
+    assert "OK: setup matches reference" in text
+
+
+def test_reference_gate_refuses_variant_whose_parent_is_not_in_the_ledger(
+    tmp_path: Path,
+) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    other_parent = tmp_path / "other-parent" / TASK_ID
+    shutil.copytree(root / "tasks" / TASK_ID, other_parent)
+    (other_parent / "extra.txt").write_text("not the ledger package\n")
+    from evallab.task_variants import derive_task
+
+    parent = other_parent
+    record = derive_task(
+        parent,
+        changes={"tests/integrity/probe_criterion.py": INTEGRITY_PROBE},
+        transform="rewardkit-integrity@1",
+        rationale="HAR-173 lineage-gate behaviour test",
+        created_by="har173-test",
+        parent_source={"kind": "local", "path": str(parent)},
+        repo_root=root,
+        variants_root=tmp_path / "variants-store",
+    )
+    record = mark_validated(root, record)
+    package = tmp_path / "variants-store" / record.task_slug / record.digest12
+    spec = make_variant_spec(root, record, package)
+    with pytest.raises(ValueError, match="does not reach the ledger run_digest"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_reference_gate_refuses_variant_with_non_allowlisted_transform(
+    tmp_path: Path,
+) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(
+        root,
+        tmp_path,
+        transform="env-prefetch-network@1",
+        changes={"environment/prefetch.sh": b"#!/bin/sh\n# HAR-173 behaviour test.\n"},
+    )
+    record = mark_validated(root, record)
+    spec = make_variant_spec(root, record, package)
+    with pytest.raises(ValueError, match="not verifier-only/metadata-only"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_reference_gate_refuses_unverified_verifier_only_variant(tmp_path: Path) -> None:
+    root, _ = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=VARIANT_TASK_NAME
+    )
+    record, package = make_variant_package(root, tmp_path, transform="rewardkit-integrity@1")
+    assert record.status == "candidate"
+    spec = make_variant_spec(root, record, package)
+    with pytest.raises(ValueError, match="not 'validated'"):
+        validate_request(make_variant_request(root, spec, package), repo_root=root)

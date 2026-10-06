@@ -279,7 +279,7 @@ inputs:
   - path: src/evallab/ladder.py
     digest: sha256:142f028f50d04045289a40ffbc1d69c3d760785a57c356fa23fd70b585dca705
   - path: src/evallab/laminar.py
-    digest: sha256:520bdd10fa897f1bfe85bdd235e257a284f6feb252b1287bd470e3a8c5a9a5ad
+    digest: sha256:6ed0c0c2ac6ae76458626bc483de15c4016eea7486c3b5bc256b98b493d4e633
   - path: src/evallab/lance.py
     digest: sha256:7207597b318da335bf4647383116519daa6378b4bdfaa7b33f3189cb1df9cb36
   - path: src/evallab/ledger.py

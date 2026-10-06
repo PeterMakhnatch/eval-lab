@@ -953,6 +953,45 @@ def _render_job_markdown(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _project_job(job_path: Path, parquet_root: Path) -> dict[str, Any]:
+    """Rebuild the existing fact/features projections without a catalog."""
+    from dataclasses import replace
+
+    from evallab.evidence.atif import project_jobs
+    from evallab.interpretation.features import trial_features, write_features
+    from evallab.results import JobRecord, TrialRecord, load_job
+    from evallab.storage.paths import trial_parquet_path
+
+    job = load_job(job_path)
+    groups: dict[str, list[TrialRecord]] = {}
+    for trial in job.trials:
+        config = trial.result.get("config") or trial.config
+        job_id = str(config.get("job_id") or job.id)
+        for identity in (job_id, trial.id):
+            if not identity or identity in (".", "..") or Path(identity).name != identity:
+                raise ValueError(f"Unsafe native projection identity: {identity!r}")
+        groups.setdefault(job_id, []).append(trial)
+    jobs: list[JobRecord] = [
+        replace(job, result={**job.result, "id": job_id}, trials=tuple(trials))
+        for job_id, trials in groups.items()
+    ]
+    tables, failures = project_jobs(jobs, parquet_root)
+    if failures:
+        raise ValueError("; ".join(failure.message for failure in failures))
+    for projected_job in jobs:
+        for trial in projected_job.trials:
+            write_features(
+                [trial_features(job_path, trial.path)],
+                trial_parquet_path(parquet_root, projected_job.id, trial.id, "features"),
+            )
+    return {
+        "root": str(parquet_root),
+        "native_jobs": len(jobs),
+        "trials": len(job.trials),
+        "fact_and_trace_tables": len(tables),
+    }
+
+
 def process_job(
     job_dir: str | Path,
     *,
@@ -966,6 +1005,7 @@ def process_job(
     pr_lookup: Any = None,
     session_spend: str | Path | None = None,
     publication_card: str | None = None,
+    parquet_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Process a landed Harbor job directory.
 
@@ -989,6 +1029,11 @@ def process_job(
 
     ``publication_card`` is an explicit publish-time HAR issue assignment
     for jobs whose frozen name/question_ref has none; native inputs stay intact.
+
+    ``parquet_root`` opts into the local, catalog-free ATIF/facts and HAR-159
+    feature projection. It uses the existing Parquet layout and propagates
+    projection failures; callers can preserve existing reports by choosing a
+    temporary ``output_dir``. Neither this option nor its producers run models.
     """
     job_path = Path(job_dir).resolve()
     if not job_path.is_dir():
@@ -1146,6 +1191,15 @@ def process_job(
     else:
         ingest_note = "ingest disabled by caller"
 
+    projection: dict[str, Any] | None = None
+    if parquet_root is not None:
+        from evallab.storage.paths import derived_root_from_environment
+
+        projection = _project_job(
+            job_path,
+            derived_root_from_environment(repo_root, explicit=Path(parquet_root)),
+        )
+
     rows = [
         {
             "trial_name": record["trial_name"],
@@ -1198,6 +1252,8 @@ def process_job(
             "excluded_reasons": counts_summary["excluded_reasons"],
         },
     }
+    if projection is not None:
+        report["summary"]["projection"] = projection
     if allocation is not None:
         # Computed job-scope value only: settled proxy cost/tokens above
         # are untouched and no per-trial GPU share is invented.

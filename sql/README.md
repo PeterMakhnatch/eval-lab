@@ -12,6 +12,7 @@ and analytical features.
 - `sql/traj_benchmark_views.sql`: Analytical views for benchmark trajectory programs.
 - `sql/craft_views.sql`: Analytical views for CRAFT benchmark facets.
 - `sql/trace_queries.sql`: Ten canonical analytical views over the transient in-memory trace surface (`v_trace_trials` and `v_trace_steps`), plus private interpretation views and typed JSON macros.
+- `sql/trials.sql`: The transient `trials` census view used by `evallab trials`, joining the existing local fact/features projections with recorded posture; exact setup legitimacy is separate from reward and copy quality.
 - `sql/trace-queries/`: Runnable saved-query handles (`SELECT * FROM` the canonical view), not duplicate definitions.
 ## Invariants or rules
 - Idempotent schema additions: Add schema changes idempotently to `sql/schema.sql` (cited in `AGENTS.md`).
@@ -32,6 +33,7 @@ and analytical features.
 - `uv run pytest tests/test_canary.py -k test_schema`
 - `uv run pytest tests/test_trace_query.py`
 - `uv run pytest tests/test_trace_query_semantics.py` (synthetic behavioral boundaries; not evidence of actual-run query results)
+- `uv run pytest tests/test_trials_query.py tests/test_trial_posture.py` (census identity, projection gaps, and the six-clause legitimacy boundary)
 ## What not to add here
 - Do not store raw database dumps, snapshots, or Parquet binary files here; use `derived/`.
 - Do not add destructive DDL without explicit migration policies.

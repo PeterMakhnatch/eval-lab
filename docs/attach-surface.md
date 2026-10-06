@@ -8,7 +8,7 @@ audience:
 
 # Unified Attach Surface (E04)
 
-The single mandated entry point for all consumers of the three storage zones.
+The unified entry point for cross-zone consumers, with local trial and trace query modes.
 
 ## Zones
 
@@ -54,7 +54,7 @@ GROUP BY j.job_name;
 When Postgres is unavailable the surface still returns a usable connection carrying Z3 and Z4; the join is skipped with explicit reason naming the DSN.
 ## CLI
 
-Access is exclusively via the unified attach surface: `evallab db attach`.
+Cross-zone access uses `evallab db attach`. The local `evallab trials` census below needs no catalog.
 
 ```sh
 $ uv run evallab db attach --zones
@@ -82,6 +82,65 @@ $ uv run evallab db attach --query "SELECT j.job_name, COUNT(*) AS trials FROM z
 [('smoke-oracle-8ya566yyqwms', 1), ...]
 ```
 
+
+### Trials Census (HAR-178)
+
+```sh
+uv run evallab trials
+uv run evallab trials --sql "SELECT campaign, legit, count(*) AS trials FROM trials GROUP BY campaign, legit ORDER BY campaign, legit"
+uv run evallab trials --sql "SELECT job, trial, reward, integrity, reward_gated, copy_verdict FROM trials WHERE campaign = 'HAR-168' ORDER BY job, trial"
+# Explicitly restrict discovery, instead of scanning all local run roots:
+uv run evallab trials --runs-dir .worktrees/har164/runs
+```
+
+`trials` is one transient DuckDB view, not another database or stored census.
+Default discovery covers the primary checkout and every `.worktrees/*` checkout:
+`runs/`, `jobs/`, and the existing reviewed evidence run roots. A configured
+`EVALLAB_RUNS_ROOT` adds a source; it does not silently hide other lanes.
+Dot-prefixed executor/staging/cache directories are not separate evaluations.
+Physical copies and retained viewer aggregates do not multiply a native
+`(job_id, trial_id)`. A trial's recorded `config.job_id` takes precedence over a
+viewer aggregate's parent ID. Unfinished and infrastructure trials remain rows;
+unavailable native identities stay null rather than becoming invented UUIDs.
+
+The view joins existing `trial_facts`, `reward_facts`, and HAR-159 `features`
+Parquet by native identity. Historical worktree-local projections can be read;
+backfills write only to the selected existing Parquet store. Missing projections
+run the local `process-job` producer with catalog ingest and publication disabled,
+using temporary report output so existing processed reports and post-session spend
+allocations are not replaced. The native raw files are not rewritten. No provider,
+queue, sandbox, or Laminar API call is made. Projection failures remain visible in
+`projection_error`, never disappear from the census.
+
+For an explicit manual projection:
+
+```sh
+uv run evallab process-job runs/JOB --no-ingest --no-publish --parquet-root derived/parquet
+```
+
+This writes canonical `job_id=*/trial_id=*/` fact/trace Parquet and the existing
+HAR-159 feature projection (`features.parquet` plus its CSV sibling). The manual
+command retains ordinary `process-job` report-output behavior; use `--output-dir`
+when preserving an existing report.
+
+Columns include native IDs and source paths, `campaign`, `job`, `trial`, `task`,
+recorded `date`, `model`, `harness` (agent import path), observed `egress_lock`,
+`reference_profile`, `reference_profile_match`, `reference_profile_diffs`,
+`stop_reason`, `cut_short_by_our_limits`, `infra`, `infra_exception`, `reward`,
+`integrity`, `reward_gated`, `copy_verdict`, `laminar_trace_id`, and `legit`.
+Reward dimensions are projected as recorded, not recomputed. `copy_verdict` is
+the existing HAR-159 copy-check/counts verdict, not a fresh detector label.
+
+`legit` requires exactly the native MiMo-V2.6-Distill-Qwen-9B model, native
+`mimoagent`, an applied egress lock, a HAR-149 reference-profile match, no canonical
+counts infrastructure exclusion, and no HAR-156 `our_limit` stop. Unknown
+required evidence does not establish legitimacy. HAR-156 distinguishes our
+ceilings/loop breaks from the native harness step cap and Harbor task timeout.
+Reward positivity, integrity, and copy verdict **do not enter this predicate**.
+An approved deviation is still a reference difference, not an exact match;
+in particular, HAR-168's declared context/parser/harness deviations must not be
+relabeled as a matching training setup. Its 12-scored/1-infrastructure receipt
+is an exact native-ID cohort, not every later trial carrying the HAR-168 card.
 
 ### Trace Query Mode (HAR-131)
 

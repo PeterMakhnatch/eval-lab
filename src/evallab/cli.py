@@ -4248,6 +4248,7 @@ def _process_job_command(
             nop_runs_dir=args.nop_runs_dir,
             session_spend=args.session_spend,
             publication_card=args.publication_card,
+            parquet_root=args.parquet_root,
         )
     except (OSError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
@@ -6684,6 +6685,11 @@ def parser() -> argparse.ArgumentParser:
         help="Report output directory (default: <job>/processed/)",
     )
     process_job_parser.add_argument(
+        "--parquet-root",
+        type=Path,
+        help="Rebuild existing ATIF/facts and trial features in this Parquet root",
+    )
+    process_job_parser.add_argument(
         "--no-ingest", action="store_true", help="Skip the catalog ingest"
     )
     process_job_parser.add_argument(
@@ -6850,6 +6856,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.interpretation.features import build_features_parser as _build_features_parser
 
     _build_features_parser(commands)
+    from evallab.storage.trials import build_trials_parser
+
+    build_trials_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)

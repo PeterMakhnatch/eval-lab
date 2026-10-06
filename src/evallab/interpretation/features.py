@@ -469,7 +469,8 @@ def collect_features(paths: list[Path]) -> list[dict[str, Any]]:
 def write_features(rows: list[dict[str, Any]], out: Path) -> tuple[Path, Path]:
     """Write ``<out>.parquet`` plus a ``<out>.csv`` sibling; return both."""
     import pyarrow as pa
-    import pyarrow.parquet as pq
+
+    from evallab.evidence.parquet_io import write_table_atomic
 
     out = Path(out)
     parquet_path = out.with_suffix(".parquet")
@@ -513,11 +514,11 @@ def write_features(rows: list[dict[str, Any]], out: Path) -> tuple[Path, Path]:
             pa.field("diff_source", pa.string()),
         ]
     )
-    table = pa.Table.from_pylist(
+    write_table_atomic(
+        parquet_path,
         [{column: row.get(column) for column in COLUMNS} for row in rows],
-        schema=schema,
+        schema,
     )
-    pq.write_table(table, parquet_path)
 
     with csv_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(COLUMNS))

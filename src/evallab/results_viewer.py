@@ -49,7 +49,6 @@ from evallab.harbor_view import (
 from evallab.results_home import results_root
 from evallab.task_pages import (
     DEFAULT_TRUSTED_GLOBS,
-    DEFAULT_VARIANTS_DIR,
     PAGE_RECORD,
     TaskPages,
     default_store,
@@ -427,7 +426,7 @@ def serve(viewer: ResultsViewerRoot, *, host: str, port: int, interval: float) -
 def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     del root
     sources = [path.expanduser().resolve() for path in args.sources] or [results_root()]
-    variants = args.task_variants.expanduser() if args.task_variants else DEFAULT_VARIANTS_DIR
+    variants = args.task_variants.expanduser() if args.task_variants else None
     viewer = ResultsViewerRoot(
         args.root.expanduser(),
         sources,
@@ -438,7 +437,7 @@ def _command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         else TaskPages(
             args.root.expanduser(),
             store=(args.readers_store or default_store()).expanduser(),
-            variants_dir=variants if variants.is_dir() else None,
+            variants_dir=variants if variants is not None and variants.is_dir() else None,
             trusted_globs=args.trusted_job or DEFAULT_TRUSTED_GLOBS,
             laminar_api_key=os.environ.get("LMNR_PROJECT_API_KEY") or None,
         ),
@@ -507,8 +506,8 @@ def build_results_viewer_parser(commands: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "--task-variants",
         type=Path,
-        help="task-variants tree for health/solve tags "
-        "(default: ~/Developer/eval-lab/library/task-variants)",
+        help="task-variants tree for health/solve tags (the installer passes a snapshot of "
+        "library/task-variants; without it pages show 'no record')",
     )
     parser.add_argument("--no-task-pages", action="store_true", help="Do not build task-<id> pages")
     parser.add_argument(

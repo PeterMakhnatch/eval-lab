@@ -213,12 +213,6 @@ class NativeMimoAgent(BaseAgent):
             )
         if not _NATIVE_CONFIG.is_file():
             raise RuntimeError("pinned native swe.yaml is missing")
-        try:
-            from evallab.harbor_stream import prepare_locked_stream
-
-            await prepare_locked_stream(environment, self.logs_dir)
-        except Exception as error:
-            self._observer_failure("stream_preparation", error)
 
     def _observer_failure(self, category: str, error: Exception) -> None:
         # Only a fixed category and the type, never arbitrary paths/content.

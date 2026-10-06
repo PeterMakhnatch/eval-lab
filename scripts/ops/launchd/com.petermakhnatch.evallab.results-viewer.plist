@@ -5,7 +5,7 @@
 	<key>Label</key>
 	<string>__LABEL__</string>
 	<key>ProgramArguments</key>
-	<array>
+	<array>__LAUNCH_PREFIX__
 		<string>__EVALLAB__</string>
 		<string>results-viewer</string>
 		<string>--root</string>
@@ -13,7 +13,9 @@
 		<string>--host</string>
 		<string>127.0.0.1</string>
 		<string>--port</string>
-		<string>__PORT__</string>__SOURCE_ARGS__
+		<string>__PORT__</string>
+		<string>--variant-records</string>
+		<string>__VARIANTS_DIR__</string>__SOURCE_ARGS__
 	</array>
 	<key>RunAtLoad</key>
 	<true/>

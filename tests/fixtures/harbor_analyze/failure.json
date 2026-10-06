@@ -1,0 +1,14 @@
+{
+  "provenance": {
+    "harbor_version": "0.24.0",
+    "source": "/private/tmp/har176/jobs/pilot-h12-000792/analysis.json",
+    "extraction": "Unchanged trial_name, summary, checks, cost_usd; error is the native exception's final artifact-location line."
+  },
+  "result": {
+    "trial_name": "har168-20261006-000792-a1__XavEDNw",
+    "summary": null,
+    "checks": {},
+    "cost_usd": null,
+    "error": "Trial artifacts: /private/tmp/har176/jobs/pilot-h12-000792/analyze-har168-20261006-000792-a__WoTzaDy"
+  }
+}

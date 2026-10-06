@@ -71,6 +71,7 @@ TOP_LEVEL_COMMANDS = (
     "laminar",
     "telemetry",
     "investigate",
+    "view",
 )
 
 

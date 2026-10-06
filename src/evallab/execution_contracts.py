@@ -888,6 +888,7 @@ DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-flash"
 DEEPSEEK_SECRET_COMPOSE = Path("containers/deepseek-v4-flash-secret.compose.yaml")
 
 HARBOR_STATE_JOURNAL_PLUGIN = "evallab.harbor_state_journal:StateJournalPlugin"
+HARBOR_WATCH_HOOKS_PLUGIN = "evallab.harbor_watch_hooks:WatchHookPlugin"
 
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
@@ -1863,6 +1864,7 @@ def build_command(request: RunRequest) -> list[str]:
             )
         command.extend(["--environment-kwarg", "egress_lock=true"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
+    command.extend(["--plugin", HARBOR_WATCH_HOOKS_PLUGIN])
     if request.verifier_repeat_n is not None:
         command.extend(
             [

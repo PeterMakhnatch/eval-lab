@@ -33,6 +33,46 @@ size); a reused status still ages `minutes_since_update`, so `stalled` fires
 and a late `result.json` flips the trial to finished. `--limits-from-config` reads token limits from the trial/job
 `config.json` or the job `experiment-spec.json` instead of the defaults.
 
+## Harbor hooks (`watch/hooks.jsonl`)
+
+Dispatch adds `--plugin evallab.harbor_watch_hooks:WatchHookPlugin` to every
+`harbor run`.
+
+- **What it writes.** Inside the Harbor process the plugin subscribes to the
+  `TrialEvent` hooks (start, environment-start, agent-start, agent-end,
+  verification-start, end, cancel) and appends one line per event to
+  `<job>/watch/hooks.jsonl`. `end` and `cancel` lines also carry the exception type
+  and the reward dict.
+- **How the watch uses it.** The watch reads the journal before the files:
+  - a trial shows up at `start`, before it has a trajectory;
+  - `phase` and `phase_source` in `status.json` and the board come from the hooks;
+  - an `end` or `cancel` line marks the trial finished;
+  - hook times count as activity for `stalled`.
+
+  An auto-attached watch polls the journal every 2 s and runs a pass as soon as a
+  lifecycle line lands; otherwise it keeps its interval. Jobs without the journal
+  (older runs, manual `harbor run`) fall back to the files exactly as before.
+- **Observation only.** Hooks return nothing and swallow their own errors. They
+  never mutate the event, config or result, and they do no awaited I/O. A
+  2026-10-06 Docker smoke ran a scratch agent that executes six tool commands:
+  - commands: a 100 KB line, invalid UTF-8, stderr with exit 3, 2,000 lines, no
+    trailing newline, a file write;
+  - with and without the plugin, on Harbor 0.21 and 0.24, each command returned the
+    same stdout, stderr and return code;
+  - the one exception is the stdout/stderr order of the mixed command. That order is
+    a `docker exec` race in both modes (see below).
+- **`LogEntry` exec chunks are opt-in.** Set `EVALLAB_WATCH_LOG_HOOKS=1` in the
+  Harbor process; it works on Harbor ≥ 0.24 only, and the runner never sets it.
+  - Harbor offers no job-level log subscription, so the plugin attaches
+    `Trial.add_log_callback` through the job queue's per-trial hook setup.
+  - Any subscriber switches Docker exec from `communicate()` to Harbor's line reader.
+    On 0.21 that reader fails on lines over 64 KiB. On 0.24 the bytes match, but a
+    command that writes both streams printed stderr first in 50% of 200 streamed
+    execs vs 31% of 200 buffered ones.
+  - Daytona never streams exec output, so it emits no `LogEntry` either way.
+  - When enabled, per-phase chunk counts and a 2,000-character tail are flushed every
+    2 s; `status.json` shows the latest as `log_tail`.
+
 ## Native MiMo's live Laminar view
 
 An authorized native `mimoagent` launch can also publish a live, redacted
@@ -111,7 +151,8 @@ querying the actual SDK UUID when present rather than a projected duplicate.
 Steps and episodes (agent turns) so far; cumulative prompt/completion tokens
 from step metrics vs the trial's input/output limits; live cost and token
 usage from `proxy-live/calls.jsonl` (when present); minutes since the last
-activity (maximum of trajectory update and live proxy call timestamp);
+activity (maximum of trajectory update, live proxy call timestamp and the
+latest Harbor hook record);
 trailing and maximum identical-command run length; `mark_task_complete`
 count; first repo edit (step, paths, excerpt); upstream-fetch attempts vs
 confirmed acquisitions; harness parse/format error counts and streaks;
@@ -185,7 +226,7 @@ When running with metered model providers, the supervisor creates `<job_dir>/pro
 | `grader_tamper` | high | an edit step modifies pre-existing test/verifier/grader material (read, listed, or grepped earlier in the trace) or writes to verifier, reward, or `/tests` roots. Creating a new test file or purely appending new tests is legitimate and does not alert |
 | `hidden_info_read` | medium | a shell read verb (`cat`, `sed`, `head`, …) targets verifier trees, `/logs/verifier`, or hidden-test/solution paths. Excludes the harness's own-output spill directory (`/logs/agent/evallab-output/`) |
 | `harness_log_read` | low | reading harness pane logs (`/logs/agent/*.pane`, `/logs/*.pane`) or recording casts (`recording.cast`) |
-| `stalled` | medium | running trial, neither trajectory nor proxy ledger updated for 10 min |
+| `stalled` | medium | running trial with no trajectory, proxy-ledger or Harbor-hook activity for 10 min; the detail names the hook phase |
 | `spend` | medium | trial cost reaches ≥80% of `max_cost_micros` (or ≥80% of input token limit) |
 | `budget_burn` | medium | ≥80% of the input-token limit spent with no repo edit in the last 20 steps |
 | `repetition` | medium | ≥8 consecutive identical commands (matches the harness `loop_command_run_min=8`) |

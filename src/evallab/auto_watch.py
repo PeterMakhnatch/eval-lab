@@ -2,9 +2,12 @@
 
 Dispatch starts a watch for every agent job and stops it when the job
 reaches a terminal state. The watch itself is strictly read-only toward
-the run: it only reads trial trajectories (and the proxy ledger) and
-writes under ``<job>/watch/`` -- never into trial directories, never a
-signal to the Harbor process, never anything that ends the run.
+the run: it only reads trial trajectories, the proxy ledger and the Harbor
+hook journal (``<job>/watch/hooks.jsonl``, written by
+:mod:`evallab.harbor_watch_hooks` inside the Harbor process) and writes
+under ``<job>/watch/`` -- never into trial directories, never a signal to
+the Harbor process, never anything that ends the run. A lifecycle hook
+record triggers a pass immediately instead of at the next interval.
 
 Model-free agents (``nop``, ``oracle``) are skipped: they have no model
 behavior to watch. A watcher that fails to start or crashes never fails
@@ -18,11 +21,14 @@ import contextlib
 import json
 import subprocess
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from evallab.harbor_watch_hooks import HOOK_JOURNAL
 
 WATCH_DIRNAME = "watch"
 ALERTS_FILENAME = "alerts.jsonl"
@@ -49,6 +55,7 @@ CRITICAL_RULES = frozenset(
 )
 
 DEFAULT_INTERVAL_SECONDS = 60.0
+HOOK_POLL_SECONDS = 2.0
 _STOP_JOIN_TIMEOUT_SECONDS = 30.0
 
 _active_lock = threading.Lock()
@@ -248,13 +255,43 @@ def stop_auto_watch(
 def _supervise(handle: WatchHandle) -> None:
     try:
         interval = max(float(handle.interval_seconds or 0), 0.05)
-        while not handle.stop_event.wait(interval):
-            _pass_and_maybe_notify(handle)
+        poll = min(interval, HOOK_POLL_SECONDS)
+        journal = handle.job_dir / HOOK_JOURNAL
+        offset = _journal_size(journal)
+        last_pass = time.monotonic()
+        while not handle.stop_event.wait(poll):
+            # A trial lifecycle hook (start, phase change, end) triggers a pass now;
+            # log-chunk records alone wait for the regular interval.
+            offset, lifecycle = _new_lifecycle_events(journal, offset)
+            if lifecycle or time.monotonic() - last_pass >= interval:
+                _pass_and_maybe_notify(handle)
+                last_pass = time.monotonic()
     except Exception as exc:  # noqa: BLE001 -- crash is recorded, job continues
         with contextlib.suppress(Exception):
             _record_notice(handle, f"watcher crashed: {type(exc).__name__}: {exc}")
     finally:
         _untrack(handle)
+
+
+def _journal_size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _new_lifecycle_events(journal: Path, offset: int) -> tuple[int, bool]:
+    """``(new_offset, saw_event)`` for hook records appended since ``offset``."""
+    size = _journal_size(journal)
+    if size <= offset:
+        return size, False
+    try:
+        with journal.open("rb") as stream:
+            stream.seek(offset)
+            appended = stream.read(size - offset)
+    except OSError:
+        return offset, False
+    return size, b'"kind": "event"' in appended
 
 
 def _pass_and_maybe_notify(handle: WatchHandle) -> dict[str, Any] | None:

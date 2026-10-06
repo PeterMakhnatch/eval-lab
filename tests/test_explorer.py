@@ -718,8 +718,8 @@ def test_next_actions_are_copyable_and_real_verbs():
                for c in task_cmds)
     trial = index().trials["job-fail/t1"]
     trial_cmds = [a.command for a in next_actions_for_trial(trial)]
-    viewer = next(c for c in trial_cmds if c.startswith("harbor view "))
-    assert shlex.split(viewer) == ["harbor", "view", trial.jobs_root, "--jobs"]
+    viewer = next(c for c in trial_cmds if c.startswith("evallab view "))
+    assert shlex.split(viewer) == ["evallab", "view", trial.jobs_root]
     assert any("evallab analyze plan" in c for c in trial_cmds)
     infra_commands = [a.command for a in next_actions_for_trial(index().trials["job-exc/t1"])]
     status = next(c for c in infra_commands if "evallab status" in c)

@@ -29,7 +29,7 @@ uv run pytest dashboard/tests
 overview: Tasks → Jobs/Trials → Trajectory → Artifacts → Analyses, every
 field labeled observed / derived / draft / unavailable, infrastructure
 exceptions separated from reward failures, and Next Action rendered as
-shell-safe, copyable `evallab` / `harbor view <jobs-root> --jobs` commands
+shell-safe, copyable `evallab` / `evallab view <jobs-root>` commands
 that the page never executes.
 
 ```bash

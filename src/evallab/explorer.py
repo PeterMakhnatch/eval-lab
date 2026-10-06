@@ -1453,7 +1453,7 @@ def next_actions_for_trial(trial: TrialView) -> tuple[NextAction, ...]:
     actions = [
         NextAction(
             "Open Harbor's viewer for this trial's jobs root",
-            f"harbor view {shlex.quote(trial.jobs_root)} --jobs",
+            f"evallab view {shlex.quote(trial.jobs_root)}",
         ),
         NextAction(
             "Show the no-call stage-5 analysis plan",
@@ -2389,7 +2389,7 @@ def render_experiment_text(report: dict[str, Any]) -> str:
             )
         if job.get("origin") == "harbor_native":
             lines.append(
-                f"      next (copy, do not auto-run): harbor view {shlex.quote(str(job.get('path')))}"
+                f"      next (copy, do not auto-run): evallab view {shlex.quote(str(job.get('path')))}"
             )
     if not (report.get("jobs") or ()):
         lines.append("  (none)")

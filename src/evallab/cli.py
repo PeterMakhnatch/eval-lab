@@ -6587,6 +6587,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.monitor import build_investigate_parser
 
     build_investigate_parser(commands)
+    from evallab.harbor_view import build_view_parser as _build_view_parser
+
+    _build_view_parser(commands)
     return root
 
 

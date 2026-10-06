@@ -45,7 +45,7 @@ from evallab.dispatch_guards import (
     is_daytona_spec,
     is_model_backed,
     is_selfhosted_spec,
-    read_spike_alerts,
+    read_unacked_spike_alerts,
     resolve_selfhosted_endpoint,
     resolve_selfhosted_key,
     scan_spike_alerts,
@@ -140,6 +140,8 @@ QUEUE_STATES: tuple[QueueState, ...] = (
     "done",
     "failed",
 )
+
+QUEUE_RESUMED_EVENT = "queue_resumed"
 DEFAULT_EVENTS_MAX_BYTES = 10 * 1024 * 1024
 DEFAULT_EVENT_BACKUPS = 7
 DEFAULT_LEASE_STALE_SECONDS = 300.0
@@ -959,8 +961,40 @@ class DirectoryQueue:
     def stop(self) -> None:
         self.stop_path.touch(exist_ok=True)
 
-    def resume(self) -> None:
+    def resume(self, *, actor: str = "operator") -> None:
+        """Clear the STOP fence and record the resume time (HAR-174).
+
+        The ``queue_resumed`` event is the batch boundary for the
+        infra-spike fence: alerts from jobs launched before it no longer
+        fence unless their job is still running.
+        """
         self.stop_path.unlink(missing_ok=True)
+        self.append_event(
+            QueueEvent(
+                event_id=new_ulid(),
+                spec_id="queue",
+                occurred_at=datetime.now(UTC),
+                event=QUEUE_RESUMED_EVENT,
+                actor=actor,
+            )
+        )
+
+    def last_resume_time(self) -> datetime | None:
+        """Latest queue-resume instant, or ``None`` when never resumed."""
+        try:
+            events = load_events(self.events_path)
+        except (OSError, ValueError):
+            return None
+        latest: datetime | None = None
+        for event in events:
+            if event.event not in (QUEUE_RESUMED_EVENT, "resumed"):
+                continue
+            occurred = event.occurred_at
+            if occurred.tzinfo is None:
+                occurred = occurred.replace(tzinfo=UTC)
+            if latest is None or occurred > latest:
+                latest = occurred
+        return latest
 
     def list_specs(self, state: QueueState) -> list[tuple[Path, ExperimentSpec]]:
         # Two ticks may run concurrently (launchd schedule plus a manual tick).
@@ -1810,14 +1844,20 @@ class Executor:
         )
         return False
 
-    def _stop_on_infra_spike(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> bool:
-        """Fence the queue when a watch alert reports an infra spike.
+    def _stop_on_infra_spike(
+        self,
+        approved_specs: list[tuple[Path, ExperimentSpec]],
+        *,
+        resume_time: datetime | None,
+    ) -> bool:
+        """Fence the queue when a current-batch watch alert reports a spike.
 
-        Full scan of the ``watch/alerts.jsonl`` of every runs root behind
-        the approved batch for ``proxy_error_spike``/``infra_spike``; runs
-        once per tick. On a hit, sets the existing ``STOP`` fence so no
-        further specs dispatch; running trials are never touched. Returns
-        whether the fence was set.
+        Scans ``watch/alerts.jsonl`` under every runs root behind the
+        approved batch, but only jobs that are running or were launched
+        since the last ``evallab resume`` can fence (HAR-174); acknowledged
+        and provably pre-resume rows never fence. Runs once per tick. On a
+        hit, sets the existing ``STOP`` fence so no further specs dispatch;
+        running trials are never touched. Returns whether the fence was set.
         """
         if not approved_specs:
             return False
@@ -1830,7 +1870,12 @@ class Executor:
         default_runs = self.repo_root / "runs"
         if default_runs.is_dir():
             roots[default_runs] = None
-        alerts = scan_spike_alerts(roots)
+        running_dirs = [
+            job_dir
+            for _, spec in self.queue.list_specs("running")
+            if (job_dir := self._job_dir_for(spec)) is not None
+        ]
+        alerts = scan_spike_alerts(roots, resume_time=resume_time, running_dirs=running_dirs)
         if not alerts:
             return False
         return self._fence_for_spike(
@@ -1838,17 +1883,22 @@ class Executor:
         )
 
     def _stop_on_job_spike(
-        self, job_dir: Path, remaining: list[tuple[Path, ExperimentSpec]]
+        self,
+        job_dir: Path,
+        remaining: list[tuple[Path, ExperimentSpec]],
+        *,
+        resume_time: datetime | None,
     ) -> bool:
         """Fence the queue when a just-finished job reports an infra spike.
 
         Reads only that job's own ``watch/alerts.jsonl`` (the watch final
         pass lands there synchronously at dispatch end), so a 100-spec tick
         pays one file probe per dispatch instead of one full scan.
+        Acknowledged and provably pre-resume rows never fence (HAR-174).
         """
         if not remaining:
             return False
-        alerts = read_spike_alerts(job_dir)
+        alerts = read_unacked_spike_alerts(job_dir, resume_time=resume_time)
         if not alerts:
             return False
         return self._fence_for_spike(
@@ -2243,7 +2293,10 @@ class Executor:
         if not approved_specs:
             self._maybe_stop_selfhosted_app(running_before, [])
             return 0
-        if self._stop_on_infra_spike(approved_specs):
+        # HAR-174 batch boundary, read once per tick: only alerts from
+        # running jobs or jobs launched since this instant can fence.
+        spike_resume = self.queue.last_resume_time()
+        if self._stop_on_infra_spike(approved_specs, resume_time=spike_resume):
             self._maybe_stop_selfhosted_app(running_before, [])
             return 0
         approved_specs = self._apply_daytona_clamp(approved_specs)
@@ -2265,7 +2318,9 @@ class Executor:
         )
         if smoke_index is None:
             self._record_smoke_opt_out(smoke_batch)
-            dispatched = self._dispatch_batch(approved_specs, parallel, authorizations, credentials)
+            dispatched = self._dispatch_batch(
+                approved_specs, parallel, authorizations, credentials, resume_time=spike_resume
+            )
             self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
         smoke_path, smoke_spec = approved_specs[smoke_index]
@@ -2276,7 +2331,8 @@ class Executor:
             dispatched += 1
         smoke_job_dir = self._job_dir_for(smoke_spec) if smoke_ran else None
         if self.queue.stop_path.exists() or (
-            smoke_job_dir is not None and self._stop_on_job_spike(smoke_job_dir, rest)
+            smoke_job_dir is not None
+            and self._stop_on_job_spike(smoke_job_dir, rest, resume_time=spike_resume)
         ):
             self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
@@ -2296,7 +2352,9 @@ class Executor:
             self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
         self._report_progress(f"smoke gate passed on {smoke_spec.name} ({why})")
-        dispatched += self._dispatch_batch(rest, parallel, authorizations, credentials)
+        dispatched += self._dispatch_batch(
+            rest, parallel, authorizations, credentials, resume_time=spike_resume
+        )
         self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
         return dispatched
 
@@ -2387,6 +2445,8 @@ class Executor:
         batch: list[tuple[Path, ExperimentSpec]],
         authorizations: dict[str, PaidRunAuthorization],
         credentials: frozenset[str],
+        *,
+        resume_time: datetime | None,
     ) -> int:
         dispatched = 0
         for index, (path, spec) in enumerate(batch):
@@ -2395,7 +2455,9 @@ class Executor:
             if self._dispatch_one(path, spec, authorizations, credentials):
                 dispatched += 1
                 job_dir = self._job_dir_for(spec)
-                if job_dir is not None and self._stop_on_job_spike(job_dir, batch[index + 1 :]):
+                if job_dir is not None and self._stop_on_job_spike(
+                    job_dir, batch[index + 1 :], resume_time=resume_time
+                ):
                     break
         return dispatched
 
@@ -2405,9 +2467,13 @@ class Executor:
         parallel: int,
         authorizations: dict[str, PaidRunAuthorization],
         credentials: frozenset[str],
+        *,
+        resume_time: datetime | None,
     ) -> int:
         if parallel == 1:
-            return self._dispatch_serial(batch, authorizations, credentials)
+            return self._dispatch_serial(
+                batch, authorizations, credentials, resume_time=resume_time
+            )
         dispatched = 0
         with ThreadPoolExecutor(max_workers=parallel) as pool:
             futures = [
@@ -2670,7 +2736,9 @@ class Executor:
             toolbox_path=toolbox_path,
             toolbox_sha256=spec.toolbox_sha256,
             harness_tree_path=(
-                _safe_repo_path(repo_root, spec.harness_tree_path) if spec.harness_tree_path else None
+                _safe_repo_path(repo_root, spec.harness_tree_path)
+                if spec.harness_tree_path
+                else None
             ),
             harness_tree_sha256=spec.harness_tree_sha256,
             agent=spec.agent,
@@ -3008,7 +3076,9 @@ class Executor:
         return checks
 
     def _running_state_timed_out(self, spec: ExperimentSpec) -> bool:
-        state_path = _safe_repo_path(self.repo_root, spec.jobs_dir) / ".executor" / f"{spec.name}.state.json"
+        state_path = (
+            _safe_repo_path(self.repo_root, spec.jobs_dir) / ".executor" / f"{spec.name}.state.json"
+        )
         try:
             state = json.loads(state_path.read_text())
             started = datetime.fromisoformat(str(state["started_at"]))
@@ -3044,7 +3114,9 @@ class Executor:
                 )
                 continue
             job_dir = _safe_repo_path(self.repo_root, spec.jobs_dir) / spec.name
-            archive_root = _safe_repo_path(self.repo_root, spec.jobs_dir) / ".transient-attempts" / spec.name
+            archive_root = (
+                _safe_repo_path(self.repo_root, spec.jobs_dir) / ".transient-attempts" / spec.name
+            )
             if not job_dir.exists():
                 try:
                     interrupted_retry = archive_root.is_dir() and any(

@@ -32,6 +32,7 @@ from evallab.harbor_watch_hooks import HOOK_JOURNAL
 
 WATCH_DIRNAME = "watch"
 ALERTS_FILENAME = "alerts.jsonl"
+ACKS_FILENAME = "acks.jsonl"
 NOTIFIED_FILENAME = ".lin_notified.json"
 WATCHER_ERROR_RULE = "watcher_error"
 
@@ -362,6 +363,112 @@ def read_watch_alerts(job_dir: Path | str) -> list[dict[str, Any]]:
     return alerts
 
 
+def read_watch_acks(job_dir: Path | str) -> list[dict[str, Any]]:
+    """Parsed ``<job>/watch/acks.jsonl`` rows (best-effort; never raises)."""
+    try:
+        lines = (
+            (Path(job_dir) / WATCH_DIRNAME / ACKS_FILENAME).read_text(encoding="utf-8").splitlines()
+        )
+    except OSError:
+        return []
+    acks: list[dict[str, Any]] = []
+    for line in lines:
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except ValueError:
+            continue
+        if isinstance(payload, dict) and payload.get("rule"):
+            acks.append(payload)
+    return acks
+
+
+def write_watch_ack(
+    job_dir: Path | str,
+    *,
+    rule: str,
+    actor: str,
+    reason: str,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    """Acknowledge one alert kind for a job (HAR-174).
+
+    Appends one record to ``<job>/watch/acks.jsonl``; ``alerts.jsonl`` is
+    never edited or deleted. Raises ``ValueError`` for an unknown job, a
+    missing or blank actor or reason, or a rule with no row in that job's
+    alerts.
+    """
+    job_path = Path(job_dir)
+    if not job_path.is_dir():
+        raise ValueError(f"unknown job: {job_dir}")
+    kind = (rule or "").strip()
+    who = (actor or "").strip()
+    why = (reason or "").strip()
+    if not who:
+        raise ValueError("ack needs a non-blank --actor")
+    if not why:
+        raise ValueError("ack needs a non-blank --reason")
+    covers = [
+        {"trial": str(alert.get("trial")), "rule": str(alert.get("rule"))}
+        for alert in read_watch_alerts(job_path)
+        if kind and str(alert.get("rule")) == kind
+    ]
+    if not covers:
+        raise ValueError(f"no alert {kind!r} in {job_path}")
+    record = {
+        "rule": kind,
+        "actor": who,
+        "reason": why,
+        "acked_at": (now or datetime.now(UTC)).astimezone(UTC).isoformat(),
+        "job": job_path.name,
+        "covers": covers,
+    }
+    watch_dir = job_path / WATCH_DIRNAME
+    watch_dir.mkdir(parents=True, exist_ok=True)
+    with (watch_dir / ACKS_FILENAME).open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(record) + "\n")
+    return record
+
+
+def covering_ack(alert: dict[str, Any], acks: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The ack covering one alert row, or ``None`` (HAR-174)."""
+    trial = str(alert.get("trial"))
+    rule = str(alert.get("rule"))
+    fallback: dict[str, Any] | None = None
+    for ack in acks:
+        covers = ack.get("covers")
+        if isinstance(covers, list):
+            for item in covers:
+                if (
+                    isinstance(item, dict)
+                    and str(item.get("trial")) == trial
+                    and str(item.get("rule")) == rule
+                ):
+                    return ack
+        elif str(ack.get("rule")) == rule:
+            fallback = fallback or ack
+    return fallback
+
+
+def annotate_alerts_with_acks(
+    alerts: list[dict[str, Any]], acks: list[dict[str, Any]]
+) -> list[dict[str, Any]]:
+    """Copy of ``alerts`` marking rows an ack covers (HAR-174)."""
+    if not acks:
+        return [dict(alert) for alert in alerts]
+    annotated: list[dict[str, Any]] = []
+    for alert in alerts:
+        row = dict(alert)
+        ack = covering_ack(alert, acks)
+        if ack is not None:
+            row["acknowledged_by"] = str(ack.get("actor"))
+            if ack.get("acked_at"):
+                row["acked_at"] = str(ack.get("acked_at"))
+        annotated.append(row)
+    return annotated
+
+
 def summarize_watch_alerts(alerts: list[dict[str, Any]]) -> dict[str, Any]:
     """Counts plus the latest high-severity rule (``None`` when clean)."""
     critical = [alert for alert in alerts if alert.get("severity") == "high"]
@@ -376,12 +483,24 @@ def summarize_watch_alerts(alerts: list[dict[str, Any]]) -> dict[str, Any]:
 
 def watch_status_suffix(job_dir: Path | str) -> str | None:
     """One-line ``evallab status`` suffix for a running job, or ``None``."""
-    summary = summarize_watch_alerts(read_watch_alerts(job_dir))
+    alerts = read_watch_alerts(job_dir)
+    summary = summarize_watch_alerts(alerts)
     if summary["n_alerts"] == 0:
         return None
     suffix = f"watch: {summary['n_alerts']} alerts"
     if summary["latest_critical"] is not None:
         suffix += f"; latest critical: {summary['latest_critical']}"
+    acks = read_watch_acks(job_dir)
+    actors = sorted(
+        {
+            str(ack.get("actor"))
+            for alert in alerts
+            for ack in [covering_ack(alert, acks)]
+            if ack is not None and ack.get("actor")
+        }
+    )
+    if actors:
+        suffix += f"; acknowledged by {', '.join(actors)}"
     return suffix
 
 
@@ -401,17 +520,21 @@ def format_watch_lines(alerts: list[dict[str, Any]], *, trial: str | None = None
     ]
     for alert in alerts:
         ref = f" {alert['step_ref']}" if alert.get("step_ref") else ""
-        lines.append(
+        line = (
             f"- [{alert.get('severity')}] `{alert.get('rule')}` "
             f"{alert.get('trial')}{ref}: {alert.get('detail')}"
         )
+        if alert.get("acknowledged_by"):
+            line += f" (acknowledged by {alert['acknowledged_by']})"
+        lines.append(line)
     lines.append("")
     return lines
 
 
 def render_watch_lines(job_dir: Path | str, *, trial: str | None = None) -> list[str]:
     """Markdown ``## Live watch alerts`` section for a job page (or trial)."""
-    return format_watch_lines(read_watch_alerts(job_dir), trial=trial)
+    alerts = annotate_alerts_with_acks(read_watch_alerts(job_dir), read_watch_acks(job_dir))
+    return format_watch_lines(alerts, trial=trial)
 
 
 def _load_posted(out_dir: Path) -> set[str]:

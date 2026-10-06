@@ -176,7 +176,10 @@ def _trial_inputs(
 ) -> tuple[FileStamp, ...]:
     """Stamp every input whose change can alter the trial's signals (files and hook state)."""
     traj_path = _trajectory_path(trial_dir)
-    paths = [trial_dir / TRIAL_TRAJECTORY if traj_path is None else traj_path, trial_dir / TRIAL_RESULT]
+    paths = [
+        trial_dir / TRIAL_TRAJECTORY if traj_path is None else traj_path,
+        trial_dir / TRIAL_RESULT,
+    ]
     for live_dir in dict.fromkeys(
         (trial_dir / "proxy-live", job_dir / "proxy-live", trial_dir.parent / "proxy-live")
     ):
@@ -184,7 +187,9 @@ def _trial_inputs(
     stamps = tuple(_stamp(path) for path in paths)
     if hooks is None:
         return stamps
-    hook_mark = len(hooks["events"]) + sum(int(log.get("chunks") or 0) for log in hooks["logs"].values())
+    hook_mark = len(hooks["events"]) + sum(
+        int(log.get("chunks") or 0) for log in hooks["logs"].values()
+    )
     return (*stamps, ("hooks", hook_mark, int(hooks["last_at"] * 1000)))
 
 
@@ -1005,7 +1010,8 @@ def _alert(
         "task": task,
         # ATIF step ids are strings in Terminus/mimoagent trajectories ("21"), ints in older ones.
         "step_ref": f"head#{step}"
-        if isinstance(step, int) and not isinstance(step, bool)
+        if isinstance(step, int)
+        and not isinstance(step, bool)
         or (isinstance(step, str) and step.strip())
         else None,
         "quote": quote[:300],
@@ -1599,7 +1605,12 @@ def run_watch(
 
 
 def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
+    if getattr(args, "watch_command", None) == "ack":
+        return _ack_command(args, root, harbor=harbor)
     del harbor
+    if args.out is None:
+        print("watch: --out is required (or use `watch ack ...`)", file=sys.stderr)
+        return 2
     runs_dirs = [
         path if path.is_absolute() else (root / path).resolve() for path in (args.runs_dir or [])
     ]
@@ -1642,6 +1653,50 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
         time.sleep(args.interval)
 
 
+def _resolve_watch_job(root: Path, job: str, runs_dirs: list[Path]) -> Path | None:
+    """Resolve a ``watch ack`` job name or path to a job directory."""
+    raw = Path(job)
+    if raw.is_absolute():
+        return raw if raw.is_dir() else None
+    for base in (Path.cwd(), root):
+        probe = base / raw
+        if probe.is_dir():
+            return probe
+    if len(raw.parts) != 1:
+        return None
+    for runs in runs_dirs:
+        probe = runs / raw.name
+        if probe.is_dir():
+            return probe
+    return None
+
+
+def _ack_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
+    """Acknowledge one watch alert kind so it never fences dispatch (HAR-174)."""
+    del harbor
+    runs_dirs = [
+        path if path.is_absolute() else (root / path).resolve() for path in (args.runs_dir or [])
+    ] or [(root / "runs").resolve()]
+    job_dir = _resolve_watch_job(root, args.job, runs_dirs)
+    if job_dir is None:
+        print(f"watch ack: unknown job {args.job!r}", file=sys.stderr)
+        return 2
+    from evallab import auto_watch as _auto_watch
+
+    try:
+        record = _auto_watch.write_watch_ack(
+            job_dir, rule=args.alert, actor=args.actor, reason=args.reason
+        )
+    except ValueError as exc:
+        print(f"watch ack: {exc}", file=sys.stderr)
+        return 2
+    print(
+        f"acknowledged {record['rule']} on {record['job']} "
+        f"by {record['actor']}: {job_dir / 'watch' / _auto_watch.ACKS_FILENAME}"
+    )
+    return 0
+
+
 def build_watch_parser(commands: argparse._SubParsersAction) -> None:
     """Register the ``evallab watch`` subcommand (one self-contained block)."""
     watch = commands.add_parser("watch", help="Live-monitor in-progress Harbor trials")
@@ -1652,7 +1707,7 @@ def build_watch_parser(commands: argparse._SubParsersAction) -> None:
         default=[],
         help="Runs root or job directory to watch (repeatable)",
     )
-    watch.add_argument("--out", type=Path, required=True, help="State directory")
+    watch.add_argument("--out", type=Path, default=None, help="State directory")
     watch.add_argument("--once", action="store_true", help="Single pass and exit")
     watch.add_argument(
         "--interval",
@@ -1682,6 +1737,24 @@ def build_watch_parser(commands: argparse._SubParsersAction) -> None:
         help="Export each trial as a live Laminar trace with alerts as span events "
         "(needs LMNR_PROJECT_API_KEY)",
     )
+    watch_sub = watch.add_subparsers(dest="watch_command")
+    ack = watch_sub.add_parser(
+        "ack", help="Acknowledge a watch alert kind so it never fences dispatch"
+    )
+    ack.add_argument("job", help="Job name or job directory")
+    ack.add_argument(
+        "--alert", required=True, help="Alert rule to acknowledge (e.g. proxy_error_spike)"
+    )
+    ack.add_argument("--actor", required=True, help="Who acknowledges (non-blank)")
+    ack.add_argument("--reason", required=True, help="Why (non-blank)")
+    ack.add_argument(
+        "--runs-dir",
+        action="append",
+        type=Path,
+        default=[],
+        help="Runs root to search for the job (repeatable)",
+    )
+    ack.set_defaults(func=_ack_command)
     watch.set_defaults(func=_watch_command)
 
 

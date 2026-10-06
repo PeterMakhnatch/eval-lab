@@ -9,10 +9,13 @@ Four small guards, one per failure mode, all enforced on the real tick path:
    launches on the first 200; an endpoint still cold at the bound defers
    the spec with ``selfhosted_endpoint_not_ready``. Never launches into
    a 503. Every launch re-probes: no cached-ready reuse.
-2. Infra-spike stop: a ``proxy_error_spike``/``infra_spike`` alert in any
-   job ``watch/alerts.jsonl`` sets the existing queue ``STOP`` fence, so
-   no further specs dispatch. Running trials are untouched (``stop()``
-   only fences future dispatch). Clear with ``evallab resume``.
+2. Infra-spike stop: a ``proxy_error_spike``/``infra_spike`` alert in a
+   current-batch job ``watch/alerts.jsonl`` sets the existing queue
+   ``STOP`` fence, so no further specs dispatch. Only alerts from running
+   jobs or jobs launched since the last ``evallab resume`` fence;
+   acknowledged alerts (``watch/acks.jsonl``) never fence again.
+   Running trials are untouched (``stop()`` only fences future dispatch).
+   Clear with ``evallab resume``; ack a stale spike with ``evallab watch ack``.
 3. Daytona memory clamp: the tick plan is clamped up front to
    ``floor((limit * safety - used - pending - reserve) / per_sandbox)``
    from ``DaytonaGuard.observe()``, so admission never refuses an
@@ -41,6 +44,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -365,8 +369,77 @@ def read_spike_alerts(job_dir: Path) -> list[dict[str, Any]]:
     return matches
 
 
-def scan_spike_alerts(runs_roots: Iterable[Path | str]) -> list[dict[str, Any]]:
-    """All spike-rule alerts under ``<runs>/<job>/watch/alerts.jsonl``."""
+def parse_alert_time(row: Mapping[str, Any]) -> datetime | None:
+    """Best-effort ``first_seen`` timestamp of a watch alert row."""
+    raw = row.get("first_seen")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+def alert_predates_resume(row: Mapping[str, Any], resume_time: datetime | None) -> bool:
+    """Whether an alert row is provably older than the last queue resume."""
+    if resume_time is None:
+        return False
+    seen = parse_alert_time(row)
+    return seen is not None and seen < resume_time
+
+
+def read_unacked_spike_alerts(
+    job_dir: Path, *, resume_time: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Spike rows that still fence: neither acknowledged nor pre-resume."""
+    from evallab import auto_watch as _auto_watch
+
+    alerts = read_spike_alerts(job_dir)
+    if not alerts:
+        return []
+    acks = _auto_watch.read_watch_acks(job_dir)
+    live: list[dict[str, Any]] = []
+    for alert in alerts:
+        if alert_predates_resume(alert, resume_time):
+            continue
+        if acks and _auto_watch.covering_ack(alert, acks) is not None:
+            continue
+        live.append(alert)
+    return live
+
+
+def job_launched_since(job_dir: Path, resume_time: datetime) -> bool:
+    """Whether a job dir was launched at/after the resume (mtime probe)."""
+    alerts_path = Path(job_dir) / "watch" / "alerts.jsonl"
+    if alerts_path.is_file():
+        try:
+            return alerts_path.stat().st_mtime >= resume_time.timestamp()
+        except OSError:
+            return False
+    try:
+        return Path(job_dir).stat().st_mtime >= resume_time.timestamp()
+    except OSError:
+        return False
+
+
+def scan_spike_alerts(
+    runs_roots: Iterable[Path | str],
+    *,
+    resume_time: datetime | None = None,
+    running_dirs: Iterable[Path | str] = (),
+) -> list[dict[str, Any]]:
+    """Fence-live spike alerts under ``<runs>/<job>/watch/alerts.jsonl``.
+
+    Scoped to the current batch (HAR-174): with no recorded resume every
+    alert fences as before; after a resume only alerts from running jobs
+    or jobs launched since that resume are read, and acknowledged or
+    provably pre-resume rows never fence.
+    """
+    running = {str(Path(item)) for item in running_dirs}
+    running_names = {Path(item).name for item in running_dirs}
     found: list[dict[str, Any]] = []
     for raw_root in runs_roots:
         root = Path(raw_root)
@@ -377,6 +450,13 @@ def scan_spike_alerts(runs_roots: Iterable[Path | str]) -> list[dict[str, Any]]:
         for child in children:
             if not child.is_dir():
                 continue
-            for row in read_spike_alerts(child):
+            if (
+                resume_time is not None
+                and str(child) not in running
+                and child.name not in running_names
+                and not job_launched_since(child, resume_time)
+            ):
+                continue
+            for row in read_unacked_spike_alerts(child, resume_time=resume_time):
                 found.append({"job_dir": str(child), **row})
     return found

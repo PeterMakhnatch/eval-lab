@@ -569,7 +569,10 @@ def _watch_job_lines(report: dict[str, Any]) -> list[str]:
     from evallab import auto_watch as _auto_watch
 
     watch = report.get("watch") or {}
-    return _auto_watch.format_watch_lines(watch.get("alerts") or [])
+    alerts = _auto_watch.annotate_alerts_with_acks(
+        watch.get("alerts") or [], watch.get("acks") or []
+    )
+    return _auto_watch.format_watch_lines(alerts)
 
 
 def _job_task_identity(job_dir: Path) -> dict[str, Any | None]:
@@ -1035,6 +1038,10 @@ def process_job(
     from evallab import auto_watch as _auto_watch
 
     job_watch_alerts = _auto_watch.read_watch_alerts(job_path)
+    # HAR-174: acks ride along so pages mark covered alerts; absent ack
+    # output keeps every page byte-identical.
+    job_watch_acks = _auto_watch.read_watch_acks(job_path)
+    job_watch_alerts = _auto_watch.annotate_alerts_with_acks(job_watch_alerts, job_watch_acks)
     for trial_path in trials:
         record = _process_trial(trial_path, job_path, nop_runs_dir=nop_runs_dir)
         trial_result = _read_json(trial_path / "result.json") or {}
@@ -1165,6 +1172,7 @@ def process_job(
         "watch": {
             **_auto_watch.summarize_watch_alerts(job_watch_alerts),
             "alerts": job_watch_alerts,
+            "acks": job_watch_acks,
         },
         "summary": {
             "n_trials": len(trial_reports),

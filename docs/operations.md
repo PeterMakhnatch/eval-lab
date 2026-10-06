@@ -70,8 +70,13 @@ uv run evallab reject <spec-id> --actor peter --reason "not this week"
 An approval does not override the hard per-job or daily cost ceiling. Pause new
 dispatch after the current trial with `uv run evallab stop`; re-enable it
 with `uv run evallab resume`. A `proxy_error_spike` or `infra_spike` watch
-alert stops launches the same way (running trials are untouched); the tick
-names the rule and `evallab resume` clears it. A restart reconciles
+alert from the current batch stops launches the same way (running trials are
+untouched); the tick names the rule. Only alerts from running jobs or jobs
+launched since the last resume fence, so a resolved historical spike never
+blocks the next batch after `evallab resume`. A stale spike can also be
+acknowledged durably with `evallab watch ack <job> --alert <kind>
+--actor <you> --reason "<why>"`: acked alerts still render on the job page
+marked `acknowledged by <actor>` but never fence again. A restart reconciles
 `queue/running/` against completed immutable Harbor jobs before starting new
 work. Self-hosted-model specs probe the upstream first: a cold endpoint waits
 up to `--selfhosted-warmup-seconds` (default 600) for a 200 and otherwise

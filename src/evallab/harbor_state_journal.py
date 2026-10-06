@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -113,6 +114,7 @@ class StateJournalPlugin:
         self.image: str | None = None
         self.image_error: str | None = None
         self.monitors: dict[str, Monitor] = {}
+        self.observer_enabled = os.environ.get("EVALLAB_STATE_JOURNAL") != "off"
         # HAR-165: single CLI plugin constraint keeps Harbor's --plugin list at
         # one entry. Laminar lifecycle rides along here without touching the
         # Docker observer below.
@@ -125,10 +127,13 @@ class StateJournalPlugin:
             self._laminar = None
 
     async def on_job_start(self, job: Any) -> None:
-        try:
-            self.image = await self._ensure_image()
-        except Exception as exc:  # fail-open observability must never fail a trial
-            self.image_error = f"{type(exc).__name__}: {exc}"
+        if self.observer_enabled:
+            try:
+                self.image = await self._ensure_image()
+            except Exception as exc:  # fail-open observability must never fail a trial
+                self.image_error = f"{type(exc).__name__}: {exc}"
+        else:
+            self.image_error = "disabled by EVALLAB_STATE_JOURNAL=off"
         job.on_agent_started(self._on_agent_started)
         job.on_agent_ended(self._on_agent_ended)
         job.on_trial_ended(self._on_trial_ended)

@@ -84,6 +84,9 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "AGY_AUTH_JSON_PATH",
         "AGY_FORCE_AUTH_JSON",
         "EVALLAB_PROXY_LIVE_DIR",
+        "EVALLAB_FILE_ACCESS",
+        "EVALLAB_FILE_ACCESS_PATHS",
+        "EVALLAB_STATE_JOURNAL",
         "CLAUDE_FORCE_OAUTH",
         "CODEX_HOME",
         "CODEX_FORCE_AUTH_JSON",
@@ -906,6 +909,7 @@ DEEPSEEK_SECRET_COMPOSE = Path("containers/deepseek-v4-flash-secret.compose.yaml
 
 HARBOR_STATE_JOURNAL_PLUGIN = "evallab.harbor_state_journal:StateJournalPlugin"
 HARBOR_WATCH_HOOKS_PLUGIN = "evallab.harbor_watch_hooks:WatchHookPlugin"
+HARBOR_FILE_ACCESS_PLUGIN = "evallab.harbor_file_access:FileAccessPlugin"
 
 _CROCKFORD = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
 
@@ -1962,6 +1966,7 @@ def build_command(
         command.extend(["--environment-kwarg", "egress_lock=true"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     command.extend(["--plugin", HARBOR_WATCH_HOOKS_PLUGIN])
+    command.extend(["--plugin", HARBOR_FILE_ACCESS_PLUGIN])
     if request.verifier_repeat_n is not None:
         command.extend(
             [

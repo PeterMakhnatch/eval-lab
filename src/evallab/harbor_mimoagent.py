@@ -17,6 +17,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from harbor.agents.base import BaseAgent  # ty: ignore[unresolved-import]
+from harbor.agents.capabilities import AgentCapabilities  # ty: ignore[unresolved-import]
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
 from harbor.models.agent.context import AgentContext  # ty: ignore[unresolved-import]
 from harbor.models.trajectories.trajectory import Trajectory  # ty: ignore[unresolved-import]
@@ -187,7 +188,7 @@ class _TrajectoryPublisher:
 
 
 class NativeMimoAgent(BaseAgent):
-    SUPPORTS_ATIF = True
+    capabilities = AgentCapabilities(atif=True)
 
     def __init__(self, logs_dir: Path, model_name: str | None = None, **kwargs: Any):
         super().__init__(logs_dir=logs_dir, model_name=model_name, **kwargs)

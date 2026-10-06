@@ -94,6 +94,24 @@ Standalone SDK CI installs its actual OpenAI client explicitly, without
 depending on the optional Harbor runtime being installed.
 See [live Laminar observability](observability.md#live-laminar-tracing-for-native-mimo-har-165).
 
+**2026-10-06 Harbor v0.24 SDK integration (HAR-168):** Native SDK admission
+uses Harbor's actual agent factory, including canonical class-name configs
+with null import paths and built-in agent priority. Public job lifecycle hooks
+replace redundant phase wrappers; unavailable completions retain narrow,
+fail-open observers. Actual local SDK/runtime fixtures exercise automatic LLM
+spans, all five native tools and nested agents under one trial trace, alongside
+failure/cancellation and model-content/accounting parity. This corrects the
+original three-trial SDK absence; it does not retroactively qualify them or
+prove private Cloud ingestion. New paid specs and live SDK qualification
+remain separately gated; no original spend or approval is reset.
+Native completed-step markers also publish frozen parent/child ATIF-v1.8
+prefixes through a dedicated FIFO atomic writer without changing native
+queries, tools, step-limit decisions or usage accounting. Finalization closes
+prefix admission before draining the authoritative final snapshot; publication
+faults retain the last valid file and physical cleanup joins the writer.
+No hard filesystem or backlog latency bound is claimed.
+
+
 The usable analysis corpus is the `status = 'featured'` slice, not the full
 feature table. Do not add a feature without a named consumer and a
 denominator. Do not report rates over rows with `status != 'featured'`.

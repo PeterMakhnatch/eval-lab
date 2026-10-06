@@ -362,6 +362,35 @@ def test_redaction_failure_preserves_last_valid_trajectory(tmp_path, monkeypatch
     assert not (tmp_path / ".trajectory.json.tmp").exists()
 
 
+@pytest.mark.parametrize("suffix", ["", '\n{"token": "legitimate /testbed content"}'])
+def test_bearer_redaction_keeps_latest_trajectory_json_intact(tmp_path, suffix):
+    pytest.importorskip("harbor.models.agent.context")
+    from harbor.models.trajectories.trajectory import Trajectory
+
+    import evallab.harbor_mimoagent as module
+    from evallab.execution_contracts import (
+        MIMO_SELFHOSTED_MODEL_SELECTOR,
+        REDACTED_SECRET_VALUE,
+    )
+
+    agent = module.NativeMimoAgent(logs_dir=tmp_path, model_name=MIMO_SELFHOSTED_MODEL_SELECTOR)
+    agent._native["trajs"]["main"] = {
+        "messages": [{"role": "user", "content": "unchanged /testbed content"}], "tools": [],
+    }
+    agent._publish(*agent._snapshot())
+    agent._native["trajs"]["main"]["messages"].append({
+        "role": "assistant",
+        "content": f"Authorization: Bearer final-only-token{suffix}",
+    })
+    agent._publish(*agent._snapshot())
+
+    data = (tmp_path / "trajectory.json").read_bytes()
+    final = Trajectory.model_validate_json(data)
+    assert final.steps[-1].message == f"Authorization: Bearer {REDACTED_SECRET_VALUE}{suffix}"
+    assert b"final-only-token" not in data
+    assert not (tmp_path / ".trajectory.json.tmp").exists()
+
+
 @pytest.mark.parametrize("fail_write", [False, True])
 def test_partial_temporary_write_never_exposes_torn_trajectory(tmp_path, monkeypatch, fail_write):
     pytest.importorskip("harbor.models.agent.context")

@@ -141,6 +141,7 @@ StopReason = Literal[
     "trial_budget_exhausted",
     "loop_break",
     "harness_step_limit",
+    "context_exhausted",
     "error",
     "unknown",
 ]
@@ -151,11 +152,14 @@ StopReason = Literal[
 CEILING_STOP_PREFIX = "ceiling:"
 #: Whose limit (if any) stopped the trial. ``our_limit`` is a lab-imposed
 #: budget or loop stop; ``harness_step_limit`` is the agent harness's own
-#: step cap; ``task_timeout`` is Harbor's outer wall timeout (recorded as
-#: ``agent_timeout``); ``model_end`` is the model finishing on its own.
+#: step cap; ``context_exhausted`` is the agent harness's own served context
+#: filling (agent-side: not a lab ceiling, not infra); ``task_timeout`` is
+#: Harbor's outer wall timeout (recorded as ``agent_timeout``); ``model_end``
+#: is the model finishing on its own.
 StopCategory = Literal[
     "our_limit",
     "harness_step_limit",
+    "context_exhausted",
     "task_timeout",
     "model_end",
     "error",
@@ -1051,15 +1055,22 @@ def classify_stop_reason(
     Xiaomi's pinned ``BaseAgent`` returns ``Idle`` when the model issues no
     tool call and ``LimitsExceeded`` at its step cap (or for an empty model
     response, identified by ``native_exit_result``). Structured infrastructure
-    stops retain ``infra_error``; other native failures remain errors, and a
-    binding trial-budget ceiling reads ``ceiling:<dimension>``.
+    stops retain ``infra_error``; a served-context refusal ends as
+    ``ContextExhausted``/``context_exhausted`` (final state graded, never
+    infra); other native failures remain errors, and a binding trial-budget
+    ceiling reads ``ceiling:<dimension>``.
     """
     metadata = agent_metadata if isinstance(agent_metadata, Mapping) else {}
     recorded = metadata.get("stop_reason")
     if isinstance(recorded, str) and (
-        recorded in (
-            "trial_budget_exhausted", "loop_break", "harness_step_limit",
-            "agent_timeout", "infra_error",
+        recorded
+        in (
+            "trial_budget_exhausted",
+            "loop_break",
+            "harness_step_limit",
+            "agent_timeout",
+            "infra_error",
+            "context_exhausted",
         )
         or recorded.startswith(CEILING_STOP_PREFIX)
     ):
@@ -1084,6 +1095,8 @@ def classify_stop_reason(
         if metadata.get("native_exit_result") == "Empty assistant response":
             return "error", "native exit_status LimitsExceeded: empty assistant response"
         return "harness_step_limit", "native exit_status LimitsExceeded (native step cap)"
+    if native_exit_status == "ContextExhausted":
+        return "context_exhausted", "native exit_status ContextExhausted (served context filled)"
     if native_exit_status in ("ModelQueryError", "InfraError"):
         return "error", f"native exit_status {native_exit_status} with no recorded exception"
     if last_prose_completion:
@@ -1102,7 +1115,9 @@ def stop_category(reason: str | None) -> StopCategory:
 
     ``trial_budget_exhausted``, ``loop_break`` and any ``ceiling:<dimension>``
     reason are ``our_limit``; ``harness_step_limit`` is the agent harness's
-    own step cap; ``agent_timeout`` is Harbor's outer wall timeout
+    own step cap; ``context_exhausted`` is the agent harness's own served
+    context filling (agent-side, never a lab ceiling or infra);
+    ``agent_timeout`` is Harbor's outer wall timeout
     (``task_timeout``); ``task_complete``/``prose_completion`` are the model
     finishing on its own (``model_end``). Anything else — including
     ``error`` and unrecognized labels — reads ``error``, except a missing or
@@ -1120,6 +1135,8 @@ def stop_category(reason: str | None) -> StopCategory:
         return "our_limit"
     if reason == "harness_step_limit":
         return "harness_step_limit"
+    if reason == "context_exhausted":
+        return "context_exhausted"
     if reason == "agent_timeout":
         return "task_timeout"
     if reason in ("task_complete", "task_complete_confirmed", "prose_completion"):

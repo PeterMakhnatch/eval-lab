@@ -396,6 +396,13 @@ def test_scored_timeout_stops_as_timeout_not_infra() -> None:
             {"exception_type": "RuntimeError"},
             "infra_error",
         ),
+        ({"stop_reason": "context_exhausted"}, {}, "context_exhausted"),
+        ({"native_exit_status": "ContextExhausted"}, {}, "context_exhausted"),
+        (
+            {"native_exit_status": "ContextExhausted", "stop_reason": "context_exhausted"},
+            {"exception_type": "RuntimeError"},
+            "context_exhausted",
+        ),
     ],
 )
 def test_recorded_stops_take_precedence_over_completion(metadata, exception, expected) -> None:
@@ -412,6 +419,7 @@ def test_recorded_stops_take_precedence_over_completion(metadata, exception, exp
         ("loop_break", "our_limit"),
         ("ceiling:output_tokens", "our_limit"),
         ("harness_step_limit", "harness_step_limit"),
+        ("context_exhausted", "context_exhausted"),
         ("agent_timeout", "task_timeout"),
         ("task_complete", "model_end"),
         ("task_complete_confirmed", "model_end"),

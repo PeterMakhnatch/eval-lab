@@ -23,9 +23,11 @@ from harbor.models.agent.context import AgentContext  # ty: ignore[unresolved-im
 from harbor.models.trajectories.trajectory import Trajectory  # ty: ignore[unresolved-import]
 
 from evallab.execution_contracts import (
+    MIMO_SELFHOSTED_CONTEXT_TOKENS,
     MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV,
     TERMINUS_PROXY_URL_ENV,
     collected_secret_values,
+    is_mimo_selfhosted_model,
     parse_mimo_selfhosted_model,
     redact_secret_material,
 )
@@ -285,6 +287,8 @@ class NativeMimoAgent(BaseAgent):
             context.metadata["stop_reason"] = self._native["info"]["stop_reason"]
         if isinstance(self._native["info"].get("infra_error"), dict):
             context.metadata["infra_error"] = self._native["info"]["infra_error"]
+        if isinstance(self._native["info"].get("context_exhaustion"), dict):
+            context.metadata["context_exhaustion"] = self._native["info"]["context_exhaustion"]
 
     async def run(
         self, instruction: str, environment: BaseEnvironment, context: AgentContext
@@ -344,6 +348,12 @@ class NativeMimoAgent(BaseAgent):
             "native_logs_dir": str(native_logs),
             "native_trajectory_path": str(native_logs / "native-trajectory.json"),
         }
+        if is_mimo_selfhosted_model(self.model_name):
+            # Served window for the worker's 400 corroboration only: the
+            # worker never ends a rollout on this number, and it is never
+            # rendered into prompts or messages.
+            initial["served_context_tokens"] = MIMO_SELFHOSTED_CONTEXT_TOKENS
+
         if tracing is not None:
             initial["tracing"] = tracing
         worker_env = {
@@ -521,6 +531,10 @@ class NativeMimoAgent(BaseAgent):
                     raise RuntimeError(
                         f"native Xiaomi worker exited without completion (exit {process.returncode}); see worker-stderr.txt"
                     )
+                # True infrastructure stops still fail the trial (the verifier
+                # cannot grade an unstarted run). ContextExhausted is not one:
+                # the rollout ended and the final sandbox state stands, so
+                # the agent phase completes and Harbor runs the verifier.
                 if self._native["info"].get("exit_status") in {"InfraError", "ModelQueryError"}:
                     raise RuntimeError(
                         f"native Xiaomi agent stopped on {self._native['info']['exit_status']}"

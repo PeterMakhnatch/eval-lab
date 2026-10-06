@@ -1,0 +1,81 @@
+diff --git a/responses/__init__.py b/responses/__init__.py
+index 460d24e..1bec259 100644
+--- a/responses/__init__.py
++++ b/responses/__init__.py
+@@ -132,7 +132,10 @@ def _clean_unicode(url: str) -> str:
+ 
+ 
+ def get_wrapped(
+-    func: Callable[..., Any], responses: "RequestsMock", registry: Optional[Any] = None
++    func: Callable[..., Any],
++    responses: "RequestsMock",
++    registry: Optional[Any] = None,
++    assert_all_requests_are_fired: Optional[bool] = None,
+ ) -> Callable[..., Any]:
+     """Wrap provided function inside ``responses`` context manager.
+ 
+@@ -161,15 +164,31 @@ def get_wrapped(
+         # set asynchronous wrapper if requestor function is asynchronous
+         @wraps(func)
+         async def wrapper(*args, **kwargs):
+-            with responses:
+-                return await func(*args, **kwargs)
++            original = responses.assert_all_requests_are_fired
++            if assert_all_requests_are_fired is not None:
++                responses.assert_all_requests_are_fired = (
++                    assert_all_requests_are_fired
++                )
++            try:
++                with responses:
++                    return await func(*args, **kwargs)
++            finally:
++                responses.assert_all_requests_are_fired = original
+ 
+     else:
+ 
+         @wraps(func)
+         def wrapper(*args, **kwargs):
+-            with responses:
+-                return func(*args, **kwargs)
++            original = responses.assert_all_requests_are_fired
++            if assert_all_requests_are_fired is not None:
++                responses.assert_all_requests_are_fired = (
++                    assert_all_requests_are_fired
++                )
++            try:
++                with responses:
++                    return func(*args, **kwargs)
++            finally:
++                responses.assert_all_requests_are_fired = original
+ 
+     return wrapper
+ 
+@@ -790,12 +809,14 @@ class RequestsMock(object):
+         self.reset()
+         return success
+ 
+-    def activate(self, func=None, registry=None):
++    def activate(self, func=None, registry=None, assert_all_requests_are_fired=None):
+         if func is not None:
+             return get_wrapped(func, self)
+ 
+         def deco_activate(function):
+-            return get_wrapped(function, self, registry)
++            return get_wrapped(
++                function, self, registry, assert_all_requests_are_fired
++            )
+ 
+         return deco_activate
+ 
+diff --git a/synth_mod.py b/synth_mod.py
+new file mode 100644
+index 0000000..15dfffa
+--- /dev/null
++++ b/synth_mod.py
+@@ -0,0 +1,6 @@
++def fixed_function_correct_implementation(argument_one):
++    intermediate_value = compute_value_with_long_name_one(argument_one)
++    checked_result = validate_intermediate_value_number_two(intermediate_value)
++    final_outcome = combine_checked_results_into_output(checked_result)
++    serialized_payload = render_outcome_as_json_document(final_outcome)
++    return send_payload_to_response_handler(serialized_payload)

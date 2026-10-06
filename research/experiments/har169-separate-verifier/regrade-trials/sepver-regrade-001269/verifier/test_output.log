@@ -1,0 +1,24 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.18, pytest-7.1.1, pluggy-1.0.0 -- /usr/local/bin/python3
+cachedir: .pytest_cache
+rootdir: /testbed, configfile: setup.cfg
+plugins: asyncio-0.18.3, localserver-0.5.1.post0, cov-3.0.0
+asyncio: mode=legacy
+collecting ... collected 143 items / 135 deselected / 8 selected
+
+responses/tests/test_responses.py::test_activate_strict_unfired_raises PASSED [ 12%]
+responses/tests/test_responses.py::test_activate_strict_all_fired_passes PASSED [ 25%]
+responses/tests/test_responses.py::test_activate_default_does_not_raise_on_unfired PASSED [ 37%]
+responses/tests/test_responses.py::test_activate_explicit_false_does_not_raise PASSED [ 50%]
+responses/tests/test_responses.py::test_activate_strict_does_not_leak_state PASSED [ 62%]
+responses/tests/test_responses.py::test_activate_strict_leak_blocks_subsequent_bare_activate PASSED [ 75%]
+responses/tests/test_responses.py::test_activate_strict_with_registry PASSED [ 87%]
+responses/tests/test_responses.py::test_activate_strict_with_registry_unfired_raises PASSED [100%]
+
+=============================== warnings summary ===============================
+../usr/local/lib/python3.10/site-packages/pytest_asyncio/plugin.py:191
+  /usr/local/lib/python3.10/site-packages/pytest_asyncio/plugin.py:191: DeprecationWarning: The 'asyncio_mode' default value will change to 'strict' in future, please explicitly use 'asyncio_mode=strict' or 'asyncio_mode=auto' in pytest configuration file.
+    config.issue_config_time_warning(LEGACY_MODE, stacklevel=2)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+================= 8 passed, 135 deselected, 1 warning in 0.15s =================

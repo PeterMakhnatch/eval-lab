@@ -1,0 +1,3 @@
+# Integrity dimension: every rule must pass (all-pass over the four criteria).
+[[reward]]
+aggregation = "all-pass"

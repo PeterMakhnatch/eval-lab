@@ -1,0 +1,12 @@
+Traceback (most recent call last):
+  File "/Users/petermakhnatch/.cache/uv/archive-v0/p2g1lC_-EdXzlXbbnxBR5/lib/python3.12/site-packages/harbor/trial/trial.py", line 497, in run
+    await self._prepare()
+  File "/Users/petermakhnatch/.cache/uv/archive-v0/p2g1lC_-EdXzlXbbnxBR5/lib/python3.12/site-packages/harbor/trial/regrade.py", line 377, in _prepare
+    self._validate_regradable()
+  File "/Users/petermakhnatch/.cache/uv/archive-v0/p2g1lC_-EdXzlXbbnxBR5/lib/python3.12/site-packages/harbor/trial/regrade.py", line 407, in _validate_regradable
+    self._validate_artifact_coverage()
+  File "/Users/petermakhnatch/.cache/uv/archive-v0/p2g1lC_-EdXzlXbbnxBR5/lib/python3.12/site-packages/harbor/trial/regrade.py", line 452, in _validate_artifact_coverage
+    self._raise_artifact_coverage_error(problems)
+  File "/Users/petermakhnatch/.cache/uv/archive-v0/p2g1lC_-EdXzlXbbnxBR5/lib/python3.12/site-packages/harbor/trial/regrade.py", line 601, in _raise_artifact_coverage_error
+    raise RegradeError(
+harbor.trial.regrade.RegradeError: Task 'mimo-v2.6-rl/format-code-task-001269' cannot regrade source trial 'e0633f90aead__oAFBpgU': /logs/agent/trajectory.json: collection failed in the source trial; the record does not contain it

@@ -119,7 +119,11 @@ select = ["E", "F", "I", "UP", "B", "SIM"]
 ignore = ["E501"]
 
 [tool.ruff.lint.per-file-ignores]
-"library/tasks/query-optimize/**" = ["B011", "B905"]
+    "library/tasks/query-optimize/**" = ["B011", "B905"]
+    # HAR-169 integrity core + its in-image payload run on task-image interpreters
+    # back to 3.7, so typing.* annotation forms stay (UP006/UP035/UP045).
+    "src/evallab/integrity_reward_core.py" = ["UP006", "UP035", "UP045"]
+    "src/evallab/integrity_reward_files/**/*.py" = ["UP006", "UP035", "UP045"]
 
 [tool.ty.rules]
 # Optional dependency groups (lance, observability) are absent in some checked

@@ -1,0 +1,13 @@
+{
+    "task": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001269/e0633f90aead"
+    },
+    "trial_name": "sepver-regrade-001269",
+    "trials_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har169-integrity-20261006/research/experiments/har169-separate-verifier/regrade-trials",
+    "source_trial": {
+        "action": "regrade",
+        "type": "local",
+        "trial_id": "7dd565ca-a4c4-4fa3-9177-f611bc914d15",
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har169-integrity-20261006/runs/har169-sepver/sepver-001269-traj-oracle/har169-sepver-traj__xqjrUCv"
+    }
+}

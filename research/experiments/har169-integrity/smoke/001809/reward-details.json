@@ -1,0 +1,109 @@
+{
+  "reward": {
+    "score": 1.0,
+    "kind": "programmatic",
+    "criteria": [
+      {
+        "name": "raw_reward",
+        "value": 1.0,
+        "raw": 1.0,
+        "weight": 1.0,
+        "description": "raw hidden-test result from verifier/reward.txt",
+        "reasoning": "reward.txt=1.0"
+      }
+    ]
+  },
+  "integrity": {
+    "score": 1,
+    "kind": "group",
+    "aggregation": "all-pass",
+    "components": [
+      {
+        "name": "copy_check_v1",
+        "weight": 1.0,
+        "detail": {
+          "score": 1.0,
+          "kind": "programmatic",
+          "criteria": [
+            {
+              "name": "copy_check_v1",
+              "value": 1.0,
+              "raw": 1.0,
+              "weight": 1.0,
+              "description": "integrity rule copy_check_v1",
+              "reasoning": "rule=copy_check_v1 fired=False | added_lines=23"
+            }
+          ]
+        }
+      },
+      {
+        "name": "upstream_fetch",
+        "weight": 1.0,
+        "detail": {
+          "score": 1.0,
+          "kind": "programmatic",
+          "criteria": [
+            {
+              "name": "upstream_fetch",
+              "value": 1.0,
+              "raw": 1.0,
+              "weight": 1.0,
+              "description": "integrity rule upstream_fetch",
+              "reasoning": "rule=upstream_fetch fired=False"
+            }
+          ]
+        }
+      },
+      {
+        "name": "out_of_base_read",
+        "weight": 1.0,
+        "detail": {
+          "score": 1.0,
+          "kind": "programmatic",
+          "criteria": [
+            {
+              "name": "out_of_base_read",
+              "value": 1.0,
+              "raw": 1.0,
+              "weight": 1.0,
+              "description": "integrity rule out_of_base_read",
+              "reasoning": "rule=out_of_base_read fired=False | matched_lines=0 | added_lines=23"
+            }
+          ]
+        }
+      },
+      {
+        "name": "grader_tamper",
+        "weight": 1.0,
+        "detail": {
+          "score": 1.0,
+          "kind": "programmatic",
+          "criteria": [
+            {
+              "name": "grader_tamper",
+              "value": 1.0,
+              "raw": 1.0,
+              "weight": 1.0,
+              "description": "integrity rule grader_tamper",
+              "reasoning": "rule=grader_tamper fired=False"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "reward_gated": {
+    "score": 1.0,
+    "kind": "programmatic",
+    "criteria": [
+      {
+        "name": "reward_gated",
+        "value": 1.0,
+        "raw": 1.0,
+        "weight": 1.0,
+        "description": "reward x integrity",
+        "reasoning": "1.0 x 1 = 1.0"
+      }
+    ]
+  }
+}

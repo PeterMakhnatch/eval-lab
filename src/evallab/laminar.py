@@ -157,6 +157,7 @@ def _span(
     attributes: dict[str, Any],
     *,
     events: list[dict[str, Any]] | None = None,
+    error: str | None = None,
 ) -> dict[str, Any]:
     return {
         "trace_id": trace_id,
@@ -167,6 +168,7 @@ def _span(
         "end_ns": max(end_ns, start_ns),
         "attributes": {k: v for k, v in attributes.items() if v is not None},
         "events": events or [],
+        "error": error,
     }
 
 
@@ -305,6 +307,32 @@ def root_span(
     )
 
 
+def exception_span(
+    trial_name: str, result: dict[str, Any], *, clean: Callable[[Any], str], fallback_ns: int
+) -> dict[str, Any] | None:
+    """A ``harbor.exception`` span (status ERROR) when Harbor recorded how the trial died.
+
+    Infra failures (lost sandbox, endpoint 503) end the transcript mid-work; without this
+    span the projected trace shows no failure at all, and Signals cannot see it.
+    """
+    info = result.get("exception_info")
+    if not isinstance(info, dict) or not info.get("exception_type"):
+        return None
+    trace_id = trial_trace_id(trial_name)
+    at = _ns(result.get("finished_at")) or fallback_ns
+    text = f"{info['exception_type']}: {info.get('exception_message') or ''}".strip()
+    return _span(
+        trace_id,
+        _span_id(trace_id, "exception"),
+        _span_id(trace_id, "root"),
+        "harbor.exception",
+        at,
+        at,
+        {"lmnr.span.type": "DEFAULT", "lmnr.span.output": clean(text)},
+        error=clean(text)[:500],
+    )
+
+
 def alert_span(
     alert: dict[str, Any],
     now_ns: int,
@@ -385,7 +413,9 @@ def encode_spans(spans: list[dict[str, Any]]) -> bytes:
                 )
                 for event in span["events"]
             ],
-            status=Status(code=Status.StatusCode.STATUS_CODE_OK),
+            status=Status(code=Status.StatusCode.STATUS_CODE_ERROR, message=span["error"])
+            if span.get("error")
+            else Status(code=Status.StatusCode.STATUS_CODE_OK),
         )
         for span in spans
     ]
@@ -466,18 +496,20 @@ class LaminarExporter:
                 result = json.loads((trial_dir / TRIAL_RESULT).read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 result = {}
-            self._queue(
-                [
-                    root_span(
-                        job_dir.name,
-                        trial_dir.name,
-                        steps,
-                        result if isinstance(result, dict) else {},
-                        clean=self._clean,
-                        fallback_ns=now_ns,
-                    )
-                ]
-            )
+            result = result if isinstance(result, dict) else {}
+            spans = [
+                root_span(
+                    job_dir.name,
+                    trial_dir.name,
+                    steps,
+                    result,
+                    clean=self._clean,
+                    fallback_ns=now_ns,
+                ),
+                exception_span(trial_dir.name, result, clean=self._clean, fallback_ns=now_ns),
+            ]
+            # The exception span goes first so the trace is complete when the root ends.
+            self._queue([span for span in reversed(spans) if span is not None])
         return laminar_trace_uuid(trial_dir.name)
 
     def sync_alerts(self, alerts: Iterable[dict[str, Any]]) -> None:

@@ -42,6 +42,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from evallab.harbor_watch_hooks import HOOK_JOURNAL, read_hook_journal
+
 if TYPE_CHECKING:
     from evallab.laminar import LaminarExporter
 
@@ -169,15 +171,21 @@ def _stamp(path: Path) -> FileStamp:
     return (str(path), stat.st_mtime_ns, stat.st_size)
 
 
-def _trial_inputs(job_dir: Path, trial_dir: Path) -> tuple[FileStamp, ...]:
-    """Stamp every file whose change can alter the trial's signals."""
+def _trial_inputs(
+    job_dir: Path, trial_dir: Path, hooks: dict[str, Any] | None = None
+) -> tuple[FileStamp, ...]:
+    """Stamp every input whose change can alter the trial's signals (files and hook state)."""
     traj_path = _trajectory_path(trial_dir)
     paths = [trial_dir / TRIAL_TRAJECTORY if traj_path is None else traj_path, trial_dir / TRIAL_RESULT]
     for live_dir in dict.fromkeys(
         (trial_dir / "proxy-live", job_dir / "proxy-live", trial_dir.parent / "proxy-live")
     ):
         paths.extend((live_dir / "limits.json", live_dir / "calls.jsonl"))
-    return tuple(_stamp(path) for path in paths)
+    stamps = tuple(_stamp(path) for path in paths)
+    if hooks is None:
+        return stamps
+    hook_mark = len(hooks["events"]) + sum(int(log.get("chunks") or 0) for log in hooks["logs"].values())
+    return (*stamps, ("hooks", hook_mark, int(hooks["last_at"] * 1000)))
 
 
 def discover_trials(runs_dirs: list[Path]) -> list[tuple[Path, Path]]:
@@ -189,6 +197,8 @@ def discover_trials(runs_dirs: list[Path]) -> list[tuple[Path, Path]]:
     """
 
     def is_job_dir(path: Path) -> bool:
+        if (path / HOOK_JOURNAL).is_file():
+            return True
         try:
             children = [child for child in path.iterdir() if child.is_dir()]
         except OSError:
@@ -201,10 +211,12 @@ def discover_trials(runs_dirs: list[Path]) -> list[tuple[Path, Path]]:
             children = sorted(job_dir.iterdir())
         except OSError:
             return out
+        # Harbor hooks announce a trial at START, before any trajectory exists.
+        hooked = read_hook_journal(job_dir)
         for child in children:
             if not child.is_dir() or "__" not in child.name:
                 continue
-            if _trajectory_path(child) is None:
+            if _trajectory_path(child) is None and child.name not in hooked:
                 continue
             out.append((job_dir, child))
         return out
@@ -837,8 +849,13 @@ def trial_signals(
     thresholds: WatchThresholds,
     from_config: bool,
     now: float,
+    hooks: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Compute the live signal record for one trial directory (read-only)."""
+    """Compute the live signal record for one trial directory (read-only).
+
+    ``hooks`` is the trial's Harbor hook state (:func:`read_hook_journal`) when the
+    job ran with the watch hook plugin; files remain the source otherwise.
+    """
     steps, traj_path = _read_steps(trial_dir)
     agent_steps = _agent_steps(steps)
     prompt_tokens, completion_tokens = _token_sums(agent_steps)
@@ -846,9 +863,11 @@ def trial_signals(
         trial_dir, job_dir, from_config=from_config, defaults=thresholds
     )
     result = _read_json(trial_dir / TRIAL_RESULT) or {}
-    finished = (trial_dir / TRIAL_RESULT).is_file()
+    finished = (trial_dir / TRIAL_RESULT).is_file() or bool(hooks and hooks["terminal"])
     exception = result.get("exception_info") if isinstance(result, dict) else None
     exc_type = exception.get("exception_type") if isinstance(exception, dict) else None
+    if exc_type is None and hooks:
+        exc_type = hooks["exception_type"]
 
     proxy_live = _read_proxy_live(job_dir, trial_dir)
     live_cost_usd = proxy_live["cost_usd"] if proxy_live else 0.0
@@ -866,7 +885,14 @@ def trial_signals(
             pass
     if proxy_live and proxy_live.get("latest_timestamp") is not None:
         last_activity_time = max(last_activity_time, proxy_live["latest_timestamp"])
+    if hooks:
+        last_activity_time = max(last_activity_time, hooks["last_at"])
     age_minutes = max(0.0, (now - last_activity_time) / 60.0) if last_activity_time > 0 else 0.0
+    latest_log = (
+        max(hooks["logs"].items(), key=lambda item: str(item[1].get("at") or ""))
+        if hooks and hooks["logs"]
+        else None
+    )
 
     total_parse, max_parse_streak, first_parse_quote, first_parse_step, format_warnings = (
         _parse_error_stats(steps)
@@ -901,6 +927,13 @@ def trial_signals(
         "trial": trial_dir.name,
         "task": trial_dir.name.split("__")[0],
         "state": "finished" if finished else "running",
+        "phase": hooks["phase"] if hooks else None,
+        "phase_source": "hooks" if hooks else "files",
+        "log_tail": (
+            {"phase": latest_log[0], "text": str(latest_log[1].get("tail") or "")[-200:]}
+            if latest_log
+            else None
+        ),
         "steps": len(steps),
         "episodes": len(agent_steps),
         "prompt_tokens": prompt_tokens,
@@ -1080,8 +1113,9 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
                 step=None,
                 quote="",
                 detail=(
-                    f"no trajectory update for {status['minutes_since_update']} min "
-                    f"(threshold {thresholds.stalled_minutes})"
+                    f"no activity for {status['minutes_since_update']} min "
+                    f"(threshold {thresholds.stalled_minutes}; "
+                    f"phase {status.get('phase') or 'unknown'})"
                 ),
             )
         )
@@ -1417,9 +1451,9 @@ def _write_board(
         lines.append(f"## {job}")
         lines.append("")
         lines.append(
-            "| trial | state | steps | episodes | tokens % | cost ($) | warnings | updated (min) | open alerts |"
+            "| trial | state | phase | steps | episodes | tokens % | cost ($) | warnings | updated (min) | open alerts |"
         )
-        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
+        lines.append("| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |")
         for status in sorted(by_job[job], key=lambda item: item["trial"]):
             open_rules = ",".join(alert["rule"] for alert in status.get("open_alerts", [])) or "-"
             cost_val = status.get("cost_usd")
@@ -1429,7 +1463,7 @@ def _write_board(
             warn_val = status.get("format_warnings", 0)
             warn_str = str(warn_val) if warn_val else "-"
             lines.append(
-                f"| {status['trial']} | {status['state']} | {status['steps']} | "
+                f"| {status['trial']} | {status['state']} | {status.get('phase') or '-'} | {status['steps']} | "
                 f"{status['episodes']} | {status['input_token_pct']} | {cost_str} | "
                 f"{warn_str} | {status['minutes_since_update']} | {open_rules} |"
             )
@@ -1499,9 +1533,13 @@ def run_watch(
     out_dir.mkdir(parents=True, exist_ok=True)
 
     statuses: list[dict[str, Any]] = []
+    hooks_by_job: dict[Path, dict[str, dict[str, Any]]] = {}
     for job_dir, trial_dir in discover_trials(runs_dirs):
         key = str(trial_dir)
-        inputs = _trial_inputs(job_dir, trial_dir)
+        if job_dir not in hooks_by_job:
+            hooks_by_job[job_dir] = read_hook_journal(job_dir)
+        hooks = hooks_by_job[job_dir].get(trial_dir.name)
+        inputs = _trial_inputs(job_dir, trial_dir, hooks)
         cached = cache.get(key) if cache is not None else None
         if cached is not None and cached.inputs == inputs and cached.status:
             # Same inputs, so the last activity is unchanged; only its age grows.
@@ -1509,15 +1547,15 @@ def run_watch(
             statuses.append({**cached.status, "minutes_since_update": round(max(0.0, aged), 2)})
             continue
         status = trial_signals(
-            job_dir, trial_dir, thresholds=limits, from_config=from_config, now=moment
+            job_dir, trial_dir, thresholds=limits, from_config=from_config, now=moment, hooks=hooks
         )
         statuses.append(status)
         if laminar is not None:
             status["laminar_trace_id"] = laminar.sync_trial(
                 job_dir, trial_dir, finished=status["state"] == "finished"
             )
-        # Without a trajectory there is no activity time to age, so rescan each pass.
-        if cache is not None and inputs[0][1] is not None:
+        # Without a trajectory or hook record there is no activity time to age, so rescan.
+        if cache is not None and (inputs[0][1] is not None or hooks is not None):
             cache[key] = TrialScan(inputs=inputs, scanned_at=moment, status=status)
 
     open_alerts: list[dict[str, Any]] = []

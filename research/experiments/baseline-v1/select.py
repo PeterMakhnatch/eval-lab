@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""Baseline v1 task sample: 50 MiMo Python code tasks (HAR-158).
+"""Baseline v1 task sample: 12 MiMo Python code tasks (HAR-158; Peter 2026-10-02 21:10Z).
 
 Eligible: ledger ``usable`` (``../python-task-ledger/ledger.csv``), sound
 under the egress lock (``../har122-egress-lock/har146-locked-nop.csv``,
 ``locked_nop == sound``), and not one of the 20 G1 held-out tasks
 (``../ovn-sft-v0/eval_tasks.csv``).
 
-* Every eligible task with a clean pass in the HAR-143 relabel
-  (``../har143-copy-check/relabel.csv``, label ``pass``) is in.
-* The rest are never-run tasks (no run in the relabel): known repository
-  only, one per repository, none from a repository already picked. They are
-  stratified by image size: the eligible pool is cut into four equal-count
-  size bands and each band gets an equal share (the remainder goes to the
+* ``CLEAN`` tasks with a clean pass in the HAR-143 relabel
+  (``../har143-copy-check/relabel.csv``, label ``pass``): distinct
+  repositories, taken in sha256(``SEED`` + task) order.
+* ``NEVER_RUN`` tasks with no run in the relabel: known repository only, one
+  per repository, none from a repository already picked. They are stratified
+  by image size: the eligible pool is cut into ``BANDS`` equal-count size
+  bands and each band gets an equal share (the remainder goes to the
   lightest bands). Within a band, repositories are taken in
   sha256(``SEED`` + repository) order and each repository's lightest task is
   used.
@@ -37,8 +38,9 @@ LOCKED = EXP / "har122-egress-lock/har146-locked-nop.csv"
 HELDOUT = EXP / "ovn-sft-v0/eval_tasks.csv"
 RELABEL = EXP / "har143-copy-check/relabel.csv"
 RESULTS = Path.home() / "Developer/eval-lab-results"
-SIZE = 50
-BANDS = 4
+CLEAN = 6
+NEVER_RUN = 6
+BANDS = 3
 SEED = "baseline-v1:1"
 
 
@@ -88,8 +90,16 @@ def main() -> None:
     ran = {name for name, _ in runs}
     clean = sorted({name for name, label in runs if label == "pass"})
     missing = [name for name in clean if name not in eligible]
-    picked = [{**eligible[name], "stratum": "clean_pass"} for name in clean if name in eligible]
-    seen = {repo_key(row["project"]) for row in picked} - {None}
+    picked: list[dict[str, str]] = []
+    seen: set[str | None] = set()
+    for name in sorted((name for name in clean if name in eligible), key=rank):
+        key = repo_key(eligible[name]["project"]) or name
+        if len(picked) == CLEAN or key in seen:
+            continue
+        seen.add(key)
+        picked.append({**eligible[name], "stratum": "clean_pass"})
+    if len(picked) < CLEAN:
+        raise SystemExit(f"only {len(picked)} clean-pass tasks from distinct repositories")
 
     pool = sorted(
         (
@@ -99,7 +109,7 @@ def main() -> None:
         ),
         key=lambda row: (float(row["image_mib"] or "inf"), row["task_id"]),
     )
-    need = SIZE - len(picked)
+    need = NEVER_RUN
     width = -(-len(pool) // BANDS)
     for band in range(BANDS):
         rows = pool[band * width : (band + 1) * width]

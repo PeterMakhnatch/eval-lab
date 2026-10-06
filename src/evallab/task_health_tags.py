@@ -43,6 +43,25 @@ _DIGEST = re.compile(r"sha256:[0-9a-f]{64}\Z")
 _TASK_ID = re.compile(r"format-code-task-[0-9]{6}\Z")
 _OUTCOMES = ("clean_pass", "copied_pass", "fail", "infra")
 _PROBE_VERDICTS = {"cracked", "leak-found-not-cracked", "clean", "unscored"}
+KNOWN_TAGS = frozenset(
+    {
+        "health:sound",
+        "health:cracked",
+        "health:leak-found",
+        "health:repaired",
+        "health:broken-environment",
+        "health:grader-suspect",
+        "health:review",
+        "health:discarded",
+        "health:unchecked",
+        "solve:unknown",
+        "solve:never-run",
+        "solve:unscored",
+        "solve:0-of-n",
+        "solve:always",
+        "solve:mixed",
+    }
+)
 
 
 def _path(root: Path, value: Path) -> Path:
@@ -418,6 +437,7 @@ def generate_health_tags(
         results.append(
             {
                 **assessment,
+                "parent_harbor_digest": record.parent.harbor_digest,
                 "variant_digest": record.variant_digest,
                 "variant_harbor_digest": record.variant_harbor_digest,
                 "record": str(

@@ -19,10 +19,54 @@ with a named `(?P<arm>...)` group, defaulting to G5 `stock|tuned|gepa`
 suffixes) labels each source job's arm; jobs without a hit keep their full
 job name as the arm.
 
-When the installed `harbor` is older than 0.24 (the repo pins 0.21 today),
+The repository pins Harbor 0.24. When a stale environment has an older version,
 the viewer is launched via `uv tool run --from harbor==0.24.0 harbor view …`,
 which resolves from the local uv cache offline once fetched. The 0.21 viewer
 has no `chart-trials`, hence no Outcomes or Pareto; 0.24 is required.
+
+## Filter historical jobs by task health
+
+```bash
+evallab tasks health-tags \
+  --variants-root derived/task-health/variants \
+  --view-root derived/task-health/view \
+  --output derived/task-health/manifest.json
+evallab view ~/Developer/eval-lab-results/2026-10-02/HAR-157-har157-mimo-base-* \
+  --task-health derived/task-health/manifest.json \
+  --tag health:sound --tag solve:never-run
+evallab view ~/Developer/eval-lab-results/2026-10-02/HAR-157-har157-mimo-base-* \
+  --task-health derived/task-health/manifest.json --tag solve:mixed \
+  --merge 'har157-solve-mixed=HAR-157-*' \
+  --arm-regex '(?P<arm>har157-mimo-base)'
+```
+
+This is selection in the existing viewer **launcher**, not a new frontend or
+an unsupported native jobs-mode tag widget. Harbor renders the selected jobs,
+trials, Outcomes and Pareto as usual. Browse task metadata itself with
+`harbor view derived/task-health/view --tasks`.
+
+`--task-health` and `--tag` must be supplied together. Repeated tags are
+**ANDed**. Selection happens **before** mirroring or merging. Jobs without
+selected trials disappear, and config task/model facets and job-result
+aggregates are rebuilt from only the selected trials. Original whole-job
+`analysis.json` is not reused for a smaller cohort. A valid empty selection
+builds an empty report and does not launch a viewer.
+
+The join is by retained **package identity**, never a job/task-name suffix:
+trial config path → matching native trial lock (or a unique task digest in
+the job lock) → manifest parent/variant Harbor digest. When the Lab staging
+sidecar binds that executed digest, its source-package digest identifies
+the original ledger package. A contradictory verified source cannot fall
+back to a favorable native match. A different task in a multi-task job
+cannot inherit the sidecar's labels.
+
+The CLI reports included, tag-mismatch, unbound, digest-mismatch and ambiguous
+counts. `.evallab-view.json` retains the manifest hash and every trial's join
+or exclusion reason. Missing identity is **not** labeled healthy. All
+original config, lock, result, trajectory and provenance bytes stay untouched.
+Task-health labels are the manifest's evidence snapshot; historical
+`solve:*` counts retain their documented clean-pass/fail denominator, not a
+new current-package capability estimate.
 
 ## Reward dims for jobs that lack them
 

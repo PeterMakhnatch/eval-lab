@@ -467,8 +467,10 @@ def overlay_trial(
     return verdict
 
 
-def mirror_job(job_dir: Path, dest: Path) -> dict[str, Any]:
-    """Mirror one job dir with overlays; returns per-job counts."""
+def mirror_job(
+    job_dir: Path, dest: Path, *, trial_dirs: list[Path] | None = None
+) -> dict[str, Any]:
+    """Mirror a job, optionally projecting only the selected real trials."""
     dest.mkdir(parents=True, exist_ok=False)
     counts: dict[str, Any] = {
         "source": str(job_dir),
@@ -481,11 +483,15 @@ def mirror_job(job_dir: Path, dest: Path) -> dict[str, Any]:
         "integrity_0": [],
         "rules_fired": {},
     }
-    trial_dirs = _iter_trial_dirs(job_dir)
+    filtered = trial_dirs is not None
+    if trial_dirs is None:
+        trial_dirs = _iter_trial_dirs(job_dir)
     overlay_names = _plan_overlays(trial_dirs)
     for child in sorted(job_dir.iterdir(), key=lambda p: p.name):
         if child.is_dir() and (child / "result.json").is_file():
             continue  # trial dir; handled below
+        if filtered and child.name in ("config.json", "result.json", "analysis.json"):
+            continue  # source aggregates describe the full cohort, not this selection
         _link(child, dest / child.name)
     for trial_dir in trial_dirs:
         counts["trials"] += 1
@@ -513,6 +519,22 @@ def mirror_job(job_dir: Path, dest: Path) -> dict[str, Any]:
         if verdict["integrity"] == 0:
             counts["integrity_0"].append(trial_dir.name)
     counts["integrity_0"].sort()
+    if filtered:
+        config = _read_json(job_dir / "config.json") or {}
+        _restrict_config(config, trial_dirs)
+        (dest / "config.json").write_text(
+            json.dumps(config, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        trial_docs = [
+            (trial.name, doc)
+            for trial in trial_dirs
+            if (doc := _read_json(dest / trial.name / "result.json")) is not None
+        ]
+        (dest / "result.json").write_text(
+            json.dumps(build_merged_result(dest.name, trial_docs), indent=2, sort_keys=True)
+            + "\n",
+            encoding="utf-8",
+        )
     return counts
 
 
@@ -610,6 +632,22 @@ def build_merged_config(jobs: list[Path], name: str) -> dict[str, Any]:
         if pooled:
             merged[key] = _union_by_dump(pooled)
     return merged
+
+
+def _restrict_config(config: dict[str, Any], trials: list[Path]) -> None:
+    """Keep job-list task/model facets on the same selected population."""
+    configs = []
+    for trial in trials:
+        trial_config = _read_json(trial / "config.json") or {}
+        result_config = (_read_json(trial / "result.json") or {}).get("config")
+        if isinstance(result_config, dict):
+            trial_config = {**result_config, **trial_config}
+        configs.append(trial_config)
+    config["datasets"] = []
+    for plural, singular in (("tasks", "task"), ("agents", "agent")):
+        config[plural] = _union_by_dump(
+            [cfg[singular] for cfg in configs if isinstance(cfg.get(singular), dict)]
+        )
 
 
 def _trial_stat_parts(doc: dict[str, Any]) -> tuple[str, str | None, str]:
@@ -786,6 +824,7 @@ def build_merged_job(
     jobs: list[Path],
     *,
     arm_pattern: re.Pattern[str],
+    selected_trials: dict[Path, list[Path]] | None = None,
 ) -> dict[str, Any]:
     """Fold many source jobs into one viewer job; returns per-job counts."""
     dest.mkdir(parents=True, exist_ok=False)
@@ -805,7 +844,8 @@ def build_merged_job(
     taken: set[str] = set()
     for job in sorted(jobs, key=str):
         arm = derive_arm(job.name, arm_pattern)
-        for trial_dir in _iter_trial_dirs(job):
+        trials = selected_trials[job] if selected_trials is not None else _iter_trial_dirs(job)
+        for trial_dir in trials:
             trial_name = trial_dir.name
             if trial_name in taken:
                 trial_name = f"{job.name}__{trial_dir.name}"
@@ -843,8 +883,11 @@ def build_merged_job(
                     if verdict["integrity"] == 0:
                         counts["integrity_0"].append(trial_name)
     counts["integrity_0"].sort()
+    config = build_merged_config(jobs, name)
+    if selected_trials is not None:
+        _restrict_config(config, [trial for job in jobs for trial in selected_trials[job]])
     (dest / "config.json").write_text(
-        json.dumps(build_merged_config(jobs, name), indent=2, sort_keys=True) + "\n",
+        json.dumps(config, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     (dest / "result.json").write_text(
@@ -860,12 +903,25 @@ def build_viewer_root(
     *,
     merges: list[tuple[str, str]] | None = None,
     arm_pattern: re.Pattern[str] | None = None,
+    health_manifest: Path | None = None,
+    tags: list[str] | None = None,
 ) -> dict[str, Any]:
     """Build the viewer jobs root at ``out`` (created empty).
 
     ``merges`` holds ``(NAME, glob)`` pairs: matching jobs (by dir name) are
     consumed into one merged viewer job instead of being served individually.
     """
+    selected_trials = None
+    selection_report = None
+    if health_manifest is not None or tags:
+        if health_manifest is None or not tags:
+            raise ValueError("--task-health and at least one --tag must be supplied together")
+        from evallab.task_health_filter import TaskHealthFilter
+
+        selector = TaskHealthFilter(health_manifest, tags)
+        selected_trials, selection_report = selector.select(
+            {job: _iter_trial_dirs(job) for job in job_dirs}
+        )
     out.mkdir(parents=True, exist_ok=True)
     if any(out.iterdir()):
         raise FileExistsError(f"viewer root exists and is not empty: {out}")
@@ -878,7 +934,10 @@ def build_viewer_root(
         ]
         if not selected:
             raise ValueError(f"--merge {name}={glob}: no job dirs match")
-        pending_merges.append((name, selected))
+        if selected_trials is not None:
+            selected = [job for job in selected if selected_trials[job]]
+        if selected:
+            pending_merges.append((name, selected))
         matched.update(str(job) for job in selected)
     report: dict[str, Any] = {
         "schema": SCHEMA,
@@ -898,6 +957,8 @@ def build_viewer_root(
             "integrity_0": 0,
         },
     }
+    if selection_report is not None:
+        report["task_health"] = selection_report
     taken: set[str] = set()
 
     def _tally(counts: dict[str, Any]) -> None:
@@ -909,15 +970,24 @@ def build_viewer_root(
     for job_dir in job_dirs:
         if str(job_dir) in matched:
             continue
+        if selected_trials is not None and not selected_trials[job_dir]:
+            continue
         name = _unique_job_name(job_dir.name, taken)
         taken.add(name)
-        counts = mirror_job(job_dir, out / name)
+        counts = mirror_job(
+            job_dir,
+            out / name,
+            trial_dirs=selected_trials[job_dir] if selected_trials is not None else None,
+        )
         report["jobs"][name] = counts
         _tally(counts)
     for name, selected in pending_merges:
         merged_name = _unique_job_name(name, taken)
         taken.add(merged_name)
-        counts = build_merged_job(out / merged_name, merged_name, selected, arm_pattern=pattern)
+        counts = build_merged_job(
+            out / merged_name, merged_name, selected,
+            arm_pattern=pattern, selected_trials=selected_trials,
+        )
         report["jobs"][merged_name] = counts
         report["merged"][merged_name] = {
             "sources": sorted(job.name for job in selected),
@@ -989,6 +1059,13 @@ def _view_command(
         return 2
     try:
         merges = [parse_merge_spec(spec) for spec in (getattr(args, "merge", None) or [])]
+        health_manifest = getattr(args, "task_health", None)
+        if health_manifest is not None:
+            health_manifest = (
+                health_manifest
+                if health_manifest.is_absolute()
+                else (root / health_manifest).resolve()
+            )
         arm_pattern = compile_arm_pattern(getattr(args, "arm_regex", None))
     except ValueError as exc:
         print(f"evallab view: {exc}", file=sys.stderr)
@@ -999,8 +1076,11 @@ def _view_command(
     else:
         dest = out if out.is_absolute() else (root / out).resolve()
     try:
-        report = build_viewer_root(jobs, dest, merges=merges, arm_pattern=arm_pattern)
-    except ValueError as exc:
+        report = build_viewer_root(
+            jobs, dest, merges=merges, arm_pattern=arm_pattern,
+            health_manifest=health_manifest, tags=getattr(args, "tag", None),
+        )
+    except (OSError, ValueError) as exc:
         print(f"evallab view: {exc}", file=sys.stderr)
         return 2
     totals = report["totals"]
@@ -1010,11 +1090,22 @@ def _view_command(
         f"(native={totals['native']} overlay={totals['overlay']}) "
         f"unscored={totals['unscored']} integrity_0={totals['integrity_0']}"
     )
+    if "task_health" in report:
+        selection = report["task_health"]
+        selected_counts = selection["totals"]
+        print(
+            f"task tags: {' AND '.join(selection['tags'])}; "
+            f"included={selected_counts['included']}/{selected_counts['trials']} "
+            f"tag_mismatch={selected_counts['tag_mismatch']} "
+            f"unbound={selected_counts['unbound']} "
+            f"digest_mismatch={selected_counts['digest_mismatch']} "
+            f"ambiguous={selected_counts['ambiguous']}"
+        )
     for merged_name, merged in report.get("merged", {}).items():
         print(f"  merged {merged_name}: {len(merged['sources'])} jobs")
     for note in skipped:
         print(f"  skip: {note}")
-    if getattr(args, "no_launch", False):
+    if getattr(args, "no_launch", False) or totals["trials"] == 0:
         return 0
     port = int(getattr(args, "port", 8080) or 8080)
     host = getattr(args, "host", None) or "127.0.0.1"
@@ -1070,6 +1161,17 @@ def build_view_parser(commands: argparse._SubParsersAction) -> None:
         default=None,
         help="Regex with a named (?P<arm>...) group matched against source job names "
         "(default: stock|tuned|gepa suffixes; no hit keeps the job name)",
+    )
+    view.add_argument(
+        "--task-health",
+        type=Path,
+        help="Digest-bound manifest from evallab tasks health-tags (requires --tag)",
+    )
+    view.add_argument(
+        "--tag",
+        action="append",
+        default=[],
+        help="Select trials by health/solve tag before viewing (repeat = AND; requires --task-health)",
     )
     view.add_argument(
         "--no-launch",

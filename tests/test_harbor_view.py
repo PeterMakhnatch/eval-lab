@@ -486,3 +486,100 @@ def test_merge_spec_and_arm_pattern_reject_bad_input() -> None:
     pattern = compile_arm_pattern(r"-(?P<arm>stock|tuned)$")
     assert derive_arm("job-stock", pattern) == "stock"
     assert derive_arm("job-other", pattern) == "job-other"
+
+
+def _tagged_jobs(tmp_path: Path) -> tuple[list[Path], Path]:
+    from evallab.task_health_tags import SCHEMA
+
+    src = tmp_path / "src"
+    jobs = [
+        _make_job(
+            src, "job-mixed",
+            {"keep": {"reward": 1, "integrity": 1, "reward_gated": 1},
+             "leak": {"reward": 0, "integrity": 1, "reward_gated": 0}},
+        ),
+        _make_job(src, "job-excluded", {"unsolved": None}),
+    ]
+    rows = []
+    cases = (
+        (jobs[0], "keep", "000084", "a", "health:sound", "solve:always"),
+        (jobs[0], "leak", "001269", "b", "health:leak-found", "solve:0-of-n"),
+        (jobs[1], "unsolved", "000090", "c", "health:sound", "solve:0-of-n"),
+    )
+    for job, name, suffix, digit, health, solve in cases:
+        task_id = f"format-code-task-{suffix}"
+        task = {"path": f"/tasks/{task_id}"}
+        agent = {"name": "agent", "model_name": f"provider/{name}-model"}
+        config = {"task": task, "agent": agent, "trial_name": name}
+        _write_json(job / name / "config.json", config)
+        _write_json(job / name / "lock.json", {
+            "task": {**task, "name": task_id, "digest": "sha256:" + digit * 64}
+        })
+        result_path = job / name / "result.json"
+        result = json.loads(result_path.read_text())
+        result.update(task_name=task_id, task_id=task, config=config)
+        _write_json(result_path, result)
+        rows.append({
+            "task_id": task_id,
+            "parent_digest": "sha256:" + digit * 63 + "1",
+            "parent_harbor_digest": "sha256:" + digit * 64,
+            "variant_digest": "sha256:" + digit * 63 + "2",
+            "variant_harbor_digest": "sha256:" + digit * 63 + "3",
+            "tags": [health, solve],
+        })
+    for job in jobs:
+        configs = [
+            json.loads((trial / "config.json").read_text())
+            for trial in job.iterdir() if trial.is_dir() and (trial / "config.json").exists()
+        ]
+        _write_json(job / "config.json", {
+            "job_name": job.name,
+            "tasks": [config["task"] for config in configs],
+            "agents": [config["agent"] for config in configs],
+        })
+        _write_json(job / "result.json", {"n_total_trials": len(configs)})
+    manifest = tmp_path / "health.json"
+    _write_json(manifest, {"schema": SCHEMA, "tasks": rows})
+    return jobs, manifest
+
+
+@pytest.mark.parametrize("merged", [False, True])
+def test_health_filter_projects_trials_and_all_aggregates_without_source_edits(
+    tmp_path: Path, merged: bool
+) -> None:
+    jobs, manifest = _tagged_jobs(tmp_path)
+    before = _snapshot(tmp_path / "src")
+    out = tmp_path / "view"
+    report = build_viewer_root(
+        jobs, out, health_manifest=manifest,
+        tags=["health:sound", "solve:always"],
+        merges=[("selected", "job-*")] if merged else None,
+    )
+    assert report["totals"]["jobs"] == 1
+    assert report["totals"]["trials"] == 1
+    assert report["totals"]["scored"] == report["totals"]["native"] == 1
+    assert report["task_health"]["totals"]["included"] == 1
+    assert report["task_health"]["totals"]["tag_mismatch"] == 2
+    projected = out / ("selected" if merged else "job-mixed")
+    assert (projected / "keep" / "result.json").is_file()
+    assert not (projected / "leak").exists()
+    assert not (out / "job-excluded").exists()
+    result = json.loads((projected / "result.json").read_text())
+    assert result["n_total_trials"] == result["stats"]["n_completed_trials"] == 1
+    assert result["stats"]["n_input_tokens"] == 100
+    config = json.loads((projected / "config.json").read_text())
+    assert config["tasks"] == [{"path": "/tasks/format-code-task-000084"}]
+    assert config["agents"] == [{"name": "agent", "model_name": "provider/keep-model"}]
+    assert config["datasets"] == []
+    assert _snapshot(tmp_path / "src") == before
+
+
+def test_health_filter_empty_intersection_does_not_restore_full_jobs(tmp_path: Path) -> None:
+    jobs, manifest = _tagged_jobs(tmp_path)
+    report = build_viewer_root(
+        jobs, tmp_path / "view", health_manifest=manifest,
+        tags=["health:leak-found", "solve:always"], merges=[("selected", "job-*")],
+    )
+    assert report["totals"]["jobs"] == report["totals"]["trials"] == 0
+    assert report["jobs"] == report["merged"] == {}
+    assert report["task_health"]["totals"]["tag_mismatch"] == 3

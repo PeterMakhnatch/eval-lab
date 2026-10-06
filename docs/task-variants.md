@@ -158,9 +158,14 @@ clean. The manifest exposes the binding and the original evidence rows.
   capability estimate or a replacement for canonical counted verdicts.
 
 Harbor 0.24 natively filters these tags in **task-definition mode** (`--tasks`).
-Its jobs-mode `TrialSummary` does not contain task metadata or offer tag
-filters. Tagging tasks does not retrofit immutable job results or locks, and
-this command never edits frozen queue specs.
+Its jobs-mode `TrialSummary` has no metadata-tag filter. For historical jobs,
+use the existing read-only [`evallab view` adapter](harbor-view.md) with
+`--task-health derived/task-health/manifest.json --tag health:sound`.
+It joins retained task-package identities, selects trials before building the
+viewer projection, then launches the unchanged Harbor jobs UI. Repeated tags
+are ANDed; unbound or different-package trials are explicitly excluded.
+The manifest carries both Lab and Harbor parent/variant digests for this join.
+Neither command changes original task packages, trials, locks, or frozen specs.
 
 
 ## Relationship to task candidates (HAR-67)

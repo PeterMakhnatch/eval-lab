@@ -56,6 +56,7 @@ TOP_LEVEL_COMMANDS = (
     "ladder",
     "trace",
     "fetch",
+    "probe-exploit",
     "gc",
     "registry",
     "tidy",

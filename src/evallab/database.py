@@ -1,18 +1,48 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import time
+from collections.abc import Callable, Iterable, Sequence
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Literal, LiteralString, cast
 
 import psycopg
 from psycopg.conninfo import conninfo_to_dict
+from psycopg.errors import DeadlockDetected
 from psycopg.types.json import Jsonb
 
 from evallab.ledger import build_cost_block
 from evallab.results import JobRecord, TrialRecord, duration_seconds
 from evallab.runner import transient_provider_exception
 from evallab.schemas import CanaryDriftObservation
+
+# Retry only the PostgreSQL deadlock victim, after its transaction has closed.
+CATALOG_DEADLOCK_MAX_ATTEMPTS = 4
+CATALOG_DEADLOCK_BACKOFF_SECONDS = (0.05, 0.1, 0.2)
+
+
+def _run_catalog_transaction[T](
+    database_url: str, work: Callable[[psycopg.Connection[Any]], T]
+) -> T:
+    """Run ``work`` in one catalog transaction, retrying only deadlocks.
+
+    ``work`` receives a fresh connection per attempt covering both statement
+    and commit-time ``DeadlockDetected`` failures: the ``with`` block commits
+    on clean exit and rolls back on error, so a failed attempt never leaves
+    partial rows behind. Retries replay the caller's already-materialized
+    batch, preserving atomicity and the exact successful count.
+    """
+    attempt = 0
+    while True:
+        try:
+            with psycopg.connect(database_url) as connection:
+                return work(connection)
+        except DeadlockDetected:
+            attempt += 1
+            if attempt >= CATALOG_DEADLOCK_MAX_ATTEMPTS:
+                raise
+            time.sleep(CATALOG_DEADLOCK_BACKOFF_SECONDS[attempt - 1])
+
 
 CanaryDriftReason = Literal[
     "task_version_changed",
@@ -41,8 +71,7 @@ def views_path() -> Path:
 
 def initialize(database_url: str) -> None:
     schema = cast(LiteralString, schema_path().read_text())
-    with psycopg.connect(database_url) as connection:
-        connection.execute(schema)
+    _run_catalog_transaction(database_url, lambda connection: connection.execute(schema))
 
 
 def _relative_or_absolute(path: Path, root: Path) -> str:
@@ -369,12 +398,19 @@ def ingest_job(connection: psycopg.Connection[Any], job: JobRecord, *, root: Pat
 
 
 def ingest(database_url: str, jobs: Iterable[JobRecord], *, root: Path) -> int:
-    count = 0
-    with psycopg.connect(database_url) as connection:
-        for job in jobs:
+    # Materialize once so a deadlock retry replays the identical batch: the
+    # caller may hand us a one-shot generator that a second attempt could not
+    # otherwise re-read, and replaying preserves the exact returned count.
+    pending = list(jobs)
+
+    def _write(connection: psycopg.Connection[Any]) -> int:
+        count = 0
+        for job in pending:
             ingest_job(connection, job, root=root)
             count += 1
-    return count
+        return count
+
+    return _run_catalog_transaction(database_url, _write)
 
 
 def list_trials(database_url: str, *, limit: int = 25) -> list[tuple[Any, ...]]:

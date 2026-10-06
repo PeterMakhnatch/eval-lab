@@ -67,7 +67,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:51535b8637c02f15ea2de716c989c44e4e9e764d697c2b7ea46ef4610e72e268
+    digest: sha256:826abb4936fb5ccc8ac2669b941c97d706b2cd9b2a8f5dd81fececea92bec499
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md

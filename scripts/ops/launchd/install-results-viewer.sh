@@ -111,6 +111,16 @@ else
   SOURCE_ARGS=""
 fi
 
+# Task pages pull Laminar Signal verdicts with LMNR_PROJECT_API_KEY; the shared key
+# store loads it (values never land in the plist). Without `keys`, pages still
+# build from verdicts already in the readers store.
+KEYS_BIN="$(command -v keys || true)"
+if [ -n "$KEYS_BIN" ]; then
+  LAUNCH_PREFIX="$(printf '\n\t\t<string>%s</string>\n\t\t<string>run</string>\n\t\t<string>--</string>' "$KEYS_BIN")"
+else
+  LAUNCH_PREFIX=""
+fi
+
 python3 - "$ROOT/scripts/ops/launchd/com.petermakhnatch.evallab.results-viewer.plist" "$DEST" <<PY
 import sys
 template, dest = sys.argv[1], sys.argv[2]
@@ -121,6 +131,7 @@ subs = {
     "__ROOT_DIR__": """$JOBS_DIR""",
     "__PORT__": """$PORT""",
     "__SOURCE_ARGS__": """$SOURCE_ARGS""",
+    "__LAUNCH_PREFIX__": """$LAUNCH_PREFIX""",
     "__WORKDIR__": """$RV_DIR""",
     "__LOG_DIR__": """$LOG_DIR""",
 }

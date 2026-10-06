@@ -5,7 +5,7 @@
 	<key>Label</key>
 	<string>__LABEL__</string>
 	<key>ProgramArguments</key>
-	<array>
+	<array>__LAUNCH_PREFIX__
 		<string>__EVALLAB__</string>
 		<string>results-viewer</string>
 		<string>--root</string>

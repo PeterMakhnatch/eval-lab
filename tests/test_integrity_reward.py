@@ -1,8 +1,9 @@
 """Behavioural tests for the HAR-169 integrity reward (no full-suite runs).
 
 Covers: rule firing on synthetic trajectories, dims arithmetic, vendored
-``copy_check`` equivalence against ``evallab.copy_check`` on stored control
-trials, payload byte-identity + 3.7 grammar, the real RewardKit layout
+``copy_check`` byte-identity with ``evallab.copy_check`` (stored control
+trials are replayed by ``research/experiments/har169-integrity/replay.py``),
+payload 3.7 grammar, the real RewardKit layout
 (``rewardkit`` from the 0.24 tree with a harness-only ``litellm`` stub),
 the stdlib fallback runner, and the ``rewardkit-integrity@1`` derivation.
 """
@@ -20,32 +21,8 @@ import pytest
 
 from evallab import integrity_reward
 from evallab import integrity_reward_core as core
-from evallab.copy_check import copy_check as live_copy_check
 
-RESULTS = Path.home() / "Developer/eval-lab-results"
 REWARDKIT_SRC = Path("/tmp/harbor024/repo/packages/rewardkit/src")
-
-POSITIVE_TRIALS = [
-    "2026-09-30/HAR-104-har104-d-000226/har104-d-000226__JCDfZFi",
-    "2026-09-30/HAR-104-har104-d-000927/har104-d-000927__23aAzui",
-    "2026-09-30/HAR-110-gepa-terminus-2-format-code-task-001-c074cb87ddff7e1368343d33"
-    "/gepa-terminus-2-format-code-task__CFCbfps",
-    "2026-10-01/HAR-116-har116-b-000927-original/har116-b-000927-original__kvyP9fr",
-    "2026-10-01/HAR-116-har116-b-002308-leakclosed/har116-b-002308-leakclosed__idknFAu",
-    "2026-10-01/HAR-116-har116-b-002308-original/har116-b-002308-original__oYziU3z",
-    "2026-10-01/HAR-120-har120-000341-a1/har120-000341-a1__MYkGYQZ",
-    "2026-10-01/HAR-120-har120-001269-a2-r2/har120-001269-a2-r2__93WpuaE",
-    "2026-10-01/HAR-120-har120-001373-a2-r2/har120-001373-a2-r2__LfAWGFC",
-    "2026-10-01/HAR-120-har120-002356-a1-r2/har120-002356-a1-r2__nHVDgFh",
-    "2026-10-01/HAR-126-ovn-g5-000169-tuned/ovn-g5-000169-tuned__CxBpceW",
-]
-NEGATIVE_TRIALS = [
-    "2026-10-01/HAR-126-ovn-g5-000169-gepa/ovn-g5-000169-gepa__Hmxf7wb",
-    "2026-10-01/HAR-126-ovn-g5-000332-gepa/ovn-g5-000332-gepa__YyfJfPU",
-    "2026-10-01/HAR-126-ovn-g5-001695-stock/ovn-g5-001695-stock__PveqguL",
-    "2026-10-01/HAR-126-ovn-g5-001809-gepa/ovn-g5-001809-gepa__nxdBvhh",
-    "2026-10-01/HAR-126-ovn-g5-001809-stock/ovn-g5-001809-stock__PZ8sw7f",
-]
 
 ADDED = [
     "def fixed_function_correct_implementation(argument_one):",
@@ -106,18 +83,6 @@ def test_payload_parses_as_python_37() -> None:
         ast.parse(source, name, feature_version=(3, 7))
     source = (Path(integrity_reward.__file__).parent / "integrity_reward_core.py").read_text()
     ast.parse(source, "integrity_reward_core.py", feature_version=(3, 7))
-
-
-@pytest.mark.parametrize("trial", POSITIVE_TRIALS + NEGATIVE_TRIALS)
-def test_copy_check_equivalence_on_control_trials(trial: str) -> None:
-    trial_dir = RESULTS / trial
-    assert trial_dir.is_dir(), trial
-    expected = live_copy_check(trial_dir)
-    finding = core.check_copy(core.resolve_roots(trial_dir=trial_dir))
-    assert finding["fired"] == (expected is not None), trial
-    if expected is not None:
-        assert finding["matched_lines"] == expected["matched_lines"], trial
-        assert finding["added_lines"] == expected["added_lines"], trial
 
 
 def test_rule_copy_fires_on_synthetic() -> None:

@@ -254,7 +254,7 @@ def build_changes(
     *,
     marker: str,
     solution_sh: bytes | None = None,
-) -> tuple[dict[str, bytes], dict[str, Any]]:
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
     """Build the ``derive_task`` changes mapping plus lineage inputs.
 
     ``solution_sh`` adds an oracle-control reference solution when the parent
@@ -271,7 +271,7 @@ def build_changes(
     snapshot_hook = render_snapshot_hook(info.workdir)
     probe_hook = render_probe_hook(info.workdir, marker)
     parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
-    changes: dict[str, bytes] = {
+    changes: dict[str, bytes | None] = {
         "task.toml": render_task_toml(
             parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
         ).encode("utf-8"),

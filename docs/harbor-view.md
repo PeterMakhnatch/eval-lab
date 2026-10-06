@@ -24,6 +24,39 @@ the viewer is launched via `uv tool run --from harbor==0.24.0 harbor view …`,
 which resolves from the local uv cache offline once fetched. The 0.21 viewer
 has no `chart-trials`, hence no Outcomes or Pareto; 0.24 is required.
 
+## Always-on results viewer
+
+`evallab view` is a snapshot: it serves the jobs named at launch, from a
+fresh temp root. `evallab results-viewer` keeps one persistent root in step
+with the results home and serves it at **<http://127.0.0.1:8100>**:
+
+```bash
+scripts/ops/launchd/install-results-viewer.sh --load   # install / upgrade the LaunchAgent
+evallab results-viewer --once                          # one sync pass, print the summary
+```
+
+- Every `--interval` (60 s) a pass mirrors new jobs with the same overlay as
+  `evallab view`, rebuilds jobs whose `result.json` changed (republished)
+  and drops jobs whose source is gone. Discovery goes two levels below each
+  source, so `<date>/<job>/` in the results home is found.
+- A job is mirrored only once its tree has been quiet for `--settle` (60 s):
+  `process-job` publishes by copying in place. Each viewer job is staged
+  beside the root and renamed in, so the viewer never lists a partial job.
+- The root is the state. Each viewer job carries
+  `.evallab-results-viewer.json` (source path, source signature), so a
+  restart resumes without rebuilding. A first pass over ~3,000 jobs takes
+  about 4.5 minutes; newest jobs are mirrored first and appear as they land.
+- Read-only by construction: only GET/HEAD with a loopback `Host` reach
+  Harbor. The 0.24 viewer's run launcher, Analyze/Summarize, Hub upload and
+  Delete buttons answer 405, and a DNS-rebinding page gets 403.
+- `--merge` and task-health selection stay in `evallab view`; the always-on
+  root holds one viewer job per published job.
+- The LaunchAgent runs a non-editable snapshot installed under
+  `~/Library/Application Support/evallab/results-viewer/venv`, not a
+  worktree. Re-run the installer from an updated checkout to upgrade it;
+  `INSTALLED` beside the venv records the commit. Logs:
+  `~/Library/Logs/evallab/com.petermakhnatch.evallab.results-viewer.{out,err}`.
+
 ## Filter historical jobs by task health
 
 ```bash

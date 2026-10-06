@@ -4,7 +4,7 @@
 One row per ledger task: how many stored agent runs it has and how they
 ended. Runs are every trial under ``~/Developer/eval-lab-results`` whose
 config or result names exactly one ``format-code-task-*`` and whose agent is
-not a control (``nop``/``oracle``). Outcome per trial, as in the HAR-143
+not a control (``nop``/``oracle``) or a HAR-161 exploit probe. Outcome per trial, as in the HAR-143
 relabel (``../har143-copy-check/relabel.py``):
 
 * ``clean_pass``: verifier reward 1 and :func:`evallab.copy_check.copy_check`
@@ -29,6 +29,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from evallab.copy_check import copy_check
+from evallab.exploit_probe import PREAMBLE
 
 HERE = Path(__file__).resolve().parent
 RESULTS = Path.home() / "Developer/eval-lab-results"
@@ -71,6 +72,9 @@ def trials() -> list[dict]:
             or ""
         )
         if agent in CONTROLS:
+            continue
+        # Exploit probes (HAR-161) are told not to solve the task: not solve evidence.
+        if load(trial.parent / "experiment-spec.json").get("extra_instruction_path") == PREAMBLE:
             continue
         score = reward(trial, result)
         if score is None:

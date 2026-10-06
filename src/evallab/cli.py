@@ -2985,6 +2985,40 @@ def _parse_key_value(assignments: Sequence[str], *, label: str) -> dict[str, str
     return parsed
 
 
+def _tasks_health_tags_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.task_health_tags import generate_health_tags
+    from evallab.task_variants import VariantError
+
+    try:
+        result = generate_health_tags(
+            root,
+            ledger_path=args.ledger,
+            locked_nop_path=args.locked_nop,
+            history_path=args.history,
+            pool_path=args.pool,
+            exploit_path=args.exploit_verdicts,
+            source_root=_resolve(root, args.source_root) if args.source_root else None,
+            records_dir=args.records_dir,
+            variants_root=args.variants_root,
+            view_root=args.view_root,
+            task_ids=args.task,
+        )
+        output = _resolve(root, args.output)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+    except (OSError, ValueError, VariantError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"Tagged {len(result['tasks'])} ledger tasks; manifest: {output}")
+        print(f"Harbor task view: harbor view {result['view_root']} --tasks")
+    return 0
+
+
 def _tasks_derive_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -5601,6 +5635,54 @@ def parser() -> argparse.ArgumentParser:
     )
     tasks_lint.add_argument("--json", action="store_true")
     tasks_lint.set_defaults(func=_tasks_lint_command)
+
+    tasks_health_tags = tasks_commands.add_parser(
+        "health-tags",
+        help="Generate Harbor health/solve metadata variants from recorded task evidence ($0)",
+    )
+    tasks_health_tags.add_argument(
+        "--ledger", type=Path,
+        default=Path("research/experiments/python-task-ledger/ledger.csv"),
+    )
+    tasks_health_tags.add_argument(
+        "--locked-nop", type=Path,
+        default=Path("research/experiments/har122-egress-lock/har146-locked-nop.csv"),
+    )
+    tasks_health_tags.add_argument(
+        "--history", type=Path,
+        default=Path("research/experiments/python-task-ledger/task_history.csv"),
+    )
+    tasks_health_tags.add_argument(
+        "--pool", type=Path,
+        default=Path("research/experiments/har108-python-census/pool.json"),
+    )
+    tasks_health_tags.add_argument(
+        "--exploit-verdicts", type=Path,
+        help="Optional task-id-keyed JSON from probe-exploit verdict; absent is not clean",
+    )
+    tasks_health_tags.add_argument(
+        "--source-root", type=Path,
+        help="Checkout containing retained parent packages (default: primary checkout)",
+    )
+    tasks_health_tags.add_argument(
+        "--records-dir", type=Path, default=Path("library/task-variants"),
+    )
+    tasks_health_tags.add_argument(
+        "--variants-root", type=Path,
+        help="Materialized variants root (default: existing shared task-variant store)",
+    )
+    tasks_health_tags.add_argument(
+        "--view-root", type=Path, default=Path("derived/task-health/view"),
+        help="Flat task collection for native harbor view --tasks",
+    )
+    tasks_health_tags.add_argument(
+        "--output", type=Path, default=Path("derived/task-health/manifest.json"),
+    )
+    tasks_health_tags.add_argument(
+        "--task", action="append", help="Explicit ledger task subset; omit for every task",
+    )
+    tasks_health_tags.add_argument("--json", action="store_true")
+    tasks_health_tags.set_defaults(func=_tasks_health_tags_command)
 
     tasks_derive = tasks_commands.add_parser(
         "derive", help="Derive a task variant with a git-tracked lineage record"

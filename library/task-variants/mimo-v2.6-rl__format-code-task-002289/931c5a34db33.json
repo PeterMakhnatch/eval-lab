@@ -1,0 +1,90 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002289",
+  "variant_digest": "sha256:931c5a34db3364585505c8a69b1109aecc4a68efcf02e0c0b4116115f8ec9c5a",
+  "variant_harbor_digest": "sha256:650a2429106bab95378d6d067cb25681286698defe36448880c3b0b19d7f9678",
+  "parent": {
+    "digest": "sha256:290302d5d5f7900690a3c1a2be6d8c60603ab7e2c7f2868f8068fcab786b8ab2",
+    "harbor_digest": "sha256:ecca2c84a2bbc7505b1ef9616fcb4c64040f0635ec82ca7146f29f09d5e75031",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002289/290302d5d5f7.json"
+    }
+  },
+  "transform": "task-health-tags@1",
+  "components_changed": [
+    "task_toml"
+  ],
+  "files": [
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:47b577d4ad438cf9b405fc2b94a73133fdd1e158a83ddacfb654ac9d88c3e66f",
+      "after_sha256": "sha256:aff82eeef808345f5f9403b91de24ca96fae0bf4f7edc7c1e7f87dbfbe425db9",
+      "content": "schema_version = \"1.4\"\n\n[task]\nname = \"mimo-v2.6-rl/format-code-task-002289\"\ndescription = \"I think I’ve hit a permissions hole: as a regular authenticated user with no AddContent rights on a target…\"\nkeywords = [\"mimo-v2.6-rl\", \"code\"]\n\n[metadata]\nadapter = \"mimo_harbor 1.1.0\"\ncategory = \"Python\"\ndomain = \"code\"\nkeywords = [\"code\", \"Python\"]\nreference_harness = \"XiaomiMiMo/verl a2ad9f6 + XiaomiMiMo/mimoagent 467f0a1\"\nreference_step_limit = 500\nsource_dataset = \"XiaomiMiMo/MiMo-V2.6-RL-oss\"\nsource_id = \"format-code-task-002289\"\nsource_revision = \"639865fd3374018d6cb29b9fb82dd531406fcf5f\"\ntitle = \"I think I’ve hit a permissions hole: as a regular authenticated user with no AddContent rights on a target…\"\ntags = [\"health:repaired\", \"solve:never-run\"]\n\n[agent]\ntimeout_sec = 3600.0\n\n[verifier]\ntimeout_sec = 2100.0\nuser = \"root\"\n\n[environment]\ndocker_image = \"docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:c109786c986ba814e99e3a02e7542d6ddc49346dde4651e909f0912c775db817\"\nworkdir = \"/testbed\"\ncpus = 2\nmemory_mb = 8192\nnetwork_mode = \"public\"\nbuild_timeout_sec = 1800.0\n\n[environment.healthcheck]\n# one-time setup before the agent (environment/setup/setup.sh)\ncommand = \"bash -c 'test -f /var/lib/mimo/ready || { mkdir -p /var/lib/mimo && echo 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 | base64 -d | tar -xzf - -C /var/lib/mimo && bash /var/lib/mimo/setup.sh; }'\"\ntimeout_sec = 1200.0\nretries = 0\ninterval_sec = 5.0\n"
+    }
+  ],
+  "rationale": "Harbor health/solve metadata from recorded task evidence; no admission or new grades",
+  "inputs": {
+    "sources": {
+      "ledger": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har172/research/experiments/python-task-ledger/ledger.csv",
+        "sha256": "79f817b774546da51361e56d303446f0a7694e977e93c2c204e759cecfbefd07"
+      },
+      "locked_nop": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har172/research/experiments/har122-egress-lock/har146-locked-nop.csv",
+        "sha256": "b32ee7e6278fe8747cdedc63c6e221931218fbcfd73dbdd19baf717988b51861"
+      },
+      "history": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har172/research/experiments/python-task-ledger/task_history.csv",
+        "sha256": "e8e81e22012c87bead5a6e01d24663a046afabb6efc752ca7442a24ea259480d"
+      },
+      "pool": {
+        "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/har172/research/experiments/har108-python-census/pool.json",
+        "sha256": "6c4a82f47cc82807c268b11d8d85a45b4502be770b929fc558fa3f0382193126"
+      },
+      "exploit": {
+        "status": "not supplied; not a clean verdict"
+      }
+    },
+    "assessment": {
+      "task_id": "format-code-task-002289",
+      "parent_digest": "sha256:290302d5d5f7900690a3c1a2be6d8c60603ab7e2c7f2868f8068fcab786b8ab2",
+      "tags": [
+        "health:repaired",
+        "solve:never-run"
+      ],
+      "ledger_status": "usable",
+      "ledger_reason": "census sound; grading needs the network under the egress lock, repaired by env-prefetch-network@1, nop sound",
+      "locked_nop": {
+        "task_id": "format-code-task-002289",
+        "unlocked_nop": "sound",
+        "locked_nop": "broken_environment",
+        "changed": "1",
+        "note": ""
+      },
+      "solve": {
+        "tag": "solve:never-run",
+        "runs": 0,
+        "clean_pass": 0,
+        "copied_pass": 0,
+        "fail": 0,
+        "infra": 0,
+        "known_attempts": 0,
+        "last_run": "",
+        "scope": "task history; copied and infra excluded; not current-package capability"
+      },
+      "exploit": {
+        "verdict": "not-probed",
+        "digest_match": null,
+        "binding": null
+      }
+    }
+  },
+  "created_by": "har172-task-health",
+  "created_at": "2026-10-06T03:48:29Z",
+  "status": "candidate",
+  "evidence": []
+}

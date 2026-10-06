@@ -105,7 +105,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:70ccf948a076301dfd4ff43f0fbe2d2a1d99c2d9c18810d9497e84881e0590e9
+    digest: sha256:dc41c6d0e178c4d73fcc6130f3ebf4b2d61cbd50943d31f2ca529427a7fac74a
   - path: src/evallab/exploit_probe.py
     digest: sha256:4e84de2f4627fe809b70609f4e47550097fcad5e0c52b1b93f4075c0268d97d4
   - path: src/evallab/explorer.py
@@ -159,7 +159,7 @@ inputs:
   - path: src/evallab/harbor_laminar.py
     digest: sha256:81074710e57240e561c102fb6535f4247fe9a5ca9015023d3b7aae1263311b1f
   - path: src/evallab/harbor_mimoagent.py
-    digest: sha256:4fa0d33256eb1603b6646fb2c5b53f4f292f977b6ceffb5a43fde30ed6875641
+    digest: sha256:9e1fef4d3b2e4f2548b06a2811a04cb7dfddf5609dae2abed6c3fc98b522ccb4
   - path: src/evallab/harbor_network.py
     digest: sha256:afacb92ed92744bff3be78f75c86ed48a6f26102c16079cfd6679dbb7d1715d3
   - path: src/evallab/harbor_repeat_verifier.py

@@ -110,6 +110,12 @@ queries, tools, step-limit decisions or usage accounting. Finalization closes
 prefix admission before draining the authoritative final snapshot; publication
 faults retain the last valid file and physical cleanup joins the writer.
 No hard filesystem or backlog latency bound is claimed.
+The integrated Harbor 0.24 local runtime passed all eight incremental
+publication scenarios and seven real-SDK scenarios. Bearer redaction now
+preserves JSON delimiters and escaped message suffixes, fixing stale-prefix
+publication when a terminal bearer credential consumed its JSON boundary.
+These scripted localhost proofs are not model-quality, Cloud-ingestion or
+paid-trial qualification.
 
 
 The usable analysis corpus is the `status = 'featured'` slice, not the full

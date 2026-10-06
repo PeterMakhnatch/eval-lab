@@ -880,7 +880,7 @@ REDACTED_SECRET_VALUE = "<redacted>"
 REDACTED_SECRET_BYTES = REDACTED_SECRET_VALUE.encode()
 PRIVATE_PERSIST_MODE = 0o600
 _BEARER_HEADER = re.compile(
-    rb"(?i)(authorization\s*[:=]\s*bearer\s+)\S+",
+    rb'(?i)(authorization\s*[:=]\s*bearer\s+)[^"\s\\]+',
 )
 
 LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {

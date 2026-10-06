@@ -28,8 +28,8 @@ Each `--runs-dir` is either a job directory (children are `<task>__<id>`
 trial dirs) or a runs root (children are job directories). `--once` (or no
 `--interval`) does a single pass; `--interval SECONDS` loops until
 interrupted. Each pass reuses a trial's previous signals only while its
-trajectory, `result.json` and live proxy ledger are all unchanged (mtime and
-size); a reused status still ages `minutes_since_update`, so `stalled` fires
+trajectory, `result.json`, live proxy ledger and `agent/file-access.jsonl` are
+all unchanged (mtime and size); a reused status still ages `minutes_since_update`, so `stalled` fires
 and a late `result.json` flips the trial to finished. `--limits-from-config` reads token limits from the trial/job
 `config.json` or the job `experiment-spec.json` instead of the defaults.
 
@@ -72,6 +72,94 @@ Dispatch adds `--plugin evallab.harbor_watch_hooks:WatchHookPlugin` to every
   - Daytona never streams exec output, so it emits no `LogEntry` either way.
   - When enabled, per-phase chunk counts and a 2,000-character tail are flushed every
     2 s; `status.json` shows the latest as `log_tail`.
+
+## Protected-file observation (HAR-180)
+
+Every Lab-launched trial records capture coverage in `agent/file-access.jsonl`.
+Capture is **off by default**; a disabled or unavailable record is not evidence
+that no file was accessed. Infra owns enabling it for an approved campaign:
+
+```bash
+EVALLAB_FILE_ACCESS=1 EVALLAB_STATE_JOURNAL=off \
+  uv run --extra laminar evallab tick --spec-id <approved-spec-id>
+```
+
+The new sensor runs ordinary `inotifywait -m -r` **inside the existing agent
+sandbox**. It neither wraps agent commands nor adds Linux capabilities, host-PID
+access, ptrace, or another sandbox. `EVALLAB_STATE_JOURNAL=off` explicitly disables
+the older Docker host-PID/SYS_PTRACE state sidecar; its default and the separate
+Laminar lifecycle remain unchanged. No package is installed automatically:
+the task image must already provide `python3`, `inotifywait` and ordinary Linux
+process utilities. Missing tools, permissions or watches are recorded explicitly.
+
+Default targets include discovered Git object/ref storage (including MiMo's
+`/var/lib/mimo/git-hidden`) and `/tests` when present. Optional evaluator-selected
+targets extend those defaults:
+
+```bash
+export EVALLAB_FILE_ACCESS_PATHS='{"grader":["/path/to/prebaked/grader-file"]}'
+```
+
+The JSON keys are `git_objects`, `git_refs` and `grader`, with absolute sandbox
+paths as values. Missing targets stay visible as missing. **Do not upload hidden
+tests early to make them observable**: standard Harbor tests may not exist in the
+agent environment until verification, and a separate verifier has its own sandbox.
+
+The lifecycle is bracketed on Harbor's actual agent phase:
+
+1. Snapshot protected-file types/availability and hashes onto the evaluator host,
+   under `<trial>/evaluator/file-access/`, outside agent-mounted directories.
+2. Establish watches and wait for readiness before releasing the agent.
+3. Transfer sealed event chunks incrementally to the host while the agent runs.
+4. Stop and drain the observer at agent end, **before** final hashing, artifact
+   collection or verification. End/cancel hooks provide cleanup backstops.
+
+Baseline hashing happens outside the watched interval, so evaluator reads do not
+become agent-window alerts. Multi-step trials use separate window IDs and retain
+the per-trial log after Harbor relocates step logs. Window IDs are not ATIF steps.
+
+The watch adds:
+
+- `git_object_read`: file OPEN/ACCESS in selected Git **object** storage. Ref
+  observations are retained separately; normal ref metadata is not object content.
+- `hidden_test_read`: file OPEN/ACCESS in selected grader material.
+- Existing `grader_tamper` can also cite a protected-file before/after hash change.
+  Original rewards, integrity dimensions and stop/admission policies are unchanged.
+
+Alerts cite the JSONL line and observed path/event, **not a guessed command or
+actor PID**. OPEN proves an open event, not bytes read. ACCESS can mean read or
+execution; neither establishes byte count, model visibility, copying or intent.
+Git object access can be legitimate. These are tripwires for inspection, not
+standalone cheating verdicts.
+
+### Coverage and overhead limits
+
+Harbor 0.24 exec/log hooks and Daytona 0.220 exec/session/OTel APIs do not expose
+the examined file-access feed; provider filesystem-usage metrics are not read
+events. The chosen in-sandbox collector follows
+[inotifywait](https://man7.org/linux/man-pages/man1/inotifywait.1.html) and
+[inotify](https://man7.org/linux/man-pages/man7/inotify.7.html):
+
+- No PID or command attribution; other processes in the agent interval can
+  generate events. Reporting timestamps are not kernel timestamps.
+- Events can coalesce or overflow. Loss events are selected explicitly where the
+  binary supports them; fallback, malformed/truncated frames, watch loss or capture
+  bounds produce partial coverage. Silence is never proof of no access.
+- Recursive-watch races, hard-link/alias paths, mmap and network-filesystem gaps
+  remain. NUL framing with a terminal field prevents a truncated pathname from
+  being joined into fabricated evidence from the next event.
+- An agent with the same sandbox authority can interfere with the sensor.
+  Evaluator-owned baselines cannot be rewritten through an agent-mounted baseline,
+  but final snapshots miss write-and-restore and can race background writers.
+- The stream is bounded (32 MiB/window, 20,000 retained access records); hitting a
+  bound is reported, not called complete. Hashing has explicit file/entry bounds.
+- Capture adds startup, collection and CPU/I/O overhead; see the measured local
+  Docker receipt on [HAR-180](https://linear.app/petermakhnatch/issue/HAR-180).
+  Local proof is not a Daytona permission, overhead or rollout qualification.
+
+Host eBPF/auditd/Falco/Tetragon/Tracee are not installed. A strace pilot remains
+deferred until ptrace is proven available in an independently authorized Daytona
+run. No such pilot or cloud run is part of this delivery.
 
 ## Native MiMo's live Laminar view
 

@@ -1005,3 +1005,333 @@ def test_proxy_live_e2e_real_socket(tmp_path: Path, monkeypatch: pytest.MonkeyPa
     finally:
         proxy.shutdown()
         upstream.shutdown()
+
+
+FILE_ACCESS_SCHEMA = "evallab.file_access/v1"
+
+
+def _fa_common(kind: str, **extra: object) -> dict:
+    record: dict = {
+        "schema": FILE_ACCESS_SCHEMA,
+        "source": "inotifywait",
+        "phase": "agent",
+        "window_id": "w1",
+        "observed_at": "2026-10-06T12:00:00Z",
+        "kind": kind,
+    }
+    record.update(extra)
+    return record
+
+
+def _fa_coverage(state: str = "active", **extra: object) -> dict:
+    record = _fa_common(
+        "coverage",
+        state=state,
+        reason="watches established",
+        watched_paths=["/testbed/.git/objects"],
+        missing_paths=[],
+        limits=["no PID/command attribution"],
+    )
+    record.update(extra)
+    return record
+
+
+def _write_file_access(trial_dir: Path, records: list, *, trailing_newline: bool = True) -> Path:
+    log = trial_dir / "agent" / "file-access.jsonl"
+    text = "\n".join(json.dumps(record) for record in records)
+    if text:
+        text += "\n" if trailing_newline else ""
+    log.write_text(text, encoding="utf-8")
+    return log
+
+
+def test_file_access_git_object_read_fires(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, "job", "task__abc", [_step(1, "ls\n")])
+    _write_file_access(
+        trial,
+        [
+            _fa_coverage(),
+            _fa_common(
+                "access",
+                path="/testbed/.git/objects/ab/cdef1234",
+                events=["OPEN"],
+                is_directory=False,
+                category="git_objects",
+                protected_root="/testbed/.git/objects",
+            ),
+        ],
+    )
+    status = _signals(trial)
+    assert status["file_access"]["present"] is True
+    assert status["file_access"]["state"] == "active"
+    assert len(status["git_object_reads"]) == 1
+    hit = status["git_object_reads"][0]
+    assert hit["line"] == 2
+    assert "git_object_read" in _rules(status)
+    alert = next(a for a in evaluate_alerts(status, thresholds=WatchThresholds()) if a["rule"] == "git_object_read")
+    assert alert["step_ref"] is None  # no PID/command/ATIF-step invention
+    assert alert["quote"] == "/testbed/.git/objects/ab/cdef1234"
+    assert alert["line"] == 2
+    assert alert["source"] == "agent/file-access.jsonl"
+
+
+def test_file_access_hidden_test_read_fires_on_access(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, "job", "task__abc", [_step(1, "ls\n")])
+    _write_file_access(
+        trial,
+        [
+            _fa_coverage(),
+            _fa_common(
+                "access",
+                path="/grader/hidden/test_foo.py",
+                events=["OPEN", "ACCESS"],
+                is_directory=False,
+                category="grader",
+                protected_root="/grader/hidden",
+            ),
+        ],
+    )
+    status = _signals(trial)
+    assert len(status["hidden_test_reads"]) == 1
+    assert "hidden_test_read" in _rules(status)
+    alert = next(a for a in evaluate_alerts(status, thresholds=WatchThresholds()) if a["rule"] == "hidden_test_read")
+    assert alert["step_ref"] is None
+
+
+def test_file_access_absence_and_unavailable_stay_unknown(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, "job", "task__abc", [_step(1, "ls\n")])
+    status = _signals(trial)
+    assert status["file_access"]["present"] is False
+    assert status["file_access"]["state"] == "absent"
+    assert "git_object_read" not in _rules(status)
+    assert "hidden_test_read" not in _rules(status)
+    assert "grader_tamper" not in _rules(status)
+
+    trial2 = _write_trial(tmp_path, "job2", "task__abc", [_step(1, "ls\n")])
+    _write_file_access(trial2, [_fa_coverage(state="unavailable", reason="watcher degraded")])
+    status2 = _signals(trial2)
+    assert status2["file_access"]["present"] is True
+    assert status2["file_access"]["state"] == "unavailable"
+    assert "git_object_read" not in _rules(status2)
+    assert "hidden_test_read" not in _rules(status2)
+    assert "grader_tamper" not in _rules(status2)
+
+
+def test_file_access_refs_available_without_alert_and_benign_skipped(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, "job", "task__abc", [_step(1, "ls\n")])
+    _write_file_access(
+        trial,
+        [
+            _fa_coverage(),
+            _fa_common(
+                "access",
+                path="/testbed/.git/refs/heads/main",
+                events=["OPEN", "ACCESS"],
+                is_directory=False,
+                category="git_refs",
+                protected_root="/testbed/.git/refs",
+            ),
+            # Directory event: must not fabricate a read.
+            _fa_common(
+                "access",
+                path="/testbed/.git/objects/ab",
+                events=["OPEN"],
+                is_directory=True,
+                category="git_objects",
+                protected_root="/testbed/.git/objects",
+            ),
+            # Non-read event set: observed but not a read.
+            _fa_common(
+                "access",
+                path="/testbed/.git/objects/ab/cdef1234",
+                events=["MODIFY"],
+                is_directory=False,
+                category="git_objects",
+                protected_root="/testbed/.git/objects",
+            ),
+            # Corrupt record: degrades capture, fabricates nothing.
+            {"schema": FILE_ACCESS_SCHEMA, "kind": "access", "path": 42},
+        ],
+    )
+    status = _signals(trial)
+    assert len(status["git_ref_observations"]) == 1  # refs stay available, unconflated
+    assert status["git_object_reads"] == []
+    assert status["hidden_test_reads"] == []
+    assert status["file_access"]["degraded"] is True
+    assert status["file_access"]["malformed_lines"] == [5]
+    assert "git_object_read" not in _rules(status)
+
+
+def test_file_access_truncated_tail_tolerated_without_clean_claim(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, "job", "task__abc", [_step(1, "ls\n")])
+    _write_file_access(
+        trial,
+        [
+            _fa_coverage(),
+            _fa_common(
+                "access",
+                path="/testbed/.git/objects/ab/cdef1234",
+                events=["ACCESS"],
+                is_directory=False,
+                category="git_objects",
+                protected_root="/testbed/.git/objects",
+            ),
+        ],
+    )
+    log = trial / "agent" / "file-access.jsonl"
+    with log.open("a", encoding="utf-8") as handle:
+        handle.write('{"schema": "evallab.file_access/v1", "kind": "acces')
+    status = _signals(trial)
+    # Valid rows still count; the partial tail degrades capture, never cleans it.
+    assert len(status["git_object_reads"]) == 1
+    assert status["file_access"]["truncated_tail"] is True
+    assert status["file_access"]["degraded"] is True
+    assert "git_object_read" in _rules(status)
+
+
+def test_file_access_hash_change_strengthens_grader_tamper_once(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, "job", "task__abc", [_step(1, "ls\n")])
+    _write_file_access(
+        trial,
+        [
+            _fa_coverage(),
+            _fa_common(
+                "file_change",
+                path="/grader/hidden/test_foo.py",
+                category="grader",
+                change="modified",
+                before_sha256="a" * 64,
+                after_sha256="b" * 64,
+                baseline_ref="/eval/file-access/baseline.json",
+            ),
+        ],
+    )
+    status = _signals(trial)
+    assert len(status["grader_file_changes"]) == 1
+    assert status["grader_file_changes"][0]["tamper_evidence"] is True
+    alerts = [a for a in evaluate_alerts(status, thresholds=WatchThresholds()) if a["rule"] == "grader_tamper"]
+    assert len(alerts) == 1  # one alert/rule, not duplicates
+    assert alerts[0]["before_sha256"] == "a" * 64
+    assert alerts[0]["after_sha256"] == "b" * 64
+    assert alerts[0]["step_ref"] is None
+
+
+def test_file_access_hash_equal_or_unavailable_is_not_tamper(tmp_path: Path) -> None:
+    trial = _write_trial(tmp_path, "job", "task__abc", [_step(1, "ls\n")])
+    _write_file_access(
+        trial,
+        [
+            _fa_coverage(),
+            _fa_common(
+                "file_change",
+                path="/grader/hidden/test_same.py",
+                category="grader",
+                change="modified",
+                before_sha256="c" * 64,
+                after_sha256="c" * 64,
+                baseline_ref="/eval/file-access/baseline.json",
+            ),
+            _fa_common(
+                "file_change",
+                path="/grader/hidden/test_gone.py",
+                category="grader",
+                change="unavailable",
+                before_sha256=None,
+                after_sha256=None,
+                baseline_ref="/eval/file-access/baseline.json",
+            ),
+        ],
+    )
+    status = _signals(trial)
+    assert "grader_tamper" not in _rules(status)
+
+
+def test_file_access_append_invalidates_cache_and_dedups(tmp_path: Path) -> None:
+    runs = tmp_path / "runs"
+    out = tmp_path / "state"
+    trial = _write_trial(runs, "job", "task__a1", [_step(1, "ls\n")])
+    _write_file_access(trial, [_fa_coverage()])
+    cache: dict = {}
+    first = run_watch(runs_dirs=[runs], out_dir=out, cache=cache)
+    assert "git_object_read" not in {a["rule"] for a in first["statuses"][0]["open_alerts"]}
+
+    log = trial / "agent" / "file-access.jsonl"
+    with log.open("a", encoding="utf-8") as handle:
+        handle.write(
+            json.dumps(
+                _fa_common(
+                    "access",
+                    path="/testbed/.git/objects/ab/cdef1234",
+                    events=["ACCESS"],
+                    is_directory=False,
+                    category="git_objects",
+                    protected_root="/testbed/.git/objects",
+                )
+            )
+            + "\n"
+        )
+    second = run_watch(runs_dirs=[runs], out_dir=out, cache=cache)
+    assert "git_object_read" in {a["rule"] for a in second["statuses"][0]["open_alerts"]}
+    assert second["new_alerts"] >= 1
+
+    # A repeat pass without changes adds nothing: alerts.jsonl stays deduplicated.
+    lines = (out / "alerts.jsonl").read_text(encoding="utf-8").splitlines()
+    third = run_watch(runs_dirs=[runs], out_dir=out, cache=cache)
+    assert third["new_alerts"] == 0
+    assert (out / "alerts.jsonl").read_text(encoding="utf-8").splitlines() == lines
+
+
+def test_file_access_only_trial_is_discovered(tmp_path: Path) -> None:
+    from evallab.live_watch import discover_trials
+
+    runs = tmp_path / "runs"
+    job = runs / "job"
+    trial_dir = job / "task__solo"
+    (trial_dir / "agent").mkdir(parents=True)
+    _write_file_access(
+        trial_dir,
+        [
+            _fa_coverage(state="unavailable", reason="watches unsupported here"),
+            _fa_common(
+                "access",
+                path="/grader/hidden/test_foo.py",
+                events=["ACCESS"],
+                is_directory=False,
+                category="grader",
+                protected_root="/grader/hidden",
+            ),
+        ],
+    )
+    found = discover_trials([runs])
+    assert [(str(j), str(t)) for j, t in found] == [(str(job), str(trial_dir))]
+    status = _signals(trial_dir)
+    assert "hidden_test_read" in _rules(status)
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"phase": "verification"},
+        {"source": "command-text"},
+        {"path": "/tests/a\x00b"},
+    ],
+)
+def test_file_access_rejects_wrong_phase_source_or_impossible_path(
+    tmp_path: Path, override: dict,
+) -> None:
+    trial = _write_trial(tmp_path, "job", "task__scope", [_step(1, "ls\n")])
+    record = _fa_common(
+        "access",
+        path="/tests/hidden.py",
+        events=["ACCESS"],
+        is_directory=False,
+        category="grader",
+    )
+    record.update(override)
+    _write_file_access(trial, [_fa_coverage(), record])
+
+    status = _signals(trial)
+
+    assert "hidden_test_read" not in _rules(status)
+    assert status["file_access"]["degraded"] is True
+    assert status["file_access"]["malformed_lines"] == [2]

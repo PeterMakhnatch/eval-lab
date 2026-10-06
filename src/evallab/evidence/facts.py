@@ -1118,8 +1118,18 @@ def ingest_catalog(
     derived_root: Path | None = None,
     projections_by_job: dict[str, dict[str, TrialTrajectoryProjection]] | None = None,
 ) -> None:
-    """Upsert deterministic document/fact records after the base job ingest."""
-    with psycopg.connect(database_url) as connection:
+    """Upsert deterministic document/fact records after the base job ingest.
+
+    The whole document/fact phase runs in one transaction retried only on
+    PostgreSQL ``DeadlockDetected`` via the shared catalog helper: a failed
+    attempt rolls back, and the retry replays the same job list. Cached
+    ``projections_by_job`` entries are deterministic projections of immutable
+    job data keyed by trial id, so reusing them across attempts neither
+    re-parses source data nor duplicates committed rows.
+    """
+    from evallab.database import _run_catalog_transaction
+
+    def _write(connection: psycopg.Connection[Any]) -> None:
         for job in jobs:
             association = experiment_id(job)
             if association is not None:
@@ -1276,6 +1286,8 @@ def ingest_catalog(
                     """,
                     {**asdict(trial_fact), "raw_facts": Jsonb(asdict(trial_fact))},
                 )
+
+    _run_catalog_transaction(database_url, _write)
 
 
 @dataclass(frozen=True)

@@ -1243,6 +1243,18 @@ reports the review count and catalog identity, and never appends another review.
 Use it to index an existing decision; use `analyze review --index` only when
 intending to append a new decision as well.
 
+Concurrent catalog ingestion retries only PostgreSQL `DeadlockDetected` for
+schema initialization, the base job/trial/reward/artifact phase, and the
+document/fact phase. Each phase has at most four attempts, with 0.05s, 0.1s,
+and 0.2s backoff (0.35s total sleep, not a transaction-duration limit).
+Every attempt uses a fresh connection: the failed transaction rolls back
+and closes before the complete phase replays, including commit-time failures.
+One-shot job iterables are snapshotted once, preserving the full batch and
+exact successful count. Exhausted deadlocks and every other error propagate,
+so queue completion remains fail-closed. These are separate transactions;
+already-committed phases remain committed if a later phase fails. Parquet
+still writes only after all catalog phases finish.
+
 A Parquet failure cannot roll back catalog ingest or turn a completed agent run
 into an execution failure. It appends a
 `projection_failed:<job-id>:<error-type>` queue event and leaves the job done so

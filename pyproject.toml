@@ -53,6 +53,7 @@ dev = [
     "pip==26.1.2",
     "harbor-atif2otel>=0.1.0",
     "lmnr==0.7.64",
+    "openai>=2,<3",
     "hypothesis>=6.100,<7",
     "pytest>=8.4,<9",
     "pytest-xdist>=3.8,<4",

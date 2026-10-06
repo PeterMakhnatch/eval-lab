@@ -90,6 +90,8 @@ separate delegate approvals and shared $8 compute/environment cap.
 The companion watch and Signal comparison reuse actual SDK identity instead
 of duplicating native trials with an ATIF-derived root/LLM/tool tree; watch
 alerts remain explicitly derived observations under the real SDK root.
+Standalone SDK CI installs its actual OpenAI client explicitly, without
+depending on the optional Harbor runtime being installed.
 See [live Laminar observability](observability.md#live-laminar-tracing-for-native-mimo-har-165).
 
 The usable analysis corpus is the `status = 'featured'` slice, not the full

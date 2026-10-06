@@ -500,6 +500,33 @@ uv run evallab reject <spec-id> --actor peter --reason "not tonight"
 Authorisation does not lift a ceiling, the quiet-failure breaker, the registry
 checks, or the credential requirement — those still refuse an authorised spec.
 
+### Authorising an experiment campaign once
+
+For a bounded cohort, Research-Harbor approves the campaign file once — as
+Peter's delegate — instead of one spec at a time (HAR-175). The campaign
+records the budget (USD), the allowed task list (task ids and package
+digests), the reference profile plus allowed declared deviations, the egress
+lock requirement, the backstop floor for trial ceilings, the queue cwd, and
+the submitter:
+
+```bash
+uv run evallab campaign validate /path/to/campaign.json --spec run-a.json [--spec run-b.json]
+uv run evallab campaign approve /path/to/campaign.json --actor research-harbor
+```
+
+Approval is append-only and attributable, and the content is digest-pinned
+and immutable after approval. Specs that claim the campaign (`campaign_id`)
+and match it on profile, setup, lock, task digest, ceilings, and budget are
+admitted automatically with policy rule `campaign:<id>` — nothing is
+approved per ID, and routine admissions are silent. Any mismatch is refused
+with its own `campaign_*` reason and the spec stays waiting/refused, never
+silently admitted. Specs without a campaign keep the per-ID path above
+unchanged. An infra-excluded trial earns exactly one automatic replacement
+(cloned spec with `campaign_replaces` lineage); budget exhaustion fences new
+launches with the existing queue STOP while running trials finish untouched.
+Only a budget or rule breach, or a gate defect, escalates: one escalation
+event plus one `lin comment` to the campaign's card.
+
 The nightly canary cycle still stages its paid canaries every night, but they
 land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is
 not quarantined for it. Nothing dispatches until Peter authorises a spec by id.

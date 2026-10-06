@@ -416,7 +416,9 @@ def _preflight_command(
                     sources = getattr(args, "diff_sources", None)
                     if sources:
                         spec = spec.model_copy(
-                            update={"diff_sources": [str(_resolve(checkout, path)) for path in sources]}
+                            update={
+                                "diff_sources": [str(_resolve(checkout, path)) for path in sources]
+                            }
                         )
                     print(render_diff(preview_spec_diff(spec, checkout)), end="")
                 except (OSError, ValueError, RuntimeError, ImportError) as exc:
@@ -748,6 +750,135 @@ def _campaign_resume_command(
     status = _campaign_orchestrator(args, root).resume(dry_run=args.dry_run)
     _print_campaign_status(status, as_json=args.json)
     return 0
+
+
+def _campaign_approve_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Record the once-approval for an experiment campaign (HAR-175)."""
+    del harbor
+    from evallab import campaign_approval as cap
+
+    source = _resolve(root, args.campaign)
+    try:
+        draft = cap.ExperimentCampaign.model_validate_json(source.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"error: invalid campaign file {args.campaign}: {exc}", file=sys.stderr)
+        return 2
+    errors = cap.validate_campaign_content(root, draft)
+    if errors:
+        for error in errors:
+            print(f"error: campaign invalid: {error}", file=sys.stderr)
+        return 2
+    try:
+        frozen = root / cap.CAMPAIGN_STATE_ROOT / draft.campaign_id / cap.CAMPAIGN_FILENAME
+        if frozen.is_file():
+            try:
+                existing = cap.ExperimentCampaign.model_validate_json(
+                    frozen.read_text(encoding="utf-8")
+                )
+                if cap.campaign_content_digest(existing) != cap.campaign_content_digest(draft):
+                    prior = cap.read_approvals(root, draft.campaign_id)
+                    if prior:
+                        print(
+                            f"error: campaign {draft.campaign_id} content changed after "
+                            f"{prior[0].actor}'s approval; approved content is immutable",
+                            file=sys.stderr,
+                        )
+                        return 2
+            except ValueError as exc:
+                print(f"error: frozen campaign unreadable: {exc}", file=sys.stderr)
+                return 2
+        path = cap.write_campaign(root, draft)
+    except cap.CampaignApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    try:
+        record = cap.approve_campaign(root, draft.campaign_id, actor=args.actor)
+    except cap.CampaignApprovalError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if args.json:
+        print(record.model_dump_json(indent=2))
+    else:
+        print(f"campaign: {record.campaign_id}")
+        print(f"content_digest: {record.content_digest}")
+        print(f"approved by: {record.actor} at {record.approved_at.isoformat()}")
+        print(f"frozen: {path.relative_to(root).as_posix()}")
+        print(f"card: {draft.linear_card} (escalations page Research-Harbor here)")
+        print("next: submit specs with campaign_id set; matching specs admit automatically")
+    return 0
+
+
+def _campaign_validate_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    """Validate a campaign file and preflight specs against it (HAR-175)."""
+    del harbor
+    from evallab import campaign_approval as cap
+    from evallab.schemas import ExperimentSpec
+
+    source = _resolve(root, args.campaign)
+    try:
+        draft = cap.ExperimentCampaign.model_validate_json(source.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"error: invalid campaign file {args.campaign}: {exc}", file=sys.stderr)
+        return 2
+    errors = cap.validate_campaign_content(root, draft)
+    if errors:
+        for error in errors:
+            print(f"error: campaign invalid: {error}", file=sys.stderr)
+        return 2
+    _reserved, _settled, committed = cap.campaign_spend_usd(root, draft.campaign_id)
+    results: list[dict[str, Any]] = []
+    worst = 0
+    for raw_spec in args.spec:
+        spec_path = _resolve(root, raw_spec)
+        try:
+            spec = ExperimentSpec.model_validate_json(spec_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            print(f"error: invalid spec file {raw_spec}: {exc}", file=sys.stderr)
+            return 2
+        decision = cap.check_campaign_admission(
+            spec, draft, repo_root=root, committed_usd=committed
+        )
+        results.append(
+            {
+                "spec": raw_spec.as_posix(),
+                "admitted": decision.admitted,
+                "reason_code": decision.reason_code,
+                "message": decision.message,
+            }
+        )
+        if not decision.admitted:
+            worst = max(worst, 1)
+    if args.json:
+        print(
+            json.dumps(
+                {
+                    "campaign_id": draft.campaign_id,
+                    "content_digest": cap.campaign_content_digest(draft),
+                    "budget_usd": draft.budget_usd,
+                    "committed_usd": committed,
+                    "tasks": len(draft.tasks),
+                    "errors": errors,
+                    "specs": results,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
+    else:
+        print(f"campaign: {draft.campaign_id}")
+        print(f"content_digest: {cap.campaign_content_digest(draft)}")
+        print(f"budget: ${draft.budget_usd:.2f} (committed ${committed:.2f})")
+        print(f"tasks: {len(draft.tasks)}")
+        for result in results:
+            status = "admitted" if result["admitted"] else f"refused ({result['reason_code']})"
+            print(f"  {result['spec']}: {status}")
+            if not result["admitted"]:
+                print(f"    {result['message']}")
+    return worst
 
 
 def _reject_command(
@@ -2726,13 +2857,15 @@ def _regrade_command(
         plan = plan_regrade_job(**options)
         print(
             json.dumps(plan.model_dump(mode="json"), indent=2, sort_keys=True)
-            if args.json else render_job_plan(plan)
+            if args.json
+            else render_job_plan(plan)
         )
         return 0 if plan.runnable else 1
     receipt = regrade_job(**options)
     print(
         json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True)
-        if args.json else render_job_receipt(receipt)
+        if args.json
+        else render_job_receipt(receipt)
     )
     return 1 if receipt.refused or receipt.n_refused else 0
 
@@ -4713,6 +4846,34 @@ def parser() -> argparse.ArgumentParser:
     campaign_run.set_defaults(func=_campaign_run_command)
     campaign_resume.set_defaults(func=_campaign_resume_command)
 
+    campaign_approve = campaign_commands.add_parser(
+        "approve",
+        help="Approve an experiment campaign once; matching specs then admit automatically",
+    )
+    campaign_approve.add_argument("campaign", type=Path)
+    campaign_approve.add_argument(
+        "--actor",
+        required=True,
+        help="who is approving (e.g. research-harbor as Peter's delegate); never defaulted",
+    )
+    campaign_approve.add_argument("--json", action="store_true")
+    campaign_approve.set_defaults(func=_campaign_approve_command)
+
+    campaign_validate = campaign_commands.add_parser(
+        "validate",
+        help="Validate a campaign file and preflight specs against it without approving",
+    )
+    campaign_validate.add_argument("campaign", type=Path)
+    campaign_validate.add_argument(
+        "--spec",
+        type=Path,
+        action="append",
+        default=[],
+        help="spec file to dry-run against the campaign (repeatable)",
+    )
+    campaign_validate.add_argument("--json", action="store_true")
+    campaign_validate.set_defaults(func=_campaign_validate_command)
+
     schedule = commands.add_parser("schedule", help="Manage unattended launchd schedules")
     schedule_commands = schedule.add_subparsers(dest="schedule_command", required=True)
     schedule_install = schedule_commands.add_parser(
@@ -5662,45 +5823,60 @@ def parser() -> argparse.ArgumentParser:
         help="Generate Harbor health/solve metadata variants from recorded task evidence ($0)",
     )
     tasks_health_tags.add_argument(
-        "--ledger", type=Path,
+        "--ledger",
+        type=Path,
         default=Path("research/experiments/python-task-ledger/ledger.csv"),
     )
     tasks_health_tags.add_argument(
-        "--locked-nop", type=Path,
+        "--locked-nop",
+        type=Path,
         default=Path("research/experiments/har122-egress-lock/har146-locked-nop.csv"),
     )
     tasks_health_tags.add_argument(
-        "--history", type=Path,
+        "--history",
+        type=Path,
         default=Path("research/experiments/python-task-ledger/task_history.csv"),
     )
     tasks_health_tags.add_argument(
-        "--pool", type=Path,
+        "--pool",
+        type=Path,
         default=Path("research/experiments/har108-python-census/pool.json"),
     )
     tasks_health_tags.add_argument(
-        "--exploit-verdicts", type=Path,
+        "--exploit-verdicts",
+        type=Path,
         help="Optional task-id-keyed JSON from probe-exploit verdict; absent is not clean",
     )
     tasks_health_tags.add_argument(
-        "--source-root", type=Path,
+        "--source-root",
+        type=Path,
         help="Checkout containing retained parent packages (default: primary checkout)",
     )
     tasks_health_tags.add_argument(
-        "--records-dir", type=Path, default=Path("library/task-variants"),
+        "--records-dir",
+        type=Path,
+        default=Path("library/task-variants"),
     )
     tasks_health_tags.add_argument(
-        "--variants-root", type=Path,
+        "--variants-root",
+        type=Path,
         help="Materialized variants root (default: existing shared task-variant store)",
     )
     tasks_health_tags.add_argument(
-        "--view-root", type=Path, default=Path("derived/task-health/view"),
+        "--view-root",
+        type=Path,
+        default=Path("derived/task-health/view"),
         help="Flat task collection for native harbor view --tasks",
     )
     tasks_health_tags.add_argument(
-        "--output", type=Path, default=Path("derived/task-health/manifest.json"),
+        "--output",
+        type=Path,
+        default=Path("derived/task-health/manifest.json"),
     )
     tasks_health_tags.add_argument(
-        "--task", action="append", help="Explicit ledger task subset; omit for every task",
+        "--task",
+        action="append",
+        help="Explicit ledger task subset; omit for every task",
     )
     tasks_health_tags.add_argument("--json", action="store_true")
     tasks_health_tags.set_defaults(func=_tasks_health_tags_command)
@@ -6491,7 +6667,9 @@ def parser() -> argparse.ArgumentParser:
         help="Parent directory for the new regrade job; the source is never changed",
     )
     regrade_parser.add_argument("--name", help="Explicit new job name")
-    regrade_parser.add_argument("--dry-run", action="store_true", help="Preview without running a verifier")
+    regrade_parser.add_argument(
+        "--dry-run", action="store_true", help="Preview without running a verifier"
+    )
     regrade_parser.add_argument("--json", action="store_true")
     regrade_parser.set_defaults(func=_regrade_command)
     process_job_parser = commands.add_parser(

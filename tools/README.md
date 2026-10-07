@@ -11,9 +11,8 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
 - `tinker-sft/` — the Tinker chat_sl toolchain for HAR-81
   (`tinker==0.30.4`, `tinker-cookbook==0.5.7`): `measure.py` (offline render
   and token statistics for exported conversations) and the
-  `tinker_cookbook.recipes.chat_sl.train` entrypoint. Invoked only as
-  `uv run --project tools/tinker-sft --locked ...` from
-  `src/evallab/sft_tinker.py`.
+  `tinker_cookbook.recipes.chat_sl.train` entrypoint. Invoked only as `uv run
+  --project tools/tinker-sft --locked ...` from `src/evallab/sft_tinker.py`.
 - `modal-mimo-serve/` — the Modal client (`modal==1.5.5`) plus the HAR-90
   SGLang server app for `XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`: `serve.py`
   (the deploy and weight-download targets), `smoke.py` (a stdlib latency and
@@ -29,6 +28,7 @@ subdirectory pins its own dependencies with its own committed `uv.lock`.
   (`modal==1.5.5`, `transformers==5.12.1`, CPU-only lock; GPU deps pinned
   inside the Modal image): `sft.py` (`dry-run` offline render/mask/cost
   check, gated `train`/`merge` on one A100-80GB) plus a fixture export.
+- `agentenv-bench/` — model-free MiMo task/grader controls and an AgentEnv port.
 
 ## Invariants or rules
 

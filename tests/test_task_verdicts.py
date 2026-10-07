@@ -79,6 +79,43 @@ def test_verdict_mapping_strip_present_is_keep_and_probe_evidence_retained():
     )
 
 
+def test_oracle_not_keep_overrides_keep_and_discard_wins():
+    mod = _BUILD_MOD
+    keep_evidence = "library/task-variants/fixture/candidate.json:strip-future-history@1=candidate"
+    network = {
+        "label": "oracle:fail-network",
+        "evidence": "research/experiments/python-task-ledger/oracle-pilot/000552-locked.json",
+        "run_digest": "sha256:abc",
+    }
+    verdict, evidence = mod.apply_oracle("keep", keep_evidence, network)
+    assert verdict == "fix"
+    assert evidence.endswith(":oracle:fail-network")
+    none = {
+        "label": "oracle:none",
+        "evidence": "research/experiments/python-task-ledger/oracle-pilot/001198.json",
+        "run_digest": "sha256:def",
+    }
+    assert mod.apply_oracle("keep", keep_evidence, none)[0] == "fix"
+    # A discarded status still wins over an oracle label.
+    assert mod.apply_oracle("discard", "ledger:status=discarded", network) == (
+        "discard",
+        "ledger:status=discarded",
+    )
+    # Extractor misses do not override a strip keep.
+    neutral = {"label": "oracle:fail", "evidence": "x", "run_digest": ""}
+    assert mod.apply_oracle("keep", keep_evidence, neutral) == ("keep", keep_evidence)
+
+
+def test_oracle_loader_rejects_an_unmapped_label(tmp_path, monkeypatch):
+    mod = _BUILD_MOD
+    bad = tmp_path / "oracle_sweep.csv"
+    bad.write_text("task_id,label,evidence\nformat-code-task-000001,oracle:maybe,x\n")
+    monkeypatch.setattr(mod, "ORACLE_SWEEP", bad)
+    monkeypatch.setattr(mod, "ORACLE_PILOT", tmp_path / "missing.csv")
+    with pytest.raises(SystemExit, match="unmapped oracle label"):
+        mod.load_oracle()
+
+
 def test_strip_pick_takes_the_latest_strip_record():
     mod = _BUILD_MOD
     old = (

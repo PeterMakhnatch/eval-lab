@@ -28,12 +28,16 @@ the future-history leak and every derive is digest-checked, so the leak is
 fixed by default:
 
 * ``discard``: status is ``discarded``.
-* ``fix``: no ``strip-future-history@1`` variant, or its locked nop failed
-  (``STRIP_NOP_FAILED``).
+* ``fix``: no ``strip-future-history@1`` variant, its locked nop failed
+  (``STRIP_NOP_FAILED``), or an oracle label in ``ORACLE_NOT_KEEP``
+  (HAR-191: unsolvable under the lock, no upstream fix, or a lenient nop).
 * ``keep``: otherwise — a validated or candidate strip variant suffices.
 
-``verdict_evidence`` cites the deciding input only (evidence pointers, no
-prose). Verdict never changes ``status`` or any existing selection.
+``oracle_pilot.csv`` holds the two HAR-191 pilot rows, digest-bound.
+``oracle_sweep.csv`` (Work-3, when it lands) overrides the pilot per task.
+An unmapped label fails the build. ``verdict_evidence`` cites the deciding
+input only (evidence pointers, no prose). Verdict never changes ``status``
+or any existing selection.
 
 LLM checker labels (HAR-111/112) and rater-agent labels do not affect
 status. ``har120_proposal.csv`` is a frozen HAR-120 input and is no longer
@@ -128,6 +132,21 @@ PROBE_CRACKED = {
         "(12 unreachable commits)",
     ),
 }
+#: HAR-191 labels that remove ``keep``. ``discard`` still wins, and status
+#: is unchanged. ``oracle:fail`` and ``oracle:patch-conflict`` stay neutral:
+#: those can be extractor misses, not a task defect.
+ORACLE_NOT_KEEP = {
+    "oracle:fail-network": "fix",
+    "oracle:none": "fix",
+    "nop:pass": "fix",
+}
+ORACLE_NEUTRAL = {
+    "oracle:pass+nop:fail",
+    "oracle:fail",
+    "oracle:patch-conflict",
+}
+ORACLE_PILOT = HERE / "oracle_pilot.csv"
+ORACLE_SWEEP = HERE / "oracle_sweep.csv"
 COLUMNS = (
     "task_id",
     "split",
@@ -169,6 +188,48 @@ def strip_pick(records: list[tuple[dict, Path]]) -> tuple[dict, Path] | None:
     """Latest ``strip-future-history@1`` record for a task, if any."""
     strips = [item for item in records if item[0]["transform"] == STRIP]
     return latest(strips)
+
+
+def load_oracle_rows(path: Path, *, require_digest: bool) -> dict[str, dict[str, str]]:
+    """Read an oracle label table. Missing file is an empty table."""
+    if not path.is_file():
+        return {}
+    with path.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    out: dict[str, dict[str, str]] = {}
+    for row in rows:
+        task_id = (row.get("task_id") or row.get("task") or "").strip()
+        label = (row.get("label") or "").strip()
+        if not task_id or not label:
+            raise SystemExit(f"{path.name}: row missing task or label")
+        if label not in ORACLE_NOT_KEEP and label not in ORACLE_NEUTRAL:
+            raise SystemExit(f"{path.name}: unmapped oracle label {label!r} for {task_id}")
+        evidence = (row.get("evidence") or row.get("evidence_path") or "").strip()
+        if label in ORACLE_NOT_KEEP and not evidence:
+            raise SystemExit(f"{path.name}: {task_id} {label} has no evidence path")
+        digest = (row.get("run_digest") or "").strip()
+        if require_digest and not digest:
+            raise SystemExit(f"{path.name}: {task_id} missing run_digest")
+        out[task_id] = {"label": label, "evidence": evidence, "run_digest": digest}
+    return out
+
+
+def load_oracle() -> dict[str, dict[str, str]]:
+    """Pilot rows, overridden per task by ``oracle_sweep.csv`` when it lands."""
+    labels = load_oracle_rows(ORACLE_PILOT, require_digest=True)
+    labels.update(load_oracle_rows(ORACLE_SWEEP, require_digest=False))
+    return labels
+
+
+def apply_oracle(
+    verdict: str,
+    evidence: str,
+    label: dict[str, str] | None,
+) -> tuple[str, str]:
+    """Override keep when the oracle label is in ``ORACLE_NOT_KEEP``."""
+    if verdict == "discard" or label is None or label["label"] not in ORACLE_NOT_KEEP:
+        return verdict, evidence
+    return ORACLE_NOT_KEEP[label["label"]], f"{label['evidence']}:{label['label']}"
 
 
 def verdict_for(
@@ -306,9 +367,14 @@ def main() -> None:
             if row["run_digest"] != digest:
                 raise SystemExit(f"{row['task_id']}: run digest changed; review PROBE_CRACKED")
             row["status"], row["reason"] = "review", reason
+    oracle = load_oracle()
     for row in rows:
+        bound = oracle.get(row["task_id"])
+        if bound and bound["run_digest"] and bound["run_digest"] != row["run_digest"]:
+            raise SystemExit(f"{row['task_id']}: run digest changed; review oracle label")
         strip = strip_pick(variants.get(row["task_id"], []))
-        row["verdict"], row["verdict_evidence"] = verdict_for(row["status"], row["task_id"], strip)
+        verdict, evidence = verdict_for(row["status"], row["task_id"], strip)
+        row["verdict"], row["verdict_evidence"] = apply_oracle(verdict, evidence, bound)
     print("verdict", dict(Counter(row["verdict"] for row in rows)))
     print("fix", sorted(row["task_id"] for row in rows if row["verdict"] == "fix"))
     write(HERE / "ledger.csv", rows, COLUMNS)

@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "twraw-0068",
+ "implementation": "HAR-187 prototype score.py (commands from episode responses, no observations)",
+ "reused": false,
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

@@ -6919,6 +6919,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.results_viewer import build_results_viewer_parser
 
     build_results_viewer_parser(commands)
+    from evallab.detectors import build_detectors_parser
+
+    build_detectors_parser(commands)
     return root
 
 

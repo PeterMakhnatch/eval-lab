@@ -43,7 +43,7 @@ inputs:
   - path: src/evallab/campaign_approval.py
     digest: sha256:50ca4ea149a5af1ae1de53dd2bd71d9ae0e27560073ae8f86667a88a2e589cd2
   - path: src/evallab/campaign_execution.py
-    digest: sha256:624381a5d1bbe76d416ca0a668dc72ebc5501cf35d8b5c4d61531499a3ca84d3
+    digest: sha256:ae16a74b6352cb7343cd14ac146326a850384e49f12d92b668dbc0fd38eb1d04
   - path: src/evallab/campaigns.py
     digest: sha256:9bf5135b54e0842779038e52f9861239c5d907fe91adf67ce17dad6123702f00
   - path: src/evallab/canary.py
@@ -401,7 +401,7 @@ inputs:
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
-    digest: sha256:5f2604250fab5a25c78aa7ff152ba3b760d3073f747b1e4073b0c5c82c9f06d0
+    digest: sha256:2853b784f9f00d6c8ec2d343d2c44f319fc1f7f40f2eb6daa65a7c39839b9597
   - path: src/evallab/quota.py
     digest: sha256:b02ac34b1dc5453d5648e31f1d2297b25ead6609fbd3276680915a7e479ba57e
   - path: src/evallab/readers/__init__.py

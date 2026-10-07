@@ -6,19 +6,24 @@ from pathlib import Path
 
 import pytest
 
-pytest.importorskip("inspect_ai", reason="inspect dependency group")
+try:  # The reader needs the inspect dependency group; CI's default env lacks it.
+    from inspect_ai.model import GenerateConfig, ResponseSchema
 
-from inspect_ai.model import GenerateConfig, ResponseSchema  # noqa: E402
+    from evallab.readers.scout_metr import (
+        IMPLEMENTATION,
+        MODEL,
+        READER,
+        JsonObjectTransport,
+        parse_value,
+        summarize_usage,
+        to_verdict,
+    )
+except ImportError:
+    HAVE_INSPECT = False
+else:
+    HAVE_INSPECT = True
 
-from evallab.readers.scout_metr import (
-    IMPLEMENTATION,
-    MODEL,
-    READER,
-    JsonObjectTransport,
-    parse_value,
-    summarize_usage,
-    to_verdict,
-)
+pytestmark = pytest.mark.skipif(not HAVE_INSPECT, reason="inspect dependency group")
 
 FIXTURES = Path(__file__).parent / "fixtures" / "scout_metr"
 

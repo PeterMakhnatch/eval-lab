@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling==1.28.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "agentenv-bench"
+version = "0.1.0"
+description = "Model-free deterministic MiMo world controls in AgentEnv"
+requires-python = ">=3.11"
+dependencies = ["agentenv-framework==0.9.1275"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["agentenv_bench"]
+
+[tool.uv]
+package = true

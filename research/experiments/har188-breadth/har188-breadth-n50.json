@@ -37,11 +37,11 @@
     "max_total_tokens": 2000000000
   },
   "cost_estimate": {
-    "expected_usd": 8.71,
-    "formula": "E(n)=T*(2.90+0.23148*n) concurrent on one warm server, T=1.28/(2.90+4*0.23148)=0.3346h batch wall (HAR-168 fresh 4-run batch); W=n*0.60 per-trial ceiling, fenced at budget+in-flight",
+    "expected_usd": 13.76,
+    "formula": "E=(4/60h+w*0.3346h)*$2.90/h+n*0.3346h*$0.23148/h, w=ceil(n/19) waves (19-wide Daytona clamp, lower if busy), T from HAR-168 fresh 4-run batch at 4 concurrent (19-wide decode unknown); W=n*$0.60 ceiling, realized<=budget+19 in-flight ceilings",
     "worst_case_usd": 60.0
   },
-  "created_at": "2026-10-07T00:48:06.947496Z",
+  "created_at": "2026-10-07T01:02:58.966338Z",
   "environment": "daytona",
   "linear_card": "HAR-188",
   "model": "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B",

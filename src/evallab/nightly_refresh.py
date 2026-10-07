@@ -323,8 +323,12 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
         roots = [
             root / name for root in checkouts for name in ("runs", "jobs") if (root / name).is_dir()
         ]
+        from evallab.live_watch import discover_trials
+
         jobs = discover_job_dirs(roots)
-        stamps = {str(job): _stamp_tree(job, raw_job=True) for job in jobs}
+        completed = set(jobs)
+        observed = sorted(completed | {job for job, _ in discover_trials([*roots, *jobs])})
+        stamps = {str(job): _stamp_tree(job, raw_job=True) for job in observed}
         fingerprints = {job: _fingerprint(value) for job, value in stamps.items()}
         metadata = _metadata(config, checkouts)
         selection = {
@@ -338,13 +342,15 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
         if previous.get("selection") == selection:
             return {
                 "status": "noop",
-                "jobs": len(jobs),
+                "jobs": len(observed),
                 "high_water_mark": previous["high_water_mark"],
             }
         old_jobs = (previous.get("selection") or {}).get("jobs", {})
-        changed = [job for job in jobs if fingerprints[str(job)] != old_jobs.get(str(job))]
+        changed = [job for job in observed if fingerprints[str(job)] != old_jobs.get(str(job))]
         new_runs = sum(str(job) not in old_jobs for job in changed)
-        for job in changed:
+        # Completed jobs can be projected; ongoing trials are still replayed and
+        # included in the HAR-178 census and HAR-176 pages as evidence arrives.
+        for job in (job for job in changed if job in completed):
             process_job(
                 job,
                 root=config.repo_root,
@@ -356,7 +362,7 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
         trials = refresh_trials(config, roots)
         verdicts = refresh_verdicts(config)
         replay = replay_history(config, changed)
-        pages = refresh_pages(config, jobs)
+        pages = refresh_pages(config, observed)
         campaigns = campaign_spend(config, checkouts)
         old_verdicts = previous.get("verdicts", {})
         changes = sum(old_verdicts.get(task) != verdict for task, verdict in verdicts.items())

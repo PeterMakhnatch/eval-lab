@@ -753,3 +753,34 @@ def test_naive_now_is_rejected(tmp_path: Path) -> None:
     config = _config(tmp_path, _checkout(tmp_path))
     with pytest.raises(ValueError, match="timezone"):
         run_refresh(config, now=datetime(2026, 10, 7, 6, 30))
+
+
+def test_ongoing_trial_changes_refresh_view_pages_and_history(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkout = _checkout(tmp_path)
+    job = checkout / "runs" / "ongoing"
+    agent = job / "format-code-task-000001__trial" / "agent"
+    agent.mkdir(parents=True)
+    trajectory = agent / "trajectory.json"
+    trajectory.write_text('{"steps": []}\n')
+    config = _config(tmp_path, checkout)
+    seams = Seams()
+    seams.install(monkeypatch)
+
+    first = _refresh(config, seams)
+    assert first["status"] == "refreshed"
+    assert first["new_runs"] == 1
+    assert seams.process == []  # Native job result is not finished yet.
+    assert seams.replay == [[job]]
+    assert seams.pages == [[job]]
+    assert _refresh(config, seams)["status"] == "noop"
+
+    trajectory.write_text('{"steps": [{"step_id": 1}]}\n')
+    changed = _refresh(config, seams)
+    assert changed["status"] == "refreshed"
+    assert changed["new_runs"] == 0
+    assert seams.process == []
+    assert seams.trials == [[checkout / "runs", checkout / "jobs"]]
+    assert seams.replay == [[job]]
+    assert seams.pages == [[job]]

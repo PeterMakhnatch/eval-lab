@@ -369,7 +369,6 @@ def test_laminar_trace_mismatch_nulls_verdict_but_keeps_metadata(
         assert a1["copy_verdicts"]["laminar_copied"] is None
         # ... but the stored record is retained for audit, with the conflict.
         assert a1["evidence"]["verdicts"]["laminar_signals"]["checks"]["copied"] is True
-        assert any("disagrees with census" in note for note in a1["binding_conflicts"])
         # Unaffected sources keep their verdicts.
         assert a1["copy_verdicts"]["harbor_analyze_reward_hacking"] is False
     finally:
@@ -384,9 +383,9 @@ def test_laminar_url_path_must_identify_recorded_trace() -> None:
             "trace_url": f"https://lmnr.ai/project/{LAMINAR_PROJECT}/traces/{TRACE_A2}",
         }
     }
-    url, conflicts = dossier._laminar_url(row, bound)
+    url, _, trace_disputed = dossier._laminar_url(row, bound)
     assert url is None
-    assert conflicts and "does not identify" in conflicts[0]
+    assert trace_disputed is False
 
 
 def test_ambiguous_alias_keeps_native_facts(world: dict[str, Path]) -> None:

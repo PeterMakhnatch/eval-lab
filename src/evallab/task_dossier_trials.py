@@ -218,23 +218,23 @@ def _identity_bound_verdicts(
 
 def _laminar_url(
     row: dict[str, Any], bound: dict[str, dict[str, Any]]
-) -> tuple[str | None, list[str]]:
-    """Recorded Laminar link only: never a locally derived trace fallback."""
+) -> tuple[str | None, list[str], bool]:
+    """Return the recorded link, diagnostics, and whether the trace is disputed."""
     verdict = bound.get("laminar_signals")
     if not verdict:
-        return None, []
+        return None, [], False
     recorded = verdict.get("trace_id")
     census = row.get("laminar_trace_id")
     if recorded is not None and census is not None and recorded != census:
         return None, [
             f"laminar trace {recorded} disagrees with census {census}"
-        ]
+        ], True
     url = verdict.get("trace_url")
     if not (isinstance(url, str) and url.startswith(("http://", "https://"))):
-        return None, []
+        return None, [], False
     if recorded is None or url.rstrip("/").rsplit("/", 1)[-1] != recorded:
-        return None, [f"laminar url {url!r} does not identify recorded trace {recorded!r}"]
-    return url, []
+        return None, [f"laminar url {url!r} does not identify recorded trace {recorded!r}"], False
+    return url, [], False
 
 
 def _jsonable(value: Any) -> Any:
@@ -320,9 +320,8 @@ def _enrich_row(
     bound, binding_conflicts = _identity_bound_verdicts(merged, accepted)
     conflicts.extend(binding_conflicts)
 
-    laminar_url, laminar_conflicts = _laminar_url(row, bound)
+    laminar_url, laminar_conflicts, trace_disputed = _laminar_url(row, bound)
     conflicts.extend(laminar_conflicts)
-    trace_disputed = any("disagrees with census" in note for note in laminar_conflicts)
     laminar = (bound.get("laminar_signals") or {}).get("checks") or {}
     analyze = (bound.get("harbor_analyze") or {}).get("checks") or {}
 

@@ -90,12 +90,17 @@ def make_campaign(
     sampling: CampaignSampling | None = None,
     attempts_per_task: int = 1,
     write: bool = True,
+    adaptive_sampling: cap.CampaignAdaptiveSampling | None = None,
+    tasks: list[CampaignTaskAllowance] | None = None,
+    concurrency: int = 1,
 ) -> ExperimentCampaign:
     campaign = ExperimentCampaign(
         campaign_id=campaign_id,
         budget_usd=budget_usd,
+        tasks=tasks or [CampaignTaskAllowance(task_id=task_id, package_digest=package_digest)],
+        adaptive_sampling=adaptive_sampling,
         attempts_per_task=attempts_per_task,
-        tasks=[CampaignTaskAllowance(task_id=task_id, package_digest=package_digest)],
+        concurrency=concurrency,
         reference_profile="xiaomi-mimo-rl",
         allowed_deviations=[],
         require_egress_lock=True,
@@ -136,6 +141,7 @@ def make_spec(
     max_requests: int | None = 10,
     attempts: int = 1,
     cost_limit_usd: float = 1.0,
+    campaign_task_attempt: int | None = None,
 ) -> ExperimentSpec:
     return ExperimentSpec(
         name=name,
@@ -154,6 +160,7 @@ def make_spec(
         task_id=task_id,
         task_package_digest=package_digest,
         campaign_id=campaign_id,
+        campaign_task_attempt=campaign_task_attempt,
         max_requests=max_requests,
         max_input_tokens=1000,
         max_output_tokens=1000,
@@ -1208,3 +1215,443 @@ def test_thirty_six_trial_pin_admits_nineteen_wide_under_five(
     assert bound["overrun_bound_usd"] == pytest.approx(overrun)
     assert bound["overrun_bound_usd"] == pytest.approx(19 * (0.6 - 4.92 / 36))
     assert bound["realized_spend_bound_usd"] == pytest.approx(5.0 + overrun)
+
+
+def seed_confirmed_controls(root: Path, tasks: list[CampaignTaskAllowance]) -> None:
+    base = root / "research/experiments/python-task-ledger"
+    base.mkdir(parents=True, exist_ok=True)
+    (base / "ledger.csv").write_text(
+        "task_id,status,run,run_digest\n"
+        + "".join(f"{task.task_id},usable,original,{task.package_digest}\n" for task in tasks)
+    )
+    (base / "oracle_sweep.csv").write_text(
+        "task_id,label,run_digest,evidence\n"
+        + "".join(
+            f"{task.task_id},oracle:pass+nop:fail,{task.package_digest},controls.json\n"
+            for task in tasks
+        )
+    )
+    locked = root / "research/experiments/har122-egress-lock/har146-locked-nop.csv"
+    locked.parent.mkdir(parents=True, exist_ok=True)
+    locked.write_text(
+        "task_id,locked_nop,note\n" + "".join(f"{task.task_id},sound,\n" for task in tasks)
+    )
+
+
+def adaptive_fixture(
+    root: Path,
+    *,
+    confidence: float = 0.95,
+    max_attempts: int = 2,
+    budget: float = 10.0,
+    tasks: list[CampaignTaskAllowance] | None = None,
+    concurrency: int = 1,
+    runner=None,
+) -> tuple[Executor, ExperimentCampaign, str]:
+    digest = seed_task(root)
+    tasks = tasks or [CampaignTaskAllowance(task_id=TASK_ID, package_digest=digest)]
+    seed_confirmed_controls(root, tasks)
+    campaign = make_campaign(
+        root,
+        digest,
+        tasks=tasks,
+        budget_usd=budget,
+        attempts_per_task=max_attempts,
+        concurrency=concurrency,
+        adaptive_sampling=cap.CampaignAdaptiveSampling(target_confidence=confidence, seed=42),
+    )
+    service = make_executor(
+        root, runner=runner or (lambda request: write_job(root, request.name, reward=1.0))
+    )
+    return service, campaign, digest
+
+
+def stage_draws(
+    service: Executor, digest: str, *, task_id: str = TASK_ID, attempts: int = 2, cost: float = 1.0
+) -> list[str]:
+    ids = []
+    for index in range(1, attempts + 1):
+        path, decision = service.submit(
+            make_spec(
+                f"adaptive-{task_id[-6:]}-a{index}",
+                digest,
+                task_id=task_id,
+                campaign_task_attempt=index,
+                est_cost_usd=cost,
+            )
+        )
+        assert not decision.admitted
+        assert decision.reason_code in {cap.REASON_SAMPLING_QUEUED, cap.REASON_SAMPLING_PENDING}
+        ids.append(str(service.queue.load(path).spec_id))
+    return ids
+
+
+def test_adaptive_nonconfirmed_task_refused(tmp_path: Path) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    (tmp_path / "research/experiments/python-task-ledger/oracle_sweep.csv").unlink()
+    path, decision = service.submit(
+        make_spec("adaptive-unconfirmed", digest, campaign_task_attempt=1)
+    )
+    assert path.parent.name == "waiting"
+    assert decision.reason_code == cap.REASON_ORACLE_UNCONFIRMED
+    assert "no confirmed" in decision.message
+    assert service.tick() == 0
+
+
+def test_adaptive_attempt_two_skipped_when_band_known(tmp_path: Path) -> None:
+    service, campaign, digest = adaptive_fixture(tmp_path, confidence=0.6)
+    first, second = stage_draws(service, digest)
+    assert service.tick(parallel=4) == 1
+    assert service.queue.locate(first, ("done",)).is_file()
+    assert cap.adaptive_band([True], 2, 0.6) == ("always", pytest.approx(2 / 3))
+    assert service.tick() == 0
+    assert service.queue.locate(second, ("rejected",)).is_file()
+    event = next(
+        event
+        for event in load_events(service.queue.events_path)
+        if event.event == "sampling_skipped"
+    )
+    assert event.reason_code == cap.REASON_SAMPLING_CLASSIFIED
+    assert campaign.adaptive_sampling is not None
+
+
+def test_adaptive_attempt_two_launched_when_uncertain(tmp_path: Path) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    first, second = stage_draws(service, digest)
+    assert service.tick(parallel=4) == 1
+    assert service.queue.locate(first, ("done",)).is_file()
+    assert service.queue.locate(second, ("waiting",)).is_file()
+    assert cap.adaptive_band([True], 2) == (None, pytest.approx(2 / 3))
+    assert service.tick(parallel=4) == 1
+    assert service.queue.locate(second, ("done",)).is_file()
+    assert service.tick() == 0
+
+
+def test_adaptive_mixed_prefix_stops_four_attempt_campaign(tmp_path: Path) -> None:
+    def runner(request):
+        return write_job(tmp_path, request.name, reward=1.0 if request.name.endswith("a1") else 0.0)
+
+    service, _, digest = adaptive_fixture(tmp_path, max_attempts=4, runner=runner)
+    ids = stage_draws(service, digest, attempts=4)
+    assert service.tick() == 1
+    assert service.tick() == 1
+    assert service.tick() == 0
+    assert all(service.queue.locate(spec_id, ("rejected",)).is_file() for spec_id in ids[2:])
+    assert cap.adaptive_band([True, False], 4) == ("sometimes", 1.0)
+
+
+def test_adaptive_ordering_deterministic_for_seed(tmp_path: Path) -> None:
+    digest = seed_task(tmp_path)
+    tasks = [
+        CampaignTaskAllowance(task_id=f"format-code-task-{number:06}", package_digest=digest)
+        for number in (1, 2, 3)
+    ]
+    _, campaign, _ = adaptive_fixture(tmp_path, tasks=tasks)
+    specs = [
+        make_spec(f"priority-{number}", digest, task_id=task.task_id, campaign_task_attempt=1)
+        for number, task in enumerate(tasks)
+    ]
+    order = sorted(specs, key=lambda spec: cap.adaptive_priority(tmp_path, campaign, spec))
+    reverse_order = sorted(
+        reversed(specs), key=lambda spec: cap.adaptive_priority(tmp_path, campaign, spec)
+    )
+    assert [spec.task_id for spec in order] == [spec.task_id for spec in reverse_order]
+    assert len({cap.adaptive_priority(tmp_path, campaign, spec)[2] for spec in specs}) == 3
+
+
+def test_adaptive_budget_stop_leaves_priority_task_done(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv, check: None)
+    digest = seed_task(tmp_path)
+    cheap, expensive = "format-code-task-000001", "format-code-task-000002"
+    tasks = [
+        CampaignTaskAllowance(task_id=cheap, package_digest=digest, expected_cost_usd=0.6),
+        CampaignTaskAllowance(task_id=expensive, package_digest=digest, expected_cost_usd=0.9),
+    ]
+    service, _, _ = adaptive_fixture(tmp_path, tasks=tasks, budget=1.2)
+
+    def measured(root, campaign_id, *, exclude_spec_id=None):
+        settled = sum(
+            float(spec.est_cost_usd)
+            for _, spec in service.queue.list_specs("done")
+            if spec.spec_id != exclude_spec_id
+        )
+        reserved = sum(
+            float(spec.est_cost_usd)
+            for _, spec in service.queue.list_specs("approved")
+            if spec.spec_id != exclude_spec_id
+        )
+        return reserved, settled, reserved + settled
+
+    monkeypatch.setattr(cap, "campaign_spend_usd", measured)
+    expensive_ids = stage_draws(service, digest, task_id=expensive, cost=0.9)
+    cheap_ids = stage_draws(service, digest, task_id=cheap, cost=0.6)
+    assert service.tick(parallel=4) == 1
+    assert service.tick(parallel=4) == 1
+    assert service.tick(parallel=4) == 0
+    assert service.queue.stop_path.is_file()
+    assert all(service.queue.locate(spec_id, ("done",)).is_file() for spec_id in cheap_ids)
+    assert all(service.queue.locate(spec_id, ("waiting",)).is_file() for spec_id in expensive_ids)
+    assert cap.adaptive_band([True, True], 2) == ("always", 1.0)
+
+
+def test_adaptive_context_exhaustion_is_nonpass_not_replaced(tmp_path: Path) -> None:
+    service, campaign, digest = adaptive_fixture(tmp_path)
+    first, _ = stage_draws(service, digest)
+    path = service.queue.locate(first, ("waiting",))
+    spec = service.queue.load(path)
+    job = write_job(tmp_path, spec.name)
+    result = job / "trial-0/result.json"
+    native = json.loads(result.read_text())
+    native["agent_result"] = {
+        "metadata": {"stop_reason": "context_exhausted", "native_exit_status": "ContextExhausted"}
+    }
+    result.write_text(json.dumps(native))
+    service.queue.transition(path, "done", actor="test", event="dispatch_completed")
+    assert cap.adaptive_task_outcomes(tmp_path, campaign, TASK_ID) == [False]
+    assert cap.reconcile_campaign_replacements(service) == 0
+    assert service.tick() == 1
+
+
+def test_adaptive_attempt_ceiling_and_duplicate_refused(tmp_path: Path) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    stage_draws(service, digest)
+    for index, name, native_attempts in [(1, "duplicate", 1), (3, "over-cap", 1), (1, "batch", 2)]:
+        spec = make_spec(f"adaptive-{name}", digest, campaign_task_attempt=index)
+        spec = spec.model_copy(update={"attempts": native_attempts})
+        _, decision = service.submit(spec)
+        assert decision.reason_code == cap.REASON_SAMPLING_INVALID
+
+
+def test_adaptive_wave_fills_width_in_priority_order(tmp_path: Path) -> None:
+    digest = seed_task(tmp_path)
+    tasks = [
+        CampaignTaskAllowance(
+            task_id=f"task-wave-{i}", package_digest=digest, expected_cost_usd=cost
+        )
+        for i, cost in enumerate((0.2, 0.4, 0.8))
+    ]
+    service, _, digest = adaptive_fixture(tmp_path, tasks=tasks, concurrency=2)
+    ids = {
+        task.task_id: stage_draws(
+            service, digest, task_id=task.task_id, cost=task.expected_cost_usd or 0
+        )
+        for task in reversed(tasks)
+    }
+    assert service.tick(parallel=4) == 2
+    assert {spec.task_id for _, spec in service.queue.list_specs("done")} == {
+        tasks[0].task_id,
+        tasks[1].task_id,
+    }
+    assert all(service.queue.locate(ids[task.task_id][1], ("waiting",)).is_file() for task in tasks)
+    # Both settled-but-uncertain follow-ups jump ahead of the remaining first draw.
+    assert service.tick(parallel=4) == 2
+    assert all(
+        service.queue.locate(spec_id, ("done",)).is_file()
+        for task in tasks[:2]
+        for spec_id in ids[task.task_id]
+    )
+    assert service.queue.locate(ids[tasks[2].task_id][0], ("waiting",)).is_file()
+
+
+def test_adaptive_budget_stop_has_at_most_one_partial_wave(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv, check: None)
+    digest = seed_task(tmp_path)
+    tasks = [
+        CampaignTaskAllowance(task_id=f"task-budget-{i}", package_digest=digest) for i in range(3)
+    ]
+    service, campaign, digest = adaptive_fixture(
+        tmp_path,
+        tasks=tasks,
+        concurrency=2,
+        budget=1.8,
+        runner=lambda request: write_job(tmp_path, request.name, reward=1.0, cost=0.6),
+    )
+    ids = {
+        task.task_id: stage_draws(service, digest, task_id=task.task_id, cost=0.6)
+        for task in reversed(tasks)
+    }
+    ordered = sorted(
+        tasks,
+        key=lambda task: cap.adaptive_priority(
+            tmp_path,
+            campaign,
+            service.queue.load(service.queue.locate(ids[task.task_id][0], ("waiting",))),
+        ),
+    )
+    assert service.tick(parallel=4) == 2
+    assert service.tick(parallel=4) == 1
+    assert service.tick(parallel=4) == 0
+    assert service.queue.stop_path.is_file()
+    assert cap.adaptive_task_outcomes(tmp_path, campaign, ordered[0].task_id) == [True, True]
+    assert cap.adaptive_task_outcomes(tmp_path, campaign, ordered[1].task_id) == [True]
+    assert cap.adaptive_task_outcomes(tmp_path, campaign, ordered[2].task_id) == []
+
+
+def test_adaptive_duplicate_does_not_poison_original(tmp_path: Path) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    original, _ = stage_draws(service, digest)
+    _, refusal = service.submit(make_spec("late-duplicate", digest, campaign_task_attempt=1))
+    assert refusal.reason_code == cap.REASON_SAMPLING_INVALID
+    assert service.tick() == 1
+    assert service.queue.locate(original, ("done",)).is_file()
+
+
+def test_adaptive_tick_filter_does_not_release_other_task(tmp_path: Path) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    first, second = stage_draws(service, digest)
+    assert service.tick(spec_ids=[second]) == 0
+    assert service.queue.locate(first, ("waiting",)).is_file()
+    assert service.tick(spec_ids=[first]) == 1
+
+
+@pytest.mark.parametrize("label", ["oracle:none", "oracle:fail-network", "oracle:unknown"])
+def test_adaptive_sound_solve_tag_is_not_oracle_confirmation(tmp_path: Path, label: str) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    sweep = tmp_path / "research/experiments/python-task-ledger/oracle_sweep.csv"
+    sweep.write_text(sweep.read_text().replace("oracle:pass+nop:fail", label))
+    _, refusal = service.submit(make_spec("not-oracle-confirmed", digest, campaign_task_attempt=1))
+    assert refusal.reason_code == cap.REASON_ORACLE_UNCONFIRMED
+
+
+def test_adaptive_oracle_label_wrong_package_refused(tmp_path: Path) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    sweep = tmp_path / "research/experiments/python-task-ledger/oracle_sweep.csv"
+    sweep.write_text(sweep.read_text().replace(digest, "sha256:" + "a" * 64))
+    _, refusal = service.submit(make_spec("wrong-control-package", digest, campaign_task_attempt=1))
+    assert refusal.reason_code == cap.REASON_ORACLE_UNCONFIRMED
+
+
+def test_adaptive_infra_replacement_preserves_scientific_draw(tmp_path: Path) -> None:
+    def runner(request):
+        return write_job(
+            tmp_path,
+            request.name,
+            exception="DaytonaNotFoundError" if request.name.endswith("-a1") else None,
+            reward=None if request.name.endswith("-a1") else 1.0,
+        )
+
+    service, campaign, digest = adaptive_fixture(tmp_path, runner=runner)
+    first, second = stage_draws(service, digest)
+    assert service.tick() == 1
+    replacements = [
+        spec for _, spec in service.queue.list_specs("waiting") if spec.campaign_replaces == first
+    ]
+    assert len(replacements) == 1
+    assert replacements[0].campaign_task_attempt == 1
+    assert cap.adaptive_task_outcomes(tmp_path, campaign, TASK_ID) == []
+    assert service.queue.locate(second, ("waiting",)).is_file()
+    assert service.tick() == 1
+    assert cap.adaptive_task_outcomes(tmp_path, campaign, TASK_ID) == [True]
+    assert service.tick() == 1
+    assert cap.adaptive_task_outcomes(tmp_path, campaign, TASK_ID) == [True, True]
+    assert cap.reconcile_campaign_replacements(service) == 0
+
+
+def test_adaptive_explicit_control_does_not_need_older_nop_census(tmp_path: Path) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    (tmp_path / "research/experiments/har122-egress-lock/har146-locked-nop.csv").unlink()
+    _, decision = service.submit(
+        make_spec("new-confirmed-control", digest, campaign_task_attempt=1)
+    )
+    assert decision.reason_code == cap.REASON_SAMPLING_QUEUED
+
+
+def test_adaptive_digestless_sweep_cannot_retarget_current_package(tmp_path: Path) -> None:
+    service, _, digest = adaptive_fixture(tmp_path)
+    sweep = tmp_path / "research/experiments/python-task-ledger/oracle_sweep.csv"
+    sweep.write_text(sweep.read_text().replace(digest, ""))
+    _, refusal = service.submit(make_spec("digestless-control", digest, campaign_task_attempt=1))
+    assert refusal.reason_code == cap.REASON_ORACLE_UNCONFIRMED
+
+
+def test_campaign_validate_reports_adaptive_contract(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from argparse import Namespace
+
+    from evallab.cli import _campaign_validate_command, run_cli
+
+    _, campaign, _ = adaptive_fixture(tmp_path, concurrency=3)
+    monkeypatch.setattr(cap, "validate_campaign_content", lambda root, draft: [])
+    args = Namespace(
+        campaign=cap.campaign_dir(tmp_path, campaign.campaign_id) / cap.CAMPAIGN_FILENAME,
+        spec=[],
+        json=True,
+    )
+    assert _campaign_validate_command(args, tmp_path) == 0
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["attempts_per_task"] == 2
+    assert summary["concurrency"] == 3
+    assert summary["adaptive_sampling"] == {"target_confidence": 0.95, "seed": 42}
+    assert summary["oracle_confirmed_tasks"] == 1
+    assert run_cli(["campaign", "status", str(args.campaign), "--json"], workspace=tmp_path) == 0
+    summary.pop("errors")
+    summary.pop("specs")
+    assert summary == json.loads(capsys.readouterr().out)
+
+
+def test_adaptive_wave_uses_har189_zero_estimate_reservations(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    silence_meter(monkeypatch)
+    digest = seed_task(tmp_path)
+    tasks = [
+        CampaignTaskAllowance(task_id=f"task-reservation-{i}", package_digest=digest)
+        for i in range(20)
+    ]
+    seed_confirmed_controls(tmp_path, tasks)
+    campaign = make_campaign(
+        tmp_path,
+        digest,
+        tasks=tasks,
+        attempts_per_task=2,
+        concurrency=19,
+        budget_usd=3.0,
+        environment="daytona",
+        adaptive_sampling=cap.CampaignAdaptiveSampling(),
+    )
+    service = make_executor(
+        tmp_path,
+        runner=lambda request: write_job(
+            tmp_path, request.name, reward=1.0, job_id=f"job-{request.name}"
+        ),
+        daytona_observe_fn=lambda: {
+            "limits": {"memory_gib": 200.0},
+            "safety_fraction": 0.8,
+            "used": {"memory_gib": 0.0},
+            "pending": {"memory_gib": 0.0},
+            "per_sandbox_limits": {"memory_gib": 8.0},
+        },
+    )
+    for task in tasks:
+        for index in (1, 2):
+            _, decision = service.submit(
+                make_spec(
+                    f"zero-{task.task_id}-a{index}",
+                    digest,
+                    task_id=task.task_id,
+                    environment="daytona",
+                    est_cost_usd=0,
+                    campaign_task_attempt=index,
+                )
+            )
+            assert not decision.admitted
+            assert decision.reason_code in {cap.REASON_SAMPLING_QUEUED, cap.REASON_SAMPLING_PENDING}
+    assert service.tick(parallel=19) == 19
+    done = service.queue.list_specs("done")
+    assert len(done) == 19
+    per_trial = cap._reservation_usd(done[0][1].model_dump(mode="json"), campaign)
+    assert per_trial < 0.6
+    assert cap.campaign_spend_usd(tmp_path, campaign.campaign_id)[2] == pytest.approx(
+        19 * per_trial
+    )
+    assert service.tick(parallel=19) == 0
+    assert service.queue.stop_path.is_file()
+    assert (
+        sum(bool(cap.adaptive_task_outcomes(tmp_path, campaign, task.task_id)) for task in tasks)
+        == 19
+    )

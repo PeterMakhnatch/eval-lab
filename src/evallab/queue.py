@@ -2007,7 +2007,7 @@ class Executor:
         Non-Daytona specs always pass. Daytona launches are capped at the
         guard's memory allowance (one sandbox held in reserve), preserving
         queue order, so admission never refuses an over-planned tick.
-        Trimmed specs stay approved for a later tick.
+        Trimmed specs retain their current state for a later tick.
         """
         daytona_count = sum(1 for _, spec in approved_specs if is_daytona_spec(spec))
         if daytona_count == 0:
@@ -2042,7 +2042,7 @@ class Executor:
             self._report_progress(
                 f"deferred {spec.name} ({reason}"
                 + (f": {detail}" if detail else "")
-                + "); state: approved"
+                + f"); state: {path.parent.name}"
             )
         if not any(is_daytona_spec(spec) for _, spec in selected):
             self.last_tick_reason = reason
@@ -2057,12 +2057,27 @@ class Executor:
         except Exception:
             return None
 
+    def _dispatch_decision(
+        self, spec: ExperimentSpec, authorization: PaidRunAuthorization | None
+    ) -> PolicyDecision:
+        # Non-billable dispatch skips accounting the policy never inspects.
+        return self.gate.decide(
+            spec,
+            spent_today_usd=self._effective_spend_today() if spec.billable else 0.0,
+            consecutive_harness_failures=self._consecutive_harness_failures()
+            if spec.billable
+            else 0,
+            authorization=authorization,
+        )
+
     def _dispatch_one(
         self,
         path: Path,
         spec: ExperimentSpec,
         authorizations: dict[str, PaidRunAuthorization],
         credentials: frozenset[str],
+        *,
+        preflight_decision: PolicyDecision | None = None,
     ) -> bool:
         try:
             self._validate_campaign_dispatch_spec(spec, source=path)
@@ -2117,21 +2132,10 @@ class Executor:
             )
             self.queue.write_reason(self.queue.load(failed), failure)
             return False
-        # PolicyGate.decide reads cost/consecutive inputs only inside
-        # ``spec.billable``; non-billable dispatch skips the catalog and
-        # event-ledger accounting it never inspects. Billable flow is
-        # unchanged (effective spend with reservations, harness failures).
-        if spec.billable:
-            spent_today_usd = self._effective_spend_today()
-            consecutive_harness_failures = self._consecutive_harness_failures()
-        else:
-            spent_today_usd = 0.0
-            consecutive_harness_failures = 0
-        decision = self.gate.decide(
-            spec,
-            spent_today_usd=spent_today_usd,
-            consecutive_harness_failures=consecutive_harness_failures,
-            authorization=authorization,
+        decision = (
+            preflight_decision
+            if preflight_decision is not None
+            else self._dispatch_decision(spec, authorization)
         )
         if not decision.admitted:
             if spec.campaign_id is not None and campaign_approval.should_escalate(
@@ -2319,6 +2323,13 @@ class Executor:
             # terminal (or an operator resolves it), starting any other work
             # could bypass both the single-owner and daily-cost guarantees.
             self.last_tick_reason = "running_specs_unresolved"
+            return 0
+        # HAR-193: release a priority wave of next uncertain draws under the
+        # existing tick lock, preserving the shared warm-server batch.
+        campaign_approval.reconcile_adaptive_sampling(
+            self, parallel=parallel, spec_ids=set(spec_ids) if spec_ids is not None else None
+        )
+        if self.queue.stop_path.exists():
             return 0
         try:
             authorizations = self.queue.authorizations()
@@ -2537,10 +2548,26 @@ class Executor:
             return self._dispatch_serial(
                 batch, authorizations, credentials, resume_time=resume_time
             )
+        # Indexed campaign draws form one reserved wave. Decide before workers
+        # move specs between queue states: concurrent per-worker snapshots can
+        # otherwise count one reservation in both approved and running/done.
+        # This remains the existing policy gate and HAR-189 spend accounting.
+        preflight = {
+            str(spec.spec_id): self._dispatch_decision(spec, authorizations.get(str(spec.spec_id)))
+            for _, spec in batch
+            if spec.campaign_task_attempt is not None
+        }
         dispatched = 0
         with ThreadPoolExecutor(max_workers=parallel) as pool:
             futures = [
-                pool.submit(self._dispatch_one, path, spec, authorizations, credentials)
+                pool.submit(
+                    self._dispatch_one,
+                    path,
+                    spec,
+                    authorizations,
+                    credentials,
+                    preflight_decision=preflight.get(str(spec.spec_id)),
+                )
                 for path, spec in batch
             ]
             for future in futures:

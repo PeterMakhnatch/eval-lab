@@ -516,6 +516,12 @@ class ExperimentSpec(ContractModel):
             "specs without a claim keep the per-ID human approval path"
         ),
     )
+    campaign_task_attempt: int | None = Field(
+        default=None,
+        ge=1,
+        exclude_if=lambda value: value is None,
+        description="Sequential task draw within a HAR-193 adaptive HAR-175 campaign",
+    )
     campaign_replaces: str | None = Field(
         default=None,
         min_length=1,
@@ -600,6 +606,8 @@ class ExperimentSpec(ContractModel):
             raise ValueError("provider_failover_max_cost_usd requires provider_routes")
         if self.campaign_replaces is not None and self.campaign_id is None:
             raise ValueError("campaign_replaces requires campaign_id")
+        if self.campaign_task_attempt is not None and self.campaign_id is None:
+            raise ValueError("campaign_task_attempt requires campaign_id")
         campaign_fields = (
             self.campaign_ledger,
             self.campaign_cell_id,

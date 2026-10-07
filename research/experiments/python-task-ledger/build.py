@@ -58,6 +58,7 @@ Writes ``ledger.csv`` next to this file and prints the counts.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 from collections import Counter, defaultdict
@@ -415,6 +416,16 @@ def write(path: Path, rows: list[dict], columns: tuple[str, ...]) -> None:
 
 
 def main() -> None:
+    global HERE, ROOT, CENSUS, VARIANTS, ORACLE_PILOT, ORACLE_SWEEP
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=ROOT, help="Read-only evidence checkout")
+    parser.add_argument("--output", type=Path, help="Ledger destination (default source ledger)")
+    args = parser.parse_args()
+    ROOT = args.root.resolve()
+    HERE = ROOT / "research/experiments/python-task-ledger"
+    CENSUS = ROOT / "research/experiments/har108-python-census/task_health.parquet"
+    VARIANTS = ROOT / "library/task-variants"
+    ORACLE_PILOT, ORACLE_SWEEP = HERE / "oracle_pilot.csv", HERE / "oracle_sweep.csv"
     census = pq.read_table(CENSUS).to_pylist()
     variants = load_variants()
     rows = [
@@ -454,7 +465,7 @@ def main() -> None:
             row["verdict_evidence"] += f" {rel(record[1])}:{PURGE_ID}=validated"
     print("verdict", dict(Counter(row["verdict"] for row in rows)))
     print("fix", sorted(row["task_id"] for row in rows if row["verdict"] == "fix"))
-    write(HERE / "ledger.csv", rows, COLUMNS)
+    write(args.output or HERE / "ledger.csv", rows, COLUMNS)
     print("status", dict(Counter(row["status"] for row in rows)))
     print("by split", dict(Counter((row["split"], row["status"]) for row in rows)))
     print("usable run", dict(Counter(row["run"] for row in rows if row["status"] == "usable")))

@@ -1030,10 +1030,12 @@ class ScheduleInstaller:
                 "ProgramArguments": [
                     "/bin/zsh",
                     "-lc",
-                    self._shell_command("nightly"),
+                    self._shell_command("nightly --refresh"),
                 ],
                 "StartCalendarInterval": {"Hour": 2, "Minute": 30},
                 "ProcessType": "Background",
+                "LowPriorityIO": True,
+                "Nice": 10,
                 "EnvironmentVariables": environment,
                 "StandardOutPath": str(logs / "nightly.log"),
                 "StandardErrorPath": str(logs / "nightly.error.log"),

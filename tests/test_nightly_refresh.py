@@ -636,7 +636,30 @@ def test_real_process_job_writes_under_state_not_source(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     checkout = _checkout(tmp_path)
-    job = _completed_job(checkout / "runs", "harbor-job", trials=0)
+    job = _completed_job(checkout / "runs", "harbor-job", trials=1)
+    trial = job / "trial__id"
+    agent = trial / "agent"
+    agent.mkdir(parents=True)
+    (agent / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {"step_id": 1, "source": "agent", "message": "echo done", "observation": "done"}
+                ],
+            }
+        )
+    )
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "trial__id",
+                "trial_name": "trial__id",
+                "task_name": "task",
+                "config": {"job_id": "harbor-job"},
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
     config = _config(tmp_path, checkout)
     seams = Seams()
     seams.install(monkeypatch, process=False)
@@ -648,6 +671,8 @@ def test_real_process_job_writes_under_state_not_source(
     report = _load(report_path)
     assert result["status"] == "refreshed"
     assert report["summary"]["ingest"] == "ingest disabled by caller"
+    assert report["summary"]["n_trials"] == 1
+    assert list((config.state_dir / "parquet").rglob("trial_facts.parquet"))
     assert report["results_home"] is None
     assert report_path.resolve().is_relative_to(config.state_dir.resolve())
     assert not report_path.resolve().is_relative_to(checkout.resolve())
@@ -655,6 +680,7 @@ def test_real_process_job_writes_under_state_not_source(
     assert _tree(checkout) == before
     assert seams.trials
     assert seams.pages
+    assert run_refresh(config, now=NOW)["status"] == "noop"
 
 
 def test_nightly_refresh_command_never_constructs_executor(

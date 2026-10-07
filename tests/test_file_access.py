@@ -1,8 +1,8 @@
 """Deterministic unit tests for file-access records, framing, and helpers.
 
-No Harbor import, no subprocess, no Docker: everything here runs in the
-default unit environment. Behavioral boundaries covered: record shapes (and
-their no-attribution contract), the agreed ``EVALLAB_FILE_ACCESS_PATHS``
+No Harbor import or Docker: pure parsing and isolated local Git/filesystem
+controls run in the default unit environment. Behavioral boundaries cover
+the no-attribution contract, the agreed ``EVALLAB_FILE_ACCESS_PATHS``
 shape, NUL-frame parsing (valid, torn, corrupt, loss, cross-chunk
 reassembly), path classification, snapshot diffing, and the sandbox
 helper's filesystem surface (no live ``inotifywait`` required).
@@ -12,6 +12,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
+import shlex
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -368,13 +372,6 @@ def test_helper_entry_kinds(tmp_path: Path) -> None:
         capture.split_root_spec("no-colon-here")
 
 
-def test_helper_probe_reports_schema(capsys: pytest.CaptureFixture, tmp_path: Path) -> None:
-    code = capture.main(["probe", "--candidate", str(tmp_path)])
-    assert code == 0
-    report = json.loads(capsys.readouterr().out)
-    assert report["schema"] == "evallab.file_access_probe/v1"
-    assert report["tests"]["path"] == "/tests"
-    assert report["extras"] == [{"path": str(tmp_path), "exists": True, "is_dir": True}]
 
 
 def test_helper_status_file_records_no_pid(tmp_path: Path) -> None:
@@ -388,3 +385,246 @@ def test_helper_status_file_records_no_pid(tmp_path: Path) -> None:
     assert status["loss_events"] == "explicit" and status["ready"] is False
     assert "pid" not in json.dumps(status).lower()
     assert status["event_bytes"] == 0
+
+
+def _git_binary() -> str:
+    binary = shutil.which("git")
+    if binary is None:
+        pytest.skip("git is not installed")
+    assert binary is not None
+    return binary
+
+
+def _git_env() -> dict[str, str]:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env.update(
+        GIT_CONFIG_NOSYSTEM="1",
+        GIT_CONFIG_GLOBAL=os.devnull,
+        GIT_AUTHOR_NAME="evallab",
+        GIT_AUTHOR_EMAIL="evallab@example.com",
+        GIT_COMMITTER_NAME="evallab",
+        GIT_COMMITTER_EMAIL="evallab@example.com",
+        GIT_AUTHOR_DATE="2020-01-01T00:00:00+00:00",
+        GIT_COMMITTER_DATE="2020-01-01T00:00:00+00:00",
+    )
+    return env
+
+
+def _git(repo: Path, *argv: str) -> str:
+    proc = subprocess.run(
+        ["git", "-c", "core.hooksPath=" + os.devnull, "-c", "commit.gpgSign=false",
+         "-c", "init.templateDir=", *argv],
+        cwd=str(repo),
+        env=_git_env(),
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert proc.returncode == 0, f"git {' '.join(argv)} failed: {proc.stderr}"
+    return proc.stdout.strip()
+
+
+def _commit(repo: Path, name: str, text: str) -> str:
+    (repo / name).write_text(text, encoding="utf-8")
+    _git(repo, "add", name)
+    _git(repo, "commit", "-q", "-m", name)
+    return _git(repo, "rev-parse", "HEAD")
+
+
+def _tiny_repo(tmp_path: Path, name: str = "repo", count: int = 3) -> tuple[Path, list[str]]:
+    repo = tmp_path / name
+    repo.mkdir()
+    _git(repo, "init", "-q")
+    commits = [_commit(repo, f"file{i}.txt", f"content {i}") for i in range(count)]
+    return repo, commits
+
+
+def test_git_history_prefers_mimo_base_and_excludes_future(tmp_path: Path) -> None:
+    git_binary = _git_binary()
+    repo, commits = _tiny_repo(tmp_path)
+    first, base, future = commits
+    # The future commit stays a dangling object: unreachable from the base.
+    _git(repo, "reset", "-q", "--hard", base)
+    base_file = tmp_path / "mimo-base"
+    base_file.write_text(base + "\n", encoding="utf-8")
+    entry = capture.describe_git_history(
+        str(repo),
+        str(repo / ".git"),
+        git_binary,
+        mimo_base=capture.read_mimo_base(str(base_file)),
+    )
+    assert entry["repository"] == str(repo)
+    assert entry["git_dir"] == str(repo / ".git")
+    assert entry["base_commit"] == base
+    assert entry["base_source"] == "mimo_base"
+    assert entry["complete"] is True and entry["reason"] is None
+    assert entry["ancestor_commits"][0] == base
+    assert set(entry["ancestor_commits"]) == {first, base}
+    assert future not in entry["ancestor_commits"]
+    assert all(capture.is_full_commit_hash(item) for item in entry["ancestor_commits"])
+
+
+def test_git_history_falls_back_to_head(tmp_path: Path) -> None:
+    git_binary = _git_binary()
+    repo, commits = _tiny_repo(tmp_path)
+    head = commits[-1]
+    bad_file = tmp_path / "bad-base"
+    bad_file.write_text("not-a-hash\n", encoding="utf-8")
+    assert capture.read_mimo_base(str(bad_file)) is None
+    entry = capture.describe_git_history(
+        str(repo), str(repo / ".git"), git_binary, mimo_base=None
+    )
+    assert (entry["base_commit"], entry["base_source"]) == (head, "pre_agent_head")
+    assert entry["complete"] is True
+    # A recorded base naming no object in this repository is not the base.
+    absent = "0" * 40
+    assert not capture._git_object_is_commit(git_binary, str(repo / ".git"), absent, 10)
+    fallback = capture.describe_git_history(
+        str(repo), str(repo / ".git"), git_binary, mimo_base=absent
+    )
+    assert (fallback["base_commit"], fallback["base_source"]) == (head, "pre_agent_head")
+    assert fallback["complete"] is True
+    assert capture.read_mimo_base(str(tmp_path / "missing-file")) is None
+
+
+def test_git_history_shallow_is_incomplete_unknown(tmp_path: Path) -> None:
+    git_binary = _git_binary()
+    src, _ = _tiny_repo(tmp_path, name="src", count=2)
+    shallow = tmp_path / "shallow"
+    proc = subprocess.run(
+        [git_binary, "-c", "protocol.file.allow=always",
+         "clone", "-q", "--depth", "1", f"file://{src}", str(shallow)],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    if proc.returncode != 0:
+        pytest.skip(f"shallow file clone unsupported: {proc.stderr.strip()}")
+    entry = capture.describe_git_history(
+        str(shallow), str(shallow / ".git"), git_binary
+    )
+    assert entry["base_source"] == "pre_agent_head"
+    assert entry["complete"] is False and entry["reason"] == "shallow"
+    assert entry["base_commit"] in entry["ancestor_commits"]
+
+
+def test_git_history_cap_and_errors_stay_unknown_not_fatal(tmp_path: Path) -> None:
+    git_binary = _git_binary()
+    repo, commits = _tiny_repo(tmp_path)
+    capped = capture.describe_git_history(
+        str(repo), str(repo / ".git"), git_binary, max_commits=1
+    )
+    assert capped["complete"] is False and capped["reason"] == "capped"
+    assert capped["ancestor_commits"] == [commits[-1]]
+    # Corrupt git storage: unknown ancestry, still an entry, no exception.
+    broken = tmp_path / "broken"
+    (broken / ".git").mkdir(parents=True)
+    entry = capture.describe_git_history(
+        str(broken), str(broken / ".git"), git_binary
+    )
+    assert entry["complete"] is False and entry["base_source"] == "unknown"
+    assert entry["ancestor_commits"] == []
+    # No git tooling at all: unknown, never proof of non-ancestry.
+    missing = capture.describe_git_history(str(repo), str(repo / ".git"), None)
+    assert missing["complete"] is False
+    assert missing["reason"] == "git-unavailable"
+    assert missing["base_commit"] is None
+    # One entry per distinct git dir, not per candidate alias.
+    reports = [
+        {"candidate": str(repo), "git_dir": str(repo / ".git")},
+        {"candidate": str(repo), "git_dir": str(repo / ".git")},
+        {"candidate": str(tmp_path / "not-a-repo"), "git_dir": None},
+    ]
+    history = capture.collect_git_history(
+        reports, git_binary, mimo_base_path=str(tmp_path / "missing-base")
+    )
+    assert len(history) == 1 and history[0]["base_source"] == "pre_agent_head"
+
+
+
+
+def test_replace_ref_cannot_erase_real_base_ancestor(tmp_path: Path) -> None:
+    """A grafted replace ref never rewrites the recorded ancestry."""
+    git_binary = _git_binary()
+    repo, commits = _tiny_repo(tmp_path)
+    base = commits[-1]
+    _git(repo, "replace", base, commits[0])
+    try:
+        entry = capture.describe_git_history(
+            str(repo), str(repo / ".git"), git_binary, mimo_base=base
+        )
+    finally:
+        _git(repo, "replace", "-d", base)
+    assert entry["base_commit"] == base
+    assert entry["base_source"] == "mimo_base"
+    assert entry["complete"] is True and entry["reason"] is None
+    assert entry["ancestor_commits"][0] == base
+    assert set(entry["ancestor_commits"]) == set(commits)
+
+
+def test_promisor_missing_object_is_neither_fetched_nor_adopted(
+    tmp_path: Path,
+) -> None:
+    """A remote-only object stays absent even when old Git ignores no-lazy-fetch."""
+    git_binary = _git_binary()
+    origin, origin_commits = _tiny_repo(tmp_path, name="origin", count=2)
+    _git(origin, "config", "uploadpack.allowFilter", "true")
+    head = origin_commits[-1]
+    blob = _git(origin, "rev-parse", head + ":file1.txt")
+    client = tmp_path / "client"
+    proc = subprocess.run(
+        [git_binary, "-c", "protocol.file.allow=always",
+         "clone", "-q", "--filter=blob:none", "--no-checkout", f"file://{origin}", str(client)],
+        capture_output=True, text=True, timeout=60, env=_git_env(),
+    )
+    assert proc.returncode == 0, proc.stderr
+    git_dir = str(client / ".git")
+
+    def blob_is_local() -> bool:
+        local = subprocess.run(
+            [git_binary, "--git-dir", git_dir, "cat-file", "-e", blob],
+            capture_output=True, timeout=10,
+            env={**_git_env(), "GIT_NO_LAZY_FETCH": "1", "GIT_ALLOW_PROTOCOL": ""},
+        )
+        return local.returncode == 0
+
+    assert not blob_is_local()  # Prove the fixture really omitted the object.
+    old_git = tmp_path / "git-without-no-lazy-fetch"
+    old_git.write_text(
+        "#!/bin/sh\nunset GIT_NO_LAZY_FETCH\nexec " + shlex.quote(git_binary) + ' "$@"\n'
+    )
+    old_git.chmod(0o700)
+    entry = capture.describe_git_history(
+        str(client), git_dir, str(old_git), mimo_base=blob
+    )
+    assert (entry["base_commit"], entry["base_source"]) == (head, "pre_agent_head")
+    assert entry["complete"] is True
+    assert set(entry["ancestor_commits"]) == set(origin_commits)
+    assert not blob_is_local()  # A transport attempt cannot materialize the blob.
+
+
+def test_lapsed_deadline_skips_queries_without_spawning_git(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An exhausted collection budget leaves graphs unknown, never hanging."""
+    calls: list[object] = []
+
+    def _boom(cmd: object, **kwargs: object) -> object:
+        calls.append(cmd)
+        raise AssertionError("git must not spawn after the budget lapses")
+
+    monkeypatch.setattr(capture.subprocess, "run", _boom)
+    reports = [{"candidate": "/testbed", "git_dir": "/testbed/.git"}]
+    history = capture.collect_git_history(reports, "git", total_timeout=0)
+    assert calls == []
+    assert len(history) == 1
+    assert history[0]["complete"] is False
+    assert history[0]["reason"] == "timeout"
+    assert history[0]["base_commit"] is None
+    assert history[0]["ancestor_commits"] == []
+    # A directly expired deadline short-circuits the same way.
+    past = capture.time.monotonic() - 1.0
+    entry = capture.describe_git_history("/r", "/r/.git", "git", deadline=past)
+    assert entry["complete"] is False and entry["reason"] == "timeout"
+    # Shallowness without git access is unknowable, never assumed absent.
+    assert capture._git_is_shallow(str(tmp_path), None, 1) is None

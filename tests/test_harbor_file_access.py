@@ -68,10 +68,8 @@ class FakeEnv:
         self.pid_alive = True
         self.inotifywait: str | None = "/usr/bin/inotifywait"
         self.refs_present = False
+        self.probe_history: list[dict[str, Any]] = []
         self.snapshot_calls = 0
-        self.chunk_names: list[str] = []
-        self.chunk_payloads: dict[str, bytes] = {}
-        self.status_doc: dict[str, Any] | None = None
 
     def probe_doc(self) -> dict[str, Any]:
         return {
@@ -88,6 +86,7 @@ class FakeEnv:
                 }
             ],
             "mimo_git_hidden": {"candidate": "/var/lib/mimo/git-hidden", "git_dir": None},
+            "git_history": self.probe_history,
             "tests": {"path": "/tests", "status": "present"},
             "extras": [],
         }
@@ -674,3 +673,91 @@ def test_missing_chunk_cannot_fabricate_a_different_path(tmp_path: Path, monkeyp
             await _fire(trial, "agent-end", event)
 
     asyncio.run(main())
+
+
+def _history_entry(**overrides: Any) -> dict[str, Any]:
+    entry: dict[str, Any] = {
+        "repository": "/testbed",
+        "git_dir": "/testbed/.git",
+        "base_commit": "a" * 40,
+        "base_source": "mimo_base",
+        "ancestor_commits": ["a" * 40, "b" * 40],
+        "complete": True,
+        "reason": None,
+    }
+    entry.update(overrides)
+    return entry
+
+
+def _baseline_doc(tmp_path: Path) -> dict[str, Any]:
+    path = tmp_path / TRIAL_NAME / "evaluator" / "file-access" / "baseline-w1.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def test_baseline_persists_probe_git_history(tmp_path: Path, monkeypatch: Any) -> None:
+    """Pre-agent ancestry lands in the evaluator baseline before the watcher starts."""
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS", "1")
+
+    async def main() -> None:
+        plugin = FileAccessPlugin(poll_seconds=3600)
+        env = _enabled_env()
+        env.probe_history = [_history_entry()]
+        trial = FakeTrial(TRIAL_NAME, env)
+        event = _event(tmp_path)
+        await _arrange(plugin, trial, event)
+        probe_at = next(i for i, c in enumerate(env.commands) if " probe" in c)
+        snap_at = next(i for i, c in enumerate(env.commands) if " snapshot" in c)
+        assert probe_at < snap_at  # ancestry is probed before the agent runs
+        assert _baseline_doc(tmp_path)["git_history"] == [_history_entry()]
+        await _fire(trial, "agent-end", event)
+
+    asyncio.run(main())
+    # The after-agent snapshot closes the window but never rewrites ancestry.
+    assert _baseline_doc(tmp_path)["git_history"] == [_history_entry()]
+
+
+def test_baseline_preserves_initial_host_ancestry(tmp_path: Path, monkeypatch: Any) -> None:
+    """A re-probe must not overwrite the initial evaluator-owned ancestry."""
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS", "1")
+    snapshot_dir = tmp_path / TRIAL_NAME / "evaluator" / "file-access"
+    snapshot_dir.mkdir(parents=True)
+    initial = [_history_entry(base_commit="c" * 40, ancestor_commits=["c" * 40])]
+    (snapshot_dir / "baseline-w1.json").write_text(
+        json.dumps({"schema": "evallab.file_access_snapshot/v1", "git_history": initial}),
+        encoding="utf-8",
+    )
+
+    async def main() -> None:
+        plugin = FileAccessPlugin(poll_seconds=3600)
+        env = _enabled_env()
+        env.probe_history = [_history_entry()]
+        trial = FakeTrial(TRIAL_NAME, env)
+        event = _event(tmp_path)
+        await _arrange(plugin, trial, event)
+        await _fire(trial, "agent-end", event)
+
+    asyncio.run(main())
+    assert _baseline_doc(tmp_path)["git_history"] == initial
+
+
+def test_incomplete_graph_is_not_promoted(tmp_path: Path, monkeypatch: Any) -> None:
+    """Partial ancestry persists verbatim: incomplete stays incomplete."""
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS", "1")
+    partial = _history_entry(
+        base_source="pre_agent_head",
+        ancestor_commits=["a" * 40],
+        complete=False,
+        reason="shallow",
+    )
+
+    async def main() -> None:
+        plugin = FileAccessPlugin(poll_seconds=3600)
+        env = _enabled_env()
+        env.probe_history = [partial]
+        trial = FakeTrial(TRIAL_NAME, env)
+        event = _event(tmp_path)
+        await _arrange(plugin, trial, event)
+        await _fire(trial, "agent-end", event)
+
+    asyncio.run(main())
+    assert _baseline_doc(tmp_path)["git_history"] == [partial]

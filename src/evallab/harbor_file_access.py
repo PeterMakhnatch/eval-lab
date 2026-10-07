@@ -112,6 +112,9 @@ class _Window:
     baseline_entries: dict[str, dict[str, Any]] = field(default_factory=dict)
     baseline_complete: bool = False
     baseline_ref: str = ""
+    #: Pre-agent git ancestry from the sandbox probe, persisted verbatim into
+    #: the evaluator-owned baseline file (never refreshed after agent start).
+    git_history: list[dict[str, Any]] = field(default_factory=list)
     targets: list[tuple[str, str]] = field(default_factory=list)
     watched: list[str] = field(default_factory=list)
     missing: list[str] = field(default_factory=list)
@@ -381,6 +384,13 @@ class FileAccessPlugin:
         helper_remote = f"{window.scratch}/{HELPER_FILENAME}"
         await self._upload_helper(env, helper_remote)
         probe = await self._probe(env, helper_remote)
+        raw_history = probe.get("git_history")
+        if isinstance(raw_history, list):
+            window.git_history = [
+                dict(item) for item in raw_history if isinstance(item, dict)
+            ]
+        else:
+            window.git_history = []
         self._select_targets(probe, window)
         if not window.watched:
             raise RuntimeError(
@@ -496,6 +506,7 @@ class FileAccessPlugin:
                 os.chmod(snapshot_dir.parent, 0o700)
                 os.chmod(snapshot_dir, 0o700)
             window.baseline_path = snapshot_dir / f"baseline-w{window.window_id}.json"
+            manifest["git_history"] = self._baseline_history(window)
             window.baseline_path.write_text(json.dumps(manifest, sort_keys=True), encoding="utf-8")
             window.baseline_ref = (EVALUATOR_SNAPSHOT_DIR / window.baseline_path.name).as_posix()
             window.baseline_entries = {
@@ -520,6 +531,20 @@ class FileAccessPlugin:
                 encoding="utf-8",
             )
         return manifest
+
+    @staticmethod
+    def _baseline_history(window: _Window) -> list[dict[str, Any]]:
+        """Ancestry for the baseline file: initial host state is never overwritten."""
+        if window.baseline_path is not None:
+            try:
+                if window.baseline_path.is_file():
+                    prior = json.loads(window.baseline_path.read_text(encoding="utf-8"))
+                    existing = prior.get("git_history") if isinstance(prior, dict) else None
+                    if isinstance(existing, list) and existing:
+                        return existing
+            except (OSError, ValueError):
+                pass
+        return [dict(item) for item in window.git_history]
 
     def _category(self, root: str, window: _Window) -> str:
         for target_root, category in window.targets:

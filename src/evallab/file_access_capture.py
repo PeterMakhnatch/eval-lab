@@ -6,8 +6,10 @@ subcommands:
 
 * ``probe`` -- report interpreter/tooling availability, resolve actual git
   storage (worktree ``.git``, ``git rev-parse`` resolution, the MiMo
-  ``git-hidden`` locations), and check the known grader root plus any
-  evaluator-configured candidates. Prints one JSON document to stdout.
+  ``git-hidden`` locations), record the pre-agent git ancestry baseline
+  (``git_history``: recorded ``/var/lib/mimo/base`` preferred, else HEAD,
+  with bounded ancestor enumeration), and check the known grader root plus
+  any evaluator-configured candidates. Prints one JSON document to stdout.
 * ``snapshot`` -- walk protected roots and hash file content (chunked,
   size-capped). Prints one JSON manifest to stdout; only digests cross the
   sandbox boundary, never file content.
@@ -65,7 +67,21 @@ MAX_STREAM_BYTES = 32 * 1024 * 1024
 
 DISCOVERY_CANDIDATES = ("/testbed", "/app", "/repo", "/workspace")
 MIMO_GIT_HIDDEN = "/var/lib/mimo/git-hidden"
+#: Recorded base commit written by the MiMo setup (``echo "$BASE" > "$M/base"``).
+#: Preferred over HEAD when it names a commit object present in the repository;
+#: dataset revisions and task metadata are never consulted for the code base.
+MIMO_BASE_FILE = "/var/lib/mimo/base"
 TESTS_DIR = "/tests"
+#: Bound on stored ancestry per repository; enumeration stops incomplete
+#: rather than ingesting an unbounded object graph.
+GIT_HISTORY_MAX_COMMITS = 100000
+#: Bound on any single read-only git query used for ancestry capture.
+GIT_HISTORY_TIMEOUT_SEC = 10
+#: Bound on the whole ancestry collection across all repositories in one probe.
+#: Queries share this monotonic deadline so ancestry work can never push the
+#: probe past the plugin's sandbox exec envelope; repos unvisited when it
+#: lapses are recorded incomplete/unknown, never blocking capture.
+GIT_HISTORY_TOTAL_TIMEOUT_SEC = 3.0
 
 
 def utc_now_iso() -> str:
@@ -307,6 +323,294 @@ def describe_repo(candidate: str, git_binary: str | None) -> dict[str, Any]:
     return report
 
 
+def is_full_commit_hash(value: object) -> bool:
+    """True for a full lowercase 40/64-hex commit name; nothing else qualifies."""
+    if not isinstance(value, str) or len(value) not in (40, 64):
+        return False
+    return all(char in "0123456789abcdef" for char in value)
+
+
+def read_mimo_base(path: str = MIMO_BASE_FILE) -> str | None:
+    """Recorded base commit from the MiMo setup state, or None when absent/invalid."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            text = handle.read(4096)
+    except OSError:
+        return None
+    token = text.strip().lower()
+    return token if is_full_commit_hash(token) else None
+
+
+def _run_git(
+    git_binary: str | None,
+    git_dir: str,
+    argv: list[str],
+    timeout: float,
+    deadline: float | None = None,
+) -> tuple[Any | None, bool]:
+    """Read-only git bound to one git dir. Returns (proc or None, timed_out)."""
+    if not git_binary:
+        return None, False
+    if deadline is not None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return None, True
+        timeout = min(timeout, remaining)
+    # Explicit ``--git-dir`` pins the repository: git never walks up from the
+    # current directory to a parent repo. ``GIT_NO_REPLACE_OBJECTS`` keeps
+    # grafted history out; ``GIT_NO_LAZY_FETCH`` asks modern git not to
+    # implicitly fetch missing promisor objects -- but partial clones predate
+    # that guard, so ``GIT_ALLOW_PROTOCOL`` (empty: no transport allowed)
+    # denies every fetch transport independent of repo config. Together they
+    # bound ancestry reads to local objects even on older supported git. The
+    # prompt/lock knobs keep local reads non-interactive.
+    cmd = [git_binary, "--git-dir", git_dir] + list(argv)
+    env = dict(os.environ)
+    env["GIT_NO_REPLACE_OBJECTS"] = "1"
+    env["GIT_NO_LAZY_FETCH"] = "1"
+    env["GIT_ALLOW_PROTOCOL"] = ""
+    env["GIT_TERMINAL_PROMPT"] = "0"
+    env["GIT_OPTIONAL_LOCKS"] = "0"
+    try:
+        proc = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=timeout, env=env
+        )
+    except subprocess.TimeoutExpired:
+        return None, True
+    except (OSError, subprocess.SubprocessError):
+        return None, False
+    return proc, False
+
+
+def _git_head(
+    git_binary: str | None,
+    git_dir: str,
+    timeout: float,
+    deadline: float | None = None,
+) -> str | None:
+    """Pre-agent HEAD as a full hash, or None when unresolvable."""
+    proc, _ = _run_git(
+        git_binary, git_dir, ["rev-parse", "--verify", "HEAD"], timeout, deadline
+    )
+    if proc is None or proc.returncode != 0:
+        return None
+    parts = (proc.stdout or "").strip().split()
+    if not parts:
+        return None
+    token = parts[0].lower()
+    return token if is_full_commit_hash(token) else None
+
+
+def _git_object_is_commit(
+    git_binary: str | None,
+    git_dir: str,
+    commit: str,
+    timeout: float,
+    deadline: float | None = None,
+) -> bool:
+    """True when ``commit`` names a commit object present in this repository."""
+    proc, _ = _run_git(git_binary, git_dir, ["cat-file", "-t", commit], timeout, deadline)
+    return (
+        proc is not None
+        and proc.returncode == 0
+        and (proc.stdout or "").strip() == "commit"
+    )
+
+
+def _git_is_shallow(
+    git_dir: str,
+    git_binary: str | None,
+    timeout: float,
+    deadline: float | None = None,
+) -> bool | None:
+    """Shallow boundary present (True), absent (False), or unknowable (None)."""
+    try:
+        if os.path.isfile(os.path.join(git_dir, "shallow")) and os.path.getsize(
+            os.path.join(git_dir, "shallow")
+        ) > 0:
+            return True
+    except OSError:
+        pass
+    proc, _ = _run_git(
+        git_binary, git_dir, ["rev-parse", "--is-shallow-repository"], timeout, deadline
+    )
+    if proc is None or proc.returncode != 0:
+        return None
+    value = (proc.stdout or "").strip().lower()
+    return value == "true" if value in ("true", "false") else None
+
+
+def _git_ancestors(
+    git_binary: str | None,
+    git_dir: str,
+    base: str,
+    timeout: float,
+    max_commits: int,
+    deadline: float | None = None,
+) -> tuple[list[str], str]:
+    """Ancestors of ``base`` (base first) plus a status: ok/capped/timeout/failed."""
+    limit = max(int(max_commits), 0)
+    proc, timed_out = _run_git(
+        git_binary,
+        git_dir,
+        ["rev-list", "--max-count", str(limit + 1), base],
+        timeout,
+        deadline,
+    )
+    if timed_out:
+        return [], "timeout"
+    if proc is None or proc.returncode != 0:
+        return [], "failed"
+    commits = []
+    for line in (proc.stdout or "").splitlines():
+        token = line.strip().lower()
+        if not token:
+            continue
+        if not is_full_commit_hash(token):
+            return [], "failed"
+        commits.append(token)
+    if base not in commits:
+        return [], "failed"
+    if len(commits) > limit:
+        return commits[:limit], "capped"
+    return commits, "ok"
+
+
+def describe_git_history(
+    repository: str,
+    git_dir: str,
+    git_binary: str | None,
+    *,
+    mimo_base: str | None = None,
+    timeout: float = GIT_HISTORY_TIMEOUT_SEC,
+    max_commits: int = GIT_HISTORY_MAX_COMMITS,
+    deadline: float | None = None,
+) -> dict[str, Any]:
+    """One ``git_history`` entry: base plus bounded ancestors, never raising."""
+    entry: dict[str, Any] = {
+        "repository": repository,
+        "git_dir": git_dir,
+        "base_commit": None,
+        "base_source": "unknown",
+        "ancestor_commits": [],
+        "complete": False,
+        "reason": None,
+    }
+    if not git_binary:
+        entry["reason"] = "git-unavailable"
+        return entry
+    if deadline is not None and deadline - time.monotonic() <= 0:
+        entry["reason"] = "timeout"
+        return entry
+    base = None
+    source = "unknown"
+    if mimo_base is not None and is_full_commit_hash(mimo_base) and _git_object_is_commit(
+        git_binary, git_dir, mimo_base, timeout, deadline
+    ):
+        base, source = mimo_base, "mimo_base"
+    else:
+        head = _git_head(git_binary, git_dir, timeout, deadline)
+        if head is not None:
+            base, source = head, "pre_agent_head"
+    if base is None:
+        entry["reason"] = "base-unresolvable"
+        return entry
+    entry["base_commit"] = base
+    entry["base_source"] = source
+    commits, status = _git_ancestors(
+        git_binary, git_dir, base, timeout, max_commits, deadline
+    )
+    if status == "timeout":
+        entry["reason"] = "timeout"
+    elif status == "failed":
+        entry["reason"] = "rev-list-failed"
+    elif status == "capped":
+        entry["ancestor_commits"] = commits
+        entry["reason"] = "capped"
+    else:
+        entry["ancestor_commits"] = commits
+        shallow = _git_is_shallow(git_dir, git_binary, timeout, deadline)
+        if shallow:
+            entry["reason"] = "shallow"
+        elif shallow is None:
+            # Shallowness itself is unknowable: claiming complete would promote
+            # a possibly truncated graph, so this stays unknown.
+            entry["reason"] = "timeout"
+        else:
+            entry["complete"] = True
+    return entry
+
+
+def collect_git_history(
+    reports: list[dict[str, Any]] | None,
+    git_binary: str | None,
+    *,
+    mimo_base_path: str = MIMO_BASE_FILE,
+    timeout: float = GIT_HISTORY_TIMEOUT_SEC,
+    max_commits: int = GIT_HISTORY_MAX_COMMITS,
+    total_timeout: float = GIT_HISTORY_TOTAL_TIMEOUT_SEC,
+) -> list[dict[str, Any]]:
+    """Probe-level ``git_history``: one entry per distinct git dir, never raising."""
+    mimo_base = read_mimo_base(mimo_base_path)
+    deadline = time.monotonic() + max(float(total_timeout), 0.0)
+    history: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for report in reports or []:
+        if not isinstance(report, dict):
+            continue
+        git_dir = report.get("git_dir")
+        repository = report.get("candidate") or report.get("repository")
+        if not git_dir or not repository:
+            continue
+        try:
+            key = os.path.realpath(git_dir)
+        except OSError:
+            key = os.path.normpath(git_dir)
+        if key in seen:
+            continue
+        seen.add(key)
+        if deadline - time.monotonic() <= 0:
+            # Budget lapsed: later graphs stay unknown rather than stalling
+            # the probe past the sandbox exec envelope.
+            history.append(
+                {
+                    "repository": repository,
+                    "git_dir": git_dir,
+                    "base_commit": None,
+                    "base_source": "unknown",
+                    "ancestor_commits": [],
+                    "complete": False,
+                    "reason": "timeout",
+                }
+            )
+            continue
+        try:
+            history.append(
+                describe_git_history(
+                    repository,
+                    git_dir,
+                    git_binary,
+                    mimo_base=mimo_base,
+                    timeout=timeout,
+                    max_commits=max_commits,
+                    deadline=deadline,
+                )
+            )
+        except Exception:
+            history.append(
+                {
+                    "repository": repository,
+                    "git_dir": git_dir,
+                    "base_commit": None,
+                    "base_source": "unknown",
+                    "ancestor_commits": [],
+                    "complete": False,
+                    "reason": "rev-list-failed",
+                }
+            )
+    return history
+
+
 def cmd_probe(args: argparse.Namespace) -> int:
     git_binary = shutil.which("git")
     candidates = list(DISCOVERY_CANDIDATES) + [os.getcwd()]
@@ -325,6 +629,14 @@ def cmd_probe(args: argparse.Namespace) -> int:
         if nested.get("git_dir"):
             mimo = nested
             mimo["candidate"] = MIMO_GIT_HIDDEN
+    history_reports = list(repos)
+    if isinstance(mimo, dict) and mimo.get("git_dir"):
+        history_reports.append(mimo)
+    try:
+        git_history = collect_git_history(history_reports, git_binary)
+    except Exception:
+        # Ancestry capture never fails the probe; unknown stays unknown.
+        git_history = []
     tests: dict[str, Any] = {"path": TESTS_DIR}
     if os.path.isdir(TESTS_DIR) and not os.path.islink(TESTS_DIR):
         tests["status"] = "present"
@@ -350,6 +662,7 @@ def cmd_probe(args: argparse.Namespace) -> int:
         "git": git_binary,
         "repos": repos,
         "mimo_git_hidden": mimo,
+        "git_history": git_history,
         "tests": tests,
         "extras": extras,
     }

@@ -6,6 +6,7 @@ build-backend = "hatchling.build"
 name = "eval-lab"
 version = "0.1.0"
 description = "Evaluation research in real environments, using Harbor as the execution engine"
+license = "Apache-2.0"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

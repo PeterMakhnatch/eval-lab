@@ -12,8 +12,10 @@ import fcntl
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -110,6 +112,24 @@ def _stamp_tree(root: Path, *, raw_job: bool = False) -> list[tuple[str, int, in
             stat = path.lstat()  # Artifact symlinks belong to the sandbox, not this host.
             stamps.append((str(path), stat.st_mtime_ns, stat.st_size))
     return stamps
+
+
+def _accepted_roots(roots: list[Path], refused: set[Path]) -> list[Path]:
+    """Prune refused jobs before census discovery or transient projection reads."""
+    selected = []
+    for root in roots:
+        if root in refused:
+            continue
+        if not any(job.is_relative_to(root) for job in refused):
+            selected.append(root)
+            continue
+        children = [
+            child
+            for child in sorted(root.iterdir())
+            if child.is_dir() and not child.is_symlink() and not child.name.startswith(".")
+        ]
+        selected.extend(_accepted_roots(children, refused))
+    return selected
 
 
 def _fingerprint(stamps: list[tuple[str, int, int]]) -> str:
@@ -410,28 +430,58 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
         if previous.get("selection") == selection:
             return {
                 "status": "noop",
-                "jobs": len(observed),
+                "jobs": sum(str(job) not in previous.get("failed_jobs", {}) for job in observed),
+                "refused_jobs": len(previous.get("failed_jobs", {})),
                 "high_water_mark": previous["high_water_mark"],
             }
         old_jobs = (previous.get("selection") or {}).get("jobs", {})
         changed = [job for job in observed if fingerprints[str(job)] != old_jobs.get(str(job))]
-        new_runs = sum(str(job) not in old_jobs for job in changed)
         # Fail on missing or mismatched reviewed inputs before walking every run.
         verdicts = refresh_verdicts(config)
         # Completed jobs can be projected; ongoing trials are still replayed and
         # included in the HAR-178 census and HAR-176 pages as evidence arrives.
+        failed_jobs = {
+            job: failure
+            for job, failure in previous.get("failed_jobs", {}).items()
+            if job in fingerprints
+        }
+        processed_jobs = {
+            job: stamp
+            for job, stamp in previous.get("processed_jobs", {}).items()
+            if job in fingerprints
+        }
         for job in (job for job in changed if job in completed):
-            process_job(
-                job,
-                root=config.repo_root,
-                ingest=False,
-                publish=False,
-                output_dir=config.state_dir / "processed" / _key(job),
-                parquet_root=config.state_dir / "parquet",
-            )
-        trials = refresh_trials(config, roots)
+            output = config.state_dir / "processed" / _key(job)
+            try:
+                process_job(
+                    job,
+                    root=config.repo_root,
+                    ingest=False,
+                    publish=False,
+                    output_dir=output,
+                    parquet_root=config.state_dir / "parquet",
+                )
+            except Exception as exc:
+                failed_jobs[str(job)] = {
+                    "reason_class": type(exc).__name__,
+                    "reason": str(exc),
+                    "input_fingerprint": fingerprints[str(job)],
+                }
+                processed_jobs.pop(str(job), None)
+                if output.exists():
+                    shutil.rmtree(output)  # Only this service's partial job reports.
+            else:
+                failed_jobs.pop(str(job), None)
+                processed_jobs[str(job)] = fingerprints[str(job)]
+        accepted = [job for job in observed if str(job) not in failed_jobs]
+        changed = [job for job in changed if str(job) not in failed_jobs]
+        new_runs = sum(
+            str(job) not in old_jobs or str(job) in previous.get("failed_jobs", {})
+            for job in changed
+        )
+        trials = refresh_trials(config, _accepted_roots(roots, {Path(job) for job in failed_jobs}))
         replay = replay_history(config, changed)
-        pages = refresh_pages(config, observed)
+        pages = refresh_pages(config, accepted)
         campaigns = campaign_spend(config, checkouts)
         old_verdicts = previous.get("verdicts", {})
         changes = sum(old_verdicts.get(task) != verdict for task, verdict in verdicts.items())
@@ -443,14 +493,20 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
             for name, values in campaigns.items()
         }
         sources = {name: values["sources"] for name, values in campaigns.items()}
+        reasons = Counter(failure["reason_class"] for failure in failed_jobs.values())
+        refusal = (
+            ", ".join(f"{reason} ×{count}" for reason, count in sorted(reasons.items())) or "none"
+        )
         digest = {
             "schema": DIGEST_SCHEMA,
             "generated_at": moment.isoformat(),
             "campaigns": campaigns,
+            "failed_jobs": failed_jobs,
             "lines": [
                 "## Eval Lab nightly",
                 f"- Refreshed: {moment.astimezone(ET).isoformat(timespec='seconds')} ET; refresh spend $0.",
-                f"- Queue roots: {len(checkouts)}; outputs: {config.state_dir}.",
+                f"- Queue roots: {len(checkouts)}; outputs: {config.state_dir}; "
+                f"{len(failed_jobs)} jobs refused: {refusal}.",
                 f"- New runs: {new_runs}; changed runs: {len(changed)}.",
                 f"- New/changed trial results: {new_trials}.",
                 f"- Legit trials: {trials['legit']} / {trials['total']} (HAR-178).",
@@ -473,6 +529,8 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
                 "schema": SCHEMA,
                 "selection": selection,
                 "verdicts": verdicts,
+                "failed_jobs": failed_jobs,
+                "processed_jobs": processed_jobs,
                 "high_water_mark": high_water,
                 "refreshed_at": moment.isoformat(),
             },
@@ -481,6 +539,7 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
             "status": "refreshed",
             "new_runs": new_runs,
             "changed_runs": len(changed),
+            "refused_jobs": len(failed_jobs),
             "trials": trials,
             "verdict_changes": changes,
             "history": replay,

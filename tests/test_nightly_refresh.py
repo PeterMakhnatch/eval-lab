@@ -240,6 +240,7 @@ def test_second_refresh_is_noop_and_preserves_mtimes(
     assert second == {
         "status": "noop",
         "jobs": 1,
+        "refused_jobs": 0,
         "high_water_mark": first["high_water_mark"],
     }
     assert seams.process == []
@@ -278,46 +279,73 @@ def test_changed_result_is_processed_again(tmp_path: Path, monkeypatch: pytest.M
     assert after != before
 
 
-def test_failed_processing_does_not_advance_state(
+def test_refused_job_is_isolated_and_retried_only_after_input_change(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     checkout = _checkout(tmp_path)
-    job = _completed_job(checkout / "runs", "harbor-job")
+    good = _completed_job(checkout / "runs", "good")
+    bad = _completed_job(checkout / "runs", "refused")
     config = _config(tmp_path, checkout)
     seams = Seams()
-    seams.fail_process = True
     seams.install(monkeypatch)
+    refuse = True
+
+    def process(job: Path, **kwargs: Any) -> dict[str, Any]:
+        seams.process.append({"job": job, **kwargs})
+        if job == bad and refuse:
+            output = kwargs["output_dir"]
+            output.mkdir(parents=True, exist_ok=True)
+            (output / "partial.json").write_text("{}")
+            raise ValueError(
+                "artifact destination escapes the trial directory: artifacts/logs/artifacts"
+            )
+        return {}
+
+    monkeypatch.setattr(nightly_refresh, "process_job", process)
+    result = _refresh(config, seams)
     state_path = config.state_dir / "state.json"
-    facts_path = config.facts_root / "inputs" / "evallab-nightly.json"
-
-    with pytest.raises(RuntimeError, match="processing failed"):
-        run_refresh(config, now=NOW)
-
-    assert not state_path.exists()
-    assert not facts_path.exists()
-    assert seams.trials == []
-
-    seams.fail_process = False
-    first = run_refresh(config, now=NOW)
+    state = _load(state_path)
+    assert result["new_runs"] == result["changed_runs"] == result["refused_jobs"] == 1
+    assert set(state["processed_jobs"]) == {str(good)}
+    failure = state["failed_jobs"][str(bad)]
+    assert failure["reason_class"] == "ValueError"
+    assert (
+        failure["reason"]
+        == "artifact destination escapes the trial directory: artifacts/logs/artifacts"
+    )
+    assert failure["input_fingerprint"] == state["selection"]["jobs"][str(bad)]
+    assert not (config.state_dir / "processed" / _stable_key(bad)).exists()
+    assert seams.trials == [[good, checkout / "jobs"]]
+    assert seams.replay == [[good]]
+    assert seams.pages == [[good]]
+    facts = _load(config.facts_root / "inputs/evallab-nightly.json")
+    assert facts["failed_jobs"] == state["failed_jobs"]
+    assert "1 jobs refused: ValueError ×1" in facts["lines"][2]
+    assert len(facts["lines"]) == 10
     committed = state_path.read_bytes()
-    facts_stamp = (facts_path.stat().st_mtime_ns, facts_path.read_bytes())
-    payload = _load(job / "result.json")
-    payload["finished_at"] = "2026-10-06T19:00:00Z"
-    (job / "result.json").write_text(json.dumps(payload) + "\n", encoding="utf-8")
-    seams.fail_process = True
-
-    with pytest.raises(RuntimeError, match="processing failed"):
-        run_refresh(config, now=NOW)
-
+    assert _refresh(config, seams)["status"] == "noop"
+    assert seams.process == []
     assert state_path.read_bytes() == committed
-    assert _load(state_path)["high_water_mark"] == first["high_water_mark"]
-    assert (facts_path.stat().st_mtime_ns, facts_path.read_bytes()) == facts_stamp
 
-    seams.fail_process = False
+    # Another job's changes must not retry unchanged refused input.
+    added = _completed_job(checkout / "runs", "another")
+    assert _refresh(config, seams)["refused_jobs"] == 1
+    assert [call["job"] for call in seams.process] == [added]
+    assert str(bad) not in _load(state_path)["processed_jobs"]
+
+    # Only new source evidence releases a refusal and counts the recovered run.
+    refuse = False
+    payload = _load(bad / "result.json")
+    payload["finished_at"] = "2026-10-06T19:00:00Z"
+    (bad / "result.json").write_text(json.dumps(payload) + "\n", encoding="utf-8")
     recovered = _refresh(config, seams)
     assert recovered["status"] == "refreshed"
-    assert [call["job"].resolve() for call in seams.process] == [job.resolve()]
-    assert _load(state_path)["high_water_mark"] >= first["high_water_mark"]
+    assert recovered["new_runs"] == recovered["changed_runs"] == 1
+    assert recovered["refused_jobs"] == 0
+    assert [call["job"] for call in seams.process] == [bad]
+    assert _load(state_path)["failed_jobs"] == {}
+    assert str(bad) in _load(state_path)["processed_jobs"]
+    assert _refresh(config, seams)["status"] == "noop"
 
 
 def test_failed_helper_does_not_advance_state(
@@ -891,3 +919,53 @@ def test_sandbox_artifact_symlinks_are_fingerprinted_without_following(
     artifact.unlink()
     artifact.symlink_to("/different-sandbox/etc/nginx/app.conf")
     assert _refresh(config, seams)["status"] == "refreshed"
+
+
+def test_real_artifact_guard_refusal_is_excluded_from_census(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkout = _checkout(tmp_path)
+    good = _completed_job(checkout / "runs", "good")
+    pending = good / "pending__trial"
+    pending.mkdir()
+    (pending / "config.json").write_text("{}")
+    bad = _completed_job(checkout / "runs", "unsafe", trials=1)
+    trial = bad / "unsafe__trial"
+    artifacts = trial / "artifacts"
+    artifacts.mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "id": "unsafe-trial",
+                "trial_name": trial.name,
+                "task_name": "task",
+                "config": {"job_id": "unsafe"},
+                "verifier_result": {"rewards": {"reward": 1}},
+            }
+        )
+    )
+    (artifacts / "manifest.json").write_text(json.dumps([{"destination": "/outside-the-trial"}]))
+    config = _config(tmp_path, checkout)
+    census = nightly_refresh.refresh_trials
+    seams = Seams()
+    seams.install(monkeypatch, process=False)
+    monkeypatch.setattr(nightly_refresh, "refresh_trials", census)
+    before = _tree(checkout)
+    result = _refresh(config, seams)
+    assert result["refused_jobs"] == 1
+    assert result["new_runs"] == result["changed_runs"] == 1
+    assert result["trials"] == {"total": 1, "legit": 0, "projection_errors": 1}
+    import pyarrow.parquet as pq
+
+    rows = pq.read_table(config.state_dir / "trials.parquet").to_pylist()
+    assert len(rows) == 1
+    assert rows[0]["source_job_dir"] == str(good)
+    assert rows[0]["source_trial_dir"] == str(pending)
+    digest = _load(config.facts_root / "inputs/evallab-nightly.json")
+    assert "- New/changed trial results: 0." in digest["lines"]
+    assert digest["failed_jobs"][str(bad)]["reason"] == (
+        "artifact destination must be relative to the trial directory: /outside-the-trial"
+    )
+    assert not (config.state_dir / "processed" / _stable_key(bad)).exists()
+    assert _tree(checkout) == before
+    assert _refresh(config, seams)["status"] == "noop"

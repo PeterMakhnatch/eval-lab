@@ -318,6 +318,21 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
             raise
         self._daytona_usage["admission"] = admission
         self._write_daytona_usage()
+        from evallab.harbor_laminar import daytona_telemetry_labels
+
+        labels = daytona_telemetry_labels(self.trial_paths.trial_dir)
+        if labels:
+            env_vars = dict(getattr(params, "env_vars", None) or {})
+            extra_key = "DAYTONA_SANDBOX_OTEL_EXTRA_LABELS"
+            existing = [
+                item
+                for item in env_vars.get(extra_key, "").split(",")
+                if item and item.partition("=")[0].strip() not in labels
+            ]
+            env_vars[extra_key] = ",".join(
+                (*existing, *(f"{key}={value}" for key, value in labels.items()))
+            )
+            params.env_vars = env_vars
         # Keep the reservation on an ambiguous creation failure. A process
         # losing its response does not establish that the provider created nothing.
         await super()._create_sandbox(params=params, daytona=daytona)

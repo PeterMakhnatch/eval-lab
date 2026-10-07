@@ -711,6 +711,20 @@ def _approval_campaign_snapshot(root: Path, draft: Any) -> dict[str, Any]:
         ),
         "tasks": len(draft.tasks),
         "attempts_per_task": draft.attempts_per_task,
+        "concurrency": draft.concurrency,
+        "adaptive_sampling": (
+            draft.adaptive_sampling.model_dump(mode="json")
+            if draft.adaptive_sampling is not None
+            else None
+        ),
+        "oracle_confirmed_tasks": (
+            sum(
+                cap.oracle_confirmation(root, task.task_id, task.package_digest)[0]
+                for task in draft.tasks
+            )
+            if draft.adaptive_sampling is not None
+            else None
+        ),
     }
 
 
@@ -758,6 +772,14 @@ def _print_approval_campaign_snapshot(snapshot: dict[str, Any]) -> None:
     _print_campaign_budget_bound(snapshot["budget_bound"])
     print(f"tasks: {snapshot['tasks']}")
     print(f"attempts_per_task: {snapshot['attempts_per_task']}")
+    adaptive = snapshot["adaptive_sampling"]
+    if adaptive is not None:
+        print(
+            f"adaptive: max {snapshot['attempts_per_task']} draws/task, "
+            f"confidence {adaptive['target_confidence']:g}, "
+            f"seed {adaptive['seed']}; "
+            f"oracle-confirmed {snapshot['oracle_confirmed_tasks']}/{snapshot['tasks']}"
+        )
 
 
 def _print_campaign_status(

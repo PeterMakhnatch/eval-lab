@@ -10,20 +10,34 @@ approved**: approve exactly one (or neither) with the commands at the end.
   $5 under the wave model, see cost table).
 - Setup: frozen `xiaomi-mimo-rl` reference, agent `mimoagent`, model
   `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B`, `daytona`, egress lock
-  required. Deviations, sampling (1.0/0.95/20) and ceiling floor reuse the
-  validated HAR-168 draft (`/private/tmp/har175/har168-campaign.json`).
+  required. The source serving config now matches reference context 262,144
+  and tool-call parser `qwen3_coder`; only HAR-164's `harness.additions`
+  deviation remains. Sampling (1.0/0.95/20) and ceiling floor are unchanged.
+  The `mimo` reasoning parser is retained: profile `server.reasoning_parser`
+  is explicitly unsourced (Xiaomi's rollout configs pin no server parser).
+  Source alignment is not deployment or authenticated live qualification.
 - Images/packages: HAR-177 default `strip-future-history` variants.
   `variant-pins.json` records the per-task package digest (campaign pin),
   verifier digest (computed from the materialized variant with repo code),
   image digest, record path, status and transform chain, resolved at staging.
-- Attempts: x2 per task (100 / 40 trials). One warm model server runs the
-  batch concurrently. No serialised smoke run: tick with `--no-smoke-gate`
-  (recorded as `smoke_gate_disabled`; 24 qualified HAR-168 cells already
-  prove this setup).
+  Task packages, verifier/image digests and `variant-pins.json` are unchanged
+  by this context/parser-only re-stage.
+- Attempts: x2 per task (100 / 36 trials). One warm model server runs the
+  batch concurrently. The prior `--no-smoke-gate` rationale used HAR-168's
+  24 qualified cells with the old `mimo` parser and 65,536-token window.
+  Those runs do not qualify this newly configured server: deployment and a
+  fresh authenticated readiness/native-tools check require separate approval.
 - Standing HAR-175 rules in force: one replacement per infra failure;
   context exhaustion is a counted non-pass (HAR-182, no replacement);
   budget exhaustion stops new launches via the STOP fence, running trials
   finish untouched.
+
+Re-staged frozen content (unapproved; only `harness.additions` is declared):
+
+| Campaign | Content digest |
+|---|---|
+| n50 | `sha256:ecc8bac36ba6b04ec94f4da5ad4a7241aaa2b267e387cac87bae5f5661921cf1` |
+| n18 | `sha256:2c3969f1f5fa6ecd18c58d70f03190301fa062d3f6542c18d6a8c9e3f3b0c8b5` |
 
 ## Cost (HAR-168 actuals: GPU $2.90/h, Daytona $0.23148/h/sandbox, fresh 4-run batch $1.28)
 
@@ -40,6 +54,15 @@ server throughput). Worst-case is every trial billing its $0.60 per-trial
 ceiling; realized spend is fenced by the standing budget gate at the budget
 plus at most one wave of in-flight ceilings (`fenced_spend_bound`). ($1.28
 is a measured-time upper from the HAR-168 closure receipt, invoices UNKNOWN.)
+
+The context-only change uses the same A100-80GB and hourly rates: no price
+change. Longer trajectories may increase GPU time and sandbox time; this is
+unmeasured, so the existing wave estimate is retained rather than presented
+as a measured 262,144-token throughput estimate. SGLang's shared preallocated
+KV pool is not a full-window reservation per sandbox. Nineteen simultaneous
+full-window sequences require 152 GiB of KV and cannot fit; at realistic
+lengths, pool pressure can queue or retract requests and lengthen the batch.
+No memory-partition flags are added.
 
 | variant | tasks | trials | waves | expected | worst-case | realized <= | budget |
 |---|---|---|---|---|---|---|---|
@@ -86,6 +109,20 @@ reference-gate-owner admission with grading-equivalence evidence.
 Until then the campaign gate admits matching specs but dispatch refuses
 at the reference gate.
 
+## HAR-178 legit predicate
+
+The serving changes remove `server.context_length` and
+`server.tool_call_parser` differences. However, HAR-178 uses **exact**
+reference matching (`interpretation/trial_posture.py::_reference_match`),
+not admission with declared deviations. HAR-164's retained harness adapters
+still differ from reference `harness.additions={}` (profile cites
+`example_configs/swe.yaml:3-24`). Consequently a new run with this staged
+fingerprint is **not legit**, even with applied egress lock and no infra or
+limit stop: `sql/trials.sql` requires `reference_profile_match=true`.
+Neither that predicate nor the reference/lineage gates are weakened here.
+This verdict is prospective, not evidence of a new trial.
+
+
 ## HAR-180 dependency
 
 Per-trial file-access log (`agent/file-access.jsonl`) is on main but OFF
@@ -108,5 +145,5 @@ uv run evallab campaign approve research/experiments/har188-breadth/har188-bread
 
 Variant (b): same two commands with `har188-breadth-n18.json`.
 Launch (after approval): submit specs with `campaign_id` set, then
-`EVALLAB_FILE_ACCESS=1 evallab tick --spec-id <approved...> --no-smoke-gate`
-(reason: 24 qualified HAR-168 cells already prove this setup).
+`EVALLAB_FILE_ACCESS=1 evallab tick --spec-id <approved...>`.
+Do not reuse the old `--no-smoke-gate` qualification for the changed parser/window.

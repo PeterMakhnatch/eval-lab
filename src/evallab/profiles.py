@@ -37,6 +37,7 @@ from evallab.execution_contracts import (
     GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS,
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     MIMO_AGENT,
+    MIMO_SELFHOSTED_CONTEXT_TOKENS,
     MIMO_SELFHOSTED_MODEL_SELECTOR,
     MIMO_SELFHOSTED_MODEL_SELECTORS,
     OPENCODE_AUTH_RELATIVE_PATH,
@@ -850,10 +851,11 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_concurrency=1,
                 ),
                 verified_facts=(
-                    "2026-09-28: self-hosted XiaomiMiMo MiMo-V2.6-Distill-Qwen-9B "
-                    "(MIT, qwen3_5 hybrid) served by SGLang with "
-                    "--reasoning-parser mimo; generation_config T=0.6/top_p 0.95/"
-                    "top_k 20 enforced by the proxy; 64K context as served; "
+                    "2026-10-06: self-hosted XiaomiMiMo MiMo-V2.6-Distill-Qwen-9B "
+                    "(MIT, qwen3_5 hybrid) configured for SGLang with "
+                    "--tool-call-parser qwen3_coder and --reasoning-parser mimo; "
+                    "generation_config T=0.6/top_p 0.95/top_k 20 enforced by the proxy; "
+                    f"{MIMO_SELFHOSTED_CONTEXT_TOKENS:,}-token context; "
                     "GPU time billed by Modal, no per-token charge",
                 ),
             ),
@@ -871,6 +873,14 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_timeout_seconds=28_800,
                     max_attempts=1,
                     max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-10-06: pinned native Xiaomi SDK consumes OpenAI tool_calls "
+                    "from SGLang --tool-call-parser qwen3_coder; "
+                    "--reasoning-parser mimo retained; native RL sampling "
+                    "T=1.0/top_p 0.95/top_k 20 enforced by the proxy; "
+                    f"{MIMO_SELFHOSTED_CONTEXT_TOKENS:,}-token context; "
+                    "omitted SDK completion limits remain omitted",
                 ),
             ),
             AgentProfile(

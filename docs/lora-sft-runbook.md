@@ -77,7 +77,7 @@ spending approval. Never apply it from an app/model name alone.
 uv run --project tools/modal-mimo-sft --locked python tools/modal-mimo-sft/sft.py dry-run --data <export> --epochs 1
 ```
 
-The output shows tokens per row, trained tokens, the longest row and a cost estimate. A row longer than `max_length` (default 65,536, the served context) is refused by label, never truncated. Post the totals line and the manifest sha256 before training.
+The output shows tokens per row, trained tokens, the longest row and a cost estimate. A row longer than `max_length` (default 65,536) is refused by label, never truncated. This training ceiling is independent of the configured 262,144-token served context; raising it requires a separate memory/cost decision. Post the totals line and the manifest sha256 before training.
 
 ## 2. Train (Modal, one A100-80GB)
 

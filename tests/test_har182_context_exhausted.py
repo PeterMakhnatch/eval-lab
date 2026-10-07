@@ -13,6 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from evallab.counts import classify_counts
+from evallab.execution_contracts import MIMO_SELFHOSTED_CONTEXT_TOKENS
 from evallab.mimoagent_trajectory import native_to_atif
 from evallab.mimoagent_worker import _is_context_length_error
 from evallab.step_layers import limit_hit_summary, stop_category
@@ -29,12 +30,12 @@ def _error(status, text):
 
 def test_sglang_exact_bodies_are_context_exhaustion():
     prompt_overflow = (
-        "The input (65686 tokens) is longer than the model's context length (65536 tokens)."
+        "The input (262294 tokens) is longer than the model's context length (262144 tokens)."
     )
     assert _is_context_length_error(_error(400, prompt_overflow)) is True
     total_overflow = (
         "Requested token count exceeds the model's maximum context length of "
-        "65536 tokens. You requested a total of 66000 tokens."
+        "262144 tokens. You requested a total of 262608 tokens."
     )
     assert _is_context_length_error(_error(400, total_overflow)) is True
 
@@ -44,8 +45,8 @@ def test_equivalent_vendor_wordings_are_context_exhaustion():
         _is_context_length_error(
             _error(
                 400,
-                "This model's maximum context length is 65536 tokens. However, "
-                "you requested 65686 tokens.",
+                "This model's maximum context length is 262144 tokens. However, "
+                "you requested 262294 tokens.",
             )
         )
         is True
@@ -70,7 +71,7 @@ def test_non_overflow_400_is_still_an_error():
 def test_non_400_failures_are_never_context_exhaustion():
     assert (
         _is_context_length_error(
-            _error(500, "The input (65686 tokens) is longer than the model's context length")
+            _error(500, "The input (262294 tokens) is longer than the model's context length")
         )
         is False
     )
@@ -80,12 +81,29 @@ def test_non_400_failures_are_never_context_exhaustion():
 
 def test_uninformative_400_needs_a_full_prefix_to_count():
     vague = _error(400, "request failed")
+    assert MIMO_SELFHOSTED_CONTEXT_TOKENS == 262_144
     assert (
-        _is_context_length_error(vague, last_prompt_tokens=65536, served_context_tokens=65536)
+        _is_context_length_error(
+            vague,
+            last_prompt_tokens=MIMO_SELFHOSTED_CONTEXT_TOKENS,
+            served_context_tokens=MIMO_SELFHOSTED_CONTEXT_TOKENS,
+        )
         is True
     )
     assert (
-        _is_context_length_error(vague, last_prompt_tokens=65041, served_context_tokens=65536)
+        _is_context_length_error(
+            vague,
+            last_prompt_tokens=MIMO_SELFHOSTED_CONTEXT_TOKENS - 1,
+            served_context_tokens=MIMO_SELFHOSTED_CONTEXT_TOKENS,
+        )
+        is False
+    )
+    assert (
+        _is_context_length_error(
+            vague,
+            last_prompt_tokens=65_536,
+            served_context_tokens=MIMO_SELFHOSTED_CONTEXT_TOKENS,
+        )
         is False
     )
     assert _is_context_length_error(vague) is False

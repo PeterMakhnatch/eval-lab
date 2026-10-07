@@ -10,21 +10,6 @@
         "fineenv_issue_header": "strip_one_leading_copy",
         "infrastructure_errors": "stop_metadata"
       }
-    },
-    {
-      "field": "server.context_length",
-      "reason": "HAR-157 explicitly retains served 65,536-token (64K) context; no deployment change.",
-      "value": 65536
-    },
-    {
-      "field": "server.tool_call_parser",
-      "reason": "Existing SGLang serve.py TOOL_CALL_PARSER=mimo; native Xiaomi tools receive structured tool calls, not the Terminus normalizer.",
-      "value": "mimo"
-    },
-    {
-      "field": "server.reasoning_parser",
-      "reason": "Existing SGLang --reasoning-parser=mimo with proxy enable_thinking=true; recorded setting, not a measured equivalence claim.",
-      "value": "mimo"
     }
   ],
   "budget_usd": 30.0,

@@ -13,7 +13,7 @@ Covers the consumer-visible boundaries of HAR-90's Terminus addition:
   temperature/top_p/top_k) with ``reasoning_effort`` stripped in both
   places, the stub sees the provider key as a Bearer credential, and the
   key never appears in the response or the usage ledger.
-- Adapter binding: 64K context with zero per-token prices, ``temperature``
+- Adapter binding: 262,144-token context with zero per-token prices, ``temperature``
   passed to Terminus 2, capability confined to the controller environment.
 - Credential gating and the time-based trial-cost helper.
 
@@ -511,13 +511,17 @@ def test_mimo_proxy_enforces_request_ceiling(
         process.wait(10)
 
 
-def test_native_xiaomi_omitted_cap_passes_served_context_check(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+@pytest.mark.parametrize("sdk_max_tokens", [None, 131_072, MIMO_SELFHOSTED_CONTEXT_TOKENS])
+def test_native_xiaomi_sdk_output_limit_is_preserved(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mimo_upstream: Any,
+    sdk_max_tokens: int | None,
 ) -> None:
-    # Omitted stays a real no-cap call: with a 200k cumulative budget the
-    # old injected 200k cap fails the stub's 64k context check, while the
-    # preserved omission succeeds; an over-budget explicit value 429s
-    # before reaching upstream at all.
+    # A cumulative budget above the 262k served window must not become a
+    # completion cap: omitted stays omitted and explicit SDK limits above
+    # the old 64k window pass through verbatim. An over-budget explicit
+    # value 429s before reaching upstream, without clipping.
     monkeypatch.setenv(
         "EVALLAB_MIMO_SELFHOSTED_CONTEXT_TOKENS", str(MIMO_SELFHOSTED_CONTEXT_TOKENS)
     )
@@ -527,17 +531,20 @@ def test_native_xiaomi_omitted_cap_passes_served_context_check(
         monkeypatch,
         mimo_upstream,
         CAPABILITY_SENTINEL,
-        _proxy_limits(max_output_tokens=200_000, max_total_tokens=300_000),
+        _proxy_limits(max_output_tokens=600_000, max_total_tokens=700_000),
         sampling_profile="xiaomi-rl",
     )
     try:
         endpoint = f"{url}/v1/chat/completions"
+        payload: dict[str, Any] = {
+            "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+            "messages": [{"role": "user", "content": "hi"}],
+        }
+        if sdk_max_tokens is not None:
+            payload["max_tokens"] = sdk_max_tokens
         status, body = _post(
             endpoint,
-            {
-                "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
-                "messages": [{"role": "user", "content": "hi"}],
-            },
+            payload,
             capability=CAPABILITY_SENTINEL,
         )
         assert status == 200, body
@@ -546,14 +553,26 @@ def test_native_xiaomi_omitted_cap_passes_served_context_check(
             {
                 "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
                 "messages": [{"role": "user", "content": "hi"}],
-                "max_tokens": 500_000,
+                "max_tokens": 1_000_000,
             },
             capability=CAPABILITY_SENTINEL,
         )
         assert status == 429
         assert b"trial budget exhausted" in body
         assert len(_MimoUpstream.seen) == 1
+        forwarded = _MimoUpstream.seen[0]
+        if sdk_max_tokens is None:
+            assert "max_tokens" not in forwarded
+        else:
+            assert forwarded["max_tokens"] == sdk_max_tokens
+        assert "max_completion_tokens" not in forwarded
+        assert "max_output_tokens" not in forwarded
         usage = json.loads(usage_path.read_text())
+        expected_reservation = (
+            MIMO_SELFHOSTED_CONTEXT_TOKENS if sdk_max_tokens is None else sdk_max_tokens
+        )
+        assert MIMO_SELFHOSTED_CONTEXT_TOKENS == 262_144
+        assert usage["calls"][0]["reserved_output_tokens"] == expected_reservation
         assert usage["totals"]["requests"] == 1
         assert usage["totals"]["output_tokens"] == UPSTREAM_USAGE["completion_tokens"]
         assert usage["attempted"]["requests"] == 0
@@ -576,7 +595,7 @@ def test_native_xiaomi_concurrent_no_cap_calls_both_succeed(
         monkeypatch,
         mimo_upstream,
         CAPABILITY_SENTINEL,
-        _proxy_limits(max_output_tokens=200_000, max_total_tokens=300_000),
+        _proxy_limits(max_output_tokens=600_000, max_total_tokens=700_000),
         sampling_profile="xiaomi-rl",
     )
     try:
@@ -602,6 +621,8 @@ def test_native_xiaomi_concurrent_no_cap_calls_both_succeed(
             worker.join(30)
         assert sorted(status for status, _ in outcomes) == [200, 200]
         usage = json.loads(usage_path.read_text())
+        assert [call["reserved_output_tokens"] for call in usage["calls"]] == [262_144] * 2
+        assert all("max_tokens" not in body for body in _MimoUpstream.seen)
         assert usage["totals"]["requests"] == 2
         assert usage["totals"]["output_tokens"] == 2 * UPSTREAM_USAGE["completion_tokens"]
         assert usage["attempted"]["requests"] == 0
@@ -1107,8 +1128,8 @@ def test_adapter_binds_mimo_context_and_capability(mimo_transport: Any, tmp_path
     assert agent.model_name == MIMO_SELFHOSTED_MODEL_SELECTOR
     assert agent.api_base == "http://127.0.0.1:9"
     model_info = agent.extra_kwargs["model_info"]
-    assert model_info["max_input_tokens"] == MIMO_SELFHOSTED_CONTEXT_TOKENS == 65_536
-    assert model_info["max_output_tokens"] == 65_536
+    assert model_info["max_input_tokens"] == MIMO_SELFHOSTED_CONTEXT_TOKENS == 262_144
+    assert model_info["max_output_tokens"] == MIMO_SELFHOSTED_CONTEXT_TOKENS
     assert model_info["input_cost_per_token"] == 0.0
     assert model_info["output_cost_per_token"] == 0.0
     # The trajectory records the real sampling the proxy enforces.

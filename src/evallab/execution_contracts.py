@@ -463,7 +463,7 @@ MIMO_SELFHOSTED_MODEL_SELECTORS: frozenset[str] = frozenset(
 #: LiteLLM/OpenAI-compatible id sent upstream (served-model-name).
 MIMO_SELFHOSTED_LITELLM_MODEL = f"openai/{MIMO_SELFHOSTED_NATIVE_MODEL}"
 #: Context window as served (input+output).
-MIMO_SELFHOSTED_CONTEXT_TOKENS = 65_536
+MIMO_SELFHOSTED_CONTEXT_TOKENS = 262_144
 #: Sampling the proxy enforces on every call (the model's generation_config):
 #: SGLang's ``mimo`` reasoning parser only splits ``<think>`` when
 #: ``enable_thinking=True``; without it reasoning lands in content and breaks
@@ -1909,9 +1909,7 @@ def terminus_agent_kwargs(request: RunRequest) -> dict[str, Any]:
     return kwargs
 
 
-def build_command(
-    request: RunRequest, *, setup_fingerprint: str | None = None
-) -> list[str]:
+def build_command(request: RunRequest, *, setup_fingerprint: str | None = None) -> list[str]:
     """Build the exact Harbor CLI invocation command for a RunRequest."""
     from evallab.setup_fingerprint import lock_setup_fingerprint
 
@@ -1947,7 +1945,11 @@ def build_command(
         [
             "--agent-env",
             "EVALLAB_SETUP_FINGERPRINT="
-            + (setup_fingerprint if setup_fingerprint is not None else lock_setup_fingerprint(request)),
+            + (
+                setup_fingerprint
+                if setup_fingerprint is not None
+                else lock_setup_fingerprint(request)
+            ),
         ]
     )
     for source in request.diff_sources:

@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:fe4c2bcabb98473836e6b34fc709002a8ec6dff4d2a0a51b5b42caceacc9be08
+    digest: sha256:923a5c098661c7ed356ef510ff4806d79be091a3c518253fb17fdf49d1502919
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/har136-source-audit-2026-10-01.md
@@ -79,7 +79,7 @@ inputs:
   - path: docs/live-watch.md
     digest: sha256:f30af5ef705a09e140487f54cfc9b9d6276f044f21487793a8f4334c0dad8427
   - path: docs/lora-sft-runbook.md
-    digest: sha256:ccb1d4e90898bd2aae019fa912081daa4cdb13c0be65e03c9487d62f12ecf7f6
+    digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
   - path: docs/mimo-task-catalog.md
     digest: sha256:92cd9596c75aa7bef1d4a7e5e3f5231ef32501c243db5a4f0781b3ebd0bde065
   - path: docs/model-capture.md

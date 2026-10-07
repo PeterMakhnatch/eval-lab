@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 import json
 import shutil
 from dataclasses import replace
@@ -9,12 +10,13 @@ from pathlib import Path
 
 import pytest
 
-from evallab.execution_contracts import RunRequest, validate_request
+from evallab.execution_contracts import MIMO_SELFHOSTED_CONTEXT_TOKENS, RunRequest, validate_request
 from evallab.schemas import ExperimentSpec
 from evallab.setup_fingerprint import (
     build_intended_fingerprint,
     compare_fingerprint,
     load_reference_profile,
+    read_serve_config,
     render_spec_preflight,
     resolve_repo_root,
     trial_fingerprint,
@@ -138,9 +140,29 @@ def make_request(
 COVERING_DEVIATIONS = [
     {"field": "harness.id", "value": "terminus-2", "reason": "eval harness, not training harness"},
     {"field": "server.tool_call_parser", "value": "mimo-native", "reason": "lab normalizer"},
-    {"field": "server.context_length", "value": 65536, "reason": "served context"},
     {"field": "sampling.temperature", "value": 0.6, "reason": "proxy-enforced"},
 ]
+
+
+def test_serve_config_reads_reference_constants_without_importing_modal(tmp_path: Path) -> None:
+    root, _ = make_repo_root(tmp_path, with_parser=True, task_id=TASK_ID)
+    serve = read_serve_config(root)
+    assert serve["context_length"] == MIMO_SELFHOSTED_CONTEXT_TOKENS == 262_144
+    assert serve["tool_call_parser"] == "qwen3_coder"
+    assert serve["reasoning_parser"] == "mimo"
+    source_root = resolve_repo_root(None, Path(__file__))
+    training = ast.parse((source_root / "tools/modal-mimo-sft/sft.py").read_text())
+    length = next(
+        ast.literal_eval(node.value)
+        for node in training.body
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "DEFAULT_MAX_LENGTH"
+            for target in node.targets
+        )
+    )
+    assert length == 65_536
+    assert length <= serve["context_length"]
 
 
 def test_unlocked_run_refused(tmp_path: Path) -> None:
@@ -447,8 +469,6 @@ def test_native_reference_gate_uses_native_setup(tmp_path: Path, step_limit: int
         TASK_ID,
         digest,
         deviations=[
-            {"field": "server.tool_call_parser", "value": "mimo", "reason": "served parser"},
-            {"field": "server.context_length", "value": 65536, "reason": "served context"},
             {
                 "field": "harness.additions",
                 "value": WRAPPER_ADDITIONS,
@@ -474,6 +494,23 @@ def test_native_reference_gate_uses_native_setup(tmp_path: Path, step_limit: int
     )
     if step_limit == 500:
         validate_request(request, repo_root=root)
+        fingerprint = build_intended_fingerprint(
+            spec=spec,
+            task_dir=request.task,
+            model=spec.model,
+            agent=spec.agent,
+            environment=spec.environment,
+            repo_root=root,
+        )
+        assert fingerprint["server"]["context_length"] == 262_144
+        assert fingerprint["server"]["tool_call_parser"] == "qwen3_coder"
+        assert fingerprint["server"]["reasoning_parser"] == "mimo"
+        assert [
+            diff["field"]
+            for diff in compare_fingerprint(
+                fingerprint, load_reference_profile(root, "xiaomi-mimo-rl")
+            )
+        ] == ["harness.additions"]
     else:
         with pytest.raises(ValueError, match="budgets.step_limit"):
             validate_request(request, repo_root=root)

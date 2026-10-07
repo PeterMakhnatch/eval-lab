@@ -1573,7 +1573,7 @@ def test_campaign_validate_reports_adaptive_contract(
 ) -> None:
     from argparse import Namespace
 
-    from evallab.cli import _campaign_validate_command
+    from evallab.cli import _campaign_validate_command, run_cli
 
     _, campaign, _ = adaptive_fixture(tmp_path, concurrency=3)
     monkeypatch.setattr(cap, "validate_campaign_content", lambda root, draft: [])
@@ -1588,6 +1588,10 @@ def test_campaign_validate_reports_adaptive_contract(
     assert summary["concurrency"] == 3
     assert summary["adaptive_sampling"] == {"target_confidence": 0.95, "seed": 42}
     assert summary["oracle_confirmed_tasks"] == 1
+    assert run_cli(["campaign", "status", str(args.campaign), "--json"], workspace=tmp_path) == 0
+    summary.pop("errors")
+    summary.pop("specs")
+    assert summary == json.loads(capsys.readouterr().out)
 
 
 def test_adaptive_wave_uses_har189_zero_estimate_reservations(
@@ -1612,7 +1616,9 @@ def test_adaptive_wave_uses_har189_zero_estimate_reservations(
     )
     service = make_executor(
         tmp_path,
-        runner=lambda request: write_job(tmp_path, request.name, reward=1.0),
+        runner=lambda request: write_job(
+            tmp_path, request.name, reward=1.0, job_id=f"job-{request.name}"
+        ),
         daytona_observe_fn=lambda: {
             "limits": {"memory_gib": 200.0},
             "safety_fraction": 0.8,

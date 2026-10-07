@@ -92,7 +92,7 @@ def _stamp_tree(root: Path, *, raw_job: bool = False) -> list[tuple[str, int, in
     if not root.exists():
         return stamps
     if root.is_file():
-        stat = root.stat()
+        stat = root.lstat()
         return [(str(root), stat.st_mtime_ns, stat.st_size)]
     for base, dirs, files in os.walk(root):
         dirs[:] = sorted(
@@ -102,11 +102,12 @@ def _stamp_tree(root: Path, *, raw_job: bool = False) -> list[tuple[str, int, in
             and name != "__pycache__"
             and (not raw_job or name not in {"processed", "watch"})
         )
-        for name in sorted(files):
+        links = [name for name in dirs if (Path(base) / name).is_symlink()]
+        for name in sorted([*files, *links]):
             if name.startswith("."):
                 continue
             path = Path(base) / name
-            stat = path.stat()
+            stat = path.lstat()  # Artifact symlinks belong to the sandbox, not this host.
             stamps.append((str(path), stat.st_mtime_ns, stat.st_size))
     return stamps
 

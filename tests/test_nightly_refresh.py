@@ -870,3 +870,24 @@ def test_missing_or_modified_reviewed_inputs_fail_closed(tmp_path: Path) -> None
     (snapshot / nightly_refresh.VERDICT_FILES[0]).write_bytes(b"tampered")
     with pytest.raises(ValueError, match="Cached verdict evidence changed"):
         nightly_refresh.snapshot_verdict_inputs(config)
+
+
+def test_sandbox_artifact_symlinks_are_fingerprinted_without_following(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkout = _checkout(tmp_path)
+    job = _completed_job(checkout / "runs", "nginx-job")
+    artifact = job / "trial__id" / "artifacts" / "app.conf"
+    artifact.parent.mkdir(parents=True)
+    artifact.symlink_to("/nonexistent-sandbox/etc/nginx/app.conf")
+    (artifact.parent / "linked-dir").symlink_to(
+        "/nonexistent-sandbox/etc", target_is_directory=True
+    )
+    config = _config(tmp_path, checkout)
+    seams = Seams()
+    seams.install(monkeypatch)
+    assert _refresh(config, seams)["status"] == "refreshed"
+    assert _refresh(config, seams)["status"] == "noop"
+    artifact.unlink()
+    artifact.symlink_to("/different-sandbox/etc/nginx/app.conf")
+    assert _refresh(config, seams)["status"] == "refreshed"

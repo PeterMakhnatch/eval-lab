@@ -1172,6 +1172,21 @@ def _research_command(
 def _nightly_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    if getattr(args, "refresh", False):
+        from evallab.nightly_refresh import RefreshConfig, run_refresh
+
+        result = run_refresh(
+            RefreshConfig(
+                repo_root=root,
+                state_dir=args.state_dir.expanduser().resolve(),
+                queue_roots=tuple(args.queue_root),
+                facts_root=args.facts_root,
+                readers_store=args.readers_store,
+                data_root=args.data_root,
+            )
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
     executor = Executor.from_repo(root)
     researcher_loop: ResearcherLoop | None = None
     database_url = database_url_from_environment()
@@ -5092,6 +5107,34 @@ def parser() -> argparse.ArgumentParser:
 
     nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")
     nightly.add_argument("--date", dest="report_date", type=date.fromisoformat)
+    nightly.add_argument(
+        "--refresh",
+        action="store_true",
+        help="HAR-199: local-only $0 incremental refresh; never dispatch or call models",
+    )
+    nightly.add_argument(
+        "--queue-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Checkout containing queue and runs/jobs (repeatable); default primary plus worktrees with queues",
+    )
+    nightly.add_argument(
+        "--state-dir", type=Path, default=Path.home() / ".local/state/evallab-nightly"
+    )
+    nightly.add_argument(
+        "--facts-root",
+        type=Path,
+        help="Daily-report state root (default ~/.local/state/daily-report)",
+    )
+    nightly.add_argument(
+        "--readers-store", type=Path, help="Read-only HAR-176 reader verdict store"
+    )
+    nightly.add_argument(
+        "--data-root",
+        type=Path,
+        help="Primary evidence checkout when running an installed source snapshot",
+    )
     nightly.set_defaults(func=_nightly_command)
 
     research = commands.add_parser(

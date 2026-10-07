@@ -7,6 +7,7 @@ STATE="$HOME/.local/state/evallab-nightly"
 FACTS="$HOME/.local/state/daily-report"
 COMMON="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
 DATA_ROOT="$(dirname "$COMMON")"
+VERDICT_ROOT=""
 LOAD=0
 QUEUE_ROOTS=()
 while [ "$#" -gt 0 ]; do
@@ -15,6 +16,7 @@ while [ "$#" -gt 0 ]; do
     --state-dir) STATE="$2"; shift 2 ;;
     --facts-root) FACTS="$2"; shift 2 ;;
     --data-root) DATA_ROOT="$2"; shift 2 ;;
+    --verdict-root) VERDICT_ROOT="$2"; shift 2 ;;
     --queue-root) QUEUE_ROOTS+=("$2"); shift 2 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
@@ -41,13 +43,13 @@ if [ ! -e "$SNAPSHOT/READY" ]; then
   uv sync --frozen --no-default-groups --project "$SNAPSHOT"
   printf '%s\n' "$COMMIT" > "$SNAPSHOT/READY"
 fi
-python3 - "$ROOT/scripts/ops/launchd/$LABEL.plist" "$DEST" "$SNAPSHOT" "$DATA_ROOT" "$STATE" "$FACTS" "$LOGS" "${QUEUE_ROOTS[@]}" <<'PY'
+python3 - "$ROOT/scripts/ops/launchd/$LABEL.plist" "$DEST" "$SNAPSHOT" "$DATA_ROOT" "$STATE" "$FACTS" "$VERDICT_ROOT" "$LOGS" "${QUEUE_ROOTS[@]}" <<'PY'
 import os
 from pathlib import Path
 import plistlib
 import sys
 
-template, destination, source, data, state, facts, logs, *roots = sys.argv[1:]
+template, destination, source, data, state, facts, verdict, logs, *roots = sys.argv[1:]
 source = str(Path(source).resolve())
 config = plistlib.loads(Path(template).read_bytes())
 program = (
@@ -59,6 +61,8 @@ config["ProgramArguments"] = [
     "nightly", "--refresh", "--data-root", str(Path(data).resolve()),
     "--state-dir", str(Path(state).resolve()), "--facts-root", str(Path(facts).resolve()),
 ]
+if verdict:
+    config["ProgramArguments"] += ["--verdict-root", str(Path(verdict).resolve())]
 for root in roots:
     config["ProgramArguments"] += ["--queue-root", str(Path(root).resolve())]
 config["WorkingDirectory"] = source

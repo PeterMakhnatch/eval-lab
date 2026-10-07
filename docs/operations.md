@@ -758,6 +758,7 @@ uv run evallab schedule install
 
 - `com.petermakhnatch.evallab.tick` runs every 30 minutes.
 - `com.petermakhnatch.evallab.nightly` runs the **$0 refresh** at 02:30 ET: `nightly --refresh`, never queue dispatch or the research cycle. For the stable installed runtime (no tick job), use `scripts/ops/launchd/install-nightly-refresh.sh --load`; on demand use `launchctl kickstart gui/$(id -u)/com.petermakhnatch.evallab.nightly`. State, Parquet, HAR-177 ledger/verdicts, HAR-176 pages and HAR-184 replay live in `~/.local/state/evallab-nightly`; `--queue-root` selects read-only checkouts (default primary plus worktrees with queues). Unchanged inputs are a locked high-water no-op. The ten-line digest is `~/.local/state/daily-report/inputs/evallab-nightly.json`, consumed additively into `facts.json`/`facts.md` only while ≤36 hours old; installation does not trigger the reporter or any LLM.
+  Set `--verdict-root <checkout>` when the primary lacks the real HAR-177 census/variant/oracle files (on this host: `.worktrees/har177-verdicts-20261006`). The service records per-file SHA-256/source provenance and snapshots only those inputs under `state/evidence`; retiring that source checkout does not lose the reviewed evidence. A present source missing required inputs fails closed.
 
 For a dispatch-only schedule that checks the approved queue every minute:
 

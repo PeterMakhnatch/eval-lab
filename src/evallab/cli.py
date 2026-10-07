@@ -1183,6 +1183,7 @@ def _nightly_command(
                 facts_root=args.facts_root,
                 readers_store=args.readers_store,
                 data_root=args.data_root,
+                verdict_root=getattr(args, "verdict_root", None),
             )
         )
         print(json.dumps(result, indent=2, sort_keys=True))
@@ -5134,6 +5135,11 @@ def parser() -> argparse.ArgumentParser:
         "--data-root",
         type=Path,
         help="Primary evidence checkout when running an installed source snapshot",
+    )
+    nightly.add_argument(
+        "--verdict-root",
+        type=Path,
+        help="Read-only checkout with real HAR-177 census/variant/oracle inputs; snapshotted under state",
     )
     nightly.set_defaults(func=_nightly_command)
 

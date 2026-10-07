@@ -713,6 +713,7 @@ def test_nightly_refresh_command_never_constructs_executor(
         facts_root=facts,
         readers_store=readers,
         data_root=data,
+        verdict_root=data,
         report_date=None,
     )
 
@@ -727,6 +728,7 @@ def test_nightly_refresh_command_never_constructs_executor(
     assert config.facts_root == facts
     assert config.readers_store == readers
     assert config.data_root == data
+    assert config.verdict_root == data
 
     absent = argparse.Namespace(
         refresh=True,
@@ -741,6 +743,7 @@ def test_nightly_refresh_command_never_constructs_executor(
     assert seen[1].data_root is None
     assert seen[1].facts_root is None
     assert seen[1].readers_store is None
+    assert seen[1].verdict_root is None
 
 
 def test_legacy_nightly_does_not_call_refresh(
@@ -810,3 +813,59 @@ def test_ongoing_trial_changes_refresh_view_pages_and_history(
     assert seams.trials == [[checkout / "runs", checkout / "jobs"]]
     assert seams.replay == [[job]]
     assert seams.pages == [[job]]
+
+
+def _verdict_evidence(root: Path) -> None:
+    for relative in nightly_refresh.VERDICT_FILES:
+        path = root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(b"reviewed input fixture")
+    variant = root / "library/task-variants/format-code__task/record.json"
+    variant.parent.mkdir(parents=True)
+    variant.write_text('{"transform": "fixture"}\n')
+
+
+def test_reviewed_inputs_survive_source_retirement(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    _verdict_evidence(source)
+    config = RefreshConfig(
+        repo_root=tmp_path / "runtime",
+        state_dir=tmp_path / "state",
+        verdict_root=source,
+    )
+    before = _tree(source)
+    snapshot = nightly_refresh.snapshot_verdict_inputs(config)
+    manifest = _load(config.state_dir / "evidence-sources.json")
+    assert manifest["source"] == str(source)
+    assert len(manifest["files"]) == len(nightly_refresh.VERDICT_FILES) + 1
+    assert _tree(source) == before
+    for relative, entry in manifest["files"].items():
+        assert hashlib.sha256((snapshot / relative).read_bytes()).hexdigest() == entry["sha256"]
+    source.rename(tmp_path / "retired-source")
+    assert nightly_refresh.snapshot_verdict_inputs(config) == snapshot
+
+
+def test_removed_optional_verdict_input_is_removed_from_snapshot(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    _verdict_evidence(source)
+    config = RefreshConfig(repo_root=source, state_dir=tmp_path / "state")
+    snapshot = nightly_refresh.snapshot_verdict_inputs(config)
+    optional = nightly_refresh.VERDICT_FILES[4]
+    (source / optional).unlink()
+    nightly_refresh.snapshot_verdict_inputs(config)
+    assert not (snapshot / optional).exists()
+    assert optional.as_posix() not in _load(config.state_dir / "evidence-sources.json")["files"]
+
+
+def test_missing_or_modified_reviewed_inputs_fail_closed(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    config = RefreshConfig(repo_root=source, state_dir=tmp_path / "state")
+    with pytest.raises(FileNotFoundError, match="--verdict-root"):
+        nightly_refresh.snapshot_verdict_inputs(config)
+    _verdict_evidence(source)
+    snapshot = nightly_refresh.snapshot_verdict_inputs(config)
+    source.rename(tmp_path / "retired-source")
+    (snapshot / nightly_refresh.VERDICT_FILES[0]).write_bytes(b"tampered")
+    with pytest.raises(ValueError, match="Cached verdict evidence changed"):
+        nightly_refresh.snapshot_verdict_inputs(config)

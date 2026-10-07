@@ -27,6 +27,18 @@ from evallab.storage.paths import shared_checkout_root
 ET = ZoneInfo("America/New_York")
 SCHEMA = "evallab.nightly_refresh/v1"
 DIGEST_SCHEMA = "evallab.nightly_digest/v1"
+VERDICT_FILES = tuple(
+    Path(name)
+    for name in (
+        "research/experiments/har108-python-census/task_health.parquet",
+        "research/experiments/har108-python-census/pool.json",
+        "research/experiments/python-task-ledger/task_history.csv",
+        "research/experiments/python-task-ledger/oracle_pilot.csv",
+        "research/experiments/python-task-ledger/oracle_sweep.csv",
+        "research/experiments/har122-egress-lock/har146-locked-nop.csv",
+        "research/experiments/har161-exploit/probe_verdicts.json",
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -37,6 +49,7 @@ class RefreshConfig:
     facts_root: Path | None = None
     readers_store: Path | None = None
     data_root: Path | None = None
+    verdict_root: Path | None = None
 
 
 def _json(path: Path) -> dict[str, Any]:
@@ -105,14 +118,10 @@ def _fingerprint(stamps: list[tuple[str, int, int]]) -> str:
 def _metadata(config: RefreshConfig, roots: tuple[Path, ...]) -> list[tuple[str, int, int]]:
     from evallab.queue import QUEUE_STATES
 
-    repo = config.data_root or shared_checkout_root(config.repo_root)
+    repo = config.verdict_root or config.data_root or shared_checkout_root(config.repo_root)
     paths = [
         repo / "library/task-variants",
-        repo / "research/experiments/python-task-ledger",
-        repo / "research/experiments/har108-python-census/task_health.parquet",
-        repo / "research/experiments/har108-python-census/pool.json",
-        repo / "research/experiments/har122-egress-lock/har146-locked-nop.csv",
-        repo / "research/experiments/har161-exploit/probe_verdicts.json",
+        *(repo / relative for relative in VERDICT_FILES),
         config.readers_store or Path.home() / "Library/Application Support/evallab/readers",
     ]
     for root in roots:
@@ -150,15 +159,72 @@ def refresh_trials(config: RefreshConfig, roots: list[Path]) -> dict[str, Any]:
         con.close()
 
 
+def snapshot_verdict_inputs(config: RefreshConfig) -> Path:
+    """Persist the real reviewed inputs so retiring their worktree loses no evidence."""
+    source = (
+        config.verdict_root or config.data_root or shared_checkout_root(config.repo_root)
+    ).resolve()
+    target = config.state_dir / "evidence"
+    manifest_path = config.state_dir / "evidence-sources.json"
+    previous = _json(manifest_path)
+    if not source.exists():
+        if previous.get("source") != str(source) or not previous.get("files"):
+            raise FileNotFoundError(f"No reviewed verdict inputs at {source}; set --verdict-root")
+        for relative, entry in previous["files"].items():
+            data = (target / relative).read_bytes()
+            if hashlib.sha256(data).hexdigest() != entry["sha256"]:
+                raise ValueError(f"Cached verdict evidence changed: {relative}")
+        return target
+    required = (VERDICT_FILES[0], VERDICT_FILES[2], VERDICT_FILES[5])
+    for relative in required:
+        if not (source / relative).is_file():
+            raise FileNotFoundError(
+                f"Missing reviewed verdict input: {source / relative}; set --verdict-root"
+            )
+    inputs = [source / relative for relative in VERDICT_FILES if (source / relative).is_file()]
+    inputs.extend(sorted((source / "library/task-variants").glob("*/*.json")))
+    files = {}
+    for path in inputs:
+        relative = path.relative_to(source).as_posix()
+        data = path.read_bytes()
+        digest = hashlib.sha256(data).hexdigest()
+        destination = target / relative
+        if (
+            not destination.is_file()
+            or hashlib.sha256(destination.read_bytes()).hexdigest() != digest
+        ):
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            temporary = destination.with_name(f".{destination.name}.{os.getpid()}.tmp")
+            try:
+                temporary.write_bytes(data)
+                temporary.replace(destination)
+            finally:
+                temporary.unlink(missing_ok=True)
+        files[relative] = {"source": str(path), "sha256": digest}
+    for relative in previous.get("files", {}).keys() - files.keys():
+        (target / relative).unlink(missing_ok=True)
+    _atomic(
+        manifest_path,
+        {"schema": "evallab.nightly_evidence/v1", "source": str(source), "files": files},
+    )
+    return target
+
+
 def refresh_verdicts(config: RefreshConfig) -> dict[str, Any]:
     """Re-run HAR-177's deterministic builder, never modify its source ledger."""
-    repo = config.data_root or shared_checkout_root(config.repo_root)
+    repo = snapshot_verdict_inputs(config)
     builder = config.repo_root / "research/experiments/python-task-ledger/build.py"
     output = config.state_dir / "ledger.csv"
-    subprocess.run(
+    execution = subprocess.run(
         [sys.executable, str(builder), "--root", str(repo), "--output", str(output)],
-        check=True,
+        capture_output=True,
+        text=True,
+        check=False,
     )
+    if execution.returncode:
+        raise RuntimeError(
+            f"HAR-177 ledger refresh failed: {(execution.stderr or execution.stdout).strip()}"
+        )
     with output.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     verdicts = {
@@ -336,6 +402,7 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
             "producer": _fingerprint(_stamp_tree(config.repo_root / "src")),
             "roots": [str(root) for root in roots],
             "facts_root": str(config.facts_root),
+            "verdict_root": str(config.verdict_root),
             "metadata": _fingerprint(metadata),
             "jobs": fingerprints,
         }
@@ -348,6 +415,8 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
         old_jobs = (previous.get("selection") or {}).get("jobs", {})
         changed = [job for job in observed if fingerprints[str(job)] != old_jobs.get(str(job))]
         new_runs = sum(str(job) not in old_jobs for job in changed)
+        # Fail on missing or mismatched reviewed inputs before walking every run.
+        verdicts = refresh_verdicts(config)
         # Completed jobs can be projected; ongoing trials are still replayed and
         # included in the HAR-178 census and HAR-176 pages as evidence arrives.
         for job in (job for job in changed if job in completed):
@@ -360,7 +429,6 @@ def run_refresh(config: RefreshConfig, *, now: datetime | None = None) -> dict[s
                 parquet_root=config.state_dir / "parquet",
             )
         trials = refresh_trials(config, roots)
-        verdicts = refresh_verdicts(config)
         replay = replay_history(config, changed)
         pages = refresh_pages(config, observed)
         campaigns = campaign_spend(config, checkouts)

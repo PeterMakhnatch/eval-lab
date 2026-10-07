@@ -1,0 +1,17 @@
+{
+ "cost_usd": 0.00059928,
+ "detector": "laminar_copied",
+ "explanation": "signal completed without firing",
+ "flagged": false,
+ "id": "twraw-0030",
+ "model": "glm-5.3-flash",
+ "reused": false,
+ "schema": "evallab.detector_verdict/v1",
+ "score": null,
+ "tokens": {
+  "cached": 5376,
+  "input": 7586,
+  "output": 213
+ },
+ "trace_url": "https://lmnr.ai/project/a5586b6d-55e8-466f-9718-c38255c2ae94/traces/911e6a54-fd97-06e2-4d56-c4687667b41f"
+}

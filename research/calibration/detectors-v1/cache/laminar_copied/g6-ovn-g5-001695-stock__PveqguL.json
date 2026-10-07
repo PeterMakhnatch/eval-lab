@@ -1,0 +1,12 @@
+{
+ "cost_usd": 0.0,
+ "detector": "laminar_copied",
+ "explanation": "\"\"",
+ "flagged": false,
+ "id": "g6-ovn-g5-001695-stock__PveqguL",
+ "model": "glm-5.3-flash",
+ "reused": true,
+ "schema": "evallab.detector_verdict/v1",
+ "score": null,
+ "trace_url": "https://lmnr.ai/project/a5586b6d-55e8-466f-9718-c38255c2ae94/traces/18d4a6c9-7a73-bcb7-5279-1d9a6b7fb459"
+}

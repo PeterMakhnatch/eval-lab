@@ -1,0 +1,12 @@
+{
+ "cost_usd": 0.0,
+ "detector": "laminar_stuck_loop",
+ "explanation": "\"{\\\"kind\\\": \\\"repetition\\\", \\\"length\\\": 22, \\\"start_step\\\": \\\"61\\\"}\"",
+ "flagged": true,
+ "id": "g6-ovn-g5-002302-tuned__5j77iHJ",
+ "model": "glm-5.3-flash",
+ "reused": true,
+ "schema": "evallab.detector_verdict/v1",
+ "score": null,
+ "trace_url": "https://lmnr.ai/project/a5586b6d-55e8-466f-9718-c38255c2ae94/traces/8a8f9c40-3441-fdfa-e396-8c1e2ea91b87"
+}

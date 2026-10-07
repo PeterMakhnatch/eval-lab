@@ -19,6 +19,8 @@ calibration/
     *.md                             labeled postmortems (no keys inline)
     answer-keys/<id>.json            sealed expected verdicts
   trajectory-labels/<trial_name>.json
+  detectors-v1/                      cheat-detector corpus + cached judge verdicts
+                                     (`evallab detectors`; docs/harbor-view.md)
 ```
 
 Families in this corpus: `checkout-pool-exhaustion`, `retry-storm-backlog`.

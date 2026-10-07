@@ -15,7 +15,7 @@ import tomllib
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from evallab.execution_contracts import (
     BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
@@ -48,6 +48,14 @@ class CampaignExecutionPolicy(BaseModel):
     max_concurrent_trials: int = Field(ge=1, le=40, strict=True)
     model_host: Literal["modal", "runpod"]
     qualification: CampaignSetupQualification | None = None
+
+    @model_validator(mode="after")
+    def _qualification_needs_recorded_host(self) -> CampaignExecutionPolicy:
+        # Native trial evidence does not record the model host, so it cannot
+        # prove a Runpod server; those campaigns keep the serialized smoke.
+        if self.qualification is not None and self.model_host != "modal":
+            raise ValueError("setup qualification is only recorded for the Modal model host")
+        return self
 
 
 def qualification_evidence_digest(trial_dir: Path) -> str:

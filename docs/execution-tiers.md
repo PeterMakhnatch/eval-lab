@@ -325,8 +325,9 @@ that 20 full-window requests fit. A configurable idle window retains the
 measured. Never install an unbounded `min_containers=1` hold: the pinned
 Modal autoscaler has no TTL, and a controller `finally` is not crash recovery.
 Drain/stop the **owned** deployment and verify zero containers at campaign
-end; do not stop another queue's shared app. Runpod policies never invoke the
-Modal teardown hook. Runpod Pod termination/storage cleanup is part of A's
+end; do not stop another queue's shared app. A window containing only Runpod
+policies skips the Modal teardown hook; a mixed window still calls it, and the
+hook keeps waiting until no self-hosted work remains. Runpod Pod termination/storage cleanup is part of A's
 explicitly admitted operator lifecycle, not a new automatic provider launcher.
 
 #### Two candidate designs and conditional costs

@@ -563,9 +563,13 @@ Pin the optional campaign `execution` policy with a concurrency cap, model host
 and digest-bound native qualification evidence. A whole matching approved batch
 uses that cap by default; explicit `--parallel` can only lower it. Unqualified,
 mixed, drifted or missing evidence retains the original smoke gate, and fresh
-authenticated model readiness remains mandatory. Replacements are reconciled
-before model teardown, so one allowed infra replacement does not require an
-unnecessary cold start. Old campaigns with no policy retain their approval
+authenticated model readiness remains mandatory. Native evidence does not record
+the model host, so only `model_host: modal` policies may carry qualification;
+Runpod campaigns keep the serialized smoke. A locked-Docker campaign with an
+approved `cost_estimate` reserves that per-trial envelope even for model-free
+controls, because GPU billing does not include the shared VM. Replacements are
+reconciled before model teardown, so one allowed infra replacement does not
+require an unnecessary cold start. Old campaigns with no policy retain their approval
 digests and behavior. See [cheap campaign execution](execution-tiers.md#cheap-campaign-execution-har-192-source-not-deployment)
 for the exact evidence contract, resource limits and unrun comparison plan.
 

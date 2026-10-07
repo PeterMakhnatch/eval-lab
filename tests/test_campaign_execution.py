@@ -368,6 +368,44 @@ def test_teardown_error_does_not_repeat_a_completed_trial(tmp_path, monkeypatch)
     assert calls == [spec.name]
 
 
+def test_mixed_modal_and_runpod_window_still_stops_the_modal_app(tmp_path, monkeypatch):
+    spec, digest = seed(tmp_path)
+    modal = spec.model_copy(update={"name": "modal-one", "campaign_id": "modal-policy"})
+    runpod = spec.model_copy(update={"name": "runpod-one", "campaign_id": "runpod-policy"})
+    campaign(tmp_path, modal, digest, None)
+    campaign(tmp_path, runpod, digest, None, model_host="runpod")
+    calls = []
+    service = executor(
+        tmp_path,
+        monkeypatch,
+        lambda request: request.jobs_dir / request.name,
+        modal_teardown=lambda queue, root, candidates: calls.append(
+            sorted(item.name for item in candidates)
+        ),
+    )
+    service._maybe_stop_selfhosted_app([runpod])
+    assert calls == []
+    service._maybe_stop_selfhosted_app([modal, runpod])
+    assert calls == [["modal-one", "runpod-one"]]
+
+
+def test_runpod_policy_cannot_borrow_unrecorded_host_qualification(tmp_path):
+    spec, _ = seed(tmp_path)
+    proof = native_qualification(tmp_path, spec)
+    CampaignExecutionPolicy(max_concurrent_trials=2, model_host="modal", qualification=proof)
+    with pytest.raises(ValueError, match="Modal model host"):
+        CampaignExecutionPolicy(max_concurrent_trials=2, model_host="runpod", qualification=proof)
+
+
+def test_locked_docker_control_reserves_the_approved_vm_envelope(tmp_path):
+    spec, digest = seed(tmp_path)
+    estimate = cap.CampaignCostEstimate(expected_usd=1, worst_case_usd=2, formula="fixture VM")
+    record = campaign(tmp_path, spec, digest, None, estimate=estimate)
+    control = {"agent": "nop", "environment": "docker", "egress_lock": True}
+    assert cap._reservation_usd(control, record) == pytest.approx(1)
+    assert cap._reservation_usd(control, record.model_copy(update={"execution": None})) == 0
+
+
 def settled_meter_fixture(root, spec):
     """Native-shaped retained evidence; no provider or trial is executed."""
     state = root / "queue/done"

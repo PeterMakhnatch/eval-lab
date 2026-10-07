@@ -1088,8 +1088,15 @@ def _reservation_usd(raw: Mapping[str, Any], campaign: ExperimentCampaign) -> fl
     from evallab.modal_ops import is_selfhosted_model
 
     estimate = _usd(raw.get("est_cost_usd")) or 0.0
-    if is_selfhosted_model(raw.get("model")) or (
-        raw.get("environment") == "daytona" and estimate == 0
+    if (
+        is_selfhosted_model(raw.get("model"))
+        or (raw.get("environment") == "daytona" and estimate == 0)
+        # Locked Docker rents a shared VM even for model-free controls.
+        or (
+            raw.get("environment") == "docker"
+            and campaign.execution is not None
+            and campaign.cost_estimate is not None
+        )
     ):
         attempts = raw.get("attempts", 1)
         count = attempts if isinstance(attempts, int) and attempts > 0 else 1

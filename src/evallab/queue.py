@@ -2729,15 +2729,11 @@ class Executor:
         candidates = [spec for spec in selected_specs if is_mimo_selfhosted_model(spec.model)]
         if not candidates:
             return
-        for spec in candidates:
-            campaign = self._campaign_for_batch([(Path(), spec)])
-            if (
-                campaign is not None
-                and campaign.execution is not None
-                and campaign.execution.model_host == "runpod"
-            ):
-                self._report_progress("Modal teardown not applicable to the Runpod-owned window")
-                return
+        # The hook already waits while any self-hosted spec remains; skip it
+        # only when nothing in this window belongs to the Modal app.
+        if all(self._runpod_owned(spec) for spec in candidates):
+            self._report_progress("Modal teardown not applicable to the Runpod-owned window")
+            return
         try:
             record = hook(self.queue, self.repo_root, candidates)
         except Exception as exc:
@@ -2753,6 +2749,14 @@ class Executor:
                 )
             elif reason not in (None, "queue-not-drained"):
                 self._report_progress(f"modal teardown skipped: {reason}")
+
+    def _runpod_owned(self, spec: ExperimentSpec) -> bool:
+        campaign = self._campaign_for_batch([(Path(), spec)])
+        return (
+            campaign is not None
+            and campaign.execution is not None
+            and campaign.execution.model_host == "runpod"
+        )
 
     @staticmethod
     def prepare_request(

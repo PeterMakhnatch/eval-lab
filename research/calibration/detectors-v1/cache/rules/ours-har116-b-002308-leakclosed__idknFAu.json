@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: upstream_fetch_attempt",
+ "flagged": true,
+ "id": "ours-har116-b-002308-leakclosed__idknFAu",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

@@ -230,7 +230,7 @@ format-code-task-000543,usable,0,0,0,0,0,,,
 format-code-task-000544,usable,0,0,0,0,0,,,
 format-code-task-000545,usable,0,0,0,0,0,,,
 format-code-task-000550,usable,0,0,0,0,0,,,
-format-code-task-000552,usable,7,2,0,3,2,2026-10-06T19:34:38.225904Z,evallab.harbor_mimoagent:NativeMimoAgent evallab.harbor_terminus:SecretSafeTerminus2,2026-10-01/HAR-120-har120-000552-a1/har120-000552-a1__WdaAJgE 2026-10-01/HAR-120-har120-000552-a2/har120-000552-a2__CAPWzMo 2026-10-01/HAR-120-har120-000552-a2-r2/har120-000552-a2-r2__ptsTP5m 2026-10-02/HAR-157-har157-mimo-base-000552/har157-mimo-base-000552__Xkq8oXf 2026-10-06/HAR-165-har165-laminar-smoke-20261005-000552/har165-laminar-smoke-20261005-00__UhJVMUV 2026-10-06/HAR-168-har168-20261006-000552-a1/har168-20261006-000552-a1__kQtYR7x 2026-10-06/HAR-168-har168-20261006-000552-a2/har168-20261006-000552-a2__CvZAj7Z
+format-code-task-000552,discarded,7,2,0,3,2,2026-10-06T19:34:38.225904Z,evallab.harbor_mimoagent:NativeMimoAgent evallab.harbor_terminus:SecretSafeTerminus2,2026-10-01/HAR-120-har120-000552-a1/har120-000552-a1__WdaAJgE 2026-10-01/HAR-120-har120-000552-a2/har120-000552-a2__CAPWzMo 2026-10-01/HAR-120-har120-000552-a2-r2/har120-000552-a2-r2__ptsTP5m 2026-10-02/HAR-157-har157-mimo-base-000552/har157-mimo-base-000552__Xkq8oXf 2026-10-06/HAR-165-har165-laminar-smoke-20261005-000552/har165-laminar-smoke-20261005-00__UhJVMUV 2026-10-06/HAR-168-har168-20261006-000552-a1/har168-20261006-000552-a1__kQtYR7x 2026-10-06/HAR-168-har168-20261006-000552-a2/har168-20261006-000552-a2__CvZAj7Z
 format-code-task-000557,usable,0,0,0,0,0,,,
 format-code-task-000558,usable,0,0,0,0,0,,,
 format-code-task-000560,usable,0,0,0,0,0,,,
@@ -514,7 +514,7 @@ format-code-task-001264,usable,0,0,0,0,0,,,
 format-code-task-001265,usable,3,0,0,2,1,2026-10-01T09:38:03.511038Z,evallab.harbor_terminus:SecretSafeTerminus2,2026-10-01/HAR-120-har120-001265-a1/har120-001265-a1__3sBRy7Y 2026-10-01/HAR-120-har120-001265-a2/har120-001265-a2__tkFj88x 2026-10-01/HAR-120-har120-001265-a2-r2/har120-001265-a2-r2__fpm7nFz
 format-code-task-001267,usable,0,0,0,0,0,,,
 format-code-task-001268,usable,0,0,0,0,0,,,
-format-code-task-001269,discarded,3,0,1,1,1,2026-10-01T09:45:18.459397Z,evallab.harbor_terminus:SecretSafeTerminus2,2026-10-01/HAR-120-har120-001269-a1/har120-001269-a1__y3Wy5Ku 2026-10-01/HAR-120-har120-001269-a2/har120-001269-a2__sA8cq7s 2026-10-01/HAR-120-har120-001269-a2-r2/har120-001269-a2-r2__93WpuaE
+format-code-task-001269,usable,3,0,1,1,1,2026-10-01T09:45:18.459397Z,evallab.harbor_terminus:SecretSafeTerminus2,2026-10-01/HAR-120-har120-001269-a1/har120-001269-a1__y3Wy5Ku 2026-10-01/HAR-120-har120-001269-a2/har120-001269-a2__sA8cq7s 2026-10-01/HAR-120-har120-001269-a2-r2/har120-001269-a2-r2__93WpuaE
 format-code-task-001272,usable,0,0,0,0,0,,,
 format-code-task-001273,usable,0,0,0,0,0,,,
 format-code-task-001277,usable,0,0,0,0,0,,,

@@ -118,8 +118,6 @@ def _write_all(descriptor: int, payload: bytes) -> None:
         remaining = remaining[written:]
 
 
-
-
 def _safe_component(value: str) -> str:
     cleaned = "".join(character if character.isalnum() else "-" for character in value.lower())
     return cleaned.strip("-") or "campaign"
@@ -341,7 +339,6 @@ class CampaignAnalysisCell(_FrozenContract):
         return self
 
 
-
 class CampaignDefinitionAttempt(_FrozenContract):
     cell_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
@@ -397,15 +394,12 @@ class CampaignDefinitionAttempt(_FrozenContract):
                 allowed_models = set(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)
             else:
                 allowed_models = {DEEPSEEK_MODEL_SELECTOR, ZAI_OPENAPI_MODEL_SELECTOR}
-            model_ok = (
-                self.spec.model in allowed_models
-                or (
-                    self.spec.agent == TERMINUS_AGENT
-                    and (
-                        is_tinker_terminus_model(self.spec.model)
-                        or is_mimo_selfhosted_model(self.spec.model)
-                        or is_openrouter_model(self.spec.model)
-                    )
+            model_ok = self.spec.model in allowed_models or (
+                self.spec.agent == TERMINUS_AGENT
+                and (
+                    is_tinker_terminus_model(self.spec.model)
+                    or is_mimo_selfhosted_model(self.spec.model)
+                    or is_openrouter_model(self.spec.model)
                 )
             )
             if not model_ok:
@@ -423,11 +417,14 @@ class CampaignDefinitionAttempt(_FrozenContract):
                 raise ValueError("estimated cost exceeds the trial cost ceiling")
             if self.limits.max_requests < 1:
                 raise ValueError("billable attempts require a provider request ceiling")
-            if min(
-                self.limits.max_input_tokens,
-                self.limits.max_output_tokens,
-                self.limits.max_total_tokens,
-            ) < 1:
+            if (
+                min(
+                    self.limits.max_input_tokens,
+                    self.limits.max_output_tokens,
+                    self.limits.max_total_tokens,
+                )
+                < 1
+            ):
                 raise ValueError("billable attempts require token ceilings")
         return self
 
@@ -665,22 +662,16 @@ def _resolve_campaign_task_contract(
             f"campaign task {item.task_id!r} is missing from the explicit task registry"
         )
     if registry_record.state != "registered":
-        raise ValueError(
-            f"campaign task {item.task_id!r} is not in registered admission state"
-        )
+        raise ValueError(f"campaign task {item.task_id!r} is not in registered admission state")
     if "measurement" not in registry_record.allowed_uses:
-        raise ValueError(
-            f"campaign task {item.task_id!r} is not approved for measurement"
-        )
+        raise ValueError(f"campaign task {item.task_id!r} is not approved for measurement")
     if item.spec.task_family is None:
         raise ValueError("campaign specs must declare the registered task family")
     if (
         item.spec.task_family != registry_record.task_family
         or registry_record.task_family != definition.benchmark
     ):
-        raise ValueError(
-            "campaign task family does not match the registered benchmark family"
-        )
+        raise ValueError("campaign task family does not match the registered benchmark family")
     if item.spec.task.startswith("registered/"):
         if item.spec.task != f"registered/{item.task_id}":
             raise ValueError("campaign registered task reference disagrees with task_id")
@@ -741,17 +732,13 @@ def _resolve_campaign_matrix_contract(
 def _analysis_cell_holds(
     attempts: Sequence[CampaignDefinitionAttempt | CampaignAttempt],
 ) -> tuple[str, ...]:
-    eligible = [
-        item for item in attempts if item.spec.purpose in {"comparison", "elicitation"}
-    ]
+    eligible = [item for item in attempts if item.spec.purpose in {"comparison", "elicitation"}]
     holds: list[str] = []
     by_cell_id: dict[str, set[str]] = {}
     by_identity: dict[str, list[CampaignDefinitionAttempt | CampaignAttempt]] = {}
     for item in eligible:
         cell_id = (
-            item.cell_id
-            if isinstance(item, CampaignDefinitionAttempt)
-            else item.identity.cell_id
+            item.cell_id if isinstance(item, CampaignDefinitionAttempt) else item.identity.cell_id
         )
         if item.analysis_cell is None or item.repeat_seed is None:
             holds.append(f"analysis_cell_incomplete:{cell_id}")
@@ -764,9 +751,7 @@ def _analysis_cell_holds(
             holds.append(f"analysis_cell_mixed:{cell_id}")
     for cell_attempts in by_identity.values():
         cell_ids = [
-            item.cell_id
-            if isinstance(item, CampaignDefinitionAttempt)
-            else item.identity.cell_id
+            item.cell_id if isinstance(item, CampaignDefinitionAttempt) else item.identity.cell_id
             for item in cell_attempts
         ]
         if any(len(by_cell_id[cell_id]) > 1 for cell_id in cell_ids):
@@ -795,9 +780,7 @@ def build_campaign_manifest(
             or task_contract.verifier_digest != matrix_contract.verifier_digest
             or task_contract.package_digest != matrix_contract.package_digest
         ):
-            raise ValueError(
-                "campaign task registry identity does not match the frozen matrix"
-            )
+            raise ValueError("campaign task registry identity does not match the frozen matrix")
         task_fields = {
             "task_id": task_contract.task_id,
             "task_path": task_contract.task_path,
@@ -839,9 +822,7 @@ def build_campaign_manifest(
                     source_spec.timeout_seconds,
                     item.limits.max_wall_clock_seconds,
                 ),
-                "max_requests": (
-                    item.limits.max_requests if source_spec.billable else None
-                ),
+                "max_requests": (item.limits.max_requests if source_spec.billable else None),
                 "max_input_tokens": (
                     item.limits.max_input_tokens if source_spec.billable else None
                 ),
@@ -1095,9 +1076,7 @@ class CampaignStore:
                 yield None
                 return
             except OSError as exc:
-                raise CampaignAmbiguityError(
-                    "campaign state root is unsafe"
-                ) from exc
+                raise CampaignAmbiguityError("campaign state root is unsafe") from exc
         finally:
             os.close(state_descriptor)
         try:
@@ -1128,9 +1107,7 @@ class CampaignStore:
         except FileExistsError:
             raise
         except OSError as exc:
-            raise CampaignAmbiguityError(
-                f"campaign state node is unsafe: {name}"
-            ) from exc
+            raise CampaignAmbiguityError(f"campaign state node is unsafe: {name}") from exc
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             os.close(descriptor)
             raise CampaignAmbiguityError(f"campaign state node is not a file: {name}")
@@ -1199,6 +1176,7 @@ class CampaignStore:
                 manifest,
                 required=required,
             )
+
     def load_manifest(self) -> CampaignManifest:
         with self._root_descriptor(create=False) as root_descriptor:
             if root_descriptor is None:
@@ -1219,7 +1197,6 @@ class CampaignStore:
                 "frozen campaign manifest identity does not match its state directory"
             )
         return manifest
-
 
     def freeze(self, manifest: CampaignManifest) -> Path:
         payload = (manifest.model_dump_json(indent=2) + "\n").encode()
@@ -1490,7 +1467,7 @@ class CampaignOrchestrator:
         )
         capacity = self.executor.capacity
         if (
-            self.executor.parallel > parallel
+            (self.executor.parallel or 1) > parallel
             or capacity is None
             or capacity.max_specs_per_tick is None
             or capacity.max_specs_per_tick > parallel
@@ -1547,11 +1524,7 @@ class CampaignOrchestrator:
                 package_digest=digests.package,
             )
         if current != contract:
-            raise CampaignDriftError(
-                f"campaign task contract drifted: {attempt.identity.task_id}"
-            )
-
-
+            raise CampaignDriftError(f"campaign task contract drifted: {attempt.identity.task_id}")
 
     @classmethod
     def from_path(
@@ -1699,9 +1672,7 @@ class CampaignOrchestrator:
             finished = datetime.fromisoformat(str(finished_raw).replace("Z", "+00:00"))
             candidate = (finished - started).total_seconds()
             if not math.isfinite(candidate) or candidate < 0:
-                raise CampaignAmbiguityError(
-                    "invalid campaign usage field: wall_clock_seconds"
-                )
+                raise CampaignAmbiguityError("invalid campaign usage field: wall_clock_seconds")
             duration = candidate
         except (TypeError, ValueError, OverflowError):
             pass
@@ -1792,8 +1763,7 @@ class CampaignOrchestrator:
             "cost_micros": computed_cost,
         }
         if (
-            {name: provider_integer(totals, name) for name in expected_totals}
-            != expected_totals
+            {name: provider_integer(totals, name) for name in expected_totals} != expected_totals
             or provider_integer(provider, "unresolved_requests") != 0
             or provider_integer(provider, "sequence") != request_count * 2
         ):
@@ -1803,14 +1773,9 @@ class CampaignOrchestrator:
         if (
             (reported_input is not None and reported_input > computed_input)
             or (reported_output is not None and reported_output > computed_output)
-            or (
-                reported_cost is not None
-                and reported_cost > authoritative_cost + 1 / 1_000_000
-            )
+            or (reported_cost is not None and reported_cost > authoritative_cost + 1 / 1_000_000)
         ):
-            raise CampaignAmbiguityError(
-                "agent usage exceeds authoritative provider accounting"
-            )
+            raise CampaignAmbiguityError("agent usage exceeds authoritative provider accounting")
         return {
             "request_count": request_count,
             "input_tokens": computed_input,
@@ -1977,16 +1942,12 @@ class CampaignOrchestrator:
         reasons = [
             event.reason_code
             for event in load_events(self.executor.queue.events_path)
-            if event.spec_id == attempt.spec_id
-            and event.to_state == "failed"
-            and event.reason_code
+            if event.spec_id == attempt.spec_id and event.to_state == "failed" and event.reason_code
         ]
         if reasons:
             return reasons[-1]
         report_path = (
-            self._evidence_store_root()
-            / "records/trial-compliance"
-            / f"{attempt.attempt_id}.json"
+            self._evidence_store_root() / "records/trial-compliance" / f"{attempt.attempt_id}.json"
         )
         try:
             report = json.loads(report_path.read_text(encoding="utf-8"))
@@ -2276,7 +2237,9 @@ class CampaignOrchestrator:
         except Exception as exc:
             raise CampaignError("credential preflight failed closed") from exc
         for attempt in attempts:
-            missing = missing_credential_for(attempt.spec.agent, credentials, model=attempt.spec.model)
+            missing = missing_credential_for(
+                attempt.spec.agent, credentials, model=attempt.spec.model
+            )
             if missing is not None:
                 return f"missing_credential:{missing}"
         return None

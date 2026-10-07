@@ -49,7 +49,6 @@ SGLANG_IMAGE = (
 )
 VOLUME_NAME = "evallab-mimo-v26-9b-weights"
 SECRET_NAME = "evallab-mimo-v26-9b-api-key"
-GPU = "A100-80GB"
 CONTEXT_LENGTH = 262_144
 TOOL_CALL_PARSER = "qwen3_coder"
 PORT = 8000
@@ -57,10 +56,42 @@ MINUTES = 60
 WEIGHTS_ROOT = Path("/weights")
 MODEL_DIR = WEIGHTS_ROOT / MODEL_ID / MODEL_REVISION
 
+
+def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    """Reject malformed or out-of-policy deploy-time integers before registration."""
+    try:
+        value = int(os.environ.get(name, str(default)))
+    except ValueError as exc:
+        raise ValueError(f"{name} must be an integer in {minimum}..{maximum}") from exc
+    if not minimum <= value <= maximum:
+        raise ValueError(f"{name} must be an integer in {minimum}..{maximum}")
+    return value
+
+
+def _configured_gpu() -> str:
+    gpu = os.environ.get("EVALLAB_MIMO_GPU", "A100-80GB")
+    if gpu not in {"A100-80GB", "L40S"}:
+        raise ValueError("EVALLAB_MIMO_GPU must be A100-80GB or L40S")
+    return gpu
+
+
+GPU = _configured_gpu()
+MAX_RUNNING_REQUESTS = _bounded_env_int("EVALLAB_MIMO_MAX_RUNNING_REQUESTS", 20, 1, 20)
+SCALEDOWN_WINDOW_SECONDS = _bounded_env_int("EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS", 300, 1, 1200)
+
 image = (
     modal.Image.from_registry(SGLANG_IMAGE)
     .entrypoint([])
-    .env({"HF_XET_HIGH_PERFORMANCE": "1", "HF_HUB_DISABLE_TELEMETRY": "1"})
+    .env(
+        {
+            "HF_XET_HIGH_PERFORMANCE": "1",
+            "HF_HUB_DISABLE_TELEMETRY": "1",
+            # Remote imports must retain the resolved deployment configuration.
+            "EVALLAB_MIMO_GPU": GPU,
+            "EVALLAB_MIMO_MAX_RUNNING_REQUESTS": str(MAX_RUNNING_REQUESTS),
+            "EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS": str(SCALEDOWN_WINDOW_SECONDS),
+        }
+    )
 )
 weights = modal.Volume.from_name(VOLUME_NAME, create_if_missing=True)
 app = modal.App(APP_NAME)
@@ -123,8 +154,12 @@ def sglang_command(api_key: str) -> list[str]:
         TOOL_CALL_PARSER,
         "--context-length",
         str(CONTEXT_LENGTH),
-        # Capture decode CUDA graphs only for the batch sizes one trial lane
-        # uses (v0.5.20 split --cuda-graph-max-bs into decode/prefill).
+        "--dtype",
+        "bfloat16",
+        # Active model requests, not task lanes; keep automatic shared KV sizing.
+        "--max-running-requests",
+        str(MAX_RUNNING_REQUESTS),
+        # CUDA graphs are independent of the scheduler's active-request cap.
         "--cuda-graph-max-bs-decode",
         "16",
         "--host",
@@ -148,7 +183,8 @@ def sglang_command(api_key: str) -> list[str]:
     secrets=[modal.Secret.from_name(SECRET_NAME, required_keys=["SGLANG_API_KEY"])],
     min_containers=0,
     max_containers=1,
-    scaledown_window=5 * MINUTES,
+    buffer_containers=0,
+    scaledown_window=SCALEDOWN_WINDOW_SECONDS,
     startup_timeout=20 * MINUTES,
     exit_grace_period=30,
     port=PORT,

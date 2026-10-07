@@ -532,7 +532,7 @@ def _tick_command(
         )
     executor = Executor.from_repo(
         root,
-        parallel=getattr(args, "parallel", 1),
+        parallel=getattr(args, "parallel", None),
         progress=print,
         capacity=capacity,
         modal_teardown=stop_selfhosted_app_if_drained,
@@ -1320,6 +1320,7 @@ def _run_command(
         name=args.name,
         jobs_dir=_resolve(root, args.jobs_dir),
         environment=args.environment,
+        egress_lock=args.egress_lock,
         model=args.model,
         concurrency=args.concurrency,
         attempts=args.attempts,
@@ -4880,9 +4881,9 @@ def parser() -> argparse.ArgumentParser:
     tick.add_argument(
         "--parallel",
         type=int,
-        default=1,
+        default=None,
         metavar="N",
-        help="Bounded parallel dispatch worker count (default: 1)",
+        help="Dispatch workers (default: approved campaign execution cap, otherwise 1)",
     )
     tick.add_argument(
         "--max-specs",
@@ -5128,6 +5129,12 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--name", required=True)
     run.add_argument("--jobs-dir", type=Path, default=Path("runs"))
     run.add_argument("--environment", default="docker")
+    run.add_argument(
+        "--egress-lock",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Explicit deny-all backend lock; Docker controls use creation-time network=none",
+    )
     run.add_argument("--concurrency", type=int, default=1)
     run.add_argument("--attempts", type=int, default=1)
     run.add_argument(

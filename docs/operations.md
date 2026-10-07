@@ -558,6 +558,20 @@ the finite all-pass / mixed / no-pass band, not proof of latent pass rate
 zero or one; at confidence .95 and two attempts it saves **zero** draws.
 See `research/experiments/har193-adaptive/README.md` for the replay and error
 rate, including the prior-predictive rather than uniform frequentist bound.
+Already-qualified setups do not repeat a serialized full-trial smoke (HAR-192).
+Pin the optional campaign `execution` policy with a concurrency cap, model host
+and digest-bound native qualification evidence. A whole matching approved batch
+uses that cap by default; explicit `--parallel` can only lower it. Unqualified,
+mixed, drifted or missing evidence retains the original smoke gate, and fresh
+authenticated model readiness remains mandatory. Native evidence does not record
+the model host, so only `model_host: modal` policies may carry qualification;
+Runpod campaigns keep the serialized smoke. A locked-Docker campaign with an
+approved `cost_estimate` reserves that per-trial envelope even for model-free
+controls, because GPU billing does not include the shared VM. Replacements are
+reconciled before model teardown, so one allowed infra replacement does not
+require an unnecessary cold start. Old campaigns with no policy retain their approval
+digests and behavior. See [cheap campaign execution](execution-tiers.md#cheap-campaign-execution-har-192-source-not-deployment)
+for the exact evidence contract, resource limits and unrun comparison plan.
 
 The nightly canary cycle still stages its paid canaries every night, but they
 land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is

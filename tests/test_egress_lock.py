@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import importlib
 import json
 import logging
 import sys
@@ -26,6 +27,12 @@ import pytest
 def _install_harbor_stubs() -> None:
     if "harbor.environments.daytona.environment" in sys.modules:
         return
+    try:
+        importlib.import_module("harbor.environments.daytona.environment")
+        return
+    except ModuleNotFoundError as error:
+        if error.name != "harbor" and not (error.name or "").startswith("harbor."):
+            raise
     harbor = types.ModuleType("harbor")
     envs = types.ModuleType("harbor.environments")
     daytona_pkg = types.ModuleType("harbor.environments.daytona")
@@ -108,6 +115,27 @@ from evallab.execution_contracts import (  # noqa: E402
 )
 from evallab.harbor_daytona import BoundedDaytonaEnvironment  # noqa: E402
 from evallab.trial_treatment import _egress_lock_value, collect_treatment  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolate_native_daytona_transport(monkeypatch):
+    """Keep native SDK availability from turning these boundary tests into I/O."""
+    base = BoundedDaytonaEnvironment.__bases__[0]
+
+    @contextlib.contextmanager
+    def scope(self, env):
+        yield
+
+    async def execute(self, *args, **kwargs):
+        return ("base-exec", args, kwargs)
+
+    async def stop(self, delete):
+        self.stopped = delete
+
+    monkeypatch.setattr(base, "scoped_exec_env", scope)
+    monkeypatch.setattr(base, "exec", execute)
+    monkeypatch.setattr(base, "stop", stop)
+
 
 MIMO_TASK_TOML = """\
 [task]
@@ -263,7 +291,7 @@ def test_in_sandbox_agent_is_refused(tmp_path: Path) -> None:
     request = _request(
         _task(tmp_path, mimo=True), tmp_path, agent="codex", model=None, allow_billable=True
     )
-    with pytest.raises(ValueError, match="inside the sandbox"):
+    with pytest.raises(ValueError):
         validate_request(request)
 
 

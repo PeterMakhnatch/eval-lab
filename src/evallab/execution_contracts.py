@@ -171,6 +171,7 @@ TERMINUS_PROXY_URL_ENV = "EVALLAB_TERMINUS_PROXY_URL"
 TERMINUS_LOCAL_MODEL_SELECTOR = "ollama_chat/qwen2.5:7b"
 TERMINUS_LOCAL_ENDPOINT_ENV = "EVALLAB_TERMINUS_OLLAMA_URL"
 BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_daytona:BoundedDaytonaEnvironment"
+LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_docker:LockedDockerEnvironment"
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
@@ -596,24 +597,26 @@ def is_mimo_run(task: str | Path | None, model: str | None) -> bool:
     return is_mimo_family_model(model) or is_mimo_dataset_task(task)
 
 
-#: Host-side controllers and model-free controls may run under the Daytona
-#: lock. Installed model clients and in-sandbox proxies require sandbox egress.
-EGRESS_LOCK_DAYTONA_AGENTS = frozenset({TERMINUS_AGENT, MIMO_AGENT, *CONTROL_AGENTS})
+#: Docker is locked from creation, so in-container installation is not allowed.
+#: Daytona preserves its existing trusted setup window before the provider lock.
+EGRESS_LOCK_AGENTS = {
+    "daytona": frozenset({TERMINUS_AGENT, MIMO_AGENT, *CONTROL_AGENTS}),
+    "docker": frozenset({MIMO_AGENT, *CONTROL_AGENTS}),
+}
 
 
 def resolve_egress_lock(request: RunRequest) -> bool:
-    """Whether this run passes ``egress_lock=true`` to BoundedDaytona (HAR-140).
+    """Resolve an explicit backend lock, preserving MiMo's Daytona default.
 
-    An explicit ``egress_lock`` override always wins; otherwise every MiMo run
-    on Daytona (MiMo-family model or MiMo-dataset task, controls included) is
-    locked by default. Anything else defaults to unlocked.
+    Docker's creation-time lock is opt-in; an ordinary Docker control retains
+    its existing network contract. Unsupported backends cannot claim a lock.
     """
     override = request.egress_lock
     if override is not None:
         if not isinstance(override, bool):
             raise ValueError("egress_lock must be true or false")
-        if override and request.environment != "daytona":
-            raise ValueError("egress_lock=true requires environment='daytona'")
+        if override and request.environment not in EGRESS_LOCK_AGENTS:
+            raise ValueError("egress_lock=true requires a supported locked backend")
         return override
     if request.environment != "daytona":
         return False
@@ -642,7 +645,7 @@ def _task_declares_phase_network_policy(task: Path) -> bool:
 
 
 def _validate_egress_lock(request: RunRequest) -> None:
-    """Refuse at dispatch any MiMo Daytona run that cannot be locked (HAR-140).
+    """Refuse unsupported lock combinations without an unlocked fallback.
 
     There is no silent unlocked fallback: each refusal names its reason.
     """
@@ -650,11 +653,11 @@ def _validate_egress_lock(request: RunRequest) -> None:
     if override is not None and not isinstance(override, bool):
         raise ValueError("egress_lock must be true or false")
     mimo = is_mimo_run(request.task, request.model)
-    if request.environment != "daytona":
+    if request.environment not in EGRESS_LOCK_AGENTS:
         if override:
-            raise ValueError("egress_lock=true requires environment='daytona'")
+            raise ValueError("egress_lock=true requires a supported locked backend")
         return
-    if mimo and override is False:
+    if request.environment == "daytona" and mimo and override is False:
         raise ValueError(
             "MiMo Daytona runs require egress_lock=true: explicit egress_lock=false "
             "is refused (no silent unlocked fallback)"
@@ -676,11 +679,11 @@ def _validate_egress_lock(request: RunRequest) -> None:
             "egress_lock cannot be combined with the installed local model "
             f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}: it needs network from inside the sandbox"
         )
-    if request.agent not in EGRESS_LOCK_DAYTONA_AGENTS:
+    if request.agent not in EGRESS_LOCK_AGENTS[request.environment]:
         raise ValueError(
-            f"egress_lock cannot be combined with agent {request.agent!r}: it needs "
-            "network from inside the sandbox (an installed agent or model proxy "
-            "running inside the sandbox)"
+            f"egress_lock cannot be combined with agent {request.agent!r} on "
+            f"{request.environment!r}: the backend cannot provide its sandbox "
+            "network or installation requirements"
         )
 
 
@@ -1647,8 +1650,8 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
             raise ValueError(f"{request.agent} capabilities bind exactly one trial")
     if request.agent == MIMO_AGENT:
         parse_mimo_selfhosted_model(request.model)
-        if request.environment != "daytona":
-            raise ValueError("mimoagent requires the locked Daytona task environment")
+        if request.environment not in EGRESS_LOCK_AGENTS or not resolve_egress_lock(request):
+            raise ValueError("mimoagent requires a supported locked task environment")
     if request.agent == TERMINUS_AGENT:
         model = request.model
         if is_tinker_terminus_model(model):
@@ -1923,6 +1926,8 @@ def build_command(request: RunRequest, *, setup_fingerprint: str | None = None) 
         environment = "evallab.harbor_daytona:SecretSafeDaytonaEnvironment"
     elif environment == "daytona":
         environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
+    elif environment == "docker" and resolve_egress_lock(request):
+        environment = LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH
     command = [
         "harbor",
         "run",
@@ -1961,10 +1966,7 @@ def build_command(request: RunRequest, *, setup_fingerprint: str | None = None) 
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
     if resolve_egress_lock(request):
-        if request.environment != "daytona" or request.agent not in EGRESS_LOCK_DAYTONA_AGENTS:
-            raise ValueError(
-                "egress_lock=true requires a host-side controller or control on daytona"
-            )
+        _validate_egress_lock(request)
         command.extend(["--environment-kwarg", "egress_lock=true"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     command.extend(["--plugin", HARBOR_WATCH_HOOKS_PLUGIN])

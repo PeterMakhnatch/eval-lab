@@ -23,6 +23,11 @@ from typing import TYPE_CHECKING, Any
 from pydantic import ValidationError
 
 from evallab import campaign_approval, database
+from evallab.campaign_execution import (
+    docker_available_resources,
+    docker_task_resources,
+    qualification_matches_request,
+)
 from evallab.credentials import (
     DEFAULT_AGENT_MODELS,
     available_credentials,
@@ -57,6 +62,7 @@ from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
 from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
+    EGRESS_LOCK_AGENTS,
     TERMINUS_AGENT,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_OPENCODE_AGENT,
@@ -1388,6 +1394,14 @@ def _safe_repo_path(repo_root: Path, relative: str) -> Path:
     return candidate
 
 
+def _is_locked_docker_spec(spec: ExperimentSpec) -> bool:
+    return (
+        spec.environment == "docker"
+        and spec.egress_lock is True
+        and spec.agent in EGRESS_LOCK_AGENTS["docker"]
+    )
+
+
 class Executor:
     """The sole application boundary allowed to start Harbor experiments."""
 
@@ -1407,7 +1421,7 @@ class Executor:
         sleeper: Sleeper = time.sleep,
         compliance: ComplianceCallable | None = None,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
-        parallel: int = 1,
+        parallel: int | None = None,
         capacity: DispatchCapacity | None = None,
         modal_teardown: ModalTeardownHook | None = None,
         watch_enabled: bool = True,
@@ -1416,6 +1430,7 @@ class Executor:
         selfhosted_probe_timeout_seconds: float = 10.0,
         selfhosted_probe_fn: Callable[[str, str, str, float], SelfhostedProbeOutcome] | None = None,
         daytona_observe_fn: Callable[[], dict[str, Any]] | None = None,
+        docker_observe_fn: Callable[[], tuple[float, int]] | None = None,
         smoke_gate_enabled: bool = True,
         notify_runner: Callable[..., Any] | None = None,
     ) -> None:
@@ -1440,7 +1455,7 @@ class Executor:
         self._consecutive_harness_failures = (
             consecutive_harness_failures or self._catalog_harness_failures
         )
-        if parallel < 1:
+        if parallel is not None and parallel < 1:
             raise ValueError("parallel must be at least 1")
         self.parallel = parallel
         self.capacity = capacity
@@ -1458,6 +1473,7 @@ class Executor:
         self._selfhosted_probe_timeout_seconds = selfhosted_probe_timeout_seconds
         self._selfhosted_probe_fn = selfhosted_probe_fn
         self._daytona_observe_fn = daytona_observe_fn
+        self._docker_observe_fn = docker_observe_fn or docker_available_resources
         self._smoke_gate_enabled = smoke_gate_enabled
         self.last_tick_reason: str | None = None
 
@@ -1474,7 +1490,7 @@ class Executor:
         cls,
         root: Path,
         *,
-        parallel: int = 1,
+        parallel: int | None = None,
         progress: ProgressCallable | None = None,
         capacity: DispatchCapacity | None = None,
         max_transient_retries: int = MAX_TRANSIENT_RETRIES,
@@ -1525,21 +1541,31 @@ class Executor:
         spec_ids: Sequence[str] | None = None,
     ) -> int:
         effective_parallel = parallel if parallel is not None else self.parallel
-        if effective_parallel < 1:
+        if effective_parallel is not None and effective_parallel < 1:
             raise ValueError("parallel must be at least 1")
         with self.queue.tick_lock() as acquired:
             if not acquired:
                 self.last_tick_reason = "executor_busy"
                 return 0
             self.last_tick_reason = None
+            candidates = [
+                spec
+                for state in ("approved", "running")
+                for _, spec in self.queue.list_specs(state)
+            ]
             dispatched = self._tick_locked(parallel=effective_parallel, spec_ids=spec_ids)
-        # HAR-175: one automatic replacement per infra-excluded campaign
-        # trial. The scan is a no-op without campaign state and never fails
-        # the tick; escalation on a refused replacement rides submit.
-        try:
-            campaign_approval.reconcile_campaign_replacements(self, report=self._report_progress)
-        except Exception as exc:  # noqa: BLE001 -- replacement scan never fails dispatch
-            self._report_progress(f"campaign replacement scan failed: {type(exc).__name__}: {exc}")
+            # Make the existing single infra replacement visible before deciding
+            # the campaign drained; otherwise every replacement buys a cold start.
+            try:
+                campaign_approval.reconcile_campaign_replacements(
+                    self, report=self._report_progress
+                )
+            except Exception as exc:  # noqa: BLE001 -- uncertain drain must not stop the server
+                self._report_progress(
+                    f"campaign replacement scan failed: {type(exc).__name__}: {exc}"
+                )
+            else:
+                self._maybe_stop_selfhosted_app(candidates)
         return dispatched
 
     def _report_progress(self, message: str) -> None:
@@ -2279,13 +2305,51 @@ class Executor:
         finally:
             self.queue.release_lease(spec, lease_generation=lease_generation)
 
+    def _apply_docker_clamp(
+        self, specs: list[tuple[Path, ExperimentSpec]]
+    ) -> list[tuple[Path, ExperimentSpec]]:
+        """Bound locked containers by observed host resources, without resizing."""
+        if not any(_is_locked_docker_spec(spec) for _, spec in specs):
+            return specs
+        try:
+            cpus, memory_mb = self._docker_observe_fn()
+        except (OSError, ValueError, TypeError, KeyError, subprocess.SubprocessError):
+            self.last_tick_reason = "docker_capacity_unavailable"
+            for _, spec in specs:
+                if _is_locked_docker_spec(spec):
+                    self._defer_spec_event(spec, "docker_capacity_unavailable")
+            return [(path, spec) for path, spec in specs if not _is_locked_docker_spec(spec)]
+        selected: list[tuple[Path, ExperimentSpec]] = []
+        for path, spec in specs:
+            if not _is_locked_docker_spec(spec):
+                selected.append((path, spec))
+                continue
+            try:
+                task_cpu, task_memory = docker_task_resources(
+                    _safe_repo_path(self.repo_root, spec.executable_task_path)
+                )
+            except (OSError, ValueError, TypeError):
+                self._defer_spec_event(spec, "docker_task_resources_unavailable")
+                continue
+            slots = min(spec.attempts, spec.concurrency)
+            if task_cpu * slots > cpus or task_memory * slots > memory_mb:
+                self._defer_spec_event(spec, "docker_capacity_clamped")
+                continue
+            cpus -= task_cpu * slots
+            memory_mb -= task_memory * slots
+            selected.append((path, spec))
+        if not selected:
+            self.last_tick_reason = "docker_capacity_no_approved_spec_fits"
+        return selected
+
     def _capacity_batch(
         self,
         approved_specs: list[tuple[Path, ExperimentSpec]],
     ) -> list[tuple[Path, ExperimentSpec]]:
-        if self.capacity is None:
-            return approved_specs
-        limit = self.capacity.max_specs_per_tick
+        capacity = self.capacity
+        limit = capacity.max_specs_per_tick if capacity is not None else None
+        campaign_caps: dict[str, int | None] = {}
+        campaign_slots: dict[str, int] = {}
         selected: list[tuple[Path, ExperimentSpec]] = []
         active_trials = 0
         by_agent: dict[str, int] = {}
@@ -2293,27 +2357,92 @@ class Executor:
             if limit is not None and len(selected) >= limit:
                 break
             slots = min(spec.attempts, spec.concurrency)
+            campaign_id = spec.campaign_id
+            if campaign_id is not None:
+                if campaign_id not in campaign_caps:
+                    try:
+                        campaign, _ = campaign_approval.load_approved_campaign(
+                            self.repo_root, campaign_id
+                        )
+                        campaign_caps[campaign_id] = (
+                            campaign.execution.max_concurrent_trials
+                            if campaign.execution is not None
+                            else None
+                        )
+                    except (OSError, ValueError):
+                        campaign_caps[campaign_id] = None
+                cap = campaign_caps[campaign_id]
+                if cap is not None and campaign_slots.get(campaign_id, 0) + slots > cap:
+                    continue
             if (
-                self.capacity.max_active_trials is not None
-                and active_trials + slots > self.capacity.max_active_trials
+                capacity is not None
+                and capacity.max_active_trials is not None
+                and active_trials + slots > capacity.max_active_trials
             ):
                 continue
-            agent_limit = (self.capacity.per_agent_active_trials or {}).get(spec.agent)
+            agent_limit = (
+                (capacity.per_agent_active_trials or {}).get(spec.agent)
+                if capacity is not None
+                else None
+            )
             if agent_limit is not None and by_agent.get(spec.agent, 0) + slots > agent_limit:
                 continue
             selected.append((path, spec))
             active_trials += slots
             by_agent[spec.agent] = by_agent.get(spec.agent, 0) + slots
-        if not selected:
+            if campaign_id is not None:
+                campaign_slots[campaign_id] = campaign_slots.get(campaign_id, 0) + slots
+        # Empty input means no approved specs at all; leave the reason unset so
+        # the tick reports `no_approved_specs` instead of a capacity refusal.
+        if not selected and approved_specs:
             self.last_tick_reason = "capacity_no_approved_spec_fits"
         return selected
 
+    def _campaign_for_batch(
+        self, specs: list[tuple[Path, ExperimentSpec]]
+    ) -> campaign_approval.ExperimentCampaign | None:
+        """Return only one unchanged approved campaign's execution contract."""
+        if not specs or not specs[0][1].campaign_id:
+            return None
+        campaign_id = specs[0][1].campaign_id
+        if any(spec.campaign_id != campaign_id for _, spec in specs):
+            return None
+        try:
+            campaign, _ = campaign_approval.load_approved_campaign(self.repo_root, campaign_id)
+        except (OSError, ValueError):
+            return None
+        if campaign.execution is None or any(
+            (spec.agent, spec.model, spec.environment, spec.reference_profile)
+            != (campaign.agent, campaign.model, campaign.environment, campaign.reference_profile)
+            for _, spec in specs
+        ):
+            return None
+        return campaign
+
+    def _qualified_campaign_batch(self, specs: list[tuple[Path, ExperimentSpec]]) -> bool:
+        campaign = self._campaign_for_batch(specs)
+        if campaign is None or campaign.execution is None:
+            return False
+        qualification = campaign.execution.qualification
+        if qualification is None:
+            return False
+        try:
+            return all(
+                qualification_matches_request(
+                    qualification,
+                    self.prepare_request(spec, repo_root=self.repo_root),
+                    repo_root=self.repo_root,
+                )
+                for _, spec in specs
+            )
+        except (OSError, ValueError, ExecutionFailure):
+            return False
+
     def _tick_locked(
         self,
-        parallel: int = 1,
+        parallel: int | None = None,
         spec_ids: Sequence[str] | None = None,
     ) -> int:
-        running_before = {spec.spec_id: spec for _, spec in self.queue.list_specs("running")}
         self.reconcile_running()
         if self.queue.stop_path.exists():
             return 0
@@ -2362,20 +2491,25 @@ class Executor:
         # silently drop the gate. A standalone single model-backed spec is
         # still not a batch (no new smoke requirement).
         smoke_batch = approved_specs
+        campaign = self._campaign_for_batch(smoke_batch)
+        campaign_parallel = (
+            campaign.execution.max_concurrent_trials
+            if campaign is not None and campaign.execution is not None
+            else None
+        )
+        parallel = min(parallel or campaign_parallel or 1, campaign_parallel or parallel or 1)
         smoke_required = self._smoke_gate_index(smoke_batch) is not None
         approved_specs = self._capacity_batch(approved_specs)
         if not approved_specs:
-            self._maybe_stop_selfhosted_app(running_before, [])
             return 0
         # HAR-174 batch boundary, read once per tick: only alerts from
         # running jobs or jobs launched since this instant can fence.
         spike_resume = self.queue.last_resume_time()
         if self._stop_on_infra_spike(approved_specs, resume_time=spike_resume):
-            self._maybe_stop_selfhosted_app(running_before, [])
             return 0
         approved_specs = self._apply_daytona_clamp(approved_specs)
+        approved_specs = self._apply_docker_clamp(approved_specs)
         if not approved_specs:
-            self._maybe_stop_selfhosted_app(running_before, [])
             return 0
 
         smoke_index = (
@@ -2395,7 +2529,6 @@ class Executor:
             dispatched = self._dispatch_batch(
                 approved_specs, parallel, authorizations, credentials, resume_time=spike_resume
             )
-            self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
         smoke_path, smoke_spec = approved_specs[smoke_index]
         rest = approved_specs[:smoke_index] + approved_specs[smoke_index + 1 :]
@@ -2408,7 +2541,6 @@ class Executor:
             smoke_job_dir is not None
             and self._stop_on_job_spike(smoke_job_dir, rest, resume_time=spike_resume)
         ):
-            self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
         if not smoke_ran:
             blocks, why = True, "smoke trial did not dispatch; holding batch"
@@ -2423,13 +2555,11 @@ class Executor:
                 blocks, why = smoke_trial_blocks(self._load_smoke_job(smoke_spec))
         if blocks:
             self._fence_batch_on_smoke_block(smoke_spec, smoke_batch, why)
-            self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
             return dispatched
         self._report_progress(f"smoke gate passed on {smoke_spec.name} ({why})")
         dispatched += self._dispatch_batch(
             rest, parallel, authorizations, credentials, resume_time=spike_resume
         )
-        self._maybe_stop_selfhosted_app(running_before, [spec for _, spec in approved_specs])
         return dispatched
 
     def _spec_runs_no_agent(self, spec: ExperimentSpec) -> bool:
@@ -2460,6 +2590,8 @@ class Executor:
             if is_model_backed(spec) and not self._spec_runs_no_agent(spec)
         ]
         if len(backed) < 2:
+            return None
+        if self._qualified_campaign_batch([approved_specs[index] for index in backed]):
             return None
         return backed[0]
 
@@ -2492,8 +2624,9 @@ class Executor:
         )
 
     def _record_smoke_opt_out(self, approved_specs: list[tuple[Path, ExperimentSpec]]) -> None:
-        """Record an explicit ``--no-smoke-gate`` tick on the run's events."""
-        if self._smoke_gate_enabled:
+        """Record a scoped qualification waiver or the existing explicit opt-out."""
+        qualified = self._smoke_gate_enabled and self._qualified_campaign_batch(approved_specs)
+        if self._smoke_gate_enabled and not qualified:
             return
         backed = [spec for _, spec in approved_specs if is_model_backed(spec)]
         if len(backed) < 2:
@@ -2504,14 +2637,19 @@ class Executor:
                 event_id=new_ulid(),
                 spec_id=str(first.spec_id),
                 occurred_at=datetime.now(UTC),
-                event=SMOKE_REASON_DISABLED,
+                event="smoke_gate_campaign_qualified" if qualified else SMOKE_REASON_DISABLED,
                 actor="executor",
-                reason_code=SMOKE_REASON_DISABLED,
+                reason_code=(
+                    f"campaign_qualified:{first.campaign_id}"
+                    if qualified
+                    else SMOKE_REASON_DISABLED
+                ),
                 job_name=first.name,
             )
         )
         self._report_progress(
-            f"smoke gate disabled by opt-out for batch of {len(backed)} model-backed specs"
+            f"smoke gate waived by {'approved setup qualification' if qualified else 'explicit opt-out'} "
+            f"for batch of {len(backed)} model-backed specs"
         )
 
     def _dispatch_serial(
@@ -2577,8 +2715,7 @@ class Executor:
 
     def _maybe_stop_selfhosted_app(
         self,
-        running_before: dict[str | None, ExperimentSpec],
-        approved_specs: list[ExperimentSpec],
+        selected_specs: Sequence[ExperimentSpec],
     ) -> None:
         """Stop the Modal server when self-hosted work just drained.
 
@@ -2591,12 +2728,13 @@ class Executor:
         hook = self._modal_teardown
         if hook is None:
             return
-        candidates = [
-            spec
-            for spec in list(running_before.values()) + approved_specs
-            if is_mimo_selfhosted_model(spec.model)
-        ]
+        candidates = [spec for spec in selected_specs if is_mimo_selfhosted_model(spec.model)]
         if not candidates:
+            return
+        # The hook already waits while any self-hosted spec remains; skip it
+        # only when nothing in this window belongs to the Modal app.
+        if all(self._runpod_owned(spec) for spec in candidates):
+            self._report_progress("Modal teardown not applicable to the Runpod-owned window")
             return
         try:
             record = hook(self.queue, self.repo_root, candidates)
@@ -2613,6 +2751,14 @@ class Executor:
                 )
             elif reason not in (None, "queue-not-drained"):
                 self._report_progress(f"modal teardown skipped: {reason}")
+
+    def _runpod_owned(self, spec: ExperimentSpec) -> bool:
+        campaign = self._campaign_for_batch([(Path(), spec)])
+        return (
+            campaign is not None
+            and campaign.execution is not None
+            and campaign.execution.model_host == "runpod"
+        )
 
     @staticmethod
     def prepare_request(

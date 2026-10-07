@@ -40,6 +40,11 @@ CAMPAIGN_ID = "test-campaign"
 NOW = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
 
 
+@pytest.fixture(autouse=True)
+def isolate_linear_escalations(monkeypatch):
+    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv: None)
+
+
 def policy() -> StandingApprovalsPolicy:
     return StandingApprovalsPolicy(
         daily_cost_ceiling_usd=20,
@@ -1325,6 +1330,14 @@ def test_adaptive_attempt_two_launched_when_uncertain(tmp_path: Path) -> None:
     assert service.tick(parallel=4) == 1
     assert service.queue.locate(second, ("done",)).is_file()
     assert service.tick() == 0
+
+
+def test_adaptive_bare_tick_uses_campaign_concurrency(tmp_path: Path) -> None:
+    """tick() with no parallel must not crash on adaptive candidates (HAR-193)."""
+    service, _, digest = adaptive_fixture(tmp_path)
+    first, _ = stage_draws(service, digest)
+    assert service.tick() == 1
+    assert service.queue.locate(first, ("done",)).is_file()
 
 
 def test_adaptive_mixed_prefix_stops_four_attempt_campaign(tmp_path: Path) -> None:

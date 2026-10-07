@@ -59,6 +59,7 @@ from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from evallab.campaign_execution import CampaignExecutionPolicy, validate_qualification
 from evallab.results import JobRecord, TrialRecord, load_job
 from evallab.schemas import (
     ContractModel,
@@ -297,6 +298,7 @@ class ExperimentCampaign(_FrozenContract):
     budget_usd: float = Field(gt=0)
     attempts_per_task: int = Field(default=1, ge=1)
     cost_estimate: CampaignCostEstimate | None = None
+    execution: CampaignExecutionPolicy | None = None
     tasks: list[CampaignTaskAllowance] = Field(min_length=1)
     concurrency: int = Field(default=1, ge=1, exclude_if=lambda value: value == 1)
     adaptive_sampling: CampaignAdaptiveSampling | None = Field(
@@ -453,6 +455,8 @@ def approve_campaign(
             REASON_CONTENT_CHANGED, "approval actor is required and never defaulted"
         )
     campaign = load_campaign(repo_root, campaign_id)
+    if campaign.execution is not None and campaign.execution.qualification is not None:
+        validate_qualification(campaign.execution.qualification, repo_root=repo_root)
     existing = read_approvals(repo_root, campaign_id)
     if existing:
         raise CampaignApprovalError(
@@ -936,7 +940,7 @@ def adaptive_priority(
 
 
 def reconcile_adaptive_sampling(
-    executor: Any, *, parallel: int, spec_ids: set[str] | None = None
+    executor: Any, *, parallel: int | None, spec_ids: set[str] | None = None
 ) -> None:
     """Release a priority wave under the tick lock, using existing admission.
 
@@ -1001,8 +1005,8 @@ def reconcile_adaptive_sampling(
         if not candidates:
             continue
         ordered = sorted(candidates, key=lambda item: (item[0], item[1]))
-        width = min(campaign.concurrency, parallel)
-        batch = [(item[2], item[3]) for item in ordered[:width]]
+        width = parallel if parallel is not None else campaign.concurrency
+        batch = [(item[2], item[3]) for item in ordered[: min(campaign.concurrency, width)]]
         batch = executor._apply_daytona_clamp(executor._capacity_batch(batch))
         released = 0
         for path, spec in batch:
@@ -1067,6 +1071,10 @@ def _wave_reservation_per_trial(campaign: ExperimentCampaign) -> float:
     printed in-flight overrun bound keep the fence conservative.
     """
     trials = _campaign_trial_count(campaign)
+    if campaign.execution is not None and campaign.cost_estimate is not None:
+        # A separately approved HAR-192 all-in envelope replaces only the
+        # historical Daytona/A100 planning input, not the reservation mechanism.
+        return campaign.cost_estimate.expected_usd / trials
     return wave_cost_estimate(trials).expected_usd / trials
 
 
@@ -1080,8 +1088,15 @@ def _reservation_usd(raw: Mapping[str, Any], campaign: ExperimentCampaign) -> fl
     from evallab.modal_ops import is_selfhosted_model
 
     estimate = _usd(raw.get("est_cost_usd")) or 0.0
-    if is_selfhosted_model(raw.get("model")) or (
-        raw.get("environment") == "daytona" and estimate == 0
+    if (
+        is_selfhosted_model(raw.get("model"))
+        or (raw.get("environment") == "daytona" and estimate == 0)
+        # Locked Docker rents a shared VM even for model-free controls.
+        or (
+            raw.get("environment") == "docker"
+            and campaign.execution is not None
+            and campaign.cost_estimate is not None
+        )
     ):
         attempts = raw.get("attempts", 1)
         count = attempts if isinstance(attempts, int) and attempts > 0 else 1
@@ -1162,6 +1177,18 @@ def _trial_identity(
     return path.resolve().as_posix()
 
 
+def _meter_model_host(root: Path, raw: Mapping[str, Any]) -> str:
+    """Keep new Runpod/unknown campaigns out of the historical Modal bill pool."""
+    campaign_id = raw.get("campaign_id")
+    if not isinstance(campaign_id, str) or not campaign_id:
+        return "modal"
+    try:
+        campaign = load_campaign(root, campaign_id)
+    except (OSError, ValueError):
+        return "unknown"
+    return campaign.execution.model_host if campaign.execution is not None else "modal"
+
+
 def _modal_allocations(
     root: Path, specs: list[tuple[str, dict[str, Any]]], jobs: list[JobRecord]
 ) -> dict[str, tuple[float, bool]]:
@@ -1224,19 +1251,30 @@ def _modal_allocations(
         pools[day] = pools.get(day, 0.0) + cost
     paths = {job.path for job in jobs}
     models_by_path: dict[Path, Any] = {}
+    roots_by_path = {job.path: root for job in jobs}
+    hosts_by_path: dict[Path, str] = {}
     for other_root in [root, *sibling_worktree_roots(root)]:
-        paths.update(discover_job_dirs([other_root / "runs"]))
+        discovered = list(discover_job_dirs([other_root / "runs"]))
+        paths.update(discovered)
+        roots_by_path.update(dict.fromkeys(discovered, other_root))
         other_specs = specs if other_root == root else _queue_meter_specs(other_root)
         for _, raw in other_specs:
             candidate = _meter_job_path(other_root, raw)
             if candidate is not None:
                 paths.add(candidate)
                 models_by_path[candidate] = raw.get("model")
+                roots_by_path[candidate] = other_root
+                hosts_by_path[candidate] = _meter_model_host(other_root, raw)
     windows = dict(targets)
     now = datetime.now(UTC)
     for job_path in paths:
         config = _read_meter_json(job_path / "config.json")
         spec = _read_meter_json(job_path / "experiment-spec.json")
+        host = hosts_by_path.get(job_path) or _meter_model_host(
+            roots_by_path.get(job_path, root), spec
+        )
+        if host != "modal":
+            continue
         agent = config.get("agent")
         model = (
             (agent.get("model_name") if isinstance(agent, Mapping) else None)
@@ -1368,6 +1406,7 @@ def _campaign_meter(
         for state, raw in relevant
         if state in SETTLED_STATES
         and is_selfhosted_model(raw.get("model"))
+        and (loaded.execution is None or loaded.execution.model_host == "modal")
         and str(raw.get("spec_id") or raw.get("name")) in jobs
     ]
     allocations = _modal_allocations(root, specs, selfhosted_jobs) if selfhosted_jobs else {}
@@ -1412,6 +1451,10 @@ def _campaign_meter(
                         unknown = True
                     else:
                         amounts["daytona"] = sandbox
+                elif raw.get("environment") == "docker" and loaded.execution is not None:
+                    # Shared VM rent is not present in the Modal GPU report.
+                    # Keep its unknown share reserved instead of settling it at $0.
+                    unknown = True
                 measured_trial = math.fsum(amounts.values())
                 # One overrun cannot erase another unmeasurable trial's hold.
                 if unknown:
@@ -1813,4 +1856,9 @@ def validate_campaign_content(repo_root: Path, campaign: ExperimentCampaign) -> 
         errors.extend(validate_floor_against_reference(repo_root, campaign))
     except (OSError, ValueError, KeyError) as exc:
         errors.append(f"ceiling floor comparison failed: {exc}")
+    if campaign.execution is not None and campaign.execution.qualification is not None:
+        try:
+            validate_qualification(campaign.execution.qualification, repo_root=repo_root)
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            errors.append(f"setup qualification: {exc}")
     return errors

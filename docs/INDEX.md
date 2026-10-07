@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:8d7e4aa321740a4ae8026669de35a38427809bb17127f7cd6de7dc07e3535ea0
+    digest: sha256:cc31d71f2ba2eb9fd57baa1784ed9339f3b913513d701675aac67031e5748dda
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/har136-source-audit-2026-10-01.md
@@ -91,7 +91,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:3470600a86660e3c410333ff128b70d96f534599349980b2a37be1158d663046
+    digest: sha256:b031f6b52a36ba32da7b60667e54a2d9ef9e9a24ebea5e364deb2536714e2536
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md

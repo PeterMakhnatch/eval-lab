@@ -89,7 +89,16 @@ uv export --frozen --no-dev --no-default-groups --no-hashes --no-editable \
   --no-emit-project --extra laminar -o "$REQ" --project "$ROOT"
 uv venv --clear --python 3.12 "$VENV"
 uv pip install --python "$VENV/bin/python" -r "$REQ"
-uv pip install --python "$VENV/bin/python" --no-deps "$ROOT"
+# evallab resolves repository files relative to its own source (repo_root(),
+# sql/*.sql, ...), so a site-packages install breaks at import. Install an
+# editable copy of the source tree kept beside the venv instead: it is still
+# a snapshot (a pruned worktree or a lagging primary checkout cannot change
+# it), and re-running the installer refreshes it.
+SNAPSHOT="$RV_DIR/source"
+mkdir -p "$SNAPSHOT"
+rsync -a --delete --exclude '__pycache__' \
+  "$ROOT/pyproject.toml" "$ROOT/README.md" "$ROOT/src" "$ROOT/sql" "$SNAPSHOT/"
+uv pip install --python "$VENV/bin/python" --no-deps -e "$SNAPSHOT"
 # Task pages read health/solve tags from the variant records (task_variants.RECORDS_DIRNAME).
 # Like the venv they are a snapshot of this checkout: re-run the installer to refresh them.
 RECORDS_REL="$("$VENV/bin/python" -c 'from evallab.task_variants import RECORDS_DIRNAME; print(RECORDS_DIRNAME)')"

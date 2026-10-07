@@ -532,7 +532,7 @@ def _tick_command(
         )
     executor = Executor.from_repo(
         root,
-        parallel=getattr(args, "parallel", 1),
+        parallel=getattr(args, "parallel", None),
         progress=print,
         capacity=capacity,
         modal_teardown=stop_selfhosted_app_if_drained,
@@ -652,9 +652,144 @@ def _approve_command(
     return 0
 
 
-def _print_campaign_status(status: Any, *, as_json: bool) -> None:
+def _campaign_spend_snapshot(
+    root: Path, campaign_id: str, *, campaign: Any | None = None
+) -> dict[str, Any]:
+    from evallab import campaign_approval as cap
+
+    if campaign is None:
+        reserved, settled, committed = cap.campaign_spend_usd(root, campaign_id)
+        breakdown = cap.campaign_spend_breakdown(root, campaign_id)
+    else:
+        reserved, settled, breakdown = cap._campaign_meter(root, campaign_id, campaign=campaign)
+        committed = reserved + settled
+    return {
+        "reserved_usd": reserved,
+        "settled_usd": settled,
+        "committed_usd": committed,
+        "spend_breakdown": breakdown,
+    }
+
+
+def _print_campaign_spend(snapshot: dict[str, Any]) -> None:
+    print(
+        f"spend: committed ${snapshot['committed_usd']:.6f}, "
+        f"reserved ${snapshot['reserved_usd']:.6f}, "
+        f"settled ${snapshot['settled_usd']:.6f}"
+    )
+    print("spend_breakdown:")
+    for source, amount in snapshot["spend_breakdown"].items():
+        print(f"  {source}: ${amount:.6f}")
+
+
+def _approval_campaign_snapshot(root: Path, draft: Any) -> dict[str, Any]:
+    from evallab import campaign_approval as cap
+
+    frozen = root / cap.CAMPAIGN_STATE_ROOT / draft.campaign_id / cap.CAMPAIGN_FILENAME
+    meter_campaign = None if frozen.is_file() else draft
+    meter_kwargs = {"campaign": meter_campaign} if meter_campaign is not None else {}
+    content_digest = cap.campaign_content_digest(draft)
+    prior = cap.read_approvals(root, draft.campaign_id)
+    if prior:
+        approval_info: dict[str, Any] = {
+            "state": "APPROVED",
+            "actor": prior[0].actor,
+            "approved_at": prior[0].approved_at.isoformat(),
+            "content_digest_match": prior[0].content_digest == content_digest,
+        }
+    else:
+        approval_info = {"state": "UNAPPROVED"}
+    return {
+        "campaign_id": draft.campaign_id,
+        "content_digest": content_digest,
+        "budget_usd": draft.budget_usd,
+        **_campaign_spend_snapshot(root, draft.campaign_id, campaign=meter_campaign),
+        "budget_bound": cap.campaign_budget_bound(root, draft.campaign_id, **meter_kwargs),
+        "approval": approval_info,
+        "cost_estimate": (
+            draft.cost_estimate.model_dump(mode="json") if draft.cost_estimate is not None else None
+        ),
+        "tasks": len(draft.tasks),
+        "attempts_per_task": draft.attempts_per_task,
+        "concurrency": draft.concurrency,
+        "adaptive_sampling": (
+            draft.adaptive_sampling.model_dump(mode="json")
+            if draft.adaptive_sampling is not None
+            else None
+        ),
+        "oracle_confirmed_tasks": (
+            sum(
+                cap.oracle_confirmation(root, task.task_id, task.package_digest)[0]
+                for task in draft.tasks
+            )
+            if draft.adaptive_sampling is not None
+            else None
+        ),
+    }
+
+
+def _print_campaign_budget_bound(bound: dict[str, Any]) -> None:
+    count = bound["in_flight_trials"]
+    per_trial_gap = bound["overrun_bound_usd"] / count if count else 0.0
+    print(
+        "budget_bound: "
+        f"{count} in-flight x ${per_trial_gap:.6f} "
+        "(positive worst-case minus reservation) "
+        f"= ${bound['overrun_bound_usd']:.6f} overrun above budget"
+    )
+    print(
+        f"  in-flight reserved ${bound['in_flight_reserved_usd']:.6f}, "
+        f"worst-case ${bound['in_flight_worst_case_usd']:.6f}"
+    )
+    print(f"  realized <= ${bound['realized_spend_bound_usd']:.6f}")
+
+
+def _print_approval_campaign_snapshot(snapshot: dict[str, Any]) -> None:
+    print(f"campaign: {snapshot['campaign_id']}")
+    print(f"content_digest: {snapshot['content_digest']}")
+    print(f"budget: ${snapshot['budget_usd']:.2f} (committed ${snapshot['committed_usd']:.2f})")
+    _print_campaign_spend(snapshot)
+    approval_info = snapshot["approval"]
+    if approval_info["state"] == "APPROVED":
+        match = (
+            "digest match"
+            if approval_info["content_digest_match"]
+            else "DIGEST CHANGED AFTER APPROVAL"
+        )
+        print(
+            f"approval: APPROVED by {approval_info['actor']} "
+            f"at {approval_info['approved_at']} ({match})"
+        )
+    else:
+        print("approval: UNAPPROVED (staged, no approval recorded)")
+    estimate = snapshot["cost_estimate"]
+    if estimate is not None:
+        print(f"expected: ${estimate['expected_usd']:.2f} ({estimate['formula']})")
+        print(f"worst_case: ${estimate['worst_case_usd']:.2f}")
+    else:
+        print("expected: unstated (no cost_estimate pinned)")
+        print("worst_case: unstated (no cost_estimate pinned)")
+    _print_campaign_budget_bound(snapshot["budget_bound"])
+    print(f"tasks: {snapshot['tasks']}")
+    print(f"attempts_per_task: {snapshot['attempts_per_task']}")
+    adaptive = snapshot["adaptive_sampling"]
+    if adaptive is not None:
+        print(
+            f"adaptive: max {snapshot['attempts_per_task']} draws/task, "
+            f"confidence {adaptive['target_confidence']:g}, "
+            f"seed {adaptive['seed']}; "
+            f"oracle-confirmed {snapshot['oracle_confirmed_tasks']}/{snapshot['tasks']}"
+        )
+
+
+def _print_campaign_status(
+    status: Any, *, as_json: bool, spend_snapshot: dict[str, Any] | None = None
+) -> None:
     if as_json:
-        print(status.model_dump_json(indent=2))
+        if spend_snapshot is None:
+            print(status.model_dump_json(indent=2))
+        else:
+            print(json.dumps({**status.model_dump(mode="json"), **spend_snapshot}, indent=2))
         return
     print(f"campaign: {status.campaign_id}")
     print(f"benchmark: {status.benchmark}")
@@ -668,6 +803,10 @@ def _print_campaign_status(status: Any, *, as_json: bool) -> None:
         f"{status.output_tokens} output tokens, "
         f"{status.wall_clock_seconds:.3f}s"
     )
+    if spend_snapshot is not None:
+        _print_campaign_spend(spend_snapshot)
+        if "budget_bound" in spend_snapshot:
+            _print_campaign_budget_bound(spend_snapshot["budget_bound"])
     if status.circuit_reason:
         print(f"circuit: {status.circuit_reason}")
     if status.block_reason:
@@ -729,8 +868,35 @@ def _campaign_status_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     del harbor
-    status = _campaign_orchestrator(args, root).status()
-    _print_campaign_status(status, as_json=args.json)
+    from evallab import campaign_approval as cap
+
+    source = _resolve(root, args.manifest)
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"error: invalid campaign status source {args.manifest}: {exc}", file=sys.stderr)
+        return 2
+    if isinstance(payload, dict) and payload.get("schema_version") == cap.SCHEMA_CAMPAIGN:
+        try:
+            draft = cap.ExperimentCampaign.model_validate(payload)
+        except ValueError as exc:
+            print(f"error: invalid campaign file {args.manifest}: {exc}", file=sys.stderr)
+            return 2
+        snapshot = _approval_campaign_snapshot(root, draft)
+        if args.json:
+            print(json.dumps(snapshot, indent=2, sort_keys=True))
+        else:
+            _print_approval_campaign_snapshot(snapshot)
+    else:
+        status = _campaign_orchestrator(args, root).status()
+        spend_snapshot = None
+        frozen = root / cap.CAMPAIGN_STATE_ROOT / status.campaign_id / cap.CAMPAIGN_FILENAME
+        if frozen.is_file():
+            spend_snapshot = {
+                **_campaign_spend_snapshot(root, status.campaign_id),
+                "budget_bound": cap.campaign_budget_bound(root, status.campaign_id),
+            }
+        _print_campaign_status(status, as_json=args.json, spend_snapshot=spend_snapshot)
     return 0
 
 
@@ -829,18 +995,7 @@ def _campaign_validate_command(
         for error in errors:
             print(f"error: campaign invalid: {error}", file=sys.stderr)
         return 2
-    _reserved, _settled, committed = cap.campaign_spend_usd(root, draft.campaign_id)
-    content_digest = cap.campaign_content_digest(draft)
-    prior = cap.read_approvals(root, draft.campaign_id)
-    if prior:
-        approval_info: dict[str, Any] = {
-            "state": "APPROVED",
-            "actor": prior[0].actor,
-            "approved_at": prior[0].approved_at.isoformat(),
-            "content_digest_match": prior[0].content_digest == content_digest,
-        }
-    else:
-        approval_info = {"state": "UNAPPROVED"}
+    snapshot = _approval_campaign_snapshot(root, draft)
     results: list[dict[str, Any]] = []
     worst = 0
     for raw_spec in args.spec:
@@ -851,7 +1006,7 @@ def _campaign_validate_command(
             print(f"error: invalid spec file {raw_spec}: {exc}", file=sys.stderr)
             return 2
         decision = cap.check_campaign_admission(
-            spec, draft, repo_root=root, committed_usd=committed
+            spec, draft, repo_root=root, committed_usd=snapshot["committed_usd"]
         )
         results.append(
             {
@@ -867,17 +1022,7 @@ def _campaign_validate_command(
         print(
             json.dumps(
                 {
-                    "campaign_id": draft.campaign_id,
-                    "content_digest": content_digest,
-                    "budget_usd": draft.budget_usd,
-                    "committed_usd": committed,
-                    "approval": approval_info,
-                    "cost_estimate": (
-                        draft.cost_estimate.model_dump(mode="json")
-                        if draft.cost_estimate is not None
-                        else None
-                    ),
-                    "tasks": len(draft.tasks),
+                    **snapshot,
                     "errors": errors,
                     "specs": results,
                 },
@@ -886,35 +1031,7 @@ def _campaign_validate_command(
             )
         )
     else:
-        print(f"campaign: {draft.campaign_id}")
-        print(f"content_digest: {content_digest}")
-        print(f"budget: ${draft.budget_usd:.2f} (committed ${committed:.2f})")
-        if approval_info["state"] == "APPROVED":
-            match = (
-                "digest match"
-                if approval_info["content_digest_match"]
-                else "DIGEST CHANGED AFTER APPROVAL"
-            )
-            print(
-                f"approval: APPROVED by {approval_info['actor']} "
-                f"at {approval_info['approved_at']} ({match})"
-            )
-        else:
-            print("approval: UNAPPROVED (staged, no approval recorded)")
-        if draft.cost_estimate is not None:
-            print(
-                f"expected: ${draft.cost_estimate.expected_usd:.2f} ({draft.cost_estimate.formula})"
-            )
-            bound = cap.fenced_spend_bound(draft.budget_usd)
-            print(f"worst_case: ${draft.cost_estimate.worst_case_usd:.2f}")
-            print(
-                f"  realized <= ${bound:.2f} "
-                f"(budget ${draft.budget_usd:.2f} + 19 in-flight x $0.60)"
-            )
-        else:
-            print("expected: unstated (no cost_estimate pinned)")
-            print("worst_case: unstated (no cost_estimate pinned)")
-        print(f"tasks: {len(draft.tasks)}")
+        _print_approval_campaign_snapshot(snapshot)
         for result in results:
             status = "admitted" if result["admitted"] else f"refused ({result['reason_code']})"
             print(f"  {result['spec']}: {status}")
@@ -1055,6 +1172,22 @@ def _research_command(
 def _nightly_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
+    if getattr(args, "refresh", False):
+        from evallab.nightly_refresh import RefreshConfig, run_refresh
+
+        result = run_refresh(
+            RefreshConfig(
+                repo_root=root,
+                state_dir=args.state_dir.expanduser().resolve(),
+                queue_roots=tuple(args.queue_root),
+                facts_root=args.facts_root,
+                readers_store=args.readers_store,
+                data_root=args.data_root,
+                verdict_root=getattr(args, "verdict_root", None),
+            )
+        )
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return 0
     executor = Executor.from_repo(root)
     researcher_loop: ResearcherLoop | None = None
     database_url = database_url_from_environment()
@@ -1203,6 +1336,7 @@ def _run_command(
         name=args.name,
         jobs_dir=_resolve(root, args.jobs_dir),
         environment=args.environment,
+        egress_lock=args.egress_lock,
         model=args.model,
         concurrency=args.concurrency,
         attempts=args.attempts,
@@ -2883,6 +3017,8 @@ def _regrade_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     from evallab.regrade import (
+        RegradeJobPlan,
+        RegradeJobReceiptV1,
         plan_regrade_job,
         regrade_job,
         render_job_plan,
@@ -2895,15 +3031,23 @@ def _regrade_command(
         "jobs_dir": _resolve(root, args.jobs_dir),
         "name": args.name,
     }
+    plan_builder: Callable[..., RegradeJobPlan] = plan_regrade_job
+    execute: Callable[..., RegradeJobReceiptV1] = regrade_job
+    if args.held_out is not None:
+        from evallab.heldout_regrade import plan_heldout_job, regrade_heldout_job
+
+        options["held_out"] = _resolve(root, args.held_out)
+        plan_builder = plan_heldout_job
+        execute = regrade_heldout_job
     if args.dry_run:
-        plan = plan_regrade_job(**options)
+        plan = plan_builder(**options)
         print(
             json.dumps(plan.model_dump(mode="json"), indent=2, sort_keys=True)
             if args.json
             else render_job_plan(plan)
         )
         return 0 if plan.runnable else 1
-    receipt = regrade_job(**options)
+    receipt = execute(**options)
     print(
         json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True)
         if args.json
@@ -4763,9 +4907,9 @@ def parser() -> argparse.ArgumentParser:
     tick.add_argument(
         "--parallel",
         type=int,
-        default=1,
+        default=None,
         metavar="N",
-        help="Bounded parallel dispatch worker count (default: 1)",
+        help="Dispatch workers (default: approved campaign execution cap, otherwise 1)",
     )
     tick.add_argument(
         "--max-specs",
@@ -4964,6 +5108,39 @@ def parser() -> argparse.ArgumentParser:
 
     nightly = commands.add_parser("nightly", help="Run the fail-closed unattended nightly cycle")
     nightly.add_argument("--date", dest="report_date", type=date.fromisoformat)
+    nightly.add_argument(
+        "--refresh",
+        action="store_true",
+        help="HAR-199: local-only $0 incremental refresh; never dispatch or call models",
+    )
+    nightly.add_argument(
+        "--queue-root",
+        action="append",
+        type=Path,
+        default=[],
+        help="Checkout containing queue and runs/jobs (repeatable); default primary plus worktrees with queues",
+    )
+    nightly.add_argument(
+        "--state-dir", type=Path, default=Path.home() / ".local/state/evallab-nightly"
+    )
+    nightly.add_argument(
+        "--facts-root",
+        type=Path,
+        help="Daily-report state root (default ~/.local/state/daily-report)",
+    )
+    nightly.add_argument(
+        "--readers-store", type=Path, help="Read-only HAR-176 reader verdict store"
+    )
+    nightly.add_argument(
+        "--data-root",
+        type=Path,
+        help="Primary evidence checkout when running an installed source snapshot",
+    )
+    nightly.add_argument(
+        "--verdict-root",
+        type=Path,
+        help="Read-only checkout with real HAR-177 census/variant/oracle inputs; snapshotted under state",
+    )
     nightly.set_defaults(func=_nightly_command)
 
     research = commands.add_parser(
@@ -5011,6 +5188,12 @@ def parser() -> argparse.ArgumentParser:
     run.add_argument("--name", required=True)
     run.add_argument("--jobs-dir", type=Path, default=Path("runs"))
     run.add_argument("--environment", default="docker")
+    run.add_argument(
+        "--egress-lock",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Explicit deny-all backend lock; Docker controls use creation-time network=none",
+    )
     run.add_argument("--concurrency", type=int, default=1)
     run.add_argument("--attempts", type=int, default=1)
     run.add_argument(
@@ -6701,7 +6884,12 @@ def parser() -> argparse.ArgumentParser:
     )
     regrade_parser.add_argument("job", type=Path, help="Stored Harbor job directory")
     regrade_parser.add_argument(
-        "--task", type=Path, help="Current separate-verifier task or task collection"
+        "--task", type=Path, help="Current task or collection; separate verifier unless --held-out"
+    )
+    regrade_parser.add_argument(
+        "--held-out",
+        type=Path,
+        help="Additional-test bundle; regrade recorded passes offline on cached local CPU images",
     )
     regrade_parser.add_argument(
         "--jobs-dir",
@@ -6904,6 +7092,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.task_dossier import build_task_dossier_parser
 
     build_task_dossier_parser(commands)
+    from evallab.dataset_audit import build_dataset_audit_parser
+
+    build_dataset_audit_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)
@@ -6919,6 +7110,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.results_viewer import build_results_viewer_parser
 
     build_results_viewer_parser(commands)
+    from evallab.detectors import build_detectors_parser
+
+    build_detectors_parser(commands)
     return root
 
 

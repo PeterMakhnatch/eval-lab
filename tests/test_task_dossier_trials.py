@@ -463,3 +463,108 @@ def test_partial_copy_rules_do_not_imply_a_clean_verdict(tmp_path, values, expec
     })
 
     assert dossier._rewardkit_copy(trial) is expected
+
+
+COLUMNS = ["job_id", "trial_id", "task", "job", "trial", "copy_verdict",
+            "laminar_trace_id", "projection_error"]
+
+
+class _FakeCursor:
+    def __init__(self, rows: list[tuple]) -> None:
+        self.description = [(name,) for name in COLUMNS]
+        self._rows = rows
+
+    def fetchall(self) -> list[tuple]:
+        return self._rows
+
+
+def _audit_task(task_id: str, *aliases: str):
+    from evallab.dataset_audit_contracts import AuditTask
+
+    return AuditTask(
+        dataset_id="ds", task_id=task_id, task_name=task_id,
+        aliases=aliases or (task_id,), source_uri="file://ds", revision="1",
+    )
+
+
+def _bulk(
+    tasks: list, names: list[str], tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> dict:
+    home = tmp_path / "home"
+    home.mkdir()
+    monkeypatch.setenv("EVALLAB_RESULTS_HOME", str(home))
+    canned = {
+        "ns-a/leaf": ("j1", "t1", "ns-a/leaf", "job1", "trial1", None, None, None),
+        "leaf": ("j2", "t2", "leaf", "job2", "trial2", None, None, None),
+        "ns-b/leaf": ("j3", "t3", "ns-b/leaf", "job3", "trial3", None, None, None),
+    }
+    selected = [canned[name] for name in names]
+
+    class _Connection:
+        def execute(self, sql: str) -> _FakeCursor:
+            return _FakeCursor(selected)
+
+        def close(self) -> None:
+            return None
+
+    monkeypatch.setattr(
+        dossier, "connect_trials",
+        lambda **kwargs: (_Connection(), {"in_memory_projections": []}),
+    )
+    return dossier.task_trials_for_tasks(
+        tasks, repo_root=tmp_path, roots=[tmp_path / "runs"],
+        derived_root=tmp_path / "derived", reader_store=tmp_path / "store",
+    )
+
+
+def test_bulk_census_matches_exact_aliases_not_basenames(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = _bulk(
+        [_audit_task("ns-a/leaf"), _audit_task("ns-b/leaf")],
+        ["ns-a/leaf", "leaf", "ns-b/leaf"], tmp_path, monkeypatch,
+    )
+    assert [row["job"] for row in out["ns-a/leaf"]["trials"]] == ["job1"]
+    assert [row["job"] for row in out["ns-b/leaf"]["trials"]] == ["job3"]
+    # The unscoped basename belongs to neither namespaced task.
+    assert all(row["task"] != "leaf" for facet in out.values() for row in facet["trials"])
+    assert out["ns-a/leaf"]["coverage"]["aliases"] == ["ns-a/leaf"]
+    json.dumps(out)
+
+
+def test_bulk_conflicting_aliases_raise(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValueError):
+        _bulk(
+            [_audit_task("ns-a/leaf", "ns-a/leaf"), _audit_task("ns-a/leaf", "other")],
+            [], tmp_path, monkeypatch,
+        )
+
+
+def test_enriched_rows_carry_lock_digest_not_audit_verdict(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = _bulk([_audit_task("ns-a/leaf")], ["ns-a/leaf"], tmp_path, monkeypatch)
+    (row,) = out["ns-a/leaf"]["trials"]
+    assert row["task_digest"] is None  # canned rows have no source dirs
+    assert row["task_digest_error"] == "source trial is missing"
+    assert "verdict" not in row or row.get("verdict") is None
+    assert row["copy_verdicts"]["native_copy_verdict"] is None
+
+
+def test_bulk_projection_coverage_is_scoped_to_each_task(world: dict[str, Path]):
+    other = "format-code-task-000788"
+    before = _snapshot(world["root"])
+    out = dossier.task_trials_for_tasks(
+        [_audit_task(TASK, *dossier.canonical_aliases(TASK)),
+         _audit_task(other, *dossier.canonical_aliases(other))],
+        repo_root=world["root"], roots=[world["runs"]],
+        derived_root=world["derived"], reader_store=world["store"],
+    )
+    assert set(out[TASK]["coverage"]["in_memory_projections"]) == {
+        "job-a1/trial-a1", "job-a2/trial-a2",
+    }
+    assert out[other]["coverage"]["in_memory_projections"] == ["job-other/trial-other"]
+    assert _snapshot(world["root"]) == before

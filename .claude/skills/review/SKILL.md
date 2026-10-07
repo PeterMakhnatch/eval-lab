@@ -1,15 +1,11 @@
 ---
 name: review
-description: >
-  Review an eval-lab pull request in one pass: GitHub checks, the diff,
-  the mission handoff, and whether claimed behaviour was actually run.
-  Use when reviewing a PR, deciding merge readiness, or checking that
-  acceptance criteria are evidenced rather than asserted.
+description: Perform a requested read-only Eval Lab PR review against current-head CI, changed contracts and acceptance evidence; this is not an extra mandatory author merge gate.
 ---
 
 # Review
 
-Do not merge. Do not start Harbor or paid models.
+Requested read-only review only. Do not merge. Do not start Harbor or paid models.
 
 ## 1. Checks
 
@@ -29,11 +25,15 @@ URL.
 gh pr diff <number>
 gh pr view <number>
 ```
-Read the PR body, then the leased paths. Shared files and money paths
-need the actual hunks. Confirm the lease in `research/inbox/board.md`
-(referenced via `agents/missions/ACTIVE.md`) covers every written path.
-Verify that explicit `make docs` was run before review if documentation or
-code symbols were touched, so `docs/INDEX.md` and `docs/repo-map.md` are fresh.
+
+Read the PR body, then the changed paths. Shared files and money paths
+need the actual hunks. Confirm ownership in `agents/OWNERS.md` and the
+current assignment cover every written path. Follow current
+`agents/WORKFLOW.md` ownership and `agents/CHECKS.md`, not a frozen board
+lease. Verify that explicit `make docs` was run before review if
+documentation or code symbols were touched, so `docs/INDEX.md` and
+`docs/repo-map.md` are fresh.
+
 ## 3. Handoff
 
 Read the PR's acceptance and verification record and, when linked by its claim,
@@ -46,10 +46,11 @@ Trust verification, not prose:
 
 - named acceptance criteria met with a command, test, or artifact path
 - focused tests covering changed behavior recorded for code changes;
-  `uv run pytest` / `uv run ruff check .` run at final premerge checkpoint
+  run only explicitly assigned focused verification at the final checkpoint
 - explicit `make docs` run, and `python -m evallab.docindex check` /
   `python -m evallab.repomap check` pass cleanly when doc/code topology moved
 - a claim without a run, log, or test that would fail on the bug is a draft
 
-Oracle and nop prove the task and harness, not model capability. Refuse
-to treat them as evidence of skill.
+The author remains responsible for CI fixes and protected merge when that is
+the assignment. Oracle and nop prove the task and harness, not model capability.
+Refuse to treat them as evidence of skill.

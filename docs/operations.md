@@ -527,6 +527,52 @@ launches with the existing queue STOP while running trials finish untouched.
 Only a budget or rule breach, or a gate defect, escalates: one escalation
 event plus one `lin comment` to the campaign's card.
 
+HAR-189 meters GPU, Daytona and model API dollars separately in `campaign
+validate` and `campaign status campaign.json` (`spend_breakdown` in JSON).
+Self-hosted and zero-estimate Daytona specs reserve the campaign's expected
+wave cost per trial (`wave_cost_estimate(tasks × attempts_per_task).expected_usd
+/ trials`), times spec attempts, or a larger declared estimate. `attempts_per_task`
+is the explicit campaign pin (default 1). A $0.60 ceiling reservation is not
+used because it would throttle concurrency and increase GPU waves.
+Validate/status also print the dynamic overrun exposure: in-flight trial count
+times the positive worst-ceiling minus reservation gap, plus the budget. This
+is conditional on trials staying within the HAR-168 resource envelope (or
+larger declared ceilings); billing actuals above it are still counted in full.
+Modal's existing read-only daily billing report for the exact serving app is split by each
+trial's wall-time overlap with that UTC day, including concurrent trials and
+other campaigns/worktrees. Startup and idle dollars remain in that app pool;
+native job/trial identities deduplicate retained copies. Daytona reuses the
+`spend day` resource/rate-card estimate with recorded usage preferred. Missing
+or lagging measurements retain each trial's remaining reservation, never $0.
+
+HAR-193 opt-in: pin `attempts_per_task` (the maximum), `concurrency` (wave
+width), and `adaptive_sampling: {"target_confidence": 0.95, "seed": 20261007}`.
+Stage one native attempt per spec (`attempts: 1`, `campaign_task_attempt:
+1..attempts_per_task`); submissions wait without reservations. Only explicit,
+package-bound `oracle:pass+nop:fail` controls admit. Each tick releases a
+priority wave through the existing capacity, Daytona clamp and campaign
+budget gate; settled uncertain follow-ups precede unstarted tasks. A budget
+stop leaves at most one wave partially informative. Context exhaustion is a
+non-pass, not an infra replacement. Beta(1,1) predictive confidence concerns
+the finite all-pass / mixed / no-pass band, not proof of latent pass rate
+zero or one; at confidence .95 and two attempts it saves **zero** draws.
+See `research/experiments/har193-adaptive/README.md` for the replay and error
+rate, including the prior-predictive rather than uniform frequentist bound.
+Already-qualified setups do not repeat a serialized full-trial smoke (HAR-192).
+Pin the optional campaign `execution` policy with a concurrency cap, model host
+and digest-bound native qualification evidence. A whole matching approved batch
+uses that cap by default; explicit `--parallel` can only lower it. Unqualified,
+mixed, drifted or missing evidence retains the original smoke gate, and fresh
+authenticated model readiness remains mandatory. Native evidence does not record
+the model host, so only `model_host: modal` policies may carry qualification;
+Runpod campaigns keep the serialized smoke. A locked-Docker campaign with an
+approved `cost_estimate` reserves that per-trial envelope even for model-free
+controls, because GPU billing does not include the shared VM. Replacements are
+reconciled before model teardown, so one allowed infra replacement does not
+require an unnecessary cold start. Old campaigns with no policy retain their approval
+digests and behavior. See [cheap campaign execution](execution-tiers.md#cheap-campaign-execution-har-192-source-not-deployment)
+for the exact evidence contract, resource limits and unrun comparison plan.
+
 The nightly canary cycle still stages its paid canaries every night, but they
 land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is
 not quarantined for it. Nothing dispatches until Peter authorises a spec by id.
@@ -711,7 +757,10 @@ uv run evallab schedule install
 ```
 
 - `com.petermakhnatch.evallab.tick` runs every 30 minutes.
-- `com.petermakhnatch.evallab.nightly` runs at 02:30 local time.
+- `com.petermakhnatch.evallab.nightly` runs the **$0 refresh** at 02:30 ET: `nightly --refresh`, never queue dispatch or the research cycle. For the stable installed runtime (no tick job), use `scripts/ops/launchd/install-nightly-refresh.sh --load`; on demand use `launchctl kickstart gui/$(id -u)/com.petermakhnatch.evallab.nightly`. State, Parquet, HAR-177 ledger/verdicts, HAR-176 pages and HAR-184 replay live in `~/.local/state/evallab-nightly`; `--queue-root` selects read-only checkouts (default primary plus worktrees with queues). Unchanged inputs are a locked high-water no-op. The ten-line digest is `~/.local/state/daily-report/inputs/evallab-nightly.json`, consumed additively into `facts.json`/`facts.md` only while ≤36 hours old; installation does not trigger the reporter or any LLM.
+  Set `--verdict-root <checkout>` when the primary lacks the real HAR-177 census/variant/oracle files (on this host: `.worktrees/har177-verdicts-20261006`). The service records per-file SHA-256/source provenance and snapshots only those inputs under `state/evidence`; retiring that source checkout does not lose the reviewed evidence. A present source missing required inputs fails closed.
+  Per-job projection refusals retain the original guard and exact reason in `state.json` and the digest JSON; the ten-line summary lists reason classes. Refused jobs are excluded from run/trial/legit/history/page counts and never marked processed. Only changed source inputs retry them; unchanged input is a no-op even when refusals remain.
+  Source `watch/hooks.jsonl` changes refresh the run and replay; generated `watch` and `processed` outputs do not trigger another refresh.
 
 For a dispatch-only schedule that checks the approved queue every minute:
 

@@ -106,6 +106,61 @@ def test_oracle_not_keep_overrides_keep_and_discard_wins():
     assert mod.apply_oracle("keep", keep_evidence, neutral) == ("keep", keep_evidence)
 
 
+def test_network_verifier_is_discarded_and_other_oracle_labels_are_not():
+    mod = _BUILD_MOD
+    row = {"status": "usable", "reason": "nop sound"}
+    label = {
+        "label": "oracle:fail-network",
+        "evidence": "research/experiments/python-task-ledger/oracle-pilot/000552-locked.json",
+        "run_digest": "sha256:abc",
+    }
+    mod.apply_network_discard(row, label)
+    assert row["status"] == "discarded"
+    assert "000552-locked.json:oracle:fail-network" in row["reason"]
+    assert "allow-list rejected" in row["reason"]
+    assert mod.verdict_for(row["status"], "format-code-task-000552", _strip())[0] == "discard"
+    untouched = {"status": "usable", "reason": "nop sound"}
+    mod.apply_network_discard(
+        untouched,
+        {"label": "oracle:none", "evidence": "research/experiments/python-task-ledger/oracle-pilot/001198.json"},
+    )
+    assert untouched["status"] == "usable"
+
+
+def test_validated_purge_replaces_the_run_and_clears_the_bound_defect():
+    mod = _BUILD_MOD
+    defect = "sha256:" + "a" * 64
+    repaired = "sha256:" + "b" * 64
+    record = {
+        "transform": "purge-installed-copies@1",
+        "status": "validated",
+        "variant_digest": repaired,
+        "created_at": "2026-10-07T00:00:00",
+        "inputs": {"repairs_digest": defect},
+    }
+    path = mod.ROOT / "library/task-variants/fixture/purge.json"
+    row = {
+        "status": "usable",
+        "reason": "nop sound",
+        "run": "leak-closed",
+        "run_digest": defect,
+        "run_transform": "leak-close-pypi@1",
+        "run_variant_status": "validated",
+        "evidence": "census",
+    }
+    chosen = mod.apply_validated_purge(row, [(record, path)])
+    assert chosen is not None
+    assert row["run_digest"] == repaired
+    assert row["run"] == "repair"
+    assert row["status"] == "usable"
+    assert mod.purge_repairs([(record, path)], repaired, defect)
+    assert not mod.purge_repairs([(record, path)], repaired, "sha256:" + "c" * 64)
+    candidate = dict(record, status="candidate", variant_digest="sha256:" + "d" * 64)
+    stayed = dict(row, run_digest=defect, run="leak-closed")
+    assert mod.apply_validated_purge(stayed, [(candidate, path)]) is None
+    assert stayed["run_digest"] == defect
+
+
 def test_oracle_loader_rejects_an_unmapped_label(tmp_path, monkeypatch):
     mod = _BUILD_MOD
     bad = tmp_path / "oracle_sweep.csv"

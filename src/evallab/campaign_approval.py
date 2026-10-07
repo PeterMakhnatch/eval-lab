@@ -32,10 +32,10 @@ Standing rules inside a campaign:
   ``infra``) gets exactly ONE automatic replacement: a cloned spec with
   ``campaign_replaces`` lineage to the original. A replacement's own infra
   failure is not replaced again.
-- **Budget:** reservations (approved/running estimates) plus settled actuals
-  stay inside the campaign budget. Settled actuals come from the existing
-  ledger-backed cost columns; specs whose evidence cannot be loaded count
-  their estimate conservatively.
+- **Budget:** reservations plus settled GPU, sandbox and ledger-backed model
+  spend stay inside the campaign budget. Self-hosted and zero-estimate Daytona
+  specs reserve expected wave-model cost; unavailable settled sources
+  retain the remaining reservation rather than becoming free.
 - **Exhaustion:** new launches stop via the existing ``STOP`` fence while
   running trials finish untouched.
 
@@ -46,16 +46,21 @@ card per (spec, reason). Routine admissions are silent.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
+import math
 import subprocess
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from contextlib import suppress
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from evallab.campaign_execution import CampaignExecutionPolicy, validate_qualification
+from evallab.results import JobRecord, TrialRecord, load_job
 from evallab.schemas import (
     ContractModel,
     ExperimentSpec,
@@ -103,6 +108,11 @@ REASON_TASK_DIGEST_MISMATCH = "campaign_task_digest_mismatch"
 REASON_CEILING_BELOW_FLOOR = "campaign_ceiling_below_floor"
 REASON_BUDGET_EXHAUSTED = "campaign_budget_exhausted"
 REASON_GATE_UNCONFIGURED = "campaign_gate_unconfigured"
+REASON_ORACLE_UNCONFIRMED = "campaign_oracle_unconfirmed"
+REASON_SAMPLING_QUEUED = "campaign_sampling_queued"
+REASON_SAMPLING_PENDING = "campaign_sampling_pending"
+REASON_SAMPLING_CLASSIFIED = "campaign_sampling_classified"
+REASON_SAMPLING_INVALID = "campaign_sampling_invalid"
 
 #: Refusals that escalate to Research-Harbor (escalation event + lin comment).
 #: Routine setup/profile/lock/deviation mismatches stay silent in waiting with
@@ -136,6 +146,42 @@ class CampaignTaskAllowance(_FrozenContract):
     task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     verifier_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+
+    expected_cost_usd: float | None = Field(default=None, gt=0)
+    expected_wall_seconds: float | None = Field(default=None, gt=0)
+
+
+class CampaignAdaptiveSampling(_FrozenContract):
+    """Beta(1,1) predictive confidence in the finite HAR-168 outcome band.
+
+    Always means all M gated passes; never means zero; sometimes means mixed.
+    A mixed prefix is conclusive. Homogeneous prefixes integrate the remaining
+    Bernoulli draws under the posterior; this is not confidence that latent p
+    equals exactly zero/one. At .95, M=2 saves nothing; M=4 saves an expected
+    5*p*(1-p) draws by stopping mixed prefixes. Predictive misclassification
+    risk at an early stop is <= 1-target_confidence under the stated prior,
+    not a uniform frequentist guarantee (the simulation measures that error).
+    """
+
+    target_confidence: float = Field(default=0.95, gt=0.5, le=1)
+    seed: int = 20261007
+
+
+def adaptive_band(
+    outcomes: list[bool], max_attempts: int, target_confidence: float = 0.95
+) -> tuple[str | None, float]:
+    """Return a certified finite-campaign band and its predictive confidence."""
+    if max_attempts < 1 or len(outcomes) > max_attempts or not 0.5 < target_confidence <= 1:
+        raise ValueError("invalid adaptive sampling horizon or confidence")
+    if not outcomes:
+        return None, 0.0
+    passes = sum(outcomes)
+    if 0 < passes < len(outcomes):
+        return "sometimes", 1.0
+    k = len(outcomes)
+    confidence = math.prod((k + 1 + j) / (k + 2 + j) for j in range(max_attempts - k))
+    band = "always" if passes == k else "never"
+    return (band if confidence >= target_confidence else None), confidence
 
 
 class CampaignCeilingFloor(_FrozenContract):
@@ -250,8 +296,14 @@ class ExperimentCampaign(_FrozenContract):
     schema_version: Literal["experiment-campaign/v1"] = SCHEMA_CAMPAIGN
     campaign_id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9-]*$")
     budget_usd: float = Field(gt=0)
+    attempts_per_task: int = Field(default=1, ge=1)
     cost_estimate: CampaignCostEstimate | None = None
+    execution: CampaignExecutionPolicy | None = None
     tasks: list[CampaignTaskAllowance] = Field(min_length=1)
+    concurrency: int = Field(default=1, ge=1, exclude_if=lambda value: value == 1)
+    adaptive_sampling: CampaignAdaptiveSampling | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     reference_profile: str = Field(min_length=1)
     allowed_deviations: list[ReferenceDeviation] = Field(default_factory=list)
     require_egress_lock: bool = True
@@ -316,6 +368,10 @@ def campaign_content_digest(campaign: ExperimentCampaign | Mapping[str, Any]) ->
         if isinstance(campaign, ExperimentCampaign)
         else json.loads(json.dumps(campaign))
     )
+    # The new default preserves approvals signed before this pin existed.
+    # Non-default attempts remain immutable, approvable campaign content.
+    if payload.get("attempts_per_task") == 1:
+        payload.pop("attempts_per_task")
     return "sha256:" + hashlib.sha256(_canonical_json(payload).encode()).hexdigest()
 
 
@@ -399,6 +455,8 @@ def approve_campaign(
             REASON_CONTENT_CHANGED, "approval actor is required and never defaulted"
         )
     campaign = load_campaign(repo_root, campaign_id)
+    if campaign.execution is not None and campaign.execution.qualification is not None:
+        validate_qualification(campaign.execution.qualification, repo_root=repo_root)
     existing = read_approvals(repo_root, campaign_id)
     if existing:
         raise CampaignApprovalError(
@@ -477,6 +535,7 @@ def check_campaign_admission(
     *,
     repo_root: Path | None,
     committed_usd: float,
+    defer_sampling: bool = False,
 ) -> PolicyDecision:
     """Pure campaign admission check: every mismatch has its own reason.
 
@@ -607,14 +666,24 @@ def check_campaign_admission(
                     "before the reference limits"
                 ),
             )
-    if committed_usd + float(spec.est_cost_usd or 0.0) > campaign.budget_usd:
+    if campaign.adaptive_sampling is not None:
+        sampling_refusal = adaptive_admission_refusal(spec, campaign, resolved_root)
+        if sampling_refusal is not None:
+            return sampling_refusal
+        if defer_sampling:
+            return _sampling_refusal(
+                REASON_SAMPLING_QUEUED,
+                "adaptive draw staged; the tick admits tasks in seeded priority order",
+            )
+    estimate = _reservation_usd(spec.model_dump(mode="json"), campaign)
+    if committed_usd >= campaign.budget_usd or committed_usd + estimate > campaign.budget_usd:
         return PolicyDecision(
             admitted=False,
             reason_code=REASON_BUDGET_EXHAUSTED,
             message=(
                 f"campaign {campaign.campaign_id} budget ${campaign.budget_usd:.2f} "
                 f"exhausted: committed ${committed_usd:.2f} plus estimated "
-                f"${float(spec.est_cost_usd or 0.0):.2f} overruns it"
+                f"${estimate:.2f} overruns it"
             ),
         )
     return PolicyDecision(
@@ -627,6 +696,348 @@ def check_campaign_admission(
     )
 
 
+def _sampling_refusal(code: str, message: str) -> PolicyDecision:
+    return PolicyDecision(admitted=False, reason_code=code, message=message)
+
+
+def _task_csv(path: Path) -> dict[str, dict[str, str]]:
+    if not path.is_file():
+        return {}
+    rows: dict[str, dict[str, str]] = {}
+    with path.open(encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle):
+            task_id = row.get("task_id") or row.get("task")
+            if not task_id or task_id in rows:
+                raise ValueError(f"missing or duplicate task in {path}")
+            rows[task_id] = row
+    return rows
+
+
+def oracle_confirmation(repo_root: Path, task_id: str, package_digest: str) -> tuple[bool, str]:
+    """Confirm an explicit oracle+nop label, never infer one from solve tags.
+
+    HAR-191 sweep rows supersede pilots. If the sweep is absent, the same
+    ledger/control sources are used; sound nop or model passes alone do not
+    establish a reference solution. Only exact packages or the existing
+    verified metadata/verifier-only lineage may inherit a ledger label.
+    """
+    from evallab.setup_fingerprint import lineage_ledger_binding
+    from evallab.task_health_tags import LEDGER, LOCKED_NOP, health_tag
+
+    try:
+        ledger = _task_csv(repo_root / LEDGER).get(task_id)
+        if ledger is None:
+            return False, "no ledger row"
+        base = repo_root / "research/experiments/python-task-ledger"
+        controls = _task_csv(base / "oracle_pilot.csv")
+        controls.update(_task_csv(base / "oracle_sweep.csv"))
+        row = controls.get(task_id)
+        if row is None or row.get("label") != "oracle:pass+nop:fail":
+            return (
+                False,
+                f"no confirmed oracle:pass+nop:fail label ({(row or {}).get('label', 'absent')})",
+            )
+        if not (row.get("evidence") or row.get("evidence_path")):
+            return False, "oracle label has no evidence reference"
+        control_digest = row.get("run_digest")
+        if not control_digest:
+            return False, "oracle label has no package-bound run_digest"
+        if control_digest == ledger.get("run_digest"):
+            locked = _task_csv(repo_root / LOCKED_NOP).get(task_id)
+            health = health_tag(ledger, locked)
+            if health not in {"health:sound", "health:repaired", "health:unchecked"}:
+                return False, f"adverse evidence on oracle package: {health}"
+        if control_digest == package_digest:
+            return True, "oracle:pass+nop:fail confirmed for exact package"
+        if control_digest != ledger.get("run_digest"):
+            return False, "oracle control digest differs from current ledger package"
+        binding = lineage_ledger_binding(repo_root, task_id, package_digest)
+        if binding["admitted"]:
+            return True, "oracle:pass+nop:fail inherited through verified scoring/metadata lineage"
+        return False, f"oracle label does not bind this package: {binding['reason']}"
+    except (OSError, ValueError, KeyError) as exc:
+        return False, f"oracle evidence unreadable: {type(exc).__name__}: {exc}"
+
+
+def _campaign_queue_specs(repo_root: Path, campaign_id: str) -> list[tuple[str, ExperimentSpec]]:
+    rows = []
+    for state in QUEUE_STATES:
+        for path in sorted((repo_root / "queue" / state).glob("*.json")):
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(raw, dict) or raw.get("campaign_id") != campaign_id:
+                    continue
+                spec = ExperimentSpec.model_validate(raw)
+            except (OSError, ValueError):
+                continue
+            rows.append((state, spec))
+    return rows
+
+
+def _sample_outcome(repo_root: Path, spec: ExperimentSpec) -> bool | None:
+    from evallab.results import load_job
+    from evallab.step_layers import classify_stop_reason
+
+    candidate = (repo_root / (spec.jobs_dir or "runs") / spec.name).resolve()
+    if not candidate.is_relative_to(repo_root.resolve()):
+        return None
+    try:
+        job = load_job(candidate)
+        if len(job.trials) != 1:
+            return None
+        trial = job.trials[0]
+        agent = trial.result.get("agent_result") or {}
+        metadata = agent.get("metadata") or {}
+        stop, _ = classify_stop_reason(
+            agent_metadata=metadata, exception_info=trial.result.get("exception_info")
+        )
+        if stop == "context_exhausted":
+            return False
+        if trial_is_infra_excluded(trial.result, trial.rewards):
+            return None
+        reward = trial.rewards.get("reward_gated", trial.rewards.get("reward"))
+        return reward == 1 and trial.rewards.get("integrity", 1) == 1
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def adaptive_task_outcomes(
+    repo_root: Path, campaign: ExperimentCampaign, task_id: str
+) -> list[bool]:
+    """Contiguous settled draws; infra consumes no scientific attempt."""
+    rows = _campaign_queue_specs(repo_root, campaign.campaign_id)
+    originals: dict[int, tuple[str, ExperimentSpec]] = {}
+    for state, spec in sorted(
+        rows,
+        key=lambda row: (
+            row[1].submitted_at or datetime.max.replace(tzinfo=UTC),
+            str(row[1].spec_id),
+        ),
+    ):
+        index = spec.campaign_task_attempt
+        if (
+            spec.task_id == task_id
+            and spec.campaign_replaces is None
+            and index is not None
+            and state != "rejected"
+        ):
+            originals.setdefault(index, (state, spec))
+    outcomes: list[bool] = []
+    for index in range(1, campaign.attempts_per_task + 1):
+        entry = originals.get(index)
+        if entry is None or entry[0] not in SETTLED_STATES:
+            break
+        outcome = _sample_outcome(repo_root, entry[1])
+        if outcome is None:
+            replacements = [
+                (state, spec) for state, spec in rows if spec.campaign_replaces == entry[1].spec_id
+            ]
+            if len(replacements) != 1 or replacements[0][0] not in SETTLED_STATES:
+                break
+            outcome = _sample_outcome(repo_root, replacements[0][1])
+        if outcome is None:
+            break
+        outcomes.append(outcome)
+    return outcomes
+
+
+def adaptive_admission_refusal(
+    spec: ExperimentSpec, campaign: ExperimentCampaign, repo_root: Path
+) -> PolicyDecision | None:
+    policy = campaign.adaptive_sampling
+    assert policy is not None
+    confirmed, reason = oracle_confirmation(
+        repo_root, spec.task_id or "", spec.task_package_digest or ""
+    )
+    if not confirmed:
+        return _sampling_refusal(REASON_ORACLE_UNCONFIRMED, reason)
+    index = spec.campaign_task_attempt
+    if index is None or index > campaign.attempts_per_task or spec.attempts != 1:
+        return _sampling_refusal(
+            REASON_SAMPLING_INVALID,
+            "adaptive campaigns require one native draw and an in-range campaign_task_attempt",
+        )
+    rows = _campaign_queue_specs(repo_root, campaign.campaign_id)
+    peers = [
+        other
+        for _, other in rows
+        if other.task_id == spec.task_id
+        and other.campaign_task_attempt == index
+        and other.spec_id != spec.spec_id
+        and other.campaign_replaces is None
+    ]
+    first = min(
+        [spec, *peers],
+        key=lambda candidate: (
+            candidate.submitted_at or datetime.max.replace(tzinfo=UTC),
+            str(candidate.spec_id),
+        ),
+    )
+    if spec.campaign_replaces is None and first.spec_id != spec.spec_id:
+        return _sampling_refusal(REASON_SAMPLING_INVALID, "task draw already staged")
+    if spec.campaign_replaces is not None:
+        original = next(
+            (
+                other
+                for state, other in rows
+                if other.spec_id == spec.campaign_replaces and state in SETTLED_STATES
+            ),
+            None,
+        )
+        if (
+            original is None
+            or original.campaign_replaces is not None
+            or (
+                original.task_id != spec.task_id
+                or original.campaign_task_attempt != index
+                or original.task_package_digest != spec.task_package_digest
+            )
+            or not _job_has_infra_excluded_trial(repo_root, original)
+        ):
+            return _sampling_refusal(
+                REASON_SAMPLING_INVALID, "replacement lacks matching infra-excluded original"
+            )
+        if any(
+            other.campaign_replaces == original.spec_id and other.spec_id != spec.spec_id
+            for _, other in rows
+        ):
+            return _sampling_refusal(
+                REASON_SAMPLING_INVALID, "infra draw already has its one replacement"
+            )
+    outcomes = adaptive_task_outcomes(repo_root, campaign, spec.task_id or "")
+    band, confidence = adaptive_band(outcomes, campaign.attempts_per_task, policy.target_confidence)
+    if band is not None:
+        return _sampling_refusal(
+            REASON_SAMPLING_CLASSIFIED,
+            f"task band {band} known at confidence {confidence:.6f} after {len(outcomes)} draws",
+        )
+    if index != len(outcomes) + 1:
+        return _sampling_refusal(
+            REASON_SAMPLING_PENDING, "preceding task draw or its infra replacement is not settled"
+        )
+    return None
+
+
+def adaptive_priority(
+    repo_root: Path, campaign: ExperimentCampaign, spec: ExperimentSpec
+) -> tuple[float, float, str]:
+    """Cheap information first; explicit historical estimates beat fallback estimates.
+
+    Task-history uncertainty only orders tasks: it never certifies capability
+    on this model/package. Seeded hashes break ties, independent of submission
+    IDs. Settled uncertain follow-ups precede unstarted tasks' first draws.
+    """
+    allowance = next(item for item in campaign.tasks if item.task_id == spec.task_id)
+    history_path = repo_root / "research/experiments/python-task-ledger/task_history.csv"
+    history = _task_csv(history_path).get(spec.task_id or "", {})
+    a, b = 1 + int(history.get("clean_pass") or 0), 1 + int(history.get("fail") or 0)
+    uncertainty = a * b / ((a + b) ** 2 * (a + b + 1))
+    cost = allowance.expected_cost_usd or float(spec.est_cost_usd or 1.0)
+    wall = allowance.expected_wall_seconds or float(spec.timeout_seconds)
+    seed = campaign.adaptive_sampling.seed if campaign.adaptive_sampling else 0
+    tie = hashlib.sha256(f"{seed}:{spec.task_id}".encode()).hexdigest()
+    return cost / uncertainty, wall, tie
+
+
+def reconcile_adaptive_sampling(
+    executor: Any, *, parallel: int | None, spec_ids: set[str] | None = None
+) -> None:
+    """Release a priority wave under the tick lock, using existing admission.
+
+    Wave width is capped by campaign concurrency, executor capacity and the
+    HAR-163 Daytona allowance. The existing HAR-189 gate reserves each draw;
+    no alternate accounting is introduced. Follow-ups precede unstarted
+    tasks, so budget stops leave at most one wave partially informative.
+    """
+    root = executor.repo_root
+    waiting = executor.queue.list_specs("waiting")
+    for path, spec in executor.queue.list_specs("approved"):
+        if spec.campaign_id is None or (spec_ids is not None and str(spec.spec_id) not in spec_ids):
+            continue
+        try:
+            campaign, _ = load_approved_campaign(root, spec.campaign_id)
+        except CampaignApprovalError:
+            continue
+        if campaign.adaptive_sampling is not None:
+            destination = executor.queue.transition(
+                path,
+                "waiting",
+                actor="adaptive-sampling",
+                event="policy_waiting",
+                reason_code=REASON_SAMPLING_QUEUED,
+            )
+            waiting.append((destination, spec))
+    if spec_ids is not None:
+        waiting = [(path, spec) for path, spec in waiting if str(spec.spec_id) in spec_ids]
+    campaign_ids = sorted({spec.campaign_id for _, spec in waiting if spec.campaign_id})
+    for campaign_id in campaign_ids:
+        try:
+            campaign, _ = load_approved_campaign(root, campaign_id)
+        except CampaignApprovalError:
+            continue
+        if campaign.adaptive_sampling is None:
+            continue
+        candidates = []
+        for path, spec in waiting:
+            if spec.campaign_id != campaign_id:
+                continue
+            refusal = adaptive_admission_refusal(spec, campaign, root)
+            if refusal is not None:
+                executor.queue.write_reason(spec, refusal)
+                if refusal.reason_code == REASON_SAMPLING_CLASSIFIED:
+                    executor.queue.transition(
+                        path,
+                        "rejected",
+                        actor="adaptive-sampling",
+                        event="sampling_skipped",
+                        reason_code=refusal.reason_code,
+                    )
+                continue
+            outcomes = adaptive_task_outcomes(root, campaign, spec.task_id or "")
+            candidates.append(
+                (
+                    not bool(outcomes or spec.campaign_replaces),
+                    adaptive_priority(root, campaign, spec),
+                    path,
+                    spec,
+                )
+            )
+        if not candidates:
+            continue
+        ordered = sorted(candidates, key=lambda item: (item[0], item[1]))
+        width = parallel if parallel is not None else campaign.concurrency
+        batch = [(item[2], item[3]) for item in ordered[: min(campaign.concurrency, width)]]
+        batch = executor._apply_daytona_clamp(executor._capacity_batch(batch))
+        released = 0
+        for path, spec in batch:
+            decision = executor.gate.decide(
+                spec,
+                spent_today_usd=executor._effective_spend_today() if spec.billable else 0,
+                consecutive_harness_failures=executor._consecutive_harness_failures()
+                if spec.billable
+                else 0,
+            )
+            if decision.admitted:
+                executor.queue._replace_model(
+                    path, spec.model_copy(update={"policy_rule": decision.policy_rule})
+                )
+                executor.queue.transition(
+                    path,
+                    "approved",
+                    actor="adaptive-sampling",
+                    event="policy_admitted",
+                    policy_rule=decision.policy_rule,
+                )
+                released += 1
+            else:
+                executor.queue.write_reason(spec, decision)
+                if decision.reason_code == REASON_BUDGET_EXHAUSTED:
+                    if released == 0:
+                        escalate_after_refusal(root, spec, decision)
+                        executor.queue.stop()
+                    break
+
+
 def _freeze(value: Any) -> Any:
     if isinstance(value, dict):
         return tuple(sorted((key, _freeze(item)) for key, item in value.items()))
@@ -635,76 +1046,456 @@ def _freeze(value: Any) -> Any:
     return value
 
 
+def _usd(value: Any) -> float | None:
+    """A usable cost, preserving unknown/invalid amounts rather than zeroing."""
+    if isinstance(value, bool):
+        return None
+    try:
+        amount = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return amount if math.isfinite(amount) and amount >= 0 else None
+
+
+def _campaign_trial_count(campaign: ExperimentCampaign) -> int:
+    """Approved task count times the explicit attempts pin, never inferred."""
+    return len(campaign.tasks) * campaign.attempts_per_task
+
+
+def _wave_reservation_per_trial(campaign: ExperimentCampaign) -> float:
+    """Average expected wave cost, preserving full-width concurrency.
+
+    Reserving HAR-168's $0.60 per trial would cap a $5 campaign at eight
+    concurrent trials and force extra GPU waves. The expected per-trial cost
+    instead admits the model's intended wave while measured actuals and the
+    printed in-flight overrun bound keep the fence conservative.
+    """
+    trials = _campaign_trial_count(campaign)
+    if campaign.execution is not None and campaign.cost_estimate is not None:
+        # A separately approved HAR-192 all-in envelope replaces only the
+        # historical Daytona/A100 planning input, not the reservation mechanism.
+        return campaign.cost_estimate.expected_usd / trials
+    return wave_cost_estimate(trials).expected_usd / trials
+
+
+def _reservation_usd(raw: Mapping[str, Any], campaign: ExperimentCampaign) -> float:
+    """Reserve wave-model expected cost per trial, times spec attempts.
+
+    A larger declared estimate wins. Self-hosted and zero-estimate Daytona
+    specs use the campaign wave average; positive non-selfhosted estimates
+    retain the existing reservation policy.
+    """
+    from evallab.modal_ops import is_selfhosted_model
+
+    estimate = _usd(raw.get("est_cost_usd")) or 0.0
+    if (
+        is_selfhosted_model(raw.get("model"))
+        or (raw.get("environment") == "daytona" and estimate == 0)
+        # Locked Docker rents a shared VM even for model-free controls.
+        or (
+            raw.get("environment") == "docker"
+            and campaign.execution is not None
+            and campaign.cost_estimate is not None
+        )
+    ):
+        attempts = raw.get("attempts", 1)
+        count = attempts if isinstance(attempts, int) and attempts > 0 else 1
+        return count * max(estimate, _wave_reservation_per_trial(campaign))
+    return estimate
+
+
+def campaign_budget_bound(
+    repo_root: Path,
+    campaign_id: str,
+    *,
+    campaign: ExperimentCampaign | None = None,
+) -> dict[str, float | int]:
+    """Printable overrun for reservations below the per-trial worst ceiling.
+
+    In-flight reservations use expected wave cost so concurrency is not
+    throttled. Conditional on trials settling within HAR-168's $0.60 resource
+    envelope (or a larger declared ceiling), the extra exposure is the sum of
+    positive ``worst_ceiling - reservation`` gaps for all in-flight trials.
+    """
+    loaded = campaign if campaign is not None else load_campaign(repo_root, campaign_id)
+    if loaded.campaign_id != campaign_id:
+        raise ValueError("campaign draft does not match campaign_id")
+    specs = _queue_meter_specs(repo_root.resolve())
+    trials = 0
+    reserved = worst = gap = 0.0
+    for state, raw in specs:
+        if raw.get("campaign_id") != campaign_id or state not in RESERVED_STATES:
+            continue
+        attempts = raw.get("attempts", 1)
+        count = attempts if isinstance(attempts, int) and attempts > 0 else 1
+        trials += count
+        hold = _reservation_usd(raw, loaded)
+        ceiling = count * max(HAR168_TRIAL_CEILING_USD, _usd(raw.get("cost_limit_usd")) or 0.0)
+        reserved += hold
+        worst += ceiling
+        gap += max(0.0, ceiling - hold)
+    return {
+        "in_flight_trials": int(trials),
+        "in_flight_reserved_usd": reserved,
+        "in_flight_worst_case_usd": worst,
+        "overrun_bound_usd": gap,
+        "realized_spend_bound_usd": loaded.budget_usd + gap,
+    }
+
+
+def _read_meter_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _queue_meter_specs(root: Path) -> list[tuple[str, dict[str, Any]]]:
+    return [
+        (state, raw)
+        for state in QUEUE_STATES
+        for path in sorted((root / "queue" / state).glob("*.json"))
+        if (raw := _read_meter_json(path))
+    ]
+
+
+def _meter_job_path(root: Path, raw: Mapping[str, Any]) -> Path | None:
+    name = raw.get("name")
+    if not isinstance(name, str) or not name:
+        return None
+    candidate = (root / str(raw.get("jobs_dir") or "runs") / name).resolve()
+    return candidate if root in candidate.parents else None
+
+
+def _trial_identity(
+    job_result: Mapping[str, Any], trial_result: Mapping[str, Any], path: Path
+) -> str:
+    job_id, trial_id = job_result.get("id"), trial_result.get("id")
+    if job_id and trial_id:
+        return f"{job_id}/{trial_id}"
+    return path.resolve().as_posix()
+
+
+def _meter_model_host(root: Path, raw: Mapping[str, Any]) -> str:
+    """Keep new Runpod/unknown campaigns out of the historical Modal bill pool."""
+    campaign_id = raw.get("campaign_id")
+    if not isinstance(campaign_id, str) or not campaign_id:
+        return "modal"
+    try:
+        campaign = load_campaign(root, campaign_id)
+    except (OSError, ValueError):
+        return "unknown"
+    return campaign.execution.model_host if campaign.execution is not None else "modal"
+
+
+def _modal_allocations(
+    root: Path, specs: list[tuple[str, dict[str, Any]]], jobs: list[JobRecord]
+) -> dict[str, tuple[float, bool]]:
+    """Split one app's UTC-day bill by summed trial/day wall-time overlaps.
+
+    Startup, warm and idle time stay in the billed pool. Concurrent trials
+    each contribute their overlap seconds; the denominator includes other
+    campaigns and unclaimed jobs, not just the campaign being metered.
+    Native identities deduplicate copies retained in sibling worktrees.
+    Only existing read-only billing/report and evidence readers are used;
+    an absent/lagging/failed report leaves the trial's reservation in place.
+    """
+    from evallab.modal_billing import fetch_modal_billing_report
+    from evallab.modal_ops import MODAL_APP_NAME, is_selfhosted_model
+    from evallab.results import discover_job_dirs
+    from evallab.spend_day import (
+        day_to_window,
+        parse_dt,
+        sibling_worktree_roots,
+        window_overlap_seconds,
+    )
+
+    targets: dict[str, tuple[datetime, datetime]] = {}
+    for job in jobs:
+        for trial in job.trials:
+            started, finished = (
+                parse_dt(trial.result.get("started_at")),
+                parse_dt(trial.result.get("finished_at")),
+            )
+            if started is not None and finished is not None and finished > started:
+                targets[_trial_identity(job.result, trial.result, trial.path)] = (started, finished)
+    if not targets:
+        return {}
+    first = min(start for start, _ in targets.values()).date()
+    last = max(finish for _, finish in targets.values()).date() + timedelta(days=1)
+    try:
+        billing = fetch_modal_billing_report(start=first, end=last, repo_root=root, resolution="d")
+    except Exception:
+        return {}
+    # One daily report only: daily and hourly reports are alternatives, never
+    # additive sources. Repeated copies of a row cannot double the app pool.
+    billed: dict[tuple[str, str, date], float] = {}
+    for row in billing:
+        cost = _usd(row.cost_usd)
+        moment = row.interval_start
+        if isinstance(moment, datetime):
+            moment = moment.replace(tzinfo=moment.tzinfo or UTC).astimezone(UTC)
+        else:
+            moment = parse_dt(moment)
+        if row.description != MODAL_APP_NAME or cost is None or moment is None:
+            continue
+        day = moment.astimezone(UTC).date()
+        if first <= day < last:
+            key = (row.object_id, row.resource, day)
+            billed[key] = max(billed.get(key, 0.0), cost)
+    if not billed:
+        return {}
+    pools: dict[date, float] = {}
+    for (_, _, day), cost in billed.items():
+        pools[day] = pools.get(day, 0.0) + cost
+    paths = {job.path for job in jobs}
+    models_by_path: dict[Path, Any] = {}
+    roots_by_path = {job.path: root for job in jobs}
+    hosts_by_path: dict[Path, str] = {}
+    for other_root in [root, *sibling_worktree_roots(root)]:
+        discovered = list(discover_job_dirs([other_root / "runs"]))
+        paths.update(discovered)
+        roots_by_path.update(dict.fromkeys(discovered, other_root))
+        other_specs = specs if other_root == root else _queue_meter_specs(other_root)
+        for _, raw in other_specs:
+            candidate = _meter_job_path(other_root, raw)
+            if candidate is not None:
+                paths.add(candidate)
+                models_by_path[candidate] = raw.get("model")
+                roots_by_path[candidate] = other_root
+                hosts_by_path[candidate] = _meter_model_host(other_root, raw)
+    windows = dict(targets)
+    now = datetime.now(UTC)
+    for job_path in paths:
+        config = _read_meter_json(job_path / "config.json")
+        spec = _read_meter_json(job_path / "experiment-spec.json")
+        host = hosts_by_path.get(job_path) or _meter_model_host(
+            roots_by_path.get(job_path, root), spec
+        )
+        if host != "modal":
+            continue
+        agent = config.get("agent")
+        model = (
+            (agent.get("model_name") if isinstance(agent, Mapping) else None)
+            or spec.get("model")
+            or models_by_path.get(job_path)
+        )
+        if not is_selfhosted_model(model):
+            continue
+        job_result = _read_meter_json(job_path / "result.json")
+        for result_path in job_path.glob("*/result.json"):
+            result = _read_meter_json(result_path)
+            if "trial_name" not in result:
+                continue
+            start = parse_dt(result.get("started_at"))
+            finish = parse_dt(result.get("finished_at")) or now
+            if start is not None and finish > start:
+                windows[_trial_identity(job_result, result, result_path.parent)] = (start, finish)
+    shares: dict[str, float] = {}
+    for day, pool in pools.items():
+        window_start, window_end = day_to_window(day)
+        weights = {
+            identity: window_overlap_seconds(start, finish, window_start, window_end)
+            for identity, (start, finish) in windows.items()
+        }
+        denominator = math.fsum(weights.values())
+        if denominator > 0:
+            for identity, weight in weights.items():
+                if identity in targets and weight > 0:
+                    shares[identity] = shares.get(identity, 0.0) + pool * weight / denominator
+    # Every day touched by a trial must be present: a partially available bill
+    # cannot silently turn its missing days into free GPU time.
+    incomplete: set[str] = set()
+    for identity, (start, finish) in targets.items():
+        day = start.astimezone(UTC).date()
+        while day < last:
+            window_start, window_end = day_to_window(day)
+            if (
+                window_overlap_seconds(start, finish, window_start, window_end) > 0
+                and day not in pools
+            ):
+                incomplete.add(identity)
+                break
+            if window_end >= finish:
+                break
+            day += timedelta(days=1)
+    return {identity: (amount, identity not in incomplete) for identity, amount in shares.items()}
+
+
+def _daytona_trial_usd(job: JobRecord, trial: TrialRecord) -> float | None:
+    """Rate recorded sandbox resources and wall time through spend day's card."""
+    from evallab.spend_day import _read_task_toml_env, parse_dt, trial_daytona_resources
+    from evallab.task_qualification import estimate_cost_usd
+
+    start, finish = (
+        parse_dt(trial.result.get("started_at")),
+        parse_dt(trial.result.get("finished_at")),
+    )
+    if start is None or finish is None or finish <= start:
+        return None
+    usage = _read_meter_json(trial.path / "daytona-usage.json") or _read_meter_json(
+        job.path / "daytona-usage.json"
+    )
+    admission = usage.get("admission")
+    requested = admission.get("requested") if isinstance(admission, Mapping) else None
+    requested = requested if isinstance(requested, Mapping) else {}
+    usage_env: dict[str, Any] = {}
+    for source, target, multiplier in (
+        ("cpu", "override_cpus", 1),
+        ("memory_gib", "override_memory_mb", 1024),
+        ("disk_gib", "override_storage_mb", 1024),
+    ):
+        value = _usd(requested.get(source))
+        if value is not None and value > 0:
+            usage_env[target] = int(value * multiplier)
+    task = trial.lock.get("task") or trial.config.get("task") or {}
+    task_path = task.get("path") if isinstance(task, Mapping) else None
+    # Recorded usage wins over requested overrides and task-family fallbacks.
+
+    task_name = str(trial.result.get("task_name") or "")
+    (cpus, memory, storage), _basis = trial_daytona_resources(
+        task_family=task_name.split("/")[0] if "/" in task_name else None,
+        environment_configs=(job.config, trial.config, {"environment": usage_env}),
+        task_toml_env=_read_task_toml_env(task_path),
+    )
+    if cpus is None or memory is None:
+        return None
+    return _usd(
+        estimate_cost_usd(
+            backend="daytona",
+            sandbox_seconds=(finish - start).total_seconds(),
+            cpus=cpus,
+            memory_mb=memory,
+            storage_mb=storage,
+        )
+    )
+
+
+def _campaign_meter(
+    repo_root: Path,
+    campaign_id: str,
+    *,
+    exclude_spec_id: str | None = None,
+    campaign: ExperimentCampaign | None = None,
+) -> tuple[float, float, dict[str, float]]:
+    from evallab.database import trial_cost_columns
+    from evallab.dispatch_guards import MODEL_FREE_AGENTS
+    from evallab.modal_ops import is_selfhosted_model
+
+    root = repo_root.resolve()
+    loaded = campaign if campaign is not None else load_campaign(root, campaign_id)
+    if loaded.campaign_id != campaign_id:
+        raise ValueError("campaign draft does not match campaign_id")
+    specs = _queue_meter_specs(root)
+    relevant = [
+        (state, raw)
+        for state, raw in specs
+        if raw.get("campaign_id") == campaign_id
+        and (exclude_spec_id is None or raw.get("spec_id") != exclude_spec_id)
+        and state in RESERVED_STATES | SETTLED_STATES
+    ]
+    jobs: dict[str, JobRecord] = {}
+    for state, raw in relevant:
+        candidate = _meter_job_path(root, raw)
+        if state in SETTLED_STATES and candidate is not None:
+            with suppress(Exception):
+                jobs[str(raw.get("spec_id") or raw.get("name"))] = load_job(candidate)
+    selfhosted_jobs = [
+        jobs[str(raw.get("spec_id") or raw.get("name"))]
+        for state, raw in relevant
+        if state in SETTLED_STATES
+        and is_selfhosted_model(raw.get("model"))
+        and (loaded.execution is None or loaded.execution.model_host == "modal")
+        and str(raw.get("spec_id") or raw.get("name")) in jobs
+    ]
+    allocations = _modal_allocations(root, specs, selfhosted_jobs) if selfhosted_jobs else {}
+    breakdown = dict.fromkeys(("modal_gpu", "daytona", "model_api", "unmeasured_reserved"), 0.0)
+    reserved = settled = 0.0
+    for state, raw in relevant:
+        estimate = _reservation_usd(raw, loaded)
+        if state in RESERVED_STATES:
+            reserved += estimate
+            breakdown["unmeasured_reserved"] += estimate
+            continue
+        job = jobs.get(str(raw.get("spec_id") or raw.get("name")))
+        sources = dict.fromkeys(("modal_gpu", "daytona", "model_api"), 0.0)
+        unmeasured = estimate if job is None or not job.trials else 0.0
+        if job is not None and job.trials:
+            trial_estimate = estimate / len(job.trials)
+            for trial in job.trials:
+                amounts = dict.fromkeys(("modal_gpu", "daytona", "model_api"), 0.0)
+                unknown = False
+                if is_selfhosted_model(raw.get("model")):
+                    gpu = allocations.get(_trial_identity(job.result, trial.result, trial.path))
+                    if gpu is None:
+                        unknown = True
+                    else:
+                        amounts["modal_gpu"] = gpu[0]
+                        unknown = not gpu[1]
+                elif raw.get("agent") not in MODEL_FREE_AGENTS:
+                    try:
+                        model = _usd(trial_cost_columns(job, trial).get("cost_usd"))
+                    except Exception:
+                        model = None
+                    if model is None:
+                        unknown = True
+                    else:
+                        amounts["model_api"] = model
+                if raw.get("environment") == "daytona":
+                    try:
+                        sandbox = _daytona_trial_usd(job, trial)
+                    except Exception:
+                        sandbox = None
+                    if sandbox is None:
+                        unknown = True
+                    else:
+                        amounts["daytona"] = sandbox
+                elif raw.get("environment") == "docker" and loaded.execution is not None:
+                    # Shared VM rent is not present in the Modal GPU report.
+                    # Keep its unknown share reserved instead of settling it at $0.
+                    unknown = True
+                measured_trial = math.fsum(amounts.values())
+                # One overrun cannot erase another unmeasurable trial's hold.
+                if unknown:
+                    unmeasured += max(0.0, trial_estimate - measured_trial)
+                for source, amount in amounts.items():
+                    sources[source] += amount
+        measured = math.fsum(sources.values())
+        for source, amount in sources.items():
+            breakdown[source] += amount
+        breakdown["unmeasured_reserved"] += unmeasured
+        settled += measured + unmeasured
+    return reserved, settled, breakdown
+
+
 def campaign_spend_usd(
     repo_root: Path,
     campaign_id: str,
     *,
     exclude_spec_id: str | None = None,
 ) -> tuple[float, float, float]:
-    """(reserved, settled, total) campaign spend in USD.
+    """(reserved, settled, total), including GPU, sandbox and model API spend.
 
-    Reserved counts approved/running estimates; settled counts done/failed
-    ledger-backed actuals, falling back to the estimate when evidence cannot
-    be loaded (conservative: an unmeasurable trial still holds its envelope).
-    Waiting specs hold nothing: they launch nothing until admitted.
+    Waiting specs hold nothing. Unknown settled components retain the remaining
+    reserved resource envelope; zero ledger API cost never implies free GPU.
+    ``exclude_spec_id`` excludes charges, not that trial's allocation weight.
     """
-    root = repo_root.resolve()
-    queue_root = root / "queue"
-    reserved = 0.0
-    settled = 0.0
-    for state in QUEUE_STATES:
-        state_dir = queue_root / state
-        if not state_dir.is_dir():
-            continue
-        for path in sorted(state_dir.glob("*.json")):
-            try:
-                raw = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError, json.JSONDecodeError):
-                continue
-            if not isinstance(raw, dict) or raw.get("campaign_id") != campaign_id:
-                continue
-            if exclude_spec_id is not None and raw.get("spec_id") == exclude_spec_id:
-                continue
-            estimate = raw.get("est_cost_usd") or 0.0
-            try:
-                estimate = float(estimate)
-            except (TypeError, ValueError):
-                estimate = 0.0
-            if state in RESERVED_STATES:
-                reserved += estimate
-            elif state in SETTLED_STATES:
-                actual = _settled_cost_usd(root, raw)
-                settled += estimate if actual is None else actual
+    reserved, settled, _breakdown = _campaign_meter(
+        repo_root, campaign_id, exclude_spec_id=exclude_spec_id
+    )
     return reserved, settled, reserved + settled
 
 
-def _settled_cost_usd(repo_root: Path, raw: Mapping[str, Any]) -> float | None:
-    """Ledger-backed actual for one settled spec, or None when unmeasurable."""
-    try:
-        from evallab.database import trial_cost_columns
-        from evallab.results import load_job
-    except ImportError:
-        return None
-    try:
-        jobs_dir = raw.get("jobs_dir") or "runs"
-        name = raw.get("name")
-        if not isinstance(name, str) or not name:
-            return None
-        candidate = (repo_root / str(jobs_dir) / name).resolve()
-        if candidate != repo_root and repo_root not in candidate.parents:
-            return None
-        job = load_job(candidate)
-        total = 0.0
-        for trial in job.trials:
-            columns = trial_cost_columns(job, trial)
-            cost = columns.get("cost_usd")
-            if cost is None:
-                # Measured absence of ledger cost is zero spend, not unknown.
-                continue
-            total += float(cost)
-        return total
-    except Exception:
-        return None
+def campaign_spend_breakdown(repo_root: Path, campaign_id: str) -> dict[str, float]:
+    """Read-only per-source committed totals; sum equals campaign_spend_usd total.
+
+    ``unmeasured_reserved`` includes approved/running reservations and remaining
+    conservative envelopes for settled trials with unavailable measurements.
+    Modal amounts are app-day allocations, Daytona amounts use the existing
+    list-price estimate path, and model API amounts use ledger-backed columns.
+    """
+    return _campaign_meter(repo_root, campaign_id)[2]
 
 
 def campaign_admission_refusal(gate: Any, spec: ExperimentSpec) -> PolicyDecision | None:
@@ -755,7 +1546,12 @@ def _refusal_or_none(
     committed_usd: float,
 ) -> PolicyDecision | None:
     decision = check_campaign_admission(
-        spec, campaign, repo_root=repo_root, committed_usd=committed_usd
+        spec,
+        campaign,
+        repo_root=repo_root,
+        committed_usd=committed_usd,
+        defer_sampling=spec.spec_id is not None
+        and any((repo_root / "queue" / "pending").glob(f"*-{spec.spec_id}.json")),
     )
     return None if decision.admitted else decision
 
@@ -874,6 +1670,15 @@ def escalate_after_refusal(
 def trial_is_infra_excluded(trial_result: Mapping[str, Any], rewards: Mapping[str, Any]) -> bool:
     """Canonical infra classification: counts excluded with reason infra."""
     from evallab.counts import classify_counts
+    from evallab.step_layers import classify_stop_reason
+
+    agent = trial_result.get("agent_result") or {}
+    metadata = agent.get("metadata") or {} if isinstance(agent, Mapping) else {}
+    stop, _ = classify_stop_reason(
+        agent_metadata=metadata, exception_info=trial_result.get("exception_info")
+    )
+    if stop == "context_exhausted":
+        return False
 
     reward = rewards.get("reward")
     exception = trial_result.get("exception_info")
@@ -1051,4 +1856,9 @@ def validate_campaign_content(repo_root: Path, campaign: ExperimentCampaign) -> 
         errors.extend(validate_floor_against_reference(repo_root, campaign))
     except (OSError, ValueError, KeyError) as exc:
         errors.append(f"ceiling floor comparison failed: {exc}")
+    if campaign.execution is not None and campaign.execution.qualification is not None:
+        try:
+            validate_qualification(campaign.execution.qualification, repo_root=repo_root)
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            errors.append(f"setup qualification: {exc}")
     return errors

@@ -1,5 +1,11 @@
 {
+  "adaptive_sampling": {
+    "seed": 20261007,
+    "target_confidence": 0.95
+  },
   "agent": "mimoagent",
+  "attempts_per_task": 2,
+  "concurrency": 19,
   "allowed_deviations": [
     {
       "field": "harness.additions",

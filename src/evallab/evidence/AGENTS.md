@@ -1,8 +1,7 @@
-# Evidence Projection Subsystem (src/evallab/evidence/)
+# Evidence extraction
 
 ## Purpose
-Canonical ATIF normalization, deterministic event marts, and trial-fact
-extraction for evaluation telemetry.
+Deterministic ATIF parsing, facts, event-mart projections, Parquet IO, capture authority, request evidence, and Reef-recorded evidence readers. Runtime CAS and state events remain in their existing top-level modules.
 
 ## What lives here / entry points
 - `atif.py`: ATIF canonical normalization and event conversion.
@@ -10,16 +9,15 @@ extraction for evaluation telemetry.
 - `event_mart.py`: Event mart aggregation and query surfaces.
 - `parquet_io.py`: High-performance columnar Parquet writing.
 - `capture_authority.py`, `llm_request.py`: Telemetry capture authority.
+- `reef_intake.py`, `reef_shift.py`: Reef-recorded evidence intake and harness-version shift comparison (readers only, no execution or calibration).
 
 ## Invariants or rules
-1. ATIF Conformance: Telemetry must validate against the canonical ATIF schema.
-2. Projection Parity: Exported rows, Parquet schemas, SQL-facing table names,
-   digests, and query results must remain deterministic across versions.
-3. Frozen Layout: Do not relocate remaining top-level evidence helpers without
-   explicit approval (`evidence_store.py` and `state_events.py` remain at root).
+- Validate incoming ATIF against the appropriate schema.
+- Identical input bytes and schema/version produce reproducible facts, digests, and query results. Intentional contract changes need explicit migration/version handling.
+- Do not execute models or add subjective judgments here; preserve immutable input bytes and provenance.
 
 ## Tests or checks
-- Targeted tests: `pytest tests/test_pipeline.py tests/test_terminus2_analysis.py tests/test_event_mart.py`; add `tests/test_ingest_verify.py` when changing projection completeness.
+The assigned verifier uses affected existing extraction/query tests, including `tests/test_event_mart.py`, `tests/test_evidence_queries.py`, and `tests/test_evidence_store.py` as relevant.
 
 ## What not to add here
-Do not place raw model execution or subjective evaluator logic here.
+No runtime-driver orchestration or module-layout migration outside the assigned change.

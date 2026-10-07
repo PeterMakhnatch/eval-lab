@@ -26,6 +26,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import json
+import os
 from contextlib import suppress
 from pathlib import Path
 from typing import Any
@@ -156,6 +157,18 @@ def read_serve_config(repo_root: Path) -> dict[str, Any]:
     if parser is not None:
         fields["reasoning_parser"] = parser
     fields["tool_call_parser"] = constants.get("TOOL_CALL_PARSER")
+    fields["configuration_digest"] = (
+        "sha256:" + hashlib.sha256(ast.dump(tree, include_attributes=False).encode()).hexdigest()
+    )
+    fields["deployment_overrides"] = {
+        name: os.environ[name]
+        for name in (
+            "EVALLAB_MIMO_GPU",
+            "EVALLAB_MIMO_MAX_RUNNING_REQUESTS",
+            "EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS",
+        )
+        if name in os.environ
+    }
     fields["path"] = path.as_posix()
     return fields
 
@@ -386,6 +399,16 @@ def _setup_fields(
     )
     limits = request if request is not None else spec
     return {
+        "environment": {
+            "backend": environment,
+            "egress_mechanism": (
+                "docker-network-none-from-creation"
+                if effective and environment == "docker"
+                else "daytona-provider-deny-all-after-setup"
+                if effective and environment == "daytona"
+                else None
+            ),
+        },
         "harness": {
             "id": harness_id,
             "version": harness_version,
@@ -398,6 +421,8 @@ def _setup_fields(
             "tool_call_parser": parser,
             "reasoning_parser": serve.get("reasoning_parser"),
             "context_length": serve.get("context_length"),
+            "configuration_digest": serve.get("configuration_digest"),
+            "deployment_overrides": serve.get("deployment_overrides", {}),
             "sources": {
                 "model_revision": f"{SERVE_CONFIG_RELATIVE} MODEL_REVISION",
                 "sglang_image": f"{SERVE_CONFIG_RELATIVE} SGLANG_IMAGE",

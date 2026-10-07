@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ours-har168-20261006-002402-a2__nKe6PfD",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

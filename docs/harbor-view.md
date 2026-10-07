@@ -94,11 +94,59 @@ new health records.
   machinery. Before that, it simply re-ran our own copy detector shipped in the
   task's grading files. Only verdicts with
   `input_policy=evallab.reader_input/blind-v2` are shown.
-- **Dropped readers.** Inspect Scout with METR's `reward_hacking` / `broken_env`
-  scanners caught 0/2 copied H12 passes and 1/5 copy-benchmark passes. Those
-  numbers come from an adapted, not native, setup, and it was dropped. The
+- **Not on the page.** Inspect Scout with METR's `reward_hacking` scanner
+  (`evallab.readers.scout_metr`) runs on demand, not on the task pages. On our
+  copies it caught 1/11 at its 5%-FPR cut (HAR-187 below). The
   `infra_not_model` Signal is paused: it found 0/5 labelled infra failures, so
   infra stays on the watch's rules.
+
+### Detector scorecard: `evallab detectors` (HAR-187, HAR-198)
+
+```bash
+uv run evallab detectors verify                      # checksums of labels and cache
+uv run evallab detectors score                       # every cached detector, own label, $0
+uv run evallab detectors score --check reward_hacking --families
+uv run evallab detectors list --corpus detectors-v1
+uv run evallab detectors run --detector rules --tw-root DIR   # judge uncached rows, cache them
+```
+
+The corpus is `research/calibration/detectors-v1` (`corpus.json` describes it).
+It holds 484 traces with labels, sealed by `MANIFEST.sha256`:
+
+- **`tw`:** 100 Terminal Wrench rewarded hacks across 11 families and 100
+  passing baselines (Apache-2.0). The hacks are TW's *sanitized* trajectories,
+  with the red-team prompt removed and the agent text rewritten.
+- **`tw-raw`:** the same runs, raw. 99/100 raw hacks confess, so every LLM
+  reader just reads the confession. This source measures label leakage, not
+  detection.
+- **`ours`:** our 11 copied passes and 13 HAR-168 clean passes.
+- **`g6`:** the 60 G5 runs with the two raters' agreed loop and infra labels
+  (HAR-166).
+
+Every judge output already paid for sits in `cache/<detector>/<id>.json`,
+sealed by `CACHE.sha256`, so `score` never calls a model.
+
+- **Detectors that emit a score** are cut at 2% and 5% false positives on the
+  `tw` negatives (`--calibrate-on`), and the same cut is applied to every source.
+- **Detectors that only flag** are reported at their own operating point.
+- **Adding a detector:** subclass `evallab.detectors.Detector` with `name`,
+  `check` and `judge(row, trial_dir)`, then `run` it.
+
+| Detector | TW hacks caught | TW clean flagged | Our copies caught | Our clean flagged | $ per 1k |
+|---|---|---|---|---|---|
+| `rules` | 12/100 | 24/100 | 9/11 | 0/13 | 0 |
+| `harbor_analyze` | 16/19 | 1/18 | 2/10 | 0/7 | 7.5 |
+| `metr_reward_hacking` (5% FPR, score > 9) | 24/32 | 1/32 | 1/11 | 0/13 | 2.0 |
+| `laminar_copied` | 1/10 (raw TW) | 1/10 (raw TW) | 11/11 | 0/13 | ~14 for 3 Signals |
+| `laminar_stuck_loop` (label `stuck_loop`, G6) | 34/36 loops | 6/16 non-loops | | | |
+
+- **General hacks** (hollow implementations, output spoofing and so on): the
+  general LLM readers catch them and our rules don't.
+- **Copying the upstream fix:** caught by the Laminar copy Signal and by our
+  rules' upstream-fetch tripwires. The LLM readers miss it.
+- **Caveat on the TW numbers:** sanitized TW hacks still say "verifier" in
+  72/100 runs against 0/100 clean ones, so the TW recall is an upper bound for
+  natural, unconfessed hacks.
 
 ## Read-only task dossier (HAR-186)
 

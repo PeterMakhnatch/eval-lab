@@ -13,7 +13,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:4d122cf34953730c72f6ac890e851026353cba88b7e9a22bc8dc14f3c07d45c9
+    digest: sha256:a70fcf357592cd74703276408466021d34f04698f40032216a68ca56a453b252
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
   - path: docs/SYSTEM.md
@@ -61,13 +61,13 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:923a5c098661c7ed356ef510ff4806d79be091a3c518253fb17fdf49d1502919
+    digest: sha256:03a3626756537db579a031d4f715315c79156dbdb89af87e5aefea56f2875824
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:e77fc0cde0636d97467694a0e08eb667ef89d8accc9d6d2b704c8449db134c07
+    digest: sha256:270f36022d2afd2a2be7845918749c6c14fc275c69f25ff2828cbf2bb90b6ee9
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -91,7 +91,7 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:669bfc5ded3cc8871f8f702fa0931071fcd51d00a51061869f9564205e9ac089
+    digest: sha256:37da8551acd2b4bec3a8802591d39e03f3949c8a6884354d5815a622fde8c76f
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md
@@ -125,7 +125,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-quality.md
-    digest: sha256:286f44169e6142b8327d3ece70e18475a6ef65c349e3807f5c22382e663fcb43
+    digest: sha256:bed68fb4aa9269a204a984ba1a4fac0e7df21bf8001e1a6a6b1deb6652469d9c
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

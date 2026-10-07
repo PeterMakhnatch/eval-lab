@@ -234,6 +234,11 @@ def derived_root_from_environment(
     return resolution.path
 
 
+def task_audit_path(repo_root: Path, *, derived_root: Path | None = None) -> Path:
+    """The dataset audit projection in the existing shared derived store."""
+    return derived_root_from_environment(repo_root, explicit=derived_root) / "audit.parquet"
+
+
 ParquetLayout = Literal["hot", "job", "revision", "cold-table", "cold-day", "directory", "root"]
 PARQUET_LAYOUT_ORDER: tuple[ParquetLayout, ...] = (
     "hot",

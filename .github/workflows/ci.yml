@@ -92,7 +92,8 @@ jobs:
             tests/test_harbor_laminar.py tests/test_mimoagent_worker.py \
             tests/test_mimoagent_stops.py tests/test_mimoagent_trajectory.py \
             tests/test_execution_contracts.py \
-            tests/test_native_telemetry.py tests/test_credential_bridge.py
+            tests/test_native_telemetry.py tests/test_credential_bridge.py \
+            tests/test_harbor_docker.py tests/test_egress_lock.py
 
   quality-required:
     name: quality-required

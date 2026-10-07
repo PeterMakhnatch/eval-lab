@@ -70,6 +70,14 @@ def resolve_trial_task(source: Path) -> Path:
     raise FileNotFoundError(f"Trial task is unavailable at {original}; provide --task")
 
 
+def _optional_trial_task(source: Path) -> Path | None:
+    """Return the trial's own task when resolvable; TW trials carry none."""
+    try:
+        return resolve_trial_task(source)
+    except (OSError, KeyError, ValueError, TypeError, AttributeError):
+        return None
+
+
 def stage_trial(source: Path, root: Path = DEFAULT_ROOT, task: Path | None = None) -> Path:
     """Make a fresh, blind copy: native evidence, raw reward, no Eval Lab labels."""
     source = Path(source).resolve()
@@ -198,7 +206,10 @@ async def run_analyze(
     from harbor.models.environment_type import EnvironmentType  # ty: ignore[unresolved-import]
 
     configure_evaluator(agent, model)
-    independent_task = stage_task(task or resolve_trial_task(source), source, root)
+    explicit = task if task is not None else _optional_trial_task(source)
+    # TW trials carry no prepared Harbor task: analyze the trajectory with
+    # whatever task info the trial dir itself holds (instruction.md, prompt).
+    independent_task = stage_task(explicit, source, root) if explicit is not None else None
     staged = stage_trial(source, root, independent_task)
     report, job_dir = await harbor_run(
         path=staged,

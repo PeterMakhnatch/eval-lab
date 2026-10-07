@@ -1,20 +1,19 @@
-# Schemas & Contracts Subsystem (src/evallab/schemas/)
+# Shared schemas
 
 ## Purpose
-Core typed models, immutable DTOs, trial specs, and validation schemas for the
-eval-lab platform.
+Dependency-light shared Pydantic contracts, currently in `__init__.py`.
 
 ## What lives here / entry points
 - `__init__.py`: Primary schema definitions and model exports.
 - Top-level contract companions: `execution_contracts.py`, `capability_contract.py`.
 
 ## Invariants or rules
-1. Backward Compatibility: Modifying schemas must preserve existing field serialization or provide default fallbacks.
-2. Strict Type Safety: Pydantic models must enforce field boundaries and reject undefined extra parameters where fail-closed contracts apply.
-3. Decoupled Imports: Domain models should not import runtime execution engines or database connection handlers.
+- Validate strictly and fail closed on invalid contracts.
+- Preserve actual persisted/wire contracts unless the change includes explicit versioning/migration. Do not add speculative fallback aliases or unused compatibility paths.
+- No runtime DB connections, model execution, or side-effectful application imports.
 
 ## Tests or checks
-- Targeted unit tests: `pytest tests/test_contracts.py tests/test_authoring_properties.py`
+The assigned verifier uses affected existing contracts and authoring-properties tests.
 
 ## What not to add here
-Do not import runtime execution engines, heavy CLI tools, or database connection handlers here.
+No runtime service layer in the schema package.

@@ -82,10 +82,15 @@ COPY_CHECKS = (
 
 
 def page_name(task_name: str) -> str:
-    """``task-000792`` for ``.../format-code-task-000792``; else the last path part."""
-    tail = task_name.rsplit("/", 1)[-1]
-    digits = re.search(r"(\d+)$", tail)
-    return PAGE_PREFIX + (digits.group(1) if digits else tail)
+    """Viewer page for a task; generic namespaces stay collision-safe."""
+    from evallab.dataset_audit_plugins import task_page_name
+
+    try:
+        return task_page_name(task_name)
+    except ValueError:
+        slug = re.sub(r"[^A-Za-z0-9._-]+", "-", str(task_name))[:72].strip(".-") or "task"
+        digest = hashlib.sha256(str(task_name).encode()).hexdigest()[:12]
+        return PAGE_PREFIX + f"{slug}-{digest}"
 
 
 def trusted_trials(

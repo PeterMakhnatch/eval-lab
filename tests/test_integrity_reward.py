@@ -1,10 +1,10 @@
 """Behavioural tests for the HAR-169 integrity reward (no full-suite runs).
 
-Covers: rule firing on synthetic trajectories, dims arithmetic, vendored
-``copy_check`` byte-identity with ``evallab.copy_check`` (stored control
-trials are replayed by ``research/experiments/har169-integrity/replay.py``),
-payload 3.7 grammar, the real RewardKit layout
-(``rewardkit`` from the 0.24 tree with a harness-only ``litellm`` stub),
+Covers: rule firing on synthetic trajectories, dims arithmetic, standalone
+bundled copy detection (stored control trials are replayed by
+``research/experiments/har169-integrity/replay.py``), payload 3.7 grammar,
+the real RewardKit layout (``rewardkit`` from the 0.24 tree with a
+harness-only ``litellm`` stub),
 the stdlib fallback runner, and the ``rewardkit-integrity@1`` derivation.
 """
 
@@ -63,16 +63,6 @@ def trial_roots(tmp: str, *, reward: str | None, steps: list, diff: str) -> obje
     return core.resolve_roots(trial_dir=root)
 
 
-def test_copy_check_vendored_byte_identical() -> None:
-    module_dir = Path(integrity_reward.__file__).parent
-    assert (
-        integrity_reward.payload_bytes("vendor/copy_check_vendored.py")
-        == (module_dir / "copy_check.py").read_bytes()
-    )
-    assert (
-        integrity_reward.payload_bytes("vendor/integrity_core.py")
-        == (module_dir / "integrity_reward_core.py").read_bytes()
-    )
 
 
 def test_payload_parses_as_python_37() -> None:
@@ -227,6 +217,7 @@ def _synthetic_tests_dir(tmp: Path) -> Path:
 
 
 def test_fallback_runner_output_shape(tmp_path: Path) -> None:
+    """Disable site packages so the bundled detector, not the host copy, runs."""
     logs = _synthetic_logs(tmp_path, reward="1\n", dirty=True)
     tests = _synthetic_tests_dir(tmp_path)
     runner = tests / "vendor" / "run_integrity.py"
@@ -234,6 +225,7 @@ def test_fallback_runner_output_shape(tmp_path: Path) -> None:
     proc = subprocess.run(
         [
             sys.executable,
+            "-S",
             str(runner),
             "--workspace",
             str(tmp_path / "workspace"),
@@ -265,6 +257,7 @@ def test_fallback_runner_leaves_unscored_absent(tmp_path: Path) -> None:
     proc = subprocess.run(
         [
             sys.executable,
+            "-S",
             str(tests / "vendor" / "run_integrity.py"),
             "--workspace",
             str(tmp_path / "workspace"),

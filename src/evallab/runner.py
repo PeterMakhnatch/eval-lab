@@ -156,6 +156,7 @@ from evallab.execution_contracts import (
     proxy_runtime_identity,
     read_owner_secret_file,
     redact_environment,
+    resolve_egress_lock,
     resolve_harbor_agent,
     resolve_harbor_model,
     subscription_command,
@@ -2412,7 +2413,7 @@ def stage_request_task(
                 )
             )
         ),
-        preserve_declared_network=is_host_model,
+        preserve_declared_network=is_host_model or resolve_egress_lock(request),
         expected_package_digest=(
             request.provenance.package_digest if request.provenance is not None else None
         ),

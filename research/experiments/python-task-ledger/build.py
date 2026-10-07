@@ -32,12 +32,20 @@ fixed by default:
   (``STRIP_NOP_FAILED``), or an oracle label in ``ORACLE_NOT_KEEP``
   (HAR-191: unsolvable under the lock, no upstream fix, or a lenient nop).
 * ``keep``: otherwise — a validated or candidate strip variant suffices.
+  A validated ``purge-installed-copies@1`` whose ``repairs_digest`` is the
+  current run digest becomes the run package first, so a repaired installed-copy
+  leak is keep rather than the old discard.
+
+A verifier that passes only with egress open (``oracle:fail-network``) is
+discarded before the verdict. An allow-list would put hidden tests on a
+network; a recorded mock has no captured bodies. ``oracle:none`` and
+``nop:pass`` stay fix, not discard.
 
 ``oracle_pilot.csv`` holds the two HAR-191 pilot rows, digest-bound.
 ``oracle_sweep.csv`` (Work-3, when it lands) overrides the pilot per task.
 An unmapped label fails the build. ``verdict_evidence`` cites the deciding
-input only (evidence pointers, no prose). Verdict never changes ``status``
-or any existing selection.
+input only (evidence pointers, no prose). The verdict step does not change
+``status``; the network discard and the purge switch do, before it.
 
 LLM checker labels (HAR-111/112) and rater-agent labels do not affect
 status. ``har120_proposal.csv`` is a frozen HAR-120 input and is no longer
@@ -50,12 +58,15 @@ Writes ``ledger.csv`` next to this file and prints the counts.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 from collections import Counter, defaultdict
 from pathlib import Path
 
 import pyarrow.parquet as pq
+
+from evallab.hardening import NETWORK_LABEL, PURGE_ID, network_discard_reason
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
@@ -232,6 +243,61 @@ def apply_oracle(
     return ORACLE_NOT_KEEP[label["label"]], f"{label['evidence']}:{label['label']}"
 
 
+def validated_purge(
+    records: list[tuple[dict, Path]],
+    run_digest: str,
+) -> tuple[dict, Path] | None:
+    """Latest validated purge that repairs this exact run digest."""
+    matches = [
+        item
+        for item in records
+        if item[0]["transform"] == PURGE_ID
+        and item[0]["status"] == "validated"
+        and (item[0].get("inputs") or {}).get("repairs_digest") == run_digest
+    ]
+    return latest(matches)
+
+
+def apply_validated_purge(
+    row: dict,
+    records: list[tuple[dict, Path]],
+) -> tuple[dict, Path] | None:
+    """Switch the run to a validated purge of the current digest."""
+    chosen = validated_purge(records, row["run_digest"])
+    if chosen is None:
+        return None
+    record, path = chosen
+    row["run"] = "repair"
+    row["run_digest"] = record["variant_digest"]
+    row["run_transform"] = PURGE_ID
+    row["run_variant_status"] = "validated"
+    row["status"] = "usable"
+    row["reason"] = (
+        f"installed copies purged by {PURGE_ID}; oracle passed and the no-agent run failed"
+    )
+    row["evidence"] = (row["evidence"] + " " + rel(path)).strip()
+    return chosen
+
+
+def purge_repairs(records: list[tuple[dict, Path]], run_digest: str, defect_digest: str) -> bool:
+    """True when the current run is a validated purge of the defect digest."""
+    return any(
+        item[0]["transform"] == PURGE_ID
+        and item[0]["status"] == "validated"
+        and item[0]["variant_digest"] == run_digest
+        and (item[0].get("inputs") or {}).get("repairs_digest") == defect_digest
+        for item in records
+    )
+
+
+def apply_network_discard(row: dict, label: dict[str, str] | None) -> None:
+    """Discard a verifier that passes only with egress open."""
+    if row["status"] == "discarded" or label is None or label["label"] != NETWORK_LABEL:
+        return
+    row["status"] = "discarded"
+    row["reason"] = network_discard_reason(label["evidence"])
+
+
 def verdict_for(
     status: str,
     task_id: str,
@@ -350,6 +416,16 @@ def write(path: Path, rows: list[dict], columns: tuple[str, ...]) -> None:
 
 
 def main() -> None:
+    global HERE, ROOT, CENSUS, VARIANTS, ORACLE_PILOT, ORACLE_SWEEP
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, default=ROOT, help="Read-only evidence checkout")
+    parser.add_argument("--output", type=Path, help="Ledger destination (default source ledger)")
+    args = parser.parse_args()
+    ROOT = args.root.resolve()
+    HERE = ROOT / "research/experiments/python-task-ledger"
+    CENSUS = ROOT / "research/experiments/har108-python-census/task_health.parquet"
+    VARIANTS = ROOT / "library/task-variants"
+    ORACLE_PILOT, ORACLE_SWEEP = HERE / "oracle_pilot.csv", HERE / "oracle_sweep.csv"
     census = pq.read_table(CENSUS).to_pylist()
     variants = load_variants()
     rows = [
@@ -357,11 +433,14 @@ def main() -> None:
         for row in sorted(census, key=lambda row: row["task_id"])
     ]
     for row in rows:
+        records = variants.get(row["task_id"], [])
+        apply_validated_purge(row, records)
         if row["task_id"] in RUN_DEFECTS:
             digest, reason = RUN_DEFECTS[row["task_id"]]
-            if row["run_digest"] != digest:
+            if row["run_digest"] == digest:
+                row["status"], row["reason"] = "discarded", reason
+            elif not purge_repairs(records, row["run_digest"], digest):
                 raise SystemExit(f"{row['task_id']}: run digest changed; review RUN_DEFECTS")
-            row["status"], row["reason"] = "discarded", reason
         elif row["task_id"] in PROBE_CRACKED:
             digest, reason = PROBE_CRACKED[row["task_id"]]
             if row["run_digest"] != digest:
@@ -369,15 +448,24 @@ def main() -> None:
             row["status"], row["reason"] = "review", reason
     oracle = load_oracle()
     for row in rows:
+        records = variants.get(row["task_id"], [])
         bound = oracle.get(row["task_id"])
         if bound and bound["run_digest"] and bound["run_digest"] != row["run_digest"]:
             raise SystemExit(f"{row['task_id']}: run digest changed; review oracle label")
-        strip = strip_pick(variants.get(row["task_id"], []))
+        apply_network_discard(row, bound)
+        strip = strip_pick(records)
         verdict, evidence = verdict_for(row["status"], row["task_id"], strip)
         row["verdict"], row["verdict_evidence"] = apply_oracle(verdict, evidence, bound)
+        if row["verdict"] == "keep" and row["run_transform"] == PURGE_ID:
+            record = next(
+                item
+                for item in records
+                if item[0]["variant_digest"] == row["run_digest"]
+            )
+            row["verdict_evidence"] += f" {rel(record[1])}:{PURGE_ID}=validated"
     print("verdict", dict(Counter(row["verdict"] for row in rows)))
     print("fix", sorted(row["task_id"] for row in rows if row["verdict"] == "fix"))
-    write(HERE / "ledger.csv", rows, COLUMNS)
+    write(args.output or HERE / "ledger.csv", rows, COLUMNS)
     print("status", dict(Counter(row["status"] for row in rows)))
     print("by split", dict(Counter((row["split"], row["status"]) for row in rows)))
     print("usable run", dict(Counter(row["run"] for row in rows if row["status"] == "usable")))

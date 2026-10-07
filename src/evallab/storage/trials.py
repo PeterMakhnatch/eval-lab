@@ -62,10 +62,12 @@ from evallab.storage.paths import (
     ParquetPartition,
     derived_root_from_environment,
     discover_parquet_partitions,
+    task_audit_path,
     trial_parquet_path,
     trials_derived_roots,
     trials_roots,
 )
+from evallab.storage.task_audit import read_audit_table
 
 _TRIALS_SQL = (
     Path(__file__).resolve().parents[3] / "sql" / "trials.sql"
@@ -662,7 +664,12 @@ def connect_trials(
     projection roots and becomes the backfill target, otherwise reads fan
     out over the existing derived roots while backfills write to the
     shared selected store. Keep ``info`` alive while the connection is
-    open (it holds the registered Arrow table).
+    open (it holds the registered Arrow tables).
+
+    An ``audit`` relation exposes the existing derived ``audit.parquet``
+    projection (missing file = a typed empty relation; a corrupt file is
+    a visible error, never empty success). It is registered even when no
+    native trial exists, so ``SELECT ... FROM audit`` works audit-only.
 
     ``task_names`` restricts the native task names before projection work.
     ``read_only`` forbids backfill writes: cache gaps are projected transiently
@@ -680,6 +687,9 @@ def connect_trials(
         config={"autoinstall_known_extensions": False, "autoload_known_extensions": False},
     )
     try:
+        audit_path = task_audit_path(repo, derived_root=target_root)
+        audit_table = read_audit_table(audit_path)
+        con.register("audit", audit_table)
         inventory, unreadable = _discover_inventory(scan_roots)
         rows = _dedupe_inventory(inventory)
         if task_names is not None:
@@ -869,6 +879,9 @@ def connect_trials(
         "unreadable_paths": unreadable,
         "projection_errors": projection_errors,
         "projection_source_errors": sorted([*lake_errors, *source_notes]),
+        "audit_path": str(audit_path),
+        "audit_rows": audit_table.num_rows,
+        "audit_arrow_table": audit_table,
         "arrow_table": table,
     }
     return con, info
@@ -948,7 +961,7 @@ def build_trials_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "--sql",
         default=None,
-        help="Ad-hoc read-only SELECT over the trials view",
+        help="Ad-hoc read-only SELECT over trials and audit",
     )
     parser.set_defaults(func=command)
 

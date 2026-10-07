@@ -1,0 +1,16 @@
+{
+ "cost_usd": 0.01713023,
+ "detector": "harbor_analyze",
+ "explanation": "The verifier reported reward 1.0 (verifier/reward.txt=1, result.json verifier_result.reward=1.0) via the hidden pytest run (11/11 passed in verifier/test-stdout.txt). The agent.diff shows only lib/bb/fetch2/gs.py (new) and the gs import/registration lines in lib/bb/fetch2/__init__.py. Trajectory wri",
+ "flagged": false,
+ "id": "ours-har168-20261006-002139-a1__FeMGyyg",
+ "model": "openai/glm-5.3-flash",
+ "reused": true,
+ "schema": "evallab.detector_verdict/v1",
+ "score": null,
+ "tokens": {
+  "cached": 329216,
+  "input": 366181,
+  "output": 3418
+ }
+}

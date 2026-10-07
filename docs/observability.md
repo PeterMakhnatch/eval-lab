@@ -14,7 +14,7 @@ Where a human looks when asking "what happened?" — and what each surface owns.
 | Question | Look at |
 |---|---|
 | What finished, and how did it score? Read one run step by step. | **<http://127.0.0.1:8100>**: every job in `~/Developer/eval-lab-results`, in Harbor's viewer with `reward` / `integrity` / `reward_gated`. Always on (LaunchAgent `com.petermakhnatch.evallab.results-viewer`); new and republished jobs appear within about two minutes. |
-| Why was this run counted or excluded? Taint, loop kind, token flow. | `<job>/processed/trial-*.md` (and `.json`) beside the job, linked from `~/Developer/eval-lab-results/INDEX.md`. |
+| Why was this run counted or excluded? Taint, loop kind, token flow. | The trial's **Analysis** tab in the viewer: the processed run report (`<job>/processed/trial-*.md`, also listed in `~/Developer/eval-lab-results/INDEX.md`). |
 | What is running right now? | `evallab watch` (`<job>/watch/BOARD.md`) and, for native MiMo, the live Laminar trace. |
 | One machine-readable account of a trial (for agents). | `evallab report run <trial-or-job> --json`, or the viewer's JSON API (`/api/jobs?q=…`, `/api/jobs/<job>/trials/<trial>/trajectory`). |
 
@@ -28,7 +28,7 @@ see [harbor-view.md](harbor-view.md#always-on-results-viewer).
 |---|---|---|
 | **Results viewer** (`http://127.0.0.1:8100`) | Every published job: trial list, trajectory, verifier output, reward dims, Outcomes/Pareto per job | Counts verdicts and taint reasons (processed pages), live runs |
 | **Phoenix** (`http://127.0.0.1:6006`) | Span trees: ATIF agent steps, tool calls, later LiteLLM/DSPy/researcher calls | Job pass/fail, spend vs ceiling, queue state |
-| **Laminar Cloud** (opt-in native `mimoagent`) | Live automatic OpenAI LLM spans, native tools/child agents and Harbor lifecycle under one trial trace | Canonical grades, copy verdicts, spend admission, paid-run approval or packet-level lock proof |
+| **Laminar Cloud** (opt-in native `mimoagent`) | Live automatic OpenAI LLM spans, native tools/child agents and Harbor lifecycle under one trial trace; explicitly bound native provider metric observations via the credential bridge | Canonical grades, copy verdicts, spend admission, paid-run approval or packet-level lock proof |
 | **`evallab view <jobs>`** | Ad hoc snapshot of chosen jobs, with `--merge` for cross-job Outcomes/Pareto | Staying current |
 | **`digests/YYYY-MM-DD.md`** | Morning one-pager: dispatches, canaries, spend, quarantine | Span timings |
 | **Streamlit** (brief 11) | Research overview over the catalog | Writes, approvals, traces |
@@ -75,8 +75,9 @@ the same SDK alongside OpenAI `3.3.1`. Keep that graph isolated from the lab's
 OpenAI 2.x graph. A native launch inheriting `LMNR_PROJECT_API_KEY` selects
 the checkout's Harbor executable. Load the centrally stored key with
 `keys run -- <authorized-launch-command>`; retain `--extra laminar` when
-using `uv run --locked`. The key is host-only, never a sandbox credential,
-native-worker credential or model request. No key means no Laminar tracing.
+using `uv run --locked`. The key stays in trusted host exporters or the
+credential bridge, never a sandbox/native-worker credential or model request.
+No key means no Laminar tracing.
 
 The state-journal plugin installs public `Job.add_hook` lifecycle observers
 and opens one `harbor.trial` root on trial START, before setup; the session is
@@ -125,7 +126,8 @@ Local real-SDK fixtures exercise exports, nested tools, content/accounting
 parity, exporter/observer failures and cancellation; they are not paid-model,
 Cloud-live, capability or remote-cleanup qualification.
 
-The successor campaign retains the original $8 envelope, including its carried
+Historical HAR-168 plan (superseded by its 2026-10-06 closure; all a3/a4 specs
+remain held): the successor campaign retained the original $8 envelope, including its carried
 old exposure; attempts two through four have a separate $10 allocation under
 the shared $30 ceiling. The removed SSH/code-server $2 is global reserve, not
 experiment headroom. Exact new specs require independent named-delegate
@@ -134,6 +136,66 @@ the first three **within** the twelve, rather than extra paid retries, remains
 a proposal until its canonical grouping is approved. Actual authenticated
 Cloud observation of that immutable prefix gates the remaining nine.
 
+
+## Native provider metrics in Laminar (HAR-181)
+
+`src/evallab/native_telemetry.py` converts actual OTLP data points to zero-duration
+`native.metric <name>` child spans with a `native.metric` observation event.
+The existing credential-relay role accepts authenticated OTLP/HTTP at
+`/v1/metrics` and exports these observations to **the existing Laminar
+`/v1/traces` store**. There is no collector backend, second durable store or
+invented root. This deliberately does not rely on Laminar's released
+[`/v1/metrics` handler](https://github.com/lmnr-ai/lmnr/blob/c7a7d522ad45db3ea6cb7bde40612548a6a3dc7d/app-server/src/api/v1/metrics.rs),
+which acknowledges without decoding or storing points; that source revision
+is not proof of the Cloud's deployed revision.
+
+The span output retains the original metric descriptor, unit, point,
+observation/start timestamps, resource/scope identities, exemplars, flags and
+aggregation fields. Gauge, sum, histogram, exponential histogram and summary
+are supported. OTLP JSON keeps int64/nanoseconds as decimal strings; no
+int64-to-float conversion, unit rescaling, synthetic counter or interpolation occurs.
+Export copies use the canonical secret/bearer/path sanitizer. Point IDs are
+stable across retransmission, rebatching and point reordering.
+
+- **Daytona:** startup `DAYTONA_SANDBOX_OTEL_EXTRA_LABELS` carry the actual open
+  Harbor root's `evallab.trace_id`, `evallab.parent_span_id`,
+  `evallab.session_id`, `trial_id` and known `model_session`. The plugin
+  derives these from the exact trial directory and real SDK context, not the
+  trial name, a phase span or a fabricated UUID. Existing nonreserved labels
+  and environment values remain intact. Native `service.instance.id` supplies
+  the sandbox UUID. Missing, ambiguous or conflicting identities are rejected;
+  organization-wide aggregates are not falsely assigned to a trial.
+- **Modal:** actual `app_id` at resource or point must match one explicitly
+  supplied, time-bounded shared model-session context. App/container identity
+  remains native. Model CPU/GPU, cold-start and queue points are marked
+  `shared_model_session=true`; they do not receive an exclusive `trial_id`.
+  Native cold/queue values are not inferred from wall-clock gaps or billing.
+  Unbound apps and overlapping contexts receive explicit partial rejection.
+
+The bridge separates native ingestion from chat capabilities and acknowledges
+only after Laminar accepts every exported frame. Native frames are bounded
+(2 MiB, including decompressed input); metric conversion is batched so ordinary
+provider batches do not expand into one oversized export. Laminar failures
+produce a non-success response, not a silent success; upstream partial rejection
+counts remain explicit. The existing paid-answer relay still forwards once,
+without an answer retry. Native `/v1/traces` and `/v1/logs` ingress preserves
+source IDs and sanitizes export copies; it does not invent harness parentage.
+
+Use **Tree** view, not Transcript (which omits DEFAULT spans), then select a
+metric's **Span Output**, **Attributes** or **Events**. These are span/event
+observations, not Laminar metric charts, grades, invoice actuals or admission.
+See the [bridge configuration](../tools/modal-mimo-serve/README.md#credential-bridge-native-otlp-adapter-har-181).
+
+Source delivery and synthetic protocol/Cloud readback are not live native
+provider qualification. Deployment, Daytona organization / Modal workspace
+OTLP settings and any new compute smoke need separate current admission;
+these settings affect other resources too. On 2026-10-06, the inspected
+deleted owned sandbox's direct metrics route returned 403 with Analytics API
+configured; the actual SDK Analytics route returned `404 Sandbox not found`.
+No genuine retained Modal cold/queue/GPU points were observed at the inspected
+seams. This limits that readback, not proof that all historical data is
+irrecoverable. Frozen HAR-168 artifacts/runtime stay unchanged; all 24 a3/a4
+specs remain held.
 
 ## Phoenix
 

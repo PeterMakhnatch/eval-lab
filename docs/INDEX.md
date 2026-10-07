@@ -31,7 +31,7 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
-    digest: sha256:1e05e7496aac0f1fdf93380f42772ec576afbeb75140d68fad6b61e823301fbf
+    digest: sha256:8b3cd0ffe45fc59d1c75c611adea30cfc3cd31e1bbe4a00dc829bf9fcde054b2
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
@@ -61,13 +61,13 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:fe4c2bcabb98473836e6b34fc709002a8ec6dff4d2a0a51b5b42caceacc9be08
+    digest: sha256:923a5c098661c7ed356ef510ff4806d79be091a3c518253fb17fdf49d1502919
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:9cde1dbe29f18f25d2db1e3c2567314b784037860174eeae5df2aef244ac6ae1
+    digest: sha256:0f9a743248a85cded797e2b045068f7088b39a2cf235dc96fb78b527d68f2a6b
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -77,9 +77,9 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:e4f69783a44118d9b27ce595ddda57ad5544da4bd73cb971cfed35701dcece35
+    digest: sha256:f30af5ef705a09e140487f54cfc9b9d6276f044f21487793a8f4334c0dad8427
   - path: docs/lora-sft-runbook.md
-    digest: sha256:ccb1d4e90898bd2aae019fa912081daa4cdb13c0be65e03c9487d62f12ecf7f6
+    digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
   - path: docs/mimo-task-catalog.md
     digest: sha256:92cd9596c75aa7bef1d4a7e5e3f5231ef32501c243db5a4f0781b3ebd0bde065
   - path: docs/model-capture.md
@@ -87,7 +87,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:cf974b6909349070858dbac82b2cd261f683912bf033de74f946000d05409d33
   - path: docs/observability.md
-    digest: sha256:d198f9b955e785ec8dbc9b57530b2ebaa2ce2f5493281b33f4f1964519bcd7e0
+    digest: sha256:3d38d182cb4618907c1aa677f9cd74aa6d413077a654ca8792a564047d1bf454
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md

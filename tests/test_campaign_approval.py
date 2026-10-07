@@ -453,6 +453,21 @@ MIMO_MODEL = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
 MIMO_SAMPLING = CampaignSampling(temperature=1.0, top_p=0.95, top_k=20)
 
 
+@pytest.mark.parametrize("size", ["n50", "n18"])
+def test_har188_campaigns_declare_only_native_harness_adapters(size: str) -> None:
+    from evallab.mimoagent_worker import WRAPPER_ADDITIONS
+
+    root = Path(__file__).resolve().parents[1]
+    path = root / f"research/experiments/har188-breadth/har188-breadth-{size}.json"
+    campaign = ExperimentCampaign.model_validate_json(path.read_text())
+    assert campaign.agent == "mimoagent"
+    assert campaign.sampling == MIMO_SAMPLING
+    assert len(campaign.allowed_deviations) == 1
+    deviation = campaign.allowed_deviations[0]
+    assert deviation.field == "harness.additions"
+    assert deviation.value == WRAPPER_ADDITIONS
+
+
 def test_campaign_mimoagent_sampling_pins_what_agent_sends(tmp_path: Path) -> None:
     """The mimoagent route sends 1.0, not the model-only proxy config (0.6)."""
     assert cap.intended_sampling("mimoagent", MIMO_MODEL) == MIMO_SAMPLING
@@ -528,3 +543,34 @@ def test_campaign_terminus_spec_refused_on_mimoagent_campaign(tmp_path: Path) ->
     assert "terminus-2" in decision.message
     assert "mimoagent" in decision.message
     assert path.parent.name == "waiting"
+
+
+def test_campaign_cost_estimate_optional_and_pinned(tmp_path: Path) -> None:
+    """The HAR-188 cost envelope is optional, digest-pinned approvable content."""
+    digest = seed_task(tmp_path)
+    plain = make_campaign(tmp_path, digest)
+    assert plain.cost_estimate is None
+    estimate = cap.CampaignCostEstimate(
+        expected_usd=8.71,
+        worst_case_usd=60.0,
+        formula="E(n)=T*(2.90+0.23148*n)",
+    )
+    pinned = plain.model_copy(update={"cost_estimate": estimate})
+    assert cap.campaign_content_digest(pinned) != cap.campaign_content_digest(plain)
+    reloaded = cap.ExperimentCampaign.model_validate_json(pinned.model_dump_json())
+    assert reloaded.cost_estimate == estimate
+
+
+def test_wave_cost_estimate_waves_and_fence() -> None:
+    """The HAR-188 wave model: 19-wide clamp, cold start, ceiling worst-case."""
+    assert cap.DAYTONA_WAVE_CONCURRENCY == 19
+    full = cap.wave_cost_estimate(100)
+    assert full.expected_usd == 13.76
+    assert full.worst_case_usd == 60.0
+    small = cap.wave_cost_estimate(36)
+    assert small.expected_usd == 4.92
+    assert small.worst_case_usd == 21.6
+    assert cap.wave_cost_estimate(38).expected_usd > 5.0
+    assert cap.wave_cost_estimate(40).expected_usd > 5.0
+    assert cap.fenced_spend_bound(30.0) == 41.4
+    assert cap.fenced_spend_bound(5.0) == 16.4

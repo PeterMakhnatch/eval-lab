@@ -187,3 +187,34 @@ def test_trials_census_reuses_existing_shared_and_historical_projections(
 
     assert set(roots) == expected
     assert roots[0] == configured
+
+
+def test_query_partition_selection_keeps_shared_lake_but_excludes_other_jobs(
+    tmp_path: Path,
+) -> None:
+    selected = {
+        "job_id=wanted/trial_id=t/trial_facts.parquet",
+        "job_id=wanted/revision_id=r/trial_facts.parquet",
+        "job_id=wanted/trial_facts.parquet",
+        "compact/trial_facts/dt=2026-10-06/part0.parquet",
+        "compact/dt=2026-10-06/trial_facts.parquet",
+        "trial_facts/part0.parquet",
+        "trial_facts.parquet",
+    }
+    unrelated = {
+        "job_id=other/trial_id=t/trial_facts.parquet",
+        "job_id=other/revision_id=r/trial_facts.parquet",
+        "job_id=wanted/trial_id=t/steps.parquet",
+        "compact/steps/dt=2026-10-06/part0.parquet",
+    }
+    for relative in selected | unrelated:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+
+    discovery = discover_parquet_partitions(
+        tmp_path, tables=["trial_facts"], job_ids=["wanted"],
+    )
+
+    assert {p.path.relative_to(tmp_path).as_posix() for p in discovery.partitions} == selected
+    assert discovery.job_directories == (tmp_path / "job_id=wanted",)

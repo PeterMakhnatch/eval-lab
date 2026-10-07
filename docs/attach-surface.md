@@ -112,6 +112,17 @@ allocations are not replaced. The native raw files are not rewritten. No provide
 queue, sandbox, or Laminar API call is made. Projection failures remain visible in
 `projection_error`, never disappear from the census.
 
+Read-only consumers can call
+`connect_trials(..., task_names=[...], read_only=True)`. The exact recorded task-name
+filter is applied after native deduplication and before selected projection reads.
+Missing projections are computed in memory, without `process-job`, Parquet writes,
+catalog mutation, or report publication; `info["in_memory_projections"]` reports
+the affected sources. Ordinary callers retain the existing backfill behavior.
+`evallab task <task_id> [--json]` uses this mode and adds the task's existing health,
+repair, test, exploit, and per-source reader evidence. See
+[the task dossier](harbor-view.md#read-only-task-dossier-har-186) and the
+`.omp/skills/task-dossier/SKILL.md` agent wrapper.
+
 For an explicit manual projection:
 
 ```sh

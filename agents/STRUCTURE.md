@@ -271,3 +271,8 @@ The change log below is historical, not a current inventory or work order.
   `swe.yaml`, invoked only by an isolated Python 3.12 subprocess. Its
   OpenAI 3.x graph is incompatible with Harbor/LiteLLM's OpenAI 2.x graph;
   neither the toolchain nor its dependencies enter the root `uv.lock`.
+- 2026-10-07 — `tools/agentenv-bench/` added under the `tools/` bucket rule
+  for HAR-190: model-free task/grader controls for MiMo general tasks and a
+  port of one task's world into Scale's AgentEnv (`agentenv-framework`
+  0.9.1275). It runs only as `uv run --project tools/agentenv-bench --locked`;
+  AgentEnv's dependency graph never enters the root `uv.lock`.

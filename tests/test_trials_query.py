@@ -676,3 +676,67 @@ def test_command_summary_sql_safety_and_stderr(tmp_path, monkeypatch, capsys):
     for bad in ('DELETE FROM "trials"', 'COPY "trials" TO \'/tmp/trials-x.csv\'', ""):
         args = argparse.Namespace(sql=bad, runs_dir=[str(runs)], derived_root=str(derived))
         assert command(args, tmp_path, harbor=None) == 1
+
+
+def test_read_only_task_selection_projects_cache_gaps_without_writes(tmp_path, monkeypatch):
+    runs, derived = tmp_path / "runs", tmp_path / "not-created"
+    job = _make_job(runs, "selected-job", job_id="selected-job", n_total=2)
+    selected = _make_trial(
+        job, "selected__a", trial_id="selected-trial", job_id="selected-job",
+        trial_name="selected-trial", task_name="mimo-v2.6-rl/format-code-task-000792",
+    )
+    _make_trial(
+        job, "other__b", trial_id="other-trial", job_id="selected-job",
+        trial_name="other-trial", task_name="mimo-v2.6-rl/format-code-task-000793",
+    )
+    result_path = selected / "result.json"
+    result = json.loads(result_path.read_text())
+    result["agent_result"] = {"metadata": {"native_exit_status": "Idle"}}
+    result["verifier_result"]["rewards"].update({"integrity": 0.0, "reward_gated": 0.0})
+    _write_json(result_path, result)
+    before = {str(p): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+    def forbid_backfill(*args, **kwargs):
+        raise AssertionError("read-only task lookup attempted a persistent backfill")
+
+    monkeypatch.setattr("evallab.storage.trials.process_job", forbid_backfill)
+    con, info = connect_trials(
+        repo_root=tmp_path, roots=[runs], derived_root=derived,
+        task_names=["mimo-v2.6-rl/format-code-task-000792"], read_only=True,
+    )
+    try:
+        assert con.execute(
+            "SELECT trial_id, reward, integrity, reward_gated, stop_reason, legit, "
+            "projection_error FROM trials"
+        ).fetchall() == [
+            ("selected-trial", 1.0, 0.0, 0.0, "task_complete", False, None),
+        ]
+        assert info["n_backfilled"] == 0
+        assert info["in_memory_projections"] == ["selected-job/selected-trial"]
+    finally:
+        con.close()
+    assert {str(p): p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()} == before
+    assert not derived.exists()
+
+
+def test_read_only_projection_preserves_absent_reward_and_stop_evidence(tmp_path):
+    runs = tmp_path / "runs"
+    job = _make_job(runs, "unscored-job", job_id="unscored-job", n_total=1)
+    trial = _make_trial(
+        job, "unscored__a", trial_id="unscored-trial", job_id="unscored-job",
+        trial_name="unscored-trial", task_name="format-code-task-000788",
+    )
+    result = json.loads((trial / "result.json").read_text())
+    result.pop("verifier_result")
+    _write_json(trial / "result.json", result)
+    con, _ = connect_trials(
+        repo_root=tmp_path, roots=[runs], derived_root=tmp_path / "absent",
+        task_names=["format-code-task-000788"], read_only=True,
+    )
+    try:
+        assert con.execute(
+            "SELECT reward, integrity, reward_gated, stop_reason, "
+            "cut_short_by_our_limits, legit FROM trials"
+        ).fetchall() == [(None, None, None, "unknown", None, False)]
+    finally:
+        con.close()

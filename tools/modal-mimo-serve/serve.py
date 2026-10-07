@@ -1,6 +1,6 @@
 """Serve XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B on Modal with SGLang (HAR-90).
 
-One A100-80GB, 64K context, OpenAI-compatible ``/v1/chat/completions``. Every
+One A100-80GB, 262144-token context, OpenAI-compatible ``/v1/chat/completions``. Every
 ``/v1`` call must carry ``Authorization: Bearer <SGLANG_API_KEY>``; the key
 comes from the Modal Secret ``evallab-mimo-v26-9b-api-key``. Weights live on
 the Modal Volume ``evallab-mimo-v26-9b-weights``. At most one container runs,
@@ -50,8 +50,8 @@ SGLANG_IMAGE = (
 VOLUME_NAME = "evallab-mimo-v26-9b-weights"
 SECRET_NAME = "evallab-mimo-v26-9b-api-key"
 GPU = "A100-80GB"
-CONTEXT_LENGTH = 65_536
-TOOL_CALL_PARSER = "mimo"
+CONTEXT_LENGTH = 262_144
+TOOL_CALL_PARSER = "qwen3_coder"
 PORT = 8000
 MINUTES = 60
 WEIGHTS_ROOT = Path("/weights")

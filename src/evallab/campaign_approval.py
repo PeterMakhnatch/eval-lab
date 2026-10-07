@@ -10,10 +10,11 @@ vocabulary with the HAR-156 ceiling comparison, infra-excluded trials reuse
 the canonical :func:`evallab.counts.classify_counts` verdict, and escalation
 reuses ``lin comment`` on the campaign's card.
 
-A campaign records the budget (USD), the allowed task list (task ids and
-package digests), the reference profile plus the allowed declared deviations,
-the lock requirement, the backstop floor for trial ceilings, the queue cwd,
-and the submitter. Research-Harbor approves it ONCE, as Peter's delegate.
+A campaign records the budget (USD) plus the pinned cost envelope
+(staging-time expected and worst-case cost with its formula), the allowed
+task list (task ids and package digests), the reference profile plus the
+allowed declared deviations, the lock requirement, the backstop floor for
+trial ceilings, the queue cwd, and the submitter. Research-Harbor approves it ONCE, as Peter's delegate.
 The approval is an append-only, attributable record (``approvals.jsonl``) and
 the campaign content is digest-pinned and immutable after approval: any later
 content change is a gate defect that refuses admission and escalates.
@@ -165,12 +166,91 @@ class CampaignSampling(_FrozenContract):
     top_k: int | None = None
 
 
+class CampaignCostEstimate(_FrozenContract):
+    """Pinned cost envelope for one campaign (HAR-188).
+
+    Part of the approvable content so Research-Harbor approves the envelope,
+    not just the budget cap: ``expected_usd`` is the staging-time estimate
+    for the full campaign, ``worst_case_usd`` is every trial billing its
+    per-trial ceiling (realized spend is still fenced at ``budget_usd`` plus
+    at most one wave of in-flight ceilings by the standing budget gate),
+    and ``formula`` records how the numbers were derived.
+    """
+
+    expected_usd: float = Field(gt=0)
+    worst_case_usd: float = Field(gt=0)
+    formula: str = Field(min_length=1)
+
+
+#: HAR-168 measured rates reused by the HAR-188 breadth cost envelope.
+#: GPU/bridge upper ($2.90/h) and Daytona ($0.23148/h/sandbox) come from the
+#: ignored HAR-168 controller (har164 ``runs/har168/campaign.py``); the $1.28
+#: batch is its fresh measured-time upper, not an invoice-backed price.
+HAR168_GPU_HOURLY_USD = 2.90
+HAR168_DAYTONA_HOURLY_USD = 0.23148
+HAR168_FOUR_RUN_BATCH_USD = 1.28
+HAR168_TRIAL_CEILING_USD = 0.6
+#: Effective batch wall from the HAR-168 fresh 4-run batch, measured at 4
+#: concurrent trials; whether 19 trials on one server decode slower is
+#: unknown (HAR-168 records no per-trial wall times or server throughput).
+HAR168_BATCH_WALL_HOURS = HAR168_FOUR_RUN_BATCH_USD / (
+    HAR168_GPU_HOURLY_USD + 4 * HAR168_DAYTONA_HOURLY_USD
+)
+#: Cold server start before the first wave, in hours.
+COLD_START_HOURS = 4 / 60
+#: Max concurrent Daytona sandboxes: the HAR-163 clamp
+#: ``floor((limit * safety - used - pending - reserve) / per_sandbox)``
+#: (``dispatch_guards.daytona_tick_allowance``) admits 19 on an idle account
+#: (200 * 0.8 - 0 - 0 - 8) / 8; lower whenever the account is busy.
+DAYTONA_WAVE_CONCURRENCY = 19
+
+
+def wave_cost_estimate(n_trials: int) -> CampaignCostEstimate:
+    """Concurrent-wave cost envelope for ``n_trials`` on one warm server.
+
+    The batch runs in waves of at most ``DAYTONA_WAVE_CONCURRENCY`` trials
+    while the GPU server stays warm for the whole wall time: ``w =
+    ceil(n / 19)`` waves, GPU ``(cold start + w * T) * $2.90/h``, Daytona ``n
+    * T * $0.23148/h``. Worst case is every trial billing its $0.60
+    per-trial ceiling; realized spend stays inside the budget plus at most
+    one wave of in-flight ceilings (see ``fenced_spend_bound``).
+    """
+    if n_trials < 1:
+        raise ValueError(f"wave_cost_estimate needs at least 1 trial, got {n_trials}")
+    waves = -(-n_trials // DAYTONA_WAVE_CONCURRENCY)
+    expected = (
+        COLD_START_HOURS + waves * HAR168_BATCH_WALL_HOURS
+    ) * HAR168_GPU_HOURLY_USD + n_trials * HAR168_BATCH_WALL_HOURS * HAR168_DAYTONA_HOURLY_USD
+    return CampaignCostEstimate(
+        expected_usd=round(expected, 2),
+        worst_case_usd=round(n_trials * HAR168_TRIAL_CEILING_USD, 2),
+        formula=(
+            f"E=(4/60h+w*{HAR168_BATCH_WALL_HOURS:.4f}h)*$2.90/h"
+            f"+n*{HAR168_BATCH_WALL_HOURS:.4f}h*$0.23148/h, w=ceil(n/19) "
+            "waves (19-wide Daytona clamp, lower if busy), T from HAR-168 "
+            "fresh 4-run batch at 4 concurrent (19-wide decode unknown); "
+            "W=n*$0.60 ceiling, realized<=budget+19 in-flight ceilings"
+        ),
+    )
+
+
+def fenced_spend_bound(budget_usd: float) -> float:
+    """Realized-spend bound the HAR-175 budget gate enforces (HAR-188).
+
+    The gate refuses a launch once reservations plus settled actuals plus the
+    candidate estimate exceed the budget, so at most one wave of already
+    running trials can still settle: ``budget + 19 * $0.60``.
+    """
+    return round(budget_usd + DAYTONA_WAVE_CONCURRENCY * HAR168_TRIAL_CEILING_USD, 2)
+
+
 class ExperimentCampaign(_FrozenContract):
     """The approvable content of one experiment campaign (HAR-175)."""
 
     schema_version: Literal["experiment-campaign/v1"] = SCHEMA_CAMPAIGN
     campaign_id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9-]*$")
     budget_usd: float = Field(gt=0)
+    cost_estimate: CampaignCostEstimate | None = None
     tasks: list[CampaignTaskAllowance] = Field(min_length=1)
     reference_profile: str = Field(min_length=1)
     allowed_deviations: list[ReferenceDeviation] = Field(default_factory=list)

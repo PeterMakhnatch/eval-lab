@@ -55,8 +55,9 @@ from evallab.task_pages import (
 )
 
 SOURCE_RECORD = ".evallab-results-viewer.json"
-#: v2: hard-linked mirrors. A v1 (symlinked) viewer job is dropped and rebuilt.
-SOURCE_RECORD_SCHEMA = "results_viewer/source/v2"
+#: Bumped whenever the mirror layout changes; an older viewer job is dropped
+#: and rebuilt. v2: hard links. v3: run report as the trial's ``analysis.md``.
+SOURCE_RECORD_SCHEMA = "results_viewer/source/v3"
 DEFAULT_ROOT = (
     Path.home() / "Library" / "Application Support" / "evallab" / "results-viewer" / "jobs"
 )

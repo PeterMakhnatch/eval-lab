@@ -310,8 +310,9 @@ The explicit Xiaomi RL sampling profile is temperature 1.0/top_p 0.95/top_k
 20, with thinking enabled. Every completed HTTP response records its sampling,
 status, finish reason and available usage; the proxy also records actual
 shaping. Terminus retains its separate 0.6/0.95/20 generation-config profile.
-SGLang 0.5.20 serves `--tool-call-parser mimo`; native OpenAI structured tools
-are not translated into Terminus commands. Native messages, raw tool arguments
+SGLang 0.5.20 is configured with `--tool-call-parser qwen3_coder` and
+`--context-length 262144`, matching the Xiaomi RL reference. Native OpenAI
+structured tools are not translated into Terminus commands. Native messages, raw tool arguments
 and logs remain available under `agent/mimoagent/`. Harbor ATIF includes
 delegated trajectories and references so copy-check inspects child actions.
 Unobserved usage stays unknown — a failed call with no response contributes no
@@ -385,7 +386,7 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   too, `top_k` is not.
 - `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` — a self-hosted SGLang
   server on Modal serving that id (`--served-model-name` equal to it, MIT
-  qwen3_5 hybrid, 64K context as served). The per-trial proxy runs with
+  qwen3_5 hybrid, 262,144-token context configured). The per-trial proxy runs with
   `--provider mimo_selfhosted` and pins the chat-completions base URL from
   `EVALLAB_MIMO_SELFHOSTED_UPSTREAM` (required, no default) to one Modal
   serving label or routing region: `*.modal.run` (Web Functions) or a

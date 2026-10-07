@@ -1,51 +1,27 @@
 ---
 name: repository-health
-description: >-
-  Audit eval-lab repository health, local/CI parity, duplicated rules, generated
-  state, worktree hygiene, and source-of-truth drift. Prefer existing deterministic
-  checks over another maintenance layer.
+description: Investigate Eval Lab-specific CI/documentation/source-authority drift or worktree/runtime retirement, preserving unique evidence and active consumers.
 ---
 
-# Eval-lab repository health
+# Eval Lab repository health
 
-Reduce maintenance cost without creating another governance layer.
+Use the current task's relevant WORKFLOW, CHECKS, STRUCTURE, and retention contracts, not a universal historical-mission stack. Fix the authoritative producer, remove the superseded duplicate, and measure the requested observable. Generic repository-maintenance guidance need not be copied here.
 
-## Baseline first
+## Eval Lab-specific checks
 
-1. Read the current mission, ownership, structure, and check contracts already supplied by the repository.
-2. Record the exact branch and dirty state. Use `git worktree list --porcelain` for the worktree inventory; never infer paths from naming conventions.
-3. Identify the authoritative source for the reported problem and every derived display or document.
-4. Measure the same observable before and after: command latency, output size, stale entries, diagnostic count, worktree disk use, or failing gate.
+- Compare `scripts/premerge.sh`, CHECKS, and current `.github/workflows/` for local/hosted contract drift; local results are not exact-head hosted green.
+- Linear/direct Peter assignments own current work. Historical board/claims, cached status, and mission inventories are not present ownership/contact/spend authority.
+- Preserve immutable Harbor job evidence, CAS, queue events/leases, backups and unclassified unique drafts. Producer-owned artifacts are regenerated, not hand-patched; an ignored parent is not a deletion license. Run `make docs` only when its inputs/checkpoint require it.
+- Register a required new root entry in STRUCTURE in the same change. Prefer schema/test/tool enforcement over another sticky instruction.
 
-## Route recurring failures to structure
+## Worktree/runtime hazards
 
-When the same correction appears twice, prefer the strongest practical mechanism:
+Create native worktrees at explicit committed bases. Never copy another tree's .venv or dispatch copied queue specs. When dependency setup is assigned, confirm editable imports/interpreter target that tree. Source sync is not shared-runtime deployment.
 
-1. type or schema that makes the invalid state unrepresentable;
-2. lint, test, governance check, or CI assertion;
-3. canonical helper or idempotent command;
-4. runtime boundary validation;
-5. scoped skill or documentation only when judgment is required.
+Before retirement inspect actual consumers: processes and scheduled jobs/LaunchAgents' interpreter, arguments, imports, cwd, and data roots. macOS service cwd changes can strand a service; dedicated services need distinct labels and canonical paths. An idle checkout can still be a timer dependency. Locked, dirty, in-use, detached/unproven, or uniquely evidenced trees are not reclaimable on age/clean Git state alone. Preserve ignored non-rebuildable evidence and recoverable refs under the retention policy; do not teach harness bypasses or force removal.
 
-Delete superseded prose after deterministic enforcement lands. Do not add another instruction beside an existing authoritative rule.
-
-## Check repository-specific drift
-
-- **Local versus CI:** compare `scripts/premerge.sh`, `agents/CHECKS.md`, and `.github/workflows/`. Local green must not permit a state CI rejects.
-- **Status truth:** trace fleet and mission displays back to Peter's authoritative backlog in `research/inbox/board.md`, navigated via `agents/missions/ACTIVE.md`, live handoffs, git state, and GitHub state. Fix the producer or contract rather than editing a derived report.
-- **Worktrees:** classify dirty work as active until proven otherwise. Cross-check branch ancestry, mission ownership, pull-request state, handoff state, and recent activity. Never delete a dirty or in-use worktree without the user's explicit decision.
-- **Generated state:** do not hand-edit `runs/`, `queue/`, `derived/`, backups, generated indexes, or immutable evidence. Run explicit `make docs` for deterministic doc generation. Fix the generator or regeneration path when output drifts.
-- **Instruction weight:** keep `AGENTS.md` for durable facts and hard boundaries. Put optional procedures in `.omp/skills/`; do not introduce sticky mode catalogs.
-- **Root structure:** any new top-level entry must be registered in `agents/STRUCTURE.md` in the same change.
-
-## Make and verify the change
-
-1. Apply the smallest coherent fix at the authoritative surface.
-2. Remove the obsolete duplicate or contradictory rule the fix supersedes.
-3. Exercise the actual maintenance command or gate.
-4. Run focused checks for the touched contract; use the repository's full premerge path only at its required checkpoint.
-5. Report the baseline, observed result, files changed, held-back destructive actions, and remaining risk.
+The assigned integration verifier exercises the affected maintenance behavior once at completion and reports measured baseline/result, artifacts, held-back destructive actions, and limits. Read-only investigation and unassigned workers do not run tests or mutate service/worktree state.
 
 ## Provenance
 
-Adapted for OMP and eval-lab from two MIT-licensed Pstack mechanisms by Lauren Tan: `principle-encode-lessons-in-structure` and the safety gates in the `worktree-cleanup` playbook. No Cursor, Graphite, Bun, or TypeScript automation is imported.
+Repository drift/enforcement method adapted from Lauren Tan's MIT-licensed Pstack mechanisms; incorporates the existing Eval Lab worktree-hygiene lessons without duplicated global policy, obsolete wrapper bypasses, or a new approval layer.

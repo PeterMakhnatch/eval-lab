@@ -1,8 +1,8 @@
 # Mission board
 
-The live backlog and pull protocol is **`research/inbox/board.md`**; active
-claim files live in `research/inbox/claims/`. This page is navigation, not a
-second roster, dispatch authority, or current worktree inventory.
+Navigation only. Linear owns the current authorized queue, assignment, and
+acceptance. Historical boards and claim files below do not authorize work
+or persistent-chat contact.
 
 Permanent path lanes: `agents/OWNERS.md`. Worktree and handoff protocol:
 `agents/WORKFLOW.md`. Verification: `agents/CHECKS.md`. Placement:
@@ -10,18 +10,28 @@ Permanent path lanes: `agents/OWNERS.md`. Worktree and handoff protocol:
 
 ## Now
 
-Read the board and pickup counter, then inspect current Git worktrees and PRs.
-`scripts/fleet-status.sh` reports those sources without granting cleanup permission.
-Historical branch inventories do not prove current ownership, activity, or closure.
+Use `lin get`, `lin board`, or `lin next` for the current task. Read only its
+relevant handoff and contracts. Verify actual worktree/process/PR evidence
+when ownership or resumption is at issue; do not execute historical launch
+commands without checking that the path exists and is still assigned.
 
 ## Missions
 
-- `research/inbox/board.md` — work intake, backlog, and the claim protocol.
+- `research/inbox/board.md` — historical September 2026 intake protocol and
+  attribution, preserved for provenance; not current dispatch or claim authority.
 - `research/inbox/QUEUE.md` — the HARVEST source-intake checklist, not a competing
   work-assignment board.
 - `research/archive/2026-W36/automated-trajectory-overnight-ledger.md` — dated program
   decisions and settlements; consult exact refs before reusing availability claims.
 - `docs/archive/git-estate-inventory.md` — historical estate snapshot, not a prune list.
+
+## Historical continuation record
+
+The complete September 25 receipt below is preserved for evidence. Its exact
+worktree is currently absent in the primary checkout inventory; its past run
+cap, model route, future-task suggestions, and resumption commands are not
+fresh permission. Scope-specific safety decisions remain evidence to reconcile
+with a later explicitly assigned mission.
 
 ## HAR-73 continuation handoff — 2026-09-25
 

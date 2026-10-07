@@ -1,19 +1,18 @@
-# CLI Subsystem (src/evallab/cli/)
+# CLI namespace
 
 ## Purpose
-Reserved namespace for CLI entrypoints and command line interfaces.
-The active CLI implementation lives in `src/evallab/cli.py`.
+This directory is reserved. Production CLI lives in `src/evallab/cli.py`; do not create duplicate command routing here.
 
 ## What lives here / entry points
 - Currently a reserved empty package; primary entry point is `src/evallab/cli.py`.
 
 ## Invariants or rules
-1. Clean Exit Codes: Successful runs return code 0; invalid arguments or missing prerequisites return non-zero with informative stderr messages.
-2. Fast Startup: The CLI parser must defer heavy package imports until subcommand dispatch.
-3. Comprehensive Subcommand Dispatch: Every leaf parser must map to a callable handler without unhandled crashes.
+- Expected usage failures have clean exits, not internal tracebacks.
+- Keep expensive optional imports lazy and leaf handlers directly callable.
+- Preserve deterministic registration/dispatch and the public command contract.
 
 ## Tests or checks
-- Targeted unit tests: `pytest tests/test_cli_registry.py tests/test_cli_audit.py`
+Relevant existing tests: `tests/test_cli_registry.py` and `tests/test_cli_audit.py`. The assigned verifier uses focused checks; see `agents/CHECKS.md` for delivery.
 
 ## What not to add here
-Do not add ad-hoc scripts or unmigrated commands here; package locations are frozen.
+No parallel CLI implementation or incidental package-layout migration.

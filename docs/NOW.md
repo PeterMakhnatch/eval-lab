@@ -124,16 +124,15 @@ denominator. Do not report rates over rows with `status != 'featured'`.
 
 ## Do not rebuild
 
-- Do not move `src/evallab/` packages. Module locations are frozen until Peter
-  approves a new migration.
+- Do not move `src/evallab/` packages. A move must be part of the assigned
+  change, with every caller migrated — not incidental cleanup.
 - Do not merge or delete the two TrajectoryIR modules
   (`src/evallab/trajectory_ir.py` and
-  `src/evallab/interpretation/trajectory_ir.py`). That is a named
-  Peter-approved gate (PR-0 in the three-vertical program). No facade
-  re-export.
+  `src/evallab/interpretation/trajectory_ir.py`). They have different
+  contracts; keep both unless the assigned migration covers both and their
+  persisted consumers. No facade re-export.
 - `src/evallab/cli/` and `src/evallab/execution/` are empty reserved directories.
   CLI is `src/evallab/cli.py`. Runner/queue are top-level modules.
-- Do not install Cursor Pstack, Graphite, Bun, or TypeScript helpers.
 - Do not add SciPy/statsmodels/lifelines without a named analysis consumer.
 - Do not treat `docs/INDEX.md`, `docs/repo-map.md`, or `docs/STATUS.md` as a
   tour. The first two are generated inventories; STATUS is a catalog snapshot
@@ -148,7 +147,7 @@ the verification gates in `agents/CHECKS.md`.
 | Task | Read next, limited to the affected surface |
 |---|---|
 | Documentation or navigation | The document being changed and its direct references. Read `agents/STRUCTURE.md` only for placement changes; architecture only when the design claim changes. |
-| Worktree, ownership, or delivery | Relevant `agents/WORKFLOW.md` / `agents/OWNERS.md` sections; `agents/CHECKS.md` at the checkpoint. Use the existing board for a backlog claim. |
+| Worktree, ownership, or delivery | Relevant `agents/WORKFLOW.md` / `agents/OWNERS.md` sections; `agents/CHECKS.md` at the checkpoint. Use the assigned Linear lane for queued work; the board preserves historical pickup records. |
 | Platform, runner, queue, devloop, or CLI | `src/evallab/AGENTS.md`, the nearest scoped instructions, and the affected sections of `docs/architecture.md`. Read `docs/execution-tiers.md` before execution decisions. |
 | Storage, CAS, or projections | Storage/evidence scoped instructions and the relevant `docs/data-architecture.md` sections; follow their direct authority contracts. |
 | Analysis or interpretation | Analysis/interpretation scoped instructions and the relevant `docs/analysis-loop.md` sections; identify the actual corpus and consumer. |

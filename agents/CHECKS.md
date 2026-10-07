@@ -73,9 +73,10 @@ segments abort after two minutes; existing job caps are unchanged. On
 cancellation, inspect setup and checker/test durations separately before
 blaming a test hang.
 
-Run focused checks or explicit premerge before pushing. Before final review and
-doc freshness checks, run explicit `make docs` to regenerate `docs/INDEX.md` and
-`docs/repo-map.md`.
+Run focused checks or explicit premerge before pushing. Regenerate `docs/INDEX.md`
+and `docs/repo-map.md` with `make docs` when generator inputs change or a
+merge/rebase requires refresh, and review the generated diff — not unconditionally
+before every freshness check. Freshness checks are read-only and never stage or amend.
 
 ### Local checkpoints versus full CI
 

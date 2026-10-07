@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from evallab.task_dossier_evidence import task_evidence
+from evallab.audit_mimo import task_evidence
 
 TASK_A = "format-code-task-000792"
 TASK_B = "format-code-task-000788"

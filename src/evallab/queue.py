@@ -10,6 +10,7 @@ import secrets
 import shutil
 import stat
 import subprocess
+import sys
 import threading
 import time
 from collections.abc import Callable, Iterable, Iterator, Sequence
@@ -3232,8 +3233,10 @@ class Executor:
         job_dir.replace(archive)
         return archive
 
-    def download_dataset(self, dataset_ref: str, output_dir: Path) -> Path:
-        """Download an immutable Harbor dataset through the executor boundary."""
+    def download_dataset(
+        self, dataset_ref: str, output_dir: Path, *, output_to_stderr: bool = False
+    ) -> Path:
+        """Download an immutable dataset, optionally preserving a JSON stdout channel."""
         if "@" not in dataset_ref:
             raise ValueError("dataset downloads require an explicit immutable version")
         ref = dataset_ref.rsplit("@", 1)[1].lower()
@@ -3256,6 +3259,7 @@ class Executor:
             cwd=self.repo_root,
             check=False,
             env=subscription_environment(),
+            stdout=sys.stderr if output_to_stderr else None,
         )
         if completed.returncode != 0:
             raise RuntimeError(f"Harbor dataset download exited {completed.returncode}")

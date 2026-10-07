@@ -19,23 +19,23 @@ from pathlib import Path
 from typing import Any
 
 from evallab import results_home, task_pages
+from evallab.dataset_audit_contracts import AuditTask
+from evallab.dataset_audit_plugins import normalize_task_id, task_aliases, task_page_name
 from evallab.storage.trials import connect_trials
+from evallab.task_health_filter import trial_task_identity
 
 #: Viewer route for a task page (served by ``evallab view`` / harbor view).
 PAGE_BASE = "http://127.0.0.1:8100/jobs/"
 
-#: Namespace/source variants of one MIMO leaf task id.
-MIMO_NAMESPACE = "mimo-v2.6-rl"
-
 
 def canonical_aliases(task_id: str) -> list[str]:
     """Exact native task names selected for one leaf task id."""
-    return [task_id, f"{MIMO_NAMESPACE}/{task_id}", f"{MIMO_NAMESPACE}__{task_id}"]
+    return task_aliases(task_id)
 
 
 def page_url_for(task_id: str) -> str:
     """Viewer URL for the task page (route only; not a liveness claim)."""
-    return PAGE_BASE + task_pages.page_name(task_id)
+    return PAGE_BASE + task_page_name(task_id)
 
 
 def _read_json_object(path: Path) -> dict[str, Any] | None:
@@ -264,6 +264,22 @@ def _null_verdicts(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _lock_digest(row: dict[str, Any]) -> dict[str, Any]:
+    """Executed lock package provenance for one census row, or unknown."""
+    if not row.get("source_job_dir") or not row.get("source_trial_dir"):
+        return {
+            "task_digest": None, "source_package_digest": None,
+            "task_digest_via": None, "task_digest_error": "source trial is missing",
+        }
+    identity = trial_task_identity(Path(row["source_job_dir"]), Path(row["source_trial_dir"]))
+    return {
+        "task_digest": identity.get("task_digest"),
+        "source_package_digest": identity.get("source_package_digest"),
+        "task_digest_via": identity.get("via"),
+        "task_digest_error": identity.get("error"),
+    }
+
+
 def _enrich_row(
     row: dict[str, Any],
     *,
@@ -272,6 +288,7 @@ def _enrich_row(
     index: dict[tuple[str, str], list[dict[str, Any]]],
 ) -> dict[str, Any]:
     enriched: dict[str, Any] = dict(row)
+    enriched.update(_lock_digest(row))
     enriched["page_url"] = page_url
     conflicts: list[str] = []
 
@@ -341,25 +358,31 @@ def _enrich_row(
     return enriched
 
 
-def task_trials(
-    task_id: str,
+def _aliases_for_task(task: AuditTask) -> list[str]:
+    """Exact supplied aliases; legacy leaf ids use their plugin conventions."""
+    if task.aliases:
+        return list(task.aliases)
+    return task_aliases(task.task_id)
+
+
+def _collect(
+    groups: dict[str, dict[str, Any]],
     *,
     repo_root: Path,
-    roots: Sequence[Path] | None = None,
-    derived_root: Path | None = None,
-    reader_store: Path | None = None,
-) -> dict[str, Any]:
-    """Every census trial for one leaf task id, enriched read-only.
-
-    Returns ``{'trials': [...], 'coverage': {...}}``; both JSON-serializable.
-    Unknown tasks yield an empty trial list with null evidence -- never
-    fabricated verdicts. Raw evidence and stored reader verdicts pass
-    through immutably; per-source copy verdicts are separately named with
-    no consensus applied.
-    """
-    aliases = canonical_aliases(task_id)
+    roots: Sequence[Path] | None,
+    derived_root: Path | None,
+    reader_store: Path | None,
+) -> dict[str, dict[str, Any]]:
+    """One census pass and alias index for every requested task."""
+    aliases: list[str] = []
+    seen: set[str] = set()
+    for group in groups.values():
+        for alias in group["aliases"]:
+            if alias not in seen:
+                seen.add(alias)
+                aliases.append(alias)
     store = Path(reader_store) if reader_store is not None else task_pages.default_store()
-    page_url = page_url_for(task_id)
+    home = results_home.results_root()
 
     con, info = connect_trials(
         repo_root=Path(repo_root),
@@ -375,25 +398,101 @@ def task_trials(
     finally:
         con.close()
 
-    home = results_home.results_root()
     index = build_alias_index(home) if rows else {}
-    trials = [
-        _enrich_row(row, page_url=page_url, store=store, index=index) for row in rows
-    ]
-    status_counts: dict[str, int] = {}
-    for trial in trials:
-        status = trial["alias"]["status"]
-        status_counts[status] = status_counts.get(status, 0) + 1
-    coverage = {
-        "task_id": task_id,
-        "aliases": aliases,
-        "n_trials": len(trials),
-        "page_url": page_url,
-        "reader_store": str(store),
-        "results_home": str(home),
-        "alias_status": status_counts,
-        "n_projection_errors": sum(1 for row in rows if row.get("projection_error")),
-        "read_only": True,
-        "in_memory_projections": info.get("in_memory_projections", 0),
-    }
-    return {"trials": trials, "coverage": coverage}
+    members: dict[str, list[dict[str, Any]]] = {key: [] for key in groups}
+    for row in rows:
+        task_name = row.get("task")
+        for key, group in groups.items():
+            if isinstance(task_name, str) and task_name in group["alias_set"]:
+                members[key].append(
+                    _enrich_row(row, page_url=group["page_url"], store=store, index=index)
+                )
+    collected: dict[str, dict[str, Any]] = {}
+    for key, group in groups.items():
+        trials = members[key]
+        status_counts: dict[str, int] = {}
+        for trial in trials:
+            status = trial["alias"]["status"]
+            status_counts[status] = status_counts.get(status, 0) + 1
+        collected[key] = {
+            "trials": trials,
+            "coverage": {
+                "task_id": group["task_id"],
+                "aliases": group["aliases"],
+                "n_trials": len(trials),
+                "page_url": group["page_url"],
+                "reader_store": str(store),
+                "results_home": str(home),
+                "alias_status": status_counts,
+                "n_projection_errors": sum(1 for row in trials if row.get("projection_error")),
+                "read_only": True,
+                "in_memory_projections": info.get("in_memory_projections", 0),
+                "shared_aliases": sorted(
+                    alias for alias in group["aliases"]
+                    if sum(1 for other in groups.values() if alias in other["alias_set"]) > 1
+                ),
+            },
+        }
+    return collected
+
+
+def task_trials_for_tasks(
+    tasks: Sequence[AuditTask],
+    *,
+    repo_root: Path,
+    roots: Sequence[Path] | None = None,
+    derived_root: Path | None = None,
+    reader_store: Path | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Every census trial for the whole dataset, enriched read-only.
+
+    Tasks share the selected census row only when their alias sets both name
+    it; matching is by exact supplied alias, never by unscoped basename.
+    Versions with the same task id keep independent copy judgments. Returns
+    one ``{'trials': [...], 'coverage': {...}}`` facet per canonical task id.
+    """
+    groups: dict[str, dict[str, Any]] = {}
+    for task in tasks:
+        key = normalize_task_id(task.task_id)
+        aliases = _aliases_for_task(task)
+        if key in groups and groups[key]["aliases"] != aliases:
+            raise ValueError(f"conflicting aliases for audit task {task.task_id!r}")
+        groups[key] = {
+            "task_id": key,
+            "aliases": aliases,
+            "alias_set": set(aliases),
+            "page_url": page_url_for(task.task_id),
+        }
+    return _collect(
+        groups, repo_root=Path(repo_root), roots=roots,
+        derived_root=derived_root, reader_store=reader_store,
+    )
+
+
+def task_trials(
+    task_id: str,
+    *,
+    repo_root: Path,
+    roots: Sequence[Path] | None = None,
+    derived_root: Path | None = None,
+    reader_store: Path | None = None,
+) -> dict[str, Any]:
+    """Every census trial for one task id, enriched read-only.
+
+    Returns ``{'trials': [...], 'coverage': {...}}``; both JSON-serializable.
+    Unknown tasks yield an empty trial list with null evidence -- never
+    fabricated verdicts. Raw evidence and stored reader verdicts pass
+    through immutably; per-source copy verdicts are separately named with
+    no consensus applied.
+    """
+    canonical = normalize_task_id(task_id)
+    return _collect(
+        {canonical: {
+            "task_id": canonical,
+            "aliases": canonical_aliases(canonical),
+            "alias_set": set(canonical_aliases(canonical)),
+            "page_url": page_url_for(canonical),
+        }},
+        repo_root=Path(repo_root), roots=roots,
+        derived_root=derived_root, reader_store=reader_store,
+    )[canonical]

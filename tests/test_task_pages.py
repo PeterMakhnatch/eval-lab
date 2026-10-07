@@ -149,3 +149,15 @@ def test_viewer_keeps_task_pages_and_rebuilds_them_when_a_verdict_lands(tmp_path
     assert third.task_pages["built"] == ["task-000792"]
     md = next((root / "task-000792").glob("*/analysis.md")).read_text()
     assert URL in md
+
+
+def test_mimo_page_url_is_preserved_and_namespaces_do_not_collide() -> None:
+    from evallab.task_pages import page_name
+
+    assert page_name("mimo-v2.6-rl/format-code-task-000792") == "task-000792"
+    assert page_name("format-code-task-000792") == "task-000792"
+    harbor = page_name("harbor/hello-world")
+    other = page_name("other/hello-world")
+    assert harbor != other
+    assert harbor != "task-hello-world"
+    assert harbor.startswith("task-harbor-hello-world-")

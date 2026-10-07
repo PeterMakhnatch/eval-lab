@@ -8,6 +8,7 @@ import pytest
 
 from evallab.readers.harbor_analyze import (
     ANALYZE_CHECKS,
+    _optional_trial_task,
     configure_evaluator,
     flash_cost,
     parse_checks,
@@ -215,4 +216,29 @@ def test_binary_scores_keep_missing_and_abstentions_out_of_negatives():
         "missing": 1,
         "recall": 1.0,
         "fpr": 0.0,
+    }
+
+
+def test_taskless_trial_resolves_no_task_but_stages_cleanly(tmp_path):
+    trial = tmp_path / "results" / "job" / "tw-0001"
+    (trial / "agent").mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "task_name": "tw-task",
+                "trial_name": "tw-0001",
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
+    (trial / "trial.log").write_text("started\n")
+    (trial / "agent/trajectory.json").write_text(
+        json.dumps({"schema_version": "ATIF-v1.6", "steps": []})
+    )
+    assert _optional_trial_task(trial) is None
+    staged = stage_trial(trial, tmp_path / "scratch", None)
+    assert (staged / "trial.log").exists()
+    assert (staged / "agent/trajectory.json").exists()
+    assert json.loads((staged / "result.json").read_text())["verifier_result"]["rewards"] == {
+        "reward": 1.0
     }

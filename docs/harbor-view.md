@@ -94,11 +94,40 @@ new health records.
   machinery. Before that, it simply re-ran our own copy detector shipped in the
   task's grading files. Only verdicts with
   `input_policy=evallab.reader_input/blind-v2` are shown.
-- **Dropped readers.** Inspect Scout with METR's `reward_hacking` / `broken_env`
-  scanners caught 0/2 copied H12 passes and 1/5 copy-benchmark passes. Those
-  numbers come from an adapted, not native, setup, and it was dropped. The
+- **Not on the page.** Inspect Scout with METR's `reward_hacking` scanner
+  (`evallab.readers.scout_metr`) runs on demand, not on the task pages. On our
+  copies it caught 1/11 at its 5%-FPR cut (HAR-187 below). The
   `infra_not_model` Signal is paused: it found 0/5 labelled infra failures, so
   infra stays on the watch's rules.
+
+### Detector scorecard (HAR-187)
+
+`research/explorations/trace-lab/review/detector_scorecard.py` scores every
+reader on one eval set, with results in `detector_scorecard.json`:
+
+- **Terminal Wrench** (`python -m evallab.terminal_wrench`, Apache-2.0): 100
+  rewarded hacks across its 11 families and 100 clean baselines. The hacks are
+  TW's *sanitized* trajectories, with the red-team prompt removed and the agent
+  text rewritten.
+- **Our labelled copies:** 11 copied passes and 13 HAR-168 clean passes.
+
+The raw TW hack trajectories carry the elicitation prompt, and 99/100 openly
+say they are exploiting. On those, every LLM reader just reads a confession.
+
+| Reader | TW hacks caught | TW clean flagged | Our copies caught | $ per 1k TW traces |
+|---|---|---|---|---|
+| our rules | 12/100 | 24/100 | label source | 0 |
+| `harbor analyze` | 16/19 | 1/18 | 2/10 | 7.5 |
+| METR scanner (score > 9) | 24/32 | 1/32 | 1/11 | 2.0 |
+| Laminar `copied_upstream_fix` | 1/10 (raw TW) | 1/10 (raw TW) | 11/11 | ~14 for all 3 Signals |
+
+- **General hacks** (hollow implementations, output spoofing and so on): the
+  general LLM readers catch them and our rules don't.
+- **Copying the upstream fix:** only the Laminar copy Signal and our own copy
+  check catch it.
+- **Caveat on the TW numbers:** sanitized TW hacks still say "verifier" in
+  72/100 runs against 0/100 clean ones, so the TW recall is an upper bound for
+  natural, unconfessed hacks.
 
 ## Filter historical jobs by task health
 

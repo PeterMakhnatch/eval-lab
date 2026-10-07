@@ -80,6 +80,7 @@ print(f"facts input: {facts}/inputs/evallab-nightly.json")
 PY
 if [ "$LOAD" -eq 1 ]; then
   launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+  launchctl enable "gui/$(id -u)/$LABEL"
   launchctl bootstrap "gui/$(id -u)" "$DEST"
   echo "loaded: gui/$(id -u)/$LABEL; nightly 02:30 ET; no RunAtLoad"
 fi

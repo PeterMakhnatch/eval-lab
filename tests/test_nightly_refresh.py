@@ -776,6 +776,7 @@ def test_installer_hardcodes_refresh_flag() -> None:
     root = Path(__file__).resolve().parents[1]
     script = (root / "scripts/ops/launchd/install-nightly-refresh.sh").read_text(encoding="utf-8")
     assert '"nightly", "--refresh"' in script
+    assert 'launchctl enable "gui/$(id -u)/$LABEL"' in script
 
 
 def test_naive_now_is_rejected(tmp_path: Path) -> None:

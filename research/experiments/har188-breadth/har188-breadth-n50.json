@@ -1,4 +1,5 @@
 {
+  "attempts_per_task": 2,
   "agent": "mimoagent",
   "allowed_deviations": [
     {

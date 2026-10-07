@@ -32,10 +32,10 @@ Standing rules inside a campaign:
   ``infra``) gets exactly ONE automatic replacement: a cloned spec with
   ``campaign_replaces`` lineage to the original. A replacement's own infra
   failure is not replaced again.
-- **Budget:** reservations (approved/running estimates) plus settled actuals
-  stay inside the campaign budget. Settled actuals come from the existing
-  ledger-backed cost columns; specs whose evidence cannot be loaded count
-  their estimate conservatively.
+- **Budget:** reservations plus settled GPU, sandbox and ledger-backed model
+  spend stay inside the campaign budget. Self-hosted and zero-estimate Daytona
+  specs reserve expected wave-model cost; unavailable settled sources
+  retain the remaining reservation rather than becoming free.
 - **Exhaustion:** new launches stop via the existing ``STOP`` fence while
   running trials finish untouched.
 
@@ -48,14 +48,17 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import subprocess
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from contextlib import suppress
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from evallab.results import JobRecord, TrialRecord, load_job
 from evallab.schemas import (
     ContractModel,
     ExperimentSpec,
@@ -250,6 +253,7 @@ class ExperimentCampaign(_FrozenContract):
     schema_version: Literal["experiment-campaign/v1"] = SCHEMA_CAMPAIGN
     campaign_id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9-]*$")
     budget_usd: float = Field(gt=0)
+    attempts_per_task: int = Field(default=1, ge=1)
     cost_estimate: CampaignCostEstimate | None = None
     tasks: list[CampaignTaskAllowance] = Field(min_length=1)
     reference_profile: str = Field(min_length=1)
@@ -316,6 +320,10 @@ def campaign_content_digest(campaign: ExperimentCampaign | Mapping[str, Any]) ->
         if isinstance(campaign, ExperimentCampaign)
         else json.loads(json.dumps(campaign))
     )
+    # The new default preserves approvals signed before this pin existed.
+    # Non-default attempts remain immutable, approvable campaign content.
+    if payload.get("attempts_per_task") == 1:
+        payload.pop("attempts_per_task")
     return "sha256:" + hashlib.sha256(_canonical_json(payload).encode()).hexdigest()
 
 
@@ -607,14 +615,15 @@ def check_campaign_admission(
                     "before the reference limits"
                 ),
             )
-    if committed_usd + float(spec.est_cost_usd or 0.0) > campaign.budget_usd:
+    estimate = _reservation_usd(spec.model_dump(mode="json"), campaign)
+    if committed_usd >= campaign.budget_usd or committed_usd + estimate > campaign.budget_usd:
         return PolicyDecision(
             admitted=False,
             reason_code=REASON_BUDGET_EXHAUSTED,
             message=(
                 f"campaign {campaign.campaign_id} budget ${campaign.budget_usd:.2f} "
                 f"exhausted: committed ${committed_usd:.2f} plus estimated "
-                f"${float(spec.est_cost_usd or 0.0):.2f} overruns it"
+                f"${estimate:.2f} overruns it"
             ),
         )
     return PolicyDecision(
@@ -635,76 +644,417 @@ def _freeze(value: Any) -> Any:
     return value
 
 
+def _usd(value: Any) -> float | None:
+    """A usable cost, preserving unknown/invalid amounts rather than zeroing."""
+    if isinstance(value, bool):
+        return None
+    try:
+        amount = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return amount if math.isfinite(amount) and amount >= 0 else None
+
+
+def _campaign_trial_count(campaign: ExperimentCampaign) -> int:
+    """Approved task count times the explicit attempts pin, never inferred."""
+    return len(campaign.tasks) * campaign.attempts_per_task
+
+
+def _wave_reservation_per_trial(campaign: ExperimentCampaign) -> float:
+    """Average expected wave cost, preserving full-width concurrency.
+
+    Reserving HAR-168's $0.60 per trial would cap a $5 campaign at eight
+    concurrent trials and force extra GPU waves. The expected per-trial cost
+    instead admits the model's intended wave while measured actuals and the
+    printed in-flight overrun bound keep the fence conservative.
+    """
+    trials = _campaign_trial_count(campaign)
+    return wave_cost_estimate(trials).expected_usd / trials
+
+
+def _reservation_usd(raw: Mapping[str, Any], campaign: ExperimentCampaign) -> float:
+    """Reserve wave-model expected cost per trial, times spec attempts.
+
+    A larger declared estimate wins. Self-hosted and zero-estimate Daytona
+    specs use the campaign wave average; positive non-selfhosted estimates
+    retain the existing reservation policy.
+    """
+    from evallab.modal_ops import is_selfhosted_model
+
+    estimate = _usd(raw.get("est_cost_usd")) or 0.0
+    if is_selfhosted_model(raw.get("model")) or (
+        raw.get("environment") == "daytona" and estimate == 0
+    ):
+        attempts = raw.get("attempts", 1)
+        count = attempts if isinstance(attempts, int) and attempts > 0 else 1
+        return count * max(estimate, _wave_reservation_per_trial(campaign))
+    return estimate
+
+
+def campaign_budget_bound(
+    repo_root: Path,
+    campaign_id: str,
+    *,
+    campaign: ExperimentCampaign | None = None,
+) -> dict[str, float | int]:
+    """Printable overrun for reservations below the per-trial worst ceiling.
+
+    In-flight reservations use expected wave cost so concurrency is not
+    throttled. Conditional on trials settling within HAR-168's $0.60 resource
+    envelope (or a larger declared ceiling), the extra exposure is the sum of
+    positive ``worst_ceiling - reservation`` gaps for all in-flight trials.
+    """
+    loaded = campaign if campaign is not None else load_campaign(repo_root, campaign_id)
+    if loaded.campaign_id != campaign_id:
+        raise ValueError("campaign draft does not match campaign_id")
+    specs = _queue_meter_specs(repo_root.resolve())
+    trials = 0
+    reserved = worst = gap = 0.0
+    for state, raw in specs:
+        if raw.get("campaign_id") != campaign_id or state not in RESERVED_STATES:
+            continue
+        attempts = raw.get("attempts", 1)
+        count = attempts if isinstance(attempts, int) and attempts > 0 else 1
+        trials += count
+        hold = _reservation_usd(raw, loaded)
+        ceiling = count * max(HAR168_TRIAL_CEILING_USD, _usd(raw.get("cost_limit_usd")) or 0.0)
+        reserved += hold
+        worst += ceiling
+        gap += max(0.0, ceiling - hold)
+    return {
+        "in_flight_trials": int(trials),
+        "in_flight_reserved_usd": reserved,
+        "in_flight_worst_case_usd": worst,
+        "overrun_bound_usd": gap,
+        "realized_spend_bound_usd": loaded.budget_usd + gap,
+    }
+
+
+def _read_meter_json(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return value if isinstance(value, dict) else {}
+
+
+def _queue_meter_specs(root: Path) -> list[tuple[str, dict[str, Any]]]:
+    return [
+        (state, raw)
+        for state in QUEUE_STATES
+        for path in sorted((root / "queue" / state).glob("*.json"))
+        if (raw := _read_meter_json(path))
+    ]
+
+
+def _meter_job_path(root: Path, raw: Mapping[str, Any]) -> Path | None:
+    name = raw.get("name")
+    if not isinstance(name, str) or not name:
+        return None
+    candidate = (root / str(raw.get("jobs_dir") or "runs") / name).resolve()
+    return candidate if root in candidate.parents else None
+
+
+def _trial_identity(
+    job_result: Mapping[str, Any], trial_result: Mapping[str, Any], path: Path
+) -> str:
+    job_id, trial_id = job_result.get("id"), trial_result.get("id")
+    if job_id and trial_id:
+        return f"{job_id}/{trial_id}"
+    return path.resolve().as_posix()
+
+
+def _modal_allocations(
+    root: Path, specs: list[tuple[str, dict[str, Any]]], jobs: list[JobRecord]
+) -> dict[str, tuple[float, bool]]:
+    """Split one app's UTC-day bill by summed trial/day wall-time overlaps.
+
+    Startup, warm and idle time stay in the billed pool. Concurrent trials
+    each contribute their overlap seconds; the denominator includes other
+    campaigns and unclaimed jobs, not just the campaign being metered.
+    Native identities deduplicate copies retained in sibling worktrees.
+    Only existing read-only billing/report and evidence readers are used;
+    an absent/lagging/failed report leaves the trial's reservation in place.
+    """
+    from evallab.modal_billing import fetch_modal_billing_report
+    from evallab.modal_ops import MODAL_APP_NAME, is_selfhosted_model
+    from evallab.results import discover_job_dirs
+    from evallab.spend_day import (
+        day_to_window,
+        parse_dt,
+        sibling_worktree_roots,
+        window_overlap_seconds,
+    )
+
+    targets: dict[str, tuple[datetime, datetime]] = {}
+    for job in jobs:
+        for trial in job.trials:
+            started, finished = (
+                parse_dt(trial.result.get("started_at")),
+                parse_dt(trial.result.get("finished_at")),
+            )
+            if started is not None and finished is not None and finished > started:
+                targets[_trial_identity(job.result, trial.result, trial.path)] = (started, finished)
+    if not targets:
+        return {}
+    first = min(start for start, _ in targets.values()).date()
+    last = max(finish for _, finish in targets.values()).date() + timedelta(days=1)
+    try:
+        billing = fetch_modal_billing_report(start=first, end=last, repo_root=root, resolution="d")
+    except Exception:
+        return {}
+    # One daily report only: daily and hourly reports are alternatives, never
+    # additive sources. Repeated copies of a row cannot double the app pool.
+    billed: dict[tuple[str, str, date], float] = {}
+    for row in billing:
+        cost = _usd(row.cost_usd)
+        moment = row.interval_start
+        if isinstance(moment, datetime):
+            moment = moment.replace(tzinfo=moment.tzinfo or UTC).astimezone(UTC)
+        else:
+            moment = parse_dt(moment)
+        if row.description != MODAL_APP_NAME or cost is None or moment is None:
+            continue
+        day = moment.astimezone(UTC).date()
+        if first <= day < last:
+            key = (row.object_id, row.resource, day)
+            billed[key] = max(billed.get(key, 0.0), cost)
+    if not billed:
+        return {}
+    pools: dict[date, float] = {}
+    for (_, _, day), cost in billed.items():
+        pools[day] = pools.get(day, 0.0) + cost
+    paths = {job.path for job in jobs}
+    models_by_path: dict[Path, Any] = {}
+    for other_root in [root, *sibling_worktree_roots(root)]:
+        paths.update(discover_job_dirs([other_root / "runs"]))
+        other_specs = specs if other_root == root else _queue_meter_specs(other_root)
+        for _, raw in other_specs:
+            candidate = _meter_job_path(other_root, raw)
+            if candidate is not None:
+                paths.add(candidate)
+                models_by_path[candidate] = raw.get("model")
+    windows = dict(targets)
+    now = datetime.now(UTC)
+    for job_path in paths:
+        config = _read_meter_json(job_path / "config.json")
+        spec = _read_meter_json(job_path / "experiment-spec.json")
+        agent = config.get("agent")
+        model = (
+            (agent.get("model_name") if isinstance(agent, Mapping) else None)
+            or spec.get("model")
+            or models_by_path.get(job_path)
+        )
+        if not is_selfhosted_model(model):
+            continue
+        job_result = _read_meter_json(job_path / "result.json")
+        for result_path in job_path.glob("*/result.json"):
+            result = _read_meter_json(result_path)
+            if "trial_name" not in result:
+                continue
+            start = parse_dt(result.get("started_at"))
+            finish = parse_dt(result.get("finished_at")) or now
+            if start is not None and finish > start:
+                windows[_trial_identity(job_result, result, result_path.parent)] = (start, finish)
+    shares: dict[str, float] = {}
+    for day, pool in pools.items():
+        window_start, window_end = day_to_window(day)
+        weights = {
+            identity: window_overlap_seconds(start, finish, window_start, window_end)
+            for identity, (start, finish) in windows.items()
+        }
+        denominator = math.fsum(weights.values())
+        if denominator > 0:
+            for identity, weight in weights.items():
+                if identity in targets and weight > 0:
+                    shares[identity] = shares.get(identity, 0.0) + pool * weight / denominator
+    # Every day touched by a trial must be present: a partially available bill
+    # cannot silently turn its missing days into free GPU time.
+    incomplete: set[str] = set()
+    for identity, (start, finish) in targets.items():
+        day = start.astimezone(UTC).date()
+        while day < last:
+            window_start, window_end = day_to_window(day)
+            if (
+                window_overlap_seconds(start, finish, window_start, window_end) > 0
+                and day not in pools
+            ):
+                incomplete.add(identity)
+                break
+            if window_end >= finish:
+                break
+            day += timedelta(days=1)
+    return {identity: (amount, identity not in incomplete) for identity, amount in shares.items()}
+
+
+def _daytona_trial_usd(job: JobRecord, trial: TrialRecord) -> float | None:
+    """Rate recorded sandbox resources and wall time through spend day's card."""
+    from evallab.spend_day import _read_task_toml_env, parse_dt, trial_daytona_resources
+    from evallab.task_qualification import estimate_cost_usd
+
+    start, finish = (
+        parse_dt(trial.result.get("started_at")),
+        parse_dt(trial.result.get("finished_at")),
+    )
+    if start is None or finish is None or finish <= start:
+        return None
+    usage = _read_meter_json(trial.path / "daytona-usage.json") or _read_meter_json(
+        job.path / "daytona-usage.json"
+    )
+    admission = usage.get("admission")
+    requested = admission.get("requested") if isinstance(admission, Mapping) else None
+    requested = requested if isinstance(requested, Mapping) else {}
+    usage_env: dict[str, Any] = {}
+    for source, target, multiplier in (
+        ("cpu", "override_cpus", 1),
+        ("memory_gib", "override_memory_mb", 1024),
+        ("disk_gib", "override_storage_mb", 1024),
+    ):
+        value = _usd(requested.get(source))
+        if value is not None and value > 0:
+            usage_env[target] = int(value * multiplier)
+    task = trial.lock.get("task") or trial.config.get("task") or {}
+    task_path = task.get("path") if isinstance(task, Mapping) else None
+    # Recorded usage wins over requested overrides and task-family fallbacks.
+
+    task_name = str(trial.result.get("task_name") or "")
+    (cpus, memory, storage), _basis = trial_daytona_resources(
+        task_family=task_name.split("/")[0] if "/" in task_name else None,
+        environment_configs=(job.config, trial.config, {"environment": usage_env}),
+        task_toml_env=_read_task_toml_env(task_path),
+    )
+    if cpus is None or memory is None:
+        return None
+    return _usd(
+        estimate_cost_usd(
+            backend="daytona",
+            sandbox_seconds=(finish - start).total_seconds(),
+            cpus=cpus,
+            memory_mb=memory,
+            storage_mb=storage,
+        )
+    )
+
+
+def _campaign_meter(
+    repo_root: Path,
+    campaign_id: str,
+    *,
+    exclude_spec_id: str | None = None,
+    campaign: ExperimentCampaign | None = None,
+) -> tuple[float, float, dict[str, float]]:
+    from evallab.database import trial_cost_columns
+    from evallab.dispatch_guards import MODEL_FREE_AGENTS
+    from evallab.modal_ops import is_selfhosted_model
+
+    root = repo_root.resolve()
+    loaded = campaign if campaign is not None else load_campaign(root, campaign_id)
+    if loaded.campaign_id != campaign_id:
+        raise ValueError("campaign draft does not match campaign_id")
+    specs = _queue_meter_specs(root)
+    relevant = [
+        (state, raw)
+        for state, raw in specs
+        if raw.get("campaign_id") == campaign_id
+        and (exclude_spec_id is None or raw.get("spec_id") != exclude_spec_id)
+        and state in RESERVED_STATES | SETTLED_STATES
+    ]
+    jobs: dict[str, JobRecord] = {}
+    for state, raw in relevant:
+        candidate = _meter_job_path(root, raw)
+        if state in SETTLED_STATES and candidate is not None:
+            with suppress(Exception):
+                jobs[str(raw.get("spec_id") or raw.get("name"))] = load_job(candidate)
+    selfhosted_jobs = [
+        jobs[str(raw.get("spec_id") or raw.get("name"))]
+        for state, raw in relevant
+        if state in SETTLED_STATES
+        and is_selfhosted_model(raw.get("model"))
+        and str(raw.get("spec_id") or raw.get("name")) in jobs
+    ]
+    allocations = _modal_allocations(root, specs, selfhosted_jobs) if selfhosted_jobs else {}
+    breakdown = dict.fromkeys(("modal_gpu", "daytona", "model_api", "unmeasured_reserved"), 0.0)
+    reserved = settled = 0.0
+    for state, raw in relevant:
+        estimate = _reservation_usd(raw, loaded)
+        if state in RESERVED_STATES:
+            reserved += estimate
+            breakdown["unmeasured_reserved"] += estimate
+            continue
+        job = jobs.get(str(raw.get("spec_id") or raw.get("name")))
+        sources = dict.fromkeys(("modal_gpu", "daytona", "model_api"), 0.0)
+        unmeasured = estimate if job is None or not job.trials else 0.0
+        if job is not None and job.trials:
+            trial_estimate = estimate / len(job.trials)
+            for trial in job.trials:
+                amounts = dict.fromkeys(("modal_gpu", "daytona", "model_api"), 0.0)
+                unknown = False
+                if is_selfhosted_model(raw.get("model")):
+                    gpu = allocations.get(_trial_identity(job.result, trial.result, trial.path))
+                    if gpu is None:
+                        unknown = True
+                    else:
+                        amounts["modal_gpu"] = gpu[0]
+                        unknown = not gpu[1]
+                elif raw.get("agent") not in MODEL_FREE_AGENTS:
+                    try:
+                        model = _usd(trial_cost_columns(job, trial).get("cost_usd"))
+                    except Exception:
+                        model = None
+                    if model is None:
+                        unknown = True
+                    else:
+                        amounts["model_api"] = model
+                if raw.get("environment") == "daytona":
+                    try:
+                        sandbox = _daytona_trial_usd(job, trial)
+                    except Exception:
+                        sandbox = None
+                    if sandbox is None:
+                        unknown = True
+                    else:
+                        amounts["daytona"] = sandbox
+                measured_trial = math.fsum(amounts.values())
+                # One overrun cannot erase another unmeasurable trial's hold.
+                if unknown:
+                    unmeasured += max(0.0, trial_estimate - measured_trial)
+                for source, amount in amounts.items():
+                    sources[source] += amount
+        measured = math.fsum(sources.values())
+        for source, amount in sources.items():
+            breakdown[source] += amount
+        breakdown["unmeasured_reserved"] += unmeasured
+        settled += measured + unmeasured
+    return reserved, settled, breakdown
+
+
 def campaign_spend_usd(
     repo_root: Path,
     campaign_id: str,
     *,
     exclude_spec_id: str | None = None,
 ) -> tuple[float, float, float]:
-    """(reserved, settled, total) campaign spend in USD.
+    """(reserved, settled, total), including GPU, sandbox and model API spend.
 
-    Reserved counts approved/running estimates; settled counts done/failed
-    ledger-backed actuals, falling back to the estimate when evidence cannot
-    be loaded (conservative: an unmeasurable trial still holds its envelope).
-    Waiting specs hold nothing: they launch nothing until admitted.
+    Waiting specs hold nothing. Unknown settled components retain the remaining
+    reserved resource envelope; zero ledger API cost never implies free GPU.
+    ``exclude_spec_id`` excludes charges, not that trial's allocation weight.
     """
-    root = repo_root.resolve()
-    queue_root = root / "queue"
-    reserved = 0.0
-    settled = 0.0
-    for state in QUEUE_STATES:
-        state_dir = queue_root / state
-        if not state_dir.is_dir():
-            continue
-        for path in sorted(state_dir.glob("*.json")):
-            try:
-                raw = json.loads(path.read_text(encoding="utf-8"))
-            except (OSError, ValueError, json.JSONDecodeError):
-                continue
-            if not isinstance(raw, dict) or raw.get("campaign_id") != campaign_id:
-                continue
-            if exclude_spec_id is not None and raw.get("spec_id") == exclude_spec_id:
-                continue
-            estimate = raw.get("est_cost_usd") or 0.0
-            try:
-                estimate = float(estimate)
-            except (TypeError, ValueError):
-                estimate = 0.0
-            if state in RESERVED_STATES:
-                reserved += estimate
-            elif state in SETTLED_STATES:
-                actual = _settled_cost_usd(root, raw)
-                settled += estimate if actual is None else actual
+    reserved, settled, _breakdown = _campaign_meter(
+        repo_root, campaign_id, exclude_spec_id=exclude_spec_id
+    )
     return reserved, settled, reserved + settled
 
 
-def _settled_cost_usd(repo_root: Path, raw: Mapping[str, Any]) -> float | None:
-    """Ledger-backed actual for one settled spec, or None when unmeasurable."""
-    try:
-        from evallab.database import trial_cost_columns
-        from evallab.results import load_job
-    except ImportError:
-        return None
-    try:
-        jobs_dir = raw.get("jobs_dir") or "runs"
-        name = raw.get("name")
-        if not isinstance(name, str) or not name:
-            return None
-        candidate = (repo_root / str(jobs_dir) / name).resolve()
-        if candidate != repo_root and repo_root not in candidate.parents:
-            return None
-        job = load_job(candidate)
-        total = 0.0
-        for trial in job.trials:
-            columns = trial_cost_columns(job, trial)
-            cost = columns.get("cost_usd")
-            if cost is None:
-                # Measured absence of ledger cost is zero spend, not unknown.
-                continue
-            total += float(cost)
-        return total
-    except Exception:
-        return None
+def campaign_spend_breakdown(repo_root: Path, campaign_id: str) -> dict[str, float]:
+    """Read-only per-source committed totals; sum equals campaign_spend_usd total.
+
+    ``unmeasured_reserved`` includes approved/running reservations and remaining
+    conservative envelopes for settled trials with unavailable measurements.
+    Modal amounts are app-day allocations, Daytona amounts use the existing
+    list-price estimate path, and model API amounts use ledger-backed columns.
+    """
+    return _campaign_meter(repo_root, campaign_id)[2]
 
 
 def campaign_admission_refusal(gate: Any, spec: ExperimentSpec) -> PolicyDecision | None:

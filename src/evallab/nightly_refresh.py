@@ -22,6 +22,7 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from evallab.harbor_watch_hooks import HOOK_JOURNAL
 from evallab.process_job import process_job
 from evallab.results import discover_job_dirs
 from evallab.storage.paths import shared_checkout_root
@@ -111,6 +112,14 @@ def _stamp_tree(root: Path, *, raw_job: bool = False) -> list[tuple[str, int, in
             path = Path(base) / name
             stat = path.lstat()  # Artifact symlinks belong to the sandbox, not this host.
             stamps.append((str(path), stat.st_mtime_ns, stat.st_size))
+    if raw_job:
+        journal = root / HOOK_JOURNAL
+        try:
+            stat = journal.lstat()
+        except FileNotFoundError:
+            pass
+        else:
+            stamps.append((str(journal), stat.st_mtime_ns, stat.st_size))
     return stamps
 
 

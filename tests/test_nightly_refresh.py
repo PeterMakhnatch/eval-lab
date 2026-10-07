@@ -660,6 +660,31 @@ def test_producer_fingerprint_ignores_pycache(
     assert seams.trials
 
 
+def test_source_hook_journal_changes_refresh_but_generated_watch_outputs_do_not(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    checkout = _checkout(tmp_path)
+    job = _completed_job(checkout / "runs", "hook-job")
+    journal = job / nightly_refresh.HOOK_JOURNAL
+    journal.parent.mkdir()
+    event = {"trial": "trial__id", "event": "start", "at": "2026-10-06T12:00:00Z"}
+    journal.write_text(json.dumps(event) + "\n", encoding="utf-8")
+    config = _config(tmp_path, checkout)
+    seams = Seams()
+    seams.install(monkeypatch)
+    assert _refresh(config, seams)["status"] == "refreshed"
+
+    (journal.parent / "status.json").write_text("{}\n", encoding="utf-8")
+    assert _refresh(config, seams)["status"] == "noop"
+    assert seams.process == []
+    with journal.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps({**event, "event": "end"}) + "\n")
+    assert _refresh(config, seams)["status"] == "refreshed"
+    assert [call["job"] for call in seams.process] == [job]
+    assert seams.replay == [[job]]
+    assert _refresh(config, seams)["status"] == "noop"
+
+
 def test_real_process_job_writes_under_state_not_source(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

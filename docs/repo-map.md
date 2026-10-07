@@ -397,7 +397,7 @@ inputs:
   - path: src/evallab/native_telemetry.py
     digest: sha256:d9fae1d34da598ff63645ae0e404374da9b103feca28c5b5b80f72900548ed43
   - path: src/evallab/nightly_refresh.py
-    digest: sha256:1c90bf400e74f4c9e9f99c97629ee651c45eae03588f2685ab46a85cb0a2f77e
+    digest: sha256:362a9c90c23e6ff66d1375a9137b876fb8bf15646d366c373f41e3000de9642c
   - path: src/evallab/observation_masking.py
     digest: sha256:f5626dab311f5bed6d8838c6114a127ce2fdee6eb851560323d4a904681bb6f9
   - path: src/evallab/operational_restraint.py

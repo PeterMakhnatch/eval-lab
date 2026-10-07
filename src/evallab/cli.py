@@ -6901,6 +6901,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.storage.trials import build_trials_parser
 
     build_trials_parser(commands)
+    from evallab.task_dossier import build_task_dossier_parser
+
+    build_task_dossier_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)

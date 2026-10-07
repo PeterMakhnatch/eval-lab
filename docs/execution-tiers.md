@@ -156,6 +156,72 @@ files. The [separate-verifier evidence](../research/experiments/har169-separate-
 records the supported layout and controls. A successful local replay proves
 verifier operation, not task validity or model improvement.
 
+### Additional upstream tests (`--held-out`, HAR-197)
+
+`evallab regrade JOB --held-out BUNDLE.json --task ORIGINAL_TASK --dry-run`
+checks a separate, digest-bound upstream-test suite against the recorded source.
+The preview reads files only: it does not probe Docker, build an image, create
+an output job, or execute task code. `runnable` means input eligibility, not
+runtime availability or research approval.
+
+Extract a suite from a **locally retained** repository with
+`python -m evallab.heldout_tests extract --help`. Supply the actual base and
+upstream fix commits, the task's hidden patch, pinned image, and workdir.
+Extraction reads the original Git store without mutation or transport access;
+hidden postimages use a temporary Git index/object store. Added or modified
+Python test definitions are compared with normalized hidden/base ASTs.
+Comments, docstrings, and renamed copies do not create extra tests.
+Unavailable inputs are distinct from completed `no_extra_tests` subtraction.
+The output includes exact test/support bytes, selected nodes, exclusions, and
+provenance—not the production fix.
+
+An example bundle, with paths relative to the bundle's directory:
+
+```json
+{
+  "schema_version": "heldout-regrade/v1",
+  "tasks": [{
+    "task_name": "org/task",
+    "suite": "suite.json",
+    "framework": "pytest",
+    "command": ["python", "-m", "pytest", "-q"]
+  }]
+}
+```
+
+Use the interpreter and environment belonging to that task. The `unittest`
+adapter takes an interpreter prefix and optionally a config-relative
+`bootstrap` Python file; bootstrap and test collection share one interpreter,
+so initialization such as Django settings persists. Explicit `env` values and
+`timeout_sec` are bound with the other inputs.
+
+Without `--dry-run`, this starts **local, CPU-only, no-network verifier
+containers** through the existing native trial-regrade API. The source task,
+kernel-probe, and native egress-control images must already be cached; missing
+prerequisites are refused, not downloaded. Generated Compose disables the
+verifier's network and image pulls, and no source-task healthcheck or Compose
+configuration is inherited. Runs are sequential, with no model invocation.
+**A zero-dollar operation does not grant a card-specific sandbox approval.**
+
+Only the original `reward == 1` selects a trial; `integrity` and `reward_gated`
+remain separate observations. The pre-hidden-test `verifier/agent.diff` is
+applied on its pinned base, then authoritative test files replace agent edits.
+Unrecoverable binary placeholders are refused, not silently stripped. A patch
+does not recover ignored files, installed dependencies, or other runtime state.
+
+Complete observed test results produce only `holdout_pass: 1.0` or `0.0`.
+Missing inputs/reports, collection or runtime errors, skipped or unexecuted
+selected tests, and timeouts stay **unscored**. Neither refusal nor missing
+coverage is a zero. Original trial bytes and reward dimensions remain unchanged.
+The new output groups native trial directories with the existing per-trial and
+`regrade-job-receipt.json` receipts; it does not fabricate a native job invocation.
+
+“Held-out” here means additional to the task grader, **not secret from an agent
+that could read the leaked history**. AST novelty is not semantic independence
+or a cheating verdict. Qualify candidate suites with correct-fix/honest controls
+and deliberately hollow patches before reporting recall or false-positive rates;
+report unavailable corpus and runtime coverage separately.
+
 
 ## Offline LEGO capture checks (CPU only)
 

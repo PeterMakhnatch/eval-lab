@@ -49,7 +49,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from enum import StrEnum
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -149,6 +149,13 @@ class RegradeRefusalCode(StrEnum):
     TASK_NAME_MISMATCH = "task_name_mismatch"
     #: Two task directories claim the same task name.
     TASK_AMBIGUOUS = "task_ambiguous"
+    SOURCE_PATCH_UNAVAILABLE = "source_patch_unavailable"
+    SOURCE_NO_PASSING_TRIALS = "source_no_passing_trials"
+    HELD_OUT_BUNDLE_INVALID = "held_out_bundle_invalid"
+    HELD_OUT_SUITE_UNAVAILABLE = "held_out_suite_unavailable"
+    HELD_OUT_SOURCE_MISMATCH = "held_out_source_mismatch"
+    HELD_OUT_RUNTIME_UNAVAILABLE = "held_out_runtime_unavailable"
+    HELD_OUT_INPUT_CHANGED = "held_out_input_changed"
 
 
 class RegradeVerdict(StrEnum):
@@ -203,6 +210,9 @@ class SourceTrialIdentity(ContractModel):
     trajectory_digest: str | None = None
     #: Digest over the collected artifact manifest, the other regrade input.
     artifact_manifest_digest: str | None = None
+    #: Recorded reward/result bytes and the pre-hidden-test Git patch, when present.
+    result_digest: str | None = None
+    agent_patch_digest: str | None = None
 
 
 class VerifierIdentity(ContractModel):
@@ -292,10 +302,12 @@ class RegradeJobPlanTrial(ContractModel):
 
     source_trial_dir: str
     task_name: str | None = None
-    #: Verifier task directory matched to this trial, if resolution succeeded.
+    #: Matched task; held-out mode derives a separate verifier from this source package.
     task_dir: str | None = None
     eligible: bool = False
     refusals: list[RegradeRefusalCode] = Field(default_factory=list)
+    input_digests: dict[str, str] = Field(default_factory=dict)
+    details: list[str] = Field(default_factory=list)
 
 
 class RegradeJobPlan(ContractModel):
@@ -308,8 +320,11 @@ class RegradeJobPlan(ContractModel):
     #: Where Harbor would write the new job. Never inside the source job.
     job_dir: str
     task_dirs: list[str] = Field(default_factory=list)
+    mode: Literal["standard", "held-out"] = "standard"
+    heldout_bundle_digest: str | None = None
+    skipped_trials: list[str] = Field(default_factory=list)
     environment: str = "docker"
-    #: Empty when the plan is not runnable.
+    #: Held-out mode materializes per-trial commands only after cached-image preflight.
     command: list[str] = Field(default_factory=list)
     trials: list[RegradeJobPlanTrial] = Field(default_factory=list)
     refusals: list[RegradeRefusalCode] = Field(default_factory=list)
@@ -317,14 +332,13 @@ class RegradeJobPlan(ContractModel):
 
 
 class RegradeJobReceiptV1(ContractModel):
-    """One `harbor job regrade` run over a recorded job, fully receipted.
+    """Re-scoring of a recorded job, with separately attributed per-trial evidence.
 
-    `trials` carries one trial-level receipt per source trial, each with its
-    own source/verifier identity and old/new reward dimensions. Per-trial
-    receipts never carry the job command: `invocation`/`execution` describe
-    the single Harbor invocation that produced them all. Anything that could
-    not be compared appears as a REFUSED trial receipt with typed refusals —
-    never as a fabricated comparison.
+    Standard mode uses one native job invocation. Held-out mode groups sequential
+    native trial regrades so only recorded passes execute; their actual commands
+    live in the trial receipts, not a fabricated native job invocation.
+    Refused inputs remain explicit and unscored. Non-passing source trials are
+    listed separately in ``skipped_trials`` in held-out mode.
     """
 
     schema_version: str = "regrade-job-receipt/v1"
@@ -337,6 +351,9 @@ class RegradeJobReceiptV1(ContractModel):
     jobs_dir: str
     #: The new Harbor job directory in standard jobs-root/job/trial shape.
     job_dir: str
+    mode: Literal["standard", "held-out"] = "standard"
+    heldout_bundle_digest: str | None = None
+    skipped_trials: list[str] = Field(default_factory=list)
     #: Verifier task directories passed as `-p`, in command order.
     task_dirs: list[str] = Field(default_factory=list)
     environment: str = "docker"
@@ -371,7 +388,7 @@ def _load_json(path: Path) -> Any | None:
 
 def _digest_file(path: Path) -> str | None:
     try:
-        return compute_prefixed_sha256(path.read_bytes().decode("utf-8", errors="surrogateescape"))
+        return compute_prefixed_sha256(path.read_bytes())
     except OSError:
         return None
 
@@ -422,6 +439,8 @@ def source_trial_identity(trial_dir: Path) -> SourceTrialIdentity:
         model_name=_optional_str(model_map.get("name")),
         trajectory_digest=_digest_file(trial_dir / "agent" / "trajectory.json"),
         artifact_manifest_digest=_digest_file(trial_dir / "artifacts" / "manifest.json"),
+        result_digest=_digest_file(trial_dir / "result.json"),
+        agent_patch_digest=_digest_file(trial_dir / "verifier" / "agent.diff"),
     )
 
 
@@ -569,7 +588,7 @@ def _step_effective_mode(
     return _verifier_effective_mode(task_verifier)
 
 
-def _preflight(trial_dir: Path, task_dir: Path) -> list[RegradeRefusalCode]:
+def _source_preflight(trial_dir: Path) -> list[RegradeRefusalCode]:
     refusals: list[RegradeRefusalCode] = []
 
     if not trial_dir.is_dir():
@@ -583,6 +602,13 @@ def _preflight(trial_dir: Path, task_dir: Path) -> list[RegradeRefusalCode]:
         refusals.append(RegradeRefusalCode.SOURCE_AGENT_LOGS_MISSING)
     if not (trial_dir / "artifacts" / "manifest.json").is_file():
         refusals.append(RegradeRefusalCode.SOURCE_ARTIFACT_MANIFEST_MISSING)
+    return refusals
+
+
+def _preflight(trial_dir: Path, task_dir: Path) -> list[RegradeRefusalCode]:
+    refusals = _source_preflight(trial_dir)
+    if RegradeRefusalCode.SOURCE_TRIAL_MISSING in refusals:
+        return refusals
 
     if not task_dir.is_dir():
         refusals.append(RegradeRefusalCode.TASK_DIR_MISSING)
@@ -1018,6 +1044,7 @@ def _resolve_job_task_dirs(
     *,
     source_trials: list[Path],
     task_dir: Path | None,
+    require_separate: bool = True,
 ) -> tuple[list[Path], dict[str, Path], list[RegradeRefusalCode]]:
     """Resolve verifier task directories for every source task name.
 
@@ -1055,7 +1082,7 @@ def _resolve_job_task_dirs(
             if len(expanded) == 1 and not (set(source_names) & set(dirs_by_name)):
                 return ([], {}, [RegradeRefusalCode.TASK_NAME_MISMATCH])
             return ([], {}, [RegradeRefusalCode.TASK_COVERAGE_GAP])
-        gate = _gate_matched_tasks(dirs_by_name, set(source_names))
+        gate = _gate_matched_tasks(dirs_by_name, set(source_names)) if require_separate else []
         if gate:
             return ([], {}, gate)
         return (expanded, {name: dirs_by_name[name] for name in source_names}, [])
@@ -1077,7 +1104,7 @@ def _resolve_job_task_dirs(
                 return ([], {}, [RegradeRefusalCode.TASK_AMBIGUOUS])
         assert saved is not None
         dirs_by_name[name] = saved
-    gate = _gate_matched_tasks(dirs_by_name, set(source_names))
+    gate = _gate_matched_tasks(dirs_by_name, set(source_names)) if require_separate else []
     if gate:
         return ([], {}, gate)
     ordered: list[Path] = []
@@ -1463,6 +1490,8 @@ def render_job_plan(plan: RegradeJobPlan) -> str:
         f"trial(s) {plan.source_job_dir} -> {plan.job_dir}"
     )
     lines = [head]
+    if plan.skipped_trials:
+        lines.append(f"not passing, not replayed: {len(plan.skipped_trials)} trial(s)")
     if plan.refusals:
         lines.append("job refusals: " + ", ".join(code.value for code in plan.refusals))
     for trial in plan.trials:
@@ -1473,6 +1502,7 @@ def render_job_plan(plan: RegradeJobPlan) -> str:
         lines.append(
             f"  {state}: {Path(trial.source_trial_dir).name} "
             f"task={trial.task_name}{detail}"
+            + (": " + "; ".join(trial.details) if trial.details else "")
         )
     return "\n".join(lines)
 
@@ -1483,6 +1513,8 @@ def render_job_receipt(receipt: RegradeJobReceiptV1) -> str:
         f"{receipt.verdict.value}: {receipt.n_compared} compared, "
         f"{receipt.n_refused} refused — {receipt.source_job_dir} -> {receipt.job_dir}"
     )
+    if receipt.skipped_trials:
+        head += f"; {len(receipt.skipped_trials)} non-passing trial(s) not replayed"
     if receipt.refused and receipt.refusals:
         head += " [" + ", ".join(code.value for code in receipt.refusals) + "]"
     return "\n".join([head, *(render_receipt(trial) for trial in receipt.trials)])

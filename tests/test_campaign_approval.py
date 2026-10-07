@@ -21,6 +21,9 @@ from evallab.campaign_approval import (
     CampaignTaskAllowance,
     ExperimentCampaign,
 )
+from evallab.dispatch_guards import SelfhostedProbeOutcome
+from evallab.modal_billing import BillingRow
+from evallab.modal_ops import MODAL_APP_NAME
 from evallab.queue import DirectoryQueue, Executor, PolicyGate, load_events
 from evallab.registry import compute_task_digests
 from evallab.schemas import (
@@ -29,6 +32,7 @@ from evallab.schemas import (
     ReferenceDeviation,
     StandingApprovalsPolicy,
 )
+from evallab.task_qualification import estimate_cost_usd
 
 TASK_ID = "format-code-task-001198"
 TASK_REF = "test-task/test-task-001198"
@@ -64,7 +68,9 @@ def make_executor(root: Path, **kwargs) -> Executor:
         ingester=kwargs.pop("ingester", lambda path: None),
         spent_today=kwargs.pop("spent_today", lambda: 0),
         consecutive_harness_failures=lambda: 0,
-        credential_probe=lambda: frozenset({"claude_oauth", "codex_auth"}),
+        credential_probe=kwargs.pop(
+            "credential_probe", lambda: frozenset({"claude_oauth", "codex_auth"})
+        ),
         smoke_gate_enabled=False,
         **kwargs,
     )
@@ -82,10 +88,13 @@ def make_campaign(
     model: str | None = "test-model",
     environment: str = "docker",
     sampling: CampaignSampling | None = None,
+    attempts_per_task: int = 1,
+    write: bool = True,
 ) -> ExperimentCampaign:
     campaign = ExperimentCampaign(
         campaign_id=campaign_id,
         budget_usd=budget_usd,
+        attempts_per_task=attempts_per_task,
         tasks=[CampaignTaskAllowance(task_id=task_id, package_digest=package_digest)],
         reference_profile="xiaomi-mimo-rl",
         allowed_deviations=[],
@@ -106,8 +115,9 @@ def make_campaign(
         submitted_by="test",
         created_at=NOW,
     )
-    cap.write_campaign(root, campaign)
-    cap.approve_campaign(root, campaign_id, actor="research-harbor", approved_at=NOW)
+    if write:
+        cap.write_campaign(root, campaign)
+        cap.approve_campaign(root, campaign_id, actor="research-harbor", approved_at=NOW)
     return campaign
 
 
@@ -124,6 +134,8 @@ def make_spec(
     est_cost_usd: float = 1.0,
     campaign_id: str | None = CAMPAIGN_ID,
     max_requests: int | None = 10,
+    attempts: int = 1,
+    cost_limit_usd: float = 1.0,
 ) -> ExperimentSpec:
     return ExperimentSpec(
         name=name,
@@ -146,7 +158,8 @@ def make_spec(
         max_input_tokens=1000,
         max_output_tokens=1000,
         max_total_tokens=2000,
-        cost_limit_usd=1.0,
+        cost_limit_usd=cost_limit_usd,
+        attempts=attempts,
     )
 
 
@@ -158,9 +171,20 @@ def write_job(
     exception: str | None = None,
     cost: float | None = None,
     finished: bool = True,
+    job_id: str = "job-1",
+    trial_id: str = "trial-0",
+    started_at: str | None = None,
+    finished_at: str | None = None,
+    model: str | None = None,
+    usage: dict | None = None,
 ) -> Path:
+    """A completed Harbor job, unless ``finished`` is false.
+
+    ``job_id`` and ``trial_id`` must be unique across jobs the meter may see
+    together: native identity dedupe is ``(job.result.id, trial.result.id)``.
+    """
     job_dir = root / "runs" / spec_name
-    trial_dir = job_dir / "trial-0"
+    trial_dir = job_dir / trial_id
     trial_dir.mkdir(parents=True, exist_ok=True)
     (job_dir / "result.json").write_text(
         json.dumps(
@@ -168,16 +192,25 @@ def write_job(
                 "n_total_trials": 1,
                 "stats": {},
                 "finished_at": "2026-10-06T00:00:00Z" if finished else None,
-                "id": "job-1",
+                "id": job_id,
             }
         ),
         encoding="utf-8",
     )
+    if model is not None:
+        (job_dir / "config.json").write_text(
+            json.dumps({"agent": {"model_name": model}}),
+            encoding="utf-8",
+        )
     trial_result: dict = {
-        "id": "trial-0",
+        "id": trial_id,
         "task_name": TASK_REF,
-        "trial_name": "trial-0",
+        "trial_name": trial_id,
     }
+    if started_at is not None:
+        trial_result["started_at"] = started_at
+    if finished_at is not None:
+        trial_result["finished_at"] = finished_at
     if reward is not None:
         trial_result["verifier_result"] = {"rewards": {"reward": reward}}
     if exception is not None:
@@ -188,6 +221,8 @@ def write_job(
     if cost is not None:
         trial_result["agent_result"] = {"cost_usd": cost}
     (trial_dir / "result.json").write_text(json.dumps(trial_result), encoding="utf-8")
+    if usage is not None:
+        (trial_dir / "daytona-usage.json").write_text(json.dumps(usage), encoding="utf-8")
     return job_dir
 
 
@@ -197,6 +232,116 @@ def waiting_code(service: Executor, spec_id: str) -> str:
     reasons = list(service.queue.reasons_dir.glob(f"{spec_id}-*.json"))
     assert reasons, f"no reason recorded for {spec_id}"
     return json.loads(reasons[-1].read_text(encoding="utf-8"))["code"]
+
+
+METER_CREDENTIALS = frozenset({"claude_oauth", "codex_auth", "mimo_selfhosted_api_environment"})
+PROBE_UPSTREAM = "http://127.0.0.1:9"
+
+
+def idle_daytona_snapshot() -> dict:
+    return {
+        "limits": {"memory_gib": 200.0},
+        "safety_fraction": 0.8,
+        "used": {"memory_gib": 0.0},
+        "pending": {"memory_gib": 0.0},
+        "per_sandbox_limits": {"memory_gib": 8.0},
+    }
+
+
+def stub_meter_sources(monkeypatch: pytest.MonkeyPatch, rows, sibling_roots=()):
+    """Stub the only external meter seams: Modal billing and sibling checkouts."""
+    calls: list[dict] = []
+
+    def fetch(**kwargs):
+        calls.append(kwargs)
+        return list(rows)
+
+    monkeypatch.setattr("evallab.modal_billing.fetch_modal_billing_report", fetch)
+    monkeypatch.setattr(
+        "evallab.spend_day.sibling_worktree_roots",
+        lambda _root: list(sibling_roots),
+    )
+    return calls
+
+
+def app_bill(
+    cost: float,
+    *,
+    object_id: str = "gpu-1",
+    description: str = MODAL_APP_NAME,
+    resource: str = "gpu",
+) -> BillingRow:
+    return BillingRow(
+        object_id=object_id,
+        description=description,
+        environment="main",
+        interval_start=datetime(2026, 10, 6, tzinfo=UTC),
+        resource=resource,
+        cost_usd=cost,
+    )
+
+
+def daytona_requested(*, cpu: float = 1, memory_gib: float = 1, disk_gib: float = 1) -> dict:
+    return {
+        "admission": {"requested": {"cpu": cpu, "memory_gib": memory_gib, "disk_gib": disk_gib}}
+    }
+
+
+def hour_sandbox_usd() -> float:
+    cost = estimate_cost_usd(
+        backend="daytona",
+        sandbox_seconds=3600,
+        cpus=1,
+        memory_mb=1024,
+        storage_mb=1024,
+    )
+    assert cost is not None and cost > 0
+    return cost
+
+
+def guarded_executor(
+    root: Path,
+    launched: list,
+    probes: list,
+    teardowns: list,
+    observes: list,
+) -> Executor:
+    def runner(request):
+        launched.append(request.name)
+        destination = Path(request.jobs_dir) / request.name
+        destination.mkdir(parents=True, exist_ok=True)
+        return destination
+
+    def probe(endpoint, model, key, timeout):
+        probes.append(endpoint)
+        return SelfhostedProbeOutcome(ok=True, status=200, cold=False, detail="ready")
+
+    return make_executor(
+        root,
+        runner=runner,
+        credential_probe=lambda: METER_CREDENTIALS,
+        sleeper=lambda _seconds: None,
+        selfhosted_probe_fn=probe,
+        selfhosted_warmup_seconds=0.05,
+        daytona_observe_fn=lambda: observes.append(True) or idle_daytona_snapshot(),
+        modal_teardown=lambda *args: teardowns.append(args) or None,
+    )
+
+
+def finish(service: Executor, path: Path, **kwargs):
+    spec = service.queue.load(path)
+    service.queue.transition(path, "done", actor="executor", event="dispatch_completed")
+    write_job(service.repo_root, spec.name, **kwargs)
+    return spec
+
+
+def assert_spend_conserved(root: Path, campaign_id: str):
+    breakdown = cap.campaign_spend_breakdown(root, campaign_id)
+    spend = cap.campaign_spend_usd(root, campaign_id)
+    assert set(breakdown) == {"modal_gpu", "daytona", "model_api", "unmeasured_reserved"}
+    assert sum(breakdown.values()) == pytest.approx(spend[2])
+    assert spend[0] + spend[1] == pytest.approx(spend[2])
+    return spend, breakdown
 
 
 def test_campaign_matching_spec_runs_without_per_id_approval(tmp_path: Path) -> None:
@@ -461,6 +606,10 @@ def test_har188_campaigns_declare_only_native_harness_adapters(size: str) -> Non
     path = root / f"research/experiments/har188-breadth/har188-breadth-{size}.json"
     campaign = ExperimentCampaign.model_validate_json(path.read_text())
     assert campaign.agent == "mimoagent"
+    assert campaign.attempts_per_task == 2
+    if size == "n18":
+        assert len(campaign.tasks) == 18
+        assert len(campaign.tasks) * campaign.attempts_per_task == 36
     assert campaign.sampling == MIMO_SAMPLING
     assert len(campaign.allowed_deviations) == 1
     deviation = campaign.allowed_deviations[0]
@@ -574,3 +723,488 @@ def test_wave_cost_estimate_waves_and_fence() -> None:
     assert cap.wave_cost_estimate(40).expected_usd > 5.0
     assert cap.fenced_spend_bound(30.0) == 41.4
     assert cap.fenced_spend_bound(5.0) == 16.4
+
+
+def selfhosted_campaign(root: Path, digest: str, **kwargs) -> ExperimentCampaign:
+    kwargs.setdefault("agent", "mimoagent")
+    kwargs.setdefault("model", MIMO_MODEL)
+    kwargs.setdefault("environment", "daytona")
+    kwargs.setdefault("sampling", MIMO_SAMPLING)
+    return make_campaign(root, digest, **kwargs)
+
+
+def selfhosted_spec(name: str, digest: str, **kwargs) -> ExperimentSpec:
+    kwargs.setdefault("agent", "mimoagent")
+    kwargs.setdefault("model", MIMO_MODEL)
+    kwargs.setdefault("environment", "daytona")
+    kwargs.setdefault("est_cost_usd", 0.0)
+    return make_spec(name, digest, **kwargs)
+
+
+def silence_meter(monkeypatch: pytest.MonkeyPatch, rows=(), sibling_roots=()):
+    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv, check: None)
+    monkeypatch.setenv("EVALLAB_MIMO_SELFHOSTED_UPSTREAM", PROBE_UPSTREAM)
+    monkeypatch.setenv("MIMO_SELFHOSTED_API_KEY", "test-key")
+    return stub_meter_sources(monkeypatch, rows, sibling_roots)
+
+
+def test_default_attempts_pin_keeps_digest_attempts_two_changes_it(tmp_path: Path) -> None:
+    """Omitting attempts_per_task matches the parsed default of 1."""
+    digest = seed_task(tmp_path)
+    campaign = make_campaign(tmp_path, digest)
+    assert campaign.attempts_per_task == 1
+    raw = campaign.model_dump(mode="json", exclude_none=True)
+    raw.pop("attempts_per_task")
+    parsed = ExperimentCampaign.model_validate(raw)
+    assert parsed.attempts_per_task == 1
+    assert cap.campaign_content_digest(raw) == cap.campaign_content_digest(campaign)
+    assert cap.campaign_content_digest(parsed) == cap.campaign_content_digest(raw)
+    assert cap.campaign_content_digest(
+        campaign.model_copy(update={"attempts_per_task": 2})
+    ) != cap.campaign_content_digest(campaign)
+
+
+def test_selfhosted_zero_estimate_reserves_wave_average(tmp_path: Path) -> None:
+    """Est-0 selfhosted reserves the one-trial wave average, not $0 or $1."""
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    selfhosted_campaign(tmp_path, digest, budget_usd=10)
+    per = cap.wave_cost_estimate(1).expected_usd
+    assert per == 1.24
+
+    zero_path, zero = service.submit(selfhosted_spec("reserve-zero", digest))
+    assert zero.admitted
+    assert cap.campaign_spend_usd(tmp_path, CAMPAIGN_ID)[0] == pytest.approx(per)
+
+    declared_path, declared = service.submit(
+        selfhosted_spec("reserve-declared", digest, est_cost_usd=3)
+    )
+    assert declared.admitted
+    assert cap.campaign_spend_usd(tmp_path, CAMPAIGN_ID)[0] == pytest.approx(per + 3)
+
+    doubled_path, doubled = service.submit(selfhosted_spec("reserve-attempts", digest, attempts=2))
+    assert doubled.admitted
+    assert cap.campaign_spend_usd(tmp_path, CAMPAIGN_ID)[0] == pytest.approx(per + 3 + 2 * per)
+    assert all(path.parent.name == "approved" for path in (zero_path, declared_path, doubled_path))
+
+
+def test_zero_estimate_daytona_reserves_same_wave_average(tmp_path: Path) -> None:
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    make_campaign(tmp_path, digest, environment="daytona", budget_usd=10)
+    path, decision = service.submit(
+        make_spec("daytona-zero-est", digest, environment="daytona", est_cost_usd=0)
+    )
+    assert decision.admitted
+    assert path.parent.name == "approved"
+    reserved, settled, total = cap.campaign_spend_usd(tmp_path, CAMPAIGN_ID)
+    assert reserved == pytest.approx(cap.wave_cost_estimate(1).expected_usd)
+    assert reserved == pytest.approx(1.24)
+    assert settled == 0
+    assert total == pytest.approx(reserved)
+
+
+def test_budget_bound_sums_positive_per_trial_gaps(tmp_path: Path) -> None:
+    """One over-reserved trial must not erase another trial's ceiling gap."""
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    selfhosted_campaign(tmp_path, digest, budget_usd=10)
+    per = cap.wave_cost_estimate(1).expected_usd
+    _, low = service.submit(selfhosted_spec("gap-low", digest, cost_limit_usd=0.6))
+    _, high = service.submit(selfhosted_spec("gap-high", digest, cost_limit_usd=2.0))
+    assert low.admitted and high.admitted
+    bound = cap.campaign_budget_bound(tmp_path, CAMPAIGN_ID)
+    high_gap = max(0.0, 2.0 - per)
+    erased = max(0.0, (0.6 + 2.0) - 2 * per)
+    assert bound["in_flight_trials"] == 2
+    assert bound["in_flight_worst_case_usd"] == pytest.approx(2.6)
+    assert bound["overrun_bound_usd"] == pytest.approx(high_gap)
+    assert bound["overrun_bound_usd"] > erased
+    assert bound["realized_spend_bound_usd"] == pytest.approx(10 + high_gap)
+
+
+def test_missing_selfhosted_evidence_counts_wave_reservation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    silence_meter(monkeypatch, [app_bill(9.0)])
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    selfhosted_campaign(tmp_path, digest, environment="docker", budget_usd=10)
+    path, decision = service.submit(
+        selfhosted_spec("missing-evidence", digest, environment="docker")
+    )
+    assert decision.admitted
+    finish(
+        service,
+        path,
+        reward=1.0,
+        job_id="job-no-window",
+        trial_id="trial-no-window",
+        model=MIMO_MODEL,
+    )
+    per = cap.wave_cost_estimate(1).expected_usd
+    spend, breakdown = assert_spend_conserved(tmp_path, CAMPAIGN_ID)
+    assert breakdown["modal_gpu"] == 0
+    assert breakdown["unmeasured_reserved"] == pytest.approx(per)
+    assert spend[1] == pytest.approx(per)
+    assert spend[1] == pytest.approx(1.24)
+
+
+def test_missing_billing_keeps_known_daytona_and_reserves_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(**_kwargs):
+        raise RuntimeError("billing lag")
+
+    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv, check: None)
+    monkeypatch.setattr("evallab.modal_billing.fetch_modal_billing_report", fail)
+    monkeypatch.setattr("evallab.spend_day.sibling_worktree_roots", lambda _root: [])
+    sandbox = hour_sandbox_usd()
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    selfhosted_campaign(tmp_path, digest, budget_usd=10)
+    path, decision = service.submit(selfhosted_spec("missing-bill", digest))
+    assert decision.admitted
+    finish(
+        service,
+        path,
+        reward=1.0,
+        job_id="job-missing-bill",
+        trial_id="trial-missing-bill",
+        started_at="2026-10-06T00:00:00+00:00",
+        finished_at="2026-10-06T01:00:00+00:00",
+        model=MIMO_MODEL,
+        usage=daytona_requested(),
+    )
+    per = cap.wave_cost_estimate(1).expected_usd
+    spend, breakdown = assert_spend_conserved(tmp_path, CAMPAIGN_ID)
+    assert breakdown["modal_gpu"] == 0
+    assert breakdown["daytona"] == pytest.approx(sandbox)
+    assert breakdown["unmeasured_reserved"] == pytest.approx(max(0.0, per - sandbox))
+    assert spend[1] == pytest.approx(sandbox + max(0.0, per - sandbox))
+
+
+def test_partial_modal_day_keeps_known_gpu_and_reserves_gap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A midnight-spanning trial keeps the billed day and reserves the gap."""
+    known = 0.40
+    silence_meter(
+        monkeypatch,
+        [
+            app_bill(known, object_id="serving-day"),
+            BillingRow(
+                object_id="other-app",
+                description="not-the-serving-app",
+                environment="main",
+                interval_start=datetime(2026, 10, 7, tzinfo=UTC),
+                resource="gpu",
+                cost_usd=9.0,
+            ),
+        ],
+    )
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    selfhosted_campaign(tmp_path, digest, environment="docker", budget_usd=10)
+    path, decision = service.submit(selfhosted_spec("span-midnight", digest, environment="docker"))
+    assert decision.admitted
+    finish(
+        service,
+        path,
+        reward=1.0,
+        job_id="job-span",
+        trial_id="trial-span",
+        started_at="2026-10-06T22:00:00+00:00",
+        finished_at="2026-10-07T02:00:00+00:00",
+        model=MIMO_MODEL,
+    )
+    per = cap.wave_cost_estimate(1).expected_usd
+    spend, breakdown = assert_spend_conserved(tmp_path, CAMPAIGN_ID)
+    assert breakdown["modal_gpu"] == pytest.approx(known)
+    assert breakdown["unmeasured_reserved"] == pytest.approx(max(0.0, per - known))
+    assert spend[1] == pytest.approx(known + max(0.0, per - known))
+
+
+def test_modal_pool_splits_by_overlap_including_outside_trials(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sibling = tmp_path / "sibling"
+    calls = silence_meter(
+        monkeypatch,
+        [
+            app_bill(12.0, object_id="app-day"),
+            app_bill(12.0, object_id="app-day"),
+            app_bill(100.0, object_id="ignored", description="some-other-app"),
+        ],
+        sibling_roots=[sibling],
+    )
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    selfhosted_campaign(
+        tmp_path, digest, campaign_id="pool-main", environment="docker", budget_usd=20
+    )
+    selfhosted_campaign(
+        tmp_path, digest, campaign_id="pool-other", environment="docker", budget_usd=10
+    )
+    long_path, long_decision = service.submit(
+        selfhosted_spec("pool-long", digest, campaign_id="pool-main", environment="docker")
+    )
+    short_path, short_decision = service.submit(
+        selfhosted_spec("pool-short", digest, campaign_id="pool-main", environment="docker")
+    )
+    other_path, other_decision = service.submit(
+        selfhosted_spec("pool-other-trial", digest, campaign_id="pool-other", environment="docker")
+    )
+    assert long_decision.admitted and short_decision.admitted and other_decision.admitted
+    finish(
+        service,
+        long_path,
+        reward=1.0,
+        job_id="job-long",
+        trial_id="trial-long",
+        started_at="2026-10-06T00:00:00+00:00",
+        finished_at="2026-10-06T02:00:00+00:00",
+        model=MIMO_MODEL,
+    )
+    finish(
+        service,
+        short_path,
+        reward=1.0,
+        job_id="job-short",
+        trial_id="trial-short",
+        started_at="2026-10-06T00:00:00+00:00",
+        finished_at="2026-10-06T01:00:00+00:00",
+        model=MIMO_MODEL,
+    )
+    finish(
+        service,
+        other_path,
+        reward=1.0,
+        job_id="job-other",
+        trial_id="trial-other",
+        started_at="2026-10-06T01:00:00+00:00",
+        finished_at="2026-10-06T02:00:00+00:00",
+        model=MIMO_MODEL,
+    )
+    write_job(
+        sibling,
+        "outsider",
+        reward=1.0,
+        job_id="job-outsider",
+        trial_id="trial-outsider",
+        started_at="2026-10-06T00:00:00+00:00",
+        finished_at="2026-10-06T03:00:00+00:00",
+        model=MIMO_MODEL,
+    )
+    _main_spend, main_parts = assert_spend_conserved(tmp_path, "pool-main")
+    _other_spend, other_parts = assert_spend_conserved(tmp_path, "pool-other")
+    # Weights: 2h + 1h in main, 1h cross-campaign, 3h noncampaign sibling. Pool $12.
+    assert other_parts["modal_gpu"] == pytest.approx(12 * 1 / 7)
+    assert main_parts["modal_gpu"] == pytest.approx(12 * 3 / 7)
+    assert main_parts["modal_gpu"] == pytest.approx(3 * other_parts["modal_gpu"])
+    assert main_parts["modal_gpu"] + other_parts["modal_gpu"] == pytest.approx(12 * 4 / 7)
+    assert calls and calls[0]["resolution"] == "d"
+
+
+def test_partial_daytona_keeps_known_spend_unknown_api_not_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    silence_meter(monkeypatch)
+    sandbox = hour_sandbox_usd()
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    make_campaign(tmp_path, digest, environment="daytona", budget_usd=10)
+    path, decision = service.submit(
+        make_spec("partial-api", digest, environment="daytona", est_cost_usd=2.5)
+    )
+    assert decision.admitted
+    finish(
+        service,
+        path,
+        job_id="job-partial-api",
+        trial_id="trial-partial-api",
+        started_at="2026-10-06T00:00:00+00:00",
+        finished_at="2026-10-06T01:00:00+00:00",
+        usage=daytona_requested(),
+    )
+    spend, breakdown = assert_spend_conserved(tmp_path, CAMPAIGN_ID)
+    assert breakdown["model_api"] == 0
+    assert breakdown["daytona"] == pytest.approx(sandbox)
+    assert breakdown["unmeasured_reserved"] == pytest.approx(max(0.0, 2.5 - sandbox))
+    assert breakdown["unmeasured_reserved"] > 0
+    assert spend[1] == pytest.approx(2.5)
+
+
+def test_nonselfhosted_missing_api_cost_falls_back_to_estimate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    silence_meter(monkeypatch)
+    digest = seed_task(tmp_path)
+    service = make_executor(tmp_path)
+    make_campaign(tmp_path, digest, budget_usd=10)
+    path, decision = service.submit(make_spec("api-missing", digest, est_cost_usd=1.75))
+    assert decision.admitted
+    finish(
+        service,
+        path,
+        job_id="job-api-missing",
+        trial_id="trial-api-missing",
+    )
+    spend, breakdown = assert_spend_conserved(tmp_path, CAMPAIGN_ID)
+    assert breakdown["model_api"] == 0
+    assert breakdown["daytona"] == 0
+    assert breakdown["modal_gpu"] == 0
+    assert breakdown["unmeasured_reserved"] == pytest.approx(1.75)
+    assert spend[1] == pytest.approx(1.75)
+
+
+def test_settled_gpu_daytona_fences_next_launch_leaves_running(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Settled GPU+Daytona that reaches the budget fences the next launch.
+
+    Tick does not launch, and the trial already running stays running.
+    """
+    sandbox = hour_sandbox_usd()
+    budget = 4.0
+    gpu_bill = budget - sandbox / 2
+    silence_meter(monkeypatch, [app_bill(gpu_bill)])
+    launched: list = []
+    probes: list = []
+    teardowns: list = []
+    observes: list = []
+    digest = seed_task(tmp_path)
+    service = guarded_executor(tmp_path, launched, probes, teardowns, observes)
+    selfhosted_campaign(tmp_path, digest, budget_usd=budget)
+    per = cap.wave_cost_estimate(1).expected_usd
+    settled_path, settled_decision = service.submit(selfhosted_spec("fence-settled", digest))
+    running_path, running_decision = service.submit(selfhosted_spec("fence-running", digest))
+    assert settled_decision.admitted and running_decision.admitted
+    assert cap.campaign_spend_usd(tmp_path, CAMPAIGN_ID)[0] == pytest.approx(2 * per)
+    assert 2 * per + per <= budget
+
+    settled = finish(
+        service,
+        settled_path,
+        reward=1.0,
+        job_id="job-fence-settled",
+        trial_id="trial-fence-settled",
+        started_at="2026-10-06T00:00:00+00:00",
+        finished_at="2026-10-06T01:00:00+00:00",
+        model=MIMO_MODEL,
+        usage=daytona_requested(),
+    )
+    running = service.queue.load(running_path)
+    service.queue.transition(running_path, "running", actor="executor", event="dispatch_started")
+    write_job(
+        service.repo_root,
+        running.name,
+        finished=False,
+        job_id="job-fence-running",
+        trial_id="trial-fence-running",
+    )
+    _spend, breakdown = assert_spend_conserved(tmp_path, CAMPAIGN_ID)
+    assert breakdown["modal_gpu"] == pytest.approx(gpu_bill)
+    assert breakdown["daytona"] == pytest.approx(sandbox)
+    assert breakdown["modal_gpu"] < budget
+    assert breakdown["modal_gpu"] + breakdown["daytona"] >= budget
+
+    refused_path, refused = service.submit(selfhosted_spec("fence-next", digest))
+    assert not refused.admitted
+    assert refused.reason_code == "campaign_budget_exhausted"
+    assert refused_path.parent.name == "waiting"
+    assert service.queue.stop_path.is_file()
+    refused_id = str(service.queue.load(refused_path).spec_id)
+    assert waiting_code(service, refused_id) == "campaign_budget_exhausted"
+    assert service.tick() == 0
+    assert launched == []
+    assert probes == []
+    assert service.queue.locate(str(running.spec_id), ("running",)).is_file()
+    assert service.queue.locate(refused_id, ("waiting",)).is_file()
+    assert service.queue.locate(str(settled.spec_id), ("done",)).is_file()
+
+
+def test_settled_gpu_daytona_moves_approved_launch_to_waiting(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An already approved launch is rechecked on tick and fenced."""
+    sandbox = hour_sandbox_usd()
+    budget = 4.0
+    gpu_bill = budget - sandbox / 2
+    silence_meter(monkeypatch, [app_bill(gpu_bill)])
+    launched: list = []
+    probes: list = []
+    teardowns: list = []
+    observes: list = []
+    digest = seed_task(tmp_path)
+    service = guarded_executor(tmp_path, launched, probes, teardowns, observes)
+    selfhosted_campaign(tmp_path, digest, budget_usd=budget)
+    settled_path, settled_decision = service.submit(selfhosted_spec("recheck-settled", digest))
+    launch_path, launch_decision = service.submit(selfhosted_spec("recheck-launch", digest))
+    assert settled_decision.admitted and launch_decision.admitted
+    assert launch_path.parent.name == "approved"
+    finish(
+        service,
+        settled_path,
+        reward=1.0,
+        job_id="job-recheck-settled",
+        trial_id="trial-recheck-settled",
+        started_at="2026-10-06T00:00:00+00:00",
+        finished_at="2026-10-06T01:00:00+00:00",
+        model=MIMO_MODEL,
+        usage=daytona_requested(),
+    )
+    launch_id = str(service.queue.load(launch_path).spec_id)
+    assert service.tick() == 0
+    assert launched == []
+    assert probes == []
+    assert observes
+    assert service.queue.stop_path.is_file()
+    assert service.queue.locate(launch_id, ("waiting",)).is_file()
+    assert waiting_code(service, launch_id) == "campaign_budget_exhausted"
+
+
+def test_thirty_six_trial_pin_admits_nineteen_wide_under_five(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """18 tasks x attempts_per_task 2 admits a 19-wide wave under $5."""
+    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv, check: None)
+    digest = seed_task(tmp_path)
+    base = selfhosted_campaign(tmp_path, digest, budget_usd=5.0, write=False)
+    tasks = [
+        CampaignTaskAllowance(task_id=TASK_ID, package_digest=digest),
+        *[
+            CampaignTaskAllowance(
+                task_id=f"format-code-task-{index:06d}",
+                package_digest=digest,
+            )
+            for index in range(1, 18)
+        ],
+    ]
+    pinned = base.model_copy(update={"attempts_per_task": 2, "tasks": tasks})
+    assert len(pinned.tasks) * pinned.attempts_per_task == 36
+    assert cap.campaign_content_digest(pinned) != cap.campaign_content_digest(base)
+    cap.write_campaign(tmp_path, pinned)
+    cap.approve_campaign(tmp_path, CAMPAIGN_ID, actor="research-harbor", approved_at=NOW)
+    per = cap.wave_cost_estimate(36).expected_usd / 36
+    assert cap.wave_cost_estimate(36).expected_usd == 4.92
+    assert per != pytest.approx(cap.wave_cost_estimate(18).expected_usd / 18)
+    assert 19 * cap.HAR168_TRIAL_CEILING_USD > 5.0
+    assert 19 * per < 5.0
+
+    service = make_executor(tmp_path)
+    for index in range(19):
+        path, decision = service.submit(
+            selfhosted_spec(f"wave-{index:02d}", digest, cost_limit_usd=0.6)
+        )
+        assert decision.admitted, decision.message
+        assert path.parent.name == "approved"
+
+    bound = cap.campaign_budget_bound(tmp_path, CAMPAIGN_ID)
+    overrun = 19 * (cap.HAR168_TRIAL_CEILING_USD - per)
+    assert bound["in_flight_trials"] == 19
+    assert bound["in_flight_reserved_usd"] == pytest.approx(19 * per)
+    assert bound["in_flight_worst_case_usd"] == pytest.approx(19 * 0.6)
+    assert bound["overrun_bound_usd"] == pytest.approx(overrun)
+    assert bound["overrun_bound_usd"] == pytest.approx(19 * (0.6 - 4.92 / 36))
+    assert bound["realized_spend_bound_usd"] == pytest.approx(5.0 + overrun)

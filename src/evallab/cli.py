@@ -652,9 +652,122 @@ def _approve_command(
     return 0
 
 
-def _print_campaign_status(status: Any, *, as_json: bool) -> None:
+def _campaign_spend_snapshot(
+    root: Path, campaign_id: str, *, campaign: Any | None = None
+) -> dict[str, Any]:
+    from evallab import campaign_approval as cap
+
+    if campaign is None:
+        reserved, settled, committed = cap.campaign_spend_usd(root, campaign_id)
+        breakdown = cap.campaign_spend_breakdown(root, campaign_id)
+    else:
+        reserved, settled, breakdown = cap._campaign_meter(root, campaign_id, campaign=campaign)
+        committed = reserved + settled
+    return {
+        "reserved_usd": reserved,
+        "settled_usd": settled,
+        "committed_usd": committed,
+        "spend_breakdown": breakdown,
+    }
+
+
+def _print_campaign_spend(snapshot: dict[str, Any]) -> None:
+    print(
+        f"spend: committed ${snapshot['committed_usd']:.6f}, "
+        f"reserved ${snapshot['reserved_usd']:.6f}, "
+        f"settled ${snapshot['settled_usd']:.6f}"
+    )
+    print("spend_breakdown:")
+    for source, amount in snapshot["spend_breakdown"].items():
+        print(f"  {source}: ${amount:.6f}")
+
+
+def _approval_campaign_snapshot(root: Path, draft: Any) -> dict[str, Any]:
+    from evallab import campaign_approval as cap
+
+    frozen = root / cap.CAMPAIGN_STATE_ROOT / draft.campaign_id / cap.CAMPAIGN_FILENAME
+    meter_campaign = None if frozen.is_file() else draft
+    meter_kwargs = {"campaign": meter_campaign} if meter_campaign is not None else {}
+    content_digest = cap.campaign_content_digest(draft)
+    prior = cap.read_approvals(root, draft.campaign_id)
+    if prior:
+        approval_info: dict[str, Any] = {
+            "state": "APPROVED",
+            "actor": prior[0].actor,
+            "approved_at": prior[0].approved_at.isoformat(),
+            "content_digest_match": prior[0].content_digest == content_digest,
+        }
+    else:
+        approval_info = {"state": "UNAPPROVED"}
+    return {
+        "campaign_id": draft.campaign_id,
+        "content_digest": content_digest,
+        "budget_usd": draft.budget_usd,
+        **_campaign_spend_snapshot(root, draft.campaign_id, campaign=meter_campaign),
+        "budget_bound": cap.campaign_budget_bound(root, draft.campaign_id, **meter_kwargs),
+        "approval": approval_info,
+        "cost_estimate": (
+            draft.cost_estimate.model_dump(mode="json") if draft.cost_estimate is not None else None
+        ),
+        "tasks": len(draft.tasks),
+        "attempts_per_task": draft.attempts_per_task,
+    }
+
+
+def _print_campaign_budget_bound(bound: dict[str, Any]) -> None:
+    count = bound["in_flight_trials"]
+    per_trial_gap = bound["overrun_bound_usd"] / count if count else 0.0
+    print(
+        "budget_bound: "
+        f"{count} in-flight x ${per_trial_gap:.6f} "
+        "(positive worst-case minus reservation) "
+        f"= ${bound['overrun_bound_usd']:.6f} overrun above budget"
+    )
+    print(
+        f"  in-flight reserved ${bound['in_flight_reserved_usd']:.6f}, "
+        f"worst-case ${bound['in_flight_worst_case_usd']:.6f}"
+    )
+    print(f"  realized <= ${bound['realized_spend_bound_usd']:.6f}")
+
+
+def _print_approval_campaign_snapshot(snapshot: dict[str, Any]) -> None:
+    print(f"campaign: {snapshot['campaign_id']}")
+    print(f"content_digest: {snapshot['content_digest']}")
+    print(f"budget: ${snapshot['budget_usd']:.2f} (committed ${snapshot['committed_usd']:.2f})")
+    _print_campaign_spend(snapshot)
+    approval_info = snapshot["approval"]
+    if approval_info["state"] == "APPROVED":
+        match = (
+            "digest match"
+            if approval_info["content_digest_match"]
+            else "DIGEST CHANGED AFTER APPROVAL"
+        )
+        print(
+            f"approval: APPROVED by {approval_info['actor']} "
+            f"at {approval_info['approved_at']} ({match})"
+        )
+    else:
+        print("approval: UNAPPROVED (staged, no approval recorded)")
+    estimate = snapshot["cost_estimate"]
+    if estimate is not None:
+        print(f"expected: ${estimate['expected_usd']:.2f} ({estimate['formula']})")
+        print(f"worst_case: ${estimate['worst_case_usd']:.2f}")
+    else:
+        print("expected: unstated (no cost_estimate pinned)")
+        print("worst_case: unstated (no cost_estimate pinned)")
+    _print_campaign_budget_bound(snapshot["budget_bound"])
+    print(f"tasks: {snapshot['tasks']}")
+    print(f"attempts_per_task: {snapshot['attempts_per_task']}")
+
+
+def _print_campaign_status(
+    status: Any, *, as_json: bool, spend_snapshot: dict[str, Any] | None = None
+) -> None:
     if as_json:
-        print(status.model_dump_json(indent=2))
+        if spend_snapshot is None:
+            print(status.model_dump_json(indent=2))
+        else:
+            print(json.dumps({**status.model_dump(mode="json"), **spend_snapshot}, indent=2))
         return
     print(f"campaign: {status.campaign_id}")
     print(f"benchmark: {status.benchmark}")
@@ -668,6 +781,10 @@ def _print_campaign_status(status: Any, *, as_json: bool) -> None:
         f"{status.output_tokens} output tokens, "
         f"{status.wall_clock_seconds:.3f}s"
     )
+    if spend_snapshot is not None:
+        _print_campaign_spend(spend_snapshot)
+        if "budget_bound" in spend_snapshot:
+            _print_campaign_budget_bound(spend_snapshot["budget_bound"])
     if status.circuit_reason:
         print(f"circuit: {status.circuit_reason}")
     if status.block_reason:
@@ -729,8 +846,35 @@ def _campaign_status_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     del harbor
-    status = _campaign_orchestrator(args, root).status()
-    _print_campaign_status(status, as_json=args.json)
+    from evallab import campaign_approval as cap
+
+    source = _resolve(root, args.manifest)
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        print(f"error: invalid campaign status source {args.manifest}: {exc}", file=sys.stderr)
+        return 2
+    if isinstance(payload, dict) and payload.get("schema_version") == cap.SCHEMA_CAMPAIGN:
+        try:
+            draft = cap.ExperimentCampaign.model_validate(payload)
+        except ValueError as exc:
+            print(f"error: invalid campaign file {args.manifest}: {exc}", file=sys.stderr)
+            return 2
+        snapshot = _approval_campaign_snapshot(root, draft)
+        if args.json:
+            print(json.dumps(snapshot, indent=2, sort_keys=True))
+        else:
+            _print_approval_campaign_snapshot(snapshot)
+    else:
+        status = _campaign_orchestrator(args, root).status()
+        spend_snapshot = None
+        frozen = root / cap.CAMPAIGN_STATE_ROOT / status.campaign_id / cap.CAMPAIGN_FILENAME
+        if frozen.is_file():
+            spend_snapshot = {
+                **_campaign_spend_snapshot(root, status.campaign_id),
+                "budget_bound": cap.campaign_budget_bound(root, status.campaign_id),
+            }
+        _print_campaign_status(status, as_json=args.json, spend_snapshot=spend_snapshot)
     return 0
 
 
@@ -829,18 +973,7 @@ def _campaign_validate_command(
         for error in errors:
             print(f"error: campaign invalid: {error}", file=sys.stderr)
         return 2
-    _reserved, _settled, committed = cap.campaign_spend_usd(root, draft.campaign_id)
-    content_digest = cap.campaign_content_digest(draft)
-    prior = cap.read_approvals(root, draft.campaign_id)
-    if prior:
-        approval_info: dict[str, Any] = {
-            "state": "APPROVED",
-            "actor": prior[0].actor,
-            "approved_at": prior[0].approved_at.isoformat(),
-            "content_digest_match": prior[0].content_digest == content_digest,
-        }
-    else:
-        approval_info = {"state": "UNAPPROVED"}
+    snapshot = _approval_campaign_snapshot(root, draft)
     results: list[dict[str, Any]] = []
     worst = 0
     for raw_spec in args.spec:
@@ -851,7 +984,7 @@ def _campaign_validate_command(
             print(f"error: invalid spec file {raw_spec}: {exc}", file=sys.stderr)
             return 2
         decision = cap.check_campaign_admission(
-            spec, draft, repo_root=root, committed_usd=committed
+            spec, draft, repo_root=root, committed_usd=snapshot["committed_usd"]
         )
         results.append(
             {
@@ -867,17 +1000,7 @@ def _campaign_validate_command(
         print(
             json.dumps(
                 {
-                    "campaign_id": draft.campaign_id,
-                    "content_digest": content_digest,
-                    "budget_usd": draft.budget_usd,
-                    "committed_usd": committed,
-                    "approval": approval_info,
-                    "cost_estimate": (
-                        draft.cost_estimate.model_dump(mode="json")
-                        if draft.cost_estimate is not None
-                        else None
-                    ),
-                    "tasks": len(draft.tasks),
+                    **snapshot,
                     "errors": errors,
                     "specs": results,
                 },
@@ -886,35 +1009,7 @@ def _campaign_validate_command(
             )
         )
     else:
-        print(f"campaign: {draft.campaign_id}")
-        print(f"content_digest: {content_digest}")
-        print(f"budget: ${draft.budget_usd:.2f} (committed ${committed:.2f})")
-        if approval_info["state"] == "APPROVED":
-            match = (
-                "digest match"
-                if approval_info["content_digest_match"]
-                else "DIGEST CHANGED AFTER APPROVAL"
-            )
-            print(
-                f"approval: APPROVED by {approval_info['actor']} "
-                f"at {approval_info['approved_at']} ({match})"
-            )
-        else:
-            print("approval: UNAPPROVED (staged, no approval recorded)")
-        if draft.cost_estimate is not None:
-            print(
-                f"expected: ${draft.cost_estimate.expected_usd:.2f} ({draft.cost_estimate.formula})"
-            )
-            bound = cap.fenced_spend_bound(draft.budget_usd)
-            print(f"worst_case: ${draft.cost_estimate.worst_case_usd:.2f}")
-            print(
-                f"  realized <= ${bound:.2f} "
-                f"(budget ${draft.budget_usd:.2f} + 19 in-flight x $0.60)"
-            )
-        else:
-            print("expected: unstated (no cost_estimate pinned)")
-            print("worst_case: unstated (no cost_estimate pinned)")
-        print(f"tasks: {len(draft.tasks)}")
+        _print_approval_campaign_snapshot(snapshot)
         for result in results:
             status = "admitted" if result["admitted"] else f"refused ({result['reason_code']})"
             print(f"  {result['spec']}: {status}")

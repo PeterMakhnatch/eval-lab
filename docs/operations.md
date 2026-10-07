@@ -527,6 +527,24 @@ launches with the existing queue STOP while running trials finish untouched.
 Only a budget or rule breach, or a gate defect, escalates: one escalation
 event plus one `lin comment` to the campaign's card.
 
+HAR-189 meters GPU, Daytona and model API dollars separately in `campaign
+validate` and `campaign status campaign.json` (`spend_breakdown` in JSON).
+Self-hosted and zero-estimate Daytona specs reserve the campaign's expected
+wave cost per trial (`wave_cost_estimate(tasks × attempts_per_task).expected_usd
+/ trials`), times spec attempts, or a larger declared estimate. `attempts_per_task`
+is the explicit campaign pin (default 1). A $0.60 ceiling reservation is not
+used because it would throttle concurrency and increase GPU waves.
+Validate/status also print the dynamic overrun exposure: in-flight trial count
+times the positive worst-ceiling minus reservation gap, plus the budget. This
+is conditional on trials staying within the HAR-168 resource envelope (or
+larger declared ceilings); billing actuals above it are still counted in full.
+Modal's existing read-only daily billing report for the exact serving app is split by each
+trial's wall-time overlap with that UTC day, including concurrent trials and
+other campaigns/worktrees. Startup and idle dollars remain in that app pool;
+native job/trial identities deduplicate retained copies. Daytona reuses the
+`spend day` resource/rate-card estimate with recorded usage preferred. Missing
+or lagging measurements retain each trial's remaining reservation, never $0.
+
 The nightly canary cycle still stages its paid canaries every night, but they
 land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is
 not quarantined for it. Nothing dispatches until Peter authorises a spec by id.

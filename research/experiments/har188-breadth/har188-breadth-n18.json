@@ -1,5 +1,6 @@
 {
   "agent": "mimoagent",
+  "attempts_per_task": 2,
   "allowed_deviations": [
     {
       "field": "harness.additions",

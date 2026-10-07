@@ -4,6 +4,25 @@ Eval Lab is an evaluation research lab and workbench for agent evaluation in rea
 with Harbor as its execution engine. It enforces immutable evidence, verifiable provenance,
 and guarded execution feedback loops without turning the database into the only copy of an experiment.
 
+## Start here
+
+Eval Lab is an evaluation research lab and workbench for agent evaluation in real environments, with Harbor as its execution engine. It fuses raw Harbor trials with integrity gating (copy-check, reward gating, detector scoring) into per-task keep/fix/drop verdicts.
+
+$0 demo — no keys, no Docker, no spend (all exit 0 on `origin/main`):
+
+```bash
+uv sync --frozen
+uv run evallab detectors score # detector recall/FP table on the labelled corpus
+uv run evallab task format-code-task-000792 --json # task dossier: trials, gating, verdict tags
+uv run evallab tasks catalog show candidate-0036-software-data-engineering # verifier-trust findings, per-backend outcomes
+uv run evallab trials # 2,307-trial census across 25 campaigns, transient DuckDB, no writes
+```
+
+Write-up of the MiMo leak finding: [link to come].
+
+License: Apache-2.0 (see `LICENSE`).
+
+
 The first checked-in evaluation is deliberately small. The Oracle control must
 produce the correct event summary and the no-op control must fail. Together they
 exercise the full Harbor path—agent container, artifact collection, separate

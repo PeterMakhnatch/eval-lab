@@ -56,10 +56,11 @@ _PREFIXES = (
 )
 _PROMPT = re.compile(r"^\S*@\S+:.*[#$] ")
 _SPILL = re.compile(r"/logs/agent/evallab-output/(step-\d{4,}\.txt)")
+_WHITESPACE = re.compile(r"\s+")
 
 
 def _fold(line: str) -> str:
-    return re.sub(r"\s+", " ", line.rstrip("$").strip())
+    return _WHITESPACE.sub(" ", line.rstrip("$").strip())
 
 
 def _strip_prefixes(line: str) -> str:
@@ -71,12 +72,12 @@ def _strip_prefixes(line: str) -> str:
 def added_lines(diff_text: str) -> set[str]:
     """Substantive lines the agent added to non-test files."""
     out: set[str] = set()
-    path = None
+    include_file = False
     for line in diff_text.splitlines():
         if line.startswith("+++"):
-            path = line[4:].strip()
+            include_file = not _TEST_FILE.search(line[4:].strip())
             continue
-        if not line.startswith("+") or path is None or _TEST_FILE.search(path):
+        if not include_file or not line.startswith("+"):
             continue
         folded = _fold(line[1:])
         if (
@@ -185,7 +186,11 @@ def _agent_steps(trial_dir: Path) -> list[tuple[Any, str, str]]:
 def copy_check(trial_dir: Path) -> dict[str, Any] | None:
     """A ``copied_code`` taint flag when the agent's added lines came from outside."""
     try:
-        diff_text = (trial_dir / "verifier" / "agent.diff").read_text(errors="replace")
+        with (trial_dir / "verifier" / "agent.diff").open(errors="replace") as diff_file:
+            steps = _agent_steps(trial_dir)
+            if not any(_OUTSIDE.search(commands) for _, commands, _ in steps):
+                return None
+            diff_text = diff_file.read()
     except OSError:
         return None
     added = added_lines(diff_text)
@@ -194,7 +199,7 @@ def copy_check(trial_dir: Path) -> dict[str, Any] | None:
     typed: set[str] = set()
     matched: dict[str, Any] = {}
     sources: dict[Any, str] = {}
-    for step_id, commands, observation in _agent_steps(trial_dir):
+    for step_id, commands, observation in steps:
         typed |= _typed(commands)
         if not _OUTSIDE.search(commands):
             continue

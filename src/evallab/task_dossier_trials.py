@@ -374,13 +374,11 @@ def _collect(
     reader_store: Path | None,
 ) -> dict[str, dict[str, Any]]:
     """One census pass and alias index for every requested task."""
-    aliases: list[str] = []
-    seen: set[str] = set()
-    for group in groups.values():
-        for alias in group["aliases"]:
-            if alias not in seen:
-                seen.add(alias)
-                aliases.append(alias)
+    alias_members: dict[str, list[str]] = {}
+    for key, group in groups.items():
+        for alias in dict.fromkeys(group["aliases"]):
+            alias_members.setdefault(alias, []).append(key)
+    aliases = list(alias_members)
     store = Path(reader_store) if reader_store is not None else task_pages.default_store()
     home = results_home.results_root()
 
@@ -401,12 +399,12 @@ def _collect(
     index = build_alias_index(home) if rows else {}
     members: dict[str, list[dict[str, Any]]] = {key: [] for key in groups}
     for row in rows:
-        task_name = row.get("task")
-        for key, group in groups.items():
-            if isinstance(task_name, str) and task_name in group["alias_set"]:
-                members[key].append(
-                    _enrich_row(row, page_url=group["page_url"], store=store, index=index)
-                )
+        for key in alias_members.get(row.get("task"), []):
+            group = groups[key]
+            members[key].append(
+                _enrich_row(row, page_url=group["page_url"], store=store, index=index)
+            )
+    projected = set(info.get("in_memory_projections", []))
     collected: dict[str, dict[str, Any]] = {}
     for key, group in groups.items():
         trials = members[key]
@@ -426,10 +424,13 @@ def _collect(
                 "alias_status": status_counts,
                 "n_projection_errors": sum(1 for row in trials if row.get("projection_error")),
                 "read_only": True,
-                "in_memory_projections": info.get("in_memory_projections", 0),
+                "in_memory_projections": [
+                    pair for trial in trials
+                    if (pair := f"{trial['job_id']}/{trial['trial_id']}") in projected
+                ],
                 "shared_aliases": sorted(
                     alias for alias in group["aliases"]
-                    if sum(1 for other in groups.values() if alias in other["alias_set"]) > 1
+                    if len(alias_members[alias]) > 1
                 ),
             },
         }

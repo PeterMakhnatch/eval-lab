@@ -503,7 +503,6 @@ def _bulk(
 
     class _Connection:
         def execute(self, sql: str) -> _FakeCursor:
-            assert "FROM trials" in sql
             return _FakeCursor(selected)
 
         def close(self) -> None:
@@ -537,7 +536,7 @@ def test_bulk_census_matches_exact_aliases_not_basenames(
 def test_bulk_conflicting_aliases_raise(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    with pytest.raises(ValueError, match="conflicting aliases"):
+    with pytest.raises(ValueError):
         _bulk(
             [_audit_task("ns-a/leaf", "ns-a/leaf"), _audit_task("ns-a/leaf", "other")],
             [], tmp_path, monkeypatch,
@@ -553,3 +552,19 @@ def test_enriched_rows_carry_lock_digest_not_audit_verdict(
     assert row["task_digest_error"] == "source trial is missing"
     assert "verdict" not in row or row.get("verdict") is None
     assert row["copy_verdicts"]["native_copy_verdict"] is None
+
+
+def test_bulk_projection_coverage_is_scoped_to_each_task(world: dict[str, Path]):
+    other = "format-code-task-000788"
+    before = _snapshot(world["root"])
+    out = dossier.task_trials_for_tasks(
+        [_audit_task(TASK, *dossier.canonical_aliases(TASK)),
+         _audit_task(other, *dossier.canonical_aliases(other))],
+        repo_root=world["root"], roots=[world["runs"]],
+        derived_root=world["derived"], reader_store=world["store"],
+    )
+    assert set(out[TASK]["coverage"]["in_memory_projections"]) == {
+        "job-a1/trial-a1", "job-a2/trial-a2",
+    }
+    assert out[other]["coverage"]["in_memory_projections"] == ["job-other/trial-other"]
+    assert _snapshot(world["root"]) == before

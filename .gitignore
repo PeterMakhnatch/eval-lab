@@ -45,6 +45,19 @@ postgres-data/
 .coverage
 htmlcov/
 
+# Local tool caches (regenerable; e.g. ACP agent-registry manifests)
+.cache/
+
+# Not-yet-vendored external clones under research/external/harbor-ecosystem/vendor/.
+# Each is a full git clone at its README-pinned commit (reproducible via re-clone),
+# kept out of git because the trees carry .git history and, for
+# agent-data-protocol, 300M+ of upstream datasets. Proper slim-vendoring
+# (stripped tree + PIN file, harden-v0 pattern) remains a separate task.
+# Already-tracked vendor/harden-v0/ is unaffected (tracked files stay tracked).
+/research/external/harbor-ecosystem/vendor/agent-data-protocol/
+/research/external/harbor-ecosystem/vendor/atifact/
+/research/external/harbor-ecosystem/vendor/vestige/
+
 # Editors and OS
 .DS_Store
 .idea/

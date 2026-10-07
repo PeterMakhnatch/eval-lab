@@ -6,10 +6,30 @@ audience:
 inputs:
   - path: derived/parquet/compact/dt=2026-08-31/trial_facts.parquet
     digest: sha256:43de4eb22e4da069629cc8136f7b340537f92bee5d72929cb55efeaa35178fc0
+  - path: derived/parquet/compact/dt=2026-09-02/trial_facts.parquet
+    digest: sha256:20a899a65620a8959ad5f49fffe249ca64b423ae078c9d27efffe8c5e7ea4610
+  - path: derived/parquet/compact/dt=2026-09-03/trial_facts.parquet
+    digest: sha256:5cd4274437025deff3d0794e5430d8aa0f1e95671857a196cdb898c7c3df6a3a
+  - path: derived/parquet/compact/dt=2026-09-05/trial_facts.parquet
+    digest: sha256:429691076beb686ada774544cd6b04bb1a7afdb7500851e5569ceef5e6f14036
+  - path: derived/parquet/compact/dt=2026-09-06/trial_facts.parquet
+    digest: sha256:6e71c156c991db1530b67f9ffb50ffe30fdc49f7b1906d1b66a6e8fe045e31ab
+  - path: derived/parquet/compact/dt=2026-09-08/trial_facts.parquet
+    digest: sha256:b517f131f9c2597ac32ed10c7ace166ee19094c194144ee2ec58b587a323bf21
+  - path: derived/parquet/compact/dt=2026-09-10/trial_facts.parquet
+    digest: sha256:b2142ee236b8a2e980644a34502bc83721a3a45a9a92c52090cfe1c81b1edbd4
+  - path: derived/parquet/compact/dt=2026-09-12/trial_facts.parquet
+    digest: sha256:f7a706732f29f715e24b34495f02ba19bf662f8d5a1feec498c364c576fb10a2
+  - path: derived/parquet/compact/dt=2026-09-14/trial_facts.parquet
+    digest: sha256:fcd6a694267c1718e0c0f1e6616415a1f0930b7fce2391238f920436f23f987b
+  - path: derived/parquet/compact/dt=2026-09-15/trial_facts.parquet
+    digest: sha256:07fe431bf0e681c3d94ec22465e838ee1af6b892eaf5abe3a4d95706a7bfa85a
+  - path: derived/parquet/compact/dt=2026-09-16/trial_facts.parquet
+    digest: sha256:a615060122ce0610f59205383d78070a937748c2339d0d6b24cec41209975919
   - path: derived/parquet/craft/craft.parquet
     digest: sha256:3da7da05aee98176033d205a577aa80724d809c7f48a5f8333446d68be2e13bd
   - path: derived/parquet/trajectory_quality_reports.parquet
-    digest: sha256:652a23a3a642c6e0d3bea70a70a9391e386ac3c83f447298abe65bf5dc8ab341
+    digest: sha256:f9b455a7f4e9a7b085ee1821266f98d64c9518108ec592712403eb48a933343e
   - path: research/explorations/harbor-021/captures/analyze/analysis.json
     digest: sha256:ed51e5da7af5711423be8b719ede203a17c4f0dbcc0e05f2fe9281abfe5beb36
   - path: research/observations/brief07-transaction-oracle/transaction-reconciliation__goGsfdi.md
@@ -69,10 +89,10 @@ inputs:
 <!-- generated-by: lessons v1 -->
 # Statistical Lessons & Aggregation Views
 
-- **Generated at:** 2026-10-02 08:48:21Z
+- **Generated at:** 2026-10-07 19:11:09Z
 - **Statistical Gating:** Power threshold $n \ge 5$, Wilson 95% confidence interval
-- **Corpus Summary:** 551 craft tasks, 263 trials, 25 observation records, 0 analysis sidecars
-- **Evidence Quality Ledger:** 238 evaluated trials (pass 27, warn 178, fail 24, quarantine 9)
+- **Corpus Summary:** 551 craft tasks, 499 trials, 25 observation records, 0 analysis sidecars
+- **Evidence Quality Ledger:** 374 evaluated trials (pass 314, warn 10, fail 36, quarantine 14)
 - **Findings Gate:** 0 statistically powered finding(s), 3 observation row(s) gated with `insufficient n`
 
 ---

@@ -19,8 +19,9 @@ Source-immutability contract: only read-only Git commands (``rev-parse``,
 ``GIT_CONFIG_GLOBAL=/dev/null``, ``GIT_CONFIG_SYSTEM=/dev/null`` and
 ``GIT_OPTIONAL_LOCKS=0`` so inherited config, replacement objects, transports
 (including lazy fetch, which then fails closed) and lock files cannot reach or
-alter the source repository. The hidden patch is applied in memory to blob
-bytes from ``cat-file``; Git's writable index and object store are never used.
+alter the source repository. Hidden postimages use a temporary bare Git store
+and index, with source objects exposed as read-only alternates. Native Git
+applies the patch; all new index/object writes remain in the temporary store.
 
 Test/support heuristic: a changed path is test/support when its basename is
 ``conftest.py``, matches ``test_*.py`` / ``*_test.py``, or lives under a
@@ -54,9 +55,9 @@ import binascii
 import json
 import os
 import re
-import shlex
 import subprocess
-from dataclasses import dataclass, field
+import tempfile
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Any, Literal
 
@@ -70,7 +71,6 @@ from evallab.schemas import ContractModel
 
 __all__ = [
     "SCHEMA_VERSION",
-    "ZERO_PARENT",
     "HeldoutExclusion",
     "HeldoutFile",
     "HeldoutSuite",
@@ -87,10 +87,6 @@ __all__ = [
 #: Wire schema marker for every suite document this module writes.
 SCHEMA_VERSION = "heldout-suite/v1"
 
-#: Sentinel ``fix_parent`` for suites whose single first parent is unknown
-#: (missing commit) or ambiguous (merge with several parents). It is only
-#: ever emitted with ``status == "unavailable"`` and an explicit refusal.
-ZERO_PARENT = "0" * 40
 
 _FULL_SHA_PATTERN = r"^[0-9a-f]{40}([0-9a-f]{24})?$"
 _SHA256_PATTERN = r"^[0-9a-f]{64}$"
@@ -216,7 +212,7 @@ class HeldoutSuite(ContractModel):
     workdir: str = Field(min_length=1)
     base_commit: str = Field(pattern=_FULL_SHA_PATTERN)
     fix_commit: str = Field(pattern=_FULL_SHA_PATTERN)
-    fix_parent: str = Field(pattern=_FULL_SHA_PATTERN)
+    fix_parent: str | None = Field(default=None, pattern=_FULL_SHA_PATTERN)
     hidden_patch_sha256: str = Field(pattern=_SHA256_PATTERN)
     status: Literal["ready", "no_extra_tests", "unavailable"]
     tests: list[HeldoutTest] = Field(default_factory=list)
@@ -250,6 +246,8 @@ class HeldoutSuite(ContractModel):
 
     @model_validator(mode="after")
     def _check_status_terms(self) -> HeldoutSuite:
+        if self.status != "unavailable" and self.fix_parent is None:
+            raise ValueError("completed extraction requires an observed fix parent")
         if self.status == "ready":
             if not self.tests or not self.files:
                 raise ValueError("ready suite requires selected tests and payload files")
@@ -273,6 +271,9 @@ class HeldoutSuite(ContractModel):
         file_paths = [item.path for item in self.files]
         if len(set(file_paths)) != len(file_paths):
             raise ValueError("file path values must be unique")
+        payload_paths = {item.path for item in self.files if item.mode is not None}
+        if any(item.path not in payload_paths for item in self.tests):
+            raise ValueError("selected test requires an authoritative file payload")
         for item in self.tests:
             expected = item.path + "::" + item.qualname.replace(".", "::")
             if item.node_id != expected:
@@ -296,6 +297,10 @@ def _git_env() -> dict[str, str]:
         GIT_CONFIG_GLOBAL=os.devnull,
         GIT_CONFIG_SYSTEM=os.devnull,
         GIT_OPTIONAL_LOCKS="0",
+        GIT_NO_REPLACE_OBJECTS="1",
+        GIT_NO_LAZY_FETCH="1",
+        GIT_ALLOW_PROTOCOL="",
+        GIT_TERMINAL_PROMPT="0",
     )
     return env
 
@@ -431,6 +436,7 @@ def _read_blobs_batch(git_dir: Path, shas: list[str]) -> dict[str, bytes]:
     out: dict[str, bytes] = {}
     view = proc.stdout
     pos = 0
+    for sha in shas:
         try:
             end = view.index(b"\n", pos)
             header = view[pos:end].decode("ascii")
@@ -455,292 +461,73 @@ def _read_blobs_batch(git_dir: Path, shas: list[str]) -> dict[str, bytes]:
         pos += size + 1
     return out
 
-# --------------------------------------------------------------------------- #
-# Minimal unified-patch handling (hidden postimage reconstruction only).
-# --------------------------------------------------------------------------- #
+def _hidden_postimages(
+    git_dir: Path, base: str, patch: bytes
+) -> tuple[dict[str, bytes | None], int]:
+    """Use Git's patch engine in an isolated index/object store, never the source."""
+    if not patch.strip():
+        return {}, 0
+    objects_probe = _run_git(git_dir, "rev-parse", "--git-path", "objects")
+    if objects_probe.returncode != 0:
+        raise _PatchError("cannot locate source object store")
+    objects = Path(objects_probe.stdout.decode("utf-8").strip()).resolve()
+    if any(char in str(objects) for char in ('\n', '\r', '"')):
+        raise _PatchError("unsupported source object-store path")
+    with tempfile.TemporaryDirectory(prefix="evallab-heldout-index-") as temporary:
+        scratch = Path(temporary) / "git"
+        environment = _git_env()
 
-
-@dataclass
-class _Hunk:
-    old_start: int
-    old_count: int
-    new_start: int
-    new_count: int
-    lines: list[str] = field(default_factory=list)
-
-
-@dataclass
-class _FilePatch:
-    old_path: str | None
-    new_path: str | None
-    is_new: bool = False
-    is_delete: bool = False
-    is_rename: bool = False
-    is_binary: bool = False
-    hunks: list[_Hunk] = field(default_factory=list)
-
-
-_HUNK_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
-
-
-def _strip_ab_prefix(token: str) -> str:
-    if token in ("/dev/null", "dev/null"):
-        return "/dev/null"
-    for prefix in ("a/", "b/"):
-        if token.startswith(prefix):
-            return token[2:]
-    return token
-
-
-def _unquote_git_path(token: str) -> str:
-    token = token.strip()
-    if len(token) >= 2 and token.startswith('"') and token.endswith('"'):
-        try:
-            return bytes(token[1:-1], "utf-8").decode("unicode_escape")
-        except (ValueError, UnicodeDecodeError) as exc:
-            raise _PatchError(f"unparseable quoted patch path: {token!r}") from exc
-    return token
-
-
-def _split_git_path_token(raw: str) -> str:
-    raw = raw.strip()
-    if raw.startswith('"'):
-        return _unquote_git_path(raw)
-    return raw.split("\t")[0].strip()
-
-
-def _parse_unified_patch(text: str) -> list[_FilePatch]:
-    """Parse a git unified diff into per-file patches.
-
-    Only the constructs hidden test patches need are supported: new/delete/
-    modify/rename with context hunks, plus ``no newline`` markers. Copies,
-    binary diffs and malformed input raise ``_PatchError`` with an explicit
-    reason instead of guessing.
-    """
-    if not text.strip():
-        return []
-    raw_lines = text.split("\n")
-    # A trailing newline is framing, not an empty body line.
-    if raw_lines and raw_lines[-1] == "":
-        raw_lines.pop()
-    files: list[_FilePatch] = []
-    current: _FilePatch | None = None
-    current_hunk: _Hunk | None = None
-    headers_seen = False
-    skipping_binary = False
-
-    def _finish_file() -> None:
-        nonlocal current, current_hunk, headers_seen, skipping_binary
-        if current is None:
-            return
-        if not current.is_binary:
-            if current.old_path is None or current.new_path is None:
-                raise _PatchError("patch file entry is missing ---/+++ headers")
-        files.append(current)
-        current = None
-        current_hunk = None
-        headers_seen = False
-        skipping_binary = False
-
-    for lineno, line in enumerate(raw_lines, start=1):
-        if line.startswith("diff --git "):
-            _finish_file()
+        def git(*args: str, data: bytes | None = None) -> bytes:
             try:
-                tokens = shlex.split(line[len("diff --git "):])
+                process = subprocess.run(
+                    ["git", "-c", "core.hooksPath=" + os.devnull,
+                     "--git-dir", str(scratch), *args],
+                    input=data, env=environment, capture_output=True,
+                    timeout=_GIT_TIMEOUT_SECONDS, check=False,
+                )
+            except (OSError, subprocess.TimeoutExpired) as exc:
+                raise _PatchError(f"scratch Git operation failed: {exc}") from exc
+            if process.returncode != 0:
+                raise _PatchError(process.stderr.decode("utf-8", errors="replace")[:1000].strip())
+            return process.stdout
+
+        options = ["init", "--bare", "--quiet"]
+        if len(base) == 64:
+            options.append("--object-format=sha256")
+        git(*options, str(scratch))
+        (scratch / "objects" / "info" / "alternates").write_text(
+            str(objects) + "\n", encoding="utf-8"
+        )
+        git("read-tree", base)
+        git("apply", "--cached", "--binary", "--whitespace=nowarn", "-", data=patch)
+        changed = git(
+            "diff", "--cached", "--raw", "--no-abbrev", "--no-renames",
+            "--no-ext-diff", "-z", base,
+        ).split(b"\0")
+        if changed and not changed[-1]:
+            changed.pop()
+        if len(changed) % 2:
+            raise _PatchError("invalid scratch-index diff")
+        postimages: dict[str, bytes | None] = {}
+        skipped = 0
+        for index in range(0, len(changed), 2):
+            header, raw_path = changed[index:index + 2]
+            path = raw_path.decode("utf-8")
+            try:
+                validate_suite_path(path)
             except ValueError as exc:
-                raise _PatchError(f"line {lineno}: unparseable diff --git header") from exc
-            if len(tokens) != 2:
-                raise _PatchError(f"line {lineno}: diff --git header needs two paths")
-            old_raw = _strip_ab_prefix(_unquote_git_path(tokens[0]))
-            new_raw = _strip_ab_prefix(_unquote_git_path(tokens[1]))
-            current = _FilePatch(
-                old_path=None if old_raw == "/dev/null" else old_raw,
-                new_path=None if new_raw == "/dev/null" else new_raw,
-            )
-            continue
-        if current is None:
-            if line.strip() == "":
+                raise _PatchError(f"unsafe hidden patch path: {path!r}") from exc
+            if not _is_test_or_support(path):
+                skipped += 1
                 continue
-            raise _PatchError(f"line {lineno}: content outside any diff --git entry")
-        if skipping_binary:
-            continue
-        if line.startswith("GIT binary patch") or line.startswith("Binary files "):
-            current.is_binary = True
-            skipping_binary = True
-            continue
-        if line.startswith("copy from ") or line.startswith("copy to "):
-            raise _PatchError("patch copies are unsupported; expand them explicitly")
-        if line.startswith("rename from "):
-            current.is_rename = True
-            current.old_path = _strip_ab_prefix(_split_git_path_token(line[len("rename from "):]))
-            continue
-        if line.startswith("rename to "):
-            current.is_rename = True
-            current.new_path = _strip_ab_prefix(_split_git_path_token(line[len("rename to "):]))
-            continue
-        if line.startswith("new file mode "):
-            current.is_new = True
-            continue
-        if line.startswith("deleted file mode "):
-            current.is_delete = True
-            continue
-        if line.startswith(
-            ("old mode", "new mode", "index ", "similarity index ", "dissimilarity index ")
-        ):
-            continue
-        if line.startswith("--- "):
-            token = _split_git_path_token(line[4:])
-            current.old_path = None if token == "/dev/null" else _strip_ab_prefix(token)
-            if current.old_path is None:
-                current.is_new = True
-            continue
-        if line.startswith("+++ "):
-            token = _split_git_path_token(line[4:])
-            current.new_path = None if token == "/dev/null" else _strip_ab_prefix(token)
-            if current.new_path is None:
-                current.is_delete = True
-            headers_seen = True
-            continue
-        match = _HUNK_RE.match(line)
-        if match is not None:
-            if not headers_seen:
-                raise _PatchError(f"line {lineno}: hunk before ---/+++ headers")
-            old_start = int(match.group(1))
-            old_count = int(match.group(2)) if match.group(2) is not None else 1
-            new_start = int(match.group(3))
-            new_count = int(match.group(4)) if match.group(4) is not None else 1
-            current_hunk = _Hunk(
-                old_start=old_start,
-                old_count=old_count,
-                new_start=new_start,
-                new_count=new_count,
-            )
-            current.hunks.append(current_hunk)
-            continue
-        if current_hunk is None:
-            if line.strip() == "":
-                continue
-            raise _PatchError(f"line {lineno}: unexpected patch line outside a hunk")
-        if line[:1] in (" ", "-", "+") or line == "" or line.startswith("\\"):
-            current_hunk.lines.append(line)
-            continue
-        raise _PatchError(f"line {lineno}: invalid hunk body line")
-    _finish_file()
-    non_binary = [item for item in files if not item.is_binary]
-    if not non_binary and text.strip():
-        # A non-empty patch with no usable file entries (binary-only or
-        # unrecognised) must not silently count as "no hidden tests".
-        raise _PatchError("patch has no usable file diffs")
-    return files
-
-
-def _compose_postimage(base_text: str, hunks: list[_Hunk], path: str) -> str:
-    """Apply hunks with strict context, count and trailing-newline checks.
-
-    Unchanged regions between hunks are copied through; the final trailing
-    newline is inherited from the base unless the patch rewrites the last
-    line (with or without a ``No newline`` marker).
-    """
-    if base_text == "":
-        base_lines: list[str] = []
-        base_trailing = True
-    else:
-        base_lines = base_text.split("\n")
-        if base_text.endswith("\n"):
-            base_trailing = True
-            base_lines.pop()
-        else:
-            base_trailing = False
-    out: list[str] = []
-    # Bareness of each hunk-emitted line; the new file is bare iff its last
-    # line was emitted bare. Lines copied from the untouched tail inherit
-    # the base trailing state instead.
-    emit_bare: list[bool] = []
-    cursor = 0
-
-    for hunk in hunks:
-        want = hunk.old_start - 1
-        if hunk.old_count == 0:
-            want = cursor
-        if want < 0 or want < cursor:
-            raise _PatchError(
-                f"{path}: hunk overlaps earlier hunks at old line {hunk.old_start}"
-            )
-        while cursor < want:
-            if cursor >= len(base_lines):
-                raise _PatchError(f"{path}: hunk starts beyond end of file")
-            out.append(base_lines[cursor])
-            emit_bare.append(False)
-            cursor += 1
-        consumed = 0
-        emitted = 0
-        body = hunk.lines
-        index = 0
-        while index < len(body):
-            raw = body[index]
-            if raw.startswith("\\"):
-                raise _PatchError(f"{path}: no-newline marker without a preceding line")
-            if raw == "":
-                prefix, text = " ", ""
+            old_mode, mode, old_sha, sha, status = header.decode("ascii")[1:].split()
+            if mode == "000000":
+                postimages[path] = None
+            elif mode in ("100644", "100755"):
+                postimages[path] = git("cat-file", "blob", sha)
             else:
-                prefix, text = raw[0], raw[1:]
-            if prefix not in (" ", "-", "+"):
-                raise _PatchError(f"{path}: invalid hunk body prefix: {prefix!r}")
-            bare_next = index + 1 < len(body) and body[index + 1].startswith("\\")
-            if bare_next:
-                marker = body[index + 1].strip()
-                if marker != "\\ No newline at end of file":
-                    raise _PatchError(f"{path}: unsupported patch marker: {body[index + 1]!r}")
-            if prefix == " ":
-                if cursor >= len(base_lines) or base_lines[cursor] != text:
-                    raise _PatchError(f"{path}: context mismatch at old line {cursor + 1}")
-                out.append(text)
-                emit_bare.append(bare_next)
-                cursor += 1
-                consumed += 1
-                emitted += 1
-                if bare_next:
-                    if cursor != len(base_lines):
-                        raise _PatchError(f"{path}: no-newline marker mid-file")
-                    if base_trailing:
-                        raise _PatchError(
-                            f"{path}: patch claims a bare final line but base ends with newline"
-                        )
-                    index += 1
-            elif prefix == "-":
-                if cursor >= len(base_lines) or base_lines[cursor] != text:
-                    raise _PatchError(f"{path}: removal mismatch at old line {cursor + 1}")
-                cursor += 1
-                consumed += 1
-                if bare_next:
-                    if cursor != len(base_lines):
-                        raise _PatchError(f"{path}: no-newline marker mid-file")
-                    if base_trailing:
-                        raise _PatchError(
-                            f"{path}: patch claims a bare final line but base ends with newline"
-                        )
-                    index += 1
-            else:
-                out.append(text)
-                emit_bare.append(bare_next)
-                emitted += 1
-                if bare_next:
-                    index += 1
-            index += 1
-        if consumed != hunk.old_count:
-            raise _PatchError(
-                f"{path}: hunk old count {hunk.old_count} does not match {consumed} lines"
-            )
-        if emitted != hunk.new_count:
-            raise _PatchError(
-                f"{path}: hunk new count {hunk.new_count} does not match {emitted} lines"
-            )
-    tail = base_lines[cursor:]
-    out.extend(tail)
-    if not out:
-        return ""
-    trailing = base_trailing if tail else not emit_bare[-1]
-    return "\n".join(out) + ("" if not trailing else "\n")
+                raise _PatchError(f"unsupported hidden test mode {mode} for {path!r}")
+        return postimages, skipped
 
 
 # --------------------------------------------------------------------------- #
@@ -894,7 +681,7 @@ def _unavailable_suite(
     workdir: str,
     base_commit: str,
     fix_commit: str,
-    fix_parent: str,
+    fix_parent: str | None,
     hidden_patch_sha256: str,
     refusals: list[str],
     notes: list[str],
@@ -917,16 +704,19 @@ def _unavailable_suite(
     )
 
 
-def _overlay_mode(new_mode: str, path: str) -> str:
-    if new_mode in ("100644", "100755"):
-        return new_mode
+def _overlay_mode(new_mode: str, path: str) -> Literal["100644", "100755"]:
+    if new_mode == "100644":
+        return "100644"
+    if new_mode == "100755":
+        return "100755"
     raise _PatchError(f"{path}: unsupported file mode {new_mode}")
 
 
 _METHOD_NOTES = [
     "source git accessed read-only (rev-parse/rev-list/cat-file/diff-tree/ls-tree "
     "with --no-replace-objects, protocol.allow=never, no inherited config, no locks); "
-    "hidden patch applied in memory to cat-file bytes; source index/objects untouched",
+    "hidden patch applied by Git in a temporary index/object store with read-only "
+    "source alternates; source index/objects untouched",
     "test/support scope: conftest.py, test_*.py, *_test.py, or under test|tests|testing|"
     "fixtures|fixture|testdata|test-data|test_data; production paths never exported",
     "fingerprint: normalized AST ignoring comments, docstrings and def/class names; "
@@ -985,7 +775,7 @@ def extract_suite(
             workdir=workdir,
             base_commit=base_commit,
             fix_commit=fix_commit,
-            fix_parent=ZERO_PARENT,
+            fix_parent=None,
             hidden_patch_sha256=hidden_patch_sha256,
             refusals=[f"not a git directory: {git_dir}"],
             notes=list(_METHOD_NOTES),
@@ -998,7 +788,7 @@ def extract_suite(
             workdir=workdir,
             base_commit=base_commit,
             fix_commit=fix_commit,
-            fix_parent=ZERO_PARENT,
+            fix_parent=None,
             hidden_patch_sha256=hidden_patch_sha256,
             refusals=[f"base commit not present in git_dir: {base_commit}"],
             notes=list(_METHOD_NOTES),
@@ -1011,7 +801,7 @@ def extract_suite(
             workdir=workdir,
             base_commit=base_commit,
             fix_commit=fix_commit,
-            fix_parent=ZERO_PARENT,
+            fix_parent=None,
             hidden_patch_sha256=hidden_patch_sha256,
             refusals=[f"fix commit not present in git_dir: {fix_commit}"],
             notes=list(_METHOD_NOTES),
@@ -1025,7 +815,7 @@ def extract_suite(
             workdir=workdir,
             base_commit=base_commit,
             fix_commit=fix_commit,
-            fix_parent=ZERO_PARENT,
+            fix_parent=None,
             hidden_patch_sha256=hidden_patch_sha256,
             refusals=[f"fix commit has no first parent: {fix_commit}"],
             notes=list(_METHOD_NOTES),
@@ -1037,7 +827,7 @@ def extract_suite(
             workdir=workdir,
             base_commit=base_commit,
             fix_commit=fix_commit,
-            fix_parent=ZERO_PARENT,
+            fix_parent=None,
             hidden_patch_sha256=hidden_patch_sha256,
             refusals=[
                 f"fix commit is a merge with several parents; refusing to select one: {fix_commit}"
@@ -1117,8 +907,8 @@ def extract_suite(
             refusals.append(f"symlink/submodule entry unsupported: {path!r}")
             continue
         try:
-            old_bytes = _read_blob(resolved_git, old_sha) if old_sha != "0" * 40 else None
-            new_bytes = _read_blob(resolved_git, new_sha) if new_sha != "0" * 40 else None
+            old_bytes = _read_blob(resolved_git, old_sha) if old_mode != "000000" else None
+            new_bytes = _read_blob(resolved_git, new_sha) if new_mode != "000000" else None
         except _GitError as exc:
             refusals.append(f"{path}: {exc}")
             continue
@@ -1139,125 +929,17 @@ def extract_suite(
         )
 
     try:
-        patch_text = hidden_bytes.decode("utf-8")
-    except UnicodeDecodeError:
-        return _unavailable_suite(
-            task_name=task_name,
-            image=image,
-            workdir=workdir,
-            base_commit=base_commit,
-            fix_commit=fix_commit,
-            fix_parent=parent_full,
-            hidden_patch_sha256=hidden_patch_sha256,
-            refusals=["hidden patch is not utf-8 text (possible binary patch)"],
-            notes=notes,
-            exclusions=exclusions,
+        postimage, skipped_hidden_production = _hidden_postimages(
+            resolved_git, base_full, hidden_bytes
         )
-    try:
-        file_patches = _parse_unified_patch(patch_text)
-    except _PatchError as exc:
+    except (_PatchError, _GitError, UnicodeError, ValueError) as exc:
         return _unavailable_suite(
-            task_name=task_name,
-            image=image,
-            workdir=workdir,
-            base_commit=base_commit,
-            fix_commit=fix_commit,
-            fix_parent=parent_full,
+            task_name=task_name, image=image, workdir=workdir,
+            base_commit=base_commit, fix_commit=fix_commit, fix_parent=parent_full,
             hidden_patch_sha256=hidden_patch_sha256,
             refusals=[f"hidden patch unsupported: {exc}"],
-            notes=notes,
-            exclusions=exclusions,
+            notes=notes, exclusions=exclusions,
         )
-
-    postimage: dict[str, bytes | None] = {}
-    skipped_hidden_production = 0
-    for entry in file_patches:
-        for candidate in (entry.old_path, entry.new_path):
-            if candidate is None or candidate == "/dev/null":
-                continue
-            try:
-                validate_suite_path(candidate)
-            except ValueError as exc:
-                refusals.append(f"unsafe hidden patch path {candidate!r}: {exc}")
-        if refusals:
-            continue
-        touched = [p for p in (entry.old_path, entry.new_path) if p is not None]
-        if touched and not any(_is_test_or_support(p) for p in touched):
-            # Hidden production/fixture bytes are out of scope: only hidden
-            # *test* postimages feed duplicate subtraction, so production
-            # entries (including binary fixtures) are counted, not applied.
-            skipped_hidden_production += 1
-            continue
-        if entry.is_binary:
-            target = entry.new_path if entry.new_path is not None else entry.old_path
-            refusals.append(f"hidden patch binary content unsupported: {target!r}")
-            continue
-        old_path = entry.old_path
-        new_path = entry.new_path
-        if entry.is_delete:
-            if old_path is None:
-                refusals.append("hidden patch deletion without an old path")
-                continue
-            try:
-                anchor = _tree_entry(resolved_git, base_full, old_path)
-            except _GitError as exc:
-                refusals.append(f"hidden base lookup failed for {old_path!r}: {exc}")
-                continue
-            if anchor is None:
-                refusals.append(f"hidden patch deletes absent base file: {old_path!r}")
-                continue
-            if new_path is not None and new_path != old_path:
-                refusals.append(f"hidden patch ambiguous deletion target: {old_path!r}")
-                continue
-            postimage[old_path] = None
-            continue
-        if entry.is_new or (old_path is None and new_path is not None):
-            if new_path is None:
-                refusals.append("hidden patch addition without a new path")
-                continue
-            try:
-                anchor = _tree_entry(resolved_git, base_full, new_path)
-            except _GitError as exc:
-                refusals.append(f"hidden base lookup failed for {new_path!r}: {exc}")
-                continue
-            if anchor is not None:
-                refusals.append(f"hidden patch creates existing base file: {new_path!r}")
-                continue
-            try:
-                postimage[new_path] = _compose_postimage("", entry.hunks, new_path).encode(
-                    "utf-8"
-                )
-            except _PatchError as exc:
-                refusals.append(f"hidden patch does not apply for {new_path!r}: {exc}")
-            continue
-        assert old_path is not None and new_path is not None
-        try:
-            anchor = _tree_entry(resolved_git, base_full, old_path)
-        except _GitError as exc:
-            refusals.append(f"hidden base lookup failed for {old_path!r}: {exc}")
-            continue
-        if anchor is None:
-            refusals.append(f"hidden patch modifies absent base file: {old_path!r}")
-            continue
-        try:
-            anchor_bytes = _read_blob(resolved_git, anchor[1])
-        except _GitError as exc:
-            refusals.append(f"hidden base blob unreadable for {old_path!r}: {exc}")
-            continue
-        try:
-            anchor_text = anchor_bytes.decode("utf-8")
-        except UnicodeDecodeError:
-            refusals.append(f"hidden base file is not utf-8 text: {old_path!r}")
-            continue
-        try:
-            postimage[new_path] = _compose_postimage(anchor_text, entry.hunks, new_path).encode(
-                "utf-8"
-            )
-        except _PatchError as exc:
-            refusals.append(f"hidden patch does not apply for {old_path!r}: {exc}")
-            continue
-        if entry.is_rename and new_path != old_path:
-            postimage.setdefault(old_path, None)
 
     if refusals:
         return _unavailable_suite(
@@ -1487,7 +1169,7 @@ def extract_suite(
         payloads.append(
             HeldoutFile(
                 path=item.path,
-                mode=overlay_mode,  # type: ignore[arg-type]
+                mode=overlay_mode,
                 content_base64=base64.b64encode(item.new_bytes).decode("ascii"),
                 sha256=compute_sha256(item.new_bytes),
             )
@@ -1522,12 +1204,9 @@ def load_suite(path: Path) -> HeldoutSuite:
 def write_suite(suite: HeldoutSuite, path: Path) -> None:
     """Write a suite document; refuses to overwrite an existing path."""
     target = Path(path)
-    if target.exists() or target.is_symlink():
-        raise FileExistsError(f"refusing to overwrite suite file: {target}")
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(target.name + ".tmp")
-    temporary.write_text(suite.model_dump_json(indent=2) + "\n", encoding="utf-8")
-    os.replace(temporary, target)
+    with target.open("x", encoding="utf-8") as handle:
+        handle.write(suite.model_dump_json(indent=2) + "\n")
 
 
 def build_parser() -> argparse.ArgumentParser:

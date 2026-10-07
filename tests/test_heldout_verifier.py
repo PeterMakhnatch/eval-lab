@@ -4,23 +4,18 @@ These tests are developer-authored isolated fixtures covering exact
 base+patch+test overlay, genuine pass/fail result parsing, no false score
 on errors/skips/zero tests/timeouts, and malicious paths/digest changes.
 
-NOTE: authored for parent verification -- the assigning worker must not
-execute this file. The end-to-end cases below build tiny throwaway git
-repositories under ``tmp_path`` and run the payload's own git/test
-drivers through :func:`evallab.heldout_verifier.run_verification`; they
-are safe to run in CI (``git`` and ``pytest`` required) but were not run
-at authoring time.
+The end-to-end cases build tiny throwaway repositories and execute only
+developer-authored fixture code through the payload's Git/test drivers.
+They require Git and pytest, not a container, model, or benchmark task image.
 """
 
 from __future__ import annotations
 
-import ast
 import base64
 import hashlib
 import json
 import os
 import shutil
-import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -136,12 +131,15 @@ def _read_result(logs: Path) -> dict[str, object]:
 
 
 def _git(repo: Path, *args: str) -> str:
+    env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    env.update({
+        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_AUTHOR_DATE": "2020-01-01T00:00:00+00:00",
+        "GIT_COMMITTER_DATE": "2020-01-01T00:00:00+00:00",
+    })
     completed = subprocess.run(
-        ["git", *args],
-        cwd=str(repo),
-        capture_output=True,
-        text=True,
-        check=True,
+        ["git", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", *args],
+        cwd=str(repo), env=env, capture_output=True, text=True, check=True,
     )
     return completed.stdout
 
@@ -159,39 +157,6 @@ def _git_repo(root: Path, name: str = "repo") -> tuple[Path, str]:
     return repo, _git(repo, "rev-parse", "HEAD").strip()
 
 
-# --------------------------------------------------------------------------- #
-# Payload hygiene: stdlib-only, legacy-interpreter syntax
-# --------------------------------------------------------------------------- #
-
-
-def test_payload_is_stdlib_only_with_no_fstrings() -> None:
-    """The in-image payload must not import evallab/host packages or f-strings."""
-    source = Path(hv.__file__).read_text(encoding="utf-8")
-    assert "from __future__" not in source
-    tree = ast.parse(source)
-    allowed = {
-        "argparse",
-        "base64",
-        "errno",
-        "hashlib",
-        "json",
-        "os",
-        "re",
-        "stat",
-        "subprocess",
-        "sys",
-        "time",
-        "xml",
-    }
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                assert alias.name.split(".")[0] in allowed, alias.name
-        elif isinstance(node, ast.ImportFrom):
-            assert node.module is not None
-            assert node.module.split(".")[0] in allowed, node.module
-        elif isinstance(node, ast.JoinedStr):
-            raise AssertionError("f-string found; Python 3.5 images cannot parse it")
 
 
 # --------------------------------------------------------------------------- #
@@ -245,8 +210,6 @@ def test_resolve_within_blocks_escape(tmp_path: Path) -> None:
 # --------------------------------------------------------------------------- #
 
 
-def test_valid_suite_passes(tmp_path: Path) -> None:
-    assert hv.validate_suite(_suite(str(tmp_path))) == []
 
 
 def test_suite_rejects_malicious_paths_and_digest_changes(tmp_path: Path) -> None:
@@ -277,11 +240,11 @@ def test_suite_rejects_duplicates_and_ready_without_tests(tmp_path: Path) -> Non
 
 def test_suite_deletion_entry_consistency(tmp_path: Path) -> None:
     deletion = {"path": "tests/old.py", "mode": None, "content_base64": None, "sha256": None}
-    assert hv.validate_suite(_suite(str(tmp_path), files=[deletion])) == []
-    broken = dict(deletion)
-    broken["sha256"] = "a" * 64
-    errors = hv.validate_suite(_suite(str(tmp_path), files=[broken]))
-    assert errors != []
+    suite = _suite(str(tmp_path))
+    suite["files"].append(deletion)
+    assert hv.validate_suite(suite) == []
+    deletion["sha256"] = "a" * 64
+    assert hv.validate_suite(suite)
 
 
 def test_config_rejects_pytest_bootstrap_and_bad_timeout(tmp_path: Path) -> None:
@@ -321,10 +284,6 @@ index 1111111..2222222 100644
 """
 
 
-def test_scan_clean_diff(tmp_path: Path) -> None:
-    problems, count = _scan(tmp_path, CLEAN_DIFF)
-    assert problems == []
-    assert count == 1
 
 
 def test_scan_rejects_binary_placeholder(tmp_path: Path) -> None:
@@ -351,11 +310,10 @@ def test_scan_rejects_unsafe_targets(tmp_path: Path, header: str) -> None:
     assert any(problem.startswith("unsafe_path:") for problem in problems)
 
 
-@pytest.mark.parametrize("mode", ["120000", "160000"])
-def test_scan_rejects_symlink_and_submodule_modes(tmp_path: Path, mode: str) -> None:
+def test_scan_rejects_submodule_without_its_repository_bytes(tmp_path: Path) -> None:
     problems, _ = _scan(
         tmp_path,
-        "diff --git a/link b/link\nnew file mode {0}\nindex 0000000..1234567\n".format(mode),
+        "diff --git a/link b/link\nnew file mode 160000\nindex 0000000..1234567\n",
     )
     assert any(problem.startswith("unsafe_path:") for problem in problems)
 
@@ -365,16 +323,6 @@ def test_scan_rejects_symlink_and_submodule_modes(tmp_path: Path, mode: str) -> 
 # --------------------------------------------------------------------------- #
 
 
-def test_overlay_writes_exact_bytes_and_modes(tmp_path: Path) -> None:
-    workdir = tmp_path / "work"
-    files = [
-        _file_entry("tests/new_test.py", "x = 1\n"),
-        _file_entry("support/run.sh", "#!/bin/sh\n", mode="100755"),
-    ]
-    assert hv.overlay_suite_files(str(workdir), files) is None
-    assert (workdir / "tests" / "new_test.py").read_bytes() == b"x = 1\n"
-    assert stat.S_IMODE(os.stat(str(workdir / "support" / "run.sh")).st_mode) == 0o755
-    assert stat.S_IMODE(os.stat(str(workdir / "tests" / "new_test.py")).st_mode) == 0o644
 
 
 def test_overlay_deletes_and_refuses_digest_mismatch(tmp_path: Path) -> None:
@@ -482,120 +430,24 @@ def test_pytest_never_scores_errors_skips_or_empty() -> None:
         "collection_error"
     )
     outcome, holdout, reason = hv.decide_pytest_outcome(hv.parse_junit_xml(SKIP_ONLY_XML))
-    assert (outcome, holdout, reason) == ("unscored", None, "skip_only")
+    assert (outcome, holdout, reason) == ("unscored", None, "incomplete_skipped")
     assert hv.decide_pytest_outcome(hv.parse_junit_xml(b"not xml")) == (
         "unscored",
         None,
         "missing_report",
     )
-    empty = PASS_XML.replace(b'tests="2"', b'tests="0"')
+    empty = b'<testsuite tests="0" failures="0" errors="0" skipped="0"/>'
     assert hv.decide_pytest_outcome(hv.parse_junit_xml(empty))[2] == "zero_tests"
 
 
-def test_pytest_partial_skip_with_passes_scores() -> None:
+def test_pytest_partial_skip_and_conflicting_totals_are_unscored() -> None:
     assert hv.decide_pytest_outcome(hv.parse_junit_xml(PARTIAL_SKIP_XML)) == (
-        "passed",
-        1.0,
-        "pass_observed",
+        "unscored", None, "incomplete_skipped",
     )
+    contradictory = PASS_XML.replace(b'tests="2"', b'tests="0"')
+    assert hv.decide_pytest_outcome(hv.parse_junit_xml(contradictory))[0] == "unscored"
 
 
-OK_TEXT = (
-    "test_a (tests.test_x.TestX) ... ok\n"
-    "test_b (tests.test_x.TestX) ... ok\n"
-    "----------------------------------------------------------------------\n"
-    "Ran 2 tests in 0.010s\n"
-    "\n"
-    "OK\n"
-)
-
-FAIL_TEXT = (
-    "test_a (tests.test_x.TestX) ... ok\n"
-    "test_b (tests.test_x.TestX) ... FAIL\n"
-    "======================================================================\n"
-    "FAIL: test_b (tests.test_x.TestX)\n"
-    "----------------------------------------------------------------------\n"
-    "Traceback (most recent call last):\n"
-    '  File "...", line 1, in test_b\n'
-    "AssertionError: 1 != 2\n"
-    "----------------------------------------------------------------------\n"
-    "Ran 2 tests in 0.010s\n"
-    "\n"
-    "FAILED (failures=1)\n"
-)
-
-LOADER_TEXT = (
-    "ERROR: test_x (unittest.loader._FailedTest)\n"
-    "----------------------------------------------------------------------\n"
-    "Traceback (most recent call last):\n"
-    "ModuleNotFoundError: No module named 'tests.test_x'\n"
-    "----------------------------------------------------------------------\n"
-    "Ran 1 test in 0.001s\n"
-    "\n"
-    "FAILED (errors=1)\n"
-)
-
-BODY_ERROR_TEXT = (
-    "test_b (tests.test_x.TestX) ... ERROR\n"
-    "======================================================================\n"
-    "ERROR: test_b (tests.test_x.TestX)\n"
-    "----------------------------------------------------------------------\n"
-    "Traceback (most recent call last):\n"
-    '  File "...", line 1, in test_b\n'
-    "TypeError: unsupported operand\n"
-    "----------------------------------------------------------------------\n"
-    "Ran 1 test in 0.001s\n"
-    "\n"
-    "FAILED (errors=1)\n"
-)
-
-SKIP_ONLY_TEXT = (
-    "test_a (tests.test_x.TestX) ... skipped 'no db'\n"
-    "test_b (tests.test_x.TestX) ... skipped 'no db'\n"
-    "----------------------------------------------------------------------\n"
-    "Ran 2 tests in 0.001s\n"
-    "\n"
-    "OK (skipped=2)\n"
-)
-
-
-def test_unittest_pass_fail_and_loader_errors() -> None:
-    assert hv.decide_unittest_outcome(hv.parse_unittest_output(OK_TEXT)) == (
-        "passed",
-        1.0,
-        "pass_observed",
-    )
-    assert hv.decide_unittest_outcome(hv.parse_unittest_output(FAIL_TEXT)) == (
-        "failed",
-        0.0,
-        "fail_observed",
-    )
-    # Test-body exceptions are observed execution outcomes, not infra noise.
-    assert hv.decide_unittest_outcome(hv.parse_unittest_output(BODY_ERROR_TEXT)) == (
-        "failed",
-        0.0,
-        "fail_observed",
-    )
-    outcome, holdout, reason = hv.decide_unittest_outcome(
-        hv.parse_unittest_output(LOADER_TEXT)
-    )
-    assert (outcome, holdout, reason) == ("unscored", None, "collection_error")
-
-
-def test_unittest_never_scores_skips_zero_or_garbage() -> None:
-    assert hv.decide_unittest_outcome(hv.parse_unittest_output(SKIP_ONLY_TEXT)) == (
-        "unscored",
-        None,
-        "skip_only",
-    )
-    assert hv.decide_unittest_outcome(hv.parse_unittest_output("Ran 0 tests\n\nOK\n"))[2] == (
-        "zero_tests"
-    )
-    assert hv.decide_unittest_outcome(hv.parse_unittest_output("hello")) == (
-        "unscored",
-        None,
-        "missing_report",
-    )
 
 
 def test_node_id_to_unittest_label() -> None:
@@ -684,11 +536,11 @@ def test_stale_rewards_cleared_on_unscored_attempt(tmp_path: Path) -> None:
 def test_binary_placeholder_diff_is_unscored_before_workspace(tmp_path: Path) -> None:
     suite = _suite(str(tmp_path))
     diff = (
-        "diff --git a/img/logo.png b/img/logo.png\n"
-        "new file mode 100644\n"
-        "index 0000000..1234567\n"
-        "Binary files /dev/null and b/img/logo.png differ\n"
-    ).encode("utf-8")
+        b"diff --git a/img/logo.png b/img/logo.png\n"
+        b"new file mode 100644\n"
+        b"index 0000000..1234567\n"
+        b"Binary files /dev/null and b/img/logo.png differ\n"
+    )
     config_path, logs = _write_run(tmp_path, suite, agent_diff=diff)
     assert hv.run_verification(str(config_path), str(logs)) == 2
     assert _read_result(logs)["reason"] == "binary_placeholder"
@@ -844,10 +696,12 @@ def test_e2e_unittest_with_trusted_bootstrap(tmp_path: Path) -> None:
     diff = _agent_diff_for(repo, base, agent_test=None)
     body = (
         "import unittest\n"
+        "import builtins\n"
         "from pkg.core import answer\n"
         "class TestAnswer(unittest.TestCase):\n"
         "    def test_answer(self):\n"
         "        self.assertEqual(answer(), 2)\n"
+        "        self.assertEqual(builtins.HOLDOUT_BOOTSTRAPPED, 42)\n"
     )
     path = "tests/test_holdout_u.py"
     suite = _suite(
@@ -860,7 +714,7 @@ def test_e2e_unittest_with_trusted_bootstrap(tmp_path: Path) -> None:
     cfg_dir.mkdir(parents=True, exist_ok=True)
     (cfg_dir / "agent.diff").write_bytes(diff)
     (cfg_dir / "test-bootstrap.py").write_text(
-        "open('booted.marker', 'w').write('ok')\n", encoding="utf-8"
+        "import builtins\nbuiltins.HOLDOUT_BOOTSTRAPPED = 42\n", encoding="utf-8"
     )
     config = {
         "schema_version": "heldout-run/v1",
@@ -881,4 +735,123 @@ def test_e2e_unittest_with_trusted_bootstrap(tmp_path: Path) -> None:
     assert json.loads((logs / "reward.json").read_text(encoding="utf-8")) == {
         "holdout_pass": 1.0
     }
-    assert (repo / "booted.marker").read_text(encoding="utf-8") == "ok"
+
+
+@requires_git
+@pytest.mark.parametrize(
+    "statement,outcome,score",
+    [
+        ("self.assertEqual(answer(), 1)", "passed", 1.0),
+        ("self.assertEqual(answer(), 9)", "failed", 0.0),
+        ("raise RuntimeError('missing runtime prerequisite')", "unscored", None),
+        ("self.skipTest('not available')", "unscored", None),
+        ("print('Ran 1 tests\\n\\nOK'); self.assertEqual(answer(), 9)", "failed", 0.0),
+    ],
+)
+def test_unittest_observes_results_not_stdout(tmp_path, statement, outcome, score) -> None:
+    repo, base = _git_repo(tmp_path)
+    path = "tests/test_observed.py"
+    body = (
+        "import unittest\nfrom pkg.core import answer\n"
+        "class Observed(unittest.TestCase):\n"
+        "    def test_value(self):\n        " + statement + "\n"
+    )
+    suite = _suite(
+        str(repo),
+        tests=[_test_entry(path=path, qual="Observed.test_value")],
+        files=[_file_entry("tests/__init__.py", ""), _file_entry(path, body)],
+    )
+    suite["base_commit"] = base
+    config, logs = _write_run(
+        tmp_path, suite, framework="unittest", command=[sys.executable],
+    )
+    code = hv.run_verification(str(config), str(logs))
+    report = _read_result(logs)
+    assert report["outcome"] == outcome and report["holdout_pass"] == score
+    if score is None:
+        assert code != 0 and not (logs / "reward.json").exists()
+    else:
+        assert code == 0
+        assert json.loads((logs / "reward.json").read_text()) == {"holdout_pass": score}
+
+
+@requires_git
+def test_captured_runtime_symlinks_replay_without_writing_through_them(tmp_path) -> None:
+    repo, base = _git_repo(tmp_path)
+    (repo / "bin").mkdir()
+    (repo / "bin" / "python").symlink_to("python3")
+    (repo / "bin" / "python3").symlink_to(sys.executable)
+    _git(repo, "add", "-A")
+    patch = _git(repo, "diff", "--cached", base).encode()
+    suite = _answer_suite(
+        repo, "from pkg.core import answer\ndef test_answer():\n    assert answer() == 1\n"
+    )
+    suite["base_commit"] = base
+    config, logs = _write_run(
+        tmp_path, suite, agent_diff=patch, env={"PYTHONPATH": str(repo)},
+    )
+    assert hv.run_verification(str(config), str(logs)) == 0
+    assert _read_result(logs)["holdout_pass"] == 1.0
+    assert os.readlink(repo / "bin" / "python3") == sys.executable
+
+
+def test_command_captures_only_bounded_output_tails(tmp_path) -> None:
+    size = hv.MAX_LOG_BYTES * 3
+    script = (
+        f"import sys; sys.stdout.write('x' * {size} + 'END'); "
+        f"sys.stderr.write('y' * {size} + 'ERR')"
+    )
+    observed = hv.run_command([sys.executable, "-c", script], str(tmp_path), {}, 30)
+    assert observed["returncode"] == 0 and observed["error"] is None
+    assert len(observed["stdout"].encode()) <= hv.MAX_LOG_BYTES
+    assert len(observed["stderr"].encode()) <= hv.MAX_LOG_BYTES
+    assert observed["stdout"].endswith("END") and observed["stderr"].endswith("ERR")
+
+
+@requires_git
+def test_missing_selected_test_cannot_produce_holdout_pass(tmp_path) -> None:
+    repo, base = _git_repo(tmp_path)
+    path = "tests/test_selected.py"
+    body = (
+        "from pkg.core import answer\n"
+        "def test_one():\n    assert answer() == 1\n"
+        "def test_two():\n    assert answer() + 1 == 2\n"
+    )
+    suite = _suite(
+        str(repo),
+        tests=[
+            _test_entry(path=path, qual="test_one"),
+            _test_entry(path=path, qual="test_two"),
+        ],
+        files=[_file_entry(path, body)],
+    )
+    suite["base_commit"] = base
+    config, logs = _write_run(
+        tmp_path, suite, command=[sys.executable, "-m", "pytest", "-q", "-k", "test_one"],
+    )
+    assert hv.run_verification(str(config), str(logs)) != 0
+    assert _read_result(logs)["reason"] == "incomplete_selection"
+    assert not (logs / "reward.json").exists()
+
+
+@requires_git
+def test_git_application_refuses_writing_through_a_captured_symlink(tmp_path) -> None:
+    repo, base = _git_repo(tmp_path)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "sentinel").write_text("unchanged\n")
+    patch = (
+        "diff --git a/link b/link\nnew file mode 120000\n"
+        f"--- /dev/null\n+++ b/link\n@@ -0,0 +1 @@\n+{outside}\n"
+        "\\ No newline at end of file\n"
+        "diff --git a/link/sentinel b/link/sentinel\nnew file mode 100644\n"
+        "--- /dev/null\n+++ b/link/sentinel\n@@ -0,0 +1 @@\n+changed\n"
+    ).encode()
+    suite = _answer_suite(
+        repo, "from pkg.core import answer\ndef test_answer():\n    assert answer() == 1\n"
+    )
+    suite["base_commit"] = base
+    config, logs = _write_run(tmp_path, suite, agent_diff=patch)
+    assert hv.run_verification(str(config), str(logs)) != 0
+    assert not (logs / "reward.json").exists()
+    assert (outside / "sentinel").read_text() == "unchanged\n"

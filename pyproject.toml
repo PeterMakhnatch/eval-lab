@@ -127,6 +127,8 @@ ignore = ["E501"]
     # back to 3.7, so typing.* annotation forms stay (UP006/UP035/UP045).
     "src/evallab/integrity_reward_core.py" = ["UP006", "UP035", "UP045"]
     "src/evallab/integrity_reward_files/**/*.py" = ["UP006", "UP035", "UP045"]
+    # This verifier is copied into Python 3.5 task images; f-strings cannot parse there.
+    "src/evallab/heldout_verifier.py" = ["UP032"]
 
 [tool.ty.rules]
 # Optional dependency groups (lance, observability) are absent in some checked

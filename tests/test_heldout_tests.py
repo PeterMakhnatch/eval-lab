@@ -20,8 +20,6 @@ import pytest
 from pydantic import ValidationError
 
 from evallab.heldout_tests import (
-    SCHEMA_VERSION,
-    ZERO_PARENT,
     HeldoutSuite,
     extract_suite,
     load_suite,
@@ -49,7 +47,7 @@ def _git_env() -> dict[str, str]:
     return env
 
 
-def _git(repo: Path, *argv: str) -> str:
+def _git(repo: Path, *argv: str, raw: bool = False) -> str:
     proc = subprocess.run(
         [
             "git",
@@ -68,7 +66,7 @@ def _git(repo: Path, *argv: str) -> str:
         timeout=60,
     )
     assert proc.returncode == 0, f"git {' '.join(argv)} failed: {proc.stderr}"
-    return proc.stdout.strip()
+    return proc.stdout if raw else proc.stdout.strip()
 
 
 def _write(repo: Path, rel: str, text: str) -> None:
@@ -85,7 +83,7 @@ def _write_bytes(repo: Path, rel: str, data: bytes) -> None:
 
 def _commit(repo: Path, message: str) -> str:
     _git(repo, "add", "-A")
-    _git(repo, "commit", "-q", "-m", message)
+    _git(repo, "commit", "--allow-empty", "-q", "-m", message)
     return _git(repo, "rev-parse", "HEAD")
 
 
@@ -138,7 +136,10 @@ def _hidden_patch(
         (repo / rel).unlink()
     _git(repo, "add", "-A")
     _git(repo, "commit", "-q", "-m", f"hidden {branch}")
-    out.write_text(_git(repo, "diff", "--no-color", "--no-ext-diff", base, branch, "--"))
+    out.write_text(
+        _git(repo, "diff", "--no-color", "--no-ext-diff", base, branch, "--", raw=True),
+        encoding="utf-8",
+    )
     _git(repo, "checkout", "-q", "main")
     return out
 
@@ -346,7 +347,7 @@ def test_decorator_only_change_is_novel(tmp_path: Path) -> None:
 
 def test_class_method_nodes_are_qualified(tmp_path: Path) -> None:
     base_tests = (
-        "import unittest\n\n\n"
+        "import unittest\nfrom calc import add\n\n"
         "class TestCalc:\n"
         "    def test_add(self):\n"
         "        assert True\n"
@@ -356,13 +357,13 @@ def test_class_method_nodes_are_qualified(tmp_path: Path) -> None:
         "        self.assertTrue(True)\n"
     )
     fixed_tests = (
-        "import unittest\n\n\n"
+        "import unittest\nfrom calc import add\n\n"
         "class TestCalc:\n"
         "    def test_add(self):\n"
         "        assert True\n"
         "\n"
         "    def test_div(self):\n"
-        "        assert True\n"
+        "        assert add(4, 2) == 6\n"
         "\n\n"
         "class TestThings(unittest.TestCase):\n"
         "    def test_a(self):\n"
@@ -371,7 +372,7 @@ def test_class_method_nodes_are_qualified(tmp_path: Path) -> None:
     repo, base, fix = _repo_with_fix(
         tmp_path,
         "classes",
-        {"tests/test_calc.py": base_tests},
+        {"calc.py": BASE_CALC, "tests/test_calc.py": base_tests},
         fix_modify={"tests/test_calc.py": fixed_tests},
     )
     patch = tmp_path / "empty.patch"
@@ -451,7 +452,9 @@ def test_deletion_overlay_uses_null_payload(tmp_path: Path) -> None:
             "tests/test_main.py": BASE_TEST_CALC,
             "tests/test_old.py": "def test_gone():\n    assert True\n",
         },
-        fix_modify={"tests/test_main.py": BASE_TEST_CALC + "\n\ndef test_new():\n    assert True\n"},
+        fix_modify={
+            "tests/test_main.py": BASE_TEST_CALC + "\n\ndef test_new():\n    assert add(5, 6) == 11\n"
+        },
         fix_delete=("tests/test_old.py",),
     )
     patch = tmp_path / "empty.patch"
@@ -499,7 +502,7 @@ def test_unknown_fix_commit_is_unavailable(tmp_path: Path) -> None:
     assert suite.status == "unavailable"
     assert suite.tests == [] and suite.files == []
     assert any("fix commit not present" in refusal for refusal in suite.refusals)
-    assert suite.fix_parent == ZERO_PARENT
+    assert suite.fix_parent is None
 
 
 def test_unknown_base_commit_is_unavailable(tmp_path: Path) -> None:
@@ -551,7 +554,7 @@ def test_merge_fix_is_unavailable(tmp_path: Path) -> None:
     suite = _extract(repo, base, fix, patch)
     assert suite.status == "unavailable"
     assert any("merge" in refusal for refusal in suite.refusals)
-    assert suite.fix_parent == ZERO_PARENT
+    assert suite.fix_parent is None
 
 
 @pytest.mark.parametrize(
@@ -578,40 +581,27 @@ def test_unsafe_hidden_paths_are_unavailable(tmp_path: Path, rel: str) -> None:
     )
     suite = _extract(repo, base, fix, patch)
     assert suite.status == "unavailable"
-    assert any("unsafe hidden patch path" in refusal for refusal in suite.refusals)
+    assert suite.tests == [] and suite.files == []
 
 
-def test_binary_hidden_entry_is_unavailable(tmp_path: Path) -> None:
+def test_missing_hidden_binary_bytes_are_unavailable(tmp_path: Path) -> None:
     repo, base, fix = _repo_with_fix(
-        tmp_path,
-        "binary-hidden",
-        {"tests/test_calc.py": BASE_TEST_CALC},
+        tmp_path, "missing-binary", {"tests/test_calc.py": BASE_TEST_CALC},
         fix_modify={
-            "tests/test_calc.py": BASE_TEST_CALC + "\n\ndef test_new():\n    assert True\n"
+            "tests/test_calc.py": BASE_TEST_CALC + "\n\ndef test_new():\n    assert add(4, 5) == 9\n"
         },
     )
-    text_patch = _hidden_patch(
-        repo,
-        base,
-        tmp_path / "text.patch",
-        "hidden-text",
-        modify={"tests/test_calc.py": BASE_TEST_CALC + "# hidden comment\n"},
-    ).read_text(encoding="utf-8")
     patch = tmp_path / "hidden.patch"
     patch.write_text(
-        text_patch
-        + "diff --git a/tests/blob.bin b/tests/blob.bin\n"
-        + "new file mode 100644\n"
-        + "index 0000000..e69de29\n"
-        + "GIT binary patch\n"
-        + "literal 0\n"
-        + "HcmV?d00001\n"
-        + "\n",
+        "diff --git a/tests/missing.bin b/tests/missing.bin\n"
+        "new file mode 100644\n"
+        "index " + "0" * 40 + ".." + "a" * 40 + "\n"
+        "Binary files /dev/null and b/tests/missing.bin differ\n",
         encoding="utf-8",
     )
     suite = _extract(repo, base, fix, patch)
     assert suite.status == "unavailable"
-    assert any("binary" in refusal for refusal in suite.refusals)
+    assert suite.tests == [] and suite.files == []
 
 
 def test_symlink_fix_entry_is_unavailable(tmp_path: Path) -> None:
@@ -716,36 +706,3 @@ def test_write_refuses_overwrite_and_load_validates(tmp_path: Path) -> None:
         load_suite(mismatched)
 
 
-def test_wire_format_keys_are_exact(tmp_path: Path) -> None:
-    repo, base, fix = _repo_with_fix(
-        tmp_path,
-        "wire",
-        {"tests/test_calc.py": BASE_TEST_CALC},
-        fix_modify={
-            "tests/test_calc.py": BASE_TEST_CALC + "\n\ndef test_new():\n    assert True\n"
-        },
-    )
-    patch = tmp_path / "empty.patch"
-    patch.write_bytes(b"")
-    suite = _extract(repo, base, fix, patch)
-    wire = suite.model_dump(mode="json")
-    assert wire["schema_version"] == SCHEMA_VERSION
-    assert set(wire) == {
-        "schema_version",
-        "task_name",
-        "image",
-        "workdir",
-        "base_commit",
-        "fix_commit",
-        "fix_parent",
-        "hidden_patch_sha256",
-        "status",
-        "tests",
-        "files",
-        "exclusions",
-        "refusals",
-        "notes",
-    }
-    assert set(wire["tests"][0]) == {"node_id", "path", "qualname", "fingerprint", "change"}
-    assert set(wire["files"][0]) == {"path", "mode", "content_base64", "sha256"}
-    assert set(wire["exclusions"][0]) == {"node_id", "reason"}

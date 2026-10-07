@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -71,12 +73,23 @@ def test_verifier_identity_tracks_build_context_content(tmp_path: Path) -> None:
     assert verifier_identity(task).digest == before
 
     task.joinpath("tests", "verify.py").write_text("assert False\n", "utf-8")
-    assert verifier_identity(task).digest != before
+    changed = verifier_identity(task).digest
+    assert changed != before
 
     task.joinpath("tests", "__pycache__").mkdir()
     task.joinpath("tests", "__pycache__", "verify.pyc").write_bytes(b"cache")
+    assert verifier_identity(task).digest == changed
+
+
+def test_verifier_identity_preserves_non_utf8_fixture_bytes(tmp_path: Path) -> None:
+    task = _task(tmp_path)
+    fixture = task / "tests" / "input.bin"
+    fixture.write_bytes(bytes([0, 255, 128, 10]))
+    before = verifier_identity(task).digest
+    fixture.write_bytes(bytes([0, 254, 128, 10]))
     assert verifier_identity(task).digest != before
-    assert verifier_identity(task).context_file_count == 1
+    fixture.write_bytes(bytes([0, 255, 128, 10]))
+    assert verifier_identity(task).digest == before
 
 
 def test_shared_mode_task_refuses_instead_of_regrading(tmp_path: Path) -> None:
@@ -740,3 +753,249 @@ def test_regrade_never_resumes_or_writes_into_source(
         )
     assert runner.calls == []
     assert _snapshot_tree(job) == before
+
+
+def _heldout_inputs(tmp_path: Path):
+    """An actual upstream/hidden Git divergence, not a precomputed mock suite."""
+    from evallab.heldout_tests import extract_suite, write_suite
+
+    repository = tmp_path / "repository"
+    repository.mkdir()
+    git_env = {key: value for key, value in os.environ.items() if not key.startswith("GIT_")}
+    git_env.update({
+        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull,
+        "GIT_AUTHOR_NAME": "Fixture", "GIT_AUTHOR_EMAIL": "fixture@example.invalid",
+        "GIT_COMMITTER_NAME": "Fixture", "GIT_COMMITTER_EMAIL": "fixture@example.invalid",
+        "GIT_AUTHOR_DATE": "2020-01-01T00:00:00+00:00",
+        "GIT_COMMITTER_DATE": "2020-01-01T00:00:00+00:00",
+    })
+
+    def git(*args: str) -> str:
+        return subprocess.run(
+            ["git", "-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", *args],
+            cwd=repository, env=git_env, capture_output=True, text=True, check=True,
+        ).stdout.strip()
+
+    git("init", "-b", "main")
+    (repository / "tests").mkdir()
+    (repository / "calc.py").write_text("def double(value):\n    return value\n")
+    initial_tests = "from calc import double\n"
+    test_path = repository / "tests" / "test_calc.py"
+    test_path.write_text(initial_tests)
+    git("add", ".")
+    git("commit", "-m", "base")
+    base = git("rev-parse", "HEAD")
+    test_path.write_text(
+        initial_tests + "\ndef test_hidden():\n    assert double(2) == 4\n"
+    )
+    hidden = git("diff", "--", "tests/test_calc.py") + "\n"
+    test_path.write_text(
+        initial_tests + "\ndef test_additional():\n    assert double(3) == 6\n"
+    )
+    (repository / "calc.py").write_text("def double(value):\n    return value * 2\n")
+    git("add", ".")
+    git("commit", "-m", "upstream fix and additional test")
+    fix = git("rev-parse", "HEAD")
+    patch = git("diff", base, fix, "--", "calc.py") + "\n"
+
+    image = "example.invalid/task@sha256:" + "a" * 64
+    task = _job_task(tmp_path, "heldout-task", "local-lab/holdout", mode="shared")
+    (task / "instruction.md").write_text("Implement double.\n")
+    (task / "task.toml").write_text(
+        'schema_version = "1.4"\n[task]\nname = "local-lab/holdout"\n'
+        '[verifier]\ntimeout_sec = 60\n'
+        '[environment]\n'
+        f'docker_image = "{image}"\nworkdir = "/testbed"\n'
+        'cpus = 2\nmemory_mb = 2048\nnetwork_mode = "public"\n'
+        '[environment.healthcheck]\ncommand = "must never be inherited"\n'
+    )
+    (task / "tests" / "test.patch").write_text(hidden)
+    bundle_root = tmp_path / "bundle"
+    bundle_root.mkdir()
+    suite = extract_suite(
+        git_dir=repository / ".git", base_commit=base, fix_commit=fix,
+        hidden_patch=task / "tests" / "test.patch", task_name="local-lab/holdout",
+        image=image, workdir="/testbed",
+    )
+    write_suite(suite, bundle_root / "suite.json")
+    bundle = bundle_root / "bundle.json"
+    bundle.write_text(json.dumps({
+        "schema_version": "heldout-regrade/v1",
+        "tasks": [{
+            "task_name": "local-lab/holdout", "suite": "suite.json",
+            "framework": "pytest", "command": ["python", "-m", "pytest", "-q"],
+        }],
+    }))
+    job = _job(tmp_path, "recorded")
+    for name, rewards in [
+        ("honest", {"reward": 1.0, "integrity": 1.0}),
+        ("copied", {"reward": 1.0, "integrity": 0.0, "reward_gated": 0.0}),
+        ("failed", {"reward": 0.0, "integrity": 1.0}),
+    ]:
+        source = _job_trial(job, name, "local-lab/holdout", rewards, task_path=task)
+        (source / "verifier").mkdir()
+        (source / "verifier" / "agent.diff").write_text(patch)
+    return job, task, bundle
+
+
+def test_heldout_preview_is_read_only_and_selects_raw_passes(tmp_path, monkeypatch) -> None:
+    from evallab import heldout_regrade
+
+    job, task, bundle = _heldout_inputs(tmp_path)
+    before = _snapshot_tree(tmp_path)
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *args, **kwargs: pytest.fail("planning must not run subprocesses"),
+    )
+    plan = heldout_regrade.plan_heldout_job(
+        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out", name="preview"
+    )
+    assert plan.runnable
+    assert {Path(trial.source_trial_dir).name for trial in plan.trials} == {"honest", "copied"}
+    assert plan.skipped_trials == [str(job / "failed")]
+    assert all(trial.eligible for trial in plan.trials)
+    assert _snapshot_tree(tmp_path) == before
+
+
+def test_heldout_subtraction_must_match_actual_hidden_test_bytes(tmp_path) -> None:
+    from evallab.heldout_regrade import plan_heldout_job
+
+    job, task, bundle = _heldout_inputs(tmp_path)
+    (task / "tests" / "test.patch").write_text("different grader bytes\n")
+    plan = plan_heldout_job(
+        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out"
+    )
+    assert not plan.runnable
+    assert RegradeRefusalCode.HELD_OUT_SOURCE_MISMATCH in plan.refusals
+
+
+def test_heldout_requires_complete_recorded_patch_not_binary_placeholder(tmp_path) -> None:
+    from evallab.heldout_regrade import plan_heldout_job
+
+    job, task, bundle = _heldout_inputs(tmp_path)
+    for source in (job / "honest", job / "copied"):
+        (source / "verifier" / "agent.diff").write_text(
+            "Binary files a/essential.bin and b/essential.bin differ\n"
+        )
+    plan = plan_heldout_job(
+        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out"
+    )
+    assert not plan.runnable
+    assert all("binary placeholders" in trial.details[0] for trial in plan.trials)
+
+
+def test_heldout_missing_cached_runtime_cannot_start_native_regrade(tmp_path, monkeypatch) -> None:
+    from evallab import heldout_regrade
+
+    job, task, bundle = _heldout_inputs(tmp_path)
+    before = _snapshot_tree(job)
+
+    def unavailable(*args):
+        raise ValueError("cached image absent")
+
+    monkeypatch.setattr(heldout_regrade, "_offline_runtime", unavailable)
+    receipt = heldout_regrade.regrade_heldout_job(
+        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out",
+        runner=lambda *args, **kwargs: pytest.fail("no verifier may run"),
+    )
+    assert receipt.refused and receipt.trials == []
+    assert receipt.refusals == [RegradeRefusalCode.HELD_OUT_RUNTIME_UNAVAILABLE]
+    assert not (tmp_path / "out").exists()
+    assert _snapshot_tree(job) == before
+
+
+def test_heldout_native_trials_preserve_rewards_and_refuse_unobserved_scores(
+    tmp_path, monkeypatch
+) -> None:
+    from evallab import heldout_regrade
+
+    job, task, bundle = _heldout_inputs(tmp_path)
+    before = _snapshot_tree(job)
+    monkeypatch.setattr(heldout_regrade, "_offline_runtime", lambda *args: {"images": {}})
+    executed = []
+
+    def runner(command, **kwargs):
+        source = Path(command[command.index("regrade") + 1])
+        executed.append(source.name)
+        parent = Path(command[command.index("--trials-dir") + 1])
+        name = command[command.index("--trial-name") + 1]
+        output = _job_trial(
+            parent, name, "local-lab/holdout", {"holdout_pass": 0.0}
+        )
+        (output / "verifier").mkdir()
+        if source.name == "honest":
+            # A numeric reward with no completed test evidence is not a score.
+            report = {
+                "schema_version": "heldout-result/v1", "outcome": "unscored",
+                "holdout_pass": None,
+                "counts": {"tests": 0, "failures": 0, "errors": 1, "skipped": 0},
+            }
+        else:
+            report = {
+                "schema_version": "heldout-result/v1", "outcome": "failed",
+                "holdout_pass": 0.0,
+                "counts": {"tests": 1, "failures": 1, "errors": 0, "skipped": 0},
+            }
+        (output / "verifier" / "heldout-result.json").write_text(json.dumps(report))
+        return SimpleNamespace(returncode=0, stderr="")
+
+    receipt = heldout_regrade.regrade_heldout_job(
+        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out",
+        name="additional-tests", runner=runner,
+    )
+    assert set(executed) == {"honest", "copied"}
+    assert receipt.verdict is RegradeJobVerdict.PARTIAL
+    assert receipt.invocation is None and receipt.execution is None
+    by_source = {entry.source.trial_name: entry for entry in receipt.trials}
+    assert by_source["honest"].refused and by_source["honest"].regraded is None
+    assert by_source["copied"].recorded.rewards == {
+        "reward": 1.0, "integrity": 0.0, "reward_gated": 0.0,
+    }
+    assert by_source["copied"].regraded.rewards == {"holdout_pass": 0.0}
+    assert receipt.skipped_trials == [str(job / "failed")]
+    assert _snapshot_tree(job) == before
+
+
+def test_heldout_staging_resolves_to_native_cpu_offline_uploaded_tests(
+    tmp_path, monkeypatch
+) -> None:
+    pytest.importorskip("harbor")
+    import tomllib
+
+    import yaml
+    from harbor.environments.definition import should_use_prebuilt_docker_image
+    from harbor.models.task.config import TaskConfig
+    from harbor.models.task.paths import TaskPaths
+    from harbor.models.task.verifier_mode import resolve_verifier_environment_definition
+
+    from evallab import heldout_regrade
+
+    job, task, bundle = _heldout_inputs(tmp_path)
+    monkeypatch.setattr(heldout_regrade, "_offline_runtime", lambda *args: {"images": {}})
+    observed = []
+
+    def runner(command, **kwargs):
+        staged = Path(command[command.index("--task-path") + 1])
+        config = TaskConfig.model_validate(tomllib.loads((staged / "task.toml").read_text()))
+        definition = resolve_verifier_environment_definition(config, TaskPaths(staged))
+        assert definition is not None
+        assert not definition.bundled_tests
+        assert definition.directory == staged.resolve() / "environment"
+        assert definition.config.gpus == 0 and definition.config.tpu is None
+        assert definition.config.cpus == 2 and definition.config.memory_mb == 2048
+        assert definition.config.network_mode.value == "no-network"
+        assert config.verifier.network_mode.value == "no-network"
+        assert should_use_prebuilt_docker_image(
+            definition.directory, docker_image=definition.config.docker_image, force_build=True
+        )
+        compose = yaml.safe_load((definition.directory / "docker-compose.yaml").read_text())
+        assert compose["services"]["main"]["network_mode"] == "none"
+        assert all(service["pull_policy"] == "never" for service in compose["services"].values())
+        observed.append(Path(command[command.index("regrade") + 1]).name)
+        return SimpleNamespace(returncode=1, stderr="fixture stops before container execution")
+
+    heldout_regrade.regrade_heldout_job(
+        job_dir=job, task_dir=task, held_out=bundle, jobs_dir=tmp_path / "out",
+        name="native-definition", runner=runner,
+    )
+    assert set(observed) == {"honest", "copied"}

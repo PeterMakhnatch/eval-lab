@@ -3001,6 +3001,8 @@ def _regrade_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
     from evallab.regrade import (
+        RegradeJobPlan,
+        RegradeJobReceiptV1,
         plan_regrade_job,
         regrade_job,
         render_job_plan,
@@ -3013,15 +3015,23 @@ def _regrade_command(
         "jobs_dir": _resolve(root, args.jobs_dir),
         "name": args.name,
     }
+    plan_builder: Callable[..., RegradeJobPlan] = plan_regrade_job
+    execute: Callable[..., RegradeJobReceiptV1] = regrade_job
+    if args.held_out is not None:
+        from evallab.heldout_regrade import plan_heldout_job, regrade_heldout_job
+
+        options["held_out"] = _resolve(root, args.held_out)
+        plan_builder = plan_heldout_job
+        execute = regrade_heldout_job
     if args.dry_run:
-        plan = plan_regrade_job(**options)
+        plan = plan_builder(**options)
         print(
             json.dumps(plan.model_dump(mode="json"), indent=2, sort_keys=True)
             if args.json
             else render_job_plan(plan)
         )
         return 0 if plan.runnable else 1
-    receipt = regrade_job(**options)
+    receipt = execute(**options)
     print(
         json.dumps(receipt.model_dump(mode="json"), indent=2, sort_keys=True)
         if args.json
@@ -6825,7 +6835,12 @@ def parser() -> argparse.ArgumentParser:
     )
     regrade_parser.add_argument("job", type=Path, help="Stored Harbor job directory")
     regrade_parser.add_argument(
-        "--task", type=Path, help="Current separate-verifier task or task collection"
+        "--task", type=Path, help="Current task or collection; separate verifier unless --held-out"
+    )
+    regrade_parser.add_argument(
+        "--held-out",
+        type=Path,
+        help="Additional-test bundle; regrade recorded passes offline on cached local CPU images",
     )
     regrade_parser.add_argument(
         "--jobs-dir",

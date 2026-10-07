@@ -136,18 +136,46 @@ reward must agree: outer `test.sh` success alone does not prove a test pass.
   termination refuses further launches.
 
 [`results.py`](../leak-oracle/results.py) exports the scientific
-`oracle_sweep.csv` columns `task_id,label,fix_commit,patch_tip,how_chosen,`
-`evidence_path,run_digest`. It binds actual patch/log bytes, image digest,
-base, test patch, selected package and fresh sandbox identities.
-`nop:pass` takes precedence; `oracle:none` means the extractor found no usable
-source fix, not proof that no solution exists. Rejected candidates are not
-published as fix commits.
+[`oracle_sweep.csv`](oracle_sweep.csv) columns `task_id,label,fix_commit,patch_tip,`
+`how_chosen,evidence_path,run_digest`. Executed references bind retained patch/log
+bytes, image digest, base, test patch, selected package and fresh sandbox identities.
+Patch conflicts retain the candidate identity and failed apply-check diagnostics,
+not the rejected patch bytes. `nop:pass` takes precedence; `oracle:none` means the
+extractor found no usable source fix, not proof that no solution exists. Rejected
+no-fix candidates are not published as fix commits.
 
 Only the six accepted scientific labels enter the CSV. Every requested task,
 including budget-stopped, unrun and infrastructure cases, remains in the
 companion `coverage.json`. `summary.json` separates observed provider charges
 from conservative exposure. The Data consumer overrides pilot labels only for
 observed CSV rows and fails closed on unmapped labels or changed run digests.
+
+#### Recorded result (2026-10-07)
+
+The cap admitted **491 of 1,148 tasks**: 347 classified, 144 operationally unknown,
+and **657 unrun** when another paired reservation would exceed the fence. This is
+ordered partial coverage, not 1,148 completed verifier pairs.
+
+| observed label | tasks |
+|---|---:|
+| `oracle:pass+nop:fail` | 193 |
+| `oracle:none` | 78 |
+| `oracle:fail` | 52 |
+| `oracle:patch-conflict` | 23 |
+| `oracle:fail-network` | 1 |
+| `nop:pass` | 0 |
+
+All 20 open confirmations completed: one passed, 19 failed. They were the first
+eligible failures in frozen image-size/task order, not a random population sample.
+The final read-only billing observation was **$1.09520036 posted**, with
+**$1.98388775 conservative exposure**; billing was not settled.
+
+[`summary.json`](../leak-oracle/summary.json) records counts, source hashes and full
+external coverage/custody paths. [`manual-checks.json`](../leak-oracle/manual-checks.json)
+contains three checks each for none/fail/conflict and the sole observed network
+positive (three network examples were unavailable; no nop-pass was observed).
+Candidate misses, docs-only conflicts and historical API drift remain extractor
+limitations, not evidence that the underlying task is unsolvable.
 
 ## Status rule
 

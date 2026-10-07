@@ -1,0 +1,238 @@
+{
+  "actual_provider_usd": "1.09520036",
+  "admitted_tasks": 491,
+  "app_ids": [
+    "ap-wryh8EdKbsADwNhuz3UdJd",
+    "ap-xpnUQSNsXCmMuQJHAMVT5f",
+    "ap-tWn89lEpvpY6pgbKG63Vsf",
+    "ap-Y1OPXBq7EwIaTYA3zidSO1",
+    "ap-bJt1EzZhqMKMibUDxUG2VG",
+    "ap-ujPp9vjWnllAPgM392fswS",
+    "ap-dlyQi0sdP7Vs4z5Ry2LNKU",
+    "ap-E0MMXi1rx4fo8N79yiA4q1",
+    "ap-CajlAscVutIPVoyMOS2v4h",
+    "ap-jDltHPIRiFsxC5DgmWNozy",
+    "ap-OvtfV7KNtOzuyfoOxg9JjZ",
+    "ap-WMz5tNIp69e1HI7TocFJsJ",
+    "ap-boGHaKGg22YmaWKK5SVmcQ",
+    "ap-S6bgu2oShoe5tuiZtnGfhD",
+    "ap-KQo4gAe1DUMnsMspHmIWhv",
+    "ap-KzobdFVq21I92JNuwbTVma",
+    "ap-o4tbPEZHqkQnlGXmhFrok8",
+    "ap-gPYcU9rMPnv2jy6gymF6BB",
+    "ap-qg4zVYOX0O9GLY21l6ZFFt",
+    "ap-sUS1vuQan46wy7dmhJzlf3",
+    "ap-qwOSlCFfsHlq75G3uHXloh",
+    "ap-WgX7yKEa50UCKZ9oX4uEHF",
+    "ap-pVyPqTpKzt5YjZakNJftMr",
+    "ap-pPo68mpCsnYrb6KsEmjGFa",
+    "ap-DnSFzikj4XgcR0cUm4uBTJ"
+  ],
+  "authority": "HAR-191 Research-Harbor delegate disposition 2026-10-07T04:06Z; direct Modal batch-enforced $2 exception",
+  "billing_limit": "Observed reports may lag; retained runtime bounds are not claimed as settled invoices. Cold imports remain the explicitly accepted residual risk.",
+  "budget_journal": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/budget.json",
+  "cap_usd": "2.00",
+  "classified_count": 347,
+  "conservative_exposure_usd": "1.98388775000000000000000000000000000000000000000001595",
+  "counts_per_label": {
+    "nop:pass": 0,
+    "oracle:fail": 52,
+    "oracle:fail-network": 1,
+    "oracle:none": 78,
+    "oracle:pass+nop:fail": 193,
+    "oracle:patch-conflict": 23
+  },
+  "counts_per_reason": {
+    "No batch fits actual-plus-retained-exposure and both fresh Sandbox reservations within $2": 657,
+    "extraction: git-error": 49,
+    "extraction: git-timeout": 51,
+    "nop: infrastructure-error": 44
+  },
+  "counts_per_state": {
+    "budget-stopped": 657,
+    "classified": 347,
+    "infrastructure-error": 93,
+    "timeout": 51
+  },
+  "coverage_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/coverage.json",
+  "coverage_sha256": "836b1b8ecaf2b63a65fe50468bbff9bcfdca6288dc65c1bb6643c9567a014fca",
+  "csv_path": "research/experiments/python-task-ledger/oracle_sweep.csv",
+  "csv_sha256": "f22b6b56bece7cc8fba510e24a04fe2d05865aa979a25ebaf46e84fbae44e807",
+  "manifest_sha256": "33e183b0d5107c7cdf3a2bb316c41f39b085386da1049fc41b887814663c0109",
+  "observed_count": 1148,
+  "open_tasks": [
+    "format-code-task-000077",
+    "format-code-task-000552",
+    "format-code-task-000814",
+    "format-code-task-000823",
+    "format-code-task-000834",
+    "format-code-task-001265",
+    "format-code-task-001435",
+    "format-code-task-001609",
+    "format-code-task-001820",
+    "format-code-task-002084",
+    "format-code-task-002096",
+    "format-code-task-002107",
+    "format-code-task-002353",
+    "format-code-task-002383",
+    "format-code-task-002388",
+    "format-code-task-002542",
+    "format-code-task-002800",
+    "format-code-task-002827",
+    "format-code-task-002874",
+    "format-code-task-002938"
+  ],
+  "pending_cleanup": false,
+  "requested_count": 1148,
+  "sandbox_attempted_tasks": 491,
+  "state": "budget-stopped",
+  "unclassified_count": 801,
+  "schema_version": 1,
+  "study_id": "HAR-191",
+  "source_commit": "f20af85bdc0fb81ac954f5749458743c20925a3b",
+  "billing_settled": false,
+  "billing_observed_at": "2026-10-07T09:22:06.347332Z",
+  "source_sha256": {
+    "extract.py": "6625285082fca074411734c1246feb79f55e3806770f4aa9f363c7dc533a71e2",
+    "results.py": "759392224f3d569bdcb17abdcb6193766c98d13637a8fb5348c432207ade28db",
+    "runtime.py": "e57c7e3dc38a2bd8229636419e8d61b63a6fa2d97ccc9487204c475b8e151e66",
+    "budget.py": "c03c45f52a175ea0d800aef0e5aff88890b1f5bea33bdbf3a50f8bf3423a84f6",
+    "sweep.py": "204c57485884e4b4f9bdd9d3ac919cc56cbf3e04a049a9220262e0b9cfad219b",
+    "prepare.py": "c10286e54571589fca78e1a704d4131f75227b74a9fbc35fecace1143cf58de7"
+  },
+  "resource_policy": {
+    "cap_usd": "2.00",
+    "cpu_limit": "1.0",
+    "cpu_request": "0.125",
+    "max_batch_tasks": 100,
+    "max_open_tasks": 20,
+    "memory_limit_mib": 4096,
+    "memory_request_mib": 128,
+    "sandbox_seconds": 180
+  },
+  "custody_audit": {
+    "batches": 24,
+    "maximum_tasks_per_batch": 50,
+    "allocated_sandboxes": 1002,
+    "unique_sandbox_ids": 1002,
+    "all_allocations_terminal_confirmed": true,
+    "all_lifetime_bounds_within_seconds": 180,
+    "every_admission_inside_cap": true,
+    "locked_tasks": 491,
+    "distinct_open_tasks": 20,
+    "reproduced_csv_rows": 347,
+    "census_rows": 1148,
+    "no_pending_cleanup": true
+  },
+  "verification": {
+    "focused_prepush": "277 passed; all static gates passed; Python 3.12",
+    "source_head_ci": {
+      "head": "f20af85bdc0fb81ac954f5749458743c20925a3b",
+      "reported_checks": 11,
+      "conclusion": "success",
+      "quality_run": 37597489605,
+      "typecheck_run": 37597489582,
+      "scope": "Source head only; final data-head CI is recorded on PR765."
+    },
+    "consumer_smoke": {
+      "csv_byte_identical_on_offline_reexport": true,
+      "coverage_identical_except_output_path": true,
+      "csv_sha256": "f22b6b56bece7cc8fba510e24a04fe2d05865aa979a25ebaf46e84fbae44e807",
+      "strict_data_import": {
+        "loaded_rows": 347,
+        "labels": [
+          "oracle:fail",
+          "oracle:fail-network",
+          "oracle:none",
+          "oracle:pass+nop:fail",
+          "oracle:patch-conflict"
+        ]
+      },
+      "no_ledger_verdict_written": true
+    }
+  },
+  "manual_checks": {
+    "path": "research/experiments/leak-oracle/manual-checks.json",
+    "sha256": "9dd80732ed79efdfaf9306809de76d393bda626cd6861d091d4c6fceab9f9cc6",
+    "checks_per_label": {
+      "oracle:none": 3,
+      "oracle:fail": 3,
+      "oracle:fail-network": 1,
+      "oracle:patch-conflict": 3
+    },
+    "availability_limits": {
+      "oracle:fail-network": "Only one positive was observed in the capped 20-task open sample; that sole case was inspected. Three examples were unavailable.",
+      "nop:pass": "No observed cases."
+    }
+  },
+  "limitations": [
+    "The smallest-image-first ordered prefix is not a population-random sample; no full-cohort pass rate is inferred.",
+    "347 tasks are classified; 144 attempted tasks remain operationally unknown and 657 received no allocation.",
+    "The 20 first-eligible open confirmations yielded one pass and 19 ordinary failures; no additional open tasks were admitted.",
+    "Missing or failing historical candidates do not prove task unsolvability; selection misses and historical dependency/API drift occur.",
+    "Patch-conflict evidence retains candidate identity, generated-size metadata and failed apply-check diagnostics, not rejected patch bytes.",
+    "Actual provider billing is unsettled; retained runtime exposure is not a settled invoice. Cold pulls remain the explicitly accepted residual risk."
+  ],
+  "artifacts": {
+    "cohort.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/cohort.json",
+      "sha256": "33e183b0d5107c7cdf3a2bb316c41f39b085386da1049fc41b887814663c0109"
+    },
+    "coverage.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/coverage.json",
+      "sha256": "836b1b8ecaf2b63a65fe50468bbff9bcfdca6288dc65c1bb6643c9567a014fca"
+    },
+    "run.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/run.json",
+      "sha256": "4481c41f73ba45335761194350db811e54f8c21f50efc49ddefa2d870774fefd"
+    },
+    "budget.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/budget.json",
+      "sha256": "09caed79cc27d5214f7cb793f28b10de98553a83d60717cf17d420ae91a375d5"
+    },
+    "summary.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/summary.json",
+      "sha256": "a986fc8d1594b9f122c8743fa2bfd8a8a9fef51df0433e21f0a99a1100355bbd"
+    },
+    "final-billing.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/final-billing.json",
+      "sha256": "0e8dd7371a7c9fe2ab5783491264f880e0b2194a5e6c619cf381e7e14417de42"
+    },
+    "manual-checks.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/manual-checks.json",
+      "sha256": "9dd80732ed79efdfaf9306809de76d393bda626cd6861d091d4c6fceab9f9cc6"
+    },
+    "verification/consumer-smoke.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/verification/consumer-smoke.json",
+      "sha256": "c8c14c18362f99adaad50b19f11944041ff5b3197d32aac0b3edbde5624b02d5"
+    },
+    "verification/final-audit.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/verification/final-audit.json",
+      "sha256": "b4afc25d2ad435784d2223aeeda4c6fdaff5f394dab3aa96e9a7af8db1198eb3"
+    },
+    "verification/post-run-billing.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/verification/post-run-billing.json",
+      "sha256": "0a1bc1b2e03c522040f60da3295068a9ce96225419842ddb637cdb12a84322fd"
+    },
+    "verification/billing-reconciliation.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/verification/billing-reconciliation.json",
+      "sha256": "401ac846a8ee11016adabebcb352aa5b05e777ddd5ed9dedc255cb202ef4c8ff"
+    },
+    "extractor-current/summary.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/extractor-current/summary.json",
+      "sha256": "65c150dfce4f213b3a9199a53c2821b746acb5cccb124a78744a5d302e9c3792"
+    },
+    "intake/prototype.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/intake/prototype.json",
+      "sha256": "f75553928c75ac70417c59033d7df6a5c3e6b9bab3958fc29cf92d9334ef918e"
+    },
+    "intake/pilot-evidence.tar": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/intake/pilot-evidence.tar",
+      "sha256": "ff07ae8ae867b3212ea8481074016d2f73295e3dd5008689eed6890e2bde44e7"
+    },
+    "inputs/ledger.csv": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/inputs/ledger.csv",
+      "sha256": "aca1a997144da6e7a1220322dba368719308bad4b6dc92bef5387f4006621147"
+    }
+  }
+}

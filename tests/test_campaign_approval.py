@@ -544,3 +544,18 @@ def test_campaign_cost_estimate_optional_and_pinned(tmp_path: Path) -> None:
     assert cap.campaign_content_digest(pinned) != cap.campaign_content_digest(plain)
     reloaded = cap.ExperimentCampaign.model_validate_json(pinned.model_dump_json())
     assert reloaded.cost_estimate == estimate
+
+
+def test_wave_cost_estimate_waves_and_fence() -> None:
+    """The HAR-188 wave model: 19-wide clamp, cold start, ceiling worst-case."""
+    assert cap.DAYTONA_WAVE_CONCURRENCY == 19
+    full = cap.wave_cost_estimate(100)
+    assert full.expected_usd == 13.76
+    assert full.worst_case_usd == 60.0
+    small = cap.wave_cost_estimate(36)
+    assert small.expected_usd == 4.92
+    assert small.worst_case_usd == 21.6
+    assert cap.wave_cost_estimate(38).expected_usd > 5.0
+    assert cap.wave_cost_estimate(40).expected_usd > 5.0
+    assert cap.fenced_spend_bound(30.0) == 41.4
+    assert cap.fenced_spend_bound(5.0) == 16.4

@@ -905,9 +905,11 @@ def _campaign_validate_command(
             print(
                 f"expected: ${draft.cost_estimate.expected_usd:.2f} ({draft.cost_estimate.formula})"
             )
+            bound = cap.fenced_spend_bound(draft.budget_usd)
+            print(f"worst_case: ${draft.cost_estimate.worst_case_usd:.2f}")
             print(
-                f"worst_case: ${draft.cost_estimate.worst_case_usd:.2f} "
-                f"(fenced at budget ${draft.budget_usd:.2f} + in-flight)"
+                f"  realized <= ${bound:.2f} "
+                f"(budget ${draft.budget_usd:.2f} + 19 in-flight x $0.60)"
             )
         else:
             print("expected: unstated (no cost_estimate pinned)")

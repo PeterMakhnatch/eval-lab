@@ -16,10 +16,32 @@ This $0 source alignment is not a deployment or live qualification of the
 | Image | `lmsysorg/sglang:v0.5.20-runtime`, pinned by digest `sha256:00b02004…6f800` (qwen3_5 model + `mimo` reasoning parser; CUDA 13.0) |
 | Weights | Modal Volume `evallab-mimo-v26-9b-weights`, HF revision `2367e865d009c13ac81713a2878291d33ab28177` |
 | GPU | 1× A100-80GB. `--context-length 262144`, `--reasoning-parser mimo`, `--tool-call-parser qwen3_coder`, `--served-model-name XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` |
-| Scaling | `max_containers=1`, `min_containers=0`, scales to zero after 5 idle minutes |
+| Scaling | `max_containers=1`, `min_containers=0`, `buffer_containers=0`; configurable idle window, default 300 seconds |
 | Auth | SGLang `--api-key` from Modal Secret `evallab-mimo-v26-9b-api-key` (`SGLANG_API_KEY`) |
 
 The container's log relay removes the key from SGLang's startup `server_args` line.
+
+HAR-192 adds bounded deployment settings shared with `serve_lora.py`:
+
+| Environment variable | Default | Allowed |
+|---|---|---|
+| `EVALLAB_MIMO_GPU` | `A100-80GB` | `A100-80GB` or unqualified `L40S`; exactly one GPU |
+| `EVALLAB_MIMO_MAX_RUNNING_REQUESTS` | `20` | integer 1–20; SGLang active model requests, not task lanes |
+| `EVALLAB_MIMO_SCALEDOWN_WINDOW_SECONDS` | `300` | integer 1–1200 |
+
+Resolved settings are baked into the image so remote imports cannot revert to
+defaults. BF16, checkpoint, parsers and 262,144 context remain unchanged; the
+shared KV pool still sizes itself at startup. C20 does not promise twenty full
+contexts fit or twenty-way throughput. No `min_containers=1` hold is installed:
+the pinned Modal 1.5.5 autoscaler update has no TTL. Use one owned campaign
+allocation, retain scale-to-zero after failure, and explicitly stop/verify zero
+on drain. Idle-window behavior through long tool gaps needs live measurement.
+
+The [HAR-192 design and cost table](../../docs/execution-tiers.md#cheap-campaign-execution-har-192-source-not-deployment)
+compare Runpod A100 + unchanged Daytona against Modal A100 + locked Docker on
+CCX63. Runpod's 100-second HTTP proxy is unsuitable for the native read timeout;
+the design uses authenticated direct TCP/SSH-to-loopback instead. The combined
+paid screen is capped at $2 and **has not run**. No serving deployment changed.
 
 The reference profile explicitly marks `server.reasoning_parser` **unsourced**:
 the upstream rollout configs name no server reasoning parser. The existing
@@ -76,8 +98,8 @@ The native controller requires its isolated pinned runtime:
 `uv sync --project tools/mimoagent-harbor --locked`. Qualify the server with an
 authenticated real `/v1/chat/completions` round trip before paid task dispatch:
 a deployed app alone is not readiness, and a bare `/health` pass does not prove
-the model path. The HAR-157 replacement run requests freshness 0 for every
-dispatch — accept no cached pass (merged default: probe cache 60s, optional 0).
+the model path. Every self-hosted dispatch requires a fresh authenticated
+readiness result; the campaign qualification waiver does not cache or skip it.
 The native retry window covers explicit transient failed transports inside its 300s
 known-cold recovery; it is not server-cold qualification and never re-queries
 an HTTP 200. The existing Terminus sampling profile stays 0.6/0.95/20; the native

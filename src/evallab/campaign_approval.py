@@ -59,6 +59,7 @@ from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, field_validator, model_validator
 
+from evallab.campaign_execution import CampaignExecutionPolicy, validate_qualification
 from evallab.results import JobRecord, TrialRecord, load_job
 from evallab.schemas import (
     ContractModel,
@@ -297,6 +298,7 @@ class ExperimentCampaign(_FrozenContract):
     budget_usd: float = Field(gt=0)
     attempts_per_task: int = Field(default=1, ge=1)
     cost_estimate: CampaignCostEstimate | None = None
+    execution: CampaignExecutionPolicy | None = None
     tasks: list[CampaignTaskAllowance] = Field(min_length=1)
     concurrency: int = Field(default=1, ge=1, exclude_if=lambda value: value == 1)
     adaptive_sampling: CampaignAdaptiveSampling | None = Field(
@@ -453,6 +455,8 @@ def approve_campaign(
             REASON_CONTENT_CHANGED, "approval actor is required and never defaulted"
         )
     campaign = load_campaign(repo_root, campaign_id)
+    if campaign.execution is not None and campaign.execution.qualification is not None:
+        validate_qualification(campaign.execution.qualification, repo_root=repo_root)
     existing = read_approvals(repo_root, campaign_id)
     if existing:
         raise CampaignApprovalError(
@@ -1813,4 +1817,9 @@ def validate_campaign_content(repo_root: Path, campaign: ExperimentCampaign) -> 
         errors.extend(validate_floor_against_reference(repo_root, campaign))
     except (OSError, ValueError, KeyError) as exc:
         errors.append(f"ceiling floor comparison failed: {exc}")
+    if campaign.execution is not None and campaign.execution.qualification is not None:
+        try:
+            validate_qualification(campaign.execution.qualification, repo_root=repo_root)
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            errors.append(f"setup qualification: {exc}")
     return errors

@@ -40,6 +40,11 @@ CAMPAIGN_ID = "test-campaign"
 NOW = datetime(2026, 10, 6, 12, 0, tzinfo=UTC)
 
 
+@pytest.fixture(autouse=True)
+def isolate_linear_escalations(monkeypatch):
+    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv: None)
+
+
 def policy() -> StandingApprovalsPolicy:
     return StandingApprovalsPolicy(
         daily_cost_ceiling_usd=20,

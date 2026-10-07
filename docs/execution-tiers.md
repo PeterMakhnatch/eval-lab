@@ -228,9 +228,9 @@ for another launch. Cold endpoints wait with backoff inside
 `--selfhosted-warmup-seconds` (default 600 seconds). A still-cold or rejected
 endpoint defers the spec rather than launching a trial into that failure.
 
-For a batch with multiple model-backed specs, the first selected model spec
-runs alone even when capacity or Daytona memory headroom clamps the batch to
-one launch. The remaining specs launch only after that dispatch completes
+For an unqualified batch with multiple model-backed specs, the first selected
+model spec runs alone even when capacity or Daytona memory headroom clamps
+the batch to one launch. The remaining specs launch only after that dispatch completes
 successfully and its complete, immutable Harbor evidence contains nonempty
 finite verifier grades without an infrastructure or wiring exception.
 A grade of zero is a valid task failure, not a broken harness. Agent timeouts,
@@ -250,6 +250,185 @@ recorded opt-out, not the default or a substitute for paid authorisation.
 Campaign failure classification uses the terminal transition into `failed`,
 not later smoke-fence diagnostics. A post-run compliance refusal still opens
 the campaign circuit and quarantines its remaining attempts.
+
+### Cheap campaign execution (HAR-192: source, not deployment)
+
+The goal is **at most $0.10 per completed valid trial**, including failed
+attempts' resource costs. This is a target, not measured C20 performance.
+HAR-192 authorizes design/code only: no paid smoke, deployment, new task
+admission, resource downsizing, or release of the held HAR-168 specs.
+HAR-181 remains parked; no native telemetry collectors are required.
+
+**Selected implementation: one existing Modal A100 server plus native Harbor
+Docker containers on a dedicated Linux host.** Use the existing spec fields
+`"environment": "docker", "egress_lock": true` with `mimoagent`, `nop` or
+`oracle`. The flag selects `evallab.harbor_docker:LockedDockerEnvironment`;
+ordinary Docker is unchanged. Run the trusted Lab/Harbor controller on the
+same host as its Docker daemon so native bind paths refer to that host.
+An SSH Docker context alone is not remote staging of the controller's files.
+
+The container has `network_mode: none` **from creation**, drops `NET_RAW`,
+and has `no-new-privileges`. Native daemon inspection must confirm the
+namespace, privileges and exact Harbor log/artifact binds before setup exec
+or copy is allowed. Docker calls the `none` network's driver `null`.
+The applied-lock receipt is the existing `egress-lock.json` contract.
+Compose, extra overlays, privileged/device/host namespace access, arbitrary
+host mounts, in-sandbox agent installation and phase-network switches are
+refused. There is no macOS-to-public fallback and no source-package rewrite.
+Native host-side exec/upload/download still work. Builds/pulls are trusted
+host operations; the lock does not certify pre-existing image contents or
+protect against a Docker/kernel escape. Cohort/image admission remains separate.
+
+The queue preserves declared task CPU/RAM, observes the selected Linux daemon,
+subtracts bounded existing containers plus two CPU/two GiB controller reserve,
+and leaves excess work approved for a later tick. Unknown capacity or an
+unlimited competing container refuses admission. This is **one dedicated
+host/one queue owner**, not a distributed reservation service. Do not oversubscribe
+or quietly turn an 8-GiB task into a 4-GiB task.
+
+#### HAR-175 rule: already-qualified setups do not repeat a serial smoke
+
+An optional, approval-digest-covered `execution` object records:
+
+- `max_concurrent_trials` (1–40; the proposed A/B comparison uses 20);
+- `model_host`: `modal` or `runpod`;
+- optional `qualification`: `trial_dir` and `evidence_digest`.
+
+The digest covers the exact native trial's `config.json`, `lock.json`,
+`result.json` and applied `egress-lock.json`. Compute it with
+`campaign_execution.qualification_evidence_digest(Path(trial_dir))`.
+Qualification requires a completed, exception-free, finitely graded trial
+(zero reward is allowed), consistent native identities and a lock-covered
+setup fingerprint. When **every** model-running member matches the same
+approved qualification, tick defaults to the campaign's concurrency and
+records `smoke_gate_campaign_qualified`; no full trial runs alone first.
+Explicit `--parallel` can lower, not exceed, that campaign cap.
+Mixed/unqualified batches retain the old smoke gate. Missing, modified or
+drifted evidence cannot waive it; context/parser/server-source/deploy-knob,
+backend/lock and budget changes require new matching evidence.
+No present-day campaign is declared qualified by this code.
+
+An absent `execution` object preserves historical approval digests. Native
+readiness, task/reference/credential gates, existing Daytona quota clamps,
+and HAR-175 replacements still apply. **HAR-189's physical-spend fence is a
+separate required dependency before paid activation**; this change supplies
+neither settled provider charges nor a replacement budget mechanism.
+This does not use `--no-smoke-gate` as an approval shortcut. HAR-168's old
+65,536/`mimo` runs do not qualify 262,144/`qwen3_coder` or the new backend.
+
+Deploy once per approved campaign, not once per trial. Both serving variants
+share one GPU (`min_containers=0`, `max_containers=1`, no buffer) and an
+explicit SGLang active-request cap, initially 20, distinct from task lanes.
+Keep automatic shared-KV sizing and the full 262,144 context. Do not claim
+that 20 full-window requests fit. A configurable idle window retains the
+300-second default; long tool gaps may still cause a cold start and must be
+measured. Never install an unbounded `min_containers=1` hold: the pinned
+Modal autoscaler has no TTL, and a controller `finally` is not crash recovery.
+Drain/stop the **owned** deployment and verify zero containers at campaign
+end; do not stop another queue's shared app. Runpod policies never invoke the
+Modal teardown hook. Runpod Pod termination/storage cleanup is part of A's
+explicitly admitted operator lifecycle, not a new automatic provider launcher.
+
+#### Two candidate designs and conditional costs
+
+Prices below are the 2026-10-07 public snapshots, not invoices or guarantees
+of available capacity: [Runpod](https://www.runpod.io/pricing),
+[Modal](https://modal.com/pricing), [Daytona](https://www.daytona.io/pricing),
+[Hetzner CCX63 rates](https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/)
+and [hourly rounding](https://docs.hetzner.com/cloud/billing/faq/).
+CCX63 is 48 dedicated vCPU/192 GB/960 GB NVMe; verify stock and the actual
+tax-inclusive quote before admission. Twenty 2-vCPU/8-GiB limits can fit its
+published envelope; twenty 4-vCPU limits cannot.
+
+For **100 tasks × 2 = 200 trials**, assume 20 minutes per trial, 149 seconds
+of startup once, prompt resource cleanup and no slowdown at the stated
+concurrency. Modal GPU+4 physical CPU+16 GiB is $2.814912/h. Runpod A100-80
+plus 50 GB running disk is $1.596849/h. CCX63+IPv4 is $1.6148/h, rounded to
+four hours including ten minutes of preparation. Image preparation,
+unpriced transfers, extra storage/tails and taxes must be added when present.
+
+| Configuration | Per trial | 200 trials | Material condition |
+|---|---:|---:|---|
+| Historical HAR-168 all-in upper / 24 | ~$0.654 | ~$130.80 extrapolated | Mixed startup/idle; not an invoice or C20 forecast |
+| Historical fresh four-trial upper | ~$0.320 | ~$64.02 extrapolated | Measured-time upper, not C20 throughput |
+| Current Modal + current Daytona envelope, C19 | $0.1293 | $25.87 | Eleven hypothetical 20-minute waves |
+| **A: Runpod A100-80 + Daytona 4 GiB, C20** | **$0.0825** | **$16.50** | Requires justified resource change and C20 admission |
+| A without downsizing or lifting current C19 clamp | $0.1068 | $21.35 | Uses current $0.23148/sandbox-h envelope |
+| **B: Modal A100 + CCX63 Docker, C20** | **$0.0798** | **$15.96** | Preserve task limits; host fit, lock and makespan unqualified |
+| Modal A100 + Modal Sandbox, true 2 vCPU/4 GiB, C20 | ~$0.1268 | ~$25.36 | Sandbox tariff is not Function tariff |
+
+For managed sandboxes, compute
+`GPU_rate × (ceil(N/C) × trial_hours + startup_hours) + N × trial_hours × sandbox_rate`.
+For B, replace the per-sandbox term with rounded shared-host hours. At 30
+minutes/trial, B rises to about $23.87/$0.1194: occupancy and makespan matter
+more than a small hourly price difference. All denominators must include
+failed work when costing completed valid trials.
+
+Actual frozen evidence is distinct from those assumptions. The selected
+12 a1 records under `har164/runs/har168-native-selected12-6da15fc1d06c` plus
+the twelve original a2 result records contain 919 recorded requests,
+28,075,949 cumulative input tokens and 539,495 output tokens; median native
+trial wall is 765.56 seconds and nearest-rank p95 is 2,657.67 seconds.
+The selected a1 set includes the `002391-a1-infra` record; filtering original
+job names by `-a1` silently changes the cohort. These are selected native
+records, not 24 scientifically accepted passes. The fresh four a2 jobs
+(001109/000792/001985/001198) span **834.671114 seconds**, about 17.25 physical
+trials/hour, with 113,562 output tokens across that wall. This is not GPU-only
+decode throughput. Dividing their $1.28 upper by hourly rates does **not**
+recover measured wall time: that upper already includes startup/tail.
+
+The supplied prompt median/p95 (29k/61k) and historical ~745k KV pool remain
+planning inputs; the latter is inferred from old telemetry, not a measured
+current startup pool. At 32 KiB/token, 40×61k consumes 74.46 GiB of KV before
+17.5 GiB weights and workspace, so C40 is not a defensible default.
+**[INFERENCE]** L40S has room for the weights plus one full window, but its
+actual runtime workspace, shared KV capacity and throughput remain unqualified.
+A lower hourly price does not establish cheaper completed trials. A10 cannot
+fit the unchanged BF16 weights plus a full 262k window. No model/context
+clipping or quantization is used to reach the target.
+
+A uses the existing host-side authenticated model transport. **Do not use
+Runpod's ordinary HTTP proxy:** its [100-second timeout](https://docs.runpod.io/pods/configuration/expose-ports)
+would change the native 3600-second read contract. Use an authenticated SSH
+tunnel over direct TCP to a loopback endpoint, preserving the SGLang key,
+checkpoint, dtype, sampling and native tool semantics. Nothing is exposed
+to the task container and no egress exception is added.
+
+#### One combined paid comparison screen: at most $2, NOT RUN
+
+This is a short rejection/readiness screen, not two $2 budgets or a full
+trial/performance qualification. It needs a separate explicit approval.
+Prebuilt images/weights, quote availability, account lock capability and
+HAR-189 reservations are prerequisites; their preparation is not silently free.
+If current inclusive quotes cannot fit the cap, do not create resources.
+
+| Hard allocation envelope, including startup and deletion | Nominal cost |
+|---|---:|
+| One CCX63+IPv4, delete both within the first billed hour | $1.61480 |
+| One owned Modal A100 window, at most 4 paid minutes | $0.18766 |
+| One Runpod A100-80+50 GB running disk, at most 4 paid minutes | $0.10646 |
+| Daytona: at most 855 aggregate sandbox-seconds at the unchanged rate (19×45 seconds) | $0.05498 |
+| **Subtotal / remaining allowance to $2** | **$1.96389 / $0.03611** |
+
+Prepare the host before either GPU window. Keep three separate results:
+(1) simultaneous sandbox occupancy and declared-resource/tool/verifier fit;
+(2) root-level DNS/HTTP/TLS/direct-IP/IPv6/metadata/host/sibling/Docker-API
+denial, with a reachable positive control and working host exec/file copies;
+(3) makespan/TTFT/usage/queued requests for **20 concurrent authenticated
+controller-side model probes** using representative 29k/61k contexts and
+an explicitly probe-only small output cap. Do not reduce real trial limits.
+Run each GPU burst only after readiness and only if time remains before its
+allocation deadline; incomplete bursts are failed/incomplete screens, not
+permission to extend time. Include stop/absence checks in the paid windows.
+
+Docker can request C20 only when observed host headroom permits. Daytona
+must keep its existing clamp (currently C19 on an idle account), so A's
+sandbox result cannot certify C20 until separate capacity admission permits
+it; model C20 and sandbox C20 are different observations. Stop rather than
+buy a second VM hour or hide cleanup/idle time. A fresh full-context/native
+tools qualification and actual completed-trial duration tails remain unproven
+if they do not fit this small screen. No held campaign is released by the plan.
+
 
 ### Z.ai OpenCode on Docker Desktop
 
@@ -295,8 +474,9 @@ parallel tools and no-tool-call → `Idle` remain unchanged. The host loop's
 sandbox RPC maps execution and file uploads to Harbor's environment methods;
 the task image receives neither the native controller nor a model credential.
 Model queries run through the existing controller-side proxy under per-spec
-authorization and request/token ceilings. This route requires Daytona's
-provider-enforced deny-all lock and refuses an explicitly unlocked spec.
+authorization and request/token ceilings. It requires Daytona's provider
+deny-all lock or the explicit creation-time locked Docker flag described
+above; an unlocked spec and in-sandbox model credentials remain refused.
 Harbor's recorded outer wall timeout can still interrupt the 500-step loop;
 such a short smoke is not the original benchmark protocol.
 

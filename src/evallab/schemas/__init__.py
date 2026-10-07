@@ -393,11 +393,11 @@ class ExperimentSpec(ContractModel):
     egress_lock: bool | None = Field(
         default=None,
         description=(
-            "explicit Daytona egress-lock request (HAR-140). True passes "
-            "egress_lock=true to BoundedDaytonaEnvironment; false opts out. "
-            "None (default) locks every MiMo run on Daytona (MiMo-family model "
-            "or MiMo-dataset task, nop/oracle census runs included) and leaves "
-            "other runs unlocked."
+            "Explicit deny-all lock on a supported backend. On Docker, true selects "
+            "the single-container creation-time network-none adapter for native "
+            "MiMo and model-free controls. On Daytona, None retains the default "
+            "lock for MiMo models/dataset tasks; false is refused for those runs. "
+            "Other runs keep their existing network contract when omitted."
         ),
     )
     jobs_dir: str = EXPLORATION_JOBS_ROOT

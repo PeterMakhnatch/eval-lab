@@ -453,6 +453,21 @@ MIMO_MODEL = "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B"
 MIMO_SAMPLING = CampaignSampling(temperature=1.0, top_p=0.95, top_k=20)
 
 
+@pytest.mark.parametrize("size", ["n50", "n18"])
+def test_har188_campaigns_declare_only_native_harness_adapters(size: str) -> None:
+    from evallab.mimoagent_worker import WRAPPER_ADDITIONS
+
+    root = Path(__file__).resolve().parents[1]
+    path = root / f"research/experiments/har188-breadth/har188-breadth-{size}.json"
+    campaign = ExperimentCampaign.model_validate_json(path.read_text())
+    assert campaign.agent == "mimoagent"
+    assert campaign.sampling == MIMO_SAMPLING
+    assert len(campaign.allowed_deviations) == 1
+    deviation = campaign.allowed_deviations[0]
+    assert deviation.field == "harness.additions"
+    assert deviation.value == WRAPPER_ADDITIONS
+
+
 def test_campaign_mimoagent_sampling_pins_what_agent_sends(tmp_path: Path) -> None:
     """The mimoagent route sends 1.0, not the model-only proxy config (0.6)."""
     assert cap.intended_sampling("mimoagent", MIMO_MODEL) == MIMO_SAMPLING

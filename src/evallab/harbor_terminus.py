@@ -617,7 +617,7 @@ class SecretSafeTerminus2(Terminus2):
             proxy_url = _require_loopback_proxy_url()
             if self._mimo_selfhosted:
                 # Context/pricing of the served MiMo weights is runtime-bound:
-                # the 64K window drives native context summarization before
+                # the 262,144-token window drives native context summarization before
                 # overflow, and zero per-token prices mark the time-billed
                 # route (GPU hours, not tokens). A caller-supplied model_info
                 # can never override it.

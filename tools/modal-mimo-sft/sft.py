@@ -78,8 +78,8 @@ MODAL_USD_PER_HOUR = 2.814912
 # trained tokens. Shorter samples run faster per token.
 MEASURED_TRAIN_THROUGHPUT_TOK_S = 560.0
 
-# The served context (tools/modal-mimo-serve CONTEXT_LENGTH); no Terminus
-# segment can be longer than what the server accepted.
+# Training per-row ceiling, independent of the served context. Raising the
+# serving window does not qualify longer training sequences.
 DEFAULT_MAX_LENGTH = 65536
 # Trained positions per lm_head chunk in the selected-token loss: 4096 x
 # 248320 fp32 logits is about 4 GiB, recomputed in backward.

@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from evallab.execution_contracts import MIMO_SELFHOSTED_CONTEXT_TOKENS
 from evallab.mimoagent_worker import (
     SAMPLING,
     _pop_exec_recorder,
@@ -46,6 +47,7 @@ def _run_worker(
     instruction="Repair /testbed/task.py",
     observer_fault=None,
     served_context_tokens=None,
+    capture_tool_uploads=False,
 ):
     if not NATIVE_PYTHON.is_file():
         pytest.skip("separate pinned Xiaomi interpreter is not installed")
@@ -101,6 +103,16 @@ def _run_worker(
         "g=n['main'].__globals__; g['COLD_START_BUDGET_S']=float(sys.argv[2]); "
         "g['_retry_delay']=lambda attempts: 0.005; "
     )
+    if capture_tool_uploads:
+        # Replace only the sandbox transport. The real SDK still parses
+        # OpenAI tool_calls, runs WriteTool and writes its upload tempfile.
+        bootstrap += (
+            "from pathlib import Path; Rpc=g['SandboxRpc']; "
+            "Rpc._request=lambda self,method,**kw: "
+            "self.emit({'event':'fixture_upload','target':kw['target'],"
+            "'file_text':Path(kw['source']).read_text()}) if method=='upload' "
+            "else {'output':'File created successfully','exit_code':0}; "
+        )
     if observer_fault is not None:
         bootstrap += (
             "fail=lambda *a,**k: (_ for _ in ()).throw("
@@ -342,6 +354,40 @@ def test_child_log_identity_is_logical_before_parent_model_consumes_it(tmp_path)
     ]
 
 
+@pytest.mark.parametrize("suffix", ["", "\n"])
+def test_openai_tool_calls_preserve_write_arguments_without_html_unescape(tmp_path, suffix):
+    # qwen3_coder supplies ordinary OpenAI tool_calls. Entities and the
+    # parser-supplied string boundary are not unescaped or repaired by us.
+    file_text = "  <tag>&lt;literal&gt; &amp; &#10; &quot;雪&quot;</tag>" + suffix
+    arguments = json.dumps({"path": "/testbed/output.txt", "file_text": file_text})
+    tool_call = {
+        "id": "write-call",
+        "type": "function",
+        "function": {"name": "write", "arguments": arguments},
+    }
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path,
+        lambda attempt, request: (
+            (200, _answer(None, tool_calls=[tool_call]))
+            if attempt == 1
+            else (200, _answer("write done"))
+        ),
+        capture_tool_uploads=True,
+    )
+    assert finished["exit_status"] == "Idle"
+    assert finished["result"] == "write done"
+    assert len(requests) == 2
+    uploads = [event for event in events if event["event"] == "fixture_upload"]
+    assert uploads == [
+        {"event": "fixture_upload", "target": "/testbed/output.txt", "file_text": file_text}
+    ]
+    main = native["trajs"]["main"]["messages"]
+    assistant = next(message for message in main if message["role"] == "assistant")
+    assert assistant["tool_calls"] == [tool_call]
+    assert requests[-1]["messages"][-2]["tool_calls"] == [tool_call]
+    assert requests[-1]["messages"][-1]["tool_call_id"] == "write-call"
+
+
 def test_child_query_failure_is_recorded_without_falsely_stopping_completed_root(tmp_path):
     tool_call = {
         "id": "failed-child-call",
@@ -429,7 +475,7 @@ def test_native_observer_file_failure_preserves_idle_history_and_usage(tmp_path,
 
 SGLANG_CONTEXT_BODY = {
     "object": "error",
-    "message": "The input (65686 tokens) is longer than the model's context length (65536 tokens).",
+    "message": "The input (262294 tokens) is longer than the model's context length (262144 tokens).",
     "type": "BadRequestError",
     "param": None,
     "code": 400,
@@ -438,8 +484,8 @@ SGLANG_CONTEXT_BODY = {
 SGLANG_TOTAL_OVERFLOW_BODY = {
     "object": "error",
     "message": (
-        "Requested token count exceeds the model's maximum context length of 65536 tokens. "
-        "You requested a total of 66000 tokens: 65686 tokens from the input messages and "
+        "Requested token count exceeds the model's maximum context length of 262144 tokens. "
+        "You requested a total of 262608 tokens: 262294 tokens from the input messages and "
         "314 tokens for the completion. Please reduce the number of tokens in the input "
         "messages or the completion to fit within the limit."
     ),
@@ -494,7 +540,11 @@ def test_non_context_400_stays_model_query_error(tmp_path):
     _assert_no_infrastructure_turn(native, events, finished, tmp_path)
 
 
-def test_uninformative_400_at_served_limit_ends_as_context_exhausted(tmp_path):
+@pytest.mark.parametrize(
+    "last_prompt_tokens",
+    [MIMO_SELFHOSTED_CONTEXT_TOKENS, MIMO_SELFHOSTED_CONTEXT_TOKENS - 1, 65_536],
+)
+def test_uninformative_400_uses_the_current_served_context_limit(tmp_path, last_prompt_tokens):
     tool_call = {
         "id": "child-call",
         "type": "function",
@@ -507,9 +557,9 @@ def test_uninformative_400_at_served_limit_ends_as_context_exhausted(tmp_path):
     }
     first = _answer(None, tool_calls=[tool_call])
     first["usage"] = {
-        "prompt_tokens": 65536,
+        "prompt_tokens": last_prompt_tokens,
         "completion_tokens": 12,
-        "total_tokens": 65548,
+        "total_tokens": last_prompt_tokens + 12,
     }
 
     def respond(attempt, request):
@@ -520,22 +570,29 @@ def test_uninformative_400_at_served_limit_ends_as_context_exhausted(tmp_path):
         return 400, {"error": {"message": "request failed"}}
 
     requests, events, calls, native, finished, stderr = _run_worker(
-        tmp_path, respond, served_context_tokens=65536
+        tmp_path, respond, served_context_tokens=MIMO_SELFHOSTED_CONTEXT_TOKENS
     )
-    # The child answers, then the parent's next prefix (past the served
-    # window) fails with an uninformative 400: still context exhaustion.
-    assert finished["exit_status"] == "ContextExhausted"
-    assert finished["stop_reason"] == "context_exhausted"
-    assert finished["context_exhaustion"]["last_prompt_tokens"] == 65536
-    assert finished["context_exhaustion"]["served_context_tokens"] == 65536
-    assert finished["result"] == "native context exhausted: ModelQueryError"
+    # After the child answers, the parent's next call fails with a vague
+    # 400. Only a previous prefix filling the current 262k window qualifies;
+    # neither the old 64k limit nor one token below the current one does.
+    assert MIMO_SELFHOSTED_CONTEXT_TOKENS == 262_144
+    if last_prompt_tokens == MIMO_SELFHOSTED_CONTEXT_TOKENS:
+        assert finished["exit_status"] == "ContextExhausted"
+        assert finished["stop_reason"] == "context_exhausted"
+        assert finished["context_exhaustion"]["last_prompt_tokens"] == 262_144
+        assert finished["context_exhaustion"]["served_context_tokens"] == 262_144
+        assert finished["result"] == "native context exhausted: ModelQueryError"
+    else:
+        assert finished["exit_status"] == "ModelQueryError"
+        assert finished["stop_reason"] == "infra_error"
+        assert "context_exhaustion" not in finished
 
 
 def test_small_prefix_uninformative_400_stays_model_query_error(tmp_path):
     requests, events, calls, native, finished, stderr = _run_worker(
         tmp_path,
         lambda attempt, request: (400, {"error": {"message": "request failed"}}),
-        served_context_tokens=65536,
+        served_context_tokens=MIMO_SELFHOSTED_CONTEXT_TOKENS,
     )
     assert finished["exit_status"] == "ModelQueryError"
     assert finished["stop_reason"] == "infra_error"

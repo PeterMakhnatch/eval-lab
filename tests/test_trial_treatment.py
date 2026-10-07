@@ -39,7 +39,7 @@ PROXY = """def shape(forwarded, template):
 
 SERVE = """MODEL_REVISION = "2367e865"
 SGLANG_IMAGE = "lmsysorg/sglang@sha256:00b0"
-CONTEXT_LENGTH = 65536
+CONTEXT_LENGTH = 262144
 """
 
 TERMINUS = "def run():\n    return 1\n"
@@ -237,9 +237,7 @@ def test_parser_and_limit_changes_split_the_pool_and_name_the_fields(
     assert "parser_digest" in check.render()
 
 
-def test_native_prompt_change_splits_clean_committed_treatments(
-    repo: Path, tmp_path: Path
-) -> None:
+def test_native_prompt_change_splits_clean_committed_treatments(repo: Path, tmp_path: Path) -> None:
     sources = _base_sources()
     sources["tools/mimoagent-harbor/swe.yaml"] = (
         "agent:\n  system_template: You are a coding agent.\n"
@@ -277,7 +275,7 @@ def test_route_shaping_overrides_requested_sampling(repo: Path, tmp_path: Path) 
     assert requested["treatment_key"] == explicit["treatment_key"]
 
 
-OPENROUTER_PROXY = '''OPENROUTER_ROUTES = {
+OPENROUTER_PROXY = """OPENROUTER_ROUTES = {
     "xiaomi/mimo-v2.6-flash": {
         "endpoint": "xiaomi/fp8",
         "provider": {"order": ["xiaomi"], "allow_fallbacks": False},
@@ -293,7 +291,7 @@ OPENROUTER_PROXY = '''OPENROUTER_ROUTES = {
         "context_input_tokens": 131_072,
     },
 }
-'''
+"""
 
 
 def _openrouter_sources(proxy: str = OPENROUTER_PROXY) -> dict[str, str]:
@@ -376,9 +374,7 @@ def test_openrouter_pin_change_splits_the_treatment_key(repo: Path, tmp_path: Pa
     base = _commit(repo, _openrouter_sources(), "base")
     repinned = _commit(
         repo,
-        _openrouter_sources(
-            OPENROUTER_PROXY.replace('"xiaomi/fp8"', '"xiaomi/nightly"')
-        ),
+        _openrouter_sources(OPENROUTER_PROXY.replace('"xiaomi/fp8"', '"xiaomi/nightly"')),
         "repin endpoint",
     )
     a = _row(
@@ -696,9 +692,7 @@ def test_partial_legacy_catalog_recovers_only_when_missing_trials_are_recollecte
     first, _ = _job(tmp_path / "runs", "first", commit)
     second, _ = _job(tmp_path / "runs", "second", commit)
     treatments, captures = collect_jobs([first, second], repo_root=repo)
-    treatment_path, capture_path, _, _ = upsert_tables(
-        treatments, captures, tmp_path / "source"
-    )
+    treatment_path, capture_path, _, _ = upsert_tables(treatments, captures, tmp_path / "source")
     legacy = tmp_path / "legacy"
     legacy.mkdir()
     (legacy / treatment_path.name).write_bytes(treatment_path.read_bytes())

@@ -10,10 +10,11 @@ vocabulary with the HAR-156 ceiling comparison, infra-excluded trials reuse
 the canonical :func:`evallab.counts.classify_counts` verdict, and escalation
 reuses ``lin comment`` on the campaign's card.
 
-A campaign records the budget (USD), the allowed task list (task ids and
-package digests), the reference profile plus the allowed declared deviations,
-the lock requirement, the backstop floor for trial ceilings, the queue cwd,
-and the submitter. Research-Harbor approves it ONCE, as Peter's delegate.
+A campaign records the budget (USD) plus the pinned cost envelope
+(staging-time expected and worst-case cost with its formula), the allowed
+task list (task ids and package digests), the reference profile plus the
+allowed declared deviations, the lock requirement, the backstop floor for
+trial ceilings, the queue cwd, and the submitter. Research-Harbor approves it ONCE, as Peter's delegate.
 The approval is an append-only, attributable record (``approvals.jsonl``) and
 the campaign content is digest-pinned and immutable after approval: any later
 content change is a gate defect that refuses admission and escalates.
@@ -165,12 +166,29 @@ class CampaignSampling(_FrozenContract):
     top_k: int | None = None
 
 
+class CampaignCostEstimate(_FrozenContract):
+    """Pinned cost envelope for one campaign (HAR-188).
+
+    Part of the approvable content so Research-Harbor approves the envelope,
+    not just the budget cap: ``expected_usd`` is the staging-time estimate
+    for the full campaign, ``worst_case_usd`` is every trial billing its
+    per-trial ceiling (realized spend is still fenced at ``budget_usd`` plus
+    in-flight trials by the standing budget gate), and ``formula`` records
+    how the numbers were derived.
+    """
+
+    expected_usd: float = Field(gt=0)
+    worst_case_usd: float = Field(gt=0)
+    formula: str = Field(min_length=1)
+
+
 class ExperimentCampaign(_FrozenContract):
     """The approvable content of one experiment campaign (HAR-175)."""
 
     schema_version: Literal["experiment-campaign/v1"] = SCHEMA_CAMPAIGN
     campaign_id: str = Field(min_length=1, max_length=80, pattern=r"^[a-z0-9][a-z0-9-]*$")
     budget_usd: float = Field(gt=0)
+    cost_estimate: CampaignCostEstimate | None = None
     tasks: list[CampaignTaskAllowance] = Field(min_length=1)
     reference_profile: str = Field(min_length=1)
     allowed_deviations: list[ReferenceDeviation] = Field(default_factory=list)

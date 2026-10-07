@@ -528,3 +528,19 @@ def test_campaign_terminus_spec_refused_on_mimoagent_campaign(tmp_path: Path) ->
     assert "terminus-2" in decision.message
     assert "mimoagent" in decision.message
     assert path.parent.name == "waiting"
+
+
+def test_campaign_cost_estimate_optional_and_pinned(tmp_path: Path) -> None:
+    """The HAR-188 cost envelope is optional, digest-pinned approvable content."""
+    digest = seed_task(tmp_path)
+    plain = make_campaign(tmp_path, digest)
+    assert plain.cost_estimate is None
+    estimate = cap.CampaignCostEstimate(
+        expected_usd=8.71,
+        worst_case_usd=60.0,
+        formula="E(n)=T*(2.90+0.23148*n)",
+    )
+    pinned = plain.model_copy(update={"cost_estimate": estimate})
+    assert cap.campaign_content_digest(pinned) != cap.campaign_content_digest(plain)
+    reloaded = cap.ExperimentCampaign.model_validate_json(pinned.model_dump_json())
+    assert reloaded.cost_estimate == estimate

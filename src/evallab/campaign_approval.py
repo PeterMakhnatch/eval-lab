@@ -940,7 +940,7 @@ def adaptive_priority(
 
 
 def reconcile_adaptive_sampling(
-    executor: Any, *, parallel: int, spec_ids: set[str] | None = None
+    executor: Any, *, parallel: int | None, spec_ids: set[str] | None = None
 ) -> None:
     """Release a priority wave under the tick lock, using existing admission.
 
@@ -1005,8 +1005,8 @@ def reconcile_adaptive_sampling(
         if not candidates:
             continue
         ordered = sorted(candidates, key=lambda item: (item[0], item[1]))
-        width = min(campaign.concurrency, parallel)
-        batch = [(item[2], item[3]) for item in ordered[:width]]
+        width = parallel if parallel is not None else campaign.concurrency
+        batch = [(item[2], item[3]) for item in ordered[: min(campaign.concurrency, width)]]
         batch = executor._apply_daytona_clamp(executor._capacity_batch(batch))
         released = 0
         for path, spec in batch:

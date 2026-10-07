@@ -41,7 +41,7 @@ inputs:
   - path: src/evallab/calibrate.py
     digest: sha256:e8991096d3b9e309992480c7f84bc227e7908f88c9ebf1b80b92b3c04ec1e3c1
   - path: src/evallab/campaign_approval.py
-    digest: sha256:50ca4ea149a5af1ae1de53dd2bd71d9ae0e27560073ae8f86667a88a2e589cd2
+    digest: sha256:a8c16498e757487d502b4e57f138a26c55a86ee622888e523cfa0177bfc44d11
   - path: src/evallab/campaign_execution.py
     digest: sha256:ae16a74b6352cb7343cd14ac146326a850384e49f12d92b668dbc0fd38eb1d04
   - path: src/evallab/campaigns.py

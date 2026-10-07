@@ -1332,6 +1332,14 @@ def test_adaptive_attempt_two_launched_when_uncertain(tmp_path: Path) -> None:
     assert service.tick() == 0
 
 
+def test_adaptive_bare_tick_uses_campaign_concurrency(tmp_path: Path) -> None:
+    """tick() with no parallel must not crash on adaptive candidates (HAR-193)."""
+    service, _, digest = adaptive_fixture(tmp_path)
+    first, _ = stage_draws(service, digest)
+    assert service.tick() == 1
+    assert service.queue.locate(first, ("done",)).is_file()
+
+
 def test_adaptive_mixed_prefix_stops_four_attempt_campaign(tmp_path: Path) -> None:
     def runner(request):
         return write_job(tmp_path, request.name, reward=1.0 if request.name.endswith("a1") else 0.0)

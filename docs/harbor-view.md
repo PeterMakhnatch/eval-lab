@@ -363,10 +363,13 @@ the two `harbor view` next-actions in `src/evallab/explorer.py` now point at
   errored-but-scored trials.
 - Pareto COST is unusable for self-hosted runs (null `cost_usd`); use
   TOKENS or TIME.
-- The viewer reads only `config.json` + `result.json`; `reward-details.json`
-  evidence (fired rules, provenance) is one level down — visible in the
-  overlay trial dir, not in the UI. Trial-level "why gated" still needs the
-  processed pages above.
+- The viewer reads only `config.json` + `result.json` for scores;
+  `reward-details.json` evidence (fired rules, provenance) is one level
+  down, in the overlay trial dir, not in the UI. The processed run report
+  (`<job>/processed/trial-<trial>.md`: counts verdict, taint, loop kind,
+  token flow) is linked as the trial's `analysis.md`, which the viewer
+  renders in the Analysis tab; a trial's own `analysis.md` (from
+  `harbor analyze`) is kept instead.
 - `harbor view` also serves Run, Summarize, Upload and Delete endpoints.
   Deleting from an `evallab view` root only unlinks the root's names, but a
   hard-linked file shares its source's bytes, so nothing may write through

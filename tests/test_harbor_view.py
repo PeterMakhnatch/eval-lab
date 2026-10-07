@@ -275,6 +275,37 @@ def _resolves_inside(path: Path, root: Path) -> bool:
     )
 
 
+def test_run_report_appears_in_viewer_analysis_tab(tmp_path: Path) -> None:
+    src = tmp_path / "src"
+    job = _make_job(
+        src,
+        "job-a",
+        {
+            "trial-t": {"reward": 1.0},
+            "trial-n": {"reward": 1.0, "integrity": 1, "reward_gated": 1.0},
+            "trial-own": {"reward": 1.0, "integrity": 1, "reward_gated": 1.0},
+        },
+    )
+    for trial in ("trial-t", "trial-n", "trial-own"):
+        (job / "processed" / f"trial-{trial}.md").parent.mkdir(exist_ok=True)
+        (job / "processed" / f"trial-{trial}.md").write_text(f"# report {trial}\n")
+    (job / "trial-own" / "analysis.md").write_text("# harbor analyze\n")
+    out = tmp_path / "view"
+    build_viewer_root([job], out, merges=[("merged", "job-*")])
+
+    for trial in ("trial-t", "trial-n"):
+        analysis = out / "merged" / trial / "analysis.md"
+        assert analysis.read_text() == f"# report {trial}\n"
+    # A trial's own analysis (e.g. from `harbor analyze`) is never replaced.
+    assert (out / "merged" / "trial-own" / "analysis.md").read_text() == "# harbor analyze\n"
+    assert not (job / "trial-t" / "analysis.md").exists()
+
+    plain = tmp_path / "plain"
+    build_viewer_root([job], plain)
+    assert (plain / "job-a" / "trial-t" / "analysis.md").read_text() == "# report trial-t\n"
+    assert (plain / "job-a" / "trial-n" / "analysis.md").read_text() == "# report trial-n\n"
+
+
 def test_every_viewer_path_resolves_inside_the_root(tmp_path: Path) -> None:
     src = tmp_path / "src"
     job = _make_job(

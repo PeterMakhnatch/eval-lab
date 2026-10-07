@@ -401,6 +401,20 @@ def _link(source: Path, dest: Path) -> None:
         dest.symlink_to(source)
 
 
+#: Harbor's viewer renders a trial's ``analysis.md`` as Markdown in its
+#: Analysis tab (``/agent-logs`` ``summary``).
+VIEWER_ANALYSIS_MD = "analysis.md"
+
+
+def _link_run_report(job_dir: Path, trial_dir: Path, dest: Path) -> None:
+    """Show the processed run report (counts verdict, taint, loop, token flow)
+    in the viewer's Analysis tab, unless the trial already has its own."""
+    report = job_dir / "processed" / f"trial-{trial_dir.name}.md"
+    target = dest / VIEWER_ANALYSIS_MD
+    if report.is_file() and not target.exists() and not target.is_symlink():
+        _link(report, target)
+
+
 def _unique_job_name(name: str, taken: set[str]) -> str:
     if name not in taken:
         return name
@@ -542,9 +556,11 @@ def mirror_job(
                 counts["native"] += 1
                 counts["scored"] += 1
             _link(trial_dir, trial_dest)
+            _link_run_report(job_dir, trial_dir, trial_dest)
             continue
         reward, _ = plan
         verdict = overlay_trial(trial_dir, job_dir, trial_dest, reward=reward)
+        _link_run_report(job_dir, trial_dir, trial_dest)
         counts["scored"] += 1
         counts["overlay"] += 1
         for rule in verdict["fired"]:
@@ -817,6 +833,7 @@ def write_merged_trial(
         _write_source_record(
             dest, trial=trial_name, source_job=source_job, arm=arm
         )
+        _link_run_report(job_dir, trial_dir, dest)
         return {"status": "unreadable", "verdict": None}
     verifier = original.get("verifier_result") or {}
     rewards = verifier.get("rewards") if isinstance(verifier, dict) else None
@@ -850,6 +867,7 @@ def write_merged_trial(
         verdict = None
         status = "scored-native" if reward is not None else "unscored"
     _write_source_record(dest, trial=trial_name, source_job=source_job, arm=arm)
+    _link_run_report(job_dir, trial_dir, dest)
     return {"status": status, "verdict": verdict}
 
 

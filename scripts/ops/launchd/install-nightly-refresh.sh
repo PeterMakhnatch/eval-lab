@@ -43,7 +43,7 @@ if [ ! -e "$SNAPSHOT/READY" ]; then
   uv sync --frozen --no-default-groups --project "$SNAPSHOT"
   printf '%s\n' "$COMMIT" > "$SNAPSHOT/READY"
 fi
-python3 - "$ROOT/scripts/ops/launchd/$LABEL.plist" "$DEST" "$SNAPSHOT" "$DATA_ROOT" "$STATE" "$FACTS" "$VERDICT_ROOT" "$LOGS" "${QUEUE_ROOTS[@]}" <<'PY'
+python3 - "$ROOT/scripts/ops/launchd/$LABEL.plist" "$DEST" "$SNAPSHOT" "$DATA_ROOT" "$STATE" "$FACTS" "$VERDICT_ROOT" "$LOGS" ${QUEUE_ROOTS[@]+"${QUEUE_ROOTS[@]}"} <<'PY'
 import os
 from pathlib import Path
 import plistlib

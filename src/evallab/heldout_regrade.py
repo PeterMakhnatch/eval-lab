@@ -281,8 +281,12 @@ def _docker_read(command: list[str], runner: Any) -> str:
 def _offline_runtime(images: set[str], runner: Any) -> dict[str, Any]:
     """Read-only cache checks; never build/pull or invoke Harbor's container probe."""
     from harbor.environments.docker.docker import DockerEnvironment  # ty: ignore[unresolved-import]
-    from harbor.environments.docker.utils import _compute_image_name  # ty: ignore[unresolved-import]
-    from harbor.utils.container_cache import docker_build_context_hash  # ty: ignore[unresolved-import]
+    from harbor.environments.docker.utils import (  # ty: ignore[unresolved-import]
+        _compute_image_name,
+    )
+    from harbor.utils.container_cache import (  # ty: ignore[unresolved-import]
+        docker_build_context_hash,
+    )
 
     # DOCKER_CONTEXT takes precedence over DOCKER_HOST in the Docker CLI.
     host = os.environ.get("DOCKER_HOST")

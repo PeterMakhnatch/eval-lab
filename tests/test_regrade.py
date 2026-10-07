@@ -959,7 +959,7 @@ def test_heldout_native_trials_preserve_rewards_and_refuse_unobserved_scores(
 def test_heldout_staging_resolves_to_native_cpu_offline_uploaded_tests(
     tmp_path, monkeypatch
 ) -> None:
-    pytest.importorskip("harbor")
+    pytest.importorskip("harbor.environments.definition")
     import tomllib
 
     import yaml

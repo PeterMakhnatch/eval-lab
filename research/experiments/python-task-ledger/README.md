@@ -136,7 +136,7 @@ reward must agree: outer `test.sh` success alone does not prove a test pass.
   termination refuses further launches.
 
 [`results.py`](../leak-oracle/results.py) exports the scientific
-[`oracle_sweep.csv`](oracle_sweep.csv) columns `task_id,label,fix_commit,patch_tip,`
+[`observations.csv`](../leak-oracle/observations.csv) columns `task_id,label,fix_commit,patch_tip,`
 `how_chosen,evidence_path,run_digest`. Executed references bind retained patch/log
 bytes, image digest, base, test patch, selected package and fresh sandbox identities.
 Patch conflicts retain the candidate identity and failed apply-check diagnostics,
@@ -150,13 +150,20 @@ companion `coverage.json`. `summary.json` separates observed provider charges
 from conservative exposure. The Data consumer overrides pilot labels only for
 observed CSV rows and fails closed on unmapped labels or changed run digests.
 
+[`oracle_sweep.csv`](oracle_sweep.csv) is the **346-row current-version projection**
+for Data. During the study, task `002308` moved from the frozen `2d2501dcc8c2`
+package to validated `purge-installed-copies@1` package `db5d755f7030`.
+Its historical positive remains in the full **347-row** observations file, but
+is not transferred to that different selected version. The summary records both
+CSV hashes, the target ledger hash and this explicit exclusion.
+
 #### Recorded result (2026-10-07)
 
 The cap admitted **491 of 1,148 tasks**: 347 classified, 144 operationally unknown,
 and **657 unrun** when another paired reservation would exceed the fence. This is
 ordered partial coverage, not 1,148 completed verifier pairs.
 
-| observed label | tasks |
+| frozen observation label | tasks |
 |---|---:|
 | `oracle:pass+nop:fail` | 193 |
 | `oracle:none` | 78 |

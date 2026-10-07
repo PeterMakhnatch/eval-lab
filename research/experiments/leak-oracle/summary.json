@@ -56,7 +56,7 @@
   },
   "coverage_path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/coverage.json",
   "coverage_sha256": "836b1b8ecaf2b63a65fe50468bbff9bcfdca6288dc65c1bb6643c9567a014fca",
-  "csv_path": "research/experiments/python-task-ledger/oracle_sweep.csv",
+  "csv_path": "research/experiments/leak-oracle/observations.csv",
   "csv_sha256": "f22b6b56bece7cc8fba510e24a04fe2d05865aa979a25ebaf46e84fbae44e807",
   "manifest_sha256": "33e183b0d5107c7cdf3a2bb316c41f39b085386da1049fc41b887814663c0109",
   "observed_count": 1148,
@@ -148,7 +148,57 @@
           "oracle:patch-conflict"
         ]
       },
-      "no_ledger_verdict_written": true
+      "no_ledger_verdict_written": true,
+      "scope": "Full frozen observations parsed before refreshed-ledger version matching; the current Data projection is separately verified."
+    },
+    "postbase_consumer_smoke": {
+      "strict_projection_import": {
+        "loaded_rows": 346,
+        "labels": [
+          "oracle:fail",
+          "oracle:fail-network",
+          "oracle:none",
+          "oracle:pass+nop:fail",
+          "oracle:patch-conflict"
+        ]
+      },
+      "actual_default_consumer": {
+        "combined_rows": 347,
+        "selected_digest_mismatches": []
+      },
+      "current_ledger_selected_digest_matches": 346,
+      "selected_digest_mismatches": [],
+      "full_observations_retained": 347,
+      "full_observations_byte_identical_to_offline_reexport": true,
+      "full_csv_sha256": "f22b6b56bece7cc8fba510e24a04fe2d05865aa979a25ebaf46e84fbae44e807",
+      "projection": {
+        "csv_path": "research/experiments/python-task-ledger/oracle_sweep.csv",
+        "csv_sha256": "c946ace67ad69c32119cdbf1c871c876af7bcaa9439647fc41d1ae4c5e0c818a",
+        "row_count": 346,
+        "counts_per_label": {
+          "oracle:patch-conflict": 23,
+          "oracle:fail": 52,
+          "oracle:pass+nop:fail": 192,
+          "oracle:none": 78,
+          "oracle:fail-network": 1
+        },
+        "target_ledger_path": "research/experiments/python-task-ledger/ledger.csv",
+        "target_ledger_sha256": "47f4f7f9cae7a12ea04b2896345b1fc1da1aa2ef8fc5ec595ce5215dc1bbb020",
+        "selection": "Exact selected run_digest match only; all frozen observations remain in observations.csv.",
+        "excluded": [
+          {
+            "task_id": "format-code-task-002308",
+            "observed_run_digest": "sha256:2d2501dcc8c2e9eceb8ff4ddb41987779891d4f5655ec5b48650148def7b2414",
+            "observed_label": "oracle:pass+nop:fail",
+            "current_selected_run_digest": "sha256:db5d755f703004cbac9be99d19f6ec7519d07274a24d202ab8f9b467c9fc2e2d",
+            "current_transform": "purge-installed-copies@1",
+            "reason": "The refreshed main ledger selects a newly validated installed-copy purge. The historical observation must not be transferred to that different package."
+          }
+        ]
+      },
+      "consumer_source_sha256": "d5309e726b5f254e8fc8fe83c2f8a6a10c126ab56d4bbce37d39abd3bf40f2ce",
+      "generated_document_changes": [],
+      "no_ledger_verdict_or_selected_task_mutation": true
     }
   },
   "manual_checks": {
@@ -171,7 +221,8 @@
     "The 20 first-eligible open confirmations yielded one pass and 19 ordinary failures; no additional open tasks were admitted.",
     "Missing or failing historical candidates do not prove task unsolvability; selection misses and historical dependency/API drift occur.",
     "Patch-conflict evidence retains candidate identity, generated-size metadata and failed apply-check diagnostics, not rejected patch bytes.",
-    "Actual provider billing is unsettled; retained runtime exposure is not a settled invoice. Cold pulls remain the explicitly accepted residual risk."
+    "Actual provider billing is unsettled; retained runtime exposure is not a settled invoice. Cold pulls remain the explicitly accepted residual risk.",
+    "Current Data receives 346 version-matched rows. Task002308 changed selected package during the frozen study; its historical positive is retained among all347 observations, never rebound to the new purge."
   ],
   "artifacts": {
     "cohort.json": {
@@ -233,6 +284,39 @@
     "inputs/ledger.csv": {
       "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/inputs/ledger.csv",
       "sha256": "aca1a997144da6e7a1220322dba368719308bad4b6dc92bef5387f4006621147"
+    },
+    "observations.csv": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/observations.csv",
+      "sha256": "f22b6b56bece7cc8fba510e24a04fe2d05865aa979a25ebaf46e84fbae44e807"
+    },
+    "verification/postbase-consumer-smoke.json": {
+      "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/verification/postbase-consumer-smoke.json",
+      "sha256": "8ec69e92e4bdf837c1ebc8c755801e0eb21522e06708c30a30d1a9c54b79b4e9"
     }
+  },
+  "data_projection": {
+    "csv_path": "research/experiments/python-task-ledger/oracle_sweep.csv",
+    "csv_sha256": "c946ace67ad69c32119cdbf1c871c876af7bcaa9439647fc41d1ae4c5e0c818a",
+    "row_count": 346,
+    "counts_per_label": {
+      "oracle:patch-conflict": 23,
+      "oracle:fail": 52,
+      "oracle:pass+nop:fail": 192,
+      "oracle:none": 78,
+      "oracle:fail-network": 1
+    },
+    "target_ledger_path": "research/experiments/python-task-ledger/ledger.csv",
+    "target_ledger_sha256": "47f4f7f9cae7a12ea04b2896345b1fc1da1aa2ef8fc5ec595ce5215dc1bbb020",
+    "selection": "Exact selected run_digest match only; all frozen observations remain in observations.csv.",
+    "excluded": [
+      {
+        "task_id": "format-code-task-002308",
+        "observed_run_digest": "sha256:2d2501dcc8c2e9eceb8ff4ddb41987779891d4f5655ec5b48650148def7b2414",
+        "observed_label": "oracle:pass+nop:fail",
+        "current_selected_run_digest": "sha256:db5d755f703004cbac9be99d19f6ec7519d07274a24d202ab8f9b467c9fc2e2d",
+        "current_transform": "purge-installed-copies@1",
+        "reason": "The refreshed main ledger selects a newly validated installed-copy purge. The historical observation must not be transferred to that different package."
+      }
+    ]
   }
 }

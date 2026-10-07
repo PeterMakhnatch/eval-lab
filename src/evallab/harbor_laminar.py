@@ -45,6 +45,7 @@ _METADATA_KEYS = (
     "arm",
     "task",
     "job_name",
+    "model_session",
     "intended_setup_fingerprint",
     "model_revision",
     "model_revision_source",
@@ -154,6 +155,51 @@ def native_worker_context(context_id: str | None) -> dict[str, Any]:
             "trial_name": trial_name,
         }
     except Exception:
+        return {}
+
+
+def daytona_telemetry_labels(trial_dir: Path) -> dict[str, str]:
+    """Bind native sandbox observations to the actual open trial root.
+
+    Harbor's environment session ID is ``trial_name__env``, not the trial UUID.
+    Match the real trial directory, never an active agent-phase span or a name
+    shared by another job. Only plain non-secret startup labels leave the host.
+    """
+    try:
+        if not getattr(trace_runtime(), "enabled", False):
+            return {}
+        target = Path(trial_dir).absolute()
+        with _TRACES_LOCK:
+            matches = [
+                trace
+                for trace in _TRACES.values()
+                if not trace.closed
+                and trace.trials_dir
+                and (Path(trace.trials_dir) / trace.trial_name).absolute() == target
+            ]
+            if len(matches) != 1:
+                return {}
+            trace = matches[0]
+            context = json.loads(trace.root_context or "")
+            trace_id = uuid.UUID(context["trace_id"]).hex
+            parent_id = uuid.UUID(context["span_id"]).int
+            if trace_id == "0" * 32 or not 0 < parent_id < 1 << 64:
+                return {}
+            labels = {
+                "evallab.trace_id": trace_id,
+                "evallab.parent_span_id": f"{parent_id:016x}",
+                "evallab.session_id": trace.session_id,
+                "trial_id": trace.trial_id,
+            }
+            if model_session := trace.metadata.get("model_session"):
+                labels["model_session"] = str(model_session)
+        # Daytona's documented startup format is comma-delimited key=value.
+        # Unsupported identities must stay unbound, not silently change scope.
+        if any(not value or "," in value or "=" in value for value in labels.values()):
+            return {}
+        return labels
+    except Exception:
+        # Native observability cannot break environment creation or grading.
         return {}
 
 
@@ -308,6 +354,7 @@ def _build_root_metadata(event: Any, parent_meta: dict[str, Any]) -> dict[str, A
         "card": parent_meta.get("card"),
         "arm": parent_meta.get("arm"),
         "job_name": parent_meta.get("job_name"),
+        "model_session": parent_meta.get("model_session"),
         "intended_setup_fingerprint": parent_meta.get("intended_setup_fingerprint"),
         "model_revision": parent_meta.get("model_revision"),
         "model_revision_source": parent_meta.get("model_revision_source"),

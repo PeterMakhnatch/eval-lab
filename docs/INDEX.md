@@ -87,7 +87,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:cf974b6909349070858dbac82b2cd261f683912bf033de74f946000d05409d33
   - path: docs/observability.md
-    digest: sha256:d198f9b955e785ec8dbc9b57530b2ebaa2ce2f5493281b33f4f1964519bcd7e0
+    digest: sha256:ec3b51b4d3d9f4fe161011e93cb2c7a6e062b54308b80db40a7f529ce2b88ff8
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md

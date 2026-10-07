@@ -95,6 +95,70 @@ A trial's cost is time-based, not token-based:
 
 A cold start and the 5-minute idle tail are billed once per warm period.
 
+## Credential bridge native OTLP adapter (HAR-181)
+
+`credential_bridge.py` adopts the existing credential-relay role into committed
+source, backed by `evallab.credential_bridge.create_bridge_app`. It keeps the
+same app name, 0.25 CPU / 512 MiB, scale-to-zero (maximum two containers),
+readiness behavior and single-forward non-streaming model relay. Historical
+paid campaign helpers and their frozen runtime are not modified.
+
+The bridge additionally accepts native OTLP/HTTP `/v1/metrics`, `/v1/traces`
+and `/v1/logs`. Metrics become bound observation spans/events in the existing
+Laminar trace store; traces/logs retain their native IDs. There is no new
+collector backend, durable queue or second store. Inputs support protobuf
+and OTLP JSON, identity/gzip encoding and a 2 MiB decompressed limit.
+Metric conversion batches source points before export rather than expanding
+one ordinary provider batch into an oversized frame.
+
+Configuration is supplied to the **trusted bridge**, not the model/sandbox:
+
+| Setting | Meaning |
+|---|---|
+| `HAR157_BRIDGE_CAPABILITY` | Existing model-chat/readiness bearer capability |
+| `HAR157_MODEL_UPSTREAM` | Existing owned SGLang upstream base URL |
+| `evallab-mimo-v26-9b-api-key` | Existing Modal secret containing `SGLANG_API_KEY` |
+| `EVALLAB_NATIVE_TELEMETRY_SECRET` | Optional name of a Modal secret containing the next two keys; omission disables native ingestion |
+| `EVALLAB_NATIVE_TELEMETRY_CAPABILITY` | Separate native-ingestion bearer capability; must differ from chat capability |
+| `LMNR_PROJECT_API_KEY` | Existing Laminar project key, available only to the trusted exporter |
+| `EVALLAB_NATIVE_MODEL_SESSIONS` | JSON array of actual shared app/session parent bindings; default `[]` does not guess model attribution |
+
+An admitted provider collector uses this bridge's base URL and the distinct
+native bearer capability in its authorization header. It never receives the
+Laminar project key or the chat capability. Organization/workspace collector
+changes are outside the source-only approval.
+
+Each model binding has `app_id`, integer `started_at_ns`, optional integer
+`ended_at_ns`, and `parent`: real SDK `trace_id` (32 hex), `span_id` (16 hex),
+`session_id`, optional `model_session`, **no exclusive `trial_id`**. Times and
+IDs must come from the actual admitted model session, not examples, billing
+windows, reconstructed wall-clock gaps or a trial's phase/root. Native Modal
+points must match exactly one app/window; otherwise the OTLP acknowledgment
+reports rejected points. App/container/function labels stay in native output.
+
+For Daytona, the Harbor plugin merges actual open trial-root context into
+startup `DAYTONA_SANDBOX_OTEL_EXTRA_LABELS`, preserving unrelated labels/env.
+The native sandbox `service.instance.id` supplies its UUID. Closed, ambiguous,
+unbound and conflicting identities cannot create guessed Laminar roots.
+Model metrics stay shared; the converter does not charge them to each trial.
+
+The native exporter uses a separate capability and canonical redaction. It
+does not acknowledge success before Laminar accepts all frames; exporter
+failure returns non-success and partial rejection counts remain explicit.
+There is no added paid-answer retry. Inspect metrics in Laminar **Tree** view,
+then **Span Output / Attributes / Events**; DEFAULT observations are omitted
+from Transcript and do not become Laminar metric charts.
+
+Provider configuration contracts:
+[Daytona organization OTLP](https://www.daytona.io/docs/en/observability/otel-collection.md),
+[Modal workspace OTLP](https://modal.com/docs/guide/otel-integration).
+Both affect other resources in their organization/workspace. Source and
+synthetic protocol/Cloud readback do **not** authorize deployment, changing
+those settings or starting compute. Genuine CPU/RAM and native cold/queue/GPU
+adoption requires separate current admission. All HAR-168 a3/a4 specs remain
+held; native observations do not alter grades, accounting or invoice actuals.
+See [observability](../../docs/observability.md#native-provider-metrics-in-laminar-har-181).
+
 ## Context sizing (HAR-148, 2026-10-02)
 
 Keep the deployed 65,536-token window. The full available HAR-126 census has

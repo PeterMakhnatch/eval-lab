@@ -1023,6 +1023,7 @@ benchmarks = [
     { name = "fastmcp" },
 ]
 dev = [
+    { name = "fastapi" },
     { name = "harbor-atif2otel" },
     { name = "hypothesis" },
     { name = "lmnr" },
@@ -1073,6 +1074,7 @@ benchmarks = [
     { name = "fastmcp", specifier = "==3.4.7" },
 ]
 dev = [
+    { name = "fastapi", specifier = "==0.141.1" },
     { name = "harbor-atif2otel", specifier = ">=0.1.0" },
     { name = "hypothesis", specifier = ">=6.100,<7" },
     { name = "lmnr", specifier = "==0.7.64" },

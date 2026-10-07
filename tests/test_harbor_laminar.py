@@ -474,3 +474,62 @@ def test_parent_metadata_transport_allowlist(monkeypatch, tmp_path):
     assert hl._load_parent_metadata()["card"] is None
     monkeypatch.delenv(hl.METADATA_ENV)
     assert hl._load_parent_metadata()["card"] is None
+
+
+def _valid_root_context(trace):
+    trace.trace_id = str(uuid.uuid4())
+    root_span_id = 0x123456789ABCDEF
+    trace.root_context = json.dumps(
+        {"trace_id": trace.trace_id, "span_id": str(uuid.UUID(int=root_span_id))}
+    )
+    return uuid.UUID(trace.trace_id).hex, f"{root_span_id:016x}"
+
+
+def test_native_sandbox_parent_is_actual_trial_root_not_environment_session_or_phase(
+    fake_runtime, tmp_path
+):
+    trial_id, config, trace = _register_trace(fake_runtime, tmp_path)
+    trace_id, parent_id = _valid_root_context(trace)
+    phase = fake_runtime.start_span("harbor.agent")
+    phase._context = json.dumps(
+        {"trace_id": trace.trace_id, "span_id": str(uuid.UUID(int=0x2222222222222222))}
+    )
+    trace.phase_spans[1] = phase
+    labels = hl.daytona_telemetry_labels(config.trials_dir / config.trial_name)
+    assert labels["evallab.trace_id"] == trace_id
+    assert labels["evallab.parent_span_id"] == parent_id
+    assert labels["trial_id"] == str(trial_id)
+    assert labels["evallab.session_id"] == "job-x"
+
+
+def test_native_sandbox_directory_isolates_equal_trial_names_across_jobs(fake_runtime, tmp_path):
+    first_id, first_config, first = _register_trace(fake_runtime, tmp_path / "job-one")
+    second_id, second_config, second = _register_trace(fake_runtime, tmp_path / "job-two")
+    _valid_root_context(first)
+    _valid_root_context(second)
+    assert hl.daytona_telemetry_labels(first_config.trials_dir / "trial-a")["trial_id"] == str(
+        first_id
+    )
+    assert hl.daytona_telemetry_labels(second_config.trials_dir / "trial-a")["trial_id"] == str(
+        second_id
+    )
+
+
+def test_native_sandbox_context_stays_unbound_after_close_or_ambiguous_open(fake_runtime, tmp_path):
+    _, config, trace = _register_trace(fake_runtime, tmp_path)
+    _valid_root_context(trace)
+    trace.closed = True
+    assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}
+    trace.closed = False
+    _, _, other = _register_trace(fake_runtime, tmp_path)
+    _valid_root_context(other)
+    assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}
+
+
+def test_native_sandbox_labels_cannot_silently_change_comma_delimited_identity(
+    fake_runtime, tmp_path
+):
+    _, config, trace = _register_trace(fake_runtime, tmp_path)
+    _valid_root_context(trace)
+    trace.session_id = "job-one,trial_id=different"
+    assert hl.daytona_telemetry_labels(config.trials_dir / config.trial_name) == {}

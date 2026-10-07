@@ -63,6 +63,7 @@ KNOWN_TAGS = frozenset(
         "verdict:keep",
         "verdict:fix",
         "verdict:discard",
+        "verdict:unknown",
     }
 )
 

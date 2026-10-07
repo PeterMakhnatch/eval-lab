@@ -9,11 +9,72 @@ audience:
 
 A task is useful for evaluation or RL only if its reward means what it says: a pass is a real solve, a fail is a
 real failure, and the task sits where the model sometimes passes and sometimes fails. Published datasets rarely
-prove this. The FineEnvs MiMo Harbor ports, for example, ship no reference solution, so nobody can show a task is
-solvable without running a model.
+prove this. The FineEnvs MiMo Harbor ports ship no provided reference solution;
+recovered history-oracle evidence must be distinguished from an actual graded control.
 
 This page is the order of checks, cheapest first. Each stage only runs on tasks that survived the earlier ones.
 The commands and tables are described in `docs/mimo-task-catalog.md`.
+
+## One dataset audit command
+
+`evallab audit <dataset-or-path>` joins the existing leak, oracle, no-agent,
+static, run-history, and exploit evidence. It accepts a cached Harbor dataset,
+an explicit `name@version` pin, or a real task/collection directory. MiMo ledger
+and patch conventions live in the `audit_mimo` plugin, not the generic pipeline.
+
+The default is **dry-run**: no download, container, model, queue submission, or
+output publication. `--stages leak,oracle,nop,static,history,exploit` selects the
+stages; `--json` includes each task's evidence, source hashes, and proposed actions.
+
+```bash
+evallab audit mimo-v2.6-rl --dry-run
+evallab audit hello-world --execute --stages oracle,nop,leak,static,history \
+  --environment docker \
+  --derived-root "$PWD/runs/audit-hello/parquet" \
+  --output-dir "$PWD/runs/audit-hello"
+```
+
+| Stage | Evidence and limits |
+| --- | --- |
+| `leak` | HAR-177 future-ref/unreachable-commit semantics; a solution-only native probe inspects discovered image repositories. Missing Git, absent repositories, failed commands, or incomplete output are unknown, not clean. |
+| `oracle` | Recorded HAR-191 history-oracle findings or a native provided-solution control. Missing reference evidence stays unavailable; patch applicability is not a passing grade. |
+| `nop` | The existing no-agent/output checks, bound to the executed package. Infrastructure failures are not scored failures. |
+| `static` | Lexical flags and task lint, with input hashes and coverage. These describe files only and never predict quality or decide the verdict. |
+| `history` | One read-only native trial census, including controls and probes; recorded model-history summaries retain their original scope. |
+| `exploit` | Existing HAR-161 probe evidence or an explicitly selected hosted-model probe. A negative probe is not proof of universal resistance. |
+
+`--execute` enables selected local Docker/model-free controls and writes
+projections. Remote controls and model-backed probes additionally require
+`--allow-paid`; an explicit hosted `--model` is required for an exploit.
+`--est-cost-usd` is the **per-task, per-stage total execution estimate**, including
+infrastructure. The aggregate estimate is printed before dispatch; it is not an
+infrastructure spending cap, and `--cost-limit-usd` is only the model cap.
+
+Paid preparation submits a pinned spec but does not approve it. After separate
+exact-spec approval, `--approved-spec ID` resumes only that bound task/stage;
+opt-in never authorizes a queue drain or a direct paid run.
+
+Execution emits three rebuildable projections, not a new evidence store:
+
+- `audit.parquet` in the existing derived root, queryable as the `audit` relation
+  in `evallab trials --sql`. Dataset/source revisions and both package and Harbor
+  digests distinguish versions; no audit verdict rewrites a historical trial.
+- The printed `task-health.json` manifest and metadata-only variants carrying
+  `verdict:keep`, `verdict:fix`, `verdict:discard`, or `verdict:unknown`. Pass the
+  manifest to `evallab view --task-health ... --tag verdict:keep`; include the
+  report's `records` and `probe-records` with `--task-variants` for lineage.
+- `dossiers.json`, indexing one HAR-186 dossier per package. `evallab task <id>`
+  and its read-only Python tool automatically consult the existing audit
+  projection; use `--derived-root`, `--audit-path`, and `--dataset` to select
+  evidence explicitly. Multiple versions remain ambiguous rather than choosing
+  an arbitrary latest row.
+
+`keep` routes work; it is **not certification, admission, or validated repair**.
+Generic keep requires digest-bound, completed oracle=1 and sound nop=0 controls;
+a no-agent pass or observed future history routes to fix. Missing evidence stays
+unknown. MiMo preserves its committed ledger routing, including discard
+precedence. None of these control/probe trials measures model capability.
+
 
 ## Stage 0: read the files (free, no Docker)
 
@@ -35,7 +96,7 @@ The commands and tables are described in `docs/mimo-task-catalog.md`.
 
 - `nop` agent: reward must be 0 and the verifier must finish. A pass is a free reward; a verifier error means
   setup or grading is broken.
-- Oracle: only where a solution exists (none in MiMo).
+- Oracle: only where a provided or recovered reference exists; require a completed, bound verifier result.
 - Record both per backend: `evallab tasks qualify-collect` writes one
   `task_qualification` row per trial (reasons, status, Daytona cost estimate)
   and `catalog export-broken` publishes the per-backend broken list —

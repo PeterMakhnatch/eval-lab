@@ -34,14 +34,15 @@ Offline / in-image strategy (no network at grade time, egress lock safe):
   example's ``uvx --from harbor-rewardkit`` needs network; vendoring
   native wheels per interpreter is fragile).
 * So the variant ships both paths sharing one stdlib-only core
-  (``evallab.integrity_reward_core``, vendored byte-identical under
+  (a standalone ``evallab.integrity_reward_core`` snapshot under
   ``tests/vendor/``): ``test.sh`` runs ``python -m rewardkit /tests``
   when importable, else ``tests/vendor/run_integrity.py``, which writes
   RewardKit-compatible ``reward.json`` + ``reward-details.json``. Scoring
   never fails grading (``|| true``; with no ``reward.txt`` nothing is
   written and Harbor falls back to ``reward.txt`` as before).
-* Rule ``copy_check_v1`` vendors ``evallab.copy_check`` byte-identical;
-  behaviour equality is pinned by test, not by reimplementation.
+* Rule ``copy_check_v1`` ships a standalone snapshot of the copy detector.
+  Tests exercise scoring and the offline payload, not source-byte identity;
+  host-side performance changes need not rewrite existing verifier payloads.
 
 Host replay (``research/experiments/har169-integrity/replay.py``) scores
 stored trials through :func:`evaluate_trial` with zero runs.

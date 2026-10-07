@@ -417,3 +417,31 @@ class TaskHealthFilter:
             "binding": {**binding, "candidates": candidates},
             "reason": f"digest {digest} matches multiple manifest rows: {candidates}",
         }
+
+
+def trial_task_identity(job: Path, trial: Path) -> dict[str, Any]:
+    """Expose only immutable executed-lock and verified staging identities.
+
+    A missing/conflicting lock is unknown; present-day task bytes or task names
+    never stand in for the package that a historical trial actually executed.
+    """
+    config = _read_json(trial / "config.json")
+    task = config.get("task") if isinstance(config, dict) else None
+    path = task.get("path") if isinstance(task, dict) else None
+    if not isinstance(path, str) or not path:
+        return {
+            "task_digest": None, "source_package_digest": None,
+            "via": None, "error": "trial config is missing task.path",
+        }
+    digest, via, error = TaskHealthFilter._executed_digest(
+        trial, _norm(path), TaskHealthFilter._job_lock_tasks(job),
+    )
+    return {
+        "task_digest": digest,
+        "source_package_digest": (
+            TaskHealthFilter._verified_source(TaskHealthFilter._task_staging(job), digest)
+            if digest is not None else None
+        ),
+        "via": via,
+        "error": error,
+    }

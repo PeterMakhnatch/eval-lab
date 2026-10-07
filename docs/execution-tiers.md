@@ -15,8 +15,8 @@ rules below remain binding.
 
 Harbor supplies the execution backends; Eval Lab prepares bounded specs and
 preserves their evidence. Compatibility belongs to a task/harness/model/backend
-combination, not just an `--env` name. Terminus 2 uses a host-side metered or
-explicitly local model transport with native Harbor task backends. GLM mini-SWE
+combination, not just an `--env` name. Terminus 2 uses host-side approved hosted
+model transport with native Harbor task backends. GLM mini-SWE
 has a live-proven single-container Daytona path; its container-side Modal proxy is not integrated.
 Cloud runs still require explicit approval under `policy/standing-approvals.yaml`.
 
@@ -500,8 +500,9 @@ get the usual parse-error feedback. Only the executed commands and the
 completion flag change: the chat history, the ATIF trajectory and the rollout
 details keep the raw model output.
 
-A separate local route, `ollama_chat/qwen2.5:7b`, uses an explicitly selected
-local Ollama service.
+A historical local route, `ollama_chat/qwen2.5:7b`, used an explicitly selected
+local Ollama service. Local generative-model inference is not permitted on
+Peter's laptop; do not start, point at, or qualify a local Ollama service.
 
 Prepare any local Harbor task package; no task-ID allowlist or new registry
 admission is needed:
@@ -655,19 +656,12 @@ settings, and `experiment-spec.json` in the ordinary job directory. A retained
 run can therefore be inspected or replayed after temporary staging is removed.
 This mirrors Reef's tree layout without importing Reef.
 
-For local execution, first start your own **cloud-disabled** Ollama service
-with an already installed `qwen2.5:7b` GGUF. The Lab does not download weights
-or start a server. Point it at a literal loopback endpoint:
+Local-model execution via Ollama is not permitted on Peter's laptop: do not
+start a local Ollama service, point the lab at one, or run a local-baseline
+recipe. Use an explicitly authorized hosted route instead. To compare a changed
+candidate harness against a retained baseline spec:
 
 ```bash
-export EVALLAB_TERMINUS_OLLAMA_URL=http://127.0.0.1:11461
-uv run evallab tasks prepare library/tasks/event-summary \
-  --name local-baseline --agent terminus-2 --model ollama_chat/qwen2.5:7b \
-  --environment docker --harness-tree /absolute/path/to/baseline-harness
-uv run evallab submit derived/prepared/local-baseline.json
-uv run evallab approve <baseline-spec-id> --actor peter
-uv run evallab tick --spec-id <baseline-spec-id>
-
 # Change only the candidate harness; reuse the executed task/model/limits.
 uv run evallab tasks replay runs/local-baseline/experiment-spec.json \
   --name local-candidate --harness-tree /absolute/path/to/candidate-harness
@@ -737,15 +731,16 @@ observations. If recording the decision fails, publication is refused.
 
 The calibration command copies the existing `04_gate_aa.py` experiment into
 the owned package; it does not edit the original script or its work directories.
-Use the already-installed Reef interpreter read-only, an already-running
-cloud-disabled local Ollama service, and a fresh owned output directory:
+Use the already-installed Reef interpreter read-only, an explicitly authorized
+API proxy (local Ollama inference is not permitted on Peter's laptop), and a
+fresh owned output directory:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
 PYTHONPATH="$PWD/library/adapters/reef_gate/src" \
 ~/Developer/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
   --reef-root ~/Developer/reef --work-dir "$PWD/runs/reef-gate-aa" \
-  --ollama-url http://127.0.0.1:11461 --model qwen2.5:7b \
+  --api-proxy-url http://127.0.0.1:<port> --model <provider-model-id> \
   --condition aa --trials 30 --repeats 5 --port 18972
 ```
 

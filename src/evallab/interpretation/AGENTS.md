@@ -1,8 +1,7 @@
-# Interpretation Subsystem (src/evallab/interpretation/)
+# Interpretation
 
 ## Purpose
-Bounded evidence packing (`EvidencePack`), evaluators (`MachineJudgment`),
-data quality screening, and platform governance gates (`AcceptanceDecision`).
+Bounded cited evidence packs, machine judgments, acceptance records, interpretation IR, and feature registry.
 
 ## What lives here / entry points
 - `evidence_pack.py`: Bounded evidence packaging and token budget enforcement.
@@ -12,13 +11,13 @@ data quality screening, and platform governance gates (`AcceptanceDecision`).
 - `feature_registry.py`: Canonical feature extraction registry.
 
 ## Invariants or rules
-1. Bounded Model Inputs: `EvidencePack` enforces strict token budgets and citation spans.
-2. Separation of Judgment and Acceptance: Evaluator outputs (`MachineJudgment`) are
-   strictly distinct from platform governance outcomes (`AcceptanceDecision`).
-3. Stable Locations: Do not merge or delete `trajectory_ir.py` across packages.
+- Inputs stay bounded and cite immutable evidence.
+- A machine judgment is evidence, not automatic acceptance; preserve the explicit acceptance decision.
+- Keep interpretation IR distinct from core trajectory IR under the parent contract.
+- Do not add model runners or infrastructure drivers here.
 
 ## Tests or checks
-- Targeted unit tests: `pytest tests/test_trajectory_ir.py tests/test_evidence_pack.py tests/test_trajectory_acceptance_contract.py tests/test_trajectory_judgment_contract.py`
+The assigned verifier uses affected existing IR, evidence-pack, judgment, and acceptance tests under the repository environment.
 
 ## What not to add here
-Do not place raw physical storage drivers or direct execution queue runners here.
+No implicit acceptance, hidden uncited context, or incidental merger of the two IRs.

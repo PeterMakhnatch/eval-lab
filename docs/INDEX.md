@@ -13,7 +13,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:4d122cf34953730c72f6ac890e851026353cba88b7e9a22bc8dc14f3c07d45c9
+    digest: sha256:a70fcf357592cd74703276408466021d34f04698f40032216a68ca56a453b252
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
   - path: docs/SYSTEM.md
@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:923a5c098661c7ed356ef510ff4806d79be091a3c518253fb17fdf49d1502919
+    digest: sha256:8d7e4aa321740a4ae8026669de35a38427809bb17127f7cd6de7dc07e3535ea0
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/har136-source-audit-2026-10-01.md

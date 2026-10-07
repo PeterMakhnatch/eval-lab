@@ -1071,6 +1071,10 @@ def _wave_reservation_per_trial(campaign: ExperimentCampaign) -> float:
     printed in-flight overrun bound keep the fence conservative.
     """
     trials = _campaign_trial_count(campaign)
+    if campaign.execution is not None and campaign.cost_estimate is not None:
+        # A separately approved HAR-192 all-in envelope replaces only the
+        # historical Daytona/A100 planning input, not the reservation mechanism.
+        return campaign.cost_estimate.expected_usd / trials
     return wave_cost_estimate(trials).expected_usd / trials
 
 
@@ -1166,6 +1170,18 @@ def _trial_identity(
     return path.resolve().as_posix()
 
 
+def _meter_model_host(root: Path, raw: Mapping[str, Any]) -> str:
+    """Keep new Runpod/unknown campaigns out of the historical Modal bill pool."""
+    campaign_id = raw.get("campaign_id")
+    if not isinstance(campaign_id, str) or not campaign_id:
+        return "modal"
+    try:
+        campaign = load_campaign(root, campaign_id)
+    except (OSError, ValueError):
+        return "unknown"
+    return campaign.execution.model_host if campaign.execution is not None else "modal"
+
+
 def _modal_allocations(
     root: Path, specs: list[tuple[str, dict[str, Any]]], jobs: list[JobRecord]
 ) -> dict[str, tuple[float, bool]]:
@@ -1228,19 +1244,30 @@ def _modal_allocations(
         pools[day] = pools.get(day, 0.0) + cost
     paths = {job.path for job in jobs}
     models_by_path: dict[Path, Any] = {}
+    roots_by_path = {job.path: root for job in jobs}
+    hosts_by_path: dict[Path, str] = {}
     for other_root in [root, *sibling_worktree_roots(root)]:
-        paths.update(discover_job_dirs([other_root / "runs"]))
+        discovered = list(discover_job_dirs([other_root / "runs"]))
+        paths.update(discovered)
+        roots_by_path.update(dict.fromkeys(discovered, other_root))
         other_specs = specs if other_root == root else _queue_meter_specs(other_root)
         for _, raw in other_specs:
             candidate = _meter_job_path(other_root, raw)
             if candidate is not None:
                 paths.add(candidate)
                 models_by_path[candidate] = raw.get("model")
+                roots_by_path[candidate] = other_root
+                hosts_by_path[candidate] = _meter_model_host(other_root, raw)
     windows = dict(targets)
     now = datetime.now(UTC)
     for job_path in paths:
         config = _read_meter_json(job_path / "config.json")
         spec = _read_meter_json(job_path / "experiment-spec.json")
+        host = hosts_by_path.get(job_path) or _meter_model_host(
+            roots_by_path.get(job_path, root), spec
+        )
+        if host != "modal":
+            continue
         agent = config.get("agent")
         model = (
             (agent.get("model_name") if isinstance(agent, Mapping) else None)
@@ -1372,6 +1399,7 @@ def _campaign_meter(
         for state, raw in relevant
         if state in SETTLED_STATES
         and is_selfhosted_model(raw.get("model"))
+        and (loaded.execution is None or loaded.execution.model_host == "modal")
         and str(raw.get("spec_id") or raw.get("name")) in jobs
     ]
     allocations = _modal_allocations(root, specs, selfhosted_jobs) if selfhosted_jobs else {}
@@ -1416,6 +1444,10 @@ def _campaign_meter(
                         unknown = True
                     else:
                         amounts["daytona"] = sandbox
+                elif raw.get("environment") == "docker" and loaded.execution is not None:
+                    # Shared VM rent is not present in the Modal GPU report.
+                    # Keep its unknown share reserved instead of settling it at $0.
+                    unknown = True
                 measured_trial = math.fsum(amounts.values())
                 # One overrun cannot erase another unmeasurable trial's hold.
                 if unknown:

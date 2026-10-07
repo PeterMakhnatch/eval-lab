@@ -35,7 +35,7 @@ NOW = datetime(2026, 10, 7, tzinfo=UTC)
 
 @pytest.fixture(autouse=True)
 def isolate_escalations(monkeypatch):
-    monkeypatch.setattr(cap, "LIN_RUNNER", lambda argv: None)
+    monkeypatch.setattr(cap, "LIN_RUNNER", lambda *args, **kwargs: None)
 
 
 def seed(root: Path):
@@ -108,10 +108,11 @@ def native_qualification(root: Path, spec: ExperimentSpec) -> CampaignSetupQuali
     )
 
 
-def campaign(root, spec, digest, qualification, *, limit=2):
+def campaign(root, spec, digest, qualification, *, limit=2, model_host="modal", estimate=None):
     record = cap.ExperimentCampaign(
         campaign_id=spec.campaign_id,
         budget_usd=10,
+        cost_estimate=estimate,
         tasks=[cap.CampaignTaskAllowance(task_id=spec.task_id, package_digest=digest)],
         reference_profile=spec.reference_profile,
         require_egress_lock=True,
@@ -124,7 +125,7 @@ def campaign(root, spec, digest, qualification, *, limit=2):
         submitted_by="test",
         created_at=NOW,
         execution=CampaignExecutionPolicy(
-            max_concurrent_trials=limit, model_host="modal", qualification=qualification
+            max_concurrent_trials=limit, model_host=model_host, qualification=qualification
         ),
     )
     cap.write_campaign(root, record)
@@ -365,3 +366,86 @@ def test_teardown_error_does_not_repeat_a_completed_trial(tmp_path, monkeypatch)
     assert service.queue.locate(spec_id).parent.name == "done"
     assert service.tick() == 0
     assert calls == [spec.name]
+
+
+def settled_meter_fixture(root, spec):
+    """Native-shaped retained evidence; no provider or trial is executed."""
+    state = root / "queue/done"
+    state.mkdir(parents=True, exist_ok=True)
+    (state / f"{spec.name}.json").write_text(spec.model_dump_json())
+    job = root / "runs" / spec.name
+    trial = job / "trial"
+    trial.mkdir(parents=True)
+    config = {"agent": {"model_name": spec.model}}
+    (job / "experiment-spec.json").write_text(spec.model_dump_json())
+    (job / "config.json").write_text(json.dumps(config))
+    (job / "result.json").write_text(
+        json.dumps(
+            {
+                "id": f"job-{spec.name}",
+                "n_total_trials": 1,
+                "stats": {},
+                "finished_at": "2026-10-07T01:00:00Z",
+            }
+        )
+    )
+    (trial / "config.json").write_text(json.dumps(config))
+    (trial / "result.json").write_text(
+        json.dumps(
+            {
+                "id": f"trial-{spec.name}",
+                "task_name": "fixture-task",
+                "trial_name": "trial",
+                "started_at": "2026-10-07T00:00:00Z",
+                "finished_at": "2026-10-07T01:00:00Z",
+                "verifier_result": {"rewards": {"reward": 1.0}},
+            }
+        )
+    )
+
+
+def test_new_provider_costs_stay_reserved_and_cannot_take_modal_dollars(tmp_path, monkeypatch):
+    from evallab.modal_billing import BillingRow
+    from evallab.modal_ops import MODAL_APP_NAME
+
+    spec, digest = seed(tmp_path)
+    estimate = cap.CampaignCostEstimate(
+        expected_usd=0.5, worst_case_usd=1, formula="fixture all-in"
+    )
+    modal = spec.model_copy(
+        update={"name": "modal-one", "campaign_id": "modal-policy", "est_cost_usd": 0}
+    )
+    runpod = spec.model_copy(
+        update={"name": "runpod-one", "campaign_id": "runpod-policy", "est_cost_usd": 0}
+    )
+    campaign(tmp_path, modal, digest, None, estimate=estimate)
+    campaign(tmp_path, runpod, digest, None, model_host="runpod", estimate=estimate)
+    for item in (modal, runpod):
+        settled_meter_fixture(tmp_path, item)
+    fetches = []
+
+    def bill(**kwargs):
+        fetches.append(kwargs)
+        return [
+            BillingRow(
+                object_id="modal-app",
+                description=MODAL_APP_NAME,
+                environment="main",
+                interval_start=NOW,
+                resource="gpu",
+                cost_usd=0.2,
+            )
+        ]
+
+    monkeypatch.setattr("evallab.modal_billing.fetch_modal_billing_report", bill)
+    monkeypatch.setattr("evallab.spend_day.sibling_worktree_roots", lambda root: [])
+    runpod_cost = cap.campaign_spend_breakdown(tmp_path, "runpod-policy")
+    assert fetches == []
+    assert runpod_cost["modal_gpu"] == 0
+    assert runpod_cost["unmeasured_reserved"] == pytest.approx(0.5)
+    modal_cost = cap.campaign_spend_breakdown(tmp_path, "modal-policy")
+    # The unrelated Runpod wall interval must not halve the actual Modal pool.
+    assert modal_cost["modal_gpu"] == pytest.approx(0.2)
+    # GPU billing alone cannot silently settle the shared VM rent at zero.
+    assert modal_cost["unmeasured_reserved"] == pytest.approx(0.3)
+    assert cap.campaign_spend_usd(tmp_path, "modal-policy")[2] == pytest.approx(0.5)

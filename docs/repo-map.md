@@ -229,9 +229,9 @@ inputs:
   - path: src/evallab/inspect_adapter.py
     digest: sha256:72ab5c498c124b214507c27900166a15cb1ed3651df3dbf97d565f88b257df6d
   - path: src/evallab/integrity_reward.py
-    digest: sha256:a547051f85da173e96defbd4af424eae8c3f38416a07d8d2bf5c277b7ccd831e
+    digest: sha256:81e6bf2006047c027363e16543f7aaa7b2d4444db5087e86fec7f6d9ab8c56a3
   - path: src/evallab/integrity_reward_core.py
-    digest: sha256:063b4a7b542e096588ee983358cfba44fc614e8ac6817782675b0f3695072019
+    digest: sha256:f6caede68c0615dab7d617bbc0f4af8eda2d7df6effdaac7af2c16c0d1b23b48
   - path: src/evallab/integrity_reward_files/integrity/copy_check_v1.py
     digest: sha256:1c714cb20f930a28f7f0791981e94a453696243bb1c27189ab7d84895735a382
   - path: src/evallab/integrity_reward_files/integrity/grader_tamper.py

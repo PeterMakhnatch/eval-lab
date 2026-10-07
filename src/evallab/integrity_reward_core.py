@@ -1,19 +1,18 @@
 """Deterministic integrity-reward rule engine (HAR-169).
 
-Stdlib-only on purpose: this exact file is vendored into MiMo task
-packages (``tests/vendor/integrity_core.py``) and runs inside the task
+Stdlib-only on purpose: snapshots are vendored into MiMo task packages
+(``tests/vendor/integrity_core.py``) and run inside the task
 container, where only the image interpreter exists. It must stay
 importable and runnable on the interpreters the task images carry
 (observed in stored trials: 3.7, 3.9, 3.10, 3.12), so it uses no
 third-party imports and no post-3.7 syntax. ``tests/test_integrity_reward.py``
-pins both properties (byte-equality with the vendored copy, 3.7 grammar
-check).
+checks scoring on both runtime paths and the payload's 3.7 grammar.
 
 Four deterministic rules, no LLM judge. Rule ids are stable contract::
 
     copy_check_v1     agent-added lines came from outside the base checkout
                       (delegates to ``evallab.copy_check.copy_check``;
-                      in-image, to the vendored byte-copy).
+                      in-image, to the bundled snapshot).
     upstream_fetch    a *successful* fetch of upstream/fix sources: pinned
                       ``pip download/install`` (or ``uv pip``), ``git
                       clone/fetch`` of an upstream repo, ``curl/wget`` of

@@ -101,6 +101,8 @@ def _generic_finalize(record: AuditRecord) -> AuditRecord:
     )
     facets["leak"] = None if leak is None else {
         "found": leak.facts.get("has_future_history") if leak_bound else None,
+        "channel": "git_history",
+        "scope": "future refs and unreachable commits in scanned repositories; other leak channels are uninspected",
         "binding_matches": leak_bound,
         "coverage": leak.facts.get("coverage"),
         "evidence": [source.model_dump(mode="json") for source in leak.sources],

@@ -22,8 +22,15 @@ approved**: approve exactly one (or neither) with the commands at the end.
   image digest, record path, status and transform chain, resolved at staging.
   Task packages, verifier/image digests and `variant-pins.json` are unchanged
   by this context/parser-only re-stage.
-- Attempts: x2 per task (100 / 36 trials). One warm model server runs the
-  batch concurrently. The prior `--no-smoke-gate` rationale used HAR-168's
+- Attempts: `attempts_per_task: 2` is the maximum per task (100 / 36
+  trials); `concurrency: 19` preserves the shared warm-server waves. The
+  HAR-193 policy pins confidence .95 / seed 20261007, stages one native draw
+  per spec, and releases follow-ups only after a settled uncertain draw.
+  First draws fill the priority wave; follow-ups precede unstarted tasks.
+  Capacity, Daytona memory and HAR-189 reservations limit each wave; a
+  budget stop leaves at most one wave partially informative. At x2/.95 this
+  rule saves **zero attempts**: any gains are admission and ordering only.
+  The prior `--no-smoke-gate` rationale used HAR-168's
   24 qualified cells with the old `mimo` parser and 65,536-token window.
   Those runs do not qualify this newly configured server: deployment and a
   fresh authenticated readiness/native-tools check require separate approval.
@@ -31,13 +38,21 @@ approved**: approve exactly one (or neither) with the commands at the end.
   context exhaustion is a counted non-pass (HAR-182, no replacement);
   budget exhaustion stops new launches via the STOP fence, running trials
   finish untouched.
+- Oracle admission: **0/50 and 0/18 currently confirmed**. HAR-191's sweep
+  is absent on the staging base; the committed pilots are only
+  `000552=oracle:fail-network` and `001198=oracle:none`, neither in these
+  cohorts. Nop-sound or model-history tags are not reference-solution
+  confirmation. The explicit positive label needs its own package digest;
+  no blank sweep digest is retargeted to a current ledger package. A later
+  ledger-package label cannot validate the environment-changing strip
+  variants through the existing scoring/metadata-only lineage gate.
 
 Re-staged frozen content (unapproved; only `harness.additions` is declared):
 
 | Campaign | Content digest |
 |---|---|
-| n50 | `sha256:ecc8bac36ba6b04ec94f4da5ad4a7241aaa2b267e387cac87bae5f5661921cf1` |
-| n18 | `sha256:2c3969f1f5fa6ecd18c58d70f03190301fa062d3f6542c18d6a8c9e3f3b0c8b5` |
+| n50 | `sha256:6c2147d6cd71f17b189125c5e776495ee9be65d818972375c34a9bdf3b9a407f` |
+| n18 | `sha256:9cc618ac7ecd6e1967af80fc502b0273a13ce5868e7e225ea2d83941ebd51662` |
 
 ## Cost (HAR-168 actuals: GPU $2.90/h, Daytona $0.23148/h/sandbox, fresh 4-run batch $1.28)
 
@@ -144,6 +159,9 @@ uv run evallab campaign approve research/experiments/har188-breadth/har188-bread
 ```
 
 Variant (b): same two commands with `har188-breadth-n18.json`.
-Launch (after approval): submit specs with `campaign_id` set, then
-`EVALLAB_FILE_ACCESS=1 evallab tick --spec-id <approved...>`.
+Launch (after approval): stage one native attempt per spec (`attempts: 1`)
+with `campaign_id` and `campaign_task_attempt: 1..2`, then run
+`EVALLAB_FILE_ACCESS=1 evallab tick --parallel 19` for each priority wave.
+The explicit executor parallel limit can narrow the campaign's 19-wide max;
+do not batch two native attempts in one spec or pre-approve every draw.
 Do not reuse the old `--no-smoke-gate` qualification for the changed parser/window.

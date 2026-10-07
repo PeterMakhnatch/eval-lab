@@ -545,6 +545,20 @@ native job/trial identities deduplicate retained copies. Daytona reuses the
 `spend day` resource/rate-card estimate with recorded usage preferred. Missing
 or lagging measurements retain each trial's remaining reservation, never $0.
 
+HAR-193 opt-in: pin `attempts_per_task` (the maximum), `concurrency` (wave
+width), and `adaptive_sampling: {"target_confidence": 0.95, "seed": 20261007}`.
+Stage one native attempt per spec (`attempts: 1`, `campaign_task_attempt:
+1..attempts_per_task`); submissions wait without reservations. Only explicit,
+package-bound `oracle:pass+nop:fail` controls admit. Each tick releases a
+priority wave through the existing capacity, Daytona clamp and campaign
+budget gate; settled uncertain follow-ups precede unstarted tasks. A budget
+stop leaves at most one wave partially informative. Context exhaustion is a
+non-pass, not an infra replacement. Beta(1,1) predictive confidence concerns
+the finite all-pass / mixed / no-pass band, not proof of latent pass rate
+zero or one; at confidence .95 and two attempts it saves **zero** draws.
+See `research/experiments/har193-adaptive/README.md` for the replay and error
+rate, including the prior-predictive rather than uniform frequentist bound.
+
 The nightly canary cycle still stages its paid canaries every night, but they
 land in `waiting/`, not `approved/`: staging is not a failure, and the cycle is
 not quarantined for it. Nothing dispatches until Peter authorises a spec by id.

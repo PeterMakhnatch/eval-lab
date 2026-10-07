@@ -2007,7 +2007,7 @@ class Executor:
         Non-Daytona specs always pass. Daytona launches are capped at the
         guard's memory allowance (one sandbox held in reserve), preserving
         queue order, so admission never refuses an over-planned tick.
-        Trimmed specs stay approved for a later tick.
+        Trimmed specs retain their current state for a later tick.
         """
         daytona_count = sum(1 for _, spec in approved_specs if is_daytona_spec(spec))
         if daytona_count == 0:
@@ -2042,7 +2042,7 @@ class Executor:
             self._report_progress(
                 f"deferred {spec.name} ({reason}"
                 + (f": {detail}" if detail else "")
-                + "); state: approved"
+                + f"); state: {path.parent.name}"
             )
         if not any(is_daytona_spec(spec) for _, spec in selected):
             self.last_tick_reason = reason
@@ -2319,6 +2319,13 @@ class Executor:
             # terminal (or an operator resolves it), starting any other work
             # could bypass both the single-owner and daily-cost guarantees.
             self.last_tick_reason = "running_specs_unresolved"
+            return 0
+        # HAR-193: release a priority wave of next uncertain draws under the
+        # existing tick lock, preserving the shared warm-server batch.
+        campaign_approval.reconcile_adaptive_sampling(
+            self, parallel=parallel, spec_ids=set(spec_ids) if spec_ids is not None else None
+        )
+        if self.queue.stop_path.exists():
             return 0
         try:
             authorizations = self.queue.authorizations()

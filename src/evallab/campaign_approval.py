@@ -46,6 +46,7 @@ card per (spec, reason). Routine admissions are silent.
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import math
@@ -106,6 +107,11 @@ REASON_TASK_DIGEST_MISMATCH = "campaign_task_digest_mismatch"
 REASON_CEILING_BELOW_FLOOR = "campaign_ceiling_below_floor"
 REASON_BUDGET_EXHAUSTED = "campaign_budget_exhausted"
 REASON_GATE_UNCONFIGURED = "campaign_gate_unconfigured"
+REASON_ORACLE_UNCONFIRMED = "campaign_oracle_unconfirmed"
+REASON_SAMPLING_QUEUED = "campaign_sampling_queued"
+REASON_SAMPLING_PENDING = "campaign_sampling_pending"
+REASON_SAMPLING_CLASSIFIED = "campaign_sampling_classified"
+REASON_SAMPLING_INVALID = "campaign_sampling_invalid"
 
 #: Refusals that escalate to Research-Harbor (escalation event + lin comment).
 #: Routine setup/profile/lock/deviation mismatches stay silent in waiting with
@@ -139,6 +145,42 @@ class CampaignTaskAllowance(_FrozenContract):
     task_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     package_digest: str = Field(pattern=r"^sha256:[0-9a-f]{64}$")
     verifier_digest: str | None = Field(default=None, pattern=r"^sha256:[0-9a-f]{64}$")
+
+    expected_cost_usd: float | None = Field(default=None, gt=0)
+    expected_wall_seconds: float | None = Field(default=None, gt=0)
+
+
+class CampaignAdaptiveSampling(_FrozenContract):
+    """Beta(1,1) predictive confidence in the finite HAR-168 outcome band.
+
+    Always means all M gated passes; never means zero; sometimes means mixed.
+    A mixed prefix is conclusive. Homogeneous prefixes integrate the remaining
+    Bernoulli draws under the posterior; this is not confidence that latent p
+    equals exactly zero/one. At .95, M=2 saves nothing; M=4 saves an expected
+    5*p*(1-p) draws by stopping mixed prefixes. Predictive misclassification
+    risk at an early stop is <= 1-target_confidence under the stated prior,
+    not a uniform frequentist guarantee (the simulation measures that error).
+    """
+
+    target_confidence: float = Field(default=0.95, gt=0.5, le=1)
+    seed: int = 20261007
+
+
+def adaptive_band(
+    outcomes: list[bool], max_attempts: int, target_confidence: float = 0.95
+) -> tuple[str | None, float]:
+    """Return a certified finite-campaign band and its predictive confidence."""
+    if max_attempts < 1 or len(outcomes) > max_attempts or not 0.5 < target_confidence <= 1:
+        raise ValueError("invalid adaptive sampling horizon or confidence")
+    if not outcomes:
+        return None, 0.0
+    passes = sum(outcomes)
+    if 0 < passes < len(outcomes):
+        return "sometimes", 1.0
+    k = len(outcomes)
+    confidence = math.prod((k + 1 + j) / (k + 2 + j) for j in range(max_attempts - k))
+    band = "always" if passes == k else "never"
+    return (band if confidence >= target_confidence else None), confidence
 
 
 class CampaignCeilingFloor(_FrozenContract):
@@ -256,6 +298,10 @@ class ExperimentCampaign(_FrozenContract):
     attempts_per_task: int = Field(default=1, ge=1)
     cost_estimate: CampaignCostEstimate | None = None
     tasks: list[CampaignTaskAllowance] = Field(min_length=1)
+    concurrency: int = Field(default=1, ge=1, exclude_if=lambda value: value == 1)
+    adaptive_sampling: CampaignAdaptiveSampling | None = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
     reference_profile: str = Field(min_length=1)
     allowed_deviations: list[ReferenceDeviation] = Field(default_factory=list)
     require_egress_lock: bool = True
@@ -485,6 +531,7 @@ def check_campaign_admission(
     *,
     repo_root: Path | None,
     committed_usd: float,
+    defer_sampling: bool = False,
 ) -> PolicyDecision:
     """Pure campaign admission check: every mismatch has its own reason.
 
@@ -615,6 +662,15 @@ def check_campaign_admission(
                     "before the reference limits"
                 ),
             )
+    if campaign.adaptive_sampling is not None:
+        sampling_refusal = adaptive_admission_refusal(spec, campaign, resolved_root)
+        if sampling_refusal is not None:
+            return sampling_refusal
+        if defer_sampling:
+            return _sampling_refusal(
+                REASON_SAMPLING_QUEUED,
+                "adaptive draw staged; the tick admits tasks in seeded priority order",
+            )
     estimate = _reservation_usd(spec.model_dump(mode="json"), campaign)
     if committed_usd >= campaign.budget_usd or committed_usd + estimate > campaign.budget_usd:
         return PolicyDecision(
@@ -634,6 +690,348 @@ def check_campaign_admission(
             f"({campaign.reference_profile}, locked, budget ${campaign.budget_usd:.2f})"
         ),
     )
+
+
+def _sampling_refusal(code: str, message: str) -> PolicyDecision:
+    return PolicyDecision(admitted=False, reason_code=code, message=message)
+
+
+def _task_csv(path: Path) -> dict[str, dict[str, str]]:
+    if not path.is_file():
+        return {}
+    rows: dict[str, dict[str, str]] = {}
+    with path.open(encoding="utf-8", newline="") as handle:
+        for row in csv.DictReader(handle):
+            task_id = row.get("task_id") or row.get("task")
+            if not task_id or task_id in rows:
+                raise ValueError(f"missing or duplicate task in {path}")
+            rows[task_id] = row
+    return rows
+
+
+def oracle_confirmation(repo_root: Path, task_id: str, package_digest: str) -> tuple[bool, str]:
+    """Confirm an explicit oracle+nop label, never infer one from solve tags.
+
+    HAR-191 sweep rows supersede pilots. If the sweep is absent, the same
+    ledger/control sources are used; sound nop or model passes alone do not
+    establish a reference solution. Only exact packages or the existing
+    verified metadata/verifier-only lineage may inherit a ledger label.
+    """
+    from evallab.setup_fingerprint import lineage_ledger_binding
+    from evallab.task_health_tags import LEDGER, LOCKED_NOP, health_tag
+
+    try:
+        ledger = _task_csv(repo_root / LEDGER).get(task_id)
+        if ledger is None:
+            return False, "no ledger row"
+        base = repo_root / "research/experiments/python-task-ledger"
+        controls = _task_csv(base / "oracle_pilot.csv")
+        controls.update(_task_csv(base / "oracle_sweep.csv"))
+        row = controls.get(task_id)
+        if row is None or row.get("label") != "oracle:pass+nop:fail":
+            return (
+                False,
+                f"no confirmed oracle:pass+nop:fail label ({(row or {}).get('label', 'absent')})",
+            )
+        if not (row.get("evidence") or row.get("evidence_path")):
+            return False, "oracle label has no evidence reference"
+        control_digest = row.get("run_digest")
+        if not control_digest:
+            return False, "oracle label has no package-bound run_digest"
+        if control_digest == ledger.get("run_digest"):
+            locked = _task_csv(repo_root / LOCKED_NOP).get(task_id)
+            health = health_tag(ledger, locked)
+            if health not in {"health:sound", "health:repaired", "health:unchecked"}:
+                return False, f"adverse evidence on oracle package: {health}"
+        if control_digest == package_digest:
+            return True, "oracle:pass+nop:fail confirmed for exact package"
+        if control_digest != ledger.get("run_digest"):
+            return False, "oracle control digest differs from current ledger package"
+        binding = lineage_ledger_binding(repo_root, task_id, package_digest)
+        if binding["admitted"]:
+            return True, "oracle:pass+nop:fail inherited through verified scoring/metadata lineage"
+        return False, f"oracle label does not bind this package: {binding['reason']}"
+    except (OSError, ValueError, KeyError) as exc:
+        return False, f"oracle evidence unreadable: {type(exc).__name__}: {exc}"
+
+
+def _campaign_queue_specs(repo_root: Path, campaign_id: str) -> list[tuple[str, ExperimentSpec]]:
+    rows = []
+    for state in QUEUE_STATES:
+        for path in sorted((repo_root / "queue" / state).glob("*.json")):
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                if not isinstance(raw, dict) or raw.get("campaign_id") != campaign_id:
+                    continue
+                spec = ExperimentSpec.model_validate(raw)
+            except (OSError, ValueError):
+                continue
+            rows.append((state, spec))
+    return rows
+
+
+def _sample_outcome(repo_root: Path, spec: ExperimentSpec) -> bool | None:
+    from evallab.results import load_job
+    from evallab.step_layers import classify_stop_reason
+
+    candidate = (repo_root / (spec.jobs_dir or "runs") / spec.name).resolve()
+    if not candidate.is_relative_to(repo_root.resolve()):
+        return None
+    try:
+        job = load_job(candidate)
+        if len(job.trials) != 1:
+            return None
+        trial = job.trials[0]
+        agent = trial.result.get("agent_result") or {}
+        metadata = agent.get("metadata") or {}
+        stop, _ = classify_stop_reason(
+            agent_metadata=metadata, exception_info=trial.result.get("exception_info")
+        )
+        if stop == "context_exhausted":
+            return False
+        if trial_is_infra_excluded(trial.result, trial.rewards):
+            return None
+        reward = trial.rewards.get("reward_gated", trial.rewards.get("reward"))
+        return reward == 1 and trial.rewards.get("integrity", 1) == 1
+    except (OSError, ValueError, KeyError):
+        return None
+
+
+def adaptive_task_outcomes(
+    repo_root: Path, campaign: ExperimentCampaign, task_id: str
+) -> list[bool]:
+    """Contiguous settled draws; infra consumes no scientific attempt."""
+    rows = _campaign_queue_specs(repo_root, campaign.campaign_id)
+    originals: dict[int, tuple[str, ExperimentSpec]] = {}
+    for state, spec in sorted(
+        rows,
+        key=lambda row: (
+            row[1].submitted_at or datetime.max.replace(tzinfo=UTC),
+            str(row[1].spec_id),
+        ),
+    ):
+        index = spec.campaign_task_attempt
+        if (
+            spec.task_id == task_id
+            and spec.campaign_replaces is None
+            and index is not None
+            and state != "rejected"
+        ):
+            originals.setdefault(index, (state, spec))
+    outcomes: list[bool] = []
+    for index in range(1, campaign.attempts_per_task + 1):
+        entry = originals.get(index)
+        if entry is None or entry[0] not in SETTLED_STATES:
+            break
+        outcome = _sample_outcome(repo_root, entry[1])
+        if outcome is None:
+            replacements = [
+                (state, spec) for state, spec in rows if spec.campaign_replaces == entry[1].spec_id
+            ]
+            if len(replacements) != 1 or replacements[0][0] not in SETTLED_STATES:
+                break
+            outcome = _sample_outcome(repo_root, replacements[0][1])
+        if outcome is None:
+            break
+        outcomes.append(outcome)
+    return outcomes
+
+
+def adaptive_admission_refusal(
+    spec: ExperimentSpec, campaign: ExperimentCampaign, repo_root: Path
+) -> PolicyDecision | None:
+    policy = campaign.adaptive_sampling
+    assert policy is not None
+    confirmed, reason = oracle_confirmation(
+        repo_root, spec.task_id or "", spec.task_package_digest or ""
+    )
+    if not confirmed:
+        return _sampling_refusal(REASON_ORACLE_UNCONFIRMED, reason)
+    index = spec.campaign_task_attempt
+    if index is None or index > campaign.attempts_per_task or spec.attempts != 1:
+        return _sampling_refusal(
+            REASON_SAMPLING_INVALID,
+            "adaptive campaigns require one native draw and an in-range campaign_task_attempt",
+        )
+    rows = _campaign_queue_specs(repo_root, campaign.campaign_id)
+    peers = [
+        other
+        for _, other in rows
+        if other.task_id == spec.task_id
+        and other.campaign_task_attempt == index
+        and other.spec_id != spec.spec_id
+        and other.campaign_replaces is None
+    ]
+    first = min(
+        [spec, *peers],
+        key=lambda candidate: (
+            candidate.submitted_at or datetime.max.replace(tzinfo=UTC),
+            str(candidate.spec_id),
+        ),
+    )
+    if spec.campaign_replaces is None and first.spec_id != spec.spec_id:
+        return _sampling_refusal(REASON_SAMPLING_INVALID, "task draw already staged")
+    if spec.campaign_replaces is not None:
+        original = next(
+            (
+                other
+                for state, other in rows
+                if other.spec_id == spec.campaign_replaces and state in SETTLED_STATES
+            ),
+            None,
+        )
+        if (
+            original is None
+            or original.campaign_replaces is not None
+            or (
+                original.task_id != spec.task_id
+                or original.campaign_task_attempt != index
+                or original.task_package_digest != spec.task_package_digest
+            )
+            or not _job_has_infra_excluded_trial(repo_root, original)
+        ):
+            return _sampling_refusal(
+                REASON_SAMPLING_INVALID, "replacement lacks matching infra-excluded original"
+            )
+        if any(
+            other.campaign_replaces == original.spec_id and other.spec_id != spec.spec_id
+            for _, other in rows
+        ):
+            return _sampling_refusal(
+                REASON_SAMPLING_INVALID, "infra draw already has its one replacement"
+            )
+    outcomes = adaptive_task_outcomes(repo_root, campaign, spec.task_id or "")
+    band, confidence = adaptive_band(outcomes, campaign.attempts_per_task, policy.target_confidence)
+    if band is not None:
+        return _sampling_refusal(
+            REASON_SAMPLING_CLASSIFIED,
+            f"task band {band} known at confidence {confidence:.6f} after {len(outcomes)} draws",
+        )
+    if index != len(outcomes) + 1:
+        return _sampling_refusal(
+            REASON_SAMPLING_PENDING, "preceding task draw or its infra replacement is not settled"
+        )
+    return None
+
+
+def adaptive_priority(
+    repo_root: Path, campaign: ExperimentCampaign, spec: ExperimentSpec
+) -> tuple[float, float, str]:
+    """Cheap information first; explicit historical estimates beat fallback estimates.
+
+    Task-history uncertainty only orders tasks: it never certifies capability
+    on this model/package. Seeded hashes break ties, independent of submission
+    IDs. Settled uncertain follow-ups precede unstarted tasks' first draws.
+    """
+    allowance = next(item for item in campaign.tasks if item.task_id == spec.task_id)
+    history_path = repo_root / "research/experiments/python-task-ledger/task_history.csv"
+    history = _task_csv(history_path).get(spec.task_id or "", {})
+    a, b = 1 + int(history.get("clean_pass") or 0), 1 + int(history.get("fail") or 0)
+    uncertainty = a * b / ((a + b) ** 2 * (a + b + 1))
+    cost = allowance.expected_cost_usd or float(spec.est_cost_usd or 1.0)
+    wall = allowance.expected_wall_seconds or float(spec.timeout_seconds)
+    seed = campaign.adaptive_sampling.seed if campaign.adaptive_sampling else 0
+    tie = hashlib.sha256(f"{seed}:{spec.task_id}".encode()).hexdigest()
+    return cost / uncertainty, wall, tie
+
+
+def reconcile_adaptive_sampling(
+    executor: Any, *, parallel: int, spec_ids: set[str] | None = None
+) -> None:
+    """Release a priority wave under the tick lock, using existing admission.
+
+    Wave width is capped by campaign concurrency, executor capacity and the
+    HAR-163 Daytona allowance. The existing HAR-189 gate reserves each draw;
+    no alternate accounting is introduced. Follow-ups precede unstarted
+    tasks, so budget stops leave at most one wave partially informative.
+    """
+    root = executor.repo_root
+    waiting = executor.queue.list_specs("waiting")
+    for path, spec in executor.queue.list_specs("approved"):
+        if spec.campaign_id is None or (spec_ids is not None and str(spec.spec_id) not in spec_ids):
+            continue
+        try:
+            campaign, _ = load_approved_campaign(root, spec.campaign_id)
+        except CampaignApprovalError:
+            continue
+        if campaign.adaptive_sampling is not None:
+            destination = executor.queue.transition(
+                path,
+                "waiting",
+                actor="adaptive-sampling",
+                event="policy_waiting",
+                reason_code=REASON_SAMPLING_QUEUED,
+            )
+            waiting.append((destination, spec))
+    if spec_ids is not None:
+        waiting = [(path, spec) for path, spec in waiting if str(spec.spec_id) in spec_ids]
+    campaign_ids = sorted({spec.campaign_id for _, spec in waiting if spec.campaign_id})
+    for campaign_id in campaign_ids:
+        try:
+            campaign, _ = load_approved_campaign(root, campaign_id)
+        except CampaignApprovalError:
+            continue
+        if campaign.adaptive_sampling is None:
+            continue
+        candidates = []
+        for path, spec in waiting:
+            if spec.campaign_id != campaign_id:
+                continue
+            refusal = adaptive_admission_refusal(spec, campaign, root)
+            if refusal is not None:
+                executor.queue.write_reason(spec, refusal)
+                if refusal.reason_code == REASON_SAMPLING_CLASSIFIED:
+                    executor.queue.transition(
+                        path,
+                        "rejected",
+                        actor="adaptive-sampling",
+                        event="sampling_skipped",
+                        reason_code=refusal.reason_code,
+                    )
+                continue
+            outcomes = adaptive_task_outcomes(root, campaign, spec.task_id or "")
+            candidates.append(
+                (
+                    not bool(outcomes or spec.campaign_replaces),
+                    adaptive_priority(root, campaign, spec),
+                    path,
+                    spec,
+                )
+            )
+        if not candidates:
+            continue
+        ordered = sorted(candidates, key=lambda item: (item[0], item[1]))
+        width = min(campaign.concurrency, parallel)
+        batch = [(item[2], item[3]) for item in ordered[:width]]
+        batch = executor._apply_daytona_clamp(executor._capacity_batch(batch))
+        released = 0
+        for path, spec in batch:
+            decision = executor.gate.decide(
+                spec,
+                spent_today_usd=executor._effective_spend_today() if spec.billable else 0,
+                consecutive_harness_failures=executor._consecutive_harness_failures()
+                if spec.billable
+                else 0,
+            )
+            if decision.admitted:
+                executor.queue._replace_model(
+                    path, spec.model_copy(update={"policy_rule": decision.policy_rule})
+                )
+                executor.queue.transition(
+                    path,
+                    "approved",
+                    actor="adaptive-sampling",
+                    event="policy_admitted",
+                    policy_rule=decision.policy_rule,
+                )
+                released += 1
+            else:
+                executor.queue.write_reason(spec, decision)
+                if decision.reason_code == REASON_BUDGET_EXHAUSTED:
+                    if released == 0:
+                        escalate_after_refusal(root, spec, decision)
+                        executor.queue.stop()
+                    break
 
 
 def _freeze(value: Any) -> Any:
@@ -1105,7 +1503,12 @@ def _refusal_or_none(
     committed_usd: float,
 ) -> PolicyDecision | None:
     decision = check_campaign_admission(
-        spec, campaign, repo_root=repo_root, committed_usd=committed_usd
+        spec,
+        campaign,
+        repo_root=repo_root,
+        committed_usd=committed_usd,
+        defer_sampling=spec.spec_id is not None
+        and any((repo_root / "queue" / "pending").glob(f"*-{spec.spec_id}.json")),
     )
     return None if decision.admitted else decision
 
@@ -1224,6 +1627,15 @@ def escalate_after_refusal(
 def trial_is_infra_excluded(trial_result: Mapping[str, Any], rewards: Mapping[str, Any]) -> bool:
     """Canonical infra classification: counts excluded with reason infra."""
     from evallab.counts import classify_counts
+    from evallab.step_layers import classify_stop_reason
+
+    agent = trial_result.get("agent_result") or {}
+    metadata = agent.get("metadata") or {} if isinstance(agent, Mapping) else {}
+    stop, _ = classify_stop_reason(
+        agent_metadata=metadata, exception_info=trial_result.get("exception_info")
+    )
+    if stop == "context_exhausted":
+        return False
 
     reward = rewards.get("reward")
     exception = trial_result.get("exception_info")

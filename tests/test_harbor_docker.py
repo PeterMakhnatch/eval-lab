@@ -23,9 +23,27 @@ try:
 
     from evallab.harbor_docker import EGRESS_LOCK_RECORD, LockedDockerEnvironment
 except ModuleNotFoundError as error:
-    if error.name == "harbor" or (error.name or "").startswith("harbor."):
-        pytest.skip("Harbor 0.24 runtime is not installed", allow_module_level=True)
-    raise
+    if not (error.name == "harbor" or (error.name or "").startswith("harbor.")):
+        raise
+    # The base lab env (and CI shards) have no `harbor` package installed;
+    # fall back to placeholders and skip per test, keeping the module
+    # collected for the CI collection contract. Names are only touched at
+    # test runtime, after the gate below skips.
+    ExecResult = None
+    DockerEnvironment = None
+    EnvironmentFactory = None
+    EnvironmentConfig = None
+    NetworkMode = None
+    NetworkPolicy = None
+    NativeEnvironmentConfig = None
+    TrialPaths = None
+    EGRESS_LOCK_RECORD = "egress-lock.json"
+    LockedDockerEnvironment = None
+
+
+@pytest.fixture(autouse=True)
+def _require_harbor_runtime():
+    pytest.importorskip("harbor.environments.docker.docker")
 
 
 CID = "a" * 64
@@ -226,17 +244,30 @@ def test_task_compose_is_refused_before_creation(native, name):
         {"network_mode": "host"},
         {"stream": True},
         {"override_gpus": 1},
-        {"task_env_config": EnvironmentConfig(docker_image="fixture", os="windows")},
-        {"task_env_config": EnvironmentConfig(docker_image="fixture", gpus=1)},
-        {
-            "network_policy": NetworkPolicy(
-                network_mode=NetworkMode.ALLOWLIST, allowed_hosts=["example.com"]
-            )
-        },
-        {"phase_network_policies": [NetworkPolicy(network_mode=NetworkMode.NO_NETWORK)]},
+        "windows-task",
+        "gpu-task",
+        "allowlist-policy",
+        "phase-policies",
     ],
 )
 def test_unsupported_execution_routes_fail_closed(native, override):
+    # Harbor-backed overrides are built in the body: constructing them in the
+    # decorator would touch Harbor names at collection time.
+    if isinstance(override, str):
+        override = {
+            "windows-task": {
+                "task_env_config": EnvironmentConfig(docker_image="fixture", os="windows")
+            },
+            "gpu-task": {"task_env_config": EnvironmentConfig(docker_image="fixture", gpus=1)},
+            "allowlist-policy": {
+                "network_policy": NetworkPolicy(
+                    network_mode=NetworkMode.ALLOWLIST, allowed_hosts=["example.com"]
+                )
+            },
+            "phase-policies": {
+                "phase_network_policies": [NetworkPolicy(network_mode=NetworkMode.NO_NETWORK)]
+            },
+        }[override]
     with pytest.raises((ValueError, RuntimeError)):
         native["make"](**override)
     assert _record(native["paths"])["applied"] is False

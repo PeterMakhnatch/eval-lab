@@ -2392,7 +2392,9 @@ class Executor:
             by_agent[spec.agent] = by_agent.get(spec.agent, 0) + slots
             if campaign_id is not None:
                 campaign_slots[campaign_id] = campaign_slots.get(campaign_id, 0) + slots
-        if not selected:
+        # Empty input means no approved specs at all; leave the reason unset so
+        # the tick reports `no_approved_specs` instead of a capacity refusal.
+        if not selected and approved_specs:
             self.last_tick_reason = "capacity_no_approved_spec_fits"
         return selected
 

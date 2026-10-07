@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
@@ -320,24 +320,55 @@ class ParquetPartitionDiscovery:
         return tuple(str(self.root / _parquet_layout_pattern(layout, table)) for layout in selected)
 
 
-def discover_parquet_partitions(root: Path) -> ParquetPartitionDiscovery:
-    """Classify supported Parquet files once for attach and compaction consumers."""
+def discover_parquet_partitions(
+    root: Path,
+    *,
+    tables: Sequence[str] | None = None,
+    job_ids: Sequence[str] | None = None,
+) -> ParquetPartitionDiscovery:
+    """Classify supported files, optionally narrowing a local query's read set.
+
+    Native job selection restricts hot/job/revision files, not shared cold
+    partitions: consumers still join those rows by native identity.
+    """
     resolved = root.resolve()
     if not resolved.is_dir():
         return ParquetPartitionDiscovery(resolved, (), ())
-
-    job_directories = tuple(
-        sorted(
-            path for path in resolved.glob("job_id=*") if path.is_dir() and path.parent == resolved
-        )
+    selected_jobs = frozenset(job_ids) if job_ids is not None else None
+    selected_tables = frozenset(tables) if tables is not None else None
+    candidates = (
+        resolved.glob("job_id=*")
+        if selected_jobs is None
+        else (resolved / f"job_id={job_id}" for job_id in selected_jobs)
     )
+    job_directories = tuple(sorted(
+        path for path in candidates if path.parent == resolved and path.is_dir()
+    ))
+    if selected_tables is None:
+        paths = set(resolved.rglob("*.parquet"))
+    else:
+        paths: set[Path] = set()
+        for table in selected_tables:
+            for layout in PARQUET_LAYOUT_ORDER:
+                pattern = _parquet_layout_pattern(layout, table)
+                if selected_jobs is not None and layout in ("hot", "job", "revision"):
+                    relative = pattern.partition("/")[2]
+                    for directory in job_directories:
+                        paths.update(directory.glob(relative))
+                else:
+                    paths.update(resolved.glob(pattern))
     partitions: list[ParquetPartition] = []
-    for path in sorted(resolved.rglob("*.parquet")):
+    for path in sorted(paths):
         if not path.is_file():
             continue
         partition = _classify_parquet_partition(resolved, path)
-        if partition is not None:
-            partitions.append(partition)
+        if partition is None:
+            continue
+        if selected_tables is not None and partition.table not in selected_tables:
+            continue
+        if selected_jobs is not None and partition.job_id is not None and partition.job_id not in selected_jobs:
+            continue
+        partitions.append(partition)
     return ParquetPartitionDiscovery(resolved, tuple(partitions), job_directories)
 
 

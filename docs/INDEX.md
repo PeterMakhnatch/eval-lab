@@ -31,7 +31,7 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
-    digest: sha256:1e05e7496aac0f1fdf93380f42772ec576afbeb75140d68fad6b61e823301fbf
+    digest: sha256:8b3cd0ffe45fc59d1c75c611adea30cfc3cd31e1bbe4a00dc829bf9fcde054b2
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
@@ -67,7 +67,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:3659d234b3019bb3da650aa9ccc5e2692829cbe11135ecd0728a4325ba5b94ee
+    digest: sha256:e77fc0cde0636d97467694a0e08eb667ef89d8accc9d6d2b704c8449db134c07
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md

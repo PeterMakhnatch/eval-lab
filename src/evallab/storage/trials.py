@@ -276,11 +276,19 @@ def _dedupe_inventory(inventory: Sequence[dict[str, Any]]) -> list[dict[str, Any
     ``unsafe_identity`` keys.
     """
     parent_cache: dict[str, dict[str, Any]] = {}
+    # Published copies repeat the same URI; resolve it once per lookup, not copy.
+    uri_cache: dict[str, Path | None] = {}
     for row in inventory:
         job_id, trial_id, parent_job_id, unsafe = _native_ids(row, parent_cache)
         row["job_id"], row["trial_id"] = job_id, trial_id
         row["parent_job_id"], row["unsafe_identity"] = parent_job_id, unsafe
-        row["uri_path"] = _uri_path(row.get("result"))
+        uri = (row.get("result") or {}).get("trial_uri")
+        if isinstance(uri, str):
+            if uri not in uri_cache:
+                uri_cache[uri] = _uri_path(row.get("result"))
+            row["uri_path"] = uri_cache[uri]
+        else:
+            row["uri_path"] = None
     grouped: dict[tuple[str, str], list[dict[str, Any]]] = {}
     survivors: list[dict[str, Any]] = []
     for row in inventory:
@@ -611,11 +619,41 @@ def _backfill_job(
     return cache[key]
 
 
+def _read_only_projection(
+    row: dict[str, Any], values: dict[str, Any], trusted: set[str]
+) -> str | None:
+    """Fill cache gaps with the same deterministic producers, in memory only."""
+    from evallab.interpretation.features import trial_features
+    from evallab.results import load_trial
+
+    _null_untrusted(values, trusted)
+    try:
+        if not {"trial_facts", "reward_facts"} <= trusted:
+            trial = load_trial(row["trial_dir"])
+            if "trial_facts" not in trusted:
+                values["primary_reward"] = trial.primary_reward
+            if "reward_facts" not in trusted:
+                values["reward"] = trial.primary_reward
+                values["integrity"] = trial.rewards.get("integrity")
+                values["reward_gated"] = trial.rewards.get("reward_gated")
+            elif values["reward"] is None:
+                values["reward"] = values["primary_reward"]
+        if "features" not in trusted:
+            features = trial_features(row["job_dir"], row["trial_dir"])
+            values["stop_reason"] = features["stop_reason"]
+            values["copy_verdict"] = features["copy_verdict"]
+    except Exception as exc:  # noqa: BLE001 -- preserve the trial and its available evidence
+        return f"read-only projection failed: {type(exc).__name__}: {exc}"
+    return None
+
+
 def connect_trials(
     *,
     repo_root: Path,
     roots: Sequence[Path] | None = None,
     derived_root: Path | None = None,
+    task_names: Sequence[str] | None = None,
+    read_only: bool = False,
 ) -> tuple[duckdb.DuckDBPyConnection, dict[str, Any]]:
     """Build the transient ``trials`` view; the caller closes the connection.
 
@@ -625,6 +663,10 @@ def connect_trials(
     out over the existing derived roots while backfills write to the
     shared selected store. Keep ``info`` alive while the connection is
     open (it holds the registered Arrow table).
+
+    ``task_names`` restricts the native task names before projection work.
+    ``read_only`` forbids backfill writes: cache gaps are projected transiently
+    from the same raw evidence producers, with unavailable evidence left null.
     """
     repo = Path(repo_root).resolve()
     scan_roots = [_resolve(repo, Path(p)) for p in roots] if roots is not None else list(trials_roots(repo))
@@ -633,14 +675,6 @@ def connect_trials(
     ordered_roots = [target_root] + [
         root for root in read_roots if Path(root).resolve() != target_root.resolve()
     ]
-    discos = [discover_parquet_partitions(Path(root)) for root in ordered_roots]
-    hot: HotPartitions = {}
-    for disco in discos:
-        for partition in disco.partitions:
-            if partition.layout == "hot" and partition.job_id and partition.trial_id:
-                hot.setdefault(
-                    (partition.table, partition.job_id, partition.trial_id), []
-                ).append(partition)
     con = duckdb.connect(
         ":memory:",
         config={"autoinstall_known_extensions": False, "autoload_known_extensions": False},
@@ -648,6 +682,32 @@ def connect_trials(
     try:
         inventory, unreadable = _discover_inventory(scan_roots)
         rows = _dedupe_inventory(inventory)
+        if task_names is not None:
+            selected = set(task_names)
+            rows = [
+                row for row in rows
+                if isinstance((row.get("result") or {}).get("task_name"), str)
+                and row["result"]["task_name"] in selected
+            ]
+        selected_jobs = sorted({
+            row["job_id"] for row in rows
+            if row["job_id"] is not None and not row["unsafe_identity"]
+        })
+        discos = [
+            discover_parquet_partitions(
+                Path(root),
+                tables=(*_FACT_TABLES, "features"),
+                job_ids=selected_jobs,
+            )
+            for root in ordered_roots
+        ] if rows else []
+        hot: HotPartitions = {}
+        for disco in discos:
+            for partition in disco.partitions:
+                if partition.layout == "hot" and partition.job_id and partition.trial_id:
+                    hot.setdefault(
+                        (partition.table, partition.job_id, partition.trial_id), []
+                    ).append(partition)
         valid_pairs = sorted(
             {
                 (row["job_id"], row["trial_id"])
@@ -665,6 +725,7 @@ def connect_trials(
         backfill_cache: dict[str, str | None] = {}
         records: list[dict[str, Any]] = []
         backfilled: list[str] = []
+        in_memory: list[str] = []
         projection_errors: dict[str, str] = {}
         source_notes: set[str] = set()
         for row in rows:
@@ -694,7 +755,13 @@ def connect_trials(
                     hot=hot, target_root=target_root, cold=cold,
                 )
                 source_notes.update(notes)
-                if problems:
+                if problems and read_only:
+                    error = _read_only_projection(row, values, trusted)
+                    if error is None:
+                        in_memory.append(f"{job_id}/{trial_id}")
+                    else:
+                        error = "; ".join([*problems, error])
+                elif problems:
                     backfill_error = _backfill_job(
                         repo_root=repo,
                         job_dir=job_dir,
@@ -796,6 +863,9 @@ def connect_trials(
         "n_rows": len(rows),
         "n_backfilled": len(backfilled),
         "backfilled": backfilled,
+        "read_only": read_only,
+        "task_names": list(task_names) if task_names is not None else None,
+        "in_memory_projections": in_memory,
         "unreadable_paths": unreadable,
         "projection_errors": projection_errors,
         "projection_source_errors": sorted([*lake_errors, *source_notes]),

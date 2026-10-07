@@ -1,0 +1,597 @@
+{
+  "schema_version": 1,
+  "method": "Assistant manual inspection of retained source-selection evidence, selected instructions/test patches, and complete verifier logs; no reexecution or new allocation. Independent native source readers were checked against primary artifacts.",
+  "requested_checks_per_observed_nonpass_label": 3,
+  "checks_per_label": {
+    "oracle:none": 3,
+    "oracle:fail": 3,
+    "oracle:fail-network": 1,
+    "oracle:patch-conflict": 3
+  },
+  "checks": [
+    {
+      "task_id": "format-code-task-000226",
+      "label": "oracle:none",
+      "label_confirmed": true,
+      "observation": "The selected upstream change is test-only; no source patch was emitted. The locked nop ran 13 tests with 6 failures (not 13 failures), including double-slash URI parsing assertions.",
+      "scientific_limit": "This is a selection miss requiring a sibling source commit, not proof that no solution exists.",
+      "extraction_status": "test-only-fix",
+      "run_digest": "sha256:9666803bf54883a0c0a7bc2741a448be0d77fc8faa159af0bde02ab9633d7b4b",
+      "base": "94e23114bf4e8db9507f3550294037a4804eb053",
+      "fix_commit": null,
+      "patch_tip": null,
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-000226.json",
+          "sha256": "671f07fbcad89c0302f346deb56e8bf2cddf32215799242b0b4aa23a28ed33e5",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000226/nop/verifier-full-output.stdout.log",
+          "sha256": "e76abbef7c04899995fac7dd55157aff9c11dcdb9de5cd0df59def024e94993c",
+          "kind": "nop full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            49,
+            84
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000226/9666803bf548/instruction.md",
+          "sha256": "bcdb07b372bd66ac78aac2bfa24652f751219c2380a3741a1ba52856fb28f6c1",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000226/9666803bf548/tests/test.patch",
+          "sha256": "3073d7523d2a7f45c20d33c67630af1b083446cb8cc92ab389c3df7e745712be",
+          "kind": "selected task tests/test.patch"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000226/oracle/extractor-evidence.stdout.log",
+          "sha256": "a1b5fe5a329ee045f5663dab3367713fb25e2bfa704a284db97c57b49ba3550c",
+          "kind": "complete extraction and candidate-selection evidence"
+        }
+      ],
+      "rejected_candidate": {
+        "commit": "e88232583f4b3e9c5a8576dcd4672f819e297814",
+        "tip": null,
+        "status": "test-only-fix"
+      }
+    },
+    {
+      "task_id": "format-code-task-000813",
+      "label": "oracle:none",
+      "label_confirmed": true,
+      "observation": "Imported-module anchoring rejected the selected introducing changes. No patch was emitted; locked nop ended with collection exit2 because django_recaptcha.client is absent.",
+      "scientific_limit": "Namespace/rename anchoring is an extractor limitation; an absent selected reference is not an unsolvability result.",
+      "extraction_status": "no-identifiable-fix",
+      "run_digest": "sha256:de29f74a1355a60dcf9a2920dd091b848f35be709ce8bac888d2e0b87e82e4d2",
+      "base": "cd25650eef77f4d4e84f62d38b8249694cc53f94",
+      "fix_commit": null,
+      "patch_tip": null,
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-000813.json",
+          "sha256": "bf5dcfbc457a67b4f09cc58dcedbb653cf787232b5fc81b884e1a12c9b0b36a5",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000813/nop/verifier-full-output.stdout.log",
+          "sha256": "cf29a1e02b15b308a2abc331a50aa27457eed74801b901a2b9c26761ebd00238",
+          "kind": "nop full verifier output",
+          "inner_exit": 2,
+          "outer_exit": 0,
+          "lines": [
+            1,
+            22
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000813/instruction.md",
+          "sha256": "5194e7189f5a8c04689b534f177e54355ea0394b33d2ce8b8daaaf94e3b452e3",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000813/tests/test.patch",
+          "sha256": "03f28dc5d244738a6c6e5019ab3db7c80a918ac2daa0c91b388af5bb21dba39c",
+          "kind": "selected task tests/test.patch"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000813/oracle/extractor-evidence.stdout.log",
+          "sha256": "70ba59bf42401155d9826fb20118ca48e504865897556bd0105d7e8747d56cb5",
+          "kind": "complete extraction and candidate-selection evidence"
+        }
+      ],
+      "rejected_candidate": {
+        "commit": "4921a6c600540308f1f7997df666a0406a58c808",
+        "tip": "39a1de811724f5b487ca185b36c9aa5666bc066f",
+        "status": "no-identifiable-fix"
+      }
+    },
+    {
+      "task_id": "format-code-task-001583",
+      "label": "oracle:none",
+      "label_confirmed": true,
+      "observation": "The chosen base-to-tip slice on ipinfo/cmd_asn.go was empty. Locked nop ended with F1 stdout mismatch: help lists the asn subcommand, but not the requested direct <asn> lookup form.",
+      "scientific_limit": "Empty selected diff may reflect a bad tip/scope or build treatment; it is not proof no implementation is possible.",
+      "extraction_status": "empty-diff",
+      "run_digest": "sha256:f5447dd744fb64702a4bc21e999aa51d05c1fd24cf4aef4e768ecd92c85a6822",
+      "base": "1e5c8e397c5fd889768527809304e378d0754e13",
+      "fix_commit": null,
+      "patch_tip": null,
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-001583.json",
+          "sha256": "c68930005d70bfa9a42d978aa328a466ef3267293c2595fbe9a4c360dba6ba8b",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001583/nop/verifier-full-output.stdout.log",
+          "sha256": "b9c1481c5c3aa3ffa4bcde1d789810cb9d67d7ab7183c0bd3b69c4d277c37e29",
+          "kind": "nop full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            1,
+            61
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001583/instruction.md",
+          "sha256": "5ade402c2842b47800a06424fdf26ebb1392ffe7b730bee7dd302eb58fa7f0b9",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001583/tests/test.patch",
+          "sha256": "4d2fb526222732c3710719014efa2493febb7a3f23dd567f9386b589317dc354",
+          "kind": "selected task tests/test.patch"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001583/oracle/extractor-evidence.stdout.log",
+          "sha256": "be973cd039b238014daf56711a3665e2c1ffb804725f7322f41d1a81aae1a50c",
+          "kind": "complete extraction and candidate-selection evidence"
+        }
+      ],
+      "rejected_candidate": {
+        "commit": "05ff7d64342c14984f38ffc909ea8e6e4c001303",
+        "tip": "301d0e1692397d64da244fd7a515eb9635d51744",
+        "status": "empty-diff"
+      }
+    },
+    {
+      "task_id": "format-code-task-000823",
+      "label": "oracle:fail",
+      "label_confirmed": true,
+      "observation": "The source-only candidate adds a project-directory override, not the requested ServiceSecret repair. Locked oracle and open confirmation both completed with four secrets tests failing and inner exit1.",
+      "scientific_limit": "Single-candidate selection is wrong for this demand; the neutral fail label is not a grader-defect verdict.",
+      "extraction_status": "ok",
+      "run_digest": "sha256:8491519933879a3179dde375b73e82c7450b43f0367e052e2d8095096794b903",
+      "base": "1fe24437350d11a9e1b6483839cb72a6f8f2fbf2",
+      "fix_commit": "707210ae95e2e3961e2eb41312d3c06ca56d15a8",
+      "patch_tip": null,
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-000823.json",
+          "sha256": "ab93a9b47f5b1d30a0ac1fa6483cc063b14f3ee3cdacece29e234a1d655367e9",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000823/nop/verifier-full-output.stdout.log",
+          "sha256": "4bfd31104d71c186e64acccc38a22459d96dd847af09966cfdb98774191cf75b",
+          "kind": "nop full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000823/open/verifier-full-output.stdout.log",
+          "sha256": "205ddb17699e78e4cbd251b2174297d9068fbbb0a51f7dcf6fbd52bb3cb6dd7f",
+          "kind": "open_oracle full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000823/oracle/verifier-full-output.stdout.log",
+          "sha256": "af4c9aebb2e81bc6e7b9ad0cf99e88a0bcc57b1e2e2bb5718503c403df559c67",
+          "kind": "oracle full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            34,
+            69
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000823/instruction.md",
+          "sha256": "491f885e464834c5b950df1c59d7598a408b477a8b2eab3ded2508e4c690920a",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000823/tests/test.patch",
+          "sha256": "0ec93c68c4f7cc7b1cfe91a7d0971be9ddff5d117f4d074ca7698c69cb025e30",
+          "kind": "selected task tests/test.patch"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000823/oracle/extractor-evidence.stdout.log",
+          "sha256": "2eab5434acd8c2034facb013d0bb712830f9a4a3546721f1002a80fb43cace1c",
+          "kind": "complete extraction and candidate-selection evidence"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000823/oracle/solution-patch.stdout.log",
+          "sha256": "046a6cf1e24ba7d7b43f606c352c0515009b6642e83a8ea03bfbf2d882d4590a",
+          "kind": "source patch actually applied"
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-001265",
+      "label": "oracle:fail",
+      "label_confirmed": true,
+      "observation": "A broad divergent patch regressed pelican.signals imports: locked/open oracle each collected zero tests with seven import errors and inner exit4. Their full-output bytes are identical.",
+      "scientific_limit": "Historical source evolution can be destructive; this does not establish task unsolvability or network dependence.",
+      "extraction_status": "ok-divergent",
+      "run_digest": "sha256:3cdbc249d78bebf47c19f54eec6a1f5eeab89bd6f689e9919801165e4b826693",
+      "base": "e7ef546661046a22f7c469186e1a97f98a6e8d24",
+      "fix_commit": "0b9a488c26ecc139b4c64b5635833ba2f410d6c0",
+      "patch_tip": "96b23e03bd7a2b8a904fafb70d87484f0c81c86e",
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-001265.json",
+          "sha256": "c9d2019370b97323963221fb57b571b4b42185684bfc137dfa0f975270c8ad19",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001265/nop/verifier-full-output.stdout.log",
+          "sha256": "bbbcf73e9541db4a6c185f0a66ff0498a0ea796a081eda8477c5c4d1124cd7a9",
+          "kind": "nop full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001265/open/verifier-full-output.stdout.log",
+          "sha256": "a657f71736a270d2e744ed35639caa34206931b15fb63603c01d26da9c5976d2",
+          "kind": "open_oracle full verifier output",
+          "inner_exit": 4,
+          "outer_exit": 0
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001265/oracle/verifier-full-output.stdout.log",
+          "sha256": "a657f71736a270d2e744ed35639caa34206931b15fb63603c01d26da9c5976d2",
+          "kind": "oracle full verifier output",
+          "inner_exit": 4,
+          "outer_exit": 0,
+          "lines": [
+            1,
+            50
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001265/3cdbc249d78b/instruction.md",
+          "sha256": "dd401433db14db230b2cc3427590afd2e1acdf3584eb1976be28cc0ade27522f",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001265/3cdbc249d78b/tests/test.patch",
+          "sha256": "07c673d45455501ef08f1be7bddac3df9262621df7734d44b74935a3d5515901",
+          "kind": "selected task tests/test.patch"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001265/oracle/extractor-evidence.stdout.log",
+          "sha256": "d2ccb64b14e31389b20548ff9f084bd3f05330fa753563b670c2d22f29cadc70",
+          "kind": "complete extraction and candidate-selection evidence"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001265/oracle/solution-patch.stdout.log",
+          "sha256": "56a8d4d51026128c898ddaaa4536a56f72caf693d3268c5bf7b7736df22456a3",
+          "kind": "source patch actually applied"
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-001609",
+      "label": "oracle:fail",
+      "label_confirmed": true,
+      "observation": "The historical Text implementation calls the unavailable Pillow FreeTypeFont.getsize API. Locked and open oracle each fail nine rendering tests while two font-discovery tests pass.",
+      "scientific_limit": "The two log hashes differ; only the failure mechanism/count agrees. A compatibility-ported solution was not evaluated.",
+      "extraction_status": "ok-divergent",
+      "run_digest": "sha256:e7520a03f56486be6e67cf746210ac49205c35c7990d5437f2042a626c720fb1",
+      "base": "0abb64a13dc4d6e3863d43eedca8fbbd2ada30e9",
+      "fix_commit": "e9c797c3f725f9267f6a6068eff605c83070643b",
+      "patch_tip": "c5fc4893097bcecc93bf13a0aad504abc5d05cd2",
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-001609.json",
+          "sha256": "20286201dfe498d92e24b15e715ed5858c4adc870c72f8842d5f3b78f41965d7",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001609/nop/verifier-full-output.stdout.log",
+          "sha256": "aa4336050ccbfcbe2995708f0093c67c5ff24c4257bcf8ad183e8662039c363e",
+          "kind": "nop full verifier output",
+          "inner_exit": 2,
+          "outer_exit": 0
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001609/open/verifier-full-output.stdout.log",
+          "sha256": "370e41fbdd6d572252ca5a746f2181c7c9bc95eb9e254a07e79ab8cdc4820bd2",
+          "kind": "open_oracle full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            281,
+            297
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001609/oracle/verifier-full-output.stdout.log",
+          "sha256": "bcce23ff7065164d38f15fdc07e9eb77a85301667e01b97ac3c93371493fafc0",
+          "kind": "oracle full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            257,
+            297
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001609/instruction.md",
+          "sha256": "203a5804aeedaaf2711d9f7bc55f6943210f03dae65089c6acd317ab029d341d",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-001609/tests/test.patch",
+          "sha256": "d539c2b84979cd8c7b33bdeadc6430f83167b5dd883af87d2e65457bfe76c30d",
+          "kind": "selected task tests/test.patch"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001609/oracle/extractor-evidence.stdout.log",
+          "sha256": "fb2904e238b1093cfa757f88c1c011fdcd2b1481a85cf74b8acaa5f19ad155d0",
+          "kind": "complete extraction and candidate-selection evidence"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-001609/oracle/solution-patch.stdout.log",
+          "sha256": "391c47742b92b1cc1494d7bb1cc617fa3bc1a3d88601646592c1aaf7eef7578f",
+          "kind": "source patch actually applied"
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-000552",
+      "label": "oracle:fail-network",
+      "label_confirmed": true,
+      "observation": "The same source patch fails all nine locked tests on www.nseindia.com NameResolutionError and passes all nine in a fresh open sandbox. The test constructs NSE(server=False) before replacing base_url with its local mock.",
+      "scientific_limit": "Positive locked/open pairing supports this reference/network diagnosis; no claim about arbitrary alternative implementations is added.",
+      "extraction_status": "ok-divergent",
+      "run_digest": "sha256:d2cbd3f557c57dfbd2abf157823f51a047b2c8f71423fbdad6f663eecbec27a0",
+      "base": "81c9e9703045d9da731b41d950a3efd2861979ee",
+      "fix_commit": "667a44ed1a154c7c6812a218c97784f9e68cedda",
+      "patch_tip": "ab1193f73fe926aedfb0970ad9d683ded6372e11",
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-000552.json",
+          "sha256": "5455250b5f6f36cf6e89c55ae7f1186ed9989fd3f5e587e05405773a3e3d7966",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000552/nop/verifier-full-output.stdout.log",
+          "sha256": "a987e990109b03d37b5262192f1a610fc2791055446c0c7c77df1b4921caad47",
+          "kind": "nop full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000552/open/verifier-full-output.stdout.log",
+          "sha256": "3ac6d2dc0cdadb2ac70a9d36c6fc4c0d820acd9a5069afff02e3d9e25de9f135",
+          "kind": "open_oracle full verifier output",
+          "inner_exit": 0,
+          "outer_exit": 0,
+          "lines": [
+            1,
+            18
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000552/oracle/verifier-full-output.stdout.log",
+          "sha256": "c71862d404ff3c6531758a8976a999dffe80f9e00807f9b3ba5f743e840a25bc",
+          "kind": "oracle full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            5778,
+            5792
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000552/instruction.md",
+          "sha256": "2844f7b50c104a1595debc4541816d0bbfbdee151f156e3f2dd813d50af7f382",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-000552/tests/test.patch",
+          "sha256": "c8a4a84e67c86acfd9e1cd42318f080faaa65bd938bdcdfa3181cdcb3880b320",
+          "kind": "selected task tests/test.patch",
+          "lines": [
+            86,
+            89
+          ]
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-000041",
+      "project": "eodag",
+      "label": "oracle:patch-conflict",
+      "label_confirmed": true,
+      "observation": "The candidate generated a 14812-byte non-test diff, but git apply-check failed on docs/_static/product_types_information.csv:28. Locked nop completed with one failure and one pass on read-only-home configuration; no oracle verifier was executed.",
+      "scientific_limit": "A bundled documentation hunk blocked the candidate. Neither dropping it nor passing the task was tested.",
+      "extraction_status": "patch-no-apply",
+      "run_digest": "sha256:9f6a4c94edfc439aac23cf5f29a3d12f6d6a8e62ff9adbd00081cb1c2689d8b2",
+      "base": "72e7a48eba23f7debb89903f31d67555b53fcbce",
+      "fix_commit": "a2466ae68ecd0d5772e4f4ae9a60c5ee944c1971",
+      "patch_tip": null,
+      "apply_check_error": "error: patch failed: docs/_static/product_types_information.csv:28\nerror: docs/_static/product_types_information.csv: patch does not apply\n",
+      "solution_patch_metadata": {
+        "bytes": 14812,
+        "hunks": 4,
+        "sha256": null,
+        "rejected_bytes_retained": false
+      },
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-000041.json",
+          "sha256": "b3898f242ced0f7978c38f8bc77ad43abb4108cb4543abc9f02a0c5bdd3f4954",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000041/nop/verifier-full-output.stdout.log",
+          "sha256": "7819fc262c51511f1ccd354e0a159c6b3b4bab4c4a477541b2f54080937f84af",
+          "kind": "nop full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            65,
+            81
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000041/oracle/extractor-evidence.stdout.log",
+          "sha256": "7ccf8878ce2ecd541b4e66f5a2554ac35de090679e030b7b8884898411b05d1e",
+          "kind": "complete extraction and candidate-selection evidence"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000041/9f6a4c94edfc/instruction.md",
+          "sha256": "d5e6f0e801695d4fa2c7e20f8a5ee8a8c9744cdbf302492224738ea8f6f0e09c",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000041/9f6a4c94edfc/tests/test.patch",
+          "sha256": "65706f26a4c36d5ccd6c83a2bace66a5674c9e1894b074e5f7dee457f4f5b97c",
+          "kind": "selected task tests/test.patch"
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-000530",
+      "project": "basilisp",
+      "label": "oracle:patch-conflict",
+      "label_confirmed": true,
+      "observation": "The 947-byte callable-var candidate failed apply-check on CHANGELOG.md:10. Locked nop completed with six failures and four passes; empty-sequence sorting raises TypeError. No oracle verifier was executed.",
+      "scientific_limit": "This candidate is not shown to repair empty-sequence sorting. Removing the changelog conflict would not establish correctness.",
+      "extraction_status": "patch-no-apply",
+      "run_digest": "sha256:5f4eed00684821a71f72cf2cd5d958597a888df04c974dca066d5c4b945168dd",
+      "base": "53735318ac7611f2e0e01423626f8578e6279686",
+      "fix_commit": "cc606e8fb4247dd90a3df56c4253bb859834f36c",
+      "patch_tip": null,
+      "apply_check_error": "error: patch failed: CHANGELOG.md:10\nerror: CHANGELOG.md: patch does not apply\n",
+      "solution_patch_metadata": {
+        "bytes": 947,
+        "hunks": 2,
+        "sha256": null,
+        "rejected_bytes_retained": false
+      },
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-000530.json",
+          "sha256": "e7dd6f869935cc78c28bcea4c90854e1f320799446c8c5cf68f749cc8de5ecce",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000530/nop/verifier-full-output.stdout.log",
+          "sha256": "276a4ff01da744aad754c8c8ec53dd242bca017f88759d68fa10664248852d0c",
+          "kind": "nop full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            335,
+            351
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-000530/oracle/extractor-evidence.stdout.log",
+          "sha256": "7030687788effb403ece37a70f29d17fcacd075888e79f201773599ee37ca3c1",
+          "kind": "complete extraction and candidate-selection evidence"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000530/5f4eed006848/instruction.md",
+          "sha256": "e966aa0d13e6ba94be419ede5bbd39b1f54b079383cbcf0378bcc9e4da350abe",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000530/5f4eed006848/tests/test.patch",
+          "sha256": "9bf6a000c4e56dce5de0cd1bf80e418ab3c25ba8045001a6ab674089a891c19a",
+          "kind": "selected task tests/test.patch"
+        }
+      ]
+    },
+    {
+      "task_id": "format-code-task-002220",
+      "project": "pandas",
+      "label": "oracle:patch-conflict",
+      "label_confirmed": true,
+      "observation": "The 4163-byte backport candidate failed apply-check on pandas/io/excel/_base.py:1062. Locked nop completed with three append-file-bloat assertion failures and one pass; no oracle verifier was executed.",
+      "scientific_limit": "The candidate concerns an Excel-engine regression, not clearly append corruption. The selected tests are file-size proxies, and rebased or alternative patches were not evaluated.",
+      "extraction_status": "patch-no-apply",
+      "run_digest": "sha256:227a9dd7bec693342767b862cabbeafe30b4f8d62e4963be6a3d68a8b1e7d70d",
+      "base": "6db0b55a88a3f9b83136f0735b9a01c003af41ea",
+      "fix_commit": "3ebbc772cab1e0fec084f498fd9f758057d6871c",
+      "patch_tip": null,
+      "apply_check_error": "error: patch failed: pandas/io/excel/_base.py:1062\nerror: pandas/io/excel/_base.py: patch does not apply\n",
+      "solution_patch_metadata": {
+        "bytes": 4163,
+        "hunks": 5,
+        "sha256": null,
+        "rejected_bytes_retained": false
+      },
+      "evidence": [
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/receipts/format-code-task-002220.json",
+          "sha256": "84602a9011b5e254884880ad60b7d5e6673084929c7d9cecff9c9567e39b99cc",
+          "kind": "complete source-bound receipt"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-002220/nop/verifier-full-output.stdout.log",
+          "sha256": "a6451114314415932231c6a67059cf9cd827f9082e04687b7f2cd7dd816973c3",
+          "kind": "nop full verifier output",
+          "inner_exit": 1,
+          "outer_exit": 0,
+          "lines": [
+            101,
+            117
+          ]
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks/format-code-task-002220/oracle/extractor-evidence.stdout.log",
+          "sha256": "e1790dedf39f9b890f3d22fd09df21cdd4b981fc4785aba0af54e1df12cdf6e4",
+          "kind": "complete extraction and candidate-selection evidence"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002220/227a9dd7bec6/instruction.md",
+          "sha256": "c84e2c6f083eada7387a5e8c33f204dbfbd351336f2e6b4097c325f2b51d38ca",
+          "kind": "selected task instruction.md"
+        },
+        {
+          "path": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002220/227a9dd7bec6/tests/test.patch",
+          "sha256": "0cc3f642368385ee2bcba6143c7765c6be16ac8d404306b61734fe318f2026d2",
+          "kind": "selected task tests/test.patch"
+        }
+      ]
+    }
+  ],
+  "corrections": [
+    "Waitress: six failures among thirteen tests, not thirteen failures.",
+    "Fabulous: locked/open verifier output hashes differ; the same nine-failure/two-pass outcome is not byte identity. Pelican outputs are byte-identical.",
+    "Basilisp: the selected callable-var candidate is not demonstrated to be the required empty-sequence sorting fix; removing its changelog conflict is not proof it would pass."
+  ],
+  "available_counts_per_label": {
+    "nop:pass": 0,
+    "oracle:fail": 52,
+    "oracle:fail-network": 1,
+    "oracle:none": 78,
+    "oracle:pass+nop:fail": 193,
+    "oracle:patch-conflict": 23
+  },
+  "availability_limits": {
+    "oracle:fail-network": "Only one positive was observed in the capped 20-task open sample; that sole case was inspected. Three examples were unavailable.",
+    "nop:pass": "No observed cases."
+  }
+}

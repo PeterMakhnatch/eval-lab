@@ -122,7 +122,7 @@ def test_missing_sanitized_source_never_falls_back(monkeypatch, tmp_path):
 def test_cli_defaults_to_sanitized(command):
     argv = [command, "--subset", "subset.json", "--cache-dir", "cache"]
     if command == "materialize":
-        argv += ["--out-tw", "tw", "--out-manifest", "manifest.jsonl"]
+        argv += ["--out-tw", "tw", "--out-manifest", "manifest.jsonl", "--sample-dir", "index"]
     assert build_parser().parse_args(argv).variant == "sanitized"
 
 

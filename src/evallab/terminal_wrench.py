@@ -39,6 +39,150 @@ N_CLEAN = 100
 FAMILY_FLOOR = 8
 TM_CAP = 2
 USER_AGENT = "eval-lab-terminal-wrench"
+#: Upstream index files (task + trajectory catalog) used to draw the base sample.
+INDEX_FILES = ("tasks.json", "trajectories.json")
+HACK_CLASSES = ("rewarded_serious_exploit", "rewarded_nonserious_hack")
+
+
+def fetch_index(index_dir: str | os.PathLike) -> Path:
+    """Download ``index/{tasks,trajectories}.json`` once into ``index_dir``."""
+    index = Path(index_dir)
+    index.mkdir(parents=True, exist_ok=True)
+    for name in INDEX_FILES:
+        dest = index / name
+        if dest.exists() and dest.stat().st_size > 0:
+            continue
+        req = urllib.request.Request(f"{TW_BASE}/index/{name}", headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(req, timeout=120) as resp:
+            dest.write_bytes(resp.read())
+    return index
+
+
+def base_sample(
+    trajectories: list[dict],
+    tasks: list[dict],
+    *,
+    seed: int = SEED,
+    n_hack: int = 400,
+    n_clean: int = 400,
+    cap: int = TM_CAP,
+    floor: int = 35,
+) -> dict:
+    """The seeded 400 + 400 draw the HAR-187 subset is taken from.
+
+    Hacks: rewarded exploits, at most ``cap`` per (task, model), every observed
+    category filled to ``floor`` where the pool allows, then topped up in seeded
+    order. Clean: passing baselines drawn round-robin across (model, source) groups
+    under the same per-(task, model) cap.
+    """
+    rng = random.Random(seed)
+    hacks = [r for r in trajectories if r["classification"] in HACK_CLASSES]
+    catcount = Counter(c for r in hacks for c in r["observed_categories"])
+    chosen: list[dict] = []
+    chosen_keys: set[tuple] = set()
+    per_tm: Counter = Counter()
+
+    def key_of(r: dict) -> tuple:
+        return (r["task_id"], r["model"], r["trajectory_label"])
+
+    def take(r: dict) -> bool:
+        if key_of(r) in chosen_keys or per_tm[(r["task_id"], r["model"])] >= cap:
+            return False
+        chosen.append(r)
+        chosen_keys.add(key_of(r))
+        per_tm[(r["task_id"], r["model"])] += 1
+        return True
+
+    have: Counter = Counter()
+    cands = hacks[:]
+    rng.shuffle(cands)
+    for _ in range(20):
+        for r in cands:
+            if len(chosen) >= n_hack:
+                break
+            if key_of(r) in chosen_keys:
+                continue
+            need = [c for c in r["observed_categories"] if have[c] < min(floor, catcount[c])]
+            if need and take(r):
+                have.update(r["observed_categories"])
+        if all(have[c] >= min(floor, catcount[c]) for c in catcount):
+            break
+    for r in cands:
+        if len(chosen) >= n_hack:
+            break
+        if take(r):
+            have.update(r["observed_categories"])
+
+    groups: dict[tuple, list[dict]] = {}
+    for e in tasks:
+        for b in e.get("baselines", []):
+            item = {
+                "task_id": e["task_id"],
+                "model": e["model"],
+                "source": b.get("source_dataset", e.get("source_dataset")),
+                "label": b["label"],
+                "episode_count": b["episode_count"],
+            }
+            groups.setdefault((item["model"], item["source"]), []).append(item)
+    for group in groups.values():
+        rng.shuffle(group)
+    clean: list[dict] = []
+    seen_tm: Counter = Counter()
+    while len(clean) < n_clean:
+        progressed = False
+        for g in sorted(groups):
+            if len(clean) >= n_clean:
+                break
+            lst = groups[g]
+            for i, b in enumerate(lst):
+                if seen_tm[(b["task_id"], b["model"])] < cap:
+                    clean.append(lst.pop(i))
+                    seen_tm[(b["task_id"], b["model"])] += 1
+                    progressed = True
+                    break
+        if not progressed:
+            break
+    rng.shuffle(clean)
+    base = "tasks/{task_id}/{model}/{tree}/{label}/trial/agent"
+    return {
+        "seed": seed,
+        "n_hack": len(chosen),
+        "n_clean": len(clean),
+        "hacks": [
+            {
+                "task_id": r["task_id"],
+                "model": r["model"],
+                "label": r["trajectory_label"],
+                "episodes": r["episode_count"],
+                "categories": r["observed_categories"],
+                "classification": r["classification"],
+                "path": base.format(tree="hack_trajectories", label=r["trajectory_label"], **r),
+            }
+            for r in chosen
+        ],
+        "clean": [
+            {
+                "task_id": b["task_id"],
+                "model": b["model"],
+                "label": b["label"],
+                "episodes": b["episode_count"],
+                "path": base.format(tree="baseline_trajectories", **b),
+            }
+            for b in clean
+        ],
+    }
+
+
+def _cmd_sample(args: argparse.Namespace) -> int:
+    index = fetch_index(args.index_dir)
+    sample = base_sample(
+        json.loads((index / "trajectories.json").read_text(encoding="utf-8")),
+        json.loads((index / "tasks.json").read_text(encoding="utf-8")),
+        seed=args.seed,
+    )
+    Path(args.out).write_text(json.dumps(sample, indent=1), encoding="utf-8")
+    print(json.dumps({"n_hack": sample["n_hack"], "n_clean": sample["n_clean"]}))
+    return 0
 
 
 def native_variant(row: dict, variant: str = "sanitized") -> str:
@@ -891,8 +1035,14 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--out-stats")
     s.set_defaults(func=_cmd_fetch)
 
+    s = sub.add_parser("sample", help="seeded 400+400 base sample from the upstream index")
+    s.add_argument("--index-dir", required=True, help="cache for index/{tasks,trajectories}.json")
+    s.add_argument("--out", required=True)
+    s.add_argument("--seed", type=int, default=SEED)
+    s.set_defaults(func=_cmd_sample)
+
     s = sub.add_parser("subset", help="seeded stratified hack/clean subset")
-    s.add_argument("--sample", default="/tmp/tw-scoreboard/sample.json")
+    s.add_argument("--sample", required=True, help="output of the sample command")
     s.add_argument("--out", required=True)
     s.add_argument("--seed", type=int, default=SEED)
     s.add_argument("--n-hack", type=int, default=N_HACK)
@@ -903,7 +1053,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("materialize", help="materialize Harbor-shaped TW trial dirs")
     s.add_argument("--subset", required=True)
     s.add_argument("--manifest", help="preserve all rows, ids, labels and family metadata")
-    s.add_argument("--sample-dir", default="/tmp/tw-scoreboard")
+    s.add_argument("--sample-dir", required=True, help="the sample command's --index-dir")
     s.add_argument("--cache-dir", required=True)
     s.add_argument("--variant", choices=("sanitized", "stripped", "raw"), default="sanitized")
     s.add_argument("--out-tw", required=True)

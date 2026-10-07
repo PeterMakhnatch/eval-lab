@@ -211,13 +211,13 @@ def _require_scout_env() -> None:
     except ImportError:
         missing.append("metr-scanners")
     try:
-        import harbor  # noqa: F401
+        import harbor  # noqa: F401  # ty: ignore[unresolved-import]
     except ImportError:
         missing.append("harbor (for Scout's atif source)")
     if missing:
         raise RuntimeError(
-            "scout_metr must run under the native Scout env "
-            "(/private/tmp/har176/scout-native/bin/python); missing: " + ", ".join(missing)
+            "scout_metr needs a Python env with inspect-scout, metr-scanners and harbor "
+            "(see the module docstring); missing: " + ", ".join(missing)
         )
 
 

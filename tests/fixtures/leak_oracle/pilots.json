@@ -1,0 +1,264 @@
+{
+  "pilots": {
+    "000552": {
+      "anchored_paths": {
+        "nse": "src/nse/__init__.py"
+      },
+      "base": "81c9e9703045d9da731b41d950a3efd2861979ee",
+      "candidates": [],
+      "fix": {
+        "distance": null,
+        "sha": "667a44ed1a154c7c6812a218c97784f9e68cedda",
+        "subject": "- Package version bumped to 0.1.0 - New methods:     - NSE.announcements     - NSE.boardMeetings - from_dt and to_dt arguments renamed to from_date and to_date in NSE.actions. - NSE.stockQuote renamed to NSE.equityQuote - NSE.actions raises ValueError if from_date is greater than to_date. - Added sphinx docs folder containing documentation source files. - Added sphinx code documentation markup. - Added python typehints. - Updated User agent string. - Added new sample outputs to src/samples: announcements.json, boardMeetings.json, gainers.json, losers.json"
+      },
+      "non_test_files": [
+        "src/nse/NSE.py"
+      ],
+      "shape": "divergent endpoint introduction; stale containing tip deletes much more than alternate identifier-matched tip",
+      "source_evidence": "/private/tmp/leak-oracle/out/000552/evidence.json",
+      "source_evidence_sha256": "0cb5cecb195630c296a766222dbe4a4497cf990211a1cb40a3b0de7d695d77fb",
+      "status": "ok-divergent",
+      "task": "format-code-task-000552",
+      "test_imports": [
+        "nse"
+      ],
+      "test_patch_files": [
+        "usercase-test-coderl/test_corporate_filings_session.py",
+        "mimo_test_command.sh"
+      ],
+      "tip_candidates_cost": {
+        "ab1193f7": [
+          10,
+          350
+        ],
+        "e2f22e98": [
+          1392,
+          1877
+        ]
+      }
+    },
+    "001198": {
+      "anchored_paths": {
+        "fontbakery.checkrunner": "Lib/fontbakery/checkrunner.py",
+        "fontbakery.configuration": "Lib/fontbakery/configuration.py",
+        "fontbakery.fonts_profile": "Lib/fontbakery/fonts_profile.py",
+        "fontbakery.status": "Lib/fontbakery/status.py"
+      },
+      "base": "fd95c0d0051878eac93bbb43ba63927a1dc50045",
+      "candidates": [],
+      "fix": {
+        "distance": null,
+        "sha": "a3820561736bde9bd243e7b7490aa2e48bf05dcc",
+        "subject": "Make microsoft profile independent of universal/opentype profiles"
+      },
+      "non_test_files": [],
+      "shape": "identifier hit changes microsoft profile, not the modules imported by composition tests",
+      "source_evidence": "/private/tmp/leak-oracle/out/001198/evidence.json",
+      "source_evidence_sha256": "45a02f6426e4b2e8be09ca75f283a0ada63cae21e5e98b306b90047bc37f8103",
+      "status": "no-identifiable-fix",
+      "task": "format-code-task-001198",
+      "test_imports": [
+        "fontbakery.checkrunner",
+        "fontbakery.configuration",
+        "fontbakery.fonts_profile",
+        "fontbakery.status"
+      ],
+      "test_patch_files": [
+        "tests/checks/codespec_profile_composition_test.py",
+        "mimo_test_command.sh"
+      ]
+    },
+    "002139": {
+      "anchored_paths": {
+        "bb.data": "lib/bb/data.py",
+        "bb.fetch2": "lib/bb/fetch2/__init__.py"
+      },
+      "base": "f316e1ced454b1ef83dfb78f3695040600507b78",
+      "candidates": [],
+      "fix": {
+        "distance": null,
+        "sha": "8e7e5719c1de79eb488732818871add3a6fc238b",
+        "subject": "fetch2: add Google Cloud Platform (GCP) fetcher"
+      },
+      "non_test_files": [
+        "lib/bb/fetch2/__init__.py",
+        "lib/bb/fetch2/gcp.py"
+      ],
+      "shape": "divergent GCP source-only introduction; restrict scope to top-scoring fetcher files",
+      "source_evidence": "/private/tmp/leak-oracle/out/002139/evidence.json",
+      "source_evidence_sha256": "fa44b37480ce06f827abc47eca3a7c9d4037d51095216347e876cd60351999a6",
+      "status": "ok-divergent",
+      "task": "format-code-task-002139",
+      "test_imports": [
+        "bb.data",
+        "bb.fetch2"
+      ],
+      "test_patch_files": [
+        "usercase-test-coderl/test_gcp_fetch.py",
+        "mimo_test_command.sh"
+      ],
+      "tip_candidates_cost": {
+        "7150c828": [
+          679,
+          1034
+        ],
+        "7ce4107b": [
+          548,
+          815
+        ],
+        "964958b8": [
+          695,
+          1071
+        ],
+        "af479e23": [
+          682,
+          1043
+        ],
+        "f778b8be": [
+          0,
+          104
+        ]
+      }
+    },
+    "002391": {
+      "anchored_paths": {
+        "pip_audit._audit": "pip_audit/_audit.py",
+        "pip_audit._dependency_source": "pip_audit/_dependency_source/__init__.py",
+        "pip_audit._service": "pip_audit/_service/__init__.py"
+      },
+      "base": "c0e2968ec81390afbf2632c6841ff9203d4f6eea",
+      "candidates": [],
+      "fix": {
+        "distance": null,
+        "sha": "6a6b1fc1a093b2e98f9d748f7ae3b080bbaacacd",
+        "subject": "pip_audit: dedupe vulnerability reports by alias (#232)"
+      },
+      "non_test_files": [
+        "pip_audit/_audit.py",
+        "pip_audit/_service/interface.py",
+        "pip_audit/_service/osv.py",
+        "pip_audit/_service/pypi.py"
+      ],
+      "shape": "divergent alias-dedup introduction; exclude tests and changelog",
+      "source_evidence": "/private/tmp/leak-oracle/out/002391/evidence.json",
+      "source_evidence_sha256": "b5d7262406d27b1243c5c717c8ba9782933129ed9d77f7a9b39489cacc7d98ef",
+      "status": "ok-divergent",
+      "task": "format-code-task-002391",
+      "test_imports": [
+        "packaging.version",
+        "pip_audit._audit",
+        "pip_audit._dependency_source",
+        "pip_audit._service"
+      ],
+      "test_patch_files": [
+        "usercase-test-coderl/test_auditor_deduplicates_vulnerabilities.py",
+        "mimo_test_command.sh"
+      ],
+      "tip_candidates_cost": {
+        "9b8376be": [
+          28,
+          85
+        ],
+        "c2bff927": [
+          3,
+          57
+        ],
+        "f4433d22": [
+          2,
+          55
+        ]
+      }
+    },
+    "002402": {
+      "anchored_paths": {},
+      "base": "a9c9fc6615edd4a61dbab0eb8e4fe971a7f58a72",
+      "candidates": [
+        {
+          "continuous": [],
+          "sha": "56f63eb604787879a4943008edeb9c50bd9207b6",
+          "source_hits": [
+            "numpyro/distributions/batch_util.py"
+          ],
+          "subject": "Fix promote_batch_shape logic to take batch shapes of all parameters (#1973)"
+        },
+        {
+          "continuous": [
+            "test/contrib/test_control_flow.py"
+          ],
+          "sha": "7041846e7acd2d17eb5992681d8fa78aee865102",
+          "source_hits": [],
+          "subject": "fix(tests): update tolerance levels and `PRNGKey` usage for improved test stability (#1959)"
+        }
+      ],
+      "fix": {
+        "distance": 7,
+        "sha": "56f63eb604787879a4943008edeb9c50bd9207b6",
+        "subject": "Fix promote_batch_shape logic to take batch shapes of all parameters (#1973)"
+      },
+      "non_test_files": [
+        "numpyro/distributions/batch_util.py"
+      ],
+      "shape": "source-path relevance outranks an earlier continuous test-only tolerance change",
+      "source_evidence": "/private/tmp/leak-oracle/out/002402/evidence.json",
+      "source_evidence_sha256": "f6ab799c3fa06f04f5812a070df4891d2923e9b672c63380c36a960ace555ae2",
+      "status": "ok",
+      "task": "format-code-task-002402",
+      "test_imports": [],
+      "test_patch_files": [
+        "test/contrib/test_control_flow.py",
+        "test_commands.json",
+        "mimo_test_command.sh"
+      ]
+    },
+    "002552": {
+      "anchored_paths": {},
+      "base": "d5179059d927ed7ababa536da842de2680b52724",
+      "candidates": [
+        {
+          "continuous": [
+            "miio/tests/test_miot_models.py"
+          ],
+          "sha": "e88159fbac2f2f2673641586fa46517632e7b1f2",
+          "source_hits": [
+            "miio/miot_models.py"
+          ],
+          "subject": "Handle null-valued ins and outs for miotaction (#1943)"
+        },
+        {
+          "continuous": [],
+          "sha": "edb06c5297843b2029e641ad682d98b1fd797876",
+          "source_hits": [
+            "miio/miot_models.py"
+          ],
+          "subject": "Add unique_identifier property to miot properties, actions, and events (#1984)"
+        }
+      ],
+      "fix": {
+        "distance": 2,
+        "sha": "e88159fbac2f2f2673641586fa46517632e7b1f2",
+        "subject": "Handle null-valued ins and outs for miotaction (#1943)"
+      },
+      "non_test_files": [
+        "miio/miot_models.py"
+      ],
+      "shape": "dangling future; source-path tie broken by test-before-blob continuity",
+      "source_evidence": "/private/tmp/leak-oracle/out/002552/evidence.json",
+      "source_evidence_sha256": "d24e64afe6e9d53de76c767d5a93c93d13561532cfdff223e96d985b3a7a5882",
+      "status": "ok",
+      "task": "format-code-task-002552",
+      "test_imports": [],
+      "test_patch_files": [
+        "miio/tests/test_miot_models.py",
+        "test_commands.json",
+        "mimo_test_command.sh"
+      ]
+    }
+  },
+  "provenance": {
+    "kind": "compact metadata extracted verbatim from retained pre-repair pilot evidence",
+    "limits": "The executable tests construct small synthetic Git histories modeling these shapes; they are not original-task verifier or paid control reruns, and these historical receipts are not proof for the repaired extractor revision.",
+    "preserved_archive_sha256": "ff07ae8ae867b3212ea8481074016d2f73295e3dd5008689eed6890e2bde44e7",
+    "preserved_intake": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/intake",
+    "source_root": "/private/tmp/leak-oracle/out"
+  }
+}

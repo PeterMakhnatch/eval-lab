@@ -1,0 +1,1837 @@
+{
+  "format-code-task-000023": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:df1ec1afb6406e966b4e45334caf0d1ca873927e0fdb1203f91e0097ace9da10",
+    "history_runs": 0,
+    "index": 36,
+    "ledger_run_digest": "sha256:1d9811ed41384753a831bdfbc6554a180a9ad7516259ebd58a8e3f73f4119b73",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000023/9da792cce23e.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000023",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-login-path@2"
+    ],
+    "variant_digest": "sha256:9da792cce23e80733401d254970a319b5db57fc6dfc8e74e9c68b73fd677f328",
+    "verifier_digest": "sha256:353d8476ba63b6efdaab6799939892fa976fe9771746049333a4452871bba60a"
+  },
+  "format-code-task-000051": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:f190d89c473987498ee878e62c22a35f63f1a081bc5045e031430d2cdb13d0dc",
+    "history_runs": 0,
+    "index": 19,
+    "ledger_run_digest": "sha256:0bc037eaa0abf9b7fa2baab70f3809b30c8258c2c7ec4cb5bf364a455eb8b044",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000051/e2e019214b4c.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000051",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:e2e019214b4c1bff0f0a1399d2f2cb6397e032cd365d5c7eb8cf4d7a745342e8",
+    "verifier_digest": "sha256:fabcc6f83dc0ff5adb26c4cc1bc1435b51befaf73eb5e963ffb9d659e1abd26c"
+  },
+  "format-code-task-000087": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:7ccc494b08b3f8f4b2dd67c2957845ff95ce2a2af29201ad9abe4ed14d548399",
+    "history_runs": 0,
+    "index": 39,
+    "ledger_run_digest": "sha256:64bc3ceeae5950080d5866b11819a3760646698829250c2c08c4e47644be2d63",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000087/465f244c6a72.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000087",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:465f244c6a7285db05b7c05dc60d7039854e78d73ea3725d137496ea6efea15f",
+    "verifier_digest": "sha256:0e5caabf01b3e46be48c99aef7d75be2288651974fdc40a9730929e312b027b6"
+  },
+  "format-code-task-000145": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:29577823022722e55b070071b9ed4d0f80d6f61af23eac17daeb2db05a34210a",
+    "history_runs": 0,
+    "index": 50,
+    "ledger_run_digest": "sha256:a3a1bb9b46b39eb375da1e8483a9dc3603ef2a5b569e86d4771ecd78af961510",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000145/61002fb9fcdb.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000145",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:61002fb9fcdbc9108d566aff2f00ba9a9044d0fa6a3fe087f41960784e9ce54b",
+    "verifier_digest": "sha256:183d821f7cdd07b44d13176311ca71ab153e993f46c5aac99e341a63352cbea1"
+  },
+  "format-code-task-000149": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:0011e50b9d4975cdf4567043649c2036783340d2b0ea2a0b879f90e521dae62b",
+    "history_runs": 0,
+    "index": 56,
+    "ledger_run_digest": "sha256:86912a7d030e992ba39f7088ac069baa12a28bce92f56af5e845ddc8d69ea564",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000149/e0f432841ee8.json",
+    "strip_status": "validated",
+    "task_id": "format-code-task-000149",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:e0f432841ee86b92c46b83017d7a46d683783e28d1fa7117f86f1c58c38e2761",
+    "verifier_digest": "sha256:0671dcbde1537e45f91db85bee1abcedaaf048281a0d6e7190c935351e34329d"
+  },
+  "format-code-task-000177": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:3514c3ca625eda20a37588b90eff27637f214b45aa1c0576c5ed23c15b7ea664",
+    "history_runs": 0,
+    "index": 24,
+    "ledger_run_digest": "sha256:6e5bda64cf32afbd94b3ba88e78a6997e540feac7ba65134f45a6b169b3ce907",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000177/62fe972da7dc.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000177",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:62fe972da7dc7f6f24dc6939526ceb58bc3faea59231b8e57e1d5b4c7645c572",
+    "verifier_digest": "sha256:2431eb79221706366a20d3a914f85781199f67db65b20de27e626f0249cdd080"
+  },
+  "format-code-task-000211": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:3cdaa4fe016c918896bc7796b32a15357bfc3f64630d323e7fece890806fc855",
+    "history_runs": 0,
+    "index": 58,
+    "ledger_run_digest": "sha256:6bad3e9e93b9fc34050bd69af4cfc73bea4e73b38ad512ab2b96b72af2b3b6bb",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000211/6b00309e0e8c.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000211",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:6b00309e0e8c2154ee97091f12285aef7f6bd50a4d88f5d1d6d26a26141e1c13",
+    "verifier_digest": "sha256:ee60b347696330b4a60ccb4d9927489b66c1dcc671ce2b252e5819099673fb05"
+  },
+  "format-code-task-000296": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:f7bcd381200ef530e1be9b8c35c435138e6dc9cb93c8ff14cd0630004560bf83",
+    "history_runs": 0,
+    "index": 29,
+    "ledger_run_digest": "sha256:e16790b847a9aa038009c3e282962b5ccbfacf15a367c9966a12e1abecca7a05",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000296/9784fdb34b1b.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000296",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:9784fdb34b1bd80b1e10a593b1e975f1240c28a7ce33f19740f71b61a5fc8f56",
+    "verifier_digest": "sha256:fe250cbe186565c3c7c0e92d9830c4c471541137fd1dd56896bb7aa6959e7457"
+  },
+  "format-code-task-000311": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:ff7d0408231ca8c1b6b3ff28f1a36f62f138eed09ad420452c3317cf690c5df1",
+    "history_runs": 1,
+    "index": 53,
+    "ledger_run_digest": "sha256:705beedf9494d7892c6f4f801d8ceb99ce63e715be7747d56376767db4fb7c1b",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000311/928e073e4e00.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000311",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:928e073e4e0019c36ba109b44508db68f386b4448ae8dd29eb32d9617a6d8d11",
+    "verifier_digest": "sha256:e9cfe0996bd3027fe2e985279e090fc85ee8ea5b8a1dc7f72d5ccdfb81fc5b03"
+  },
+  "format-code-task-000320": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:448f013ac8c4c7fbaa2b7c877fd058750e7307cb06f51cb261ed09c47eadafc8",
+    "history_runs": 0,
+    "index": 89,
+    "ledger_run_digest": "sha256:5c518da7955335408bc1b63e9f6cf89b1f6e1f35ff694aa64fc2b05e3359eed8",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000320/965ad9f5f90f.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000320",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:965ad9f5f90f0403ed7b19bb353539fcb460695d29faaecc5340fec9d5a26696",
+    "verifier_digest": "sha256:240932bb9eb3a9996f048358e4f9f808fd584bd72da61fb960f903ee985171b5"
+  },
+  "format-code-task-000328": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:f25580986fccd86508ecc5129f3a4c7b10e7f1098f89d9f9dfb05934804e7873",
+    "history_runs": 0,
+    "index": 47,
+    "ledger_run_digest": "sha256:13fa33f9276f122c38bd93aea7727c626ed43209522123b89be4a785c3351f90",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000328/6174fae1f09c.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000328",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:6174fae1f09ced1c71139994fda51d00f96853cab608c60a0bbda9208ebb1b2e",
+    "verifier_digest": "sha256:df7cf634854b8bf0c025f8623caabd76af5acc85433fa23ebf7018a2a0ead783"
+  },
+  "format-code-task-000336": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:0a8257400bf99379bcd332cfee94115a6948b5e4ed94c489e3f0088208754cc5",
+    "history_runs": 0,
+    "index": 14,
+    "ledger_run_digest": "sha256:6b5250296c7347443afee00f495903c4cbf5a2ba6fb01dbafa569ec10cb8c1b7",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000336/aa1ba7512afd.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000336",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:aa1ba7512afdc27a1e7d5e27594af5db8591fa0276302980b27aac39339538f4",
+    "verifier_digest": "sha256:e05b4889806b904b7a8dce85cf6dc681ccd5e672d22e5525ac7055779a6bcf16"
+  },
+  "format-code-task-000349": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:c4c8a1de5ee7c32269af98da665324349deb312af84e72f9d3a6a2e962c2734d",
+    "history_runs": 0,
+    "index": 11,
+    "ledger_run_digest": "sha256:eba3a49e6526deb6001164647e878293b700a77702ed54a0e1eff54d159b4802",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000349/72436c5012d7.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000349",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:72436c5012d7e0b7cfc38e97d8d070b953966ab366b08d34d6efb8a2a18c4e34",
+    "verifier_digest": "sha256:718c843bddc5500ef717cdaedfe67c856bc144d9d2c16a15f402a2df55b21a29"
+  },
+  "format-code-task-000352": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:e3cca81dac0140ab5000e945d52616f3cceb8ea6c08fa1481754cce344671292",
+    "history_runs": 0,
+    "index": 25,
+    "ledger_run_digest": "sha256:62fd15c2821054cc17d6834e9afc0a44c42031d5c64e1bf84e992954b1d7d279",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000352/8dd7899b7bdc.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000352",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:8dd7899b7bdc92576a1835f49e68512215a4d02d6e9f50c18715ad673f1ac5e8",
+    "verifier_digest": "sha256:5fc3554363a53f381b2ec0de4600ee7bc9200e01ecc436d796fb78d5db5a3de2"
+  },
+  "format-code-task-000407": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:06a66955763cd2ea79f469718187781d7f86741041f83c0b4823b168a408f3e6",
+    "history_runs": 0,
+    "index": 45,
+    "ledger_run_digest": "sha256:6a4b5510ebb6d9123dc125d308caec6a373574684a43c0aabd82959c948aa538",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000407/e30ff8b0761a.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000407",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:e30ff8b0761a2f154e44ff9680b6d286d183daa72fe7564225306c71afc619ee",
+    "verifier_digest": "sha256:8f047ff559a81d2385b70c4423921cacb61c7499175909116ffe9da8c7b45936"
+  },
+  "format-code-task-000408": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:dc2e29f078b0f308f9f88bb646eb0573fb1c02ea6715a28acf2c8e331105acbe",
+    "history_runs": 0,
+    "index": 81,
+    "ledger_run_digest": "sha256:b0a119dca0640d1131d13045ef7d947763f38f730b25602ea854e12aea0b489a",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000408/b7d020ba63cd.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000408",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:b7d020ba63cdb61ef963595be64b2ea308f3b8eb95beabef9905fad6aa12f60a",
+    "verifier_digest": "sha256:6c347df75c524d3fd0357c8a41e8241fd99828ce59a31bc0b0ed43a46ecc5fed"
+  },
+  "format-code-task-000410": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:deacb9c852ceee25d491d3e50a2514ace8b5c90035dd7615f89fd0e668f134dd",
+    "history_runs": 0,
+    "index": 67,
+    "ledger_run_digest": "sha256:c2303c64c8b0f62984bff61a4e570f3c3531b850998c223779232adf857434dd",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000410/b800170a2ad0.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000410",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:b800170a2ad0d6b04b66eefd7c3c511d0ed8f48984b56910ebd8a1d20abff9d8",
+    "verifier_digest": "sha256:e4e893c8e2a4089a98973a5a4439930ca55e17235100f2bdee793355a343dbfc"
+  },
+  "format-code-task-000438": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:5181ba874e8d7c2edb6c677b7bcbe669adfae35645ba23bc916c48126e2d740a",
+    "history_runs": 0,
+    "index": 32,
+    "ledger_run_digest": "sha256:fd090028cd5327e4ce7ae893a4a4ef0ff53f1bb6144f3dbdaba0a87d386e628f",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000438/31f88f5c4e7c.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000438",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:31f88f5c4e7caedfefcbb1f767a03d0778901ec323dfebf0350fe9a422f69e97",
+    "verifier_digest": "sha256:bc7965b3790eae6f7bb1f39462d27e18e7392171ecc9db4af394603251c1d1d9"
+  },
+  "format-code-task-000467": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:c4a83dfb0b55a9c7f6d3ceb973fb39e22a54120cc8773e11777fc3243f882f06",
+    "history_runs": 0,
+    "index": 74,
+    "ledger_run_digest": "sha256:e1308c97f6fb1f29a8ce017be16f7eeb0081faced5c874f16802cc03583c777b",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000467/1ef689e1daf7.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000467",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:1ef689e1daf707eb60ca3890a3aae9647a67870848835beb8e62ae17a78ab3b5",
+    "verifier_digest": "sha256:bdfdf5e1bab807283f73470ca6a951aa4b7323b5c497c64d190b554539b6d522"
+  },
+  "format-code-task-000541": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:36a7df43964ad33edd99da7772e4b60e9e42ae09d2393be4f860cdc43aa0068b",
+    "history_runs": 0,
+    "index": 79,
+    "ledger_run_digest": "sha256:50ee034eade5154a0b1b16d7bbc6c6e1cda12dc139f1c2aec6a6863605f29b8a",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000541/808afa916410.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000541",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:808afa9164105fca499e8b40f3674f472c360d11d8bb4d4f71fc439f079e4992",
+    "verifier_digest": "sha256:b8c5a0ce5b9055b94a4860a3e29c16daa582d6cbb383bf10c2c77cecd8efa620"
+  },
+  "format-code-task-000580": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a773e1f4319675498f034a48600e6f37abb9c8274a120e139979a4f6d75ba47e",
+    "history_runs": 0,
+    "index": 55,
+    "ledger_run_digest": "sha256:7540a1fe8ea160b4b3d0e5c76c2f3ddbfb7f8bdadbc1891a2110873ae5915f28",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000580/718de3029937.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000580",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:718de302993744b7741b49bfa51734138559d21786192c2259abc260c1ab479f",
+    "verifier_digest": "sha256:1283abd68936cbc92bc9f8ab455582659878d8afbdc6130bfd5b0af59a3a2e35"
+  },
+  "format-code-task-000585": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:06a2d9b635c894e3839b5b3699b6237e41224941e1f6242ef1fb52fa6917a425",
+    "history_runs": 0,
+    "index": 48,
+    "ledger_run_digest": "sha256:8c7715cf8df6d109558314d70c1758720b478e168f695282cea99eefac115ce3",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000585/70b44811595f.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000585",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:70b44811595f881ffa0aa6a16a72112bba596cf0ed530bcf50813b4b464fd261",
+    "verifier_digest": "sha256:277f53e78044c07154655d6f91b95e3c3378748d156a33f3d7aeb1ac1f75e7e9"
+  },
+  "format-code-task-000655": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:73f5c9fc3bf815afa9a8c353a73eae8c62a3c9224bcab3e5d5076348df65c369",
+    "history_runs": 0,
+    "index": 84,
+    "ledger_run_digest": "sha256:e39d00fb1e4f8648a3bbea38348e0e8dfc778ec9401fd8ca935fb470abd534b3",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000655/57f4d3c9b1a8.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000655",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-pin-dependency@1"
+    ],
+    "variant_digest": "sha256:57f4d3c9b1a891726ab790d92a488baf8177a4656b33893ed1472cc60057c43c",
+    "verifier_digest": "sha256:8db6480827ed4df1e7f44edfee1363f9ae765f4a17f28f815e3da1ed86d1f0b6"
+  },
+  "format-code-task-000703": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:e894c0540912bb1dab8f58908eccd8ba554b0ee97213a611628cfd2b3ed63fa3",
+    "history_runs": 0,
+    "index": 82,
+    "ledger_run_digest": "sha256:e90ef0f8e78ad7d075e47430ba9efc9c46fe06d9c9a55bae6968d979796cb24d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000703/bc8c941520e1.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000703",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:bc8c941520e1a6f6e9ed6076589d98cb0e65faad0f0940a692ef9edcbcf314f3",
+    "verifier_digest": "sha256:95bf32d9e5178243a82e83221a6c1536fe25947dcbfd7f988c54a4d73efdf2e6"
+  },
+  "format-code-task-000726": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:7e0f88882137b27ca0eba428ad39b6aff3db7be8ecc7d0e4f606d9d5f5418b33",
+    "history_runs": 0,
+    "index": 52,
+    "ledger_run_digest": "sha256:7c980a4ba0e7b4e19e0899c19137ae2b4bec1786ca6808f016b88bca99e8e551",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000726/6062fbb28325.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000726",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:6062fbb28325961170a2827da6c85a8e791bafcdeb293998f9c4a0617bd01a7c",
+    "verifier_digest": "sha256:353dcf4fdd83c5c527c930770d8bb164274f9e641d0fef4d720b5723d3bbbbb6"
+  },
+  "format-code-task-000768": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:819a9f56a535769153d6d2a7b85503aeb0880b5aa256ec61384fcb3caeba280d",
+    "history_runs": 0,
+    "index": 18,
+    "ledger_run_digest": "sha256:fb6e281578b5063c4ab4797a57d0eb169f0fded7a5bcd46893f8f85ff17ac5b9",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000768/26cffa3140eb.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000768",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:26cffa3140ebcf3ac7d823cffe74e45ade637aa24f228072ec05ee82df1e8133",
+    "verifier_digest": "sha256:fa914015925a671bab67c0e41aacd4a972df53b93d4cd18665a4797eabe91ab0"
+  },
+  "format-code-task-000771": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:2f397d0d9ea5615c433ecbe345a4e1b5a81da5d4dacc02ad96c39ec73d063971",
+    "history_runs": 0,
+    "index": 88,
+    "ledger_run_digest": "sha256:8fd4aacdb37359b845708396f6d71ddc32ad8b7ce39f09ecd26afc997ebaac5d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000771/3ee24ac1d7ca.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000771",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:3ee24ac1d7cac8d9802144a85dae64f2b206cf2c42fb801407d33cfcb3811842",
+    "verifier_digest": "sha256:87caf5d0d6d83916e7b72e3e78925d0caa44ecb600f0a6d25ca780d44c738a5b"
+  },
+  "format-code-task-000795": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:51d051c69de79db45d6610f46f246d801082a3a5f659c4239955200fdb920883",
+    "history_runs": 0,
+    "index": 90,
+    "ledger_run_digest": "sha256:8bafabc57d73f934169833e4e9f1341e44267240b3bec83187fea6f38014a3c7",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000795/73f934a2a7e4.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000795",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:73f934a2a7e449e20d69a09b445b5903abe3fd3e893a898aa3c75312a47ea5d4",
+    "verifier_digest": "sha256:e8e25eea03a59d69dd9f97f637e025a28ed60c84e7ca1f516d98d039625743e1"
+  },
+  "format-code-task-000847": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:fda63f4e10c2c13d8bfdb23d629a587dc50532339357883029a46d83c7faff19",
+    "history_runs": 0,
+    "index": 92,
+    "ledger_run_digest": "sha256:a4f5adc9786868367f9d44a858a32936316b52dbd36ad724c9d859cd992f60d6",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000847/011df1d0b668.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000847",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:011df1d0b668637bf7ccd86ff853c7bb07ac735f5413e29ca4660bd83e1a98a6",
+    "verifier_digest": "sha256:ff8e648dca71e9d65c5b64eae781f85f1a8d9da1f343836f5342af58c64bb12d"
+  },
+  "format-code-task-000906": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b5c5aac984c893516661c4a19f1b4e595831b5b8aac6cc7b4dd1097a3cab918e",
+    "history_runs": 0,
+    "index": 31,
+    "ledger_run_digest": "sha256:e481f5de9b5743847acf2f0f86f034c651b1be9bb37cb4de24f0262c8c445920",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000906/2e8fc3862146.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000906",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:2e8fc38621467d88afbaa5a6d461e03813c15d8e0800f5ad6239773add7ffd59",
+    "verifier_digest": "sha256:c4334268726dcc7cb08cca2d594cbacf4adae7e2dd1a9ba82df1ae9def61a562"
+  },
+  "format-code-task-000939": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:6d2a9719025323ae45c43a6af823e25eec98848946c5d2a9bfd9d5e0e91fa5d7",
+    "history_runs": 0,
+    "index": 63,
+    "ledger_run_digest": "sha256:f8eade9decd131301fb56320ee609262250d847e97154a1e9f7235aecb9faaeb",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000939/b9fca64984a5.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000939",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:b9fca64984a51ebdce754fa53e613dd9a0a7757d76e73588a0c025bebf82ed48",
+    "verifier_digest": "sha256:5a0c9c25ef437f361b855a619432a44dcfa116a89d07f42c1322890a1d1062e1"
+  },
+  "format-code-task-000944": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:52850b5aec7ab44642a32ee2894e0d26b36f4e920065ce0bfa745fc9c4a5d566",
+    "history_runs": 0,
+    "index": 23,
+    "ledger_run_digest": "sha256:2eecb821b28bda2ee264f55146929741b0c99e423e09fbee19666df21f1640d9",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000944/b4c6195906f6.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-000944",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:b4c6195906f6735e2072c9434a4662291dc2ebf39c5067cf2ccb77bde97ef945",
+    "verifier_digest": "sha256:45bb91a20fd699f988cb7a92723de5d0b2b849adc77064b8e9312c98fa02dd5b"
+  },
+  "format-code-task-001052": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:c474b6ff2b77900faedb38b5f8ba8ba74bf5bd76c830f0fba58009db39a900da",
+    "history_runs": 0,
+    "index": 44,
+    "ledger_run_digest": "sha256:7840e50faf8f65f81101daa915d1e12e8cf41110bbfa14f622d6209b77aa217a",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001052/a64d67cceb4d.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001052",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:a64d67cceb4d08d28f6bd084eaba40566df655c325bace141c0f7ae966fe1314",
+    "verifier_digest": "sha256:d60e89b077ec7e70c3a2b1e0f9067525dbd8a614a8c5b306ba12b0af02a356e7"
+  },
+  "format-code-task-001058": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:aefadd6a4d7da102cf0509431a1e35c1bef8e6ccc37e976e8e63b3093ec5d315",
+    "history_runs": 0,
+    "index": 34,
+    "ledger_run_digest": "sha256:4793b3d87a6cbd8b71ec831a58e86b4463020595c34abdf8832cb315256cdca9",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001058/254939ebee69.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001058",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-login-path@2"
+    ],
+    "variant_digest": "sha256:254939ebee69b20c5154820ce16569c567963b58b3efcbc63f46f037e92cb13c",
+    "verifier_digest": "sha256:c9e8c16e1f10f4348995d0c5b2f98e1737139ced59e02b8f10565fdd8524f05e"
+  },
+  "format-code-task-001079": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:68bb36e5f54291a6a84bde2c091cadcc7d92580b48450a2ca4ce94f81428101d",
+    "history_runs": 0,
+    "index": 87,
+    "ledger_run_digest": "sha256:90f59eb7918173dfacfae497a2ed04415732d7e5ae9d01eb506ef9b5f445be98",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001079/4a481fbe5142.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001079",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-keep-build-outputs@1"
+    ],
+    "variant_digest": "sha256:4a481fbe5142485cfa6ac1c90622bbf93db4ec319affbd9ea9f863eed31c4dd6",
+    "verifier_digest": "sha256:d5700561051e2f01295443ee5368f74852ac2b8d2d75c1e2c2fc097df794374e"
+  },
+  "format-code-task-001105": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:7cd58fa305c55644e5b614cefaa28597df6dc6632454a2c3789392f9502ad351",
+    "history_runs": 0,
+    "index": 6,
+    "ledger_run_digest": "sha256:dd1582d11170f62433e44b51bd455b2675eef7bf44c9882265c32d61e9a9abb7",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001105/8fde6d63a06f.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001105",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:8fde6d63a06fedc77374df522ce6d9969c2fe5e9ae5208d2760b98e37c3a255d",
+    "verifier_digest": "sha256:f15a62b8d5fd29a1137d4f3b7295316ca4a148dcd689fbcc76526b7728e38356"
+  },
+  "format-code-task-001119": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:4ee5bda3f67955d73fbd03399ca01a99e1ba1f480029a7fc92258fdd71858746",
+    "history_runs": 0,
+    "index": 71,
+    "ledger_run_digest": "sha256:1009d47f719ff2b27e5cf6731bb62933171c93fa01d0aab0d42ec03419c36b90",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001119/cc7ffb517f72.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001119",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:cc7ffb517f72e4c7ea187760dfd13d88dd2fa6ce46a65af5e9fa5e77850b5ec0",
+    "verifier_digest": "sha256:209d038697a65d1cce0e9f579a28675f861ce1efc53b76fc73a60914913f5c90"
+  },
+  "format-code-task-001180": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:e028b75eb09848935ca9fcd762028d7ffba963bfa4c79873d5f7b842292de7b5",
+    "history_runs": 0,
+    "index": 94,
+    "ledger_run_digest": "sha256:cd722fa043b76d87a8ee8fcc093b02fc89a2ac37cfef1012fd199d54e9cec2a5",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001180/ec7365bf9eef.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001180",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:ec7365bf9eefe3d27bb389ea4a40083a6b8f4dde13e3b3f71efcf3a7d6c3bf37",
+    "verifier_digest": "sha256:7de77bd876dd1d781e499d667da9b859962d6bf61aef93d82728980497d3091e"
+  },
+  "format-code-task-001199": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:d742532f0949b0b6fb392f75c9f01e7de97ad7e495a812d67606c8ba0e225ef4",
+    "history_runs": 0,
+    "index": 49,
+    "ledger_run_digest": "sha256:c6ffcb37e65cba912211831498ba360c7931ab82770135f879c2a26d754f4e31",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001199/c5625cae827b.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001199",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:c5625cae827ba6f496e277c31883a7bfe22efafd57bea9a647b54c64e7517169",
+    "verifier_digest": "sha256:1041ef5e6d7da5af57ec73072c556885a5105f72a277ca6838c40d2321a6a27d"
+  },
+  "format-code-task-001200": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:780b104b6d9ef377d95b0a8714215dee26f4056ebd275eb70fd346f9cb082282",
+    "history_runs": 0,
+    "index": 80,
+    "ledger_run_digest": "sha256:0af3a71603afa841a50c177e11557c4ad57fc8af0ab9eee4d69efec88f891d74",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001200/374273414716.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001200",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:37427341471623e05976a9bc7b01c9b9b1eeadb33efd7b71c054b62507261558",
+    "verifier_digest": "sha256:3cf688353823a06cea84c80643ea2eb15411b8e0dda51e4b07cd6e9b2e35aaaf"
+  },
+  "format-code-task-001208": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:661981ea3109f8b689aa6a3543e2b7d1bf0fe1102a6865c15c0834356eeb5edc",
+    "history_runs": 0,
+    "index": 30,
+    "ledger_run_digest": "sha256:fda9581ad5c9b270e6619ec01b7775fedcda0d98108e05c06c31749876feab27",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001208/251f496f9a41.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001208",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:251f496f9a417d1fff6a331b0f185b9af123af99ff5872029b4aa16947f8488c",
+    "verifier_digest": "sha256:de5c58db7159e1279c4b7b5b6291a501187374a6ab9fb4edefc9b691500f97d5"
+  },
+  "format-code-task-001215": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b8768bc98dec8f4b5d617f434aab435d934344496a839372785fa051391c1912",
+    "history_runs": 0,
+    "index": 3,
+    "ledger_run_digest": "sha256:5bc1d1134e4edda60d4d7f07c614a3d5cd968ec9bd26c58014a8b4622aa3018d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001215/512c2ecfa128.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001215",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:512c2ecfa12895e8797b4c306620b263bd2cbbd3dcf87f563f90fd7feb2c13d8",
+    "verifier_digest": "sha256:c10c5aef1aa38752c0eceb2597f1c4e4ff5041328175197bc2d24180d9efa923"
+  },
+  "format-code-task-001218": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:7e4e4db8591530b72d1544580c13e7958903af73282827698b872034cc23e8ab",
+    "history_runs": 0,
+    "index": 51,
+    "ledger_run_digest": "sha256:b6b16e623f97dc6e48ffe32d16fcb03e2db0c705da703362e2f1074d03246a35",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001218/f9898886d560.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001218",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:f9898886d5603308febaa6f343cc47e9396e20ee1dd8f2c5ab8b8ff916179243",
+    "verifier_digest": "sha256:8123875c00c10e7da162af3a34d60bdf50e630610d95072ffb7d9a411f1dafac"
+  },
+  "format-code-task-001220": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:1a1a26358a96fe3103d977155bdd305369d9d33309a495dd2d4a0ac4254098d9",
+    "history_runs": 0,
+    "index": 2,
+    "ledger_run_digest": "sha256:74b71356d173e8b5fb7d74ddf59927f02a17fedf6ea8ce213e174351514d97cb",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001220/1a3f989b837f.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001220",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:1a3f989b837f462af1bb5ea535adb6dff7b219ae4de5b0f7762e4f9f97ca33e3",
+    "verifier_digest": "sha256:2be23197230dbaa53e52a36e7cd743cdbb8bd39b7be00e257929c6f347a79586"
+  },
+  "format-code-task-001261": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:110b751e3286e95b7440b1f85bbd6d7753e2b553fbf023c68fbb23af6da9d24f",
+    "history_runs": 0,
+    "index": 35,
+    "ledger_run_digest": "sha256:48fad490b58dcf43a91c29ead088964060f320e775eae26355a76d2d75cb5752",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001261/47dcc40cd1ea.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001261",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:47dcc40cd1ea00ee7e9576416900c7597ad4ffc0794a1c6ac6dc476d294bceb2",
+    "verifier_digest": "sha256:a6aeed13728dee90f0c804cadefb03d3d0166b762208caad70e13a4021251084"
+  },
+  "format-code-task-001263": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:e12426c1db6f3cf33afbf9b69c9df14ca81d50ac643bcf410d2e9f666d5f5156",
+    "history_runs": 0,
+    "index": 95,
+    "ledger_run_digest": "sha256:fb8066b44047561f6bca869c13ada4f354818a76d78acc88cbc53d32970edad9",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001263/6a19e49b6b24.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001263",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:6a19e49b6b24976f5c4c75d55e66d53da6b4f20a3522b97659dafc6bf072c1ec",
+    "verifier_digest": "sha256:bb043bb8066a7af2bae6e25e0bf6e3bd385c749934f37bc9a9ac28aa44d55c7b"
+  },
+  "format-code-task-001322": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a3b9ff1eaa73575847c493c71f217f26648d66518f82ff1ecbe0d449a3c2c04c",
+    "history_runs": 0,
+    "index": 15,
+    "ledger_run_digest": "sha256:dfa8d6417aed7027125ae464b6827b04c3e3709eb1fe6b7d140b1ec92c44dedb",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001322/d9696c55ece3.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001322",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:d9696c55ece3535e9438b86eac154934c49e2361a3c8dba10d2da37a807ca9a6",
+    "verifier_digest": "sha256:5eb5e02e53408a0851b1094c0e54da8ed947d831e2f7414bbfd18b2bffd406a5"
+  },
+  "format-code-task-001369": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:f0df6201add19e2c75f84a66151147c81932893ea73b7c997b0ba6bc27172787",
+    "history_runs": 0,
+    "index": 93,
+    "ledger_run_digest": "sha256:756acb02f719496142f5f673b1afaad414db771006213b00c2809ad891271837",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001369/26c412f4388f.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001369",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:26c412f4388f90c03b58cc9207fd0296b535db0e88ca4a7d90514aeab2a06f08",
+    "verifier_digest": "sha256:ba2ce4cb524a475c700e34f4ba1411a033e3abd3d9453923e05488409b31f2c5"
+  },
+  "format-code-task-001397": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:397af9832dcff1a94dc375d7c15f03f6a90e3e73ec60eb755bc731ae69288b2c",
+    "history_runs": 0,
+    "index": 65,
+    "ledger_run_digest": "sha256:6690faca8f29119b30440d71dfac8bd556c9e243bf4ed23e8ad3ca79f29f6c18",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001397/2236d9399db4.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001397",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:2236d9399db4f78002780c6e3644f9983f0ff09c24c81d3ef78376bc81baad7e",
+    "verifier_digest": "sha256:7305ee83da794e56a4f501617e8f0520a5c9b76ff4d41ab5c06ad7147dcefc06"
+  },
+  "format-code-task-001406": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b1bb7b4e031804917dfa4bd3dac3396001d6042048a219443f07054dd7647058",
+    "history_runs": 0,
+    "index": 83,
+    "ledger_run_digest": "sha256:db655f2e25fbb86ef15e78b492337a49029c0d55412964412982398ccba5a423",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001406/0ccc2cf5cf23.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001406",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-login-path@2"
+    ],
+    "variant_digest": "sha256:0ccc2cf5cf2399c50d19a1a3cee572a0b4b96b7e196e39781aa0024b25b7ae1c",
+    "verifier_digest": "sha256:f5b8c6cbfc459f5a8174487fce7248020e815c4c779586d528c12b493179ad90"
+  },
+  "format-code-task-001531": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:0efd5f8b834f2b1e896cd948b36fe68f812d7d3b45e0044d9677c7f54558f7bd",
+    "history_runs": 0,
+    "index": 57,
+    "ledger_run_digest": "sha256:76f6b898d038b7167df0a074e729732a0faa03fc68fd225869573e617afcaa5d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001531/621603662102.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001531",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:621603662102558a508f20a7c12eb061192d4fc7e96be8421dea1055c81c7ad8",
+    "verifier_digest": "sha256:a41ce2b22f996523284d19089a8249d21548540fb7c7926074ec52e645bec0ad"
+  },
+  "format-code-task-001558": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:eea1109f65d02db237443821c5e0d90370e760d436623e84446cdeb76fef9978",
+    "history_runs": 0,
+    "index": 20,
+    "ledger_run_digest": "sha256:40d2a4b3627e74b61924e449e71bf60803a2b284fe506b576315dd0d2e6373d8",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001558/890bb2f6f0d6.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001558",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:890bb2f6f0d618c5e6a77ad6a064a6c5001b677b968c0089e61c0ce1e385e87c",
+    "verifier_digest": "sha256:c899be5b085e4742f44c7c9e7f1b8383fcd8a1790bffb08ed2ab4aed1d4c77e9"
+  },
+  "format-code-task-001607": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a973f30b0f025017489028c9ea90bd203e1b146cc305f3ec3014ce958622a6a0",
+    "history_runs": 0,
+    "index": 76,
+    "ledger_run_digest": "sha256:2028fb031bca68a2d629f853dd9447a9c78c7160e4815a09cbec3eb30163b494",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001607/cb45a26c0015.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001607",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-keep-build-outputs@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:cb45a26c001595d9ae0f98df82fa71d904327dc233259a3b03c9a9101accff34",
+    "verifier_digest": "sha256:1598b8da96a70940b27888518d303ab6d066587b5db621ba6a7cfa9060252491"
+  },
+  "format-code-task-001614": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:6b78d325bae068d4fa61f9c6d61da497ef5bde7bca7978febd0e85e8e2cbea34",
+    "history_runs": 0,
+    "index": 59,
+    "ledger_run_digest": "sha256:7440428a05676af6472b30e8aea179410e11506600c4dd0bd788c282301d68c8",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001614/9dde50d08208.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001614",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:9dde50d0820810f6391588efc7e179ecbd36c17c390c80327fa964fbee95ff91",
+    "verifier_digest": "sha256:c447f18bf3af86a287c4b9e5360e1a213a44eb5ac08ba48912f7c46d1f007c1b"
+  },
+  "format-code-task-001620": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:ee9a0394718a0c950fb8db558aeeaed41bd7a3d3705438432ad8998888b0c24b",
+    "history_runs": 0,
+    "index": 43,
+    "ledger_run_digest": "sha256:2bb4c91964db8c481cf752590a5715034f45ba9317f6bcaec91eb7d511ffacce",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001620/15a631052384.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001620",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:15a6310523848901784a51cad83f44b5025237b7a544e40d13b0a070735240b9",
+    "verifier_digest": "sha256:33c836f8419cdb0859368be1fb5d314bd032347be58510c480a42f622574e167"
+  },
+  "format-code-task-001642": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:3be7076127eff0dcea4a6945cae72b9db7a9f4bafa517b5bde1046bd1bc38ffe",
+    "history_runs": 0,
+    "index": 85,
+    "ledger_run_digest": "sha256:cbd94bc1f1dd3b62d470457dc6b9b0a02f9970cb6f57b8423b36a7f41d0f35f6",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001642/14628d67729c.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001642",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:14628d67729c9feec14ec39efe3f829cd7fa22383b4237b560f4ce6bc0ab90ce",
+    "verifier_digest": "sha256:9801d046e80ba282dbf03b673a03537910659c97fcb1d657c2a07bbafcb9578e"
+  },
+  "format-code-task-001709": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:65055c6f730e58614a44c2bac136324565473bc5275242867c26e127ea5aa543",
+    "history_runs": 0,
+    "index": 61,
+    "ledger_run_digest": "sha256:aadb81880ccee4eafc8ae8112f225d652c287c6b07784eb059321a5ca9bcad50",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001709/7de8791ee743.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001709",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:7de8791ee7438f18d324ab100a5df61703d8034c5cf382a1aa023b4491787f49",
+    "verifier_digest": "sha256:cac8b51c78f474b8eca486ab0bfd242e8ec201329741c2f2bb1e9258cc82c453"
+  },
+  "format-code-task-001825": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:3a44da841b9dc87e01af39d1e7c2e9341f01d89e60745fba403c40d7057e5a22",
+    "history_runs": 0,
+    "index": 68,
+    "ledger_run_digest": "sha256:509537eb7d5f61f62b7ee49b5d7b1db433df141036a2c6a62af39f4a6852ca2d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001825/a1fdc63a92af.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001825",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:a1fdc63a92af3249210ab07ca0138275cce225eb42221defa423c066ae40a770",
+    "verifier_digest": "sha256:55fe65a6f17ed09011e01cfa3571081216b03c657281e230361c9f68372ef9cf"
+  },
+  "format-code-task-001840": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:1b54f50b22fdcf1ec545a0916e817d435f7640027ea841c5b0b73a706dec30ef",
+    "history_runs": 0,
+    "index": 42,
+    "ledger_run_digest": "sha256:4780846c2c9bfe58956efe05830b20683e95dafcd9d5c6f84dc668b9fd1ddd7b",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001840/9d72c1997293.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001840",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:9d72c1997293b7eeb3485797c2a2f93f82dbabd1ffc9c980c7180bdd50d14455",
+    "verifier_digest": "sha256:8ddbdda024e09648915150bc60375a110bf8ab95bb57eedbd0a04e94409ec77e"
+  },
+  "format-code-task-001936": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:6c5b07386e5fd7a3c75e9c917565105be0a0aff1ab4c088a1886b762d6e37a9b",
+    "history_runs": 0,
+    "index": 37,
+    "ledger_run_digest": "sha256:48d1562a3fdb0520983072a9d7913cc8e80d54dd2de4912657ca868ba9c3cd95",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001936/2f645c96f8f5.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001936",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:2f645c96f8f508285bcd37e1366f85a59d43f2d9657cb515af5fd1030509acd4",
+    "verifier_digest": "sha256:019919964f681bdb3af1ff8076c32b606ac6510c3701841e7b0f157fbdd79dea"
+  },
+  "format-code-task-001948": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:1e3227656fac8e88daba941da3bd04703b7e4042edba55d40f06e5c4392ed353",
+    "history_runs": 0,
+    "index": 33,
+    "ledger_run_digest": "sha256:ed7bfb0e8e58e9d1341b31239e6afb9efa5164f3fef342925dcb0c56cb30aaeb",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001948/2eaf94e1f73a.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001948",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:2eaf94e1f73a2392cd845e7c0ae2863377b8e0c8826c3272bef854390f0ccc53",
+    "verifier_digest": "sha256:269c650dc98e5cffeb3cf2891338a9b6b7e5728da0ebce4ef0361faffd29bfa6"
+  },
+  "format-code-task-001970": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:5b72c0a123fe500c5c5f2afe920e7bee2301730d196cf84220241d48abdc9812",
+    "history_runs": 0,
+    "index": 96,
+    "ledger_run_digest": "sha256:93497133a06743e419081569039873ff1abfe13b4d70a131b2864dda05464b22",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001970/989b014fca7d.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001970",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:989b014fca7ddb0e0ab09c7d056bac5decd260d4de571f8caefbaa1957318432",
+    "verifier_digest": "sha256:2b7784d0ef01298df87f2f902d719297ac4722c86aea9b67631203d51eb3bf0b"
+  },
+  "format-code-task-001994": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:c15ec3663e4d0ac267622815daf1db817ac2adbea3e27be3822662d4d0cc383b",
+    "history_runs": 0,
+    "index": 86,
+    "ledger_run_digest": "sha256:194f74a222e8d695aef28f34a9833c0682c7413bb680bf18a8d65555b501e2c0",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-001994/c912cda90808.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-001994",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:c912cda9080852e46a362e9ed998bd2eca80701a27b04555ed2376481a5a7785",
+    "verifier_digest": "sha256:22cc5b518a4f19a0930c70fea00bb6500e6448bf0dd4e9447249197f67f8b1d0"
+  },
+  "format-code-task-002003": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:3f40c243c4c63567a66bb919c561e52570d3cf32ef25356a9add6a7a94117774",
+    "history_runs": 0,
+    "index": 13,
+    "ledger_run_digest": "sha256:a9a1bd0f947f58ab41bb7f8344d0124f6610e83fd356ed5702a433222f280739",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002003/8bdad50cb33f.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002003",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:8bdad50cb33f87d4b2b05b8f8df8078b39b2f38d849ec34f3278231ba2470f1f",
+    "verifier_digest": "sha256:852d338eb17a0110f5bed096f237bf9cc82c8cc6629238c1c2d70a3f3e26bded"
+  },
+  "format-code-task-002015": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a2ad93e8dc609cde1eabd80de99dd93724171bb2cc2a518e66520c89cca33185",
+    "history_runs": 0,
+    "index": 54,
+    "ledger_run_digest": "sha256:5edf7ba09c2607587d8b85756012a7a6a383ab82f535767019c7ab3d088adfd7",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002015/4652a0ea7dbf.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002015",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:4652a0ea7dbf9d7fa1df0b4730a48d97266bb8bd80bb81dc0c19921019c1111e",
+    "verifier_digest": "sha256:d412c878679dfcd59296d1dfbed49df7142cfa35646a04f4c7f83bcb8513028d"
+  },
+  "format-code-task-002020": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:288db08e98e8727f590ae1b830943472b55e33f4b00bd22304ac3b6bf7cc4f62",
+    "history_runs": 0,
+    "index": 100,
+    "ledger_run_digest": "sha256:28cde3c126dd56a6c282af492b0f8e93b23f996169d5d97b8c0818002f7a42b9",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002020/c2c16c3792ed.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002020",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:c2c16c3792edbddf224d453ef123cb8ba0addcf7835d80d24c614f40a17c0fdf",
+    "verifier_digest": "sha256:4616f9763d701590b9250adaaddc8d8811e14ed574c470808278e63f815fd044"
+  },
+  "format-code-task-002023": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:cf78c67534a5a6a367971916adae0dad5537a93bcb29223ca35fa600fd6ce051",
+    "history_runs": 0,
+    "index": 73,
+    "ledger_run_digest": "sha256:2224a5e2dcec9fe0a41953d2805c440ede23aed36a2b6c6ada082c9162688e18",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002023/fe96a13a24fd.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002023",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:fe96a13a24fd3dfdac2abcaf92d5abca99f98cdb6f40882da32c36ff3999bdc3",
+    "verifier_digest": "sha256:271182a5e9c192fa926980183c226e42b40e1be6f88131a1792792e74514b45f"
+  },
+  "format-code-task-002076": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:71c5e62d5e2dc2f37bcbd69a4d95cbbe2296e4fb6b5cd086985cfaadbe3f15b8",
+    "history_runs": 0,
+    "index": 27,
+    "ledger_run_digest": "sha256:f428725b3a61476a3e462310ce6324db422d2085f26f873e4a5465c00067c75d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002076/01e61af9e067.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002076",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:01e61af9e0671b20e5253b065c21a3d704c90b60a26cab83515a9177d4ef0546",
+    "verifier_digest": "sha256:7877b185e3c67802add2ccb4082ef04098ead5ddc2ea9d008229da6b3b754211"
+  },
+  "format-code-task-002084": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:504e194cf737bea18a7b1c1695d977df58d2fddf9917bb6f15546b4931a7a202",
+    "history_runs": 0,
+    "index": 8,
+    "ledger_run_digest": "sha256:9c33b35bbecefa1678893c34a72906f4f323944ae840b85b3fc7c3da120670ff",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002084/36c1925b69ca.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002084",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:36c1925b69ca1cac2641d7e9ed261ad632a1d05be98e13aace191a86c7d6b77f",
+    "verifier_digest": "sha256:2cfebcee06f840f243a17d413e7a88474d116dca9ab0c3fcddf03f21a356d6c9"
+  },
+  "format-code-task-002137": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:668437521d9f2a11b60fde8adde403236d7a7d37f51f39586615904f24a045e0",
+    "history_runs": 0,
+    "index": 7,
+    "ledger_run_digest": "sha256:ce3b81ecfa74c17bfdf08fb12b442304e2c0b1cf009e1219568dab0ca527ba67",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002137/18ca2d749a7d.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002137",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:18ca2d749a7de6251519d532b9aa4045cfbc93e14c2c93be0aa88866130a9bf3",
+    "verifier_digest": "sha256:e7f8f10666f71859a7e18a13e4b400aea29dd4957abce582795d1ef62069dd28"
+  },
+  "format-code-task-002143": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:5adac02db952faa5153515d3b4b9fcdb27c7d8faa475326fda9c76662b590641",
+    "history_runs": 0,
+    "index": 16,
+    "ledger_run_digest": "sha256:3dc1a0d2a519f20cdc8f49de86fd2ef9c6414ef6d01af3354bd941f77854d07c",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002143/3a0fe3b9d57e.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002143",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:3a0fe3b9d57e5dc2f589cb9125159a0d5bca31a8db590ece3d74b08284964563",
+    "verifier_digest": "sha256:a4cb57e61b16d921dba96dc02ea5ab22f95819c684e1305cea9c055015fc1fd0"
+  },
+  "format-code-task-002204": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a902ef4b75cb8c0efcaa7b67526eb7f805ef7a39fd8f7eded6977d3de1ea14b8",
+    "history_runs": 0,
+    "index": 91,
+    "ledger_run_digest": "sha256:4556e13cde6ddcd7c83e776d65849a088003e724e1f2960e66a2f2e11cdf1f17",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002204/c52b90aa051d.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002204",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-keep-build-outputs@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:c52b90aa051d5894ab8cd22de931265d610356738ea5904c5e54ed9fbf28301e",
+    "verifier_digest": "sha256:3725bcd975e8f56664af5a36a6798d04cca2dd426546b4d9d2dc57b81b9f4cd9"
+  },
+  "format-code-task-002205": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:697b397a740b337dbb0dd984fcdb0726664a1871283e7e344ad219c85d6ddbe1",
+    "history_runs": 0,
+    "index": 21,
+    "ledger_run_digest": "sha256:e61a7fd5c4e6d51ed8a45fa106633f9469e8260efda1a4cf0c00b01518b263c7",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002205/a1197baa7f3f.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002205",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-keep-build-outputs@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:a1197baa7f3f6151afabde8c68fa6fecdc410f48e8ad16c566f6a3d032c62633",
+    "verifier_digest": "sha256:0c29d134852ff164122423b383acd144dd19e08fd962c647d445cb866dbb3aa3"
+  },
+  "format-code-task-002307": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:422c1db24e9a5f1fa34d26d3c4fe504c3e9cea81f1f1261f8f9fc1bc0893fab7",
+    "history_runs": 0,
+    "index": 22,
+    "ledger_run_digest": "sha256:2232110e2cd88ef7cb3ed3a4e3aef82d41684a080a65cc671f21f23bf60f1060",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002307/a910f5fffdbb.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002307",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-keep-build-outputs@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:a910f5fffdbb06959c5cb4bf86611832e0704e1fd6d140c263def4fb93364c7c",
+    "verifier_digest": "sha256:a1bcd064c7c92c7cbdbff54043f26279d461132926dd3bb53628961137feb5cb"
+  },
+  "format-code-task-002341": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:4414b975dbfa80d6c1c7a53040a91fa6d885695bf9ce5eef340d2325209235e7",
+    "history_runs": 0,
+    "index": 69,
+    "ledger_run_digest": "sha256:062dc74f463bd93892dd968c4111416501493f33f78a4a22352a391e52daf224",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002341/44a2027b924a.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002341",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:44a2027b924a2d051750866bac1f7c1575b2327ab238c080d50b96b70a58af11",
+    "verifier_digest": "sha256:1b2eb4bcc9097477e09a03cb96625ee26b760c466329e137d31e42a1169515d3"
+  },
+  "format-code-task-002374": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b7af2aacd14f9291c86d2a6487c61ff40b110c0796053764a0c568c5c344316e",
+    "history_runs": 0,
+    "index": 41,
+    "ledger_run_digest": "sha256:b97c48682d362664c3c601e7bbaaa1117f90a7032a098edaac4a7791ccb01171",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002374/5f7f90f2c707.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002374",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:5f7f90f2c7070f27dc49ccafa0432d5e8e8cf7b02497b3ea8549825d3378df7a",
+    "verifier_digest": "sha256:7949ee49043ee7c44a9903538f6354cf01459d1e7bd2a2fe569a40adc6023ddc"
+  },
+  "format-code-task-002386": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:262986028372cdad66073fd9dcf5c690bc088a6cc4eaf0fcdca8baa0444db5b9",
+    "history_runs": 0,
+    "index": 99,
+    "ledger_run_digest": "sha256:ee51f43e5f93023f364e7742ffd38794876dce9c65da480abd7e5ee85e99cd40",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002386/23c4d28d3ba9.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002386",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:23c4d28d3ba991aad44d960f4a0d2ed089235a802826ae59e4928f8b78316839",
+    "verifier_digest": "sha256:abe7066238c5e24da5655c907b9418f140cec733efe14403efc348d6c0824884"
+  },
+  "format-code-task-002388": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:227a900c50b54361ef88679a3010631f838d38906dd43a75260badb99994fd66",
+    "history_runs": 0,
+    "index": 46,
+    "ledger_run_digest": "sha256:fd4ee569a141e96e170c40fe290fbeb1a40c1c363832d1e1ac0c87e9faf81f22",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002388/7e42bb451c2c.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002388",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:7e42bb451c2cc62362bbaaa9b8b17818628b1b2a62cc84e75264becf9cf2965c",
+    "verifier_digest": "sha256:deaf9df04a4403da73402755228f63eb14c2918e646d2e459dfb0ad49808c8b2"
+  },
+  "format-code-task-002466": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:98408423cbadebd4a4a1043ebd8b02c57498d0bb1b2b4dc8fadbe26433b2b733",
+    "history_runs": 0,
+    "index": 4,
+    "ledger_run_digest": "sha256:9cf7192be7ecfc3e87a93169881139f2dcb6fcb029b2da3624804cf60bcb57f3",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002466/0206e3405b94.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002466",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:0206e3405b94375efbb396ba83c226b51c05957efcff74f739a27531055e20fe",
+    "verifier_digest": "sha256:b9fad18a71425b890ce6ac4a56d46a50f64f6cd8c65f42793d0415a09cbcae2e"
+  },
+  "format-code-task-002533": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:7eeadbad63d33284c865a79afe9dd0abc4bf323cc24154c54c59001cac442cb3",
+    "history_runs": 0,
+    "index": 70,
+    "ledger_run_digest": "sha256:da6eea0ef181a3466c8a68f5aa88c203dddbf30bb66091139feb73d4e9618541",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002533/8af89bc6f750.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002533",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:8af89bc6f750ef76cecee18233d546d2a8586d16a052e960df64fb3982e090e7",
+    "verifier_digest": "sha256:85fcee93b567017671f43a1fe716fdbcf250c180ffcf465cbd6fd491641f8fa9"
+  },
+  "format-code-task-002535": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:10a79e929c3bf53275734232a093efe7084c5e8340252883fa964e5b9064557d",
+    "history_runs": 0,
+    "index": 97,
+    "ledger_run_digest": "sha256:fd333e994b23a897c58fc51d9d4fd515285b3ad2e007c7f3a73f2bd26702e18d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002535/cd2a7854809e.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002535",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:cd2a7854809ea6e84522a94f3f89fa59d358f9c8716db68289af9cb703a384e7",
+    "verifier_digest": "sha256:a982cb3533d2f5fe5fa3073463c463f60503f5bbce210fe7195da7ebc039225b"
+  },
+  "format-code-task-002570": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:2f5500b9457cdb0bf91bd069a996398c41415ab523378995df92aed81642596f",
+    "history_runs": 0,
+    "index": 77,
+    "ledger_run_digest": "sha256:52f0b0a4570c5f219bf667e7fd60c7565760367f3e085d361012bda2fd809300",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002570/40c1eba17e2b.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002570",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:40c1eba17e2bec16356f84ac1822e9ba59e8e209ed5b317acc11a726cc96d2fb",
+    "verifier_digest": "sha256:8f352159b16fdb24effdddc452d9d8e9969dbd1cd3a79bac5a8757045d38e499"
+  },
+  "format-code-task-002611": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:536c2dce986d24069e54451c1ec51f345cc2209fff539e4f29640b717dc89e0f",
+    "history_runs": 0,
+    "index": 98,
+    "ledger_run_digest": "sha256:f893d0cfdff1d8748dee86e164e5765c0e8bbbdca7be462b72719d1b5a753139",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002611/0eacf93c58b6.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002611",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:0eacf93c58b6b08ec9128982c2eb8be37adf78113b97369eaa8bf68ddcc210fc",
+    "verifier_digest": "sha256:3435358ada2a46d116458bf6def63a4bb47666fc07ccc62dd523bc4571edb6eb"
+  },
+  "format-code-task-002618": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:bb7c88becfe0e61477e75f611de2bdde6a4d09c806176d4ba007364896840ecd",
+    "history_runs": 0,
+    "index": 60,
+    "ledger_run_digest": "sha256:e8daaf330a962b3df1ddf85fc3c4cca21c68372a41e255ad0e4510f406ad03b4",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002618/0954d38b34f8.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002618",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:0954d38b34f8ab0c81c591e9758d1b3996bef424556e18806c7c7455df18eeda",
+    "verifier_digest": "sha256:b398975b0730f42db90dd8101124488c8345e337c0e02cecaac4db5cc403addd"
+  },
+  "format-code-task-002669": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:895818472c46c2f254c9473d9ca6351ba43ed36f68d6c78e24a22eb8064b82a0",
+    "history_runs": 0,
+    "index": 10,
+    "ledger_run_digest": "sha256:698fc0ec5e04633c903d3395bf428af7fd21ca6a8797e42d2ae5aed2832e2e01",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002669/d3cb1ff252c6.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002669",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:d3cb1ff252c61ba33bb7af8adfb3b2d79329882ffa172a2a223b6a8dc2ff5024",
+    "verifier_digest": "sha256:34201ba16b0f4fa666f57cd3c83adfe8ee615be985fb6bfbf27a1c8dd79b532b"
+  },
+  "format-code-task-002674": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:246e90d8e7c801a6bf7e882606dd9f4d857691121216a26ad9ae2725c1db84df",
+    "history_runs": 0,
+    "index": 28,
+    "ledger_run_digest": "sha256:694b29797476a2c4f3a0346016bd69b7b92024975182304ad11e774a0996c767",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002674/9448890430a7.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002674",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:9448890430a7649ce871dcdecc8c21580ad596d3b0f124fba757ac51cda6edb2",
+    "verifier_digest": "sha256:6a0e2520a1327a63d31a255fb5d6af24a197d619bbe5b9c4bf06a0f49276cbd8"
+  },
+  "format-code-task-002696": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:e3f68273d48caf8b23f5b96dc9d769aed1e40c362408a137e204b6002802a413",
+    "history_runs": 0,
+    "index": 72,
+    "ledger_run_digest": "sha256:cb5be55d4c36c5b1243a17b6211a939cf595401d496305613acb2afd38a227f3",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002696/d62736df8bf7.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002696",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-keep-files@1",
+      "env-keep-build-outputs@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:d62736df8bf7536e4914f58f1b97f6f48a5f2c362067b9052809e78a03d7629d",
+    "verifier_digest": "sha256:c4772a065469e4fc84091a1867cd82818b14a9bce3747803c1905510a5e73fcf"
+  },
+  "format-code-task-002737": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:4382a8669f1148d5ec4db7e2f12dbdc6a4945bcd25536f2c42c4ea522303d547",
+    "history_runs": 0,
+    "index": 75,
+    "ledger_run_digest": "sha256:ffca33fcdd058b1c5fc58db92d975f5541eb9e18b9bc2f683064b21889638539",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002737/2fceed4cab07.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002737",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:2fceed4cab072bf1daa5f9d5fdfa0fc41f0575460e579d5ef3f06f02ec3f87a1",
+    "verifier_digest": "sha256:05b29ce7b8678157ad25690fc27dc0b1fbf2a7f908e1aa166a1397853cbbd1e0"
+  },
+  "format-code-task-002742": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:79f6ecf5e67dfb11efa1d7163cdd57621b9059430c995515a6492d1c12ae426e",
+    "history_runs": 0,
+    "index": 40,
+    "ledger_run_digest": "sha256:eebc07e8d34ae7318660b5970828053e8ea682ab258cf9784e4653c661f76ec1",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002742/5a81282f837b.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002742",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:5a81282f837b32c7ac945269292e98f07bbd08970cbef63d69adf068436a4841",
+    "verifier_digest": "sha256:5a862350ecba65d67ff88fef6e969908700ba0f5b1c7224907f3bc07f935399b"
+  },
+  "format-code-task-002757": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:f52203508c2088fa1d0b104aae7b71f1b648b707e941cd2fa4551a4d606b1970",
+    "history_runs": 0,
+    "index": 12,
+    "ledger_run_digest": "sha256:646c2e44f8a7945c2af849f6d916c2bb16971c7476d3f6884795f7cf66287553",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002757/fd133b7dfd01.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002757",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:fd133b7dfd01ae3f0cdcb949646ed96346410ed0695ec93e04e127267771af12",
+    "verifier_digest": "sha256:cca92899327ecf94dde9fa7358c144d4c99d1d5ef1c1d22527ef5ff0d2ffae8f"
+  },
+  "format-code-task-002804": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:36524f1e3a499e2362b39796c8e19a943da03105fc75904b4180ff146024bac5",
+    "history_runs": 0,
+    "index": 38,
+    "ledger_run_digest": "sha256:a283785acb686bc9ae5572a6980c19b2cdfd5262c1a053e5cd65aa4f7ca0e7e0",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002804/a8f394842e4e.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002804",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:a8f394842e4e92cbd315231cbcfff60cd2ad96385411a1075de584ecc68b5270",
+    "verifier_digest": "sha256:5834bd942fac4cb4f19f478f512d8029fc42d435515b1795e76669a212bb6090"
+  },
+  "format-code-task-002852": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:be6a93004bbe6b53afa81d5bdaca410348ae29504ca4d1f8bf499c591c682919",
+    "history_runs": 0,
+    "index": 66,
+    "ledger_run_digest": "sha256:0358c9ef074ef96ddb38e1b94fddbca8d789b1c5774f5170d621591b3d90b994",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002852/862dc4725c5c.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002852",
+    "transform_chain": [
+      "strip-future-history@1",
+      "leak-close-pypi@1"
+    ],
+    "variant_digest": "sha256:862dc4725c5c6768018c09af8aef53ccb7ece6b5e18a46655f93f3051a879265",
+    "verifier_digest": "sha256:b2fc5f39cfd5e79aa757ef64f302e37f0599aa30d7fdb380f450125f9bcb01a7"
+  },
+  "format-code-task-002933": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:9cd9a97fca06181fd474dd5713b6e2d54abc1eb30e83471530c1d0587e52f61a",
+    "history_runs": 0,
+    "index": 26,
+    "ledger_run_digest": "sha256:836cecf4e863ecf4868b2ed86ab13b80e8c222419df29dceceac82a7afff7fc2",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002933/07ae41f8469c.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002933",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:07ae41f8469c71092508f34197e4b7c3b788b72ae73c237144216f04d26efb74",
+    "verifier_digest": "sha256:da66f247332b549505ae2cb70ac8c27a338596089e825489fe56b2bf0c0ef646"
+  },
+  "format-code-task-002935": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b4248da3f879154ea54227bcfd187f5a272265fa550f748b603caadc99582ca1",
+    "history_runs": 0,
+    "index": 5,
+    "ledger_run_digest": "sha256:154b53f9402c195cda65661b767ac6c2c41fcc2f364076590140a7f6fe16a1ff",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002935/ca9fbd97f4e1.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002935",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:ca9fbd97f4e131526738478594d4f28de46fc634173bfa3df2e352f427fbf5de",
+    "verifier_digest": "sha256:8fee076f1ba8636aba2ce466fbe4163a10fa88c1ace84643acffa4f17bd0ad65"
+  },
+  "format-code-task-002941": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:2d16886e8342732b7bd4a01b03c97502e92181a4013489fa7dda6127b08b46a5",
+    "history_runs": 0,
+    "index": 78,
+    "ledger_run_digest": "sha256:4faa730445a1c23885db4685790a4664b47f510bb1620716751c693d3b31d3b5",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002941/13f91837afef.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002941",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:13f91837afef92110ed0f8dd56c9d30a78f4ffdc5fcf56eeefdb8d1be2812785",
+    "verifier_digest": "sha256:f22bd70499e10c40d185fd78fe28eae80f3729b1e717745fd9cae02259b859dd"
+  },
+  "format-code-task-002960": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a081071cb3f4f97e204b8f1bc8875ea8cab4de89360b1b873603bbf4025b424f",
+    "history_runs": 0,
+    "index": 17,
+    "ledger_run_digest": "sha256:8a396dc09adc88420d8a0290eb59e2f7ad605bee0e033ea37ebf6ae93e596c5d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002960/3f1a3bba52a6.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002960",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:3f1a3bba52a6ed78f70e607e56382396e0e64ab74d9d05be2580258a2cce647c",
+    "verifier_digest": "sha256:563f201447c4a7209f37f91f5b5ccfc4afb1efd009526a9462d173c88479c652"
+  },
+  "format-code-task-002978": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:b4742e90a20fb26e65395c3f8bef806a158b8745233d3f3f488a05d9aaaeba3a",
+    "history_runs": 0,
+    "index": 1,
+    "ledger_run_digest": "sha256:7d9cd91f58431c14a610fe935e424581b05aba20920d4b949db37f22e73b6838",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-002978/5c81b17ed811.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-002978",
+    "transform_chain": [
+      "strip-future-history@1",
+      "env-prefetch-network@1"
+    ],
+    "variant_digest": "sha256:5c81b17ed8112e84d7748131f79029633d6e31a236aef894303bd260622f1aaf",
+    "verifier_digest": "sha256:98fcc3bbfc100b85e23d8edb70043e5d0b4911b925eab97158ec87077e1c297e"
+  },
+  "format-code-task-003023": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:34fae5164af5e9ac6d91dee1a1507849760d7b12fb3ca227ccbf7d01d03dbe1f",
+    "history_runs": 0,
+    "index": 64,
+    "ledger_run_digest": "sha256:4239e5f983fe80d8bb9eb1cc74394764e4e28718bbf0ec6e5e20b04fb2664f6e",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "train",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-003023/9a3876031e3d.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-003023",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:9a3876031e3df10249b1961914f17c3ca2b724fdb7d008e38913714dab9aeeb6",
+    "verifier_digest": "sha256:b5e7b693652d1e1edadffdbc14899ef4a13d944afd7794a516a89245f003c294"
+  },
+  "format-code-task-003035": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:0db36d1d065f298dfe9f12c5a78acd2e08047399fb7781f35bc0f3970442f33a",
+    "history_runs": 0,
+    "index": 62,
+    "ledger_run_digest": "sha256:208449da5f525a6abc082e41ba7b17232d7c7991e9c3c920056bdf0200e188bd",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-003035/3442d59728e6.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-003035",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:3442d59728e6932851b0dabefe1b1c1107a003f554db1a04aa57069c4dfbfec6",
+    "verifier_digest": "sha256:380990bc63c0588eda085a53208b12c065596a4b7e0b54759be4e538d6b4126b"
+  },
+  "format-code-task-003053": {
+    "docker_image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:625d29016910c553d90eb6e14ad578674fd2a2f3656c6ae0a1bac5cbb4c05d65",
+    "history_runs": 0,
+    "index": 9,
+    "ledger_run_digest": "sha256:b67c4996172819d8dedfbf79708ef625e9c1f1a6aa7618c8110121a42ccf3a4d",
+    "ledger_status": "usable",
+    "ledger_verdict": "keep",
+    "parent_reaches_ledger": true,
+    "split": "heldout",
+    "strip_record": "library/task-variants/mimo-v2.6-rl__format-code-task-003053/d541f5e7e571.json",
+    "strip_status": "candidate",
+    "task_id": "format-code-task-003053",
+    "transform_chain": [
+      "strip-future-history@1"
+    ],
+    "variant_digest": "sha256:d541f5e7e57148c68589c7d3cf992dbcfce76af7cec66a71d1447e076e0d8079",
+    "verifier_digest": "sha256:fe009eba0c9c251af63387900694720fb2b1dc9de5b3aac627e963f48a512c3b"
+  }
+}

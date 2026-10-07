@@ -830,6 +830,17 @@ def _campaign_validate_command(
             print(f"error: campaign invalid: {error}", file=sys.stderr)
         return 2
     _reserved, _settled, committed = cap.campaign_spend_usd(root, draft.campaign_id)
+    content_digest = cap.campaign_content_digest(draft)
+    prior = cap.read_approvals(root, draft.campaign_id)
+    if prior:
+        approval_info: dict[str, Any] = {
+            "state": "APPROVED",
+            "actor": prior[0].actor,
+            "approved_at": prior[0].approved_at.isoformat(),
+            "content_digest_match": prior[0].content_digest == content_digest,
+        }
+    else:
+        approval_info = {"state": "UNAPPROVED"}
     results: list[dict[str, Any]] = []
     worst = 0
     for raw_spec in args.spec:
@@ -857,9 +868,15 @@ def _campaign_validate_command(
             json.dumps(
                 {
                     "campaign_id": draft.campaign_id,
-                    "content_digest": cap.campaign_content_digest(draft),
+                    "content_digest": content_digest,
                     "budget_usd": draft.budget_usd,
                     "committed_usd": committed,
+                    "approval": approval_info,
+                    "cost_estimate": (
+                        draft.cost_estimate.model_dump(mode="json")
+                        if draft.cost_estimate is not None
+                        else None
+                    ),
                     "tasks": len(draft.tasks),
                     "errors": errors,
                     "specs": results,
@@ -870,8 +887,31 @@ def _campaign_validate_command(
         )
     else:
         print(f"campaign: {draft.campaign_id}")
-        print(f"content_digest: {cap.campaign_content_digest(draft)}")
+        print(f"content_digest: {content_digest}")
         print(f"budget: ${draft.budget_usd:.2f} (committed ${committed:.2f})")
+        if approval_info["state"] == "APPROVED":
+            match = (
+                "digest match"
+                if approval_info["content_digest_match"]
+                else "DIGEST CHANGED AFTER APPROVAL"
+            )
+            print(
+                f"approval: APPROVED by {approval_info['actor']} "
+                f"at {approval_info['approved_at']} ({match})"
+            )
+        else:
+            print("approval: UNAPPROVED (staged, no approval recorded)")
+        if draft.cost_estimate is not None:
+            print(
+                f"expected: ${draft.cost_estimate.expected_usd:.2f} ({draft.cost_estimate.formula})"
+            )
+            print(
+                f"worst_case: ${draft.cost_estimate.worst_case_usd:.2f} "
+                f"(fenced at budget ${draft.budget_usd:.2f} + in-flight)"
+            )
+        else:
+            print("expected: unstated (no cost_estimate pinned)")
+            print("worst_case: unstated (no cost_estimate pinned)")
         print(f"tasks: {len(draft.tasks)}")
         for result in results:
             status = "admitted" if result["admitted"] else f"refused ({result['reason_code']})"

@@ -14,7 +14,7 @@ Where a human looks when asking "what happened?" — and what each surface owns.
 | Question | Look at |
 |---|---|
 | What finished, and how did it score? Read one run step by step. | **<http://127.0.0.1:8100>**: every job in `~/Developer/eval-lab-results`, in Harbor's viewer with `reward` / `integrity` / `reward_gated`. Always on (LaunchAgent `com.petermakhnatch.evallab.results-viewer`); new and republished jobs appear within about two minutes. |
-| Why was this run counted or excluded? Taint, loop kind, token flow. | `<job>/processed/trial-*.md` (and `.json`) beside the job, linked from `~/Developer/eval-lab-results/INDEX.md`. |
+| Why was this run counted or excluded? Taint, loop kind, token flow. | The trial's **Analysis** tab in the viewer: the processed run report (`<job>/processed/trial-*.md`, also listed in `~/Developer/eval-lab-results/INDEX.md`). |
 | What is running right now? | `evallab watch` (`<job>/watch/BOARD.md`) and, for native MiMo, the live Laminar trace. |
 | One machine-readable account of a trial (for agents). | `evallab report run <trial-or-job> --json`, or the viewer's JSON API (`/api/jobs?q=…`, `/api/jobs/<job>/trials/<trial>/trajectory`). |
 

@@ -181,7 +181,7 @@ inputs:
   - path: src/evallab/harbor_terminus.py
     digest: sha256:1de61985f30f99c46832e25f27b5e56de1e2afc3cfb725f749f6320ed22e2384
   - path: src/evallab/harbor_view.py
-    digest: sha256:ba18df2568d53e9929ab5d7510f1ce851664803bd96bdfadbbde2605d7ac5ad6
+    digest: sha256:f47571d63fa52ca33fc92c0cfec05b682611c7fa914ce31ad04e0ac73b5c2cfc
   - path: src/evallab/harbor_watch_hooks.py
     digest: sha256:7ff4f1321bd543b90f6929b9ba4677fb3ede6abd4a3ab612e438b3b4c2fd4849
   - path: src/evallab/harbor_zai_miniswe.py
@@ -423,7 +423,7 @@ inputs:
   - path: src/evallab/results_home.py
     digest: sha256:bba6f44c622a2f664713d11b1317514b624f5fa765e4f988ab2456ef721e2002
   - path: src/evallab/results_viewer.py
-    digest: sha256:b34bbbbac5689679314f19f4da89e9d95bbe3c0bdd3feab5cde7fb2f3694af8b
+    digest: sha256:b3129b0ca38805d8e085e1be6f3ffc3a8dbb14581341972f9493e3745225dd05
   - path: src/evallab/rlm/__init__.py
     digest: sha256:72ec828d553f09b8218b61f95eee8873ec978e227c040adad6d5281fd8acfb45
   - path: src/evallab/rlm/bench/__init__.py

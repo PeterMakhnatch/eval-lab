@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_42491975",
+  "variant_digest": "sha256:b8b0af490aadd6ac19d6e58e123a931b439f971e1b4c44acae9a208a7758dae6",
+  "variant_harbor_digest": "sha256:a93e6a606e8d3da55eb5a0ea0bc06f9952203f22bc5c353c2f12bae962467499",
+  "parent": {
+    "digest": "sha256:9ea2757606b57c7468b1b56f00f725095886b61ed5216cd1f2780434750c7c1c",
+    "harbor_digest": "sha256:706183a633e028fef2a112e017fecc603a5a2307ce073aab415588d5de29715d",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_42491975",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:364862c09f0f0281ab4d7f101409f0d4be56836213a9a18dbdd261a7d8a9cf8b",
+      "after_sha256": "sha256:e4c7694d52ae27546ddf48b2dec37854ae897366d47c52327fec558730b111b0",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nAddressSanitizer: heap-buffer-overflow in function `rans_uncompress_to_4x16` in file `htslib/htscodecs/htscodecs/rANS_static4x16pr.c`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:41Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_42516608",
+  "variant_digest": "sha256:c9433a7cbd38e02db9fe9e3c13ee88ab1f5d6d838215d2f28f3a7fdd249f9a1b",
+  "variant_harbor_digest": "sha256:5023855c11cbf0e65749cf9fc111dc1729f9e3938b1aa4e353487ec520345083",
+  "parent": {
+    "digest": "sha256:2e367376c03fe518ac8e69d0e2695dc651ed71a80fa0d3c4df44f7da4685ce14",
+    "harbor_digest": "sha256:5f75aba555c9beebe77f38b1fc2689611f29dac38993f14fe7ef970846bbcc82",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_42516608",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:bde648b51d8f9467556ed27041bf69bcf7b5dad40403fe051a1751fccab3e8c8",
+      "after_sha256": "sha256:0f7e87d4748105fa0a03beca5c25c25e56483414dbc9572e3eb4ddeead49edbe",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nAddressSanitizer: heap-buffer-overflow in function `std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> Exiv2::toString<unsigned char*>(unsigned char* const&)` in file `exiv2/include/exiv2/types.hpp`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:42Z",
+  "status": "candidate",
+  "evidence": []
+}

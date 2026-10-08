@@ -1,0 +1,1001 @@
+mimo_instance_id,tag,digest,category,fix_binary,entrypoint_variant,user_step
+arvo_35858,arvo-v1-35858,sha256:108ced370f83b96425ec52f10ce33bde3a8d0e90345b32445fc91445493e1cfe,"not in CyberGym, old ID",False,False,False
+arvo_42513157,arvo-v1-42513157,sha256:95ca26af8f68f1fa67b53928043e8562d81023a2ae0d1e9fd019c3faa3cc20e0,"not in CyberGym, new ID",False,False,False
+arvo_42488029,arvo-v1-42488029,sha256:a69c6eeae2651aaae15e2a23bd8292e0d0bc8d0701cfc67c0a483243b929f991,"not in CyberGym, new ID",False,False,False
+arvo_42493261,arvo-v1-42493261,sha256:4459ccaabea1fb85cfaa1c1c2ea5770bd4554cd68fa7993fd3bb8671e86b9cfd,"not in CyberGym, new ID",False,False,False
+arvo_3233,arvo-v1-3233,sha256:26916512e81092fa265de860d42b85be42065ef0cc0ad43c3ba487c6f9eb553a,"not in CyberGym, old ID",False,False,False
+arvo_42539628,arvo-v1-42539628,sha256:bc02bda46673442c563732b63fc1fc53929814a75b220cb0686a098d0ee9d9e8,"not in CyberGym, new ID",False,False,False
+arvo_42487077,arvo-v1-42487077,sha256:54d9f0166c0be41c44219eef83cedc70b53d78ae3e2a4d8ed132998f618d7ce5,"not in CyberGym, new ID",False,False,False
+arvo_377955861,arvo-v1-377955861,sha256:2ad570f38185983ce4c8e884e4d1a8bae7146ac853094fc25e6aff28adc564c9,"not in CyberGym, new ID",False,False,False
+arvo_42495624,arvo-v1-42495624,sha256:35130e0f1b9212e5b842c645f2cdc4aa090f721d1c2968e190b9700bf64343d4,"not in CyberGym, new ID",False,False,False
+arvo_54839,arvo-v1-54839,sha256:3d46aac744cfe05b1b1746dc3a9fb0ffbf76e24e2e3c3343070b565d50f1c78c,same ID as a CyberGym arvo: task,True,False,False
+arvo_38796,arvo-v1-38796,sha256:4359dd27ec49678bff201c53c179969c37bfbf06a1ce7d6af9c507f722e5187e,"not in CyberGym, old ID",False,False,False
+arvo_42481643,arvo-v1-42481643,sha256:312fc2f000b7ff1eb82184e5c88a74e81ac467bb940ab955059ff43099c854b4,same CyberGym bug under the other ID,False,False,False
+arvo_53623,arvo-v1-53623,sha256:fb07a684b80ab6e536ec472cc3b1dab8a23420647caafc4550aea731d4cb804b,"not in CyberGym, old ID",False,False,False
+arvo_42490142,arvo-v1-42490142,sha256:38e7f29aea906b178400f2a8d36cd7b7d5100dea7d558515cd79cea0ab666fe0,"not in CyberGym, new ID",False,False,False
+arvo_42538811,arvo-v1-42538811,sha256:2d1cc6a43d96c0842f2bfa7b5d81b41e799ed79221e20c21b4f413ee894a1ebb,same CyberGym bug under the other ID,False,False,False
+arvo_42506121,arvo-v1-42506121,sha256:92770cf612492cfc2ce52f12da0730d1fa06ab8cd46d76533817cd4c8449d012,"not in CyberGym, new ID",False,False,False
+arvo_42526590,arvo-v1-42526590,sha256:407961c2bac466bace1e602bc84b866f41c2431505195f2f01ce89b2d9ddfc91,"not in CyberGym, new ID",False,False,False
+arvo_42524304,arvo-v1-42524304,sha256:6a3b1dee8ff6ae5b4856fedd74a5c1581045315fdb2daf5eeba18fa943405024,"not in CyberGym, new ID",False,False,False
+arvo_42521256,arvo-v1-42521256,sha256:b5c581fd849e84e39820c8ca74296cadb975860a63741024d7524d1a4ea1442e,"not in CyberGym, new ID",False,False,False
+arvo_42486096,arvo-v1-42486096,sha256:3a6a0c82cc594b37a63e40b42e35db49bb8c6b89390a04f2f2cabd995763ab0c,"not in CyberGym, new ID",False,False,False
+arvo_42521023,arvo-v1-42521023,sha256:28e7884d167f406530344efdda9bdd633d812e05029a7988660f2fe91510a3f8,same CyberGym bug under the other ID,False,False,False
+arvo_391975647,arvo-v1-391975647,sha256:f436e8626d08ee2565c413032593c398ffafcdb271f1b10cf2a7508b5b7acb41,"not in CyberGym, new ID",False,False,False
+arvo_42522648,arvo-v1-42522648,sha256:8bb2b7d24dfc34bca0ce51e1ec8f0a0844f8f7d9af21e7fb4b505b243a71c70f,same CyberGym bug under the other ID,False,False,False
+arvo_42479230,arvo-v1-42479230,sha256:1befa093ef45e0a711b25867b48f57a6a5d564443b9c614d4f647b2cbef5abdb,same CyberGym bug under the other ID,False,False,False
+arvo_42479673,arvo-v1-42479673,sha256:6a5e3dd9f98b43a26319b31fbfbf9f4d30615baadb054e9720144195a9a8ea00,"not in CyberGym, new ID",False,False,False
+arvo_17171,arvo-v1-17171,sha256:0d52f1f0f9d6c4c5a5559e82127280d0bd66168797c5d4ef200f996858895934,same ID as a CyberGym arvo: task,True,False,False
+arvo_42501289,arvo-v1-42501289,sha256:573ca795d38a2ba106c67eb939dfcefbbdcf3b8f7e9fce03c6ca82374fb499a7,same CyberGym bug under the other ID,False,False,False
+arvo_42522683,arvo-v1-42522683,sha256:3720290674d45e5b33ef0ec0f19456d2744df4e9ea7050a9e763fbe1d7f6f346,same CyberGym bug under the other ID,False,False,False
+arvo_392318892,arvo-v1-392318892,sha256:9dd0b1295155620013872babec003035bc614c6d8d34da423900e005a72a3954,"not in CyberGym, new ID",False,False,False
+arvo_20823,arvo-v1-20823,sha256:8dcc3a4b406bde91bb4913f2a6aaee08b7ec6eaeeff805827421e35788adf153,same ID as a CyberGym arvo: task,True,False,False
+arvo_42520982,arvo-v1-42520982,sha256:c9fae6cac01e1f3ab7f9f1fff4a3fc2ea326362fe7dd988daab34a705f7e0dab,"not in CyberGym, new ID",False,False,False
+arvo_42513782,arvo-v1-42513782,sha256:cdb0d419e79353b847ee98a207931776d5abeed05d4ff7ce8f9a0e57d7075337,"not in CyberGym, new ID",False,False,False
+arvo_42480315,arvo-v1-42480315,sha256:c5dc431816b3abe37399f98c3652b82e4ba9483d4973baaef92c79d931ade75f,"not in CyberGym, new ID",False,False,False
+arvo_42491796,arvo-v1-42491796,sha256:c1debbc1e9c2e1b9b7ecc5c39c409dc43e4bf99973be5328769277573b13b97b,same CyberGym bug under the other ID,False,False,False
+arvo_53714,arvo-v1-53714,sha256:0c45af04bac8114a461a88290e6f573dd2c9f081952f764379ac0aec0b9494ea,"not in CyberGym, old ID",False,False,False
+arvo_42483504,arvo-v1-42483504,sha256:e044b48de3f86f38625d81e2cc8369c9b3222cf02052c196f22843a4d5ef8236,"not in CyberGym, new ID",False,False,False
+arvo_42474728,arvo-v1-42474728,sha256:1bf159ba4fc0674600924ad2220dd34c587707ee823cf5534169426de5e11dd6,"not in CyberGym, new ID",False,False,False
+arvo_42518543,arvo-v1-42518543,sha256:9cffc9391432cc5f8afd7fd4f546ba0e6cbb841619f6f0972e599d8b881325a8,"not in CyberGym, new ID",False,False,False
+arvo_42512082,arvo-v1-42512082,sha256:3815425ca0ca8acf3c947ee9504d8649e27ed1ec25e28736cc32014880314991,"not in CyberGym, new ID",False,False,False
+arvo_16531,arvo-v1-16531,sha256:0adeb464a8927318f1dc6c3fe4385e0cb70360627e4f24387ce2f72d31977ae1,"not in CyberGym, old ID",False,False,False
+arvo_42528228,arvo-v1-42528228,sha256:75a7287f6a2bdd332f3c891490eb51071689e3411ae3f1629e527bd229a42900,"not in CyberGym, new ID",False,False,False
+arvo_21325,arvo-v1-21325,sha256:91b9563ffc597e4aa30d896445e1ac95b4d3d3e4e10b7f91bd652f6725df6c84,same ID as a CyberGym arvo: task,True,False,False
+arvo_42481554,arvo-v1-42481554,sha256:e9f3a7e7c2a10370bc7016c2d15975cc51c2362a47c47cc1c917e87e079ae945,"not in CyberGym, new ID",False,False,False
+arvo_42489353,arvo-v1-42489353,sha256:0c23c0076c20bbdbd08dfc6b9fa96da6be8587184c6831cd3bba8eac6044d130,"not in CyberGym, new ID",False,False,False
+arvo_42524024,arvo-v1-42524024,sha256:6856ed10b2e4bca2e299ef267c17730e791e3a98f5cbbc85ad4991081753f13a,"not in CyberGym, new ID",False,False,False
+arvo_1478,arvo-v1-1478,sha256:6085ab1dd2ec2fc9dea64b44714958322b1267c050c188114bed63008f698c12,"not in CyberGym, old ID",False,False,False
+arvo_21359,arvo-v1-21359,sha256:a026faf1fda1c7e116950f044b6988aeb2567c4ba00b8c239c422228ee968ec7,same ID as a CyberGym arvo: task,True,False,False
+arvo_42480786,arvo-v1-42480786,sha256:4d6c01e3bf4a6b04444cc0bdffc6bb1afe8633d08d9b851d7ddae0fb7062de6d,"not in CyberGym, new ID",False,False,False
+arvo_42484402,arvo-v1-42484402,sha256:3815b833304fe1d5dcf62ef76dc5a3a83f5500fe953973b7dcf6b84ae5de1395,same CyberGym bug under the other ID,False,False,False
+arvo_57587,arvo-v1-57587,sha256:cddfaa6bdcbd5e43df1bd7d8b3afe60ee17822e3fde1efd856a8144ae16600e8,"not in CyberGym, old ID",False,False,False
+arvo_21326,arvo-v1-21326,sha256:011d4d558fa5150ae7de49482f1815b5641fce1eb696d3dd12b4f4d24e382d15,"not in CyberGym, old ID",False,False,False
+arvo_42471294,arvo-v1-42471294,sha256:489208f2b11d32b92251f357805816f3ad4bee3d02a638f071f5c3b8219a728c,same CyberGym bug under the other ID,False,False,False
+arvo_42513779,arvo-v1-42513779,sha256:e458aee2c788666cee07e94febc0828ecf4136eec38de5cfbd295d426ed4f3f3,"not in CyberGym, new ID",False,False,False
+arvo_28239,arvo-v1-28239,sha256:0cce7597806e871cf5879d8b1b7793850b0095007f89157f8f5483e2152ce446,same ID as a CyberGym arvo: task,True,False,False
+arvo_42534913,arvo-v1-42534913,sha256:09acf82bb990f074bf6c569d25a7541dd4442ec1e67ec5284a91288e61f97d58,"not in CyberGym, new ID",False,False,False
+arvo_42488351,arvo-v1-42488351,sha256:8d7c85d104d6d2e1d968d2d5b1929108bca53bcb474c13035659fcf2cefee5e9,"not in CyberGym, new ID",False,False,False
+arvo_42537168,arvo-v1-42537168,sha256:e4f2536f8c6fd11b60adc1d3395562eccff7579a9e2aa09d2d5a13c96dd62a4d,same ID as a CyberGym oss-fuzz: task,False,False,False
+arvo_6760,arvo-v1-6760,sha256:33c2a55d7d334ebe7486480aa5aef35303cf7ca48518f7b24f5fb5191fcf9b42,"not in CyberGym, old ID",False,False,False
+arvo_42859,arvo-v1-42859,sha256:ce0fdff47ebb976555b2cd04b59ad78b771d45c4b886506e43d8652aad12ba5f,"not in CyberGym, old ID",False,False,False
+arvo_32765,arvo-v1-32765,sha256:57905d8602fd7ae7a48032f0a88e4c19e58dd835428b6282774433fec73e534e,"not in CyberGym, old ID",False,False,False
+arvo_39657,arvo-v1-39657,sha256:940a27c724039a7717254924b2fcf2c90f97caf0bf966aaf0fa4ecdb4375d12e,"not in CyberGym, old ID",False,False,False
+arvo_13466,arvo-v1-13466,sha256:16596e75dc358bc51a8acd66f91333a48ccab398b0e1f438d5161f7f04ddc5ef,same ID as a CyberGym arvo: task,True,False,False
+arvo_42481258,arvo-v1-42481258,sha256:48531d8e52b61e0dfe2726152e490a1e01d6b916099edcab74aae122dda0b2b8,same CyberGym bug under the other ID,False,False,False
+arvo_42495681,arvo-v1-42495681,sha256:a3f93d05190c4c10d8fd988e2e08ba8402ccd623f0c88066904bbf3ee8bd0778,"not in CyberGym, new ID",False,False,False
+arvo_42522845,arvo-v1-42522845,sha256:acf060259aa17ec0bf4a718ae8a372d8d4459452a17858ce0c7dd33033f4089e,"not in CyberGym, new ID",False,False,False
+arvo_21296,arvo-v1-21296,sha256:a25a8cb2c9cb614f87c94f33824fce15eb76a16e19135b673a391bccefc9bbd4,"not in CyberGym, old ID",False,False,False
+arvo_44695,arvo-v1-44695,sha256:c2489528aaf89c645ad220ebd8c8de5e2ff93ede7cb290ecb8d890db2198a69d,same ID as a CyberGym arvo: task,True,False,False
+arvo_16541,arvo-v1-16541,sha256:1f847e216604eea4749724019af13c342e4c4c39a2960f8e73109cb8b61ce46b,same ID as a CyberGym arvo: task,True,False,False
+arvo_42485014,arvo-v1-42485014,sha256:15aeeff070c549304515c34b5b49a01ffb1b387210d7c86dd44657bf1b98eed0,"not in CyberGym, new ID",False,False,False
+arvo_24895,arvo-v1-24895,sha256:54f5113c9c33796b85ef820988ef31264c27a87b24c66786b7c1efd468d1d543,"not in CyberGym, old ID",False,False,False
+arvo_42488760,arvo-v1-42488760,sha256:0c2d1c3d2cecf1e6a1b92d05199a52c0ec574144f18855d554fdd1f26ab5c183,"not in CyberGym, new ID",False,False,False
+arvo_23932,arvo-v1-23932,sha256:66db222ef4c23b08ce0f7eca20cbbffeb54d61089d0ea776fb45f899c28107dd,"not in CyberGym, old ID",False,False,False
+arvo_4385,arvo-v1-4385,sha256:2a558b09f3595cdd86404e0369e2c5fa1ccafc28f38fd04e3cd8e2aa407b196a,"not in CyberGym, old ID",False,False,False
+arvo_30365,arvo-v1-30365,sha256:c7f1ddcaac75f0a4d639aceab7b9fb919e833926f34f7efb9d97ec370135946f,"not in CyberGym, old ID",False,False,False
+arvo_42497715,arvo-v1-42497715,sha256:47a5b92d981401da871d7df79f0f3737487cae677a898e95c7dc0a4b8a662982,"not in CyberGym, new ID",False,False,False
+arvo_49407,arvo-v1-49407,sha256:b0bde27a028b251c3bd3f3de021406439828bcb35dedf2deb161a722372b8e9c,"not in CyberGym, old ID",False,False,False
+arvo_42501986,arvo-v1-42501986,sha256:cafad930d51a4bb8cf871b7dff9f6d3325f462c8e418caea1ff3935ac0152f44,"not in CyberGym, new ID",False,False,False
+arvo_40058,arvo-v1-40058,sha256:c2725bf9c138c3c9c340a9d9ce3760902d8703369c880e1646bd46ec354602a6,"not in CyberGym, old ID",False,False,False
+arvo_42472621,arvo-v1-42472621,sha256:2e63701576be31d3404f44f0428635fe9bcef8ea78bd9c276d34bb0f2a296671,"not in CyberGym, new ID",False,False,False
+arvo_42482877,arvo-v1-42482877,sha256:d5412f5f7192e2ac2c130a079b2c286d576a8bf7b366e3bf4e888b3d5c3623f4,same CyberGym bug under the other ID,False,False,False
+arvo_48910,arvo-v1-48910,sha256:6cb44640b99bb08ad306446bb6b683500b32e00d115abfd0d47ec9c8736ddd4c,"not in CyberGym, old ID",False,False,False
+arvo_42486539,arvo-v1-42486539,sha256:57ec9665de20aaa50a7beb278c950a1d9c0f6aca3cc0762f22c91671438275ac,"not in CyberGym, new ID",False,False,False
+arvo_42538122,arvo-v1-42538122,sha256:0f8af48eba4d3d72d5ebaf80dca203653172209a688f63b35bb2060055fe2b39,"not in CyberGym, new ID",False,False,False
+arvo_42519761,arvo-v1-42519761,sha256:7b122a84823a33751779a88361ac6be6abe234cf1818911d5bb9151974a15ab9,"not in CyberGym, new ID",False,False,False
+arvo_13073,arvo-v1-13073,sha256:9e89f0ab86dff771d769d0f0673d7eb6d771ef75703ebc87fa59ae21702270df,"not in CyberGym, old ID",False,False,False
+arvo_1237,arvo-v1-1237,sha256:334d8f2e50e02bcc618ef54b0c70893692a93151e7611ce041a7b4d0e031342a,same ID as a CyberGym arvo: task,True,False,False
+arvo_29819,arvo-v1-29819,sha256:c585aa6afdb9cda017548f0001bc7f7a6bd63790ec24439be44ffc3371a6e339,"not in CyberGym, old ID",False,False,False
+arvo_42481310,arvo-v1-42481310,sha256:49b982b189cfd1ff91f9a2a0da685f155eb5e47e0abbed82a42711c1ecfd2de6,"not in CyberGym, new ID",False,False,False
+arvo_21300,arvo-v1-21300,sha256:a7a8023eb7936ac918248abfc8fcef201eea5a8e52da4cbb4e5602f8ab169fac,same ID as a CyberGym arvo: task,True,False,False
+arvo_432880859,arvo-v1-432880859,sha256:a404b059edb2ad980c41df7e0da8a3d06950a9bd6c87fad84f661043944aa2a4,"not in CyberGym, new ID",False,False,False
+arvo_42482604,arvo-v1-42482604,sha256:950e2198d0409c369d7d952cf07c46fc591cd5f696ad54f8e6595f9e4dbd86fd,same CyberGym bug under the other ID,False,False,False
+arvo_10126,arvo-v1-10126,sha256:8962acf8a8b7d2a9c4e1631890a8bd7394a8c73885e7f87693838e50ef1a5d16,"not in CyberGym, old ID",False,False,False
+arvo_42494585,arvo-v1-42494585,sha256:866a263b72b87c0174b256048d86dbe2190bd45318dde8ec13d7b44503a4151b,"not in CyberGym, new ID",False,False,False
+arvo_42483869,arvo-v1-42483869,sha256:1ebf72b2a4fb029d32def398a75c8ad9aad6681f958684a8bd2fe3b4a8fd4c9a,"not in CyberGym, new ID",False,False,False
+arvo_52798,arvo-v1-52798,sha256:d81e16821e0b00110da8000b35cd61f6e52c5ad0854e81101e8a2ebf6dd0ebb8,"not in CyberGym, old ID",False,False,False
+arvo_403364362,arvo-v1-403364362,sha256:3d3d85532adddc5a688a45d0f1fa40d7a343eb739c785c9bcd7cc9bc3086d8e8,"not in CyberGym, new ID",False,False,False
+arvo_42508986,arvo-v1-42508986,sha256:849fc6b3ca0a23cc914d4f2c52467d86df4c11563d79a4ae195ab5a9f91eb522,same CyberGym bug under the other ID,False,False,False
+arvo_45429,arvo-v1-45429,sha256:b93a29cf9e6cde3970769e4e5798d0618fde9511bc9c01fa0cbd364b9986c099,"not in CyberGym, old ID",False,False,False
+arvo_42471867,arvo-v1-42471867,sha256:df360725fcb0e48d573a3cc07e9d50783295277da5ac69045d038b1d5d9efd82,"not in CyberGym, new ID",False,False,False
+arvo_42517657,arvo-v1-42517657,sha256:5ca4746be4268c500f4cde502cc5e35b2dcf9f1f5403c1b4d0762dbf53066e0c,"not in CyberGym, new ID",False,False,False
+arvo_63972,arvo-v1-63972,sha256:8abde91f5c65d23ea7280b34c401407766e92a2a6a9bccae161c7406afdb53f5,"not in CyberGym, old ID",False,False,False
+arvo_19175,arvo-v1-19175,sha256:7697f709d249cdfcff26483690523dc62801bd716a01678765d53b5b34d94866,"not in CyberGym, old ID",False,False,False
+arvo_42532477,arvo-v1-42532477,sha256:2d108d5f390b8fa705808114bbc6d3004cf4e83ab244f99f40974ef2052503e4,same CyberGym bug under the other ID,False,False,False
+arvo_42475813,arvo-v1-42475813,sha256:7c0a1290c35b570b0d731863ce347dde2e0a723d86416adaf96b411bfd4b22fb,"not in CyberGym, new ID",False,False,False
+arvo_42474183,arvo-v1-42474183,sha256:586caffaa5e453c6c638bbfdca4f49fb1f73570c52fa73e6cf3d981ac8089a2b,"not in CyberGym, new ID",False,False,False
+arvo_42506520,arvo-v1-42506520,sha256:db2b0deca0015be8e5817d57d41eada1ce1f611274f6d743f31a402f6d79e2b6,same CyberGym bug under the other ID,False,False,False
+arvo_34134,arvo-v1-34134,sha256:c9dae9c0a9b429b854b3b2c69315f34b8bb98a38a6a3548d501464a9f464b88a,"not in CyberGym, old ID",False,False,False
+arvo_39438,arvo-v1-39438,sha256:cac635f550154115537c3dd2065ca8c9e1659097b10cc1ee31b1188e51847e08,"not in CyberGym, old ID",False,False,False
+arvo_3461,arvo-v1-3461,sha256:4012f9bb9d2ab15639ef8283ff01bd4303ea36a12c31a40a24c5c7907c548dae,same ID as a CyberGym arvo: task,True,False,False
+arvo_28467,arvo-v1-28467,sha256:0c7cecb0a503dc03e393d43686cda00f4de7e0bd1a8a40e9f5d147f7d4a5ba84,same ID as a CyberGym arvo: task,True,False,False
+arvo_37041,arvo-v1-37041,sha256:84bbf23ce817ad3d4d4f24c4d4c0a28565d160712f4fa69536dd51b5039c1a91,"not in CyberGym, old ID",False,False,False
+arvo_42479556,arvo-v1-42479556,sha256:c476602973c2e4553c66674fb20c5945f8b873266b6d2ff67d503ae7861fde8f,same CyberGym bug under the other ID,False,False,False
+arvo_42490732,arvo-v1-42490732,sha256:a52eff98d84bc7f89caa513ef4c92511a7aa9443abbf4fa24181b17f95f8808c,"not in CyberGym, new ID",False,False,False
+arvo_396435326,arvo-v1-396435326,sha256:0a6796a27bf1fb5f506603e62ccc4abd6b4e084929414aeda1c604ea10270bb3,"not in CyberGym, new ID",False,False,False
+arvo_14935,arvo-v1-14935,sha256:ab35cfed53c4503c4705434c791df291370098b94520b6ae43e883eae772003b,same ID as a CyberGym arvo: task,True,False,False
+arvo_15003,arvo-v1-15003,sha256:9f0800cd257c266a15ce5a2f3445059baa397e38ce428b8dd0bcea7e4dc89ffa,same ID as a CyberGym arvo: task,True,False,False
+arvo_3818,arvo-v1-3818,sha256:67493b993c4e0d8525455ef6aeac389a18eb168e8b389741fac3aab73b0d4d02,same ID as a CyberGym arvo: task,True,False,False
+arvo_27279,arvo-v1-27279,sha256:1388fb9098079003816c474fba451f5efed767546c3233283db6370e70ad05fa,same ID as a CyberGym arvo: task,True,False,False
+arvo_1065,arvo-v1-1065,sha256:3deb5031142e755b917b9b562c0d801ff9de3b5bb9e98ce1da52bd968becd01a,same ID as a CyberGym arvo: task,True,True,False
+arvo_42475724,arvo-v1-42475724,sha256:cddc98fce79afb3f71bb4415e2e24513eae83bb379b0734e0e8a256a427a8d28,"not in CyberGym, new ID",False,False,False
+arvo_42501952,arvo-v1-42501952,sha256:44607d48a867e97385026e6e2e7465438382a352b7892c1d4f6016d139d6034a,"not in CyberGym, new ID",False,False,False
+arvo_34993,arvo-v1-34993,sha256:dc8734fddaa9994fc8ed42b66f8205a6236cd45d8c0f95b7397799328b51d6ed,"not in CyberGym, old ID",False,False,False
+arvo_42534863,arvo-v1-42534863,sha256:d3b50b46ed5aafb103860e522648c18338226c12a5378d4f7cdee8f22d9ac24f,"not in CyberGym, new ID",False,False,False
+arvo_42498525,arvo-v1-42498525,sha256:1efb2708ee1235abd6dc38cea899d1fded0678e85be1c191575310b9eb399edb,same CyberGym bug under the other ID,False,False,False
+arvo_4511,arvo-v1-4511,sha256:c993aa95f84ce210f3d787922e3b3bc2a8986cf61cada348729ae7de00142f78,same ID as a CyberGym arvo: task,True,False,False
+arvo_55948,arvo-v1-55948,sha256:62c4c7a65f46e1fced9cb4b79e17c9139e4a10086a4bdacb459fd3abab42b90a,same ID as a CyberGym arvo: task,True,False,False
+arvo_42540576,arvo-v1-42540576,sha256:97e5536ae57b8325d971f0538a17544242c7ac8927b0a07ec1fae00b29bb39a1,"not in CyberGym, new ID",False,False,False
+arvo_42522633,arvo-v1-42522633,sha256:54d38182cfed260f1fd17b048c94ed9286ea80a4368e7afac7307b5e7c833f10,"not in CyberGym, new ID",False,False,False
+arvo_378014605,arvo-v1-378014605,sha256:1f985f895e37520b68d1cb7c6ff7b23915f2eed760c56414e4fe949b62014a17,"not in CyberGym, new ID",False,False,False
+arvo_42491389,arvo-v1-42491389,sha256:53c981aa189e927bc2adb3a42021060d0494d6e49ca8fc153e4c4e5dc7d21f91,same CyberGym bug under the other ID,False,False,False
+arvo_42471950,arvo-v1-42471950,sha256:7435322d4a0b6dbab125476b1e8c9f37acf3200175d676016b4d3ce07dff5e33,"not in CyberGym, new ID",False,False,False
+arvo_54435,arvo-v1-54435,sha256:096ede3642ec8c345f27f124677dd3fec209eecd5b1b213343c4e55f9c9ba08c,"not in CyberGym, old ID",False,False,False
+arvo_42481762,arvo-v1-42481762,sha256:4baa69d78cf0e49682e04bb4af960f2c7be11550f70c8394a90ea6a2155eaaf4,"not in CyberGym, new ID",False,False,False
+arvo_42518879,arvo-v1-42518879,sha256:d5183645304fbab33a262cb0912105d6cdbb85d09eb52f946a9260c5159ef8bd,"not in CyberGym, new ID",False,False,False
+arvo_32483,arvo-v1-32483,sha256:2581be975c4b9429b38c24a7c5ef524246cfa63959af4643caf68b5ca6b89d3e,"not in CyberGym, old ID",False,False,False
+arvo_42538295,arvo-v1-42538295,sha256:323b5cc02b8da7820edd003f9f66a2348fdb9a675b4563b3824700a0f49d1818,"not in CyberGym, new ID",False,False,False
+arvo_29545,arvo-v1-29545,sha256:568aced62386462c9c505ea8a4191be1649b957ff85049c329303d9e2753777f,"not in CyberGym, old ID",False,False,False
+arvo_42538975,arvo-v1-42538975,sha256:9043bfdda97a9071764fdf26c716d444ddaf39a498553068d7d0408d4d8ad9c1,"not in CyberGym, new ID",False,False,False
+arvo_10125,arvo-v1-10125,sha256:f46aea56e645e751277bb50dcc30a4b5983e7f71d048a5d76c1f4c599eac000e,"not in CyberGym, old ID",False,False,False
+arvo_10137,arvo-v1-10137,sha256:8ef49110e5347df955f4a5dbe6bb4700e64c1b04e79a92573b4f016a165e7be3,"not in CyberGym, old ID",False,False,False
+arvo_3608,arvo-v1-3608,sha256:abceea968d2a1f987c351358d565fd075fd0676c0389188150df30ad316387bb,"not in CyberGym, old ID",False,False,False
+arvo_42540117,arvo-v1-42540117,sha256:1150215604ef8473a481013b72be36fe9c775582234cc83cd28ac7b6365aa783,same CyberGym bug under the other ID,False,False,False
+arvo_42477424,arvo-v1-42477424,sha256:d18b455e1b97c11526de68254609ba08650da428468d0307f2a3332884987c4a,"not in CyberGym, new ID",False,False,False
+arvo_42474987,arvo-v1-42474987,sha256:0c81454cef84a39e6500647bceec4c2069b2e8aa1749e45eea16dd49fc7a4f07,"not in CyberGym, new ID",False,False,False
+arvo_27710,arvo-v1-27710,sha256:a44fc4488c87929a634bcc9b8c3bda5459e9aa0cfc3a099dc0fe517aa8751a3d,same ID as a CyberGym arvo: task,True,False,False
+arvo_42476946,arvo-v1-42476946,sha256:b972eb9e024a520a34864813fa295f3064c6c7bb2e2e175ee664049e5fc96d2d,"not in CyberGym, new ID",False,False,False
+arvo_11876,arvo-v1-11876,sha256:9f48cadca7da7dff1f4601b90717b5ffa47466faf264b439182f803244e9332c,same ID as a CyberGym arvo: task,True,False,False
+arvo_6011,arvo-v1-6011,sha256:d5b9c4efcbe43370c5c0c6996f5bcd27e2b0ebb6c898a81d44d211952e691dea,"not in CyberGym, old ID",False,False,False
+arvo_42505705,arvo-v1-42505705,sha256:83a3f2088e33a50d4f852f148c01f305bef324bc33cbd5f4d6c814e4e5c7e4d0,"not in CyberGym, new ID",False,False,False
+arvo_42475054,arvo-v1-42475054,sha256:3ca3e08bf819fac29babadaa93abb9455421d0428fd9d3dd82f2f3aab0d5d233,"not in CyberGym, new ID",False,False,False
+arvo_42535678,arvo-v1-42535678,sha256:40e166b2c1772c01d916beec893bb96c2bef5a7cc7e557018740089fa218f241,"not in CyberGym, new ID",False,False,False
+arvo_42473271,arvo-v1-42473271,sha256:cc61e5dd011c32ff3056f271b138b995389f8d33d319a0b79caf8714b51dfe48,"not in CyberGym, new ID",False,False,False
+arvo_42482847,arvo-v1-42482847,sha256:a1ab1be864395051c953a1d5846ff3be28d80b5a2ed74a44450617164ad5866f,same CyberGym bug under the other ID,False,False,False
+arvo_42494963,arvo-v1-42494963,sha256:b2e0ad8c8241fc5ce9c42b1c16767010047f82770459b8b84ee0169a5f03774a,"not in CyberGym, new ID",False,False,False
+arvo_42494837,arvo-v1-42494837,sha256:8fcebe2d00dcbe35347f6220d18e7d6f601595ef8f952ff2c634badd099dac05,"not in CyberGym, new ID",False,False,False
+arvo_431836200,arvo-v1-431836200,sha256:00daa7f6abc36eb77efe8ae8a1b5341ab3814b1ee57c9d08766fb94fba13ffe8,"not in CyberGym, new ID",False,False,False
+arvo_42484452,arvo-v1-42484452,sha256:b4c4f5797cf5188c8541fd00db9c74943d3b2799e25616a0e3105c5483343070,same CyberGym bug under the other ID,False,False,False
+arvo_30951,arvo-v1-30951,sha256:59dbbe46f9709e0a2dfb42cc86ff225b61f9861b9b9a4100517c3ffd4c42442a,"not in CyberGym, old ID",False,False,False
+arvo_344,arvo-v1-344,sha256:98bc0ce42e62ce22f6f489c054b1364ea0ce868babad20c00e4a4643c9fad0f1,"not in CyberGym, old ID",False,False,False
+arvo_11522,arvo-v1-11522,sha256:0e773342670b808a3847c84bcd07b04eb607a4503c8d8417cc81921f5a87bd32,"not in CyberGym, old ID",False,False,False
+arvo_38313,arvo-v1-38313,sha256:e909482d0288aeb7650d239a42319dcd95630cf9788ee21f7c144f3ddcbbe1bb,"not in CyberGym, old ID",False,False,False
+arvo_42524722,arvo-v1-42524722,sha256:9b8a3725c7e61863ede6b862f276a2fd4a293e49e84edb36bd244ad1a94133e2,"not in CyberGym, new ID",False,False,False
+arvo_14018,arvo-v1-14018,sha256:74b99d8310e952150b781a2ee7c6c8ebbd7d5e2ee8675d65677ac24e28af4f99,"not in CyberGym, old ID",False,False,False
+arvo_36999,arvo-v1-36999,sha256:94574e45a14dfdc808abed577035c1c713fa045dd914bf83f48ed55104d0be57,same ID as a CyberGym arvo: task,True,False,False
+arvo_19902,arvo-v1-19902,sha256:4673595231cc7285a3f963b6e19f43c4e9fc24e73b7cdb85e83f394c04160510,same ID as a CyberGym arvo: task,True,False,False
+arvo_14481,arvo-v1-14481,sha256:e7181f7627972bd4fee4be0f94fc331c6fe3d84a7dc6139d1429afada3e0445d,same ID as a CyberGym arvo: task,True,False,False
+arvo_42511179,arvo-v1-42511179,sha256:4aab262142064d9924ba4d1f7c9b0b1c0d52c38fb550df5dcf2fa83dec357ce4,same CyberGym bug under the other ID,False,False,False
+arvo_27517,arvo-v1-27517,sha256:07345a21de0131495a694c4ea0af078f26bc34e55f246f2acc87196863038b92,"not in CyberGym, old ID",False,False,False
+arvo_20598,arvo-v1-20598,sha256:6dc137e08fa8d76f77d18f4b2f0432cf33696e650cfeeca9c3c0de10218b5d61,"not in CyberGym, old ID",False,False,False
+arvo_42508904,arvo-v1-42508904,sha256:8ad564d874fdc7dd4a95ba2e3e45c1cd74e73f0ed056b1637c831bb618858d67,same CyberGym bug under the other ID,False,False,False
+arvo_42111,arvo-v1-42111,sha256:c8a0f1175de50feae13c4fd3ac1d987c8152098ca1a93fb583fa7c41a77aa308,"not in CyberGym, old ID",False,False,False
+arvo_42482549,arvo-v1-42482549,sha256:4d317dac84c52857cfda5468019495e0b61601ee0fb876fe15982a42473342df,same CyberGym bug under the other ID,False,False,False
+arvo_16081,arvo-v1-16081,sha256:190dfca2571ec31ed2e5a2a255da53e41bfb4d9f21b4bf405bc66d0f2f1fe439,"not in CyberGym, old ID",False,False,False
+arvo_53435,arvo-v1-53435,sha256:72412e6c67bb01b470766f614006e1b8c22e9691c8a82b7c36f88633dba1b276,"not in CyberGym, old ID",False,False,False
+arvo_42496870,arvo-v1-42496870,sha256:25439ed0c8d618929bdc28ee847cb88c2433818f709999fcf4e979c6dd6bc8ce,"not in CyberGym, new ID",False,False,False
+arvo_42485647,arvo-v1-42485647,sha256:c41bdc34ec7cbdebf4b09c4d535a39fab7960a01613982005d82676ddfc4bd47,same CyberGym bug under the other ID,False,False,False
+arvo_42470131,arvo-v1-42470131,sha256:4c69e641ccadbab15385ad572071032f6c65dfff592304a8bdf5cb0a5c3e798f,"not in CyberGym, new ID",False,False,False
+arvo_48863,arvo-v1-48863,sha256:0248d5d5b74aceeb3fe545d8058a92d689078bbfd675e4fee7d8d8534ba46b93,same ID as a CyberGym arvo: task,True,False,False
+arvo_42502685,arvo-v1-42502685,sha256:ec0d3ff20cc5fea34454bcdaffa4d85f4db54ceccd991c5a105fc36c2a0bd776,"not in CyberGym, new ID",False,False,False
+arvo_51761,arvo-v1-51761,sha256:1fbf489d5a446014cd3a59224118ff9b8cb965995ad1c5c0780b47f9dd1cbbf8,"not in CyberGym, old ID",False,False,False
+arvo_42481558,arvo-v1-42481558,sha256:eee744552d66bdd6d80e4569e774eeba2308717ea11466f22fa13942d4de45b9,"not in CyberGym, new ID",False,False,False
+arvo_42470443,arvo-v1-42470443,sha256:48cf0cca56ddb559646d374340d250f9d34bb791b54c70251cb336b80022d447,same CyberGym bug under the other ID,False,False,False
+arvo_42537851,arvo-v1-42537851,sha256:a09a485e7d8892442e3d51b4167421c47de876eb2af29c0a89f837c9ee3798fb,"not in CyberGym, new ID",False,False,False
+arvo_42539971,arvo-v1-42539971,sha256:566b9972abd5147f59a10afd80c72c761804aa8c70a29353af39a68ee9d86fda,"not in CyberGym, new ID",False,False,False
+arvo_42524403,arvo-v1-42524403,sha256:dd3aa37e382a344ceb4646fc9c1bd3b676ad4edd05176f5bbc549b5c460a18a3,"not in CyberGym, new ID",False,False,False
+arvo_36809,arvo-v1-36809,sha256:24f0b70d9dd9432d7174b477e516d1364c3ad9c25b6d06796f9f97ce80fab58d,"not in CyberGym, old ID",False,False,False
+arvo_42494556,arvo-v1-42494556,sha256:49d262f1926fdbbece3bd88dfdfeb4c6fc7b40df3faffda6c2a7fecfcbead083,"not in CyberGym, new ID",False,False,False
+arvo_42509666,arvo-v1-42509666,sha256:0a346e992b4b793379100ef245dfcea0c7ec42f5648c1f322c6ae92b7271b4b7,"not in CyberGym, new ID",False,False,False
+arvo_42520589,arvo-v1-42520589,sha256:aa5ca6747951369a549ea3b7404bff241019c7ed246a0ee4190665d5b3b30821,same CyberGym bug under the other ID,False,False,False
+arvo_42505804,arvo-v1-42505804,sha256:30feabbf55076f28f235c7debbc3520f3b165e14799682d00f213b7573fa1e2f,"not in CyberGym, new ID",False,False,False
+arvo_42532755,arvo-v1-42532755,sha256:6b4f8eed0080ca94b96705a11c9eb893d540728562a2bf3d4d93f158a07b2ef1,"not in CyberGym, new ID",False,False,False
+arvo_42480818,arvo-v1-42480818,sha256:b82c12dcce7464622c204ef9e24dca8a6e1a185527d3421211866bc7785cedf6,"not in CyberGym, new ID",False,False,False
+arvo_14703,arvo-v1-14703,sha256:6064a05bc872f4d867b205d61ede337e26cf5cf3bcad73a214e6f1cb09189e8f,same ID as a CyberGym arvo: task,True,False,False
+arvo_42493368,arvo-v1-42493368,sha256:ce31dac38d8d45432dba187cbabe7be24edd97521b9e528dd89a6c60325ed453,"not in CyberGym, new ID",False,False,False
+arvo_18626,arvo-v1-18626,sha256:e018d93f21fe6d1a95ce82afa76349a8dd5d4a29d4218107378e9f2ae605d8c5,"not in CyberGym, old ID",False,False,False
+arvo_42516159,arvo-v1-42516159,sha256:966745d939757553ab1c6888c4085b36441c896056a73a80ec86f17d3aaa9b5f,"not in CyberGym, new ID",False,False,False
+arvo_41330,arvo-v1-41330,sha256:a0abfbb5b4a2fc254985def5dae95c53b512718286cba84d96fb59e9e1f8a7e7,"not in CyberGym, old ID",False,False,False
+arvo_39103,arvo-v1-39103,sha256:da076f81ad144c8a59aab5ee28e0b3ca76e0546bce40fedff71fd408d9b05473,"not in CyberGym, old ID",False,False,False
+arvo_42525240,arvo-v1-42525240,sha256:9abd43e0f751a6f5cde67a9912b0f8ebc192ec9d850e66254a304075386144d1,"not in CyberGym, new ID",False,False,False
+arvo_33129,arvo-v1-33129,sha256:4a8470e80c882a6136b7376e17ae4e842d3b9762e0882fc437d64b2bd32315a9,"not in CyberGym, old ID",False,False,False
+arvo_42473267,arvo-v1-42473267,sha256:9327cd9c4062e0b6c1e08c656b57d738688543fa2a3ce38bc9a98977d094e626,"not in CyberGym, new ID",False,False,False
+arvo_394932369,arvo-v1-394932369,sha256:b9940c42ba77e528884b75227130388165b03681abd9c3504c39eb260726b56f,"not in CyberGym, new ID",False,False,False
+arvo_42480937,arvo-v1-42480937,sha256:ecb49246743aaa6b4cde6270e9d2260d882ccade7a4b15d22606ddfe9d4a07dc,"not in CyberGym, new ID",False,False,False
+arvo_42494198,arvo-v1-42494198,sha256:7d5709818ff0577a77b287f01daab65c6456f7ba5daca404036bd723fb0c93e5,"not in CyberGym, new ID",False,False,False
+arvo_42475034,arvo-v1-42475034,sha256:9130bb726cbfd765b12d3999eafd04c6766f75d83b8f346f8a0f49b6b7b95a23,"not in CyberGym, new ID",False,False,False
+arvo_42538133,arvo-v1-42538133,sha256:3d5bfafb4951c09db2d51177c0954b23127dc678587801f2e117632826f39541,"not in CyberGym, new ID",False,False,False
+arvo_24590,arvo-v1-24590,sha256:4f598f89fa7c26aeff5eee8a377ffe061abf65102ce8a025f35d49da9e762922,"not in CyberGym, old ID",False,False,False
+arvo_42486834,arvo-v1-42486834,sha256:fb69868368916eb77ee463bbfe8034a5ad5d400d3602b00648699f046e2569d9,same CyberGym bug under the other ID,False,False,False
+arvo_53103,arvo-v1-53103,sha256:2844a581f3a22939eae93f813aa16657acf27d27635766539a1059e0085e6686,"not in CyberGym, old ID",False,False,False
+arvo_20109,arvo-v1-20109,sha256:79d1c8798e352da656b97254fc1b430fed97eb0ff1207d359420295cba540213,"not in CyberGym, old ID",False,False,False
+arvo_40317,arvo-v1-40317,sha256:73ffd1c0dbe1310dafd1dba7d967e23902a5add1d9f0d9d9f486d110f2940644,same ID as a CyberGym arvo: task,True,False,False
+arvo_29633,arvo-v1-29633,sha256:8d9b351e62ad55f26564a0f0be6795f2b46c509064ca1ff4a863009c3a34ff17,same ID as a CyberGym arvo: task,True,False,False
+arvo_42492002,arvo-v1-42492002,sha256:733c7088329da063bace7f4e65bf98d84ad8511de17af894ea3e4953534585aa,"not in CyberGym, new ID",False,False,False
+arvo_42486193,arvo-v1-42486193,sha256:3cce14d7b5850bc236f6b1186d1c68611455708dda5554cc6215390557f162fd,"not in CyberGym, new ID",False,False,False
+arvo_42483264,arvo-v1-42483264,sha256:f465d91440d7bab08f78612d58fd1cf1952a199ca6d7e9d35562c5a00c7ef428,"not in CyberGym, new ID",False,False,False
+arvo_42524846,arvo-v1-42524846,sha256:035c1c568afb3aa7148e2e0e74b6c6c92c685e8dba2da272e869e0d7c97ed1a3,same CyberGym bug under the other ID,False,False,False
+arvo_42476049,arvo-v1-42476049,sha256:5f1c553c72b9dd97c88db967bba4e4b2b0a10cb9e4449f81369edff6299b9dcb,"not in CyberGym, new ID",False,False,False
+arvo_31332,arvo-v1-31332,sha256:0177dd545a207119aa4f678ba3aec14c538971ddd661fe3fa22ce7a2a582d801,same ID as a CyberGym arvo: task,True,False,False
+arvo_42539849,arvo-v1-42539849,sha256:b96650012d161c45ed7b78fc82242d348105c587562f9ee2f7ce069b953fa220,"not in CyberGym, new ID",False,False,False
+arvo_42487660,arvo-v1-42487660,sha256:f91f57cd109d64984e415fda9ac8a409c5ed92c467561a0f7d826767eebac749,same CyberGym bug under the other ID,False,False,False
+arvo_386688710,arvo-v1-386688710,sha256:d27ce3d922d1745849c59199f8d4ecfc32fa563482115d2fa3375f4add2445ca,"not in CyberGym, new ID",False,False,False
+arvo_42498712,arvo-v1-42498712,sha256:68e41d3eaf837395460b7f53f59db598b97d5c2729f996aff5ac23e93d27d095,"not in CyberGym, new ID",False,False,False
+arvo_42481196,arvo-v1-42481196,sha256:7b7a51e89c91252e7ad2b1f2c9701f34f5418d1c3f8533542fce158dad86b417,"not in CyberGym, new ID",False,False,False
+arvo_42473792,arvo-v1-42473792,sha256:25fecc60684dc7c1cc5c8e5289fdc4fae9723e4c99718db7af1a0670db9b3bde,"not in CyberGym, new ID",False,False,False
+arvo_24633,arvo-v1-24633,sha256:d87d8a0b8e4644b693c962dd4bd3a5da4a2bb82b98a39c9d76c7fdf3c2863088,same ID as a CyberGym arvo: task,True,False,False
+arvo_21321,arvo-v1-21321,sha256:efca02d39829010a4923cb0f39d234e3206c562cad040b22ecd0c3c6435ab8cd,same ID as a CyberGym arvo: task,True,False,False
+arvo_6070,arvo-v1-6070,sha256:aed21a83c431cd141169355b22658b666a08e848be8b75b15775557d3337f84a,"not in CyberGym, old ID",False,False,False
+arvo_48736,arvo-v1-48736,sha256:d01fe24b223dd09d150bfc8d869827524bf3dbd503c58915b55c7ba4c369891d,same ID as a CyberGym arvo: task,True,True,False
+arvo_42540504,arvo-v1-42540504,sha256:6496e54b2f13a7ce5f2e93d1b9e0167b42aceeea81cf57e075cbd589712c9806,"not in CyberGym, new ID",False,False,False
+arvo_16615,arvo-v1-16615,sha256:4427f831842297d3722cbb5ebdad3d8f3352d111afcc48e8d4e4f518ac9c1caa,"not in CyberGym, old ID",False,False,False
+arvo_42475294,arvo-v1-42475294,sha256:6b6a5e0c85d078f8c08d462062674c597463ed287b6e8cbb63ae20f49cc0f9df,"not in CyberGym, new ID",False,False,False
+arvo_42503652,arvo-v1-42503652,sha256:7b9a2597b0095bc19df6272db4f1025e3891ac861e17d585e3d1fc707712de11,"not in CyberGym, new ID",False,False,False
+arvo_42519926,arvo-v1-42519926,sha256:42e3325a32e87c4e3a8af4c2ad9fac7df722f2633ed033bc3e86be0e7d0fc3fc,same CyberGym bug under the other ID,False,False,False
+arvo_1220,arvo-v1-1220,sha256:606e07959e00738c9fc532244a79c3486e5052f1717e438b317c90be380ee63b,"not in CyberGym, old ID",False,False,False
+arvo_42472057,arvo-v1-42472057,sha256:0bb232919e0ecd3619f98e631b1dbc1ea36bfb4e85cc86f0cd02ab6be69634eb,"not in CyberGym, new ID",False,False,False
+arvo_22755,arvo-v1-22755,sha256:9ebb71db45206911d20b5fd2c1c0018ec3e26edc415ba4dfc0754f12d4950c28,"not in CyberGym, old ID",False,False,False
+arvo_30430,arvo-v1-30430,sha256:274830a14d7c90c5f9347ebbc1ba20f96863fb5f0a85f0d541479a4e44c58e30,"not in CyberGym, old ID",False,False,False
+arvo_35865,arvo-v1-35865,sha256:abcfaa36c26518559060660bc39d652fd14364f31ca9f3e061bebf1b1ba7f586,"not in CyberGym, old ID",False,False,False
+arvo_388905046,arvo-v1-388905046,sha256:bd5e001e572c62accc3f7010aa41942ab10db76f64f1ff03423e9fc233069637,same ID as a CyberGym oss-fuzz: task,False,False,False
+arvo_38233,arvo-v1-38233,sha256:a0523585c0f6ed1317df515780232d5719dbafd044b026169e8475b5c5cf274a,"not in CyberGym, old ID",False,False,False
+arvo_33556,arvo-v1-33556,sha256:7417278adfbaf7b5d07c24cf1a8ea7e81048be7436a90530736fda4213d2963f,same ID as a CyberGym arvo: task,True,False,False
+arvo_42538,arvo-v1-42538,sha256:71cdd77bd65d06e00fad51fcc5530b9f231f7ab167211f0e22c9c1bdb645a746,same ID as a CyberGym arvo: task,True,False,False
+arvo_42516977,arvo-v1-42516977,sha256:a024808d15d4cf6eedbb3d3cb0d0e27c870957e00e073fedd5eb7a037d820b37,"not in CyberGym, new ID",False,False,False
+arvo_42474638,arvo-v1-42474638,sha256:0b64548ed0f424925ceba588e8f0bdd9d4e7953c1a6624acd057e7fbef0eaf39,"not in CyberGym, new ID",False,False,False
+arvo_42541364,arvo-v1-42541364,sha256:e10f3813a676dfe9adeaee2e099a7fd8136b73df40b534506082b4d9ad15474a,"not in CyberGym, new ID",False,False,False
+arvo_47101,arvo-v1-47101,sha256:dee6e53a3955d36448d697b2860fa63532d6b56f1a45619c66288c9682bd202e,same ID as a CyberGym arvo: task,True,False,False
+arvo_42483782,arvo-v1-42483782,sha256:e59dfce08df62b42ace8b735f4493d9b8b6e174f1e287307f2e7af482548371c,"not in CyberGym, new ID",False,False,False
+arvo_42490053,arvo-v1-42490053,sha256:b29b01bbf01c48872e409721d7454180fc279ae6609a762d23991fad568712df,same CyberGym bug under the other ID,False,False,False
+arvo_42507123,arvo-v1-42507123,sha256:1f871d6f82dddd4a45f7683a0c7e7a0aae4411711b30c902bc7b4d36a17c4fdc,"not in CyberGym, new ID",False,False,False
+arvo_42506044,arvo-v1-42506044,sha256:dba0c5434636d7d2c36a20ded3f722c86c6e0de055c9131dab68cccace10c4a2,"not in CyberGym, new ID",False,False,False
+arvo_42490552,arvo-v1-42490552,sha256:700737951f7d29fc89bb1b49ce47b09d02755523690510dc27c6294879c3f73b,"not in CyberGym, new ID",False,False,False
+arvo_14912,arvo-v1-14912,sha256:f254e21bcbeb42c060534b9efd56794206669a6149846cd728c0acdf0497bb7e,same ID as a CyberGym arvo: task,True,False,False
+arvo_42486540,arvo-v1-42486540,sha256:050a42db28ca535835c17a42dfcceb3be9ce859d5df2ab319046c640342dd48a,"not in CyberGym, new ID",False,False,False
+arvo_58789,arvo-v1-58789,sha256:9765928b6977fdf64451713aef3c304ba29ebdef394db811604a664d622754be,"not in CyberGym, old ID",False,False,False
+arvo_42481957,arvo-v1-42481957,sha256:1379d7fc9a2787e8095c526a72bb68e4009cb56f376805b508a58736c1b49bbe,"not in CyberGym, new ID",False,False,False
+arvo_47877,arvo-v1-47877,sha256:0fa565e8cc9e14beedc69a657194bce83719de35dc9d0531e953055c63ac7db1,"not in CyberGym, old ID",False,False,False
+arvo_63601,arvo-v1-63601,sha256:af4221f6553adcbf40d88aa34dc970262076613774b49ba8a5b7df52f534dc5b,"not in CyberGym, old ID",False,False,False
+arvo_35362,arvo-v1-35362,sha256:6553944f4dc6888e581786780775dee62108963c4419c08edf39f7a91a9f359f,"not in CyberGym, old ID",False,False,False
+arvo_3094,arvo-v1-3094,sha256:8182a1a3ed490e09d6bb1600072235b9a1303e6489cc20232cbd6b9112776299,"not in CyberGym, old ID",False,False,False
+arvo_42531311,arvo-v1-42531311,sha256:a2cb9fdfdd03605a7dc2fccde70487690b4cc1471b2b37af0655dcbe7adf8ccf,same CyberGym bug under the other ID,False,False,False
+arvo_42525170,arvo-v1-42525170,sha256:200a72e2ec0546bf8991fcff15eca2bf355bcdea0b2e7e44321564c642b49790,"not in CyberGym, new ID",False,False,False
+arvo_3630,arvo-v1-3630,sha256:8e78e919e9dbe1d20806ddf3ce20738ccb7d1422b86033984838a37733bccea3,same ID as a CyberGym arvo: task,True,False,False
+arvo_63034,arvo-v1-63034,sha256:b24b43d66682dfb6b5030eaabb49d0e29ffb4261e9064e7a3b8b2d0363395a17,"not in CyberGym, old ID",False,False,False
+arvo_28123,arvo-v1-28123,sha256:95c2532ca6520017337686aba7e386cbb10fe301be48ed359a9aba2d0c16213d,"not in CyberGym, old ID",False,False,False
+arvo_418520149,arvo-v1-418520149,sha256:14a06438e883cc6b233caab58b34120f6c402d3c6c8e75ecefcc3d9952495f21,"not in CyberGym, new ID",False,False,False
+arvo_29329,arvo-v1-29329,sha256:3ba3b81579167409cadc9942269c3f031810c10bdc777c974f5e3f199adde608,"not in CyberGym, old ID",False,False,False
+arvo_42516713,arvo-v1-42516713,sha256:a6a750d83c52c95524d2bd59216a8e6c74b1b4ae9f2a37e1f8f0e59d518fcd9c,same CyberGym bug under the other ID,False,False,False
+arvo_66209,arvo-v1-66209,sha256:085fa1b77660b5f15fd0a788a84d5388662902d2219095e5a317c20ca0d10045,"not in CyberGym, old ID",False,False,False
+arvo_42508319,arvo-v1-42508319,sha256:5e3cc5d1f0c05818be7547d5609ea994e366c88b46e8204c4be0cf5f6beaccf3,same CyberGym bug under the other ID,False,False,False
+arvo_3569,arvo-v1-3569,sha256:0a218e14c19495aa88c1e0efc3d98916ed74aacb975ec110e176785a78ea6292,same ID as a CyberGym arvo: task,True,False,False
+arvo_53029,arvo-v1-53029,sha256:9b71a99ffd1e8de6c4c982c12b990327f5e78804838b48ff1e7e0d5e43daa462,"not in CyberGym, old ID",False,False,False
+arvo_42476877,arvo-v1-42476877,sha256:f8b52174c2504cee0d831f0f7084b93616337bf875350aae8c5dbd42b64769c5,"not in CyberGym, new ID",False,False,False
+arvo_42500027,arvo-v1-42500027,sha256:ec13c58bcb7e3360d1639302b748a20fd1b4e0c3e4173bf3ea510380f0412b62,"not in CyberGym, new ID",False,False,False
+arvo_42526143,arvo-v1-42526143,sha256:bd43eb544ecc01b36161c4b84e40557bf5f27a6c45a3f9e97f24f1510b9c2dae,same CyberGym bug under the other ID,False,False,False
+arvo_57430,arvo-v1-57430,sha256:15aa971f39a4f9be8b1f68dcddb8ef7531747a1f5ab41aaa71a11733acd92425,"not in CyberGym, old ID",False,False,False
+arvo_30501,arvo-v1-30501,sha256:a1f52d232d9d3038badb4abf64668ca85f7680fdbf034bf3a1738ae34e1ec9de,"not in CyberGym, old ID",False,False,False
+arvo_46983,arvo-v1-46983,sha256:c383aeb1c2d6b8728fb792d27f52a4d03478af0e4c7061d8d1e7b6bbbcefae55,"not in CyberGym, old ID",False,False,False
+arvo_42483502,arvo-v1-42483502,sha256:01afa8ed57893ee3b363a7900f518450b5e90d45461c678352a12becba237167,"not in CyberGym, new ID",False,False,False
+arvo_16051,arvo-v1-16051,sha256:e106f1c44256bc11688e9444a33185dde60bfde92bd52c87650b7a6ad4249c6a,"not in CyberGym, old ID",False,False,False
+arvo_18733,arvo-v1-18733,sha256:098b2d4798d0d69bf901f996bf745e4da2f4b02ccf83ed11de377f8af048cc14,"not in CyberGym, old ID",False,False,False
+arvo_42480815,arvo-v1-42480815,sha256:69ce5140aa1bd138c71a798dee1958f1950ea3677d54517b4dc62103890dd376,same CyberGym bug under the other ID,False,False,False
+arvo_12466,arvo-v1-12466,sha256:34ace99d442b9c8734b5298a407aa665d4b7bf10296ebdcc27c80313ef49bbcf,same ID as a CyberGym arvo: task,True,False,False
+arvo_61721,arvo-v1-61721,sha256:21a93bcdace07553cfd19698ae5658e2e52901cf7c7e9cf8b06014b690d071f2,same ID as a CyberGym arvo: task,True,False,False
+arvo_42482207,arvo-v1-42482207,sha256:c843a1419110d92d6faef5cac158b7e126400f25d85139d49cf43fdd4627a23d,same CyberGym bug under the other ID,False,False,False
+arvo_42474270,arvo-v1-42474270,sha256:1ae6163c99e5b1be3f246e2bec9447eba232878df5d4f39a0dfa3ca9c1d815d3,"not in CyberGym, new ID",False,False,False
+arvo_42474124,arvo-v1-42474124,sha256:43dc69474b59f66e90f705683704a87fe45a07a26f8be7ee536543a1beae3443,"not in CyberGym, new ID",False,False,False
+arvo_31202,arvo-v1-31202,sha256:0610495872ae95681242e233b24de2f16b242d1a410e1a7ebbdea0de759e64bd,"not in CyberGym, old ID",False,False,False
+arvo_26674,arvo-v1-26674,sha256:cd65d5a71c87c2c8bcd0f811f2991a8262df1c1db1500333ed322d12506d22ee,"not in CyberGym, old ID",False,False,False
+arvo_42481924,arvo-v1-42481924,sha256:23efd7a4ccc458df1f8b4ba03441478ac0920b972a5f924f549922289a1c4944,"not in CyberGym, new ID",False,False,False
+arvo_64504,arvo-v1-64504,sha256:526516490efd82394a232e57408e46924e8cb383a21dc21246cb7465e46632fb,"not in CyberGym, old ID",False,False,False
+arvo_42482609,arvo-v1-42482609,sha256:a25edc4557ea4103479e13e2ed34c8b2a5443a7c8b72d7f0e3f97b8b1a9414d5,"not in CyberGym, new ID",False,False,False
+arvo_39802,arvo-v1-39802,sha256:4f6be8d09cf7259c32e9f7e1881749c21ecf1b93cb7c502a5bde75f4a5ac41a3,same ID as a CyberGym arvo: task,True,False,False
+arvo_42490091,arvo-v1-42490091,sha256:a03a671431626a9673b57949592cacf318d79dbfb6c2146fd18374ed1b4cc597,"not in CyberGym, new ID",False,False,False
+arvo_16537,arvo-v1-16537,sha256:d14b61349702d335ab1af059cee0fe603c5b4048ff90c7506e4e4116b958689f,"not in CyberGym, old ID",False,False,False
+arvo_18222,arvo-v1-18222,sha256:f12eb31fc63abf4b1fa11d72b68653d8e5910c8ebfe072762dddc7814ece0096,"not in CyberGym, old ID",False,False,False
+arvo_42480353,arvo-v1-42480353,sha256:ea884554f31a318d76cf1ff2c41e85dad427719dda499c6a111bb9deff88cfcb,same CyberGym bug under the other ID,False,False,False
+arvo_16857,arvo-v1-16857,sha256:732dd18c933429031e5b9ae51d5cb796dddebac3527a03318cca577b124b13e2,"not in CyberGym, old ID",False,False,False
+arvo_42474963,arvo-v1-42474963,sha256:13ca731d9cb515d4edd6a7e942f61a1a4105d6e055d85fcfb1cfc6bcca3ced26,same CyberGym bug under the other ID,False,False,False
+arvo_56897,arvo-v1-56897,sha256:692d6b8fc3c6f96ecf5de08136b9266a6b1949d37fea73357af6a27125a47ec5,"not in CyberGym, old ID",False,False,False
+arvo_42484867,arvo-v1-42484867,sha256:98889671460b6f1059444c898a87347448245312c1825c1b1eaf539e4a982fcb,"not in CyberGym, new ID",False,False,False
+arvo_42506332,arvo-v1-42506332,sha256:f911d30c4be55b5644058bd880a6adf741b62ab959d51925516f45f46ab8963e,"not in CyberGym, new ID",False,False,False
+arvo_42495497,arvo-v1-42495497,sha256:e1fe73fa87281aa9048e819363439329ac00716b7768d7db3f61736958997036,"not in CyberGym, new ID",False,False,False
+arvo_42472890,arvo-v1-42472890,sha256:51277860f48ff171474f6cb7e2f30c5ee40368fe91528c1fe50fa7f09d4923a6,"not in CyberGym, new ID",False,False,False
+arvo_42481275,arvo-v1-42481275,sha256:851c4378ffb7cdc560326441bd1cf8520e9836d2f6b65f539fbb33ab4f7fa97c,"not in CyberGym, new ID",False,False,False
+arvo_42481163,arvo-v1-42481163,sha256:ce4bdc7ec5b22d5a3524937d797bf422fb0f2d78c2a52b663b1b35ff060e2b7f,"not in CyberGym, new ID",False,False,False
+arvo_42486531,arvo-v1-42486531,sha256:7c9942d9d74defcb47ccddd6db0bfbefe08f9858c5995c8000759688261da441,"not in CyberGym, new ID",False,False,False
+arvo_39094,arvo-v1-39094,sha256:9684b6a715f76ddcac4f14f53b53c1527fa29d4b2140f261e2cad0a2cbd000d1,"not in CyberGym, old ID",False,False,False
+arvo_2602,arvo-v1-2602,sha256:5611091c53cc71b1aace4d6d1ff2774e890b524e87eae68242d2b0d33e8c3b92,"not in CyberGym, old ID",False,False,False
+arvo_42475106,arvo-v1-42475106,sha256:7f1b26f1b07c547af5fc4126f69a868bb10fcbbc4b6c5464cf4aa0b231d02612,same CyberGym bug under the other ID,False,False,False
+arvo_42498471,arvo-v1-42498471,sha256:03b47cb64090ac58842094240b9fb1a6ddf584cc7b51bacedac148454fe50064,"not in CyberGym, new ID",False,False,False
+arvo_10136,arvo-v1-10136,sha256:ae1bb9fd1c667e97ed9ad854da4725bb48d89eeb0496f529eee77d0836e5820a,"not in CyberGym, old ID",False,False,False
+arvo_35927,arvo-v1-35927,sha256:9462951c862ed05b0a033e35050a7652bc1002fd94966338ee9f35a661a84782,"not in CyberGym, old ID",False,False,False
+arvo_42470109,arvo-v1-42470109,sha256:b2326a52db0aa4f02a7ff1cebba9b6c1a829356a6f71477d4119e63fb8682e4c,same CyberGym bug under the other ID,False,False,False
+arvo_42908,arvo-v1-42908,sha256:35a3f8961fa40d7ef4193fd27b94dad107ce373c12eb80f24e6524cfe1b0dfaf,"not in CyberGym, old ID",False,False,False
+arvo_42524877,arvo-v1-42524877,sha256:71871bb58d7307ea0c8c19ba8d3a17dabb728fde2800d469dc203ce14654ef8b,same CyberGym bug under the other ID,False,False,False
+arvo_19697,arvo-v1-19697,sha256:26299298f9d8dcd48a5f9ce6d48784c87f36f3e70ef6eb6d5af1286ffe903fd6,"not in CyberGym, old ID",False,False,False
+arvo_18952,arvo-v1-18952,sha256:155454951893771bdf53a37cbc0c4a718b059cf6b113330a9d6a49f3aaed5669,same ID as a CyberGym arvo: task,True,False,False
+arvo_42492173,arvo-v1-42492173,sha256:42e9dffad311f02a3da2dff86343f4c6762097ae30ae7603da5b7d0fbf609c28,"not in CyberGym, new ID",False,False,False
+arvo_50991,arvo-v1-50991,sha256:8a466871ca3356730b83a75c1273feee57f212db4992dd44dafa0fbbaaa34463,"not in CyberGym, old ID",False,False,False
+arvo_42510086,arvo-v1-42510086,sha256:6bd632a66f31fd5f3d02029b9f0fe367f72b9004ddb8cf36195c7ab2c34a273f,"not in CyberGym, new ID",False,False,False
+arvo_42523451,arvo-v1-42523451,sha256:8a1d4e77748516593d9073eb827f3fad608b5013e310e648369f737fc18e268c,"not in CyberGym, new ID",False,False,False
+arvo_36793,arvo-v1-36793,sha256:ed605e455a603ab36e18109fd773a16a306b0b38fd179f5db01478e4c979e6c8,same ID as a CyberGym arvo: task,True,False,False
+arvo_42484382,arvo-v1-42484382,sha256:ad662eb9657e59e4204960ebcbbd7b14562a6c5c43ffd9e8b8ed50e2e6b9c8fa,"not in CyberGym, new ID",False,False,False
+arvo_42483957,arvo-v1-42483957,sha256:1f367779bab33a9042d5c05f34aa345628dabff4f09a85d871daf642d5140ee4,"not in CyberGym, new ID",False,False,False
+arvo_14767,arvo-v1-14767,sha256:322adaef38ebae28bf23d02d582eaab88093dbb38538a9387ca7c3dfbf70fc49,same ID as a CyberGym arvo: task,True,False,False
+arvo_33198,arvo-v1-33198,sha256:1df615f8a7450b0a07fd85b76f0f47d2b5edb9009b31f3b81e5a643449ad75e6,"not in CyberGym, old ID",False,False,False
+arvo_42496599,arvo-v1-42496599,sha256:b73c18bdaba6f98904d278774abd250aab5b00c52ea03e4e712fb5a774346d52,"not in CyberGym, new ID",False,False,False
+arvo_32142,arvo-v1-32142,sha256:d9105b02a36bd80c9f3b07ab458ea87e98c064128fed2a926a1abb0ae529f253,"not in CyberGym, old ID",False,False,False
+arvo_42488327,arvo-v1-42488327,sha256:28e7332a76d8e55db0e31f3c3744557baa0741b9bb734fddf7253c1cb7cb5da2,"not in CyberGym, new ID",False,False,False
+arvo_29564,arvo-v1-29564,sha256:7f8af5465e17f038f3fa80092bcaf3116289f5a97c125851936bbdcb369245d9,same ID as a CyberGym arvo: task,True,False,False
+arvo_28162,arvo-v1-28162,sha256:cd58f4326e084db72b4fa68c0763aa22d39acccc617385d74afa7947e5fc39fd,"not in CyberGym, old ID",False,False,False
+arvo_21578,arvo-v1-21578,sha256:1ffdcbd450ffcea31d1332fed47b3e736fb22780b52d9c9577e2c526752e1015,same ID as a CyberGym arvo: task,True,False,False
+arvo_54162,arvo-v1-54162,sha256:91bb4ced4888e4ba9b5c1b2de17e732846b7403f09eab888780f7569e979b595,"not in CyberGym, old ID",False,False,False
+arvo_40437,arvo-v1-40437,sha256:796ab615f40ef0596c8afa294e107ff838e4fd0abe7e752b42f3e5fc2746b71d,"not in CyberGym, old ID",False,False,False
+arvo_20540,arvo-v1-20540,sha256:b989f08425855ecf207e7e346f81bf6c2d65e0e5130fdbf9e346cddebb43c696,"not in CyberGym, old ID",False,False,False
+arvo_42516148,arvo-v1-42516148,sha256:f01a8c0f7f8c7a81f3f1860a32a2ef8a305f24eed69129f18fdb583d413f1d0b,"not in CyberGym, new ID",False,False,False
+arvo_30537,arvo-v1-30537,sha256:6fc6e1e6f89773a43253b40bc6b3b4d6f9a166c38905be652520a6473d5aa533,"not in CyberGym, old ID",False,False,False
+arvo_60033,arvo-v1-60033,sha256:4b79c5271322af7e9c44c4f7ba15926f4469f383f421586df69c620ad03a4305,"not in CyberGym, old ID",False,False,False
+arvo_10353,arvo-v1-10353,sha256:de063cca3f76f5be5b9190583616a6ca7202ee50edb556b29ccd4af2c1901ba4,"not in CyberGym, old ID",False,False,False
+arvo_42474622,arvo-v1-42474622,sha256:eddd37da8b6abddf70de7215ac1d28c904349e2179f758f2ca70bc67fd506e68,"not in CyberGym, new ID",False,False,False
+arvo_42518471,arvo-v1-42518471,sha256:c407a0aafca28d9d45c02327ec0db201691cf0b4ecd04af3f354a25f6c5a536e,"not in CyberGym, new ID",False,False,False
+arvo_419085594,arvo-v1-419085594,sha256:0622193f8b46fa8c4bc8c3ad27e074273a9252809c3267eb907798c4f80d4b9c,"not in CyberGym, new ID",False,False,False
+arvo_4322,arvo-v1-4322,sha256:339beddfb47ba01b6f23e2cb13eade646beecd140dafbd280ee16eca25157864,same ID as a CyberGym arvo: task,True,False,False
+arvo_42475028,arvo-v1-42475028,sha256:1b9c5002ae6d3cdac6aef848cc6ef08f33fbfd8b8f9ea569b108e8ab4d7f74b1,"not in CyberGym, new ID",False,False,False
+arvo_42540213,arvo-v1-42540213,sha256:f4b2bd75f4de7d489577d6b7aea1e5e92ed2cb6dae0a03933e8f3a43aec37f36,same CyberGym bug under the other ID,False,False,False
+arvo_21464,arvo-v1-21464,sha256:4dfa03635d3f21d8b9348af9f6375610555feb7b309250c300041219f1843aed,"not in CyberGym, old ID",False,False,False
+arvo_42478672,arvo-v1-42478672,sha256:91167af81065220490fe82a3ad0553c3beb36e61e302ea78f190d28e635552e6,"not in CyberGym, new ID",False,False,False
+arvo_52303,arvo-v1-52303,sha256:3de96148307557b98f05f4ad6781a9e9b3fc83168a615f36332bbee48ff6b524,"not in CyberGym, old ID",False,False,False
+arvo_2392,arvo-v1-2392,sha256:2d9f53451a98da6d3fea30ce1799f8bc8767e91aee98e7ad63a9443659173af0,"not in CyberGym, old ID",False,False,False
+arvo_60262,arvo-v1-60262,sha256:f250b996a9edb04c57e451a5e5aac5c253a2ea95cde6128ea21823d13e7ac2b3,same ID as a CyberGym arvo: task,True,False,False
+arvo_43778,arvo-v1-43778,sha256:6f6499b6a3e5c208ac2265f6ece63fb5e960da08613b8d4320db3d5d7fb4423a,"not in CyberGym, old ID",False,False,False
+arvo_42506130,arvo-v1-42506130,sha256:61229d0c55b82105d6b63c8fdfeddd6470d3c55aca88edb97c48b355e55e6e3a,same CyberGym bug under the other ID,False,False,False
+arvo_67261,arvo-v1-67261,sha256:c4a811f25ddcac57cee0a1c6806b27660ae7d1e7ecfc0daab14b7498a7a74ff7,"not in CyberGym, old ID",False,False,False
+arvo_10216,arvo-v1-10216,sha256:3ce2d6c89e0f5342a47d92df8c65e2253919a35899109096cd40f85661575ec8,"not in CyberGym, old ID",False,False,False
+arvo_42481277,arvo-v1-42481277,sha256:735e397c91856159e575eb49cfd5bfd8d42a04c7c40171885a3baf603c864dc2,"not in CyberGym, new ID",False,False,False
+arvo_42513776,arvo-v1-42513776,sha256:cae9ab7a969b5dfc19855cd012a83a6b1c8f330f59a8a047d8d571b82ba5061a,"not in CyberGym, new ID",False,False,False
+arvo_39339,arvo-v1-39339,sha256:ceb04a5e6a9d9d3d3a35d65b2b477672471e7e1a18dacf797d027efb56b9de8a,"not in CyberGym, old ID",False,False,False
+arvo_378159150,arvo-v1-378159150,sha256:a4cbc05ff77047206f0f8dd16714330a58d0bd66839e426a01aa186d293b89fe,"not in CyberGym, new ID",False,False,False
+arvo_42492801,arvo-v1-42492801,sha256:0ae84462c715fb22ec4ba62c2f6034fc5cccccd6223f0e22a8b7cd3d8414a073,"not in CyberGym, new ID",False,False,False
+arvo_42509876,arvo-v1-42509876,sha256:9b851adda3f3538e36f3e7703b1e8f14cbbbeaf3c314d7be98986448fa965688,"not in CyberGym, new ID",False,False,False
+arvo_31126,arvo-v1-31126,sha256:110c17bcc15f8142f9c37eb0fe9ab33696b713f2098c263f2b36ba76d0d995e9,"not in CyberGym, old ID",False,False,False
+arvo_42520614,arvo-v1-42520614,sha256:4b8ea37570a7d7c1bea0569d568346116478370f97095886fea098e3fa7f9d2e,"not in CyberGym, new ID",False,False,False
+arvo_42514015,arvo-v1-42514015,sha256:d52c93faa5b0c412f2ff096c536c3837d1ec8d65c26b60ab7cea31dd91594c01,same CyberGym bug under the other ID,False,False,False
+arvo_42483697,arvo-v1-42483697,sha256:0034f7d800f6583b9a1266f9ee73fdc4601925319224ce09c34570130e739b76,"not in CyberGym, new ID",False,False,False
+arvo_62057,arvo-v1-62057,sha256:fb18368a6f39ddbce3c1d6574ff69021bbaf8cf75ebd571cbc89ae0fcda13c7a,"not in CyberGym, old ID",False,False,False
+arvo_42480327,arvo-v1-42480327,sha256:7c83ffc4a6d8209855038a4139a688504eeb668367ed15a8901becfea37e60f4,"not in CyberGym, new ID",False,False,False
+arvo_44258,arvo-v1-44258,sha256:6615d9cbcf35523825428c101a528019fa22e79cd35ce04b631738bf0407ee58,same ID as a CyberGym arvo: task,True,True,False
+arvo_444547710,arvo-v1-444547710,sha256:dfe58227979f8a7520e03606a2a51713c81cca7a80ded4d76fbe9884cb1e6471,"not in CyberGym, new ID",False,False,False
+arvo_42517712,arvo-v1-42517712,sha256:e148dc0bd7a3f1e706804d6d3874af0ed27e4ab556307c9c886fe80cf63734a9,"not in CyberGym, new ID",False,False,False
+arvo_57586,arvo-v1-57586,sha256:68cfe3ea41660260e1fdc8549330dde7dd2af61be5810299987629070f1a13cc,"not in CyberGym, old ID",False,False,False
+arvo_42473518,arvo-v1-42473518,sha256:648cc4967e7f4234537278be8d5bf71fcb2a61e87399a578958a1488fd4c5726,"not in CyberGym, new ID",False,False,False
+arvo_42480772,arvo-v1-42480772,sha256:4f7197a3e9c7f38e6f84449cd7e3710cc7c29cf1e3c69d4c77d2d550e6ddd37a,"not in CyberGym, new ID",False,False,False
+arvo_42531371,arvo-v1-42531371,sha256:c683e7e6365f7305b5a174fd562cd17e5d3cfdffda59c8b412deb1db3b5f15df,same CyberGym bug under the other ID,False,False,False
+arvo_28474,arvo-v1-28474,sha256:6cb90e12afc45c5c6ec717a2fcf149513e856b1708c7717201e79759a9a15b7e,"not in CyberGym, old ID",False,False,False
+arvo_42562,arvo-v1-42562,sha256:7208c10652037077e08fb0370e07797bcc289e14b255729535aacef30bc1ab00,"not in CyberGym, old ID",False,False,False
+arvo_27413,arvo-v1-27413,sha256:8e62f87b58df6af5e603ccd062b11e70293cf978b92b2a5bf0f869fb18743bb1,same ID as a CyberGym arvo: task,True,False,False
+arvo_16566,arvo-v1-16566,sha256:14370a57fc44cbb5b4d3956d922abc507cfb385d31735c7fbf2f96fb90b5242a,"not in CyberGym, old ID",False,False,False
+arvo_21715,arvo-v1-21715,sha256:df350fb4459218f5302c020045f5bd532c22c70fa0dc33da2a5bb985adfab2c2,"not in CyberGym, old ID",False,False,False
+arvo_42527915,arvo-v1-42527915,sha256:7455cb630d4c41b3b527c5e0808dd0688500520213570afec81dd7fadf51a687,"not in CyberGym, new ID",False,False,False
+arvo_42491975,arvo-v1-42491975,sha256:ae0acc378c00347749f3ad28f27844527296717788b9956b239c7f0032ee2d1f,"not in CyberGym, new ID",False,False,False
+arvo_44864,arvo-v1-44864,sha256:5f15ecd2a58f315bfd2cdb826df2fa873441e8d89fec367f34dfce4152c39f11,same ID as a CyberGym arvo: task,True,False,False
+arvo_21263,arvo-v1-21263,sha256:3cd7797dfa9a285736e1d919f8276368491cc8ef7dc349d1a284fb7685d8d2ed,"not in CyberGym, old ID",False,False,False
+arvo_42502055,arvo-v1-42502055,sha256:29e42992c75a5f7e6170b78a1d2aab7667f2172e8863e416d51deccb38449a91,same CyberGym bug under the other ID,False,False,False
+arvo_42470155,arvo-v1-42470155,sha256:a6229cb634258519a0dd6ccf5b8096bc78ac96168b3c830a0cccdc3ccb82b666,"not in CyberGym, new ID",False,False,False
+arvo_42539239,arvo-v1-42539239,sha256:bc5d1c1f0a084caa10ee9b81375b6a38720e8e306bd2edfb0057dd694ab6fba0,"not in CyberGym, new ID",False,False,False
+arvo_42479262,arvo-v1-42479262,sha256:4f4c46e186756a17beedd3195f8fd1f2d4533175720aeda911fdfe493b8e3832,"not in CyberGym, new ID",False,False,False
+arvo_42518649,arvo-v1-42518649,sha256:701331594ca75da29985ffe1f2818016441f482738beeaea5dc6ffd8d137967c,"not in CyberGym, new ID",False,False,False
+arvo_42479126,arvo-v1-42479126,sha256:4f1fc21287df3768be6d56714751d471414b4b3b623949c409349f06b58335e3,same CyberGym bug under the other ID,False,False,False
+arvo_42489660,arvo-v1-42489660,sha256:1375fb75cbc77c46d39e5fbfc774d197550ae98e450209eacf714ede33ccc0a4,same CyberGym bug under the other ID,False,False,False
+arvo_38909,arvo-v1-38909,sha256:a0794e4e03377dc957ec1ec2bd354d354f3783262e4c09fbb091721b4ab2ec52,"not in CyberGym, old ID",False,False,False
+arvo_417247563,arvo-v1-417247563,sha256:f5d274fd089ccaf13853fb1e3c71a87d7ebaf4101a03bd11bfb858742d929cae,"not in CyberGym, new ID",False,False,False
+arvo_10055,arvo-v1-10055,sha256:569cf66e95fdd47ee1889a41e6b1b6f55fddce8dbcfab95776b3cc1d4fe79c46,same ID as a CyberGym arvo: task,True,False,False
+arvo_394980079,arvo-v1-394980079,sha256:9568037919456a44470ae949dc6196819d10a12864cb6c468ee7fb336d337714,"not in CyberGym, new ID",False,False,False
+arvo_56156,arvo-v1-56156,sha256:c652eb72a0e07776ea154e9fc55579e20b90dc40ab697c96b52d1a328716194a,same ID as a CyberGym arvo: task,True,True,False
+arvo_42475596,arvo-v1-42475596,sha256:a761b64394b974de8dc8c78ad30d84dab96ffe30d1788b55371681db5916fa60,"not in CyberGym, new ID",False,False,False
+arvo_42501979,arvo-v1-42501979,sha256:491239b9442b96b8f1ec68908d51316ece7a87670eef31c6264e406a579c19e1,"not in CyberGym, new ID",False,False,False
+arvo_42497943,arvo-v1-42497943,sha256:88a114eb6049acb9500e04654e6bb9644f0a2ba9409e4b41149c3f967fc6ffcb,same CyberGym bug under the other ID,False,False,False
+arvo_23396,arvo-v1-23396,sha256:09db10c8d503c21e6c169961503d11dd143251951654d2eb34ad06966250d9a8,"not in CyberGym, old ID",False,False,False
+arvo_42474623,arvo-v1-42474623,sha256:46b6bad9c763ea9fb693c07031681070e3eff80221682290b511184794a96914,"not in CyberGym, new ID",False,False,False
+arvo_20729,arvo-v1-20729,sha256:c9cbb3023eb54aa1f8437ba73daa973379d8421b5fe6443fe6bab7cc80f50e42,"not in CyberGym, old ID",False,False,False
+arvo_42486712,arvo-v1-42486712,sha256:93c59d1df8e2c2477407185f5dc672dcc51556cd4abc7a9b28a8c8fada4b87a3,"not in CyberGym, new ID",False,False,False
+arvo_42480592,arvo-v1-42480592,sha256:7e0b678861936e19c68313f0db288b9239c35c9c62a9fd2027b6994194daf901,"not in CyberGym, new ID",False,False,False
+arvo_18562,arvo-v1-18562,sha256:ef60e8f99033feb95966ae2193305a8655ab17735cb59681141d5f0fbd00e89e,same ID as a CyberGym arvo: task,True,False,False
+arvo_6073,arvo-v1-6073,sha256:4243f683865d4951dd7a5310960ca96e409f86d495544de9199c8dc3f14a1d24,"not in CyberGym, old ID",False,False,False
+arvo_24553,arvo-v1-24553,sha256:4a9cf5667884fc90165eedcf242cac382d1e1677d2b0fd2e606def981e58e48f,"not in CyberGym, old ID",False,False,False
+arvo_61993,arvo-v1-61993,sha256:db6563b5fb44fbbce275fc1477f888bfd5993a6f9bf05c0da015b1e8bbe7461e,same ID as a CyberGym arvo: task,True,False,False
+arvo_42537290,arvo-v1-42537290,sha256:80b7617c2b0ce1b6d83d44552d67b11efc7798249b5751321fa4ec901aba78c3,"not in CyberGym, new ID",False,False,False
+arvo_30682,arvo-v1-30682,sha256:7ca80afd21f287fb77bac0750c822d8e42b8029047a02ee17eb381d31537e8dc,"not in CyberGym, old ID",False,False,False
+arvo_15270,arvo-v1-15270,sha256:67520a0b96d957e98b33a7e88d29f2d33296c47f30b17f2bfe32ad8386a1af54,"not in CyberGym, old ID",False,False,False
+arvo_20856,arvo-v1-20856,sha256:c7ea91412d8647417921cc7d739410eaafbb422114fbde450767755a05626888,"not in CyberGym, old ID",False,False,False
+arvo_35165,arvo-v1-35165,sha256:2ad7a90199ef037defd777cac933d328fde53529d907c66544e57cc2ba9a6aa4,same ID as a CyberGym arvo: task,True,False,False
+arvo_42503090,arvo-v1-42503090,sha256:e27df41303f04c4931b3707ced6f0f6d28e012a6c7adad3a5862ae757c427a3f,same CyberGym bug under the other ID,False,False,False
+arvo_37759,arvo-v1-37759,sha256:5a0ad8aeaefc61a4b0af0f092e8367c35d207c77be2d7b7af8072a5ea003cbd5,"not in CyberGym, old ID",False,False,False
+arvo_42538726,arvo-v1-42538726,sha256:6e123747517d4c36928e289c2127bf4d216a82b4e3168354f83031ebb383ed93,"not in CyberGym, new ID",False,False,False
+arvo_42477890,arvo-v1-42477890,sha256:e7f0187337d09ccd37afed49e0e11d39c1671b98aac7119e4fb7f6e1d9a31ab2,"not in CyberGym, new ID",False,False,False
+arvo_42488517,arvo-v1-42488517,sha256:6e01d684285e349e12a63a6edb3da7d47e6beebf56774349b9df1c938f88a321,same CyberGym bug under the other ID,False,False,False
+arvo_59631,arvo-v1-59631,sha256:c89050d49641b60ef27e9df83a3710099ea5954564f5a5bc68e9da4a45ed3db1,"not in CyberGym, old ID",False,False,False
+arvo_42477426,arvo-v1-42477426,sha256:0f6d1e57543078abb218bdb9f3ba5405f26c680aa3ca37cd1b9d9d61e43455ec,"not in CyberGym, new ID",False,False,False
+arvo_386128948,arvo-v1-386128948,sha256:5c8392741f394ec50d62b46fda595f3a7f67f569fdf3938e7226451948318491,same ID as a CyberGym oss-fuzz: task,False,False,False
+arvo_42532255,arvo-v1-42532255,sha256:fba815e0035b6176aa140c6a6144e4af046c4430fe268ab4e909303ff2c1d84c,"not in CyberGym, new ID",False,False,False
+arvo_22718,arvo-v1-22718,sha256:3bba0ecb09d0c655c1e4da8b9afaa8c547e984ab626a70f1df564654d1b52e67,"not in CyberGym, old ID",False,False,False
+arvo_11908,arvo-v1-11908,sha256:d1025f93d699a201d47485eebba475fe471e6e4bd9c4410f024eca728f87e5a0,same ID as a CyberGym arvo: task,True,False,False
+arvo_42479687,arvo-v1-42479687,sha256:9f91839d2b290ad2fb5217c585faf83304f456419e7f2924458d496214d22ee5,"not in CyberGym, new ID",False,False,False
+arvo_25410,arvo-v1-25410,sha256:0c075b7da3861a62277667946220d5f8215fd0c12b76bab086019d9d62f102b0,"not in CyberGym, old ID",False,False,False
+arvo_42502004,arvo-v1-42502004,sha256:673f3397fde9f73ee336ef4cfcf3f8976553457e91b4d1ffdfc86803be713c6c,"not in CyberGym, new ID",False,False,False
+arvo_22978,arvo-v1-22978,sha256:77c5f28d96f4eef994901ecfa7c92bb80d1755c4d406d7ef9174af1ddbd1dca0,same ID as a CyberGym arvo: task,True,False,False
+arvo_42492144,arvo-v1-42492144,sha256:fc913054928549484eae4b3aba7a29348f0b279921069f6c3a7134e863d1b0c7,"not in CyberGym, new ID",False,False,False
+arvo_23430,arvo-v1-23430,sha256:0a4d444c405233572d625601608d1ef57b2be6827279700349e40bc98ac023d4,"not in CyberGym, old ID",False,False,False
+arvo_42479846,arvo-v1-42479846,sha256:f135edb6c4d030a298d833f5f105552d56cd9cc0ef83791c586f94f391c2a84f,same CyberGym bug under the other ID,False,False,False
+arvo_42523916,arvo-v1-42523916,sha256:73fe926af4386a1062e4419328986549dff4bac5a2b2dd2c99a54541e94f703b,same CyberGym bug under the other ID,False,False,False
+arvo_62425,arvo-v1-62425,sha256:d756a1f6d411aaed194a2374002a8da2d010819686a0a601f09cfe02ea3baed4,same ID as a CyberGym arvo: task,True,False,False
+arvo_42477333,arvo-v1-42477333,sha256:28d8602c8b1b5bd9f8e3c267e9178f4307542d89f56702ca7e071c4c40f8a79b,"not in CyberGym, new ID",False,False,False
+arvo_1623,arvo-v1-1623,sha256:d6ee59b2b39427f64c5183b34805b41bd69ed735bcbdf6f1d4f07a968346c4fb,"not in CyberGym, old ID",False,False,False
+arvo_42534621,arvo-v1-42534621,sha256:9de403b9b7aa1e21e3b0d8ce43a5821c19c030b9e713de4daf14ae845ee80eee,"not in CyberGym, new ID",False,False,False
+arvo_42483595,arvo-v1-42483595,sha256:8148e0e73f913b6878e7c91689cf3533d0bd1c3f9806161fe5dadfc34b0e3100,"not in CyberGym, new ID",False,False,False
+arvo_29280,arvo-v1-29280,sha256:347d4185514a419eda3dd2bf6ae2fd69015dc7c7b0d5bc7dde9898d02d928fe3,"not in CyberGym, old ID",False,False,False
+arvo_27592,arvo-v1-27592,sha256:50d7163b901b5f0dbc8c853d5d57c95d1b59618948775fb5bab440275512b7e7,"not in CyberGym, old ID",False,False,False
+arvo_42528421,arvo-v1-42528421,sha256:a63bb6147d0b64d26c9bfa70ebd74ba3395e154c08c35d48d54480798d8e391d,"not in CyberGym, new ID",False,False,False
+arvo_20862,arvo-v1-20862,sha256:22dee53b63a299b66c8a29801bc93a4c4fe9b066687d8f1bf537ea3fb4036edb,"not in CyberGym, old ID",False,False,False
+arvo_42494962,arvo-v1-42494962,sha256:4ca5ce9eec243103c7511f8cb001a4745ef112b99404ea5dbaef0132b8cb703b,same CyberGym bug under the other ID,False,False,False
+arvo_42532685,arvo-v1-42532685,sha256:11936e1a377c6f98dbe5f4f631b5e93115542a2178d0b13138894e6ad398cf55,same CyberGym bug under the other ID,False,False,False
+arvo_24940,arvo-v1-24940,sha256:db589efd222036453a8c82b3db686d9e72a74dccb4fcf4c418131b81bcf469ac,"not in CyberGym, old ID",False,False,False
+arvo_13428,arvo-v1-13428,sha256:2576bbe81f4e218e64b87cc0974996f06b9f8a698510b5212e7b5e85430c574e,"not in CyberGym, old ID",False,False,False
+arvo_19964,arvo-v1-19964,sha256:a25ea348c1e9b23564397a93bc87b8be2021e3664f13b1100069803d1eb1cb08,"not in CyberGym, old ID",False,False,False
+arvo_42541030,arvo-v1-42541030,sha256:1327fe6d14352bccfce69e2a58423d46a2930d98d4a9adfb0aed78cd0bba6982,"not in CyberGym, new ID",False,False,False
+arvo_42482563,arvo-v1-42482563,sha256:b250bce3ce567f100f5bff54ccf23a15dad497faaa008222ed3ba89d25cd4713,same CyberGym bug under the other ID,False,False,False
+arvo_42501146,arvo-v1-42501146,sha256:8b8f0a3b0708d52bf1608ab156ad2262a433eca6ed2a1ab6277a1b2f10886563,same CyberGym bug under the other ID,False,False,False
+arvo_42537448,arvo-v1-42537448,sha256:c001dabdc9c24d8cc8ff7efd55cf50c9fc0fda453a825f64442b8c28b773f5c7,"not in CyberGym, new ID",False,False,False
+arvo_59682,arvo-v1-59682,sha256:d020a20100d210ab40c6a7029c270067c2e8e3f29c0446a5c38c0cf29312085a,"not in CyberGym, old ID",False,False,False
+arvo_42476211,arvo-v1-42476211,sha256:0322b7e44dd1ba96ab0d310e6956c739f31e86d2847ea0f8667ba54cf6b89e8a,"not in CyberGym, new ID",False,False,False
+arvo_42475210,arvo-v1-42475210,sha256:16db93a618c9aa682f96de55bb8df329e96b3a29b021bef96df3e1e8c50e96dc,same CyberGym bug under the other ID,False,False,False
+arvo_11359,arvo-v1-11359,sha256:11c09ba59bc4accdb68df9e9e2d01e23d853f889b52beb3a3abddcc192280a23,"not in CyberGym, old ID",False,False,False
+arvo_5365,arvo-v1-5365,sha256:63f2fa4cc0086fbbb46b3e5898cef169b090c729b8b050bfd3639b0587ba0efd,"not in CyberGym, old ID",False,False,False
+arvo_42490006,arvo-v1-42490006,sha256:aec737245fd73fa9712c572daa9c7f7b34d8c832f2590616cae3593f73e29196,"not in CyberGym, new ID",False,False,False
+arvo_42497737,arvo-v1-42497737,sha256:7c34ad9ee0bed296aba64543f4ee0f125d2fdc7e083bd6bacf5f181e388d082c,"not in CyberGym, new ID",False,False,False
+arvo_44086,arvo-v1-44086,sha256:65b4a7a09414eeb3ea94f5bbd278470523334bb0c186b0bc79f74c9101994bfd,"not in CyberGym, old ID",False,False,False
+arvo_398067543,arvo-v1-398067543,sha256:4fc4b0de5ef13c501d0eebe92777e7fdd63bcb8a9e7cd04d58b30577422421e1,"not in CyberGym, new ID",False,False,False
+arvo_42513357,arvo-v1-42513357,sha256:36d47a1ac4f96eeefae78703cc5b35cf47ca513ee20ac90609328a17ffd46e45,same CyberGym bug under the other ID,False,False,False
+arvo_47861,arvo-v1-47861,sha256:602af8b304c76b37bdcfdd10ecb90f8ac4a97f538991ef3d2c09c6cf18f24841,"not in CyberGym, old ID",False,False,False
+arvo_415190388,arvo-v1-415190388,sha256:8f2d8f5f1404fcc0a4caedb325a0a326318cfc908fbebad8f15472201761e16d,"not in CyberGym, new ID",False,False,False
+arvo_42474865,arvo-v1-42474865,sha256:39cff5a978a40c5d3347753de8ee4634c2e0ca2dc84cdd8ffbb76ac2b100b580,"not in CyberGym, new ID",False,False,False
+arvo_31768,arvo-v1-31768,sha256:7758e8f14867fbea323e1f1bf401f02d0a59eebeb4959595603d5ffc1b3b9ee3,"not in CyberGym, old ID",False,False,False
+arvo_42498762,arvo-v1-42498762,sha256:36c41d18d108c79bc054e35ae39d8bf6a43f175513791c51e8f416ed9bdc3270,same CyberGym bug under the other ID,False,False,False
+arvo_42534584,arvo-v1-42534584,sha256:e00d3155673f835339559073e1a3b7278465194213b6d8556ec511ddc101ae12,"not in CyberGym, new ID",False,False,False
+arvo_42473850,arvo-v1-42473850,sha256:b9775f4692fb004f46a461ca46849e07065ff0f28684da06395e70fc17fdeb89,same CyberGym bug under the other ID,False,False,False
+arvo_42244,arvo-v1-42244,sha256:756abbfebf7f0bd7c56e8ac9dfd2d32a5908002d2d6ece30563e20093fec2240,"not in CyberGym, old ID",False,False,False
+arvo_49903,arvo-v1-49903,sha256:0125a4d7484773377545e38f432663ec8ef17b2ddd64eef487f3f269a142c6c8,same ID as a CyberGym arvo: task,True,False,False
+arvo_23717,arvo-v1-23717,sha256:987035c9d06345331ed8066743133cd4c65f0406b6e5312467ad98dcf59d8351,same ID as a CyberGym arvo: task,True,False,False
+arvo_10999,arvo-v1-10999,sha256:21400163cedf081f944453f5fb5e6a3388169d7af08e043459418e441ee91a9f,same ID as a CyberGym arvo: task,True,False,False
+arvo_42492676,arvo-v1-42492676,sha256:6f760f21f970e7a39f7e0e7e44eca88314fdafd0d0883f4cbec0f38675d73cba,"not in CyberGym, new ID",False,False,False
+arvo_42507512,arvo-v1-42507512,sha256:c297b618be2d66330963b04fac960c01423c1af310df1972a4b522688ac689c5,"not in CyberGym, new ID",False,False,False
+arvo_42483971,arvo-v1-42483971,sha256:2bc941c1c0aded4ac0e2619546446e6972a7e1c0687b85782322f88cefe8cc39,"not in CyberGym, new ID",False,False,False
+arvo_1473,arvo-v1-1473,sha256:3669f660cd2853e892b6e38259146a5f06674d99ae26df521f0c10f9a868adfc,same ID as a CyberGym arvo: task,True,False,False
+arvo_32474,arvo-v1-32474,sha256:9f538116fd708c904149e477e4ce750b12a1edc8b5aa866f3b42b35c90b34748,"not in CyberGym, old ID",False,False,False
+arvo_55035,arvo-v1-55035,sha256:57762743dadb9dbf33e3ec697968386a6065159c628b4ae22a53e3389548513e,"not in CyberGym, old ID",False,False,False
+arvo_33069,arvo-v1-33069,sha256:b3b45b64ca597548416a00e7de286b352ca68adb880b36a0709d7ab66220b2d3,"not in CyberGym, old ID",False,False,False
+arvo_42528677,arvo-v1-42528677,sha256:2d863e8fd62712503272a5569f4d344d96896a46218b324d4f0a8d0030048efe,same CyberGym bug under the other ID,False,False,False
+arvo_40118,arvo-v1-40118,sha256:40c0a46a5a864b8bf34506b349d09244a1d163b7e5f0fd2adce5118e24b5e4e4,"not in CyberGym, old ID",False,False,False
+arvo_42519792,arvo-v1-42519792,sha256:61ddbb4f94800b4623fe032fae88f8da6ec9994b45305087814024a6be6ce2e3,same CyberGym bug under the other ID,False,False,False
+arvo_42507851,arvo-v1-42507851,sha256:c8d81ef830db059c2d299b12a41584a9a78b5e1bb914c58dae6d02de6ff7b54d,same CyberGym bug under the other ID,False,False,False
+arvo_42516374,arvo-v1-42516374,sha256:adde9d30de6dba5ca6abcad68d58516ff19c5c66a09efbd3729f8d39b3e3c404,"not in CyberGym, new ID",False,False,False
+arvo_42501252,arvo-v1-42501252,sha256:513256526c47b7c7571ea153cdaef9ee5fbb14a36cd360bf02541afb900f684c,"not in CyberGym, new ID",False,False,False
+arvo_42481502,arvo-v1-42481502,sha256:45084318e962596c3006be624b91c9f98852758f060b1c358de56e87083b657f,"not in CyberGym, new ID",False,False,False
+arvo_42519040,arvo-v1-42519040,sha256:b406cb447b3a388c87771bda609e280f89593982471649cae05f18050b900b52,"not in CyberGym, new ID",False,False,False
+arvo_42522636,arvo-v1-42522636,sha256:5bd25658dfbd7ae7f08a0ae26fa1d775e25e8a97b12e52aabe77b1f9cde95c82,same CyberGym bug under the other ID,False,False,False
+arvo_42474934,arvo-v1-42474934,sha256:09b360a8e5b06deda1b0b7db8c62097b2b25485aa9649b8d66881d98e13cd484,same CyberGym bug under the other ID,False,False,False
+arvo_42227,arvo-v1-42227,sha256:700691445d529fc10768e57e3c31a725d77cca6a895fdaa6fd217b471bdf200a,same ID as a CyberGym arvo: task,True,False,False
+arvo_42523013,arvo-v1-42523013,sha256:e81d243d4568a8707f3a068409e81a7863ffca7cd5adc82f68d31bd4ff789116,"not in CyberGym, new ID",False,False,False
+arvo_42532421,arvo-v1-42532421,sha256:2c6ade5b8f9990c5804e7cd0549f358f9900ed443f083d6d65dac85536b62daa,"not in CyberGym, new ID",False,False,False
+arvo_40535,arvo-v1-40535,sha256:c87faa30237e75d5351e8f80e9a508549a669cdc588b86491f3f68c49ec81a9b,"not in CyberGym, old ID",False,False,False
+arvo_42470716,arvo-v1-42470716,sha256:d7f4860e9174ed4a045a823cd30c8d673a9276dd1c827b1f9a6e3ff20f9ae4bf,same CyberGym bug under the other ID,False,False,False
+arvo_16266,arvo-v1-16266,sha256:477505a550598ca37c84f1ed5999358ae88b9c3332b65bad51d4916b8be62c45,"not in CyberGym, old ID",False,False,False
+arvo_54810,arvo-v1-54810,sha256:9f5d4db5ce57504e2b7866f877d18d1e6b0e649b01904e66362deb5deff90ccf,"not in CyberGym, old ID",False,False,False
+arvo_42516681,arvo-v1-42516681,sha256:507c89b564022cff143de2d4e21f230ac3044ea5acacb34e56cca9bb343a5d0c,same CyberGym bug under the other ID,False,False,False
+arvo_42477952,arvo-v1-42477952,sha256:825a07f73340d334be00e8548f44a5d80cea03f810e643a689fdaba5e8d36776,same CyberGym bug under the other ID,False,False,False
+arvo_42517938,arvo-v1-42517938,sha256:ddac4496eb74c09be32c9124b8d0bfba948423aaa683d874b86ca845cb20bdb6,"not in CyberGym, new ID",False,False,False
+arvo_42486152,arvo-v1-42486152,sha256:c07d8d2de57d489d128c7c7e4a8a92678cbb5d9190ed929b2a52a4f6b521ebe0,"not in CyberGym, new ID",False,False,False
+arvo_20268,arvo-v1-20268,sha256:cab5deacd6caa0a8251e5946bc100ad249d391f87a255cfdb75abfb6421a6315,"not in CyberGym, old ID",False,False,False
+arvo_42471025,arvo-v1-42471025,sha256:c917ce8c43092fc0f00a1e2f707c0e261497183b2204d6e3e9d76439430e5929,"not in CyberGym, new ID",False,False,False
+arvo_42484793,arvo-v1-42484793,sha256:a9fb2b865915fb0aacfc7a506aac76d315b01636529ab74238a5ecd95ffbce8f,"not in CyberGym, new ID",False,False,False
+arvo_42485009,arvo-v1-42485009,sha256:f182507a5031399355468ec200f5eedbc0cd717b22a33a7dc7568d950583be0d,"not in CyberGym, new ID",False,False,False
+arvo_18491,arvo-v1-18491,sha256:a757bee475d0f7951f86b889da6b7bfaf25208962675bd19863aa4b7f59c8c99,"not in CyberGym, old ID",False,False,False
+arvo_58661,arvo-v1-58661,sha256:ca7c021b27786c61b4929c7185b708a71c32f40a000111ea5901d1431fc1fb32,"not in CyberGym, old ID",False,False,False
+arvo_42477887,arvo-v1-42477887,sha256:60ee359b8e4ec829c613a9cb8954feaaf6e019d26e8406a00c04261c73618773,"not in CyberGym, new ID",False,False,False
+arvo_43055,arvo-v1-43055,sha256:72fd5f23edda644e9436f233cee616547ab628065e8b621907357f5849c2ed35,"not in CyberGym, old ID",False,False,False
+arvo_42519362,arvo-v1-42519362,sha256:3a3e06bb10c6414e74b422747c020462edea81648a5b64f34536b7a604c36ba1,"not in CyberGym, new ID",False,False,False
+arvo_42519042,arvo-v1-42519042,sha256:c01c37fae38231afa09422cffce0f504f11d6778a4ab036a3fa4f875981abba4,"not in CyberGym, new ID",False,False,False
+arvo_10574,arvo-v1-10574,sha256:6076f3374a7bd47d359956a29749c7fde2022411d486490a57b6449ae43c3b64,same ID as a CyberGym arvo: task,True,False,False
+arvo_42262,arvo-v1-42262,sha256:503630143e93613c88fb010c0882a7c2ea627197b79d0e6dc19a54a850849aca,"not in CyberGym, old ID",False,False,False
+arvo_42498216,arvo-v1-42498216,sha256:8b6b30d0655545cd0b43bc425fa770aa567247ad735d6ddac0fac79f1cde67d3,same CyberGym bug under the other ID,False,False,False
+arvo_42481790,arvo-v1-42481790,sha256:42d9897e423a0f183ad046e47aa7e032078e5f5f3de5c8153bda4a75698535ba,"not in CyberGym, new ID",False,False,False
+arvo_1345,arvo-v1-1345,sha256:21375ce4fbe667fa72cf8f6b7f2b95add622e0b5fab5576947e78a51c9010969,"not in CyberGym, old ID",False,False,False
+arvo_22912,arvo-v1-22912,sha256:531db894fed7f1861ebe8d899fa62bbe1986160e98e7c3dc62e27eb5d8b2c3cf,"not in CyberGym, old ID",False,False,False
+arvo_42470980,arvo-v1-42470980,sha256:8fb127c866f21cd4f7ed65a433ac6df6b1224fe322af82f6e2cc63028e79b0ea,"not in CyberGym, new ID",False,False,False
+arvo_42482848,arvo-v1-42482848,sha256:6fbdd8069702944dd50fede62ae2a40253ae7b1cfae7b47d67013119f83c96cb,same CyberGym bug under the other ID,False,False,False
+arvo_32184,arvo-v1-32184,sha256:04b4505c3169c7241ad513b18c289d3cc2deacbf948e39adbde9467a44827229,"not in CyberGym, old ID",False,False,False
+arvo_42506541,arvo-v1-42506541,sha256:5146dcc5916b12f8d7ac9a008b02f7a2e6cee430baefe7fbaf01101208431204,"not in CyberGym, new ID",False,False,False
+arvo_42471685,arvo-v1-42471685,sha256:e7ec156a9305a2b861dc5b4c3d2ed7fefcd7a04dc4e6d5f2443a6a389ffe1d52,"not in CyberGym, new ID",False,False,False
+arvo_42491946,arvo-v1-42491946,sha256:d23d279bdee37618cdd1e288d84bd2b73df1801f1bd89335f7b7c44ee922ba7f,same CyberGym bug under the other ID,False,False,False
+arvo_42481303,arvo-v1-42481303,sha256:c3dddda988f0a94430d77205e6c34954358b8dcddffd4364f15ec8ffcf4bd94d,"not in CyberGym, new ID",False,False,False
+arvo_5482,arvo-v1-5482,sha256:6f6bf67095d038bcd1f98d2bc252c3cc43f33b659421d2506b276b46a7a12dd7,"not in CyberGym, old ID",False,False,False
+arvo_42490708,arvo-v1-42490708,sha256:20bf2ba55ae575a6fb31fcee2207a8722a7876b9f1481d1411a4e530b616b1d5,same CyberGym bug under the other ID,False,False,False
+arvo_42491876,arvo-v1-42491876,sha256:2d3dcd3d8a302d0595c92a2b1baa30282171c0f659c676ab88dc536e48e82dec,"not in CyberGym, new ID",False,False,False
+arvo_43560,arvo-v1-43560,sha256:6a8de154af8ceb46f21df6a618bde36212469545523dfc975e15e68992ec5c8d,"not in CyberGym, old ID",False,False,False
+arvo_63725,arvo-v1-63725,sha256:043c453a3a35cfe7e55460f9f983948116f14020cc46bf64e30354fa99232109,"not in CyberGym, old ID",False,False,False
+arvo_49819,arvo-v1-49819,sha256:1716ad74b33c9b5c366a1237823e202f1d8b9aef07d2434ecc2c88d1ec56b8f9,"not in CyberGym, old ID",False,False,False
+arvo_42519389,arvo-v1-42519389,sha256:287380ef26fbb6e5cb2d350f6483b0311ee87dfadaf8ef3c2ea603392fb3b0f5,"not in CyberGym, new ID",False,False,False
+arvo_30996,arvo-v1-30996,sha256:a5a0e512aea64d04cd144ae357e57b00b6f34c3a67dc2afd565b5f8274991dac,"not in CyberGym, old ID",False,False,False
+arvo_38298,arvo-v1-38298,sha256:dd51e31628678e9091a172a8bb5b09bc5a617286e455df42251871771d8125e5,same ID as a CyberGym arvo: task,True,False,False
+arvo_10841,arvo-v1-10841,sha256:4880a054eba03b905fe6df4954149bb4ca0e7fbc0ebd9652ce82a183045c6fae,same ID as a CyberGym arvo: task,True,False,False
+arvo_42534941,arvo-v1-42534941,sha256:f3c6387af90563e88aced202501a1e3f36982710538b646da4265ca82763a70f,"not in CyberGym, new ID",False,False,False
+arvo_37647,arvo-v1-37647,sha256:219e7ec8763ee8184015d51f74049cb85e2b97373272b274a0b5c13d7cee91bc,"not in CyberGym, old ID",False,False,False
+arvo_42485232,arvo-v1-42485232,sha256:2b475cf5a4eb57484efa4a83a03c047256f8be298b195141f2b197edffff0cff,same CyberGym bug under the other ID,False,False,False
+arvo_43308,arvo-v1-43308,sha256:b4c14a071644e1d45325ca8f705e1d9359342aa1a755e9cbab4a67cd67d00641,"not in CyberGym, old ID",False,False,False
+arvo_42503375,arvo-v1-42503375,sha256:91ed6a8d4194bd9f7a307c2a3d619910ac6f5c1302c304c3f78346d1ba4c8914,"not in CyberGym, new ID",False,False,False
+arvo_28151,arvo-v1-28151,sha256:92a7e393f5af7b76e255e20a7934266303c089edecef752ac4ff26581da3edd2,same ID as a CyberGym arvo: task,True,False,False
+arvo_24183,arvo-v1-24183,sha256:f733b307e7b14e9d52b5d3783adfd557f17b63488a7e542f27c5ad848ed31a71,same ID as a CyberGym arvo: task,True,False,False
+arvo_19146,arvo-v1-19146,sha256:826153a37e502ffff93a6d5706bedc60b530f0f96a4fde67c11d4d04620271eb,"not in CyberGym, old ID",False,False,False
+arvo_42480178,arvo-v1-42480178,sha256:bcc27cf975b0123afa342d526d6058930b9cb3795b643affeff6270c8ac514bf,"not in CyberGym, new ID",False,False,False
+arvo_11245,arvo-v1-11245,sha256:e07017d4587ea09f32a09c0bbd4d9a4e6921bb1e2a67f234b14b7629cbba1eb5,same ID as a CyberGym arvo: task,True,False,False
+arvo_39308,arvo-v1-39308,sha256:8becbcb3efc69a40f1d7d05ebb500a948c8313cfa3e73946bba3df92bd3c8647,"not in CyberGym, old ID",False,False,False
+arvo_42531553,arvo-v1-42531553,sha256:52f1f9d620328131e5d968bed810cb60f1eb62422b133a8ea2d7ff7182599c03,same CyberGym bug under the other ID,False,False,False
+arvo_7034,arvo-v1-7034,sha256:96fde3d04744bf50d6499ee4ac18fa0d131b98cb321d5f2ed31dc0f86ef3b33a,"not in CyberGym, old ID",False,False,False
+arvo_42485561,arvo-v1-42485561,sha256:fba8a7c37c980beb4f30edd4a0e78dbb47a22f6b5015d17ac8a4ef173845e04b,same CyberGym bug under the other ID,False,False,False
+arvo_42537721,arvo-v1-42537721,sha256:a7ffc444f48cc05961c2481d61018d2482f0bb958d08e0de999df8840297f4a8,"not in CyberGym, new ID",False,False,False
+arvo_387317444,arvo-v1-387317444,sha256:e41eef1b89d9ec5dfae3c928225bbfcde163b9476d6e7a1380bf3416722254c1,"not in CyberGym, new ID",False,False,False
+arvo_42472620,arvo-v1-42472620,sha256:8d5dc453d1cd6115e4c9883f80d9b9214b3ac920697bee4c3a725869aa5f693d,same CyberGym bug under the other ID,False,False,False
+arvo_42502594,arvo-v1-42502594,sha256:9323e11d4e4efc6e3b36e0c80c6af9f6b24a6d2031de3a6cae99badc97945305,"not in CyberGym, new ID",False,False,False
+arvo_27852,arvo-v1-27852,sha256:5f534aadba590c7e166f0fa5971387a5e441ad8dc64f14261597047637489ce1,"not in CyberGym, old ID",False,False,False
+arvo_26400,arvo-v1-26400,sha256:6ffb8d020955aa565d4c1125c9bf67c147d471eee52cee076758733537681851,same ID as a CyberGym arvo: task,True,False,False
+arvo_42522601,arvo-v1-42522601,sha256:49d3d566a0183045026dcd20bbc96e6727d82064e5f2f42edd5d36e8407df22a,same CyberGym bug under the other ID,False,False,False
+arvo_18732,arvo-v1-18732,sha256:4ecff6f7a6acf113ce6753846d0d8d695bc1e9cbbc6d849d03d6729138c7b9c1,"not in CyberGym, old ID",False,False,False
+arvo_52066,arvo-v1-52066,sha256:df3ae7c02865c2c65cfdf300b7ec72391a2d99f4bbd22e4245928d413c90fc84,same ID as a CyberGym arvo: task,True,False,False
+arvo_15112,arvo-v1-15112,sha256:561b995e9bdd406d8c67c891b738df505ee32889c411821dd1009566cab90a8f,"not in CyberGym, old ID",False,False,False
+arvo_42520935,arvo-v1-42520935,sha256:b6069196beb059e25bf754c334221d15843e95cc0c70ddeb5fba70261cb1aba7,same CyberGym bug under the other ID,False,False,False
+arvo_33370,arvo-v1-33370,sha256:0a777ad1262f9fa06267d785777f888458a61a367a290007eef516913c496d80,"not in CyberGym, old ID",False,False,False
+arvo_42492331,arvo-v1-42492331,sha256:3938b43d88a7f7adc2e4959266713738f35fe71038527b70de553cb0c4b43b99,same CyberGym bug under the other ID,False,False,False
+arvo_18228,arvo-v1-18228,sha256:fe7c70d5aefadf4dc13226c4398ddd0333b7017e57df34d640ad6a581754c9c8,same ID as a CyberGym arvo: task,True,False,False
+arvo_42472681,arvo-v1-42472681,sha256:9401f61fa6d4ab9aff001681f3a761f4046cbf2666cda2fadc17d0e0b0e81d8e,"not in CyberGym, new ID",False,False,False
+arvo_42537531,arvo-v1-42537531,sha256:da8e2143d9a9a955c666fa19ad5d038b5ef137ad0f9aec2dbe2ad15f3da9354b,"not in CyberGym, new ID",False,False,False
+arvo_22110,arvo-v1-22110,sha256:000e2f405dd53ee4b35a6156013e2bf2064cc903a505a39a632da560b8fd6e43,"not in CyberGym, old ID",False,False,False
+arvo_16457,arvo-v1-16457,sha256:6b1d1661fabeb3cc6fdc5aa540245cb9964840cb294405dd446b039e8e2041c7,same ID as a CyberGym arvo: task,True,False,False
+arvo_48997,arvo-v1-48997,sha256:3012d0277202301887d8e4b5a37f82baf0990becbbf2ffb9415be70bfe0daf88,"not in CyberGym, old ID",False,False,False
+arvo_42483053,arvo-v1-42483053,sha256:55341c9a803cb38c937822d8f162a21e74ab4d81ab2c5c0c5f39f56b787bf854,"not in CyberGym, new ID",False,False,False
+arvo_42474170,arvo-v1-42474170,sha256:24c792f52c65fbb6a7a7913044ca48960d670227f5035b918c56909814e0ac92,"not in CyberGym, new ID",False,False,False
+arvo_42492768,arvo-v1-42492768,sha256:e0feb86f4031609eebd2baa089dc9d90024cacb5be955aa17447af2e3061d814,same CyberGym bug under the other ID,False,False,False
+arvo_25167,arvo-v1-25167,sha256:1f6e0db69baea740f1f490946e61f8a7d35c26227bfb37be403934a6b976ed57,same ID as a CyberGym arvo: task,True,False,False
+arvo_3237,arvo-v1-3237,sha256:99fe8e68687bb7ae724e2c88ac21433bf0e5a03fd2d18becea18ae608404673a,"not in CyberGym, old ID",False,False,False
+arvo_29491,arvo-v1-29491,sha256:74a67d2f6bb8313a10cef8936d50f9aed0016594b88ccee149ee96f714ae5412,"not in CyberGym, old ID",False,False,False
+arvo_42476987,arvo-v1-42476987,sha256:b6f646629e04d7748fae63ac32360d68bf9a52f39b1cef53ed684df2bab87696,"not in CyberGym, new ID",False,False,False
+arvo_6032,arvo-v1-6032,sha256:b04dafca7fba15a3b4d809465faabb37a2705964f667c27702a5f8dddc14da13,"not in CyberGym, old ID",False,False,False
+arvo_42481904,arvo-v1-42481904,sha256:ee150d89f0777cf23b3a596126692ffb600c9472547fca1603b1fb76a66c077a,"not in CyberGym, new ID",False,False,False
+arvo_20494,arvo-v1-20494,sha256:8802e783057b4ab875374325e2e641e632776143cf48b7bd995d9ac0e057a11a,same ID as a CyberGym arvo: task,True,False,False
+arvo_42487661,arvo-v1-42487661,sha256:65bd9dcc28067747e9cd34a44bdf1882939a2e42428ce0a5e9dd27b77140c659,"not in CyberGym, new ID",False,False,False
+arvo_456486373,arvo-v1-456486373,sha256:2781873d979cb28a16fbd1d095ba9ee76a59673b48f4731d186eba189d705c5e,"not in CyberGym, new ID",False,False,False
+arvo_42499700,arvo-v1-42499700,sha256:60f0a0bbe9f6fcba89975866a6de9364a41d8156f093dc00641f9711fd013c9f,"not in CyberGym, new ID",False,False,False
+arvo_42479497,arvo-v1-42479497,sha256:5f5673def9002fd095214b05377b3410af43d183ddcca08a0ca715d4d8a997bc,same CyberGym bug under the other ID,False,False,False
+arvo_42487513,arvo-v1-42487513,sha256:dbe82db735ac2242b6cb4e74119127572259aee96347dee808395dbe2d3706dc,"not in CyberGym, new ID",False,False,False
+arvo_42502750,arvo-v1-42502750,sha256:d7bc3e0e49bc07c42a3fb6aa8a6ebcb906fd6ab66c2f6ce24453c0d1077edc71,"not in CyberGym, new ID",False,False,False
+arvo_42537562,arvo-v1-42537562,sha256:c7fcd0094a5aff228032fc90e163f4f788e75cde3afeb63d400b40f1f78eac72,same ID as a CyberGym oss-fuzz: task,False,False,False
+arvo_42515924,arvo-v1-42515924,sha256:d7786ef2ad8d8548a0cc10fa0fbbc646c8548a2616f7de5fa8b39656d3812d07,same CyberGym bug under the other ID,False,False,False
+arvo_20747,arvo-v1-20747,sha256:1a6f9e940b4801c4e3b45e03dad3b22a72e13253543b7016891b904fbb9d6568,"not in CyberGym, old ID",False,False,False
+arvo_20431,arvo-v1-20431,sha256:109f35778dda2c8a97c2b079f478f9ae45db29d1a47707310f23f371a0838086,"not in CyberGym, old ID",False,False,False
+arvo_42475467,arvo-v1-42475467,sha256:5ce899c09e922c20b1bd8593b3afee79a3e700d0ec53edd56d7d9b2f68a6de52,same CyberGym bug under the other ID,False,False,False
+arvo_42498653,arvo-v1-42498653,sha256:20407c3d91744bec8d23fbbf171ade099ef8228f0c493c4fe92e86421def863d,"not in CyberGym, new ID",False,False,False
+arvo_42535232,arvo-v1-42535232,sha256:f0cd41ab4030c6fbd3bfe4ce474c3d51174cca2350699e0e1e242bbaa35cb662,"not in CyberGym, new ID",False,False,False
+arvo_14625,arvo-v1-14625,sha256:6d7805fd6a22e3e88fdcaf5bbf7ff9872a0ef72b06f97871d161197a4abce8d6,"not in CyberGym, old ID",False,False,False
+arvo_42484906,arvo-v1-42484906,sha256:70e1cebfa81dace6bc487c1d16318ece38ef507e30142eef7dee7607b371df5e,"not in CyberGym, new ID",False,False,False
+arvo_42532777,arvo-v1-42532777,sha256:cfd17f1ab9a1431b74d02ee7262ecab0f43fad00b1ccf5843cb6c286b1680e62,"not in CyberGym, new ID",False,False,False
+arvo_42488833,arvo-v1-42488833,sha256:2a2b41a0bd1046cc7dff5082839ab597c0d453bf2fe205e544c52c7d7179df74,"not in CyberGym, new ID",False,False,False
+arvo_42522417,arvo-v1-42522417,sha256:0c3c153845c5a6e64c43e340a3ae85baf29421adda70dba5fb1d614fbad01941,"not in CyberGym, new ID",False,False,False
+arvo_42524177,arvo-v1-42524177,sha256:6d441a093583d381942a9e51f5044d1c6c2aca57af68d6a351aa4e96f1fe3f63,"not in CyberGym, new ID",False,False,False
+arvo_1976,arvo-v1-1976,sha256:de6336d0edf40f061865e76edbed931e544eb264061d38808c548e5438ea8abd,same ID as a CyberGym arvo: task,True,False,False
+arvo_42487652,arvo-v1-42487652,sha256:71f72f9111546559755bbfbec2d87dbf8b928ac424ef23c973854c54b894362c,"not in CyberGym, new ID",False,False,False
+arvo_40150,arvo-v1-40150,sha256:96b5c2362194f0af30fd75c0475256208f42d296f5e288f69745cacfa0865c77,"not in CyberGym, old ID",False,False,False
+arvo_32228,arvo-v1-32228,sha256:7968d4e8e615104ce217ae03c81db678d8038610d063520ff40bcd7121f956fe,"not in CyberGym, old ID",False,False,False
+arvo_42488825,arvo-v1-42488825,sha256:0ba8cae0c09e35b3674fbfd9bd46b0ee81f3f4500cc34aa8cb675ff032f7ffb1,"not in CyberGym, new ID",False,False,False
+arvo_13945,arvo-v1-13945,sha256:efbff75dca1d57a09960f8dad37ab9ffec700310d90e2aa0f8146ce79986bebb,"not in CyberGym, old ID",False,False,False
+arvo_39083,arvo-v1-39083,sha256:de055b216af36459bcd6d8ce221bea2f4621414e40c02d3135cae715d3c01a62,"not in CyberGym, old ID",False,False,False
+arvo_42503442,arvo-v1-42503442,sha256:bef28ce0801ae9a2d19f907115313e969c492dea8cf13f9176aa849f07a2257e,"not in CyberGym, new ID",False,False,False
+arvo_25911,arvo-v1-25911,sha256:9f2a0e72607a94992d9074884f46cb2eff7af86e6cedafc919c4d580e3672a13,"not in CyberGym, old ID",False,False,False
+arvo_19386,arvo-v1-19386,sha256:c2cd9f693568f0b2c871b31eaf9ed76d74fa65186b25a983fdcdbc495edbdcae,"not in CyberGym, old ID",False,False,False
+arvo_10135,arvo-v1-10135,sha256:28dbed40c8e8f9490b796d3b44ea7fd166f8543da69b24595a40cd8ab419a5a7,"not in CyberGym, old ID",False,False,False
+arvo_42486524,arvo-v1-42486524,sha256:156c784a883e5f132173bdffea070fe35ef148884a1c236aaefe049ac7db6e26,"not in CyberGym, new ID",False,False,False
+arvo_42534987,arvo-v1-42534987,sha256:a6be6066290a32cda8175a0187e01e8c1e9248fbba202f619035ee7081d1f81c,"not in CyberGym, new ID",False,False,False
+arvo_1442,arvo-v1-1442,sha256:791abd10ef1eed3b61fa232151f75c076ec7a2956908da8758d2b42ce21282e3,"not in CyberGym, old ID",False,False,False
+arvo_31491,arvo-v1-31491,sha256:9b745897240c475f8426f366a62d646ca8ac366c88a6271efe89e2946c970a09,same ID as a CyberGym arvo: task,True,False,False
+arvo_55385,arvo-v1-55385,sha256:87f5bb26d3d3c98f6358652b374ddeac35f231561129580ffc71dbce17ec4d48,"not in CyberGym, old ID",False,False,False
+arvo_42473793,arvo-v1-42473793,sha256:43604f6ad0958bc7a5e5b12a4a809b349464e95baec9f64432ceba1aa6912ad9,"not in CyberGym, new ID",False,False,False
+arvo_42532853,arvo-v1-42532853,sha256:15a235cf9941790f22dc5288afc86915915b9a904c0ae3f5a6574318a6ebe638,"not in CyberGym, new ID",False,False,False
+arvo_42505828,arvo-v1-42505828,sha256:45becc6a014a69153cc02d4000194865c6737dd5374dde506f79b025e3c4dbd1,"not in CyberGym, new ID",False,False,False
+arvo_42514310,arvo-v1-42514310,sha256:f9bd3640f6cceb06bbb2061d442300dda7f3e01c66bad2047eb97ea1476f9e13,same CyberGym bug under the other ID,False,False,False
+arvo_42491972,arvo-v1-42491972,sha256:fb644a259c4cf192f7360adb22b43c8d5be4c8bd567ec9ae369d77a9523b01a9,"not in CyberGym, new ID",False,False,False
+arvo_35640,arvo-v1-35640,sha256:b5bc93df6ed2915a787fcd124819f618a6e0c27f9aa9da6958da2a8b49c02bf3,"not in CyberGym, old ID",False,False,False
+arvo_38778,arvo-v1-38778,sha256:b77159f604fc0b8a57ccda9ebfafa57c98aa419da446ef4ff42b4201911b5d9b,"not in CyberGym, old ID",False,False,False
+arvo_42517099,arvo-v1-42517099,sha256:4aad571f02ab1611a8185f6d80afeb8c91c57965c040791cc5986b864330eff4,"not in CyberGym, new ID",False,False,False
+arvo_36663,arvo-v1-36663,sha256:4bbd5aeeb16bf3c122d0767bf87d3e57f905da4efc981fdc2d0addd238814c9b,"not in CyberGym, old ID",False,False,False
+arvo_21719,arvo-v1-21719,sha256:2cdf4e4ca6d6b56a19af8cf988b9558cdb2fd6881128aaeafe3026621156216e,"not in CyberGym, old ID",False,False,False
+arvo_20702,arvo-v1-20702,sha256:1b8b267fbc9df2feeab1565c0849bc032de00add55239979dfda65f163208cf2,"not in CyberGym, old ID",False,False,False
+arvo_44221,arvo-v1-44221,sha256:689c12212e7ddd6cbd599aead0f8253737f75e548a4200b139f6eab2e1ca2cff,"not in CyberGym, old ID",False,False,False
+arvo_42482611,arvo-v1-42482611,sha256:c2d095a5d0ab59fb977c447676531dce2b17adc4b24a7e02ef86078a2f60c336,"not in CyberGym, new ID",False,False,False
+arvo_42492465,arvo-v1-42492465,sha256:d4a0e1c3f863f49effd25b3a9b57bbec89c7f4cc9a0d57ee6187043ffcf59a3b,same CyberGym bug under the other ID,False,False,False
+arvo_42489910,arvo-v1-42489910,sha256:4d042fbd8e3193b539082f6bc35d0efb6c8dcd061fa217a021d978a767f39eef,same CyberGym bug under the other ID,False,False,False
+arvo_1427,arvo-v1-1427,sha256:e65c6c3671fa5f6d790d9357428e7f1c35d5a572ee949d26410ca8ee4afb30a5,"not in CyberGym, old ID",False,False,False
+arvo_42496326,arvo-v1-42496326,sha256:7b7e64e5ca0e3975a9ab965652069f0715af2bb804a267e38f3842fecd1f3a21,same CyberGym bug under the other ID,False,False,False
+arvo_42507791,arvo-v1-42507791,sha256:1c5ac81b2817fa0fc2c6350211ae78e6b7a14b0038ee22da2082a1fa4ce70963,same CyberGym bug under the other ID,False,False,False
+arvo_391934081,arvo-v1-391934081,sha256:1307d9bbd2f2131aa225af75aea4ebe9903b2003c3c1a9e4f82c38c57d2cd414,"not in CyberGym, new ID",False,False,False
+arvo_59532,arvo-v1-59532,sha256:e72a3b1d3e75227a71f0e5392fd63cce6ab229b2e8bc5e2d46319c5f442e6197,"not in CyberGym, old ID",False,False,False
+arvo_21363,arvo-v1-21363,sha256:1e4974a7b02c83387121ab5de8bc80c0a12bfd9e83ad64c3a01c3b6e8bd7ebe9,"not in CyberGym, old ID",False,False,False
+arvo_42475280,arvo-v1-42475280,sha256:027ebf9435ede4f7430a918279b17dfd3dd36804811ef490088470f57644d6e2,same CyberGym bug under the other ID,False,False,False
+arvo_42488579,arvo-v1-42488579,sha256:a65de7f7b91c8e139bf4bc55e69d38090c5a118a995d7ddcd7253f41b9a3b214,"not in CyberGym, new ID",False,False,False
+arvo_42373,arvo-v1-42373,sha256:8a5b9de3fcc42ea0a75cae6a26d0443febcbfe1cb2b6502237495144a9edf04a,"not in CyberGym, old ID",False,False,False
+arvo_42521026,arvo-v1-42521026,sha256:7808faf0689003cca2974ea583f43f67e16548d79a65e1f14f8af0e04408e7b9,"not in CyberGym, new ID",False,False,False
+arvo_42523474,arvo-v1-42523474,sha256:6b1b40578b37143ec662445e03e6dcd3cceaa567514c3dd5952ca1284833c39f,"not in CyberGym, new ID",False,False,False
+arvo_37125,arvo-v1-37125,sha256:13f0f1360d6681bed0a3510c3ed4db9ac90a366b15b3bad0c4e333e7c956c096,"not in CyberGym, old ID",False,False,False
+arvo_11007,arvo-v1-11007,sha256:7c87d8b96f9f7994f5e1d2a03e6e457411ed2a85c53c6100a1c687209625b938,same ID as a CyberGym arvo: task,True,False,False
+arvo_42491468,arvo-v1-42491468,sha256:0ca2467459f77f24c3f8a3bbf8117579ec0e70fbf87fd2c32e664ca6a3f56516,same CyberGym bug under the other ID,False,False,False
+arvo_12950,arvo-v1-12950,sha256:0dd27c08a3834ab14d10a5412c1d6a43c5910f21f0e2ca676199843cf9b5110a,"not in CyberGym, old ID",False,False,False
+arvo_42479130,arvo-v1-42479130,sha256:0668aee800dd5f025c156f68989ac3e4a4ae2841fc7e0f253f16a73188d9bb7a,"not in CyberGym, new ID",False,False,False
+arvo_44887,arvo-v1-44887,sha256:723134b2eb3e87195a36d035381cd913897aac0f47bccb4c91e43507cead4392,same ID as a CyberGym arvo: task,True,False,False
+arvo_42470142,arvo-v1-42470142,sha256:7b21272b424a7ca432479697fefcd99d5d8919fb955ec348bea0fdb8f1e87d46,"not in CyberGym, new ID",False,False,False
+arvo_42512179,arvo-v1-42512179,sha256:4ed3a2608a46ded8f0c8888d1f24ab528528ce177fed390974f5a211ce401fc5,same CyberGym bug under the other ID,False,False,False
+arvo_42481135,arvo-v1-42481135,sha256:f399396668c6d495091e08c964b565f2d2fb74ef479a891b6382669b4eb6a00f,"not in CyberGym, new ID",False,False,False
+arvo_42501527,arvo-v1-42501527,sha256:871a1f31339e62cf04a5469ccbe18258cb7bd07220581655c6703d488871a9d6,"not in CyberGym, new ID",False,False,False
+arvo_44763,arvo-v1-44763,sha256:88bf8d4c41e8e91ac4be8d4ec0c51f740293fc4a8bf9daac581be8eac0d2cbc6,"not in CyberGym, old ID",False,False,False
+arvo_42537563,arvo-v1-42537563,sha256:0041c28e9cc5b1ef22a049e9c1bfd7fbf910c2cd690267117cff6b1cb614bb7f,"not in CyberGym, new ID",False,False,False
+arvo_1304,arvo-v1-1304,sha256:9d585935b2b0566e953df598a3c66367fafd4c2d1f637c92be2576df24e9da0c,same ID as a CyberGym arvo: task,True,False,False
+arvo_23529,arvo-v1-23529,sha256:e2ed1bb63f60ee25d88e85cba15cb2726bdf4c875984cf6d2c9570074a462207,"not in CyberGym, old ID",False,False,False
+arvo_30217,arvo-v1-30217,sha256:8554ab5fd6d1376cfa75e4ef1084db785327ec6876fe151d44351deaa423874a,same ID as a CyberGym arvo: task,True,False,False
+arvo_42509803,arvo-v1-42509803,sha256:d64bb86aa307848c4d69263475ff43cd7268494035fd0298e5433d49d164ab3d,"not in CyberGym, new ID",False,False,False
+arvo_48429,arvo-v1-48429,sha256:732f84a68ad7b0a8f93a087f9aba0bdd1bd8613ec0294a58d2a189070e79ff05,"not in CyberGym, old ID",False,False,False
+arvo_42532010,arvo-v1-42532010,sha256:bc69bb8ae7d819611383c7672e88d160801c6b0fd5eeb80eb206914a021b15e0,"not in CyberGym, new ID",False,False,False
+arvo_42506064,arvo-v1-42506064,sha256:69a7d08b4009434e7a87f5c6daa5fa32736fcd03c9e0400dfc5c149dca9eca10,same CyberGym bug under the other ID,False,False,False
+arvo_64497,arvo-v1-64497,sha256:da784ad01916403233c19b45a101e5b3b6210c91955cf6cd366be918d10d9c2a,"not in CyberGym, old ID",False,False,False
+arvo_42476999,arvo-v1-42476999,sha256:3ef5a953753cf1fcba2dfacc347985ff02c9738bc40e34b2d66aa4edb98e9ba2,"not in CyberGym, new ID",False,False,False
+arvo_22167,arvo-v1-22167,sha256:19d488c44e550c39b73cf9ebe9e95518831af361ba98f817c111ff012113eaaa,"not in CyberGym, old ID",False,False,False
+arvo_42487732,arvo-v1-42487732,sha256:563761c7d9f3434279b427d86cedb2c0fdc0b2165634c4cbd124be6d33ee36f7,"not in CyberGym, new ID",False,False,False
+arvo_42489777,arvo-v1-42489777,sha256:77e514b40135aeb3ac71509d2c58b0faa93f159a22b8f159c62e4b2c0f4335f0,same CyberGym bug under the other ID,False,False,False
+arvo_33854,arvo-v1-33854,sha256:b0e5832f8cc7d3e3b3037a06785581b3254e579835f6445c716cf1edbda73adc,same ID as a CyberGym arvo: task,True,False,False
+arvo_42486698,arvo-v1-42486698,sha256:dee353aba9a899c81560e9dd6ba3fa5044b669a085864cbf8ee27c5c26cb3c91,"not in CyberGym, new ID",False,False,False
+arvo_55051,arvo-v1-55051,sha256:8550c556687ed168bdffedb22e60c540ac601c083773e584a9e7f1548cd6e0c0,"not in CyberGym, old ID",False,False,False
+arvo_42491638,arvo-v1-42491638,sha256:477eee0ebb4aed7b415f447a01beac7ee4e3e311c2c1c08163587daf8f3727d6,"not in CyberGym, new ID",False,False,False
+arvo_42531617,arvo-v1-42531617,sha256:5e32452d1e9aea1621d661de7604a43bfa5d653343a3cc65732bcc623ca1aeb5,same CyberGym bug under the other ID,False,False,False
+arvo_42482566,arvo-v1-42482566,sha256:39b14b2c75f9a53e978f7f84e7e059abe7eebce9ec75a21591457db9558239de,same CyberGym bug under the other ID,False,False,False
+arvo_8944,arvo-v1-8944,sha256:c75b97097bb8928769e73b6d14d4c23bb702c4d5d2d6fa39253fc0fb26e244dd,same ID as a CyberGym arvo: task,True,False,False
+arvo_42497725,arvo-v1-42497725,sha256:688407b26fafecb5596c15af1a7aded36761ae9b40635fa73b64a218b963c1d5,same CyberGym bug under the other ID,False,False,False
+arvo_42506997,arvo-v1-42506997,sha256:81e85d9a60606afdd28ccce5699331bc116b950357fdd6a085bf15f7057d0708,"not in CyberGym, new ID",False,False,False
+arvo_10900,arvo-v1-10900,sha256:0f103fcb12eaf545e21cf1f3d0f334fca1353bbbeed0f7652a6b41be6e67b35d,"not in CyberGym, old ID",False,False,False
+arvo_20777,arvo-v1-20777,sha256:94d1b9907cf0f7b7acbcd94eec59da12ae1e5fb17f976ee492e9362c31b22b21,"not in CyberGym, old ID",False,False,False
+arvo_37443,arvo-v1-37443,sha256:77547c6a9649a6b75dbe895b95a761d87d5cd929793a1c1840484ea4a09e34a5,same ID as a CyberGym arvo: task,True,False,False
+arvo_3095,arvo-v1-3095,sha256:3334f94fd664aaffc4be6619f66c58d9fb937a525c15f79dea55549ce135e133,"not in CyberGym, old ID",False,False,False
+arvo_42528131,arvo-v1-42528131,sha256:dc112e9c4050be27e63a68688aa58ea0adca806c4b9739f65f652a744eeb82bc,"not in CyberGym, new ID",False,False,False
+arvo_64079,arvo-v1-64079,sha256:b89bbf7542bd011cda128b5dd9b526f3ba30b177305ca568480240018d563334,same ID as a CyberGym arvo: task,True,False,False
+arvo_25376,arvo-v1-25376,sha256:fbc509f043004b86799e7a74582b243a0b63522042db72a437358193a3a227fb,"not in CyberGym, old ID",False,False,False
+arvo_20271,arvo-v1-20271,sha256:0f43a5bea4bb263a35107c1466ce5cb2113dd464a00611ed7d9ca9d73b2df764,"not in CyberGym, old ID",False,False,False
+arvo_63357,arvo-v1-63357,sha256:3187dd30776581657add6b90ac664f8b129c40e15c327036eb0478691a71be41,same ID as a CyberGym arvo: task,True,False,False
+arvo_42520011,arvo-v1-42520011,sha256:8d3782b5e43cd7b9029c7cc6aaf35b1979a7e6765dc1c18e51bd3abe386233c9,"not in CyberGym, new ID",False,False,False
+arvo_42485153,arvo-v1-42485153,sha256:668ff1348460f12843baae85b9dc5266987a8dd1ff833210f4a3c7b1e6cfb948,same CyberGym bug under the other ID,False,False,False
+arvo_24293,arvo-v1-24293,sha256:0fbece45a3940df010b00754a3cf2c10fcc54eb347269b877d18b1c2438327cf,"not in CyberGym, old ID",False,False,False
+arvo_3535,arvo-v1-3535,sha256:2e932492b43edd9c2606bccfeebe9d3456938de40a31bd6fdd365dc76edd8e66,same ID as a CyberGym arvo: task,True,False,False
+arvo_42477534,arvo-v1-42477534,sha256:32aac68dbb140453064637348015ac507c3ce1fb22970b277b81dd2d35f6c687,"not in CyberGym, new ID",False,False,False
+arvo_42539721,arvo-v1-42539721,sha256:d8ebbf9d10fc6dfb0727baa409f7191bc478ce9d5afbcb05ee4ef4c90377e582,"not in CyberGym, new ID",False,False,False
+arvo_57788,arvo-v1-57788,sha256:e9b597ea424c8b894235547be05e2262b9d2beee98d661130b05bb82d322d402,same ID as a CyberGym arvo: task,True,False,False
+arvo_42534732,arvo-v1-42534732,sha256:80617f1688eafe91f1ebc9554e688a8360ac86acfbb277adb5d5c654a64f5850,"not in CyberGym, new ID",False,False,False
+arvo_42498884,arvo-v1-42498884,sha256:967831df28b015c14e16d03d0c9e7d6158c7e1b32455a6ae85e93a18f7400c82,"not in CyberGym, new ID",False,False,False
+arvo_42530230,arvo-v1-42530230,sha256:40f7ed440c5d719843ac42526bd4c6184bf47f2b141e1744f44c1bde47717b3c,"not in CyberGym, new ID",False,False,False
+arvo_42479691,arvo-v1-42479691,sha256:11319e1263e79a685d2c6814ba50e0817fd5473c8c0f9b189bb7eab06c8e28cb,"not in CyberGym, new ID",False,False,False
+arvo_403641220,arvo-v1-403641220,sha256:20b4c44d9497ae4ac93b11839b9ea4117e182b126d8334bab8b6482f388c4ff6,"not in CyberGym, new ID",False,False,False
+arvo_13942,arvo-v1-13942,sha256:b309f570ccdecff69300def59693c747ae166cf8eb25de4fa3b43111c8ea5e40,"not in CyberGym, old ID",False,False,False
+arvo_42475665,arvo-v1-42475665,sha256:ab258163369a5deae5a3b1539f2a54a9d50d406dc2692abd499fb80bea878dc5,"not in CyberGym, new ID",False,False,False
+arvo_22244,arvo-v1-22244,sha256:53f43f3ca71c4a041bdcc5f3df84477a8a32c46f28900698187bddd0bda287fe,same ID as a CyberGym arvo: task,True,False,False
+arvo_431448415,arvo-v1-431448415,sha256:ada0e48f84b1a802c6b8553888e9785ec604243c2cd50af860f9c3978529c2bc,"not in CyberGym, new ID",False,False,False
+arvo_23352,arvo-v1-23352,sha256:5cb3c346695c94d16a1ae33c298bb242dbbf75084046b6612bb6c908a5cb6b55,"not in CyberGym, old ID",False,False,False
+arvo_10864,arvo-v1-10864,sha256:e54ee10dde31ea0af6ec1e4dd25068e7de7e6dda12b45bfa5f01f5e7bd5e5653,same ID as a CyberGym arvo: task,True,False,False
+arvo_42479419,arvo-v1-42479419,sha256:9740e3dc9dab93aec824f2176c180148e38b9c33ff8e9615f80dc7c9bb51da9f,"not in CyberGym, new ID",False,False,False
+arvo_14174,arvo-v1-14174,sha256:12077f7d19f3eecf67615f5465145363145cb1b2a88a92f3f88439758d7714c5,"not in CyberGym, old ID",False,False,False
+arvo_25378,arvo-v1-25378,sha256:c399a9c6613d3e1f0c0599942ef128c6eb43616f5d55458ad479c3c40a7f0f26,"not in CyberGym, old ID",False,False,False
+arvo_42481392,arvo-v1-42481392,sha256:01b703425b0cc97f347fe9341b291910f7ed52603d0d31b6ba67508ff7a831a1,"not in CyberGym, new ID",False,False,False
+arvo_42479686,arvo-v1-42479686,sha256:71cadc5968d8b188e83186f8e76c67f47a5d78707bd1e0cdb28d86da865c4564,"not in CyberGym, new ID",False,False,False
+arvo_42534105,arvo-v1-42534105,sha256:9e1a4c91d0af02064b51720d73d756586b51c1a892a30c596f0d178a586d7f7e,"not in CyberGym, new ID",False,False,False
+arvo_42526627,arvo-v1-42526627,sha256:7f0b514d9523183448ebc36417d38334aa87cd9c9d8415a9bf72e71976bd0e6f,"not in CyberGym, new ID",False,False,False
+arvo_42515690,arvo-v1-42515690,sha256:95176dfa08722ce88188de97803fbb87a2a4eafd7a9872a1fd1337ca5fd02316,"not in CyberGym, new ID",False,False,False
+arvo_42538772,arvo-v1-42538772,sha256:27b25a0dd5e6a2fed7c506b0c8e4466518cc45de575a84cf4719bd4be33c4772,"not in CyberGym, new ID",False,False,False
+arvo_42475818,arvo-v1-42475818,sha256:ab19c2d381c44582f9426d7396695c976e5c2e38fd341e628a6e07862fc4aa28,"not in CyberGym, new ID",False,False,False
+arvo_55724,arvo-v1-55724,sha256:5192ea00c0848f712455c44d5bc25e8b03cda3c9ee95a3a920386c6c1b58d9ac,"not in CyberGym, old ID",False,False,False
+arvo_33240,arvo-v1-33240,sha256:47d25318a4877ed9cad1c4220689e1567bac8c5a742caff77191146630758f97,"not in CyberGym, old ID",False,False,False
+arvo_42540407,arvo-v1-42540407,sha256:47153549a254e8c011d71ba4a734b79d1da9d41fd1ea809fea9782367ae3a501,"not in CyberGym, new ID",False,False,False
+arvo_42507587,arvo-v1-42507587,sha256:e0f8777d4a09f4828af79cec127a69a606c88c027f7ac6ff39f402a87eb380aa,"not in CyberGym, new ID",False,False,False
+arvo_42527431,arvo-v1-42527431,sha256:1b39d49360937bc2dbd05ac5f55029d80bc2bb097e07b8e2d0caa938c285b812,same CyberGym bug under the other ID,False,False,False
+arvo_28256,arvo-v1-28256,sha256:ee1f9944ead93d09f59a7fe3902f54b4bfd1ead5e800c138504dd5eaa7af7287,"not in CyberGym, old ID",False,False,False
+arvo_11752,arvo-v1-11752,sha256:4438a7bb4801a21f475d440ed5a7b5be29cfff18113decc85972b47142120446,"not in CyberGym, old ID",False,False,False
+arvo_33237,arvo-v1-33237,sha256:e9287608d497c30f39d33a3c44731fb1728b23d93af3dd5c87133d1659cff3e0,"not in CyberGym, old ID",False,False,False
+arvo_58694,arvo-v1-58694,sha256:89e56aa6979ac3704c7fa9116c2eb0fc47ea2bcc414f9d686c8ee87895232d50,"not in CyberGym, old ID",False,False,False
+arvo_42472911,arvo-v1-42472911,sha256:b8605bb09b7a0ddd7154926b4fd86e0a20bb2d2cfcb7a432e12b21258b03a147,"not in CyberGym, new ID",False,False,False
+arvo_62087,arvo-v1-62087,sha256:aaa118ff01b4e6f8983e80f834192698f79e3ae43428631dc912626502c56db0,same ID as a CyberGym arvo: task,True,False,False
+arvo_397150498,arvo-v1-397150498,sha256:ac3371eb9330c5bb00ba27b76e1f4007dfacbb39bc5be5fc3afdae6250a91236,"not in CyberGym, new ID",False,False,False
+arvo_28513,arvo-v1-28513,sha256:3b1493d536cb994ffd3333f5d3951a9c3c14dcae363c7967a0f179cfa5c52d92,"not in CyberGym, old ID",False,False,False
+arvo_12957,arvo-v1-12957,sha256:f0c4d632131242b2e5dfbebf277aeaf7df48dc1ac3dd36dedce75eb88b1b127e,"not in CyberGym, old ID",False,False,False
+arvo_42490119,arvo-v1-42490119,sha256:713d0b4ef22ac24c2a7339207b4b79f883032faa74416e12fb83e39e7bef4318,"not in CyberGym, new ID",False,False,False
+arvo_42499607,arvo-v1-42499607,sha256:97ff4397f961f0bbeb98555ad73f7459198c1899da376efb7ec38b48571ba62e,"not in CyberGym, new ID",False,False,False
+arvo_64117,arvo-v1-64117,sha256:bf5176d0114b8f24ea90f8454a71af1a1670b5d85a8f7ecfbdec71123f408d74,"not in CyberGym, old ID",False,False,False
+arvo_40465,arvo-v1-40465,sha256:59f220d744f7f60c436f201c775ffd40981301c82d67182f011c7cecb3922d41,same ID as a CyberGym arvo: task,True,False,False
+arvo_42475265,arvo-v1-42475265,sha256:d3f37c2f877d4bc4e10dd037ec241a28a8536c3eec63f1b9edc08391241adcad,"not in CyberGym, new ID",False,False,False
+arvo_42522440,arvo-v1-42522440,sha256:5509e24d4499ae21241b62ce3d49cb41bd7616608bb789e069f3c6e969be83cc,same CyberGym bug under the other ID,False,False,False
+arvo_64127,arvo-v1-64127,sha256:ce4e217b2843a25d9f1a5ad2f5850be075c8033951dea782ea154984b270434c,"not in CyberGym, old ID",False,False,False
+arvo_42491719,arvo-v1-42491719,sha256:bf699cec37ca1703d080e2bc51097683135fe304fca43f6c89e9957e9bd36305,same CyberGym bug under the other ID,False,False,False
+arvo_12424,arvo-v1-12424,sha256:413ce544bc97642e81710d58d2f1d8387b489f458623bdc88a694710cd9a2fd5,"not in CyberGym, old ID",False,False,False
+arvo_42537803,arvo-v1-42537803,sha256:54bb274ff3438caa7717e459aae9b80a86aa8dcead575252dcee6a64992505ca,"not in CyberGym, new ID",False,False,False
+arvo_42541581,arvo-v1-42541581,sha256:f1dd069091214be5d65de6687414cf9eeb5bce6e66586074c827c883c0a69bde,"not in CyberGym, new ID",False,False,False
+arvo_25530,arvo-v1-25530,sha256:f1a2b6d30bde9c77b01f1368f8fcc200bc942adb23ece2dfbe26a3f14d1eb009,same ID as a CyberGym arvo: task,True,False,False
+arvo_52204,arvo-v1-52204,sha256:fb2c8aa28396aea647523b7f393f72a47bef4f635d8835bcbc442be95b3e765f,same ID as a CyberGym arvo: task,True,False,False
+arvo_53397,arvo-v1-53397,sha256:0b831255d233ff8c437c1ddb5000282773e59b141fb26899376cf60313fad91f,"not in CyberGym, old ID",False,False,False
+arvo_42530090,arvo-v1-42530090,sha256:b5ff68004f348c5f9c6a47effc699150604767dafb8d336c4817179b088fa332,"not in CyberGym, new ID",False,False,False
+arvo_42479120,arvo-v1-42479120,sha256:f53f1b82d78543b962737ba36d6ff8e3aaa15ea2907a4165544f213546beb0b7,"not in CyberGym, new ID",False,False,False
+arvo_42526578,arvo-v1-42526578,sha256:c8815aecd56f6e9baed1cc1a04ae98032ed58f0fe2e82f441a920d485a474a5c,"not in CyberGym, new ID",False,False,False
+arvo_59279,arvo-v1-59279,sha256:190e224a41287e43319178370b0d14faa7563940777e093df32b7d9ea82c55fa,"not in CyberGym, old ID",False,False,False
+arvo_64205,arvo-v1-64205,sha256:cadf08e7749756a7731babb03d6f3db7836bc458d62e5fcfbf24c26239b365db,"not in CyberGym, old ID",False,False,False
+arvo_51558,arvo-v1-51558,sha256:b7c8f3db518d239347696f16f1e48f11cefab5b5f4dc0fb7d91a124ca11ff6f4,"not in CyberGym, old ID",False,False,False
+arvo_42507848,arvo-v1-42507848,sha256:ad12a7aea24b4c0683ccd32d0b4f24e7018579ffef446a2ebd04ed4c97e8b164,"not in CyberGym, new ID",False,False,False
+arvo_42483004,arvo-v1-42483004,sha256:6cdf74832406836c8844a3627be02eb25b726fac50c13ec65646447e337edde9,"not in CyberGym, new ID",False,False,False
+arvo_22419,arvo-v1-22419,sha256:7d7cec176f8c92b9b395bbafd08472c53af49588aaacba8fbd2bda1d3aa50e9d,"not in CyberGym, old ID",False,False,False
+arvo_42490855,arvo-v1-42490855,sha256:3e0c75cf0af02371c08c531140fe4aff438ef3182b2d0cc88bb40cb3af486db9,"not in CyberGym, new ID",False,False,False
+arvo_55820,arvo-v1-55820,sha256:8ea09fef5642662195f8f18acbfcf3435bc59855063f691ea03f4008c0273595,same ID as a CyberGym arvo: task,True,False,False
+arvo_22556,arvo-v1-22556,sha256:31e1a15eb40a4fe4630748eb857eae68626f87053c1376c4dcda01fcff077b41,"not in CyberGym, old ID",False,False,False
+arvo_42513423,arvo-v1-42513423,sha256:32be7e879f1e7a8fe045001b31af3a7f740e2e817395175c2b913e3b623b80a1,"not in CyberGym, new ID",False,False,False
+arvo_42493084,arvo-v1-42493084,sha256:2cc41d4a771bf5b0dee4702d86af98cd34676b2881107b645fd1f3a9fd31a658,"not in CyberGym, new ID",False,False,False
+arvo_42537627,arvo-v1-42537627,sha256:14446f46564f19c8eb7568b5000def3ebb4dd3806d8525b0f18d1c7a6e8e1c03,"not in CyberGym, new ID",False,False,False
+arvo_42521036,arvo-v1-42521036,sha256:2acb3f94ea85700afeb3b2a98d339ccf5609d7cb89d7a56b40c7a7da36d4a93d,"not in CyberGym, new ID",False,False,False
+arvo_42523656,arvo-v1-42523656,sha256:f6dc9573d19ad82a870352c5f1a92814fb140e29369754eeaa98f55cf0359b93,"not in CyberGym, new ID",False,False,False
+arvo_42525797,arvo-v1-42525797,sha256:c686f2a38b8af790d679a0ca327fede87b74498669b5a7c3123a306bd525b24e,"not in CyberGym, new ID",False,False,False
+arvo_893,arvo-v1-893,sha256:771b541ee3ee3234547624691a46177be5f956fa0541e93713830f7f5ba563d8,"not in CyberGym, old ID",False,False,False
+arvo_21916,arvo-v1-21916,sha256:c415bf4355d1ee36a2ce5127a77f23ea53a6368decdb1fb3a07134e20f0724f5,same ID as a CyberGym arvo: task,True,False,False
+arvo_62348,arvo-v1-62348,sha256:aa86cdf1c0684b351017d74c3b63952fd654ce60dd336baba5068761b8e09a17,"not in CyberGym, old ID",False,False,False
+arvo_42537499,arvo-v1-42537499,sha256:c9797a5f8406386a47a8c8a3d7e4082fff7d026505fee19f8f921b49c91d755c,"not in CyberGym, new ID",False,False,False
+arvo_42479359,arvo-v1-42479359,sha256:9a2305a8b533f3f78587b0f1740a674a77a34ab8e9b27bb50a362f21a146fb53,"not in CyberGym, new ID",False,False,False
+arvo_20147,arvo-v1-20147,sha256:41ad9b48477b51aaf417514cde2da0b03a65e770586c7342f85acff687cf8741,same ID as a CyberGym arvo: task,True,False,False
+arvo_28462,arvo-v1-28462,sha256:808aec16143736eb014d68cf69d2af89df2a41c317dcbaf5d990c3f1077014c4,same ID as a CyberGym arvo: task,True,False,False
+arvo_42534894,arvo-v1-42534894,sha256:6c44448a350d13f5d9a234024c5d9a17c6556dcf8f1237df7099008e27468fb9,"not in CyberGym, new ID",False,False,False
+arvo_42518438,arvo-v1-42518438,sha256:fdd1daf3664beeb79de8b8f310bb2326e3729d7551458eaf486479c4545c1d53,"not in CyberGym, new ID",False,False,False
+arvo_19466,arvo-v1-19466,sha256:ed7a33022fb5c59bd57190f48ee3ac26433512ba4e276aed674e0ea9a740e7e1,"not in CyberGym, old ID",False,False,False
+arvo_42471188,arvo-v1-42471188,sha256:43fa5ce3fc87fedaa5e885c41fb05492df488b543de46ab883d88aa514e191c4,same CyberGym bug under the other ID,False,False,False
+arvo_42471111,arvo-v1-42471111,sha256:ab4927e8d0f97966303c7ad491214f05c175461c42348b1891d0c251fe797462,same CyberGym bug under the other ID,False,False,False
+arvo_42486582,arvo-v1-42486582,sha256:94d88cb24a14511c9bfc4c452848db4b07bb2de296be0908cec9262d3a9efa41,"not in CyberGym, new ID",False,False,False
+arvo_42483588,arvo-v1-42483588,sha256:d0f67c9847f36241eda60b013f9df6368170e01e43e0dc022f032a06712e57f0,same CyberGym bug under the other ID,False,False,False
+arvo_44089,arvo-v1-44089,sha256:09972c0115637c439b51c55532c53eec5c073d820be84b0b7860af1b6da4bd98,same ID as a CyberGym arvo: task,True,False,False
+arvo_42527789,arvo-v1-42527789,sha256:18a16e8f3ab0ca64587fe23388e7e9360057475e81ae84fc71de047499de97f3,"not in CyberGym, new ID",False,False,False
+arvo_42490508,arvo-v1-42490508,sha256:5b7a6aff6682e7a46d2bb1603e7689cbd326860b1b89c469e52d894d6c6eec9d,"not in CyberGym, new ID",False,False,False
+arvo_20596,arvo-v1-20596,sha256:8c7023cbce3eda3f72ffd296d3fec430161be3422527312c6052c7c54f2a2aae,"not in CyberGym, old ID",False,False,False
+arvo_14448,arvo-v1-14448,sha256:b22c8afff4188edfc86ed19c4c39a6abfffe44961278117984d671e325d85473,"not in CyberGym, old ID",False,False,False
+arvo_21809,arvo-v1-21809,sha256:a9c4964defbbcc96bfde52ba0c53bb2e509e5d325e60bf880cd638c7538dc196,"not in CyberGym, old ID",False,False,False
+arvo_424627221,arvo-v1-424627221,sha256:b51820c962c3ca9214d6a411614630dbea5b7384c623f8cc82c9806d76443815,"not in CyberGym, new ID",False,False,False
+arvo_65135,arvo-v1-65135,sha256:6aa46f274fddb1e9049409acc9d9ede6447a9135e1bf7692d9a2d73f0d3f9383,same ID as a CyberGym arvo: task,True,False,False
+arvo_2692,arvo-v1-2692,sha256:11729514c63badb49d7a7ff65dcec29c8a03c0fceae2f9b845e73d0a8643f447,"not in CyberGym, old ID",False,False,False
+arvo_56327,arvo-v1-56327,sha256:7019d8225c12ec212add5d14ad79a282739405247bd479eb61f04a188581c288,"not in CyberGym, old ID",False,False,False
+arvo_42489180,arvo-v1-42489180,sha256:052e645b85f5a6aa4d8d220da28a7997570247598ff0b3fa9e899ee1a4f1c5ef,same CyberGym bug under the other ID,False,False,False
+arvo_50433,arvo-v1-50433,sha256:2a23d3dfc906f541668e772adb598c31067a4512156ac04d27b46ef1c9af90ac,"not in CyberGym, old ID",False,False,False
+arvo_29266,arvo-v1-29266,sha256:1f56f47705df1139568b8efb7b4ed9e9c72c761a6bcfc3e74bb6bf795e329e40,same ID as a CyberGym arvo: task,True,False,False
+arvo_10341,arvo-v1-10341,sha256:76047bbed6e84cd305cec6d0c3c58a7cb547eb19c20bd9d784fdf40e1c0334ac,same ID as a CyberGym arvo: task,True,False,False
+arvo_22342,arvo-v1-22342,sha256:04545f27c0c8c382017adf32e75bf831774d56758a11edc65a5826d11701ffeb,"not in CyberGym, old ID",False,False,False
+arvo_12953,arvo-v1-12953,sha256:98673ee6a43b9b10278633cd1bfc443cc3b3a08245172276a906952de2d593ba,"not in CyberGym, old ID",False,False,False
+arvo_42474668,arvo-v1-42474668,sha256:352c1417ce711226ba85b2f2d9efe270dfb500cb64070270c9ca75ef9a010e0d,same CyberGym bug under the other ID,False,False,False
+arvo_42488508,arvo-v1-42488508,sha256:d4f2367d2d0af4d04c198e7417008e1528af313653749c68ce9df2ae604ad47d,"not in CyberGym, new ID",False,False,False
+arvo_3093,arvo-v1-3093,sha256:29acf5e928ee33f04d2b05f9b918a578a0a2e6bb4a1feffd3afde6d11fe5fa94,"not in CyberGym, old ID",False,False,False
+arvo_35410,arvo-v1-35410,sha256:5fa74dce9759aaf708b23f42d74fb5820c93ae8a929bd334e36941ac25b23e02,same ID as a CyberGym arvo: task,True,False,False
+arvo_42523804,arvo-v1-42523804,sha256:50481163962b96d6df98b496c577e2beddb16cf1c162bccb9261baf8d5233def,same CyberGym bug under the other ID,False,False,False
+arvo_43156,arvo-v1-43156,sha256:b0ad07f6bb230378538befa5a30fe4e479ee940911ecfe249feaba6a5ad6a085,same ID as a CyberGym arvo: task,True,True,False
+arvo_42521585,arvo-v1-42521585,sha256:43fea2ecc55420000b9af075f181580c94de347f2d8a1458d1d85f4a334b4710,same CyberGym bug under the other ID,False,False,False
+arvo_42482568,arvo-v1-42482568,sha256:aeb2862f538c207924e477e2c5deaa09bb977e5c5122a18e977988e1ad099b7a,"not in CyberGym, new ID",False,False,False
+arvo_42486541,arvo-v1-42486541,sha256:53ffe62d11e069ee597100f2173cc1d11a41aa29827c3731cc5d001eccd777dd,"not in CyberGym, new ID",False,False,False
+arvo_42538791,arvo-v1-42538791,sha256:d6ac17ca217769548d2bbf10e5b18fbe4243b1a6bad1bae28de08d31efb52386,"not in CyberGym, new ID",False,False,False
+arvo_52229,arvo-v1-52229,sha256:663196911d8d2826bdbf2ba0c166ff206fa85d794757c02f1815ea178b24aa4e,same ID as a CyberGym arvo: task,True,False,False
+arvo_42538984,arvo-v1-42538984,sha256:5e68125bbf4a269cbde413cc60c29a8d253c644ba4369195dcb3ba260013dc19,"not in CyberGym, new ID",False,False,False
+arvo_31351,arvo-v1-31351,sha256:68fb66b12923126e909fa33dde005ab89f3f34761432f78342c29852b510e3d3,"not in CyberGym, old ID",False,False,False
+arvo_42485448,arvo-v1-42485448,sha256:8743ad1f25edb193a55a6e268846553ed3f0e34185a29fc95f2d834a655211ff,"not in CyberGym, new ID",False,False,False
+arvo_34960,arvo-v1-34960,sha256:5d44d43ac6ec93709d28908abef7d28aaa122ae9454f8a2487dd2dc4288b97b3,"not in CyberGym, old ID",False,False,False
+arvo_42470799,arvo-v1-42470799,sha256:3b32babfc218b71a9f0ae5dee9e36c9f8096bd6329869a373d4afd395b5ea195,"not in CyberGym, new ID",False,False,False
+arvo_21780,arvo-v1-21780,sha256:44034409f0293ac6827043708792740b1ab34329b6fdae1d17f4cb437c14ad1c,"not in CyberGym, old ID",False,False,False
+arvo_42532659,arvo-v1-42532659,sha256:258b500e07c1868c22f3355fbefcc934b3dcac54abab3746cc461a410017f28f,"not in CyberGym, new ID",False,False,False
+arvo_42475442,arvo-v1-42475442,sha256:e6bf94defe65100032cec6934d4e71d2a48d04cc737e28a858e1de9eee4e52c3,same CyberGym bug under the other ID,False,False,False
+arvo_42533496,arvo-v1-42533496,sha256:7a3337b279179e760b87017bafcdf4b2f5e572c643ada1057db54e8bbd7dc536,"not in CyberGym, new ID",False,False,False
+arvo_42504520,arvo-v1-42504520,sha256:001bbce069ad8240d43c99a24ca90c74d25c04d7566b1b9111f3c1ecd7dc047d,"not in CyberGym, new ID",False,False,False
+arvo_42487793,arvo-v1-42487793,sha256:b24bea6edb280c16eb679539268f1185b598f5b2cd9654f00ec38de4f9c0a4e9,"not in CyberGym, new ID",False,False,False
+arvo_6521,arvo-v1-6521,sha256:4c33a2785a666efa7a084714b9f96bce9b153a678a994adcbe8b3217720491c5,same ID as a CyberGym arvo: task,True,False,False
+arvo_55806,arvo-v1-55806,sha256:27e3a1603eddb78f158e899a42767fad5ad368f55a648f2e9037b3ecf2fc7fe1,"not in CyberGym, old ID",False,False,False
+arvo_42481580,arvo-v1-42481580,sha256:ebe13d551d75bfcea981a4052278046b261a6c5080d39e923d094850f9a132c5,"not in CyberGym, new ID",False,False,False
+arvo_42487782,arvo-v1-42487782,sha256:ed34f38bf3f221180a62daf2fe495f62c8227cee64c72ae67b6d076557eaa8b9,"not in CyberGym, new ID",False,False,False
+arvo_42530518,arvo-v1-42530518,sha256:2c80a5c24803e1bc39ab5f2da1b621b648bd530bed086f819ece32bc96249a67,"not in CyberGym, new ID",False,False,False
+arvo_42529804,arvo-v1-42529804,sha256:ad48c8b779ad4d7d12e88cae543e96720a894b8111dd604f22ad9ad5d14ad0e3,"not in CyberGym, new ID",False,False,False
+arvo_42476988,arvo-v1-42476988,sha256:f0bec0e36ba0305d2a0500e9aa1ec3926ee87cefcf5995c0f8746612208cc3e4,"not in CyberGym, new ID",False,False,False
+arvo_42513200,arvo-v1-42513200,sha256:464b7a201b59b99bcaaba1eaeef921722471c48eacb53874bc3b1d3dfa6ab247,"not in CyberGym, new ID",False,False,False
+arvo_42493861,arvo-v1-42493861,sha256:3451c21c9b0ddb5cf63421dfb567e51de865ea5abba070a1ce2ecbaf0a5ced5b,same CyberGym bug under the other ID,False,False,False
+arvo_58319,arvo-v1-58319,sha256:69bbc8f420e425dc98f85e98729e272d8c71db5723562b152d6c15b45299a3a6,"not in CyberGym, old ID",False,False,False
+arvo_21604,arvo-v1-21604,sha256:2ea808c76f8756128ad6810f24d74ed63a64968af8f1983a4f4d7c9f364766fc,same ID as a CyberGym arvo: task,True,False,False
+arvo_21579,arvo-v1-21579,sha256:3495baabe798b16325be5dbfac0cf56d36f02f752118bcdfec9fb6cc64c57d24,same ID as a CyberGym arvo: task,True,False,False
+arvo_42540566,arvo-v1-42540566,sha256:b290e4da3d51f8e31b08fc366ce6b4d0674c9dd6c08c6c7c6c8a91883ca5f247,same CyberGym bug under the other ID,False,False,False
+arvo_42534755,arvo-v1-42534755,sha256:c9abf9899e19c6e71c78c6b64951b7f717ce1f425a560d0cef870124bfea5658,"not in CyberGym, new ID",False,False,False
+arvo_38870,arvo-v1-38870,sha256:3059ec551bee196e4efa7714a1c14d31728b5b375443267387706cedc5e8b790,same ID as a CyberGym arvo: task,True,False,False
+arvo_424613315,arvo-v1-424613315,sha256:6baab4c75cb9d6bdaa25656340cd4bddeb83f2a2becc7c62b769ab7fc3dff11d,"not in CyberGym, new ID",False,False,False
+arvo_42530097,arvo-v1-42530097,sha256:c52ce9f4ff2461bb213121a8c26ca264765287fc0cda77f5ef973de44397ac35,"not in CyberGym, new ID",False,False,False
+arvo_42533566,arvo-v1-42533566,sha256:d12bcfaa4564a92858bca17b0eecc577e199fe1729c303f570d931faa023ad5d,same CyberGym bug under the other ID,False,False,False
+arvo_54972,arvo-v1-54972,sha256:016833a635b67f6d2660bbcf92c555c319f233df5195cbbf88032e0173c09df7,same ID as a CyberGym arvo: task,True,False,False
+arvo_42489330,arvo-v1-42489330,sha256:33a997bd0606103437f0242ced735359b5fd3feb7f20272b40175e130a13648f,same CyberGym bug under the other ID,False,False,False
+arvo_42503059,arvo-v1-42503059,sha256:b6d19edf4dbb84bf5281225e9739b9873b1f82e1dd25ec0df789a1abcc3c1cf6,"not in CyberGym, new ID",False,False,False
+arvo_39056,arvo-v1-39056,sha256:b792cc092604ba0df085b14e933e15644ba5fc4ede69d6fd15fd57ee9e92f43b,"not in CyberGym, old ID",False,False,False
+arvo_42475075,arvo-v1-42475075,sha256:783af3d919d47c9b1f942b035f06729466cd0a43ec9df238079212cef3a9a1bc,same CyberGym bug under the other ID,False,False,False
+arvo_377530685,arvo-v1-377530685,sha256:a8cf8515337891fcf64e31725ee77bffe114b61fb909f91eeaf749950abaee6b,"not in CyberGym, new ID",False,False,False
+arvo_25053,arvo-v1-25053,sha256:9448cabf4b1e23975f3475b53b86b351dedb45113fd5e4571d57241e9bdd9d90,"not in CyberGym, old ID",False,False,False
+arvo_20607,arvo-v1-20607,sha256:43e293a79da5d4d00652cb317c7946ff230f2441a7d26e99e8a5e64c40ab66b1,"not in CyberGym, old ID",False,False,False
+arvo_52181,arvo-v1-52181,sha256:cac50c8a203003e134fe8dbe9a1e0c10937e09095d076e325a78e958d3f58564,"not in CyberGym, old ID",False,False,False
+arvo_42485332,arvo-v1-42485332,sha256:f93edeef2d7740a2a9e95915360e65f630682efa3ff7eae0d1d6645234d78db8,"not in CyberGym, new ID",False,False,False
+arvo_21365,arvo-v1-21365,sha256:c8548a3ef08eb61fd86103ca6989368e4be75e169d984b225a1c5449ae0fadc2,"not in CyberGym, old ID",False,False,False
+arvo_42499883,arvo-v1-42499883,sha256:84d8ee043bff56fb8288e75c32ed9071b8beee231f8cd33a7b0230c5dfa21328,same CyberGym bug under the other ID,False,False,False
+arvo_6347,arvo-v1-6347,sha256:a76f148ac67905c3e9396a9bdebd636d9e2a6605b21ab358f8c014705806d209,"not in CyberGym, old ID",False,False,False
+arvo_42524899,arvo-v1-42524899,sha256:04e0cf2bb63d78f58271d544527736c64d2b0d69dd94adfac0050be07f1c4856,"not in CyberGym, new ID",False,False,False
+arvo_42537510,arvo-v1-42537510,sha256:d8c56a5c5d3ebe73956697d4de541244598ee682fc744993e7d693b401a49e41,"not in CyberGym, new ID",False,False,False
+arvo_2603,arvo-v1-2603,sha256:a2aa8a4aae39a2526dc6db5b90cc09b4da1fa7d7b2d18b31c7caa7c03210fa02,"not in CyberGym, old ID",False,False,False
+arvo_42485350,arvo-v1-42485350,sha256:a6f3bbeffb15b791657756850177b94769eb488b681b0eeb4440b928e1fd46c4,"not in CyberGym, new ID",False,False,False
+arvo_42522452,arvo-v1-42522452,sha256:2c05ed1b8a90f9ab19b8dcf5e22ccc1e82724ac61164db7c5a55ac9fd7a376cd,same CyberGym bug under the other ID,False,False,False
+arvo_42516154,arvo-v1-42516154,sha256:f376ad9df4e6be5701b23b397defe2372f658fc9f8726cbb4531ea668d77a85d,same CyberGym bug under the other ID,False,False,False
+arvo_33078,arvo-v1-33078,sha256:b69cec4348db396a13d330f4cadc9da769a07cf197d359cd425b94ea1e1189dc,"not in CyberGym, old ID",False,False,False
+arvo_34719,arvo-v1-34719,sha256:8c4a742b86b123605a9b3c6c199d1f7d0f13b4d7916ca1c7d3285c18f6607463,"not in CyberGym, old ID",False,False,False
+arvo_48904,arvo-v1-48904,sha256:72f0d7896e06e62e1b37bad9e249a31841cbf568bf0eab9a71411ae9917fbd9a,"not in CyberGym, old ID",False,False,False
+arvo_424229869,arvo-v1-424229869,sha256:a9050d5a91b71bd0f576170daed4bfddb6b9459390dcf305dbd618ec9f2f9330,"not in CyberGym, new ID",False,False,False
+arvo_20602,arvo-v1-20602,sha256:1515d5ab92a81b0818daa8f8900c6536f17f8962e34b76dbd6f0f63b1637b88f,"not in CyberGym, old ID",False,False,False
+arvo_26345,arvo-v1-26345,sha256:812a866f9be385670cf22c5359fd9092b723d0abaafebbda630daf0d688a47ce,same ID as a CyberGym arvo: task,True,False,False
+arvo_42516149,arvo-v1-42516149,sha256:56fa4224c791dfe3dff88cd0c55941321d4b91dacfd899627232a642d965e96d,"not in CyberGym, new ID",False,False,False
+arvo_30234,arvo-v1-30234,sha256:58cb88747547800ee704ad93609b63909bf417c9296b647fe476a664147a37a8,same ID as a CyberGym arvo: task,True,False,False
+arvo_65264,arvo-v1-65264,sha256:2bdf30b0a7ad9e1a43126bba2fa65bee80ab9915833e48fa35b2bc68804c11ec,same ID as a CyberGym arvo: task,True,False,False
+arvo_41636,arvo-v1-41636,sha256:c30779685b5d8f21068d2138c46a5c39e8073d8214dd84c7c504adaad2eeed70,"not in CyberGym, old ID",False,False,False
+arvo_42518583,arvo-v1-42518583,sha256:0213cdfd0e8745b62bdbd6fd9d4cfd80e2c4e61d763e429def3f44206c553a78,same CyberGym bug under the other ID,False,False,False
+arvo_28021,arvo-v1-28021,sha256:a808bacd0053517c294832a5bd1837e4fcec03a9bfec6242babff413968a408f,"not in CyberGym, old ID",False,False,False
+arvo_42487837,arvo-v1-42487837,sha256:2f4eeb94ce1366fa787d6fdb3fda24906197cad516f51854986471e2d4f08cac,"not in CyberGym, new ID",False,False,False
+arvo_10096,arvo-v1-10096,sha256:7083a84826d97649aee42224fd6d2645a9e98674605ab5ed5000e178a58f8ff9,same ID as a CyberGym arvo: task,True,False,False
+arvo_20162,arvo-v1-20162,sha256:227462a91a393110c31d426adad6a23c4a5404947f7342152a63fa7844a2fc17,"not in CyberGym, old ID",False,False,False
+arvo_42492610,arvo-v1-42492610,sha256:06cafd6b52ffba196bd91acafa049b2c72ff93ecc1da844944104b4b941fcae2,"not in CyberGym, new ID",False,False,False
+arvo_42532983,arvo-v1-42532983,sha256:63f6ec3d77f2f4b687fac21cc0e0adcbed9a1810530ed54f9472c2e5790afedc,same CyberGym bug under the other ID,False,False,False
+arvo_46883,arvo-v1-46883,sha256:a8678e4e4c118cfb8f3f3c0d9d7e948ee2436df75212e5da3fc44841ac5dbbc7,same ID as a CyberGym arvo: task,True,False,False
+arvo_42473565,arvo-v1-42473565,sha256:812316d2f4b2e24cb6dee24d4a4f6711331a5cc3503d527792e7e6189123d878,"not in CyberGym, new ID",False,False,False
+arvo_42489817,arvo-v1-42489817,sha256:dab1f158629fc0dab20a08cb4cb84251583c976bef6250a35aed8d81f7244598,"not in CyberGym, new ID",False,False,False
+arvo_50194,arvo-v1-50194,sha256:b14a6867031c26f8c4848b6788ae4496e510d4f452f45ce4bfec96475aee1fbd,"not in CyberGym, old ID",False,False,False
+arvo_36817,arvo-v1-36817,sha256:5091397a4279bd355c83e6dd16c8e2fd0574b1950a1bd0f78e7b5166d725b392,"not in CyberGym, old ID",False,False,False
+arvo_42488300,arvo-v1-42488300,sha256:21655543ab4873d7a95a3697466e17352857883580cbc9d3b912dc23ee5a5414,"not in CyberGym, new ID",False,False,False
+arvo_42493692,arvo-v1-42493692,sha256:72d3a8fbc6801dcaed3ade4c2ba024ae4b459104d1d5febf1e0668e914015f1d,"not in CyberGym, new ID",False,False,False
+arvo_42535588,arvo-v1-42535588,sha256:7814d870d49beae68ce7ccd8060882290a74420f014c0be7c50804bf6fe7cde8,"not in CyberGym, new ID",False,False,False
+arvo_42486724,arvo-v1-42486724,sha256:2ed89c76fb7f094c26720e24d27eff9bc89bf9b9e5c36c750f0c8b03d7f887ef,"not in CyberGym, new ID",False,False,False
+arvo_42487154,arvo-v1-42487154,sha256:0d98dd3806d68d4642261c6c2985f61f1dfb89fddb51785de49028bcb3916e3e,"not in CyberGym, new ID",False,False,False
+arvo_62822,arvo-v1-62822,sha256:9ea8c6e401369eee81c54f251c8d807ce5b5f227d2041b992249e2af5cc4c6a5,same ID as a CyberGym arvo: task,True,False,False
+arvo_42507335,arvo-v1-42507335,sha256:68c256eec76b62b598219e178555129a7581d6af0e5b2b0c84c43b177384ec21,"not in CyberGym, new ID",False,False,False
+arvo_42488057,arvo-v1-42488057,sha256:91e107b008e44ee9e57663d8627b3ac673047818930d3d5c7f8be1cad1b7d277,"not in CyberGym, new ID",False,False,False
+arvo_42540492,arvo-v1-42540492,sha256:7b21d35b6e7fd9167f04d255d8c44051b01e0de882ddf40277a7f9d5fea08a3c,"not in CyberGym, new ID",False,False,False
+arvo_42481810,arvo-v1-42481810,sha256:52aef357bf9f09a8f92b468ec9e209679eb7ceed111623fd13658aeaa1568816,"not in CyberGym, new ID",False,False,False
+arvo_42491208,arvo-v1-42491208,sha256:41fde15aa7bba3ab07f1ee90cbc691e8ffe163840636dd47cea88c762fae7d7e,same CyberGym bug under the other ID,False,False,False
+arvo_42482875,arvo-v1-42482875,sha256:0108aa2549063f4835cc634d6b4ecab607151cfcb1ee6dbe11394e3238283f78,"not in CyberGym, new ID",False,False,False
+arvo_42480318,arvo-v1-42480318,sha256:278b6d990eaf31dc1830d0032c320fcf8f839326f8d898bd369e4c07cd335629,"not in CyberGym, new ID",False,False,False
+arvo_42481233,arvo-v1-42481233,sha256:3c211f9d01212ea5d4cd9cbcac5f0c70bbe001b0a1229c0f8a9ca869e9a81d5a,"not in CyberGym, new ID",False,False,False
+arvo_42499204,arvo-v1-42499204,sha256:e6fa8502fa35d719018b0127518098ad7b5b6fe89f07ec880cd3fc295c3f406b,same CyberGym bug under the other ID,False,False,False
+arvo_52917,arvo-v1-52917,sha256:ec02fb14e71fdd18bddae32d2c7a8113429172f6753b75f1bb90d8e4a5d7d271,"not in CyberGym, old ID",False,False,False
+arvo_42476340,arvo-v1-42476340,sha256:d887cc60f1e2051f681090c35182f0dc720c11e60b08e5cc7d3c13a834f97179,"not in CyberGym, new ID",False,False,False
+arvo_18737,arvo-v1-18737,sha256:4c09be81452cbc489ea6760592f33468fbc882f25146a74e69ccc71e7c509a61,"not in CyberGym, old ID",False,False,False
+arvo_42541235,arvo-v1-42541235,sha256:1157b0eac8dd8854fb58d1edc2d177da36640bb57bf5a97a54f8b4f0d9b8c4fd,"not in CyberGym, new ID",False,False,False
+arvo_42482045,arvo-v1-42482045,sha256:7626129a7a4e44a8ec8cfcd63d22b93de9569d9b4526c03b4b2d29d27009fded,"not in CyberGym, new ID",False,False,False
+arvo_42498720,arvo-v1-42498720,sha256:21b40ba35e52b7f53272dd8b6f5f52515d845fc69683cd6acad0714554b127fb,"not in CyberGym, new ID",False,False,False
+arvo_42519760,arvo-v1-42519760,sha256:a72bda0003bc2b7ea9063fef14fefa060b2bf555cb3386a36f61d94981b5ec5e,"not in CyberGym, new ID",False,False,False
+arvo_42523169,arvo-v1-42523169,sha256:4c578fc1bd0fed498fcc7295bf7a67188db9f5fe8b20327dec55ff6c62e46391,same CyberGym bug under the other ID,False,False,False
+arvo_43299,arvo-v1-43299,sha256:b1067749fb945883997ed42ee5ef8fc25c4dead57eb0ec68dd122b26d0631305,"not in CyberGym, old ID",False,False,False
+arvo_26900,arvo-v1-26900,sha256:776ccb72a02de06521ef39078d5aac446286ce211d3b18487ae85edbea3e86b0,"not in CyberGym, old ID",False,False,False
+arvo_42131,arvo-v1-42131,sha256:2778354b5f78667191d563dd5d77650a95c91470cfebf52bca544abba0d7e358,"not in CyberGym, old ID",False,False,False
+arvo_42507126,arvo-v1-42507126,sha256:173d77bf6cc5d9ac2cb7b8094ce30fefb6ea1da71df40ab7d098b33cb2edb002,same CyberGym bug under the other ID,False,False,False
+arvo_42520870,arvo-v1-42520870,sha256:78aa09ca50f26f5e3a7d0f702c56e809b83965f6b28c5e51fdbc09c68ae2d02e,"not in CyberGym, new ID",False,False,False
+arvo_422832557,arvo-v1-422832557,sha256:681098a214c501737f1e55cf0429b835e27889257e1f7694c9fbe2face87f9ac,"not in CyberGym, new ID",False,False,False
+arvo_42502644,arvo-v1-42502644,sha256:19b413dc3d11d4c47fbadf24e5a24cf94f7e7d032606864e0720a9a4be6cae69,same CyberGym bug under the other ID,False,False,False
+arvo_51169,arvo-v1-51169,sha256:e388a097b5ca5490ec88366727d90e450f48a029e49f6eb94eb625c94c84ef04,"not in CyberGym, old ID",False,False,False
+arvo_42813,arvo-v1-42813,sha256:9f8eeb871fa1d108cf60bdbaf929e0316ad4cefa0fb7332abf9a52072006cf82,"not in CyberGym, old ID",False,False,False
+arvo_42487992,arvo-v1-42487992,sha256:07e106ed86eba09f69370fecbeda351782a6fbfc60c7290ff220e0a1930fa87f,"not in CyberGym, new ID",False,False,False
+arvo_42485576,arvo-v1-42485576,sha256:73a6935028da2d8670a25f9cad028ac29a1170ec17776b0019de8007e0e2366d,"not in CyberGym, new ID",False,False,False
+arvo_42534638,arvo-v1-42534638,sha256:879db1d76f233abb6495a49ce2e79308912ff1f589df851817cb3c0c98efeabb,"not in CyberGym, new ID",False,False,False
+arvo_42495949,arvo-v1-42495949,sha256:e21ccf10f7765a377fbc59713cd7bcb7ab638dbde582c0620082c365fab73bd4,"not in CyberGym, new ID",False,False,False
+arvo_42491458,arvo-v1-42491458,sha256:1cf2fc55603d197a47863e7db0c0361a531435ebe98b933de5666d8d89974b96,"not in CyberGym, new ID",False,False,False
+arvo_19100,arvo-v1-19100,sha256:fabd565bcd96be49f258581dc304f08e1140aec48fe2991297d3eac6416ef8ff,same ID as a CyberGym arvo: task,True,False,False
+arvo_42508347,arvo-v1-42508347,sha256:88639ba1904d5f90a3e7c7a35646688b58bcfb9eed8bb8b456543967b2f855f2,"not in CyberGym, new ID",False,False,False
+arvo_42470140,arvo-v1-42470140,sha256:71c3d5afc881bc5b308ebabc800bb0f546a9a6b0c763ea75474fcc4b550e4116,"not in CyberGym, new ID",False,False,False
+arvo_42479,arvo-v1-42479,sha256:ebd42cbf841812fe3a3d6b7324f8492de7c462d67c2c71c1798eed3ba49b9a2f,same ID as a CyberGym arvo: task,True,True,False
+arvo_48883,arvo-v1-48883,sha256:2e7f6d59601e8861d0112f9bdf9c3c90cf11cff1d64714dc15d077b42ba7ffe4,"not in CyberGym, old ID",False,False,False
+arvo_449549322,arvo-v1-449549322,sha256:a84af377c3adc059ada3f86098c12080b92099796c3ff5276527da9600c7de1b,"not in CyberGym, new ID",False,False,False
+arvo_42529931,arvo-v1-42529931,sha256:5dd241ecb9edefcbf5fc93221e6da040c903e4076398ecb5a52f9e84d7322e8e,"not in CyberGym, new ID",False,False,False
+arvo_42504591,arvo-v1-42504591,sha256:a65a7d21f59bec9f48b4616f1d11f46677be3e6f7dcc0e0778347ec6cd7ae667,"not in CyberGym, new ID",False,False,False
+arvo_26260,arvo-v1-26260,sha256:904a553589b1841809db83281e733e7dfd5a4e88ad0c1335abc6c9f4b603a622,"not in CyberGym, old ID",False,False,False
+arvo_21289,arvo-v1-21289,sha256:0bef62d9e55e676f99a152aac7c9acff6869bfb684d81c5e840699e83543f55e,"not in CyberGym, old ID",False,False,False
+arvo_4451,arvo-v1-4451,sha256:7876b2551209d32685246be0b861710f4bbcbfd5e157bf98ede6383e773ddcf6,same ID as a CyberGym arvo: task,True,False,False
+arvo_13180,arvo-v1-13180,sha256:75c25621b3b9848a24045aef1525ef5ae4120a4419cb13237dfe8378741edf21,"not in CyberGym, old ID",False,False,False
+arvo_42540898,arvo-v1-42540898,sha256:85ac1efc736be45c3122159b9d840c81a53c92509cc2382577009b8ef96f6cbf,"not in CyberGym, new ID",False,False,False
+arvo_28777,arvo-v1-28777,sha256:6e091700e84023b57b43b37531c92f2cae87723903695360778a2fb52e47adf0,same ID as a CyberGym arvo: task,True,False,False
+arvo_40674,arvo-v1-40674,sha256:5d38839a22400739e0fcb1fef9db51143dab5d11d37cfb1cd1e9a37db69b752d,same ID as a CyberGym arvo: task,True,False,False
+arvo_33863,arvo-v1-33863,sha256:dda61110208ad9baed7d816efc2add185adb46eb57cc85f90cb93bad7616127b,"not in CyberGym, old ID",False,False,False
+arvo_42471100,arvo-v1-42471100,sha256:27a96afa3ed7b95b6b356e6f672dc06e579ae315e0fd705400281463551a2637,same CyberGym bug under the other ID,False,False,False
+arvo_42123,arvo-v1-42123,sha256:15c8a4dd92152ceb7a45b3994897f6bf0aef7149e52d885bd8c88a8aa5932c72,same ID as a CyberGym arvo: task,True,False,False
+arvo_42483934,arvo-v1-42483934,sha256:9c1878c5e204ee37cc33c6ce58ef6f005bef3e8ea32beeb40e9a654bacfb0c88,"not in CyberGym, new ID",False,False,False
+arvo_52037,arvo-v1-52037,sha256:35c5865f5833a7081280142205afa7781b928cff7ba5144497709eff212b5d39,same ID as a CyberGym arvo: task,True,False,False
+arvo_42488143,arvo-v1-42488143,sha256:f2468582845562eeb939bed9642c2b5c0832855c30f35e565872b6447286bd5f,same CyberGym bug under the other ID,False,False,False
+arvo_42480125,arvo-v1-42480125,sha256:a29efa9c38bc3f71f3dec3fe897b65bf0c1267bb45a2cb94ce031c33052ccb71,"not in CyberGym, new ID",False,False,False
+arvo_14813,arvo-v1-14813,sha256:df34f7fc193ce815366b6ecacdd1592738c7fef022de767ca1c760df7c4606f3,same ID as a CyberGym arvo: task,True,False,False
+arvo_10802,arvo-v1-10802,sha256:1f3b8dcdca46811ef8de8015f72101fc6a160915b97033a0c45f9b7ef012d412,"not in CyberGym, old ID",False,False,False
+arvo_47000,arvo-v1-47000,sha256:f216890d82971f8a003f5945d0764601644a53b53ef847d8d6f7643f94e51024,same ID as a CyberGym arvo: task,True,False,False
+arvo_42477334,arvo-v1-42477334,sha256:f206622d2cdbf628a1c0d9e4041b7c9aa90f5d56039235ac17da200d035da213,"not in CyberGym, new ID",False,False,False
+arvo_41208,arvo-v1-41208,sha256:391ef51cbbae81360e519e5b105a73566c8947a37190dbfc18c604e4fd8a31fc,"not in CyberGym, old ID",False,False,False
+arvo_25121,arvo-v1-25121,sha256:6d8b7cec63a41941c1d4325f5875a81694c120990e69583eec17b3323ad175ca,same ID as a CyberGym arvo: task,True,False,False
+arvo_42502006,arvo-v1-42502006,sha256:fa8b4d281b2275dd7e033e51924e513d2852cc55b9f98ff1cb11636f81c65401,"not in CyberGym, new ID",False,False,False
+arvo_27719,arvo-v1-27719,sha256:a9bf7c0c676462b0f8f6fb9ebce661e2ebb184455eb87a39d562a30fe9f2d337,same ID as a CyberGym arvo: task,True,False,False
+arvo_42506705,arvo-v1-42506705,sha256:c98bad857b4ddb7c6599de7b90f8601a8206c45ab759b2b97407459145a22956,"not in CyberGym, new ID",False,False,False
+arvo_49522,arvo-v1-49522,sha256:c16e9afb927cc3dd73867865b117df15835fbc7ed31d7fb71ba4ab6be2150aaf,"not in CyberGym, old ID",False,False,False
+arvo_42521159,arvo-v1-42521159,sha256:772d0e93d7e54d3750349a95eed9efbd9f944e28a3ccb601dad7d9a580efca5f,"not in CyberGym, new ID",False,False,False
+arvo_38394,arvo-v1-38394,sha256:3bdb105a75622de8957632920c4f7ca466bc548e19115ce10a2506b3029986d6,"not in CyberGym, old ID",False,False,False
+arvo_42495043,arvo-v1-42495043,sha256:72204ba856a5998900eb073af719c627eb7cdda58275275e88d846d251536c81,same CyberGym bug under the other ID,False,False,False
+arvo_34869,arvo-v1-34869,sha256:188f0d7f712e171cc1188c54b8ae83e4cfaefd8e425cb4b1a4da304dac2532e6,"not in CyberGym, old ID",False,False,False
+arvo_42540578,arvo-v1-42540578,sha256:f5ce1460eaaf9846461cf28dc8be2a779001cbcd22433ef752e5bf2bc5ce8c3d,same CyberGym bug under the other ID,False,False,False
+arvo_42474926,arvo-v1-42474926,sha256:01262d5bf79fc14a72e8f634821e8697f142981c8628a7d41a25a3adba703603,"not in CyberGym, new ID",False,False,False
+arvo_42511275,arvo-v1-42511275,sha256:3a588087ad4895e0b3591a1f640ef5b89f04d9cab943e09c2127266abc90f5de,"not in CyberGym, new ID",False,False,False
+arvo_3232,arvo-v1-3232,sha256:2b82da26a9fc27500d8da99bdbd1cd10ecddec873ec38b4ebdd5fdbbc2721c23,"not in CyberGym, old ID",False,False,False
+arvo_42538533,arvo-v1-42538533,sha256:2df104ec72371869cbca6bce4c9e6003fa756ec9168b154e07a0296464e1e753,same CyberGym bug under the other ID,False,False,False
+arvo_26268,arvo-v1-26268,sha256:9da6d8a5ec38dc708da922a2b77043f44ac339f1748402c1589867bb2f7724ba,"not in CyberGym, old ID",False,False,False
+arvo_22498,arvo-v1-22498,sha256:fef54c4a2c933beeecabba73ef556546b323d29229fafeaeb425b99f4de41915,"not in CyberGym, old ID",False,False,False
+arvo_42496802,arvo-v1-42496802,sha256:d3a0206d7c08bc466d2397e3e5c7aef937856d498b1f121a37a92dcf0742464e,same CyberGym bug under the other ID,False,False,False
+arvo_42454,arvo-v1-42454,sha256:13761ca126794f81c724dba2a32bd87306d19e75e400813cafaaea604fd813de,"not in CyberGym, old ID",False,False,False
+arvo_42492762,arvo-v1-42492762,sha256:a4f4ce89a85f0a7d6abff3d202f80955b13a4a1c5d0803e78ca1d9b6e1cfa55e,"not in CyberGym, new ID",False,False,False
+arvo_42482100,arvo-v1-42482100,sha256:1f075483eb3df8bf058a009f68dfaaef32c6b67a1b649df7ca7d049fdaf33ec9,same CyberGym bug under the other ID,False,False,False
+arvo_42541241,arvo-v1-42541241,sha256:1094d7225870d360bfff625d3aae35b0d292c0f7cc14d924cab8f5e63f036b51,"not in CyberGym, new ID",False,False,False
+arvo_42541718,arvo-v1-42541718,sha256:1b625f02455ae7e0e8bef152a4e548c3b6fc15d604720201c913c9dded913bcd,same CyberGym bug under the other ID,False,False,False
+arvo_54693,arvo-v1-54693,sha256:4e02c0b4dfc3d59341e294bd87be81b67eff5214b66ab73447c879114cfaef7e,"not in CyberGym, old ID",False,False,False
+arvo_26773,arvo-v1-26773,sha256:bce6aa40d86abd903f2d01d987cad03935e9a3139f2d5e2a1785066ce18fcce5,"not in CyberGym, old ID",False,False,False
+arvo_12712,arvo-v1-12712,sha256:758ce873875d65b99700f2d5954d332d5f6f1ba31473635c1693399bdab48148,"not in CyberGym, old ID",False,False,False
+arvo_42503826,arvo-v1-42503826,sha256:43d28f3ab6b85548eb33fcea347ed63c9e07555a919f6c188c45ae50e222c794,"not in CyberGym, new ID",False,False,False
+arvo_42479300,arvo-v1-42479300,sha256:7c69072394a98630eb0c084df54f46d1d24c6397d34db6bbe2faaf35911d7203,"not in CyberGym, new ID",False,False,False
+arvo_64237,arvo-v1-64237,sha256:9fd23eb8cfcbbd2a8dd2efd0d58f6a80c8206c5867a68586d043f757f55e3487,"not in CyberGym, old ID",False,False,False
+arvo_18615,arvo-v1-18615,sha256:954c52f7f5ade9044e6e3a96432b93ff5ecefb19384edc9e157fba62fc20d94a,same ID as a CyberGym arvo: task,True,False,False
+arvo_42523812,arvo-v1-42523812,sha256:8115173db3db072188b546898e4c1d837bdd081f508750b86deca143208cdb10,"not in CyberGym, new ID",False,False,False
+arvo_42482052,arvo-v1-42482052,sha256:3bd4b79332ae52b4d61e7f4c6081b24afa37f5a82630cdd8832e7af9b8245cbf,"not in CyberGym, new ID",False,False,False
+arvo_42503978,arvo-v1-42503978,sha256:5cc4da7bff3757c34c511f18688b80cbc951e5320ad5b6bb863f39f14fa55d33,"not in CyberGym, new ID",False,False,False
+arvo_29792,arvo-v1-29792,sha256:087f371384f6ea8768396bc297d41f8b8b17383ac39c72fd18d9066f293f2c15,"not in CyberGym, old ID",False,False,False
+arvo_10796,arvo-v1-10796,sha256:4cf41556e9981d17fcb88cbc2aa3c90e0d02ad05c95fc5d35691df95041b095d,"not in CyberGym, old ID",False,False,False
+arvo_3680,arvo-v1-3680,sha256:5c530fd988bc570bc95a8f762b16f1b5b8ff4973e233ae2086714f0666ce3f92,same ID as a CyberGym arvo: task,True,False,False
+arvo_42484510,arvo-v1-42484510,sha256:62a4df0d281a6788b9179bb5799afd786e895404e27ea266cef49923ca04f5bb,same CyberGym bug under the other ID,False,False,False
+arvo_418478205,arvo-v1-418478205,sha256:b3088aad888d53178f93c773de78ae966a35c7659de2a3f961cf51ba1c0e1253,"not in CyberGym, new ID",False,False,False
+arvo_2287,arvo-v1-2287,sha256:10254904276a0152c95ab4cd94903402747ad1c769f42d228c7146cf34a49f20,"not in CyberGym, old ID",False,False,False
+arvo_42516608,arvo-v1-42516608,sha256:1e07f4a59bd7ff63febc1b11adf138711cd055cb3f37d2544cdf2b93ed2acd50,"not in CyberGym, new ID",False,False,False
+arvo_11167,arvo-v1-11167,sha256:2260a9a20f739dc54f0f01f07f9d2cb7f76f1c7fac148f3f680bf96341554e22,same ID as a CyberGym arvo: task,True,False,False
+arvo_42488087,arvo-v1-42488087,sha256:6744792f70341a503659138ffd611bc58e65931d2fe3703dbffce2da4c34e4f6,"not in CyberGym, new ID",False,False,False
+arvo_42515837,arvo-v1-42515837,sha256:9da3d31b09c5dd8a2c69a58707b693a8110c29152531c2980d167244a72ee0c6,"not in CyberGym, new ID",False,False,False
+arvo_42482009,arvo-v1-42482009,sha256:7ebb118d920c0a52d311ef446676fe2a85da4f67742cb77b89cae0bbd19390a8,same CyberGym bug under the other ID,False,False,False
+arvo_62435,arvo-v1-62435,sha256:45e601e70564dafbf6d9358d41804489ad495bb200a6254076133f0a04675be0,"not in CyberGym, old ID",False,False,False
+arvo_42491667,arvo-v1-42491667,sha256:11f32d2e2f0c0aa367f22da79b08bcaa43af0d3b9c99ccadc957074b5510a6c3,"not in CyberGym, new ID",False,False,False
+arvo_42534522,arvo-v1-42534522,sha256:c3ab55b7eb63d276467b370953257a7725ceee89982dcf5565f9a0faa76ec1a7,"not in CyberGym, new ID",False,False,False
+arvo_25341,arvo-v1-25341,sha256:3c3750d059cc1621f554838af6a63bbb4d920b2a039a247bd12bd6e3cf4c6bca,same ID as a CyberGym arvo: task,True,False,False
+arvo_42537,arvo-v1-42537,sha256:8c84ae080f2421499f789a099cbdcc6c7be74b5f9ad5af2744b5f7091a824ca8,"not in CyberGym, old ID",False,False,False
+arvo_42492641,arvo-v1-42492641,sha256:3bf1731719d31cb8a1a183e1956ed5aa976ad1b959b0c00a344119475b36f0f7,"not in CyberGym, new ID",False,False,False
+arvo_42479418,arvo-v1-42479418,sha256:bcd375886cdda6b3c4756bf927008f4ceeafad7eac685775f37c253ab5012722,"not in CyberGym, new ID",False,False,False
+arvo_51132,arvo-v1-51132,sha256:527c95c20501eb791f34142374be3f0c84b9ff0a692126cc9f746cbb42ea715e,same ID as a CyberGym arvo: task,True,False,False
+arvo_42475544,arvo-v1-42475544,sha256:652f96cb3975c948a4cd07806249cbdaf720bbbd2a2bfb3c128e2496791dbd32,same CyberGym bug under the other ID,False,False,False
+arvo_42518732,arvo-v1-42518732,sha256:dc4f80b796dfb0cc85ee9df90a3df2bc7af159d9253c40ce8b49b95ea5d3b18d,"not in CyberGym, new ID",False,False,False
+arvo_42499081,arvo-v1-42499081,sha256:c409f5e6d1fe3d7990c18b1691f4a68e5386b78306209252378c458f50a22d66,"not in CyberGym, new ID",False,False,False
+arvo_30792,arvo-v1-30792,sha256:61f7d2a4d5c2754df3f13cdf5524238c7ba60dfda8d458c1f7580918c72f9284,"not in CyberGym, old ID",False,False,False
+arvo_11217,arvo-v1-11217,sha256:7366e5e9c333b876adf53142210d2cf9753a1a04e92ba7df659acf0798b22b1f,"not in CyberGym, old ID",False,False,False
+arvo_42475003,arvo-v1-42475003,sha256:d6d9c56318f9869e961c71da14910ee045b304403740b08077ddc4ad205ef64b,"not in CyberGym, new ID",False,False,False
+arvo_32822,arvo-v1-32822,sha256:be6fc1220c224469db349ff928b586814644d4716ac76e7365dda352dba78a81,"not in CyberGym, old ID",False,False,False
+arvo_42533954,arvo-v1-42533954,sha256:f194742cef7e372ea25baf1478bc5bc3cfe3d710510be0cfc279f553ad2d096f,"not in CyberGym, new ID",False,False,False
+arvo_417062198,arvo-v1-417062198,sha256:b00c30ec27023bfc9e6ae5fe6e85746dd2dcb329e806743d876da2675e478f92,"not in CyberGym, new ID",False,False,False
+arvo_42508844,arvo-v1-42508844,sha256:862286405c61c72f8e3c929bf91cd8c20da3ab4181cca4a5df62b1346a695a44,same CyberGym bug under the other ID,False,False,False
+arvo_38801,arvo-v1-38801,sha256:53ed67cadbcac4edf7db75e5d05455a8dc22b674c1411e507d0e4b86123e6f13,"not in CyberGym, old ID",False,False,False
+arvo_42503,arvo-v1-42503,sha256:200b1fbe34120e954374b119d6acfb12d26246a16ab7d2ec2a1fa152eec71033,"not in CyberGym, old ID",False,False,False
+arvo_20842,arvo-v1-20842,sha256:9a708760c22f0867bb5e3724924e1ba9af7ebc94791020ca9e2d92267054d55f,"not in CyberGym, old ID",False,False,False
+arvo_42520872,arvo-v1-42520872,sha256:2c0c9af66f29d0fdc452ae8a72c5ee6e3f9eec4a6922dacd0e7f018f2d40dfa0,"not in CyberGym, new ID",False,False,False
+arvo_57471,arvo-v1-57471,sha256:0ceb75a3d2b3c9bb1a405280129f4aba150a9b6614e86c6c076fcc9f04184a4d,"not in CyberGym, old ID",False,False,False
+arvo_18321,arvo-v1-18321,sha256:e64091af47a83efb45bc720d7e1d4a90c150665e468ac65622b56073a033448e,same ID as a CyberGym arvo: task,True,False,False
+arvo_379180960,arvo-v1-379180960,sha256:26d4a9662fa10ce2f812fa31404a415e82cce7251b20a44a60f78f3da8eff04b,"not in CyberGym, new ID",False,False,False
+arvo_42475161,arvo-v1-42475161,sha256:e81f8e0994b761b63e8547e12cacdf2f94b9dcd3f0ab9364fad248f25a560b16,"not in CyberGym, new ID",False,False,False
+arvo_20600,arvo-v1-20600,sha256:58c2087d5d87340e4aaee09876a95a4e05a4789cb048dced40706b694f4cbac4,"not in CyberGym, old ID",False,False,False
+arvo_440157362,arvo-v1-440157362,sha256:63a730bb46d542c496ca3f926acadd5e89c88184da631d3bddc0b17dcb97521e,"not in CyberGym, new ID",False,False,False
+arvo_53038,arvo-v1-53038,sha256:ebd9629b1afc50d6b5faf3a69e63a800acba0d4a676d10d58e2c8b52c95ff76a,"not in CyberGym, old ID",False,False,False
+arvo_5846,arvo-v1-5846,sha256:0b6a9ba550ab9ae54fc153dc167ca039c18d7ae4e60aee5a566bdca3c1c66001,"not in CyberGym, old ID",False,False,False
+arvo_42519203,arvo-v1-42519203,sha256:709a8ce48155865351f1bce735b5bc6316c5ff80f3d211ec3b37d446245136b7,"not in CyberGym, new ID",False,False,False
+arvo_57589,arvo-v1-57589,sha256:231194da72d285dde13ebcbef691c2abdb7b4dee763d4f9c26ad4104647586d7,"not in CyberGym, old ID",False,False,False

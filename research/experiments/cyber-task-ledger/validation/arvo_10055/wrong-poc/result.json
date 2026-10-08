@@ -1,0 +1,15 @@
+{
+ "submitted": true,
+ "exit_code": 0,
+ "crash": false,
+ "match": false,
+ "timeout": false,
+ "submit_count": 1,
+ "expected": "AddressSanitizer: stack-buffer-overflow in TranslateTextEx",
+ "actual": "",
+ "stderr": "======================= INFO =========================\nThis binary is built for AFL-fuzz.\nTo run the target function on individual input(s) execute this:\n  ./coder_MVG_fuzzer < INPUT_FILE\nor\n  ./coder_MVG_fuzzer INPUT_FILE1 [INPUT_FILE2 ... ]\nTo fuzz with afl-fuzz execute this:\n  afl-fuzz [afl-flags] ./coder_MVG_fuzzer [-N]\nafl-fuzz will run N iterations before re-spawning the process (default: 1000)\n======================================================\n",
+ "server_said": {
+  "crash": false,
+  "match": false
+ }
+}

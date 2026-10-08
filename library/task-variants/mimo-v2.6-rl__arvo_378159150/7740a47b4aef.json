@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_378159150",
+  "variant_digest": "sha256:7740a47b4aef604aadf3398461a6902efa5bd4b551565a0470c1f1f8273ffa3c",
+  "variant_harbor_digest": "sha256:1fdb53f49050d8ed34e32da9188d5522c9e7b6679a38d3644b8d22f258fd2ee1",
+  "parent": {
+    "digest": "sha256:20bc45aeb090320dcfcd46eacfd44c727688abf2fe9827dee0d7c285a6df7ceb",
+    "harbor_digest": "sha256:cfbfd714583dcf4d5001d821c0f939d5350be771c0b1843db664d779f10e2abf",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_378159150",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:08edec1538abd8cbe9bfd5f0cde06b09ea36d5a6423d4db164b1eaa5445b9b4d",
+      "after_sha256": "sha256:5435d00137663ce7248e222c2454241e9dcc86bf119c3ec566a44453b65e0327",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nMemorySanitizer: use-of-uninitialized-value in function `TracePath` in file `imagemagick/MagickCore/draw.c`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:39Z",
+  "status": "candidate",
+  "evidence": []
+}

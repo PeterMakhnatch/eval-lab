@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_42486712",
+  "variant_digest": "sha256:10587e5e0e2d5559c7bbced4fd6d1069d0c83897dac96d1e26f05dea5091e6aa",
+  "variant_harbor_digest": "sha256:e8e19c0c9f538b42034a13105981361e93b1e5d01916a9ff11b4486645b823a6",
+  "parent": {
+    "digest": "sha256:13f7ce6bd2550676c597d84876aa82a27bb891813a98fc3fb7de51a4d7be3f82",
+    "harbor_digest": "sha256:7661db5c95b1ef56d236f292246034afecf26f2698605470c5b7628f309266f7",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_42486712",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:992aa33344bf677c47a1c9cbec62810dda7f4e70db7a4a1c4e96e22f44e46793",
+      "after_sha256": "sha256:c2217b1cb1fce32bd786f18468d828d14113c4f50ee16bdbbcca3b414bb4f626",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nMemorySanitizer: use-of-uninitialized-value in function `internal_finalize_bsd_addr` in file `uWebSockets/uSockets/src/internal/networking/bsd.h`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:41Z",
+  "status": "candidate",
+  "evidence": []
+}

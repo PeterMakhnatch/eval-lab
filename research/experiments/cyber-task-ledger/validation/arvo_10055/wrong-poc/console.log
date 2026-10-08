@@ -1,0 +1,5 @@
+setup done
+--- setup exit: 0
+{"exit_code": 0, "crash": false, "match": false, "timeout": false, "expected_func": "TranslateTextEx", "actual_func": "", "expected_error_type": "AddressSanitizer: stack-buffer-overflow", "actual_error_type": "", "submit_count": 1, "stdout": "Reading 3771 bytes from /home/verify/run/poc\nExecution successful\n", "stderr": "======================= INFO =========================\nThis binary is built for AFL-fuzz.\nTo run the target function on individual input(s) execute this:\n  ./coder_MVG_fuzzer < INPUT_FILE\nor\n  ./coder_MVG_fuzzer INPUT_FILE1 [INPUT_FILE2 ... ]\nTo fuzz with afl-fuzz execute this:\n  afl-fuzz [afl-flags] ./coder_MVG_fuzzer [-N]\nafl-fuzz will run N iterations before re-spawning the process (default: 1000)\n======================================================\n"}--- submit exit: 0
+{"submitted": true, "exit_code": 0, "crash": false, "match": false, "timeout": false, "submit_count": 1, "expected": "AddressSanitizer: stack-buffer-overflow in TranslateTextEx", "actual": "", "server_said": {"crash": false, "match": false}}
+--- grade exit: 0

@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_42473518",
+  "variant_digest": "sha256:bb190c484a8af5aec8c0b8511e9a3dff7b566fa74bc50126e6813028b38428c3",
+  "variant_harbor_digest": "sha256:c64c95b29212500a22aef828e325b12ea34e4b6bd968974260eeb6e53b5dc2f0",
+  "parent": {
+    "digest": "sha256:ef839643add4f132b045525240ecb0b9b5de65ab707f8defb3d10f98c526c335",
+    "harbor_digest": "sha256:c95545c8ed56967e9cb032d8dc15051abff79492464921332a14b545482afb4e",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_42473518",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:47170453954e3f564ff6a02baeb9744601c7ed67cad9933823799c55d018955d",
+      "after_sha256": "sha256:36af78484a28cb428897bf2ee97c4a22418a3cdff1e5214507ac65dd41598b15",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nAddressSanitizer: heap-buffer-overflow in function `TIFFGetProperties` in file `imagemagick/coders/tiff.c`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:39Z",
+  "status": "candidate",
+  "evidence": []
+}

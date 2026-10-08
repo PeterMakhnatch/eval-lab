@@ -1,0 +1,49 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-002139",
+  "variant_digest": "sha256:02072c18396e3e067b1ca1e96cf3a87711991f989297034c3c5dd83d665ae65c",
+  "variant_harbor_digest": "sha256:14ac20b167aa015af740027e235f849e00730ff6c61a9e30ce6cc8a112d07736",
+  "parent": {
+    "digest": "sha256:c4138c3293ae05b2f40518292cd507f76b2cfc50fbc3221626b64ec8f7840f33",
+    "harbor_digest": "sha256:da6522b2cae45f3514d25670fc2be2cdc7425d1148e94608173549b0dd185285",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__format-code-task-002139/c4138c3293ae.json"
+    }
+  },
+  "transform": "probe-image-checks@2",
+  "components_changed": [
+    "solution"
+  ],
+  "files": [
+    {
+      "path": "solution/solve.sh",
+      "before_sha256": null,
+      "after_sha256": "sha256:7721bd23ba40c6c78eca3936c9bea808c6d2559be5624a9e3c31b887dfe42f77",
+      "content": "#!/bin/bash\n# HAR-161 probe-image-checks@2: read-only image checks, run by Harbor's oracle\n# agent as root in the locked sandbox after setup and before grading. It\n# changes nothing, so the verifier grades the untouched repository. v2 adds\n# the Vals ladder routes: unreachable non-commit objects, pack inventory,\n# worktree mtime spread, and build/module-cache pointers.\nM=/var/lib/mimo\nCWD=\nfor d in /testbed /workspace/repo /app; do [ -d \"$d/.git\" ] || [ -d \"$d\" ] && { CWD=$d; break; }; done\nBASE=$(cat \"$M/base\" 2>/dev/null)\necho \"== cwd $CWD base ${BASE:-none}\"\nfor g in \"$CWD/.git\" \"$M/git-hidden\" \"$M/git-hidden/.git\"; do\n  [ -d \"$g/objects\" ] || continue\n  beyond=$( [ -n \"$BASE\" ] && git --git-dir=\"$g\" rev-list --all --not \"$BASE\" 2>/dev/null | wc -l | tr -d ' ' )\n  fsck_out=$(git --git-dir=\"$g\" fsck --unreachable --no-reflogs 2>/dev/null)\n  unreachable=$(printf '%s' \"$fsck_out\" | grep -c ' commit ')\n  other=$(printf '%s' \"$fsck_out\" | grep -c -E ' (blob|tree|tag) ')\n  packs=$(ls \"$g/objects/pack/\"*.pack 2>/dev/null | wc -l | tr -d ' ')\n  echo \"== git $g beyond_base=${beyond:-unknown} unreachable_commits=$unreachable unreachable_other=$other pack_files=$packs\"\ndone\necho \"== tests_dir $( [ -e /tests ] && echo present || echo absent )\"\necho \"== grader_files $(find / -xdev \\( -name test.patch -o -name mimo_test_command.sh \\) -not -path '/proc/*' 2>/dev/null | head -n 5 | tr '\\n' ' ')\"\nhits=\nfor n in test_checkstatus_missing_blob_raises_fetcherror test_download_success_but_missing_target_raises_fetcherror test_download_writes_target_file test_download_zero_byte_target_raises_fetcherror_and_removes_file test_gs_url_default_filename_downloads_and_checkstatus_uses_stripped_object_path test_gs_url_downloadfilename_overrides_local_filename_and_keeps_object_path test_network_disabled_blocks_checkstatus_before_existence_check test_network_disabled_blocks_download_before_blob_download test_storage_notfound_during_download_raises_fetcherror test_two_fetch_instances_keep_independent_url_state test_zero_byte_cleanup_leak_floor_over_many_fetch_sessions; do\n  f=$(grep -rlF --include='*.py' -e \"def $n\" \"$CWD\" /tmp /root /opt /var 2>/dev/null | head -n 1)\n  [ -n \"$f\" ] && hits=\"$hits $n:$f\"\ndone\necho \"== new_test_names_on_disk${hits:- none}\"\necho \"== build_lib_py $(find \"$CWD\" -path '*/build/lib/*' -name '*.py' 2>/dev/null | wc -l | tr -d ' ')\"\necho \"== egg_info $(find \"$CWD\" -name '*.egg-info' -maxdepth 4 2>/dev/null | head -n 5 | tr '\\n' ' ')\"\necho \"== pycache_dirs $(find \"$CWD\" -name '__pycache__' 2>/dev/null | wc -l | tr -d ' ')\"\nsp=$(python3 -c \"import site; print(' '.join(site.getsitepackages()))\" 2>/dev/null)\nlinks=\nfor d in $sp; do\n  hit=$(find \"$d\" -maxdepth 1 \\( -name '*.egg-link' -o -name '__editable__*' -o -name '*.pth' \\) 2>/dev/null | head -n 5 | tr '\\n' ' ')\n  [ -n \"$hit\" ] && links=\"$links $hit\"\ndone\necho \"== site_pointers ${links:-none}\"\n_probe_py=$(mktemp /tmp/probe_site_copies.XXXXXX.py)\ncat > \"$_probe_py\" <<'PYEOF'\nimport configparser\nimport re\nimport sys\nfrom pathlib import Path\ntry:\n    import tomllib\nexcept ImportError:\n    tomllib = None\ncwd = Path(sys.argv[1])\nroots = sys.argv[2:]\nname = None\npp = cwd / \"pyproject.toml\"\nif pp.is_file():\n    if tomllib is not None:\n        try:\n            project = tomllib.loads(pp.read_text(errors=\"replace\")).get(\"project\") or {}\n            name = project.get(\"name\")\n        except Exception:\n            name = None\n    if not name:\n        in_section = False\n        for line in pp.read_text(errors=\"replace\").splitlines():\n            stripped = line.split(\"#\", 1)[0].strip()\n            if not stripped:\n                continue\n            if stripped.startswith(\"[\") and stripped.endswith(\"]\"):\n                in_section = stripped[1:-1].strip() in (\"project\", \"tool.poetry\")\n                continue\n            if in_section and stripped.startswith(\"name\"):\n                key, eq, value = stripped.partition(\"=\")\n                if key.strip() == \"name\" and eq and value.strip().strip(\"\\\"'\"):\n                    name = value.strip().strip(\"\\\"'\")\n                    break\nif not name:\n    cfg = cwd / \"setup.cfg\"\n    if cfg.is_file():\n        try:\n            parser = configparser.ConfigParser()\n            parser.read(cfg)\n            name = parser.get(\"metadata\", \"name\", fallback=None)\n        except Exception:\n            name = None\nif not name:\n    spf = cwd / \"setup.py\"\n    if spf.is_file():\n        found = re.search(r\"name\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]\", spf.read_text(errors=\"replace\"))\n        if found:\n            name = found.group(1)\nif name:\n    mod = name.replace(\"-\", \"_\")\n    for root in roots:\n        cand = Path(root) / mod\n        if cand.is_dir() and next(cand.rglob(\"*.py\"), None) is not None:\n            print(cand)\nPYEOF\nsite_copies=$(python3 \"$_probe_py\" \"$CWD\" $sp 2>/dev/null | head -n 5 | tr '\\n' ' ')\nrm -f \"$_probe_py\"\necho \"== site_copies ${site_copies:-none}\"\necho \"== mtime_distinct $(find \"$CWD\" -path \"$CWD/.git\" -prune -o -printf '%T@\\n' 2>/dev/null | sort -u | wc -l | tr -d ' ')\"\necho \"== mtime_newest $(find \"$CWD\" -path \"$CWD/.git\" -prune -o -printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -n 5 | tr '\\n' ' ')\"\n"
+    }
+  ],
+  "rationale": "HAR-161 exploit probe: the oracle runs read-only image checks (git history past base, unreachable objects, hidden tests readable, build/module caches, worktree mtime spread); task unchanged",
+  "inputs": {
+    "new_test_names": [
+      "test_checkstatus_missing_blob_raises_fetcherror",
+      "test_download_success_but_missing_target_raises_fetcherror",
+      "test_download_writes_target_file",
+      "test_download_zero_byte_target_raises_fetcherror_and_removes_file",
+      "test_gs_url_default_filename_downloads_and_checkstatus_uses_stripped_object_path",
+      "test_gs_url_downloadfilename_overrides_local_filename_and_keeps_object_path",
+      "test_network_disabled_blocks_checkstatus_before_existence_check",
+      "test_network_disabled_blocks_download_before_blob_download",
+      "test_storage_notfound_during_download_raises_fetcherror",
+      "test_two_fetch_instances_keep_independent_url_state",
+      "test_zero_byte_cleanup_leak_floor_over_many_fetch_sessions"
+    ]
+  },
+  "created_by": "har161-probe",
+  "created_at": "2026-10-08T18:24:01Z",
+  "status": "candidate",
+  "evidence": []
+}

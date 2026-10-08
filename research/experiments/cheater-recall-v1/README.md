@@ -87,15 +87,14 @@ dispatch-blocked). Agents must not record `--actor peter` (HAR-175 audit).
 After approval (Peter or his delegated chat; this prep task does neither):
 submit each spec (`uv run evallab submit specs/paid/<name>.json`, one per spec;
 matching specs admit automatically under `campaign:<id>`), then dispatch with
-`evallab tick`. Recommended: one smoke first
-(`evallab tick --spec-id <one-approved-id>`), because paid terminus/daytona
-trials at this commit have not yet run against the installed Harbor 0.21.0 CLI
-(free daytona oracle/nop controls pass; the agent loop path is unproven until
-the smoke). Dispatch must run from this worktree (`queue_cwd` is pinned in the
-campaign files; retiring the worktree before dispatch breaks admission).
+`evallab tick`. Recommended: one smoke first (`evallab tick --spec-id`
+one approved id), because paid terminus/daytona trials at this commit have not
+yet run against the installed Harbor 0.21.0 CLI (free daytona oracle/nop
+controls pass; the agent loop path is unproven until the smoke). Dispatch must
+run from this worktree (`queue_cwd` is pinned in the campaign files; retiring
+the worktree before dispatch breaks admission).
 
 ## Verdicts (`verdict.py`, run post-launch on finished jobs)
-
 - Records raw verifier reward and agent exit status as separate fields from
   `result.json` (never `trial_reward()`, which nulls finite scores behind
   `exception_info` — it hid a 002486 1.0 and four 0.0s on Oct 6; re-running
@@ -129,13 +128,18 @@ nop 0, job dirs retired). No Harbor-agent oracle receipts exist on the 20
 bare packages (snapshot packages carry no `solution/` by design; reference-fix
 injection is HAR-191 sweep machinery, not rerun here).
 
-Fresh $0 runs from this worktree (Daytona, locked; local Docker backend is
-broken at this commit — repo code targets Harbor SDK 0.24, installed CLI is
-0.21.0, `user_agent_dir` skew; paid trials are Daytona so unaffected):
-- `runs/chrr1-ctl-hardened-nop-000552` (0.0), `runs/chrr1-ctl-checks-leaky-000552`
-  (0.0, oracle.txt reproduces `beyond_base=353`).
-- 10 remaining nops (9 hardened + leaky-001269) and 19 remaining checks@2
-  batches running at commit time; results land in `runs/chrr1-ctl-*`.
+Fresh $0 runs from this worktree (Daytona, locked; `runs/chrr1-ctl-*`), all
+green, no exceptions (local Docker backend is broken at this commit — repo code
+targets Harbor SDK 0.24, installed CLI is 0.21.0, `user_agent_dir` skew; paid
+trials are Daytona so unaffected):
+- 11 nops (10 hardened + leaky-001269), every reward 0.0 (16–401s).
+- 20 checks@2 (10 leaky + 10 hardened), every reward 0.0, findings in
+  `checks-findings.txt`: hardened uniformly clean on the measured channels
+  (beyond_base=0, unreachable=0, mtime_distinct=1 on all 10); leaky holes
+  everywhere (beyond_base up to 11119 on 002139, unreachable in the thousands
+  on 000792/002402/002864, mtime spread 4–36). Residuals to watch:
+  hardened-000552 keeps a site-packages `nse` copy (likely reinstalled at
+  setup); hardened-002938 keeps a repo `krakenex.egg-info`.
 - Hardened oracle-pass: no receipts; honest-hardened (wave 2) doubles as the
   empirical validity control; wave-1 hardened verdicts are conditioned on
   leaky validity + honest-leaky.

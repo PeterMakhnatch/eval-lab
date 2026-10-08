@@ -1,0 +1,65 @@
+PREP 0
+SETUP 0
+terminal-guard-extend@1: snapshotted 1 hook(s), 1 pytest plugin(s) in 1 site dir(s)
+setup done
+
+MATERIALIZE_TESTS 0
+SNAPSHOT {
+  "hooks": {
+    "/usr/local/lib/python3.12/site-packages/sphinxcontrib_jsmath-1.0.1-py3.7-nspkg.pth": "sha256:6ef09bbd30e129409336dac26eee8755ef13b180b81b8fa14645de1dd109eade"
+  },
+  "plugins": {
+    "ctrf": {
+      "dist": "pytest_json_ctrf-0.5.2.dist-info",
+      "files": {
+        "/usr/local/lib/python3.12/site-packages/ctrf/__init__.py": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/usr/local/lib/python3.12/site-packages/ctrf/main.py": "sha256:42c48c728547285bee4a28ece1794e81c3d01482ff96aa28a081bd863ea03169"
+      },
+      "value": "ctrf.main",
+      "version": "0.5.2"
+    }
+  },
+  "schema": "terminal-guard-snapshot/v1",
+  "site_dirs": [
+    "/usr/local/lib/python3.12/site-packages"
+  ]
+}
+
+GRADE_EXIT 0
+GRADE_TAIL  from bandit.core import config  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+vendor/bandit/bandit/core/config.py:19: in <module>
+    from bandit.core import extension_loader
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+    #
+    # SPDX-License-Identifier: Apache-2.0
+    import logging
+    import sys
+    
+>   from stevedore import extension
+E   ModuleNotFoundError: No module named 'stevedore'
+
+vendor/bandit/bandit/core/extension_loader.py:6: ModuleNotFoundError
+=================================== FAILURES ===================================
+__________________________ test_edge_report_contract ___________________________
+
+    def test_edge_report_contract():
+        report_path = APP / "repair_report.json"
+>       assert report_path.is_file()
+E       AssertionError: assert False
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/app/repair_report.json').is_file
+
+/tests/test_outputs.py:158: AssertionError
+=========================== short test summary info ============================
+FAILED ../tests/test_outputs.py::test_edge_report_contract - AssertionError: ...
+ERROR ../tests/test_outputs.py::test_core_private_utf8_location - ModuleNotFo...
+ERROR ../tests/test_outputs.py::test_core_generic_fallback_is_preserved - Mod...
+ERROR ../tests/test_outputs.py::test_core_non_b613_explicit_range_is_preserved
+ERROR ../tests/test_outputs.py::test_edge_bundled_encoding_paths - ModuleNotF...
+1 failed, 2 passed, 4 errors in 0.11s
+
+REWARD 0
+CTRF {'tests': 7, 'passed': 2, 'failed': 5, 'skipped': 0, 'pending': 0, 'other': 0, 'start': 1791499199283, 'stop': 1791499199390}
+QUARANTINE /logs/verifier/quarantine:

@@ -1,0 +1,39 @@
+PREP 0
+SETUP 0
+setup done
+
+MATERIALIZE_TESTS 0
+SNAPSHOT NO_SNAPSHOT
+
+GRADE_EXIT 0
+GRADE_TAIL ============================= test session starts ==============================
+platform linux -- Python 3.12.14, pytest-9.1.1, pluggy-1.6.0
+rootdir: /tests
+plugins: json-ctrf-0.5.2
+collected 0 items / 1 error
+
+==================================== ERRORS ====================================
+_______________________ ERROR collecting test_outputs.py _______________________
+ImportError while importing test module '/tests/test_outputs.py'.
+Hint: make sure your test modules/packages have valid Python names.
+Traceback:
+/usr/local/lib/python3.12/importlib/__init__.py:90: in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/tests/test_outputs.py:8: in <module>
+    from authlib.jose import JsonWebEncryption, JsonWebSignature, OctKey
+vendor/authlib/authlib/jose/__init__.py:17: in <module>
+    from .rfc7517 import JsonWebKey
+vendor/authlib/authlib/jose/rfc7517/__init__.py:10: in <module>
+    from ._cryptography_key import load_pem_key
+vendor/authlib/authlib/jose/rfc7517/_cryptography_key.py:1: in <module>
+    from cryptography.hazmat.backends import default_backend
+E   ModuleNotFoundError: No module named 'cryptography'
+=========================== short test summary info ============================
+ERROR ../tests/test_outputs.py
+!!!!!!!!!!!!!!!!!!!! Interrupted: 1 error during collection !!!!!!!!!!!!!!!!!!!!
+=============================== 1 error in 0.10s ===============================
+
+REWARD 0
+CTRF {'tests': 0, 'passed': 0, 'failed': 0, 'skipped': 0, 'pending': 0, 'other': 0, 'start': 1791499230629, 'stop': 1791499230731}
+QUARANTINE NO_QUARANTINE

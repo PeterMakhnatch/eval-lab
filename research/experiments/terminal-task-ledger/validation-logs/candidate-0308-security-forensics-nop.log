@@ -1,0 +1,55 @@
+PREP 0
+SETUP 0
+terminal-guard-extend@1: snapshotted 1 hook(s), 1 pytest plugin(s) in 1 site dir(s)
+setup done
+
+MATERIALIZE_TESTS 0
+SNAPSHOT {
+  "hooks": {
+    "/usr/local/lib/python3.12/site-packages/sphinxcontrib_jsmath-1.0.1-py3.7-nspkg.pth": "sha256:6ef09bbd30e129409336dac26eee8755ef13b180b81b8fa14645de1dd109eade"
+  },
+  "plugins": {
+    "ctrf": {
+      "dist": "pytest_json_ctrf-0.5.2.dist-info",
+      "files": {
+        "/usr/local/lib/python3.12/site-packages/ctrf/__init__.py": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/usr/local/lib/python3.12/site-packages/ctrf/main.py": "sha256:42c48c728547285bee4a28ece1794e81c3d01482ff96aa28a081bd863ea03169"
+      },
+      "value": "ctrf.main",
+      "version": "0.5.2"
+    }
+  },
+  "schema": "terminal-guard-snapshot/v1",
+  "site_dirs": [
+    "/usr/local/lib/python3.12/site-packages"
+  ]
+}
+
+GRADE_EXIT 0
+GRADE_TAIL          _proc_name_to_string=lambda process: process.name,
+            _proc_list_to_dict=lambda processes: {index: value for index, value in enumerate(processes)},
+        )
+        check = isolated_method("psxview.py", "PsXView", "_check_csrss_handles", runtime_globals())
+>       assert check(plugin, [task]) == {0: recovered_process}
+               ^^^^^^^^^^^^^^^^^^^^^
+
+/tests/test_outputs.py:170: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = namespace(context=<object object at 0x7ffffedc6590>, config={'kernel': 'kernel-test'}, _proc_name_to_string=<function ...c_list_to_dict=<function test_core_psxview_executes_context_explicit_handles_path.<locals>.<lambda> at 0x7ffffdea00e0>)
+tasks = [namespace(name='csrss.exe', ObjectTable=namespace(entries=[<test_outputs.Handle object at 0x7ffffdf55f10>, <test_outputs.Handle object at 0x7ffffdf57ad0>]))]
+
+>   ???
+E   AttributeError: 'types.SimpleNamespace' object has no attribute 'config_path'
+
+psxview.py:_check_csrss_handles:148: AttributeError
+=========================== short test summary info ============================
+FAILED ../tests/test_outputs.py::test_gate_report_schema - FileNotFoundError:...
+FAILED ../tests/test_outputs.py::test_core_requirements_all_consumers - asser...
+FAILED ../tests/test_outputs.py::test_core_dumpfiles_executes_context_explicit_handles_path
+FAILED ../tests/test_outputs.py::test_core_psxview_executes_context_explicit_handles_path
+4 failed, 2 passed in 0.10s
+
+REWARD 0
+CTRF {'tests': 6, 'passed': 2, 'failed': 4, 'skipped': 0, 'pending': 0, 'other': 0, 'start': 1791499174461, 'stop': 1791499174554}
+QUARANTINE /logs/verifier/quarantine:

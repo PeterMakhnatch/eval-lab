@@ -1,0 +1,6 @@
+PREP 0
+SETUP 0
+terminal-guard-extend@1: snapshotted 1 hook(s), 1 pytest plugin(s) in 1 site dir(s)
+setup done
+
+COMMITTED tguard-0260-setup

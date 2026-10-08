@@ -1,0 +1,7 @@
+WARNING: The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8) and no specific platform was requested
+E                   FileNotFoundError: [Errno 2] No such file or directory: 'g++'
+
+/usr/local/lib/python3.12/subprocess.py:1955: FileNotFoundError
+=========================== short test summary info ============================
+FAILED ../tests/test_outputs.py::test_core_changed_cpu_modules_compile_as_cxx20
+1 failed in 0.08s

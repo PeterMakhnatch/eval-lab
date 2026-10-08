@@ -1,0 +1,60 @@
+PREP 0
+SETUP 0
+terminal-guard-extend@1: snapshotted 1 hook(s), 1 pytest plugin(s) in 1 site dir(s)
+setup done
+
+MATERIALIZE_TESTS 0
+SNAPSHOT {
+  "hooks": {
+    "/usr/local/lib/python3.12/site-packages/sphinxcontrib_jsmath-1.0.1-py3.7-nspkg.pth": "sha256:6ef09bbd30e129409336dac26eee8755ef13b180b81b8fa14645de1dd109eade"
+  },
+  "plugins": {
+    "ctrf": {
+      "dist": "pytest_json_ctrf-0.5.2.dist-info",
+      "files": {
+        "/usr/local/lib/python3.12/site-packages/ctrf/__init__.py": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/usr/local/lib/python3.12/site-packages/ctrf/main.py": "sha256:42c48c728547285bee4a28ece1794e81c3d01482ff96aa28a081bd863ea03169"
+      },
+      "value": "ctrf.main",
+      "version": "0.5.2"
+    }
+  },
+  "schema": "terminal-guard-snapshot/v1",
+  "site_dirs": [
+    "/usr/local/lib/python3.12/site-packages"
+  ]
+}
+
+GRADE_EXIT 0
+GRADE_TAIL 027: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/app/output.json'), mode = 'r', buffering = -1
+encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed to by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/app/output.json'
+
+/usr/local/lib/python3.12/pathlib.py:1013: FileNotFoundError
+=========================== short test summary info ============================
+FAILED ../tests/test_outputs.py::test_gate_artifact_schema_and_hashes - Asser...
+FAILED ../tests/test_outputs.py::test_core_python_rejects_all_nonfinite_endpoints_before_rng
+FAILED ../tests/test_outputs.py::test_core_native_cpp_sampler_compiles_and_runs
+FAILED ../tests/test_outputs.py::test_edge_multiple_invalid_python_joints_are_diagnostic
+FAILED ../tests/test_outputs.py::test_edge_artifact_reports_executed_integration_results
+5 failed, 2 passed in 0.72s
+
+REWARD 0
+CTRF {'tests': 7, 'passed': 2, 'failed': 5, 'skipped': 0, 'pending': 0, 'other': 0, 'start': 1791499689403, 'stop': 1791499690120}
+QUARANTINE /logs/verifier/quarantine:

@@ -1,0 +1,66 @@
+PREP 0
+SETUP 0
+terminal-guard-extend@1: snapshotted 1 hook(s), 1 pytest plugin(s) in 1 site dir(s)
+setup done
+
+MATERIALIZE_TESTS 0
+SNAPSHOT {
+  "hooks": {
+    "/usr/local/lib/python3.12/site-packages/sphinxcontrib_jsmath-1.0.1-py3.7-nspkg.pth": "sha256:6ef09bbd30e129409336dac26eee8755ef13b180b81b8fa14645de1dd109eade"
+  },
+  "plugins": {
+    "ctrf": {
+      "dist": "pytest_json_ctrf-0.5.2.dist-info",
+      "files": {
+        "/usr/local/lib/python3.12/site-packages/ctrf/__init__.py": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/usr/local/lib/python3.12/site-packages/ctrf/main.py": "sha256:42c48c728547285bee4a28ece1794e81c3d01482ff96aa28a081bd863ea03169"
+      },
+      "value": "ctrf.main",
+      "version": "0.5.2"
+    }
+  },
+  "schema": "terminal-guard-snapshot/v1",
+  "site_dirs": [
+    "/usr/local/lib/python3.12/site-packages"
+  ]
+}
+
+GRADE_EXIT 0
+GRADE_TAIL  Yields
+        -------
+            :class:`Part` instances in `partlist`
+    
+        """
+    
+        if not isinstance(partlist, (list, tuple, set)):
+            _partlist = [partlist]
+    
+        elif isinstance(partlist, Score):
+            _partlist = partlist.parts
+    
+        else:
+            _partlist = partlist
+    
+        for el in _partlist:
+            if isinstance(el, Part):
+                yield el
+            else:
+>               for eel in iter_parts(el.children):
+                                      ^^^^^^^^^^^
+E               AttributeError: 'generator' object has no attribute 'children'
+
+vendor/partitura/partitura/score.py:4355: AttributeError
+==================================== PASSES ====================================
+=========================== short test summary info ============================
+PASSED ../tests/test_outputs.py::test_gate_supporting_source_is_not_removed_or_replaced
+PASSED ../tests/test_outputs.py::test_core_valid_chord_inherits_anchor_timing
+PASSED ../tests/test_outputs.py::test_edge_normal_resolution_preserves_derived_ppq
+FAILED ../tests/test_outputs.py::test_gate_artifact_exists_and_is_midi - Asse...
+FAILED ../tests/test_outputs.py::test_core_orphan_chord_warns_and_preserves_note
+FAILED ../tests/test_outputs.py::test_core_empty_score_raises_domain_error - ...
+FAILED ../tests/test_outputs.py::test_core_generator_export_matches_list_and_caps_ppq
+========================= 4 failed, 3 passed in 3.10s ==========================
+
+REWARD 0
+CTRF {'tests': 7, 'passed': 3, 'failed': 4, 'skipped': 0, 'pending': 0, 'other': 0, 'start': 1791499186173, 'stop': 1791499189270}
+QUARANTINE /logs/verifier/quarantine:

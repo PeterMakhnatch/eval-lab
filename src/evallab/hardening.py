@@ -10,6 +10,11 @@ a failed check stops setup, with no hide-only or network-open fallback.
   images, so this is not applied to the rest of the corpus.
 * ``separate-verifier@1`` runs hidden tests in a second container where Harbor
   0.24 supports it (HAR-169: oracle pass and nop fail on 001269, 000905, 002391).
+* ``mtime-normalize@1`` sets every work-tree path to one fixed timestamp at
+  the end of setup, so fix-commit file mtimes cannot name the fix (002402:
+  five fix files at a later mtime than the bulk checkout). It composes after
+  ``strip-future-history@1`` and ``purge-installed-copies@1`` and verifies
+  fail-closed that no path stays newer than the fixed timestamp.
 
 A verifier that passes only with egress open is not a package transform.
 Allow-listing the verifier is rejected: Harbor drops the no-network overlay
@@ -20,6 +25,8 @@ market data. The default is discard.
 
 from __future__ import annotations
 
+from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
+from evallab.mtime_normalize import derive_mtime_normalize
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
 from evallab.separate_verifier import TRANSFORM_ID as SEPARATE_ID
@@ -27,7 +34,7 @@ from evallab.separate_verifier import derive_separate_verifier
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.strip_future_history import derive_strip_future_history
 
-TRANSFORMS = (STRIP_ID, PURGE_ID, SEPARATE_ID)
+TRANSFORMS = (STRIP_ID, PURGE_ID, SEPARATE_ID, MTIME_ID)
 NETWORK_LABEL = "oracle:fail-network"
 NETWORK_DEFAULT = "discard"
 #: Installed-copy leaks confirmed by reading the image, not by a sample guess.
@@ -38,12 +45,14 @@ CONFIRMED_PURGE = (
 
 __all__ = [
     "CONFIRMED_PURGE",
+    "MTIME_ID",
     "NETWORK_DEFAULT",
     "NETWORK_LABEL",
     "PURGE_ID",
     "SEPARATE_ID",
     "STRIP_ID",
     "TRANSFORMS",
+    "derive_mtime_normalize",
     "derive_purge_installed_copies",
     "derive_separate_verifier",
     "derive_strip_future_history",

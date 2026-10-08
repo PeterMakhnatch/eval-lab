@@ -250,6 +250,63 @@ def server_hourly(catalog: PriceCatalog, gpu: CatalogEntry) -> float:
     return rate
 
 
+def sandbox_hourly(
+    catalog: PriceCatalog, sandbox: CatalogEntry, cpus: float, memory: float, disk: float
+) -> tuple[float, str]:
+    """Price the admitted shape, preferring the provider's sandbox tariff."""
+    if all(sandbox.rates.get(k) is not None for k in ("vcpu_hour", "memory_gib_hour")):
+        cpu_rate = float(sandbox.rates["vcpu_hour"] or 0)
+        memory_rate = float(sandbox.rates["memory_gib_hour"] or 0)
+        sources = [sandbox.id]
+    else:
+        sources = []
+        rates = []
+        for kind, hour_unit, second_unit in (
+            ("cpu", "vcpu_hour", "vcpu_second"),
+            ("memory", "memory_gib_hour", "memory_gib_second"),
+        ):
+            candidates = [
+                e
+                for e in catalog.entries
+                if e.provider == sandbox.provider
+                and (e.kind == kind or (e.kind == "sandbox" and (kind in e.id or kind in e.sku)))
+                and e.id != sandbox.id
+            ]
+            sandbox_tariffs = [e for e in candidates if "sandbox" in e.id or e.kind == "sandbox"]
+            candidates = sandbox_tariffs or candidates
+            if len(candidates) != 1:
+                raise ValueError(f"{sandbox.id}: missing or ambiguous {kind} component tariff")
+            component = candidates[0]
+            rate = component.rates.get(hour_unit)
+            if rate is None:
+                seconds = component.rates.get(second_unit)
+                rate = seconds * 3600 if seconds is not None else component.rates.get("per_hour")
+                if rate is None:
+                    rate = hourly(component)
+            rates.append(rate)
+            sources.append(component.id)
+        cpu_rate, memory_rate = rates
+    disk_rate = sandbox.rates.get("disk_gib_hour")
+    free_disk = sandbox.specs.get("storage_free_gib", 0)
+    if disk_rate is None:
+        storage = [
+            e
+            for e in catalog.entries
+            if e.provider == sandbox.provider
+            and e.kind == "storage"
+            and e.rates.get("disk_gib_hour") is not None
+        ]
+        if len(storage) > 1:
+            raise ValueError(f"{sandbox.id}: ambiguous disk tariff")
+        if storage:
+            disk_rate = storage[0].rates["disk_gib_hour"]
+            free_disk = storage[0].specs.get("storage_free_gib", 0)
+            sources.append(storage[0].id)
+    rate = cpus * cpu_rate + memory * memory_rate
+    rate += max(0, disk - free_disk) * (disk_rate or 0)
+    return rate, "list: catalog tariffs " + ", ".join(sources)
+
+
 def resources(cohort: Cohort) -> tuple[float, float, float, str]:
     r = cohort.declared_sandbox
     fallback = r.cpus is None or r.memory_gib is None
@@ -308,7 +365,10 @@ def context(
     if profile.serving.cold_start_s is not None:
         cold, basis = profile.serving.cold_start_s, "measured: profile.serving.cold_start_s"
     else:
-        cold = COLD_START_USD / server_hourly(catalog, gpu) * 3600
+        server_rate = server_hourly(catalog, gpu)
+        if server_rate <= 0:
+            raise ValueError("reference server rate must be positive to infer cold-start seconds")
+        cold = COLD_START_USD / server_rate * 3600
         basis = "inferred: HAR-129 ~$0.23 production cold-start / reference server rate"
     return Context(catalog, profile, cohort, policy, gpu, cold, basis)
 
@@ -365,6 +425,11 @@ def evaluate(
     measured_gpu = gpu_for(ctx.catalog, c.gpu)
     if c.wall_s.mean is None or c.llm_s.mean is None:
         raise ValueError(f"{c.id}: mean wall/LLM time unavailable; cannot model expected spend")
+    if c.wall_s.mean <= 0:
+        raise ValueError(f"{c.id}: mean wall time must be positive")
+    for candidate in (gpu, measured_gpu, ctx.base_gpu):
+        if candidate.specs["hbm_tbps"] <= 0:
+            raise ValueError(f"{candidate.id}: hbm_tbps must be positive")
     ratio = (
         speed_ratio
         if speed_ratio is not None
@@ -394,7 +459,7 @@ def evaluate(
     if idle is None:
         idle = 300.0
         assumptions.append("projected: scaledown window 300s from serve.py")
-    duration = cold + scenario.window_trials / scenario.concurrency * wall + tail + idle
+    duration = cold + max(1, scenario.window_trials / scenario.concurrency) * wall + tail + idle
     server = (
         duration
         * server_hourly(ctx.catalog, gpu)
@@ -443,25 +508,21 @@ def evaluate(
         else ctx.cold_basis,
         "idle_tail_s": "projected: scenario override"
         if scenario.idle_tail_s is not None
-        else "measured: serve.py scaledown window",
+        else "configured: serve.py scaledown window",
         "window_trials": "projected: scenario warm-window assumption",
-        "drain_tail_s": "measured: p95 - mean"
-        if gpu.id == measured_gpu.id
-        else "projected: p95 shifted by HBM ratio",
+        "drain_tail_s": "projected: reference p95-minus-mean tail held fixed across GPU speeds",
         "sandbox_resources": resource_basis,
+        "sandbox_disk": "projected: 10 GiB disk fallback"
+        if c.declared_sandbox.disk_gib is None
+        else "measured: declared_sandbox.disk_gib",
         "region_multiplier": "projected: scenario assumption",
         "rates": "measured: dated catalog list prices, not invoice",
     }
     density = hosts = None
     host_hours = None
     if sandbox.kind == "sandbox":
-        for key in ("vcpu_hour", "memory_gib_hour"):
-            if sandbox.rates.get(key) is None:
-                raise ValueError(f"{sandbox.id}: missing {key}")
-        sandbox_rate = cpus * float(sandbox.rates["vcpu_hour"] or 0) + memory * float(
-            sandbox.rates["memory_gib_hour"] or 0
-        )
-        sandbox_rate += disk * float(sandbox.rates.get("disk_gib_hour") or 0)
+        sandbox_rate, tariff_basis = sandbox_hourly(ctx.catalog, sandbox, cpus, memory, disk)
+        labels["sandbox_rates"] = tariff_basis
         sandbox_cost = sandbox_rate * wall / 3600
         if sandbox.provider == "daytona":
             if ctx.policy:
@@ -473,6 +534,8 @@ def evaluate(
             else:
                 flags.append("Daytona quota policy unavailable")
     else:
+        if sandbox.billing == "per_month":
+            raise ValueError(f"{sandbox.id}: monthly commitment not modelled")
         density = (
             per_host if per_host is not None else host_density(sandbox, cpus, memory, scenario.pack)
         )
@@ -636,6 +699,7 @@ def training(ctx: Context, token_cohort: str | None, best: EvalRow | None) -> di
                 "seq_tok_s": r.seq_tok_s,
                 "usd_per_1m_sequence_tokens": cost,
                 "feasible": cost is not None,
+                "fit_reason": "" if cost is not None else "training cost unavailable",
                 "note": f"Measured {r.run} on {r.gpu}; LoRA/SFT throughput is a projection for GRPO training, not measured GRPO. {r.source}",
             }
         )
@@ -659,11 +723,11 @@ def training(ctx: Context, token_cohort: str | None, best: EvalRow | None) -> di
             single_gpu = gpu.provider != "lambda"
             feasible = fits and single_gpu and cost is not None
             reason = (
-                "GPU below max measured trainer peak / memory fit unknown"
+                "below measured peak / memory unknown"
                 if not fits
-                else "Minimum multi-GPU node charge unqualified"
+                else "multi-GPU minimum unqualified"
                 if not single_gpu
-                else "Missing verified price/spec"
+                else "price/spec unavailable"
                 if cost is None
                 else ""
             )
@@ -674,6 +738,7 @@ def training(ctx: Context, token_cohort: str | None, best: EvalRow | None) -> di
                     "seq_tok_s": speed,
                     "usd_per_1m_sequence_tokens": cost,
                     "feasible": feasible,
+                    "fit_reason": reason,
                     "note": "LoRA/SFT throughput is a projection for GRPO training; not measured GRPO. "
                     + reason,
                 }
@@ -687,9 +752,18 @@ def training(ctx: Context, token_cohort: str | None, best: EvalRow | None) -> di
                     "seq_tok_s": None,
                     "usd_per_1m_sequence_tokens": entry.rates.get("train_per_1m"),
                     "feasible": False,
+                    "fit_reason": "different base model",
                     "note": f"Sampling/prefill are separately billed, not included in this training rate. {entry.notes}",
                 }
             )
+    rows.sort(
+        key=lambda r: (
+            not r["feasible"],
+            r["usd_per_1m_sequence_tokens"] is None,
+            r["usd_per_1m_sequence_tokens"] or float("inf"),
+            r["id"],
+        )
+    )
     proj = [
         (r["usd_per_1m_sequence_tokens"], r["id"])
         for r in rows
@@ -698,7 +772,13 @@ def training(ctx: Context, token_cohort: str | None, best: EvalRow | None) -> di
     proj_rate, proj_trainer = min(proj) if proj else (None, None)
     meas_rate = measured_costs.get(reference.run) if reference else None
     meas_trainer = f"measured:{reference.run}" if reference and meas_rate is not None else None
-    cohort = next((c for c in ctx.profile.cohorts if c.id == token_cohort), ctx.cohort)
+    cohort = (
+        ctx.cohort
+        if token_cohort is None
+        else next((c for c in ctx.profile.cohorts if c.id == token_cohort), None)
+    )
+    if cohort is None:
+        raise ValueError(f"profile missing training_token_cohort {token_cohort!r}")
     inp, requests = cohort.input_tokens.p50, cohort.model_requests.p50
     cases: list[dict[str, Any]] = []
     for name, tokens in (
@@ -720,7 +800,7 @@ def training(ctx: Context, token_cohort: str | None, best: EvalRow | None) -> di
                 "case": f"{name} [measured:{reference.run}]" if reference else name,
                 "trainer_kind": "measured",
                 "trainer": meas_trainer,
-                "basis": "measured: reference GRPO step",
+                "basis": "measured trainer rate + projected rollout $",
                 "tokens_per_rollout": tokens,
                 "training_tokens_per_step": n_tokens,
                 "rollout_usd_per_step": rollout,
@@ -740,7 +820,7 @@ def training(ctx: Context, token_cohort: str | None, best: EvalRow | None) -> di
                 "case": f"{name} [projected:{proj_trainer}]",
                 "trainer_kind": "projected",
                 "trainer": proj_trainer,
-                "basis": "projected: reference GRPO step",
+                "basis": "projected trainer rate + projected rollout $",
                 "tokens_per_rollout": tokens,
                 "training_tokens_per_step": n_tokens,
                 "rollout_usd_per_step": rollout,
@@ -779,8 +859,10 @@ def sensitivities(
     probes_by_run: dict[tuple[str, int, int], dict[str, Any]] = {}
 
     def measure_for(parameter: str) -> str:
-        if parameter in ("gpu_speed_ratio", "cmax"):
-            return "LLM time + peak KV utilization"
+        if parameter == "cmax":
+            return "peak KV utilization"
+        if parameter == "gpu_speed_ratio":
+            return "LLM time"
         return "peak CPU/RAM + declared-limit fit + wall under one packed wave"
 
     def add_probe(parameter: str, scenario: Scenario) -> None:
@@ -868,7 +950,7 @@ def sensitivities(
     )
     add_probe("cmax", by_id[top.id])
     for row in flagged:
-        if row.total_usd < top.total_usd and row.cmax is not None:
+        if row.total_usd < top.total_usd and row.cmax is not None and row.cmax < row.concurrency:
             flips.append(
                 {
                     "input": "cmax",
@@ -1129,8 +1211,8 @@ def render_text(report: dict[str, Any]) -> str:
                 "#",
                 "scenario [projected]",
                 "$/trial",
-                "GPU",
-                "sandbox",
+                "server $",
+                "sandbox $",
                 "shares",
                 "$/1000",
                 "mean s",
@@ -1158,7 +1240,7 @@ def render_text(report: dict[str, Any]) -> str:
     ]
     lines.append(
         _table(
-            ["scenario", "N", "$/trial", "GPU", "sandbox", "window s"],
+            ["scenario", "N", "$/trial", "server $", "sandbox $", "window s"],
             [
                 [
                     r["id"],
@@ -1176,12 +1258,13 @@ def render_text(report: dict[str, Any]) -> str:
     lines += ["", "4. Training — $/1M sequence tokens (GPU-only trainer rate; no serving CPU/RAM)"]
     lines.append(
         _table(
-            ["trainer", "$/1M seq", "seq tok/s", "basis"],
+            ["trainer", "$/1M seq", "seq tok/s", "fit", "basis"],
             [
                 [
                     r["id"],
                     _number(r["usd_per_1m_sequence_tokens"], 3),
                     _number(r["seq_tok_s"], 0, ""),
+                    "ok" if r["feasible"] else "no: " + r["fit_reason"],
                     r["basis"],
                 ]
                 for r in train["rows"]

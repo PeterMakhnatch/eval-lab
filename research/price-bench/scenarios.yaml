@@ -15,6 +15,8 @@ scenarios:
     concurrency: 40
     sandbox: hetzner.host.CCX63
     pack: {cpu_request_fraction: 0.25, memory_request_fraction: 0.4}
+  - {id: modal-a100-c20-e2b, gpu: modal.gpu.A100-80GB, concurrency: 20, sandbox: e2b.sandbox.envelope-2vcpu-4gib}
+  - {id: modal-a100-c20-modalsandbox, gpu: modal.gpu.A100-80GB, concurrency: 20, sandbox: modal.sandbox.envelope-2vcpu-4gib}
   - {id: modal-h100-c20-daytona, gpu: modal.gpu.H100-80GB, concurrency: 20, sandbox: daytona.sandbox.standard}
   - {id: modal-h100-c40-daytona, gpu: modal.gpu.H100-80GB, concurrency: 40, sandbox: daytona.sandbox.standard}
   - {id: modal-h200-c40-daytona, gpu: modal.gpu.H200-141GB, concurrency: 40, sandbox: daytona.sandbox.standard}

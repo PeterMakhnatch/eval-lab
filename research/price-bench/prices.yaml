@@ -389,7 +389,7 @@ entries:
     sku: disk
     rates: {disk_gib_hour: 0.000108}
     billing: per_second
-    specs: {}
+    specs: {storage_free_gib: 5}
     source: https://www.daytona.io/pricing
     observed_at: "2026-10-08"
     notes: "list price per GiB after first 5 GiB free; stopped/paused sandboxes billed disk only"
@@ -409,10 +409,10 @@ entries:
     sku: standard
     rates: {vcpu_hour: 0.0504, memory_gib_hour: 0.0162, disk_gib_hour: 0.000108}
     billing: per_second
-    specs: {}
+    specs: {storage_free_gib: 5}
     source: https://www.daytona.io/pricing
     observed_at: "2026-10-08"
-    notes: "list price; bench multiplies by admitted shape; full 10 GiB disk billed (no free tier) so 2vCPU/8GiB/10GiB = 0.23148/h matching envelope; billed on reserved resources; stopped sandboxes pay disk only"
+    notes: "list price; bench multiplies by admitted shape; official card gives first 5 GiB disk free per sandbox; billed on reserved resources; stopped sandboxes pay disk only"
 
   - id: daytona.cpu.windows-vcpu
     provider: daytona

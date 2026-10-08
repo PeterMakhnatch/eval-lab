@@ -29,8 +29,9 @@ explicit inferred free parameter, not a fit to HAR-116/G2. HAR-116 calibrates
 as two independent 20-trial windows. HAR-168's ~$0.654/~$0.320 are mixed-window
 measured-time upper bounds, not settled server invoices or a C20 forecast.
 Sandbox per-trial costs use mean wall. Missing declarations use verified
-2 CPU / 8 GiB task defaults; unknown disk uses the 10 GiB envelope.
-
+2 CPU / 8 GiB task defaults; unknown disk uses 10 GiB with Daytona's first 5 GiB
+free tier. Alternate sandbox backends (E2B, Modal sandbox) aggregate provider
+component CPU and memory tariffs.
 ## Reading the output
 
 Six parts: calibration, eval ranking, excluded/flagged rows, training/GRPO,

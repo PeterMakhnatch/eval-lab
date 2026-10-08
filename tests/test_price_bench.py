@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from evallab.price_bench import (
@@ -28,8 +30,13 @@ from evallab.price_bench import (
     context,
     daytona_allowance,
     evaluate,
+    gpu_for,
     host_density,
+    load_catalog,
+    load_profile,
+    load_scenarios,
     sensitivities,
+    server_hourly,
     training,
 )
 
@@ -313,6 +320,8 @@ def test_grpo_uses_measured_trainer_with_projected_second_line(ctx):
     assert prefix_m["train_usd_per_step"] == pytest.approx(128 * 40_000 * 1.2696 / 1569955)
     assert prefix_p["train_usd_per_step"] == pytest.approx(128 * 40_000 * (1000 / 1180) / 1e6)
     assert prefix_m["rollout_usd_per_step"] == pytest.approx(128 * best.total_usd)
+    assert prefix_m["basis"] == "measured trainer rate + projected rollout $"
+    assert prefix_p["basis"] == "projected trainer rate + projected rollout $"
     percall_m = by_case[
         ("per-call (every call separately; expensive case) [measured:g4]", "measured")
     ]
@@ -386,3 +395,97 @@ def test_catalog_rejects_duplicate_ids_and_negative_rates(ctx):
         )
     with pytest.raises(ValidationError):
         entry("broken.gpu.rate", "gpu", rates={"per_hour": -1})
+
+
+def test_modal_server_hourly_with_nonzero_cpu_mem():
+    prices = PriceCatalog.model_validate(
+        {
+            "schema": "evallab.price-catalog/v1",
+            "observed_at": "2026-10-08",
+            "currency": "USD",
+            "entries": [
+                entry(
+                    "modal.gpu.A100",
+                    "gpu",
+                    rates={"per_hour": 2.5},
+                    specs={"gpu_memory_gib": 80, "hbm_tbps": 2, "bf16_dense_tflops": 312},
+                ),
+                entry("modal.cpu.core", "cpu", rates={"vcpu_hour": 0.04716}),
+                entry("modal.memory.gib", "memory", rates={"memory_gib_hour": 0.007992}),
+            ],
+        }
+    )
+    gpu = gpu_for(prices, "modal.gpu.A100")
+    expected = 2.5 + 4 * 0.04716 + 16 * 0.007992
+    assert server_hourly(prices, gpu) == pytest.approx(expected)
+
+
+def test_wall_mean_zero_skipped_not_crash(ctx):
+    cohort = ctx.cohort.model_copy(update={"wall_s": Stats(n=40, mean=0.0)})
+    scen = scenario()
+    with pytest.raises(ValueError, match="mean wall time must be positive"):
+        evaluate(ctx, scen, cohort=cohort)
+    config = ScenarioFile.model_validate(
+        {
+            "schema": "evallab.price-scenarios/v1",
+            "reference_cohort": "reference",
+            "scenarios": [scen],
+        }
+    )
+    report = build_bench(replace(ctx, cohort=cohort), config)
+    assert not report["eval_ranking"]
+    assert any("mean wall time must be positive" in s["reason"] for s in report["skipped"])
+
+
+def test_flagged_host_infeasible_with_cmax_ge_c_has_no_cmax_flip(ctx):
+    tiny_host = CatalogEntry.model_validate(
+        {
+            "id": "hetzner.host.tiny",
+            "provider": "hetzner",
+            "kind": "host",
+            "sku": "tiny",
+            "rates": {"per_hour": 1.0},
+            "specs": {"vcpu": 2, "memory_gib": 2, "disk_gib": 10},
+            "billing": "per_hour_rounded",
+            "source": "https://example.org",
+            "observed_at": "2026-10-08",
+        }
+    )
+    prices = ctx.catalog.model_copy(update={"entries": [*ctx.catalog.entries, tiny_host]})
+    bench_ctx = replace(ctx, catalog=prices)
+    top_scen = scenario(concurrency=20).model_copy(update={"id": "top-daytona"})
+    infeasible_host = scenario(concurrency=20, sandbox=tiny_host.id).model_copy(
+        update={"id": "bad-host"}
+    )
+    config = ScenarioFile.model_validate(
+        {
+            "schema": "evallab.price-scenarios/v1",
+            "reference_cohort": "reference",
+            "scenarios": [top_scen, infeasible_host],
+        }
+    )
+    report = build_bench(bench_ctx, config)
+    assert [r["id"] for r in report["flagged"]] == ["bad-host"]
+    bad_cmax_flips = [
+        f
+        for f in report["what_flips_the_ranking"]
+        if f["scenario"] == "bad-host" and f["input"] == "cmax"
+    ]
+    assert not bad_cmax_flips
+
+
+def test_shipped_bench_builds_without_skips_and_calibrates_har116():
+
+    bench_dir = Path("research/price-bench")
+    catalog = load_catalog(bench_dir / "prices.yaml")
+    profile = load_profile(bench_dir / "profile-mimo9b.json")
+    scenarios = load_scenarios(bench_dir / "scenarios.yaml")
+    policy_path = Path("policy/daytona-limits.yaml")
+    policy = yaml.safe_load(policy_path.read_text()) if policy_path.is_file() else {}
+    ctx = context(catalog, profile, scenarios.reference_cohort, policy)
+    report = build_bench(ctx, scenarios)
+    assert not report["skipped"]
+    assert len(report["eval_ranking"]) == len(scenarios.scenarios)
+    har116_cal = next(c for c in report["calibration"] if c["cohort"] == "har116")
+    assert har116_cal["server_error_pct"] is not None
+    assert abs(har116_cal["server_error_pct"]) <= 10.0

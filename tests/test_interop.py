@@ -239,6 +239,15 @@ def test_export_inspect_executes_with_stub_framework(
         parse(None, b"{}")
 
 
+def test_export_inspect_copies_solution_helpers(tmp_path: Path) -> None:
+    task_dir = make_task(tmp_path / "helpers")
+    (task_dir / "solution" / "solve.py").write_text("HELPER = 1\n", encoding="utf-8")
+    out = tmp_path / "o"
+    export_inspect(task_dir, out)
+    assert (out / "solution" / "solve.sh").is_file()
+    assert (out / "solution" / "solve.py").read_text(encoding="utf-8") == "HELPER = 1\n"
+
+
 def test_export_inspect_lossy_notes(tmp_path: Path) -> None:
     clean = make_task(tmp_path / "clean")
     assert export_inspect(clean, tmp_path / "o1")["lossy_notes"] == []
@@ -508,3 +517,23 @@ def test_cli_wiring() -> None:
     args = parser.parse_args(["interop", "parity", "a", "b", "--targets", "harbor"])
     assert args.targets == ["harbor"]
     assert callable(args.func)
+
+
+def test_parity_all_skip_prints_not_agreement_notice(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from evallab.interop import build_interop_parser, interop_command
+
+    parser = argparse.ArgumentParser()
+    build_interop_parser(parser.add_subparsers())
+    args = parser.parse_args(["interop", "parity", "some-task"])
+    row = {
+        "task_id": "lab/t",
+        "cells": {"harbor:oracle": "skip"},
+        "equal": None,
+        "harbor_rev": "test-rev",
+        "details": {"harbor:oracle": {"verdict": "skip", "reason": "no daemon"}},
+    }
+    with patch.object(interop, "parity_row", return_value=row):
+        assert interop_command(args, REPO_ROOT) == 0
+    assert "not agreement" in capsys.readouterr().out

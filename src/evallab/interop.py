@@ -467,8 +467,14 @@ def export_inspect(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
     (out / "tests").mkdir(parents=True, exist_ok=True)
     (out / "environment").mkdir(parents=True, exist_ok=True)
     (out / "instruction.md").write_text(task.instruction, encoding="utf-8")
-    src = task.task_dir / "solution" / "solve.sh"
-    shutil.copy2(src, out / "solution" / "solve.sh")
+    # Copy the whole solution dir (solve.sh plus any helpers like solve.py):
+    # oracle_solver stages all of solution/ into the sandbox at runtime.
+    for child in sorted((task.task_dir / "solution").iterdir()):
+        dest = out / "solution" / child.name
+        if child.is_dir():
+            shutil.copytree(child, dest, dirs_exist_ok=True)
+        else:
+            shutil.copy2(child, dest)
     for child in sorted((task.task_dir / task.tests_dir).iterdir()):
         dest = out / "tests" / child.name
         if child.is_dir():
@@ -1411,6 +1417,11 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
                     if reason and detail.get("verdict") not in COMPARABLE_VERDICTS:
                         print(f"  {row['task_id']} {key}: {reason}")
         disagreements = sum(1 for r in rows if r["equal"] is False)
+        if not disagreements and all(r["equal"] is None for r in rows):
+            print(
+                "note: no row had two comparable verdicts "
+                "(all skipped/error); exit 0 is not agreement"
+            )
         return 1 if disagreements else 0
     print("interop: unknown command", file=sys.stderr)
     return 2

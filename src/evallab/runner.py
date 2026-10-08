@@ -19,7 +19,7 @@ import tomllib
 import urllib.parse
 from collections.abc import Iterator
 from contextlib import contextmanager, suppress
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -2992,6 +2992,135 @@ def matrix_run_outcome(job: JobRecord, run: MatrixRun) -> dict[str, Any]:
 
 def expected_primary_reward(run: MatrixRun) -> float | None:
     return run.expect_reward
+
+
+@dataclass(frozen=True)
+class MatrixExecution:
+    """Observed result of one matrix invocation; receipts stay the evidence."""
+
+    exit_code: int
+    results: list[dict[str, Any]]
+    completed: list[JobRecord]
+    receipt_path: Path
+    invocation_path: Path
+
+
+def run_matrix(
+    matrix: ExperimentMatrix,
+    *,
+    root: Path,
+    reuse_existing: bool = False,
+    harbor: Any | None = None,
+) -> MatrixExecution:
+    """Run every control in a matrix through the free local direct path.
+
+    Moved here from ``cli._matrix_command`` so a second caller (the
+    reward-hacking audit) requests the *same* execution instead of a parallel
+    implementation. Execution stays model-free and un-gated: matrices are
+    structurally incapable of spending (``Executor.execute_direct`` refuses any
+    agent outside ``CONTROL_AGENTS``, consults no policy gate and writes no
+    queue state), which is why they need no approval of their own.
+    """
+    completed: list[JobRecord] = []
+    results: list[dict[str, Any]] = []
+    receipt_path = root / Path(matrix.jobs_dir) / ".executor" / f"{matrix.matrix_id}.matrix.json"
+    invocation_path = receipt_path.with_suffix(".invocations.jsonl")
+    saved_receipt: dict[str, Any] = {"matrix": matrix.model_dump(mode="json"), "results": []}
+    if receipt_path.is_file():
+        saved_receipt = json.loads(receipt_path.read_text())
+    previous = {result["name"]: result for result in saved_receipt.get("results", [])}
+    saved_results = dict(previous)
+    if harbor is not None:
+        executor = None
+    else:
+        from evallab.queue import Executor
+
+        executor = Executor.from_repo(root)
+    for run in matrix.runs:
+        result: dict[str, Any] = {"name": run.name, "expect_reward": run.expect_reward}
+        try:
+            with staged_matrix_request(matrix, run, repo_root=root) as (request, provenance):
+                result.update(provenance)
+                job_dir = request.jobs_dir / request.name
+                if reuse_existing and job_dir.is_dir():
+                    prior = previous.get(run.name, {})
+                    keys = ("solution_sha256", "staged_task_digest")
+                    if (
+                        any(prior.get(key) != provenance.get(key) for key in keys)
+                        or prior.get("status") == "infra"
+                    ):
+                        raise ValueError(
+                            "existing job has no matching successful control provenance"
+                        )
+                    state_path = executor_state_path(request)
+                    if state_path.is_file():
+                        state = json.loads(state_path.read_text())
+                        if state.get("status") != "completed" or state.get("exit_code", 0) != 0:
+                            raise ValueError(
+                                "existing job has a failed or incomplete Harbor execution"
+                            )
+                elif job_dir.exists():
+                    raise FileExistsError(
+                        f"Refusing to reuse existing job directory: {job_dir}. "
+                        "Use --reuse-existing to validate its evidence."
+                    )
+                elif harbor is not None:
+                    if request.agent not in {"oracle", "nop"}:
+                        raise ValueError("direct execution is restricted to oracle/nop")
+                    from evallab.fetch import ControlCall
+
+                    harbor.run_control(
+                        ControlCall(
+                            task_path=request.task,
+                            agent=request.agent,
+                            job_name=request.name,
+                            jobs_dir=request.jobs_dir,
+                            n_concurrent=request.concurrency,
+                            n_attempts=request.attempts,
+                        )
+                    )
+                else:
+                    assert executor is not None
+                    job_dir = executor.execute_direct(request)
+                job = load_job(job_dir)
+                result.update(matrix_run_outcome(job, run))
+                if result["status"] != "infra":
+                    completed.append(job)
+        except Exception as exc:
+            result.update(status="infra", rewards=[], error=f"{type(exc).__name__}: {exc}")
+        results.append(result)
+        status = result["status"]
+        detail = result["error"] or f"expected {run.expect_reward}, got {result['rewards']}"
+        print(
+            f"{run.name}: {status} ({detail})",
+            file=sys.stdout if status == "ok" else sys.stderr,
+        )
+        receipt_path.parent.mkdir(parents=True, exist_ok=True)
+        # The job receipt is evidence, not the status of the latest invocation.
+        # Refusing a rerun must not erase the binding used by --reuse-existing.
+        if saved_results.get(run.name, {}).get("status") not in {"ok", "mismatch"}:
+            saved_results[run.name] = result
+            saved_receipt["results"] = list(saved_results.values())
+            receipt_path.write_text(json.dumps(saved_receipt, indent=2) + "\n")
+        with invocation_path.open("a") as stream:
+            stream.write(
+                json.dumps(
+                    {
+                        "recorded_at": datetime.now(UTC).isoformat(),
+                        "matrix": matrix.model_dump(mode="json"),
+                        "reuse_existing": reuse_existing,
+                        "result": result,
+                    }
+                )
+                + "\n"
+            )
+    return MatrixExecution(
+        exit_code=1 if any(result["status"] != "ok" for result in results) else 0,
+        results=results,
+        completed=completed,
+        receipt_path=receipt_path,
+        invocation_path=invocation_path,
+    )
 
 
 def database_url_from_environment(explicit: str | None = None) -> str:

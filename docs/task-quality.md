@@ -75,6 +75,42 @@ a no-agent pass or observed future history routes to fix. Missing evidence stays
 unknown. MiMo preserves its committed ledger routing, including discard
 precedence. None of these control/probe trials measures model capability.
 
+## Reward-hacking audit (`evallab hack`)
+
+The dataset audit answers "is this task worth keeping". `evallab hack` answers a
+different question: *which channels let a scripted agent score without doing the
+work*, and whether an authored exploit actually scores through the task's own
+verifier. Both halves are free and local; neither spends model tokens unless the
+separate `--stages exploit` probe is requested.
+
+- `evallab hack scan <package>` — deterministic, offline V1–V8 ledger over one
+  task package: verifier isolation, answer material in the agent build, untrusted
+  execution in the verifier, LLM judges, weak matching, fail-open handling,
+  granted authority (network, user, privileges), plus reconnaissance facts
+  (verifier mode, entrypoint, digests). Each finding cites `file:line`; findings
+  are **claims**, and an absent finding is not a certificate.
+- `evallab hack run <package> [--script PATH ...] [--execute]` — replays each
+  exploit script through the task's own verifier by reusing the checked-in
+  solution-control matrix path (`MatrixRun.solution`, oracle agent,
+  `allow_billable=False`, so it can never spend). The matrix is the same artifact
+  class as `research/experiments/release-branch-rescue-local-controls.json`:
+  reference oracle (expect 1), no-agent control (expect 0), then one run per
+  script, with `# expect: 1` on the script's first lines recording the author's
+  prediction. Without `--execute` it writes the plan only.
+
+Receipts land in `runs/.reward-hack/<slug>-<ulid>/` (`hack-report.json`,
+`hack-report.md`, `matrix.json`, staged script copies with digests); the matrix
+receipt and invocation log stay under `runs/.executor/`. Verdicts are
+`hackable` / `partially_hackable` / `not_demonstrated` / `task_broken` /
+`unscored` / `planned`. `task_broken` (a no-agent pass, or a failing reference
+solution) outranks hackability and must be fixed before quoting any number from
+that run path. A resisted script is a negative result for that channel on that
+exact revision, never a certificate of robustness.
+
+The authoring procedure — legitimacy rules, channel order, honesty requirements —
+is `.omp/skills/reward-hacking-audit/SKILL.md`. Only the replay adapter is
+Harbor-specific; the ledger and rules port to other harnesses unchanged.
+
 
 ## Stage 0: read the files (free, no Docker)
 

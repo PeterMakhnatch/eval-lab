@@ -57,7 +57,6 @@ from evallab.evidence.facts import (
     write_failure_taxonomy_agreement,
 )
 from evallab.fetch import (
-    ControlCall,
     FetchError,
     FetchService,
     HarborBackend,
@@ -119,10 +118,8 @@ from evallab.results import JobRecord, load_job, load_jobs
 from evallab.runner import (
     RunRequest,
     database_url_from_environment,
-    executor_state_path,
     load_matrix,
-    matrix_run_outcome,
-    staged_matrix_request,
+    run_matrix,
     subscription_environment,
 )
 from evallab.status import build_status_snapshot, render_status_text, snapshot_as_dict
@@ -1359,98 +1356,11 @@ def _matrix_command(
 ) -> int:
     matrix_path = _resolve(root, args.path)
     matrix = load_matrix(matrix_path)
-    completed: list[JobRecord] = []
-    results: list[dict[str, Any]] = []
-    receipt_path = (
-        _resolve(root, Path(matrix.jobs_dir)) / ".executor" / f"{matrix.matrix_id}.matrix.json"
-    )
-    invocation_path = receipt_path.with_suffix(".invocations.jsonl")
-    saved_receipt: dict[str, Any] = {"matrix": matrix.model_dump(mode="json"), "results": []}
-    if receipt_path.is_file():
-        saved_receipt = json.loads(receipt_path.read_text())
-    previous = {result["name"]: result for result in saved_receipt.get("results", [])}
-    saved_results = dict(previous)
-    executor = Executor.from_repo(root) if harbor is None else None
-    for run in matrix.runs:
-        result: dict[str, Any] = {"name": run.name, "expect_reward": run.expect_reward}
-        try:
-            with staged_matrix_request(matrix, run, repo_root=root) as (request, provenance):
-                result.update(provenance)
-                job_dir = request.jobs_dir / request.name
-                if args.reuse_existing and job_dir.is_dir():
-                    prior = previous.get(run.name, {})
-                    keys = ("solution_sha256", "staged_task_digest")
-                    if (
-                        any(prior.get(key) != provenance.get(key) for key in keys)
-                        or prior.get("status") == "infra"
-                    ):
-                        raise ValueError(
-                            "existing job has no matching successful control provenance"
-                        )
-                    state_path = executor_state_path(request)
-                    if state_path.is_file():
-                        state = json.loads(state_path.read_text())
-                        if state.get("status") != "completed" or state.get("exit_code", 0) != 0:
-                            raise ValueError(
-                                "existing job has a failed or incomplete Harbor execution"
-                            )
-                elif job_dir.exists():
-                    raise FileExistsError(
-                        f"Refusing to reuse existing job directory: {job_dir}. "
-                        "Use --reuse-existing to validate its evidence."
-                    )
-                elif harbor is not None:
-                    if request.agent not in {"oracle", "nop"}:
-                        raise ValueError("direct execution is restricted to oracle/nop")
-                    harbor.run_control(
-                        ControlCall(
-                            task_path=request.task,
-                            agent=request.agent,
-                            job_name=request.name,
-                            jobs_dir=request.jobs_dir,
-                            n_concurrent=request.concurrency,
-                            n_attempts=request.attempts,
-                        )
-                    )
-                else:
-                    assert executor is not None
-                    job_dir = executor.execute_direct(request)
-                job = load_job(job_dir)
-                result.update(matrix_run_outcome(job, run))
-                if result["status"] != "infra":
-                    completed.append(job)
-        except Exception as exc:
-            result.update(status="infra", rewards=[], error=f"{type(exc).__name__}: {exc}")
-        results.append(result)
-        status = result["status"]
-        detail = result["error"] or f"expected {run.expect_reward}, got {result['rewards']}"
-        print(
-            f"{run.name}: {status} ({detail})",
-            file=sys.stdout if status == "ok" else sys.stderr,
-        )
-        receipt_path.parent.mkdir(parents=True, exist_ok=True)
-        # The job receipt is evidence, not the status of the latest invocation.
-        # Refusing a rerun must not erase the binding used by --reuse-existing.
-        if saved_results.get(run.name, {}).get("status") not in {"ok", "mismatch"}:
-            saved_results[run.name] = result
-            saved_receipt["results"] = list(saved_results.values())
-            receipt_path.write_text(json.dumps(saved_receipt, indent=2) + "\n")
-        with invocation_path.open("a") as stream:
-            stream.write(
-                json.dumps(
-                    {
-                        "recorded_at": datetime.now(UTC).isoformat(),
-                        "matrix": matrix.model_dump(mode="json"),
-                        "reuse_existing": args.reuse_existing,
-                        "result": result,
-                    }
-                )
-                + "\n"
-            )
-    _print_summary(completed)
-    print(f"matrix receipt: {receipt_path}")
-    print(f"matrix invocations: {invocation_path}")
-    return 1 if any(result["status"] != "ok" for result in results) else 0
+    execution = run_matrix(matrix, root=root, reuse_existing=args.reuse_existing, harbor=harbor)
+    _print_summary(execution.completed)
+    print(f"matrix receipt: {execution.receipt_path}")
+    print(f"matrix invocations: {execution.invocation_path}")
+    return execution.exit_code
 
 
 def _summarize_command(
@@ -7111,6 +7021,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.dataset_audit import build_dataset_audit_parser
 
     build_dataset_audit_parser(commands)
+    from evallab.reward_hack import build_reward_hack_parser
+
+    build_reward_hack_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)

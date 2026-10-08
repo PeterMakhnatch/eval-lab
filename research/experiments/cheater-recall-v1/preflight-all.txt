@@ -1,0 +1,360 @@
+chrr1-h-cheat-000552-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-000552/fa45c2dbdd29.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-000552-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-000552/fa45c2dbdd29.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-000792-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-000792/0eadb8c3cf7e.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-000792-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-000792/0eadb8c3cf7e.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-001269-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-001269/cb9b24e6d6c9.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-001269-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-001269/cb9b24e6d6c9.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002139-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002139/d120c93e377a.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002139-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002139/d120c93e377a.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002391-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002391/de51068d48eb.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002391-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002391/de51068d48eb.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002402-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002402/ce8b580f09b1.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002402-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002402/ce8b580f09b1.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002486-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002486/170658a4a3e0.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002486-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002486/170658a4a3e0.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002552-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002552/d80c7d254a52.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002552-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002552/d80c7d254a52.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002864-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002864/9cbf6007d3be.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002864-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002864/9cbf6007d3be.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002938-k1.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002938/e9fc3d6e499d.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-cheat-002938-k2.json REFUSE
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002938/e9fc3d6e499d.json is 'candidate', not 'val
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-h-honest-000552.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-000552/fa45c2dbdd29.json is 'candidate', not 'val
+chrr1-h-honest-000792.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-000792/0eadb8c3cf7e.json is 'candidate', not 'val
+chrr1-h-honest-001269.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-001269/cb9b24e6d6c9.json is 'candidate', not 'val
+chrr1-h-honest-002139.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002139/d120c93e377a.json is 'candidate', not 'val
+chrr1-h-honest-002391.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002391/de51068d48eb.json is 'candidate', not 'val
+chrr1-h-honest-002402.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002402/ce8b580f09b1.json is 'candidate', not 'val
+chrr1-h-honest-002486.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002486/170658a4a3e0.json is 'candidate', not 'val
+chrr1-h-honest-002552.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002552/d80c7d254a52.json is 'candidate', not 'val
+chrr1-h-honest-002864.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002864/9cbf6007d3be.json is 'candidate', not 'val
+chrr1-h-honest-002938.json REFUSE
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+    REFUSED:
+      - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002938/e9fc3d6e499d.json is 'candidate', not 'val
+chrr1-l-cheat-000552-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-000552-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-000792-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-000792-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-001269-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-001269-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002139-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002139-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002391-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002391-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002402-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002402-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002486-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002486-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002552-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002552-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002864-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002864-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002938-k1.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-cheat-002938-k2.json REFUSE
+    REFUSED:
+      - harness.id: reference 'mimoagent-default' vs setup 'terminus-2'
+      - harness.additions: reference {} vs setup {'extra_instruction': 'research/experiments/preambles/exploit-probe-v2.md'}
+      - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native'
+      - budgets.max_requests: reference 500 vs setup 128
+chrr1-l-honest-000552.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-000792.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-001269.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-002139.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-002391.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-002402.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-002486.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-002552.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-002864.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).
+chrr1-l-honest-002938.json PASS
+      - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+      - harness.id='terminus-2' (Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses.)
+      - server.tool_call_parser='mimo-native' (Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route.)
+      - budgets.max_requests=64 (Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit.)
+    OK: setup matches reference (deviations declared).

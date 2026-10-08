@@ -6534,6 +6534,17 @@ def parser() -> argparse.ArgumentParser:
     probe_exploit.add_argument("--out", type=Path, help="specs: directory for the spec files")
     probe_exploit.add_argument("--runs", type=Path, default=Path("runs"), help="verdict: jobs dir")
     probe_exploit.add_argument("--prefix", default="har161", help="job-name prefix")
+    probe_exploit.add_argument(
+        "--hardened",
+        action="store_true",
+        help="specs: target the strip/purge/mtime hardened chain instead of the ledger package",
+    )
+    probe_exploit.add_argument(
+        "--cost-cap",
+        type=float,
+        default=0.25,
+        help="specs: per-task exploit-run cost_limit_usd (binding hard stop)",
+    )
     probe_exploit.set_defaults(func=_probe_exploit_command)
 
     gc = commands.add_parser(
@@ -7142,7 +7153,14 @@ def _probe_exploit_command(
     from evallab.exploit_probe import run_command
 
     return run_command(
-        args.probe_command, args.tasks, root=root, out=args.out, runs=args.runs, prefix=args.prefix
+        args.probe_command,
+        args.tasks,
+        root=root,
+        out=args.out,
+        runs=args.runs,
+        prefix=args.prefix,
+        hardened=args.hardened,
+        cost_cap_usd=args.cost_cap,
     )
 
 

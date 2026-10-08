@@ -18,11 +18,17 @@ import json
 import os
 import shutil
 import subprocess
+import threading
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR
+
+#: Serializes the process-env handoff below: build_command reads the attack
+#: subset from the host environment, so concurrent in-process cheat runs must
+#: not interleave their selection with another run's Harbor invocation.
+_CHEAT_ENV_LOCK = threading.Lock()
 
 ATTACKS: tuple[str, ...] = (
     "git_history",
@@ -223,15 +229,16 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         timeout_seconds=args.timeout_seconds,
         allow_billable=False,
     )
-    previous = os.environ.get(CHEAT_ATTACKS_ENV_VAR)
-    os.environ[CHEAT_ATTACKS_ENV_VAR] = ",".join(selected)
-    try:
-        job_dir = Executor.from_repo(root).execute_direct(request)
-    finally:
-        if previous is None:
-            os.environ.pop(CHEAT_ATTACKS_ENV_VAR, None)
-        else:
-            os.environ[CHEAT_ATTACKS_ENV_VAR] = previous
+    with _CHEAT_ENV_LOCK:
+        previous = os.environ.get(CHEAT_ATTACKS_ENV_VAR)
+        os.environ[CHEAT_ATTACKS_ENV_VAR] = ",".join(selected)
+        try:
+            job_dir = Executor.from_repo(root).execute_direct(request)
+        finally:
+            if previous is None:
+                os.environ.pop(CHEAT_ATTACKS_ENV_VAR, None)
+            else:
+                os.environ[CHEAT_ATTACKS_ENV_VAR] = previous
     verdicts_path = write_cheat_verdicts(job_dir, harbor_rev=harbor_version())
     payload = json.loads(verdicts_path.read_text(encoding="utf-8"))
     print(f"completed: {job_dir}")

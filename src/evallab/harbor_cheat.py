@@ -214,7 +214,7 @@ for base in bases:
                         }
                     )
         dbs = []
-        for root, _, names in os.walk(os.path.join(base)):
+        for root, _, names in os.walk(base):
             for name in names:
                 if name.endswith((".db", ".sqlite", ".sqlite3")):
                     dbs.append(os.path.join(root, name))
@@ -395,9 +395,12 @@ async def _apply_rows_to_db(
     for table in (tables_outcome.stdout or "").split():
         if _IDENTIFIER.fullmatch(table) is None:
             continue
+        table_sql = _sql_ident(table)
+        if table_sql is None:
+            continue
         pragma = await asyncio.wait_for(
             run(
-                f"sqlite3 {_sh_quote(db)} 'PRAGMA table_info({_sh_quote(table)});'",
+                f"sqlite3 {_sh_quote(db)} 'PRAGMA table_info({table_sql});'",
                 ATTACK_TIMEOUT_SEC,
             ),
             timeout=ATTACK_TIMEOUT_SEC + 30,
@@ -410,9 +413,13 @@ async def _apply_rows_to_db(
     if len(candidates) != 1:
         return None
     table, columns = candidates[0]
+    table_sql = _sql_ident(table)
+    key_sql = _sql_ident(columns[0])
+    if table_sql is None or key_sql is None:
+        return None
     keys = await asyncio.wait_for(
         run(
-            f"sqlite3 {_sh_quote(db)} 'SELECT {_sh_quote(columns[0])} FROM {_sh_quote(table)};'",
+            f"sqlite3 {_sh_quote(db)} 'SELECT {key_sql} FROM {table_sql};'",
             ATTACK_TIMEOUT_SEC,
         ),
         timeout=ATTACK_TIMEOUT_SEC + 30,

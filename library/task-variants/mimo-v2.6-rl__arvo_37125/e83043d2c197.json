@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_37125",
+  "variant_digest": "sha256:e83043d2c1977fa84e9f68f94b299d6f9e336497971c364d5e74f75f16551f7d",
+  "variant_harbor_digest": "sha256:76f6d571e2577142cebd9ef4eeb45d2123f914caebbf4b522feb976911b073b1",
+  "parent": {
+    "digest": "sha256:f4ad2f8eb90f4507a7f44fcdff1a29dc9f8ab56fe7218204bb70b283c2950d20",
+    "harbor_digest": "sha256:0aa0bc3d8c91703394525c24499dee84a1eff99b3ff63e7030dfd5612b0df550",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_37125",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:07c5e342154d6031f30feb8c8cfc4eed742a2cd43b85f550581fbc5df02e9906",
+      "after_sha256": "sha256:661b5a8db0cba0ce0183ce8857e9f3f9364a8d47aab31379e639b4ffd0b8dbff",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nAddressSanitizer: heap-buffer-overflow in function `void pcl::PLYReader::vertexScalarPropertyCallback<short>(short)` in file `pcl/io/src/ply_io.cpp`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:39Z",
+  "status": "candidate",
+  "evidence": []
+}

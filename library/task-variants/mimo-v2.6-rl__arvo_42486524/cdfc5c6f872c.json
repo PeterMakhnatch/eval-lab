@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_42486524",
+  "variant_digest": "sha256:cdfc5c6f872c414fdb1dacf38a7bf5d681d0d377b23515b771ce2dad1fdfdb2f",
+  "variant_harbor_digest": "sha256:7018f435344a2e943ba13b8b9c9468a094f75a65c71bc8b2dafc63773f071a5e",
+  "parent": {
+    "digest": "sha256:a176575cc5efc94c9ce832523957832b0689139d28c832f3e6c92bf739b5ae5c",
+    "harbor_digest": "sha256:74b9442f3eb1fd1cbf242a9df69d6b0601360dde42f942480522fc23a18356cb",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_42486524",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:8296a4ede7a618c245a688e19dc6e9286d2d8489ce14dbe8f3978f16db050442",
+      "after_sha256": "sha256:888c030bdf29be2c9535885b12aed69201014669b66fe417063749e02184d79f",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nMemorySanitizer: use-of-uninitialized-value in function `SkSL::IRGenerator::convertSwitch(SkSL::ASTNode const&)` in file `skia/src/sksl/SkSLIRGenerator.cpp`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:41Z",
+  "status": "candidate",
+  "evidence": []
+}

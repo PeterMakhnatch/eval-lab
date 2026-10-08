@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_14018",
+  "variant_digest": "sha256:99e375e6acf735aeb82e0db80b6cfae00df5b9f41769229f4c46f8cb8fa789b8",
+  "variant_harbor_digest": "sha256:5e71b6c0a8292d150af46de894d13378d4a1fecce39caca66b8f5b51b3a5e494",
+  "parent": {
+    "digest": "sha256:58303dbd8422b15d17da39401e7f363cd05e77646bced97fd37180a02ca5ea05",
+    "harbor_digest": "sha256:658e41869fc28eaed5160cf89b58794c21bd09a5019d504cfd125f7e5f00edc4",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_14018",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:e50b38663304229f9a9f0d0ff6340a1a2f8d7fb4ac182e352a6f10707fe9b63c",
+      "after_sha256": "sha256:c834516ce9d400ca3a1ad162d758cc0ae70fb566e0b45a3c79be971072175bfc",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nAddressSanitizer: SEGV in function `perfetto::trace_processor::ProtoTraceParser::ParsePowerRails(protozero::ConstBytes)` in file `perfetto/src/trace_processor/proto_trace_parser.cc`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:37Z",
+  "status": "candidate",
+  "evidence": []
+}

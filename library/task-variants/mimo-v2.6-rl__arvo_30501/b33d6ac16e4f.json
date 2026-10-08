@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_30501",
+  "variant_digest": "sha256:b33d6ac16e4f603163b76c091abf6582b0e72aae6eb6051cfbf3272bbe790c95",
+  "variant_harbor_digest": "sha256:2f92b8f66cec6ccd5e8691c4d607f9f466400e7adf12829886733c8ea80779b4",
+  "parent": {
+    "digest": "sha256:b45a88b9d1b14f79a0ba21c1b5de63fad1195d78edff4cbe7db6c917d22e0eb9",
+    "harbor_digest": "sha256:57f47c4515d8b977b449dc4ba5cb1fc7dd0151a48db3d8454447d478663e12bd",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_30501",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:48cc5b287e98ea0a49f75742f1491310c2e3654ebfcae6ba030769eeda8e126f",
+      "after_sha256": "sha256:5f32fa0a974e0c2ac418262c99f272fa8dcbbf6c52407a0377cb30a5f059029d",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nUndefinedBehaviorSanitizer: undefined-behavior in function `AK::VariadicFormatParams<>::VariadicFormatParams()` in file `serenity/AK/Format.h`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:38Z",
+  "status": "candidate",
+  "evidence": []
+}

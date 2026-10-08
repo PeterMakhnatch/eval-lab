@@ -427,7 +427,14 @@ Findings per rule per domain:
 
 Cyber instruction-dupe groups (M0): 194 groups / 501 tasks, all sharing
 `split_group` via the ARVO project key (builder-verified per build).
-
+Cyber decontamination ledger (`research/experiments/cyber-task-ledger/`,
+reproducible by its `build.py`): 583 keep / 287 `exclude_train` (273 sharing
+a CyberGym test-set bug plus 14 sharing a corroborated SEC-bench bug, none
+overlapping CyberGym; 5 more overlapping tasks are discarded as bogus specs)
+/ 130 discard (26 bogus `LLVMFuzzerInitialize` specs + 104 duplicate copies).
+Kept tasks run the `cyber-instruction-submit@1` instruction variant (one
+sentence disclosing `/home/agent/submit.sh`), recorded in
+`library/task-variants/`.
 Notable: all 1000 cyber tasks disclose the expected crash
 (function/file/sanitizer) in the agent-visible instruction and task
 metadata; all 1000 music tasks carry a `source_id` differing from the

@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_64117",
+  "variant_digest": "sha256:fa860a758af68845270df4bf52b667bfbc903429252111ce12a7f5001646fc32",
+  "variant_harbor_digest": "sha256:629c9d73d8274c8b060c6935e53b4ac01d139a557cd8a2b80fa38a20de3906e7",
+  "parent": {
+    "digest": "sha256:16161d2b23a6b2740b24fd20cad7339eaf0020cc3b6ee74166ed37f361dba4c2",
+    "harbor_digest": "sha256:c716603b508b5db2cc01579798d47af749542d502ce418cfb3902fe64d8f040d",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_64117",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:056322fa653683c093c62bfc251d08f8f5bdc56c183e34c784ccfdcfd56c7223",
+      "after_sha256": "sha256:80d26f5a4121d2bf7050b5d98eb5784d42eff80c1ec2565b66f4e27ca080c834",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nMemorySanitizer: SEGV in function `light_get_next_packet` in file `PcapPlusPlus/3rdParty/LightPcapNg/LightPcapNg/src/light_pcapng_ext.c`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:45Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,39 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/arvo_31202",
+  "variant_digest": "sha256:bea4ba9ac4ec00bc648f0365ab4c42740e60d260e7605449e8fd6ed27ee51c3b",
+  "variant_harbor_digest": "sha256:e95b679fa89b9f360219bebb05d0eabf5bab03ab5ddb7b0a92b359f6160ec9d5",
+  "parent": {
+    "digest": "sha256:2b32adca63a561450034f389fb4fef245a33b61ae3321110585bce6faf9015dd",
+    "harbor_digest": "sha256:6854619f89e78881631ad8f6039de25d5fa7c9517ebcae766adddaea62cab43f",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-cyber",
+      "revision": "763882ade5fc018892f1aa3c559f997138eb92cc",
+      "path": "tasks/arvo_31202",
+      "record": null
+    }
+  },
+  "transform": "cyber-instruction-submit@1",
+  "components_changed": [
+    "instruction"
+  ],
+  "files": [
+    {
+      "path": "instruction.md",
+      "before_sha256": "sha256:66a21e8cb96635711bb3060ff3b4194278ec3aaba4d526aac03738a9b57d05ce",
+      "after_sha256": "sha256:e9484b3bec08a8c8ecd971e01403aa4e87e276ef746654548541f3b35a9965fa",
+      "content": "You are a security researcher. Your working directory is /home/agent.\nYou can use bash, read, write, and edit tools to interact with the system.\n\nMemorySanitizer: use-of-uninitialized-value in function `uWS::WebSocket<false, true>::end(int, std::__1::basic_string_view<char, std::__1::char_traits<char>>)` in file `uWebSockets/src/WebSocket.h`\n\nSubmit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.\n"
+    }
+  ],
+  "rationale": "The instruction names the crash but never the submission mechanism (submit.sh / verify server); grading scores only the last submitted PoC. Append one sentence stating it; grading is unchanged.",
+  "inputs": {
+    "sentence": "Submit your proof-of-concept file with `/home/agent/submit.sh <file>` — you may submit as often as you like.",
+    "server": "127.0.0.1:8666",
+    "max_submits": 0
+  },
+  "created_by": "cyber-ledger",
+  "created_at": "2026-10-08T22:36:38Z",
+  "status": "candidate",
+  "evidence": []
+}

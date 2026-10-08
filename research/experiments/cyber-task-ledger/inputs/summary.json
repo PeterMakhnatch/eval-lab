@@ -1,0 +1,405 @@
+{
+  "sources": {
+    "mimo": "XiaomiMiMo/MiMo-V2.6-RL-oss@639865fd3374018d6cb29b9fb82dd531406fcf5f cyber.parquet",
+    "cybergym": "sunblaze-ucb/cybergym@bde190ded494e52bc684b66073b436c9d992c7c6 split=tasks",
+    "arvo_mapping": "https://raw.githubusercontent.com/n132/ARVO/bc2a373c6b32fb3d9e7f86c516b1844885dcec51/arvo/oss_fuzz_mappings.csv",
+    "arvo_v1_pool": "https://api.github.com/repos/n132/ARVO-Meta/git/trees/df107a1b3bc839de773b477a49e86d2d9ee75ff9",
+    "arvo_tracker_meta": "n132/ARVO@bc2a373c NewTracker/metadata.jsonl",
+    "arvo_meta": "n132/ARVO-Meta@7e1a64f52520a5d63c766d5546a32fd748f23e21",
+    "images": {
+      "arvo-v1-54839": "sha256:3d46aac744cfe05b1b1746dc3a9fb0ffbf76e24e2e3c3343070b565d50f1c78c",
+      "arvo-v1-42470443": "sha256:48cf0cca56ddb559646d374340d250f9d34bb791b54c70251cb336b80022d447",
+      "arvo-v1-42501146": "sha256:8b8f0a3b0708d52bf1608ab156ad2262a433eca6ed2a1ab6277a1b2f10886563",
+      "arvo-v1-27710": "sha256:a44fc4488c87929a634bcc9b8c3bda5459e9aa0cfc3a099dc0fe517aa8751a3d",
+      "arvo-v1-42859": "sha256:ce0fdff47ebb976555b2cd04b59ad78b771d45c4b886506e43d8652aad12ba5f",
+      "arvo-v1-44221": "sha256:689c12212e7ddd6cbd599aead0f8253737f75e548a4200b139f6eab2e1ca2cff",
+      "arvo-v1-344": "sha256:98bc0ce42e62ce22f6f489c054b1364ea0ce868babad20c00e4a4643c9fad0f1",
+      "arvo-v1-10126": "sha256:8962acf8a8b7d2a9c4e1631890a8bd7394a8c73885e7f87693838e50ef1a5d16",
+      "arvo-v1-16266": "sha256:477505a550598ca37c84f1ed5999358ae88b9c3332b65bad51d4916b8be62c45",
+      "arvo-v1-21289": "sha256:0bef62d9e55e676f99a152aac7c9acff6869bfb684d81c5e840699e83543f55e",
+      "arvo-v1-25911": "sha256:9f2a0e72607a94992d9074884f46cb2eff7af86e6cedafc919c4d580e3672a13",
+      "arvo-v1-31768": "sha256:7758e8f14867fbea323e1f1bf401f02d0a59eebeb4959595603d5ffc1b3b9ee3",
+      "arvo-v1-39083": "sha256:de055b216af36459bcd6d8ce221bea2f4621414e40c02d3135cae715d3c01a62",
+      "arvo-v1-46883": "sha256:a8678e4e4c118cfb8f3f3c0d9d7e948ee2436df75212e5da3fc44841ac5dbbc7",
+      "arvo-v1-55820": "sha256:8ea09fef5642662195f8f18acbfcf3435bc59855063f691ea03f4008c0273595",
+      "arvo-v1-42475442": "sha256:e6bf94defe65100032cec6934d4e71d2a48d04cc737e28a858e1de9eee4e52c3",
+      "arvo-v1-42480815": "sha256:69ce5140aa1bd138c71a798dee1958f1950ea3677d54517b4dc62103890dd376",
+      "arvo-v1-42483934": "sha256:9c1878c5e204ee37cc33c6ce58ef6f005bef3e8ea32beeb40e9a654bacfb0c88",
+      "arvo-v1-42488351": "sha256:8d7c85d104d6d2e1d968d2d5b1929108bca53bcb474c13035659fcf2cefee5e9",
+      "arvo-v1-42493692": "sha256:72d3a8fbc6801dcaed3ade4c2ba024ae4b459104d1d5febf1e0668e914015f1d",
+      "arvo-v1-42503090": "sha256:e27df41303f04c4931b3707ced6f0f6d28e012a6c7adad3a5862ae757c427a3f",
+      "arvo-v1-42515690": "sha256:95176dfa08722ce88188de97803fbb87a2a4eafd7a9872a1fd1337ca5fd02316",
+      "arvo-v1-42522636": "sha256:5bd25658dfbd7ae7f08a0ae26fa1d775e25e8a97b12e52aabe77b1f9cde95c82",
+      "arvo-v1-42532755": "sha256:6b4f8eed0080ca94b96705a11c9eb893d540728562a2bf3d4d93f158a07b2ef1",
+      "arvo-v1-42540213": "sha256:f4b2bd75f4de7d489577d6b7aea1e5e92ed2cb6dae0a03933e8f3a43aec37f36",
+      "arvo-v1-1065": "sha256:3deb5031142e755b917b9b562c0d801ff9de3b5bb9e98ce1da52bd968becd01a"
+    }
+  },
+  "counts": {
+    "mimo_tasks": 1000,
+    "mimo_old_scheme_ids": 445,
+    "mimo_unique_issues": 836,
+    "mimo_duplicated_issues": 164,
+    "mimo_duplicate_pairs_identical_prompt": 163,
+    "mimo_suspect_specs": 26,
+    "cybergym_tasks": 1507,
+    "cybergym_by_kind": {
+      "arvo": 1368,
+      "oss-fuzz": 139
+    },
+    "arvo_v1_pool": 4993,
+    "mapping_pairs": 71768
+  },
+  "overlap": {
+    "exact_same_prefix": 135,
+    "exact_any_prefix": 139,
+    "translated_cybergym_tasks": 223,
+    "translated_cybergym_share": 0.148,
+    "translated_mimo_tasks": 278,
+    "translated_unique_bugs": 223
+  },
+  "chance_baseline": {
+    "exact_ids_old_scheme": {
+      "pool_N": 4993,
+      "benchmark_in_pool_K": 1368,
+      "sample_n": 445,
+      "expected": 121.9,
+      "sd": 9.0,
+      "observed": 135,
+      "z": 1.46,
+      "p_ge_observed": 0.0816
+    },
+    "unique_bugs_translated": {
+      "pool_N": 4993,
+      "benchmark_in_pool_K": 1368,
+      "sample_n": 710,
+      "expected": 194.5,
+      "sd": 11.0,
+      "observed": 219,
+      "z": 2.22,
+      "p_ge_observed": 0.0154
+    },
+    "within_project": {
+      "exact_ids_old_scheme": {
+        "strata": 126,
+        "expected": 127.9,
+        "sd": 7.5,
+        "observed": 135,
+        "z": 0.94,
+        "p_ge_observed": 0.1909
+      },
+      "unique_bugs_translated": {
+        "strata": 155,
+        "expected": 199.1,
+        "sd": 9.1,
+        "observed": 219,
+        "z": 2.19,
+        "p_ge_observed": 0.0168
+      },
+      "pool_bugs_without_project": 15,
+      "projects_source": "ARVO NewTracker/metadata.jsonl @ bc2a373c"
+    }
+  },
+  "filtered_split": {
+    "kept": 594,
+    "removed_cybergym_tasks": 278,
+    "removed_fuzzer_entry_point_only": 20,
+    "removed_duplicate_copies": 108,
+    "kept_tasks_in_related_bugs": 4,
+    "kept_tasks_in_mimo_secbench": 13,
+    "kept_tasks_in_either": 16,
+    "kept_tasks_with_fix_binary": 0
+  },
+  "signature_check": {
+    "checked": 223,
+    "result": {
+      "function_and_type": 215,
+      "function_only": 1,
+      "names_fuzzer_entry_point": 4,
+      "file_only": 3
+    },
+    "not_function_and_type": [
+      {
+        "bug": 42477952,
+        "cybergym": "arvo:17171",
+        "grade": "function_only",
+        "cybergym_type": "heap-buffer-overflow",
+        "mimo_spec": [
+          "AddressSanitizer: SEGV in function `xsltFuzzXPath` in file `libxslt/tests/fuzz/fuzz.c`"
+        ]
+      },
+      {
+        "bug": 42491208,
+        "cybergym": "arvo:29103",
+        "grade": "names_fuzzer_entry_point",
+        "cybergym_type": "heap-buffer-overflow",
+        "mimo_spec": [
+          "AddressSanitizer: ABRT in function `LLVMFuzzerInitialize` in file `wolf-ssl-ssh-fuzzers/oss-fuzz/projects/wolf-ssl-ssh/fuzzers/wolfssl/wolfssl/wolfssl-fuzzers/server.c`"
+        ]
+      },
+      {
+        "bug": 42491388,
+        "cybergym": "arvo:29266",
+        "grade": "file_only",
+        "cybergym_type": "stack-buffer-overflow",
+        "mimo_spec": [
+          "AddressSanitizer: stack-buffer-overflow in function `JS::Heap::gather_conservative_roots(AK::HashTable<JS::Cell*, AK::Traits<JS::Cell*>>&)` in file `serenity/Libraries/LibJS/Heap/Heap.cpp`"
+        ]
+      },
+      {
+        "bug": 42498216,
+        "cybergym": "arvo:35410",
+        "grade": "names_fuzzer_entry_point",
+        "cybergym_type": "heap-buffer-overflow",
+        "mimo_spec": [
+          "AddressSanitizer: ABRT in function `LLVMFuzzerInitialize` in file `wolf-ssl-ssh-fuzzers/oss-fuzz/projects/wolf-ssl-ssh/fuzzers/wolfssl/wolfssl/wolfssl-fuzzers/server.c`"
+        ]
+      },
+      {
+        "bug": 42505670,
+        "cybergym": "arvo:42123",
+        "grade": "file_only",
+        "cybergym_type": "SEGV",
+        "mimo_spec": [
+          "AddressSanitizer: SEGV in function `tinygltf::TinyGLTF::LoadFromString(tinygltf::Model*, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>*, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>>*, char const*, unsigned int, std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const&, unsigned int)` in file `tinygltf/tiny_gltf.h`"
+        ]
+      },
+      {
+        "bug": 42508319,
+        "cybergym": "arvo:4451",
+        "grade": "file_only",
+        "cybergym_type": "use-after-poison",
+        "mimo_spec": [
+          "AddressSanitizer: use-after-poison in function `void rawspeed::LJpegDecompressor::decodeN<4>()::'lambda'(int)::operator()(int) const` in file `librawspeed/src/librawspeed/decompressors/LJpegDecompressor.cpp`"
+        ]
+      },
+      {
+        "bug": 42527736,
+        "cybergym": "arvo:61993",
+        "grade": "names_fuzzer_entry_point",
+        "cybergym_type": "negative-size-param",
+        "mimo_spec": [
+          "AddressSanitizer: ABRT in function `LLVMFuzzerInitialize` in file `php-src/sapi/fuzzer/fuzzer-tracing-jit.c`"
+        ]
+      },
+      {
+        "bug": 42531228,
+        "cybergym": "arvo:65135",
+        "grade": "names_fuzzer_entry_point",
+        "cybergym_type": "SEGV",
+        "mimo_spec": [
+          "AddressSanitizer: ABRT in function `LLVMFuzzerInitialize` in file `php-src/sapi/fuzzer/fuzzer-tracing-jit.c`"
+        ]
+      }
+    ],
+    "control_same_project_other_bug": {
+      "pairs": 1204,
+      "file_only": 82,
+      "no_match": 1021,
+      "function_and_type": 93,
+      "function_only": 3,
+      "names_fuzzer_entry_point": 5,
+      "function_and_type_rate": 0.077
+    }
+  },
+  "text_check": {
+    "benchmark_text": "CyberGym vulnerability_description (level-1 task text)",
+    "training_text": "MiMo problem_statement (full task prompt)",
+    "tokenization": "lowercase \\w+ words",
+    "filter_view": {
+      "13": {
+        "overlap_tasks_flagged": 0,
+        "overlap_tasks_flagged_by_own_cybergym_task": 0,
+        "overlap_tasks": 278,
+        "other_tasks_flagged": 0,
+        "other_tasks": 722,
+        "cybergym_tasks_matched": []
+      },
+      "8": {
+        "overlap_tasks_flagged": 1,
+        "overlap_tasks_flagged_by_own_cybergym_task": 0,
+        "overlap_tasks": 278,
+        "other_tasks_flagged": 9,
+        "other_tasks": 722,
+        "cybergym_tasks_matched": [
+          "arvo:58770"
+        ]
+      }
+    },
+    "pair_view": {
+      "pairs": 223,
+      "cybergym_descriptions_shorter_than_13_words": 32,
+      "description_names_mimo_target_function": 61,
+      "pairs_with_a_mimo_target_function": 219,
+      "longest_shared_run_vs_description": {
+        "max": 5,
+        "median": 2,
+        "pairs_ge_13": 0,
+        "pairs_ge_8": 0
+      },
+      "longest_shared_run_vs_error_txt": {
+        "max": 48,
+        "median": 5,
+        "pairs_ge_13": 6,
+        "pairs_ge_8": 19
+      }
+    }
+  },
+  "image_check": {
+    "repo": "xiaomimimo/mimo-v2.6-rl-oss",
+    "images_checked": 26,
+    "images_with_poc_like_paths": 0,
+    "images_with_expected_crash_file": 0,
+    "images_with_fix_binary": 5,
+    "config_user_set": 0,
+    "config_entrypoint_set": 0,
+    "data_context_variants": {
+      "data/binary data/fix_binary data/repo-vul.tar.gz": 5,
+      "data/binary data/repo-vul.tar.gz": 21
+    },
+    "server_py": {
+      "images_with_it": 26,
+      "distinct_versions": 1,
+      "mentions_fix_binary": 0,
+      "root_paths_named": [
+        "/root/binary",
+        "/root/expected_func.json",
+        "/root/last_poc",
+        "/root/last_result.json",
+        "/root/submit_count"
+      ]
+    },
+    "unlisted_unpack_step_variants": {
+      "RUN /bin/sh -c cp -r /data/binary /root/binary && cp -r /data/fix_binary /root/fix_binary && cp -r /data/binary /home/agent/binary && mkdir -p /home/agent/src && tar xzf /data/repo-vul.tar.gz -C /home/agent/src --strip-components=1 '--exclude=.git*' && chown -R agent:agent /home/agent && rm -rf /data # buildkit": 5,
+      "RUN /bin/sh -c cp -r /data/binary /root/binary && cp -r /data/binary /home/agent/binary && mkdir -p /home/agent/src && tar xzf /data/repo-vul.tar.gz -C /home/agent/src --strip-components=1 '--exclude=.git*' && chown -R agent:agent /home/agent && rm -rf /data # buildkit": 21
+    }
+  },
+  "image_build_steps": {
+    "source": "https://hub.docker.com/v2/repositories/xiaomimimo/mimo-v2.6-rl-oss/tags/<tag>/images",
+    "images": 1000,
+    "fix_binary_by_category": {
+      "not in CyberGym, new ID": {
+        "with": 0,
+        "without": 412
+      },
+      "not in CyberGym, old ID": {
+        "with": 0,
+        "without": 310
+      },
+      "same CyberGym bug under the other ID": {
+        "with": 0,
+        "without": 139
+      },
+      "same ID as a CyberGym arvo: task": {
+        "with": 135,
+        "without": 0
+      },
+      "same ID as a CyberGym oss-fuzz: task": {
+        "with": 0,
+        "without": 4
+      }
+    },
+    "read_at": "2026-10-07T16:08:15Z",
+    "entrypoint_variant": {
+      "images": 6,
+      "with_fix_binary": 6
+    },
+    "images_with_user_step": 0
+  },
+  "related_bugs": {
+    "source": "n132/ARVO-Meta@7e1a64f52520a5d63c766d5546a32fd748f23e21 archive_data/meta",
+    "mimo_bugs_with_record": 710,
+    "mimo_bugs_without_record": 126,
+    "cybergym_arvo_tasks_not_shared": 1149,
+    "pairs": 48,
+    "cybergym_tasks": 20,
+    "mimo_bugs": 16,
+    "cybergym_tasks_by_evidence": {
+      "signature carried by 2 records": 9,
+      "signature carried by 3 or more records": 10,
+      "same fix commit": 1
+    },
+    "cybergym_tasks_whose_mimo_match_is_not_a_cybergym_task": 4,
+    "signature_pairs_with_different_fix_commits": "47 of 47",
+    "crash_check_pairs_by_task_evidence": {
+      "same fix commit": {
+        "no_match": 1
+      },
+      "signature carried by 2 records": {
+        "function_and_type": 9
+      },
+      "signature carried by 3 or more records": {
+        "function_and_type": 38
+      }
+    }
+  },
+  "secbench": {
+    "source": "SEC-bench/SEC-bench@11422e774857272b8f5460c699dca7a64046308b",
+    "chance_baseline_oss": {
+      "uniform": {
+        "pool_N": 4993,
+        "benchmark_in_pool_K": 79,
+        "sample_n": 710,
+        "expected": 11.2,
+        "sd": 3.1,
+        "observed": 10,
+        "z": -0.4,
+        "p_ge_observed": 0.7041
+      },
+      "within_project": {
+        "strata": 155,
+        "expected": 7.7,
+        "sd": 2.4,
+        "observed": 10,
+        "z": 0.97,
+        "p_ge_observed": 0.2196
+      },
+      "id_overlaps_outside_pool": 5
+    },
+    "id_join_oss": {
+      "plain": 10,
+      "translated": 15
+    },
+    "same_fix_instances": {
+      "oss": 13,
+      "cve": 1
+    },
+    "oss_id_overlaps_with_same_fix": 9,
+    "oss_id_overlaps_without_same_fix": {
+      "MiMo bug outside ARVO's first release": 5,
+      "same files, different blobs": 1
+    },
+    "mimo_bugs_with_fix_patch": 684,
+    "instances": {
+      "oss": 19,
+      "cve": 1
+    },
+    "pairs": 23,
+    "instances_by_match": {
+      "same issue (ID)": 15,
+      "fix only": 5
+    },
+    "fix_only_pairs_crash_check": {
+      "function_and_type": 2,
+      "file_only": 3,
+      "no_match": 1
+    },
+    "mimo_bugs": 20,
+    "mimo_bugs_not_in_cybergym": 14,
+    "mimo_tasks": 24,
+    "crash_check": {
+      "function_and_type": 10,
+      "function_only": 4,
+      "file_only": 3,
+      "no_match": 4,
+      "names_fuzzer_entry_point": 2
+    },
+    "crash_check_symbolized_reports_only": {
+      "function_and_type": 10,
+      "function_only": 4,
+      "file_only": 3,
+      "names_fuzzer_entry_point": 2,
+      "no_match": 1
+    }
+  }
+}

@@ -316,6 +316,10 @@ def _doctor_command(
     return _doctor(root)
 
 
+# The dashboard's one Streamlit pin; scripts/ops/launchd/install-dashboard.sh installs the same.
+STREAMLIT_REQUIREMENT = "streamlit==1.61.1"
+
+
 def _dashboard_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -329,7 +333,7 @@ def _dashboard_command(
                 "uv",
                 "run",
                 "--with",
-                "streamlit==1.61.1",
+                STREAMLIT_REQUIREMENT,
                 "streamlit",
                 "run",
                 str(root / "dashboard/app.py"),
@@ -337,6 +341,7 @@ def _dashboard_command(
                 f"--server.port={args.port}",
                 "--server.headless=true",
                 "--browser.gatherUsageStats=false",
+                "--client.toolbarMode=viewer",
             ],
             cwd=root,
             env=environment,

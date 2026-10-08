@@ -9,6 +9,41 @@ audience:
 
 The local Streamlit research overview (`uv run evallab dashboard`) providing live visibility into operator status, catalog trials, ATIF-derived analytics, spend, canaries, calibrations, and discoveries.
 
+## Pages
+
+`dashboard/app.py` is a multipage app (`st.navigation`): **Integrity** (default) and
+**Operations** (the E13 panes documented below, unchanged behaviour).
+
+## Integrity page
+
+Read-only front end over existing projections for studying bad tasks and cheating —
+no new detector, judge, trace viewer, or parser. Query logic lives in
+`dashboard/integrity.py` (importable functions returning JSON-native row lists);
+rendering in `dashboard/integrity_app.py`. A pool selector (MiMo Python ledger pool,
+default, or all MiMo tasks) and a domain filter scope every tab. Charts first, tables second:
+
+| Tab | Contents | Sources |
+|---|---|---|
+| **Overview** | task cards (keep / fix / discard / oracle-proven / broken grader); agent-run cards with controls excluded (runs / passes / counted / excluded / cheat rate = copied_fix or pass_tainted passes ÷ passes); exclusion reasons among passes; finding rules as % of pool, rules on every task in one caption | `v_task_audit`, ledger CSV, oracle sweep labels, results-home processed reports, `task_findings` |
+| **Tasks** | findings by rule, domain × rule matrix, filterable one-row-per-task table (verdict, rules, exploit, nop, grader, runs); task detail with dossier summary and runs with 8100 links | `v_task_audit` + `v_task_outcomes`, `task_findings`, `task_versions`, `task_qualification`, `evallab task` dossier builder, `evallab trials` census entry point |
+| **Verifier** | oracle evidence (proven / fail / conflict / not attempted), nop>0 graders, nop/oracle control runs, stability-probe verdicts, exploit cracks, LLM-judge graders, isolation findings, held-out regrade, sealed-corpus detector scores | oracle sweep labels, `task_qualification`, `task_versions`, `task_stability`, `task_exploits`, `task_findings`, HAR-197/198 stored outputs when present |
+| **Runs** | daily agent passes counted vs excluded, by-model cheat rate, excluded passes with reason, evidence command and 8100 link, integrity-gate failures, action mix for counted-pass vs excluded-pass vs fail | processed reports (pre-counts `process_job/v1` reports load as verdict-less legacy rows), `trial_facts`, `reward_facts`, `agent_actions`, `connect_trials` |
+| **New** | last 24h/7d: new excluded passes, exploit cracks, trajectory findings; current totals where sources carry no timestamp | report mtimes, `produced_at`, `evaluated_at` |
+
+Missing data renders as `not available: <reason>` (or `not measured` for outside-test
+outputs with no stored file), never empty-as-zero. The page needs no Postgres.
+Streamlit never opens a browser: the CLI launcher passes `--server.headless=true`.
+
+### Always on
+
+`scripts/ops/launchd/install-dashboard.sh --load` installs the LaunchAgent
+`com.petermakhnatch.evallab.dashboard` serving <http://127.0.0.1:8501>. Like the nightly
+refresh, it runs a `git archive` snapshot of the installing commit with its own locked venv
+(`~/.local/state/evallab-dashboard/runtime/<commit>`), so worktree pruning cannot break it;
+derived Parquet (`<data root>/derived/parquet`) and the results home are read live.
+Re-run the installer from a clean checkout to upgrade; `--uninstall` removes it. Logs:
+`~/Library/Logs/evallab/dashboard{,.error}.log`.
+
 ## Architecture and Data Access
 
 Per `docs/archive/platform-architecture.md` v2 §2.5 and §9, dashboard panes access data exclusively through the **unified attach surface** (`evallab.storage.attach.attach`). The attach surface provides a single DuckDB session registering:

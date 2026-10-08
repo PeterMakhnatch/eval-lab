@@ -23,9 +23,20 @@ Usage (local validation, $0)::
     python scan.py scan --ledger <ledger.csv> --snapshot <tasks> \\
         --variants <variants> --out leak_scan.csv --limit 10
 
+The streamer also records tar-member mtimes for repo-rooted non-``.git``
+files and flags minute clusters (≥3 files sharing a minute later than the
+bulk): post-fix touches the Xiaomi images bake in. New CSV columns carry
+the finding; the git-leak columns are byte-identical to before.
+
 Full sweep (paid; needs the parent's explicit per-slice OK first)::
 
     python scan.py scan --ledger ... --mode modal --out leak_scan.csv
+
+Staged census (dry-run default; paid launch waits on Peter in chat)::
+
+    python scan.py sweep --ledger <ledger.csv> --snapshot <tasks> \\
+        --variants <variants> --out leak_scan.csv
+    python scan.py sweep --ledger ... --execute   # only with approval
 """
 
 from __future__ import annotations
@@ -90,6 +101,12 @@ CSV_COLUMNS = (
     "method",
     "error",
     "scanned_at",
+    # Mtime-cluster columns (appended; the git-leak columns above are frozen).
+    "mtime_cluster",
+    "mtime_cluster_minute",
+    "mtime_cluster_files",
+    "mtime_cluster_paths",
+    "mtime_files_scanned",
 )
 
 #: HAR-161 probe tasks (known-positive: all 10 leaked) with the oracle
@@ -174,8 +191,14 @@ def build_row(
     repo_path: str = "",
     method: str = "",
     error: str = "",
+    mtime: dict | None = None,
 ) -> dict:
-    """One CSV row from the git analysis. ``samples`` are ``(sha, subject)``."""
+    """One CSV row from the git analysis. ``samples`` are ``(sha, subject)``.
+
+    ``mtime`` is a :func:`find_mtime_cluster` result (or ``None`` when the
+    streamer never ran, e.g. error rows); its fields land in the appended
+    mtime-cluster columns without touching the git-leak columns above.
+    """
     samples = samples or []
     if error:
         history, repair = verdict(None)
@@ -183,6 +206,7 @@ def build_row(
     else:
         history, repair = verdict(git_present and (beyond > 0 or unreachable > 0))
         on_ref = "yes" if beyond > 0 else "no"
+    mtime = mtime or {}
     return {
         "task_id": task_id,
         "run": run,
@@ -201,6 +225,11 @@ def build_row(
         "method": method,
         "error": error,
         "scanned_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "mtime_cluster": mtime.get("flag", "unknown"),
+        "mtime_cluster_minute": mtime.get("cluster_minute", ""),
+        "mtime_cluster_files": str(mtime.get("cluster_files", "")),
+        "mtime_cluster_paths": mtime.get("cluster_paths", ""),
+        "mtime_files_scanned": str(mtime.get("files_scanned", "")),
     }
 
 
@@ -302,7 +331,10 @@ def _root_slug(root: str) -> str:
 
 
 def extract_git_subset(
-    stream: io.RawIOBase | io.BufferedIOBase, dest_dir: str
+    stream: io.RawIOBase | io.BufferedIOBase,
+    dest_dir: str,
+    *,
+    mtime_sink: list | None = None,
 ) -> tuple[dict[str, tuple[int, int]], int]:
     """Stream one gzip layer; write every ``<root>/.git/**`` subset to disk.
 
@@ -312,6 +344,13 @@ def extract_git_subset(
     elsewhere in the image. Each root lands in ``dest_dir/<slug>/``; later
     entries overwrite earlier ones, matching image-layer overlay order.
     Raises ``OverflowError`` past ``MAX_GIT_BYTES`` across all roots.
+
+    When ``mtime_sink`` is a list, every regular-file tar member that is
+    NOT a ``.git`` member is appended as ``(cleaned_name, mtime_epoch)``.
+    Only header metadata is recorded: no worktree file is read or written,
+    so the return value and the extracted subset stay byte-identical to a
+    sink-less call. Callers collapse repeats per path (later layers win)
+    and filter to the analyzed repo root before clustering.
     """
     roots: dict[str, list[int]] = {}
     git_bytes = 0
@@ -319,6 +358,8 @@ def extract_git_subset(
         for member in tar:
             found = tar_git_root(member.name)
             if found is None:
+                if mtime_sink is not None and member.isfile():
+                    mtime_sink.append((_clean_tar_name(member.name), int(member.mtime)))
                 continue
             member_root, rel = found
             if not rel:
@@ -347,6 +388,126 @@ def extract_git_subset(
                 entry[0] += 1
                 entry[1] += size
     return {root: (files, nbytes) for root, (files, nbytes) in roots.items()}, git_bytes
+
+# --------------------------------------------------------------------------
+# Mtime-cluster detection: post-fix touches baked into image worktrees.
+# --------------------------------------------------------------------------
+
+#: A later-than-bulk shared minute needs this many files to flag. The
+#: confirmed 002402 fix touch is 5 files; 3 keeps smaller touches visible
+#: while ignoring one-off stragglers.
+MTIME_CLUSTER_MIN_FILES = 3
+#: Cap on the ``;``-joined cluster paths in the CSV (column stays readable).
+MTIME_SAMPLE_PATHS = 10
+#: Directory components whose mtimes reflect build/test residue, not source.
+MTIME_EXCLUDE_DIRS = frozenset(
+    {
+        "__pycache__",
+        ".pytest_cache",
+        ".cache",
+        ".mypy_cache",
+        ".ruff_cache",
+        ".tox",
+        ".venv",
+        "venv",
+        "node_modules",
+        ".git",
+    }
+)
+#: File endings whose mtimes reflect build residue, not source.
+MTIME_EXCLUDE_SUFFIXES = (".pyc", ".pyo", ".egg-info")
+
+
+def _clean_tar_name(name: str) -> str:
+    """Tar member name without ``./`` prefixes or a leading ``/``."""
+    clean = name
+    while clean.startswith("./"):
+        clean = clean[len("./") :]
+    return clean.lstrip("/")
+
+
+def is_mtime_candidate(rel: str) -> bool:
+    """Whether a repo-relative path counts for clustering (no caches)."""
+    if not rel or rel.startswith(".git/"):
+        return False
+    if rel.endswith(MTIME_EXCLUDE_SUFFIXES):
+        return False
+    return not (
+        MTIME_EXCLUDE_DIRS.intersection(rel.split("/"))
+        or any(part.endswith(".egg-info") for part in rel.split("/"))
+    )
+
+
+def collapse_mtimes(entries: list[tuple[str, int]], repo_root: str) -> dict[str, int]:
+    """Last-seen mtime per repo-relative path under ``repo_root``.
+
+    ``entries`` are raw ``(cleaned_name, epoch)`` sink records across all
+    layers; later layers overwrite earlier ones, so repeats collapse to
+    the last observation, matching image overlay order.
+    """
+    prefix = repo_root.strip("/")
+    collapsed: dict[str, int] = {}
+    for name, epoch in entries:
+        if prefix:
+            if name != prefix and not name.startswith(prefix + "/"):
+                continue
+            rel = name[len(prefix) :].lstrip("/")
+        else:
+            rel = name
+        if rel and is_mtime_candidate(rel):
+            collapsed[rel] = epoch
+    return collapsed
+
+
+def _minute_iso(epoch_minute: int) -> str:
+    """UTC ``YYYY-MM-DDTHH:MMZ`` for a minute-floored epoch."""
+    return datetime.fromtimestamp(epoch_minute * 60, UTC).strftime("%Y-%m-%dT%H:%MZ")
+
+
+def find_mtime_cluster(mtimes: dict[str, int]) -> dict:
+    """Flag a late shared-minute cluster among per-path mtimes.
+
+    The bulk minute is the one holding the most files (ties go to the
+    earliest); any strictly later minute with at least
+    ``MTIME_CLUSTER_MIN_FILES`` files flags, reporting the latest such
+    minute. Uniform worktrees (e.g. the 002552 control) never flag.
+    """
+    files_scanned = len(mtimes)
+    if not mtimes:
+        return {
+            "flag": "unknown",
+            "cluster_minute": "",
+            "cluster_files": "",
+            "cluster_paths": "",
+            "files_scanned": files_scanned,
+        }
+    by_minute: dict[int, list[str]] = {}
+    for rel, epoch in mtimes.items():
+        by_minute.setdefault(int(epoch // 60), []).append(rel)
+    biggest = max(len(paths) for paths in by_minute.values())
+    bulk = min(minute for minute, paths in by_minute.items() if len(paths) == biggest)
+    late = sorted(
+        minute
+        for minute, paths in by_minute.items()
+        if minute > bulk and len(paths) >= MTIME_CLUSTER_MIN_FILES
+    )
+    if not late:
+        return {
+            "flag": "no",
+            "cluster_minute": "",
+            "cluster_files": "",
+            "cluster_paths": "",
+            "files_scanned": files_scanned,
+        }
+    cluster = late[-1]
+    paths = sorted(by_minute[cluster])
+    return {
+        "flag": "yes",
+        "cluster_minute": _minute_iso(cluster),
+        "cluster_files": len(paths),
+        "cluster_paths": ";".join(paths[:MTIME_SAMPLE_PATHS]),
+        "files_scanned": files_scanned,
+    }
 
 
 _GIT_SLOW_TIMEOUT = 600  # log/fsck/show over large packs on 1-CPU workers
@@ -637,10 +798,11 @@ def scan_image(
         manifest, manifest_method = registry.manifest(image_digest)
         methods.append(manifest_method)
         roots: dict[str, list[int]] = {}
+        mtime_entries: list[tuple[str, int]] = []
         for layer in manifest["layers"]:
             resp, blob_method = registry.open_blob(layer)
             try:
-                layer_roots, _layer_bytes = extract_git_subset(resp, tmp)
+                layer_roots, _layer_bytes = extract_git_subset(resp, tmp, mtime_sink=mtime_entries)
             finally:
                 resp.close()
             if blob_method not in methods:
@@ -658,6 +820,7 @@ def scan_image(
                 git_present=False,
                 method="+".join(methods),
                 error="",
+                mtime=find_mtime_cluster(collapse_mtimes(mtime_entries, prefer_root)),
             )
             result["_elapsed_s"] = round(time.monotonic() - started, 1)
             return result
@@ -668,6 +831,7 @@ def scan_image(
         others = sorted(root for root in roots if root != repo_root)
         if others:
             methods.append(f"other-roots:{len(others)}")
+        mtime = find_mtime_cluster(collapse_mtimes(mtime_entries, repo_root))
         analysis = analyze_git_dir(os.path.join(tmp, _root_slug(repo_root)), sample_n=sample_n)
     except Exception as exc:
         result = build_row(
@@ -702,6 +866,7 @@ def scan_image(
         repo_path=repo_root or "/",
         method="+".join(methods),
         error="",
+        mtime=mtime,
     )
     result["_elapsed_s"] = round(time.monotonic() - started, 1)
     result["_unreachable_shas"] = analysis["unreachable_shas"]
@@ -1025,6 +1190,162 @@ def run_modal_batch(
 
 
 # --------------------------------------------------------------------------
+# Staged full census (HAR-191 receipt pattern: plan by default, fenced batches).
+# --------------------------------------------------------------------------
+
+#: Hard worst-case ceiling for the whole 1,146-task census, cold pulls
+#: included. Anchored to posted pilot evidence (spend.log
+#: ``modal_billing_posted``): $0.03047 for 20 tasks / 24,517 MiB, i.e.
+#: $1.2428e-6/MiB; the 2,594,600 MiB census projects to $3.23 byte-ratio.
+#: The per-task worst case below ($0.0030 ≈ 2x the pilot mean, above the
+#: $0.00286/task sample100 upper tail) reserves $3.44 worst case, inside
+#: the cap with margin for one-time cold image builds (~$0.00015 posted).
+SWEEP_CAP_USD = 3.50
+SWEEP_BATCH_TASKS = 100
+SWEEP_WORST_PER_TASK_USD = 0.0030
+
+
+def plan_sweep(task_ids: list[str], *, batch_size: int = SWEEP_BATCH_TASKS) -> list[list[str]]:
+    """Task ids chunked into sequential batches (sorted input, stable plan)."""
+    if batch_size <= 0:
+        raise ValueError("batch_size must be positive")
+    ordered = sorted(task_ids)
+    return [ordered[start : start + batch_size] for start in range(0, len(ordered), batch_size)]
+
+
+def sweep_reservation(n_tasks: int) -> float:
+    """Worst-case dollar reservation for a batch of ``n_tasks``."""
+    return round(n_tasks * SWEEP_WORST_PER_TASK_USD, 4)
+
+
+def sweep_fence_ok(spent_worst: float, next_batch_tasks: int, *, cap: float = SWEEP_CAP_USD) -> bool:
+    """Whether the next batch fits under the hard cap.
+
+    ``spent_worst`` is the conservative spend so far (posted dashboard
+    actuals where available, else the sum of prior batch reservations).
+    Refusing here is the per-batch cost check: a breached fence stops
+    the census before another paid batch launches.
+    """
+    return spent_worst + sweep_reservation(next_batch_tasks) <= cap + 1e-9
+
+
+def run_sweep(
+    args: argparse.Namespace, *, execute: bool = False
+) -> int:
+    """Print the staged census plan (default) or run it batch by batch.
+
+    Dry-run prints every batch command plus the cost math and stages
+    nothing. ``--execute`` runs the batches sequentially through the
+    existing :func:`run_modal_batch` path, checking the spend fence
+    before each batch and stopping (leaving prior batch CSVs in place)
+    the moment the fence refuses. Paid launch still waits on Peter's
+    in-chat approval; this function never grants it.
+    """
+    usable = load_usable_rows(args.ledger)
+    if args.tasks:
+        wanted = set(args.tasks.split(","))
+        usable = [row for row in usable if row["task_id"] in wanted]
+    if args.limit:
+        usable = usable[: args.limit]
+    batches = plan_sweep([row["task_id"] for row in usable], batch_size=args.batch_size)
+    total_worst = round(sum(sweep_reservation(len(batch)) for batch in batches), 4)
+    plan = {
+        "event": "sweep_plan",
+        "tasks": len(usable),
+        "batches": len(batches),
+        "batch_size": args.batch_size,
+        "cap_usd": args.cap_usd,
+        "total_worst_usd": total_worst,
+        "per_task_worst_usd": SWEEP_WORST_PER_TASK_USD,
+        "basis": "posted pilot $0.03047/20 tasks; sample100 upper tail $0.00286/task",
+        "execute": execute,
+    }
+    print(
+        f"census plan: {len(usable)} tasks in {len(batches)} batches "
+        f"(≤{args.batch_size}/batch), worst ${total_worst:.2f} vs cap ${args.cap_usd:.2f}"
+    )
+    for idx, batch in enumerate(batches):
+        print(
+            f"  batch {idx + 1}/{len(batches)}: {len(batch)} tasks "
+            f"(worst ${sweep_reservation(len(batch)):.2f}) "
+            f"{batch[0]}..{batch[-1]}"
+        )
+    if total_worst > args.cap_usd + 1e-9:
+        print(f"STOP: plan worst ${total_worst:.2f} exceeds cap ${args.cap_usd:.2f}; not staged")
+        append_spend_log(args.spend_log, plan | {"verdict": "over_cap"})
+        return 1
+    base_cmd = (
+        f"python scan.py sweep --ledger {args.ledger} --snapshot {args.snapshot} "
+        f"--variants {args.variants} --out {args.out} --batch-size {args.batch_size} "
+        f"--cap-usd {args.cap_usd} --execute"
+    )
+    print(f"staged command (after approval, runs all batches with per-batch fence): {base_cmd}")
+    append_spend_log(args.spend_log, plan | {"verdict": "staged" if execute else "dry_run"})
+    if not execute:
+        print("dry-run: nothing launched (paid launch waits on Peter in chat)")
+        return 0
+    by_id = {row["task_id"]: row for row in usable}
+    spent_worst = 0.0
+    done: list[dict] = []
+    for idx, batch in enumerate(batches):
+        if not sweep_fence_ok(spent_worst, len(batch), cap=args.cap_usd):
+            append_spend_log(
+                args.spend_log,
+                {
+                    "event": "sweep_abort_over_cap",
+                    "batch": idx + 1,
+                    "spent_worst_usd": round(spent_worst, 4),
+                    "next_reservation_usd": sweep_reservation(len(batch)),
+                    "cap_usd": args.cap_usd,
+                    "completed_tasks": len(done),
+                },
+            )
+            print(f"STOP: fence refused batch {idx + 1}; {len(done)} rows kept")
+            break
+        append_spend_log(
+            args.spend_log,
+            {
+                "event": "sweep_batch_start",
+                "batch": idx + 1,
+                "batches": len(batches),
+                "tasks": len(batch),
+                "reservation_usd": sweep_reservation(len(batch)),
+                "spent_worst_usd": round(spent_worst, 4),
+                "cap_usd": args.cap_usd,
+            },
+        )
+        part_out = f"{args.out}.batch{idx + 1:02d}.tmp"
+        run_modal_batch(
+            [by_id[tid] for tid in batch],
+            out_csv=part_out,
+            spend_log=args.spend_log,
+            snapshot_dir=args.snapshot,
+            variants_dir=args.variants,
+            concurrency=args.concurrency,
+            cpu=args.cpu,
+            memory=args.memory,
+        )
+        with open(part_out, newline="") as handle:
+            done += list(csv.DictReader(handle))
+        os.remove(part_out)
+        spent_worst = round(spent_worst + sweep_reservation(len(batch)), 4)
+        append_spend_log(
+            args.spend_log,
+            {
+                "event": "sweep_batch_stop",
+                "batch": idx + 1,
+                "completed_tasks": len(done),
+                "spent_worst_usd": spent_worst,
+                "note": "replace reservation with the dashboard actual before the next batch",
+            },
+        )
+    done.sort(key=lambda row: row["task_id"])
+    write_csv(args.out, done)
+    print(f"census rows={len(done)} worst-spend-so-far=${spent_worst:.2f}")
+    return 0
+
+
+# --------------------------------------------------------------------------
 # CLI.
 # --------------------------------------------------------------------------
 
@@ -1129,6 +1450,24 @@ def main(argv: list[str] | None = None) -> int:
     sample.add_argument("--cpu", type=float, default=1.0)
     sample.add_argument("--memory", type=int, default=1024)
 
+    sweep = sub.add_parser("sweep", help="staged full census: dry-run plan unless --execute")
+    _common(sweep)
+    sweep.add_argument("--ledger", required=True)
+    sweep.add_argument("--variants", required=True)
+    sweep.add_argument("--out", required=True)
+    sweep.add_argument("--tasks", default="", help="comma-separated task_ids")
+    sweep.add_argument("--limit", type=int, default=0)
+    sweep.add_argument("--batch-size", type=int, default=SWEEP_BATCH_TASKS)
+    sweep.add_argument("--cap-usd", type=float, default=SWEEP_CAP_USD)
+    sweep.add_argument("--concurrency", type=int, default=32)
+    sweep.add_argument("--cpu", type=float, default=1.0)
+    sweep.add_argument("--memory", type=int, default=1024)
+    sweep.add_argument(
+        "--execute",
+        action="store_true",
+        help="run fenced Modal batches (only with Peter's in-chat approval)",
+    )
+
     args = parser.parse_args(argv)
     os.makedirs(args.work_root, exist_ok=True)
     registry = Registry()
@@ -1177,6 +1516,9 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "sample":
         return run_sample(args, registry)
+
+    if args.command == "sweep":
+        return run_sweep(args, execute=args.execute)
 
     rows = load_usable_rows(args.ledger)
     if args.tasks:

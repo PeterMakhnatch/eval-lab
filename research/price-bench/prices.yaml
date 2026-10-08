@@ -1,0 +1,562 @@
+schema: evallab.price-catalog/v1
+observed_at: "2026-10-08"
+currency: USD
+entries:
+  # ---- Modal GPUs (list prices, per-second billing, preemptible default) ----
+  - id: modal.gpu.A100-80GB
+    provider: modal
+    kind: gpu
+    sku: A100-80GB
+    rates: {per_second: 0.000694, per_hour: 2.4984}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 2.039, bf16_dense_tflops: 312}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/a100/
+    observed_at: "2026-10-08"
+    notes: "list price; GPU functions are preemptible by default and nonpreemptible is not supported for GPU functions; region pin adds 1.15-1.75x"
+  - id: modal.gpu.A100-40GB
+    provider: modal
+    kind: gpu
+    sku: A100-40GB
+    rates: {per_second: 0.000583, per_hour: 2.0988}
+    billing: per_second
+    specs: {gpu_memory_gib: 40, hbm_tbps: 1.555, bf16_dense_tflops: 312}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/a100/
+    observed_at: "2026-10-08"
+    notes: "list price; preemptible default; region pin adds 1.15-1.75x"
+  - id: modal.gpu.L40S-48GB
+    provider: modal
+    kind: gpu
+    sku: L40S-48GB
+    rates: {per_second: 0.000542, per_hour: 1.9512}
+    billing: per_second
+    specs: {gpu_memory_gib: 48, hbm_tbps: 0.864, bf16_dense_tflops: 362.05}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/l40s/
+    observed_at: "2026-10-08"
+    notes: "list price; 362.05 dense BF16 TFLOPS (733 with sparsity); preemptible default"
+  - id: modal.gpu.H100-80GB
+    provider: modal
+    kind: gpu
+    sku: H100-80GB
+    rates: {per_second: 0.001097, per_hour: 3.9492}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 3.35, bf16_dense_tflops: 989.5}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h100/
+    observed_at: "2026-10-08"
+    notes: "list price; SKU is H100 SXM5; BF16 1979 TFLOPS with sparsity, 989.5 dense; preemptible default"
+  - id: modal.gpu.H200-141GB
+    provider: modal
+    kind: gpu
+    sku: H200-141GB
+    rates: {per_second: 0.001261, per_hour: 4.5396}
+    billing: per_second
+    specs: {gpu_memory_gib: 141, hbm_tbps: 4.8, bf16_dense_tflops: 989.5}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h200/
+    observed_at: "2026-10-08"
+    notes: "list price; same compute as H100, larger HBM3e; preemptible default"
+  - id: modal.gpu.B200-192GB
+    provider: modal
+    kind: gpu
+    sku: B200-192GB
+    rates: {per_second: 0.001736, per_hour: 6.2496}
+    billing: per_second
+    specs: {gpu_memory_gib: 180, hbm_tbps: 8.0, bf16_dense_tflops: 2250}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/hgx/
+    observed_at: "2026-10-08"
+    notes: "list price; 180 GiB usable per HGX B200 system total 1.4TB/8; BF16 dense derived as half of 36 PFLOPS sparse per 8-GPU system"
+  - id: modal.gpu.B300-288GB
+    provider: modal
+    kind: gpu
+    sku: B300-288GB
+    rates: {per_second: 0.001972, per_hour: 7.0992}
+    billing: per_second
+    specs: {gpu_memory_gib: 288, hbm_tbps: 8.0, bf16_dense_tflops: 2250}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/hgx/
+    observed_at: "2026-10-08"
+    notes: "list price; 288 GiB HBM3e per SKU listing; flops same Blackwell generation derivation as B200, treat as approximate"
+  - id: modal.cpu.core
+    provider: modal
+    kind: cpu
+    sku: core
+    rates: {per_second: 0.0000131, per_hour: 0.04716, vcpu_hour: 0.04716}
+    billing: per_second
+    specs: {}
+    multipliers: {region_pinned: [1.15, 1.75], non_preemptible: 3.0}
+    source: https://modal.com/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; physical core (2 vCPU equivalent), min 0.125 cores per container; nonpreemptible 3x applies to CPU/memory (GPU functions excluded); vcpu_hour is per Modal core unit so bench can multiply by serve.py cpu count"
+  - id: modal.memory.gib
+    provider: modal
+    kind: memory
+    sku: gib
+    rates: {per_second: 0.00000222, per_hour: 0.007992, memory_gib_hour: 0.007992}
+    billing: per_second
+    specs: {}
+    multipliers: {region_pinned: [1.15, 1.75], non_preemptible: 3.0}
+    source: https://modal.com/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; nonpreemptible 3x applies to CPU/memory"
+  - id: modal.sandbox.cpu
+    provider: modal
+    kind: sandbox
+    sku: cpu-core
+    rates: {per_second: 0.00003942, per_hour: 0.141912}
+    billing: per_second
+    specs: {}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; Sandbox CPU tariff is 3x the Function CPU tariff; physical core (2 vCPU equivalent); sandboxes non-preemptible except GPU sandboxes"
+  - id: modal.sandbox.memory
+    provider: modal
+    kind: sandbox
+    sku: memory-gib
+    rates: {per_second: 0.00000667, per_hour: 0.024012}
+    billing: per_second
+    specs: {}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; Sandbox memory tariff is 3x the Function memory tariff"
+  - id: modal.sandbox.envelope-2vcpu-4gib
+    provider: modal
+    kind: sandbox
+    sku: envelope-2vcpu-4gib
+    rates: {per_hour: 0.23796}
+    billing: per_second
+    specs: {}
+    multipliers: {region_pinned: [1.15, 1.75]}
+    source: https://modal.com/pricing
+    observed_at: "2026-10-08"
+    notes: "derived list-price envelope: 1 physical core (2 vCPU) 0.141912 + 4 GiB 0.096048; Harbor cpus=2 passes physical cores so true cost may be 2x; billed max(requested, actual)"
+  - id: modal.storage.volume
+    provider: modal
+    kind: storage
+    sku: volume
+    rates: {storage_gib_month: 0.09}
+    billing: per_month
+    observed_at: "2026-10-08"
+    source: https://modal.com/pricing
+    specs: {}
+    notes: "list price; includes 1 TiB/mo free"
+  # ---- RunPod Secure Cloud on-demand Pods (per-second billing) ----
+  - id: runpod.gpu.A100-80GB
+    provider: runpod
+    kind: gpu
+    sku: A100-80GB
+    rates: {per_hour: 1.59}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 2.039, bf16_dense_tflops: 312}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/a100/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod; PCIe variant same $1.59/h; CPU/RAM included; container disk $0.10/GB-mo extra"
+  - id: runpod.gpu.A100-80GB-PCIe
+    provider: runpod
+    kind: gpu
+    sku: A100-80GB-PCIe
+    rates: {per_hour: 1.59}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 1.935, bf16_dense_tflops: 312}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/a100/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod; PCIe bandwidth 1935 GB/s"
+  - id: runpod.gpu.H100-PCIe
+    provider: runpod
+    kind: gpu
+    sku: H100-PCIe
+    rates: {per_hour: 2.89}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 2.0, bf16_dense_tflops: 989.5}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h100/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod; PCIe HBM bandwidth lower than SXM"
+  - id: runpod.gpu.H100-80GB
+    provider: runpod
+    kind: gpu
+    sku: H100-80GB
+    rates: {per_hour: 3.49}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 3.35, bf16_dense_tflops: 989.5}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h100/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod"
+  - id: runpod.gpu.H100-NVL
+    provider: runpod
+    kind: gpu
+    sku: H100-NVL
+    rates: {per_hour: 3.19}
+    billing: per_second
+    specs: {gpu_memory_gib: 94, hbm_tbps: 3.9, bf16_dense_tflops: 835.5}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h100/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod; 94 GB NVL variant"
+  - id: runpod.gpu.H200-SXM
+    provider: runpod
+    kind: gpu
+    sku: H200-SXM
+    rates: {per_hour: 4.59}
+    billing: per_second
+    specs: {gpu_memory_gib: 141, hbm_tbps: 4.8, bf16_dense_tflops: 989.5}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h200/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod"
+  - id: runpod.gpu.B200
+    provider: runpod
+    kind: gpu
+    sku: B200-180GB
+    rates: {per_hour: 6.79}
+    billing: per_second
+    specs: {gpu_memory_gib: 180, hbm_tbps: 8.0, bf16_dense_tflops: 2250}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/hgx/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod; 180 GB VRAM per SKU listing"
+  - id: runpod.gpu.B300
+    provider: runpod
+    kind: gpu
+    sku: B300-288GB
+    rates: {per_hour: 7.89}
+    billing: per_second
+    specs: {gpu_memory_gib: 288, hbm_tbps: 8.0, bf16_dense_tflops: 2250}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/hgx/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod; 288 GB HBM3e per SKU listing"
+  - id: runpod.gpu.L40S
+    provider: runpod
+    kind: gpu
+    sku: L40S-48GB
+    rates: {per_hour: 1.09}
+    billing: per_second
+    specs: {gpu_memory_gib: 48, hbm_tbps: 0.864, bf16_dense_tflops: 362.05}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/l40s/
+    observed_at: "2026-10-08"
+    notes: "list price, Secure Cloud on-demand Pod"
+  - id: runpod.storage.container-disk
+    provider: runpod
+    kind: storage
+    sku: container-disk
+    rates: {storage_gib_month: 0.10}
+    billing: per_second
+    specs: {}
+    source: https://docs.runpod.io/pods/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; temporary, erased when Pod stops; billed per-second"
+  - id: runpod.storage.volume-disk
+    provider: runpod
+    kind: storage
+    sku: volume-disk
+    rates: {storage_gib_month: 0.10}
+    billing: per_second
+    specs: {}
+    source: https://docs.runpod.io/pods/pricing
+    observed_at: "2026-10-08"
+    notes: "list price running Pod; stopped Pod $0.20/GB-mo; persistent until deleted; storage accrues on stopped Pods"
+  - id: runpod-community.gpu.A100-80GB
+    provider: runpod-community
+    kind: gpu
+    sku: A100-80GB
+    rates: {}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 2.039, bf16_dense_tflops: 312}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/a100/
+    observed_at: "2026-10-08"
+    notes: "UNVERIFIED community rate: Community Cloud prices vary per host and require console login; Secure premium varies by GPU (third-party reports ~7% on A100 SXM). No community rate recorded."
+  - id: runpod-community.gpu.H100-SXM
+    provider: runpod-community
+    kind: gpu
+    sku: H100-SXM
+    rates: {}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 3.35, bf16_dense_tflops: 989.5}
+    source: https://www.runpod.io/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h100/
+    observed_at: "2026-10-08"
+    notes: "UNVERIFIED community rate: per-host pricing, requires console; no rate recorded rather than guess"
+  # ---- Lambda (per-GPU/hr inside multi-GPU instances) ----
+  - id: lambda.gpu.A100-80GB-SXM
+    provider: lambda
+    kind: gpu
+    sku: A100-80GB-SXM
+    rates: {per_hour: 2.79}
+    billing: per_hour
+    specs: {gpu_memory_gib: 80, hbm_tbps: 2.039, bf16_dense_tflops: 312}
+    source: https://lambda.ai/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/a100/
+    observed_at: "2026-10-08"
+    notes: "list price per GPU/hr; Lambda Instances are multi-GPU nodes (verify minimum node size before costing single-GPU use); plus tax"
+  - id: lambda.gpu.A100-40GB-SXM
+    provider: lambda
+    kind: gpu
+    sku: A100-40GB-SXM
+    rates: {per_hour: 1.99}
+    billing: per_hour
+    specs: {gpu_memory_gib: 40, hbm_tbps: 1.555, bf16_dense_tflops: 312}
+    source: https://lambda.ai/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/a100/
+    observed_at: "2026-10-08"
+    notes: "list price per GPU/hr; multi-GPU node; plus tax"
+  - id: lambda.gpu.H100-SXM
+    provider: lambda
+    kind: gpu
+    sku: H100-SXM
+    rates: {per_hour: 3.99}
+    billing: per_hour
+    specs: {gpu_memory_gib: 80, hbm_tbps: 3.35, bf16_dense_tflops: 989.5}
+    source: https://lambda.ai/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h100/
+    observed_at: "2026-10-08"
+    notes: "list price per GPU/hr; multi-GPU node; plus tax; no single-GPU 1x tab found on 2026-10-08 (older brief cited 1x H100 SXM $4.29/h)"
+  - id: lambda.gpu.B200-SXM
+    provider: lambda
+    kind: gpu
+    sku: B200-SXM
+    rates: {per_hour: 6.69}
+    billing: per_hour
+    specs: {gpu_memory_gib: 180, hbm_tbps: 8.0, bf16_dense_tflops: 2250}
+    source: https://lambda.ai/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/hgx/
+    observed_at: "2026-10-08"
+    notes: "list price per GPU/hr; multi-GPU node; plus tax"
+  # ---- Vast.ai (volatile marketplace; no fixed rate recorded) ----
+  - id: vast.gpu.A100-80GB
+    provider: vast
+    kind: gpu
+    sku: A100-80GB
+    rates: {}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 2.039, bf16_dense_tflops: 312}
+    source: https://docs.vast.ai/guides/instances/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/a100/
+    observed_at: "2026-10-08"
+    notes: "VOLATILE marketplace: hosts set prices in real time; billed per-second compute plus separate storage/bandwidth; interruptible often 50%+ cheaper but may be paused; no fixed rate recorded"
+  - id: vast.gpu.H100
+    provider: vast
+    kind: gpu
+    sku: H100
+    rates: {}
+    billing: per_second
+    specs: {gpu_memory_gib: 80, hbm_tbps: 3.35, bf16_dense_tflops: 989.5}
+    source: https://docs.vast.ai/guides/instances/pricing
+    spec_source: https://www.nvidia.com/en-us/data-center/h100/
+    observed_at: "2026-10-08"
+    notes: "VOLATILE marketplace: real-time host pricing; storage accrues even when stopped; no fixed rate recorded"
+  # ---- Daytona sandboxes (billed on RESERVED resources, per-second) ----
+  - id: daytona.cpu.vcpu
+    provider: daytona
+    kind: cpu
+    sku: vcpu
+    rates: {vcpu_hour: 0.0504, vcpu_second: 0.000014}
+    billing: per_second
+    specs: {}
+    source: https://www.daytona.io/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; billed on reserved (allocated) vCPU while Started/Creating/Starting/Stopping/Pausing; stopped sandboxes billed disk only"
+  - id: daytona.memory.gib
+    provider: daytona
+    kind: memory
+    sku: gib
+    rates: {memory_gib_hour: 0.0162, memory_gib_second: 0.0000045}
+    billing: per_second
+    specs: {}
+    source: https://www.daytona.io/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; billed on reserved RAM in active states; $200 free compute for new signups (no card)"
+  - id: daytona.storage.disk
+    provider: daytona
+    kind: storage
+    sku: disk
+    rates: {disk_gib_hour: 0.000108}
+    billing: per_second
+    specs: {storage_free_gib: 5}
+    source: https://www.daytona.io/pricing
+    observed_at: "2026-10-08"
+    notes: "list price per GiB after first 5 GiB free; stopped/paused sandboxes billed disk only"
+  - id: daytona.sandbox.envelope-2vcpu-8gib
+    provider: daytona
+    kind: sandbox
+    sku: envelope-2vcpu-8gib
+    rates: {per_hour: 0.23148}
+    billing: per_second
+    specs: {}
+    source: https://www.daytona.io/pricing
+    observed_at: "2026-10-08"
+    notes: "effective envelope rate supplied by workload brief (2 vCPU + 8 GiB + billed disk); recompute from card for other sizes"
+  - id: daytona.sandbox.standard
+    provider: daytona
+    kind: sandbox
+    sku: standard
+    rates: {vcpu_hour: 0.0504, memory_gib_hour: 0.0162, disk_gib_hour: 0.000108}
+    billing: per_second
+    specs: {storage_free_gib: 5}
+    source: https://www.daytona.io/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; bench multiplies by admitted shape; official card gives first 5 GiB disk free per sandbox; billed on reserved resources; stopped sandboxes pay disk only"
+
+  - id: daytona.cpu.windows-vcpu
+    provider: daytona
+    kind: cpu
+    sku: windows-vcpu
+    rates: {vcpu_hour: 0.0858}
+    billing: per_second
+    specs: {}
+    source: https://www.daytona.io/pricing
+    observed_at: "2026-10-08"
+    notes: "list price Windows OS surcharge per vCPU/hr"
+  # ---- E2B (per-second, storage included, plan fee separate) ----
+  - id: e2b.cpu.vcpu
+    provider: e2b
+    kind: cpu
+    sku: vcpu
+    rates: {vcpu_second: 0.000014, per_hour: 0.0504}
+    billing: per_second
+    specs: {}
+    source: https://e2b.dev/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; CPU-only sandboxes 1-8 vCPU; billed per second on provisioned CPU"
+  - id: e2b.memory.gib
+    provider: e2b
+    kind: memory
+    sku: gib
+    rates: {memory_gib_second: 0.0000045, per_hour: 0.0162}
+    billing: per_second
+    specs: {}
+    source: https://e2b.dev/pricing
+    observed_at: "2026-10-08"
+    notes: "list price; 1-8 GiB RAM, default sandbox 2 vCPU/4 GiB; storage included free"
+  - id: e2b.sandbox.envelope-2vcpu-4gib
+    provider: e2b
+    kind: sandbox
+    sku: envelope-2vcpu-4gib
+    rates: {per_hour: 0.1656}
+    billing: per_second
+    specs: {}
+    source: https://e2b.dev/pricing
+    observed_at: "2026-10-08"
+    notes: "derived list-price envelope 2x0.0504 + 4x0.0162; Hobby free caps 20 concurrent and 1h sessions; Pro $150/mo for 100 concurrent/24h sessions"
+  - id: e2b.sandbox.pro-plan
+    provider: e2b
+    kind: sandbox
+    sku: pro-plan
+    rates: {per_month: 150}
+    billing: per_month
+    specs: {}
+    source: https://e2b.dev/pricing
+    observed_at: "2026-10-08"
+    notes: "list price monthly plan fee plus usage; Hobby $0 with one-time $100 credits"
+  # ---- Own Docker hosts ----
+  - id: hetzner.host.CCX63
+    provider: hetzner
+    kind: host
+    sku: CCX63
+    rates: {per_hour: 1.6138, per_month: 1006.99}
+    billing: per_hour_rounded
+    specs: {vcpu: 48, memory_gib: 192, disk_gib: 960}
+    source: https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/
+    spec_source: https://www.hetzner.com/cloud/general-purpose/
+    observed_at: "2026-10-08"
+    notes: "list price EU (FSN/NBG/HEL), excl VAT, post 2026-06-15 adjustment; US ASH/HIL $1.6420/h; hourly use rounded UP to whole hours with monthly cap; delete (not stop) to end billing; IPv4 billed separately"
+  - id: hetzner.host.CCX53
+    provider: hetzner
+    kind: host
+    sku: CCX53
+    rates: {per_hour: 1.0088, per_month: 629.49}
+    billing: per_hour_rounded
+    specs: {vcpu: 32, memory_gib: 128, disk_gib: 600}
+    source: https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/
+    spec_source: https://www.hetzner.com/cloud/general-purpose/
+    observed_at: "2026-10-08"
+    notes: "list price EU excl VAT; US $1.0184/h; same hourly-rounding terms as CCX63"
+  - id: hetzner.host.ipv4
+    provider: hetzner
+    kind: host
+    sku: ipv4-primary-ip
+    rates: {per_hour: 0.001, per_month: 0.6}
+    billing: per_hour_rounded
+    specs: {}
+    source: https://docs.hetzner.com/cloud/servers/primary-ips/overview/
+    observed_at: "2026-10-08"
+    notes: "list price excl VAT; IPv6 free; billed separately from server even if unassigned"
+  - id: hetzner.host.ax42-1
+    provider: hetzner
+    kind: host
+    sku: ax42-1
+    rates: {per_month: 117.10}
+    billing: per_month
+    specs: {vcpu: 8, memory_gib: 64, disk_gib: 512}
+    source: https://docs.hetzner.com/general/infrastructure-and-availability/price-adjustment/
+    observed_at: "2026-10-08"
+    notes: "list price Falkenstein/Helsinki USD excl VAT plus $59 setup fee; dedicated reference (Ryzen 9 7950X, 8c/16t, 64GB, 2x512GB NVMe per Hetzner server pages); verify specs before relying"
+  - id: aws.host.c7a-12xlarge
+    provider: aws
+    kind: host
+    sku: c7a-12xlarge
+    rates: {per_hour: 2.463}
+    billing: per_second
+    specs: {vcpu: 48, memory_gib: 96, disk_gib: 0}
+    source: https://instances.vantage.sh/aws/ec2/c7a.12xlarge
+    observed_at: "2026-10-08"
+    notes: "reference price (Vantage 'starting at', lowest-region on-demand); spot approx $0.973/h on same page; verify us-east-1 rate before use; EBS/storage extra"
+  # ---- Per-token APIs ----
+  - id: deepinfra.token_api.qwen3-5-9b
+    provider: deepinfra
+    kind: token_api
+    sku: qwen3-5-9b
+    rates: {input_per_1m: 0.10, output_per_1m: 0.15}
+    billing: per_second
+    specs: {}
+    source: https://deepinfra.com/Qwen/Qwen3.5-9B
+    observed_at: "2026-10-08"
+    notes: "list price standard tier, bf16, 262K context; Flex $0.08/$0.12, Priority $0.15/$0.225; NOT our MiMo distill checkpoint"
+  - id: openrouter.token_api.qwen3-5-9b
+    provider: openrouter
+    kind: token_api
+    sku: qwen3-5-9b
+    rates: {input_per_1m: 0.10, output_per_1m: 0.15}
+    billing: per_second
+    specs: {}
+    source: https://computeprices.com/providers/openrouter/models/qwen3-5-9b
+    observed_at: "2026-10-08"
+    notes: "aggregator-observed rate updated 2026-10-08 (upstream OpenRouter); cheapest tracked input $0.09/1M Empirio Labs; NOT our MiMo distill checkpoint"
+  - id: openrouter.token_api.mimo-v2-6-distill-qwen-9b
+    provider: openrouter
+    kind: token_api
+    sku: mimo-v2-6-distill-qwen-9b
+    rates: {}
+    billing: per_second
+    specs: {}
+    source: https://openrouter.ai/qwen/qwen3.5-9b/pricing
+    observed_at: "2026-10-08"
+    notes: "UNVERIFIED: no OpenRouter/MiMo listing found for the exact MiMo-V2.6-Distill-Qwen-9B checkpoint; HF provider mapping is empty; custom distill weights/LoRA adapters cannot be served there unless a provider takes custom weights"
+  # ---- Hosted training (Thinking Machines Tinker, Qwen3.5-9B) ----
+  - id: tinker.hosted_training.qwen3-5-9b
+    provider: tinker
+    kind: hosted_training
+    sku: qwen3-5-9b
+    rates: {input_per_1m: 0.66, cached_input_per_1m: 0.132, output_per_1m: 1.995, train_per_1m: 1.463, storage_gib_month: 0.10}
+    billing: per_second
+    specs: {}
+    source: https://tinker-docs.thinkingmachines.ai/tinker/models
+    observed_at: "2026-10-08"
+    notes: "list price; prefill $0.66 (cached $0.132, 80% off), sample $1.995, train $1.463 per 1M; checkpoint storage $0.10/GB-mo; 64K context Tinker ID Qwen/Qwen3.5-9B; LoRA/RL API not raw GPU rental"

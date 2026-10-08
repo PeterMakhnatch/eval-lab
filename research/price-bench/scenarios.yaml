@@ -1,0 +1,42 @@
+schema: evallab.price-scenarios/v1
+reference_cohort: har116
+training_token_cohort: har168
+# HAR-116 was two sequential 20-trial waves, not one continuously refilled 40.
+calibration_windows: {har116: 20, g2-wave1: 20}
+window_sweep: [20, 200, 1000]
+# Main ranking compares N=200 windows. First entry is the baseline for the sweep.
+# Pack fractions are hypotheses about reservations, NOT changes to task.toml.
+scenarios:
+  - {id: modal-a100-c20-daytona, gpu: modal.gpu.A100-80GB, concurrency: 20, sandbox: daytona.sandbox.standard}
+  - {id: modal-a100-c40-daytona, gpu: modal.gpu.A100-80GB, concurrency: 40, sandbox: daytona.sandbox.standard}
+  - {id: modal-a100-c40-ccx63-full, gpu: modal.gpu.A100-80GB, concurrency: 40, sandbox: hetzner.host.CCX63}
+  - id: modal-a100-c40-ccx63-packed
+    gpu: modal.gpu.A100-80GB
+    concurrency: 40
+    sandbox: hetzner.host.CCX63
+    pack: {cpu_request_fraction: 0.25, memory_request_fraction: 0.4}
+  - {id: modal-a100-c20-e2b, gpu: modal.gpu.A100-80GB, concurrency: 20, sandbox: e2b.sandbox.envelope-2vcpu-4gib}
+  - {id: modal-a100-c20-modalsandbox, gpu: modal.gpu.A100-80GB, concurrency: 20, sandbox: modal.sandbox.envelope-2vcpu-4gib}
+  - {id: modal-h100-c20-daytona, gpu: modal.gpu.H100-80GB, concurrency: 20, sandbox: daytona.sandbox.standard}
+  - {id: modal-h100-c40-daytona, gpu: modal.gpu.H100-80GB, concurrency: 40, sandbox: daytona.sandbox.standard}
+  - {id: modal-h200-c40-daytona, gpu: modal.gpu.H200-141GB, concurrency: 40, sandbox: daytona.sandbox.standard}
+  - {id: modal-h200-c60-daytona, gpu: modal.gpu.H200-141GB, concurrency: 60, sandbox: daytona.sandbox.standard}
+  - {id: modal-b200-c40-daytona, gpu: modal.gpu.B200-192GB, concurrency: 40, sandbox: daytona.sandbox.standard}
+  - {id: modal-b200-c60-daytona, gpu: modal.gpu.B200-192GB, concurrency: 60, sandbox: daytona.sandbox.standard}
+  - {id: modal-l40s-c10-daytona, gpu: modal.gpu.L40S-48GB, concurrency: 10, sandbox: daytona.sandbox.standard}
+  - {id: runpod-a100-c20-daytona, gpu: runpod.gpu.A100-80GB, concurrency: 20, sandbox: daytona.sandbox.standard}
+  - {id: runpod-a100-c40-daytona, gpu: runpod.gpu.A100-80GB, concurrency: 40, sandbox: daytona.sandbox.standard}
+  - {id: runpod-a100-c40-ccx63-full, gpu: runpod.gpu.A100-80GB, concurrency: 40, sandbox: hetzner.host.CCX63}
+  - id: runpod-a100-c40-ccx63-packed
+    gpu: runpod.gpu.A100-80GB
+    concurrency: 40
+    sandbox: hetzner.host.CCX63
+    pack: {cpu_request_fraction: 0.25, memory_request_fraction: 0.4}
+  - {id: runpod-h100-c20-daytona, gpu: runpod.gpu.H100-80GB, concurrency: 20, sandbox: daytona.sandbox.standard}
+  - {id: runpod-h100-c40-daytona, gpu: runpod.gpu.H100-80GB, concurrency: 40, sandbox: daytona.sandbox.standard}
+  - {id: runpod-h100-c40-ccx63-full, gpu: runpod.gpu.H100-80GB, concurrency: 40, sandbox: hetzner.host.CCX63}
+  - id: runpod-h100-c40-ccx63-packed
+    gpu: runpod.gpu.H100-80GB
+    concurrency: 40
+    sandbox: hetzner.host.CCX63
+    pack: {cpu_request_fraction: 0.25, memory_request_fraction: 0.4}

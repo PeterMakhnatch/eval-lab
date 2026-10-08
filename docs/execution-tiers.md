@@ -20,6 +20,13 @@ model transport with native Harbor task backends. GLM mini-SWE
 has a live-proven single-container Daytona path; its container-side Modal proxy is not integrated.
 Cloud runs still require explicit approval under `policy/standing-approvals.yaml`.
 
+## Local price bench (HAR-201)
+
+`evallab price bench` is a $0, provider-free comparison of billed historical
+windows and projected eval/training spend. Its [inputs and assumptions](../research/price-bench/README.md)
+include cold/drain/idle time, whole-host rounding, KV feasibility and proposed
+capped probes. Rankings are not deployment qualifications or spend approval.
+
 ## Machine state (verified, not aspirational)
 
 | Component | State | Verified how |

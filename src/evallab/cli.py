@@ -7045,6 +7045,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.price_bench import build_price_parser
 
     build_price_parser(commands)
+    from evallab.hack_queue import build_hack_queue_parser
+
+    build_hack_queue_parser(commands)
     return root
 
 

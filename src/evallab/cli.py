@@ -7054,6 +7054,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.cheat import build_cheat_parser
 
     build_cheat_parser(commands)
+    from evallab.interop import build_interop_parser
+
+    build_interop_parser(commands)
     return root
 
 

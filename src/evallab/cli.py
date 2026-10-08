@@ -7048,6 +7048,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.hack_queue import build_hack_queue_parser
 
     build_hack_queue_parser(commands)
+    from evallab.grid import build_grid_parser
+
+    build_grid_parser(commands)
     return root
 
 

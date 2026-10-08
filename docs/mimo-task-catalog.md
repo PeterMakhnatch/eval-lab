@@ -380,6 +380,15 @@ per-task table and nop evidence.
   site-packages.
 - `env-keep-files@1`, `env-pin-dependency@1`: one-task keeps and pins
   (sourmash's generated modules; webargs, setuptools, Cython, twisted).
+- `music-prefetch-abcmidi@1` (all 1,000 music tasks): the grader
+  apt-installs `abcmidi` at grade time (`mimo-verify-network-dep`, N2), which
+  fails unscored under the egress lock; setup installs the same pinned
+  version before the agent starts, while the network is open. Grading, which
+  already skips its install when `abc2midi` is present, is unchanged.
+  `research/experiments/music-prefetch-abcmidi/README.md` has the 10-task
+  locked validation (nop 0.0, fixed piece 0.154 identical to the networked
+  parent). Note the open semantic limit: `grade.py` scores ABC validity +
+  human-likeness only and ignores the brief (key, tempo, bars, voices).
 
 ## Current numbers
 

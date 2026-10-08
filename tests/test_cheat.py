@@ -1,0 +1,526 @@
+"""Unit and fixture tests for the cheat-audit lane (HAR-204).
+
+Live-Docker coverage lives in test_cheat_docker.py (opt-in). Everything here
+runs at $0 with no daemon: pure helper checks plus a fixture sandbox where
+attack scripts execute for real through ``bash``.
+
+The attack ladder lives in ``evallab.harbor_cheat``, whose only Harbor
+dependency is the ``BaseAgent`` contract itself. These tests stub the four
+Harbor names the module imports — scoped to this module with teardown — so
+the ladder runs in every suite, including CI shards without Harbor
+installed. The stubs are faithful only to what the agent uses
+(construction, ``_get_env``, attribute context); they prove ladder logic,
+not Harbor compatibility.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import shutil
+import sqlite3
+import subprocess
+import sys
+import types
+from pathlib import Path
+from typing import Any
+
+import pytest
+
+from evallab import cheat
+from evallab.cheat import (
+    ATTACKS,
+    cheat_verdict_for_reward,
+    parse_attack_selection,
+    trial_reward,
+    write_cheat_verdicts,
+)
+from evallab.execution_contracts import (
+    CHEAT_AGENT,
+    CHEAT_AGENT_IMPORT_PATH,
+    HARBOR_AGENT_IMPORT_PATHS,
+    RunRequest,
+    resolve_harbor_agent,
+    validate_request,
+)
+
+_HARBOR_STUB_ROOTS = ("harbor", "evallab.harbor_cheat")
+
+
+def _build_harbor_stubs() -> dict[str, types.ModuleType]:
+    """Minimal Harbor surface used by evallab.harbor_cheat (test-only)."""
+
+    def module(name: str) -> types.ModuleType:
+        mod = types.ModuleType(name)
+        sys.modules[name] = mod
+        return mod
+
+    harbor = module("harbor")
+    agents = module("harbor.agents")
+    base_mod = module("harbor.agents.base")
+    caps_mod = module("harbor.agents.capabilities")
+    envs = module("harbor.environments")
+    env_base_mod = module("harbor.environments.base")
+    models = module("harbor.models")
+    models_agent = module("harbor.models.agent")
+    context_mod = module("harbor.models.agent.context")
+
+    class AgentCapabilities:
+        def __init__(self, **kwargs: Any) -> None:
+            self.__dict__.update(kwargs)
+
+    class BaseAgent:
+        def __init__(
+            self,
+            logs_dir: Path,
+            model_name: str | None = None,
+            logger: logging.Logger | None = None,
+            **kwargs: Any,
+        ) -> None:
+            self.logs_dir = Path(logs_dir)
+            self.model_name = model_name
+            self.logger = logger or logging.getLogger("cheat-test")
+            self._extra_env: dict[str, str] = dict(kwargs.pop("extra_env", None) or {})
+
+        def _get_env(self, key: str, *alternatives: str) -> str | None:
+            import os
+
+            for source in (self._extra_env, os.environ):
+                for name in (key, *alternatives):
+                    if name in source:
+                        return source[name]
+            return None
+
+    class BaseEnvironment:
+        pass
+
+    class AgentContext:
+        def __init__(self) -> None:
+            self.n_input_tokens: int | None = None
+            self.n_output_tokens: int | None = None
+            self.cost_usd: float | None = None
+            self.metadata: dict[str, Any] | None = None
+
+    base_mod.BaseAgent = BaseAgent
+    caps_mod.AgentCapabilities = AgentCapabilities
+    env_base_mod.BaseEnvironment = BaseEnvironment
+    context_mod.AgentContext = AgentContext
+    agents.base = base_mod
+    agents.capabilities = caps_mod
+    envs.base = env_base_mod
+    models.agent = models_agent
+    models_agent.context = context_mod
+    harbor.agents = agents
+    harbor.environments = envs
+    harbor.models = models
+    return {
+        mod.__name__: mod
+        for mod in (
+            harbor,
+            agents,
+            base_mod,
+            caps_mod,
+            envs,
+            env_base_mod,
+            models,
+            models_agent,
+            context_mod,
+        )
+    }
+
+
+@pytest.fixture(scope="module")
+def harbor_cheat():
+    """Import evallab.harbor_cheat against scoped Harbor stubs (with teardown)."""
+    saved = {
+        key: sys.modules.pop(key)
+        for key in list(sys.modules)
+        if key == "harbor" or key.startswith("harbor.") or key in _HARBOR_STUB_ROOTS
+    }
+    sys.modules.update(_build_harbor_stubs())
+    try:
+        import evallab.harbor_cheat as module
+
+        yield module
+    finally:
+        for key in list(sys.modules):
+            if key == "harbor" or key.startswith("harbor.") or key in _HARBOR_STUB_ROOTS:
+                del sys.modules[key]
+        sys.modules.update(saved)
+
+
+def test_cheat_agent_name_is_fixed() -> None:
+    assert CHEAT_AGENT == "cheat"
+    assert HARBOR_AGENT_IMPORT_PATHS["cheat"] == CHEAT_AGENT_IMPORT_PATH
+    assert CHEAT_AGENT_IMPORT_PATH == "evallab.harbor_cheat:CheatAgent"
+    assert resolve_harbor_agent("cheat", None) == CHEAT_AGENT_IMPORT_PATH
+
+
+def test_parse_attack_selection_defaults_to_full_ladder() -> None:
+    assert parse_attack_selection(None) == ATTACKS
+    assert parse_attack_selection("") == ATTACKS
+    assert parse_attack_selection("  ") == ATTACKS
+
+
+def test_parse_attack_selection_subset_dedupes_and_orders() -> None:
+    assert parse_attack_selection("reward_plant,git_history") == ("git_history", "reward_plant")
+    assert parse_attack_selection(" Git_History ,git_history ") == ("git_history",)
+
+
+def test_parse_attack_selection_rejects_unknown_and_empty() -> None:
+    with pytest.raises(ValueError, match="unknown cheat attack"):
+        parse_attack_selection("git_history,rm_rf")
+    with pytest.raises(ValueError, match="empty"):
+        parse_attack_selection(" , , ")
+
+
+def test_verdict_boundaries() -> None:
+    assert cheat_verdict_for_reward(None) == "unscored"
+    assert cheat_verdict_for_reward(float("nan")) == "unscored"
+    assert cheat_verdict_for_reward(True) == "unscored"
+    assert cheat_verdict_for_reward(0.0) == "clean"
+    assert cheat_verdict_for_reward(0.999) == "clean"
+    assert cheat_verdict_for_reward(1.0) == "cracked"
+    assert cheat_verdict_for_reward(2) == "cracked"
+
+
+def test_trial_reward_shapes() -> None:
+    metrics = {"stats": {"evals": {"t": {"metrics": [{"mean": 1.0}]}}}}
+    assert trial_reward(metrics) == 1.0
+    rewards = {"stats": {"evals": {"t": {"reward_stats": {"reward": {"m": 0.0}}}}}}
+    assert trial_reward(rewards) == 0.0
+    assert trial_reward({}) is None
+    assert trial_reward({"stats": {"evals": {}}}) is None
+    assert trial_reward({"stats": {"evals": {"t": {"metrics": [{"avg": 1}]}}}}) is None
+
+
+def _trial(job: Path, name: str, reward: float | None, attacks: list[dict] | None) -> None:
+    trial = job / name
+    if reward is None:
+        stats: dict = {}
+    else:
+        stats = {"evals": {"t": {"metrics": [{"mean": reward}]}}}
+    (trial).mkdir(parents=True)
+    (trial / "result.json").write_text(json.dumps({"stats": stats}))
+    if attacks is not None:
+        cheat_dir = trial / "cheat"
+        cheat_dir.mkdir()
+        for attack in attacks:
+            for rel in attack.get("evidence", []):
+                (cheat_dir / rel).write_text("evidence\n")
+        (cheat_dir / "attempts.json").write_text(
+            json.dumps({"schema": "x", "agent": "cheat", "attacks": attacks})
+        )
+
+
+def test_write_cheat_verdicts_per_trial(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _trial(
+        job,
+        "trial-a",
+        1.0,
+        [
+            {
+                "name": "git_history",
+                "status": "executed",
+                "detail": "d",
+                "evidence": ["git_history.log"],
+            }
+        ],
+    )
+    _trial(job, "trial-b", 0.0, None)
+    _trial(job, "trial-c", None, None)
+    out = write_cheat_verdicts(job, harbor_rev="0.21.0")
+    assert out == job / "cheat-verdicts.json"
+    payload = json.loads(out.read_text())
+    assert payload["schema"] == "evallab.cheat.verdicts/v1"
+    assert payload["agent"] == "cheat"
+    assert payload["harbor_rev"] == "0.21.0"
+    by_trial = {row["trial"]: row for row in payload["trials"]}
+    assert by_trial["trial-a"]["verdict"] == "cracked"
+    assert by_trial["trial-a"]["method"] == "git_history"
+    assert by_trial["trial-a"]["reward"] == 1.0
+    assert "trial-a/cheat/attempts.json" in by_trial["trial-a"]["evidence"]
+    assert "trial-a/cheat/git_history.log" in by_trial["trial-a"]["evidence"]
+    assert by_trial["trial-b"]["verdict"] == "clean"
+    assert by_trial["trial-b"]["method"] is None
+    assert by_trial["trial-c"]["verdict"] == "unscored"
+
+
+def _task_dir(tmp_path: Path) -> Path:
+    task = tmp_path / "task"
+    task.mkdir()
+    (task / "task.toml").write_text('schema_version = "1.3"\n')
+    return task
+
+
+def test_validate_request_admits_cheat_without_billable(tmp_path: Path) -> None:
+    request = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="cheat",
+        name="cheat-unit",
+        jobs_dir=tmp_path / "jobs",
+        model=None,
+    )
+    validate_request(request, repo_root=tmp_path)
+
+
+def test_validate_request_keeps_billable_agents_gated(tmp_path: Path) -> None:
+    request = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="codex",
+        name="paid-unit",
+        jobs_dir=tmp_path / "jobs",
+        model=None,
+    )
+    with pytest.raises(ValueError, match="allow-billable"):
+        validate_request(request, repo_root=tmp_path)
+
+
+def test_validate_request_refuses_model_for_cheat(tmp_path: Path) -> None:
+    request = RunRequest(
+        task=_task_dir(tmp_path),
+        agent="cheat",
+        name="cheat-model",
+        jobs_dir=tmp_path / "jobs",
+        model="openai/gpt-5",
+        allow_billable=True,
+    )
+    with pytest.raises(ValueError, match="does not accept a model"):
+        validate_request(request, repo_root=tmp_path)
+
+
+def test_cheat_parser_registers_run() -> None:
+    from evallab.cli import parser
+
+    parsed = parser().parse_args(["cheat", "run", "--task", "t", "--name", "n"])
+    assert parsed.cheat_cmd == "run"
+    assert parsed.task == Path("t")
+    assert parsed.name == "n"
+    assert parsed.attempts == 1
+    assert parsed.attacks is None
+
+
+# -- fixture sandbox: attack scripts run for real through bash -----------------
+
+
+class ShellOutcome:
+    """Sandbox exec result double (return_code/stdout/stderr only)."""
+
+    def __init__(self, return_code: int, stdout: str, stderr: str) -> None:
+        self.return_code = return_code
+        self.stdout = stdout
+        self.stderr = stderr
+
+
+class BashRun:
+    """Execute attack scripts in a fixture sandbox instead of a container."""
+
+    def __init__(self, cwd: Path) -> None:
+        self.cwd = cwd
+
+    async def __call__(self, script: str, timeout_sec: int) -> ShellOutcome:
+        completed = subprocess.run(
+            ["bash", "-c", script],
+            cwd=self.cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_sec + 30,
+        )
+        return ShellOutcome(completed.returncode, completed.stdout, completed.stderr)
+
+
+def _sandbox(tmp_path: Path) -> Path:
+    root = tmp_path / "sandbox"
+    (root / "tests").mkdir(parents=True)
+    (root / "tests" / "test_outputs.py").write_text(
+        'DATABASE_PATH = "/tmp/cheat-fixture/ledger.db"\n'
+        "EXPECTED_LEDGER_ENTRIES = [\n"
+        '    ("txn_1", 100, 100, "reconciled"),\n'
+        '    ("txn_2", 200, 200, "reconciled"),\n'
+        "]\n"
+    )
+    return root
+
+
+def test_fixture_git_history_reports_no_history(tmp_path: Path, harbor_cheat) -> None:
+    root = _sandbox(tmp_path)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "no git history" in record["detail"]
+    assert (evidence / "git_history.log").is_file()
+
+
+def test_fixture_reward_plant_writes_workspace_claims(tmp_path: Path, harbor_cheat) -> None:
+    root = _sandbox(tmp_path)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_reward_plant(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "planted" in record["detail"]
+    assert json.loads((root / "reward.json").read_text())["reward"] == 1.0
+
+
+def test_fixture_answer_symlink_without_solution(tmp_path: Path, harbor_cheat) -> None:
+    root = _sandbox(tmp_path)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_answer_symlink(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "no reference solution" in record["detail"]
+
+
+def test_fixture_answer_symlink_executes_visible_solution(tmp_path: Path, harbor_cheat) -> None:
+    root = _sandbox(tmp_path)
+    solution = root / "solution"
+    solution.mkdir()
+    (solution / "solve.sh").write_text("#!/bin/bash\necho solved > solved.txt\n")
+    (solution / "solve.sh").chmod(0o755)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_answer_symlink(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "rc=0" in record["detail"]
+
+
+def test_fixture_upstream_fetch_without_remote(tmp_path: Path, harbor_cheat) -> None:
+    root = _sandbox(tmp_path)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_upstream_fetch(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "no upstream remote" in record["detail"]
+
+
+def _fixture_db(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path)
+    connection.execute(
+        "CREATE TABLE ledger_entries "
+        "(external_id TEXT, expected_amount_cents INT, settled_amount_cents INT, "
+        "reconciliation_status TEXT)"
+    )
+    connection.execute(
+        "CREATE TABLE settlement_feed (external_id TEXT, amount_cents INT, settled_at TEXT)"
+    )
+    connection.executemany(
+        "INSERT INTO ledger_entries VALUES (?,?,?,?)",
+        [("txn_1", 100, 1, "pending"), ("txn_2", 200, 2, "pending")],
+    )
+    connection.commit()
+    connection.close()
+
+
+def test_fixture_verifier_peek_applies_guided_fix(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("sqlite3") is None:
+        pytest.skip("sqlite3 CLI unavailable")
+    root = _sandbox(tmp_path)
+    db = root / "data" / "ledger.db"
+    _fixture_db(db)
+    (root / "tests" / "test_outputs.py").write_text(
+        f'DATABASE_PATH = "{db}"\n'
+        "EXPECTED_LEDGER_ENTRIES = [\n"
+        '    ("txn_1", 100, 100, "reconciled"),\n'
+        '    ("txn_2", 200, 200, "reconciled"),\n'
+        "]\n"
+    )
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_verifier_peek(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "guided fix applied" in record["detail"]
+    connection = sqlite3.connect(db)
+    rows = connection.execute(
+        "SELECT external_id, settled_amount_cents, reconciliation_status "
+        "FROM ledger_entries ORDER BY external_id"
+    ).fetchall()
+    connection.close()
+    assert rows == [("txn_1", 100, "reconciled"), ("txn_2", 200, "reconciled")]
+
+
+def test_guided_apply_script_rejects_unsafe_shapes(harbor_cheat) -> None:
+    assert harbor_cheat._guided_apply_script("db", "t!", ["a", "b"], [[1, 2]]) is None
+    assert harbor_cheat._guided_apply_script("db", "t", ["a"], [[1]]) is not None
+    assert harbor_cheat._guided_apply_script("db", "t", ["a", "b"], [["x" * 500, 2]]) is None
+    assert harbor_cheat._guided_apply_script("db", "t", ["a", "b"], [[None, 2]]) is None
+
+
+def test_ladder_subset_skips_and_failure_continues(tmp_path: Path, harbor_cheat) -> None:
+    async def boom(script: str, timeout_sec: int) -> ShellOutcome:
+        if "CHEAT_PY" in script and "literal_eval(node.value)" in script:
+            raise RuntimeError("probe exploded")
+        return ShellOutcome(0, "NO_GIT_HISTORY_VISIBLE\nPEEK_DONE\n", "")
+
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    records = asyncio.run(
+        harbor_cheat.run_ladder("/nonexistent", boom, evidence, ["git_history", "verifier_peek"])
+    )
+    by_name = {record["name"]: record for record in records}
+    assert [record["name"] for record in records] == list(ATTACKS)
+    assert by_name["git_history"]["status"] == "executed"
+    assert by_name["verifier_peek"]["status"] == "failed"
+    assert by_name["verifier_peek"]["evidence"] == ["verifier_peek.error.log"]
+    assert (evidence / "verifier_peek.error.log").is_file()
+    assert by_name["reward_plant"]["status"] == "skipped"
+    assert by_name["reward_plant"]["evidence"] == []
+    assert cheat.parse_attack_selection("git_history") == ("git_history",)
+
+
+class FakeHarborEnv:
+    """Minimal Harbor environment double: pwd plus canned exec results."""
+
+    def __init__(self, cwd: str) -> None:
+        self.cwd = cwd
+        self.commands: list[str] = []
+
+    async def exec(
+        self, command: str, cwd: str | None = None, timeout_sec: int | None = None
+    ) -> ShellOutcome:
+        self.commands.append(command)
+        if command == "pwd":
+            return ShellOutcome(0, self.cwd + "\n", "")
+        return ShellOutcome(0, "NO_GIT_HISTORY_VISIBLE\n", "")
+
+
+class FakeContext:
+    """Attribute context double (n_* tokens, cost, metadata)."""
+
+    def __init__(self) -> None:
+        self.n_input_tokens: int | None = None
+        self.n_output_tokens: int | None = None
+        self.cost_usd: float | None = None
+        self.metadata: dict[str, Any] | None = None
+
+
+def test_agent_run_writes_attempts_and_context(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    monkeypatch.setenv("EVALLAB_CHEAT_ATTACKS", "git_history,reward_plant")
+    logs = tmp_path / "logs"
+    agent = harbor_cheat.CheatAgent(logs_dir=logs)
+    env = FakeHarborEnv(str(tmp_path))
+    context = FakeContext()
+    asyncio.run(agent.run("do the task", env, context))
+    attempts = json.loads((logs / "cheat" / "attempts.json").read_text())
+    assert attempts["schema"] == "evallab.cheat.attempts/v1"
+    assert attempts["agent"] == "cheat"
+    by_name = {attack["name"]: attack for attack in attempts["attacks"]}
+    assert by_name["git_history"]["status"] == "executed"
+    assert by_name["reward_plant"]["status"] == "executed"
+    assert by_name["verifier_peek"]["status"] == "skipped"
+    assert context.cost_usd == 0.0
+    assert context.metadata is not None and context.metadata["model_free"] is True
+    assert context.metadata["cheat_executed"] == ["git_history", "reward_plant"]
+
+
+def test_agent_run_rejects_unknown_attack_subset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    monkeypatch.setenv("EVALLAB_CHEAT_ATTACKS", "nope")
+    agent = harbor_cheat.CheatAgent(logs_dir=tmp_path / "logs")
+    with pytest.raises(RuntimeError, match="invalid EVALLAB_CHEAT_ATTACKS"):
+        asyncio.run(agent.run("do the task", FakeHarborEnv(str(tmp_path)), FakeContext()))

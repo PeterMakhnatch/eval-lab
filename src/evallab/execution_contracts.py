@@ -36,6 +36,15 @@ from evallab.schemas import (
 )
 
 CONTROL_AGENTS = frozenset({"oracle", "nop"})
+#: Fixed name of the deterministic, model-free cheat-audit agent (HAR-204).
+#: It runs outside the sandbox, makes no provider calls, and derives its
+#: verdict only from the benchmark's own verifier reward. Sibling lanes
+#: reference this exact name; do not rename it.
+CHEAT_AGENT = "cheat"
+#: Env var carrying the comma-separated attack subset into the cheat trial.
+#: Read by build_command (host) and evallab.harbor_cheat (agent); the default
+#: empty value means the full ladder.
+CHEAT_ATTACKS_ENV_VAR = "EVALLAB_CHEAT_ATTACKS"
 _TASK_COMPOSE_FILENAMES = ("docker-compose.yaml", "docker-compose.yml")
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 # Lease generations are immutable, 32-lowercase-hex identifiers produced by
@@ -164,6 +173,7 @@ DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
 RLM_AGENT = "rlm"
 MIMO_AGENT = "mimoagent"
 MIMO_AGENT_IMPORT_PATH = "evallab.harbor_mimoagent:NativeMimoAgent"
+CHEAT_AGENT_IMPORT_PATH = "evallab.harbor_cheat:CheatAgent"
 MIMO_SAMPLING_PROFILE_ENV = "EVALLAB_MIMO_SAMPLING_PROFILE"
 TERMINUS_AGENT = "terminus-2"
 TERMINUS_AGENT_IMPORT_PATH = "evallab.harbor_terminus:SecretSafeTerminus2"
@@ -905,6 +915,7 @@ HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
     RLM_AGENT: "evallab.harbor_rlm:LabRlmAgent",
     TERMINUS_AGENT: TERMINUS_AGENT_IMPORT_PATH,
     MIMO_AGENT: MIMO_AGENT_IMPORT_PATH,
+    CHEAT_AGENT: CHEAT_AGENT_IMPORT_PATH,
 }
 
 DEEPSEEK_MODEL_SELECTOR = "deepseek/deepseek-flash"
@@ -1698,12 +1709,22 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
             raise ValueError(
                 f"rlm requires one of the exact models {sorted(ZAI_OPENCODE_MODEL_SELECTORS)}"
             )
-    if request.agent not in CONTROL_AGENTS and not request.allow_billable:
+    # NEEDS PARENT APPROVAL (HAR-204 cheat lane): the model-free cheat audit
+    # agent is admitted without --allow-billable. It makes no provider calls
+    # ($0 by construction: no model, no proxy, local Docker only); every
+    # billable agent still requires --allow-billable below.
+    if (
+        request.agent not in CONTROL_AGENTS
+        and request.agent != CHEAT_AGENT
+        and not request.allow_billable
+    ):
         raise ValueError(
             f"Agent {request.agent!r} may invoke a model. Pass --allow-billable "
             "after reviewing credentials, model, and expected cost."
         )
-    if request.model and request.agent in CONTROL_AGENTS:
+    # NEEDS PARENT APPROVAL (HAR-204 cheat lane): like the oracle/nop controls,
+    # the cheat agent is model-free and never accepts a model selector.
+    if request.model and (request.agent in CONTROL_AGENTS or request.agent == CHEAT_AGENT):
         raise ValueError(f"The {request.agent} control does not accept a model")
     if request.model and not request.allow_billable:
         raise ValueError("A model requires --allow-billable")
@@ -2126,6 +2147,11 @@ def build_command(request: RunRequest, *, setup_fingerprint: str | None = None) 
                 f"cost_limit_usd={request.cost_limit_usd or 1.0}",
             ]
         )
+    if request.agent == CHEAT_AGENT:
+        # NEEDS PARENT APPROVAL (HAR-204 cheat lane): forward the CLI-selected
+        # attack subset to the model-free agent. Empty means the full ladder.
+        attacks = os.environ.get(CHEAT_ATTACKS_ENV_VAR, "")
+        command.extend(["--agent-env", f"{CHEAT_ATTACKS_ENV_VAR}={attacks}"])
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     for skill_path in request.resolved_skills:

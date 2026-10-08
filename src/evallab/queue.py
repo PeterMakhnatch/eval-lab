@@ -63,6 +63,7 @@ from evallab.eventlog import event_log_lock, read_event_log_lines
 from evallab.evidence.atif import IngestProjectionResult, ingest_and_project
 from evallab.evidence_store import EvidenceArchive, archive_evidence
 from evallab.execution_contracts import (
+    CHEAT_AGENT,
     EGRESS_LOCK_AGENTS,
     TERMINUS_AGENT,
     TERMINUS_LOCAL_MODEL_SELECTOR,
@@ -3266,9 +3267,12 @@ class Executor:
         return destination
 
     def execute_direct(self, request: RunRequest, *, ingest: bool = True) -> Path:
-        if request.agent not in CONTROL_AGENTS:
+        # NEEDS PARENT APPROVAL (HAR-204 cheat lane): the model-free cheat audit
+        # agent joins oracle/nop here. It makes no provider calls ($0 by
+        # construction); every billable agent is still refused.
+        if request.agent not in CONTROL_AGENTS and request.agent != CHEAT_AGENT:
             raise ValueError(
-                "direct execution is restricted to oracle/nop; --allow-billable records "
+                "direct execution is restricted to oracle/nop/cheat; --allow-billable records "
                 "spend consent but does not bypass the standing-policy queue"
             )
         job_dir = self._runner(request)

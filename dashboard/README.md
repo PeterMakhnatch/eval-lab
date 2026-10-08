@@ -1,12 +1,15 @@
 # Eval Lab dashboard
 
-`uv run evallab dashboard` starts the local Streamlit research overview at
-`http://127.0.0.1:8501`. Its operator-status section renders the same typed snapshot as
-`evallab status [--json]` (`Recent`, `Now`, `Next`, `Tasks`, `Health`,
-`Analysis`). Missing Postgres or Phoenix stay labeled `unavailable` instead
-of crashing the page. The established leaderboard, canary, spend, queue,
-calibration, ATIF, and discovery panes remain available below it. Approvals
-and all other state transitions remain CLI-only.
+`uv run evallab dashboard` starts the local multipage Streamlit app at
+`http://127.0.0.1:8501` (`dashboard/app.py` wires `st.navigation`):
+**Integrity** (default: task verdicts, grader holes, counted/excluded runs —
+see `docs/dashboard.md`) and **Operations** (the E13 research overview:
+operator status, catalog trials, ATIF analytics, spend, canaries, calibrations,
+discoveries — unchanged behaviour). The Operations operator-status section renders
+the same typed snapshot as `evallab status [--json]` (`Recent`, `Now`, `Next`,
+`Tasks`, `Health`, `Analysis`). Missing Postgres or Phoenix stay labeled
+`unavailable` instead of crashing the page. Approvals and all other state
+transitions remain CLI-only.
 
 The query helpers in `queries.py` remain SELECT-only catalog utilities. They
 render research measurements; they do not redefine operator status.

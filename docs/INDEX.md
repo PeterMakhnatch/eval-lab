@@ -51,7 +51,7 @@ inputs:
   - path: docs/craft.md
     digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
   - path: docs/dashboard.md
-    digest: sha256:ee56108fa8961f0e0bb6d6f7f2174973bfce4fd15337bfe2c9e3b9c8af61c42a
+    digest: sha256:93d3ca1bff660397579473af533764a6296e6605c1fc66d75336d620b0d1afcf
   - path: docs/data-architecture.md
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/deepseek-v4-flash-lane.md
@@ -87,7 +87,7 @@ inputs:
   - path: docs/monitor-investigations.md
     digest: sha256:cf974b6909349070858dbac82b2cd261f683912bf033de74f946000d05409d33
   - path: docs/observability.md
-    digest: sha256:3d38d182cb4618907c1aa677f9cd74aa6d413077a654ca8792a564047d1bf454
+    digest: sha256:1a48b17b3dd9a1d19f525d729da1c0a3b4ff35f5f7f6c7f172420332971e2401
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md

@@ -10,11 +10,14 @@ a failed check stops setup, with no hide-only or network-open fallback.
   images, so this is not applied to the rest of the corpus.
 * ``separate-verifier@1`` runs hidden tests in a second container where Harbor
   0.24 supports it (HAR-169: oracle pass and nop fail on 001269, 000905, 002391).
-* ``mtime-normalize@1`` sets every work-tree path to one fixed timestamp at
-  the end of setup, so fix-commit file mtimes cannot name the fix (002402:
-  five fix files at a later mtime than the bulk checkout). It composes after
-  ``strip-future-history@1`` and ``purge-installed-copies@1`` and verifies
-  fail-closed that no path stays newer than the fixed timestamp.
+* ``terminal-guard-extend@1`` snapshots the terminal interpreter hook surface
+  (``sitecustomize`` / ``usercustomize`` / ``*.pth`` / ``pytest11`` entry
+  points) at end of setup, quarantines additions and fails closed on anchor
+  tamper at grade time, scrubs hook-loading env, pins pytest to the
+  setup-time plugins with autoload off, and runs the guard itself without
+  site imports (candidate-0109: planted skip-all plugin flipped reward 0 to
+  1; no terminal grader needs a third-party plugin, so honest grading is
+  unchanged).
 
 A verifier that passes only with egress open is not a package transform.
 Allow-listing the verifier is rejected: Harbor drops the no-network overlay
@@ -33,8 +36,10 @@ from evallab.separate_verifier import TRANSFORM_ID as SEPARATE_ID
 from evallab.separate_verifier import derive_separate_verifier
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.strip_future_history import derive_strip_future_history
+from evallab.terminal_guard import TRANSFORM_ID as TERMINAL_GUARD_ID
+from evallab.terminal_guard import derive_terminal_guard, derive_terminal_prefetch
 
-TRANSFORMS = (STRIP_ID, PURGE_ID, SEPARATE_ID, MTIME_ID)
+TRANSFORMS = (STRIP_ID, PURGE_ID, SEPARATE_ID, MTIME_ID, TERMINAL_GUARD_ID)
 NETWORK_LABEL = "oracle:fail-network"
 NETWORK_DEFAULT = "discard"
 #: Installed-copy leaks confirmed by reading the image, not by a sample guess.
@@ -51,11 +56,14 @@ __all__ = [
     "PURGE_ID",
     "SEPARATE_ID",
     "STRIP_ID",
+    "TERMINAL_GUARD_ID",
     "TRANSFORMS",
     "derive_mtime_normalize",
     "derive_purge_installed_copies",
     "derive_separate_verifier",
     "derive_strip_future_history",
+    "derive_terminal_guard",
+    "derive_terminal_prefetch",
     "network_discard_reason",
 ]
 

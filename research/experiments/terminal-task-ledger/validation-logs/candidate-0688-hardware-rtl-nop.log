@@ -1,0 +1,53 @@
+PREP 0
+SETUP 0
+terminal-guard-extend@1: snapshotted 1 hook(s), 1 pytest plugin(s) in 1 site dir(s)
+setup done
+
+MATERIALIZE_TESTS 0
+SNAPSHOT {
+  "hooks": {
+    "/usr/local/lib/python3.12/site-packages/sphinxcontrib_jsmath-1.0.1-py3.7-nspkg.pth": "sha256:6ef09bbd30e129409336dac26eee8755ef13b180b81b8fa14645de1dd109eade"
+  },
+  "plugins": {
+    "ctrf": {
+      "dist": "pytest_json_ctrf-0.5.2.dist-info",
+      "files": {
+        "/usr/local/lib/python3.12/site-packages/ctrf/__init__.py": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/usr/local/lib/python3.12/site-packages/ctrf/main.py": "sha256:42c48c728547285bee4a28ece1794e81c3d01482ff96aa28a081bd863ea03169"
+      },
+      "value": "ctrf.main",
+      "version": "0.5.2"
+    }
+  },
+  "schema": "terminal-guard-snapshot/v1",
+  "site_dirs": [
+    "/usr/local/lib/python3.12/site-packages"
+  ]
+}
+
+GRADE_EXIT 0
+GRADE_TAIL nded_i' in "// Copyright lowRISC contributors. // Copyright 2018 ETH Zurich and University of Bologna, see also CREDITS.md. // Li...b10)) |-> !$isunknown(instr_i[15:13])) `ASSERT(IbexPushPopFSMStable, !valid_i |-> cm_state_d == cm_state_q) endmodule "
+
+/tests/test_outputs.py:38: AssertionError
+______________ test_edge_real_workspace_and_regression_entrypoint ______________
+
+    def test_edge_real_workspace_and_regression_entrypoint():
+        assert (ROOT / "rtl/ibex_core.f").is_file()
+        assert (ROOT / "examples/simple_system/rtl/ibex_simple_system.sv").is_file()
+        completed = subprocess.run(["python3", str(ROOT / "rtl_regression.py"), "--output", "/tmp/recomputed.json"], check=False)
+>       assert completed.returncode == 0
+E       AssertionError: assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['python3', '/app/vendor/project/rtl_regression.py', '--output', '/tmp/recomputed.json'], returncode=1).returncode
+
+/tests/test_outputs.py:52: AssertionError
+=========================== short test summary info ============================
+FAILED ../tests/test_outputs.py::test_gate_artifact_schema_and_status - Asser...
+FAILED ../tests/test_outputs.py::test_core_trace_digest_independent_recompute
+FAILED ../tests/test_outputs.py::test_core_redirect_drops_abandoned_instruction
+FAILED ../tests/test_outputs.py::test_core_source_contract_is_wired - assert ...
+FAILED ../tests/test_outputs.py::test_edge_real_workspace_and_regression_entrypoint
+5 failed, 1 passed in 0.32s
+
+REWARD 0
+CTRF {'tests': 6, 'passed': 1, 'failed': 5, 'skipped': 0, 'pending': 0, 'other': 0, 'start': 1791499192656, 'stop': 1791499192970}
+QUARANTINE /logs/verifier/quarantine:

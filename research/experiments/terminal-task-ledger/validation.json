@@ -1,0 +1,16 @@
+{
+  "_note": "Hand-recorded MEASURED local-Docker results (--network none unless noted). Full logs in validation-logs/. Unlisted tasks: static-only (image not cached).",
+  "candidate-0036-software-data-engineering": "nop:0 guard-variant (5 tests: 5F/0P/0S, ctrf written)",
+  "candidate-0109-science-robotics": "plant:0 guard-variant (5F/2P/0S, sitecustomize quarantined, ctrf written); nop:0 same counts; orig+plant:1 (7 skipped, hole reproduced)",
+  "candidate-0260-security-appsec": "orig: collection error No module named 'stevedore' (from stevedore import extension) -> 0; prefetch+guard (setup with network, grade --network none): 5 collected (4F/1P) -> 0",
+  "candidate-0308-security-forensics": "nop:0 guard-variant (6 tests: 4F/2P/0S, ctrf written)",
+  "candidate-0390-security-appsec": "nop:0 guard-variant (4 tests: 4F/0P/0S, ctrf written)",
+  "candidate-0628-media-music": "nop:0 guard-variant (7 tests: 4F/3P/0S, ctrf written)",
+  "candidate-0674-ml-evaluation": "discard: grader imports torch at collection; torch absent (HAR-88 curated finding); no local run (image not cached)",
+  "candidate-0688-hardware-rtl": "nop:0 guard-variant (6 tests: 5F/1P/0S, ctrf written)",
+  "candidate-0758-ml-inference": "nop:0 guard-variant (5 tests: 3F/2P/0S, ctrf written)",
+  "candidate-1789-security-appsec": "nop:0 guard-variant (7 tests: 5F/2P/0S, ctrf written)",
+  "candidate-1990-security-cryptography": "nop:0 guard-variant (5 tests: 4F/1P/0S, ctrf written; child PYTHONPATH probes unaffected by scrub)",
+  "candidate-2376-security-cryptography": "orig: collection error No module named 'cryptography' (from cryptography.hazmat.backends import default_backend) -> 0; prefetch+guard (setup with network, grade --network none): 6 collected (6F) -> 0",
+  "candidate-2836-ml-kernels": "nop:0 guard-variant (7 tests: 3F/4P/0S, ctrf written); test_core_changed_cpu_modules_compile_as_cxx20 fails FileNotFoundError: 'g++'"
+}

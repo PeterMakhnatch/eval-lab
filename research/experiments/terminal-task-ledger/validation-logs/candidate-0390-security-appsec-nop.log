@@ -1,0 +1,68 @@
+PREP 0
+SETUP 0
+terminal-guard-extend@1: snapshotted 1 hook(s), 1 pytest plugin(s) in 1 site dir(s)
+setup done
+
+MATERIALIZE_TESTS 0
+SNAPSHOT {
+  "hooks": {
+    "/usr/local/lib/python3.12/site-packages/sphinxcontrib_jsmath-1.0.1-py3.7-nspkg.pth": "sha256:6ef09bbd30e129409336dac26eee8755ef13b180b81b8fa14645de1dd109eade"
+  },
+  "plugins": {
+    "ctrf": {
+      "dist": "pytest_json_ctrf-0.5.2.dist-info",
+      "files": {
+        "/usr/local/lib/python3.12/site-packages/ctrf/__init__.py": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "/usr/local/lib/python3.12/site-packages/ctrf/main.py": "sha256:42c48c728547285bee4a28ece1794e81c3d01482ff96aa28a081bd863ea03169"
+      },
+      "value": "ctrf.main",
+      "version": "0.5.2"
+    }
+  },
+  "schema": "terminal-guard-snapshot/v1",
+  "site_dirs": [
+    "/usr/local/lib/python3.12/site-packages"
+  ]
+}
+
+GRADE_EXIT 0
+GRADE_TAIL y")
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+/tests/test_outputs.py:97: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+names = ('trojansource_latin1.py',)
+
+    def run_scan(*names):
+        paths = [str(FIXTURES / name) for name in names]
+        output = APP / "output.json"
+        output.unlink(missing_ok=True)
+        env = os.environ.copy()
+        env["PYTHONPATH"] = str(BANDIT)
+        completed = subprocess.run(
+            [sys.executable, "-m", "bandit", "-q", "-f", "json", "-o", str(output), *paths],
+            cwd=APP,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=30,
+        )
+        assert completed.returncode in (0, 1), completed.stderr
+        assert completed.returncode != 2, completed.stderr
+>       assert output.is_file() and output.stat().st_size > 0
+E       AssertionError: assert (False)
+E        +  where False = is_file()
+E        +    where is_file = PosixPath('/app/output.json').is_file
+
+/tests/test_outputs.py:29: AssertionError
+=========================== short test summary info ============================
+FAILED ../tests/test_outputs.py::test_gate_output_schema_and_artifact - Asser...
+FAILED ../tests/test_outputs.py::test_core_trojan_finding_is_independently_located
+FAILED ../tests/test_outputs.py::test_core_generic_tester_preserves_and_falls_back_location
+FAILED ../tests/test_outputs.py::test_edge_latin1_is_analyzable_without_finding
+4 failed in 1.30s
+
+REWARD 0
+CTRF {'tests': 4, 'passed': 0, 'failed': 4, 'skipped': 0, 'pending': 0, 'other': 0, 'start': 1791499177363, 'stop': 1791499178657}
+QUARANTINE /logs/verifier/quarantine:

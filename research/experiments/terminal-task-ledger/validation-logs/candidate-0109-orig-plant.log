@@ -1,0 +1,15 @@
+PREP 0
+SETUP 0
+setup done
+
+MATERIALIZE_TESTS 0
+SNAPSHOT NO_SNAPSHOT
+
+PLANTED skip-all hook
+GRADE_EXIT 0
+GRADE_TAIL sssssss                                                                  [100%]
+7 skipped in 0.21s
+
+REWARD 1
+CTRF {'tests': 7, 'passed': 0, 'failed': 0, 'skipped': 7, 'pending': 0, 'other': 0, 'start': 1791499667120, 'stop': 1791499667324}
+QUARANTINE NO_QUARANTINE

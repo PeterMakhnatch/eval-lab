@@ -82,6 +82,11 @@ print(f"url: http://127.0.0.1:{port}")
 PY
 if [ "$LOAD" -eq 1 ] || launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1; then
   launchctl bootout "gui/$(id -u)/$LABEL" 2>/dev/null || true
+  # bootout returns before launchd drops the job; bootstrapping early fails with EIO (5).
+  for _ in $(seq 1 30); do
+    launchctl print "gui/$(id -u)/$LABEL" >/dev/null 2>&1 || break
+    sleep 1
+  done
   launchctl enable "gui/$(id -u)/$LABEL"
   launchctl bootstrap "gui/$(id -u)" "$DEST"
   echo "loaded: gui/$(id -u)/$LABEL"

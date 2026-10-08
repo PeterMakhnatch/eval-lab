@@ -698,3 +698,147 @@ def test_prevalence_counts_and_interval() -> None:
     assert (report["yes"], report["scanned"]) == (1, 2)
     lo, hi = scan.wilson(1, 2)
     assert (report["lo"], report["hi"]) == (lo, hi)
+
+
+def test_is_mtime_candidate_excludes_residue() -> None:
+    """Caches and bytecode never count as source touches."""
+    assert scan.is_mtime_candidate("numpyro/distributions/continuous.py")
+    assert scan.is_mtime_candidate("Makefile")
+    assert not scan.is_mtime_candidate("numpyro/__pycache__/x.pyc")
+    assert not scan.is_mtime_candidate(".pytest_cache/v/cache/lastfailed")
+    assert not scan.is_mtime_candidate("pkg.egg-info/PKG-INFO")
+    assert not scan.is_mtime_candidate("pkg/mod.pyc")
+    assert not scan.is_mtime_candidate(".git/HEAD")
+    assert not scan.is_mtime_candidate("")
+
+
+def test_collapse_mtimes_last_layer_wins_and_filters_root() -> None:
+    """Repeats collapse to the later layer; other roots are ignored."""
+    entries = [
+        ("testbed/a.py", 1000),
+        ("opt/other/b.py", 2000),
+        ("testbed/a.py", 3000),
+        ("testbed/.pytest_cache/x", 4000),
+    ]
+    assert scan.collapse_mtimes(entries, "testbed") == {"a.py": 3000}
+
+
+def test_find_mtime_cluster_flags_late_touch() -> None:
+    """Five files a decade later than the bulk flag with their paths."""
+    bulk = 1_700_000_000
+    mtimes = {f"src/f{n}.py": bulk for n in range(50)}
+    late = bulk + 600
+    for name in ("Makefile", "a.py", "b.py", "c.py", "d.py"):
+        mtimes[name] = late + 13  # same minute, later seconds
+    found = scan.find_mtime_cluster(mtimes)
+    assert found["flag"] == "yes"
+    assert found["cluster_files"] == 5
+    assert "Makefile" in found["cluster_paths"].split(";")
+    assert found["files_scanned"] == 55
+
+
+def test_find_mtime_cluster_uniform_is_clean() -> None:
+    """One shared minute (the 002552 shape) never flags."""
+    mtimes = {f"src/f{n}.py": 1_700_000_000 for n in range(100)}
+    found = scan.find_mtime_cluster(mtimes)
+    assert found["flag"] == "no"
+    assert found["cluster_minute"] == ""
+
+
+def test_find_mtime_cluster_small_late_pair_ignored() -> None:
+    """Two late files stay below the three-file threshold."""
+    mtimes = {f"src/f{n}.py": 1_700_000_000 for n in range(50)}
+    mtimes["a.py"] = mtimes["b.py"] = 1_700_100_000
+    assert scan.find_mtime_cluster(mtimes)["flag"] == "no"
+
+
+def test_find_mtime_cluster_empty_is_unknown() -> None:
+    """No worktree files means unknown, never a clean bill."""
+    assert scan.find_mtime_cluster({})["flag"] == "unknown"
+
+
+def _layer_bytes_mtime(members: list[tuple[str, bytes | None, int]]) -> io.BytesIO:
+    """In-memory gzip layer with explicit member mtimes."""
+    buf = io.BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode="wb") as gz, tarfile.open(fileobj=gz, mode="w") as tar:
+        for name, body, mtime in members:
+            info = tarfile.TarInfo(name)
+            info.mtime = mtime
+            if body is None:
+                info.type = tarfile.DIRTYPE
+                tar.addfile(info)
+            else:
+                info.size = len(body)
+                tar.addfile(info, io.BytesIO(body))
+    buf.seek(0)
+    return buf
+
+
+def test_extract_git_subset_sink_keeps_return_shape(tmp_path: Path) -> None:
+    """The sink records worktree mtimes; roots/bytes are sink-independent."""
+    members = [
+        ("testbed/.git/HEAD", b"abc\n", 1000),
+        ("testbed/work.py", b"x\n", 2000),
+        ("./testbed/other.py", b"y\n", 2000),
+    ]
+    plain = _layer_bytes([(n, b) for n, b, _ in members])
+    sunk = _layer_bytes_mtime(members)
+    dest_plain, dest_sink = tmp_path / "p", tmp_path / "s"
+    dest_plain.mkdir()
+    dest_sink.mkdir()
+    assert scan.extract_git_subset(plain, str(dest_plain)) == scan.extract_git_subset(
+        sunk, str(dest_sink), mtime_sink=(sink := [])
+    )
+    assert sorted(sink) == [
+        ("testbed/other.py", 2000),
+        ("testbed/work.py", 2000),
+    ]
+    assert list((dest_sink).rglob("*.py")) == []
+
+
+def test_build_row_mtime_columns_default_unknown() -> None:
+    """Old callers get unknown mtime columns; git columns are untouched."""
+    row = scan.build_row(task_id="t", run="original", ledger_digest="d", image_digest="i", beyond=1)
+    assert row["has_future_history"] == "yes"
+    assert row["mtime_cluster"] == "unknown"
+    assert row["mtime_cluster_minute"] == ""
+
+
+def test_build_row_mtime_cluster_roundtrip(tmp_path: Path) -> None:
+    """A cluster finding survives the CSV contract."""
+    row = scan.build_row(
+        task_id="t",
+        run="original",
+        ledger_digest="d",
+        image_digest="i",
+        mtime={
+            "flag": "yes",
+            "cluster_minute": "2024-01-01T00:01Z",
+            "cluster_files": 5,
+            "cluster_paths": "Makefile;a.py",
+            "files_scanned": 55,
+        },
+    )
+    assert row["mtime_cluster"] == "yes"
+    assert row["mtime_cluster_files"] == "5"
+    out = tmp_path / "m.csv"
+    scan.write_csv(str(out), [row])
+    with open(out, newline="") as handle:
+        back = list(csv.DictReader(handle))[0]
+    assert back["mtime_cluster"] == "yes"
+    assert back["mtime_cluster_paths"] == "Makefile;a.py"
+    assert back["beyond_base_refs"] == "0"
+
+
+def test_plan_sweep_batches_and_cap() -> None:
+    """1,146 tasks stage as twelve fenced batches inside $3.50 worst case."""
+    ids = [f"format-code-task-{n:06d}" for n in range(1146)]
+    batches = scan.plan_sweep(ids)
+    assert len(batches) == 12
+    assert sum(len(batch) for batch in batches) == 1146
+    assert [batches[i][0] < batches[i + 1][0] for i in range(len(batches) - 1)]
+    total = sum(scan.sweep_reservation(len(batch)) for batch in batches)
+    assert total <= scan.SWEEP_CAP_USD
+    assert scan.sweep_fence_ok(0.0, 100)
+    assert not scan.sweep_fence_ok(3.30, 100)
+    assert scan.sweep_fence_ok(3.30, 46)

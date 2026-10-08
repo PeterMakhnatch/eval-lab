@@ -1,0 +1,37 @@
+{
+  "collected_at": "2026-10-08T18:18:53.869064+00:00",
+  "rows": [
+    {
+      "trial_dir": "/tmp/mtime-val/jobs/mtime-002402-nop/mtime-format-code-task-002402-no__boGAnvF",
+      "reward": 0.0,
+      "reward_txt": "0"
+    },
+    {
+      "trial_dir": "/tmp/mtime-val/jobs/mtime-002402-oracle/mtime-format-code-task-002402-or__K7WfAJP",
+      "reward": 1.0,
+      "reward_txt": "1",
+      "listing": [
+        "== cwd /testbed base a9c9fc6615edd4a61dbab0eb8e4fe971a7f58a72",
+        "== mtime_distinct 1",
+        "== mtime_top 2000-01-01+00:00:00.0000000000 /testbed/test/test_util.py;2000-01-01+00:00:00.0000000000 /testbed/test/test_transforms.py;2000-01-01+00:00:00.0000000000 /testbed/test/test_pickle.py;2000-01-01+00:00:00.0000000000 /testbed/test/test_optimizers.py;2000-01-01+00:00:00.0000000000 /testbed/test/test_nn.py;2000-01-01+00:00:00.0000000000 /testbed/test/test_model_rendering.py;",
+        "== mtime_newer_than_fixed_count 0"
+      ]
+    },
+    {
+      "trial_dir": "/tmp/mtime-val/jobs/mtime-002552-nop/mtime-format-code-task-002552-no__DVvg5BY",
+      "reward": 0.0,
+      "reward_txt": "0"
+    },
+    {
+      "trial_dir": "/tmp/mtime-val/jobs/mtime-002552-oracle/mtime-format-code-task-002552-or__qUaSZx2",
+      "reward": 1.0,
+      "reward_txt": "1",
+      "listing": [
+        "== cwd /testbed base d5179059d927ed7ababa536da842de2680b52724",
+        "== mtime_distinct 1",
+        "== mtime_top 2000-01-01+00:00:00.0000000000 /testbed/tox.ini;2000-01-01+00:00:00.0000000000 /testbed/pyproject.toml;2000-01-01+00:00:00.0000000000 /testbed/poetry.lock;2000-01-01+00:00:00.0000000000 /testbed/miio/utils.py;2000-01-01+00:00:00.0000000000 /testbed/miio/updater.py;2000-01-01+00:00:00.0000000000 /testbed/miio/tests/test_protocol.py;",
+        "== mtime_newer_than_fixed_count 0"
+      ]
+    }
+  ]
+}

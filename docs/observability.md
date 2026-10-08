@@ -17,6 +17,7 @@ Where a human looks when asking "what happened?" — and what each surface owns.
 | Why was this run counted or excluded? Taint, loop kind, token flow. | The trial's **Analysis** tab in the viewer: the processed run report (`<job>/processed/trial-*.md`, also listed in `~/Developer/eval-lab-results/INDEX.md`). |
 | What is running right now? | `evallab watch` (`<job>/watch/BOARD.md`) and, for native MiMo, the live Laminar trace. |
 | One machine-readable account of a trial (for agents). | `evallab report run <trial-or-job> --json`, or the viewer's JSON API (`/api/jobs?q=…`, `/api/jobs/<job>/trials/<trial>/trajectory`). |
+| Which tasks are bad, and which passes are cheating? Task verdicts, grader holes, excluded runs. | **<http://127.0.0.1:8501>**: the **Integrity** page of `evallab dashboard` ([dashboard.md](dashboard.md)), always on (LaunchAgent `com.petermakhnatch.evallab.dashboard`): task keep/fix/discard, oracle evidence, grader holes, counted vs excluded passes and cheat rate, with 8100 links. Read-only over existing projections. |
 
 The always-on viewer is `evallab results-viewer`: it mirrors the results
 home into a persistent root with the same overlay as `evallab view`

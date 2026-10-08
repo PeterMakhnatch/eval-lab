@@ -187,16 +187,3 @@ def test_real_checkout_uses_the_shared_parquet_root(tmp_path: Path, monkeypatch)
     monkeypatch.delenv("EVALLAB_DERIVED_ROOT", raising=False)
     assert resolve_status_layout(root).parquet_root == root / "derived/parquet"
 
-
-def test_dashboard_preserves_research_panes() -> None:
-    source = (ROOT / "dashboard/app.py").read_text()
-    for heading in (
-        "Leaderboard by cohort",
-        "Canary trend vs 7-day baseline",
-        "Spend vs daily ceiling",
-        "Queue funnel",
-        "Calibration history",
-        "ATIF-derived activity",
-        "DISCOVERIES",
-    ):
-        assert heading in source

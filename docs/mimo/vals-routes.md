@@ -1,4 +1,4 @@
-# Vals routes: fix-content census, cache purge @2, explicit instruction rules
+# Vals routes: fix-content census, cache purge @3, explicit instruction rules
 
 Owner: ValsRoutes. $0 (local Docker `--network none`, registry pulls, host git).
 No model calls, no paid compute.
@@ -8,7 +8,8 @@ archived) walks a cheating ladder over 2,698 coding tasks: unreachable git
 objects (V2, 67%) → mtime recon (V3) → hand-rolled pack parser (V4) → build
 and module caches (V5) → newer-release download (V6) → prompt wording (V7),
 plus installed copies of the fixed project (E1). This page records the
-route-by-route status after the vals-routes-v2 slice, with evidence.
+route-by-route status after the vals-routes-v2 slice plus the vals-routes-v3
+node build-output port (`purge-build-caches@3`), with evidence.
 
 ## Fix-content census (the rigorous check for V2/V3/V4/V5/E1)
 
@@ -30,11 +31,14 @@ build/dist/egg-info, pip/npm/yarn/pnpm/go/cargo/maven/gradle caches, /tmp,
 (a) published setup (ledger run package / snapshot adapter setup),
 (b) clean chain composed with the real transform functions
 (strip-future-history@1 → purge-installed-copies@1 where applicable →
-purge-build-caches@2 → mtime-normalize@1).
+purge-build-caches@2, or @3 for the node follow-ups → mtime-normalize@1).
 
 Headline: in (b), 24 of 32 tasks with a recovered fix are fully closed
 (no fix object, no content hit, no mtime signal); 3 have no leaked fix at
-all (truncated histories); 5 need per-case dispositions below.
+all (truncated histories); 5 need per-case dispositions below. The v3
+follow-up closes the one real (b) leak (000047, via @3) and proves five
+node tasks under @3 (000047/000254 rebuild-or-skip rows plus 000007/000025/
+000045 regression rows, all green).
 
 | Task | Lang | Fix source | (a) open | (b) open | Disposition |
 |---|---|---|---|---|---|
@@ -60,7 +64,7 @@ all (truncated histories); 5 need per-case dispositions below.
 | 000041 | Py | oracle S2 | V2 | — | closed |
 | 000792 | Py | HAR-168 sha | — | — | closed |
 | 000045 | JS | extract ok | V2+V3 | 3 coincidental 1-liners | documented, no change⁴ |
-| 000047 | TS | extract ok | V2+V3 | REAL: ignored `lib/` build output | OPEN — needs node build-output port⁵ |
+| 000047 | TS | extract ok | V2+V3 | — | closed by @3 rebuild⁵ |
 | 000077 | Py | oracle S2 | — | 42 coincidental (0 project) | documented, no change⁴ |
 | 000158 | Py | oracle S1 | V2+V3 | 3 doc-example lines | documented, no change⁴ |
 | 000324 | Py | oracle S1 | blind¹ | 257 generic lines (0 project-specific) | documented, no change⁴ |
@@ -88,13 +92,19 @@ boilerplate, stdlib echoes, dependency import paths) in unrelated
 third-party packages, no blob match, no multi-line/function-level hit.
 Each adjudicated with the matched line in the receipt. No purge change:
 the containing packages are genuine dependencies the offline grader needs.
-⁵ 000047 is the one real (b) leak: TypeScript `lib/` is gitignored build
+⁵ 000047 was the one real (b) leak: TypeScript `lib/` is gitignored build
 output compiled from the fixed tree at image build, and the published
 setup's `git clean -fdx --exclude=lib` spares it, so `ami.js`/`ami.d.ts`
-keep 4+2 fix lines post-clean. Deleting/rebuilding `lib/` generically
-risks graders that test build output; it needs a node build-output port
-with per-task regeneration validation (same bar as HAR-194). Documented
-as the residual, not silently dropped.
+keep 4+2 fix lines post-clean. Closed by `purge-build-caches@3` (next
+section): the tracked-source asset grep (`path.join(__dirname, '..',
+`lib`, ...)` in `src/utils.ts`) marks `lib/` grader-used, setup deletes it
+and recompiles from the base tree (`npm run compile`, +19 s), and the (b)
+row goes to 0 hits / 0 unreachable / normalized mtimes. Oracle 1 / nop 0
+confirmed with assertion-level discrimination (nop fails `Expected: 0,
+Received: 1` on Docker-component counts, not on missing assets). A naive
+delete-only variant was measured first and broke grading (`Cannot find
+asset at /testbed/lib/lambdas/...`), which is why detection is fail-closed
+toward rebuild.
 ⁶ 002486's oracle is the extractor-rejected S2 candidate (preset JSONs,
 not code modules); its one surviving pattern is a registry-path line
 present in base-tracked files with escaping the base filter can't
@@ -119,6 +129,36 @@ fail-closed branches, incl. stub-pip remove/verify), `bash -n` gate, live
 (b) setups green across Python/Go/JS/TS/Rust, 000681 (virtual workspace)
 failing before and passing after member resolution. No project-attributable
 cache hit remained in any (b) row.
+
+## purge-build-caches@3 (node gitignored build outputs)
+
+`purge-build-caches@3` (same module, new transform; supersedes @2, refuses
+@1/@2 parents; chain position strip → purge → @3 → mtime) appends node
+build-output handling to the @2 block: for each of `lib/` `dist/` `build/`
+`out/` present and gitignored, decide delete vs rebuild-from-base. A dir
+counts as grader-used when worktree tests import through it
+(`from`/`require` with `../lib/` — note the `\s*`: real imports have a
+space), a test config or the `test` script names it, a `node_modules`
+self-link resolves through a package entry point inside it, or any tracked
+source references it as a runtime asset path (`git grep` for
+`'lib'`/`'../lib/` over tracked `*.ts/*.js`, `package.json` excluded —
+the 000047 shape). Grader-unused dirs are deleted with verify; grader-used
+dirs are deleted and rebuilt from the base tree via the `compile` script
+(`build` fallback; compile avoids running the packaged test suite mid-setup,
+900 s cap), and setup fails when no build script exists or the rebuild does
+not regenerate the dir. Tracked build output (e.g. TerriaJS `lib/*.ts` on
+000254) is versioned source: @3 skips it and strip's base reset covers it.
+Registered in `hardening.py` (`CACHE_V3_ID`); chain adoption stays the
+clean-set owner's call.
+
+Proven: 8 fixture execution tests (delete, import-driven rebuild, asset-ref
+rebuild, no-script fail-closed, absent-output skip, plus content/marker
+refusals), `bash -n` gate, and live rows — 000047 rebuild (+19 s compile,
+`_pbc_script=compile` in the traced setup log) with oracle 1 / nop 0;
+000254 (tracked-output skip, 46,150 unreachable → 0); 000007/000025/000045
+regression rows green (000045 keeps only its 3 adjudicated 1-line
+coincidences). The naive delete-only variant is kept as the documented
+negative control, not shipped.
 
 ## V7: instruction-explicit-rules@1 (opt-in only, NOT in the default chain)
 
@@ -147,9 +187,12 @@ training packages.
   all `no` after mtime-normalize@1).
 - V4 pack parser: CLOSED wherever V2 is (no objects → nothing to parse);
   `probe-image-checks@3` automation (vals-closure) covers the rung.
-- V5/E1 caches + installed copies: CLOSED in (b) except 000047 (`lib/`,
-  OPEN, needs the node build-output port) and purge-inapplicable tasks
-  (documented). @2 extends coverage to project-owned cache entries.
+- V5/E1 caches + installed copies: CLOSED in (b) everywhere a fix existed,
+  incl. 000047 (`lib/` rebuilt from base by @3; oracle 1 / nop 0) and
+  purge-inapplicable tasks (documented). @2 covers project-owned cache
+  entries; @3 covers node gitignored build outputs (delete or rebuild,
+  fail-closed).
+
 - V6 newer-release download: no content route (egress-locked graders);
   closed at the network layer by the FineEnvs 1.3.0 blocklist (see the
   FineEnvs audit page); not re-proven here.
@@ -159,8 +202,8 @@ training packages.
 
 ## Residuals for the parent
 
-1. 000047 `lib/` OPEN — propose a node build-output port (rebuild-from-base
-   or delete-if-untested) with per-task grader validation; do not blanket-delete.
+1. @3 chain adoption is the clean-set owner's call (registry entry
+   `CACHE_V3_ID` shipped; default chain unchanged until they adopt it).
 2. Purge-inapplicable set grows by five (002938/000666/000905/001198/000324);
    consider folding into `PURGE_INAPPLICABLE` (file owned by the probe slice).
 3. 002486 needs a stronger oracle (paid oracle run) for a conclusive content verdict.

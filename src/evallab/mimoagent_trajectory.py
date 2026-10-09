@@ -168,7 +168,7 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
                         "native_name": name,
                         "swe_sha256": SWE_SHA256,
                         "step_limit": 500,
-                        "antihack": False,
+                        "antihack": native.get("info", {}).get("antihack") is True,
                         "sampling": SAMPLING,
                     },
                 },
@@ -193,6 +193,11 @@ def native_to_atif(native: dict, calls: list[dict], *, trajectory_id: str, model
     main["final_metrics"] = _totals(calls)
     main["extra"]["native_model_stats"] = native.get("info", {}).get("model_stats")
     for key in ("stop_reason", "infra_error", "context_exhaustion"):
+        if key in native.get("info", {}):
+            main["extra"][key] = native["info"][key]
+    # Opt-in trial options ride the native info through the finished event;
+    # record them on the trajectory so the audit trail matches trial metadata.
+    for key in ("antihack", "antihack_blocks", "explicit_rules"):
         if key in native.get("info", {}):
             main["extra"][key] = native["info"][key]
     emitted_names = {trajectory["agent"]["extra"]["native_name"] for trajectory in trajectories}

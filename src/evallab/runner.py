@@ -2560,6 +2560,7 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
         harbor_command = build_command(
             staged_request,
             setup_fingerprint=lock_setup_fingerprint(request, repo_root=repo_root),
+            repo_root=repo_root,
         )
         command = subscription_command(staged_request, harbor_command, repo_root=_RUNTIME_ROOT)
         containers_before = harbor_container_ids(staged_request.task)

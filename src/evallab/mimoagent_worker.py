@@ -1,7 +1,7 @@
 """Pinned Xiaomi controller subprocess; its SDK must not share Harbor's interpreter.
 
 Tool transport and append-only evidence are adapted. DefaultAgent, its native
-tools, prompts, parallelism and step limits are unchanged. Two adapters wrap
+tools, prompts, parallelism and step limits are unchanged. The adapters wrap
 the pinned SDK (never inside site-packages):
 
 * Known-cold OpenAI failures retry within a ~300s recovery window. The initial
@@ -18,6 +18,13 @@ the pinned SDK (never inside site-packages):
   400 context-length refusal instead ends as ContextExhausted with stop
   reason context_exhausted (no truncation or summary turn), so Harbor grades
   the final state.
+* The opt-in Xiaomi antihack guard (``initial["antihack"]``, default off)
+  attaches ``AntiHackGuard`` to every DefaultAgent — the root and each
+  SDK-spawned child, which the SDK otherwise constructs without
+  interceptors — mirroring the ``__init__`` pattern of Xiaomi's own guarded
+  agents (DefaultAgent itself has no ``antihack`` field). Blocked calls never
+  execute; their verdicts are recorded as evidence. Prompts, tools, limits
+  and history are untouched.
   Agent-tool log_file metadata uses a logical childlog://<stem> identity;
   internal on-disk log locations remain untouched.
 
@@ -50,6 +57,8 @@ WRAPPER_ADDITIONS = {
     "infrastructure_errors": "stop_metadata",
     "agent_log_paths": "logical_childlog",
     "fineenv_issue_header": "strip_one_leading_copy",
+    "xiaomi_antihack_guard": "opt_in_every_default_agent",
+    "explicit_rules_addendum": "recorded_opt_in_flag",
 }
 
 
@@ -461,7 +470,11 @@ def main() -> None:
         or served_context_tokens <= 0
     ):
         served_context_tokens = None
-
+    # Opt-in trial options, recorded in the trajectory whether on or off.
+    # Strict ``is True``: the host adapter normalizes user input, and a guard
+    # must never be armed by a truthy-but-false string like "false".
+    enable_antihack = initial.get("antihack") is True
+    record_explicit_rules = initial.get("explicit_rules") is True
     # Explicit tracing parentage for reused pool threads: agent-run span
     # contexts by live agent identity, plus the active tool span in each
     # executing thread so a child run nests under its invoking agent tool.
@@ -927,11 +940,41 @@ def main() -> None:
             )
 
     model.client._client.event_hooks["response"].append(record_response)
+    if enable_antihack:
+        from mimoagent.agents.antihack import AntiHackGuard  # ty: ignore[unresolved-import]
+
+        _original_default_init = DefaultAgent.__init__
+
+        def _init_with_antihack(self, *args, **kwargs) -> None:
+            _original_default_init(self, *args, **kwargs)
+            guard = AntiHackGuard({"enabled": True})
+            self.antihack_guard = guard
+            self.add_action_interceptor(guard)
+
+        DefaultAgent.__init__ = _init_with_antihack  # type: ignore[method-assign]
+
     agent = DefaultAgent(
         model=model, env=rpc, msg_path=logs.agent_msg_path("main"), **config["agent"]
     )
     logs.register_agent("main", agent)
+
+    def _antihack_blocks(root) -> list:
+        """Every guard verdict from the root and its SDK-spawned children."""
+        blocks: list = []
+        seen: set = set()
+        stack = [root]
+        while stack:
+            node = stack.pop()
+            if id(node) in seen:
+                continue
+            seen.add(id(node))
+            guard = getattr(node, "antihack_guard", None)
+            blocks.extend(getattr(guard, "blocks", ()))
+            stack.extend(getattr(node, "subagents", ()))
+        return blocks
+
     status, result = None, None
+
     stop_metadata: dict = {}
     try:
         with use_log_context(logs):
@@ -981,7 +1024,9 @@ def main() -> None:
                     "native_revision": NATIVE_REVISION,
                     "swe_sha256": SWE_SHA256,
                     "sampling": SAMPLING,
-                    "antihack": False,
+                    "antihack": enable_antihack,
+                    "antihack_blocks": _antihack_blocks(agent),
+                    "explicit_rules": record_explicit_rules,
                     **stop_metadata,
                 },
             )
@@ -1000,6 +1045,9 @@ def main() -> None:
             "exit_status": status,
             "result": result,
             "model_stats": {"api_calls": model.n_calls, **vars(model.token_stats)},
+            "antihack": enable_antihack,
+            "antihack_blocks": len(_antihack_blocks(agent)),
+            "explicit_rules": record_explicit_rules,
             **stop_metadata,
         }
     )

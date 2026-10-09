@@ -20,8 +20,20 @@ lands, even for infrastructure failures.
 Verdicts: ``admitted`` (every step passed), ``rejected`` (a step proved the
 task bad: wrong control score or a cracked attack), ``not_admitted``
 (infrastructure broke before proof either way: Harbor errors, missing jobs,
-unreadable rewards, or an oracle with no shipped reference solution).
-Fail-closed means infra never silently passes.
+unreadable rewards), ``unproven`` (no oracle reference covers the task, so
+solvability cannot be shown — distinct from infra). Fail-closed means infra
+never silently passes.
+
+Oracle for solution-less tasks uses the existing HAR-191 history-oracle
+reference, never a new store: the committed ``oracle_sweep.csv`` projection
+selects the proven row (``oracle:pass+nop:fail``), the recorded sweep receipt
+validates the solution patch (sha-pinned, recorded 1.0/0.0 arms), and the
+gate stages the package, plants a solve.sh applying that patch (the
+mtime-validation mechanism), and grades the fixed tree with the oracle agent
+for fresh Docker proof. ``--reference`` overrides with a receipt or raw patch
+(``none`` skips). The step records the full provenance plus exact/task-level
+digest binding. Lineage resolution is targeted (one record file by slug plus
+package digest), never a corpus scan.
 
 Static-scan policy: the scan step passes when the scan executes and records
 its ledger. Non-empty findings do not veto admission, because the V1-V8 ledger
@@ -40,18 +52,25 @@ logic changes. No mutation step exists yet.
 
 from __future__ import annotations
 
+import contextlib
+import csv
+import hashlib
 import json
+import os
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
 
 from evallab.cheat import ATTACKS
 from evallab.schemas import ContractModel
+
+if TYPE_CHECKING:
+    from evallab.task_variants import VariantRecord
 
 #: Durable admission-record schema tag.
 ADMISSION_SCHEMA = "evallab.task_admission/v1"
@@ -59,8 +78,8 @@ ADMISSION_SCHEMA = "evallab.task_admission/v1"
 #: Gate implementation version pinned in every record (step-list revisions bump this).
 GATE_VERSION = "tasks.admit/v1"
 
-AdmissionVerdict = Literal["admitted", "rejected", "not_admitted"]
-StepStatus = Literal["pass", "fail", "infra"]
+AdmissionVerdict = Literal["admitted", "rejected", "not_admitted", "unproven"]
+StepStatus = Literal["pass", "fail", "infra", "unproven"]
 
 
 class AdmissionError(RuntimeError):
@@ -119,6 +138,7 @@ class AdmissionStepRecord(ContractModel):
     status: StepStatus
     detail: str = ""
     findings: list[AdmissionFinding] = Field(default_factory=list)
+    reference: str = ""
 
 
 class AdmissionRecord(ContractModel):
@@ -139,6 +159,7 @@ class AdmissionRecord(ContractModel):
     verdict: AdmissionVerdict
     failing_steps: list[str] = Field(default_factory=list)
     failed_attacks: list[str] = Field(default_factory=list)
+    unproven_steps: list[str] = Field(default_factory=list)
     duration_s: float = Field(ge=0.0)
 
 
@@ -199,6 +220,9 @@ class StepContext:
     scan: Callable[[Path], ScanOutcome] | None = None
     control: Callable[..., ControlOutcome] | None = None
     cheat: Callable[..., CheatOutcome] | None = None
+    reference: Callable[..., OracleReference | None] | None = None
+    reference_arg: str = "auto"
+    sweep_csv: Path | None = None
 
 
 def default_scan(task_dir: Path) -> ScanOutcome:
@@ -335,6 +359,239 @@ def default_cheat(
 
 
 # --------------------------------------------------------------------------- #
+# Oracle reference (HAR-191 history-oracle path for solution-less tasks)
+# --------------------------------------------------------------------------- #
+
+#: Sweep label that counts as proven solvability (the MiMo "proven" set).
+ORACLE_PROVEN_LABEL = "oracle:pass+nop:fail"
+
+#: Committed sweep projection, repo-rooted by the gate (never a new store).
+DEFAULT_SWEEP_CSV = Path("research/experiments/python-task-ledger/oracle_sweep.csv")
+
+
+class ReferenceUnproven(Exception):
+    """No oracle reference covers this task: distinct from infra, never silent."""
+
+
+@dataclass
+class OracleReference:
+    """A proven reference fix plus its digest-bound provenance."""
+
+    task_id: str
+    label: str
+    fix_commit: str
+    receipt_path: str
+    receipt_run_digest: str
+    patch_sha256: str
+    patch_bytes: bytes
+    recorded_oracle_reward: float | None
+    recorded_nop_reward: float | None
+
+
+def _task_id_of(task_dir: Path) -> str:
+    """Bare task id (``format-code-task-002402``) from the package manifest."""
+    import tomllib
+
+    try:
+        name = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
+        name = (name.get("task") or {}).get("name", "")
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ReferenceUnproven(f"cannot read [task].name from {task_dir}: {exc}") from exc
+    bare = str(name).strip().split("/")[-1]
+    if not bare:
+        raise ReferenceUnproven(f"task package has no [task].name: {task_dir}")
+    return bare
+
+
+def _task_workdir(task_dir: Path) -> str:
+    """Absolute container workdir from the package manifest."""
+    import tomllib
+
+    try:
+        config = tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
+        workdir = (config.get("environment") or {}).get("workdir", "")
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise ReferenceUnproven(f"cannot read [environment].workdir: {exc}") from exc
+    if not isinstance(workdir, str) or not workdir.startswith("/"):
+        raise ReferenceUnproven(f"task package has no absolute [environment].workdir: {task_dir}")
+    return workdir
+
+
+def _reference_from_receipt(path: Path, *, task_id: str | None = None) -> OracleReference:
+    """Validate a HAR-191 sweep receipt into a reference (provenance, not trust)."""
+    try:
+        receipt = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise AdmissionError(f"cannot read reference receipt {path}: {exc}") from exc
+    if task_id is not None and receipt.get("task_id") not in (None, task_id):
+        raise AdmissionError(
+            f"reference receipt is for {receipt.get('task_id')!r}, not {task_id!r}: {path}"
+        )
+    extraction = receipt.get("extraction") or {}
+    if extraction.get("status") != "ok":
+        raise ReferenceUnproven(f"receipt extraction is not ok: {path}")
+    patch_file = Path(extraction.get("solution_patch_path") or "")
+    try:
+        patch_bytes = patch_file.read_bytes()
+    except OSError as exc:
+        raise ReferenceUnproven(f"reference patch is missing: {patch_file} ({exc})") from exc
+    patch_hex = hashlib.sha256(patch_bytes).hexdigest()
+    patch_sha = f"sha256:{patch_hex}"
+    recorded_sha = str(extraction.get("solution_patch_sha256") or "").removeprefix("sha256:")
+    if recorded_sha and recorded_sha != patch_hex:
+        raise ReferenceUnproven(f"reference patch sha mismatch: {patch_file}")
+    arms = receipt.get("arms") or {}
+    oracle_reward = (arms.get("oracle") or {}).get("reward")
+    nop_reward = (arms.get("nop") or {}).get("reward")
+    try:
+        oracle_reward = None if oracle_reward is None else float(oracle_reward)
+        nop_reward = None if nop_reward is None else float(nop_reward)
+    except (TypeError, ValueError):
+        oracle_reward, nop_reward = None, None
+    if oracle_reward != 1.0 or nop_reward != 0.0:
+        raise ReferenceUnproven(
+            f"receipt records oracle={oracle_reward}/nop={nop_reward}, not 1.0/0.0: {path}"
+        )
+    fix = extraction.get("fix") or {}
+    return OracleReference(
+        task_id=str(receipt.get("task_id") or task_id or ""),
+        label=ORACLE_PROVEN_LABEL,
+        fix_commit=str(fix.get("sha") or ""),
+        receipt_path=str(path),
+        receipt_run_digest=str(receipt.get("run_digest") or ""),
+        patch_sha256=patch_sha,
+        patch_bytes=patch_bytes,
+        recorded_oracle_reward=oracle_reward,
+        recorded_nop_reward=nop_reward,
+    )
+
+
+def resolve_oracle_reference(
+    task_dir: Path,
+    task_id: str,
+    *,
+    sweep_csv: Path | None,
+    reference_arg: str = "auto",
+) -> OracleReference | None:
+    """Resolve the proven reference fix for one task (``auto`` | ``none`` | path).
+
+    ``auto`` reads the committed sweep projection and validates the recorded
+    receipt; a raw patch file is used verbatim as an explicit reference;
+    ``none`` (or any miss) yields ``None`` — the oracle step then reports
+    ``unproven`` instead of burning Docker or failing closed as infra.
+    """
+    if reference_arg == "none":
+        return None
+    if reference_arg != "auto":
+        explicit = Path(reference_arg)
+        if not explicit.is_file():
+            raise AdmissionError(f"reference file is missing: {explicit}")
+        if explicit.suffix == ".json":
+            return _reference_from_receipt(explicit, task_id=task_id)
+        patch_bytes = explicit.read_bytes()
+        return OracleReference(
+            task_id=task_id,
+            label="explicit",
+            fix_commit="explicit",
+            receipt_path=str(explicit),
+            receipt_run_digest="",
+            patch_sha256=f"sha256:{hashlib.sha256(patch_bytes).hexdigest()}",
+            patch_bytes=patch_bytes,
+            recorded_oracle_reward=None,
+            recorded_nop_reward=None,
+        )
+    if sweep_csv is None:
+        return None
+    try:
+        rows = sweep_csv.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return None
+    match: dict[str, str] = {}
+    reader = csv.DictReader(rows)
+    for row in reader:
+        if (row.get("task_id") or "").strip() == task_id:
+            match = row
+            break
+    if not match:
+        return None
+    if (match.get("label") or "").strip() != ORACLE_PROVEN_LABEL:
+        return None
+    receipt_path = Path(match.get("evidence_path") or "")
+    if not receipt_path.is_file():
+        return None
+    return _reference_from_receipt(receipt_path, task_id=task_id)
+
+
+def render_reference_solve_sh(workdir: str, patch: bytes, patch_sha: str) -> bytes:
+    """Oracle solve.sh: apply the reference patch to the agent worktree, then stop."""
+    try:
+        diff = patch.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise AdmissionError(f"reference patch is not utf-8: {exc}") from exc
+    fence = f"ADMISSION_REF_{patch_sha.removeprefix('sha256:')[:12]}"
+    return (
+        "\n".join(
+            [
+                "#!/bin/bash",
+                "# Admission-gate oracle: apply the proven reference patch, change nothing else.",
+                "set -euo pipefail",
+                f'CWD="{workdir}"',
+                'cd "$CWD"',
+                f"git apply --whitespace=nowarn <<'{fence}'",
+                diff.rstrip("\n"),
+                fence,
+                'echo "admission: reference patch applied"',
+            ]
+        )
+        + "\n"
+    ).encode("utf-8")
+
+
+def resolve_task_record(
+    task_dir: Path, *, repo_root: Path | str, records_dir: Path | str
+) -> VariantRecord | None:
+    """Resolve one task directory to its lineage record without a corpus scan.
+
+    ``lineage_chain`` parses every record under the records dir (15k+ files
+    and growing); the gate only ever needs the record for the tested package,
+    whose path is fully determined by its task slug plus package digest.
+    Returns ``None`` for non-variant packages; a digest mismatch also yields
+    ``None`` rather than a wrong record.
+    """
+    import tomllib
+
+    from evallab.registry import task_directory_digest
+    from evallab.task_variants import resolve_record
+
+    try:
+        full_name = str(
+            tomllib.loads((task_dir / "task.toml").read_text(encoding="utf-8"))
+            .get("task", {})
+            .get("name", "")
+        ).strip()
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    if not full_name:
+        return None
+    slug = full_name.strip("/").replace("/", "__")
+    try:
+        digest = task_directory_digest(task_dir)
+    except Exception:
+        return None
+    short = digest.split(":", 1)[1][:12]
+    root = Path(repo_root).resolve()
+    base = Path(records_dir)
+    candidate = (base if base.is_absolute() else root / base) / slug / f"{short}.json"
+    if not candidate.is_file():
+        return None
+    try:
+        record = resolve_record(candidate, repo_root=root, records_dir=records_dir)
+    except Exception:
+        return None
+    return record if record.variant_digest == digest else None
+
+
+# --------------------------------------------------------------------------- #
 # Step runners (one per kind; the registry is the extension point)
 # --------------------------------------------------------------------------- #
 
@@ -384,18 +641,8 @@ def _run_control_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
             detail=f"misconfigured control step: {step!r}",
         )
     if step.agent == "oracle" and not (ctx.task_dir / "solution" / "solve.sh").is_file():
-        return AdmissionStepRecord(
-            name=step.name,
-            kind=step.kind,
-            command=[],
-            duration_s=time.monotonic() - started,
-            status="infra",
-            detail=(
-                "oracle control needs solution/solve.sh and the package ships none; "
-                "solvability is unprovable (not a task failure)"
-            ),
-        )
-    job_name = f"{ctx.job_prefix}-{ctx.slug}-{step.agent}"
+        return _run_oracle_reference_step(step, ctx, started)
+    job_name = _safe_job_name(ctx.job_prefix, ctx.slug, step.agent or "control")
     try:
         run = ctx.control or default_control
         outcome = run(
@@ -415,6 +662,22 @@ def _run_control_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
             status="infra",
             detail=f"{step.agent} control broke: {exc}",
         )
+    return _score_control_outcome(step, outcome, started)
+
+
+def _score_control_outcome(
+    step: StepDef,
+    outcome: ControlOutcome,
+    started: float,
+    *,
+    reference: str = "",
+) -> AdmissionStepRecord:
+    """Score one finished control trial set: full proof or nothing.
+
+    No usable trial evidence is infra; a partial proof (some rewards missing
+    or mismatched) is a fail — the gate demands every observed reward equal
+    the expectation.
+    """
     duration = time.monotonic() - started
     job = str(outcome.job_dir) if outcome.job_dir is not None else None
     observed = [reward for reward in outcome.rewards if reward is not None]
@@ -428,6 +691,7 @@ def _run_control_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
             duration_s=duration,
             status="infra",
             detail=f"{step.agent} control produced no usable trial evidence",
+            reference=reference,
         )
     bad = [reward for reward in outcome.rewards if reward != step.expect]
     if bad:
@@ -442,6 +706,7 @@ def _run_control_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
             detail=(
                 f"{step.agent} control must score {step.expect}; observed {list(outcome.rewards)}"
             ),
+            reference=reference,
         )
     return AdmissionStepRecord(
         name=step.name,
@@ -452,6 +717,153 @@ def _run_control_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
         duration_s=duration,
         status="pass",
         detail=f"{step.agent} control scored {step.expect} on every trial",
+        reference=reference,
+    )
+
+
+def _safe_job_name(*parts: str) -> str:
+    """Harbor job names: 3-80 lowercase letters, numbers, or hyphens."""
+    import re
+
+    name = re.sub(r"[^a-z0-9]+", "-", "-".join(parts).lower()).strip("-")
+    return name[:80].rstrip("-") or "admit-job"
+
+
+def _unproven_step(
+    step: StepDef, started: float, detail: str, *, reference: str = ""
+) -> AdmissionStepRecord:
+    return AdmissionStepRecord(
+        name=step.name,
+        kind=step.kind,
+        command=[],
+        duration_s=time.monotonic() - started,
+        status="unproven",
+        detail=detail,
+        reference=reference,
+    )
+
+
+def _run_oracle_reference_step(
+    step: StepDef, ctx: StepContext, started: float
+) -> AdmissionStepRecord:
+    """Oracle via the proven reference patch (HAR-191 path for solution-less tasks).
+
+    Stages the package, plants a solve.sh that applies the reference patch in
+    the agent worktree (the mtime-validation mechanism), and grades the fixed
+    tree with the oracle agent. No reference, no Docker: ``unproven``.
+    """
+    try:
+        task_id = _task_id_of(ctx.task_dir)
+    except ReferenceUnproven as exc:
+        return _unproven_step(step, started, str(exc))
+    try:
+        resolve = ctx.reference or resolve_oracle_reference
+        ref = resolve(
+            ctx.task_dir,
+            task_id,
+            sweep_csv=ctx.sweep_csv,
+            reference_arg=ctx.reference_arg,
+        )
+    except AdmissionError as exc:
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=[],
+            duration_s=time.monotonic() - started,
+            status="infra",
+            detail=f"oracle reference broke: {exc}",
+        )
+    except ReferenceUnproven as exc:
+        return _unproven_step(step, started, str(exc))
+    if ref is None:
+        return _unproven_step(
+            step,
+            started,
+            f"no proven oracle reference for {task_id} "
+            f"(need {ORACLE_PROVEN_LABEL} in the sweep or --reference PATH)",
+        )
+    try:
+        workdir = _task_workdir(ctx.task_dir)
+    except ReferenceUnproven as exc:
+        return _unproven_step(step, started, str(exc), reference=_ref_label(ref))
+    try:
+        from evallab.task_stability import stage_task
+
+        ref_src = ctx.jobs_dir / f"{ctx.job_prefix}-{ctx.slug}-oracle-refsrc"
+        if ref_src.exists():
+            import shutil
+
+            def _writable_rmtree(target: Path) -> None:
+                def _onerror(func: Callable[..., object], path: str, _exc: object) -> None:
+                    os.chmod(path, 0o700)
+                    func(path)
+
+                shutil.rmtree(target, onerror=_onerror)
+
+            _writable_rmtree(ref_src)
+        staged = stage_task(ctx.task_dir, ref_src)
+        staged.chmod(staged.stat().st_mode | 0o200)
+        for dirpath, dirnames, filenames in os.walk(staged):
+            for name in dirnames + filenames:
+                target = Path(dirpath) / name
+                with contextlib.suppress(OSError):
+                    target.chmod(target.stat().st_mode | 0o200)
+        solve = staged / "solution" / "solve.sh"
+        solve.parent.mkdir(parents=True, exist_ok=True)
+        solve.write_bytes(render_reference_solve_sh(workdir, ref.patch_bytes, ref.patch_sha256))
+        os.chmod(solve, 0o755)
+    except OSError as exc:
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=[],
+            duration_s=time.monotonic() - started,
+            status="infra",
+            detail=f"oracle reference staging broke: {exc}",
+            reference=_ref_label(ref),
+        )
+    job_name = _safe_job_name(ctx.job_prefix, ctx.slug, step.agent or "oracle")
+    try:
+        run = ctx.control or default_control
+        outcome = run(
+            task_dir=staged,
+            agent=step.agent or "oracle",
+            job_name=job_name,
+            jobs_dir=ctx.jobs_dir,
+            repo_src=ctx.repo_src,
+            repeat_n=ctx.repeat_n,
+        )
+    except Exception as exc:
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=["evallab", "tasks", "stability-run", "--agent", step.agent or ""],
+            duration_s=time.monotonic() - started,
+            status="infra",
+            detail=f"{step.agent} control broke: {exc}",
+            reference=_ref_label(ref),
+        )
+    return _score_control_outcome(step, outcome, started, reference=_ref_label(ref, ctx.task_dir))
+
+
+def _ref_label(ref: OracleReference, task_dir: Path | None = None) -> str:
+    """One-line digest-bound reference provenance for the record."""
+    binding = "unbound"
+    if task_dir is not None and ref.receipt_run_digest:
+        try:
+            from evallab.registry import task_directory_digest
+
+            binding = (
+                "exact"
+                if task_directory_digest(task_dir) == ref.receipt_run_digest
+                else "task-level"
+            )
+        except Exception:
+            binding = "unverified"
+    return (
+        f"sweep:{ref.receipt_path} fix={ref.fix_commit} patch={ref.patch_sha256} "
+        f"recorded-oracle={ref.recorded_oracle_reward}/nop={ref.recorded_nop_reward} "
+        f"binding={binding}"
     )
 
 
@@ -466,7 +878,7 @@ def _run_cheat_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
             status="infra",
             detail=f"misconfigured cheat step: {step!r}",
         )
-    job_name = f"{ctx.job_prefix}-{ctx.slug}-{step.attack}"
+    job_name = _safe_job_name(ctx.job_prefix, ctx.slug, step.attack)
     try:
         run = ctx.cheat or default_cheat
         outcome = run(
@@ -604,6 +1016,9 @@ def admit_task(
     scan: Callable[[Path], ScanOutcome] | None = None,
     control: Callable[..., ControlOutcome] | None = None,
     cheat: Callable[..., CheatOutcome] | None = None,
+    reference: Callable[..., OracleReference | None] | None = None,
+    reference_arg: str = "auto",
+    sweep_csv: Path | str | None = None,
     output: Path | str | None = None,
     update_variant_status: bool = True,
 ) -> AdmissionResult:
@@ -638,6 +1053,9 @@ def admit_task(
         scan=scan,
         control=control,
         cheat=cheat,
+        reference=reference,
+        reference_arg=reference_arg,
+        sweep_csv=(Path(sweep_csv) if sweep_csv is not None else root / DEFAULT_SWEEP_CSV),
     )
 
     gate_started = time.monotonic()
@@ -673,8 +1091,15 @@ def admit_task(
 
     failing = [row.name for row in executed if row.status == "fail"]
     infra = [row.name for row in executed if row.status == "infra"]
+    unproven = [row.name for row in executed if row.status == "unproven"]
     verdict: AdmissionVerdict = (
-        "admitted" if not failing and not infra else "rejected" if failing else "not_admitted"
+        "admitted"
+        if not failing and not infra and not unproven
+        else "rejected"
+        if failing
+        else "unproven"
+        if unproven
+        else "not_admitted"
     )
     failed_attacks = [
         row.name.split(":", 1)[1]
@@ -692,6 +1117,7 @@ def admit_task(
         verdict=verdict,
         failing_steps=[*failing, *infra],
         failed_attacks=failed_attacks,
+        unproven_steps=unproven,
         duration_s=time.monotonic() - gate_started,
     )
 
@@ -714,20 +1140,12 @@ def admit_task(
     variant_record: str | None = None
     variant_status_note: str | None = None
     if update_variant_status:
-        from evallab.task_variants import (
-            LineageError,
-            VariantError,
-            append_status_evidence,
-            lineage_chain,
-        )
+        from evallab.task_variants import VariantError, append_status_evidence
 
-        try:
-            chain = lineage_chain(task, repo_root=root, records_dir=records_dir)
-        except LineageError:
-            chain = []
-        if chain and verdict != "not_admitted":
+        head = resolve_task_record(task, repo_root=root, records_dir=records_dir)
+        if head is not None and verdict in ("admitted", "rejected"):
             status = "validated" if verdict == "admitted" else "rejected"
-            current = chain[0].record.status
+            current = head.status
             if current in ("validated", "rejected") and current != status:
                 variant_status_note = (
                     f"lineage record is already {current!r}; final verdicts are never reflipped"
@@ -735,7 +1153,7 @@ def admit_task(
             else:
                 try:
                     updated = append_status_evidence(
-                        chain[0].record,
+                        head,
                         status,  # type: ignore[arg-type]
                         evidence=(f"admission {verdict}: {record_path} (package {package_digest})"),
                         by=by,
@@ -781,6 +1199,10 @@ __all__ = [
     "StepContext",
     "StepDef",
     "STEP_RUNNERS",
+    "DEFAULT_SWEEP_CSV",
+    "ORACLE_PROVEN_LABEL",
+    "OracleReference",
+    "ReferenceUnproven",
     "admit_task",
     "default_cheat",
     "default_control",
@@ -788,4 +1210,7 @@ __all__ = [
     "default_steps",
     "plan_admission",
     "record_filename",
+    "render_reference_solve_sh",
+    "resolve_oracle_reference",
+    "resolve_task_record",
 ]

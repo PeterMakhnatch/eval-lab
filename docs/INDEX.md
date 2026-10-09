@@ -124,6 +124,8 @@ inputs:
     digest: sha256:0bc85e698e48423c3a23b2462ca7eb6187578a0cb94e9dc6f346d4a1f3363692
   - path: docs/surfaces.md
     digest: sha256:599c3ae6f22cf2696bc2f7bdc17f6c207f0366ae4e8e5592a28c6fe7bfe2b064
+  - path: docs/task-admission.md
+    digest: sha256:e5786d5e850a583dc19283dc4e95e00805896ff3999a5717d69c2f45aecbb68d
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-quality.md
@@ -198,6 +200,7 @@ an operator can see what is archived.
 | `docs/research/external-datasets.md` | External trajectory datasets: catalog and ingestion specification | `living` | `builder, analyst` |
 | `docs/research/harbor-ecosystem-architecture-perspective.md` | Where eval-lab sits in the Harbor ecosystem, and what it is missing | `living` | `builder, analyst` |
 | `docs/research/synthetic-tasks.md` | Synthetic task generation: blueprint | `living` | `builder, analyst` |
+| `docs/task-admission.md` | Task admission gate (`evallab tasks admit`) | `living` | `builder, operator` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |
 | `docs/task-stability.md` | Verifier stability (HAR-83 §4.2.1) | `living` | `builder, analyst, operator` |
@@ -369,6 +372,7 @@ an operator can see what is archived.
 | `docs/scaling.md` | Scaling gates | `living` | `runner, operator` |
 | `docs/storm-alarms.md` | Storm Alarms & STATUS.md Generator | `living` | `operator, runner` |
 | `docs/surfaces.md` | Operating Surfaces: Digest, Storm Alarms, and STATUS.md | `living` | `operator, analyst` |
+| `docs/task-admission.md` | Task admission gate (`evallab tasks admit`) | `living` | `builder, operator` |
 | `docs/task-provenance.md` | Task Provenance | `living` | `analyst, builder, operator` |
 | `docs/task-quality.md` | Judging whether a task is good | `living` | `analyst, operator` |
 | `docs/task-registry.md` | Task registry and admission trust boundary | `living` | `builder, operator` |

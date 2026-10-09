@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from evallab.task_admission import (
     AdmissionError,
     CheatOutcome,
     ControlOutcome,
+    OracleReference,
     ScanOutcome,
     StepDef,
 )
@@ -323,8 +325,8 @@ def test_variant_status_updated_for_lineage_variant(tmp_path: Path) -> None:
     assert persisted["variant_record"] == record.record_relpath().as_posix()
 
 
-def test_oracle_without_solution_is_infra(tmp_path: Path) -> None:
-    """MiMo packages ship no solution/solve.sh: oracle is unprovable, not failed."""
+def test_oracle_without_reference_is_unproven(tmp_path: Path) -> None:
+    """No shipped solution and no sweep reference: unproven, not infra."""
     task = tmp_path / "nosolution-pkg"
     task.mkdir()
     (task / "task.toml").write_text('[task]\nname = "demo/nosolution"\n', encoding="utf-8")
@@ -342,10 +344,12 @@ def test_oracle_without_solution_is_infra(tmp_path: Path) -> None:
         control=control,
         cheat=_cheat(0.0),
     )
-    assert result.record.verdict == "not_admitted"
-    assert result.record.steps[0].status == "infra"
-    assert "solution/solve.sh" in result.record.steps[0].detail
-    assert calls == []  # fast pre-check: no Docker burned
+    assert result.record.verdict == "unproven"
+    assert result.record.steps[0].status == "unproven"
+    assert result.record.unproven_steps == ["oracle"]
+    assert "no proven oracle reference" in result.record.steps[0].detail
+    assert calls == []  # no reference, no Docker burned
+    assert result.variant_status_updated is False
 
 
 def test_all_none_rewards_is_infra(tmp_path: Path) -> None:
@@ -426,3 +430,191 @@ def test_final_status_collision_skips_update(tmp_path: Path) -> None:
         records_dir=records,
     )
     assert updated.status == "validated"
+
+
+def _sweep_row(task_id: str, label: str, receipt: Path) -> str:
+    return (
+        "task_id,label,fix_commit,patch_tip,how_chosen,evidence_path,run_digest\n"
+        f"{task_id},{label},abc123,,”S1”,{receipt},sha256:{'d' * 64}\n"
+    )
+
+
+def _receipt(
+    path: Path, patch: Path, *, task_id: str = "demo/ref", oracle: float = 1.0, nop: float = 0.0
+) -> Path:
+    out = path / "receipt.json"
+    out.write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "run_digest": "sha256:" + "d" * 64,
+                "extraction": {
+                    "status": "ok",
+                    "solution_patch_path": str(patch),
+                    "solution_patch_sha256": hashlib.sha256(patch.read_bytes()).hexdigest(),
+                    "fix": {"sha": "abc123"},
+                },
+                "arms": {"oracle": {"reward": oracle}, "nop": {"reward": nop}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    return out
+
+
+def _ref_task(tmp_path: Path) -> Path:
+    task = tmp_path / "ref-pkg"
+    task.mkdir()
+    (task / "task.toml").write_text(
+        '[task]\nname = "demo/ref"\n[environment]\nworkdir = "/testbed"\n',
+        encoding="utf-8",
+    )
+    return task
+
+
+def test_resolve_reference_auto_hit(tmp_path: Path) -> None:
+    patch = tmp_path / "ref.patch"
+    patch.write_bytes(b"diff --git a/f.py b/f.py\n")
+    receipt = _receipt(tmp_path, patch)
+    sweep = tmp_path / "sweep.csv"
+    sweep.write_text(_sweep_row("demo/ref", "oracle:pass+nop:fail", receipt), encoding="utf-8")
+    ref = admission.resolve_oracle_reference(
+        tmp_path / "ref-pkg", "demo/ref", sweep_csv=sweep, reference_arg="auto"
+    )
+    assert ref is not None
+    assert ref.fix_commit == "abc123"
+    assert ref.patch_bytes == b"diff --git a/f.py b/f.py\n"
+    assert ref.recorded_oracle_reward == 1.0
+
+
+def test_resolve_reference_wrong_label_is_none(tmp_path: Path) -> None:
+    patch = tmp_path / "ref.patch"
+    patch.write_bytes(b"diff\n")
+    receipt = _receipt(tmp_path, patch)
+    sweep = tmp_path / "sweep.csv"
+    sweep.write_text(_sweep_row("demo/ref", "oracle:fail", receipt), encoding="utf-8")
+    assert (
+        admission.resolve_oracle_reference(
+            tmp_path / "ref-pkg", "demo/ref", sweep_csv=sweep, reference_arg="auto"
+        )
+        is None
+    )
+
+
+def test_resolve_reference_bad_recorded_rewards_is_unproven(tmp_path: Path) -> None:
+    patch = tmp_path / "ref.patch"
+    patch.write_bytes(b"diff\n")
+    receipt = _receipt(tmp_path, patch, oracle=0.0)
+    sweep = tmp_path / "sweep.csv"
+    sweep.write_text(_sweep_row("demo/ref", "oracle:pass+nop:fail", receipt), encoding="utf-8")
+    with pytest.raises(admission.ReferenceUnproven):
+        admission.resolve_oracle_reference(
+            tmp_path / "ref-pkg", "demo/ref", sweep_csv=sweep, reference_arg="auto"
+        )
+
+
+def test_resolve_reference_explicit_patch(tmp_path: Path) -> None:
+    patch = tmp_path / "explicit.patch"
+    patch.write_bytes(b"diff --git a/g.py b/g.py\n")
+    ref = admission.resolve_oracle_reference(
+        tmp_path / "ref-pkg", "demo/ref", sweep_csv=None, reference_arg=str(patch)
+    )
+    assert ref is not None
+    assert ref.label == "explicit"
+    assert ref.recorded_oracle_reward is None
+
+
+def test_render_reference_solve_sh_applies_patch() -> None:
+    solve = admission.render_reference_solve_sh(
+        "/testbed", b"diff --git a/f.py b/f.py\n", "sha256:" + "e" * 64
+    )
+    text = solve.decode("utf-8")
+    assert text.startswith("#!/bin/bash")
+    assert 'cd "$CWD"' in text and 'CWD="/testbed"' in text
+    assert "git apply" in text and "diff --git a/f.py b/f.py" in text
+    assert "ADMISSION_REF_eeeeeeeeeeee" in text
+
+
+def test_oracle_reference_step_plants_and_grades(tmp_path: Path) -> None:
+    task = _ref_task(tmp_path)
+    seen: dict[str, object] = {}
+
+    def reference(task_dir: Path, task_id: str, **_: object) -> OracleReference | None:
+        assert task_id == "ref"  # bare id after the namespace split
+        return OracleReference(
+            task_id=task_id,
+            label="oracle:pass+nop:fail",
+            fix_commit="abc123",
+            receipt_path="receipt.json",
+            receipt_run_digest="",
+            patch_sha256="sha256:" + "f" * 64,
+            patch_bytes=b"diff-bytes",
+            recorded_oracle_reward=1.0,
+            recorded_nop_reward=0.0,
+        )
+
+    def control(**kwargs: object) -> ControlOutcome:
+        agent = kwargs.get("agent")
+        if agent == "oracle":
+            staged = kwargs["task_dir"]
+            assert isinstance(staged, Path)
+            solve = staged / "solution" / "solve.sh"
+            seen["solve"] = solve.read_text(encoding="utf-8")
+            assert "diff-bytes" in seen["solve"]
+            rewards = [1.0]
+        else:
+            rewards = [0.0]
+        return ControlOutcome(
+            job_dir=tmp_path / "jobs" / "x",
+            returncode=0,
+            rewards=rewards,
+            command=["harbor", "run"],
+        )
+
+    result = admission.admit_task(
+        task,
+        **_ctx_kwargs(tmp_path, task),
+        steps=[step for step in admission.default_steps() if step.kind != "cheat"],
+        scan=_pass_scan,
+        control=control,
+        cheat=_cheat(0.0),
+        reference=reference,
+    )
+    assert result.record.steps[1].status == "pass"
+    assert "patch=sha256:" + "f" * 64 in result.record.steps[1].reference
+    assert result.record.verdict == "admitted"
+
+
+def test_cli_admit_dry_run_uses_every_flag(tmp_path: Path, capsys) -> None:
+    """The parser and the command stay in sync (missing flags fail fast here)."""
+    import argparse
+
+    from evallab import cli as cli_module
+
+    task = _ref_task(tmp_path)
+    args = argparse.Namespace(
+        task=task,
+        job_prefix="admit",
+        jobs_dir=None,
+        records_dir=Path("library/task-variants"),
+        by="Test Operator",
+        repeat=3,
+        timeout_seconds=600,
+        output=None,
+        reference="auto",
+        sweep_csv=None,
+        no_variant_status=False,
+        dry_run=True,
+        json=True,
+    )
+    code = cli_module._tasks_admit_command(args, tmp_path, harbor=None)
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "static-scan" in out and "cheat:skip_plant" in out
+
+
+def test_safe_job_name_harbor_rules() -> None:
+    assert admission._safe_job_name("admit2", "format-code-task-002402", "git_history") == (
+        "admit2-format-code-task-002402-git-history"
+    )
+    assert admission._safe_job_name("A", "b__c", "D") == "a-b-c-d"

@@ -19,10 +19,12 @@ digest-bound admission record (`evallab.task_admission/v1`).
 uv run evallab tasks admit --task <package> --dry-run
 # run the gate ($0, local Docker, n-concurrent 1)
 uv run evallab tasks admit --task <package> --job-prefix admit --json
+# explicit oracle reference (receipt or raw patch); "none" skips the lookup
+uv run evallab tasks admit --task <package> --reference auto
 ```
 
-Exit 0 = admitted; 1 = rejected or not-admitted (infra). `--output`
-overrides the record path (default
+Exit 0 = admitted; 1 = any other verdict. `--output` overrides the
+record path (default
 `<jobs-dir>/<prefix>-<slug>/admission-<digest12>.json`).
 `--no-variant-status` skips the lineage update while still writing the
 record. A `rejected` update finalizes the lineage record (validated and
@@ -34,67 +36,78 @@ against records you do not want to flip.
 | # | step | pass iff |
 |---|---|---|
 | 1 | `static-scan` (`hack scan` in-process) | the scan executes; findings are recorded as advisory evidence, never a veto (see below) |
-| 2 | `oracle` (stability-job path, repeat 3) | every trial reward is exactly 1.0 (infra when the package ships no `solution/solve.sh` — the oracle agent has nothing to run) |
+| 2 | `oracle` (stability-job path, repeat 3) | every trial reward is exactly 1.0 — via the shipped `solution/solve.sh`, or via the HAR-191 reference (see below); `unproven` when neither exists |
 | 3 | `nop` (stability-job path, repeat 3) | every trial reward is exactly 0.0 |
 | 4–15 | `cheat:<attack>` (one single-trial cheat job per attack, full 12-attack ladder) | reward < 1.0 (the lane rule: cracked iff reward >= 1.0) |
 
-Each executed step records command, job dir, reward(s), and duration.
-Infrastructure breakdowns (Harbor errors, missing jobs, unreadable
-rewards, unregistered step kinds) yield `not_admitted` — fail closed,
-distinct from the `rejected` task-failure verdict.
+Each executed step records command, job dir, reward(s), duration, and
+(for oracle) the reference provenance. Verdicts: `admitted` (all pass),
+`rejected` (a step proved the task bad), `not_admitted` (infrastructure
+broke before proof either way — fail closed), `unproven` (no oracle
+reference covers the task, so solvability cannot be shown — distinct
+from infra).
 
-## Static-scan policy
+## Oracle reference (HAR-191 path, no new store)
 
-The V1-V8 ledger states its own limits: a finding is a claim, never an
-exploitation proof, and a clean scan is not a certificate. On the current
-shared-container corpus the V1/V3/V7/V8 findings are
-architecture-constant — fully validated `mtime-normalize@1` heads carry
-the same ledger as their unhardened parents — so findings cannot
-discriminate and do not veto. The dynamic proofs veto. Findings stay
-first-class evidence in the record for later policy or human review.
+MiMo code tasks ship no `solution/solve.sh`, so the oracle agent alone
+cannot prove solvability. The gate reuses the existing history-oracle
+reference instead of inventing one:
+
+1. The committed `research/experiments/python-task-ledger/oracle_sweep.csv`
+   selects the proven row (`oracle:pass+nop:fail`) by bare task id.
+2. The recorded sweep receipt is validated: extraction `ok`, solution
+   patch present with matching sha, recorded arms 1.0/0.0.
+3. The gate stages the package, plants a `solve.sh` applying that patch
+   in the agent worktree (the mtime-validation mechanism), and grades
+   the fixed tree with the oracle agent for fresh Docker proof.
+
+`--reference` takes `auto` (the above), `none`, or an explicit sweep
+receipt (`.json`) / raw patch path. The step records fix commit, patch
+sha, receipt path, recorded arms, and exact/task-level digest binding
+(receipt `run_digest` vs tested package).
 
 ## Records and lineage
 
 The admission record binds `package_digest` (+ `harbor_digest`) and,
-for lineage variants resolved through the existing `tasks lineage`
-path, the record is cited as evidence in a `variant-status`
-`validated`/`rejected` update — the `evallab.task_variant/v1` ledger is
-reused, no second ledger is invented. Non-variant packages skip the
-update. A final lineage verdict is never reflipped: a gate that
-disagrees with an already-final record notes the collision and leaves
-the record untouched. `not_admitted` never touches lineage status.
-## First smoke (2026-10-09, Harbor 0.24.0, local Docker)
+for lineage variants, the record is cited as evidence in a
+`variant-status` `validated`/`rejected` update — the
+`evallab.task_variant/v1` ledger is reused, no second ledger is
+invented. Resolution is targeted (one record file by task slug plus
+package digest), never a 15k-file corpus scan. Non-variant packages
+skip the update. A final lineage verdict is never reflipped: a gate
+that disagrees with an already-final record notes the collision and
+leaves the record untouched. `not_admitted` and `unproven` never touch
+lineage status.
 
-Hardened 002402 head `13010a49de52` (`mtime-normalize@1` over a fully
-validated chain) vs its unhardened HF parent
-(`FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/.../format-code-task-002402`):
-both gates return **`not_admitted`** — fail closed, not certified either
-way. Per-step evidence (records under
-`<jobs-dir>/admit-smoke-<slug>/admission-<digest12>.json`):
+## Smokes (2026-10-09, Harbor 0.24.0, local Docker, $0)
 
-* `static-scan` passes with the same 12 findings (V1/V3/V6/V7/V8) on both
-  packages — the ledger is architecture-constant (see policy above).
-* `oracle` is infra on both: neither package ships `solution/solve.sh`,
-  so the oracle agent cannot run and solvability is unprovable. This is a
-  task-shape fact, not harness flakiness — `tasks stability-run --agent
-  oracle` fails the same way on these packages.
-* The gate stops at oracle (early-stop); nop/cheat never run in-gate.
+Reference `56f63eb6` / patch `sha256:9d9d297c…` (receipt
+`HAR-191-oracle-sweep/receipts/format-code-task-002402.json`,
+recorded 1.0/0.0, task-level binding for variant packages):
 
-Out-of-gate Docker evidence, same day and image:
+* Unhardened HF parent → **rejected**. Reference oracle [1.0, 1.0, 1.0]
+  (29.9 s), nop [0.0, 0.0, 0.0] (27.1 s), recon attacks clean, then
+  `cheat:skip_plant` cracks (reward 1.0, 20.7 s) and the gate stops.
+  Record `admit2-format-code-task-002402/admission-5ca085f112ab.json`.
+* `separate-verifier@2` variant `a4727ccce904` (derived for this smoke on
+  the validated mtime head, marker `test_scan_plated_uniform`) →
+  **admitted**. Oracle [1.0 × 3] (52.5 s), nop [0.0 × 3] (52.1 s), all
+  12 ladder attacks resisted (40–83 s each, `skip_plant` 0.0 included).
+  Record `admit2-a4727ccce904/admission-a4727ccce904.json`; lineage
+  flipped to validated with the record as evidence. No hole: sv2 holds
+  where shared grading falls.
 
-* Calibration: `cheat run --attacks skip_plant` against the hardened head
-  cracks it (reward 1.0, 262 s) — shared-container grading stays
-  tamper-permeable, so even past oracle this package would reject at the
-  ladder.
-* `stability-run --agent nop` on the hardened head (repeat 1): reward 0.0 —
-  the nop half of the gate is viable on these packages; only the oracle
-  half is blocked on the missing reference solution.
+Job dirs: `/private/tmp/admit2-jobs`, `/private/tmp/admit2sv-jobs`.
+Earlier calibration: `skip_plant` cracks the shared-grading mtime head
+(reward 1.0), confirming the ladder bites before sv2.
 
-Path to a future admit: solution-injected variants (the MiMo lane's
-`separate_verifier` derivation accepts a reference `solution_sh`) would
-unblock the oracle proof; the separate-verifier grading would additionally
-resist the tamper ladder. Neither exists as a committed lineage record
-today.
+## Startup cost (2026-10-09)
+
+CLI wall time was ~150 s against 0.0–0.2 s step times. Cause: lineage
+resolution parsed all 15,245 records (`load_records`, 81 s) plus ~15 s
+of interpreter/uv/import overhead. Fixed by targeted resolution above;
+residual startup is harness-wide import cost, not gate code.
+
 
 ## Extension: verifier mutation (design note)
 
@@ -103,11 +116,3 @@ The step list is data-driven: `default_steps()` owns the order and
 (`src/evallab/task_admission.py`). EnvCheck's forthcoming verifier
 mutation `--json` result lands as one new registry entry plus one new
 `StepDef` — no gate logic changes. No mutation step exists yet.
-
-## First smoke (2026-10-09, Harbor 0.24.0, local Docker)
-
-Hardened 002402 head `13010a49de52` (`mtime-normalize@1` over a fully
-validated chain) vs its unhardened HF parent: see the admission records
-for per-step timings and the verdict pair. Calibration note: `skip_plant`
-alone cracks the hardened head (reward 1.0), so shared-container grading
-stays tamper-permeable — the gate correctly rejects there.

@@ -3493,6 +3493,8 @@ def _tasks_admit_command(
             repeat_n=args.repeat,
             timeout_seconds=args.timeout_seconds,
             output=_resolve(root, args.output) if args.output is not None else None,
+            reference_arg=args.reference,
+            sweep_csv=_resolve(root, args.sweep_csv) if args.sweep_csv is not None else None,
             update_variant_status=not args.no_variant_status,
         )
     except AdmissionError as exc:
@@ -3510,6 +3512,11 @@ def _tasks_admit_command(
             print(f"skipped: {', '.join(record.skipped_steps)}")
         if record.failed_attacks:
             print(f"cracked attacks: {', '.join(record.failed_attacks)}")
+        if record.unproven_steps:
+            print(f"unproven steps: {', '.join(record.unproven_steps)}")
+        for row in record.steps:
+            if row.reference:
+                print(f"{row.name} reference: {row.reference}")
         print(f"verdict: {record.verdict}")
     print(f"record: {result.record_path}")
     if result.variant_status_updated:
@@ -6439,6 +6446,15 @@ def parser() -> argparse.ArgumentParser:
         "--timeout-seconds", type=int, default=600, help="Executor allowance per cheat trial"
     )
     tasks_admit.add_argument("--output", type=Path, help="Admission record path override")
+    tasks_admit.add_argument(
+        "--reference",
+        default="auto",
+        help="Oracle reference for solution-less tasks: auto (sweep lookup), none, "
+        "or a sweep receipt (.json) / reference patch path",
+    )
+    tasks_admit.add_argument(
+        "--sweep-csv", type=Path, help="Oracle sweep projection override (default: committed copy)"
+    )
     tasks_admit.add_argument(
         "--no-variant-status",
         action="store_true",

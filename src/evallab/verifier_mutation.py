@@ -70,6 +70,11 @@ MAX_WORKERS = 2
 _SKIP_PARTS = frozenset(
     {".git", "node_modules", "__pycache__", ".venv", "venv", "site-packages", "dist-packages"}
 )
+#: Build and package manifests: their fields are rarely the task's answer, and every
+#: dropped ``description`` key would otherwise surface as a survivor.
+_MANIFESTS = frozenset(
+    {"package.json", "package-lock.json", "tsconfig.json", "jsconfig.json", "composer.json"}
+)
 _C_FAMILY = frozenset(
     {
         ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".go", ".rs", ".java", ".kt",
@@ -86,6 +91,8 @@ Verdict = Literal[
 
 
 def language_of(path: str) -> Language | None:
+    if PurePosixPath(path).name in _MANIFESTS:
+        return None
     suffix = PurePosixPath(path).suffix.lower()
     if suffix == ".py":
         return "python"
@@ -1094,7 +1101,7 @@ def run_mutation_audit(
                 candidates=len(candidates),
             )
             if summary.language is None:
-                summary.note = "unsupported file type"
+                summary.note = "not mutated: unsupported file type or package manifest"
             elif not candidates:
                 summary.note = "no mutation operator applies"
             report.files.append(summary)
@@ -1122,7 +1129,10 @@ def run_mutation_audit(
         selected = [mutant for mutant in pool if mutant.id in wanted][:max_mutants]
         missing = wanted - {mutant.id for mutant in selected}
         if missing:
-            report.notes.append("requested mutants not generated: " + ", ".join(sorted(missing)))
+            report.notes.append(
+                "requested mutants not run (not generated, or their file's blank control did "
+                "not score 0): " + ", ".join(sorted(missing))
+            )
     else:
         selected = select_mutants(pool, limit=max_mutants, seed=seed)
     report.mutants = selected

@@ -100,6 +100,7 @@ def test_json_mutants_keep_valid_documents_and_indentation() -> None:
         assert document != json.loads(source), mutant.operator
     flipped = next(c for m, c in mutants if m.operator == "boolean-constant")
     assert json.loads(flipped)["feasible"] is False
+    assert generate_mutants("/app/package.json", source.encode()) == []
 
 
 def test_c_family_mutants_skip_strings_and_comments() -> None:

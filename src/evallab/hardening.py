@@ -13,6 +13,12 @@ a failed check stops setup, with no hide-only or network-open fallback.
   ``.cache``/``.vitest``) that can carry the fixed tree (Vals rung 5).
   Dependency dirs and project copies stay: offline graders need the former
   and the latter belong to ``purge-installed-copies@1``.
+* ``purge-build-caches@2`` is the language-aware superset (vals-routes-v2):
+  the @1 sweep plus this project's own entries in shared caches (pip wheels,
+  go module/build cache, cargo target/registry, maven artifacts, gradle
+  project cache, npm/yarn/pnpm package entries), each fail-closed. It
+  supersedes @1 and refuses @1 parents; chain adoption is the clean-set
+  owner's call.
 * ``separate-verifier@1`` runs hidden tests in a second container where Harbor
   0.24 supports it (HAR-169: oracle pass and nop fail on 001269, 000905, 002391).
   @1 restores the agent's workspace, ``.git`` and base sha into the verifier,
@@ -61,6 +67,8 @@ from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
 from evallab.purge_build_caches import TRANSFORM_ID as CACHE_ID
 from evallab.purge_build_caches import derive_purge_build_caches
+from evallab.purge_build_caches import TRANSFORM_ID_V2 as CACHE_V2_ID
+from evallab.purge_build_caches import derive_purge_build_caches_v2
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
 from evallab.separate_verifier import TRANSFORM_ID as SEPARATE_ID
@@ -77,7 +85,7 @@ from evallab.webdev_structural_gate import derive_webdev_structural_gate
 from evallab.webdev_temp0_pin import TRANSFORM_ID as WEBDEV_TEMP0_PIN_ID
 from evallab.webdev_temp0_pin import derive_webdev_temp0_pin
 
-TRANSFORMS = (STRIP_ID, PURGE_ID, CACHE_ID, SEPARATE_ID, SEPARATE_V2_ID, MTIME_ID,
+TRANSFORMS = (STRIP_ID, PURGE_ID, CACHE_ID, CACHE_V2_ID, SEPARATE_ID, SEPARATE_V2_ID, MTIME_ID,
               TERMINAL_GUARD_ID,
               GENERAL_PINNED_BACKUP_ID, GENERAL_STRICT_ANSWER_ID, GENERAL_NOP_GATE_ID,
               WEBDEV_TEMP0_PIN_ID, WEBDEV_STRUCTURAL_GATE_ID, WEBDEV_BRIEF_EXPLICIT_ID)
@@ -91,6 +99,7 @@ CONFIRMED_PURGE = (
 
 __all__ = [
     "CACHE_ID",
+    "CACHE_V2_ID",
     "CONFIRMED_PURGE",
     "GENERAL_NOP_GATE_ID",
     "GENERAL_PINNED_BACKUP_ID",
@@ -112,6 +121,7 @@ __all__ = [
     "derive_general_strict_answer",
     "derive_mtime_normalize",
     "derive_purge_build_caches",
+    "derive_purge_build_caches_v2",
     "derive_purge_installed_copies",
     "derive_separate_verifier",
     "derive_separate_verifier_v2",

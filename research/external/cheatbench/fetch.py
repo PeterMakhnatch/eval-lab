@@ -16,7 +16,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parents[3] / "src"))
 
-from evallab.cheatbench import FILENAME, REVISION, SHA256, fetch, source_url  # noqa: E402
+from evallab.cheatbench import FILENAME, REVISION, SHA256, fetch_parquet, source_url  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -24,7 +24,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dest", default=str(HERE / "full.parquet"))
     args = parser.parse_args(argv)
     print(f"fetching {source_url()}\n  revision {REVISION}\n  sha256 {SHA256}")
-    path = fetch(args.dest)
+    path = fetch_parquet(args.dest)
     print(f"ok: {path} ({path.stat().st_size} bytes)")
     assert path.name == Path(FILENAME).name
     return 0

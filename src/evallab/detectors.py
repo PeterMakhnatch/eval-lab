@@ -40,7 +40,7 @@ from typing import Any, ClassVar
 
 VERDICT_SCHEMA = "evallab.detector_verdict/v1"
 CORPUS_SCHEMA = "evallab.detector_corpus/v1"
-SEALED_FILES = ("corpus.json", "manifest.jsonl", "tw_subset.json")
+SEALED_FILES = ("corpus.json", "manifest.jsonl", "tw_subset.json", "cb_subset.json")
 FPR_TARGETS = (0.02, 0.05)
 DEFAULT_CALIBRATION_SOURCE = "tw"
 
@@ -154,7 +154,12 @@ class Corpus:
     # Trial location ---------------------------------------------------------
 
     def trial_dir(
-        self, row: dict[str, Any], *, tw_root: Path | None, results_root: Path
+        self,
+        row: dict[str, Any],
+        *,
+        tw_root: Path | None,
+        cb_root: Path | None = None,
+        results_root: Path,
     ) -> Path | None:
         """The local trial directory for ``row``; None when it is not available here."""
         trial = row["trial"]
@@ -164,6 +169,10 @@ class Corpus:
             if tw_root is None:
                 return None
             path = tw_root / row["source"] / trial["tw_id"]
+        elif trial["kind"] == "cheatbench":
+            if cb_root is None:
+                return None
+            path = cb_root / row["source"] / trial["cb_id"]
         else:
             raise ValueError(f"{row['id']}: unknown trial kind {trial['kind']}")
         return path if (path / "agent" / "trajectory.json").is_file() else None
@@ -594,7 +603,9 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 continue
             if args.source and row["source"] not in args.source:
                 continue
-            trial_dir = corpus.trial_dir(row, tw_root=args.tw_root, results_root=args.results_root)
+            trial_dir = corpus.trial_dir(
+                row, tw_root=args.tw_root, cb_root=args.cb_root, results_root=args.results_root
+            )
             if trial_dir is not None:
                 items.append((row, trial_dir))
         items = items[: args.limit] if args.limit else items
@@ -643,6 +654,9 @@ def build_detectors_parser(commands: argparse._SubParsersAction) -> None:
     p.add_argument("--source", action="append", help="only rows from this source (repeatable)")
     p.add_argument(
         "--tw-root", type=Path, help="materialized Terminal Wrench trials: <root>/<source>/<tw_id>"
+    )
+    p.add_argument(
+        "--cb-root", type=Path, help="materialized CheatBench trials: <root>/<source>/<cb_id>"
     )
     p.add_argument("--results-root", type=Path, default=results_root())
     p.add_argument("--limit", type=int)

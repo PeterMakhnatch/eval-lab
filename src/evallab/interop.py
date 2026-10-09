@@ -138,12 +138,42 @@ def load_harbor_task(task_dir: str | Path, *, require_solution: bool = True) -> 
     )
 
 
+def task_workdir(task: HarborTask) -> str:
+    """Effective container workdir for a task (Harbor 0.24 definition.py rule).
+
+    task.toml ``[environment].workdir`` wins; else the final-stage Dockerfile
+    ``WORKDIR`` (each ``FROM`` resets; relative values resolve against the
+    stage workdir); else ``/`` -- Harbor's ``task_env_config.workdir``
+    defaults to None, docker exec passes ``-w`` only when set, and the image
+    WORKDIR falls back to Docker's ``/``. Always absolute.
+    """
+    env = task.config.get("environment")
+    if isinstance(env, dict):
+        declared = env.get("workdir")
+        if isinstance(declared, str) and declared:
+            return declared if declared.startswith("/") else "/" + declared
+    try:
+        text = (task.task_dir / "environment" / "Dockerfile").read_text(encoding="utf-8")
+    except OSError:
+        return "/"
+    parsed: str | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        keyword, _, rest = line.partition(" ")
+        keyword = keyword.upper()
+        if keyword == "FROM":
+            parsed = None
+        elif keyword == "WORKDIR":
+            value = rest.strip().strip("\"'")
+            if value:
+                parsed = value if value.startswith("/") else str(Path(parsed or "/") / value)
+    return parsed or "/"
+
+
 #: Absolute container path the cheat ladder is staged at for scripted agents.
 CHEAT_LADDER_CONTAINER_PATH = "/tmp/cheat_ladder.py"
-
-#: Container workdir the inspect runner materializes (mirrors the repo mount
-#: Harbor agents see natively); the plan command runs with this as its cwd.
-INSPECT_TASK_WORKDIR = "/taskwork"
 
 #: Bounds for task files staged into a foreign sandbox (solution/ + tests/).
 #: Tasks larger than this need a runner with a real mount, not write_file.
@@ -763,7 +793,8 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
     Anything detected here lands in the generated MAPPING.md, never dropped.
     Only real losses of the generic runner are flagged: the judge replays the
     task's own tests/test.sh as root against collected submission copies, so
-    verifier packaging (apt/sudo) and artifact-less tasks map faithfully.
+    verifier packaging (apt/sudo) and artifact-less tasks map faithfully, and
+    task-declared cpus/memory_mb bound the run container like elsewhere.
     """
     flags: list[dict[str, str]] = []
     env_dir = task.task_dir / "environment"
@@ -787,17 +818,6 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
                     "equivalent: karotte cannot enforce Harbor network policies, "
                     "it only confines the student (or degrades to open). "
                     "Re-check any verifier that depends on egress control."
-                ),
-            }
-        )
-    if task.resources:
-        flags.append(
-            {
-                "code": "resource-rounding",
-                "detail": (
-                    f"task resources {task.resources} are not honored: the runner "
-                    "bounds every run container to a fixed 2 CPU / 2 GiB "
-                    "(heavier tasks via override). Record any task that needs more."
                 ),
             }
         )
@@ -1095,7 +1115,7 @@ def _write_inspect_run(
         "files": blobs,
         "task_files": task_files,
         "skipped_large": skipped,
-        "workdir": INSPECT_TASK_WORKDIR,
+        "workdir": task_workdir(task),
         "agent_timeout": agent_timeout,
         "override_cpus": override_cpus,
         "override_memory_mb": override_memory_mb,

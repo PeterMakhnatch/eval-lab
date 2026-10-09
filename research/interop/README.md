@@ -77,12 +77,12 @@ the embedded `interop.parse_reward_bytes`.
 
 Lossy/impossible mappings are detected by `karotte_flags()` and written to
 the generated `MAPPING.md`, never silently dropped. Only real losses of the
-generic path are flagged (verifier packaging and artifact-less tasks map
-faithfully, so those old codes are gone):
+generic path are flagged: verifier packaging, artifact-less tasks, and
+task-declared cpus/memory_mb (which bound the run container like elsewhere)
+all map faithfully.
 
 - `multi-service-compose`: own Compose file -> export errors (single image only).
 - `network-policy`: karotte cannot enforce Harbor network policies.
-- `resource-rounding`: task cpus/memory ignored; runs are bounded 2 CPU / 2 GiB.
 - `separate-verifier-image`: grading runs in the task container, not the verifier image.
 - `mcp-servers`: no sidecar support.
 - `solution-env`: the oracle runs solve.sh without `[solution.env]` overrides.
@@ -115,9 +115,9 @@ uses) and runs it with the attack subset. Targets are wired through the
   --use-fake-model` (scripted `get_messages`, no inference) in the exported
   env image; grading is karotte's own `collect_submission` +
   `ExecutableJudge` path. Run containers (`karotte_run_<id>`, `--rm`) are
-  bounded 2 CPU / 2 GiB (4 CPU / 4 GiB for heavier tasks) via a watcher that
-  never touches foreign containers. Expected on sound tasks: oracle pass,
-  nop fail; cheat is cracked iff reward >= 1.0.
+  bounded (task-declared cpus/memory_mb, else 2 CPU / 2 GiB) via a watcher
+  that never touches foreign containers. Expected on sound tasks: oracle
+  pass, nop fail; cheat is cracked iff reward >= 1.0.
 - `verifiers:oracle/nop/cheat`: Prime `verifiers` 0.3.1 (opt-in
   `xplat-verifiers` group: `uv sync --group xplat-verifiers`) `HarborEnv`
   on the local `docker` runtime with a model-free scripted harness
@@ -128,6 +128,10 @@ uses) and runs it with the attack subset. Targets are wired through the
   declares a separate verifier); `run_cell(..., isolation="shared")` forces
   shared grading. Tasks declaring `[verifier].user` are rejected upstream
   (`ValueError: [verifier].user is not supported`) and report `error`.
+
+All targets run the plan command in the same container workdir
+(`interop.task_workdir`: task.toml `[environment].workdir`, else final-stage
+Dockerfile `WORKDIR`, else `/` per Harbor 0.24).
 
 ## AgentEnv assessment
 

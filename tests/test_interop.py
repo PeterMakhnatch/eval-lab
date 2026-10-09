@@ -286,6 +286,27 @@ def test_export_refuses_nonempty_dir(tmp_path: Path) -> None:
 # deterministic: no karotte import, no uv lock, no docker).
 
 
+def test_task_workdir_chain(tmp_path: Path) -> None:
+    declared = make_task(tmp_path / "declared", workdir="/task")
+    (declared / "environment" / "Dockerfile").write_text(
+        "FROM python:3.12-slim-bookworm\nWORKDIR /app\n", encoding="utf-8"
+    )
+    assert interop.task_workdir(load_harbor_task(declared)) == "/task"
+    staged = make_task(tmp_path / "staged")
+    (staged / "environment" / "Dockerfile").write_text(
+        "FROM python:3.12-slim\nWORKDIR /app\nFROM scratch\nWORKDIR /x\nWORKDIR sub\n",
+        encoding="utf-8",
+    )
+    assert interop.task_workdir(load_harbor_task(staged)) == "/x/sub"
+    bare = make_task(tmp_path / "bare")
+    (bare / "environment" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+    assert interop.task_workdir(load_harbor_task(bare)) == "/"
+    missing = make_task(tmp_path / "missing")
+    (missing / "environment" / "Dockerfile").unlink()
+    assert interop.task_workdir(load_harbor_task(missing)) == "/"
+    assert interop.task_workdir(load_harbor_task(REAL_TASK)) == "/app"
+
+
 def test_karotte_flags_cover_lossy_case(tmp_path: Path) -> None:
     task_dir = make_task(
         tmp_path / "lossy",
@@ -300,7 +321,6 @@ def test_karotte_flags_cover_lossy_case(tmp_path: Path) -> None:
     codes = {f["code"] for f in karotte_flags(load_harbor_task(task_dir))}
     assert codes == {
         "network-policy",
-        "resource-rounding",
         "separate-verifier-image",
         "mcp-servers",
         "solution-env",
@@ -604,7 +624,7 @@ def test_write_inspect_run_stages_manifest_and_blobs(tmp_path: Path) -> None:
     assert manifest["agent"] == "cheat"
     assert manifest["attacks"] == ["skip_plant"]
     assert "--attacks skip_plant" in manifest["command"]
-    assert manifest["workdir"] == interop.INSPECT_TASK_WORKDIR
+    assert manifest["workdir"] == interop.task_workdir(task) == "/app"
     assert "solution/solve.sh" in manifest["task_files"]
     assert "tests/test.sh" in manifest["task_files"]
     assert manifest["skipped_large"] == []

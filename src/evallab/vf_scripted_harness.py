@@ -21,6 +21,7 @@ with the ``xplat-verifiers`` dependency group installed.
 from __future__ import annotations
 
 import base64
+import shlex
 
 from pydantic import Field
 from verifiers.v1.clients import ModelContext  # ty: ignore[unresolved-import]
@@ -43,6 +44,8 @@ class ScriptedHarnessConfig(HarnessConfig):
     id: str = HARNESS_PLUGIN_ID
     command: str | None = None
     """Shell command run once in the task workdir; None = nop (stage, run nothing)."""
+    workdir: str = "/"
+    """Container cwd for the command (shared task_workdir rule, Harbor default /)."""
     files_b64: dict[str, str] = Field(default_factory=dict)
     """Absolute container path -> base64-encoded file bytes to stage first."""
 
@@ -73,8 +76,10 @@ class ScriptedHarness(Harness[ScriptedHarnessConfig]):
             await runtime.write(path, base64.b64decode(payload))
         if not self.config.command:
             return ProgramResult(0, "", "scripted nop: staged files, ran no command")
-        result = await runtime.run_program(["sh", "-c", self.config.command], {})
+        command = f"cd {shlex.quote(self.config.workdir)} && {self.config.command}"
+        result = await runtime.run_program(["sh", "-c", command], {})
         trace.info["scripted_command"] = self.config.command
+        trace.info["scripted_workdir"] = self.config.workdir
         trace.info["scripted_exit"] = result.exit_code
         trace.info["scripted_stdout_tail"] = result.stdout[-self.MAX_OUTPUT_CHARS :]
         trace.info["scripted_stderr_tail"] = result.stderr[-self.MAX_OUTPUT_CHARS :]

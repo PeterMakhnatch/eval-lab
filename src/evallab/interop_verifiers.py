@@ -26,12 +26,11 @@ import importlib.util
 import json
 import re
 import subprocess
-import tomllib
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from evallab.interop import load_harbor_task, scripted_agent_plan, verdict_for_reward
+from evallab.interop import load_harbor_task, scripted_agent_plan, task_workdir, verdict_for_reward
 
 VERIFIERS_PIN = "0.3.1"
 VERIFIERS_HARNESS_ID = "evallab_vf_scripted_harness"
@@ -58,6 +57,7 @@ def _ensure_harness_alias() -> None:
             )
         sys.modules[VERIFIERS_HARNESS_ID] = module
 
+
 AGENT_CPU = 1.0
 AGENT_MEMORY_GB = 2.0
 
@@ -80,20 +80,6 @@ def verifiers_available() -> bool:
     return importlib.util.find_spec("verifiers.v1.tasksets.harbor") is not None
 
 
-def container_workdir(task_dir: str | Path) -> str:
-    """Effective container workdir: [environment] workdir, else Harbor's /app."""
-    try:
-        config = tomllib.loads((Path(task_dir) / "task.toml").read_text(encoding="utf-8"))
-    except (OSError, tomllib.TOMLDecodeError):
-        return "/app"
-    env = config.get("environment")
-    if isinstance(env, dict):
-        workdir = env.get("workdir")
-        if isinstance(workdir, str) and workdir:
-            return workdir
-    return "/app"
-
-
 def materialize_files(task: Any, agent: str, plan: Any) -> dict[str, bytes]:
     """Files to stage for a plan: the plan's own plus runner-side materialization.
 
@@ -110,7 +96,7 @@ def materialize_files(task: Any, agent: str, plan: Any) -> dict[str, bytes]:
         # The factory guarantees solution/solve.sh for oracle plans; stage the
         # whole solution dir from the task package.
         solution_dir = task.task_dir / "solution"
-        workdir = container_workdir(task.task_dir)
+        workdir = task_workdir(task).rstrip("/")
         for path in sorted(solution_dir.rglob("*")):
             if path.is_file():
                 payload = path.read_bytes()
@@ -120,14 +106,14 @@ def materialize_files(task: Any, agent: str, plan: Any) -> dict[str, bytes]:
     return files
 
 
-def harness_config(plan: Any) -> dict[str, Any]:
+def harness_config(plan: Any, workdir: str) -> dict[str, Any]:
     """Agent harness dict for a plan (narrowed to ScriptedHarnessConfig by verifiers)."""
     return {
         "id": VERIFIERS_HARNESS_ID,
         "command": plan.command,
+        "workdir": workdir,
         "files_b64": {
-            path: base64.b64encode(payload).decode("ascii")
-            for path, payload in plan.files.items()
+            path: base64.b64encode(payload).decode("ascii") for path, payload in plan.files.items()
         },
     }
 
@@ -261,6 +247,7 @@ async def _arun_cell(
     task = load_harbor_task(task_dir, require_solution=(agent == "oracle"))
     plan = scripted_agent_plan(task, agent, tuple(attacks))
     plan = replace(plan, files=materialize_files(task, agent, plan))
+    container_cwd = task_workdir(task)
     image, how = await asyncio.to_thread(resolve_task_image, task)
 
     force_shared = isolation == "shared"
@@ -288,7 +275,7 @@ async def _arun_cell(
                 "ignore_separate_verifier": force_shared,
             },
             agent={
-                "harness": harness_config(plan),
+                "harness": harness_config(plan, container_cwd),
                 "model": SCRIPTED_MODEL,
                 "runtime": runtime,
                 "timeout": {
@@ -327,15 +314,14 @@ async def _arun_cell(
         "isolation": effective_isolation,
         "isolation_requested": isolation,
         "command": plan.command,
+        "workdir": container_cwd,
         "staged_files": sorted(plan.files),
         "platform_version": platform_version,
         "tracked_rewards": scored_names,
     }
     (workdir / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     if trace is not None:
-        (workdir / "trace.json").write_text(
-            trace.model_dump_json(indent=2), encoding="utf-8"
-        )
+        (workdir / "trace.json").write_text(trace.model_dump_json(indent=2), encoding="utf-8")
     return cell_from_trace(
         task_id=task.task_id,
         agent=agent,
@@ -405,8 +391,14 @@ def run_cell(
         }
     try:
         return asyncio.run(
-            _arun_cell(Path(task_dir), agent, attacks, workdir=Path(workdir),
-                       timeout_seconds=timeout_seconds, isolation=isolation)
+            _arun_cell(
+                Path(task_dir),
+                agent,
+                attacks,
+                workdir=Path(workdir),
+                timeout_seconds=timeout_seconds,
+                isolation=isolation,
+            )
         )
     except Exception as exc:
         return {

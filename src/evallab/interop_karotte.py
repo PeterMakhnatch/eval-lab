@@ -14,8 +14,8 @@ judge grades those copies with the Harbor verifier logic.
 returns ``pass``/``fail``/``skipped``/``error`` with the reward, a reason, the
 karotte version, and an evidence path. Containers are karotte's own
 ``karotte_run_<run_id>`` (``--rm`` auto-removed); a watcher thread additionally
-bounds each run container to 2 CPUs / 2 GiB via ``docker update`` without ever
-touching containers it did not start.
+bounds each run container (task-declared cpus/memory_mb, else 2 CPUs / 2 GiB)
+via ``docker update`` without ever touching containers it did not start.
 """
 
 from __future__ import annotations
@@ -43,6 +43,7 @@ from evallab.interop import (
     load_harbor_task,
     parse_reward_bytes,
     scripted_agent_plan,
+    task_workdir,
     verdict_for_reward,
 )
 
@@ -56,10 +57,6 @@ HARBOR_IMAGE_PREFIX = "evallab-harbor"
 #: Default bounds applied to each run container (cpus, memory).
 RUN_CPUS = "2"
 RUN_MEMORY = "2g"
-#: Per-task bound overrides by task-dir name (heavier verifiers).
-TASK_BOUNDS = {
-    "format-code-task-002552": ("4", "4g"),
-}
 #: Build budget floor per task image; the run phase uses ``timeout_seconds``.
 BUILD_TIMEOUT_SECONDS = 1800
 DEFAULT_RUN_TIMEOUT_SECONDS = 1200
@@ -137,32 +134,6 @@ def _artifact_sources(task: HarborTask) -> list[str]:
     return sources
 
 
-def parse_dockerfile_workdir(dockerfile: Path) -> str | None:
-    """Effective WORKDIR of the final build stage (Harbor definition.py rule).
-
-    Each FROM resets; relative values resolve against the stage workdir.
-    """
-    try:
-        text = dockerfile.read_text(encoding="utf-8")
-    except OSError:
-        return None
-    workdir: str | None = None
-    for raw in text.splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#"):
-            continue
-        keyword, _, rest = line.partition(" ")
-        keyword = keyword.upper()
-        if keyword == "FROM":
-            workdir = None
-        elif keyword == "WORKDIR":
-            value = rest.strip().strip("\"'")
-            if not value:
-                continue
-            workdir = value if value.startswith("/") else str(Path(workdir or "/") / value)
-    return workdir
-
-
 @dataclass(frozen=True)
 class GenericSpec:
     """Everything karotte needs, derived from the Harbor task (no hand work)."""
@@ -187,13 +158,7 @@ def resolve_spec(task: HarborTask) -> GenericSpec:
     """Derive the runnable spec: workdir, base image, submission scope."""
     env_cfg = task.config.get("environment")
     env_cfg = env_cfg if isinstance(env_cfg, dict) else {}
-    workdir = (
-        env_cfg.get("workdir")
-        or parse_dockerfile_workdir(task.task_dir / "environment" / "Dockerfile")
-        or "/"
-    )
-    if not workdir.startswith("/"):
-        workdir = "/" + workdir
+    workdir = task_workdir(task)
     env_dir = task.task_dir / "environment"
     if any((env_dir / name).is_file() for name in ("docker-compose.yaml", "docker-compose.yml")):
         raise ValueError(
@@ -225,7 +190,21 @@ def resolve_spec(task: HarborTask) -> GenericSpec:
     except (TypeError, ValueError):
         grade_timeout = 600.0
     grade_timeout = min(max(grade_timeout, 300.0), 2100.0)
-    cpus, memory = TASK_BOUNDS.get(task.task_dir.name, (RUN_CPUS, RUN_MEMORY))
+    resources = task.resources
+    raw_cpus = resources.get("cpus")
+    cpus = (
+        str(raw_cpus)
+        if isinstance(raw_cpus, (int, float)) and not isinstance(raw_cpus, bool) and raw_cpus > 0
+        else RUN_CPUS
+    )
+    raw_memory = resources.get("memory_mb")
+    memory = (
+        f"{int(raw_memory)}m"
+        if isinstance(raw_memory, (int, float))
+        and not isinstance(raw_memory, bool)
+        and raw_memory > 0
+        else RUN_MEMORY
+    )
     return GenericSpec(
         task_key=task.task_dir.name,
         karotte_id=_karotte_slug(task.task_id),

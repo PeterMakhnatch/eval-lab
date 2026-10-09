@@ -28,9 +28,7 @@ def make_task(root: Path, *, name: str = "lab/synthetic", workdir: str | None = 
     (task_dir / "tests").mkdir(parents=True)
     (task_dir / "environment").mkdir(parents=True)
     (task_dir / "instruction.md").write_text("Do the thing.\n", encoding="utf-8")
-    (task_dir / "solution" / "solve.sh").write_text(
-        "#!/bin/bash\necho solved\n", encoding="utf-8"
-    )
+    (task_dir / "solution" / "solve.sh").write_text("#!/bin/bash\necho solved\n", encoding="utf-8")
     (task_dir / "tests" / "test.sh").write_text(
         "#!/bin/bash\necho 1 > /logs/verifier/reward.txt\n", encoding="utf-8"
     )
@@ -68,7 +66,14 @@ def test_materialize_oracle_uploads_solution(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
     plan = _interop.scripted_agent_plan(task, "oracle", ())
     files = vf.materialize_files(task, "oracle", plan)
-    assert files["/app/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
+    assert files["/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
+
+
+def test_materialize_oracle_uses_task_workdir(tmp_path: Path) -> None:
+    task = _interop.load_harbor_task(make_task(tmp_path / "w", workdir="/task"))
+    plan = _interop.scripted_agent_plan(task, "oracle", ())
+    files = vf.materialize_files(task, "oracle", plan)
+    assert files["/task/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
     assert files["/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
 
 
@@ -131,28 +136,28 @@ def test_harness_alias_registers_module() -> None:
     assert "ScriptedHarness" in module.__all__
 
 
-
 # -- harness config / workdir / image ------------------------------------------
 
 
 def test_harness_config_round_trips_files() -> None:
-    plan = _interop.ScriptedPlan(
-        files={"/x/solve.sh": b"echo hi\n"}, command="bash /x/solve.sh"
-    )
-    cfg = vf.harness_config(plan)
+    plan = _interop.ScriptedPlan(files={"/x/solve.sh": b"echo hi\n"}, command="bash /x/solve.sh")
+    cfg = vf.harness_config(plan, "/app")
     assert cfg["id"] == vf.VERIFIERS_HARNESS_ID
     assert cfg["command"] == "bash /x/solve.sh"
+    assert cfg["workdir"] == "/app"
     assert base64.b64decode(cfg["files_b64"]["/x/solve.sh"]) == b"echo hi\n"
 
 
 def test_harness_config_nop_has_no_command() -> None:
-    cfg = vf.harness_config(_interop.ScriptedPlan(files={}, command=None))
+    cfg = vf.harness_config(_interop.ScriptedPlan(files={}, command=None), "/")
     assert cfg["command"] is None and cfg["files_b64"] == {}
+    assert cfg["workdir"] == "/"
 
 
-def test_container_workdir_default_and_override(tmp_path: Path) -> None:
-    assert vf.container_workdir(make_task(tmp_path)) == "/app"
-    assert vf.container_workdir(make_task(tmp_path / "w", workdir="/task")) == "/task"
+def test_task_workdir_default_and_override(tmp_path: Path) -> None:
+    assert _interop.task_workdir(_interop.load_harbor_task(make_task(tmp_path))) == "/"
+    task = _interop.load_harbor_task(make_task(tmp_path / "w", workdir="/task"))
+    assert _interop.task_workdir(task) == "/task"
 
 
 def test_resolve_task_image_declared(tmp_path: Path) -> None:
@@ -183,7 +188,6 @@ def test_agent_runtime_defaults_when_undeclared() -> None:
         "cpu": vf.AGENT_CPU,
         "memory": vf.AGENT_MEMORY_GB,
     }
-
 
 
 def test_resolve_task_image_default_without_dockerfile(tmp_path: Path) -> None:
@@ -283,7 +287,11 @@ def test_run_cell_rejects_unknown_agent(tmp_path: Path) -> None:
 def test_run_cell_rejects_unknown_isolation(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="default/shared"):
         vf.run_cell(
-            tmp_path, "nop", (), workdir=tmp_path / "cell", timeout_seconds=1,
+            tmp_path,
+            "nop",
+            (),
+            workdir=tmp_path / "cell",
+            timeout_seconds=1,
             isolation="separate",
         )
 
@@ -299,11 +307,14 @@ def test_run_cell_passes_isolation_through(tmp_path: Path, monkeypatch) -> None:
 
     monkeypatch.setattr(vf, "_arun_cell", fake_arun)
     vf.run_cell(
-        tmp_path, "nop", (), workdir=tmp_path / "cell", timeout_seconds=1,
+        tmp_path,
+        "nop",
+        (),
+        workdir=tmp_path / "cell",
+        timeout_seconds=1,
         isolation="shared",
     )
     assert seen.get("isolation") == "shared"
-
 
 
 def test_run_cell_without_verifiers_is_error(tmp_path: Path, monkeypatch) -> None:

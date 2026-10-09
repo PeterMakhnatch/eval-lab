@@ -21,30 +21,42 @@ from evallab.interop import ScriptedPlan, load_harbor_task, scripted_agent_plan
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TXN_TASK = REPO_ROOT / "library/tasks/transaction-reconciliation"
 EVSUM_TASK = REPO_ROOT / "library/tasks/event-summary"
-MIMO_TASK = Path(
-    "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/"
-    "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002552"
-)
 
 
-def make_task(root: Path, *, name: str = "lab/synthetic", workdir: str = "/app") -> Path:
+def make_task(
+    root: Path,
+    *,
+    name: str = "lab/synthetic",
+    workdir: str = "/app",
+    docker_image: str | None = None,
+    with_solution: bool = True,
+    resources: dict | None = None,
+) -> Path:
     task_dir = root / "task"
-    (task_dir / "solution").mkdir(parents=True)
     (task_dir / "tests").mkdir(parents=True)
     (task_dir / "environment").mkdir(parents=True)
     (task_dir / "instruction.md").write_text("Do the thing.\n", encoding="utf-8")
-    (task_dir / "solution" / "solve.sh").write_text("#!/bin/bash\necho solved\n", encoding="utf-8")
+    if with_solution:
+        (task_dir / "solution").mkdir(parents=True)
+        (task_dir / "solution" / "solve.sh").write_text(
+            "#!/bin/bash\necho solved\n", encoding="utf-8"
+        )
     (task_dir / "tests" / "test.sh").write_text("#!/bin/bash\necho hi\n", encoding="utf-8")
     (task_dir / "environment" / "Dockerfile").write_text(
         "FROM python:3.12-slim-bookworm\n", encoding="utf-8"
     )
+    env_lines = "workdir = " + json.dumps(workdir) + "\n"
+    if docker_image is not None:
+        env_lines += "docker_image = " + json.dumps(docker_image) + "\n"
+    if resources:
+        for key, value in resources.items():
+            env_lines += f"{key} = {value}\n"
     (task_dir / "task.toml").write_text(
         'artifacts = []\n\n[task]\nname = "'
         + name
         + '"\n\n[metadata]\ndifficulty = "easy"\n'
-        + "\n[verifier]\ntimeout_sec = 60.0\n\n[environment]\nworkdir = "
-        + json.dumps(workdir)
-        + "\n",
+        + "\n[verifier]\ntimeout_sec = 60.0\n\n[environment]\n"
+        + env_lines,
         encoding="utf-8",
     )
     return task_dir
@@ -151,27 +163,23 @@ def test_canonical_oracle_needs_solution(tmp_path):
     assert scripted_agent_plan(task, "cheat", ()).command
 
 
-def test_lenient_load_mimo():
-    assert not (MIMO_TASK / "solution" / "solve.sh").is_file()
-    task = load_harbor_task(MIMO_TASK, require_solution=False)
+def test_lenient_load_solution_less_task(tmp_path):
+    task_dir = make_task(
+        tmp_path / "mimolike",
+        name="mimo-v2.6-rl/format-code-task-002552",
+        workdir="/testbed",
+        docker_image="example.com/mimo@sha256:abc",
+        with_solution=False,
+        resources={"cpus": 4, "memory_mb": 4096},
+    )
+    assert not (task_dir / "solution" / "solve.sh").is_file()
+    task = load_harbor_task(task_dir, require_solution=False)
     assert task.task_id == "mimo-v2.6-rl/format-code-task-002552"
     with pytest.raises(ValueError, match="instruction.md"):
         load_harbor_task(REPO_ROOT, require_solution=False)
 
 
-def test_parse_dockerfile_workdir(tmp_path):
-    dockerfile = tmp_path / "Dockerfile"
-    dockerfile.write_text(
-        "FROM python:3.12-slim\nWORKDIR /app\nFROM scratch\nWORKDIR /x\nWORKDIR sub\n",
-        encoding="utf-8",
-    )
-    assert ik.parse_dockerfile_workdir(dockerfile) == "/x/sub"
-    dockerfile.write_text("FROM x\n", encoding="utf-8")
-    assert ik.parse_dockerfile_workdir(dockerfile) is None
-    assert ik.parse_dockerfile_workdir(tmp_path / "missing") is None
-
-
-def test_resolve_spec_real_tasks():
+def test_resolve_spec_real_tasks(tmp_path):
     txn = ik.resolve_spec(load_harbor_task(TXN_TASK))
     assert txn.workdir == "/app"
     assert txn.submission_paths == ("/app",)
@@ -183,12 +191,24 @@ def test_resolve_spec_real_tasks():
         "/app/input/events.jsonl",
         "/app/output/summary.json",
     )
-    mimo = ik.resolve_spec(load_harbor_task(MIMO_TASK, require_solution=False))
-    assert mimo.workdir == "/testbed"
-    assert mimo.submission_paths == ("/testbed",)
-    assert mimo.base_kind == "docker_image" and not mimo.has_solution
-    assert mimo.base_ref.startswith("docker.io/xiaomimimo/")
-    assert (mimo.cpus, mimo.memory) == ("4", "4g")
+    like = ik.resolve_spec(
+        load_harbor_task(
+            make_task(
+                tmp_path / "mimolike",
+                name="mimo-v2.6-rl/format-code-task-002552",
+                workdir="/testbed",
+                docker_image="example.com/mimo@sha256:abc",
+                with_solution=False,
+                resources={"cpus": 4, "memory_mb": 4096},
+            ),
+            require_solution=False,
+        )
+    )
+    assert like.workdir == "/testbed"
+    assert like.submission_paths == ("/testbed",)
+    assert like.base_kind == "docker_image" and not like.has_solution
+    assert like.base_ref == "example.com/mimo@sha256:abc"
+    assert (like.cpus, like.memory) == ("4", "4096m")
 
 
 def test_resolve_spec_rejects_compose_and_root(tmp_path):

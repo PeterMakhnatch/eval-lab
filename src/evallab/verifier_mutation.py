@@ -43,7 +43,7 @@ from collections.abc import Callable, Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import Field
 
@@ -51,6 +51,9 @@ from evallab.execution_contracts import new_ulid
 from evallab.registry import compute_task_digests
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
+
+if TYPE_CHECKING:
+    from evallab.vcheck import GradeResult, Submission
 
 SCHEMA_REPORT = "evallab.verifier_mutation.report/v1"
 SCHEMA_HYPOTHESIS = "evallab.verifier_mutation.hypothesis/v1"
@@ -687,6 +690,147 @@ def mutant_script(solve: str, path: str, mutated: bytes, title: str) -> str:
 
 def blank_script(solve: str, path: str) -> str:
     return _header(f"blank {path}", 0) + _wrap_reference(solve) + f": > {shlex.quote(path)}\n"
+
+
+# --------------------------------------------------------------------------- #
+# VerifierCheck single-submission grading (additive vcheck helper)
+# --------------------------------------------------------------------------- #
+
+
+def grade_submission(
+    package: str | Path,
+    submission: Submission,
+    *,
+    repo_root: str | Path,
+    run_dir: str | Path,
+    timeout_seconds: int = 1_800,
+) -> GradeResult:
+    """Grade one vcheck submission with the task's own verifier.
+
+    Reuses the solution-override machinery: the reference ``solution/solve.sh``
+    runs in a subshell, then the submission is applied -- a unified-diff
+    ``patch`` via ``patch -p1``, or exact bytes written for ``file``/``json``
+    (base64 when the bytes are not UTF-8). Empty content is a no-op, so the
+    oracle and blank control submissions grade the reference solution and the
+    untouched environment respectively. ``base="environment"`` skips the
+    reference entirely.
+
+    One ``oracle``-channel trial through ``run_matrix``: free local Docker, no
+    model. ``status`` mirrors the trial outcome (``ok``/``mismatch`` scored,
+    ``infra`` otherwise). Raises ``ValueError`` for non-task packages, missing
+    reference solutions, relative target paths, non-UTF-8 patches, and invalid
+    JSON payloads.
+    """
+    import base64
+
+    from evallab.vcheck import GradeResult  # lazy: vcheck re-exports this helper
+
+    def _write_bytes(path: str, data: bytes) -> str:
+        try:
+            return _heredoc(path, data)
+        except (UnicodeDecodeError, ValueError):
+            encoded = base64.encodebytes(data).decode("ascii")
+            tag = "VCHECK_" + hashlib.sha256(data).hexdigest()[:12].upper()
+            quoted = shlex.quote(path)
+            parent = shlex.quote(str(PurePosixPath(path).parent))
+            return f"mkdir -p {parent}\nbase64 -d <<'{tag}' > {quoted}\n{encoded}{tag}\n"
+
+    root = Path(package).expanduser().resolve()
+    config = _task_config(root)
+    if config.get("steps"):
+        raise ValueError("solution-override controls do not support declared task steps")
+    solve_path = root / "solution" / "solve.sh"
+    if not solve_path.is_file():
+        raise ValueError(f"{root}: no reference solution (solution/solve.sh); nothing to grade")
+    kind, target, content, base = (
+        submission.kind,
+        submission.path,
+        submission.content,
+        submission.base,
+    )
+    if kind not in ("patch", "file", "json"):
+        raise ValueError(f"unknown submission kind: {kind!r}")
+    if base not in ("oracle", "environment"):
+        raise ValueError(f"unknown submission base: {base!r}")
+    if target and not target.startswith("/"):
+        raise ValueError("submission paths must be absolute container paths")
+    if kind == "json" and content:
+        try:
+            json.loads(content.decode("utf-8"))
+        except (UnicodeDecodeError, ValueError) as exc:
+            raise ValueError(f"submission to {target or '<unknown>'} is not valid JSON") from exc
+    script = _header(f"vcheck {kind} {target or 'no-op'}", 0)
+    if base == "oracle":
+        script += _wrap_reference(solve_path.read_text(encoding="utf-8"))
+    if content:
+        if kind == "patch":
+            try:
+                text = content.decode("utf-8")
+            except UnicodeDecodeError as exc:
+                raise ValueError("patch submissions must be UTF-8 text") from exc
+            script += _heredoc("/tmp/vcheck-submission.patch", text.encode("utf-8"))
+            script += "patch -p1 --no-backup-if-mismatch -i /tmp/vcheck-submission.patch\n"
+        else:
+            script += _write_bytes(target, content)
+    repo = Path(repo_root).resolve()
+    work = Path(run_dir).expanduser().resolve()
+    if not work.is_relative_to(repo):
+        raise ValueError(f"run directory must stay inside the repository ({repo}); got {work}")
+    scripts = work / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    label = hashlib.sha256(
+        b"\0".join([kind.encode(), target.encode(), content, base.encode()])
+    ).hexdigest()[:12]
+    task_name = str((config.get("task") or {}).get("name") or root.name)
+    slug = _slug(task_name.rsplit("/", 1)[-1], limit=28)
+    script_path = scripts / f"grade-{label}.sh"
+    script_path.write_text(script, encoding="utf-8")
+    run_name = f"vc-{label}-{slug}"[:80].rstrip("-")
+    digests = compute_task_digests(root)
+    matrix = ExperimentMatrix(
+        matrix_id=new_ulid(),
+        name=f"vcheck-{slug}-grade",
+        hypothesis=f"Grade one VerifierCheck submission for {slug} with the task's own verifier.",
+        benchmark_family=slug,
+        task_id=slug if len(slug) >= 3 else f"{slug}-task",
+        task=str(root),
+        task_package_digest=digests.package,
+        verifier_digest=digests.verifier,
+        environment="docker",
+        concurrency=1,
+        timeout_seconds=timeout_seconds,
+        runs=[
+            MatrixRun(
+                name=run_name,
+                agent="oracle",
+                expect_reward=0.0,
+                solution=script_path.relative_to(repo).as_posix(),
+            )
+        ],
+    )
+    (work / "matrices").mkdir(parents=True, exist_ok=True)
+    (work / "matrices" / f"{matrix.name}.json").write_text(
+        json.dumps(matrix.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8"
+    )
+    results = _default_runner(matrix, repo)
+    result = next(
+        (entry for entry in results if entry.get("name") == run_name),
+        {"status": "infra", "error": "no matrix result"},
+    )
+    status = result.get("status")
+    canonical = status if status in ("ok", "mismatch") else "infra"
+    rewards = result.get("rewards") or []
+    reward = float(rewards[0]) if canonical != "infra" and rewards else None
+    if reward is None:
+        canonical = "infra"
+    job_dir = repo / "runs" / run_name
+    return GradeResult(
+        reward=reward,
+        status=canonical,
+        verifier_outputs={"rewards": rewards, "error": result.get("error")},
+        job_dir=job_dir.relative_to(repo).as_posix() if job_dir.is_dir() else None,
+        script=script_path.relative_to(repo).as_posix(),
+    )
 
 
 # --------------------------------------------------------------------------- #

@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: irc_upstream_fetch",
+ "flagged": true,
+ "id": "cb-000414",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

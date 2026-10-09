@@ -82,11 +82,13 @@ step and transcript message number of the cheat). Tests:
 
 Live copy (2026-10-09): parquet at `derived/external/cheatbench/full.parquet`,
 transcripts DB at `derived/trace-lab/scout/data/transcripts_cheatbench`
-(194 transcripts). The always-on Scout viewer opens any transcripts directory
-by URL, so no service change is needed:
-`http://127.0.0.1:7576/#/transcripts/<base64url("file://<absolute-db-dir>"), no padding>`.
-Each transcript ends with a marked `[CheatBench annotation]` message naming
-the cheat's transcript message (`M<n>`).
+(194 transcripts). The always-on Scout viewer opens a transcript in any
+directory by URL, so no service change is needed:
+`http://127.0.0.1:7576/#/transcripts/<dir>/cheatbench-<trace_id>-trajectory`,
+where `<dir>` is base64url of `file://<absolute-db-dir>` without padding. That
+also switches the viewer's Transcripts tab to this directory (all 194 listed;
+switch back via the path box). Each transcript ends with a marked
+`[CheatBench annotation]` message naming the cheat's transcript message (`M<n>`).
 
 Scout insert is first-write-wins on transcript id: re-import into a fresh
 directory, never over an existing one.

@@ -96,9 +96,10 @@ balance running out; excluded, listed in the summary). 38 have a valid judge ver
 - **Judges**: `zai/glm-5.3` (4 openmath + 1 subset_sum), `tinker/Qwen/Qwen3.8-27B`
   (cross-family judge for GLM prime_factorization, 4 GLM openmath, all Qwen
   trials), `zai/glm-5.3-flash` (12 GLM openmath). Overlaps agree (4/4, 2/2).
-  Qwen3.8-27B failed structured output on 7 of 40 calls (schema echoed back
-  instead of filled, or Tinker's 64K context exhausted); those trials are counted
-  as unjudged, never guessed. Four long GLM openmath trajectories exceed the
+  Qwen3.8-27B failed structured output on 9 of 42 recorded calls (schema echoed
+  back instead of filled, or Tinker's 64K context exhausted); retries recovered
+  some, and the rest are counted as unjudged, never guessed. Four long GLM openmath
+  trajectories exceed the
   64K window and stayed unjudged after Z.ai ran out.
 
 Spend (agents + every judge call, `spend.py`): $9.22 of the $10 grant —

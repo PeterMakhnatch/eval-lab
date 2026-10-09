@@ -160,6 +160,7 @@ PY
   fi
 fi
 # Go: this module's entries in the module cache, plus the build cache.
+# When neither cache directory exists there is nothing to purge.
 if [ -f "$CWD/go.mod" ]; then
   _pbc_mod=$(sed -n 's/^module[[:space:]][[:space:]]*\\([^[:space:]]*\\).*/\\1/p' "$CWD/go.mod" | head -n 1)
   [ -n "$_pbc_mod" ] || fail "purge-build-caches@2 cannot read the module path in $CWD/go.mod"
@@ -167,43 +168,59 @@ if [ -f "$CWD/go.mod" ]; then
   _pbc_esc=$(printf '%s' "$_pbc_base" | sed 's/\\([A-Z]\\)/!\\L\\1/g')
   if [ -n "${GOMODCACHE:-}" ]; then _pbc_gomod="$GOMODCACHE"; else _pbc_gomod=$(go env GOMODCACHE 2>/dev/null || fail "purge-build-caches@2 needs the go toolchain or GOMODCACHE for $CWD/go.mod"); fi
   [ -n "$_pbc_gomod" ] || fail "purge-build-caches@2 resolved an empty GOMODCACHE"
-  find "$_pbc_gomod" -maxdepth 1 \\( -iname "${_pbc_base}@*" -o -iname "${_pbc_esc}@*" \\) -exec rm -rf {} + 2>/dev/null || fail "purge-build-caches@2 cannot purge the go module cache"
-  _pbc_gomod_left=$(find "$_pbc_gomod" -maxdepth 1 \\( -iname "${_pbc_base}@*" -o -iname "${_pbc_esc}@*" \\) -print 2>/dev/null | head -n 5)
-  [ -z "$_pbc_gomod_left" ] || fail "purge-build-caches@2 left go module cache entries: $_pbc_gomod_left"
   if [ -n "${GOCACHE:-}" ]; then _pbc_gocache="$GOCACHE"; else _pbc_gocache=$(go env GOCACHE 2>/dev/null || true); fi
-  if [ -n "${_pbc_gocache:-}" ] && [ "$_pbc_gocache" != "off" ]; then
-    rm -rf "$_pbc_gocache" 2>/dev/null || fail "purge-build-caches@2 cannot purge the go build cache"
-    [ ! -e "$_pbc_gocache" ] || fail "purge-build-caches@2 left the go build cache: $_pbc_gocache"
+  [ -n "${_pbc_gocache:-}" ] || _pbc_gocache=""
+  [ "$_pbc_gocache" = "off" ] && _pbc_gocache=""
+  if [ ! -d "$_pbc_gomod" ] && [ ! -d "$_pbc_gocache" ]; then
+    : # no go caches present: nothing to purge
+  else
+    if [ -d "$_pbc_gomod" ]; then
+      find "$_pbc_gomod" -maxdepth 1 \\( -iname "${_pbc_base}@*" -o -iname "${_pbc_esc}@*" \\) -exec rm -rf {} + 2>/dev/null || fail "purge-build-caches@2 cannot purge the go module cache"
+      _pbc_gomod_left=$(find "$_pbc_gomod" -maxdepth 1 \\( -iname "${_pbc_base}@*" -o -iname "${_pbc_esc}@*" \\) -print 2>/dev/null | head -n 5)
+      [ -z "$_pbc_gomod_left" ] || fail "purge-build-caches@2 left go module cache entries: $_pbc_gomod_left"
+    fi
+    if [ -n "$_pbc_gocache" ]; then
+      rm -rf "$_pbc_gocache" 2>/dev/null || fail "purge-build-caches@2 cannot purge the go build cache"
+      [ ! -e "$_pbc_gocache" ] || fail "purge-build-caches@2 left the go build cache: $_pbc_gocache"
+    fi
   fi
 fi
 # Rust: the worktree target dir and this crate's registry copies.
+# Registry purge needs resolvable crate names; when no registry directory
+# exists there is nothing to purge and names stay unresolved.
 if [ -f "$CWD/Cargo.toml" ]; then
-  _pbc_crate=$(sed -n '/^\\[package\\]/,/^\\[/s/^name[[:space:]]*=[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/Cargo.toml" | head -n 1)
-  _pbc_members=""
-  if [ -z "$_pbc_crate" ]; then
-    # Virtual workspace root (no [package]): resolve member crate names.
-    _pbc_members=$(sed -n '/^members[[:space:]]*=[[:space:]]*\\[/,/\\]/p' "$CWD/Cargo.toml" | grep -o '"[^"]*"' | tr -d '"' || true)
-    [ -n "$_pbc_members" ] || fail "purge-build-caches@2 cannot read the crate name or workspace members in $CWD/Cargo.toml"
-    for _pbc_m in $_pbc_members; do
-      _pbc_mname=$(sed -n '/^\\[package\\]/,/^\\[/s/^name[[:space:]]*=[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/$_pbc_m/Cargo.toml" 2>/dev/null | head -n 1 || true)
-      [ -n "$_pbc_mname" ] || fail "purge-build-caches@2 cannot read the crate name in $CWD/$_pbc_m/Cargo.toml"
-      _pbc_crate="$_pbc_crate $_pbc_mname"
-    done
-  fi
   rm -rf "$CWD/target" 2>/dev/null || fail "purge-build-caches@2 cannot remove $CWD/target"
   [ ! -e "$CWD/target" ] || fail "purge-build-caches@2 left $CWD/target"
   _pbc_cargo="${CARGO_HOME:-$HOME/.cargo}"
+  _pbc_reg_found=""
   for _pbc_reg in "$_pbc_cargo/registry/cache" "$_pbc_cargo/registry/src" /root/.cargo/registry/cache /root/.cargo/registry/src; do
-    [ -d "$_pbc_reg" ] || continue
-    for _pbc_one in $_pbc_crate; do
-      find "$_pbc_reg" -maxdepth 2 -iname "${_pbc_one}-*" -exec rm -rf {} + 2>/dev/null || fail "purge-build-caches@2 cannot purge the cargo registry"
-      _pbc_reg_left=$(find "$_pbc_reg" -maxdepth 2 -iname "${_pbc_one}-*" -print 2>/dev/null | head -n 5)
-      [ -z "$_pbc_reg_left" ] || fail "purge-build-caches@2 left cargo registry entries: $_pbc_reg_left"
-    done
+    [ -d "$_pbc_reg" ] && _pbc_reg_found="yes"
   done
+  if [ -n "$_pbc_reg_found" ]; then
+    _pbc_crate=$(sed -n '/^\\[package\\]/,/^\\[/s/^name[[:space:]]*=[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/Cargo.toml" | head -n 1)
+    if [ -z "$_pbc_crate" ]; then
+      # Virtual workspace root (no [package]): resolve member crate names.
+      _pbc_members=$(sed -n '/^members[[:space:]]*=[[:space:]]*\\[/,/\\]/p' "$CWD/Cargo.toml" | grep -o '"[^"]*"' | tr -d '"' || true)
+      [ -n "$_pbc_members" ] || fail "purge-build-caches@2 cannot read the crate name or workspace members in $CWD/Cargo.toml"
+      for _pbc_m in $_pbc_members; do
+        _pbc_mname=$(sed -n '/^\\[package\\]/,/^\\[/s/^name[[:space:]]*=[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/$_pbc_m/Cargo.toml" 2>/dev/null | head -n 1 || true)
+        [ -n "$_pbc_mname" ] || fail "purge-build-caches@2 cannot read the crate name in $CWD/$_pbc_m/Cargo.toml"
+        _pbc_crate="$_pbc_crate $_pbc_mname"
+      done
+    fi
+    for _pbc_reg in "$_pbc_cargo/registry/cache" "$_pbc_cargo/registry/src" /root/.cargo/registry/cache /root/.cargo/registry/src; do
+      [ -d "$_pbc_reg" ] || continue
+      for _pbc_one in $_pbc_crate; do
+        find "$_pbc_reg" -maxdepth 2 -iname "${_pbc_one}-*" -exec rm -rf {} + 2>/dev/null || fail "purge-build-caches@2 cannot purge the cargo registry"
+        _pbc_reg_left=$(find "$_pbc_reg" -maxdepth 2 -iname "${_pbc_one}-*" -print 2>/dev/null | head -n 5)
+        [ -z "$_pbc_reg_left" ] || fail "purge-build-caches@2 left cargo registry entries: $_pbc_reg_left"
+      done
+    done
+  fi
 fi
 # Java (Maven): this project's artifacts in the local repository.
-if [ -f "$CWD/pom.xml" ]; then
+# When no local repository exists there is nothing to purge.
+if [ -f "$CWD/pom.xml" ] && { [ -d "$HOME/.m2/repository" ] || [ -d /root/.m2/repository ]; }; then
   _pbc_ga=$(python3 - "$CWD/pom.xml" 2>/dev/null <<'PY' || true
 import sys, xml.etree.ElementTree as ET
 try:
@@ -241,38 +258,50 @@ if [ -f "$CWD/build.gradle" ] || [ -f "$CWD/build.gradle.kts" ] || [ -f "$CWD/se
   [ ! -e "$CWD/.gradle" ] || fail "purge-build-caches@2 left $CWD/.gradle"
 fi
 # Node: this package's tarballs in the shared download caches.
+# When no node download cache exists there is nothing to purge and the
+# package name stays unresolved.
 if [ -f "$CWD/package.json" ]; then
-  _pbc_pkg=""
-  if command -v node >/dev/null 2>&1; then _pbc_pkg=$(node -p "require('$CWD/package.json').name" 2>/dev/null || true); [ "$_pbc_pkg" = "undefined" ] && _pbc_pkg=""; fi
-  if [ -z "$_pbc_pkg" ] && command -v python3 >/dev/null 2>&1; then _pbc_pkg=$(python3 -c "import json;print(json.load(open('$CWD/package.json')).get('name') or '')" 2>/dev/null || true); fi
-  if [ -z "$_pbc_pkg" ]; then _pbc_pkg=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/package.json" | head -n 1); fi
-  [ -n "$_pbc_pkg" ] || fail "purge-build-caches@2 cannot read the package name in $CWD/package.json"
-  _pbc_base=$(basename "$_pbc_pkg")
-  _pbc_npm="${npm_config_cache:-$HOME/.npm}"
-  for _pbc_npm_root in "$_pbc_npm" /root/.npm; do
-    [ -d "$_pbc_npm_root/_cacache/index-v5" ] || continue
-    if grep -rlF -e "$_pbc_pkg" -e "/$_pbc_base/-/" "$_pbc_npm_root/_cacache/index-v5" >/dev/null 2>&1; then
-      rm -rf "$_pbc_npm_root/_cacache" 2>/dev/null || fail "purge-build-caches@2 cannot purge the npm cache"
-      [ ! -e "$_pbc_npm_root/_cacache" ] || fail "purge-build-caches@2 left the npm cache: $_pbc_npm_root/_cacache"
-    fi
+  _pbc_node_cache=""
+  for _pbc_nd in "${npm_config_cache:-$HOME/.npm}/_cacache" /root/.npm/_cacache "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}" /root/.cache/yarn "$HOME/.pnpm-store" "$HOME/.local/share/pnpm/store" /root/.local/share/pnpm/store; do
+    [ -d "$_pbc_nd" ] && _pbc_node_cache="yes"
   done
-  if [ -d "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}" ] || [ -d /root/.cache/yarn ]; then
-    if command -v yarn >/dev/null 2>&1; then
-      yarn cache clean "$_pbc_pkg" >/dev/null 2>&1 || true
-      _pbc_yarn_left=$(yarn cache list 2>/dev/null | grep -i -F -e "${_pbc_pkg}@" -e "${_pbc_base}@" | head -n 5 || true)
-      [ -z "$_pbc_yarn_left" ] || fail "purge-build-caches@2 left yarn cache entries: $_pbc_yarn_left"
-    else
-      fail "purge-build-caches@2 found a yarn cache but no yarn binary for $_pbc_pkg"
-    fi
+  if [ -z "$_pbc_node_cache" ] && command -v pnpm >/dev/null 2>&1; then
+    _pbc_psd=$(pnpm store path 2>/dev/null || true)
+    [ -n "$_pbc_psd" ] && [ -d "$_pbc_psd" ] && _pbc_node_cache="yes"
   fi
-  _pbc_pnpm="${PNPM_STORE_PATH:-}"
-  if [ -z "$_pbc_pnpm" ] && command -v pnpm >/dev/null 2>&1; then _pbc_pnpm=$(pnpm store path 2>/dev/null || true); fi
-  for _pbc_ps in "$_pbc_pnpm" "$HOME/.pnpm-store" "$HOME/.local/share/pnpm/store" /root/.local/share/pnpm/store; do
-    [ -n "$_pbc_ps" ] && [ -d "$_pbc_ps" ] || continue
-    if grep -rlF "$_pbc_pkg" "$_pbc_ps" >/dev/null 2>&1; then
-      fail "purge-build-caches@2 found $_pbc_pkg references in the pnpm store $_pbc_ps with no safe per-package eviction"
+  if [ -n "$_pbc_node_cache" ]; then
+    _pbc_pkg=""
+    if command -v node >/dev/null 2>&1; then _pbc_pkg=$(node -p "require('$CWD/package.json').name" 2>/dev/null || true); [ "$_pbc_pkg" = "undefined" ] && _pbc_pkg=""; fi
+    if [ -z "$_pbc_pkg" ] && command -v python3 >/dev/null 2>&1; then _pbc_pkg=$(python3 -c "import json;print(json.load(open('$CWD/package.json')).get('name') or '')" 2>/dev/null || true); fi
+    if [ -z "$_pbc_pkg" ]; then _pbc_pkg=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/package.json" | head -n 1); fi
+    [ -n "$_pbc_pkg" ] || fail "purge-build-caches@2 cannot read the package name in $CWD/package.json"
+    _pbc_base=$(basename "$_pbc_pkg")
+    _pbc_npm="${npm_config_cache:-$HOME/.npm}"
+    for _pbc_npm_root in "$_pbc_npm" /root/.npm; do
+      [ -d "$_pbc_npm_root/_cacache/index-v5" ] || continue
+      if grep -rlF -e "$_pbc_pkg" -e "/$_pbc_base/-/" "$_pbc_npm_root/_cacache/index-v5" >/dev/null 2>&1; then
+        rm -rf "$_pbc_npm_root/_cacache" 2>/dev/null || fail "purge-build-caches@2 cannot purge the npm cache"
+        [ ! -e "$_pbc_npm_root/_cacache" ] || fail "purge-build-caches@2 left the npm cache: $_pbc_npm_root/_cacache"
+      fi
+    done
+    if [ -d "${YARN_CACHE_FOLDER:-$HOME/.cache/yarn}" ] || [ -d /root/.cache/yarn ]; then
+      if command -v yarn >/dev/null 2>&1; then
+        yarn cache clean "$_pbc_pkg" >/dev/null 2>&1 || true
+        _pbc_yarn_left=$(yarn cache list 2>/dev/null | grep -i -F -e "${_pbc_pkg}@" -e "${_pbc_base}@" | head -n 5 || true)
+        [ -z "$_pbc_yarn_left" ] || fail "purge-build-caches@2 left yarn cache entries: $_pbc_yarn_left"
+      else
+        fail "purge-build-caches@2 found a yarn cache but no yarn binary for $_pbc_pkg"
+      fi
     fi
-  done
+    _pbc_pnpm="${PNPM_STORE_PATH:-}"
+    if [ -z "$_pbc_pnpm" ] && command -v pnpm >/dev/null 2>&1; then _pbc_pnpm=$(pnpm store path 2>/dev/null || true); fi
+    for _pbc_ps in "$_pbc_pnpm" "$HOME/.pnpm-store" "$HOME/.local/share/pnpm/store" /root/.local/share/pnpm/store; do
+      [ -n "$_pbc_ps" ] && [ -d "$_pbc_ps" ] || continue
+      if grep -rlF "$_pbc_pkg" "$_pbc_ps" >/dev/null 2>&1; then
+        fail "purge-build-caches@2 found $_pbc_pkg references in the pnpm store $_pbc_ps with no safe per-package eviction"
+      fi
+    done
+  fi
 fi
 
 """

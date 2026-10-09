@@ -281,6 +281,39 @@ def test_v2_block_fails_closed_on_unresolvable_names(tmp_path: Path) -> None:
     assert "cannot read the module path" in proc.stderr
 
 
+def test_v2_block_skips_go_without_caches(tmp_path: Path) -> None:
+    """A valid go.mod with no cache directories present skips the section."""
+    import subprocess
+
+    from evallab.purge_build_caches import LANG_BLOCK
+
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "go.mod").write_text("module example.com/fixtureproj\n", encoding="utf-8")
+    runner = tmp_path / "run.sh"
+    runner.write_text(
+        "#!/bin/bash\nCWD="
+        + str(cwd)
+        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
+        + LANG_BLOCK
+        + "\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        ["bash", str(runner)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={
+            "PATH": "/usr/bin:/bin:/usr/local/bin",
+            "HOME": str(tmp_path),
+            "GOMODCACHE": str(tmp_path / "no-gomod"),
+            "GOCACHE": str(tmp_path / "no-gocache"),
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+
+
 def test_v2_block_removes_project_wheels_and_verifies(tmp_path: Path) -> None:
     """The pip section removes listed project wheels (stub pip, no network)."""
     import os

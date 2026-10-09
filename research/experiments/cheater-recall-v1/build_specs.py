@@ -251,7 +251,7 @@ def _campaign_doc(
         "queue_cwd": queue_cwd.as_posix(),
         "linear_card": LINEAR_CARD,
         "submitted_by": SUBMITTED_BY,
-        "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "created_at": datetime.datetime.now(datetime.UTC).isoformat(),
     }
 
 
@@ -341,10 +341,10 @@ def main() -> None:
     # 001269 drift guard: today's ledger LEAKY package is the post-probe purge
     # repair (d3375b68), not the Oct-6 probed package (541d4168). Fail here if
     # the ledger moves again so the README stays truthful.
-    leaky = {
-        json.load(open(path))["task_id"]: json.load(open(path))["task_package_digest"]
-        for path in (out / "specs" / "paid").glob("chrr1-l-cheat-*-k1.json")
-    }
+    leaky = {}
+    for path in (out / "specs" / "paid").glob("chrr1-l-cheat-*-k1.json"):
+        spec = json.loads(path.read_text())
+        leaky[spec["task_id"]] = spec["task_package_digest"]
     assert leaky["format-code-task-001269"].startswith("sha256:d3375b68"), leaky
 
 

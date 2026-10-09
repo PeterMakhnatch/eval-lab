@@ -36,6 +36,7 @@ from evallab.execution_contracts import new_ulid
 from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
+from evallab.verifier_mutation import add_mutate_parser
 
 SCHEMA_SCAN = "evallab.reward_hack.scan/v1"
 SCHEMA_REPORT = "evallab.reward_hack.report/v1"
@@ -878,7 +879,8 @@ def _hack_run_command(args: argparse.Namespace, root: Path, *, harbor: Any | Non
 def build_reward_hack_parser(subparsers: Any) -> None:
     hack = subparsers.add_parser(
         "hack",
-        help="Reward-hacking audit: static V1-V8 ledger plus exploit replay (local, free)",
+        help="Reward-hacking audit: static V1-V8 ledger, exploit replay, verifier mutation "
+        "testing (local, free)",
     )
     hack_commands = hack.add_subparsers(dest="hack_command", required=True)
     scan = hack_commands.add_parser(
@@ -906,3 +908,4 @@ def build_reward_hack_parser(subparsers: Any) -> None:
     run.add_argument("--output-dir", type=Path)
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=_hack_run_command)
+    add_mutate_parser(hack_commands)

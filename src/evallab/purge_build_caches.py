@@ -231,8 +231,8 @@ fi
 # Node: this package's tarballs in the shared download caches.
 if [ -f "$CWD/package.json" ]; then
   _pbc_pkg=""
-  if command -v node >/dev/null 2>&1; then _pbc_pkg=$(node -p "require('$CWD/package.json').name" 2>/dev/null || true); fi
-  if [ -z "$_pbc_pkg" ] && command -v python3 >/dev/null 2>&1; then _pbc_pkg=$(python3 -c "import json;print(json.load(open('$CWD/package.json')).get('name',''))" 2>/dev/null || true); fi
+  if command -v node >/dev/null 2>&1; then _pbc_pkg=$(node -p "require('$CWD/package.json').name" 2>/dev/null || true); [ "$_pbc_pkg" = "undefined" ] && _pbc_pkg=""; fi
+  if [ -z "$_pbc_pkg" ] && command -v python3 >/dev/null 2>&1; then _pbc_pkg=$(python3 -c "import json;print(json.load(open('$CWD/package.json')).get('name') or '')" 2>/dev/null || true); fi
   if [ -z "$_pbc_pkg" ]; then _pbc_pkg=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/package.json" | head -n 1); fi
   [ -n "$_pbc_pkg" ] || fail "purge-build-caches@2 cannot read the package name in $CWD/package.json"
   _pbc_base=$(basename "$_pbc_pkg")

@@ -7283,6 +7283,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.cheat import build_cheat_parser
 
     build_cheat_parser(commands)
+    from evallab.mimo_clean import build_mimo_clean_parser
+
+    build_mimo_clean_parser(commands)
     from evallab.interop import build_interop_parser
 
     build_interop_parser(commands)

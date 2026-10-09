@@ -4371,6 +4371,176 @@ def _process_job_command(
     return 0
 
 
+def _flight_trial_dirs(job_dir: Path) -> list[Path]:
+    return sorted(
+        (p for p in job_dir.iterdir() if p.is_dir() and (p / "result.json").is_file()),
+        key=lambda p: p.name,
+    )
+
+
+def _resolve_flight_capture_dir(root: Path, args: argparse.Namespace) -> Path | None:
+    """Resolve ``--capture-dir`` exactly like ``flight record`` does."""
+    capture_dir = getattr(args, "capture_dir", None)
+    return _resolve(root, capture_dir) if capture_dir else None
+
+
+def _print_flight_summary(summary: dict[str, Any], as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return
+    print(f"trial {summary['trial_id']} ({summary['agent']} on {summary['task']})")
+    print(f"  rows: {summary['rows']}  model_calls: {summary['model_calls']}")
+    print(f"  coverage: {summary['coverage']} (prototype, not every kernel operation)")
+    for key in sorted(summary["counts"]):
+        print(f"  {key}: {summary['counts'][key]}")
+    print(f"  timeline: {summary['timeline']}")
+
+
+def _flight_record_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.flight.plugin import configuration_path
+    from evallab.flight.timeline import build_timeline
+
+    if args.environment != "docker":
+        raise ValueError("flight record supports only local Docker controls")
+    if args.flight_egress == "open" and args.egress_lock:
+        raise ValueError("open recorder tier cannot use --egress-lock")
+    egress_lock = args.flight_egress == "locked"
+    request = RunRequest(
+        task=_resolve(root, args.task),
+        agent=args.agent,
+        name=args.name,
+        jobs_dir=_resolve(root, args.jobs_dir),
+        environment=args.environment,
+        egress_lock=egress_lock,
+        model=args.model,
+        concurrency=args.concurrency,
+        attempts=args.attempts,
+        timeout_seconds=args.timeout_seconds,
+        allow_billable=args.allow_billable,
+    )
+    config_path = configuration_path(request.jobs_dir / request.name)
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with config_path.open("x", encoding="utf-8") as config:
+            json.dump({"schema": "evallab.flight.config/v1", "egress": args.flight_egress}, config)
+    except FileExistsError:
+        print(f"error: flight config already exists: {config_path} (not overwriting)", file=sys.stderr)
+        return 1
+    created_config = True
+    previous_capture = os.environ.get("EVALLAB_MODEL_CAPTURE")
+    previous_capture_dir = os.environ.get("EVALLAB_MODEL_CAPTURE_DIR")
+    capture_dir = _resolve_flight_capture_dir(root, args)
+    if capture_dir is not None:
+        os.environ["EVALLAB_MODEL_CAPTURE_DIR"] = str(capture_dir)
+    os.environ["EVALLAB_MODEL_CAPTURE"] = "1"
+    try:
+        job_dir = Executor.from_repo(root).execute_direct(request)
+    finally:
+        if created_config:
+            config_path.unlink(missing_ok=True)
+        if previous_capture is None:
+            os.environ.pop("EVALLAB_MODEL_CAPTURE", None)
+        else:
+            os.environ["EVALLAB_MODEL_CAPTURE"] = previous_capture
+        if previous_capture_dir is None:
+            os.environ.pop("EVALLAB_MODEL_CAPTURE_DIR", None)
+        else:
+            os.environ["EVALLAB_MODEL_CAPTURE_DIR"] = previous_capture_dir
+    if not args.json:
+        print(f"completed: {job_dir}")
+        _print_summary([load_job(job_dir)])
+    trials = _flight_trial_dirs(job_dir)
+    if not trials:
+        print("error: no trial directories found for timeline", file=sys.stderr)
+        return 1
+    failed = False
+    for trial in trials:
+        try:
+            summary = build_timeline(trial, job_dir, capture_dir=capture_dir)
+        except (OSError, ValueError) as exc:
+            print(f"error: timeline failed for {trial.name}: {exc}", file=sys.stderr)
+            failed = True
+            continue
+        _print_flight_summary(summary, args.json)
+        if summary["coverage"] == "incomplete":
+            failed = True
+    return 1 if failed else 0
+
+
+def _flight_show_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    from evallab.flight.timeline import build_timeline
+
+    del harbor
+    target = _resolve(root, args.path)
+    trials: list[tuple[Path, Path]]
+    if (target / "result.json").is_file() and not _flight_trial_dirs(target):
+        trials = [(target, target.parent)]
+    else:
+        trials = [(t, target) for t in _flight_trial_dirs(target)]
+    if not trials:
+        print(f"error: no trial found at {target}", file=sys.stderr)
+        return 1
+    failed = False
+    capture_dir = _resolve_flight_capture_dir(root, args)
+    for trial_dir, job_dir in trials:
+        try:
+            summary = build_timeline(trial_dir, job_dir, capture_dir=capture_dir)
+        except (OSError, ValueError) as exc:
+            print(f"error: timeline failed for {trial_dir}: {exc}", file=sys.stderr)
+            failed = True
+            continue
+        events = [
+            json.loads(line)
+            for line in Path(summary["timeline"]).read_text().splitlines()
+            if line.strip()
+        ]
+        if args.json:
+            print(json.dumps({"summary": summary, "events": events}, indent=2, sort_keys=True))
+        else:
+            _print_flight_summary(summary, False)
+            for event in events:
+                print(
+                    f"{event['ts']} {event['plane']}/{event['kind']} "
+                    f"{json.dumps(event['detail'], sort_keys=True)}"
+                )
+    return 1 if failed else 0
+
+
+def _flight_probe_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    import asyncio
+
+    from evallab.flight.invisibility import run_probe
+
+    del harbor
+    report = asyncio.run(run_probe(image=args.image, egress=args.flight_egress,
+                                  output_dir=_resolve(root, args.out) if args.out else None))
+    if args.json:
+        from dataclasses import asdict
+
+        print(json.dumps(asdict(report), indent=2))
+    else:
+        for check in (
+            "ps",
+            "env",
+            "mounts",
+            "mountinfo",
+            "inotify",
+            "dns",
+            "timing",
+        ):
+            detail = report.checks[check]
+            print(f"{check}: {'pass' if detail['pass'] else 'FAIL'} {json.dumps(detail)}")
+        print(f"probe: {'pass' if report.passed else 'FAIL'} ({report.events} kernel events)")
+    return 0 if report.passed else 1
+
+
+
 def _traj_queue_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -6879,6 +7049,65 @@ def parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Skip publishing the job to the results home",
     )
+    flight = commands.add_parser(
+        "flight", help="Invisible per-trial flight recorder: record, show, probe"
+    )
+    flight_commands = flight.add_subparsers(dest="flight_command", required=True)
+    flight_record = flight_commands.add_parser(
+        "record", help="Run one control trial under the flight recorder ($0)"
+    )
+    flight_record.add_argument("--task", type=Path, required=True)
+    flight_record.add_argument("--agent", required=True)
+    flight_record.add_argument("--model")
+    flight_record.add_argument("--name", required=True)
+    flight_record.add_argument("--jobs-dir", type=Path, default=Path("runs"))
+    flight_record.add_argument("--environment", default="docker")
+    flight_record.add_argument(
+        "--egress-lock",
+        action=argparse.BooleanOptionalAction,
+        default=None,
+        help="Explicit deny-all backend lock; Docker controls use creation-time network=none",
+    )
+    flight_record.add_argument("--concurrency", type=int, default=1)
+    flight_record.add_argument("--attempts", type=int, default=1)
+    flight_record.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=1_800,
+        help="executor wall-clock allowance per attempted trial",
+    )
+    flight_record.add_argument(
+        "--allow-billable",
+        action="store_true",
+        help="Record billable acknowledgement; direct runs remain control-only",
+    )
+    flight_record.add_argument(
+        "--flight-egress",
+        choices=("locked", "open"),
+        default="locked",
+        help="Locked: creation-time network=none. Open: passive bridge metadata, not enforcing.",
+    )
+    flight_record.add_argument("--json", action="store_true", help="Emit timelines as JSON")
+    flight_record.add_argument("--capture-dir", type=Path, help="Existing host model-tap capture to join")
+    flight_record.set_defaults(func=_flight_record_command)
+    flight_show = flight_commands.add_parser(
+        "show", help="Build and print a trial timeline from a trial or job directory"
+    )
+    flight_show.add_argument("path", type=Path, help="Trial directory or job directory")
+    flight_show.add_argument("--json", action="store_true", help="Emit summary and all timeline events as JSON")
+    flight_show.add_argument("--capture-dir", type=Path, help="Existing host model-tap capture to join")
+    flight_show.set_defaults(func=_flight_show_command)
+    flight_probe = flight_commands.add_parser(
+        "probe", help="Run the invisibility probe (plain vs monitored container)"
+    )
+    flight_probe.add_argument(
+        "--image", default=None, help="Probe target image (default: recorder image with network tools)"
+    )
+    flight_probe.add_argument("--json", action="store_true", help="Emit the report as JSON")
+    flight_probe.add_argument("--flight-egress", choices=("locked", "open"), default="locked")
+    flight_probe.add_argument("--out", type=Path, help="Retain full dumps, events and probe report here")
+    flight_probe.set_defaults(func=_flight_probe_command)
+
     results = commands.add_parser("results", help="Publish finished jobs to the results home")
     results_commands = results.add_subparsers(dest="results_command", required=True)
     results_backfill = results_commands.add_parser(

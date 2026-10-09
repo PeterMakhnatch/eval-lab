@@ -1,0 +1,154 @@
+/* Exact target cgroup predicate is required; never trace other containers.
+ *
+ * Framing integrity: @@CGID@@ and @@NONCE@@ are substituted host-side by
+ * recorder.py into the rendered probes.<phase>.bt (kept host-only, never baked
+ * into the image and never logged). Every emitted line starts with the per-run
+ * nonce so sandbox-controlled bytes (filenames, comm) can never forge rows:
+ * userspace rejects lines lacking the nonce and enforces exact per-kind arity.
+ *
+ * Escaping note (bpftrace 0.17.0): printf %r only accepts buf_t (see
+ * "The buf_t object returned by buf can safely be printed ..." in the bpftrace
+ * docs), not str()/comm, and buf(ptr, len) needs a length the filename
+ * tracepoints do not provide (a fixed cap would over-read past NUL into
+ * adjacent user memory). Free-form fields therefore stay %s; %r is kept only
+ * for buf() payloads, whose backslash escapes the recorder inverts with
+ * codecs.escape_decode. Embedded \n in a name still cannot forge a row: the
+ * split fragments fail the nonce/arity checks and are counted, never decoded.
+ *
+ * Map bounds: @dns (DNS-tagged pid/fd pairs, deleted on close), @dnsbuf/@dnsfd
+ * (in-flight recvfrom buffers, deleted on syscall exit) are hard-capped by
+ * BPFTRACE_MAP_KEYS_MAX=1024 (observer env). An overflow prints a bpftrace
+ * runtime warning on stderr, which the recorder captures into the bounded
+ * errors list and degrades the phase to partial. str() fields clip at
+ * BPFTRACE_STRLEN=160 (largest value whose probes still fit the 512-byte BPF
+ * stack beside the 64-byte DNS window; 200/64 overflows sendto, and 0.17
+ * refuses anything past 200). Names past 160 bytes clip the suffix; the
+ * decoder flags fields at the limit as path_truncated, and complete names
+ * remain in file snapshots.
+ */
+BEGIN { printf("@@NONCE@@\tREADY\n"); }
+interval:s:2 { printf("@@NONCE@@\tHEARTBEAT\n"); }
+
+tracepoint:sched:sched_process_exec
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\texec\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\t%s\n",
+         nsecs, cgroup, pid, tid, uid, comm, curtask->real_parent->tgid, str(args->filename));
+}
+tracepoint:sched:sched_process_exit
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\texit\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\n",
+         nsecs, cgroup, pid, tid, uid, comm, curtask->exit_code);
+}
+tracepoint:syscalls:sys_enter_openat
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\tfile\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\t%d\t%s\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->dfd, args->flags, str(args->filename));
+}
+tracepoint:syscalls:sys_enter_openat2
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\tfile\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\t%d\t%s\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->dfd, args->how->flags, str(args->filename));
+}
+tracepoint:syscalls:sys_enter_read
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\tread\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\t%llu\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->fd, args->count);
+}
+tracepoint:syscalls:sys_exit_read
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\tread_result\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->ret);
+}
+tracepoint:syscalls:sys_enter_write
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\twrite\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\t%llu\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->fd, args->count);
+}
+tracepoint:syscalls:sys_exit_write
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\twrite_result\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->ret);
+}
+tracepoint:syscalls:sys_enter_connect
+/cgroup == @@CGID@@/
+{
+  $family = 0; $port = 0; $address = 0;
+  if (args->uservaddr != 0 && args->addrlen >= 16) {
+    $sa = (struct sockaddr *)args->uservaddr;
+    $family = $sa->sa_family;
+    if ($family == 2) {
+      $in = (struct sockaddr_in *)args->uservaddr;
+      $port = $in->sin_port; $address = $in->sin_addr.s_addr;
+    }
+  }
+  if ($port == 13568) { @dns[pid, args->fd] = 1; }
+  printf("@@NONCE@@\tE\tconnect\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\t%d\t%d\t%u\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->fd, $family, $port, $address);
+}
+tracepoint:syscalls:sys_exit_connect
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\tconnect_result\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->ret);
+}
+tracepoint:syscalls:sys_enter_sendto
+/cgroup == @@CGID@@/
+{
+  $family = 0; $port = 0; $address = 0;
+  if (args->addr != 0 && args->addr_len >= 16) {
+    $sa = (struct sockaddr *)args->addr;
+    $family = $sa->sa_family;
+    if ($family == 2) {
+      $in = (struct sockaddr_in *)args->addr;
+      $port = $in->sin_port; $address = $in->sin_addr.s_addr;
+    }
+  }
+  if ($port == 13568) { @dns[pid, args->fd] = 1; }
+  /* Only DNS socket buffers enter the metadata parser, never arbitrary bodies.
+   * The 64-byte window fits the 512-byte BPF stack beside STRLEN=200 scratch;
+   * larger payloads are flagged payload_truncated by the decoder. */
+  $size = args->len;
+  if ($size > 64) { $size = 64; }
+  if ($port != 13568 && !@dns[pid, args->fd]) { $size = 0; }
+  printf("@@NONCE@@\tE\tudp_send\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\t%d\t%d\t%u\t%llu\t%r\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->fd, $family, $port, $address,
+         args->len, buf(args->buff, $size));
+}
+tracepoint:syscalls:sys_exit_sendto
+/cgroup == @@CGID@@/
+{
+  printf("@@NONCE@@\tE\tudp_send_result\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\n",
+         nsecs, cgroup, pid, tid, uid, comm, args->ret);
+}
+
+
+tracepoint:syscalls:sys_enter_recvfrom
+/cgroup == @@CGID@@ && @dns[pid, args->fd]/
+{
+  @dnsbuf[tid] = (uint64)args->ubuf;
+  @dnsfd[tid] = args->fd;
+}
+tracepoint:syscalls:sys_exit_recvfrom
+/cgroup == @@CGID@@ && @dnsbuf[tid]/
+{
+  if (args->ret > 0) {
+    $size = args->ret;
+    if ($size > 64) { $size = 64; }
+    printf("@@NONCE@@\tE\tdns_receive\t%llu\t%llu\t%d\t%d\t%d\t%s\t%d\t%d\t%r\n",
+           nsecs, cgroup, pid, tid, uid, comm, @dnsfd[tid], args->ret, buf(@dnsbuf[tid], $size));
+  }
+  delete(@dnsbuf[tid]); delete(@dnsfd[tid]);
+}
+tracepoint:syscalls:sys_enter_close
+/cgroup == @@CGID@@/
+{
+  delete(@dns[pid, args->fd]);
+}

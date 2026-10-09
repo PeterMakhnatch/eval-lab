@@ -199,15 +199,17 @@ key, so this validates the Scout plumbing + lookup fidelity, not the rule.
 Oddity (observed, unexplained): the scan page shows "accuracy 98.9%" while
 the stored entries give 53/54 = 98.1%; precision/recall/F1 match exactly.
 
-## View (live, port 7576)
+## View (always on, port 7576)
 
-```sh
-$UV scout view --host 127.0.0.1 --port 7576 --no-browser
-curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:7576/  # 200
-```
-
-URL: `http://127.0.0.1:7576/` (service `scout-view`, left running; project
-`harbor-trace-lab` points at the normalized DB + `scans/`). Screenshots in
+`http://127.0.0.1:7576/` is the LaunchAgent `com.petermakhnatch.evallab.scout-view`,
+installed from an up-to-date checkout with
+`scripts/ops/launchd/install-scout-view.sh --load` (own venv, pinned
+inspect-scout, logs `~/Library/Logs/evallab/scout-view{,.error}.log`). It
+serves the project in `derived/trace-lab/scout` (`harbor-trace-lab`: the
+normalized DB + `scans/`). Scans are listed recursively, so write new scan
+results under `derived/trace-lab/scout/scans/<card>/` (`--scans`) and they
+appear there without a restart. Do not start another `scout view` on 7576;
+use a throwaway port and stop it afterwards. Screenshots in
 `screenshots/`: `01-scans-list`, `02-scan-results` (per-scanner positives +
 wedge validation metrics), `03-wedge-results`, `04-wedge-transcript-cite`
 (pager 96-turn wedge result with `head#15 ([M28]); head#16 ([M30]);

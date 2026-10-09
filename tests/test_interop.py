@@ -863,9 +863,33 @@ def test_matrix_task_row_broken_and_unknown_target(tmp_path: Path) -> None:
     assert any("bad:oracle" in problem for problem in row["problems"])
 
 
-def test_matrix_targets_registry_wires_harbor_and_inspect() -> None:
-    assert MATRIX_TARGETS["harbor"] is interop.run_harbor_cell
-    assert MATRIX_TARGETS["inspect"] is interop.run_inspect_cell
+def test_matrix_solutionless_task_skips_oracle_and_scopes_attacks(tmp_path: Path) -> None:
+    task_dir = make_task(tmp_path)
+    (task_dir / "solution" / "solve.sh").unlink()
+    calls: list[tuple[str, tuple]] = []
+
+    def runner(
+        task_dir: Path,
+        agent: str,
+        attacks: tuple,
+        *,
+        workdir: Path,
+        timeout_seconds: int | None,
+    ) -> dict:
+        calls.append((agent, attacks))
+        return _fake_cell("t", agent, "fail", 0.0)
+
+    with patch.dict(MATRIX_TARGETS, {"t": runner}):
+        row = matrix_task_row(
+            task_dir,
+            targets=("t",),
+            agents=("oracle", "nop", "cheat"),
+            attacks=("skip_plant",),
+            workdir=tmp_path / "w",
+        )
+    assert row["cells"]["t:oracle"] == "skipped"
+    assert calls == [("nop", ()), ("cheat", ("skip_plant",))]
+    assert row["grading"] == "ok"
 
 
 # -- CLI wiring -----------------------------------------------------------------

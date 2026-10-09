@@ -1374,6 +1374,22 @@ def grade_task_row(
     return ("ok" if seen_control else "n/a"), []
 
 
+def _matrix_cell(
+    target: str, agent: str, attacks: tuple[str, ...], verdict: str, reason: str
+) -> dict[str, Any]:
+    """A cell the matrix decides itself (no runner call): skipped or error."""
+    return {
+        "target": target,
+        "agent": agent,
+        "attacks": list(attacks),
+        "verdict": verdict,
+        "reward": None,
+        "reason": reason,
+        "platform_version": None,
+        "evidence": None,
+    }
+
+
 def matrix_task_row(
     task_dir: str | Path,
     *,
@@ -1384,9 +1400,11 @@ def matrix_task_row(
     timeout_seconds: int | None = None,
 ) -> dict[str, Any]:
     """Run every (target, agent) cell for one task dir through ``MATRIX_TARGETS``."""
-    # Row identity needs no reference solution; per-agent strictness lives in
-    # the cells (oracle errors there on solution-less tasks, nop/cheat run).
+    # Row identity needs no reference solution. A solution-less task has no
+    # oracle control on any platform, so that cell is skipped here uniformly
+    # instead of each runner reporting it differently; nop/cheat still run.
     task = load_harbor_task(task_dir, require_solution=False)
+    has_solution = (task.task_dir / "solution" / "solve.sh").is_file()
     work = Path(workdir)
     work.mkdir(parents=True, exist_ok=True)
     cells: dict[str, str] = {}
@@ -1395,37 +1413,40 @@ def matrix_task_row(
         runner = MATRIX_TARGETS.get(target)
         for agent in agents:
             key = f"{target}:{agent}"
+            cell_attacks = tuple(attacks) if agent == "cheat" else ()
             if runner is None:
-                cell = {
-                    "target": target,
-                    "agent": agent,
-                    "attacks": list(attacks),
-                    "verdict": "skipped",
-                    "reward": None,
-                    "reason": f"target {target!r} has no runner in MATRIX_TARGETS",
-                    "platform_version": None,
-                    "evidence": None,
-                }
+                cell = _matrix_cell(
+                    target,
+                    agent,
+                    cell_attacks,
+                    "skipped",
+                    f"target {target!r} has no runner in MATRIX_TARGETS",
+                )
+            elif agent == "oracle" and not has_solution:
+                cell = _matrix_cell(
+                    target,
+                    agent,
+                    cell_attacks,
+                    "skipped",
+                    "task ships no solution/solve.sh; no oracle control",
+                )
             else:
                 try:
                     cell = runner(
                         task.task_dir,
                         agent,
-                        tuple(attacks),
+                        cell_attacks,
                         workdir=work / f"{target}-{agent}",
                         timeout_seconds=timeout_seconds,
                     )
                 except Exception as exc:
-                    cell = {
-                        "target": target,
-                        "agent": agent,
-                        "attacks": list(attacks),
-                        "verdict": "error",
-                        "reward": None,
-                        "reason": f"cell runner raised {type(exc).__name__}: {exc}",
-                        "platform_version": None,
-                        "evidence": None,
-                    }
+                    cell = _matrix_cell(
+                        target,
+                        agent,
+                        cell_attacks,
+                        "error",
+                        f"cell runner raised {type(exc).__name__}: {exc}",
+                    )
             cells[key] = str(cell.get("verdict", "error"))
             details[key] = cell
     grading, problems = grade_task_row(cells, targets=list(targets), agents=list(agents))

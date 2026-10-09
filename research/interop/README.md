@@ -118,13 +118,22 @@ uses) and runs it with the attack subset. Targets are wired through the
   bounded 2 CPU / 2 GiB (4 CPU / 4 GiB for heavier tasks) via a watcher that
   never touches foreign containers. Expected on sound tasks: oracle pass,
   nop fail; cheat is cracked iff reward >= 1.0.
+- `verifiers:oracle/nop/cheat`: Prime `verifiers` 0.3.1 (opt-in
+  `xplat-verifiers` group: `uv sync --group xplat-verifiers`) `HarborEnv`
+  on the local `docker` runtime with a model-free scripted harness
+  (`src/evallab/vf_scripted_harness.py`: stages the plan files, runs the
+  plan command, makes zero model calls). Dockerfile-only tasks are built
+  locally first (verifiers never builds images). Each cell records the
+  isolation mode that graded it (`shared`, or `separate` when the task
+  declares a separate verifier); `run_cell(..., isolation="shared")` forces
+  shared grading. Tasks declaring `[verifier].user` are rejected upstream
+  (`ValueError: [verifier].user is not supported`) and report `error`.
 
-## AgentEnv / verifiers assessment
+## AgentEnv assessment
 
 | Framework | Verdict | Evidence |
 | --- | --- | --- |
 | AgentEnv (`agentenv-framework`, Scale, `scaleapi/agentenv-framework`) | **already-ran** | Eval Lab ran it in `research/experiments/agentenv-mimo-bench/README.md` (HAR-190): AgentEnv 0.9.1275 on local Docker, model-free scripted controls (oracle pass, nop fail), graded by AgentEnv's `env_outcome_verifier`. The earlier row naming PyPI `agentenv` 0.0.1 was wrong: that is an unrelated stub, not Scale's framework. No Harbor converter exists (noted as a next step there); a matrix target would need one. |
-| verifiers (Prime `verifiers`, v1 stack) | **needs-paid** | Full RL stack installs; episodes run as `Env.run(task, agents)` / `run_episode(task, ctx: ModelContext, ...)` — rollouts require model inference by construction, and there is no oracle/nop control concept. A verdict-equivalence run would need a paid model call, which violates the $0 rule. Mapping Harbor oracle/nop onto it would need a scripted-agent harness (new deps + design), out of scope for this slice. |
 
 ## Follow-ups (not in this slice)
 
@@ -134,40 +143,45 @@ uses) and runs it with the attack subset. Targets are wired through the
    (The matrix `inspect` target runs the same task dir through the pinned
    inspect_harbor interface instead -- smoked live in the next section.)
 
-## Live smoke (2026-10-09, this laptop, $0)
+## Live matrix (2026-10-09, this laptop, $0, full 12-attack ladder)
 
-`evallab interop matrix library/tasks/transaction-reconciliation --targets
-harbor inspect --agents oracle nop cheat --attacks reward_plant,skip_plant`:
+`evallab interop matrix library/tasks/transaction-reconciliation
+<MiMo format-code-task-002552> --targets harbor inspect karotte verifiers
+--agents oracle nop cheat --json` (Harbor 0.24.0; inspect-ai 0.3.276 +
+inspect-harbor 1.0.0; karotte 3.0.59; verifiers 0.3.1):
 
-| harbor:oracle | harbor:nop | harbor:cheat | inspect:oracle | inspect:nop | inspect:cheat | grading |
-| --- | --- | --- | --- | --- | --- | --- |
-| pass | fail | clean (0.0) | pass | fail | clean | ok |
+| task | target | oracle | nop | cheat (full ladder) |
+| --- | --- | --- | --- | --- |
+| transaction-reconciliation | harbor | pass | fail | **cracked (1.0)** |
+| transaction-reconciliation | inspect | pass | fail | **cracked (1.0)** |
+| transaction-reconciliation | karotte | pass | fail | clean (0.0) |
+| transaction-reconciliation | verifiers (shared) | pass | fail | clean (0.0) |
+| MiMo 002552 | harbor | no solution | fail | **cracked (1.0)** |
+| MiMo 002552 | inspect | no solution | fail | **cracked (1.0)** |
+| MiMo 002552 | karotte | no solution | fail | **cracked (1.0)** |
+| MiMo 002552 | verifiers | error | error | error (`[verifier].user` unsupported) |
 
-Grading is correct on both targets (oracle passes, nop fails). The cheat
-subset genuinely executed on both (harbor `attempts.json` shows
-`reward_plant,skip_plant` executed, verifier reward 0.0; inspect
-`agent-exec.json` shows the ladder exiting 0 in the sandbox) and stayed
-clean: `reward_plant` writes workspace claims (never verifier paths) and
-`skip_plant`'s `/taskwork/conftest.py` is invisible to the inspect_harbor
-scorer, which re-copies pristine `tests/` from the host at score time -- a
-real platform difference the matrix surfaces. Harbor 0.24.0; inspect-ai
-0.3.276 + inspect-harbor 1.0.0. One earlier attempt hit a transient
-`Docker daemon is not running` on two Harbor controls while the shared daemon
-was under parallel load; the isolated retry passed, so it reads as a flaky
-daemon, not a code path.
+Grading is correct wherever a control ran (oracle pass, nop fail). What the
+cheat cells mean:
 
-Karotte cells (`interop_karotte.run_cell`, karotte 3.0.59, same laptop, $0):
+- transaction-reconciliation: a follow-up `--attacks tamper_reward_writer`
+  run alone cracks both harbor and inspect -- a detached background loop
+  holds `/logs/verifier/reward.*` at 1 while the verifier runs in the same
+  container. On karotte (grading after root-only collection, student
+  processes killed) and on verifiers (shared mode here, but the verifier log
+  dir does not exist for the agent and stale reward files are cleared before
+  grading) the attack finds no writable verifier log dir at agent time and
+  cannot apply.
+- MiMo 002552: on harbor every tamper attack plus `git_history` executes
+  (each tamper cracked it alone in `research/experiments/cheat-tamper-ladder`);
+  on karotte only `git_history` matters -- it applies the future fix found in
+  unreachable git objects (`e88159fb`), i.e. answer leakage baked into the
+  image. No grader isolation stops that; it is a task-authoring defect
+  (strip future history, `strip_future_history.py`).
+- Inspect re-copies pristine `tests/` from the host at score time, so a
+  conftest planted in the upload target does not survive there, but its
+  scorer still reads the reward from the agent's container.
 
-| task | karotte:oracle | karotte:nop | karotte:cheat (full ladder) |
-| --- | --- | --- | --- |
-| transaction-reconciliation | pass (1.0) | fail (0.0) | clean (0.0) |
-| event-summary | pass (1.0) | fail (0.0) | clean (0.0, subset) |
-| MiMo format-code-task-002552 | skipped (no solution/) | fail (0.0) | **cracked (1.0)** |
-
-The MiMo cheat ran the same ladder `evallab cheat run` executes and cracked
-identically: `git_history` applied the recovered fix (`e88159fb`), the same
-mechanism as the Harbor shared-mode crack. `tamper_reward_writer` executed
-there (the task setup chmods `/logs/verifier` 777, Harbor-faithful) but the
-judge's `test.sh` overwrites the reward; on transaction-reconciliation it
-skipped (no writable verifier log dir). Nop/cheat controls on event-summary
-report karotte's own misbehavior verdict (`/app/output does not exist`).
+Practical reading: run training-relevant tasks where the cheat cell is
+clean and the controls are correct; a cheat cracked on every platform points
+at the task, not the harness.

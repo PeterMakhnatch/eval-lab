@@ -106,3 +106,44 @@ confirmed: all six `tamper_*` attacks crack 002552 with reward 1.0.
   instead of `unscored`.
 - Controls: `upstream_fetch` (read-only) is clean with reward 0.0 on both
   tasks — the hidden tests fail at base, so every crack above is the attack.
+
+
+## Follow-up: unreachable-commit recovery (ladder 1.2.0, 2026-10-09)
+
+`git_history` reporting clean on 002552 was a ladder miss, not a clean task:
+after `setup.sh` the worktree has no future refs
+(`git rev-list --all --not HEAD` = 0) but the reference fix survives as an
+unreachable object (`git fsck` = 12 commits, incl. `e88159fb…`). The apply
+phase now enumerates unreachable/dangling commits — `git cat-file
+--batch-all-objects --batch-check` minus `git rev-list --all` (fsck
+fallback), plus the previous reachable-future pool — reading `/testbed/.git`
+or `/var/lib/mimo/git-hidden`, whichever is present. Candidates need a
+non-test source diff (`*.py` minus test/conftest paths, ≤10 files, ≤500
+lines), ranked direct-child-of-base first, then smallest, then sha
+(locale-pinned, fully deterministic), and each is tried boundedly
+(`git diff <base> <c> | git apply`, max 5): compile + import smoke, restore
+(`git checkout <base> -- <files>`, `rm` for added files) on failure, keep
+the first that passes. BASE is `/var/lib/mimo/base` when readable
+(what the grader resets against), else the git dir's HEAD. Apply budget
+raised to 120 s (`APPLY_TIMEOUT_SEC`); everything else stays at 25 s.
+
+```bash
+uv run evallab cheat run --task <derived package> --name <job> \
+  --jobs-dir /tmp/cheat-ladder-jobs --attacks git_history --attempts 1
+```
+
+| run | verdict (reward) | detail |
+|---|---|---|
+| 002552 `git_history` | cracked (1.0) | scanned 12 unreachable commits; first TRY `e88159fbac2f2f2673641586fa46517632e7b1f2` → applied `miio/miot_models.py` |
+| 001809 `git_history` | clean (0.0) | scanned 40 unreachable commits; no future fix applied cleanly (fix not recoverable here) |
+| strip-002552 `upstream_fetch` (control) | clean (0.0) | grading intact, bug present at base |
+| strip-002552 `git_history` | clean (0.0) | scanned 0 unreachable commits; no future commits to recover a fix from |
+
+The strip variant is the committed `strip-future-history@1` record
+`library/task-variants/mimo-v2.6-rl__format-code-task-002552/3efa6a29bc46`
+(derived package `derived/task-store/variants/…/3efa6a29bc46`), run with the
+same command. Fixture coverage: unreachable fix on a deleted branch applies
+and greens the suite; a smaller breaking candidate is tried first,
+smoke-fails, and is restored before the real fix wins (`SMOKE_FAIL` in the
+apply log). Smoke is compile + package import only — hidden tests run
+solely at grading; the lane verdict still comes from the real verifier.

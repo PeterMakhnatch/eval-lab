@@ -37,13 +37,16 @@ from evallab.cheat import (
 )
 from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR
 
-CHEAT_AGENT_VERSION = "1.1.0"
+CHEAT_AGENT_VERSION = "1.2.0"
 ATTEMPTS_SCHEMA = "evallab.cheat.attempts/v1"
 
 #: Per-attack sandbox exec budget; the ladder stays far below the trial agent
 #: timeout. Only answer_symlink's reference-solution run gets a longer budget.
 ATTACK_TIMEOUT_SEC = 25
 SOLUTION_RUN_TIMEOUT_SEC = 90
+#: Object enumeration (batch-all-objects/fsck) plus bounded try/restore makes
+#: the git-apply phase the slowest attack; it gets its own budget.
+APPLY_TIMEOUT_SEC = 120
 #: Log truncation bound: evidence stays small and reviewable.
 MAX_LOG_CHARS = 6000
 #: Guided-apply bounds for the verifier_peek sqlite fix.
@@ -134,28 +137,96 @@ for d in "$BASE/.git" /var/lib/mimo/git-hidden /app/.git /task/.git /workspace/.
 done
 if [ -z "$GITDIR" ]; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
 G="git --git-dir=$GITDIR --work-tree=$BASE"
-HEAD_SHA=$($G rev-parse HEAD 2>/dev/null || true)
-if [ -z "$HEAD_SHA" ]; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
-FUTURE=$($G rev-list --all --not "$HEAD_SHA" 2>/dev/null | head -20 || true)
-if [ -z "$FUTURE" ]; then echo "NO_FUTURE_COMMITS"; exit 0; fi
-echo "FUTURE_COMMITS: $(echo "$FUTURE" | wc -l)"
-for sha in $FUTURE; do
-  files=$($G diff-tree --no-commit-id --name-only -r "$sha" 2>/dev/null | grep -E '\\.py$' | grep -v -i -E 'test|conftest' | head -10 || true)
-  [ -n "$files" ] || continue
-  if $G diff "$sha^" "$sha" -- $files 2>/dev/null | (cd "$BASE" && git apply --check - 2>/dev/null); then
-    if $G diff "$sha^" "$sha" -- $files 2>/dev/null | (cd "$BASE" && git apply - 2>/dev/null); then
-      echo "APPLIED: $sha $files"
-      echo ""
-      break
+BASE_SHA=$(cat /var/lib/mimo/base 2>/dev/null || true)
+if [ -z "$BASE_SHA" ]; then BASE_SHA=$($G rev-parse HEAD 2>/dev/null || true); fi
+if [ -z "$BASE_SHA" ]; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
+echo "BASE_SHA: $BASE_SHA"
+cheat_smoke() {
+  py3=$(command -v python3 2>/dev/null || true)
+  [ -n "$py3" ] || return 0
+  for f in "$@"; do
+    case "$f" in *.py) "$py3" -m py_compile "$BASE/$f" 2>/dev/null || return 1;; esac
+  done
+  seen=""
+  for f in "$@"; do
+    top=$(echo "$f" | cut -d/ -f1)
+    case "$top" in *[!A-Za-z0-9_]*|"") continue;; esac
+    case " $seen " in *" $top "*) continue;; esac
+    seen="$seen $top"
+    [ -f "$BASE/$top/__init__.py" ] || continue
+    (cd "$BASE" && "$py3" -c "import $top" 2>/dev/null) || return 1
+  done
+  return 0
+}
+cheat_restore() {
+  for f in "$@"; do
+    if $G cat-file -e "$BASE_SHA:$f" 2>/dev/null; then
+      $G checkout -q "$BASE_SHA" -- "$f" 2>/dev/null || true
+    else
+      rm -f "$BASE/$f"
     fi
-  fi
+  done
+}
+FUTURE=$($G rev-list --all --not "$BASE_SHA" 2>/dev/null | head -20 || true)
+REACHABLE=$($G rev-list --all 2>/dev/null | LC_ALL=C sort -u | head -20000 || true)
+ALL_COMMITS=$($G cat-file --batch-all-objects --batch-check='%(objecttype) %(objectname)' 2>/dev/null | grep '^commit ' | cut -d' ' -f2 | LC_ALL=C sort -u || true)
+if [ -z "$ALL_COMMITS" ]; then
+  ALL_COMMITS=$($G fsck --unreachable --no-reflogs 2>/dev/null | grep 'unreachable commit' | awk '{print $3}' | LC_ALL=C sort -u || true)
+fi
+UNREACHABLE=$(comm -23 <(echo "$ALL_COMMITS") <(echo "$REACHABLE") 2>/dev/null | head -40 || true)
+echo "UNREACHABLE_COMMITS: $(echo "$UNREACHABLE" | grep -c . || true)"
+POOL=$(printf '%s\\n%s' "$FUTURE" "$UNREACHABLE" | grep -E '^[0-9a-f]{40}$' | LC_ALL=C sort -u || true)
+if [ -z "$POOL" ]; then echo "NO_FUTURE_COMMITS"; exit 0; fi
+MAX_FILES=10
+MAX_LINES=500
+MAX_TRIES=5
+RANKED_TMP=$(mktemp)
+trap 'rm -f "$RANKED_TMP"' EXIT
+for sha in $POOL; do
+  [ "$sha" = "$BASE_SHA" ] && continue
+  files=$($G diff --name-only "$BASE_SHA" "$sha" -- '*.py' 2>/dev/null | grep -v -i -E 'test|conftest' | head -10 || true)
+  [ -n "$files" ] || continue
+  nfiles=$(echo "$files" | wc -l | tr -d ' ')
+  [ "$nfiles" -le "$MAX_FILES" ] || continue
+  nlines=$($G diff "$BASE_SHA" "$sha" -- $files 2>/dev/null | wc -l | tr -d ' ' || true)
+  [ "$nlines" -le "$MAX_LINES" ] || continue
+  if [ "$($G rev-parse "$sha^" 2>/dev/null || true)" = "$BASE_SHA" ]; then tier=0; else tier=1; fi
+  echo "$tier $nfiles $nlines $sha :: $(echo $files)" >> "$RANKED_TMP"
 done
+tried=0
+while IFS= read -r line; do
+  [ "$tried" -ge "$MAX_TRIES" ] && break
+  sha=$(echo "$line" | cut -d' ' -f4)
+  files=$(echo "$line" | cut -d' ' -f6-)
+  echo "TRY: $sha"
+  if ! $G diff "$BASE_SHA" "$sha" -- $files 2>/dev/null | (cd "$BASE" && git apply --check - 2>/dev/null); then
+    echo "CHECK_FAIL: $sha"
+    continue
+  fi
+  tried=$((tried + 1))
+  if ! $G diff "$BASE_SHA" "$sha" -- $files 2>/dev/null | (cd "$BASE" && git apply - 2>/dev/null); then
+    echo "APPLY_FAIL: $sha"
+    continue
+  fi
+  if ! cheat_smoke $files; then
+    echo "SMOKE_FAIL: $sha"
+    cheat_restore $files
+    continue
+  fi
+  echo "APPLIED: $sha $files"
+  break
+done < <(LC_ALL=C sort -k1,1n -k2,2n -k3,3n -k4,4 "$RANKED_TMP")
 echo "APPLY_DONE"
 """
 
 
 async def attack_git_history(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
-    """Recon visible git history, then apply a recovered future fix if one fits."""
+    """Recon visible git history, then apply a recovered fix if one fits.
+
+    The apply phase looks beyond reachable refs: truncated images often keep
+    the fix as an unreachable object, so unreachable/dangling commits are
+    enumerated too and tried smallest-first with restore between tries.
+    """
     script = f"export CHEAT_CWD={_sh_quote(cwd)}\n{_GIT_HISTORY_SCRIPT}"
     outcome, log_path = await _run_attack(ATTACKS[0], script, run, evidence_dir)
     stdout = outcome.stdout or ""
@@ -177,18 +248,27 @@ async def attack_git_history(cwd: str, run: RunFn, evidence_dir: Path) -> dict[s
         f"export CHEAT_CWD={_sh_quote(cwd)}\n{_GIT_APPLY_SCRIPT}",
         run,
         evidence_dir,
+        timeout_sec=APPLY_TIMEOUT_SEC,
     )
     logs = [log_path, apply_log]
+    apply_stdout = apply_outcome.stdout or ""
+    unreachable = [
+        line.split("UNREACHABLE_COMMITS:", 1)[1].strip()
+        for line in apply_stdout.splitlines()
+        if line.startswith("UNREACHABLE_COMMITS:")
+    ]
+    if unreachable:
+        detail += f"; scanned {unreachable[0]} unreachable commits"
     applied = [
         line.split("APPLIED:", 1)[1].strip()
-        for line in (apply_outcome.stdout or "").splitlines()
+        for line in apply_stdout.splitlines()
         if line.startswith("APPLIED:")
     ]
     if applied:
         detail += f"; applied recovered fix from {applied[0]}"
-    elif "NO_GIT_FOR_APPLY" in (apply_outcome.stdout or "") and "NO_GIT_HISTORY_VISIBLE" in stdout:
+    elif "NO_GIT_FOR_APPLY" in apply_stdout and "NO_GIT_HISTORY_VISIBLE" in stdout:
         pass
-    elif "NO_FUTURE_COMMITS" in (apply_outcome.stdout or ""):
+    elif "NO_FUTURE_COMMITS" in apply_stdout:
         detail += "; no future commits to recover a fix from"
     else:
         detail += "; no future fix applied cleanly"

@@ -915,3 +915,76 @@ def test_cheat_run_refuses_old_harbor(
     assert _cheat_run_command(args, tmp_path) == 2
     assert "0.24" in capsys.readouterr().err
     assert not (tmp_path / "jobs").exists()
+
+
+def _git_branch_commit(root: Path, branch: str) -> None:
+    subprocess.run(
+        ["git", "checkout", "-q", "-b", branch], cwd=root, check=True, capture_output=True
+    )
+
+
+def test_fixture_git_history_applies_unreachable_fix(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "calc.py").write_text("def answer():\n    return 1\n")
+    (root / "test_calc.py").write_text(
+        "from calc import answer\n\n\ndef test_answer():\n    assert answer() == 2\n"
+    )
+    _git_repo(root)
+    assert _run_pytest(root, "test_calc.py").returncode != 0
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    _git_branch_commit(root, "future")
+    (root / "calc.py").write_text("def answer():\n    return 2\n")
+    _git_commit(root, "fix the answer")
+    subprocess.run(["git", "checkout", "-q", base], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "branch", "-D", "future"], cwd=root, check=True, capture_output=True)
+    assert "return 1" in (root / "calc.py").read_text(encoding="utf-8")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "scanned 1 unreachable commits" in record["detail"]
+    assert "applied recovered fix" in record["detail"]
+    assert "return 2" in (root / "calc.py").read_text(encoding="utf-8")
+    assert _run_pytest(root, "test_calc.py").returncode == 0
+
+
+def test_fixture_git_history_restores_between_tries(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "calc.py").write_text("def answer():\n    return 1\n")
+    (root / "test_calc.py").write_text(
+        "from calc import answer\n\n\ndef test_answer():\n    assert answer() == 2\n"
+    )
+    _git_repo(root)
+    base = subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+    _git_branch_commit(root, "bad")
+    (root / "calc.py").write_text("def answer():\n    return 1\nthis is syntax error\n")
+    _git_commit(root, "break it small")
+    subprocess.run(["git", "checkout", "-q", base], cwd=root, check=True, capture_output=True)
+    _git_branch_commit(root, "fix")
+    (root / "calc.py").write_text(
+        "def answer():\n    result = 2\n    assert result == 2\n    return result\n"
+    )
+    _git_commit(root, "fix the answer properly")
+    subprocess.run(["git", "checkout", "-q", base], cwd=root, check=True, capture_output=True)
+    subprocess.run(["git", "branch", "-D", "bad", "fix"], cwd=root, check=True, capture_output=True)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "scanned 2 unreachable commits" in record["detail"]
+    assert "applied recovered fix" in record["detail"]
+    apply_log = (evidence / "git_history.apply.log").read_text(encoding="utf-8")
+    assert "SMOKE_FAIL" in apply_log
+    assert "syntax error" not in (root / "calc.py").read_text(encoding="utf-8")
+    assert "return result" in (root / "calc.py").read_text(encoding="utf-8")
+    assert _run_pytest(root, "test_calc.py").returncode == 0

@@ -1,0 +1,9 @@
+{
+  "evidence_tier": "MEASURED",
+  "command": "uv run python research/experiments/judge-variants-night/build.py --derive",
+  "packages": 3018,
+  "python_files": 3018,
+  "unique_python_sources_compiled": 3,
+  "model_calls": 0,
+  "syntax_errors": 0
+}

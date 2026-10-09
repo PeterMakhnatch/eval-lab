@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0246_accounting_audit_tax_zh_t3_rl_004",
+  "variant_digest": "sha256:98557fac8619f64753a7f2c891ed633ca93387ab1ec5a12a56584a03c37ccf66",
+  "variant_harbor_digest": "sha256:fb39989a08a3aa7bc84cfe79872ff04c483c4d3584a20e6aaa500da151c08654",
+  "parent": {
+    "digest": "sha256:9722336430b0779e991deedcc03028d39255140e58958cfc1316e1ddd4c5a830",
+    "harbor_digest": "sha256:cdca4489fc4bca796bc3badb7955714a5c723953cf22bc343474706c0a006c14",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0246_accounting_audit_tax_zh_t3_rl_004/9722336430b0.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:4126e0d1a39fe38785cf71aeac6c778f43aecc0d9be5b955447a12567825fe5e",
+      "after_sha256": "sha256:ca43aab1b0e8fa9cdf583ae3933b310041b860cda4041b102a33e5c591cdaee4",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"variant_00018\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_variant_00018\",\n      \"ground_truth\": {\n        \"supplier_id\": \"SUP-00018\",\n        \"normalized_supplier_id\": \"SUP-00017\",\n        \"reason\": \"同税号历史名称归一\",\n        \"operator_id\": \"周启衡\",\n        \"status\": \"ACTIVE\"\n      }\n    },\n    {\n      \"id\": \"variant_00019\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_variant_00019\",\n      \"ground_truth\": {\n        \"supplier_id\": \"SUP-00019\",\n        \"normalized_supplier_id\": \"SUP-00017\",\n        \"reason\": \"同税号历史名称归一\",\n        \"operator_id\": \"周启衡\",\n        \"status\": \"ACTIVE\"\n      }\n    },\n    {\n      \"id\": \"supplier_master_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_supplier_master_unchanged\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"expense_claims_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_expense_claims_unchanged\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"analysis_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否准确说明三条供应商记录的原始名称、共同纳税人识别号，并识别出唯一在用规范主档及两个历史名称变体？\",\n      \"pass_anchor\": \"真实数据：共同税号为 91650100722345678A；三种原始名称分别是“新疆同济堂医药有限公司”（SUP-00017，ACTIVE）、“同济堂医药”（SUP-00018，HISTORICAL）、“同济堂医药有限公司（南京）”（SUP-00019，HISTORICAL）。三条记录的规范名称均为“同济堂医药有限公司”。答案须把 SUP-00017 作为唯一 ACTIVE 规范主档，并把另外两条识别为 HISTORICAL 变体。允许自然语言、表格或列表表达，但记录与名称须正确对应。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"operation_report\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否报告了两条名称变体登记的准确方向、操作人和归一原因，并说明没有改写历史报销或主档？\",\n      \"pass_anchor\": \"答案须明确报告 SUP-00018→SUP-00017、SUP-00019→SUP-00017 两条登记；操作人为周启衡；原因表达为同一税号下的历史名称归一（可有等价措辞）。还须说明供应商主档名称/状态及历史报销引用未被改写。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"后态检查：只核对目标映射；保护主档和历史报销的初始指纹。\\\"\\\"\\\"\\nimport hashlib\\nimport json\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\nSUPPLIER_HASH = \\\"bc56b6d76807f3fac822aad0205563161b9662b1c08402ba3af95a6fd548bc90\\\"\\nCLAIM_HASH = \\\"b25ca4244fbedbefa76a25b383be78bbac658e99cea56cabc2ede8f20e697c81\\\"\\nEXPECTED_SOURCES = {\\\"SUP-00018\\\", \\\"SUP-00019\\\"}\\n\\n\\ndef _db(ws):\\n    candidates = [\\n        Path(ws).parent / \\\"system\\\" / \\\"yonyou_nc_ledger\\\" / \\\"state.db\\\",\\n        Path(ws) / \\\"system\\\" / \\\"yonyou_nc_ledger\\\" / \\\"state.db\\\",\\n    ]\\n    for path in candidates:\\n        if path.exists():\\n            return path\\n    raise FileNotFoundError(\\\"yonyou_nc_ledger state.db not found\\\")\\n\\n\\ndef _digest(con, table):\\n    rows = [dict(row) for row in con.execute(\\\"SELECT * FROM \\\" + table + \\\" ORDER BY rowid\\\")]\\n    payload = json.dumps(rows, ensure_ascii=False, separators=(\\\",\\\", \\\":\\\"), sort_keys=True)\\n    return hashlib.sha256(payload.encode(\\\"utf-8\\\")).hexdigest()\\n\\n\\ndef _reason_matches(reason):\\n    compact = \\\"\\\".join(str(reason).split())\\n    return (\\\"税号\\\" in compact and \\\"历史\\\" in compact and \\\"名称\\\" in compact\\n            and \\\"归一\\\" in compact and compact.startswith(\\\"同\\\"))\\n\\n\\ndef _check_variant(ws, source):\\n    with sqlite3.connect(_db(ws)) as con:\\n        con.row_factory = sqlite3.Row\\n        table = con.execute(\\n            \\\"SELECT name FROM sqlite_master WHERE type='table' AND name='supplier_variant_flags'\\\"\\n        ).fetchone()\\n        if table is None:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"supplier_variant_flags does not exist\\\"}\\n        rows = [dict(row) for row in con.execute(\\n            \\\"SELECT supplier_id, normalized_supplier_id, reason, operator_id, status \\\"\\n            \\\"FROM supplier_variant_flags ORDER BY supplier_id, mapping_id\\\"\\n        )]\\n    sources = {row[\\\"supplier_id\\\"] for row in rows}\\n    if sources != EXPECTED_SOURCES or len(rows) != len(EXPECTED_SOURCES):\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"unexpected mapping rows: {rows!r}\\\"}\\n    row = next((row for row in rows if row[\\\"supplier_id\\\"] == source), None)\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"mapping missing for {source}\\\"}\\n    if (row[\\\"normalized_supplier_id\\\"] != \\\"SUP-00017\\\" or row[\\\"operator_id\\\"] != \\\"周启衡\\\"\\n            or row[\\\"status\\\"] != \\\"ACTIVE\\\" or not _reason_matches(row[\\\"reason\\\"])):\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"unexpected mapping for {source}: {row!r}\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": f\\\"mapping matches target for {source}\\\"}\\n\\n\\ndef check_variant_00018(ws):\\n    return _check_variant(ws, \\\"SUP-00018\\\")\\n\\n\\ndef check_variant_00019(ws):\\n    return _check_variant(ws, \\\"SUP-00019\\\")\\n\\n\\ndef _unchanged(ws, table, expected):\\n    with sqlite3.connect(_db(ws)) as con:\\n        con.row_factory = sqlite3.Row\\n        actual = _digest(con, table)\\n    if actual != expected:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"{table} changed\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": f\\\"{table} unchanged\\\"}\\n\\n\\ndef check_supplier_master_unchanged(ws):\\n    return _unchanged(ws, \\\"supplier_master\\\", SUPPLIER_HASH)\\n\\n\\ndef check_expense_claims_unchanged(ws):\\n    return _unchanged(ws, \\\"expense_claims\\\", CLAIM_HASH)\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "supplier_master_unchanged": 1.0,
+      "expense_claims_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:59Z",
+  "status": "candidate",
+  "evidence": []
+}

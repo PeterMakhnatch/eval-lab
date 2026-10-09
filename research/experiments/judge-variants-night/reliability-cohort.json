@@ -1,0 +1,784 @@
+{
+  "status": "staged",
+  "general": [
+    {
+      "task": "s3k_0000_accounting_audit_tax_en_t1_rl_008",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0000_accounting_audit_tax_en_t1_rl_008/d8f7676ab889.json",
+      "package_digest": "sha256:d8f7676ab8895df0951482d3224f2319828688b974bc1f257bb144fbccf97379",
+      "text_atom_ids": [
+        "current_recommended_structure",
+        "documentary_tax_components",
+        "protection_statuses",
+        "controlled_payment_split_and_fallback"
+      ]
+    },
+    {
+      "task": "s3k_0037_accounting_audit_tax_en_t2_rl_007",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0037_accounting_audit_tax_en_t2_rl_007/d17a51b92377.json",
+      "package_digest": "sha256:d17a51b923772fcb2e8206dad0364e9c8b486cba320b63f31a2c313ea85dffb5",
+      "text_atom_ids": [
+        "business_date_population",
+        "valid_controlled_differences",
+        "outstanding_check_exclusion",
+        "cash_source_comparison"
+      ]
+    },
+    {
+      "task": "s3k_0057_accounting_audit_tax_en_t2_rl_008",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0057_accounting_audit_tax_en_t2_rl_008/4426595914c7.json",
+      "package_digest": "sha256:4426595914c728c48f90e839d7cc3d8f6ea837623196486bee2dfa90a1e86a32",
+      "text_atom_ids": [
+        "confirmed_exception_transaction_count",
+        "exception_transaction_face_amount",
+        "qualifying_application_count",
+        "affected_invoice_balance"
+      ]
+    },
+    {
+      "task": "s3k_0102_accounting_audit_tax_en_t3_rl_004",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0102_accounting_audit_tax_en_t3_rl_004/c408977883af.json",
+      "package_digest": "sha256:c408977883afd4a9796e1d213dcc508808080e76e14afd4ae68bd10104907544",
+      "text_atom_ids": [
+        "review_conclusion_in_final_response"
+      ]
+    },
+    {
+      "task": "s3k_0132_accounting_audit_tax_en_t4_rl_005",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0132_accounting_audit_tax_en_t4_rl_005/9eb5cf3def4d.json",
+      "package_digest": "sha256:9eb5cf3def4d8003a33f06551306c6ecb8bcba23c81ecfab581649e9615e9866",
+      "text_atom_ids": [
+        "gross_posted_2025",
+        "matching_adjustment_and_net",
+        "operational_exceptions"
+      ]
+    },
+    {
+      "task": "s3k_0163_accounting_audit_tax_zh_t1_rl_003",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0163_accounting_audit_tax_zh_t1_rl_003/f78bf0c7b45c.json",
+      "package_digest": "sha256:f78bf0c7b45cd495cad7caee42dcca6f3741fd01d0201a8dbac8255223feb502",
+      "text_atom_ids": [
+        "final_source_conclusion",
+        "final_operation_summary"
+      ]
+    },
+    {
+      "task": "s3k_0199_accounting_audit_tax_zh_t2_rl_005",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0199_accounting_audit_tax_zh_t2_rl_005/9970696c6e77.json",
+      "package_digest": "sha256:9970696c6e7718b4dbf608d49c4d3556a2f61795c54d77a7536326ad789994de",
+      "text_atom_ids": [
+        "dedup_scope_and_keys",
+        "recomputed_and_csv_total",
+        "canonical_customer_rollup",
+        "gl_final_reconciliation"
+      ]
+    },
+    {
+      "task": "s3k_0238_accounting_audit_tax_zh_t3_rl_009",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0238_accounting_audit_tax_zh_t3_rl_009/0041de9d0dca.json",
+      "package_digest": "sha256:0041de9d0dca3afe613511228ff436f6553b30d328179e7b7fc0a6aa8ef68b95",
+      "text_atom_ids": [
+        "monthly_recalculation",
+        "document_conclusion",
+        "oa_approval_evidence",
+        "operation_and_separation"
+      ]
+    },
+    {
+      "task": "s3k_0294_accounting_audit_tax_zh_t4_rl_001",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0294_accounting_audit_tax_zh_t4_rl_001/268f0648ca55.json",
+      "package_digest": "sha256:268f0648ca55c4fc1e433b5e911856a6d05224860ce843cf6af699124183520f",
+      "text_atom_ids": [
+        "rto_target",
+        "rpo_target",
+        "rto_actual",
+        "rpo_actual"
+      ]
+    },
+    {
+      "task": "s3k_0355_construction_pm_en_t3_rl_005",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0355_construction_pm_en_t3_rl_005/48b558bdb6c3.json",
+      "package_digest": "sha256:48b558bdb6c3d6b148aff5258cb4cdcc25f0b9bcefb39685a07dd780e90793f9",
+      "text_atom_ids": [
+        "workbook_owner_evidence",
+        "canonical_cory_reconciliation",
+        "prechange_control_evidence"
+      ]
+    },
+    {
+      "task": "s3k_0391_consulting_bizops_analytics_en_t2_rl_008",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0391_consulting_bizops_analytics_en_t2_rl_008/2fa86d8ad18d.json",
+      "package_digest": "sha256:2fa86d8ad18db5ec1d01aae720df3cc16d46a13e1bff9d8a0d840b1d86a5fd4a",
+      "text_atom_ids": [
+        "handoff_identifies_action_and_dates"
+      ]
+    },
+    {
+      "task": "s3k_0427_consulting_bizops_analytics_en_t3_rl_005",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0427_consulting_bizops_analytics_en_t3_rl_005/029ff5927f44.json",
+      "package_digest": "sha256:029ff5927f44bdea51960b3ffdd9f180deef98fc7c7d63604be23407ee2afd90",
+      "text_atom_ids": [
+        "reported_reconciliation"
+      ]
+    },
+    {
+      "task": "s3k_0459_consulting_bizops_analytics_en_t4_rl_001",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0459_consulting_bizops_analytics_en_t4_rl_001/79828d1ed9e9.json",
+      "package_digest": "sha256:79828d1ed9e9630ded074513f3433bbb84214db17a30f7296afefa4fa886019d",
+      "text_atom_ids": [
+        "standard_fee",
+        "approved_discount",
+        "recommended_net_fee"
+      ]
+    },
+    {
+      "task": "s3k_0496_consulting_bizops_analytics_zh_t2_rl_002",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0496_consulting_bizops_analytics_zh_t2_rl_002/481b7ea760dd.json",
+      "package_digest": "sha256:481b7ea760dd09ffbbcbdf5ba2e6084056d4bda62738f9688bfaf5e2c8786aca",
+      "text_atom_ids": [
+        "minimum_field_mapping",
+        "revenue_candidate_population",
+        "revenue_evidence_gaps",
+        "scope_zero_boundary"
+      ]
+    },
+    {
+      "task": "s3k_0550_consulting_bizops_analytics_zh_t4_rl_008",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0550_consulting_bizops_analytics_zh_t4_rl_008/6469515b5b60.json",
+      "package_digest": "sha256:6469515b5b603c03651fb6f3508c2f16a0cbd10628461a0f8b129f5a7e7c9b70",
+      "text_atom_ids": [
+        "decision_and_policy_confirmed",
+        "unknown_problem_boundary",
+        "prior_handoff_checked"
+      ]
+    },
+    {
+      "task": "s3k_0591_ecommerce_ops_zh_t5_rl_003",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0591_ecommerce_ops_zh_t5_rl_003/707b36de6852.json",
+      "package_digest": "sha256:707b36de685295a497cd2a1a83d66847c24e1c1292cdc4c078f85a524f027398",
+      "text_atom_ids": [
+        "execution_version_and_roi",
+        "legacy_value_and_absolute_bias",
+        "relative_bias",
+        "legacy_governance"
+      ]
+    },
+    {
+      "task": "s3k_0628_education_research_admin_en_t3_rl_008",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0628_education_research_admin_en_t3_rl_008/10d67d341dd0.json",
+      "package_digest": "sha256:10d67d341dd006133800cea451e0e098afb0d75e074882b2097880b1992112ca",
+      "text_atom_ids": [
+        "current_total_transfer",
+        "affected_payroll_base",
+        "allocation_shift",
+        "late_period_count"
+      ]
+    },
+    {
+      "task": "s3k_0658_education_research_admin_zh_t2_rl_009",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0658_education_research_admin_zh_t2_rl_009/e2e3a465430b.json",
+      "package_digest": "sha256:e2e3a465430b4616d302501c1698ab136f5c847c8e38ac90e22106009f61cbba",
+      "text_atom_ids": [
+        "baseline_and_distribution",
+        "concentration_assessment",
+        "migration_exception",
+        "target_time_relation"
+      ]
+    },
+    {
+      "task": "s3k_0700_education_research_admin_zh_t4_rl_007",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0700_education_research_admin_zh_t4_rl_007/0042f1e288e0.json",
+      "package_digest": "sha256:0042f1e288e051632b841818c957c113d736674f1e39738c301c33ea22ebdb3d",
+      "text_atom_ids": [
+        "scope_and_window",
+        "agenda_scope",
+        "delivery_total",
+        "delivery_pauses"
+      ]
+    },
+    {
+      "task": "s3k_0744_energy_utilities_esg_en_t4_rl_003",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0744_energy_utilities_esg_en_t4_rl_003/559b8cc9c76e.json",
+      "package_digest": "sha256:559b8cc9c76e266574f06de8e734048960463abc0eeaab1469421b9baec2c0fb",
+      "text_atom_ids": [
+        "ninety_minute_exposure",
+        "approved_hourly_consequence",
+        "duration_conversion",
+        "approved_criticality"
+      ]
+    },
+    {
+      "task": "s3k_0774_energy_utilities_esg_zh_t3_rl_002",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0774_energy_utilities_esg_zh_t3_rl_002/8f3d50a7e268.json",
+      "package_digest": "sha256:8f3d50a7e2688803f7002c8a7ab3b6d8f9573607e218a2a64fe088cf87aacbcf",
+      "text_atom_ids": [
+        "unit_5_generation",
+        "unit_6_generation",
+        "project_total_generation",
+        "project_total_conversion"
+      ]
+    },
+    {
+      "task": "s3k_0813_finance_insurance_en_t1_rl_004",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0813_finance_insurance_en_t1_rl_004/78880415b737.json",
+      "package_digest": "sha256:78880415b73714c6a9ee570afac44fe0f8817ea0abf5ce5ec447c108c6299b02",
+      "text_atom_ids": [
+        "rebuilt_recurring_income",
+        "favorable_income_variance",
+        "actual_implied_base",
+        "plan_implied_base"
+      ]
+    },
+    {
+      "task": "s3k_0862_finance_insurance_en_t2_rl_009",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0862_finance_insurance_en_t2_rl_009/f4b5303bbb8f.json",
+      "package_digest": "sha256:f4b5303bbb8f576c056b058a106cfb7e645842a3ef2c48f0cfa519eb3ae35bb0",
+      "text_atom_ids": [
+        "phase_control_matrix",
+        "consent_boundary",
+        "hold_scope_and_timing",
+        "controlled_release"
+      ]
+    },
+    {
+      "task": "s3k_0922_finance_insurance_en_t3_rl_004",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0922_finance_insurance_en_t3_rl_004/6b25311c0b5e.json",
+      "package_digest": "sha256:6b25311c0b5e9dca94290c3ad6081cb0d6a1eb06624908e746eea7987b42bd83",
+      "text_atom_ids": [
+        "sap_claim_level_gross",
+        "control_total_non_additive",
+        "enstar_canonical_group",
+        "enstar_sap_exposure"
+      ]
+    },
+    {
+      "task": "s3k_0957_finance_insurance_en_t4_rl_006",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0957_finance_insurance_en_t4_rl_006/44086af2f0d8.json",
+      "package_digest": "sha256:44086af2f0d85f1514261dd7b4c504f41d0940c91a776a4b5331178d9ad0bec0",
+      "text_atom_ids": [
+        "bridge_bor_001",
+        "bridge_bor_014",
+        "bridge_bor_027",
+        "qfa_019_anomaly"
+      ]
+    },
+    {
+      "task": "s3k_0991_finance_insurance_zh_t1_rl_002",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0991_finance_insurance_zh_t1_rl_002/6de81ba5ee38.json",
+      "package_digest": "sha256:6de81ba5ee38e89003f357f7a3903ceda1d84f660155181917261c590e7b3d58",
+      "text_atom_ids": [
+        "valid_quote_count",
+        "top_and_second_quotes",
+        "quote_spread",
+        "principal_fx_recompute"
+      ]
+    },
+    {
+      "task": "s3k_1041_finance_insurance_zh_t2_rl_007",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1041_finance_insurance_zh_t2_rl_007/f72399107a0c.json",
+      "package_digest": "sha256:f72399107a0c7707c7a62351cea0af4dcef3b551203b0adbb1834e34e20f0a7d",
+      "text_atom_ids": [
+        "approved_version",
+        "layered_amounts_and_total",
+        "formal_policy_parameters",
+        "independent_limit_tests"
+      ]
+    },
+    {
+      "task": "s3k_1098_finance_insurance_zh_t3_rl_003",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1098_finance_insurance_zh_t3_rl_003/a5d984e46a1b.json",
+      "package_digest": "sha256:a5d984e46a1b1906db1a35647e4cf0438c66b19d381b0df4889f9817eeefd2d0",
+      "text_atom_ids": [
+        "approved_claim_amount",
+        "invoice_condition_satisfied",
+        "account_condition_blocking",
+        "payment_status_and_decision"
+      ]
+    },
+    {
+      "task": "s3k_1143_government_public_en_t1_rl_008",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1143_government_public_en_t1_rl_008/f74077b95df8.json",
+      "package_digest": "sha256:f74077b95df86859166f5ad7ef9a4f33d1174a0b2c93e18f72b3100fca49d210",
+      "text_atom_ids": [
+        "reconciliation_difference",
+        "no_closure_claim"
+      ]
+    },
+    {
+      "task": "s3k_1176_government_public_en_t3_rl_006",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1176_government_public_en_t3_rl_006/d1c1886f62c5.json",
+      "package_digest": "sha256:d1c1886f62c5a30b40ba64a741f9c9f38e3615740097236b50f52f5c803ffc78",
+      "text_atom_ids": [
+        "completion_reconciliation",
+        "exception_rationale",
+        "transition_reported"
+      ]
+    },
+    {
+      "task": "s3k_1212_government_public_zh_t1_rl_001",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1212_government_public_zh_t1_rl_001/9866b38c5b73.json",
+      "package_digest": "sha256:9866b38c5b73094ab2097cefad7dbd776d2f287be8f9b105ddc617c706a53f44",
+      "text_atom_ids": [
+        "allocation_flow",
+        "handover_action",
+        "document_form_fields",
+        "quantity_remark_fields"
+      ]
+    },
+    {
+      "task": "s3k_1251_government_public_zh_t3_rl_009",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1251_government_public_zh_t3_rl_009/3ac2238741b3.json",
+      "package_digest": "sha256:3ac2238741b3905523e8a807d6906b148eddbf91ed1e912abfefc76df02c1a26",
+      "text_atom_ids": [
+        "oa_acceptance_chain",
+        "performance_reporting_scope",
+        "ledger_evidence_set",
+        "audit_treatment_principle"
+      ]
+    },
+    {
+      "task": "s3k_1290_healthcare_ops_en_t1_rl_002",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1290_healthcare_ops_en_t1_rl_002/774615a4ee71.json",
+      "package_digest": "sha256:774615a4ee71aab1de2dcbb34a2f19bb2cc038b691020443188216b22fbed5ed",
+      "text_atom_ids": [
+        "true_control_population",
+        "complete_incomplete_split",
+        "completion_rate",
+        "incomplete_critical_count"
+      ]
+    },
+    {
+      "task": "s3k_1330_healthcare_ops_en_t2_rl_001",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1330_healthcare_ops_en_t2_rl_001/0fa4ab8e0d6c.json",
+      "package_digest": "sha256:0fa4ab8e0d6c5862e4eb8b1b186eb91206b4acb705f7f2c2ceba2a3755fa6e57",
+      "text_atom_ids": [
+        "confirmed_exception_total",
+        "complete_exception_set",
+        "site_attribution",
+        "exception_type_composition"
+      ]
+    },
+    {
+      "task": "s3k_1378_healthcare_ops_en_t3_rl_007",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1378_healthcare_ops_en_t3_rl_007/16043773e8a3.json",
+      "package_digest": "sha256:16043773e8a309dbce265ac458e38a19d9beac01bf31941dbdeec10a5655923d",
+      "text_atom_ids": [
+        "tied_timestamp_order",
+        "row_and_represented_totals",
+        "event_family_reconciliation",
+        "distinct_entity_guardrail"
+      ]
+    },
+    {
+      "task": "s3k_1425_healthcare_ops_zh_t1_rl_004",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1425_healthcare_ops_zh_t1_rl_004/52732537e625.json",
+      "package_digest": "sha256:52732537e6253b7b5d106090781b17b4e93ffcf1fd113a2522108ced387e460e",
+      "text_atom_ids": [
+        "identify_event",
+        "verified_node_count",
+        "earliest_activity",
+        "earliest_discovery"
+      ]
+    },
+    {
+      "task": "s3k_1468_healthcare_ops_zh_t2_rl_008",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1468_healthcare_ops_zh_t2_rl_008/e99540266836.json",
+      "package_digest": "sha256:e99540266836571008888ead577ae42aeda3cd2177c690d60fea2e0dbe1ff506",
+      "text_atom_ids": [
+        "evidence_chain",
+        "correction_audit_explanation",
+        "formal_metric_reason",
+        "optimistic_concurrency_and_scope"
+      ]
+    },
+    {
+      "task": "s3k_1530_healthcare_ops_zh_t3_rl_003",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1530_healthcare_ops_zh_t3_rl_003/49732cbbc429.json",
+      "package_digest": "sha256:49732cbbc4298a0a5673e2120f795ad838dc3179772b7a56615ad2405c8a5b23",
+      "text_atom_ids": [
+        "valid_sample_totals",
+        "normalized_department_distribution",
+        "raw_name_variant_sets",
+        "revoked_duplicate_exclusion"
+      ]
+    },
+    {
+      "task": "s3k_1579_hospitality_fnb_zh_t3_rl_002",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1579_hospitality_fnb_zh_t3_rl_002/6f9002626db3.json",
+      "package_digest": "sha256:6f9002626db333a40af92697431e39d67f19dd0802c4f21adec68dbda101dcd0",
+      "text_atom_ids": [
+        "buffalo_effective_total",
+        "soup_effective_total",
+        "business_day_breakdown",
+        "duplicate_and_staff_traps"
+      ]
+    },
+    {
+      "task": "s3k_1626_hr_people_en_t3_rl_002",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1626_hr_people_en_t3_rl_002/1fcd1d72357e.json",
+      "package_digest": "sha256:1fcd1d72357e22243cac76df033af6ca3f25c72bf1c4792f698d1f2ba9216b36",
+      "text_atom_ids": [
+        "sequence",
+        "standardized_probes",
+        "independent_scoring",
+        "consensus_rationale"
+      ]
+    },
+    {
+      "task": "s3k_1660_hr_people_en_t4_rl_007",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1660_hr_people_en_t4_rl_007/ed344980a52e.json",
+      "package_digest": "sha256:ed344980a52e3b69a9337ea39f9d8d825cee9ff589e664867d196cff728d1b87",
+      "text_atom_ids": [
+        "event_queue_complete",
+        "lifecycle_actions",
+        "event_counts"
+      ]
+    },
+    {
+      "task": "s3k_1705_hr_people_zh_t2_rl_003",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1705_hr_people_zh_t2_rl_003/7045f0836d53.json",
+      "package_digest": "sha256:7045f0836d53b9089b06af3159fe22e3285adfe060f3ca5e823ac18b470b00b7",
+      "text_atom_ids": [
+        "budget_amount",
+        "actual_amount",
+        "extra_amount_consistency",
+        "tax_limit"
+      ]
+    },
+    {
+      "task": "s3k_1738_hr_people_zh_t3_rl_008",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1738_hr_people_zh_t3_rl_008/477e5be75b79.json",
+      "package_digest": "sha256:477e5be75b798e848b3cbf4b988cdaac1acd27404bf830f0d5091f84dd69eb6f",
+      "text_atom_ids": [
+        "permission_regression_conclusion",
+        "defect_workflow_conclusion"
+      ]
+    },
+    {
+      "task": "s3k_1774_it_information_systems_en_t2_rl_002",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1774_it_information_systems_en_t2_rl_002/3347f62e24e7.json",
+      "package_digest": "sha256:3347f62e24e72bebf10784927aeb2c80985747c820664a8e73bba62ffea9d532",
+      "text_atom_ids": [
+        "controlled_residual",
+        "manual_estimate",
+        "overstatement"
+      ]
+    },
+    {
+      "task": "s3k_1813_it_information_systems_en_t3_rl_007",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1813_it_information_systems_en_t3_rl_007/a5d9a86e2cd8.json",
+      "package_digest": "sha256:a5d9a86e2cd8926eeb54cbd1e43ec69f7a0448e00f905bba4ddb0a6dc06bba18",
+      "text_atom_ids": [
+        "package_selection_reasoning",
+        "approval_identity_reasoning",
+        "remaining_exposure"
+      ]
+    },
+    {
+      "task": "s3k_1866_it_information_systems_zh_t3_rl_004",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1866_it_information_systems_zh_t3_rl_004/cb420abe2902.json",
+      "package_digest": "sha256:cb420abe2902dbc35f77c6e1e1fd9880778ef57d4737bdf8a236a5c14f40c34a",
+      "text_atom_ids": [
+        "accepted_transport_detail_subtotal",
+        "approved_adjustment_net",
+        "recomputed_certified_value",
+        "system_reported_variance"
+      ]
+    },
+    {
+      "task": "s3k_1897_it_information_systems_zh_t4_rl_004",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1897_it_information_systems_zh_t4_rl_004/d5f14037193c.json",
+      "package_digest": "sha256:d5f14037193cc8762d688bea606468b7cd496d7a294f2e5893cd3b1e2914f8c4",
+      "text_atom_ids": [
+        "recomputed_success_totals",
+        "daily_rollup_mismatch_set",
+        "trap_explanations_and_evidence",
+        "scope_and_read_only_statement"
+      ]
+    },
+    {
+      "task": "s3k_1947_legal_compliance_en_t1_rl_005",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1947_legal_compliance_en_t1_rl_005/1a6eacb0f2b9.json",
+      "package_digest": "sha256:1a6eacb0f2b9a351a9a0235cb691fa0db8105007b4563efb4dd17b4de83d45ab",
+      "text_atom_ids": [
+        "operative_instruction",
+        "funding_total_and_components",
+        "authorization_reconciliation",
+        "duplicate_exclusion"
+      ]
+    },
+    {
+      "task": "s3k_2058_legal_compliance_en_t4_rl_002",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_2058_legal_compliance_en_t4_rl_002/a55ebe9a3adb.json",
+      "package_digest": "sha256:a55ebe9a3adbff76d908ed187be7716a2e377c9a533cab43b15b645ffe7cc47f",
+      "text_atom_ids": [
+        "controlling_class_set",
+        "class_9_identification",
+        "class_42_identification",
+        "class_35_draft_exclusion"
+      ]
+    },
+    {
+      "task": "s3k_2190_legal_compliance_zh_t4_rl_001",
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_2190_legal_compliance_zh_t4_rl_001/ab057dcec7b0.json",
+      "package_digest": "sha256:ab057dcec7b0a4f1971500a2f5592accd6eec72a69bd0abdf2f9a8d6fa320c5c",
+      "text_atom_ids": [
+        "effective_judgment_court",
+        "effective_judgment_case_number",
+        "enforcement_case_number_and_link",
+        "early_guangzhou_record_treatment"
+      ]
+    }
+  ],
+  "webdev": [
+    {
+      "task": "dasyn_260630_00001",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00001/60c457fba629.json",
+      "package_digest": "sha256:60c457fba6295b3ff1a3eba4d37dfbc5f091c07d740071f295f75d9134986855"
+    },
+    {
+      "task": "dasyn_260630_00042",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00042/3d9de47970ab.json",
+      "package_digest": "sha256:3d9de47970ab3dc43db2eaa3a2db25f0777f00d67df2a9d2bb01210699ac0abe"
+    },
+    {
+      "task": "dasyn_260630_00084",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00084/153337db7dfa.json",
+      "package_digest": "sha256:153337db7dfa61bce2daee961602c98aa014532861a1bdfecb2254bb596f8b08"
+    },
+    {
+      "task": "dasyn_260630_00126",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00126/ed3f1ab4ee87.json",
+      "package_digest": "sha256:ed3f1ab4ee8791a58791b9303bc01fb45b873809c386bb28e46c184ebb57ec9a"
+    },
+    {
+      "task": "dasyn_260630_00169",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00169/c7ae74bf8341.json",
+      "package_digest": "sha256:c7ae74bf83415097fec5f44a35d66fba8a2d4431cf57acb969cf03f8a443eab8"
+    },
+    {
+      "task": "dasyn_260630_00211",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00211/decd0bdc13c6.json",
+      "package_digest": "sha256:decd0bdc13c69132a30e4246a986f8c7d64213d829e874bd728ce40fa062b52a"
+    },
+    {
+      "task": "dasyn_260630_00253",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00253/df1efbac5a2b.json",
+      "package_digest": "sha256:df1efbac5a2b52834cc09de7e5da45161a466188da47b9ac15028c847d066bb0"
+    },
+    {
+      "task": "dasyn_260630_00295",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00295/56a9be1413d5.json",
+      "package_digest": "sha256:56a9be1413d59182a77163155fe12508ab7a718a027739a478cdf16c30e21e37"
+    },
+    {
+      "task": "dasyn_260630_00336",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00336/dcc49fd8a677.json",
+      "package_digest": "sha256:dcc49fd8a677033f388616c14866d95a957b1bb3587040f281a7240878c7cfa5"
+    },
+    {
+      "task": "dasyn_260630_00378",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00378/8dd9b6be5114.json",
+      "package_digest": "sha256:8dd9b6be51149b01c9e65c1017cd27e25bb257907358b0b4fa33240f24e58c96"
+    },
+    {
+      "task": "dasyn_260630_00420",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00420/532254f1ee10.json",
+      "package_digest": "sha256:532254f1ee10ecd687abeec7d55d37bdf4097b035ac772219cbe06cead012f99"
+    },
+    {
+      "task": "dasyn_260630_00462",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00462/3e2c119ce0af.json",
+      "package_digest": "sha256:3e2c119ce0af77828de8174949cd5cde068a61c484ef4b59ca32481d194a8623"
+    },
+    {
+      "task": "dasyn_260630_00504",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00504/c90039a56860.json",
+      "package_digest": "sha256:c90039a56860642ab98756cf3a6590727905cab48d9168737ecdfc19dbeb3d8e"
+    },
+    {
+      "task": "dasyn_260630_00546",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00546/b1b88e25e4b4.json",
+      "package_digest": "sha256:b1b88e25e4b46ac8710c1507cf8358d60c9d8dc61998eb73c2b45fe66bb7598a"
+    },
+    {
+      "task": "dasyn_260630_00588",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00588/d62e8842b0c6.json",
+      "package_digest": "sha256:d62e8842b0c604979ba076281f50524ad23a4368c650825b671a758055d16382"
+    },
+    {
+      "task": "dasyn_260630_00629",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00629/9d3bf5a5593b.json",
+      "package_digest": "sha256:9d3bf5a5593b9d69a6011521d6c60786fb3450f589d7dba35add9adb7a0f2e9b"
+    },
+    {
+      "task": "dasyn_260630_00671",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00671/366aa543f74a.json",
+      "package_digest": "sha256:366aa543f74a6fded91f707ddb677568a6e4bdab11410f8fac81f27e550b6e4c"
+    },
+    {
+      "task": "dasyn_260630_00713",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00713/b791c873002c.json",
+      "package_digest": "sha256:b791c873002c102da8fff927026570d6325a2fbd2769bb01bc704c7780819e2f"
+    },
+    {
+      "task": "dasyn_260630_00755",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00755/afa840ee5226.json",
+      "package_digest": "sha256:afa840ee52268c00d5302d52f0469b6290db159a2a16594bff0fb1a7f58bd68b"
+    },
+    {
+      "task": "dasyn_260630_00797",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00797/f24990b64f6e.json",
+      "package_digest": "sha256:f24990b64f6e32ed7f3b4383c6d035f2df8b676a63e8164c289cb44ccf2841e3"
+    },
+    {
+      "task": "dasyn_260630_00839",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00839/d4f8eae949cc.json",
+      "package_digest": "sha256:d4f8eae949cc77036ed047b47e3f5d1a2c0f18ddc951b5090911fedeb67afa73"
+    },
+    {
+      "task": "dasyn_260630_00881",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00881/c21699a2ec23.json",
+      "package_digest": "sha256:c21699a2ec235e48e1685fde6f0f8d300b7e0ba6962d57ccc099a2a2f5729514"
+    },
+    {
+      "task": "dasyn_260630_00922",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00922/0cd6d166d095.json",
+      "package_digest": "sha256:0cd6d166d095f04f0d5f3fd7ade3c10388bbbd828d91b2dbd3783e9fa40e0c2a"
+    },
+    {
+      "task": "dasyn_260630_00964",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_00964/af59f7c69c13.json",
+      "package_digest": "sha256:af59f7c69c13a02b7a5bd37b381f6f919a9b094c453b7f68c2f3dc98b749b49e"
+    },
+    {
+      "task": "dasyn_260630_01006",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01006/b82824e1b059.json",
+      "package_digest": "sha256:b82824e1b059b3091cca67e607399ca69b2ce49060a807aa5765233a689e57ea"
+    },
+    {
+      "task": "dasyn_260630_01048",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01048/96a12ae5a2ce.json",
+      "package_digest": "sha256:96a12ae5a2ce3b9c1e2983fe479b6d44303386797ff8a5fb8cbd1b6390ad6819"
+    },
+    {
+      "task": "dasyn_260630_01090",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01090/24e3b024e65f.json",
+      "package_digest": "sha256:24e3b024e65fa244a1ae5f4d14fc20de299c434c5d0ea685f317985f92672885"
+    },
+    {
+      "task": "dasyn_260630_01132",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01132/cdacda9a0e3a.json",
+      "package_digest": "sha256:cdacda9a0e3a9956a1856b02e3ab602502d9e9540f51a838403cd84a2f0fb0a2"
+    },
+    {
+      "task": "dasyn_260630_01174",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01174/88131911b877.json",
+      "package_digest": "sha256:88131911b877a8fe5d75048a6f1c04a8383574592b218101a1ed22686c77112f"
+    },
+    {
+      "task": "dasyn_260630_01215",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01215/ac9ee1fb1bc2.json",
+      "package_digest": "sha256:ac9ee1fb1bc2ea87742668439353a3bb5cbbfada63dec99de1cec6a3b253f5bd"
+    },
+    {
+      "task": "dasyn_260630_01257",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01257/47262ae0b04d.json",
+      "package_digest": "sha256:47262ae0b04dceffe1675f70d3a896a94de99a6c80a0395e7d8a332d82b27568"
+    },
+    {
+      "task": "dasyn_260630_01299",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01299/65a7d3a7c3b6.json",
+      "package_digest": "sha256:65a7d3a7c3b63917a387b38f0bc5f410948867e50d727c3ba84715556466275c"
+    },
+    {
+      "task": "dasyn_260630_01341",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01341/414e806b3b46.json",
+      "package_digest": "sha256:414e806b3b464edd65331d78c0090d058c2f2deea78eda2f7aeb96c80af042a0"
+    },
+    {
+      "task": "dasyn_260630_01383",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01383/3867a7cc0433.json",
+      "package_digest": "sha256:3867a7cc0433e9a230f004756fe40c34e85eb4b514aee69c260be620d9f136d3"
+    },
+    {
+      "task": "dasyn_260630_01425",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01425/6aaec1af6c73.json",
+      "package_digest": "sha256:6aaec1af6c73ae79923edddebff5c2d725fc2384e5ad24a532094526c01af0a1"
+    },
+    {
+      "task": "dasyn_260630_01467",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01467/6e2748098b76.json",
+      "package_digest": "sha256:6e2748098b76a98c9993dbe86f57abd748ce4b14c479b7dd210ffaaafd05ae7c"
+    },
+    {
+      "task": "dasyn_260630_01508",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01508/8c70c546d18c.json",
+      "package_digest": "sha256:8c70c546d18c27432611a0670c6e2f92a4c150b719fe40fc3b59bab4c853e30b"
+    },
+    {
+      "task": "dasyn_260630_01550",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01550/dcdb7151aae6.json",
+      "package_digest": "sha256:dcdb7151aae6c50c46e4a11f27f0ca1f569b9aeb40d7cfc2fb81912a3714a68c"
+    },
+    {
+      "task": "dasyn_260630_01592",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260630_01592/382804ee6e19.json",
+      "package_digest": "sha256:382804ee6e197f46d05786da3cf6e0fb4f1c23e0cb78c57140ac6e11c5f6b237"
+    },
+    {
+      "task": "dasyn_260638_00034",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00034/4fc8d66590eb.json",
+      "package_digest": "sha256:4fc8d66590ebd07bf57714a0f6720ec05cc5e90a1ec182b35e6b42c408dc0f33"
+    },
+    {
+      "task": "dasyn_260638_00076",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00076/1da7575fdbc9.json",
+      "package_digest": "sha256:1da7575fdbc9bd80192d95cef71150024eb00665cc6bfad3b2fa425478331a6d"
+    },
+    {
+      "task": "dasyn_260638_00118",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00118/eb5a8c1c4f4b.json",
+      "package_digest": "sha256:eb5a8c1c4f4b8896d3cb808e49590de33179511e02952862ed33d1ff6ea891a7"
+    },
+    {
+      "task": "dasyn_260638_00161",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00161/83437b27c2f1.json",
+      "package_digest": "sha256:83437b27c2f1d25e2f50d4c43cdd1046947a23e37b56c080d64de397fc1e6676"
+    },
+    {
+      "task": "dasyn_260638_00205",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00205/9065138c9df1.json",
+      "package_digest": "sha256:9065138c9df14002ca70f4386a2654af5c929e158029a2c729a2b99411fd75d6"
+    },
+    {
+      "task": "dasyn_260638_00247",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00247/463f3cd144a8.json",
+      "package_digest": "sha256:463f3cd144a8dc38e69d74102273f3e2c2c468f2114966c9a0d26a25912f07b6"
+    },
+    {
+      "task": "dasyn_260638_00290",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00290/5ddf2ee66000.json",
+      "package_digest": "sha256:5ddf2ee660001ee8aa19ac963cd38a99bf46ea8c47add0005482f353a8a2cc1c"
+    },
+    {
+      "task": "dasyn_260638_00333",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00333/5ea860c77307.json",
+      "package_digest": "sha256:5ea860c77307b494100034aae2191374a242c8a12e20ee6ec866e457fb0fdde4"
+    },
+    {
+      "task": "dasyn_260638_00375",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00375/2b69d697ac6d.json",
+      "package_digest": "sha256:2b69d697ac6d559e719e4505f1e4d32ef4a56131a2b244301a09b17b540fbe60"
+    },
+    {
+      "task": "dasyn_260638_00417",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00417/7fa3d3875696.json",
+      "package_digest": "sha256:7fa3d3875696da06549d91ea338bb2d694004c337be367475e95654a26dd385c"
+    },
+    {
+      "task": "dasyn_260638_00459",
+      "record": "library/task-variants/mimo-v2.6-rl__dasyn_260638_00459/f15ab1362ef3.json",
+      "package_digest": "sha256:f15ab1362ef3999fb573f56a577fb3adb8f8fc0c7f4512f6c95aa4e21ccf7e92"
+    }
+  ]
+}

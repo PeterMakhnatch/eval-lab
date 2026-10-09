@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0042_accounting_audit_tax_en_t2_rl_009",
+  "variant_digest": "sha256:3d406ca40ce18297cb3d2e0dc4397501ccbbe8b258061d32b6457ecfbc45fa60",
+  "variant_harbor_digest": "sha256:8e026fa3338bd666452c63553bf2a9f321dd7587557b07bb3035e4d30a5671ad",
+  "parent": {
+    "digest": "sha256:f6117ba8b0c9235c0af1137dd4582bd8d1311016f2720e25198554d709c87996",
+    "harbor_digest": "sha256:86390ac47c9ef5916482e5cd6a7d12d911941a37ea34f636cc3c075295c6443b",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0042_accounting_audit_tax_en_t2_rl_009/f6117ba8b0c9.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:76efc7c1971a6aa6f482a118188e93d01f5b02f8ee3e20245631d6bde5b4664b",
+      "after_sha256": "sha256:7cc68750187663a31e3defb1fc9accc7a3d5e8aa31a4c88728c614ffa165d1c6",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"consideration_control\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final answer calculate and report the controlled acquisition-date consideration for the Meridian Clinical Payments, Inc. acquisition of Harborlight Revenue Cycle Technologies, LLC, and correctly explain the Oracle population treatment?\",\n      \"pass_anchor\": \"The answer must report total acquisition-date consideration transferred of $345,868,385 (accept equivalent dollar formatting within $1). It must explain that the eligible executed consideration records were included once, while the reversal/duplicate settlement import and the non-cash goodwill allocation memo were excluded; it must not add the reversal or memo to consideration. The answer may describe the records without their IDs, but the inclusion/exclusion logic and the amount must be unambiguous.\"\n    },\n    {\n      \"id\": \"identifiable_net_assets\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final answer recalculate identifiable net assets from the 19 acquisition-date opening-balance-sheet lines using assets less liabilities, including measured review-hold lines but excluding goodwill?\",\n      \"pass_anchor\": \"The answer must state that 19 underlying opening-balance-sheet lines were used, goodwill was excluded from identifiable net assets, and measured review-hold lines were retained. It must report identifiable net assets acquired of $85,872,437 (accept equivalent dollar formatting within $1) and describe the calculation as identifiable assets less liabilities.\"\n    },\n    {\n      \"id\": \"goodwill_bridge\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final answer report the residual goodwill and demonstrate that the consideration bridge has no unexplained difference?\",\n      \"pass_anchor\": \"The answer must report residual goodwill of $259,995,948 (accept equivalent dollar formatting within $1) as consideration of $345,868,385 less identifiable net assets of $85,872,437, and must state that the bridge difference is zero (or $0). It must not describe goodwill as an identifiable asset in the net-assets subtotal.\"\n    },\n    {\n      \"id\": \"unmapped_noncompetition\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final answer identify the noncompetition acquisition-date line and correctly distinguish measurement inclusion from chart-of-accounts mapping and posting status?\",\n      \"pass_anchor\": \"The answer must identify the held line either by OBS-HL-1034 or by an unambiguous equivalent such as the legacy account INT-OLD-490 together with the account name Noncompetition agreements, and give measured fair value $3,221,580 (accept equivalent dollar formatting within $1). It must state that the line is an identifiable intangible recognized in the approved PPA measurement because it represents enforceable acquired noncompetition agreements, while its obsolete legacy account INT-OLD-490 has no current chart-of-accounts mapping and therefore remains on review hold for posting. The answer must explicitly say the mapping/posting exception does not justify excluding the asset from fair value measurement.\"\n    },\n    {\n      \"id\": \"workpaper_memo_tie\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final answer tie the recomputed bridge and exception conclusion to the approved PPA workpaper and the ASC 805 accounting memo without inventing a posting adjustment?\",\n      \"pass_anchor\": \"The answer must connect the results to the approved Harborlight PPA and Opening Balance Sheet workpaper (approved schedule PPA-HARBORLIGHT-2025-V03) and the Harborlight ASC 805 Acquisition Accounting Memo, describing them as corroborating the acquisition-date measurement and residual goodwill conclusion. It must preserve the distinction that the line can be included in measurement while a separate account-mapping/posting remediation remains open, and must not recommend deleting or excluding the noncompetition asset solely because of the hold.\"\n    },\n    {\n      \"id\": \"source_integrity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_source_integrity\",\n      \"description\": \"All source workbooks, memo, and briefing remain unchanged for this read-only task.\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport hashlib\\n\\nEXPECTED = {\\n    \\\"01_Source_Data/Harborlight_Intangible_Valuation_Assumptions_2025-09-15.xlsx\\\": \\\"65c0d2fca2253935b917ad0454b1439a461c19f2245048bec30e5a39fef72d69\\\",\\n    \\\"01_Source_Data/Harborlight_Transaction_Close_and_GL_Extract_2025-09-15.xlsx\\\": \\\"fd0ac28d21bb3fc9a39713a1720893c38d52a1349fff34e9e90800ae4f53c872\\\",\\n    \\\"02_PPA_Analysis/Harborlight_Audit_Review_and_Evidence_Matrix_2025-Q3.xlsx\\\": \\\"4cdb121ac63b38b50a8a36b9b0a0618c0133b94c0475d715467745d0dba300ff\\\",\\n    \\\"02_PPA_Analysis/Harborlight_PPA_and_Opening_Balance_Sheet_2025-09-15.xlsx\\\": \\\"2a3480bdd365d64efe506270279f19f6869c9378b79c25f588d74e545514cc87\\\",\\n    \\\"03_Reporting/Harborlight_ASC_805_Acquisition_Accounting_Memo_2025-09-30.docx\\\": \\\"133f7c7dd662bd6402f72d90231671a7eb4e6fda43fbd3ade36a4eaf65975e4d\\\",\\n    \\\"03_Reporting/Harborlight_Audit_Committee_Acquisition_Briefing_2025-Q3.pptx\\\": \\\"55c6db93034c3ec1c7db375964c586aea528cff4d76ae0995b5ddb0e04a8889c\\\",\\n}\\n\\ndef check_source_integrity(ws):\\n    ws = Path(ws)\\n    bad = []\\n    for rel, expected in EXPECTED.items():\\n        path = ws / rel\\n        if not path.exists():\\n            bad.append(f\\\"missing {rel}\\\")\\n            continue\\n        actual = hashlib.sha256(path.read_bytes()).hexdigest()\\n        if actual != expected:\\n            bad.append(f\\\"changed {rel}\\\")\\n    return {\\\"score\\\": 0 if bad else 1, \\\"detail\\\": \\\"; \\\".join(bad) if bad else \\\"source files unchanged\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "source_integrity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:57Z",
+  "status": "candidate",
+  "evidence": []
+}

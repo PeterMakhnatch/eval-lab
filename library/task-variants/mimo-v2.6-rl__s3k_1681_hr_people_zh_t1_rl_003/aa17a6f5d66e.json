@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1681_hr_people_zh_t1_rl_003",
+  "variant_digest": "sha256:aa17a6f5d66ebb11d9bd24a2203d24dbd85802dc99ff2028035ef1b21fb292e6",
+  "variant_harbor_digest": "sha256:3fec66f5d320b5ce975f8568a1f7672126df9dbb9deb1e32385cd7849acc268e",
+  "parent": {
+    "digest": "sha256:9fd94e3fb7d9cf8e5e557c189d8ed8e04f4669b764edeae00c04d6eee00fc98a",
+    "harbor_digest": "sha256:c43a5b9597ce3706819673a8cf868877acc8f063090fec0dfc9219309a282da5",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1681_hr_people_zh_t1_rl_003/9fd94e3fb7d9.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:76d42c1298851493879f21d645f8f72a077130e1cbf773b2fc31ae9c6d936f0c",
+      "after_sha256": "sha256:956fdcc36a0f1e65fe6a3feaa73955f5b2872e80e326a2f1b4a5f0669833cd68",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"completed_comments_cleared\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_completed_comments_cleared\",\n      \"ground_truth\": \"在《江西生物科技职业学院_2022上半年结构化面试成绩汇总册.xlsx》的“考官评分明细”中，两条已办结批注均应为空；对应单元格仍保留原有备注文本。\"\n    },\n    {\n      \"id\": \"target_notes_preserved\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_notes_preserved\",\n      \"ground_truth\": {\n        \"计时器复核备注\": \"计时器重启后复核答题时长\",\n        \"改分双签备注\": \"考官修改分数，统分员双签确认\"\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"answer_reports_resolution\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否准确说明了两条已办结批注的业务结论、实际清理动作以及未修改成绩和公式？\",\n      \"pass_anchor\": \"回复应识别两项结论：计时器短暂重启后已按现场录音时间复核答题时长；考官修改分数并已由统分员双签确认，且保留原始评分表备查。还应说明在《江西生物科技职业学院_2022上半年结构化面试成绩汇总册.xlsx》中清除了这两条批注、保留备注文本，并明确没有修改评分值或工作簿公式。接受同义改写，不要求复述单元格坐标。\"\n    },\n    {\n      \"id\": \"unrelated_workbook_content_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_unrelated_workbook_content_unchanged\",\n      \"ground_truth\": \"除两条目标批注外，工作簿所有工作表的单元格公式和值均应与原始工作簿一致；其他批注也不得新增或删除；“面试总览”中原有图表的样式 10 也应保留。\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import hashlib\\nimport json\\nimport zipfile\\nfrom pathlib import Path\\nfrom xml.etree import ElementTree\\n\\nfrom openpyxl import load_workbook\\n\\n\\nWORKBOOK = \\\"江西生物科技职业学院_2022上半年结构化面试成绩汇总册.xlsx\\\"\\nSHEET = \\\"考官评分明细\\\"\\nTARGETS = {\\\"N63\\\", \\\"N185\\\"}\\nEXPECTED_NOTES = {\\n    \\\"N63\\\": \\\"计时器重启后复核答题时长\\\",\\n    \\\"N185\\\": \\\"考官修改分数，统分员双签确认\\\",\\n}\\nBASELINE_HASH = \\\"3acb1776640e6aee738a7262f1e12677f9f625923a3379a2828a7950fec95bef\\\"\\nCHART_PART = \\\"xl/charts/chart1.xml\\\"\\nCHART_NS = \\\"http://schemas.openxmlformats.org/drawingml/2006/chart\\\"\\nEXPECTED_CHART_STYLE = \\\"10\\\"\\n\\n\\ndef _path(workspace):\\n    return Path(workspace) / WORKBOOK\\n\\n\\ndef _cell_content_hash(path):\\n    wb = load_workbook(path, data_only=False)\\n    cells = []\\n    for ws in wb.worksheets:\\n        for row in ws.iter_rows(min_row=1, max_row=ws.max_row,\\n                                min_col=1, max_col=ws.max_column):\\n            for cell in row:\\n                if ws.title == SHEET and cell.coordinate in TARGETS:\\n                    continue\\n                if cell.value is not None:\\n                    cells.append((ws.title, cell.coordinate, cell.value))\\n    payload = {\\n        \\\"sheets\\\": [(ws.title, ws.max_row, ws.max_column) for ws in wb.worksheets],\\n        \\\"cells\\\": cells,\\n    }\\n    wb.close()\\n    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True,\\n                          default=str, separators=(\\\",\\\", \\\":\\\"))\\n    return hashlib.sha256(encoded.encode(\\\"utf-8\\\")).hexdigest()\\n\\n\\ndef _chart_style(path):\\n    try:\\n        with zipfile.ZipFile(path) as archive:\\n            root = ElementTree.fromstring(archive.read(CHART_PART))\\n        style = root.find(f\\\"{{{CHART_NS}}}style\\\")\\n        return style.get(\\\"val\\\") if style is not None else None\\n    except (KeyError, OSError, ValueError, zipfile.BadZipFile, ElementTree.ParseError):\\n        return None\\n\\n\\ndef check_completed_comments_cleared(workspace):\\n    path = _path(workspace)\\n    if not path.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"成绩汇总册不存在\\\"}\\n    wb = load_workbook(path, data_only=False)\\n    ws = wb[SHEET]\\n    comments = {coord: ws[coord].comment for coord in TARGETS}\\n    ok = all(comment is None for comment in comments.values())\\n    wb.close()\\n    return {\\n        \\\"score\\\": int(ok),\\n        \\\"detail\\\": \\\"目标批注均已清除\\\" if ok else \\\"仍存在目标批注: \\\" + \\\", \\\".join(\\n            coord for coord, comment in comments.items() if comment is not None\\n        ),\\n    }\\n\\n\\ndef check_target_notes_preserved(workspace):\\n    path = _path(workspace)\\n    if not path.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"成绩汇总册不存在\\\"}\\n    wb = load_workbook(path, data_only=False)\\n    ws = wb[SHEET]\\n    actual = {coord: ws[coord].value for coord in TARGETS}\\n    wb.close()\\n    ok = actual == EXPECTED_NOTES\\n    return {\\n        \\\"score\\\": int(ok),\\n        \\\"detail\\\": f\\\"备注值={actual!r}\\\",\\n    }\\n\\n\\ndef check_unrelated_workbook_content_unchanged(workspace):\\n    path = _path(workspace)\\n    if not path.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"成绩汇总册不存在\\\"}\\n    actual_hash = _cell_content_hash(path)\\n    chart_style = _chart_style(path)\\n    wb = load_workbook(path, data_only=False)\\n    other_comments = []\\n    for ws in wb.worksheets:\\n        for row in ws.iter_rows():\\n            for cell in row:\\n                if cell.comment is not None and not (ws.title == SHEET and cell.coordinate in TARGETS):\\n                    other_comments.append(f\\\"{ws.title}!{cell.coordinate}\\\")\\n    wb.close()\\n    ok = (actual_hash == BASELINE_HASH and not other_comments\\n          and chart_style == EXPECTED_CHART_STYLE)\\n    details = []\\n    if actual_hash != BASELINE_HASH:\\n        details.append(f\\\"非目标单元格内容指纹变化: {actual_hash}\\\")\\n    if other_comments:\\n        details.append(\\\"发现其他批注: \\\" + \\\", \\\".join(other_comments))\\n    if chart_style != EXPECTED_CHART_STYLE:\\n        details.append(f\\\"面试总览图表样式变化: {chart_style!r}\\\")\\n    detail = \\\"非目标单元格公式和值、其他批注及图表样式未变化\\\"\\n    if details:\\n        detail = \\\"; \\\".join(details)\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": detail}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"edit_workspace\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "target_notes_preserved": 1.0,
+      "unrelated_workbook_content_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:12Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1656_hr_people_en_t3_rl_006",
+  "variant_digest": "sha256:36e9468d6599f43b78344e03fb883cc61f4e544ec2ca48f330fe71fc4f59b8e9",
+  "variant_harbor_digest": "sha256:036454c9c78da25bbe014e032c9349347a2acd2553416cec6396167baadf2013",
+  "parent": {
+    "digest": "sha256:a66392765543207a49ff9052a50013d8216d6adb15be46e24ec43d9cda0b126e",
+    "harbor_digest": "sha256:f3d8c1649892103e21e0ebdcd791bcabf77b37f1cb1d02cd270df3b123befded",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1656_hr_people_en_t3_rl_006/a66392765543.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:f2e1476cda295647fc39a8ff61b2d970a75392ad4b624c5690f17348cf8052b4",
+      "after_sha256": "sha256:b7c7173ad54a922d6b05f1011ae1a7df96d8a4d8a8732f66d824d63d4b0aa937",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"workday_review_post_state\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_review_post_state\",\n      \"ground_truth\": {\n        \"assignment_id\": \"ASG-2509-014\",\n        \"business_purpose_type\": \"missing\",\n        \"business_purpose_evidence\": \"Acquisition transition exception documented in integration review.\",\n        \"acquisition_transition_exemption_flag\": 1,\n        \"reviewed_by_manager_id\": \"PERS-INTC-00417\",\n        \"reviewed_at\": \"2025-10-07\"\n      }\n    },\n    {\n      \"id\": \"population_and_numerator_treatment\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response correctly state the active-population denominator and missing-purpose numerator treatment for the acquisition-transition exception?\",\n      \"pass_anchor\": \"The response must state that the certified Q3 active population is 386 and the missing-purpose numerator is 74, and explain that the acquisition-transition exception is handled only in the numerator (excluded from the missing-purpose numerator; equivalent wording such as 'affects' or 'is limited to' the missing-purpose numerator, including wording that contrasts this with removal from the active population, is acceptable) while the assignment remains in the active population. It must not say that the exception counts as missing purpose or removes the assignment from the active population.\"\n    },\n    {\n      \"id\": \"review_governance_caveat\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response preserve the governance meaning of the review and avoid presenting it as a final classification conclusion?\",\n      \"pass_anchor\": \"The response must identify Sarah Chen as the reviewing manager, use October 7, 2025 as the review date, explain that the acquisition-transition narrative remains documented while business purpose stays missing and exempt, and expressly say the review is not a final worker-classification determination or legal opinion.\"\n    },\n    {\n      \"id\": \"immutable_assignment_fields\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_immutable_assignment_fields\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"Deterministic post-state checks for the Workday mutation.\\\"\\\"\\\"\\n\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _db(ws: Path) -> Path:\\n    return ws.parent / \\\"system\\\" / \\\"workday_hcm\\\" / \\\"state.db\\\"\\n\\n\\ndef _one(connection, query, params=()):\\n    row = connection.execute(query, params).fetchone()\\n    return dict(row) if row is not None else None\\n\\n\\ndef check_review_post_state(ws):\\n    db = _db(Path(ws))\\n    if not db.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"Workday state database is unavailable.\\\"}\\n    con = sqlite3.connect(db)\\n    con.row_factory = sqlite3.Row\\n    try:\\n        assignment = _one(con, \\\"SELECT * FROM worker_assignments WHERE assignment_id=?\\\", (\\\"ASG-2509-014\\\",))\\n        if assignment is None:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"Target assignment is missing.\\\"}\\n        expected_evidence = \\\"Acquisition transition exception documented in integration review.\\\"\\n        assignment_ok = (\\n            assignment[\\\"business_purpose_type\\\"] == \\\"missing\\\"\\n            and assignment[\\\"business_purpose_evidence\\\"].strip() == expected_evidence\\n            and assignment[\\\"acquisition_transition_exemption_flag\\\"] == 1\\n        )\\n        tables = {r[\\\"name\\\"] for r in con.execute(\\\"SELECT name FROM sqlite_master WHERE type='table'\\\")}\\n        if \\\"assignment_business_purpose_reviews\\\" not in tables:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"No Workday assignment review record was persisted.\\\"}\\n        review = _one(con, \\\"SELECT * FROM assignment_business_purpose_reviews WHERE assignment_id=?\\\", (\\\"ASG-2509-014\\\",))\\n        review_ok = review is not None and (\\n            review[\\\"reviewed_by_manager_id\\\"] == \\\"PERS-INTC-00417\\\"\\n            and review[\\\"reviewed_at\\\"][:10] == \\\"2025-10-07\\\"\\n            and review[\\\"business_purpose_type\\\"] == \\\"missing\\\"\\n            and review[\\\"business_purpose_evidence\\\"].strip() == expected_evidence\\n            and review[\\\"acquisition_transition_exemption_flag\\\"] == 1\\n        )\\n        if assignment_ok and review_ok:\\n            return {\\\"score\\\": 1, \\\"detail\\\": \\\"Workday assignment and manager-review post-state match the authorized values.\\\"}\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"Assignment or review values do not preserve the missing-purpose exemption.\\\"}\\n    finally:\\n        con.close()\\n\\n\\ndef check_immutable_assignment_fields(ws):\\n    db = _db(Path(ws))\\n    if not db.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"Workday state database is unavailable.\\\"}\\n    con = sqlite3.connect(db)\\n    con.row_factory = sqlite3.Row\\n    try:\\n        row = _one(con, \\\"SELECT * FROM worker_assignments WHERE assignment_id=?\\\", (\\\"ASG-2509-014\\\",))\\n        expected = {\\n            \\\"worker_id\\\": \\\"CW-250901-017\\\",\\n            \\\"manager_id\\\": \\\"PERS-INTC-00417\\\",\\n            \\\"engagement_id\\\": \\\"ENG-INTC-CW\\\",\\n            \\\"assignment_status\\\": \\\"active\\\",\\n            \\\"start_date\\\": \\\"2025-08-15\\\",\\n            \\\"end_date\\\": None,\\n            \\\"schedule_direction\\\": \\\"manager_directed\\\",\\n            \\\"headcount_request_id\\\": None,\\n            \\\"cost_center_id\\\": \\\"CC-4102\\\",\\n            \\\"record_class\\\": \\\"canonical\\\",\\n        }\\n        if row is not None and all(row[k] == value for k, value in expected.items()):\\n            return {\\\"score\\\": 1, \\\"detail\\\": \\\"Protected assignment identity and employment fields remain unchanged.\\\"}\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"A protected assignment field was changed or the assignment was removed.\\\"}\\n    finally:\\n        con.close()\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "immutable_assignment_fields": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:12Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0925_finance_insurance_en_t3_rl_009",
+  "variant_digest": "sha256:3c122bbfd5f8a4cbac2c0cf34efc26f2953b8694a26500a366bae9bac4e193fb",
+  "variant_harbor_digest": "sha256:98e78ea3cc9f4ebbff06164584a1ebffc27b68eb31843f89d4f0c3aaf64ebb73",
+  "parent": {
+    "digest": "sha256:5fff7246934417dd82704991c7e73ba9d9525bd0b2536d2925be860d72e3133a",
+    "harbor_digest": "sha256:eaffe505b73c6be74ba647c2d2774d9e247dd258f300bb2c853cd642cc700aab",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0925_finance_insurance_en_t3_rl_009/5fff72469344.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:b10cf3195440b300a2921ee4b27f315b5e1674c36b4840aa39b6f84da94ba6c1",
+      "after_sha256": "sha256:dfde2c61422b32d5915c45bdbff986f7359cf8f048de79b9a0330a13e6457a68",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"matched_instruction_partition\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"Does the response identify the complete set of Alvarez client instructions that reconcile as matched, with the correct phase and confirmed specific-lot identity and executed shares for each?\",\n      \"pass_anchor\": \"The complete matched set is six instructions: L01 (Phase 1; FIDLOT-2019-0417-A and FIDLOT-2020-0115-C; 7,000 shares), L03 (Phase 2; FIDLOT-2018-0209-A; 6,500 shares), L04 (Phase 2; FIDLOT-2020-0731-A; 7,000 shares), L06 (Phase 3; FIDLOT-2019-0906-B; 6,000 shares), L07 (Phase 3; FIDLOT-2022-0214-A; 7,000 shares), and L08 (Phase 3; FIDLOT-2023-0502-B; 6,211 shares). Equivalent formatting and comma-separated lot presentation are acceptable.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"pending_and_hold_exceptions\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"Does the response correctly separate pending or held Alvarez instructions, state their operational reasons, and exclude the canceled test order from client execution totals?\",\n      \"pass_anchor\": \"L02 is PENDING because the order remained held while compliance decision was pending; L05 is PENDING because of the temporary company blackout hold. The canceled test order ORD-2025-0909-T01, with its canceled test event, is not a client execution and must not be counted. No other normal Alvarez instruction is pending in the Orion reconciliation set.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"matched_aggregate_shares\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"Does the response report the correct aggregate executed shares for matched settlements only?\",\n      \"pass_anchor\": \"Aggregate executed shares for MATCHED settlements L01, L03, L04, L06, L07, and L08 are 39,711 shares. The two pending instructions contribute zero executed shares.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"matched_aggregate_cash\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"Does the response report the correct matched-settlement gross proceeds and fees, using execution fields rather than planning estimates?\",\n      \"pass_anchor\": \"For the six MATCHED settlements, aggregate executed gross proceeds are $1,249,930.00 and aggregate execution fees are $119.13. Small presentational differences in currency formatting are acceptable, but the amounts must be economically equivalent.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"estimate_variance\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Does the response compare matched actual gross proceeds with the matched orders' planning estimates and give the correct variance direction and amount?\",\n      \"pass_anchor\": \"Matched planning estimates total $1,250,747.62, while matched executed gross proceeds total $1,249,930.00; actual proceeds are $817.62 below estimate (actual minus estimate = -$817.62). The comparison must be limited to matched settlements, not the pending orders or the full schedule.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"archive_follow_up\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Does the response state the operational follow-up needed before the register can be archived as complete?\",\n      \"pass_anchor\": \"The response states that the register remains open until L02's compliance/release hold and L05's company-blackout hold are resolved, with each outcome closed by a documented execution/settlement or a formal deferral/cancellation. Equivalent wording such as resolving the hold, then recording later execution or formal deferral/cancellation is acceptable. The response should also preserve or post the matched broker-confirmation and specific-lot evidence rather than converting planning estimates into fills.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"no_unrequested_mutation\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_no_mutation\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import hashlib\\nfrom pathlib import Path\\n\\n\\ndef check_no_mutation(ws):\\n    \\\"\\\"\\\"Read-only task sanity hook; workspace contents must remain unchanged.\\\"\\\"\\\"\\n    marker = Path(ws) / \\\".task009_readonly_marker\\\"\\n    if marker.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"Unexpected mutation marker created in the workspace.\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"No mutation marker detected.\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "no_unrequested_mutation": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:06Z",
+  "status": "candidate",
+  "evidence": []
+}

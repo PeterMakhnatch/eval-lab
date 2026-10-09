@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0274_accounting_audit_tax_zh_t3_rl_003",
+  "variant_digest": "sha256:1d0388fb2129dce39b9724102986818b2f18e79169e3759299be586559026e84",
+  "variant_harbor_digest": "sha256:49b1848f2a6d06ec09821c1eee9eebe90a814172f66f5f5dd3f53df1dd2356b9",
+  "parent": {
+    "digest": "sha256:208b0b67d3dd65756a06b690d1a5a50fcf3986bda855fae30a67ad6881965700",
+    "harbor_digest": "sha256:781d704f5319a2753aaa7978084507efb0fa4d92608a8142218e5388f37500e2",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0274_accounting_audit_tax_zh_t3_rl_003/208b0b67d3dd.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:b9ba3c07b2e77cb7724cffa45c6606b296e5f7d91fc7ad8b79c3bde0fa3019f6",
+      "after_sha256": "sha256:b90524af44caed7cbb093b3c8fcc692473168f4595dccdaa2ef5f4e27fa1068b",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"replacement_platform_eligibility\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"回答是否明确判断 DreamStation 2 可以在本项目中作为替换或补发设备平台使用？\",\n      \"pass_anchor\": \"必须明确给出肯定结论：DreamStation 2 可作为替换/补发平台使用。依据是备忘录将其描述为不受该泡沫问题影响的平台，并要求在替换与补发链路中单独标识。不能把“可作替换平台”误写成“属于 PE-PUR 受影响设备”。\"\n    },\n    {\n      \"id\": \"affected_population_exclusion\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"回答是否明确判断 DreamStation 2 不应计入 PE-PUR 受影响设备数量？\",\n      \"pass_anchor\": \"必须明确给出排除结论：DreamStation 2 不应计入 PE-PUR 受影响设备数量。真实依据为型号主档 pe_pur_affected_flag=0（语义为不受影响），且备忘录将 DreamStation 第一代列为主要受影响家族、将 DreamStation 2 明确区分为不受该泡沫问题影响的平台。\"\n    },\n    {\n      \"id\": \"closed_denominator_exclusion\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"回答是否明确判断 DreamStation 2 不应进入本项目已结案设备分母？\",\n      \"pass_anchor\": \"必须明确给出排除结论：DreamStation 2 作为替换平台本身不进入 PE-PUR 受影响设备的已结案设备分母；已结案分母应以受影响设备的处置结案为基础，不能把发出的替换平台当成受影响设备结案数量。\"\n    },\n    {\n      \"id\": \"master_data_affected_status\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"回答是否报告了 MasterControl 型号主档中 DreamStation 2 的型号名称及 PE-PUR 受影响状态？\",\n      \"pass_anchor\": \"应报告型号名称为 DreamStation 2，并报告其 PE-PUR 受影响状态为否/不受影响；接受直接写主档值 0，也接受等义自然语言，不要求字段名或固定格式。答案可通过型号主档、主底稿型号映射或其他核验记录呈现该两项值，不因未写出字段名或数据入口而判错。\"\n    },\n    {\n      \"id\": \"master_data_scope_assignment\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"回答是否报告了 MasterControl 型号主档中 DreamStation 2 的范围归属？\",\n      \"pass_anchor\": \"应报告该型号的范围归属是仅替换平台；接受原始主档值 REPLACEMENT_PLATFORM_ONLY，或“仅用于替换平台”“替换平台”“replacement platform only”等等义表述。若答案同时明确 DreamStation 2 不受 PE-PUR 影响且不作为受影响设备/分母独立计入，则“替换平台”即视为仅替换平台，不要求必须出现“仅”字。\"\n    },\n    {\n      \"id\": \"sources_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"sources_unchanged\",\n      \"ground_truth\": {\n        \"memo_sha256\": \"096029d063fd546fad06b9634b284bff12244fb5bd608ce99386e7e72bf29019\",\n        \"model_id\": \"PLATFORM_DREAMSTATION_2\",\n        \"model_name\": \"DreamStation 2\",\n        \"pe_pur_affected_flag\": 0,\n        \"scope_model_set_id\": \"REPLACEMENT_PLATFORM_ONLY\"\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import hashlib\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\nMEMO_PATH = Path(\\\"02_核算底稿/Respironics召回成本会计口径备忘录_2022.docx\\\")\\nMEMO_SHA256 = \\\"096029d063fd546fad06b9634b284bff12244fb5bd608ce99386e7e72bf29019\\\"\\nEXPECTED_MODEL = (\\n    \\\"PLATFORM_DREAMSTATION_2\\\",\\n    \\\"DreamStation 2\\\",\\n    0,\\n    \\\"REPLACEMENT_PLATFORM_ONLY\\\",\\n)\\n\\n\\ndef sources_unchanged(ws):\\n    workspace = Path(ws)\\n    memo = workspace / MEMO_PATH\\n    if not memo.is_file():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"口径备忘录缺失\\\"}\\n    if hashlib.sha256(memo.read_bytes()).hexdigest() != MEMO_SHA256:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"口径备忘录被修改\\\"}\\n\\n    database = workspace.resolve().parent / \\\"system/mastercontrol_recall_qms/state.db\\\"\\n    if not database.is_file():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"MasterControl 数据库缺失\\\"}\\n    with sqlite3.connect(database) as connection:\\n        row = connection.execute(\\n            \\\"\\\"\\\"\\n            SELECT model_id, model_name, pe_pur_affected_flag, scope_model_set_id\\n            FROM model_master\\n            WHERE model_id = ?\\n            \\\"\\\"\\\",\\n            (EXPECTED_MODEL[0],),\\n        ).fetchone()\\n    if row != EXPECTED_MODEL:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"DreamStation 2 型号主档关键数据被修改或删除\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"只读来源保持不变\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "sources_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:59Z",
+  "status": "candidate",
+  "evidence": []
+}

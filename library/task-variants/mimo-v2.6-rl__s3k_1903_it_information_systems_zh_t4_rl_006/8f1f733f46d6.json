@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1903_it_information_systems_zh_t4_rl_006",
+  "variant_digest": "sha256:8f1f733f46d679ed90b1840adb1b16b7e7a160f778285638271606fd2aa64699",
+  "variant_harbor_digest": "sha256:5e0843111c796f598f6396eb93c22282d92a9e20ca47e49d0ba1b5f97571233e",
+  "parent": {
+    "digest": "sha256:960bb847c2cc1eea81f994d3d0326f65f2a9b07ed006b9dca63c1df514520a38",
+    "harbor_digest": "sha256:9650402df9c24e0ed80f68ccd358fa1861fdb3c68086cd97b3d1454f6160f737",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1903_it_information_systems_zh_t4_rl_006/960bb847c2cc.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:9c04c195151154b7428606c8abb938e82f9cec3ab72d0b1daffa19af32ba584b",
+      "after_sha256": "sha256:64995c35abe65cb2837870c1f7e11ab590fd34d3611d5d44d5f0b53cd5589da2",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"confirmation_updated\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_confirmation_updated\",\n      \"ground_truth\": {\n        \"confirmation_id\": \"CNF-CF-006\",\n        \"finding_id\": \"FND-CF-CONTRIB-001\",\n        \"team_id\": \"TEAM-CUSTOMER-SUPPORT\",\n        \"meeting_date\": \"2022-07-12\",\n        \"confirmation_status\": \"confirmed\",\n        \"confirmed_by\": \"non_empty\",\n        \"dissent_text\": null,\n        \"unique_finding_team\": true\n      }\n    },\n    {\n      \"id\": \"evidence_boundary\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确识别了客户可见影响的证据边界，并说明了服务、地域/站点、请求类型、客户错误和下游依赖之间的关系？\",\n      \"pass_anchor\": \"应明确：服务是 Cloudflare 全球网络服务/经边缘路径到达客户业务；地域是 19 个 Multi-Colo PoP（约占网络 4%），但承载并影响约 50% 的全球请求；请求类型至少覆盖 HTTP/HTTPS 及网络可达性；客户可见表现包括连接失败、超时、路由不可达或互联网不可达；下游依赖用于解释远程接入、回退工具、支持信号以及多 CDN、缓存、DNS TTL 等对恢复或体验的影响。应保留边界：没有数据损失，不应推导客户数量、收入损失或 SLA 赔偿，也不应把所有 DNS 请求等同于 HTTP 失败。允许同义改写和合理组织。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"dispute_and_operation_reported\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否同时说明了原客户支持团队争议的原因、数据库中查到的原确认状态，以及完成正式确认后的关键后态和保留范围？\",\n      \"pass_anchor\": \"应识别原确认是客户支持团队在 2022-07-12 的 disputed 记录，争议原因是下游依赖影响尚未由独立证据确认；并说明两份材料补充了相应证据后，将同一既有确认更新为 confirmed，确认人已登记，且没有新增同一 finding/team 的第二条确认。应提到发现正文、证据 claim 和其他团队确认保持不变。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"unmodified_records\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_unmodified_records\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\nTARGET_CONFIRMATION = \\\"CNF-CF-006\\\"\\nTARGET_FINDING = \\\"FND-CF-CONTRIB-001\\\"\\nTARGET_TEAM = \\\"TEAM-CUSTOMER-SUPPORT\\\"\\n\\n\\ndef _db(ws):\\n    ws = Path(ws)\\n    candidates = [\\n        ws / \\\"system\\\" / \\\"postmortem_knowledge_base\\\" / \\\"state.db\\\",\\n        ws.parent / \\\"system\\\" / \\\"postmortem_knowledge_base\\\" / \\\"state.db\\\",\\n    ]\\n    return next((path for path in candidates if path.exists()), candidates[0])\\n\\n\\ndef _row_tuple(row):\\n    return tuple(row) if row is not None else None\\n\\n\\ndef check_confirmation_updated(ws):\\n    path = _db(ws)\\n    if not path.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"postmortem_knowledge_base state.db 不存在\\\"}\\n    with sqlite3.connect(path) as con:\\n        con.row_factory = sqlite3.Row\\n        row = con.execute(\\n            \\\"SELECT confirmation_id, finding_id, team_id, meeting_date, confirmation_status, dissent_text, confirmed_by \\\"\\n            \\\"FROM meeting_confirmation WHERE confirmation_id = ?\\\",\\n            (TARGET_CONFIRMATION,),\\n        ).fetchone()\\n        count = con.execute(\\n            \\\"SELECT COUNT(*) FROM meeting_confirmation WHERE finding_id = ? AND team_id = ?\\\",\\n            (TARGET_FINDING, TARGET_TEAM),\\n        ).fetchone()[0]\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标确认记录不存在\\\"}\\n    expected = (TARGET_CONFIRMATION, TARGET_FINDING, TARGET_TEAM, \\\"2022-07-12\\\", \\\"confirmed\\\", None)\\n    actual = _row_tuple(row)[:6]\\n    if actual != expected:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"目标确认后态不符: {actual!r}\\\"}\\n    if not (row[\\\"confirmed_by\\\"] and str(row[\\\"confirmed_by\\\"]).strip()):\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"confirmed_by 为空\\\"}\\n    if count != 1:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"同一发现/团队确认记录数为 {count}，应为 1\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"目标确认已正式确认、登记确认人且保持唯一\\\"}\\n\\n\\ndef check_unmodified_records(ws):\\n    current = _db(ws)\\n    baseline = current.with_name(\\\"state.db.pinned_backup\\\")\\n    if not current.exists() or not baseline.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"缺少当前库或基线库\\\"}\\n    with sqlite3.connect(current) as now, sqlite3.connect(baseline) as old:\\n        scoped_queries = {\\n            \\\"evidence_source\\\": \\\"SELECT * FROM evidence_source WHERE incident_id = 'INC-CF-20220621' ORDER BY 1\\\",\\n            \\\"evidence_claim\\\": \\\"SELECT * FROM evidence_claim WHERE incident_id = 'INC-CF-20220621' ORDER BY 1\\\",\\n            \\\"postmortem_finding\\\": \\\"SELECT * FROM postmortem_finding WHERE incident_id = 'INC-CF-20220621' ORDER BY 1\\\",\\n        }\\n        for table, query in scoped_queries.items():\\n            current_rows = now.execute(query).fetchall()\\n            baseline_rows = old.execute(query).fetchall()\\n            if current_rows != baseline_rows:\\n                return {\\\"score\\\": 0, \\\"detail\\\": f\\\"{table} 存在非目标变更\\\"}\\n        current_rows = now.execute(\\n            \\\"SELECT m.* FROM meeting_confirmation m JOIN postmortem_finding f ON f.finding_id = m.finding_id \\\"\\n            \\\"WHERE f.incident_id = 'INC-CF-20220621' AND m.confirmation_id <> ? ORDER BY 1\\\",\\n            (TARGET_CONFIRMATION,),\\n        ).fetchall()\\n        baseline_rows = old.execute(\\n            \\\"SELECT m.* FROM meeting_confirmation m JOIN postmortem_finding f ON f.finding_id = m.finding_id \\\"\\n            \\\"WHERE f.incident_id = 'INC-CF-20220621' AND m.confirmation_id <> ? ORDER BY 1\\\",\\n            (TARGET_CONFIRMATION,),\\n        ).fetchall()\\n        if current_rows != baseline_rows:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"其他团队确认或其他确认记录被修改\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"证据、发现和其他确认记录均保持不变\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "unmodified_records": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:14Z",
+  "status": "candidate",
+  "evidence": []
+}

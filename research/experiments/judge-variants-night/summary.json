@@ -1,0 +1,47 @@
+{
+  "evidence_tier": "MEASURED",
+  "command": "uv run python research/experiments/judge-variants-night/summarize.py",
+  "counts": {
+    "general_final_packages": 925,
+    "webdev_final_packages": 2093,
+    "decisions": {
+      "candidate-judge-validation-required": 921,
+      "quarantine-rule-runtime": 4,
+      "staged-version-aware-judge-required": 2093
+    }
+  },
+  "general": {
+    "rule_atoms": 688,
+    "rule_tasks": 230,
+    "no_rule_tasks": 695,
+    "g2_references_tasks": 50,
+    "g2_floor_changed_tasks": 27,
+    "g3_tasks": 197,
+    "zeroed_rule_atoms": 269,
+    "remaining_post_rule_error_atoms": 7,
+    "floors": {
+      "floor_pre": {
+        "positive_tasks": 176,
+        "mean_all_925": 0.04816356756756757,
+        "max": 0.6
+      },
+      "floor_g2": {
+        "positive_tasks": 197,
+        "mean_all_925": 0.05401394594594595,
+        "max": 0.6
+      },
+      "floor_g3": {
+        "positive_tasks": 0,
+        "mean_all_925": 0.0,
+        "max": 0.0
+      }
+    },
+    "limit": "Rule-only pristine-state lower bound with text-judge scores fixed to zero; not an observed full nop reward. Remaining rule runtime failures are quarantined, not claimed fixed."
+  },
+  "webdev": {
+    "long_briefs_fixed": 632,
+    "max_query_chars": 12173,
+    "oracle_validation": "staged; no shipped oracle",
+    "judge_validation": "staged; no paid calls"
+  }
+}

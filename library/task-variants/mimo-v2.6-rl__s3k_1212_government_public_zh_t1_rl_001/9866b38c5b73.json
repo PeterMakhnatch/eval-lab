@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1212_government_public_zh_t1_rl_001",
+  "variant_digest": "sha256:9866b38c5b73094ab2097cefad7dbd776d2f287be8f9b105ddc617c706a53f44",
+  "variant_harbor_digest": "sha256:54b72442d540e6c1aeb10eaece1f6ecfb4b0e4ab9bcd9d044075c433b2a6ff85",
+  "parent": {
+    "digest": "sha256:c0cb1b5d673039cce0574e19f181748a5a1cc598daa94300947953aa207a79c6",
+    "harbor_digest": "sha256:c86afba1dda3a6af9d30411ef86759132d669f0f85a5bf3fb17130058a8c113c",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1212_government_public_zh_t1_rl_001/c0cb1b5d6730.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:7b3ff9fe22022c0d696c6119e7c5a675b7e47fb893fb13cdcf89c59eed73a64b",
+      "after_sha256": "sha256:b37a740994578419ce72e3c83ceda65a6171cc781de815a384a49031aec1eb2a",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"workspace_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"workspace_unchanged\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"allocation_flow\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否识别出办公用房调配管理的完整六个连续环节，并保持规范规定的先后顺序？\",\n      \"pass_anchor\": \"应按顺序给出且不得缺项或换序：受理登记 → 核实情况 → 制定方案 → 审批 → 实施调配 → 信息管理。允许使用箭头、编号或自然语言表达顺序，但把维修、验收、归档等插入为调配基本流程环节不通过。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"handover_action\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否识别出权属登记资料交接的现场办理动作？\",\n      \"pass_anchor\": \"必须同时明确：机关事务主管部门与使用单位双方当面清点权属登记资料；填写权属登记资料交接清单。仅说核对、移交或留档而未体现当面清点和填写清单，不通过。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"document_form_fields\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否识别出交接清单中用于辨识资料及其载体形态的字段？\",\n      \"pass_anchor\": \"必须包含资料名称，以及是否为原件、是否为复印件的信息。可合并表述为“原件/复印件属性或勾选项”，不要求固定措辞。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"quantity_remark_fields\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否识别出交接清单的数量与补充说明字段？\",\n      \"pass_anchor\": \"必须同时包含数量和备注。近义表述如件数、份数、补充说明可接受。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"party_signoff\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否识别出交接双方及签认要求？\",\n      \"pass_anchor\": \"必须体现移交方和接收方两方，并由双方人员签字确认；若进一步写明移交单位、接收单位盖章，与附录格式一致。只写单方签字、负责人审批或笼统“相关人员签字”不通过。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"contact_time_fields\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否识别出签认区还需留存的联系和时间信息？\",\n      \"pass_anchor\": \"必须同时包含移交人联系电话、接收人联系电话和移交时间（交接时间）。可概括为双方联系方式加交接日期/时间。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"scope_boundary\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确区分重庆标准的直接适用对象与本项目现场核查的借鉴用途？\",\n      \"pass_anchor\": \"应指出DB50/T 1018—2020第7.1.7及附录A直接规范的是办公业务用房权属登记资料交接；可将其字段和签认机制作为中环大厦设施或权属资料交接清单的最低核查基线，但不能声称该标准本身直接规定了设备搬迁验收或一般设施验收。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    }\n  ],\n  \"check_code\": \"from __future__ import annotations\\n\\nimport hashlib\\nfrom pathlib import Path\\n\\n\\nEXPECTED_FILES = {\\n    \\\"01_原始台账/BJJQ-2025-233指挥中心设备搬迁明细.csv\\\": \\\"01f6bedc8a06c158c1fa1de2993daae584077671a57e2b265cb148fcc3a0bd48\\\",\\n    \\\"01_原始台账/beijing_chengguan_command_center_relocation_tender_2025.pdf\\\": \\\"cb6b957340f53f1e4e0608a6d9d1480f9dd123ca6760db293148a3933cd7fe21\\\",\\n    \\\"01_原始台账/chongqing_party_government_office_property_management_DB50T_1018_2020.pdf\\\": \\\"0375e00610c9ca506eb6674bdc3b81118b6cee5c400776622dda1458a5d9b1c1\\\",\\n    \\\"01_原始台账/wuhan_university_of_technology_office_furniture_relocation_tender_2024.pdf\\\": \\\"e4958e5605794184160043a90bdd6d69e14ce9d29870bbebc643a5c7ca9a5411\\\",\\n    \\\"01_原始台账/zhejiang_party_government_office_allocation_standard_TZJJGSW_0002_2023.pdf\\\": \\\"d0f4cdaa9ad376171fd23256cc792b612c20b80a121573771656ea0f6a6c658c\\\",\\n    \\\"02_搬迁计划/BJJQ-2025-233指挥中心分批搬迁计划及设施交接台账.xlsx\\\": \\\"182f3ac38bf870c3488220056aad0a1b0cfeafb229ad0def7c92625fa9282bfb\\\",\\n    \\\"03_交接验收/BJJQ-2025-233指挥中心搬迁实施及交接验收报告.docx\\\": \\\"2e1821eb06c05b54b4add5781306e7845c1adce69a08af9ab73bedf59abf64d0\\\",\\n}\\n\\n\\ndef _sha256(path: Path) -> str:\\n    digest = hashlib.sha256()\\n    with path.open(\\\"rb\\\") as handle:\\n        for chunk in iter(lambda: handle.read(1024 * 1024), b\\\"\\\"):\\n            digest.update(chunk)\\n    return digest.hexdigest()\\n\\n\\ndef workspace_unchanged(ws):\\n    root = Path(ws)\\n    grading_response_name = \\\"answer\\\" + \\\".md\\\"\\n    actual_files = {\\n        path.relative_to(root).as_posix()\\n        for path in root.rglob(\\\"*\\\")\\n        if path.is_file() and path.name != grading_response_name\\n    }\\n    expected_files = set(EXPECTED_FILES)\\n    if actual_files != expected_files:\\n        missing = sorted(expected_files - actual_files)\\n        extra = sorted(actual_files - expected_files)\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"工作区文件集合变化；缺失={missing}，新增={extra}\\\"}\\n\\n    changed = [\\n        relative_path\\n        for relative_path, expected_hash in EXPECTED_FILES.items()\\n        if _sha256(root / relative_path) != expected_hash\\n    ]\\n    if changed:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"工作区文件内容被修改：{changed}\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"除评分回复文件外，工作区文件集合与内容均未变化\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "workspace_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:08Z",
+  "status": "candidate",
+  "evidence": []
+}

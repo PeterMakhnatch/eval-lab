@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0753_energy_utilities_esg_zh_t1_rl_006",
+  "variant_digest": "sha256:ffefce8efadec2fe486f63b6994aec8f37159dfbb3243f259fccfb32e5c299f3",
+  "variant_harbor_digest": "sha256:20778c44d46357ddb7ea1aeca5e8924b366d66df5890a02b5c88f27074c3a4ac",
+  "parent": {
+    "digest": "sha256:f0e6f47ce80fddf8c93aa1fd2a7f1074164a802f6c2cc27a40e058e178a958fe",
+    "harbor_digest": "sha256:e2117a3f143a7d0628cbfd6ce036bb701ba4a4e40df33658264bfc6fb6e8e261",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0753_energy_utilities_esg_zh_t1_rl_006/f0e6f47ce80f.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:0d3071dbd2503c206b905f810cdc2b9c752165941ab6cd54c194e109e8469b4a",
+      "after_sha256": "sha256:eba6c6f26aac52ef941790e4c3654e2b975d9b60e9947bba91a56612261c8119",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_workflow_corrected\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_workflow_corrected\",\n      \"description\": \"旧版 North Sea 审批记录被更正为技术审阅完成、委员会待决，且仍保持模型筛查性质。\",\n      \"ground_truth\": {\n        \"approval_id\": \"APV-2024-NS-011\",\n        \"review_status\": \"Reviewed\",\n        \"committee_decision\": \"Pending\",\n        \"decision_date\": null,\n        \"conclusion_type\": \"MODEL_SCREENING_ONLY\",\n        \"old_updated_at\": \"2025-01-10T17:20:00Z\"\n      }\n    },\n    {\n      \"id\": \"approval_track_identification\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否准确识别了应更正的旧版审批记录，并清楚区分 North Sea 的旧版与较新版审批轨迹？\",\n      \"pass_anchor\": \"真实数据锚点：应更正的是 APV-2024-NS-011，对应模型 VALMOD_IAS36_4.8.1、参数 PAR_WEO24_APS_V6，原技术审阅状态误用 Approved，但委员会决定仍为 Pending、决定日期为空。另一条 APV-2024-NS-017 对应较新的 VALMOD_IAS36_4.8.2 / PAR_WEO24_APS_V7，当前为 InReview / Pending，不能被当作旧版错录行修改。允许用中文自然语言解释状态，但记录号和版本对应关系必须正确。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"aps_measurement_recompute\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否从 North Sea 的 APS 冻结计量中正确给出账面金额、VIU、FVLCD、可收回金额和筛查缺口？\",\n      \"pass_anchor\": \"真实数据锚点：CGU_NS_MATURE 的 SCN_APS 冻结计量中，账面金额为 4,200 百万美元，VIU 为 3,679 百万美元，FVLCD 为 3,610 百万美元；IAS 36 可收回金额取两者较高的 3,679 百万美元，因此模型筛查缺口为 521 百万美元。金额格式可等价，但五个数值及 VIU 为选定基础的关系必须正确。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"governance_boundary\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否准确说明技术审阅完成、委员会批准和正式减值确认之间的治理边界，并报告实际更正？\",\n      \"pass_anchor\": \"真实数据锚点：备忘录说明编制及各专业复核完成，但正式减值结论仍须 Shell plc 资产评估委员会批准；模型缺口只是治理筛查结果，不等于未经预算一致性、储量核证、税务和处置价值治理程序直接入账的减值。答案应报告 APV-2024-NS-011 已由 Approved 更正为 Reviewed，同时委员会仍为 Pending、决定日期仍为空、结论仍为 MODEL_SCREENING_ONLY；不得声称委员会已批准或 521 百万美元已确认入账。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"unrelated_records_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_unrelated_records_preserved\",\n      \"description\": \"除目标记录的技术审阅状态和更新时间外，审批轨迹及关联 CGU、估值计量均保持原样。\",\n      \"ground_truth\": {\n        \"target_approval_id\": \"APV-2024-NS-011\",\n        \"allowed_changed_fields\": [\n          \"review_status\",\n          \"updated_at\"\n        ]\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\nSYSTEM = \\\"shell_asset_valuation_workbench\\\"\\nTARGET = \\\"APV-2024-NS-011\\\"\\nOLD_UPDATED_AT = \\\"2025-01-10T17:20:00Z\\\"\\n\\n\\ndef _root(ws):\\n    return Path(ws).resolve().parent\\n\\n\\ndef _db_path(ws):\\n    return _root(ws) / \\\"system\\\" / SYSTEM / \\\"state.db\\\"\\n\\n\\ndef _backup_path(ws):\\n    return _root(ws) / \\\"system\\\" / SYSTEM / \\\"state.db.pinned_backup\\\"\\n\\n\\ndef _rows(path, query, params=()):\\n    connection = sqlite3.connect(path)\\n    connection.row_factory = sqlite3.Row\\n    try:\\n        return [dict(row) for row in connection.execute(query, params).fetchall()]\\n    finally:\\n        connection.close()\\n\\n\\ndef check_target_workflow_corrected(ws):\\n    try:\\n        rows = _rows(\\n            _db_path(ws),\\n            \\\"SELECT review_status, committee_decision, decision_date, conclusion_type, updated_at \\\"\\n            \\\"FROM valuation_approval_log WHERE approval_id = ?\\\",\\n            (TARGET,),\\n        )\\n    except Exception as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"无法读取目标审批记录: {exc}\\\"}\\n    if len(rows) != 1:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"目标审批记录数={len(rows)}，应为1\\\"}\\n    row = rows[0]\\n    expected = {\\n        \\\"review_status\\\": \\\"Reviewed\\\",\\n        \\\"committee_decision\\\": \\\"Pending\\\",\\n        \\\"decision_date\\\": None,\\n        \\\"conclusion_type\\\": \\\"MODEL_SCREENING_ONLY\\\",\\n    }\\n    mismatches = [key for key, value in expected.items() if row.get(key) != value]\\n    if mismatches:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"目标工作流字段不符: {mismatches}; current={row}\\\"}\\n    if row[\\\"updated_at\\\"] == OLD_UPDATED_AT:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标记录更新时间未变化，未完成受控更新\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"目标记录已更正为 Reviewed/Pending，决定日期为空且保持模型筛查性质\\\"}\\n\\n\\ndef check_unrelated_records_preserved(ws):\\n    current_path = _db_path(ws)\\n    backup_path = _backup_path(ws)\\n    if not backup_path.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"缺少固定基线数据库，无法核验未涉及记录\\\"}\\n    try:\\n        baseline_approvals = {\\n            row[\\\"approval_id\\\"]: row\\n            for row in _rows(backup_path, \\\"SELECT * FROM valuation_approval_log\\\")\\n        }\\n        current_approvals = {\\n            row[\\\"approval_id\\\"]: row\\n            for row in _rows(current_path, \\\"SELECT * FROM valuation_approval_log\\\")\\n        }\\n        if set(current_approvals) != set(baseline_approvals):\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"审批记录被新增或删除\\\"}\\n        for approval_id, baseline in baseline_approvals.items():\\n            current = current_approvals[approval_id]\\n            if approval_id == TARGET:\\n                for field, value in baseline.items():\\n                    if field in {\\\"review_status\\\", \\\"updated_at\\\"}:\\n                        continue\\n                    if current.get(field) != value:\\n                        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"目标记录非许可字段被修改: {field}\\\"}\\n            elif current != baseline:\\n                return {\\\"score\\\": 0, \\\"detail\\\": f\\\"非目标审批记录被修改: {approval_id}\\\"}\\n        for table in (\\\"cgu_master\\\", \\\"valuation_measurement_detail\\\"):\\n            baseline = _rows(backup_path, f\\\"SELECT * FROM {table} ORDER BY 1\\\")\\n            current = _rows(current_path, f\\\"SELECT * FROM {table} ORDER BY 1\\\")\\n            if current != baseline:\\n                return {\\\"score\\\": 0, \\\"detail\\\": f\\\"关联基础数据被修改: {table}\\\"}\\n    except Exception as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"未涉及记录核验失败: {exc}\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"仅目标记录的技术审阅状态与更新时间发生变化\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "unrelated_records_preserved": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:04Z",
+  "status": "candidate",
+  "evidence": []
+}

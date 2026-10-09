@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0543_consulting_bizops_analytics_zh_t3_rl_005",
+  "variant_digest": "sha256:b0607256c0d6b4b0b4e66c2d58706f2b47ba7a8aa257710a3986b622b9a8cbb0",
+  "variant_harbor_digest": "sha256:aa7018d7ab878db1640a6904536ce2bbabc547fbc9aac664cb222b524fc45d32",
+  "parent": {
+    "digest": "sha256:6b976216342a1a93b1f8f094bb3c7bdb7902a0f3c0487f84604bc10f6105222b",
+    "harbor_digest": "sha256:53eda0cb3fd6ddd7a6f66b951ab9f1555ba93b35a7d3f3d0fb266d5989c0881d",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0543_consulting_bizops_analytics_zh_t3_rl_005/6b976216342a.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:36d246bbe36ab6daf2204544f780f271a41f813f2dd7b4ff04a1e3c5ba0a1699",
+      "after_sha256": "sha256:5afb76ba7755b26a1bd7cbf08962d5b9fa0fe7a1bf25cdea31f4a1ae7a146689",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"poststate_application_failed\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_application_failed\",\n      \"description\": \"ServiceNow 为 AC-24-021 的 APPLIED_WITH_EVIDENCE 写入当前版本 Failed，并引用 ER-2024-021，整体状态为 Open。\"\n    },\n    {\n      \"id\": \"history_and_evidence_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_history_preserved\",\n      \"description\": \"既有测试历史及 OpenText 正式证据记录未被删除或改写。\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"llm_gate_reasoning\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确解释 AC-24-021 的人工 Accepted 摘要为什么不能构成验收通过，并识别应用验证是验收硬门槛之一？\",\n      \"pass_anchor\": \"应以语义等价方式说明：人工 Accepted 摘要早于或不能替代 APPLIED_WITH_EVIDENCE 的实际测试，因此不能据此认定通过；并指出应用验证 APPLIED_WITH_EVIDENCE 是四项硬门槛之一（四项为 CAPTURED、LOCATABLE、UNDERSTOOD、APPLIED_WITH_EVIDENCE，列出全部或明确其硬门槛属性均可）。不要求逐字复述 manual_status_note；可同时说明 EVIDENCE_ARCHIVED 是额外归档条件且元数据上不是 hard gate。\"\n    },\n    {\n      \"id\": \"llm_cross_system_evidence\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否给出并正确解释 KD-2024-021 与正式证据记录的跨系统对应关系及关键状态？\",\n      \"pass_anchor\": \"应识别 ServiceNow 控制 AC-24-021 的 dependency_id 为 KD-2024-021，并在 OpenText 找到 evidence_record_id ER-2024-021。该记录 evidence_title 为 Contingency reserve drawdown rationale，record_status 为 Pending Supplement，missing_component_codes 为 RESOLUTION_EVIDENCE；它是本次应引用的正式证据记录。\"\n    },\n    {\n      \"id\": \"llm_history_and_recompute\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否报告既有历史被保留、补录的应用验证失败测试及重算后的业务结论？\",\n      \"pass_anchor\": \"应说明既有 ServiceNow 测试历史未被删除、改写或覆盖（至少应让读者知道原有 Pending/CR-001 记录仍保留，原引用或其历史身份可作为佐证）；新补录应针对 AC-24-021 的应用验证 APPLIED_WITH_EVIDENCE（CR-004），结果 Failed，并引用正式证据 ER-2024-021；还应报告重算后的整体状态为 Open 而非 Accepted。无需逐项复述旧记录的每个内部字段、时间戳或新测试 ID。\"\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport sqlite3\\n\\n\\ndef _db(ws, system):\\n    candidates = [Path(ws).parent / \\\"system\\\" / system / \\\"state.db\\\", Path.cwd() / \\\"system\\\" / system / \\\"state.db\\\"]\\n    for path in candidates:\\n        if path.exists():\\n            return path\\n    raise FileNotFoundError(system)\\n\\n\\ndef check_application_failed(ws):\\n    con = sqlite3.connect(_db(ws, \\\"servicenow_acceptance_controls\\\"))\\n    con.row_factory = sqlite3.Row\\n    try:\\n        rows = con.execute(\\n            \\\"\\\"\\\"SELECT tr.test_status, tr.evidence_record_id, tr.result_version,\\n                      tr.is_current, tr.tested_criteria\\n               FROM control_test_results tr\\n               WHERE tr.control_id='AC-24-021' AND tr.criterion_id='CR-004'\\n                 AND tr.is_current=1\\\"\\\"\\\"\\n        ).fetchall()\\n        control = con.execute(\\n            \\\"SELECT overall_status FROM acceptance_controls WHERE control_id='AC-24-021'\\\"\\n        ).fetchone()\\n        ok = (\\n            len(rows) == 1\\n            and rows[0][\\\"test_status\\\"] == \\\"Failed\\\"\\n            and rows[0][\\\"evidence_record_id\\\"] == \\\"ER-2024-021\\\"\\n            and rows[0][\\\"result_version\\\"] == 1\\n            and rows[0][\\\"is_current\\\"] == 1\\n            and \\\"APPLIED_WITH_EVIDENCE\\\" in (rows[0][\\\"tested_criteria\\\"] or \\\"\\\").split(\\\",\\\")\\n            and control is not None\\n            and control[\\\"overall_status\\\"] == \\\"Open\\\"\\n        )\\n        return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"current CR-004 test and Open recomputed status verified\\\" if ok else \\\"missing required current failed test or Open status\\\"}\\n    finally:\\n        con.close()\\n\\n\\ndef check_history_preserved(ws):\\n    sn = sqlite3.connect(_db(ws, \\\"servicenow_acceptance_controls\\\"))\\n    ot = sqlite3.connect(_db(ws, \\\"opentext_evidence_archive\\\"))\\n    sn.row_factory = ot.row_factory = sqlite3.Row\\n    try:\\n        old = sn.execute(\\n            \\\"SELECT * FROM control_test_results WHERE test_result_id='TR-24-021'\\\"\\n        ).fetchone()\\n        evidence = ot.execute(\\n            \\\"SELECT * FROM evidence_records WHERE evidence_record_id='ER-2024-021'\\\"\\n        ).fetchone()\\n        old_ok = old is not None and tuple(old) == (\\n            \\\"TR-24-021\\\", \\\"AC-24-021\\\", \\\"CR-001\\\", \\\"Pending\\\",\\n            \\\"2024-03-18T11:42:00Z\\\", \\\"PERSON_JANICE_ROMANIN\\\", \\\"EV-2024-021\\\",\\n            1, 1, \\\"CAPTURED,LOCATABLE,UNDERSTOOD\\\"\\n        )\\n        evidence_ok = evidence is not None and evidence[\\\"dependency_id\\\"] == \\\"DEP-KC-021\\\" and evidence[\\\"record_status\\\"] == \\\"Pending Supplement\\\" and evidence[\\\"missing_component_codes\\\"] == \\\"RESOLUTION_EVIDENCE\\\"\\n        ok = old_ok and evidence_ok\\n        return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"legacy test and evidence record preserved\\\" if ok else \\\"legacy test or evidence record changed\\\"}\\n    finally:\\n        sn.close()\\n        ot.close()\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "history_and_evidence_preserved": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:02Z",
+  "status": "candidate",
+  "evidence": []
+}

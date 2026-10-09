@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1698_hr_people_zh_t2_rl_004",
+  "variant_digest": "sha256:8abd953075307ed577cce8c4ad0cbb948e7d1a6d1f729edec5f080e22fe31044",
+  "variant_harbor_digest": "sha256:0f13ab1320d0805800ac4af2722e694eb5576131e908b342cc7205e0240713a0",
+  "parent": {
+    "digest": "sha256:788766db9abd161f6dd2a1a0f0f6c15d0d61eda02d42e105e616ed991be05295",
+    "harbor_digest": "sha256:527b7bddd1b508072e56454864bd75903f7115bbafb1e1c079344764aeb86c3a",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1698_hr_people_zh_t2_rl_004/788766db9abd.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:e60eca738a9a6e957a431fb4671b0cc9c1d1c326b57c8921d2cb32eda82239a9",
+      "after_sha256": "sha256:0fbedb625e7286d3f9c7e1f62a241ffe5c4b2ba9e0d810a661fc55d0d175beec",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"published_statutory_snapshot\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_published_snapshot\",\n      \"ground_truth\": {\n        \"filing_period_id\": \"FP-BOE-2324-APR\",\n        \"version_status\": \"PUBLISHED\",\n        \"subject_org_id\": \"ORG-BOE-001\",\n        \"metrics\": {\n          \"MEDIAN_HOURLY_PAY_GAP\": 18.2,\n          \"MEAN_HOURLY_PAY_GAP\": 17.6,\n          \"MEDIAN_BONUS_PAY_GAP\": 18.3,\n          \"MEAN_BONUS_PAY_GAP\": 18.5,\n          \"BONUS_RECEIPT_FEMALE\": 90.6,\n          \"BONUS_RECEIPT_MALE\": 92.1,\n          \"UPPER_QUARTILE_FEMALE\": 35.0,\n          \"UPPER_QUARTILE_MALE\": 65.0,\n          \"LOWER_QUARTILE_FEMALE\": 61.0,\n          \"LOWER_QUARTILE_MALE\": 39.0\n        },\n        \"tolerance_percent_points\": 0.02\n      }\n    },\n    {\n      \"id\": \"hourly_recompute_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否给出了题面要求的小时薪酬复算结论？\",\n      \"pass_anchor\": \"只要最终回复明确写出：FP-BOE-2324-APR（或 PERIOD-2023-2024）、全薪相关人口、男性为分母的差距公式、小时薪酬中位数差距18.2%及平均差距17.6%，即可通过；不要求任何额外换算或固定措辞。\"\n    },\n    {\n      \"id\": \"bonus_recompute_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否准确给出了法定奖金复算的四个关键结论：奖金中位数差距、奖金平均差距、女性获奖金比例和男性获奖金比例？\",\n      \"pass_anchor\": \"目标值分别为奖金中位数差距18.3%、奖金平均差距18.5%、女性获奖金比例90.6%、男性获奖金比例92.1%；应体现奖金使用法定奖金相关队列，允许合理的小数位和文字表述差异。\"\n    },\n    {\n      \"id\": \"quartile_recompute_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否准确给出了最高薪酬四分位和最低薪酬四分位的男女占比，并说明四分位按法定排序/同薪边界规则处理？\",\n      \"pass_anchor\": \"目标值为最高薪酬四分位女性35.0%、男性65.0%；最低薪酬四分位女性61.0%、男性39.0%。应说明采用全薪相关人口按小时薪酬排序并遵循英国政府同薪边界处理；允许合理的小数位和文字表述差异。\"\n    },\n    {\n      \"id\": \"legacy_records_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_legacy_records_unchanged\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\nPERIOD = \\\"FP-BOE-2324-APR\\\"\\nEXPECTED = {\\\"MEDIAN_HOURLY_PAY_GAP\\\": 18.2, \\\"MEAN_HOURLY_PAY_GAP\\\": 17.6, \\\"MEDIAN_BONUS_PAY_GAP\\\": 18.3, \\\"MEAN_BONUS_PAY_GAP\\\": 18.5, \\\"BONUS_RECEIPT_FEMALE\\\": 90.6, \\\"BONUS_RECEIPT_MALE\\\": 92.1, \\\"UPPER_QUARTILE_FEMALE\\\": 35.0, \\\"UPPER_QUARTILE_MALE\\\": 65.0, \\\"LOWER_QUARTILE_FEMALE\\\": 61.0, \\\"LOWER_QUARTILE_MALE\\\": 39.0}\\n\\ndef _db(ws):\\n    return sqlite3.connect(Path(ws).parent / \\\"system\\\" / \\\"ciphr_pay_gap\\\" / \\\"state.db\\\")\\n\\ndef check_published_snapshot(ws):\\n    con = _db(ws); con.row_factory = sqlite3.Row\\n    try:\\n        rows = con.execute(\\\"SELECT calculated_at, metric_code, metric_value_percent, subject_org_id FROM metric_snapshot WHERE filing_period_id = ? AND version_status = 'PUBLISHED' ORDER BY calculated_at\\\", (PERIOD,)).fetchall()\\n        groups = {}\\n        for row in rows: groups.setdefault(row[\\\"calculated_at\\\"], []).append(row)\\n        for calculated_at, group in groups.items():\\n            values = {row[\\\"metric_code\\\"]: row[\\\"metric_value_percent\\\"] for row in group}\\n            if not set(EXPECTED).issubset(values): continue\\n            if any(row[\\\"subject_org_id\\\"] != \\\"ORG-BOE-001\\\" for row in group): continue\\n            if all(abs(values[code] - expected) <= 0.02 for code, expected in EXPECTED.items()): return {\\\"score\\\": 1, \\\"detail\\\": f\\\"10项法定指标均已在同一版PUBLISHED快照中正确发布（{calculated_at}）。\\\"}\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"未找到包含全部10项目标值的新增PUBLISHED快照。\\\"}\\n    finally: con.close()\\n\\ndef check_legacy_records_unchanged(ws):\\n    con = _db(ws); con.row_factory = sqlite3.Row\\n    try:\\n        expected = {\\\"MS-BOE-2324-071\\\": (\\\"MEDIAN_HOURLY_PAY_GAP\\\", 18.2, \\\"PUBLISHED\\\", \\\"ORG-BOE-001\\\", \\\"PLATFORM-GPGS-001\\\"), \\\"MS-BOE-2324-066\\\": (\\\"MEDIAN_HOURLY_PAY_GAP\\\", 19.1, \\\"DRAFT\\\", \\\"ORG-BOE-001\\\", \\\"PLATFORM-GPGS-001\\\")}\\n        for snapshot_id, target in expected.items():\\n            row = con.execute(\\\"SELECT metric_code, metric_value_percent, version_status, subject_org_id, comparison_org_id FROM metric_snapshot WHERE metric_snapshot_id = ?\\\", (snapshot_id,)).fetchone()\\n            if row is None or tuple(row) != target: return {\\\"score\\\": 0, \\\"detail\\\": f\\\"历史快照 {snapshot_id} 被修改或删除。\\\"}\\n        period = con.execute(\\\"SELECT filing_status, formula_code, tie_boundary_rule FROM filing_period WHERE filing_period_id = ?\\\", (PERIOD,)).fetchone()\\n        if tuple(period) != (\\\"PUBLISHED\\\", \\\"UK_GPG_2017_MEAN_MEDIAN\\\", \\\"GOVUK_PROPORTIONAL_TIE_SPLIT\\\"): return {\\\"score\\\": 0, \\\"detail\\\": \\\"已发布申报期间的控制属性被修改。\\\"}\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"历史正式值、草稿值及申报期间控制属性保持不变。\\\"}\\n    finally: con.close()\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "legacy_records_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:12Z",
+  "status": "candidate",
+  "evidence": []
+}

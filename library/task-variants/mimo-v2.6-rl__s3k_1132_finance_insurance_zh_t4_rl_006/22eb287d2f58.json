@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1132_finance_insurance_zh_t4_rl_006",
+  "variant_digest": "sha256:22eb287d2f58e0b44de0d572d8a4ec53a73996e223f6fccb6a60a5225dd3a456",
+  "variant_harbor_digest": "sha256:51a771cdae0876322f05de4aa6e3ad303d174ba3be9273a4bc375858b628891d",
+  "parent": {
+    "digest": "sha256:c175243d870ba1932fcbe0dac80aac0be49bdca31b4b802175a56a2a6a67d11d",
+    "harbor_digest": "sha256:3e5519c536510bb29a398b1bf94057a1038b35b17e54d7d9488cc54401095b47",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1132_finance_insurance_zh_t4_rl_006/c175243d870b.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:79ec3b3df7aff2e3818f0eca0cefef5be989ec6c1dcf71ed5dcbf58bf4e9dea4",
+      "after_sha256": "sha256:d9e153bcfdbfb2d3b56c0799a8752141faccfadf55f98320430959095e92dcf5",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"reconciliation_post_state\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_reconciliation_post_state\",\n      \"ground_truth\": {\n        \"recon_item_id\": \"RI-20250831-000884\",\n        \"recon_status\": \"EXCEPTION\",\n        \"difference_yuan\": 0,\n        \"reason_contains\": [\n          \"PO-20250903-CL936-001\",\n          \"PAY-CLM-202508-01938\",\n          \"CMB202509041430778191\"\n        ]\n      }\n    },\n    {\n      \"id\": \"deduplicated_net_settlement\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否按同一银行流水去重并正确算出该支付指令的实际净到账金额？\",\n      \"pass_anchor\": \"真实 pingan_payment_ops 数据中，支付指令 PO-20250903-CL936-001 的两条已发布 SETTLED 回执均为320000元，但两次尝试 PATT-20250904-948117 与 PATT-20250905-948366 共用 bank_trace_no=CMB202509041430778191；按银行流水去重后只保留一笔有效到账，deduplicated net settlement=320000元，不能算成640000元。\"\n    },\n    {\n      \"id\": \"attempt_and_receipt_chain\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否识别出超时尝试、成功重试和两条回执属于同一银行流水链，而不是两笔独立赔款？\",\n      \"pass_anchor\": \"答案需说明首次尝试因银行接口超时、后续尝试成功，二者共用银行流水 CMB202509041430778191；并说明两次均对应320000元的已入账/已结算回执（可用等义措辞，不要求逐字写出事件编号或 POSTED/SETTLED 状态），将后续重试解释为同一笔到账的重复回执而非两笔付款。\"\n    },\n    {\n      \"id\": \"accounting_cross_reconciliation\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否正确交叉核对账务侧支付指令、已过账金额与零金额差，并指出来源指令号不一致？\",\n      \"pass_anchor\": \"答案需交叉核对账务侧支付指令 PAY-CLM-202508-01938 与支付系统指令 PO-20250903-CL936-001，明确二者是不同系统的来源映射（不要求固定使用“不是同一指令号”的措辞）；说明关联凭证已过账（凭证 ID 或凭证号均可）、银行金额和总账已过账金额均为320000元且差额为0，并据此登记来源映射导致的受控差异。\"\n    },\n    {\n      \"id\": \"untouched_reconciliation_rows\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_other_reconciliation_rows_untouched\",\n      \"ground_truth\": {\n        \"row_count\": 145,\n        \"target_id\": \"RI-20250831-000884\",\n        \"protected_ids\": [\n          \"RI-20250902-000091\",\n          \"RI-20250902-MIG-004\",\n          \"RI-20250527-583912\"\n        ],\n        \"protected_states\": {\n          \"RI-20250902-000091\": [\n            \"EXCEPTION\",\n            -500\n          ],\n          \"RI-20250902-MIG-004\": [\n            \"MIGRATED\",\n            4860\n          ],\n          \"RI-20250527-583912\": [\n            \"EXCEPTION\",\n            1200\n          ]\n        }\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport sqlite3\\n\\n\\nTARGET = \\\"RI-20250831-000884\\\"\\nPAYMENT_ORDER = \\\"PO-20250903-CL936-001\\\"\\nLEDGER_ORDER = \\\"PAY-CLM-202508-01938\\\"\\nBANK_TRACE = \\\"CMB202509041430778191\\\"\\n\\n\\ndef _db(workspace):\\n    root = Path(workspace).resolve()\\n    candidates = [root.parent / \\\"system\\\" / \\\"yonyou_claim_accounting\\\" / \\\"state.db\\\", root / \\\"system\\\" / \\\"yonyou_claim_accounting\\\" / \\\"state.db\\\"]\\n    for path in candidates:\\n        if path.exists():\\n            return path\\n    raise FileNotFoundError(\\\"找不到 yonyou_claim_accounting/state.db\\\")\\n\\n\\ndef check_reconciliation_post_state(workspace):\\n    with sqlite3.connect(_db(workspace)) as con:\\n        con.row_factory = sqlite3.Row\\n        row = con.execute(\\\"SELECT recon_status, difference_yuan, difference_reason FROM reconciliation_items WHERE recon_item_id = ?\\\", (TARGET,)).fetchone()\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标对账项不存在\\\"}\\n    reason = str(row[\\\"difference_reason\\\"] or \\\"\\\")\\n    ok = row[\\\"recon_status\\\"] == \\\"EXCEPTION\\\" and abs(float(row[\\\"difference_yuan\\\"]) - 0) <= 1e-6 and all(token in reason for token in (PAYMENT_ORDER, LEDGER_ORDER, BANK_TRACE))\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": {\\\"status\\\": row[\\\"recon_status\\\"], \\\"difference_yuan\\\": row[\\\"difference_yuan\\\"], \\\"reason\\\": reason}}\\n\\n\\ndef check_other_reconciliation_rows_untouched(workspace):\\n    protected = {\\n        \\\"RI-20250902-000091\\\": (\\\"EXCEPTION\\\", -500),\\n        \\\"RI-20250902-MIG-004\\\": (\\\"MIGRATED\\\", 4860),\\n        \\\"RI-20250527-583912\\\": (\\\"EXCEPTION\\\", 1200),\\n    }\\n    with sqlite3.connect(_db(workspace)) as con:\\n        count = con.execute(\\\"SELECT COUNT(*) FROM reconciliation_items\\\").fetchone()[0]\\n        rows = con.execute(\\\"SELECT recon_item_id, recon_status, difference_yuan FROM reconciliation_items WHERE recon_item_id IN (?,?,?)\\\", tuple(protected)).fetchall()\\n    actual = {row[0]: (row[1], float(row[2])) for row in rows}\\n    ok = count == 145 and all(key in actual and actual[key][0] == state and abs(actual[key][1] - amount) <= 1e-6 for key, (state, amount) in protected.items())\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": {\\\"row_count\\\": count, \\\"protected\\\": actual}}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "untouched_reconciliation_rows": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:07Z",
+  "status": "candidate",
+  "evidence": []
+}

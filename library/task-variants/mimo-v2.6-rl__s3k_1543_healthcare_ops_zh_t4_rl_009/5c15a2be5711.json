@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1543_healthcare_ops_zh_t4_rl_009",
+  "variant_digest": "sha256:5c15a2be57113a0a8064912d6c2e0e632a28268be50be80cc3e7fdb614c360d6",
+  "variant_harbor_digest": "sha256:0ab082a59a27797ea310c0de1049b52b73a67b1342c7d61cee59aa32bc1181e5",
+  "parent": {
+    "digest": "sha256:8ab83b4e3472a5d49ac10197410a62cc84076260c793fd3627754f99b87d2965",
+    "harbor_digest": "sha256:9d9f7d93fe2c59663115c32bd2b62719123d86a7af264d7326cd7be7a84e2bb4",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1543_healthcare_ops_zh_t4_rl_009/8ab83b4e3472.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:756cf67f6eb1d3edd2ff13b6cd38d731c0765600414872d8ac23a25835d74194",
+      "after_sha256": "sha256:880bc5c6ded8e1833fd84ccb544e5da7afbb574978df738c3a894a4faa662e7d",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_review_update\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_review_update\",\n      \"ground_truth\": {\n        \"claim_id\": \"DRG-FZ-2024-002284\",\n        \"review_status\": \"FLAGGED\",\n        \"amount_fen\": 12345678,\n        \"claim_status\": \"VOID\",\n        \"review_note_must_contain\": [\n          \"撤销\",\n          \"支付\"\n        ],\n        \"updated_at_must_change_from\": \"2024-11-18 13:27:51\"\n      }\n    },\n    {\n      \"id\": \"duplicate_and_anomaly_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否识别出同一来源结算号与结算日期的两条重复记录、保留记录与重复记录的去重关系，并识别出撤销但仍有实际支付金额的异常记录及其应排除正式汇总的结论？\",\n      \"pass_anchor\": \"答案应明确：来源结算号 FZRK-2409-019866 在 2024-10-15 有两条记录，DRG-FZ-2024-001207 为 dedup_rank=1 保留、DRG-FZ-2024-001208 为 dedup_rank=2 重复；两条实际支付额均为 43210987 分、发生分值均为 432109×1e-4。异常记录为 DRG-FZ-2024-002284，状态 VOID，实际基金支付额为 12345678 分，且正式汇总应排除 VOID 记录；答案可使用等价单位或自然语言表达。\"\n    },\n    {\n      \"id\": \"paid_fund_by_insurance\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否算出 2024 年正式年度口径下按险种汇总的实际基金支付额？\",\n      \"pass_anchor\": \"答案应给出在结算年度为 2024、正式结算状态且去重保留记录口径下：INS_EMP 实际基金支付额 407408616 分（4074086.16 元），INS_RES 实际基金支付额 288888886 分（2888888.86 元）；合计 696297502 分。允许按险种名称“职工基本医疗保险/城乡居民基本医疗保险”作对应表达，单位换算和格式可不同但数值含义必须一致。\"\n    },\n    {\n      \"id\": \"drg_points_by_insurance\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否算出 2024 年正式年度口径下按险种汇总的实际发生分值？\",\n      \"pass_anchor\": \"答案应给出在结算年度为 2024、正式结算状态且去重保留记录口径下：INS_EMP 实际发生分值为 4074083 个 1e-4 分值单位（即 407.4083 点），INS_RES 为 2888886 个 1e-4 分值单位（即 288.8886 点）；合计 6962969 个 1e-4 分值单位。允许按险种名称作对应表达，允许等价单位换算。\"\n    },\n    {\n      \"id\": \"protected_duplicate_rows\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_duplicate_rows_unchanged\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom datetime import datetime\\nfrom pathlib import Path\\n\\n\\ndef _db(ws):\\n    return Path(ws).resolve().parent / \\\"system\\\" / \\\"nhsa_fuzhou_drg\\\" / \\\"state.db\\\"\\n\\n\\ndef _norm(value):\\n    return \\\"\\\" if value is None else \\\"\\\".join(str(value).strip().lower().split())\\n\\n\\ndef check_target_review_update(ws):\\n    db = _db(ws)\\n    con = sqlite3.connect(db)\\n    con.row_factory = sqlite3.Row\\n    try:\\n        row = con.execute(\\n            \\\"SELECT claim_status, actual_fund_paid_fen, review_status, review_note, updated_at \\\"\\n            \\\"FROM drg_settlement_claim WHERE claim_id = ?\\\",\\n            (\\\"DRG-FZ-2024-002284\\\",),\\n        ).fetchone()\\n    finally:\\n        con.close()\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标撤销记录不存在\\\"}\\n    note = _norm(row[\\\"review_note\\\"])\\n    required = (\\\"撤销\\\" in note and \\\"支付\\\" in note)\\n    changed = row[\\\"updated_at\\\"] != \\\"2024-11-18 13:27:51\\\"\\n    try:\\n        datetime.strptime(row[\\\"updated_at\\\"], \\\"%Y-%m-%d %H:%M:%S\\\")\\n        valid_time = True\\n    except (TypeError, ValueError):\\n        valid_time = False\\n    ok = (\\n        row[\\\"claim_status\\\"] == \\\"VOID\\\"\\n        and row[\\\"actual_fund_paid_fen\\\"] == 12345678\\n        and row[\\\"review_status\\\"] == \\\"FLAGGED\\\"\\n        and required\\n        and changed\\n        and valid_time\\n    )\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"目标复核状态、原因、原始金额/撤销状态及版本更新符合要求\\\" if ok else \\\"目标记录后态不符合要求\\\"}\\n\\n\\ndef check_duplicate_rows_unchanged(ws):\\n    db = _db(ws)\\n    con = sqlite3.connect(db)\\n    con.row_factory = sqlite3.Row\\n    try:\\n        rows = con.execute(\\n            \\\"SELECT claim_id, source_claim_no, settlement_date, claim_status, dedup_rank, \\\"\\n            \\\"actual_fund_paid_fen, drg_points_x10000, review_status, review_note, updated_at \\\"\\n            \\\"FROM drg_settlement_claim WHERE source_claim_no = ? AND settlement_date = ? \\\"\\n            \\\"ORDER BY claim_id\\\",\\n            (\\\"FZRK-2409-019866\\\", \\\"2024-10-15\\\"),\\n        ).fetchall()\\n    finally:\\n        con.close()\\n    expected = [\\n        (\\\"DRG-FZ-2024-001207\\\", \\\"FZRK-2409-019866\\\", \\\"2024-10-15\\\", \\\"FINAL\\\", 1, 43210987, 432109, \\\"CONFIRMED\\\", \\\"重复报送保留行\\\", \\\"2024-10-18 11:47:30\\\"),\\n        (\\\"DRG-FZ-2024-001208\\\", \\\"FZRK-2409-019866\\\", \\\"2024-10-15\\\", \\\"FINAL\\\", 2, 43210987, 432109, \\\"FLAGGED\\\", \\\"同源结算号及结算日期重复，不进入年度聚合\\\", \\\"2024-10-18 11:49:02\\\"),\\n    ]\\n    actual = [tuple(row) for row in rows]\\n    ok = actual == expected\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"重复结算两行未被修改\\\" if ok else \\\"重复结算两行发生了非授权变化\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "protected_duplicate_rows": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:11Z",
+  "status": "candidate",
+  "evidence": []
+}

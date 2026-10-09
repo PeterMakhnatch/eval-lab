@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0922_finance_insurance_en_t3_rl_008",
+  "variant_digest": "sha256:4e67196864a3aeae48b1578ffcface50362a46ec1a4088e4f7b4ad85712db813",
+  "variant_harbor_digest": "sha256:33912a0fe9851673ce752426bd9357ea3c0936d6ddbafd6371ab2169ea6128d6",
+  "parent": {
+    "digest": "sha256:42ba14b4f6c4149d15b1dd034990bc4f0ad83dafd3ce5828f693d373147a2578",
+    "harbor_digest": "sha256:09401e8a4b1caedb7884c5c23f33f172f539a7959fad76f4cedbfd52a0861f67",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0922_finance_insurance_en_t3_rl_008/42ba14b4f6c4.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:46fcf81590e80599be22087c70c39761f833b02641352df3402f7164939886aa",
+      "after_sha256": "sha256:593f6fbbbcf2417b9372fdc1cd8e86c6b6ffeca57c7fe918d581edddc68a24c6",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"transaction_terms_boundary\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final answer correctly state the agreed transaction terms and the close-date comparability boundary?\",\n      \"pass_anchor\": \"The answer must state that Brookfield Reinsurance Ltd. agreed to acquire Argo Group International Holdings, Ltd. for $30.00 cash per common share (the database headline value is approximately $1.1 billion / $1,100,000 USD thousands), with agreement date February 8, 2023 and close date November 16, 2023. It must explain that the FY2022 diligence bridge is a predecessor-period analysis and that November 16, 2023 is the acquisition comparability break; predecessor periods through November 15 and successor periods beginning November 16 are not directly comparable. Accept equivalent wording and either USD thousands or USD millions, subject to a ±$0.1 million tolerance for the approximate headline amount.\"\n    },\n    {\n      \"id\": \"base_inputs\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final answer identify the selected approved BASE scenario inputs and correctly calculate the value before adjustments?\",\n      \"pass_anchor\": \"The answer must identify the selected, approved BASE scenario as using normalized EBITDA of $205,000 USD thousands ($205.0 million) and an 85,000-basis-point multiple (8.50x), producing $1,742,500 USD thousands ($1,742.5 million) before adjustments. Accept equivalent arithmetic and presentation, with a ±$1 USD-thousand tolerance on the calculated pre-adjustment value.\"\n    },\n    {\n      \"id\": \"category_rebuild\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final answer correctly rebuild the active approved BASE detail bridge by category and total?\",\n      \"pass_anchor\": \"The answer must give these signed active-approved BASE detail totals in USD thousands: EARNINGS_QUALITY +21,000; RESERVE_DEVELOPMENT -75,000; PREMIUM_RECEIVABLES -16,200; REINSURANCE_RECOVERABILITY -37,500; OFF_BALANCE_SHEET_OBLIGATIONS -340,700 from detail rows only; OTHER -10,000. The signed total must be -458,400 USD thousands (-$458.4 million). Equivalent business labels such as earnings quality, reserve development, premium receivables, reinsurance recoverability, off-balance-sheet obligations, and other are acceptable; tolerate ±$1 USD thousand per amount.\"\n    },\n    {\n      \"id\": \"imported_subtotal_exclusion\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final answer recognize that the imported obligations subtotal is non-additive and quantify the duplicate amount?\",\n      \"pass_anchor\": \"The answer must explain that VADJ-ARGO-2320 is an APPROVED ACTIVE IMPORTED_SUBTOTAL for the same -340,700 USD thousands (-$340.7 million) obligations pool already represented by the active approved OFF_BALANCE_SHEET_OBLIGATIONS detail rows, so it must be excluded from the rebuilt total. It must identify the duplicate amount as $340,700 USD thousands ($340.7 million), not treat it as a new obligation.\"\n    },\n    {\n      \"id\": \"inactive_exclusions\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final answer correctly distinguish the released guarantee and superseded reserve overlay from surviving BASE detail?\",\n      \"pass_anchor\": \"The answer must identify VADJ-ARGO-2327 as a released, non-active guarantee adjustment of -8,900 USD thousands, linked to the DOWNSIDE scenario rather than the selected BASE bridge, and identify VADJ-ARGO-2324 as a superseded/closed reserve detail row of -22,500 USD thousands. It must explain that neither is included in the active approved BASE detail sum. Tolerate ±$1 USD thousand and equivalent status wording.\"\n    },\n    {\n      \"id\": \"correct_indicated_value\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final answer calculate the correct indicated value from the approved BASE bridge?\",\n      \"pass_anchor\": \"The answer must calculate the correct indicated value as $1,284,100 USD thousands ($1,284.1 million), equal to $1,742,500 pre-adjustment value plus the -$458,400 signed active-approved detail total. Accept equivalent arithmetic, with a ±$1 USD-thousand tolerance.\"\n    },\n    {\n      \"id\": \"naive_overstatement\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final answer quantify the naive duplicate-inclusion value and overstatement?\",\n      \"pass_anchor\": \"The answer must state that adding VADJ-ARGO-2320 a second time would produce a naive indicated value of $943,400 USD thousands ($943.4 million), versus the correct $1,284,100 USD thousands, and would overstate the downward adjustment / understate indicated value by $340,700 USD thousands ($340.7 million). Equivalent sign explanation is acceptable, with a ±$1 USD-thousand tolerance.\"\n    },\n    {\n      \"id\": \"read_only_sanity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"read_only_sanity\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"Read-only sanity checker for the transaction valuation bridge task.\\n\\nAll scored conclusions are free-text findings and therefore belong in the\\nLLM rubric. No workspace or database mutation is expected.\\n\\\"\\\"\\\"\\n\\n\\ndef read_only_sanity(workspace):\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"No workspace or database mutation is expected.\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "read_only_sanity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:06Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1536_healthcare_ops_zh_t4_rl_003",
+  "variant_digest": "sha256:d6a718fbb0fa3f819544768aaae7c5d3617b7038c7b7900b2f3b38140b2e82fd",
+  "variant_harbor_digest": "sha256:1a30f458e06df8937cb30e861754c7c5aebbecd974b0b21bb7062d2b515678bf",
+  "parent": {
+    "digest": "sha256:3c8394b57446717f14bea868418557cd20aa42a5674e3b15740f9530ba0facb8",
+    "harbor_digest": "sha256:6800217f67cf6c91697a787ad1cbbb6389f32e7905b577f924c9ae06947eaa5d",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1536_healthcare_ops_zh_t4_rl_003/3c8394b57446.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:5d3f81ff83b18c01f3daa3d005bbe712ea629dd8093bb1dd96b3caa66f78dace",
+      "after_sha256": "sha256:024acdb903c150d5281b7f2ddaa3657ee4cc48ca9a66e0d06c4624dbcad9df9e",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"quality_return_totals\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.25,\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回答是否正确算出本项目计入质量退货指标的退货合计为3笔、8460盒？\",\n      \"pass_anchor\": \"真实数据按退货单/退货案例去重后，质量原因退货共有3笔，退货数量合计8460盒。3笔来自2024Q4_退货与质量判定明细中标记计入质量退货率分子的三个退货单；药学部质量验收与退货系统在本项目评价范围内对确认不合格的质量退货独立汇总也返回case_count=3、return_qty_box=8460。回答必须同时给出3笔和8460盒，不能用明细行数代替退货笔数。\"\n    },\n    {\n      \"id\": \"nonquality_return_totals\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.2,\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回答是否正确算出本项目明确排除的非质量原因退货合计为7笔、1260盒？\",\n      \"pass_anchor\": \"真实数据按退货单/退货案例去重后，非质量原因退货共有7笔，退货数量合计1260盒。2024Q4_退货与质量判定明细和药学部质量验收与退货系统的本项目评价范围汇总均支持该结果。回答必须同时给出7笔和1260盒，不能把这些退货并入质量退货合计。\"\n    },\n    {\n      \"id\": \"quality_reason_set\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.2,\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回答是否完整识别出三类质量退货原因，并说明各有1笔？\",\n      \"pass_anchor\": \"质量原因的完整集合为：冷链温度记录缺失、批号外观质量异常、到货包装破损导致质量判定不合格；三类各1笔。系统中的包装破损名称可能简写为“到货包装破损”，应视为同一语义。不得遗漏、增加或把非质量原因混入这三类。\"\n    },\n    {\n      \"id\": \"nonquality_reason_set\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"weight\": 0.15,\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回答是否完整列出七类被排除的非质量退货原因？\",\n      \"pass_anchor\": \"非质量原因的完整集合为：重复下单、临床需求取消、超订单配送、规格错发、近效期未经采购确认、院内目录切换退订、配送批次不符合约定但质量合格；七类各对应1笔退货。允许同义改写和不同排序，但不得遗漏、增加或误归为质量原因。\"\n    },\n    {\n      \"id\": \"metric_scope_conclusion\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.12,\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回答是否正确说明质量退货率分子的纳入口径，并明确非质量原因退货不进入分子？\",\n      \"pass_anchor\": \"《2024Q4_评价口径与分级规则说明》明确：质量退货率只纳入经质量管理复核确认的质量原因退货；非质量原因退货可用于业务复盘，但不得进入质量退货率分子。因此分子只对应3笔质量退货，7笔非质量退货必须单列排除。回答不能把全部10笔或9720盒作为质量退货分子。\"\n    },\n    {\n      \"id\": \"determination_crosscheck\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"weight\": 0.08,\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回答是否把药学部质量验收与退货系统的最终判定和纳入/排除对应起来：3笔质量退货判为质量不合格并计入，7笔非质量退货判为非质量问题/无需质量判定并排除？\",\n      \"pass_anchor\": \"系统中本项目评价范围的3笔质量原因退货均有“不合格/UNQUALIFIED”质量结论；“质量不合格”“质量风险不予接收”等业务表述等价。7笔非质量原因退货均为“无需质量判定/NOT_REQUIRED”；CSV/业务表述中的“非质量问题”，或明确写质量验收合格后按非质量原因退回，均等价。回答必须清楚表达前一组判定支持纳入、后一组判定支持排除（例如分别写分子标识是/否）；不要求写枚举字面量。\"\n    },\n    {\n      \"id\": \"source_integrity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_source_integrity\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport csv\\nimport sqlite3\\n\\n\\ndef check_source_integrity(ws):\\n    workspace = Path(ws)\\n    csv_path = workspace / \\\"01_原始台账\\\" / \\\"2024Q4_退货与质量判定明细.csv\\\"\\n    db_path = workspace.parent / \\\"system\\\" / \\\"pharmacy_quality_returns\\\" / \\\"state.db\\\"\\n    if not csv_path.exists() or not db_path.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"退货明细或质量退货系统数据缺失\\\"}\\n\\n    with csv_path.open(encoding=\\\"utf-8-sig\\\", newline=\\\"\\\") as source:\\n        rows = list(csv.DictReader(source))\\n    returns = {}\\n    for row in rows:\\n        return_no = row[\\\"退货单号\\\"]\\n        entry = returns.setdefault(\\n            return_no,\\n            {\\\"category\\\": row[\\\"一级原因分类\\\"], \\\"quantity\\\": 0},\\n        )\\n        entry[\\\"quantity\\\"] += int(row[\\\"退货数量_盒\\\"])\\n\\n    csv_totals = {}\\n    for entry in returns.values():\\n        count, quantity = csv_totals.get(entry[\\\"category\\\"], (0, 0))\\n        csv_totals[entry[\\\"category\\\"]] = (count + 1, quantity + entry[\\\"quantity\\\"])\\n\\n    with sqlite3.connect(db_path) as connection:\\n        db_rows = connection.execute(\\n            \\\"\\\"\\\"\\n            SELECT return_reason_type, COUNT(DISTINCT return_id), SUM(return_qty_box)\\n            FROM return_cases\\n            WHERE metric_scope = ?\\n            GROUP BY return_reason_type\\n            \\\"\\\"\\\",\\n            (\\\"2024_SUPPLIER_EVAL\\\",),\\n        ).fetchall()\\n    db_totals = {row[0]: (row[1], row[2]) for row in db_rows}\\n\\n    expected_csv = {\\\"质量原因\\\": (3, 8460), \\\"非质量原因\\\": (7, 1260)}\\n    expected_db = {\\\"QUALITY\\\": (3, 8460), \\\"NON_QUALITY\\\": (7, 1260)}\\n    if csv_totals == expected_csv and db_totals == expected_db:\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"退货明细和系统源数据保持完整\\\"}\\n    return {\\n        \\\"score\\\": 0,\\n        \\\"detail\\\": f\\\"源数据与固定基线不一致：csv={csv_totals}, db={db_totals}\\\",\\n    }\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "source_integrity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:11Z",
+  "status": "candidate",
+  "evidence": []
+}

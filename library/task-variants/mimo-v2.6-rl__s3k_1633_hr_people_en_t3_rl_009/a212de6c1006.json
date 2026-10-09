@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1633_hr_people_en_t3_rl_009",
+  "variant_digest": "sha256:a212de6c1006edc06e108b326ddb2f01c9606d37db7e91f3e31252df332c8839",
+  "variant_harbor_digest": "sha256:a9b51641da0a3e9dad4bc9ae46032ee5d98a539ad9826454d6be1f5716748c25",
+  "parent": {
+    "digest": "sha256:f9e8f4b3ed7aa2c55127c766f73511a9b608c348010eed2a7fedcd9a5259316a",
+    "harbor_digest": "sha256:ecb01f0fc9e203d192f3c588bf9d947502e12f0045526728da7e1590b4835851",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1633_hr_people_en_t3_rl_009/f9e8f4b3ed7a.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:78da36beb22fa1fa0a6c7e22dff581b76f73059a5dfdb93ff0e3d1d1a732380b",
+      "after_sha256": "sha256:c41cc9cb3a5279c8727e916fe2ea17d5ba7e2517b7eb2e3c50082371794f9ea6",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"effective_approval_reconstruction\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response correctly reconstruct the effective approval outcome for all four BNSSG 2025-Q3 proposals by using the latest non-withdrawn approval step rather than trusting the proposal header alone?\",\n      \"pass_anchor\": \"It must cover CP-BNSSG-25Q3-0058, CP-BNSSG-25Q3-0117, CP-BNSSG-25Q3-0149, and CP-BNSSG-25Q3-0186. The first three have no approval_step rows in the supplied database, so their effective step-level approval is not evidenced even though compensation_proposals.approval_status says approved. CP-BNSSG-25Q3-0186 has three steps; sequences 1 and 2 are withdrawn and sequence 3 is an unwithdrawn approved People and Culture step dated 2025-09-26, so its effective latest non-withdrawn decision is approved. The response must distinguish displayed header status from step-level evidence and must not call the first three fully step-verified without qualification.\"\n    },\n    {\n      \"id\": \"four_target_pay_rows\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the response report the four proposal-to-post target-pay decisions with the correct band, step, target basic pay, and pay gap?\",\n      \"pass_anchor\": \"The four rows must identify: CP-BNSSG-25Q3-0058 / POST-BNSSG-CLINICAL-SUPPORT-05 / Band 5 TOP / target 370000000 pence / gap +10000000 pence; CP-BNSSG-25Q3-0117 / POST-BNSSG-ALLIED-HEALTH-06 / Band 6 INTERMEDIATE / target 400000000 pence / gap +13000000 pence; CP-BNSSG-25Q3-0149 / POST-BNSSG-PROGRAMME-MANAGER-07 / Band 7 TOP / target 200000000 pence / gap +7000000 pence; CP-BNSSG-25Q3-0186 / POST-BNSSG-EXECUTIVE-08A / Band 8a PROTECTED / target 41498280 pence / gap -2775360 pence. Currency conversion to GBP is acceptable only if numerically equivalent.\"\n    },\n    {\n      \"id\": \"withdrawn_chain_and_tracker_linkage\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the response accurately identify the withdrawn intermediate approval chain and reconcile proposal task keys to the implementation tracker without inventing a linkage?\",\n      \"pass_anchor\": \"It must identify CP-BNSSG-25Q3-0186 as the proposal with withdrawn intermediate approvals, with withdrawn line-manager sequences 1 and 2 followed by the unwithdrawn sequence-3 approval. It must report the substantiated Workday task keys TASK-BNSSG-COMP-100001-100068, TASK-BNSSG-COMP-100069-100141, and TASK-BNSSG-COMP-100142-100180 for the first three proposals, and state that CP-BNSSG-25Q3-0186 has implementation_task_key NULL/no task key in Workday. It may reconcile the tracker only at the supported programme level: the tracker covers 186 substantive employees and records Band 5=68, Band 6=73, Band 7=39, Band 8a=6; it does not expose those Workday task-key strings. It must not claim the tracker contains the missing task key.\"\n    },\n    {\n      \"id\": \"protected_pay_treatment\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the response correctly interpret the protected Band 8a proposal and the meaning of its negative gap?\",\n      \"pass_anchor\": \"For CP-BNSSG-25Q3-0186, the response must state transition_treatment protected_pay and target step PROTECTED, and explain that the -2775360 pence gap reflects current basic pay above the model target/protected placement; it is not an instruction to cut current pay. It should distinguish protected-pay treatment from standard placement and should not fold allowances or enhancements into the target basic-pay figure.\"\n    },\n    {\n      \"id\": \"no_workspace_change\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_no_workspace_change\",\n      \"description\": \"The read-only audit leaves the supplied workspace evidence unchanged and available.\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import hashlib\\nfrom pathlib import Path\\n\\n\\nTRACKED = (\\n    \\\"02_Working_Model/bnssg-afc-harmonisation-model-sep-2025.xlsx\\\",\\n    \\\"04_Executive_Pack/bnssg-harmonisation-implementation-tracker-sep-2025.xlsx\\\",\\n)\\n\\n\\ndef _fingerprint(path):\\n    return hashlib.sha256(Path(path).read_bytes()).hexdigest()\\n\\n\\ndef check_no_workspace_change(ws):\\n    \\\"\\\"\\\"Sanity-only check for this read-only audit task.\\\"\\\"\\\"\\n    try:\\n        root = Path(ws)\\n        ok = all((root / rel).is_file() and (root / rel).stat().st_size > 0 for rel in TRACKED)\\n        return {\\n            \\\"score\\\": 1.0 if ok else 0.0,\\n            \\\"detail\\\": \\\"controlled model and tracker remain present and readable\\\",\\n        }\\n    except Exception as exc:\\n        return {\\\"score\\\": 0.0, \\\"detail\\\": f\\\"workspace sanity check failed: {exc}\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "no_workspace_change": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:11Z",
+  "status": "candidate",
+  "evidence": []
+}

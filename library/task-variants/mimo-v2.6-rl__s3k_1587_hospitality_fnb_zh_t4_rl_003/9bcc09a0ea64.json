@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1587_hospitality_fnb_zh_t4_rl_003",
+  "variant_digest": "sha256:9bcc09a0ea645e050d3f5d4cce036b39ac3aa93eda6adbac5d927d55db3c0773",
+  "variant_harbor_digest": "sha256:8cefe797dc62dcb0e605253166c4cd1a812508055eeb35a8b2bbcce3b4be0406",
+  "parent": {
+    "digest": "sha256:7b43fb750e500180ae81e8896d28952e23e5dbaacf0eb7e9ef354908966dff2b",
+    "harbor_digest": "sha256:7331d258bd61b1d5dde9100b7536f77a82458f14d69fc893e01df598799ba7e0",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1587_hospitality_fnb_zh_t4_rl_003/7b43fb750e50.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:fb45e809cfe640f660dd575dd7422e89468e7023aaf5f5f00419d03b3a1201cb",
+      "after_sha256": "sha256:f63de82ede6df2a083324f7848aebc6783b0698255c2bdc2c74f19a4e96b3183",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"single_trigger_classification\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.3,\n      \"question\": \"最终回答是否识别出定稿结果中唯一的两项单阈值高差异SKU，并正确分类为：黑方 Johnnie Walker Black Label 仅金额触发、可口可乐仅数量触发？\",\n      \"pass_anchor\": \"真实数据库中，2024年10月句容假日度假酒店大堂吧定稿核对运行 RECON-2024-10-LBB-FINAL 内，独立按绝对差异量与各自数量阈值、绝对差异金额与金额阈值重算后，恰有两项只越过一条线：SKU-SPIRIT-JW-BLACK（黑方 Johnnie Walker Black Label）为仅金额触发；SKU-SOFTDRINK-COCA-COLA（可口可乐）为仅数量触发。回答必须同时给出这两项和正确分类，不能加入草稿中的橙汁等干扰项，也不能把二者说成同时触发。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"jw_quantity_comparison\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.15,\n      \"question\": \"最终回答是否正确给出黑方的差异数量与数量阈值，并判断数量未达到阈值？\",\n      \"pass_anchor\": \"黑方 Johnnie Walker Black Label 的差异数量为 15 mL，数量阈值为 30 mL，因 15 < 30，数量线未触发。允许写成正差异15mL、绝对差异15mL或多耗15mL；核心数值、单位和未达阈值的比较必须正确。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"jw_amount_comparison\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.15,\n      \"question\": \"最终回答是否正确给出黑方的差异金额与金额阈值，并判断金额达到阈值？\",\n      \"pass_anchor\": \"黑方 Johnnie Walker Black Label 的差异金额为 1170 分（11.70元），金额阈值为 1000 分（10.00元），因 1170 >= 1000，金额线触发。分或元均可，但换算、大小关系与触发结论必须一致。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"coke_quantity_comparison\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.15,\n      \"question\": \"最终回答是否正确给出可口可乐的差异数量与数量阈值，并判断数量达到阈值？\",\n      \"pass_anchor\": \"可口可乐的差异数量为 1 罐，数量阈值为 1 罐；阈值采用达到即触发的包含边界口径，因此 1 >= 1，数量线触发。回答不能用严格大于号把边界值排除。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"coke_amount_comparison\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"weight\": 0.15,\n      \"question\": \"最终回答是否正确给出可口可乐的差异金额与金额阈值，并判断金额未达到阈值？\",\n      \"pass_anchor\": \"可口可乐的差异金额为 620 分（6.20元），金额阈值为 1000 分（10.00元），因 620 < 1000，金额线未触发。分或元均可，但换算、大小关系与未触发结论必须正确。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"finalized_scope\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"weight\": 0.1,\n      \"question\": \"最终回答是否明确采用2024年10月大堂吧的定稿核对结果，并体现未混入同期草稿或其他范围的数据？\",\n      \"pass_anchor\": \"正确口径是 period_id PERIOD-2024-10、org_id ORG-HIRJ-LBB、状态为 FINAL 的唯一运行 RECON-2024-10-LBB-FINAL（版本3）；同期 RECON-2024-10-LBB-DRAFT（版本2）必须排除。回答无需强制写内部编号，但应明确说明采用定稿/最终版本而非草稿；若把草稿中的橙汁、雪碧或路易十三作为本题单阈值结论，则此项不通过。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"source_data_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_source_data_unchanged\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport sqlite3\\n\\n\\ndef check_source_data_unchanged(ws):\\n    database = Path(ws).resolve().parent / \\\"system\\\" / \\\"beverage_variance_workbench\\\" / \\\"state.db\\\"\\n    if not database.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"酒水差异工作台数据库不存在\\\"}\\n\\n    expected = [\\n        (\\\"SKU-SOFTDRINK-COCA-COLA\\\", \\\"可口可乐\\\", \\\"CAN\\\", 1, 620, 1, 1000),\\n        (\\\"SKU-SPIRIT-JW-BLACK\\\", \\\"黑方 Johnnie Walker Black Label\\\", \\\"ML\\\", 15, 1170, 30, 1000),\\n    ]\\n    query = \\\"\\\"\\\"\\n        SELECT v.sku_id, v.sku_name, v.base_unit,\\n               v.variance_quantity_base, v.variance_cost_fen,\\n               v.quantity_threshold_base, v.amount_threshold_fen\\n        FROM reconciliation_runs AS r\\n        JOIN sku_variance_results AS v ON v.run_id = r.run_id\\n        WHERE r.period_id = 'PERIOD-2024-10'\\n          AND r.org_id = 'ORG-HIRJ-LBB'\\n          AND r.run_status = 'FINAL'\\n          AND (\\n            (ABS(v.variance_cost_fen) >= v.amount_threshold_fen\\n             AND ABS(v.variance_quantity_base) < v.quantity_threshold_base)\\n            OR\\n            (ABS(v.variance_quantity_base) >= v.quantity_threshold_base\\n             AND ABS(v.variance_cost_fen) < v.amount_threshold_fen)\\n          )\\n        ORDER BY v.sku_id\\n    \\\"\\\"\\\"\\n    try:\\n        with sqlite3.connect(database) as connection:\\n            rows = connection.execute(query).fetchall()\\n    except sqlite3.Error as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"无法读取核对结果：{exc}\\\"}\\n\\n    if rows != expected:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"定稿单阈值源数据已变化：{rows!r}\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"定稿运行及两项单阈值源数据保持不变\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "source_data_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:11Z",
+  "status": "candidate",
+  "evidence": []
+}

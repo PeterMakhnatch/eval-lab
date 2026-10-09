@@ -1,0 +1,49 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/dasyn_260638_00020",
+  "variant_digest": "sha256:a3c40a75f8b89857647247b3deb131d4e7f8ba8296858029f10b120dee4b0c13",
+  "variant_harbor_digest": "sha256:8363ee17faf0e1568e1b8bdb47b6303624ba2f33bddd52a685003346f990f18d",
+  "parent": {
+    "digest": "sha256:bff4cde2fdd2e3c50a76dee6cbcdfb03b867c840659b71f773064cf0da35526d",
+    "harbor_digest": "sha256:5f6093ff04d878697e5a7b45d9fc4a9292282842f6b5789937d58774425f18e4",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-webdev",
+      "revision": "e1a6293376e8910e1fb1f28efabd93dad2f8b475",
+      "path": "tasks/dasyn_260638_00020",
+      "record": null
+    }
+  },
+  "transform": "webdev-temp0-pin@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/grade.json",
+      "before_sha256": "sha256:046984ab4b7cbca326cbe93b881171ceee3d917266488aa4c8ec5e201d78e53a",
+      "after_sha256": "sha256:f900c1881b53a0d0cacebaafaf62cd76ddf22aed6a08da6212d133e726f4d5a9",
+      "content": "{\n \"cwd\": \"/workspace\",\n \"query\": \"Create a polished static Nuxt website for \\\"FundTheGame\\\", a sports crowdfunding documentation and launch site inspired by ProductHunt-style product pages. The site should feel elegant, modern, and trustworthy, with a clean white/navy layout, soft gradients, card-based sections, and subtle scroll/fade animations.\\n\\nPages/sections:\\n- Hero: headline \\\"Back the Next Big Sports Story\\\", short intro, mock supporter count, CTA buttons \\\"Read the Guide\\\" and \\\"View Campaign Examples\\\".\\n- How It Works: 3-4 steps explaining how athletes, local teams, and clubs can present a funding story.\\n- Documentation-style Guide: sidebar navigation with sections like Campaign Basics, Rewards Ideas, Trust & Transparency, Promotion Checklist, and FAQ.\\n- Featured Mock Campaigns: static sample cards for a youth basketball tour, community cricket kit, para-athlete training fund, etc. Include mock progress bars only, no real payments.\\n- ProductHunt-inspired Showcase: launch badge, upvote-style visual counter, testimonial snippets, maker notes, and comments preview using static placeholder content.\\n- Sports Categories: football, running, cycling, tennis, basketball, local clubs.\\n- FAQ and Footer.\\n\\nRequirements:\\n- Use Nuxt / Vue components and static sample data only.\\n- Fully responsive desktop/tablet/mobile.\\n- Add tasteful micro-interactions: hover states, animated progress bars, fade-in sections, sticky docs sidebar on desktop.\\n- No login, no backend, no database, no payment flow, no external APIs. Everything should render as a static site with mock content.\",\n \"judge\": {\n  \"model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8\",\n  \"model_sha\": \"94125d2bd83076b21eed33119525e29eaf3894f4\",\n  \"request_model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8:novita\",\n  \"provider\": \"novita\",\n  \"pinned_on\": \"2026-10-09\",\n  \"temperature\": 0,\n  \"max_tokens\": 1024,\n  \"rubric_id\": \"rva1:mean(visual,query,asset)\"\n }\n}\n"
+    },
+    {
+      "path": "tests/grade.py",
+      "before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+      "after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368",
+      "content": "\"\"\"Grade a Webdev task as the explorer does (verl recipes/design webdev-eval): render, shrink, judge.\n\nNo index.html in dist/ scores 0. A render that fails, or a judge that never answers, writes no reward (not scored):\nneither says anything about the page.\"\"\"\nimport base64\nimport io\nimport json\nimport os\nimport random\nimport subprocess\nimport sys\nimport time\nimport urllib.request\nfrom pathlib import Path\n\nsys.path.insert(0, \"/tests\")\nos.environ[\"WEBDEV_GRADE_HTTP\"] = \"1\"   # serve over loopback http so React/Vue/ES-module sites actually run\nfrom webdev.eval_rubric import build_prompt  # noqa: E402\nfrom webdev.shot import _build_shot_cmd, _parse_render_env, _parse_shot_b64  # noqa: E402\nfrom webdev.verdict import parse_verdict  # noqa: E402\n\ncfg = json.loads(Path(\"/tests/grade.json\").read_text())\nV = Path(\"/logs/verifier\")\nV.mkdir(parents=True, exist_ok=True)\ndist = Path(cfg[\"cwd\"]) / \"dist\"\n\n\ndef done(reward: float | None, why: str, **extra) -> None:\n    (V / \"result.json\").write_text(json.dumps({\"reward\": reward, \"summary\": why, **extra}, indent=1))\n    print(why)\n    if reward is None:\n        print(\"not scored\", file=sys.stderr)\n        sys.exit(1)\n    (V / \"reward.txt\").write_text(f\"{reward}\\n\")\n    sys.exit(0)\n\n\nfiles = sorted(str(p.relative_to(dist)) for p in dist.rglob(\"*\") if p.is_file())[:200] if dist.is_dir() else []\nif \"index.html\" not in files:\n    done(0.0, \"The agent delivered nothing to dist/.\" if not files else \"dist/ has no index.html, so there is no page to open.\",\n         delivered=files)\nres = subprocess.run([\"sh\", \"-c\", _build_shot_cmd(f\"file://{dist}/index.html\")], capture_output=True, text=True,\n                     timeout=150)   # SHOT_TIMEOUT_S\nshot = {\"output\": (res.stdout or \"\") + \"\\n\" + (res.stderr or \"\")}\nshot_b64, console_errors = _parse_shot_b64(shot)\nrender_env = _parse_render_env(shot)\nif render_env.get(\"proxy_failed\") or not shot_b64:\n    print(shot[\"output\"][-2000:], file=sys.stderr)\n    done(None, \"external assets were unreachable on every route\" if render_env.get(\"proxy_failed\")\n         else \"the screenshot produced no image\")\njpg = base64.b64decode(shot_b64)\ntry:   # eval_mode._shrink: the judge refuses shots over 20 MP; proportional, quality 75\n    from PIL import Image\n    Image.MAX_IMAGE_PIXELS = None\n    im = Image.open(io.BytesIO(jpg))\n    size = im.size\n    if im.width * im.height > 20e6:\n        k = (20e6 / (im.width * im.height)) ** 0.5\n        im = im.convert(\"RGB\").resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)\n        b = io.BytesIO(); im.save(b, \"JPEG\", quality=75); jpg = b.getvalue(); size = im.size\nexcept ImportError:\n    size = None\n(V / \"screenshot.jpg\").write_bytes(jpg)\ncontent = [{\"type\": \"image_url\", \"image_url\": {\"url\": \"data:image/jpeg;base64,\" + base64.b64encode(jpg).decode()}},\n           {\"type\": \"text\", \"text\": build_prompt().format(query=cfg[\"query\"][:1500])}]   # QUERY_CAP\nurl = os.environ.get(\"WEBDEV_JUDGE_URL\", \"https://router.huggingface.co/v1\").rstrip(\"/\") + \"/chat/completions\"\n_judge_pin = cfg[\"judge\"]\nif os.environ.get(\"WEBDEV_JUDGE_REVISION\") != _judge_pin[\"model_sha\"]:\n    done(None, \"Judge deployment revision is unbound; not scored.\")\n(V / \"judge_config.json\").write_text(json.dumps(_judge_pin, indent=1))\nbody = json.dumps({\"model\": cfg[\"judge\"][\"request_model\"], \"temperature\": 0, \"max_tokens\": 1024,  # webdev-temp0-pin@1\n                   \"messages\": [{\"role\": \"user\", \"content\": content}]}).encode()\nverdict, last = None, \"\"\nfor attempt in range(4):   # JUDGE_RETRIES, with eval_mode's backoff\n    if attempt:\n        time.sleep(min(60.0, 3.0 * (3 ** (attempt - 1))) * (0.5 + random.random()))\n    try:\n        req = urllib.request.Request(url, data=body, method=\"POST\", headers={\n            \"Content-Type\": \"application/json\", \"Authorization\": f\"Bearer {os.environ.get('WEBDEV_JUDGE_KEY', '')}\"})\n        with urllib.request.urlopen(req, timeout=180) as r:   # JUDGE_TIMEOUT_S\n            _judge_reply = json.loads(r.read())\n            if _judge_reply.get(\"model_revision\") != _judge_pin[\"model_sha\"]:\n                done(None, \"Judge response revision differs from the task pin; not scored.\")\n            msg = _judge_reply[\"choices\"][0][\"message\"]\n        v = parse_verdict(msg.get(\"content\") or msg.get(\"reasoning_content\") or \"\")\n        if \"_failed\" not in v:\n            verdict = v\n            break\n        last = v[\"_failed\"]\n    except Exception as e:  # noqa: BLE001\n        last = f\"{type(e).__name__}: {e}\"[:200]\nif not verdict:\n    done(None, f\"judge unavailable: {last}\")\ndone(verdict[\"score\"], verdict.get(\"reason\", \"\"), dims=verdict[\"dims\"], visual=verdict[\"visual\"], screenshot_size=size,\n     console_errors=console_errors[:1500] if console_errors not in (\"\", \"[]\") else \"\")\n"
+    }
+  ],
+  "rationale": "Use temperature zero and bind the model/provider request and artifact revision; mask absent or mismatched deployment/response revision. Version-aware judge endpoint validation is staged.",
+  "inputs": {
+    "parent_task": "mimo-v2.6-rl/dasyn_260638_00020",
+    "judge_model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "judge_model_sha": "94125d2bd83076b21eed33119525e29eaf3894f4",
+    "judge_temperature": 0,
+    "rubric_id": "rva1:mean(visual,query,asset)",
+    "grade_before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+    "grade_after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:58Z",
+  "status": "candidate",
+  "evidence": []
+}

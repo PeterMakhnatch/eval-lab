@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1057_finance_insurance_zh_t3_rl_004",
+  "variant_digest": "sha256:2b7ca629d59a8155548ea8260ea460e7775924f04f87b75752ad3673a1f49dd1",
+  "variant_harbor_digest": "sha256:c7ef399214a883c36d89fc733696e1e3052646230646cd06a84b82a92bf6e88e",
+  "parent": {
+    "digest": "sha256:1ee9546307093bed7451728e130cddb5552f931d582cb696aa5386508e531801",
+    "harbor_digest": "sha256:81d51afd2732ac9f7e35b0819b7f10c75595d2853043c30cf270edd1766f0209",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1057_finance_insurance_zh_t3_rl_004/1ee954630709.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:acf51e4fef5ffefcf40279e69d3a24395678afb48d05beefee3cad53702b78de",
+      "after_sha256": "sha256:acf7adcbd4821269ba072e5e1ec3ea2367f44cd01eabf4ed62d79ed9f5775179",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"case_ready\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_case_ready\",\n      \"description\": \"目标规划案例在持久化当前重算后回到可供复核的 READY 状态。\"\n    },\n    {\n      \"id\": \"current_succeeded_run\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_current_succeeded_run\",\n      \"description\": \"目标案例存在当前输入哈希、当前模型版本对应的 SUCCEEDED 持久化运行，且不是旧审批运行。\"\n    },\n    {\n      \"id\": \"four_totals\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确算出并识别出当前口径下的四项结果：可用保险金、可变现资产、纳入六个月需求和流动性缺口？\",\n      \"pass_anchor\": \"目标案例 PC-QTWS-2025-001 当前明细独立重算：可用保险金 453990 元（4440000×800/10000 + 555000×700/10000 + 599400×1000/10000）；可变现资产 1438424 元（仅计 ownership_verified=1 且 realization_days≤180 的三项：680000+403824+354600）；纳入六个月需求 2475800 元（七项中排除 260000 元的 OPTIONAL 适老化及庭院翻修）；流动性缺口 583386 元=max(2475800-453990-1438424,0)。允许合理的金额格式、中文单位和四舍五入表达，但不能把旧 APPROVED 运行的 1830000 元保险金或把可选翻修计入 2735800 元需求当作当前结果。\"\n    },\n    {\n      \"id\": \"model_hash_and_traps\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否说明采用了当前模型版本和当前输入哈希，明确没有把4月2日旧审批运行当作当前结果，并简要交代保险可用系数、资产变现条件和可选翻修的处理？\",\n      \"pass_anchor\": \"应写明模型版本 LIQ-6M-2.1.0 和当前输入哈希 sha256:66651f111140e51a；明确当前重算未沿用4月2日旧审批/旧受益人系数（无需给出旧运行ID、旧哈希或保险分项金额）；说明保险金按当前可用系数折算、资产按系统变现条件筛选（如已核实所有权且六个月/180日内可变现，或明确仅计入符合条件的项目并排除不符合项目）、OPTIONAL 翻修 260000 元排除。答案还应指出已实际持久化当前哈希对应的 SUCCEEDED 运行，而非只做只读计算。\"\n    },\n    {\n      \"id\": \"protected_history_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_protected_history_unchanged\",\n      \"description\": \"历史审批运行和可选翻修输入未被篡改。\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport sqlite3\\n\\nCASE_ID = \\\"PC-QTWS-2025-001\\\"\\nMODEL_VERSION = \\\"LIQ-6M-2.1.0\\\"\\nINPUT_HASH = \\\"sha256:66651f111140e51a\\\"\\nOLD_RUN_ID = \\\"RUN-QTWS-250402-0912\\\"\\n\\n\\ndef _db(ws):\\n    path = Path(ws).parent / \\\"system\\\" / \\\"hundsun_liquidity_planner\\\" / \\\"state.db\\\"\\n    con = sqlite3.connect(path)\\n    con.row_factory = sqlite3.Row\\n    return con\\n\\n\\ndef check_case_ready(ws):\\n    with _db(ws) as con:\\n        row = con.execute(\\n            \\\"SELECT calculation_status FROM planning_case WHERE planning_case_id = ?\\\",\\n            (CASE_ID,),\\n        ).fetchone()\\n    ok = row is not None and row[\\\"calculation_status\\\"] == \\\"READY\\\"\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": row[\\\"calculation_status\\\"] if row else \\\"case missing\\\"}\\n\\n\\ndef check_current_succeeded_run(ws):\\n    with _db(ws) as con:\\n        rows = con.execute(\\n            \\\"SELECT run_id, model_version, input_hash, available_benefit_yuan, \\\"\\n            \\\"realizable_asset_yuan, six_month_need_yuan, liquidity_gap_yuan, run_status \\\"\\n            \\\"FROM calculation_run WHERE planning_case_id = ? AND model_version = ? \\\"\\n            \\\"AND input_hash = ? AND run_status = 'SUCCEEDED'\\\",\\n            (CASE_ID, MODEL_VERSION, INPUT_HASH),\\n        ).fetchall()\\n    ok = any(\\n        row[\\\"run_id\\\"] != OLD_RUN_ID\\n        and row[\\\"available_benefit_yuan\\\"] == 453990\\n        and row[\\\"realizable_asset_yuan\\\"] == 1438424\\n        and row[\\\"six_month_need_yuan\\\"] == 2475800\\n        and row[\\\"liquidity_gap_yuan\\\"] == 583386\\n        for row in rows\\n    )\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": [dict(row) for row in rows]}\\n\\n\\ndef check_protected_history_unchanged(ws):\\n    with _db(ws) as con:\\n        old = con.execute(\\n            \\\"SELECT input_hash, available_benefit_yuan, realizable_asset_yuan, \\\"\\n            \\\"six_month_need_yuan, liquidity_gap_yuan, run_status, approved_by, approved_at \\\"\\n            \\\"FROM calculation_run WHERE run_id = ? AND planning_case_id = ?\\\",\\n            (OLD_RUN_ID, CASE_ID),\\n        ).fetchone()\\n        optional = con.execute(\\n            \\\"SELECT amount_yuan, necessity_level, include_in_gap, exclusion_reason_code \\\"\\n            \\\"FROM cash_need_item WHERE need_item_id = ? AND planning_case_id = ?\\\",\\n            (\\\"NI-QTWS-250331-18\\\", CASE_ID),\\n        ).fetchone()\\n    ok = (\\n        old is not None\\n        and tuple(old) == (\\n            \\\"sha256:old-beneficiary-factor-7c31b9d8\\\", 1830000, 1438424,\\n            2475800, 0, \\\"APPROVED\\\", \\\"EMP-RISK-017\\\", \\\"2025-04-02T10:18:43+08:00\\\",\\n        )\\n        and optional is not None\\n        and tuple(optional) == (260000, \\\"OPTIONAL\\\", 0, \\\"OPTIONAL_EXCLUDED\\\")\\n    )\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"protected rows intact\\\" if ok else \\\"protected row changed\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "protected_history_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:07Z",
+  "status": "candidate",
+  "evidence": []
+}

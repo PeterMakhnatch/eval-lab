@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0213_accounting_audit_tax_zh_t2_rl_002",
+  "variant_digest": "sha256:bcb2606344a7972f352dbb43a77d39bea38f934dccbfc561992030617e78b7a4",
+  "variant_harbor_digest": "sha256:7f02430ab0ab6763800ca677ff000e63384a7d965ca3515a5e5adddc84798aeb",
+  "parent": {
+    "digest": "sha256:0878dce943797f50f1a69a3b6d95e2e36520c2ea5b91f7dc4c535d1a744589ad",
+    "harbor_digest": "sha256:06a724bfc04f659c8565e7efc51baf541e2657b534cd77a72e57727c9e86b1d6",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0213_accounting_audit_tax_zh_t2_rl_002/0878dce94379.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:e30a63d0884f8ac6764a4a96b99bd9c5459ef7fcbe3d06fe0eaa640cbd0524e6",
+      "after_sha256": "sha256:7bf0ea785d43a72a321fe316bf3d45a629c8a76074ef8d8f2ad3678bdad0bd17",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"payment_amounts_and_split\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终答复是否分别正确列出两家标的公司的合同价款、首期/尾款比例和四笔付款金额？\",\n      \"pass_anchor\": \"必须识别：许昌欣旺能源有限公司合同价款为1,599万元，浙江欣拓环境科技有限公司合同价款为2,152万元；两笔合同均为工商变更后首期50%、余款50%；对应首期分别为799.50万元和1,076.00万元，尾款分别为799.50万元和1,076.00万元。还应能看出两项合计合同价款3,751.00万元、首期合计1,875.50万元、尾款合计1,875.50万元。允许人民币元/万元及自然语言表达，但金额语义须一致。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"trigger_dates\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终答复是否识别两项首期付款共同以工商变更完成日为触发基础，并正确给出模型采用的两个工商变更日期？\",\n      \"pass_anchor\": \"必须明确两项交易的首期触发事件都是相应标的完成工商变更登记，而不是公告日；《欣能再生股权交易与资产交易税负比较模型.xlsx》交易输入中两项目暂按的股权收购判断日期均为2024年6月30日。答复应同时提示该日期在模型/报告中具有暂按、待工商资料确认的性质，不能把它包装成已由公告固定披露的实际日期。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"workday_due_dates\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终答复是否将15个工作日正确应用于工商变更日，并给出两笔首期付款的到期日而非错误地从公告日计算？\",\n      \"pass_anchor\": \"按模型暂按的2024年6月30日（星期日）作为起算基础，下一工作日2024年7月1日计第1个工作日，连续计15个工作日后的首期付款日为2024年7月19日（星期五）；许昌欣旺能源有限公司和浙江欣拓环境科技有限公司均为该日期。答复可说明这是按工作日历推导的暂定日期，实际控制日期须随工商档案确认。不能接受把2024年6月22日公告日直接顺延得到的日期作为合同到期日，也不能把15个工作日误算成15个自然日。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"tail_fixed_date\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终答复是否把尾款与首期触发机制区分开，并正确识别固定尾款日？\",\n      \"pass_anchor\": \"必须明确两笔尾款均为合同价款的50%，各为许昌欣旺能源有限公司799.50万元、浙江欣拓环境科技有限公司1,076.00万元，合同约定余款于2024年12月31日前支付；该日期是固定的最迟节点，不是从工商变更日或公告日按工作日顺延计算。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"business_rationale_and_sources\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终答复是否解释公告日与工商变更触发日的业务/合同差异，并列出真实来源文件？\",\n      \"pass_anchor\": \"应解释进展公告日期2024年6月22日只是信息披露时间，不能替代合同约定的工商变更完成事件；只有交割/工商变更完成后才启动15个工作日首期付款计时，因此公告发布时点不等于付款义务已触发。应明确引用《旺能环境两项股权收购公告与政策条款摘录.xlsx》的交易/付款节点证据，并引用《欣能再生股权交易与资产交易税负比较模型.xlsx》及《旺能环境两项收购交易架构税负比较报告.docx》对日期暂按、待补证或付款控制的交叉说明。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"workspace_intact\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_workspace_intact\",\n      \"question\": \"\",\n      \"pass_anchor\": \"\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"只读题：业务结论由自由文本 rubric 判定；sanity 只检查源文件未损坏。\\\"\\\"\\\"\\n\\nfrom pathlib import Path\\n\\n\\ndef check_workspace_intact(workspace):\\n    required = [\\n        Path(workspace) / \\\"01_事实底稿\\\" / \\\"旺能环境两项股权收购公告与政策条款摘录.xlsx\\\",\\n        Path(workspace) / \\\"02_税务测算\\\" / \\\"欣能再生股权交易与资产交易税负比较模型.xlsx\\\",\\n        Path(workspace) / \\\"03_报告汇报\\\" / \\\"旺能环境两项收购交易架构税负比较报告.docx\\\",\\n    ]\\n    missing = [str(path) for path in required if not path.exists()]\\n    return {\\\"score\\\": 0.0 if missing else 1.0,\\n            \\\"detail\\\": \\\"缺少源文件: \\\" + \\\", \\\".join(missing) if missing else \\\"源文件均存在\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "workspace_intact": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:59Z",
+  "status": "candidate",
+  "evidence": []
+}

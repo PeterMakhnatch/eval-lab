@@ -1,0 +1,42 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_2088_legal_compliance_zh_t1_rl_005",
+  "variant_digest": "sha256:a5fe72c35a4faf80e87dd186ada4f3e958e19bf81b64b60a49a34452ad82ed12",
+  "variant_harbor_digest": "sha256:1e25cdd6a48d3827271f4dd3f128093e286f5870c0d8b4177350b778392c2c9f",
+  "parent": {
+    "digest": "sha256:8ef8bb5a7d7b6a43eced72805f6f5f958db257a95708fd372e2a9bb4b54fabaa",
+    "harbor_digest": "sha256:dd8a78274fb37561c321f8cc14aedfd895b7dce39af1c5c3c22abc71f3904a37",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_2088_legal_compliance_zh_t1_rl_005/8ef8bb5a7d7b.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:b290819ed64894516dbeca29162f32e55d3db1e50b47436e0c654c339d68d757",
+      "after_sha256": "sha256:dd58a2a8a2fef88e0298b7a340ef04cb8a5ecc2697e5bc02ffcdce1b9bd00e02",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"annual_activity_table_corrected\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_annual_activity_table_corrected\",\n      \"ground_truth\": \"年度背景统计表中‘年度活动/宣导及培训活动’的数量为1,190次\"\n    },\n    {\n      \"id\": \"reportable_detail_recompute\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确给出了2023年度可披露活动明细的重新汇总结果及对应时长？\",\n      \"pass_anchor\": \"必须明确说明可披露口径包含12条活动明细（或语义等价的12个/12条可披露批次），活动次数合计1,190次，时长合计191,220分钟，并正确折算为3,187小时。允许千位分隔符、空格及单位表述差异，但四个数值及其关系必须正确。Ground truth来自帆软FineBI合规培训披露数据集市中CAM-FCSEC-CPL-2023年度活动的可披露明细汇总。\"\n    },\n    {\n      \"id\": \"internal_trial_excluded\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否识别并正确排除了不可用于年度披露的内部试算汇总？\",\n      \"pass_anchor\": \"必须说明排除的是内部试算/内部汇总性质的数据，该汇总为1,207次、192,240分钟，即3,204小时，不能代替12条可披露明细的汇总。允许单位与千位分隔符表述差异，但不得把1,207次或3,204小时当作披露结果。Ground truth来自同一年度活动中唯一不可披露的内部试算汇总。\"\n    },\n    {\n      \"id\": \"adjacent_background_values_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_adjacent_background_values_preserved\",\n      \"ground_truth\": \"年度背景表中的合计3,187小时以及员工/分支机构3,224人/59家保持不变\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"activity_row_noncount_fields_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_activity_row_noncount_fields_preserved\",\n      \"ground_truth\": \"目标行仅修正数量；类别、分项和口径/说明保持原值\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"body_text_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_body_text_preserved\",\n      \"ground_truth\": \"正文中与年度活动口径有关的既有段落未被改写\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"#!/usr/bin/env python3\\nimport re\\nfrom pathlib import Path\\n\\nfrom docx import Document\\n\\n\\nREPORT_NAME = \\\"第一创业证券2023年新入职高风险岗位合规培训与闭卷测验总结报告.docx\\\"\\n\\n\\ndef _norm(value):\\n    return re.sub(r\\\"[\\\\s\\\\u3000]+\\\", \\\"\\\", str(value or \\\"\\\")).lower()\\n\\n\\ndef _numbers(value):\\n    return [int(token.replace(\\\",\\\", \\\"\\\")) for token in re.findall(r\\\"\\\\d[\\\\d,]*\\\", str(value or \\\"\\\"))]\\n\\n\\ndef _load_report(workspace):\\n    path = Path(workspace) / REPORT_NAME\\n    if not path.exists():\\n        raise FileNotFoundError(f\\\"未找到报告：{REPORT_NAME}\\\")\\n    return Document(path)\\n\\n\\ndef _background_rows(document):\\n    expected_headers = [\\\"类别\\\", \\\"分项\\\", \\\"数量\\\", \\\"口径/说明\\\"]\\n    for table in document.tables:\\n        if not table.rows:\\n            continue\\n        headers = [_norm(cell.text) for cell in table.rows[0].cells]\\n        if all(_norm(header) in headers for header in expected_headers):\\n            return [[cell.text for cell in row.cells] for row in table.rows[1:]]\\n    raise ValueError(\\\"未找到年度背景统计表\\\")\\n\\n\\ndef _find_row(rows, category, item):\\n    for row in rows:\\n        if len(row) >= 3 and _norm(row[0]) == _norm(category) and _norm(row[1]) == _norm(item):\\n            return row\\n    raise ValueError(f\\\"未找到目标行：{category}/{item}\\\")\\n\\n\\ndef check_annual_activity_table_corrected(workspace):\\n    try:\\n        rows = _background_rows(_load_report(workspace))\\n        row = _find_row(rows, \\\"年度活动\\\", \\\"宣导及培训活动\\\")\\n        values = _numbers(row[2])\\n        passed = values == [1190]\\n        return {\\n            \\\"score\\\": 1 if passed else 0,\\n            \\\"detail\\\": f\\\"年度活动数量当前为{row[2]!r}；期望语义值为1,190次。\\\",\\n        }\\n    except Exception as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"校验失败：{exc}\\\"}\\n\\n\\ndef check_adjacent_background_values_preserved(workspace):\\n    try:\\n        rows = _background_rows(_load_report(workspace))\\n        total_hours = _find_row(rows, \\\"年度时长\\\", \\\"合计\\\")[2]\\n        organization = _find_row(rows, \\\"组织背景\\\", \\\"员工/分支机构\\\")[2]\\n        passed = _numbers(total_hours) == [3187] and _numbers(organization) == [3224, 59]\\n        return {\\n            \\\"score\\\": 1 if passed else 0,\\n            \\\"detail\\\": f\\\"年度时长合计={total_hours!r}；员工/分支机构={organization!r}。\\\",\\n        }\\n    except Exception as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"校验失败：{exc}\\\"}\\n\\n\\ndef check_activity_row_noncount_fields_preserved(workspace):\\n    try:\\n        rows = _background_rows(_load_report(workspace))\\n        row = _find_row(rows, \\\"年度活动\\\", \\\"宣导及培训活动\\\")\\n        expected = [\\\"年度活动\\\", \\\"宣导及培训活动\\\", \\\"正文表述为1,190余次\\\"]\\n        actual = [row[0], row[1], row[3]]\\n        passed = actual == expected\\n        return {\\n            \\\"score\\\": 1 if passed else 0,\\n            \\\"detail\\\": f\\\"目标行非数量字段={actual!r}；期望={expected!r}。\\\",\\n        }\\n    except Exception as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"校验失败：{exc}\\\"}\\n\\n\\ndef check_body_text_preserved(workspace):\\n    try:\\n        document = _load_report(workspace)\\n        paragraphs = {paragraph.text.strip() for paragraph in document.paragraphs if paragraph.text.strip()}\\n        required = {\\n            \\\"第一创业证券股份有限公司2023年合规培训总时长为3,187小时，员工覆盖率100%，全年开展1,190余次合规宣导及培训活动。本专项项目是年度培训体系中针对新入职高风险岗位的强化环节，不能与年度全员培训人数重复相加。\\\",\\n            \\\"年度培训时长分项为法律法规与监管规则812小时、反洗钱与客户身份识别748小时、廉洁从业与员工行为管理596小时、业务线专项合规671小时、案例研讨及测试辅导360小时，合计3,187小时。活动批次明细合计1,196次，正文按披露口径概括为“全年开展1,190余次合规宣导及培训活动”。\\\",\\n            \\\"年度3,187小时培训时长及1,196次活动为公司全年合规培训背景，本项目36人数据是其中的专项管理单元。两组数据分别用于年度披露和项目闭环，不相互替代或直接推算人均效果。\\\",\\n            \\\"活动批次：分项合计1,196次，披露概括为1,190余次。\\\",\\n        }\\n        missing = sorted(required - paragraphs)\\n        return {\\n            \\\"score\\\": 0 if missing else 1,\\n            \\\"detail\\\": \\\"正文锚点均保持不变。\\\" if not missing else f\\\"正文锚点被改写或删除：{missing}\\\",\\n        }\\n    except Exception as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"校验失败：{exc}\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"edit_workspace\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "adjacent_background_values_preserved": 1.0,
+      "activity_row_noncount_fields_preserved": 1.0,
+      "body_text_preserved": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:15Z",
+  "status": "candidate",
+  "evidence": []
+}

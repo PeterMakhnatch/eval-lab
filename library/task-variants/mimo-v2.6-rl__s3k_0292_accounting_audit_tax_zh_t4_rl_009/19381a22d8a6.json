@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0292_accounting_audit_tax_zh_t4_rl_009",
+  "variant_digest": "sha256:19381a22d8a637193c5487409a3250095bb20b353780c9643a4176458fcb174c",
+  "variant_harbor_digest": "sha256:7b57aaa57e8fbac4b2c825830e3544542eccc9ddd403b8b54f2eb1ec121b9762",
+  "parent": {
+    "digest": "sha256:51166a918c9b54b67507d3ec58efe34b820758b32990895931848d5f213f19a9",
+    "harbor_digest": "sha256:2edacc27c9758e90d2fba3781ba8b6ea2eb52e2640e286069818172397a6b9b9",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0292_accounting_audit_tax_zh_t4_rl_009/51166a918c9b.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:70e300256ef0caa33e1cfb016b113d9b738d78551c7cdfe9b829ab2e0bce8b02",
+      "after_sha256": "sha256:c9739995130d78e04c4eb1e38d1baf80675a177de99a43d7d132dd8568e55765",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"issue_registered\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_issue_registered\",\n      \"description\": \"登记唯一的期末返利多计会计事项，并正确关联、定性和赋值。\"\n    },\n    {\n      \"id\": \"source_records_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_source_records_unchanged\",\n      \"description\": \"原始返利凭证行和期末负债余额未被修改。\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"exemptions_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_exemptions_unchanged\",\n      \"description\": \"两笔明确可区分服务采购的四条豁免分录仍保持豁免，未被标记或重分类。\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"reconciliation_amounts\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确给出 2022 年返利账面计提、审定年度 FINAL 快照重算金额及账面多计差额？\",\n      \"pass_anchor\": \"应给出：用友NC 2022 年已过账返利负债贷方计提合计 16,423,800 元（1,642.38 万元）；华之杰返利计算引擎 2022-12-31 的 FINAL 冻结运行/快照（可写 RUN-HZJ-2022-YE-FINAL-01、SNP-HZJ-2022-YE-FINAL，或清楚指向该 FINAL 冻结结果）重算应计 16,382,100 元（1,638.21 万元）；账面多计 41,700 元（4.17 万元）。不得以 RUN-HZJ-2022-YE-RERUN-03 的非 FINAL 草稿 16,415,700 元替代 FINAL。接受元/万元换算及合理格式差异，金额容差 ±1 元。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"target_and_exemption_conclusion\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否识别出应登记的唯一未冲回差异负债行，并正确排除两笔服务采购豁免事项？\",\n      \"pass_anchor\": \"应指出差异对应 NC 凭证行 VL-2022-12-30-014-01，凭证号记-2022-12-0314，来源为 2022-12 月估计调整，摘要语义为“12月估计调整，多计部分期末未冲回”，贷方 41,700 元；该行对应统一实体 ENT-CUST-TTI，系统历史名称为 TTI Asia。应同时说明两笔不应重分类的豁免采购：记-2022-09-0872 或 VCH-2022-09-08-019（或其分录行）的陈列服务采购（185,000 元），以及记-2022-10-1658 或 VCH-2022-10-17-006（或其分录行）的市场服务采购（246,000 元）；明确说明服务可区分、按采购处理且均排除在应冲减收入的返利之外。接受凭证号、VCH 凭证 ID、分录行号或同时写多个标识的等价表达，金额容差 ±1 元；无需在最终文字中逐字列出数据库 exemption_flag 字段。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"accounting_principle\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确给出该差异的建议会计处理原则，并说明已完成登记的后态？\",\n      \"pass_anchor\": \"建议原则应为：返利作为应付客户对价，原则上冲减交易价格/相关收入；本次 41,700 元差异应在取得审批后冲回，或在最近结账期作收入冲减/相关调整，而不是修改历史原凭证或将服务采购豁免事项重分类。最终回复还应明确已在用友NC登记一条 OTHER 类型、OPEN 状态、金额 41,700 元、复核人李静怡且关联目标凭证行的事项。接受等值中文表述。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\nTARGET_LINE='VL-2022-12-30-014-01'\\nTARGET_AMOUNT=41700\\nEXEMPTION_LINES={'VL-2022-09-08-019-01':('1403',185000,0),'VL-2022-09-08-019-02':('2202',0,185000),'VL-2022-10-17-006-01':('1403',246000,0),'VL-2022-10-17-006-02':('2202',0,246000)}\\ndef _db(ws): return Path(ws).resolve().parent/'system'/'yonyou_nc_finance'/'state.db'\\ndef _connect(ws):\\n con=sqlite3.connect(f'file:{_db(ws)}?mode=ro',uri=True); con.row_factory=sqlite3.Row; return con\\ndef check_issue_registered(ws):\\n con=_connect(ws)\\n try:\\n  if 'presentation_issues' not in {r[0] for r in con.execute(\\\"SELECT name FROM sqlite_master WHERE type='table'\\\")}: return {'score':0,'detail':'presentation_issues 尚未创建'}\\n  rows=con.execute('SELECT issue_id,voucher_line_id,issue_type,issue_amount_yuan,description,reviewer,status FROM presentation_issues').fetchall()\\n  if len(rows)!=1: return {'score':0,'detail':f'事项数量为 {len(rows)}，应唯一登记一条'}\\n  r=rows[0]; d=r['description'] or ''; c={'voucher_line_id':r['voucher_line_id']==TARGET_LINE,'issue_type':r['issue_type']=='OTHER','issue_amount_yuan':r['issue_amount_yuan']==TARGET_AMOUNT,'reviewer':r['reviewer']=='李静怡','status':r['status']=='OPEN','description':all(t in d for t in ('冲回','结账'))}; bad=[k for k,v in c.items() if not v]\\n  if bad: return {'score':0,'detail':'登记后态不符合: '+', '.join(bad)}\\n  return {'score':1,'detail':f'唯一事项 {r[\\\"issue_id\\\"]} 已正确关联目标差异行'}\\n finally: con.close()\\ndef check_source_records_unchanged(ws):\\n con=_connect(ws)\\n try:\\n  rows=con.execute(\\\"SELECT voucher_line_id,account_code,debit_yuan,credit_yuan,line_memo,exemption_flag FROM voucher_lines WHERE voucher_line_id IN ('VL-2022-12-28-007-01','VL-2022-12-30-014-01','VL-2022-12-31-003-01') ORDER BY voucher_line_id\\\").fetchall(); e={'VL-2022-12-28-007-01':('2203',0,8000000,'TTI返利负债计提，直接及间接销售基础',0),TARGET_LINE:('2203',0,41700,'12月估计调整，多计部分期末未冲回',0),'VL-2022-12-31-003-01':('2203',0,8382100,'TTI返利负债年末计提及结转',0)}\\n  if len(rows)!=3: return {'score':0,'detail':'三条原始返利负债分录不完整'}\\n  for r in rows:\\n   if tuple(r[k] for k in ('account_code','debit_yuan','credit_yuan','line_memo','exemption_flag'))!=e[r['voucher_line_id']]: return {'score':0,'detail':f'原始凭证行被修改: {r[\\\"voucher_line_id\\\"]}'}\\n  b=con.execute(\\\"SELECT accrued_yuan,settled_yuan,unpaid_yuan,recon_status FROM liability_balances WHERE balance_id='LB-2022-12-31-TTI-2022'\\\").fetchone()\\n  if tuple(b)!=(16423800,4345600,12078200,'EXCEPTION'): return {'score':0,'detail':'2022 年末负债余额被修改'}\\n  return {'score':1,'detail':'目标三条凭证行及 2022 年末负债余额保持不变'}\\n finally: con.close()\\ndef check_exemptions_unchanged(ws):\\n con=_connect(ws)\\n try:\\n  ph=','.join('?' for _ in EXEMPTION_LINES); rows=con.execute(f'SELECT voucher_line_id,account_code,debit_yuan,credit_yuan,exemption_flag FROM voucher_lines WHERE voucher_line_id IN ({ph}) ORDER BY voucher_line_id',tuple(EXEMPTION_LINES)).fetchall()\\n  if len(rows)!=len(EXEMPTION_LINES): return {'score':0,'detail':'豁免采购分录不完整'}\\n  for r in rows:\\n   e=EXEMPTION_LINES[r['voucher_line_id']]; a=(r['account_code'],r['debit_yuan'],r['credit_yuan'],r['exemption_flag'])\\n   if a!=(e[0],e[1],e[2],1): return {'score':0,'detail':f'豁免分录被修改: {r[\\\"voucher_line_id\\\"]}'}\\n  return {'score':1,'detail':'两笔服务采购的四条豁免分录保持原状'}\\n finally: con.close()\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "source_records_unchanged": 1.0,
+      "exemptions_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:00Z",
+  "status": "candidate",
+  "evidence": []
+}

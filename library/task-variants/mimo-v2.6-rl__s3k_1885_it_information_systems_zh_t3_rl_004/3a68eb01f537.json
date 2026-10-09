@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1885_it_information_systems_zh_t3_rl_004",
+  "variant_digest": "sha256:3a68eb01f537919b52091ace05f90a6d2985a4e051c722f079970f041bb6ff50",
+  "variant_harbor_digest": "sha256:e86a873097a7d115bb4a83ebfea580bf91601c7de19cc9a1f937c743d0ed335e",
+  "parent": {
+    "digest": "sha256:a9a799a39d01ae4bf031f1930d3c9a118bc140334c9f56c773b5215529ff55b6",
+    "harbor_digest": "sha256:09fffbf90a1c4a974d3e3e140ec15cc6e65df183b2d4a22738883e2347f2a001",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1885_it_information_systems_zh_t3_rl_004/a9a799a39d01.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:0119bab2c25d1e44d19df500a0103b8464235b9d11847f377571cea9cfd8f1e6",
+      "after_sha256": "sha256:71eacbc342cbfcdb3a4c3afef2ed356ea6b6f4d434517c6e92235ddb6ce2699b",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"database_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_database_unchanged\",\n      \"ground_truth\": {\n        \"sha256\": \"6e566965d0d7ca946b61593c33e8a9edab00a4e022d6e99030390095715066be\"\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"final_deduplicated_distribution\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确复算出该固定快照去重后的四档邮箱健康分布？\",\n      \"pass_anchor\": \"真实数据锚点：按同一快照内的源行哈希消除导入重试，并采用每个邮箱的有效观测联接其配额档位后，共有 16 个邮箱；四档结果为 Good 12、Warning 3、Can't send 1、Can't send/receive 0。状态名称可用等义中文表达，但四个档位及计数必须一一对应，不能采用缓存的 13/2/1/0。\"\n    },\n    {\n      \"id\": \"complete_non_good_set\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否列全去重后所有非 Good 邮箱，并为每个邮箱给出正确状态？\",\n      \"pass_anchor\": \"真实数据锚点：完整集合恰好为 4 个邮箱：xuewen.luo@chengming-smart.cn = Can't send；chenxi.guo@chengming-smart.cn = Warning；engineering-shared@chengming-smart.cn = Warning；yan.zhou@chengming-smart.cn = Warning。必须列全且不能混入其他邮箱；状态可用等义中文。\"\n    },\n    {\n      \"id\": \"publisher_cache_evidence\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确识别发布方缓存的四档计数及其相对明细抓取的时间关系？\",\n      \"pass_anchor\": \"真实数据锚点：发布方缓存四档为 Good 13、Warning 2、Can't send 1、Can't send/receive 0；缓存生成于 2025-02-18 06:05（中国标准时间），早于固定明细快照的 2025-02-18 08:30 抓取。答案需明确这是较早时点的缓存汇总，不能把它当作 08:30 明细的重算结果。\"\n    },\n    {\n      \"id\": \"duplicate_import_audit\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否识别出唯一重复导入组，并说明应保留的有效观测及依据？\",\n      \"pass_anchor\": \"真实数据锚点：罗学文邮箱 MBX-CM-XUEWEN-LUO 的 MBO-20250218-0001 与 MBO-20250218-0098 属于同一快照、同一源行哈希 sha256:4d39042b6ca1f2e8-xuewen-20250217 的两次导入尝试；尝试号分别为 1 和 2，导入时间分别为 08:30:21 和 08:33:47，用量均为 101742.6 MB。应按源行哈希去重并保留较新的第二次尝试 MBO-20250218-0098。答案至少要准确指出邮箱、两次尝试/同源关系和保留第二次较新记录；观测 ID、哈希或时间应作为关键证据出现。\"\n    },\n    {\n      \"id\": \"raw_detail_trap\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确算出未去重明细的四档结果，并指出被重复放大的档位？\",\n      \"pass_anchor\": \"真实数据锚点：直接统计 17 条未去重明细得到 Good 12、Warning 3、Can't send 2、Can't send/receive 0。被算成 2 的 Can't send 实际来自罗学文同一源观测的两次导入，去重后该档只有 1 个邮箱。\"\n    },\n    {\n      \"id\": \"governance_basis_reasoning\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否基于已核实的时间差和重复导入解释两种现成汇总为何都不适合直接驱动治理？\",\n      \"pass_anchor\": \"通过条件：答案需形成两条因果解释。其一，发布方缓存生成时间早于 08:30 明细抓取，且缓存 13/2/1/0 与同一固定快照按配额重算的 12/3/1/0 不一致，因此不能代表目标时点。其二，未去重明细把同一源观测的导入重试当成两个邮箱风险，导致 Can't send 从真实的 1 膨胀为 2。结论应明确治理行动应采用去重后的邮箱级重算结果和四邮箱集合。\"\n    }\n  ],\n  \"check_code\": \"import hashlib\\nfrom pathlib import Path\\n\\n\\nEXPECTED_SHA256 = \\\"6e566965d0d7ca946b61593c33e8a9edab00a4e022d6e99030390095715066be\\\"\\n\\n\\ndef check_database_unchanged(workspace):\\n    database = Path(workspace).parent / \\\"system\\\" / \\\"fabric_exchange_capacity\\\" / \\\"state.db\\\"\\n    if not database.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"未找到 Fabric Exchange 容量监测数据库。\\\"}\\n    actual = hashlib.sha256(database.read_bytes()).hexdigest()\\n    if actual != EXPECTED_SHA256:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"只读任务的数据库内容发生了变化。\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"数据库保持初始状态，符合只读要求。\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "database_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:14Z",
+  "status": "candidate",
+  "evidence": []
+}

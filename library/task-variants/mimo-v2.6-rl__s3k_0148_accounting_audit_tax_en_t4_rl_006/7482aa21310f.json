@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0148_accounting_audit_tax_en_t4_rl_006",
+  "variant_digest": "sha256:7482aa21310f2cd586a2d465b437eefcef754059c9bcb07a9318422196e9c7fb",
+  "variant_harbor_digest": "sha256:255992014b0131cefe282d754be59e19c81b28b8de744e947146253b535bde94",
+  "parent": {
+    "digest": "sha256:3f21f3270740818695222118fe0577b7289b846c35740f7354abd6af870fc437",
+    "harbor_digest": "sha256:587f6e1f9ff5730a09e5813d7d2859a265629d2b4da3bc7c953e56f7afa4e630",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0148_accounting_audit_tax_en_t4_rl_006/3f21f3270740.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:3d40760fe1b5467840d4e80cb4064984c3347182573fd9f189564238eade2218",
+      "after_sha256": "sha256:84d90aaaf7992b49ca8377908be28a35401165ec6955babb79cc4e86989d776a",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"cutoff_milestone_completed\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_cutoff_milestone\",\n      \"ground_truth\": {\n        \"milestone_id\": \"MS-FY24-UL-004\",\n        \"status\": \"complete\",\n        \"completed_at\": \"2024-10-21T15:16:00-07:00\"\n      }\n    },\n    {\n      \"id\": \"auditable_clara_attribution\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_auditable_update\",\n      \"ground_truth\": {\n        \"entity_type\": \"milestone\",\n        \"entity_id\": \"MS-FY24-UL-004\",\n        \"event_type\": \"milestone_status_update\",\n        \"updated_by\": \"Michael Torres, CPA\",\n        \"evidence_reference\": \"WP-UL-2024-001\",\n        \"required_reason_concepts\": [\n          \"reviewed\",\n          \"Clara\"\n        ]\n      }\n    },\n    {\n      \"id\": \"management_milestone_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_management_milestone_unchanged\",\n      \"ground_truth\": {\n        \"milestone_id\": \"MS-FY24-CLOSE-006\",\n        \"status\": \"blocked\",\n        \"completed_at\": null,\n        \"updated_at\": \"2024-10-16T13:25:00Z\"\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"final_response_evidence\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response accurately report the reviewed Clara evidence used for the milestone decision?\",\n      \"pass_anchor\": \"Ground truth: KPMG Clara workpaper WP-UL-2024-001 exists as REVIEWED; its reviewer is Michael Torres, CPA and its reviewed_at timestamp is 2024-10-21T15:16:00-07:00. Accept equivalent English date/time wording and normal timezone formatting, but the response must preserve the reviewer identity and the fact that the evidence was reviewed.\"\n    },\n    {\n      \"id\": \"final_response_distinction\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response distinguish the completed cutoff testing from the unresolved management disposition and summarize the operation performed?\",\n      \"pass_anchor\": \"Ground truth: the completed business item is the portal milestone named 'Subsequent disbursement and receiving report cutoff testing' (MS-FY24-UL-004), completed at 2024-10-21T15:16:00-07:00. The separate 'Management disposition of proposed accrual' milestone (MS-FY24-CLOSE-006) remains blocked/open and was not changed. The response must state both outcomes and identify that the portal milestone was updated using the reviewed Clara workpaper as evidence.\"\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"Deterministic post-state checks for the Costco audit portal mutation.\\\"\\\"\\\"\\n\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\nTARGET = \\\"MS-FY24-UL-004\\\"\\nPROTECTED = \\\"MS-FY24-CLOSE-006\\\"\\nEXPECTED_COMPLETION = \\\"2024-10-21T15:16:00-07:00\\\"\\n\\n\\ndef _portal_db(ws: Path) -> Path:\\n    return Path(ws).parent / \\\"system\\\" / \\\"costco_audit_committee_portal\\\" / \\\"state.db\\\"\\n\\n\\ndef check_cutoff_milestone(ws):\\n    with sqlite3.connect(_portal_db(ws)) as con:\\n        row = con.execute(\\n            \\\"SELECT status, completed_at FROM milestones WHERE milestone_id = ?\\\",\\n            (TARGET,),\\n        ).fetchone()\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"Milestone {TARGET} was not found.\\\"}\\n    ok = row[0] == \\\"complete\\\" and row[1] == EXPECTED_COMPLETION\\n    return {\\n        \\\"score\\\": int(ok),\\n        \\\"detail\\\": f\\\"{TARGET}: status={row[0]!r}, completed_at={row[1]!r}; expected complete/{EXPECTED_COMPLETION!r}.\\\",\\n    }\\n\\n\\ndef check_auditable_update(ws):\\n    with sqlite3.connect(_portal_db(ws)) as con:\\n        tables = {r[0] for r in con.execute(\\\"SELECT name FROM sqlite_master WHERE type='table'\\\")}\\n        if \\\"mutation_journal\\\" not in tables:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"No mutation journal was created.\\\"}\\n        rows = con.execute(\\n            \\\"\\\"\\\"SELECT entity_type, entity_id, event_type, new_status, completed_at,\\n                      updated_by, reason\\n               FROM mutation_journal\\n               WHERE entity_type = 'milestone' AND entity_id = ?\\n               ORDER BY journal_id DESC\\\"\\\"\\\",\\n            (TARGET,),\\n        ).fetchall()\\n    if not rows:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"No journal event references {TARGET}.\\\"}\\n    row = rows[0]\\n    reason = row[6] or \\\"\\\"\\n    ok = (\\n        row[0] == \\\"milestone\\\"\\n        and row[1] == TARGET\\n        and row[2] == \\\"milestone_status_update\\\"\\n        and row[3] == \\\"complete\\\"\\n        and row[4] == EXPECTED_COMPLETION\\n        and row[5] == \\\"Michael Torres, CPA\\\"\\n        and \\\"wp-ul-2024-001\\\" in reason.lower()\\n        and \\\"reviewed\\\" in reason.lower()\\n        and \\\"clara\\\" in reason.lower()\\n    )\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": f\\\"Latest target journal event: {dict(zip(('entity_type','entity_id','event_type','new_status','completed_at','updated_by','reason'), row))}.\\\"}\\n\\n\\ndef check_management_milestone_unchanged(ws):\\n    with sqlite3.connect(_portal_db(ws)) as con:\\n        row = con.execute(\\n            \\\"SELECT status, completed_at, updated_at FROM milestones WHERE milestone_id = ?\\\",\\n            (PROTECTED,),\\n        ).fetchone()\\n    expected = (\\\"blocked\\\", None, \\\"2024-10-16T13:25:00Z\\\")\\n    ok = row == expected\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": f\\\"{PROTECTED}: observed={row!r}; expected={expected!r}.\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "management_milestone_preserved": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:58Z",
+  "status": "candidate",
+  "evidence": []
+}

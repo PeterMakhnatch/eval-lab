@@ -1,0 +1,49 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/dasyn_260638_00043",
+  "variant_digest": "sha256:f6d1a720e1294531c96a56621ca6fffa774c3e43f619c8047ede136f52778d13",
+  "variant_harbor_digest": "sha256:4a576205f29b433debd98b59f3fef591074936e9e6751ce10d6b32bca41d1c77",
+  "parent": {
+    "digest": "sha256:3c9433c8bc762e12c8bba4dd18fc4887d3b0d35951858ed661b075a99781ebd5",
+    "harbor_digest": "sha256:513fa8e00772b0f71b28edf1632122634964ec47fba7d69831fb0f1d618c1612",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-webdev",
+      "revision": "e1a6293376e8910e1fb1f28efabd93dad2f8b475",
+      "path": "tasks/dasyn_260638_00043",
+      "record": null
+    }
+  },
+  "transform": "webdev-temp0-pin@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/grade.json",
+      "before_sha256": "sha256:0ac63b020ffc74732900e6267e09ca5c1e5512b68ee82601b57345c561d973fd",
+      "after_sha256": "sha256:443dc85c6c907f9df95f92f42d623aee424711cfe442688dbc7d1038bad61904",
+      "content": "{\n \"cwd\": \"/workspace\",\n \"query\": \"我想做一个纯静态的清洁服务公司目录/作品集网站，整体要活泼一点但不要幼稚，感觉像 Linear 那种干净、顺滑、有层次的产品官网，只是颜色可以更轻快，比如薄荷绿、奶油白、泡泡蓝、柠檬黄点缀。网站主题是“城市清洁伙伴目录”，展示不同类型的清洁服务团队和他们做过的案例，不需要后台、不需要登录、不需要真实预约系统，也不要接任何真实 API，所有内容都用静态 mock 数据写死就行，可以放在本地数组里。请用 React 做一个可以直接运行的静态前端页面，重点是视觉完成度和交互体验。\\n\\n页面结构我希望是中等复杂度，不要只有一屏。需要有首页 hero 区，左边是品牌介绍和 CTA，右边可以做一些漂浮的小卡片，比如今日推荐清洁团队、评分、服务标签、完成项目数量这些，都是假的数据。导航栏要有：首页、服务目录、精选案例、价格说明、客户评价、联系区域，点击可以平滑滚动或做页面区域切换。整个网站要有清洁服务目录的感觉，比如分类包括家庭深度清洁、办公室清洁、搬家后清洁、窗户清洁、地毯沙发清洁、商铺开荒清洁等。目录卡片要设计得像一个漂亮的服务 marketplace，但只是展示，不要真的下单。每个卡片要有服务名、简短描述、标签、虚拟评分、起步价、适合场景、一个“查看详情”按钮。点击查看详情可以在当前页面打开一个静态详情面板或弹窗，里面展示 mock 的服务流程、包含内容、注意事项、案例图片占位，不要跳真实路由也不要请求数据。\\n\\n我很在意动效，请使用 GSAP 做页面进入动画和区块切换动画，尤其是 hero 元素错层进入、目录卡片 stagger 出现、按钮 hover 的微动效，以及点击不同服务分类时卡片有淡出淡入的过渡。希望有一种 page transitions 的感觉，即使是单页静态网站，也要在切换“首页/目录/案例/价格”等区域时有柔和的遮罩滑动或内容过渡，不要生硬。动效要顺畅但不要过度炫技，不要 3D、不要 WebGL、不要 canvas 游戏之类的东西。滚动时可以有简单的 reveal 动画，卡片和标题出现时有轻微上移和透明度变化。\\n\\n视觉上请参考 Linear 的排版节奏、细线边框、渐变背景、玻璃拟态卡片、柔和阴影和清晰的信息层级，但主题要是清洁服务，所以可以加入泡泡、闪光、清扫轨迹、圆角标签这些可爱的细节。logo 可以用文字 logo，比如“SparkleHub Clean”，旁边一个简单的星星或泡泡符号即可，不需要生成图片。图片资源可以用渐变占位图、CSS 图形或本地占位卡，不要依赖外部图片服务。页面必须响应式，桌面端要有漂亮的网格布局，移动端导航要变成菜单按钮，卡片一列排列，弹窗和详情面板也要适配手机。\\n\\n还需要一个“精选案例”区域，展示 4 到 6 个清洁前后案例，可以用静态占位块模拟 before/after，不需要真的上传图片。每个案例写上地点类型，比如 loft 公寓、共享办公室、咖啡店、儿童活动室等，配上清洁亮点和用时。价格说明区做成三档套餐：轻松焕新、深度闪亮、全屋精护，价格都是示例，写清楚适合谁和包含哪些项目。评价区放一些虚拟客户评价，最好做成横向卡片或轮播视觉，但不需要真实轮播库，简单按钮切换或自动静态展示都可以。底部有联系区，但只是静态表单样式，字段包括姓名、空间类型、预算、留言，提交按钮点击后显示一个本地的成功提示即可，不要真的提交到服务器。\\n\\n请注意代码要干净，组件划分清楚，比如 Navbar、Hero、ServiceDirectory、ServiceCard、CaseStudies、Pricing、Testimonials、ContactSection、TransitionOverlay 之类。样式可以用 CSS 或 Tailwind，如果用普通 CSS 请写得整洁。要求没有后端、没有数据库、没有认证、没有真实支付、没有真实地图、没有外部搜索。所有筛选、弹窗、提示、分类切换都在前端用静态数据完成。最后请保证页面打开后没有明显报错，按钮都有反馈，分类筛选能工作，详情弹窗能关闭，移动端菜单能展开收起，GSAP 动画不会导致内容闪烁。整体做成一个适合清洁服务品牌展示自己服务目录和案例的静态作品集网站。\",\n \"judge\": {\n  \"model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8\",\n  \"model_sha\": \"94125d2bd83076b21eed33119525e29eaf3894f4\",\n  \"request_model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8:novita\",\n  \"provider\": \"novita\",\n  \"pinned_on\": \"2026-10-09\",\n  \"temperature\": 0,\n  \"max_tokens\": 1024,\n  \"rubric_id\": \"rva1:mean(visual,query,asset)\"\n }\n}\n"
+    },
+    {
+      "path": "tests/grade.py",
+      "before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+      "after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368",
+      "content": "\"\"\"Grade a Webdev task as the explorer does (verl recipes/design webdev-eval): render, shrink, judge.\n\nNo index.html in dist/ scores 0. A render that fails, or a judge that never answers, writes no reward (not scored):\nneither says anything about the page.\"\"\"\nimport base64\nimport io\nimport json\nimport os\nimport random\nimport subprocess\nimport sys\nimport time\nimport urllib.request\nfrom pathlib import Path\n\nsys.path.insert(0, \"/tests\")\nos.environ[\"WEBDEV_GRADE_HTTP\"] = \"1\"   # serve over loopback http so React/Vue/ES-module sites actually run\nfrom webdev.eval_rubric import build_prompt  # noqa: E402\nfrom webdev.shot import _build_shot_cmd, _parse_render_env, _parse_shot_b64  # noqa: E402\nfrom webdev.verdict import parse_verdict  # noqa: E402\n\ncfg = json.loads(Path(\"/tests/grade.json\").read_text())\nV = Path(\"/logs/verifier\")\nV.mkdir(parents=True, exist_ok=True)\ndist = Path(cfg[\"cwd\"]) / \"dist\"\n\n\ndef done(reward: float | None, why: str, **extra) -> None:\n    (V / \"result.json\").write_text(json.dumps({\"reward\": reward, \"summary\": why, **extra}, indent=1))\n    print(why)\n    if reward is None:\n        print(\"not scored\", file=sys.stderr)\n        sys.exit(1)\n    (V / \"reward.txt\").write_text(f\"{reward}\\n\")\n    sys.exit(0)\n\n\nfiles = sorted(str(p.relative_to(dist)) for p in dist.rglob(\"*\") if p.is_file())[:200] if dist.is_dir() else []\nif \"index.html\" not in files:\n    done(0.0, \"The agent delivered nothing to dist/.\" if not files else \"dist/ has no index.html, so there is no page to open.\",\n         delivered=files)\nres = subprocess.run([\"sh\", \"-c\", _build_shot_cmd(f\"file://{dist}/index.html\")], capture_output=True, text=True,\n                     timeout=150)   # SHOT_TIMEOUT_S\nshot = {\"output\": (res.stdout or \"\") + \"\\n\" + (res.stderr or \"\")}\nshot_b64, console_errors = _parse_shot_b64(shot)\nrender_env = _parse_render_env(shot)\nif render_env.get(\"proxy_failed\") or not shot_b64:\n    print(shot[\"output\"][-2000:], file=sys.stderr)\n    done(None, \"external assets were unreachable on every route\" if render_env.get(\"proxy_failed\")\n         else \"the screenshot produced no image\")\njpg = base64.b64decode(shot_b64)\ntry:   # eval_mode._shrink: the judge refuses shots over 20 MP; proportional, quality 75\n    from PIL import Image\n    Image.MAX_IMAGE_PIXELS = None\n    im = Image.open(io.BytesIO(jpg))\n    size = im.size\n    if im.width * im.height > 20e6:\n        k = (20e6 / (im.width * im.height)) ** 0.5\n        im = im.convert(\"RGB\").resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)\n        b = io.BytesIO(); im.save(b, \"JPEG\", quality=75); jpg = b.getvalue(); size = im.size\nexcept ImportError:\n    size = None\n(V / \"screenshot.jpg\").write_bytes(jpg)\ncontent = [{\"type\": \"image_url\", \"image_url\": {\"url\": \"data:image/jpeg;base64,\" + base64.b64encode(jpg).decode()}},\n           {\"type\": \"text\", \"text\": build_prompt().format(query=cfg[\"query\"][:1500])}]   # QUERY_CAP\nurl = os.environ.get(\"WEBDEV_JUDGE_URL\", \"https://router.huggingface.co/v1\").rstrip(\"/\") + \"/chat/completions\"\n_judge_pin = cfg[\"judge\"]\nif os.environ.get(\"WEBDEV_JUDGE_REVISION\") != _judge_pin[\"model_sha\"]:\n    done(None, \"Judge deployment revision is unbound; not scored.\")\n(V / \"judge_config.json\").write_text(json.dumps(_judge_pin, indent=1))\nbody = json.dumps({\"model\": cfg[\"judge\"][\"request_model\"], \"temperature\": 0, \"max_tokens\": 1024,  # webdev-temp0-pin@1\n                   \"messages\": [{\"role\": \"user\", \"content\": content}]}).encode()\nverdict, last = None, \"\"\nfor attempt in range(4):   # JUDGE_RETRIES, with eval_mode's backoff\n    if attempt:\n        time.sleep(min(60.0, 3.0 * (3 ** (attempt - 1))) * (0.5 + random.random()))\n    try:\n        req = urllib.request.Request(url, data=body, method=\"POST\", headers={\n            \"Content-Type\": \"application/json\", \"Authorization\": f\"Bearer {os.environ.get('WEBDEV_JUDGE_KEY', '')}\"})\n        with urllib.request.urlopen(req, timeout=180) as r:   # JUDGE_TIMEOUT_S\n            _judge_reply = json.loads(r.read())\n            if _judge_reply.get(\"model_revision\") != _judge_pin[\"model_sha\"]:\n                done(None, \"Judge response revision differs from the task pin; not scored.\")\n            msg = _judge_reply[\"choices\"][0][\"message\"]\n        v = parse_verdict(msg.get(\"content\") or msg.get(\"reasoning_content\") or \"\")\n        if \"_failed\" not in v:\n            verdict = v\n            break\n        last = v[\"_failed\"]\n    except Exception as e:  # noqa: BLE001\n        last = f\"{type(e).__name__}: {e}\"[:200]\nif not verdict:\n    done(None, f\"judge unavailable: {last}\")\ndone(verdict[\"score\"], verdict.get(\"reason\", \"\"), dims=verdict[\"dims\"], visual=verdict[\"visual\"], screenshot_size=size,\n     console_errors=console_errors[:1500] if console_errors not in (\"\", \"[]\") else \"\")\n"
+    }
+  ],
+  "rationale": "Use temperature zero and bind the model/provider request and artifact revision; mask absent or mismatched deployment/response revision. Version-aware judge endpoint validation is staged.",
+  "inputs": {
+    "parent_task": "mimo-v2.6-rl/dasyn_260638_00043",
+    "judge_model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "judge_model_sha": "94125d2bd83076b21eed33119525e29eaf3894f4",
+    "judge_temperature": 0,
+    "rubric_id": "rva1:mean(visual,query,asset)",
+    "grade_before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+    "grade_after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:59Z",
+  "status": "candidate",
+  "evidence": []
+}

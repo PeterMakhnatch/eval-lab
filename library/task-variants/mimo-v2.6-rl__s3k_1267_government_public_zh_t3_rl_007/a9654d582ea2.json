@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1267_government_public_zh_t3_rl_007",
+  "variant_digest": "sha256:a9654d582ea26192688c2f4b2b1e7df435f36713d31c3c753a702637fdfcb047",
+  "variant_harbor_digest": "sha256:be6330bca095dfb37709a964a840cb7d7bf4f71c6eeabd0e0f23a39ef994a5f9",
+  "parent": {
+    "digest": "sha256:3b2c7abc9054d6e6447a9554824ab43fe68f1fed7290efcac61af6a680ca14ce",
+    "harbor_digest": "sha256:87d78a8faac323cbf7453d3f5630db7046ac62fad92808d50fdcdaa413eb5a60",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1267_government_public_zh_t3_rl_007/3b2c7abc9054.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:922bccdd25d3b7419e584cf782abcc0603847bc1b53c003b22b2c17b4e3c9240",
+      "after_sha256": "sha256:88b9174b78e4fb97f3aa2d2ea6f7220ab20582910fe28ccf46416b24bb4ee942",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"catalog_controls\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_catalog_controls\",\n      \"description\": \"目标目录的续期控制项被正确收紧。\",\n      \"ground_truth\": {\n        \"dataset_id\": \"DS-PDS-CIV-2024-017\",\n        \"approved_scenario_id\": \"SCN-PDS-HOUSING-JOINT-REVIEW-001\",\n        \"approved_sharing_mode\": \"api\",\n        \"authorization_end_date\": \"2026-09-30\",\n        \"sharing_scope\": \"申请人及共同申请家庭成员\",\n        \"usage_condition\": \"语义上应绑定需求部门专用服务账号，仅服务于保障性住房资格联审，仅返回最终授权边界内的核验结果，禁止批量导出，并禁止向第三方转提供。\"\n      }\n    },\n    {\n      \"id\": \"catalog_version\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_catalog_version\",\n      \"description\": \"目录维护产生新的版本时间戳。\",\n      \"ground_truth\": \"维护后 updated_at 应为执行日；回放复核允许执行日 2026-08-14 至当前运行日的日期窗口。\"\n    },\n    {\n      \"id\": \"answer_key_conclusions\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否准确报告了续期核对出的关键结论：最终授权边界为13项授权字段、5项不予授权字段；授权期为2025年10月1日至2026年9月30日；目录原截止日为2027年3月31日且本次改为2026年9月30日；并说明了专用账号/资格联审用途、结果化受控返回、禁止批量导出和禁止向第三方转提供等控制？\",\n      \"pass_anchor\": \"应从最终回复识别到以下事实（表述可不同但含义须一致）：字段矩阵最终保留13项授权字段，拒绝5项字段；接口授权期是2025-10-01至2026-09-30；目标目录维护前授权截止日是2027-03-31，维护后是2026-09-30；目录控制绑定平顶山市住房和城乡建设局专用服务账号与保障性住房资格联审用途，只返回最终授权边界内核验结果，禁止批量导出并禁止向第三方转提供。\"\n    },\n    {\n      \"id\": \"answer_operation\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否说明已在读取当前版本后完成目标目录维护，并报告场景绑定、接口模式、共享范围和版本校验结果，而不是只复述材料？\",\n      \"pass_anchor\": \"应明确说明已维护平顶山市民政局“社会救助与婚姻登记核验数据集”，保留 API 模式，绑定场景 SCN-PDS-HOUSING-JOINT-REVIEW-001，共享范围为申请人及共同申请家庭成员，并先读取 updated_at 做版本校验后提交成功。\"\n    },\n    {\n      \"id\": \"untouched_records\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_untouched_records\",\n      \"description\": \"非目标目录及非目标字段没有被改动。\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import datetime\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\nDATASET_ID = \\\"DS-PDS-CIV-2024-017\\\"\\n\\n\\ndef _db(ws):\\n    return Path(ws).parent / \\\"system\\\" / \\\"mininglamp_data_catalog\\\" / \\\"state.db\\\"\\n\\n\\ndef _row(ws, sql, args=()):\\n    con = sqlite3.connect(_db(ws))\\n    con.row_factory = sqlite3.Row\\n    try:\\n        return con.execute(sql, args).fetchone()\\n    finally:\\n        con.close()\\n\\n\\ndef check_catalog_controls(ws):\\n    row = _row(ws, \\\"SELECT approved_scenario_id, approved_sharing_mode, authorization_end_date, sharing_scope, usage_condition FROM catalog_datasets WHERE dataset_id=?\\\", (DATASET_ID,))\\n    actual = tuple(row) if row else None\\n    usage = (row[4] or \\\"\\\") if row else \\\"\\\"\\n    controls = {\\n        \\\"dedicated_service_account\\\": any(p in usage for p in (\\\"专用服务账号\\\", \\\"专用账号\\\", \\\"pds_zjj_bzzf_lh_service\\\", \\\"PDS-ZJJ-BZF-PRD-02\\\")),\\n        \\\"purpose_limited\\\": any(p in usage for p in (\\\"仅服务于\\\", \\\"仅限\\\", \\\"仅用于\\\")) and \\\"保障性住房资格联审\\\" in usage,\\n        \\\"authorized_result_only\\\": \\\"仅返回\\\" in usage and \\\"最终授权边界内\\\" in usage and \\\"核验结果\\\" in usage,\\n        \\\"no_batch_export\\\": any(p in usage for p in (\\\"禁止批量导出\\\", \\\"不得批量导出\\\", \\\"不开放批量导出\\\")),\\n        \\\"no_third_party_transfer\\\": any(p in usage for p in (\\\"禁止向第三方转提供\\\", \\\"不得向第三方提供\\\", \\\"禁止第三方提供\\\")),\\n    }\\n    fixed = actual[:4] == (\\\"SCN-PDS-HOUSING-JOINT-REVIEW-001\\\", \\\"api\\\", \\\"2026-09-30\\\", \\\"申请人及共同申请家庭成员\\\") if actual else False\\n    ok = fixed and all(controls.values())\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": f\\\"fixed={fixed}; controls={controls!r}; actual_usage={usage!r}\\\"}\\n\\n\\ndef check_catalog_version(ws):\\n    row = _row(ws, \\\"SELECT updated_at FROM catalog_datasets WHERE dataset_id=?\\\", (DATASET_ID,))\\n    value = row[0] if row else None\\n    today = datetime.date.today()\\n    try:\\n        value_date = datetime.date.fromisoformat(value) if value else None\\n    except (TypeError, ValueError):\\n        value_date = None\\n    start = datetime.date(2026, 8, 14)\\n    ok = value_date is not None and start <= value_date <= today\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": f\\\"updated_at={value!r}; accepted execution-date window=[{start.isoformat()}, {today.isoformat()}]\\\"}\\n\\n\\ndef check_untouched_records(ws):\\n    current = _db(ws)\\n    con = sqlite3.connect(current)\\n    try:\\n        counts = {\\n            table: con.execute(f\\\"SELECT COUNT(*) FROM {table}\\\").fetchone()[0]\\n            for table in (\\\"catalog_datasets\\\", \\\"catalog_fields\\\", \\\"legal_basis_rules\\\")\\n        }\\n        if counts != {\\\"catalog_datasets\\\": 49, \\\"catalog_fields\\\": 188, \\\"legal_basis_rules\\\": 41}:\\n            return {\\\"score\\\": 0, \\\"detail\\\": f\\\"unexpected row counts: {counts!r}\\\"}\\n        dataset = con.execute(\\n            \\\"SELECT provider_org_id, provider_org_name, dataset_name, sharing_attribute, update_frequency, catalog_owner_org_id, lifecycle_status, created_at FROM catalog_datasets WHERE dataset_id=?\\\",\\n            (DATASET_ID,),\\n        ).fetchone()\\n        expected_dataset = (\\\"ORG-PDS-CIVIL-001\\\", \\\"平顶山市民政局\\\", \\\"社会救助与婚姻登记核验数据集\\\", \\\"conditional\\\", \\\"T+1\\\", \\\"ORG-PDS-BIGDATA-001\\\", \\\"published\\\", \\\"2024-02-18\\\")\\n        if dataset != expected_dataset:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"immutable target dataset metadata changed\\\"}\\n        field_rows = con.execute(\\n            \\\"SELECT field_id, standard_field_code, field_name, data_format, classification_level, sharing_mode, legal_basis_code, sharing_condition, retention_requirement_days, lifecycle_status, created_at FROM catalog_fields WHERE dataset_id=? ORDER BY field_id\\\",\\n            (DATASET_ID,),\\n        ).fetchall()\\n        if len(field_rows) != 6 or any(row[5] not in {\\\"api\\\", \\\"not_shared\\\"} for row in field_rows):\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"target field structure or sharing mode changed\\\"}\\n    finally:\\n        con.close()\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"row counts and immutable target metadata remain intact\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "untouched_records": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:08Z",
+  "status": "candidate",
+  "evidence": []
+}

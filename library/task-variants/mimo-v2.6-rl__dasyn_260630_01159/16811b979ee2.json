@@ -1,0 +1,49 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/dasyn_260630_01159",
+  "variant_digest": "sha256:16811b979ee21a52036d7734ddb146ef27f60feeb88b1c3852c95065c2366570",
+  "variant_harbor_digest": "sha256:96f3d164f1204caf54606c73ff0349cda7505ce50c826c4552b154120ab8df54",
+  "parent": {
+    "digest": "sha256:f1e6c962fddf254f55826708e680ed69f83a582d52b2cbc314a634c1c8fa348b",
+    "harbor_digest": "sha256:1c54e01c56d6f4661b34eed86a6bcf90474258cac3bf16ba5065c947455c250c",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-webdev",
+      "revision": "e1a6293376e8910e1fb1f28efabd93dad2f8b475",
+      "path": "tasks/dasyn_260630_01159",
+      "record": null
+    }
+  },
+  "transform": "webdev-temp0-pin@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/grade.json",
+      "before_sha256": "sha256:37c328b35ccd196d17c2a04fd2ceee623d5cfee2178e0a675bb72b853771bdaa",
+      "after_sha256": "sha256:84cbeda98a7c913a6a3e9ed2bf4d0521798a2b45d2543cee82fdb53738ab5089",
+      "content": "{\n \"cwd\": \"/workspace\",\n \"query\": \"帮我做一个 React 静态网站，主题是「城市公共文化会员服务指南」，偏政府/公共服务类的信息编辑站，不要后台不要登录不要接口，所有数据都用本地 mock 内容写死即可。整体视觉参考小红书的信息流排版和卡片感，但不要做成社交平台，要更正式、更可信，适合市民浏览公共图书馆、文化馆、博物馆、社区活动中心的会员权益说明。风格要求：新拟态 neomorphism，浅灰白背景，柔和阴影，圆角大卡片，少量政务蓝 + 暖橙点缀，干净高级，不要太花。页面结构要复杂一点：顶部固定导航，左侧可以有目录锚点，主内容是编辑型专题页。必须包含：首页 Hero（标题：一张公共文化会员卡，解锁城市共享文化资源），副标题、两个 CTA 按钮（立即了解权益 / 查看办理材料），右侧做一组新拟态数据卡片，比如 128 家场馆、36 类活动、0 元基础会员、全年可用；下面做「会员类型」三档卡片：基础会员、家庭会员、长者友好会员，写清适用人群、权益、办理材料；再做「权益清单」模块，用小红书风格瀑布流/笔记卡片展示借阅、预约展览、公益课程、亲子活动、无障碍服务、积分兑换（注意积分只是展示规则，不要实现真实账户）；做「办理流程」时间线：准备材料、填写申请、现场核验、领取实体卡/电子凭证说明（静态展示即可）；做「常见问题」折叠样式可以用前端本地 state；做一个「会员申请意向表」静态表单，字段包括姓名、手机号、所在区、会员类型、常去场馆、备注，提交后只在页面显示成功提示，不要真的发送；再做政策提示/温馨提醒模块、服务热线展示、页脚。交互：导航锚点跳转、FAQ 展开收起、会员类型筛选权益卡片、本地表单校验和成功状态、返回顶部按钮。不要使用真实地图、真实 API、真实认证、数据库或后端。内容用中文，文案要像政府网站但更亲民，组件化写清楚，响应式适配手机和桌面。\",\n \"judge\": {\n  \"model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8\",\n  \"model_sha\": \"94125d2bd83076b21eed33119525e29eaf3894f4\",\n  \"request_model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8:novita\",\n  \"provider\": \"novita\",\n  \"pinned_on\": \"2026-10-09\",\n  \"temperature\": 0,\n  \"max_tokens\": 1024,\n  \"rubric_id\": \"rva1:mean(visual,query,asset)\"\n }\n}\n"
+    },
+    {
+      "path": "tests/grade.py",
+      "before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+      "after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368",
+      "content": "\"\"\"Grade a Webdev task as the explorer does (verl recipes/design webdev-eval): render, shrink, judge.\n\nNo index.html in dist/ scores 0. A render that fails, or a judge that never answers, writes no reward (not scored):\nneither says anything about the page.\"\"\"\nimport base64\nimport io\nimport json\nimport os\nimport random\nimport subprocess\nimport sys\nimport time\nimport urllib.request\nfrom pathlib import Path\n\nsys.path.insert(0, \"/tests\")\nos.environ[\"WEBDEV_GRADE_HTTP\"] = \"1\"   # serve over loopback http so React/Vue/ES-module sites actually run\nfrom webdev.eval_rubric import build_prompt  # noqa: E402\nfrom webdev.shot import _build_shot_cmd, _parse_render_env, _parse_shot_b64  # noqa: E402\nfrom webdev.verdict import parse_verdict  # noqa: E402\n\ncfg = json.loads(Path(\"/tests/grade.json\").read_text())\nV = Path(\"/logs/verifier\")\nV.mkdir(parents=True, exist_ok=True)\ndist = Path(cfg[\"cwd\"]) / \"dist\"\n\n\ndef done(reward: float | None, why: str, **extra) -> None:\n    (V / \"result.json\").write_text(json.dumps({\"reward\": reward, \"summary\": why, **extra}, indent=1))\n    print(why)\n    if reward is None:\n        print(\"not scored\", file=sys.stderr)\n        sys.exit(1)\n    (V / \"reward.txt\").write_text(f\"{reward}\\n\")\n    sys.exit(0)\n\n\nfiles = sorted(str(p.relative_to(dist)) for p in dist.rglob(\"*\") if p.is_file())[:200] if dist.is_dir() else []\nif \"index.html\" not in files:\n    done(0.0, \"The agent delivered nothing to dist/.\" if not files else \"dist/ has no index.html, so there is no page to open.\",\n         delivered=files)\nres = subprocess.run([\"sh\", \"-c\", _build_shot_cmd(f\"file://{dist}/index.html\")], capture_output=True, text=True,\n                     timeout=150)   # SHOT_TIMEOUT_S\nshot = {\"output\": (res.stdout or \"\") + \"\\n\" + (res.stderr or \"\")}\nshot_b64, console_errors = _parse_shot_b64(shot)\nrender_env = _parse_render_env(shot)\nif render_env.get(\"proxy_failed\") or not shot_b64:\n    print(shot[\"output\"][-2000:], file=sys.stderr)\n    done(None, \"external assets were unreachable on every route\" if render_env.get(\"proxy_failed\")\n         else \"the screenshot produced no image\")\njpg = base64.b64decode(shot_b64)\ntry:   # eval_mode._shrink: the judge refuses shots over 20 MP; proportional, quality 75\n    from PIL import Image\n    Image.MAX_IMAGE_PIXELS = None\n    im = Image.open(io.BytesIO(jpg))\n    size = im.size\n    if im.width * im.height > 20e6:\n        k = (20e6 / (im.width * im.height)) ** 0.5\n        im = im.convert(\"RGB\").resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)\n        b = io.BytesIO(); im.save(b, \"JPEG\", quality=75); jpg = b.getvalue(); size = im.size\nexcept ImportError:\n    size = None\n(V / \"screenshot.jpg\").write_bytes(jpg)\ncontent = [{\"type\": \"image_url\", \"image_url\": {\"url\": \"data:image/jpeg;base64,\" + base64.b64encode(jpg).decode()}},\n           {\"type\": \"text\", \"text\": build_prompt().format(query=cfg[\"query\"][:1500])}]   # QUERY_CAP\nurl = os.environ.get(\"WEBDEV_JUDGE_URL\", \"https://router.huggingface.co/v1\").rstrip(\"/\") + \"/chat/completions\"\n_judge_pin = cfg[\"judge\"]\nif os.environ.get(\"WEBDEV_JUDGE_REVISION\") != _judge_pin[\"model_sha\"]:\n    done(None, \"Judge deployment revision is unbound; not scored.\")\n(V / \"judge_config.json\").write_text(json.dumps(_judge_pin, indent=1))\nbody = json.dumps({\"model\": cfg[\"judge\"][\"request_model\"], \"temperature\": 0, \"max_tokens\": 1024,  # webdev-temp0-pin@1\n                   \"messages\": [{\"role\": \"user\", \"content\": content}]}).encode()\nverdict, last = None, \"\"\nfor attempt in range(4):   # JUDGE_RETRIES, with eval_mode's backoff\n    if attempt:\n        time.sleep(min(60.0, 3.0 * (3 ** (attempt - 1))) * (0.5 + random.random()))\n    try:\n        req = urllib.request.Request(url, data=body, method=\"POST\", headers={\n            \"Content-Type\": \"application/json\", \"Authorization\": f\"Bearer {os.environ.get('WEBDEV_JUDGE_KEY', '')}\"})\n        with urllib.request.urlopen(req, timeout=180) as r:   # JUDGE_TIMEOUT_S\n            _judge_reply = json.loads(r.read())\n            if _judge_reply.get(\"model_revision\") != _judge_pin[\"model_sha\"]:\n                done(None, \"Judge response revision differs from the task pin; not scored.\")\n            msg = _judge_reply[\"choices\"][0][\"message\"]\n        v = parse_verdict(msg.get(\"content\") or msg.get(\"reasoning_content\") or \"\")\n        if \"_failed\" not in v:\n            verdict = v\n            break\n        last = v[\"_failed\"]\n    except Exception as e:  # noqa: BLE001\n        last = f\"{type(e).__name__}: {e}\"[:200]\nif not verdict:\n    done(None, f\"judge unavailable: {last}\")\ndone(verdict[\"score\"], verdict.get(\"reason\", \"\"), dims=verdict[\"dims\"], visual=verdict[\"visual\"], screenshot_size=size,\n     console_errors=console_errors[:1500] if console_errors not in (\"\", \"[]\") else \"\")\n"
+    }
+  ],
+  "rationale": "Use temperature zero and bind the model/provider request and artifact revision; mask absent or mismatched deployment/response revision. Version-aware judge endpoint validation is staged.",
+  "inputs": {
+    "parent_task": "mimo-v2.6-rl/dasyn_260630_01159",
+    "judge_model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "judge_model_sha": "94125d2bd83076b21eed33119525e29eaf3894f4",
+    "judge_temperature": 0,
+    "rubric_id": "rva1:mean(visual,query,asset)",
+    "grade_before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+    "grade_after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:45Z",
+  "status": "candidate",
+  "evidence": []
+}

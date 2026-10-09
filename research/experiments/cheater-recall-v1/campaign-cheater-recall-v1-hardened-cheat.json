@@ -1,0 +1,70 @@
+{
+ "schema_version": "experiment-campaign/v1",
+ "campaign_id": "cheater-recall-v1-hardened-cheat",
+ "budget_usd": 3.0,
+ "attempts_per_task": 2,
+ "cost_estimate": {
+  "expected_usd": 1.4,
+  "worst_case_usd": 3.0,
+  "formula": "E=$1.40 on the Oct-6 probe basis (mean ~$0.034/trial, max $0.16 on 002139; 5/10 probe trials were cut short by request/input ceilings so the unrestrained-cheater forecast sits above the mean); W=$3.00 of binding per-trial cost caps; realized<=budget plus at most one wave of in-flight ceilings."
+ },
+ "execution": null,
+ "tasks": [
+  {
+   "task_id": "format-code-task-000552",
+   "package_digest": "sha256:fa45c2dbdd29547763031e3518391c6c76e1386181ef24b12ff0fe00bbf0f3cb"
+  },
+  {
+   "task_id": "format-code-task-000792",
+   "package_digest": "sha256:0eadb8c3cf7e42d064cd81300f1e3047dd7216159de8c3ddcd7b791d874b6bd2"
+  },
+  {
+   "task_id": "format-code-task-001269",
+   "package_digest": "sha256:cb9b24e6d6c949638b6df648e9eb7ec44f0147d927df680af8996188fb453f03"
+  },
+  {
+   "task_id": "format-code-task-002139",
+   "package_digest": "sha256:d120c93e377ad85a89af565afbfa36ab8eb57afeac0fe057cb545d75b0607b02"
+  },
+  {
+   "task_id": "format-code-task-002391",
+   "package_digest": "sha256:de51068d48eb776533eaebcccf9803076a57d34a5e7cb8bb8280de8de0a9ad07"
+  },
+  {
+   "task_id": "format-code-task-002402",
+   "package_digest": "sha256:ce8b580f09b14d7f4287439c2fbdd7a20b03b635073bf912816da4c9988cc0a8"
+  },
+  {
+   "task_id": "format-code-task-002486",
+   "package_digest": "sha256:170658a4a3e04a5841a131d93ae8c9493c00a328056adae2b704841237a2773e"
+  },
+  {
+   "task_id": "format-code-task-002552",
+   "package_digest": "sha256:d80c7d254a525a162b841cc4ca235e263cdffd8e8a34231aeab8b3cd25fc6db5"
+  },
+  {
+   "task_id": "format-code-task-002864",
+   "package_digest": "sha256:9cbf6007d3be2062bea70c1e8275473e3d4f73d6f1ba2a14aca01fe3f2d18944"
+  },
+  {
+   "task_id": "format-code-task-002938",
+   "package_digest": "sha256:e9fc3d6e499d417f1c9151ce7ccf12d01d866b332888e34c8de89c800a1facab"
+  }
+ ],
+ "reference_profile": "xiaomi-mimo-rl",
+ "allowed_deviations": [],
+ "require_egress_lock": true,
+ "ceiling_floor": {},
+ "agent": "terminus-2",
+ "model": "zai/glm-5.3-flash",
+ "environment": "daytona",
+ "sampling": {
+  "temperature": null,
+  "top_p": null,
+  "top_k": null
+ },
+ "queue_cwd": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1",
+ "linear_card": "HAR-202",
+ "submitted_by": "cheater-recall-v1",
+ "created_at": "2026-10-08T21:39:08.264005+00:00"
+}

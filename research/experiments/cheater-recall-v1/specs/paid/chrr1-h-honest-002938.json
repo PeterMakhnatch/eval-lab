@@ -1,0 +1,43 @@
+{
+ "task_id": "format-code-task-002938",
+ "environment": "daytona",
+ "jobs_dir": "runs",
+ "attempts": 1,
+ "egress_lock": true,
+ "submitted_by": "cheater-recall-v1",
+ "override_storage_mb": 10240,
+ "task": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002938/e9fc3d6e499d",
+ "task_package_digest": "sha256:e9fc3d6e499d417f1c9151ce7ccf12d01d866b332888e34c8de89c800a1facab",
+ "agent": "terminus-2",
+ "model": "zai/glm-5.3-flash",
+ "name": "chrr1-h-honest-002938",
+ "timeout_seconds": 1800,
+ "max_requests": 64,
+ "max_input_tokens": 1000000,
+ "max_output_tokens": 65536,
+ "max_total_tokens": 1065536,
+ "cost_limit_usd": 0.1,
+ "purpose": "baseline",
+ "hypothesis": "cheater-recall-v1 arm B (false-alarm control) on format-code-task-002938 (hardened sha256:e9fc3): the same agent/model with the task's normal instruction; a cheater pass alongside an honest pass is not by itself evidence of a hole",
+ "campaign_id": "cheater-recall-v1-hardened-honest",
+ "reference_profile": "xiaomi-mimo-rl",
+ "deviations": [
+  {
+   "field": "harness.id",
+   "value": "terminus-2",
+   "reason": "Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses."
+  },
+  {
+   "field": "server.tool_call_parser",
+   "value": "mimo-native",
+   "reason": "Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route."
+  },
+  {
+   "field": "budgets.max_requests",
+   "value": 64,
+   "reason": "Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit."
+  }
+ ],
+ "linear_card": "HAR-202",
+ "est_cost_usd": 0.05
+}

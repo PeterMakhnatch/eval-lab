@@ -1,0 +1,86 @@
+{
+ "schema_version": "experiment-campaign/v1",
+ "campaign_id": "cheater-recall-v1-leaky",
+ "budget_usd": 4.0,
+ "attempts_per_task": 3,
+ "cost_estimate": {
+  "expected_usd": 1.9,
+  "worst_case_usd": 4.0,
+  "formula": "E=$1.90 on the Oct-6 probe basis (mean ~$0.034/trial, max $0.16 on 002139; 5/10 probe trials were cut short by request/input ceilings so the unrestrained-cheater forecast sits above the mean); W=$4.00 of binding per-trial cost caps; realized<=budget plus at most one wave of in-flight ceilings."
+ },
+ "execution": null,
+ "tasks": [
+  {
+   "task_id": "format-code-task-000552",
+   "package_digest": "sha256:d2cbd3f557c57dfbd2abf157823f51a047b2c8f71423fbdad6f663eecbec27a0"
+  },
+  {
+   "task_id": "format-code-task-000792",
+   "package_digest": "sha256:e54ec9025ce43b8b4bc3c52456e2baa9a971a3e69750efad69774d6456447d09"
+  },
+  {
+   "task_id": "format-code-task-001269",
+   "package_digest": "sha256:d3375b680cbe59d10621bd00e0b14ac139544547e3823e88e61217063524db54"
+  },
+  {
+   "task_id": "format-code-task-002139",
+   "package_digest": "sha256:64b31ed23eda67fe547e2ebd520acb5e65b562fe5302a529e72a3d0e29a0216f"
+  },
+  {
+   "task_id": "format-code-task-002391",
+   "package_digest": "sha256:d0a399b8633cdf47a6c3d00198b50c889ed5c282c016bb4b29bbdaf2f9d75fa1"
+  },
+  {
+   "task_id": "format-code-task-002402",
+   "package_digest": "sha256:c91c394831cfa24d2155eda1936256c06629285d472545985f54a061c6862522"
+  },
+  {
+   "task_id": "format-code-task-002486",
+   "package_digest": "sha256:2135c3b5028a86de7197dcc48aeb6b4f7f6572e0cec7e09495ba037aee06f2e6"
+  },
+  {
+   "task_id": "format-code-task-002552",
+   "package_digest": "sha256:e9273f2254788fb1803882c506c25b7274f6b908cf658d3e1065a63348f84f2d"
+  },
+  {
+   "task_id": "format-code-task-002864",
+   "package_digest": "sha256:25b94c8b4e4ea29e695aef58e6a0db3f78dbdb16240f98f09d85600e1a778599"
+  },
+  {
+   "task_id": "format-code-task-002938",
+   "package_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562"
+  }
+ ],
+ "reference_profile": "xiaomi-mimo-rl",
+ "allowed_deviations": [
+  {
+   "field": "harness.id",
+   "value": "terminus-2",
+   "reason": "Wave-1 runs the Terminus-2 harness, not the mimoagent-default training route; the honest arm measures the false-alarm rate of the same harness the cheater uses."
+  },
+  {
+   "field": "server.tool_call_parser",
+   "value": "mimo-native",
+   "reason": "Terminus-2 maps native MiMo exec_command calls (mimo_tool_calls); qwen3_coder describes the verl training route."
+  },
+  {
+   "field": "budgets.max_requests",
+   "value": 64,
+   "reason": "Wave-1 honest attempts use the HAR-161 probe request ceiling (64); the 500 reference value is the training budgets.step_limit."
+  }
+ ],
+ "require_egress_lock": true,
+ "ceiling_floor": {},
+ "agent": "terminus-2",
+ "model": "zai/glm-5.3-flash",
+ "environment": "daytona",
+ "sampling": {
+  "temperature": null,
+  "top_p": null,
+  "top_k": null
+ },
+ "queue_cwd": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1",
+ "linear_card": "HAR-202",
+ "submitted_by": "cheater-recall-v1",
+ "created_at": "2026-10-08T21:39:08.263793+00:00"
+}

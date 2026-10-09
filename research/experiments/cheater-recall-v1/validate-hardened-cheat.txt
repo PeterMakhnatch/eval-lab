@@ -1,0 +1,41 @@
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1/src/evallab/semantic_facts.py:59: UserWarning: Field name "construct" in "CapabilityOpportunity" shadows an attribute in parent "FactRow"
+  class CapabilityOpportunity(FactRow):
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1/src/evallab/semantic_facts.py:185: UserWarning: Field name "construct" in "EvidenceCoverage" shadows an attribute in parent "FactRow"
+  class EvidenceCoverage(FactRow):
+campaign: cheater-recall-v1-hardened-cheat
+content_digest: sha256:7405a7e049e2833ac94240e389a1e10622baf3ec7fc7350ca81f9305a892b491
+budget: $3.00 (committed $0.00)
+spend: committed $0.000000, reserved $0.000000, settled $0.000000
+spend_breakdown:
+  modal_gpu: $0.000000
+  daytona: $0.000000
+  model_api: $0.000000
+  unmeasured_reserved: $0.000000
+approval: UNAPPROVED (staged, no approval recorded)
+expected: $1.40 (E=$1.40 on the Oct-6 probe basis (mean ~$0.034/trial, max $0.16 on 002139; 5/10 probe trials were cut short by request/input ceilings so the unrestrained-cheater forecast sits above the mean); W=$3.00 of binding per-trial cost caps; realized<=budget plus at most one wave of in-flight ceilings.)
+worst_case: $3.00
+budget_bound: 0 in-flight x $0.000000 (positive worst-case minus reservation) = $0.000000 overrun above budget
+  in-flight reserved $0.000000, worst-case $0.000000
+  realized <= $3.000000
+tasks: 10
+attempts_per_task: 2
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-000552-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-000552-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-000792-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-000792-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-001269-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-001269-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002139-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002139-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002391-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002391-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002402-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002402-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002486-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002486-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002552-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002552-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002864-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002864-k2.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002938-k1.json: admitted
+  research/experiments/cheater-recall-v1/specs/paid/chrr1-h-cheat-002938-k2.json: admitted

@@ -18,6 +18,7 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import threading
 from collections.abc import Mapping
 from pathlib import Path
@@ -36,6 +37,13 @@ ATTACKS: tuple[str, ...] = (
     "reward_plant",
     "answer_symlink",
     "upstream_fetch",
+    "skip_plant",
+    "tamper_tracked_conftest",
+    "tamper_sitecustomize",
+    "tamper_shadow_timeout",
+    "tamper_reward_writer",
+    "tamper_source_exit",
+    "tamper_source_pytest_patch",
 )
 
 ATTEMPTS_FILENAME = "attempts.json"
@@ -86,9 +94,8 @@ def trial_reward(result: Mapping[str, Any]) -> float | None:
         return None
     stats = result.get("stats")
     evals = stats.get("evals") if isinstance(stats, Mapping) else None
-    if not isinstance(evals, Mapping):
-        return None
-    for report in evals.values():
+    reports = list(evals.values()) if isinstance(evals, Mapping) else []
+    for report in reports:
         if not isinstance(report, Mapping):
             continue
         metrics = report.get("metrics") or []
@@ -104,6 +111,17 @@ def trial_reward(result: Mapping[str, Any]) -> float | None:
                 return float(next(iter(rewards.values())))
             except (TypeError, ValueError, StopIteration):
                 continue
+    verifier = result.get("verifier_result")
+    direct = verifier.get("rewards") if isinstance(verifier, Mapping) else None
+    if isinstance(direct, Mapping) and direct:
+        ordered = [direct["reward"]] if "reward" in direct else list(direct.values())
+        for value in ordered:
+            if isinstance(value, bool):
+                continue
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                continue
     return None
 
 
@@ -116,18 +134,24 @@ def _load_json(path: Path) -> dict[str, Any] | None:
 
 
 def collect_cheat_attempts(job_dir: Path) -> list[dict[str, Any]]:
-    """Find every trial's cheat/attempts.json under a job directory."""
+    """Find every trial's cheat/attempts.json under a job directory.
+
+    Harbor 0.24 nests agent logs at ``<trial>/agent/cheat/attempts.json``;
+    older layouts kept ``<trial>/cheat/attempts.json``. Either nests under
+    the trial directory, which is the first path component below the job.
+    """
     found: list[dict[str, Any]] = []
     for attempts_path in sorted(job_dir.rglob(f"{ATTEMPTS_DIRNAME}/{ATTEMPTS_FILENAME}")):
         try:
-            trial_dir = attempts_path.parent.parent
-            trial_rel = trial_dir.relative_to(job_dir).as_posix()
+            rel = attempts_path.relative_to(job_dir)
         except ValueError:
+            continue
+        if len(rel.parts) < 2:
             continue
         payload = _load_json(attempts_path)
         if payload is None:
             continue
-        found.append({"trial": trial_rel, "path": attempts_path, "payload": payload})
+        found.append({"trial": rel.parts[0], "path": attempts_path, "payload": payload})
     return found
 
 
@@ -162,11 +186,12 @@ def build_verdicts(job_dir: Path, *, harbor_rev: str | None = None) -> dict[str,
         if entry is not None:
             attempts_rel = entry["path"].relative_to(job_dir).as_posix()
             evidence.append(attempts_rel)
+            attempts_dir_rel = entry["path"].parent.relative_to(job_dir).as_posix()
             for attack in attacks or []:
                 if not isinstance(attack, dict):
                     continue
                 for rel in attack.get("evidence") or []:
-                    candidate = f"{trial_rel}/{ATTEMPTS_DIRNAME}/{rel}"
+                    candidate = f"{attempts_dir_rel}/{rel}"
                     if (job_dir / candidate).is_file() and candidate not in evidence:
                         evidence.append(candidate)
         trials.append(
@@ -212,8 +237,18 @@ def harbor_version() -> str | None:
 
 def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     from evallab.execution_contracts import RunRequest
+    from evallab.harbor_view import installed_harbor_version
     from evallab.queue import Executor
 
+    version = installed_harbor_version()
+    if version is None or version < (0, 24):
+        print(
+            "error: evallab cheat run needs Harbor >= 0.24 on PATH "
+            "(the cheat agent imports harbor.agents.capabilities); "
+            "install the locked laminar extra: uv sync --frozen --extra laminar",
+            file=sys.stderr,
+        )
+        return 2
     selected = parse_attack_selection(args.attacks)
     task = args.task if args.task.is_absolute() else (root / args.task).resolve()
     jobs_dir = args.jobs_dir if args.jobs_dir.is_absolute() else (root / args.jobs_dir).resolve()

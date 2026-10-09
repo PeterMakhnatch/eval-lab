@@ -3459,6 +3459,73 @@ def _tasks_stability_run_command(
     return 1 if any(outcome["returncode"] not in (0, None) for outcome in outcomes) else 0
 
 
+def _tasks_admit_command(
+    args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
+) -> int:
+    del harbor
+    from evallab.storage.paths import shared_checkout_root
+    from evallab.task_admission import AdmissionError, admit_task, plan_admission
+
+    task = _resolve(root, args.task)
+    jobs_dir = (
+        _resolve(root, args.jobs_dir)
+        if args.jobs_dir is not None
+        else shared_checkout_root(root) / "runs"
+    )
+    if args.dry_run:
+        plan = plan_admission()
+        if args.json:
+            print(json.dumps({"task": str(task), "steps": plan}, indent=2))
+        else:
+            print(f"admission plan for {task} ({len(plan)} steps, no Docker):")
+            for entry in plan:
+                print(f"  {entry['name']}: {' '.join(entry['command'])}")
+        return 0
+    try:
+        result = admit_task(
+            task,
+            jobs_dir=jobs_dir,
+            repo_root=root,
+            repo_src=Path(__file__).resolve().parent.parent,
+            job_prefix=args.job_prefix,
+            records_dir=Path(args.records_dir),
+            by=args.by,
+            repeat_n=args.repeat,
+            timeout_seconds=args.timeout_seconds,
+            output=_resolve(root, args.output) if args.output is not None else None,
+            reference_arg=args.reference,
+            sweep_csv=_resolve(root, args.sweep_csv) if args.sweep_csv is not None else None,
+            update_variant_status=not args.no_variant_status,
+        )
+    except AdmissionError as exc:
+        print(f"error: {exc}")
+        return 1
+    record = result.record
+    if args.json:
+        print(json.dumps(record.model_dump(mode="json", by_alias=True), indent=2))
+    else:
+        for row in record.steps:
+            rewards = f" rewards={row.rewards}" if row.rewards else ""
+            job = f" job={row.job_dir}" if row.job_dir else ""
+            print(f"{row.name}: {row.status}{rewards}{job} ({row.duration_s:.1f}s)")
+        if record.skipped_steps:
+            print(f"skipped: {', '.join(record.skipped_steps)}")
+        if record.failed_attacks:
+            print(f"cracked attacks: {', '.join(record.failed_attacks)}")
+        if record.unproven_steps:
+            print(f"unproven steps: {', '.join(record.unproven_steps)}")
+        for row in record.steps:
+            if row.reference:
+                print(f"{row.name} reference: {row.reference}")
+        print(f"verdict: {record.verdict}")
+    print(f"record: {result.record_path}")
+    if result.variant_status_updated:
+        print(f"variant-status: {result.variant_record}")
+    elif result.variant_status_note:
+        print(f"variant-status skipped: {result.variant_status_note}")
+    return 0 if record.verdict == "admitted" else 1
+
+
 def _tasks_stability_collect_command(
     args: argparse.Namespace, root: Path, *, harbor: HarborBackend | None = None
 ) -> int:
@@ -4426,7 +4493,9 @@ def _flight_record_command(
         with config_path.open("x", encoding="utf-8") as config:
             json.dump({"schema": "evallab.flight.config/v1", "egress": args.flight_egress}, config)
     except FileExistsError:
-        print(f"error: flight config already exists: {config_path} (not overwriting)", file=sys.stderr)
+        print(
+            f"error: flight config already exists: {config_path} (not overwriting)", file=sys.stderr
+        )
         return 1
     created_config = True
     previous_capture = os.environ.get("EVALLAB_MODEL_CAPTURE")
@@ -4518,8 +4587,13 @@ def _flight_probe_command(
     from evallab.flight.invisibility import run_probe
 
     del harbor
-    report = asyncio.run(run_probe(image=args.image, egress=args.flight_egress,
-                                  output_dir=_resolve(root, args.out) if args.out else None))
+    report = asyncio.run(
+        run_probe(
+            image=args.image,
+            egress=args.flight_egress,
+            output_dir=_resolve(root, args.out) if args.out else None,
+        )
+    )
     if args.json:
         from dataclasses import asdict
 
@@ -4538,7 +4612,6 @@ def _flight_probe_command(
             print(f"{check}: {'pass' if detail['pass'] else 'FAIL'} {json.dumps(detail)}")
         print(f"probe: {'pass' if report.passed else 'FAIL'} ({report.events} kernel events)")
     return 0 if report.passed else 1
-
 
 
 def _traj_queue_command(
@@ -6354,6 +6427,42 @@ def parser() -> argparse.ArgumentParser:
     tasks_stability_run.add_argument("--dry-run", action="store_true")
     tasks_stability_run.add_argument("--json", action="store_true")
     tasks_stability_run.set_defaults(func=_tasks_stability_run_command)
+    tasks_admit = tasks_commands.add_parser(
+        "admit",
+        help="Fail-closed admission gate: static scan + oracle/nop controls + full cheat ladder ($0)",
+    )
+    tasks_admit.add_argument("--task", type=Path, required=True, help="Task package directory")
+    tasks_admit.add_argument("--job-prefix", default="admit", help="Job name prefix")
+    tasks_admit.add_argument("--jobs-dir", type=Path, help="Harbor jobs dir")
+    tasks_admit.add_argument(
+        "--records-dir",
+        type=Path,
+        default=Path("library/task-variants"),
+        help="Lineage records root (for the variant-status update)",
+    )
+    tasks_admit.add_argument("--by", default="operator", help="Actor recorded on the record")
+    tasks_admit.add_argument("--repeat", type=int, default=3, help="Control verifier reruns")
+    tasks_admit.add_argument(
+        "--timeout-seconds", type=int, default=600, help="Executor allowance per cheat trial"
+    )
+    tasks_admit.add_argument("--output", type=Path, help="Admission record path override")
+    tasks_admit.add_argument(
+        "--reference",
+        default="auto",
+        help="Oracle reference for solution-less tasks: auto (sweep lookup), none, "
+        "or a sweep receipt (.json) / reference patch path",
+    )
+    tasks_admit.add_argument(
+        "--sweep-csv", type=Path, help="Oracle sweep projection override (default: committed copy)"
+    )
+    tasks_admit.add_argument(
+        "--no-variant-status",
+        action="store_true",
+        help="Skip the lineage validated/rejected update (record is still written)",
+    )
+    tasks_admit.add_argument("--dry-run", action="store_true")
+    tasks_admit.add_argument("--json", action="store_true")
+    tasks_admit.set_defaults(func=_tasks_admit_command)
 
     tasks_stability_collect = tasks_commands.add_parser(
         "stability-collect",
@@ -7088,24 +7197,34 @@ def parser() -> argparse.ArgumentParser:
         help="Locked: creation-time network=none. Open: passive bridge metadata, not enforcing.",
     )
     flight_record.add_argument("--json", action="store_true", help="Emit timelines as JSON")
-    flight_record.add_argument("--capture-dir", type=Path, help="Existing host model-tap capture to join")
+    flight_record.add_argument(
+        "--capture-dir", type=Path, help="Existing host model-tap capture to join"
+    )
     flight_record.set_defaults(func=_flight_record_command)
     flight_show = flight_commands.add_parser(
         "show", help="Build and print a trial timeline from a trial or job directory"
     )
     flight_show.add_argument("path", type=Path, help="Trial directory or job directory")
-    flight_show.add_argument("--json", action="store_true", help="Emit summary and all timeline events as JSON")
-    flight_show.add_argument("--capture-dir", type=Path, help="Existing host model-tap capture to join")
+    flight_show.add_argument(
+        "--json", action="store_true", help="Emit summary and all timeline events as JSON"
+    )
+    flight_show.add_argument(
+        "--capture-dir", type=Path, help="Existing host model-tap capture to join"
+    )
     flight_show.set_defaults(func=_flight_show_command)
     flight_probe = flight_commands.add_parser(
         "probe", help="Run the invisibility probe (plain vs monitored container)"
     )
     flight_probe.add_argument(
-        "--image", default=None, help="Probe target image (default: recorder image with network tools)"
+        "--image",
+        default=None,
+        help="Probe target image (default: recorder image with network tools)",
     )
     flight_probe.add_argument("--json", action="store_true", help="Emit the report as JSON")
     flight_probe.add_argument("--flight-egress", choices=("locked", "open"), default="locked")
-    flight_probe.add_argument("--out", type=Path, help="Retain full dumps, events and probe report here")
+    flight_probe.add_argument(
+        "--out", type=Path, help="Retain full dumps, events and probe report here"
+    )
     flight_probe.set_defaults(func=_flight_probe_command)
 
     results = commands.add_parser("results", help="Publish finished jobs to the results home")

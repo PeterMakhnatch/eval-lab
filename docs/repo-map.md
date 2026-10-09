@@ -415,7 +415,7 @@ inputs:
   - path: src/evallab/loopfix.py
     digest: sha256:c3b84df9b0f7d904d7298f58626b045c5793937dfecb3d54b8a478e6c3b0843f
   - path: src/evallab/mcp_substrate.py
-    digest: sha256:bb690b16d954587ddc1d3300cb567b5e203840bf0b4cb89b68fbb4a3cfe5eb6b
+    digest: sha256:0874a6d911df541b03103ad1316a0730fd5f18b26fbe80959e059057597ec851
   - path: src/evallab/mimo_clean.py
     digest: sha256:b83b14a7e954588d7f9e7bf9c0c9a7e68ec496badc94b4f9dec7b02b65f8cbdd
   - path: src/evallab/mimo_exploit.py

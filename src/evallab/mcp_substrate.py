@@ -54,6 +54,12 @@ DEFAULT_MCP_PORT = 8080
 DEFAULT_PINNED_BASE_IMAGE = (
     "python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
 )
+# Google's public pull-through mirror of Docker Hub library images. Same bytes
+# (identical index digest), fetchable without Docker Hub authentication. CI
+# pulls this reference; the local/product default stays on docker.io.
+MIRROR_PINNED_BASE_IMAGE = (
+    "mirror.gcr.io/library/python:3.12.11-slim@sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
+)
 PINNED_BASE_IMAGE_INDEX_DIGEST = (
     "sha256:47ae396f09c1303b8653019811a8498470603d7ffefc29cb07c88f1f8cb3d19f"
 )
@@ -62,7 +68,9 @@ PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST = (
 )
 DEFAULT_TARGET_PYTHON_TAG = "cp312"
 DEFAULT_TARGET_PLATFORM_TAG = "manylinux_2_17_x86_64"
-_PINNED_PYTHON_IMAGE_RE = re.compile(r"^python:3\.12\.11-slim@sha256:[a-f0-9]{64}$")
+_PINNED_PYTHON_IMAGE_RE = re.compile(
+    r"^(?:mirror\.gcr\.io/library/)?python:3\.12\.11-slim@sha256:[a-f0-9]{64}$"
+)
 _DIGEST_RE = re.compile(r"^sha256:[a-f0-9]{64}$")
 _SHA256_HEX_RE = re.compile(r"^[a-f0-9]{64}$")
 

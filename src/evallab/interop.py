@@ -87,8 +87,15 @@ class HarborTask:
         return verifier.get("environment_mode") if isinstance(verifier, dict) else None
 
 
-def load_harbor_task(task_dir: str | Path) -> HarborTask:
-    """Read a Harbor task directory; raise a clear error when it is not one."""
+def load_harbor_task(task_dir: str | Path, *, require_solution: bool = True) -> HarborTask:
+    """Read a Harbor task directory; raise a clear error when it is not one.
+
+    ``solution/solve.sh`` is required only when ``require_solution`` is true:
+    only the oracle plan executes the reference solution, so nop/cheat cells
+    on solution-less tasks (e.g. MiMo 002552) load with
+    ``require_solution=False``. The verifier (``tests/test.sh``) is always
+    required -- every platform grades through it.
+    """
     root = Path(task_dir)
     if not root.is_dir():
         raise FileNotFoundError(f"task directory not found: {root}")
@@ -105,7 +112,7 @@ def load_harbor_task(task_dir: str | Path) -> HarborTask:
     if not isinstance(config, dict) or "task" not in config:
         raise ValueError(f"{root}: task.toml has no [task] section")
     solve_script = root / "solution" / "solve.sh"
-    if not solve_script.is_file():
+    if require_solution and not solve_script.is_file():
         raise ValueError(f"{root}: missing solution/solve.sh (no oracle solver to map)")
     tests_dir = root / "tests"
     if not (tests_dir / "test.sh").is_file():
@@ -167,15 +174,18 @@ def scripted_agent_plan(
 ) -> ScriptedPlan:
     """Build the scripted plan for one agent: oracle/nop/cheat.
 
-    Oracle stages ``solution/`` and runs ``solve.sh``; nop stages nothing and
-    runs nothing (``command`` is None); cheat stages ``cheat_ladder.py`` and
-    runs it with the attack subset (empty ``attacks`` = full ladder). Unknown
-    agents and unknown attack names raise ``ValueError``.
+    Oracle stages ``solution/`` and runs ``solve.sh`` (and needs
+    ``solution/solve.sh`` present); nop stages nothing and runs nothing
+    (``command`` is None); cheat stages ``cheat_ladder.py`` and runs it with
+    the attack subset (empty ``attacks`` = full ladder). Unknown agents,
+    unknown attack names, and an oracle plan for a solution-less task raise
+    ``ValueError``.
     """
-    del task  # the plan is task-independent; runners materialize the workdir
     if agent == "nop":
         return ScriptedPlan(files={}, command=None)
     if agent == "oracle":
+        if not (task.task_dir / "solution" / "solve.sh").is_file():
+            raise ValueError(f"{task.task_dir}: oracle plan needs solution/solve.sh")
         return ScriptedPlan(files={}, command="bash solution/solve.sh")
     if agent == "cheat":
         selected = parse_attack_selection(",".join(attacks) if attacks else None)
@@ -278,12 +288,15 @@ def run_harbor_control(
     repo_root: str | Path,
     jobs_dir: str | Path | None = None,
     timeout_seconds: int | None = None,
+    require_solution: bool = True,
 ) -> dict[str, Any]:
     """Run the Harbor-native oracle/nop control locally (docker, $0).
 
     Direct execution through ``Executor.execute_direct`` -- the same path
     ``evallab run`` uses, with no campaign-queue admission gate. Returns a
     verdict dict; infrastructure failures are ``error``, never ``fail``.
+    ``require_solution=False`` loads solution-less tasks (nop needs no
+    reference solution); whether Harbor itself then runs is its verdict.
     """
     from evallab.execution_contracts import RunRequest
     from evallab.queue import Executor
@@ -292,7 +305,7 @@ def run_harbor_control(
     if agent not in ("oracle", "nop"):
         raise ValueError(f"refusing non-control agent {agent!r} (oracle/nop only, $0)")
     root = Path(repo_root)
-    task = load_harbor_task(task_dir)
+    task = load_harbor_task(task_dir, require_solution=require_solution)
     harbor_rev = harbor_revision()
     work = (
         Path(jobs_dir) if jobs_dir is not None else Path(tempfile.mkdtemp(prefix="interop-jobs-"))
@@ -393,7 +406,6 @@ def run_harbor_cell(
     """
     from evallab.cheat import run_cheat_trial
 
-    task = load_harbor_task(task_dir)
     work = Path(workdir)
     work.mkdir(parents=True, exist_ok=True)
     harbor_rev = harbor_revision()
@@ -403,6 +415,18 @@ def run_harbor_cell(
         "attacks": list(attacks),
         "platform_version": harbor_rev,
     }
+    try:
+        task = load_harbor_task(task_dir, require_solution=(agent == "oracle"))
+    except (FileNotFoundError, ValueError) as exc:
+        cell.update(
+            {
+                "verdict": "error",
+                "reward": None,
+                "reason": f"cannot load task: {exc}",
+                "evidence": None,
+            }
+        )
+        return cell
     if agent in ("oracle", "nop"):
         # --attacks selects the ladder subset for cheat cells only; controls
         # ignore it (matrix passes one attack list for the whole row).
@@ -414,6 +438,7 @@ def run_harbor_cell(
                 repo_root=_repo_root(),
                 jobs_dir=work / "jobs",
                 timeout_seconds=timeout_seconds,
+                require_solution=(agent == "oracle"),
             )
         except Exception as exc:
             cell.update(
@@ -1352,7 +1377,6 @@ def run_inspect_cell(
     inspect_harbor scorer grades. Sandbox containers are bounded (task
     resources, else 2 CPU / 2048 MB) and removed when verifiably ours.
     """
-    task = load_harbor_task(task_dir)
     attacks = tuple(attacks)
     work = Path(workdir)
     work.mkdir(parents=True, exist_ok=True)
@@ -1367,6 +1391,11 @@ def run_inspect_cell(
         cell.update({"verdict": "error", "reward": None, "reason": reason, "evidence": str(work)})
         return cell
 
+    try:
+        task = load_harbor_task(task_dir, require_solution=(agent == "oracle"))
+    except (FileNotFoundError, ValueError) as exc:
+        return _fail(f"cannot load task: {exc}")
+
     if agent not in ("oracle", "nop", "cheat"):
         return _fail(f"unknown agent {agent!r} (oracle/nop/cheat only)")
     if agent in ("oracle", "nop"):
@@ -1377,7 +1406,7 @@ def run_inspect_cell(
     try:
         scripted_agent_plan(task, agent, attacks)
     except ValueError as exc:
-        return _fail(f"unknown attack: {exc}")
+        return _fail(f"cannot build {agent} plan: {exc}")
     agent_timeout = timeout_seconds or 900
     resources = task.resources
     raw_cpus = resources.get("cpus")
@@ -1641,7 +1670,9 @@ def matrix_task_row(
     timeout_seconds: int | None = None,
 ) -> dict[str, Any]:
     """Run every (target, agent) cell for one task dir through ``MATRIX_TARGETS``."""
-    task = load_harbor_task(task_dir)
+    # Row identity needs no reference solution; per-agent strictness lives in
+    # the cells (oracle errors there on solution-less tasks, nop/cheat run).
+    task = load_harbor_task(task_dir, require_solution=False)
     work = Path(workdir)
     work.mkdir(parents=True, exist_ok=True)
     cells: dict[str, str] = {}

@@ -1,14 +1,15 @@
-"""HAR-204 interop converters, flags, and parity math (no docker, $0).
+"""HAR-204 interop converters, plans, cells, and grading matrix (no docker, $0).
 
-Live-Docker paths are admission-gated and tested through the skip branch only;
-unit + fixture tests carry acceptance per the shared Docker note.
+Live-Docker cells attempt execution like ``evallab run`` (no admission gate);
+unit + fixture tests inject every external seam (control runner, cheat lane,
+uv binary, target registry) per the deterministic-test rule.
 """
 
 from __future__ import annotations
 
 import argparse
-import importlib.util
 import json
+import shutil
 import sys
 import types
 from pathlib import Path
@@ -18,18 +19,19 @@ import pytest
 
 from evallab import interop
 from evallab.interop import (
+    MATRIX_TARGETS,
     export_inspect,
     export_karotte,
+    grade_task_row,
     karotte_flags,
     load_harbor_task,
-    matrix_equal,
-    parity_row,
+    matrix_task_row,
     parse_reward_bytes,
     read_reward_file,
-    render_matrix,
-    run_harbor_control,
-    run_inspect_oracle,
-    validate_karotte,
+    render_grading_matrix,
+    run_harbor_cell,
+    run_inspect_cell,
+    scripted_agent_plan,
     verdict_for_reward,
 )
 
@@ -49,6 +51,9 @@ def make_task(
     solution_env: dict | None = None,
     test_sh: str = "echo 1 > /logs/verifier/reward.txt\n",
     metadata: dict | None = None,
+    workdir: str | None = None,
+    docker_image: str | None = None,
+    with_setup: bool = False,
 ) -> Path:
     task_dir = root / "task"
     (task_dir / "solution").mkdir(parents=True)
@@ -73,6 +78,10 @@ def make_task(
     lines += ["\n[environment]\n"]
     if network_mode:
         lines.append(f'network_mode = "{network_mode}"\n')
+    if workdir:
+        lines.append(f'workdir = "{workdir}"\n')
+    if docker_image:
+        lines.append(f'docker_image = "{docker_image}"\n')
     if resources:
         for key, value in resources.items():
             lines.append(f"{key} = {value}\n")
@@ -83,6 +92,10 @@ def make_task(
         for key, value in solution_env.items():
             lines.append(f"{key} = {json.dumps(value)}\n")
     (task_dir / "task.toml").write_text("".join(lines), encoding="utf-8")
+    if with_setup:
+        setup_dir = task_dir / "environment" / "setup"
+        setup_dir.mkdir(parents=True, exist_ok=True)
+        (setup_dir / "setup.sh").write_text("#!/bin/bash\necho setup\n", encoding="utf-8")
     return task_dir
 
 
@@ -269,6 +282,29 @@ def test_export_refuses_nonempty_dir(tmp_path: Path) -> None:
 
 
 # -- export-harbor --to karotte -------------------------------------------------
+# The export writes the same runnable env tree run_cell assembles (offline,
+# deterministic: no karotte import, no uv lock, no docker).
+
+
+def test_task_workdir_chain(tmp_path: Path) -> None:
+    declared = make_task(tmp_path / "declared", workdir="/task")
+    (declared / "environment" / "Dockerfile").write_text(
+        "FROM python:3.12-slim-bookworm\nWORKDIR /app\n", encoding="utf-8"
+    )
+    assert interop.task_workdir(load_harbor_task(declared)) == "/task"
+    staged = make_task(tmp_path / "staged")
+    (staged / "environment" / "Dockerfile").write_text(
+        "FROM python:3.12-slim\nWORKDIR /app\nFROM scratch\nWORKDIR /x\nWORKDIR sub\n",
+        encoding="utf-8",
+    )
+    assert interop.task_workdir(load_harbor_task(staged)) == "/x/sub"
+    bare = make_task(tmp_path / "bare")
+    (bare / "environment" / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+    assert interop.task_workdir(load_harbor_task(bare)) == "/"
+    missing = make_task(tmp_path / "missing")
+    (missing / "environment" / "Dockerfile").unlink()
+    assert interop.task_workdir(load_harbor_task(missing)) == "/"
+    assert interop.task_workdir(load_harbor_task(REAL_TASK)) == "/app"
 
 
 def test_karotte_flags_cover_lossy_case(tmp_path: Path) -> None:
@@ -280,36 +316,86 @@ def test_karotte_flags_cover_lossy_case(tmp_path: Path) -> None:
         mcp_servers=["server"],
         solution_env={"FOO": "bar"},
         test_sh="apt-get install -y curl\n",
-    )
-    (task_dir / "environment" / "docker-compose.yaml").write_text(
-        "services: {}\n", encoding="utf-8"
+        workdir="/app",
     )
     codes = {f["code"] for f in karotte_flags(load_harbor_task(task_dir))}
     assert codes == {
-        "multi-service-compose",
-        "verifier-as-root",
         "network-policy",
-        "resource-rounding",
         "separate-verifier-image",
-        "no-submission-paths",
         "mcp-servers",
         "solution-env",
     }
-    out = tmp_path / "scaffold"
+    compose_dir = make_task(tmp_path / "composed", workdir="/app")
+    (compose_dir / "environment" / "docker-compose.yaml").write_text(
+        "services: {}\n", encoding="utf-8"
+    )
+    assert "multi-service-compose" in {
+        f["code"] for f in karotte_flags(load_harbor_task(compose_dir))
+    }
+    with pytest.raises(ValueError, match="multi-service compose"):
+        export_karotte(compose_dir, tmp_path / "composed-out")
+    out = tmp_path / "env"
     summary = export_karotte(task_dir, out)
     assert set(summary["flags"]) == codes
     mapping = (out / "MAPPING.md").read_text(encoding="utf-8")
     for code in codes:
         assert code in mapping
-    assert "student_data" in mapping and "root_data" in mapping
+    assert "uv lock" in mapping and "nop" in mapping
 
 
 def test_karotte_flags_real_task() -> None:
     codes = {f["code"] for f in karotte_flags(load_harbor_task(REAL_TASK))}
-    assert {"verifier-as-root", "network-policy", "no-submission-paths"} <= codes
-    assert "multi-service-compose" not in codes
-    assert "mcp-servers" not in codes
-    assert "solution-env" not in codes
+    assert codes == {"network-policy"}
+
+
+def test_export_karotte_writes_runnable_tree(tmp_path: Path) -> None:
+    out = tmp_path / "env"
+    summary = export_karotte(REAL_TASK, out)
+    assert summary["target"] == "karotte"
+    assert summary["karotte_id"] == "petermakhnatch-transaction-reconciliation"
+    digest = summary["base"].removeprefix("evallab-harbor-")
+    assert len(digest) == 16 and all(c in "0123456789abcdef" for c in digest)
+    containerfile = (out / "Containerfile").read_text(encoding="utf-8")
+    assert f"FROM {summary['base']}" in containerfile
+    assert f"karotte=={interop.KAROTTE_PIN}" in containerfile
+    assert "chown -R student:student '/app'" in containerfile
+    pkg = out / "src" / "environment" / "tasks" / "petermakhnatch_transaction_reconciliation"
+    assert (pkg / "__init__.py").is_file()
+    assert (pkg / "scoring_script.py").is_file()
+    assert (out / "src" / "environment" / "fake_model.py").is_file()
+    assert (out / "root_data" / "tests" / "test.sh").is_file()
+    assert (out / "root_data" / "tests" / "test_outputs.py").is_file()
+    assert f'"karotte=={interop.KAROTTE_PIN}"' in (out / "pyproject.toml").read_text(
+        encoding="utf-8"
+    )
+    assert not (out / "uv.lock").exists()
+    for support in (
+        "__init__.py",
+        "paths.py",
+        "submissions.py",
+        "system_prompts.py",
+        "check_permissions.py",
+    ):
+        assert (out / "src" / "environment" / support).is_file()
+    assert (out / "src" / "environment" / "tasks" / "__init__.py").is_file()
+    assert (out / "MAPPING.md").is_file()
+    assert "MAPPING.md" in summary["files"]
+
+
+def test_export_karotte_docker_image_base_and_setup(tmp_path: Path) -> None:
+    task_dir = make_task(
+        tmp_path / "img",
+        workdir="/testbed",
+        docker_image="example.com/img@sha256:abc",
+        with_setup=True,
+    )
+    out = tmp_path / "env"
+    summary = export_karotte(task_dir, out)
+    assert summary["base"] == "example.com/img@sha256:abc"
+    containerfile = (out / "Containerfile").read_text(encoding="utf-8")
+    assert "FROM example.com/img@sha256:abc" in containerfile
+    assert "setup.sh" in containerfile
+    assert (out / "root_data" / "setup" / "setup.sh").is_file()
 
 
 def _stub_karotte(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -337,6 +423,7 @@ def _stub_karotte(monkeypatch: pytest.MonkeyPatch) -> None:
     class ExecutableJudge(Judge):
         def __init__(self, args, continue_threshold=-1, cwd=None):
             self.subprocess_run_args = args
+            self.continue_threshold = continue_threshold
 
     exec_mod.ExecutableJudge = ExecutableJudge
     monkeypatch.setitem(sys.modules, "karotte", karotte)
@@ -346,158 +433,498 @@ def _stub_karotte(monkeypatch: pytest.MonkeyPatch) -> None:
     karotte.judges = judges  # type: ignore[attr-defined]
 
 
-def test_karotte_scaffold_executes_with_stub_framework(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    out = tmp_path / "scaffold"
+def test_exported_task_module_behavior(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    out = tmp_path / "env"
     export_karotte(REAL_TASK, out)
-    assert (out / "Containerfile").is_file()
-    assert "python:3.12-slim" in (out / "Containerfile").read_text(encoding="utf-8")
-
     _stub_karotte(monkeypatch)
-    namespace = _exec_module(out / "environment" / "task.py", monkeypatch)
+    collected: dict = {}
+    env_pkg = types.ModuleType("environment")
+    submissions = types.ModuleType("environment.submissions")
+
+    def collect(config, paths):
+        collected["config"] = config
+        collected["paths"] = tuple(str(p) for p in paths)
+        return tuple(Path(f"/saved/{p.name}") for p in paths)
+
+    submissions.collect_submission = collect
+    prompts = types.ModuleType("environment.system_prompts")
+    prompts.get_system_prompt = lambda model, extra: "sys"
+    monkeypatch.setitem(sys.modules, "environment", env_pkg)
+    monkeypatch.setitem(sys.modules, "environment.submissions", submissions)
+    monkeypatch.setitem(sys.modules, "environment.system_prompts", prompts)
+    pkg = out / "src" / "environment" / "tasks" / "petermakhnatch_transaction_reconciliation"
+    namespace = _exec_module(pkg / "__init__.py", monkeypatch)
     task_cls = next(
         obj
         for obj in namespace.values()
         if isinstance(obj, type) and obj.__name__.endswith("Task") and obj.__name__ != "Task"
     )
-    inst = task_cls(config=object())
-    assert inst.system_prompt is None
+    assert task_cls.id == "petermakhnatch-transaction-reconciliation"
+    config = types.SimpleNamespace(model="fake/fake", extra_config=None)
+    inst = task_cls(config=config)
+    assert inst.system_prompt == "sys"
     (step,) = inst.steps
     assert "settlement" in step.instructions
-    assert type(step.judge).__name__ == "ExecutableJudge"
-    assert "judge_entry.py" in " ".join(step.judge.subprocess_run_args)
-    # No artifacts declared -> whole-workdir scoring, no submission paths.
-    assert step.submission_paths is None
+    assert [str(p) for p in step.submission_paths] == ["/app"]
+    step.pre_scoring_hook()
+    assert collected["config"] is config
+    assert collected["paths"] == ("/app",)
+    judge = step.judge
+    assert type(judge).__name__ == "ExecutableJudge"
+    args = judge.subprocess_run_args
+    assert args[1:3] == [
+        "-m",
+        "environment.tasks.petermakhnatch_transaction_reconciliation.scoring_script",
+    ]
+    assert args[3] == "300.0" and args[4] == "/app"
+    assert args[5:7] == ["/app", "/saved/app"] and args[-1] == "score_output.json"
+    assert judge.continue_threshold == 1.0
 
 
-def test_karotte_scaffold_submission_paths_from_artifacts(
+def test_exported_scoring_restores_and_grades(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    task_dir = make_task(tmp_path / "t", artifacts=["/app/filter.py"])
-    out = tmp_path / "scaffold"
-    export_karotte(task_dir, out)
-    _stub_karotte(monkeypatch)
-    namespace = _exec_module(out / "environment" / "task.py", monkeypatch)
-    task_cls = next(
-        obj
-        for obj in namespace.values()
-        if isinstance(obj, type) and obj.__name__.endswith("Task") and obj.__name__ != "Task"
-    )
-    (step,) = task_cls(config=object()).steps
-    assert [str(p) for p in step.submission_paths or []] == ["/app/filter.py"]
+    from evallab.interop_karotte import _render_scoring
 
-
-def _load_module(path: Path, name: str):
-    spec = importlib.util.spec_from_file_location(name, path)
-    assert spec and spec.loader
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-def test_judge_entry_reward_conversion(tmp_path: Path) -> None:
-    out = tmp_path / "scaffold"
-    export_karotte(REAL_TASK, out)
-    judge = _load_module(out / "environment" / "judge_entry.py", "judge_entry")
+    namespace: dict = {"__name__": "scoring_under_test"}
+    exec(compile(_render_scoring(), "scoring_script.py", "exec"), namespace)  # noqa: S102
+    work = tmp_path / "work"
+    work.mkdir()
     logs = tmp_path / "logs"
     logs.mkdir()
-    (logs / "reward.txt").write_text("0\n", encoding="utf-8")
-    reward, error = judge.read_reward(logs)
-    assert (reward, error) == (0.0, None)
+    rtests = tmp_path / "rtests"
+    rtests.mkdir()
+    staged = tmp_path / "staged"
+    staged.mkdir()
+    namespace["TESTS_SRC"] = rtests
+    namespace["TESTS_DST"] = staged / "tests"
+    namespace["LOG_DIR"] = logs
+    orig = work / "answer.txt"
+    saved = tmp_path / "saved.txt"
+    saved.write_text("graded-bytes\n", encoding="utf-8")
+    (rtests / "test.sh").write_text(
+        "#!/bin/bash\ncat answer.txt > /dev/null && echo 1 > " + str(logs / "reward.txt") + "\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "score.json"
+    monkeypatch.setattr(sys, "argv", ["scoring", "60", str(work), str(orig), str(saved), str(out)])
+    assert namespace["main"]() == 0
+    assert orig.read_text(encoding="utf-8") == "graded-bytes\n"
+    assert json.loads(out.read_text(encoding="utf-8"))["score"] == 1.0
     (logs / "reward.txt").unlink()
-    (logs / "reward.json").write_text('{"score": 1}', encoding="utf-8")
-    assert judge.read_reward(logs) == (1.0, None)
-    (logs / "reward.json").unlink()
-    reward, error = judge.read_reward(logs)
-    assert reward is None and error is not None
+    (rtests / "test.sh").write_text("#!/bin/bash\ntrue\n", encoding="utf-8")
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["scoring", "60", str(work), str(work / "missing.txt"), str(tmp_path / "nope"), str(out)],
+    )
+    assert namespace["main"]() == 0
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    assert payload["score"] == 0.0
+    assert payload["metadata"]["missing_submissions"] == [str(work / "missing.txt")]
+    assert "error" in payload["metadata"]
 
 
-def test_validate_karotte_scaffold(tmp_path: Path) -> None:
-    out = tmp_path / "scaffold"
+def _exec_fake_model(path: Path) -> list[dict]:
+    calls: list[dict] = []
+
+    class Function:
+        def __init__(self, name=None, arguments=""):
+            self.name = name
+            self.arguments = arguments
+
+    class ToolCall:
+        def __init__(self, id=None, type=None, function=None):
+            self.id = id
+            self.type = type
+            self.function = function
+
+    class Message:
+        def __init__(self, role="assistant", content=None, tool_calls=None, **_kw):
+            calls.append({"role": role, "content": content, "tool_calls": tool_calls or []})
+
+    schemas = types.ModuleType("karotte.schemas")
+    schemas.ChatCompletionMessageToolCall = ToolCall
+    schemas.Function = Function
+    schemas.Message = Message
+    karotte = types.ModuleType("karotte")
+    karotte.schemas = schemas
+    namespace: dict = {}
+    old = {k: sys.modules.get(k) for k in ("karotte", "karotte.schemas")}
+    sys.modules["karotte"] = karotte
+    sys.modules["karotte.schemas"] = schemas
+    try:
+        exec(compile(path.read_text(encoding="utf-8"), "fake_model.py", "exec"), namespace)  # noqa: S102
+        namespace["get_messages"](object())
+        return calls
+    finally:
+        for key, mod in old.items():
+            if mod is None:
+                sys.modules.pop(key, None)
+            else:
+                sys.modules[key] = mod
+
+
+def test_exported_fake_model_is_nop(tmp_path: Path) -> None:
+    out = tmp_path / "env"
     export_karotte(REAL_TASK, out)
-    result = validate_karotte(out / "environment")
-    assert result["verdict"] == "pass", result.get("reason")
-    assert result["karotte"] == interop.KAROTTE_PIN
-    assert result["report"]["steps"][0]["judge"] == "ExecutableJudge"
-    assert "validate-only" in result["note"]
+    messages = _exec_fake_model(out / "src" / "environment" / "fake_model.py")
+    assert len(messages) == 1
+    assert messages[0]["role"] == "assistant" and messages[0]["tool_calls"] == []
 
 
-def test_validate_karotte_missing_task() -> None:
-    result = validate_karotte(REPO_ROOT / "does-not-exist")
-    assert result["verdict"] == "error"
+# -- scripted agent plans -------------------------------------------------------
 
 
-# -- parity math ----------------------------------------------------------------
+def test_scripted_agent_plan_oracle_nop_cheat() -> None:
+    task = load_harbor_task(REAL_TASK)
+    oracle = scripted_agent_plan(task, "oracle", ())
+    assert oracle.files == {}
+    assert oracle.command == "bash /solution/solve.sh"
+    nop = scripted_agent_plan(task, "nop", ())
+    assert nop.files == {} and nop.command is None
+    cheat = scripted_agent_plan(task, "cheat", ("reward_plant", "skip_plant"))
+    assert list(cheat.files) == [interop.CHEAT_LADDER_CONTAINER_PATH]
+    assert (
+        cheat.files[interop.CHEAT_LADDER_CONTAINER_PATH]
+        == (REPO_ROOT / "src/evallab/cheat_ladder.py").read_bytes()
+    )
+    assert "--attacks reward_plant,skip_plant" in (cheat.command or "")
+    full = scripted_agent_plan(task, "cheat", ())
+    assert "--attacks" not in (full.command or "")
 
 
-def test_matrix_equal_boundaries() -> None:
-    assert matrix_equal({"a": "pass", "b": "pass"}) is True
-    assert matrix_equal({"a": "pass", "b": "fail"}) is False
-    assert matrix_equal({"a": "pass"}) is None
-    assert matrix_equal({}) is None
-    assert matrix_equal({"a": "skip", "b": "error"}) is None
-    # Skips and errors carry no signal; comparable verdicts still decide.
-    assert matrix_equal({"a": "pass", "b": "skip", "c": "error"}) is None
-    assert matrix_equal({"a": "pass", "b": "pass", "c": "skip"}) is True
-    assert matrix_equal({"a": "pass", "b": "fail", "c": "skip"}) is False
+def test_scripted_agent_plan_rejects_unknown() -> None:
+    task = load_harbor_task(REAL_TASK)
+    with pytest.raises(ValueError, match="unknown scripted agent"):
+        scripted_agent_plan(task, "codex", ())
+    with pytest.raises(ValueError, match="unknown cheat attack"):
+        scripted_agent_plan(task, "cheat", ("nope",))
 
 
-def test_render_matrix_has_karotte_column() -> None:
-    text = render_matrix(
+# -- inspect staging (no docker) -------------------------------------------------
+
+
+def test_write_inspect_run_stages_manifest_and_blobs(tmp_path: Path) -> None:
+    from evallab.interop import _write_inspect_run
+
+    task = load_harbor_task(REAL_TASK)
+    work = tmp_path / "cell"
+    driver = _write_inspect_run(
+        work,
+        task,
+        agent="cheat",
+        attacks=("skip_plant",),
+        agent_timeout=60,
+        override_cpus=2,
+        override_memory_mb=2048,
+    )
+    assert driver.is_file()
+    manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["agent"] == "cheat"
+    assert manifest["attacks"] == ["skip_plant"]
+    assert "--attacks skip_plant" in manifest["command"]
+    assert manifest["workdir"] == interop.task_workdir(task) == "/app"
+    # Cheat cells stay as blind as on Harbor: no solution/, no tests/.
+    assert manifest["task_files"] == []
+    assert manifest["skipped_large"] == []
+    assert manifest["override_cpus"] == 2
+    assert manifest["override_memory_mb"] == 2048
+    ((container_path, blob),) = manifest["files"]
+    assert container_path == interop.CHEAT_LADDER_CONTAINER_PATH
+    assert (work / blob).read_bytes() == (REPO_ROOT / "src/evallab/cheat_ladder.py").read_bytes()
+
+
+def test_write_inspect_run_oracle_stages_only_solution(tmp_path: Path) -> None:
+    from evallab.interop import _write_inspect_run
+
+    task = load_harbor_task(REAL_TASK)
+    work = tmp_path / "cell"
+    _write_inspect_run(
+        work,
+        task,
+        agent="oracle",
+        attacks=(),
+        agent_timeout=60,
+        override_cpus=2,
+        override_memory_mb=2048,
+    )
+    manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["command"] == "bash /solution/solve.sh"
+    assert "solution/solve.sh" in manifest["task_files"]
+    assert all(rel.startswith("solution/") for rel in manifest["task_files"])
+
+
+def test_write_inspect_run_nop_stages_nothing(tmp_path: Path) -> None:
+    from evallab.interop import _write_inspect_run
+
+    task = load_harbor_task(REAL_TASK)
+    work = tmp_path / "cell"
+    _write_inspect_run(
+        work,
+        task,
+        agent="nop",
+        attacks=(),
+        agent_timeout=60,
+        override_cpus=2,
+        override_memory_mb=2048,
+    )
+    manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["command"] is None
+    assert manifest["files"] == []
+    assert manifest["task_files"] == []
+
+
+def test_run_inspect_cell_without_uv_is_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(shutil, "which", lambda *args, **kwargs: None)
+    monkeypatch.setattr(interop, "_docker_ps", lambda: {})
+    cell = run_inspect_cell(REAL_TASK, "oracle", (), workdir=tmp_path / "w")
+    assert cell["target"] == "inspect"
+    assert cell["verdict"] == "error"
+    assert "uv" in (cell["reason"] or "")
+    assert cell["evidence"] == str(tmp_path / "w")
+
+
+def test_run_inspect_cell_rejects_unknown_agent_and_attack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cell = run_inspect_cell(REAL_TASK, "codex", (), workdir=tmp_path / "a")
+    assert cell["verdict"] == "error"
+    cell = run_inspect_cell(REAL_TASK, "cheat", ("nope",), workdir=tmp_path / "c")
+    assert cell["verdict"] == "error"
+    assert "cannot build cheat plan" in (cell["reason"] or "")
+
+
+def test_run_inspect_cell_control_ignores_attacks(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured: dict = {}
+
+    def fake_stage(work: Path, task: object, **kwargs: object) -> Path:
+        captured.update(kwargs)
+        driver = Path(work) / "inspect_driver.py"
+        driver.write_text("x", encoding="utf-8")
+        return driver
+
+    monkeypatch.setattr(interop, "_write_inspect_run", fake_stage)
+    monkeypatch.setattr(interop, "_docker_ps", lambda: {})
+    monkeypatch.setattr(shutil, "which", lambda *args, **kwargs: None)
+    cell = run_inspect_cell(REAL_TASK, "oracle", ("skip_plant",), workdir=tmp_path / "b")
+    assert captured["attacks"] == ()
+    assert cell["attacks"] == []
+
+
+# -- harbor cells (seams injected) ----------------------------------------------
+
+
+def _control_result(verdict: str, reward: float | None, job: str = "job-x") -> dict:
+    return {
+        "target": "harbor",
+        "agent": "oracle",
+        "task_id": "t",
+        "verdict": verdict,
+        "reward": reward,
+        "reason": None,
+        "job_dir": job,
+        "harbor_rev": "rev",
+    }
+
+
+def test_run_harbor_cell_oracle_delegates_to_control(tmp_path: Path) -> None:
+    with (
+        patch.object(interop, "run_harbor_control", return_value=_control_result("pass", 1.0)),
+        patch.object(interop, "harbor_revision", return_value="rev"),
+    ):
+        cell = run_harbor_cell(REAL_TASK, "oracle", (), workdir=tmp_path / "w")
+        ignored = run_harbor_cell(REAL_TASK, "nop", ("skip_plant",), workdir=tmp_path / "w2")
+    assert ignored["verdict"] == "pass"
+    assert ignored["attacks"] == []
+    assert cell["target"] == "harbor"
+    assert cell["agent"] == "oracle"
+    assert cell["attacks"] == []
+    assert cell["verdict"] == "pass"
+    assert cell["reward"] == 1.0
+    assert cell["evidence"] == "job-x"
+    assert cell["platform_version"] == "rev"
+
+
+def test_run_harbor_cell_control_error_maps(tmp_path: Path) -> None:
+    with (
+        patch.object(interop, "run_harbor_control", side_effect=RuntimeError("boom")),
+        patch.object(interop, "harbor_revision", return_value="rev"),
+    ):
+        cell = run_harbor_cell(REAL_TASK, "nop", (), workdir=tmp_path)
+    assert cell["verdict"] == "error"
+    assert "boom" in (cell["reason"] or "")
+
+
+def test_run_harbor_cell_cheat_uses_lane(tmp_path: Path) -> None:
+    from evallab import cheat as cheat_module
+    from evallab import harbor_view
+
+    with (
+        patch.object(interop, "harbor_revision", return_value="rev"),
+        patch.object(
+            cheat_module,
+            "run_cheat_trial",
+            return_value=(tmp_path / "job", {"trials": []}),
+        ) as trial,
+        patch.object(interop, "_trial_reward_from_job", return_value=1.0),
+        patch.object(harbor_view, "installed_harbor_version", return_value=(0, 24)),
+    ):
+        cell = run_harbor_cell(REAL_TASK, "cheat", ("reward_plant",), workdir=tmp_path / "w")
+    assert trial.call_args[0][1] == ("reward_plant",)
+    assert cell["verdict"] == "pass"
+    assert cell["reward"] == 1.0
+    assert cell["evidence"] == str(tmp_path / "job")
+
+
+def test_run_harbor_cell_cheat_rejects_bad_attack(tmp_path: Path) -> None:
+    with patch.object(interop, "harbor_revision", return_value="rev"):
+        cell = run_harbor_cell(REAL_TASK, "cheat", ("nope",), workdir=tmp_path)
+    assert cell["verdict"] == "error"
+    assert "unknown attack" in (cell["reason"] or "")
+
+
+# -- grading math ----------------------------------------------------------------
+
+
+def test_grade_task_row_boundaries() -> None:
+    ok, problems = grade_task_row(
+        {"h:oracle": "pass", "h:nop": "fail"}, targets=["h"], agents=["oracle", "nop"]
+    )
+    assert (ok, problems) == ("ok", [])
+    broken, problems = grade_task_row(
+        {"h:oracle": "fail", "h:nop": "fail"}, targets=["h"], agents=["oracle", "nop"]
+    )
+    assert broken == "broken"
+    assert any("oracle" in problem for problem in problems)
+    broken, problems = grade_task_row(
+        {"h:oracle": "pass", "h:nop": "pass"}, targets=["h"], agents=["oracle", "nop"]
+    )
+    assert broken == "broken"
+    assert any("nop" in problem for problem in problems)
+    status, _ = grade_task_row({"h:oracle": "error"}, targets=["h"], agents=["oracle"])
+    assert status == "n/a"
+    assert grade_task_row({}, targets=["h"], agents=["oracle"])[0] == "n/a"
+
+
+def test_render_grading_matrix_cheat_display() -> None:
+    text = render_grading_matrix(
         [
             {
                 "task_id": "lab/t",
-                "cells": {
-                    "harbor:oracle": "pass",
-                    "harbor:nop": "fail",
-                    "inspect:oracle": "pass",
-                    "karotte-validate": "pass",
-                },
-                "equal": False,
+                "cells": {"h:oracle": "pass", "h:nop": "fail", "h:cheat": "pass"},
+                "grading": "ok",
             }
-        ]
+        ],
+        targets=["h"],
+        agents=["oracle", "nop", "cheat"],
     )
-    assert "karotte-validate" in text
     assert "lab/t" in text
-    assert "False" in text
+    assert "pass" in text and "fail" in text
+    assert "cracked" in text
+    assert "ok" in text
 
 
-# -- admission-gated skip paths --------------------------------------------------
+# -- matrix rows -----------------------------------------------------------------
 
 
-def test_live_paths_skip_when_daemon_not_admitted(tmp_path: Path) -> None:
-    with patch.object(
-        interop, "docker_admission", return_value=(False, "shared daemon not admitted: test")
-    ):
-        harbor_result = run_harbor_control(REAL_TASK, "oracle", repo_root=REPO_ROOT)
-        assert harbor_result["verdict"] == "skip"
-        assert "shared daemon not admitted" in harbor_result["reason"]
-        assert "harbor_rev" in harbor_result
-
-        inspect_result = run_inspect_oracle(REAL_TASK)
-        assert inspect_result["verdict"] == "skip"
-        assert "shared daemon not admitted" in inspect_result["reason"]
-        assert inspect_result["inspect_harbor"] == interop.INSPECT_HARBOR_PIN
+def _fake_cell(target: str, agent: str, verdict: str, reward: float) -> dict:
+    return {
+        "target": target,
+        "agent": agent,
+        "attacks": [],
+        "verdict": verdict,
+        "reward": reward,
+        "reason": None,
+        "platform_version": f"{target}-v1",
+        "evidence": f"ev:{target}:{agent}",
+    }
 
 
-def test_parity_row_reports_skips_without_docker(tmp_path: Path) -> None:
-    refused = (False, "shared daemon not admitted: test")
-    with (
-        patch.object(interop, "docker_admission", return_value=refused),
-        patch.object(
-            interop,
-            "validate_karotte",
-            return_value={"target": "karotte-validate", "verdict": "pass"},
-        ),
-    ):
-        row = parity_row(REAL_TASK, repo_root=REPO_ROOT, workdir=tmp_path / "work")
-    assert row["cells"]["harbor:oracle"] == "skip"
-    assert row["cells"]["harbor:nop"] == "skip"
-    assert row["cells"]["inspect:oracle"] == "skip"
-    assert row["cells"]["karotte-validate"] == "pass"
-    assert row["equal"] is None
-    assert "harbor_rev" in row
+def test_matrix_task_row_uses_registry_and_grades(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_runner(
+        task_dir: Path,
+        agent: str,
+        attacks: tuple,
+        *,
+        workdir: Path,
+        timeout_seconds: int | None,
+    ) -> dict:
+        verdict = {"oracle": "pass", "nop": "fail", "cheat": "fail"}[agent]
+        return _fake_cell("fake", agent, verdict, 1.0 if verdict == "pass" else 0.0)
+
+    monkeypatch.setitem(MATRIX_TARGETS, "fake", fake_runner)
+    row = matrix_task_row(
+        REAL_TASK,
+        targets=("fake",),
+        agents=("oracle", "nop", "cheat"),
+        attacks=(),
+        workdir=tmp_path / "w",
+    )
+    assert row["cells"] == {"fake:oracle": "pass", "fake:nop": "fail", "fake:cheat": "fail"}
+    assert row["grading"] == "ok"
+    assert row["problems"] == []
+    assert row["versions"] == {"fake": "fake-v1"}
+
+
+def test_matrix_task_row_broken_and_unknown_target(tmp_path: Path) -> None:
+    def bad_runner(
+        task_dir: Path,
+        agent: str,
+        attacks: tuple,
+        *,
+        workdir: Path,
+        timeout_seconds: int | None,
+    ) -> dict:
+        return _fake_cell("bad", agent, "fail", 0.0)
+
+    with patch.dict(MATRIX_TARGETS, {"bad": bad_runner}):
+        row = matrix_task_row(
+            REAL_TASK,
+            targets=("bad", "nope"),
+            agents=("oracle", "nop"),
+            attacks=(),
+            workdir=tmp_path / "w",
+        )
+    assert row["cells"]["bad:oracle"] == "fail"
+    assert row["cells"]["nope:oracle"] == "skipped"
+    assert row["grading"] == "broken"
+    assert any("bad:oracle" in problem for problem in row["problems"])
+
+
+def test_matrix_solutionless_task_skips_oracle_and_scopes_attacks(tmp_path: Path) -> None:
+    task_dir = make_task(tmp_path)
+    (task_dir / "solution" / "solve.sh").unlink()
+    calls: list[tuple[str, tuple]] = []
+
+    def runner(
+        task_dir: Path,
+        agent: str,
+        attacks: tuple,
+        *,
+        workdir: Path,
+        timeout_seconds: int | None,
+    ) -> dict:
+        calls.append((agent, attacks))
+        return _fake_cell("t", agent, "fail", 0.0)
+
+    with patch.dict(MATRIX_TARGETS, {"t": runner}):
+        row = matrix_task_row(
+            task_dir,
+            targets=("t",),
+            agents=("oracle", "nop", "cheat"),
+            attacks=("skip_plant",),
+            workdir=tmp_path / "w",
+        )
+    assert row["cells"]["t:oracle"] == "skipped"
+    assert calls == [("nop", ()), ("cheat", ("skip_plant",))]
+    assert row["grading"] == "ok"
 
 
 # -- CLI wiring -----------------------------------------------------------------
@@ -514,26 +941,134 @@ def test_cli_wiring() -> None:
     )
     assert args.to == "karotte"
     assert callable(args.func)
-    args = parser.parse_args(["interop", "parity", "a", "b", "--targets", "harbor"])
+    args = parser.parse_args(
+        [
+            "interop",
+            "matrix",
+            "a",
+            "b",
+            "--targets",
+            "harbor",
+            "--agents",
+            "oracle",
+            "nop",
+            "--attacks",
+            "skip_plant",
+        ]
+    )
     assert args.targets == ["harbor"]
+    assert args.agents == ["oracle", "nop"]
+    assert args.attacks == "skip_plant"
     assert callable(args.func)
 
 
-def test_parity_all_skip_prints_not_agreement_notice(
-    tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:
+def _matrix_row(task_id: str = "lab/t", grading: str = "ok", problems: tuple = ()) -> dict:
+    return {
+        "task_id": task_id,
+        "cells": {},
+        "grading": grading,
+        "problems": list(problems),
+        "versions": {},
+        "details": {},
+    }
+
+
+def test_matrix_command_exit_codes(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     from evallab.interop import build_interop_parser, interop_command
 
     parser = argparse.ArgumentParser()
     build_interop_parser(parser.add_subparsers())
-    args = parser.parse_args(["interop", "parity", "some-task"])
-    row = {
-        "task_id": "lab/t",
-        "cells": {"harbor:oracle": "skip"},
-        "equal": None,
-        "harbor_rev": "test-rev",
-        "details": {"harbor:oracle": {"verdict": "skip", "reason": "no daemon"}},
-    }
-    with patch.object(interop, "parity_row", return_value=row):
+    args = parser.parse_args(["interop", "matrix", "some-task"])
+    with patch.object(interop, "matrix_task_row", return_value=_matrix_row()):
         assert interop_command(args, REPO_ROOT) == 0
-    assert "not agreement" in capsys.readouterr().out
+    with patch.object(
+        interop,
+        "matrix_task_row",
+        return_value=_matrix_row(grading="broken", problems=["h:oracle expected pass, got fail"]),
+    ):
+        assert interop_command(args, REPO_ROOT) == 1
+        assert "grading broken" in capsys.readouterr().out
+    with patch.object(interop, "matrix_task_row", return_value=_matrix_row(grading="n/a")):
+        assert interop_command(args, REPO_ROOT) == 0
+        assert "not agreement" in capsys.readouterr().out
+
+
+def test_matrix_command_rejects_bad_attacks() -> None:
+    from evallab.interop import build_interop_parser, interop_command
+
+    parser = argparse.ArgumentParser()
+    build_interop_parser(parser.add_subparsers())
+    args = parser.parse_args(["interop", "matrix", "some-task", "--attacks", "nope"])
+    with patch.object(interop, "matrix_task_row", side_effect=AssertionError("must not run")):
+        assert interop_command(args, REPO_ROOT) == 2
+
+
+# -- solution-less tasks (oracle needs solution/, nop/cheat do not) ---------------
+
+
+def _solution_less_task(root: Path) -> Path:
+    task_dir = make_task(root)
+    shutil.rmtree(task_dir / "solution")
+    return task_dir
+
+
+def test_load_solution_required_only_for_oracle(tmp_path: Path) -> None:
+    task_dir = _solution_less_task(tmp_path / "nosol")
+    with pytest.raises(ValueError, match="solution/solve.sh"):
+        load_harbor_task(task_dir)
+    task = load_harbor_task(task_dir, require_solution=False)
+    assert task.task_dir == task_dir
+    no_tests = make_task(tmp_path / "notests")
+    (no_tests / "tests" / "test.sh").unlink()
+    with pytest.raises(ValueError, match="test.sh"):
+        load_harbor_task(no_tests, require_solution=False)
+
+
+def test_scripted_agent_plan_oracle_needs_solution(tmp_path: Path) -> None:
+    task = load_harbor_task(_solution_less_task(tmp_path / "nosol"), require_solution=False)
+    with pytest.raises(ValueError, match="oracle plan needs solution"):
+        scripted_agent_plan(task, "oracle", ())
+    assert scripted_agent_plan(task, "nop", ()).command is None
+    assert scripted_agent_plan(task, "cheat", ()).command is not None
+
+
+def test_run_harbor_cell_solution_less_oracle_errors_nop_runs(tmp_path: Path) -> None:
+    task_dir = _solution_less_task(tmp_path / "nosol")
+    with (
+        patch.object(interop, "run_harbor_control", side_effect=AssertionError("must not run")),
+        patch.object(interop, "harbor_revision", return_value="rev"),
+    ):
+        cell = run_harbor_cell(task_dir, "oracle", (), workdir=tmp_path / "o")
+    assert cell["verdict"] == "error"
+    assert "solution/solve.sh" in (cell["reason"] or "")
+    with (
+        patch.object(interop, "run_harbor_control", return_value=_control_result("fail", 0.0)),
+        patch.object(interop, "harbor_revision", return_value="rev"),
+    ):
+        cell = run_harbor_cell(task_dir, "nop", (), workdir=tmp_path / "n")
+    assert cell["verdict"] == "fail"
+
+
+def test_run_inspect_cell_solution_less_oracle_errors_nop_stages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task_dir = _solution_less_task(tmp_path / "nosol")
+    with patch.object(interop, "_write_inspect_run", side_effect=AssertionError("must not run")):
+        cell = run_inspect_cell(task_dir, "oracle", (), workdir=tmp_path / "o")
+    assert cell["verdict"] == "error"
+    assert "solution/solve.sh" in (cell["reason"] or "")
+    captured: dict = {}
+
+    def fake_stage(work: Path, task: object, **kwargs: object) -> Path:
+        captured.update(kwargs)
+        driver = Path(work) / "inspect_driver.py"
+        driver.write_text("x", encoding="utf-8")
+        return driver
+
+    monkeypatch.setattr(interop, "_write_inspect_run", fake_stage)
+    monkeypatch.setattr(interop, "_docker_ps", lambda: {})
+    monkeypatch.setattr(shutil, "which", lambda *args, **kwargs: None)
+    cell = run_inspect_cell(task_dir, "nop", (), workdir=tmp_path / "n")
+    assert captured["agent"] == "nop"
+    assert cell["verdict"] == "error"
+    assert "uv" in (cell["reason"] or "")

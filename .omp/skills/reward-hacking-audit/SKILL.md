@@ -1,6 +1,6 @@
 ---
 name: reward-hacking-audit
-description: Audit a task or benchmark for reward-hacking channels with a V1-V8 static ledger, authored exploit scripts, and a model-free replay through the task's own verifier.
+description: Audit a task or benchmark for reward-hacking channels and weak verifiers with a V1-V8 static ledger, authored exploit scripts, verifier mutation testing, and model-free replay through the task's own verifier.
 ---
 
 # Reward-hacking audit
@@ -22,11 +22,19 @@ benchmark's own verifier is the only authority on whether an exploit scores.
 3. **Replay (free, local Docker, no model).** `evallab hack run <package> --execute` runs three controls
    through the task's own verifier: the reference oracle (must score 1), the no-agent control (must score 0),
    and each exploit script. The reward that comes back is the benchmark's grade, not a local judgment.
+4. **Verifier mutation testing (free, local Docker, no model).** Exploit scripts find channels around the
+   grader; most published grader defects are the other kind: the grader accepts a wrong answer (EnvCheck's
+   "insufficient checking"). `evallab hack mutate <package> --execute` captures the reference solution's
+   target files, grades a blank control per file, then grades one-edit mutants of the reference output.
+   Read each survivor's diff against `instruction.md`: an equivalent mutant (unreachable branch, a
+   `parents=False` on a directory that exists) is noise; a survivor that changes required behaviour is a
+   candidate defect. Re-run one survivor with `--mutant <id>` before quoting it.
 
 ```bash
 evallab hack scan library/tasks/<task>
 evallab hack run library/tasks/<task> --script controls/<channel>.sh      # plan only
 evallab hack run library/tasks/<task> --script controls/<channel>.sh --execute
+evallab hack mutate library/tasks/<task> --workers 2 --execute     # targets = declared artifacts
 ```
 
 Receipts land under `runs/.reward-hack/<slug>-<ulid>/` (report, matrix, staged script digests) with the matrix

@@ -1473,18 +1473,15 @@ def run_cell(
         mounts: list[str] = []
         staged: dict[str, bytes] = dict(plan.files)
         if agent == "oracle":
-            # The canonical oracle plan runs `solution/solve.sh` from the task
-            # workdir; the runner stages the host solution tree there (and at
-            # Harbor's own /solution path for absolute references). Oracle-only:
-            # nop/cheat cells never see the reference solution.
+            # The canonical oracle plan runs `bash /solution/solve.sh`; the
+            # runner mounts the host solution tree at Harbor's /solution.
+            # Oracle-only: nop/cheat cells never see the reference solution.
             solution_root = task.task_dir / "solution"
             for path in sorted(solution_root.rglob("*")):
                 if not path.is_file() or path.is_symlink():
                     continue
                 rel = path.relative_to(solution_root).as_posix()
-                data = path.read_bytes()
-                staged[f"{spec.workdir}/solution/{rel}"] = data
-                staged[f"{SOLUTION_MOUNT}/{rel}"] = data
+                staged[f"{SOLUTION_MOUNT}/{rel}"] = path.read_bytes()
         for index, (container_path, data) in enumerate(staged.items()):
             host_path = mounts_dir / f"{index:02d}.bin"
             host_path.write_bytes(data)

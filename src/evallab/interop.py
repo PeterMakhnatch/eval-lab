@@ -13,7 +13,8 @@ Model-free, spend-free bridges:
   JSON envelope.
 
 The scripted agents are platform-neutral plans (``scripted_agent_plan``):
-oracle stages ``solution/`` and runs ``solve.sh``; nop does nothing; cheat
+oracle runs ``/solution/solve.sh`` (each runner provides the task's
+``solution/`` at Harbor's ``/solution``, oracle cells only); nop does nothing; cheat
 stages the stdlib-only ``evallab.cheat_ladder`` and runs it with the attack
 subset (empty = full ladder). Every target runner exposes
 ``run_cell(task_dir, agent, attacks, *, workdir, timeout_seconds)`` returning
@@ -205,8 +206,10 @@ def scripted_agent_plan(
 ) -> ScriptedPlan:
     """Build the scripted plan for one agent: oracle/nop/cheat.
 
-    Oracle stages ``solution/`` and runs ``solve.sh`` (and needs
-    ``solution/solve.sh`` present); nop stages nothing and runs nothing
+    Oracle runs ``bash /solution/solve.sh`` from the workdir, Harbor's own
+    oracle convention; the runner makes the task's ``solution/`` tree
+    available at ``/solution`` for oracle cells only (needs
+    ``solution/solve.sh``); nop stages nothing and runs nothing
     (``command`` is None); cheat stages ``cheat_ladder.py`` and runs it with
     the attack subset (empty ``attacks`` = full ladder). Unknown agents,
     unknown attack names, and an oracle plan for a solution-less task raise
@@ -217,7 +220,7 @@ def scripted_agent_plan(
     if agent == "oracle":
         if not (task.task_dir / "solution" / "solve.sh").is_file():
             raise ValueError(f"{task.task_dir}: oracle plan needs solution/solve.sh")
-        return ScriptedPlan(files={}, command="bash solution/solve.sh")
+        return ScriptedPlan(files={}, command="bash /solution/solve.sh")
     if agent == "cheat":
         selected = parse_attack_selection(",".join(attacks) if attacks else None)
         command = f"python3 {CHEAT_LADDER_CONTAINER_PATH} --cwd . --evidence-dir ./cheat"
@@ -908,7 +911,7 @@ def export_karotte(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
         f"| task artifacts | Step.submission_paths ({submission_doc}) |\n"
         "| tests/test.sh | generic judge restores collected copies at original paths, runs `bash /tests/test.sh` from "
         f"{spec.workdir}, grades /logs/verifier via interop.parse_reward_bytes |\n"
-        "| solution/solve.sh | mounted at `<workdir>/solution` + `/solution` for oracle cells only |\n"
+        "| solution/solve.sh | mounted at `/solution` for oracle cells only |\n"
         "| environment/Dockerfile | harness Containerfile FROM the Harbor student image |\n"
         "| task.toml [task] + [metadata] | Task.id + module docstring |\n"
         "\n## Submission / custody split\n\n"
@@ -991,9 +994,7 @@ def main() -> int:
                 sb = sandbox()
                 await sb.exec(['mkdir', '-p', manifest['workdir'], '/logs/verifier'])
                 for rel in manifest.get('task_files', []):
-                    await sb.write_file(
-                        manifest['workdir'] + '/' + rel, (TASK_DIR / rel).read_bytes()
-                    )
+                    await sb.write_file('/' + rel, (TASK_DIR / rel).read_bytes())
                 for container_path, blob in manifest.get('files', []):
                     await sb.write_file(container_path, (WORK / blob).read_bytes())
                 command = manifest.get('command')
@@ -1059,27 +1060,27 @@ if __name__ == '__main__':
 '''
 
 
-def _collect_task_files(task: HarborTask) -> tuple[list[str], list[str]]:
-    """Stageable solution/ + tests/ files (task-relative posix) plus skipped-large.
+def _collect_solution_files(task: HarborTask) -> tuple[list[str], list[str]]:
+    """Stageable ``solution/`` files (task-relative posix) plus skipped-large.
 
-    Mirrors the repo mount Harbor agents see natively, so recon attacks observe
-    the same surface. Files over ``MAX_STAGED_FILE_BYTES`` are skipped and
-    reported; tasks that need more want a runner with a real mount.
+    Oracle cells only: the reference solution lands at ``/solution`` like
+    Harbor's oracle upload. Agents never see ``tests/`` (Harbor uploads tests
+    after the agent) and nop/cheat never see the solution, so staging nothing
+    else keeps cheat cells as blind as on Harbor. Files over
+    ``MAX_STAGED_FILE_BYTES`` are skipped and reported.
     """
     collected: list[str] = []
     skipped: list[str] = []
-    for base in ("solution", "tests"):
-        root = task.task_dir / base
-        if not root.is_dir():
+    root = task.task_dir / "solution"
+    paths = sorted(root.rglob("*")) if root.is_dir() else []
+    for path in paths:
+        if not path.is_file() or path.is_symlink():
             continue
-        for path in sorted(root.rglob("*")):
-            if not path.is_file() or path.is_symlink():
-                continue
-            rel = path.relative_to(task.task_dir).as_posix()
-            if path.stat().st_size > MAX_STAGED_FILE_BYTES:
-                skipped.append(rel)
-                continue
-            collected.append(rel)
+        rel = path.relative_to(task.task_dir).as_posix()
+        if path.stat().st_size > MAX_STAGED_FILE_BYTES:
+            skipped.append(rel)
+            continue
+        collected.append(rel)
     return collected, skipped
 
 
@@ -1107,7 +1108,7 @@ def _write_inspect_run(
         name = f"blob-{index}.bin"
         (stage / name).write_bytes(data)
         blobs.append([container_path, f"stage/{name}"])
-    task_files, skipped = _collect_task_files(task) if agent != "nop" else ([], [])
+    task_files, skipped = _collect_solution_files(task) if agent == "oracle" else ([], [])
     manifest = {
         "agent": agent,
         "attacks": list(attacks),

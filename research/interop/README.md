@@ -71,7 +71,7 @@ the embedded `interop.parse_reward_bytes`.
 | task artifacts (else workdir) | `Step.submission_paths` (collected, restored, graded) |
 | tests/test.sh | generic judge: restore copies, `bash /tests/test.sh`, parse reward |
 | reward.txt / reward.json | score via embedded `parse_reward_bytes`; missing = 0 + error |
-| solution/solve.sh | mounted at `<workdir>/solution` + `/solution` for oracle cells only |
+| solution/solve.sh | mounted at `/solution` for oracle cells only |
 | environment/Dockerfile (or docker_image) | harness Containerfile `FROM` the Harbor student image |
 | task.toml [task] + [metadata] | Task.id + module docstring |
 
@@ -95,7 +95,9 @@ Example: `library/tasks/transaction-reconciliation` flags only
 Every target runner exposes `run_cell(task_dir, agent, attacks, *, workdir,
 timeout_seconds)` returning pass/fail/skipped/error (reward >= 1.0 passes).
 The scripted agents are platform-neutral plans (`scripted_agent_plan`):
-oracle stages `solution/` and runs `solve.sh`; nop does nothing; cheat stages
+oracle runs `bash /solution/solve.sh` (Harbor's oracle convention; each runner
+provides the task's `solution/` at `/solution` for oracle cells only, and
+cheat cells see neither `solution/` nor `tests/`); nop does nothing; cheat stages
 the stdlib-only `src/evallab/cheat_ladder.py` (same ladder `evallab cheat run`
 uses) and runs it with the attack subset. Targets are wired through the
 `MATRIX_TARGETS` registry in `src/evallab/interop.py`.
@@ -164,6 +166,12 @@ inspect-harbor 1.0.0; karotte 3.0.59; verifiers 0.3.1):
 | MiMo 002552 | inspect | no solution | fail | **cracked (1.0)** |
 | MiMo 002552 | karotte | no solution | fail | **cracked (1.0)** |
 | MiMo 002552 | verifiers | error | error | error (`[verifier].user` unsupported) |
+| event-summary | harbor / inspect / karotte / verifiers | pass | fail | clean on all four |
+
+The event-summary row and a re-run of transaction-reconciliation (same
+verdicts) come from the final head after review fixes: oracle runs
+`bash /solution/solve.sh` everywhere and cheat cells see no `solution/` or
+`tests/`.
 
 Grading is correct wherever a control ran (oracle pass, nop fail). What the
 cheat cells mean:

@@ -580,7 +580,7 @@ def test_scripted_agent_plan_oracle_nop_cheat() -> None:
     task = load_harbor_task(REAL_TASK)
     oracle = scripted_agent_plan(task, "oracle", ())
     assert oracle.files == {}
-    assert oracle.command == "bash solution/solve.sh"
+    assert oracle.command == "bash /solution/solve.sh"
     nop = scripted_agent_plan(task, "nop", ())
     assert nop.files == {} and nop.command is None
     cheat = scripted_agent_plan(task, "cheat", ("reward_plant", "skip_plant"))
@@ -625,19 +625,34 @@ def test_write_inspect_run_stages_manifest_and_blobs(tmp_path: Path) -> None:
     assert manifest["attacks"] == ["skip_plant"]
     assert "--attacks skip_plant" in manifest["command"]
     assert manifest["workdir"] == interop.task_workdir(task) == "/app"
-    assert "solution/solve.sh" in manifest["task_files"]
-    assert "tests/test.sh" in manifest["task_files"]
+    # Cheat cells stay as blind as on Harbor: no solution/, no tests/.
+    assert manifest["task_files"] == []
     assert manifest["skipped_large"] == []
     assert manifest["override_cpus"] == 2
     assert manifest["override_memory_mb"] == 2048
     ((container_path, blob),) = manifest["files"]
     assert container_path == interop.CHEAT_LADDER_CONTAINER_PATH
     assert (work / blob).read_bytes() == (REPO_ROOT / "src/evallab/cheat_ladder.py").read_bytes()
-    source = driver.read_text(encoding="utf-8")
-    assert "scripted_solver" in source
-    assert "write_file" in source
-    assert ".exec(" in source
-    assert "mockllm/model" in source
+
+
+def test_write_inspect_run_oracle_stages_only_solution(tmp_path: Path) -> None:
+    from evallab.interop import _write_inspect_run
+
+    task = load_harbor_task(REAL_TASK)
+    work = tmp_path / "cell"
+    _write_inspect_run(
+        work,
+        task,
+        agent="oracle",
+        attacks=(),
+        agent_timeout=60,
+        override_cpus=2,
+        override_memory_mb=2048,
+    )
+    manifest = json.loads((work / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["command"] == "bash /solution/solve.sh"
+    assert "solution/solve.sh" in manifest["task_files"]
+    assert all(rel.startswith("solution/") for rel in manifest["task_files"])
 
 
 def test_write_inspect_run_nop_stages_nothing(tmp_path: Path) -> None:

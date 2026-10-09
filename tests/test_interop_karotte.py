@@ -139,7 +139,7 @@ def test_plan_messages_one_bash_call_per_command():
 def test_canonical_plans():
     task = load_harbor_task(TXN_TASK)
     oracle = scripted_agent_plan(task, "oracle", ())
-    assert oracle == ScriptedPlan(files={}, command="bash solution/solve.sh")
+    assert oracle == ScriptedPlan(files={}, command="bash /solution/solve.sh")
     assert scripted_agent_plan(task, "nop", ()) == ScriptedPlan(files={}, command=None)
     cheat = scripted_agent_plan(task, "cheat", ("skip_plant",))
     assert list(cheat.files) == ["/tmp/cheat_ladder.py"]
@@ -228,7 +228,7 @@ def test_fake_model_from_canonical_plan_executes():
     oracle = exec_fake_model(ik.fake_model_source(scripted_agent_plan(task, "oracle", ()), "/app"))
     assert len(oracle) == 2
     command = oracle[0]["tool_calls"][0]["arguments"]["command"]
-    assert command == "cd /app && bash solution/solve.sh"
+    assert command == "cd /app && bash /solution/solve.sh"
     assert oracle[-1]["tool_calls"] == []
     nop = exec_fake_model(ik.fake_model_source(scripted_agent_plan(task, "nop", ()), "/app"))
     assert len(nop) == 1 and nop[0]["tool_calls"] == []
@@ -446,7 +446,7 @@ def test_run_cell_pass_and_fail_with_stubbed_karotte(tmp_path, monkeypatch):
     assert evidence["container_bounded"] is True
     assert evidence["container_removed"] is True
     assert evidence["spec"]["workdir"] == "/app"
-    assert evidence["plan"]["command"] == "bash solution/solve.sh"
+    assert evidence["plan"]["command"] == "bash /solution/solve.sh"
     monkeypatch.setattr(ik.subprocess, "run", _stub_run_factory(0.0))
     cell = ik.run_cell(TXN_TASK, "nop", (), workdir=work)
     assert cell["verdict"] == "fail" and cell["reward"] == 0.0

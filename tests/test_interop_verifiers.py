@@ -58,7 +58,7 @@ def make_task(root: Path, *, name: str = "lab/synthetic", workdir: str | None = 
 def test_factory_oracle_runs_solve_in_workdir(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
     plan = _interop.scripted_agent_plan(task, "oracle", ())
-    assert plan.command == "bash solution/solve.sh"
+    assert plan.command == "bash /solution/solve.sh"
     assert plan.files == {}
 
 
@@ -66,14 +66,6 @@ def test_materialize_oracle_uploads_solution(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
     plan = _interop.scripted_agent_plan(task, "oracle", ())
     files = vf.materialize_files(task, "oracle", plan)
-    assert files["/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
-
-
-def test_materialize_oracle_uses_task_workdir(tmp_path: Path) -> None:
-    task = _interop.load_harbor_task(make_task(tmp_path / "w", workdir="/task"))
-    plan = _interop.scripted_agent_plan(task, "oracle", ())
-    files = vf.materialize_files(task, "oracle", plan)
-    assert files["/task/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
     assert files["/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
 
 

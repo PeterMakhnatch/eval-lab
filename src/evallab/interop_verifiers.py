@@ -84,25 +84,18 @@ def materialize_files(task: Any, agent: str, plan: Any) -> dict[str, bytes]:
     """Files to stage for a plan: the plan's own plus runner-side materialization.
 
     The factory is task-independent; the verifiers container only holds the
-    task image's content, so the oracle's ``solution/`` (which the plan command
-    addresses relative to the workdir) is uploaded from the task package here:
-    at ``{workdir}/solution/`` for the relative command and at ``/solution/``
-    for solutions that reference it absolutely (the inspect runner stages it
-    there too). No plan logic is duplicated: file bytes come from the package,
-    the command from the factory.
+    task image's content, so the oracle's ``solution/`` is uploaded from the
+    task package to Harbor's ``/solution`` (the plan runs
+    ``bash /solution/solve.sh``). Oracle cells only. No plan logic is
+    duplicated: file bytes come from the package, the command from the factory.
     """
     files = dict(plan.files)
     if agent == "oracle":
-        # The factory guarantees solution/solve.sh for oracle plans; stage the
-        # whole solution dir from the task package.
         solution_dir = task.task_dir / "solution"
-        workdir = task_workdir(task).rstrip("/")
         for path in sorted(solution_dir.rglob("*")):
             if path.is_file():
-                payload = path.read_bytes()
                 rel = path.relative_to(solution_dir).as_posix()
-                files[f"{workdir}/solution/{rel}"] = payload
-                files[f"/solution/{rel}"] = payload
+                files[f"/solution/{rel}"] = path.read_bytes()
     return files
 
 

@@ -1,23 +1,25 @@
-# Experience Infra interop (HAR-204): Harbor <-> Inspect AI <-> Karotte
+# Experience Infra interop (HAR-204): Harbor <-> Inspect AI <-> Karotte <-> verifiers
 
-Model-free, $0-only bridges. No RL training infra. All live-Docker paths are
-admission-gated through the repo's own `docker_available_resources` gate:
-when the shared laptop daemon refuses, commands print
-`shared daemon not admitted` and skip instead of failing. Unit + fixture
-tests (`tests/test_interop.py`) carry acceptance.
+Model-free, $0-only bridges. No RL training infra. Live-Docker cells attempt
+execution exactly like `evallab run` / `evallab cheat run` (direct execution,
+no campaign-queue admission gate): infrastructure failures are `error` cells,
+never `fail`. Unit + fixture tests (`tests/test_interop.py`) inject every
+external seam and carry acceptance.
 
 ## Commands
 
 ```bash
 evallab interop export-harbor library/tasks/<name> --to inspect --out DIR
 evallab interop export-harbor library/tasks/<name> --to karotte --out DIR
-evallab interop run-inspect library/tasks/<name>
-evallab interop parity library/tasks/<a> library/tasks/<b> [--targets harbor,inspect,karotte-validate]
+evallab interop matrix library/tasks/<a> [library/tasks/<b>...] [--targets harbor,inspect,karotte,verifiers] [--agents oracle,nop,cheat] [--attacks a,b] [--json]
 ```
 
-`--out` must be empty (exports refuse non-empty dirs). `parity` exits 1 on a
-verdict disagreement, 0 when everything comparable agrees (or nothing is
-comparable, e.g. all skips).
+`--out` must be empty (exports refuse non-empty dirs). `matrix` runs every
+(target, agent) cell, renders a table where control cells show pass/fail and
+cheat cells show cracked/clean, flags "grading broken" when a comparable
+oracle cell is not pass or a nop cell is not fail, and exits 1 on any broken
+row. `--json` prints the envelope (rows + versions + evidence paths).
+`--attacks` selects the cheat-ladder subset for cheat cells only.
 
 ## Pinned versions
 
@@ -29,10 +31,11 @@ comparable, e.g. all skips).
 | inspect-harbor | 1.0.0 | uv.lock (`inspect` group) |
 | karotte (validate-only) | 3.0.59 | `src/evallab/interop.py: KAROTTE_PIN` |
 
-Every run output records the exact `harbor_rev` that produced the native
-verdict. `export-harbor --to inspect` never imports `inspect_harbor`;
-`run-inspect` provisions the pinned inspect stack in a subprocess
-(`uv run --no-project --with ...`) so the lab venv stays lean.
+Every run output records the exact versions that produced it (Harbor revision
+per cell, pinned inspect/karotte revisions). `export-harbor --to inspect`
+never imports `inspect_harbor`; matrix live cells provision the pinned inspect
+stack in a subprocess (`uv run --no-project --with ...`) so the lab venv
+stays lean.
 
 ## Harbor -> Inspect mapping
 
@@ -75,23 +78,34 @@ Example: `library/tasks/transaction-reconciliation` flags
 `verifier-as-root` (test.sh `apt-get install`), `network-policy` (`public`),
 `no-submission-paths` (no artifacts).
 
-## Target verdicts
+## Cells and grading
 
-- `harbor:oracle` / `harbor:nop`: native verdicts through the repo's guarded
-  `Executor.execute_direct` (docker, $0). Expected on sound tasks:
-  oracle pass, nop fail.
-- `inspect:oracle`: pinned `inspect_harbor.harbor(path=...)` + oracle solver +
-  local docker sandbox, `mockllm/model` (no inference). nop is `n/a`
-  (inspect_harbor ships no nop solver).
-- `karotte-validate`: structural validation of the exported scaffold against
-  pinned karotte (import Task, instantiate, check steps/instructions/judge/
-  submission_paths). Validate-only by design.
+Every target runner exposes `run_cell(task_dir, agent, attacks, *, workdir,
+timeout_seconds)` returning pass/fail/skipped/error (reward >= 1.0 passes).
+The scripted agents are platform-neutral plans (`scripted_agent_plan`):
+oracle stages `solution/` and runs `solve.sh`; nop does nothing; cheat stages
+the stdlib-only `src/evallab/cheat_ladder.py` (same ladder `evallab cheat run`
+uses) and runs it with the attack subset. Targets are wired through the
+`MATRIX_TARGETS` registry in `src/evallab/interop.py` (harbor + inspect;
+karotte/verifiers at integration).
 
-## AgentEnv / verifiers assessment (no code shipped)
+- `harbor:oracle` / `harbor:nop`: native verdicts through
+  `Executor.execute_direct` (docker, $0). `harbor:cheat` reuses the
+  `evallab cheat` lane. Expected on sound tasks: oracle pass, nop fail.
+- `inspect:oracle/nop/cheat`: pinned `inspect_harbor.harbor(path=...)` with a
+  bounded local docker sandbox (task resources, else 2 CPU / 2048 MB) and a
+  generated scripted solver that stages the plan files via
+  `sandbox().write_file` and runs the plan command via `sandbox().exec`
+  (nop is a no-op solver), graded by the inspect_harbor scorer with
+  `mockllm/model` (no inference). Sandbox containers verifiably ours
+  (`hb__*` task image) are removed afterwards; anything else is reported,
+  never touched.
+
+## AgentEnv / verifiers assessment
 
 | Framework | Verdict | Evidence |
 | --- | --- | --- |
-| AgentEnv (PyPI `agentenv`) | **needs-deps** | Installs cleanly but is an empty stub: version `0.0.1`, `dir(agentenv)` is `[]`. There is no task/verifier/solver API to map onto and nothing model-free to execute against. Reassess when the package publishes a real surface. |
+| AgentEnv (`agentenv-framework`, Scale, `scaleapi/agentenv-framework`) | **already-ran** | Eval Lab ran it in `research/experiments/agentenv-mimo-bench/README.md` (HAR-190): AgentEnv 0.9.1275 on local Docker, model-free scripted controls (oracle pass, nop fail), graded by AgentEnv's `env_outcome_verifier`. The earlier row naming PyPI `agentenv` 0.0.1 was wrong: that is an unrelated stub, not Scale's framework. No Harbor converter exists (noted as a next step there); a matrix target would need one. |
 | verifiers (Prime `verifiers`, v1 stack) | **needs-paid** | Full RL stack installs; episodes run as `Env.run(task, agents)` / `run_episode(task, ctx: ModelContext, ...)` — rollouts require model inference by construction, and there is no oracle/nop control concept. A verdict-equivalence run would need a paid model call, which violates the $0 rule. Mapping Harbor oracle/nop onto it would need a scripted-agent harness (new deps + design), out of scope for this slice. |
 
 ## Follow-ups (not in this slice)
@@ -101,12 +115,33 @@ Example: `library/tasks/transaction-reconciliation` flags
    FAIL like a nop control), but executing it needs the karotte env image
    built around the scaffold (`karotte create-env` + container build). That
    is a container-building follow-up, not validate-only work.
-2. Live agreement proof: `run-inspect` and `parity` harbor/inspect cells are
-   implemented and print side-by-side verdicts, but the shared laptop daemon
-   currently refuses admission, so they report `shared daemon not admitted`.
-   Re-run `evallab interop parity library/tasks/transaction-reconciliation
-   library/tasks/event-summary` on an admitted daemon for the live matrix.
+2. Karotte/verifiers live cells: runners land in `src/evallab/interop_karotte.py`
+   / `src/evallab/interop_verifiers.py` and wire into `MATRIX_TARGETS`; the
+   `matrix` command runs them with no interop.py change.
 3. Inspect export execution: the emitted task is `inspect eval`-ready
    (compose sandbox + oracle solver + reward scorer) but has not been
-   executed end-to-end here for the same daemon reason; covered structurally
-   by exec-against-stub tests.
+   executed end-to-end here; covered structurally by exec-against-stub tests.
+   (The matrix `inspect` target runs the same task dir through the pinned
+   inspect_harbor interface instead -- smoked live in the next section.)
+
+## Live smoke (2026-10-09, this laptop, $0)
+
+`evallab interop matrix library/tasks/transaction-reconciliation --targets
+harbor inspect --agents oracle nop cheat --attacks reward_plant,skip_plant`:
+
+| harbor:oracle | harbor:nop | harbor:cheat | inspect:oracle | inspect:nop | inspect:cheat | grading |
+| --- | --- | --- | --- | --- | --- | --- |
+| pass | fail | clean (0.0) | pass | fail | clean | ok |
+
+Grading is correct on both targets (oracle passes, nop fails). The cheat
+subset genuinely executed on both (harbor `attempts.json` shows
+`reward_plant,skip_plant` executed, verifier reward 0.0; inspect
+`agent-exec.json` shows the ladder exiting 0 in the sandbox) and stayed
+clean: `reward_plant` writes workspace claims (never verifier paths) and
+`skip_plant`'s `/taskwork/conftest.py` is invisible to the inspect_harbor
+scorer, which re-copies pristine `tests/` from the host at score time -- a
+real platform difference the matrix surfaces. Harbor 0.24.0; inspect-ai
+0.3.276 + inspect-harbor 1.0.0. One earlier attempt hit a transient
+`Docker daemon is not running` on two Harbor controls while the shared daemon
+was under parallel load; the isolated retry passed, so it reads as a flaky
+daemon, not a code path.

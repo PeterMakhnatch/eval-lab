@@ -11,6 +11,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -125,6 +126,9 @@ class StateJournalPlugin:
             self._laminar = LaminarTrialPlugin()
         except Exception:
             self._laminar = None
+        self._flight: Any | None = None
+        self._flight_job_dir: Path | None = None
+        self._flight_errors: list[str] = []
 
     async def on_job_start(self, job: Any) -> None:
         if self.observer_enabled:
@@ -145,6 +149,19 @@ class StateJournalPlugin:
                 raise
             except Exception:
                 pass
+        try:
+            job_dir = Path(job.job_dir)
+            config = job_dir.parent / ".flight" / f"{job_dir.name}.json"
+            if config.is_file():
+                self._flight_job_dir = job_dir
+                from evallab.flight.plugin import FlightRecorderPlugin
+
+                self._flight = FlightRecorderPlugin()
+                await self._flight.on_job_start(job)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            self._flight_failed("job_start", exc)
 
     async def on_job_end(self, _job_result: Any) -> None:
         for trial_id in list(self.monitors):
@@ -156,6 +173,28 @@ class StateJournalPlugin:
                 raise
             except Exception:
                 pass
+        if self._flight is not None:
+            try:
+                await self._flight.on_job_end(_job_result)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                self._flight_failed("job_end", exc)
+
+    def _flight_failed(self, phase: str, exc: Exception) -> None:
+        reason = f"{phase}: {type(exc).__name__}: {exc}"[:4096]
+        if len(self._flight_errors) < 30:
+            self._flight_errors.append(reason)
+        try:
+            if self._flight_job_dir is not None:
+                _atomic_json(self._flight_job_dir / "flight-unavailable.json", {
+                    "schema": "evallab.flight.status/v1",
+                    "status": "unavailable",
+                    "errors": self._flight_errors,
+                })
+            logging.getLogger(__name__).warning("Flight observer unavailable: %s", reason)
+        except Exception:
+            pass
 
     def _output_dir(self, event: Any) -> Path:
         return Path(event.config.trials_dir) / event.trial_name / "state-journal"

@@ -1,0 +1,47 @@
+{
+ "task_answer_in_env_git": {
+  "auroc": 0.376,
+  "n_pos": 13,
+  "n_neg": 26
+ },
+ "task_writable_grader_files": {
+  "auroc": 0.246,
+  "n_pos": 13,
+  "n_neg": 26
+ },
+ "task_weak_assertion_checks": {
+  "auroc": 0.537,
+  "n_pos": 13,
+  "n_neg": 26
+ },
+ "task_underspecified_spec": {
+  "auroc": 0.534,
+  "n_pos": 13,
+  "n_neg": 26
+ },
+ "task_broken_verifier_oracle": {
+  "auroc": 0.71,
+  "n_pos": 13,
+  "n_neg": 26
+ },
+ "task_unsolvable_setup": {
+  "auroc": 0.497,
+  "n_pos": 13,
+  "n_neg": 26
+ },
+ "task_network_open_egress": {
+  "auroc": 0.322,
+  "n_pos": 13,
+  "n_neg": 26
+ },
+ "task_no_resource_limits_caps": {
+  "auroc": 0.445,
+  "n_pos": 13,
+  "n_neg": 26
+ },
+ "any_task_defect": {
+  "auroc": 0.425,
+  "n_pos": 13,
+  "n_neg": 26
+ }
+}

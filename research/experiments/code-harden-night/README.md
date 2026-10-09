@@ -15,12 +15,13 @@ each record. Full report: `derive-report.json` (failures: none).
 
 | Transform | Derived | Already existed | Failed |
 |---|---|---|---|
-| strip-future-history@1 | 1,516 | 3 (2 smoke-test + 002361 pre-existing `har177-default-strip` on main, reused as mtime parent) | 0 |
-| mtime-normalize@1 | 1,517 | 2 (smoke-test) | 0 |
+| strip-future-history@1 | 1,516 | 3 (2 smoke-test + 002361 pre-existing `har177-default-strip` on main, untouched) | 0 |
+| mtime-normalize@1 | 1,516 | 2 (smoke-test) | 0 (+1 relinquished: 002361 belongs to the Python ledger — ValsClosure's fleet owns its mtime; record dropped, pre-existing main strip untouched) |
 
-Census recount says the fleet is **1,519**, not 1,518 (§3). Records: 3,033 new
-lineage JSON files under `library/task-variants/mimo-v2.6-rl__*/` (1,519
-dirs); packages in the shared variants store.
+Census recount says the fleet is **1,519**, not 1,518 (§3). Records: 3,032 new
+lineage JSON files across 1,518 task dirs under `library/task-variants/`
+(002361 carries only main-tracked records now); packages in the shared
+variants store.
 
 ## 2. Sample validation (MEASURED, local Docker, egress locked)
 

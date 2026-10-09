@@ -2709,7 +2709,6 @@
   "format-code-task-002357",
   "format-code-task-002358",
   "format-code-task-002360",
-  "format-code-task-002361",
   "format-code-task-002362",
   "format-code-task-002364",
   "format-code-task-002365",
@@ -3047,5 +3046,8 @@
   "format-code-task-000047"
  ],
  "mtime_failed": [],
- "failures": {}
+ "failures": {},
+ "mtime_relinquished_to_vals_closure": [
+  "format-code-task-002361"
+ ]
 }

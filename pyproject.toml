@@ -47,6 +47,12 @@ inspect = [
     "inspect-ai==0.3.276",
     "inspect-harbor==1.0.0",
 ]
+# Prime verifiers v1 runner for the cross-platform matrix (HAR-204 follow-up).
+# Opt-in like `inspect`: live cells import it lazily, committed tests never
+# need it, and the lab venv stays lean without the group.
+xplat-verifiers = [
+    "verifiers==0.3.1",
+]
 dev = [
     # Pinned resolver pip is the immutable wheel-download engine for FastMCP
     # wheelhouse staging (see scripts/mcp_funcdag/ensure_wheelhouse.py). Its

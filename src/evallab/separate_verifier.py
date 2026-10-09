@@ -1,8 +1,9 @@
-"""Separate-verifier transform for MiMo task packages (``separate-verifier@1``).
+"""Separate-verifier transforms for MiMo task packages.
 
-Converts a shared-mode MiMo task package (``task.toml``, ``environment/``,
-``tests/``) so hidden tests are bundled into the verifier environment only,
-and the agent's workspace reaches the verifier as a declared artifact.
+``separate-verifier@1`` converts a shared-mode MiMo task package
+(``task.toml``, ``environment/``, ``tests/``) so hidden tests are bundled
+into the verifier environment only, and the agent's workspace reaches the
+verifier as a declared artifact.
 
 Mechanism (all Harbor 0.24 behavior cited inline):
 
@@ -24,15 +25,30 @@ Mechanism (all Harbor 0.24 behavior cited inline):
 
 The original grading script depends on setup state (``/var/lib/mimo/base``
 and the hidden git dir) that only exists in the agent environment, so the
-snapshot hook captures that state too.
+@1 snapshot hook captures that state too.
+
+``separate-verifier@2`` ("patch-only verifier") closes the grading hole @1
+leaves open: the agent is root in its container (and @1 additionally
+restores the agent's own ``.git`` and base sha into the verifier), so
+tracked-conftest edits, ``sitecustomize``/``PATH`` tamper, background
+writers, and in-source ``atexit``/``pytest`` monkeypatches all grade 1
+without fixing the bug. The @2 verifier never trusts anything from the
+agent environment except repo file bytes: it reruns the bundled clean setup
+itself, computes ``BASE`` there, diffs the snapshot files with its own git
+under the BASE tree's ignore rules, drops test-infra paths, gates tamper
+signatures, then applies the hidden tests and grades with a structured
+junit check.
 """
 
 from __future__ import annotations
 
 import hashlib
+import re
 import tomllib
+import xml.etree.ElementTree as ET
+from collections.abc import Collection
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 from evallab.task_variants import VariantInvalid, VariantRecord, derive_task
@@ -323,20 +339,440 @@ def derive_separate_verifier(
     )
 
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@2 ("patch-only verifier")
+# --------------------------------------------------------------------------- #
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V2 = "separate-verifier@2"
+
+#: Subdirectory of the bundled tests holding the readable copy of the
+#: parent's clean setup chain (``environment/setup/*``). The @2 grader reruns
+#: it in the verifier container so BASE and the pristine checkout never come
+#: from the agent environment.
+V2_SETUP_SUBDIR = "tests/_verifier-setup"
+
+#: Scratch dir for the @2 grader. The junit report lands here (outside the
+#: repo, where the code under test cannot reach it); ``/var/lib/mimo`` itself
+#: is setup state (``chmod 700``, rewritten by setup.sh).
+V2_GRADE_DIR = "/var/lib/mimo-grade"
+
+#: Tamper signatures gated on added lines of the kept agent change. One
+#: Python constant so the list is testable; the rendered grader embeds the
+#: same alternation in ``grep -E`` (entries are valid both as Python ``re``
+#: and as ERE). Measured: 0 hits on added lines of all 192 HAR-191
+#: oracle-pass reference fixes.
+TAMPER_SIGNATURES: tuple[str, ...] = (
+    r"\b_pytest\b",
+    r"\bpytest_(runtest|configure|collection|sessionfinish|sessionstart|report|terminal|unconfigure)",
+    r"\bTestReport\b",
+    r"junitxml",
+    r"\bos\._exit\b",
+    r"\batexit\b",
+)
+
+#: Exact test-infra filenames dropped from the change (a legitimate fix never
+#: touches these).
+_TEST_INFRA_BASENAMES = frozenset(
+    {"conftest.py", "pytest.ini", "tox.ini", "sitecustomize.py", "usercustomize.py"}
+)
+
+#: Config files dropped only when their changed lines touch runner config.
+_PYTEST_CONFIG_BASENAMES = frozenset({"setup.cfg", "pyproject.toml"})
+
+_PYTEST_CONFIG_RE = re.compile(r"pytest|addopts|plugins", re.IGNORECASE)
+_TESTMAIN_RE = re.compile(r"func TestMain\s*\(")
+_NAMED_ID_RE = re.compile(r"(\S+\.py::[^\s\"']+)")
+
+
+def tamper_signature_hit(added_lines: str) -> str | None:
+    """Return the first :data:`TAMPER_SIGNATURES` entry matching ``added_lines``."""
+    for signature in TAMPER_SIGNATURES:
+        if re.search(signature, added_lines):
+            return signature
+    return None
+
+
+def is_test_infra_filename(path: str) -> bool:
+    """Whether ``path`` is test infrastructure dropped by name (any directory)."""
+    base = PurePosixPath(path).name
+    return (
+        base in _TEST_INFRA_BASENAMES or base.endswith(".pth") or base.endswith("_test.go")
+    )
+
+
+def is_pytest_config_tamper(path: str, changed_lines: str) -> bool:
+    """Whether a ``setup.cfg``/``pyproject.toml`` change touches runner config."""
+    if PurePosixPath(path).name not in _PYTEST_CONFIG_BASENAMES:
+        return False
+    return _PYTEST_CONFIG_RE.search(changed_lines) is not None
+
+
+def declares_testmain(go_source: str) -> bool:
+    """Whether a Go source declares ``TestMain`` (dropped: it wraps the test binary)."""
+    return _TESTMAIN_RE.search(go_source) is not None
+
+
+def drop_reason(path: str, hidden_paths: Collection[str]) -> str | None:
+    """Name-based drop reason for ``path`` (``None`` keeps it).
+
+    Covers test-infra filenames and every path named in the hidden test
+    patch. Content-based drops (pytest-config hunks, Go ``TestMain``) need
+    file bytes; see :func:`is_pytest_config_tamper` and
+    :func:`declares_testmain`.
+    """
+    if is_test_infra_filename(path):
+        return "test-infra"
+    if path in hidden_paths:
+        return "hidden-test path"
+    return None
+
+
+def parse_named_pytest_ids(patch_text: str) -> set[str]:
+    """pytest node ids named by the task's test command (``mimo_test_command.sh`` section).
+
+    Empty when no id is parseable (e.g. base64-encoded commands): the
+    named-id presence check then does not apply.
+    """
+    return set(_NAMED_ID_RE.findall(patch_text.split("mimo_test_command.sh")[-1]))
+
+
+def evaluate_junit(junit_xml: bytes | None, rc: int, named_ids: Collection[str]) -> int:
+    """Grade 1/0 from a junit report plus the test command's exit code.
+
+    Reward 1 iff ``rc == 0`` and (the report is absent/unparseable, or it
+    holds cases with no failure/error/skip and contains every named id). An
+    empty report never passes; a task that unsets ``PYTEST_ADDOPTS`` falls
+    back to the exit code instead.
+    """
+    if not junit_xml:
+        return 1 if rc == 0 else 0
+    try:
+        cases = list(ET.fromstring(junit_xml).iter("testcase"))
+    except Exception:
+        return 1 if rc == 0 else 0
+    bad = [
+        case
+        for case in cases
+        if case.find("failure") is not None
+        or case.find("error") is not None
+        or case.find("skipped") is not None
+    ]
+    seen = {
+        f"{(case.get('classname') or '').replace('.', '/')}.py::{case.get('name') or ''}"
+        for case in cases
+    }
+    missing = [
+        node
+        for node in named_ids
+        if not any(s == node or s.startswith(node + "[") for s in seen)
+    ]
+    return 1 if rc == 0 and cases and not bad and not missing else 0
+
+
+def render_snapshot_hook_v2(workdir: str) -> str:
+    """Collect-hook command snapshotting workspace files only (``sh -c``; POSIX
+    only, no single quotes so it fits a TOML literal string).
+
+    Unlike @1 this captures neither ``/var/lib/mimo/base`` nor the git dir:
+    the @2 verifier reruns the clean setup itself and computes BASE there.
+    Only repo file bytes cross the boundary.
+    """
+    return (
+        f'SNAP="{SNAP_DIR}"; CWD="{workdir}"; '
+        'mkdir -p "$SNAP"; '
+        'tar --exclude=.git -czf "$SNAP/workspace.tgz" -C "$CWD" .; '
+        'ls -la "$SNAP"; true'
+    )
+
+
+def render_tests_dockerfile_v2(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup.
+
+    The ``--platform`` pin keeps Apple Silicon hosts on the same amd64 image
+    the agent runs. No setup runs at build time: the grader reruns the
+    bundled clean setup at grade time (``tests/test.sh``), matching the
+    agent's runtime environment exactly.
+    """
+    return (
+        "# Separate-verifier image (separate-verifier@2): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def collect_verifier_setup_files(parent_dir: Path | str) -> dict[str, bytes]:
+    """Bundle the parent's clean setup chain (``environment/setup/*``) for the verifier.
+
+    Returns ``tests/_verifier-setup/<relpath>`` bytes for ``derive_task``.
+    Fail-closed: a missing ``setup.sh`` or a symlinked entry refuses, since
+    the grader could not reproduce the agent's setup.
+    """
+    setup_dir = Path(parent_dir) / "environment" / "setup"
+    if not (setup_dir / "setup.sh").is_file() or (setup_dir / "setup.sh").is_symlink():
+        raise VariantInvalid("parent has no environment/setup/setup.sh for the @2 bundle")
+    if (Path(parent_dir) / V2_SETUP_SUBDIR).exists():
+        raise VariantInvalid(f"parent already has {V2_SETUP_SUBDIR}; refusing overwrite")
+    bundled: dict[str, bytes] = {}
+    for path in sorted(setup_dir.rglob("*")):
+        if path.is_symlink():
+            raise VariantInvalid(f"setup bundle entry is a symlink: {path.name}")
+        if path.is_file():
+            bundled[f"{V2_SETUP_SUBDIR}/{path.relative_to(setup_dir).as_posix()}"] = (
+                path.read_bytes()
+            )
+    if not bundled:
+        raise VariantInvalid("parent environment/setup/ is empty; nothing to bundle")
+    return bundled
+
+
+#: @2 grader entry point. ``@@WORKDIR@@`` and ``@@TAMPER_ALTERNATION@@`` are
+#: filled by :func:`render_wrapper_test_sh_v2` (token replacement, since the
+#: embedded python heredoc is brace-heavy).
+_V2_WRAPPER_TEMPLATE = """#!/bin/bash
+# separate-verifier@2 entry: patch-only grading in a pristine verifier checkout.
+# Only repo file bytes cross from the agent (workspace.tgz). The verifier runs
+# its own clean setup, computes BASE itself, diffs with its own git under the
+# BASE tree's ignore rules, drops test-infra paths, gates tamper signatures,
+# then applies the hidden tests and grades with a structured junit check.
+# Exit 0 whenever grading completes (reward in /logs/verifier/reward.txt);
+# exit 1 only for testbed problems (setup/patch failures: not scored).
+set -u
+SNAP="/var/tmp/mimo-separate"
+M="/var/lib/mimo"
+CWD="@@WORKDIR@@"
+V=/logs/verifier
+GRADE=/var/lib/mimo-grade
+TS_BAK="$GRADE/tests"
+mkdir -p "$V" "$GRADE"
+# 0. Pristine checkout: rerun the bundled clean setup (the same chain the
+# agent got). setup.sh wipes /tests and /logs, so stash /tests first
+# ($GRADE is untouched by setup) and run before writing any verifier logs.
+rm -rf "$TS_BAK"; cp -a /tests "$TS_BAK"
+mkdir -p "$M"; cp -r "$TS_BAK/_verifier-setup/." "$M/"
+if ! bash "$M/setup.sh" > "$GRADE/setup.log" 2>&1; then
+  echo "verifier setup failed (testbed problem, not scored)" >&2; exit 1
+fi
+rm -rf /tests; cp -a "$TS_BAK" /tests; rm -rf "$TS_BAK"
+mkdir -p "$V"; cp "$GRADE/setup.log" "$V/setup.log"
+BASE=$(cat "$M/base" 2>/dev/null) || { echo "verifier setup never ran (no $M/base)" >&2; exit 1; }
+cd "$CWD" || exit 1
+if [ -d "$M/git-hidden" ]; then rm -rf "$CWD/.git"; mv "$M/git-hidden" "$CWD/.git"; fi
+test -f /tests/test.patch || { echo "bundled test.patch missing (testbed problem)" >&2; exit 1; }
+test -f /tests/test_command.sh || { echo "bundled test_command.sh missing (testbed)" >&2; exit 1; }
+# 1. The agent's change, computed by the verifier's own git against the clean
+# base. The agent's .git and .gitignore edits are ignored: the BASE tree's
+# ignore rules apply.
+test -f "$SNAP/workspace.tgz" || { echo "snapshot missing: $SNAP/workspace.tgz" >&2; exit 1; }
+rm -rf /tmp/agentcopy && mkdir -p /tmp/agentcopy
+tar -xzf "$SNAP/workspace.tgz" -C /tmp/agentcopy || { echo "snapshot unreadable" >&2; exit 1; }
+rm -rf /tmp/agentcopy/.git
+git --git-dir="$CWD/.git" show "$BASE:.gitignore" > /tmp/base.gitignore 2>/dev/null || : > /tmp/base.gitignore
+cp /tmp/base.gitignore /tmp/agentcopy/.gitignore
+export GIT_INDEX_FILE=/tmp/agent.index; rm -f "$GIT_INDEX_FILE"
+git --git-dir="$CWD/.git" --work-tree=/tmp/agentcopy read-tree "$BASE" || { echo "clean-tree read failed" >&2; exit 1; }
+git --git-dir="$CWD/.git" --work-tree=/tmp/agentcopy add -A
+git --git-dir="$CWD/.git" --work-tree=/tmp/agentcopy diff --cached --binary "$BASE" > "$V/agent.full.diff"
+CHANGED=$(git --git-dir="$CWD/.git" --work-tree=/tmp/agentcopy diff --cached --name-only "$BASE")
+unset GIT_INDEX_FILE
+# 2. Drop test infrastructure and hidden-test paths from the change.
+TESTFILES=$(grep '^diff --git' /tests/test.patch | sed 's#.* b/##')
+KEEP=/tmp/keep.list; : > "$KEEP"; : > "$V/dropped.log"
+for f in $CHANGED; do
+  b=${f##*/}; drop=""
+  case "$b" in conftest.py|pytest.ini|tox.ini|sitecustomize.py|usercustomize.py|*.pth|*_test.go) drop="test-infra";; esac
+  if [ -z "$drop" ] && printf '%s\\n' "$TESTFILES" | grep -qxF -- "$f"; then drop="hidden-test path"; fi
+  if [ -z "$drop" ]; then
+    case "$b" in setup.cfg|pyproject.toml)
+      if diff <(git --git-dir="$CWD/.git" show "$BASE:$f" 2>/dev/null) "/tmp/agentcopy/$f" 2>/dev/null | grep -E '^[<>]' | grep -qiE 'pytest|addopts|plugins'; then drop="pytest config"; fi;;
+    esac
+  fi
+  if [ -z "$drop" ]; then
+    case "$f" in *.go)
+      if grep -qE 'func TestMain[[:space:]]*\\(' "/tmp/agentcopy/$f" 2>/dev/null; then drop="go TestMain"; fi;;
+    esac
+  fi
+  if [ -n "$drop" ]; then echo "dropped $f ($drop)" >> "$V/dropped.log"; else echo "$f" >> "$KEEP"; fi
+done
+# 3. Copy the kept files over the pristine tree (deletions too).
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if [ -e "/tmp/agentcopy/$f" ] || [ -L "/tmp/agentcopy/$f" ]; then
+    mkdir -p "$(dirname "$f")"
+    cp -a "/tmp/agentcopy/$f" "$f"
+  else rm -f "$f"; fi
+done < "$KEEP"
+# 3b. Source that reaches into the test runner or forces the exit code is not a fix.
+git add -A >/dev/null 2>&1 && git diff --cached "$BASE" > "$V/agent.kept.diff"; git reset -q
+if grep -E '^\\+[^+]' "$V/agent.kept.diff" | grep -qE '@@TAMPER_ALTERNATION@@'; then
+  echo 0 > "$V/reward.txt"; echo "REWARD=0 tamper signature in agent diff"; exit 0
+fi
+# 4. Hidden tests, then the named tests with a structured report the code under test cannot reach.
+printf '%s\\n' "$TESTFILES" | while IFS= read -r tf; do
+  [ -z "$tf" ] && continue
+  if git cat-file -e "$BASE:$tf" 2>/dev/null; then
+    git checkout -q "$BASE" -- "$tf" 2>/dev/null || true
+  else
+    git rm -f --cached "$tf" >/dev/null 2>&1 || true
+    rm -f "$tf"
+  fi
+done
+if ! git apply --verbose /tests/test.patch > "$V/apply.log" 2>&1; then
+  cat "$V/apply.log" >&2
+  echo "the hidden tests could not be applied (testbed problem, not scored)" >&2
+  exit 1
+fi
+JUNIT=$GRADE/junit.xml; mkdir -p "${JUNIT%/*}"
+PYTEST_ADDOPTS="--junitxml=$JUNIT -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1
+RC=$?
+python3 - "$JUNIT" "$RC" /tests/test.patch <<'PYEOF' > "$V/reward.txt" 2> "$V/junit-grade.log"
+import sys, re, xml.etree.ElementTree as ET
+junit_path, rc, patch_path = sys.argv[1], int(sys.argv[2]), sys.argv[3]
+patch = open(patch_path).read()
+ids = set(re.findall(r'(\\S+\\.py::[^\\s"\\']+)', patch.split("mimo_test_command.sh")[-1]))
+try:
+    cases = list(ET.parse(junit_path).iter("testcase"))
+except Exception:
+    print(1 if rc == 0 else 0)
+    sys.stderr.write(f"rc={rc} no junit: exit-code grading\\n")
+    sys.exit()
+bad = [c for c in cases if c.find("failure") is not None or c.find("error") is not None or c.find("skipped") is not None]
+seen = {c.get("classname", "").replace(".", "/") + ".py::" + c.get("name", "") for c in cases}
+missing = [i for i in ids if not any(s == i or s.startswith(i + "[") for s in seen)]
+print(1 if rc == 0 and cases and not bad and not missing else 0)
+sys.stderr.write(f"rc={rc} cases={len(cases)} bad={len(bad)} named={len(ids)} missing={missing}\\n")
+PYEOF
+echo "REWARD=$(cat "$V/reward.txt") rc=$RC" | tee -a "$V/test_output.log"
+"""
+
+
+def render_wrapper_test_sh_v2(workdir: str) -> str:
+    """Verifier entry point: patch-only grading (never trusts agent state)."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    return (
+        _V2_WRAPPER_TEMPLATE.replace("@@WORKDIR@@", workdir).replace(
+            "@@TAMPER_ALTERNATION@@", "|".join(TAMPER_SIGNATURES)
+        )
+    )
+
+
+def build_changes_v2(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @2.
+
+    Bundles the parent's clean setup chain into ``tests/_verifier-setup/``
+    and replaces ``tests/test.sh`` with the patch-only grader. The parent's
+    original grading script is superseded by design (its history stays in
+    the lineage record); no ``tests/test-orig.sh`` is kept.
+
+    ``solution_sh`` adds an oracle-control reference solution when the parent
+    has none. Refuses to overwrite an existing solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v2(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v2(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v2(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with the hidden tests and a structured junit check.",
+    created_by: str = "patch-only-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@2`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v2(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V2,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
+
 __all__ = [
     "MIMO_STATE_DIR",
     "ORIG_TEST_SCRIPT",
     "SNAP_DIR",
+    "TAMPER_SIGNATURES",
     "TRANSFORM_ID",
+    "TRANSFORM_ID_V2",
     "TRAJECTORY_ARTIFACT",
+    "V2_GRADE_DIR",
+    "V2_SETUP_SUBDIR",
     "WRAPPER_TEST_SCRIPT",
     "ParentInfo",
     "build_changes",
+    "build_changes_v2",
+    "collect_verifier_setup_files",
+    "declares_testmain",
     "derive_separate_verifier",
+    "derive_separate_verifier_v2",
+    "drop_reason",
+    "evaluate_junit",
+    "is_pytest_config_tamper",
+    "is_test_infra_filename",
+    "parse_named_pytest_ids",
     "read_parent_info",
     "render_probe_hook",
     "render_snapshot_hook",
+    "render_snapshot_hook_v2",
     "render_task_toml",
     "render_tests_dockerfile",
+    "render_tests_dockerfile_v2",
     "render_wrapper_test_sh",
+    "render_wrapper_test_sh_v2",
+    "tamper_signature_hit",
 ]

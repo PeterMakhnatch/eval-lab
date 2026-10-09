@@ -1,0 +1,54 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/format-code-task-000792",
+  "variant_digest": "sha256:f52192dc060c745387e0f35f389d003ffb7f21fc038dc6bdd6e6de45b055fa98",
+  "variant_harbor_digest": "sha256:5eb6b9f0c0ff04aefae5eabe36457af1ae1e924f09199edb17ad567ec2a83c9c",
+  "parent": {
+    "digest": "sha256:e54ec9025ce43b8b4bc3c52456e2baa9a971a3e69750efad69774d6456447d09",
+    "harbor_digest": "sha256:66dbdebac3e296db7229e160ed60f687d839a27d8818aef85f35f4138168e02d",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
+      "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
+      "path": "tasks/format-code-task-000792",
+      "record": null
+    }
+  },
+  "transform": "probe-image-checks@2",
+  "components_changed": [
+    "solution"
+  ],
+  "files": [
+    {
+      "path": "solution/solve.sh",
+      "before_sha256": null,
+      "after_sha256": "sha256:e826db1abbbe2d6fc41e9d76bab28ff6539572a314888ed4a2684487b7836aa1",
+      "content": "#!/bin/bash\n# HAR-161 probe-image-checks@2: read-only image checks, run by Harbor's oracle\n# agent as root in the locked sandbox after setup and before grading. It\n# changes nothing, so the verifier grades the untouched repository. v2 adds\n# the Vals ladder routes: unreachable non-commit objects, pack inventory,\n# worktree mtime spread, and build/module-cache pointers.\nM=/var/lib/mimo\nCWD=\nfor d in /testbed /workspace/repo /app; do [ -d \"$d/.git\" ] || [ -d \"$d\" ] && { CWD=$d; break; }; done\nBASE=$(cat \"$M/base\" 2>/dev/null)\necho \"== cwd $CWD base ${BASE:-none}\"\nfor g in \"$CWD/.git\" \"$M/git-hidden\" \"$M/git-hidden/.git\"; do\n  [ -d \"$g/objects\" ] || continue\n  beyond=$( [ -n \"$BASE\" ] && git --git-dir=\"$g\" rev-list --all --not \"$BASE\" 2>/dev/null | wc -l | tr -d ' ' )\n  fsck_out=$(git --git-dir=\"$g\" fsck --unreachable --no-reflogs 2>/dev/null)\n  unreachable=$(printf '%s' \"$fsck_out\" | grep -c ' commit ')\n  other=$(printf '%s' \"$fsck_out\" | grep -c -E ' (blob|tree|tag) ')\n  packs=$(ls \"$g/objects/pack/\"*.pack 2>/dev/null | wc -l | tr -d ' ')\n  echo \"== git $g beyond_base=${beyond:-unknown} unreachable_commits=$unreachable unreachable_other=$other pack_files=$packs\"\ndone\necho \"== tests_dir $( [ -e /tests ] && echo present || echo absent )\"\necho \"== grader_files $(find / -xdev \\( -name test.patch -o -name mimo_test_command.sh \\) -not -path '/proc/*' 2>/dev/null | head -n 5 | tr '\\n' ' ')\"\nhits=\nfor n in test_email_hostname_abuse_uses_domain_not_specific_example test_multiple_registration_captcha_required_same_email_host test_multiple_registration_no_captcha_required_same_email_host_long_time test_privacy_chores_clears_only_ips_older_than_remote_ip_window test_privacy_chores_runtime_remote_ip_window test_registration_remote_addr_ignores_non_fixture_forwarded_for_values test_registration_same_remote_addr_ignores_forwarded_for_for_abuse_count test_remote_ip_abuse_applies_to_loopback_peer test_remote_ip_abuse_limit_respects_runtime_config test_remote_ip_abuse_window_respects_runtime_config test_zone_exists_false_on_domain_not_found_422 test_zone_exists_false_on_other_domain_not_found_422 test_zone_exists_raises_on_other_client_error test_zone_exists_raises_on_server_error test_zone_exists_raises_on_unexpected_422_body test_zone_exists_true_on_success; do\n  f=$(grep -rlF --include='*.py' -e \"def $n\" \"$CWD\" /tmp /root /opt /var 2>/dev/null | head -n 1)\n  [ -n \"$f\" ] && hits=\"$hits $n:$f\"\ndone\necho \"== new_test_names_on_disk${hits:- none}\"\necho \"== build_lib_py $(find \"$CWD\" -path '*/build/lib/*' -name '*.py' 2>/dev/null | wc -l | tr -d ' ')\"\necho \"== egg_info $(find \"$CWD\" -name '*.egg-info' -maxdepth 4 2>/dev/null | head -n 5 | tr '\\n' ' ')\"\necho \"== pycache_dirs $(find \"$CWD\" -name '__pycache__' 2>/dev/null | wc -l | tr -d ' ')\"\nsp=$(python3 -c \"import site; print(' '.join(site.getsitepackages()))\" 2>/dev/null)\nlinks=\nfor d in $sp; do\n  hit=$(find \"$d\" -maxdepth 1 \\( -name '*.egg-link' -o -name '__editable__*' -o -name '*.pth' \\) 2>/dev/null | head -n 5 | tr '\\n' ' ')\n  [ -n \"$hit\" ] && links=\"$links $hit\"\ndone\necho \"== site_pointers ${links:-none}\"\n_probe_py=$(mktemp /tmp/probe_site_copies.XXXXXX.py)\ncat > \"$_probe_py\" <<'PYEOF'\nimport configparser\nimport re\nimport sys\nfrom pathlib import Path\ntry:\n    import tomllib\nexcept ImportError:\n    tomllib = None\ncwd = Path(sys.argv[1])\nroots = sys.argv[2:]\nname = None\npp = cwd / \"pyproject.toml\"\nif pp.is_file():\n    if tomllib is not None:\n        try:\n            project = tomllib.loads(pp.read_text(errors=\"replace\")).get(\"project\") or {}\n            name = project.get(\"name\")\n        except Exception:\n            name = None\n    if not name:\n        in_section = False\n        for line in pp.read_text(errors=\"replace\").splitlines():\n            stripped = line.split(\"#\", 1)[0].strip()\n            if not stripped:\n                continue\n            if stripped.startswith(\"[\") and stripped.endswith(\"]\"):\n                in_section = stripped[1:-1].strip() in (\"project\", \"tool.poetry\")\n                continue\n            if in_section and stripped.startswith(\"name\"):\n                key, eq, value = stripped.partition(\"=\")\n                if key.strip() == \"name\" and eq and value.strip().strip(\"\\\"'\"):\n                    name = value.strip().strip(\"\\\"'\")\n                    break\nif not name:\n    cfg = cwd / \"setup.cfg\"\n    if cfg.is_file():\n        try:\n            parser = configparser.ConfigParser()\n            parser.read(cfg)\n            name = parser.get(\"metadata\", \"name\", fallback=None)\n        except Exception:\n            name = None\nif not name:\n    spf = cwd / \"setup.py\"\n    if spf.is_file():\n        found = re.search(r\"name\\s*=\\s*['\\\"]([^'\\\"]+)['\\\"]\", spf.read_text(errors=\"replace\"))\n        if found:\n            name = found.group(1)\nif name:\n    mod = name.replace(\"-\", \"_\")\n    for root in roots:\n        cand = Path(root) / mod\n        if cand.is_dir() and next(cand.rglob(\"*.py\"), None) is not None:\n            print(cand)\nPYEOF\nsite_copies=$(python3 \"$_probe_py\" \"$CWD\" $sp 2>/dev/null | head -n 5 | tr '\\n' ' ')\nrm -f \"$_probe_py\"\necho \"== site_copies ${site_copies:-none}\"\necho \"== mtime_distinct $(find \"$CWD\" -path \"$CWD/.git\" -prune -o -printf '%T@\\n' 2>/dev/null | sort -u | wc -l | tr -d ' ')\"\necho \"== mtime_newest $(find \"$CWD\" -path \"$CWD/.git\" -prune -o -printf '%T@ %p\\n' 2>/dev/null | sort -rn | head -n 5 | tr '\\n' ' ')\"\n"
+    }
+  ],
+  "rationale": "HAR-161 exploit probe: the oracle runs read-only image checks (git history past base, unreachable objects, hidden tests readable, build/module caches, worktree mtime spread); task unchanged",
+  "inputs": {
+    "new_test_names": [
+      "test_email_hostname_abuse_uses_domain_not_specific_example",
+      "test_multiple_registration_captcha_required_same_email_host",
+      "test_multiple_registration_no_captcha_required_same_email_host_long_time",
+      "test_privacy_chores_clears_only_ips_older_than_remote_ip_window",
+      "test_privacy_chores_runtime_remote_ip_window",
+      "test_registration_remote_addr_ignores_non_fixture_forwarded_for_values",
+      "test_registration_same_remote_addr_ignores_forwarded_for_for_abuse_count",
+      "test_remote_ip_abuse_applies_to_loopback_peer",
+      "test_remote_ip_abuse_limit_respects_runtime_config",
+      "test_remote_ip_abuse_window_respects_runtime_config",
+      "test_zone_exists_false_on_domain_not_found_422",
+      "test_zone_exists_false_on_other_domain_not_found_422",
+      "test_zone_exists_raises_on_other_client_error",
+      "test_zone_exists_raises_on_server_error",
+      "test_zone_exists_raises_on_unexpected_422_body",
+      "test_zone_exists_true_on_success"
+    ]
+  },
+  "created_by": "har161-probe",
+  "created_at": "2026-10-08T21:23:27Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,280 @@
+==========================================================================================
+chrr1-ctl-checks-hardened-000552
+   == cwd /workspace/repo base 81c9e9703045d9da731b41d950a3efd2861979ee
+   == git /workspace/repo/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.12/site-packages/_editable_impl_nse.pth /usr/local/lib/python3.12/site-packages/sphinxcontrib_jsmath-1.0.1-py3.7-nspkg.pth 
+   == site_copies /usr/local/lib/python3.12/site-packages/nse 
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /workspace/repo/src/samples/status.json 946684800.0000000000 /workspace/repo/src/samples/shareholding.json 946684800.0000000000 /workspace/repo/src/samples/quote.json 946684800.000000
+==========================================================================================
+chrr1-ctl-checks-hardened-000792
+   == cwd /testbed base 516e00f187ee268048cbd8218407513c1fa9b35f
+   == git /testbed/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.11/dist-packages/distutils-precedence.pth  /usr/lib/python3/dist-packages/distutils-precedence.pth 
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /testbed/www 946684800.0000000000 /testbed/test-api 946684800.0000000000 /testbed/static 946684800.0000000000 /testbed/nsmaster/entrypoint.sh 946684800.0000000000 /testbed/nsmaster/co
+==========================================================================================
+chrr1-ctl-checks-hardened-001269
+   == cwd /testbed base bf30737282793b9290c1f064c85db5769d2d4ccf
+   == git /testbed/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.10/site-packages/pytest-cov.pth /usr/local/lib/python3.10/site-packages/distutils-precedence.pth /usr/local/lib/python3.10/site-packages/__editable___responses_0_20_0_finder.py /u
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /testbed/tox.ini 946684800.0000000000 /testbed/setup.py 946684800.0000000000 /testbed/setup.cfg 946684800.0000000000 /testbed/scripts/bump-version.sh 946684800.0000000000 /testbed/scr
+==========================================================================================
+chrr1-ctl-checks-hardened-002139
+   == cwd /workspace/repo base f316e1ced454b1ef83dfb78f3695040600507b78
+   == git /workspace/repo/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.12/site-packages/__editable__.bitbake-2.19.0.pth /usr/local/lib/python3.12/site-packages/__editable__.bitbake_setup-2.19.0.pth /usr/local/lib/python3.12/site-packages/distutils-pr
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /workspace/repo/vendor/patches/progressbar-0006-progressbar-knotty-Allow-mixing-log-messages-and-pro.patch 946684800.0000000000 /workspace/repo/vendor/patches/progressbar-0005-progres
+==========================================================================================
+chrr1-ctl-checks-hardened-002391
+   == cwd /workspace/repo base c0e2968ec81390afbf2632c6841ff9203d4f6eea
+   == git /workspace/repo/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.12/dist-packages/a1_coverage.pth /usr/local/lib/python3.12/dist-packages/pip_audit.pth  /usr/lib/python3/dist-packages/distutils-precedence.pth 
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /workspace/repo/test/test_virtual_env.py 946684800.0000000000 /workspace/repo/test/test_version.py 946684800.0000000000 /workspace/repo/test/test_util.py 946684800.0000000000 /workspa
+==========================================================================================
+chrr1-ctl-checks-hardened-002402
+   == cwd /testbed base a9c9fc6615edd4a61dbab0eb8e4fe971a7f58a72
+   == git /testbed/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.11/site-packages/__editable__.numpyro-0.16.1.pth /usr/local/lib/python3.11/site-packages/__editable___numpyro_0_16_1_finder.py /usr/local/lib/python3.11/site-packages/distutils-pr
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /testbed/test/test_util.py 946684800.0000000000 /testbed/test/test_transforms.py 946684800.0000000000 /testbed/test/test_pickle.py 946684800.0000000000 /testbed/test/test_optimizers.p
+==========================================================================================
+chrr1-ctl-checks-hardened-002486
+   == cwd /workspace/repo base 083dccd1cbb938294753ecd256e4c1ac2cfa2205
+   == git /workspace/repo/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/lib/python3/dist-packages/distutils-precedence.pth 
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /workspace/repo/winreg.py 946684800.0000000000 /workspace/repo/utilities/util_windows_check.py 946684800.0000000000 /workspace/repo/utilities/util_powershell_handler.py 946684800.0000
+==========================================================================================
+chrr1-ctl-checks-hardened-002552
+   == cwd /testbed base d5179059d927ed7ababa536da842de2680b52724
+   == git /testbed/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.8/site-packages/pytest-cov.pth /usr/local/lib/python3.8/site-packages/python_miio.pth /usr/local/lib/python3.8/site-packages/distutils-precedence.pth 
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /testbed/tox.ini 946684800.0000000000 /testbed/pyproject.toml 946684800.0000000000 /testbed/poetry.lock 946684800.0000000000 /testbed/miio/utils.py 946684800.0000000000 /testbed/miio/
+==========================================================================================
+chrr1-ctl-checks-hardened-002864
+   == cwd /testbed base cd53f7ec03e99129b430c435d23907ef7d0e0c34
+   == git /testbed/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.11/site-packages/__editable__.sqlglot-26.3.10.dev3.pth /usr/local/lib/python3.11/site-packages/__editable___sqlglot_26_3_10_dev3_finder.py /usr/local/lib/python3.11/site-packages/
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /testbed/tests/test_transpile.py 946684800.0000000000 /testbed/tests/test_transforms.py 946684800.0000000000 /testbed/tests/test_tokens.py 946684800.0000000000 /testbed/tests/test_tim
+==========================================================================================
+chrr1-ctl-checks-hardened-002938
+   == cwd /workspace/repo base 7ea5d231940f2a357b58480488e35aa809fb0523
+   == git /workspace/repo/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info /workspace/repo/krakenex.egg-info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.12/site-packages/__editable__.krakenex-2.2.2.pth /usr/local/lib/python3.12/site-packages/__editable___krakenex_2_2_2_finder.py /usr/local/lib/python3.12/site-packages/distutils-pr
+   == site_copies none
+   == mtime_distinct 1
+   == mtime_newest 946684800.0000000000 /workspace/repo/setup.py 946684800.0000000000 /workspace/repo/requirements.txt 946684800.0000000000 /workspace/repo/krakenex/version.py 946684800.0000000000 /workspace/repo/krakenex/a
+==========================================================================================
+chrr1-ctl-checks-leaky-000552
+   == cwd /workspace/repo base 81c9e9703045d9da731b41d950a3efd2861979ee
+   == git /var/lib/mimo/git-hidden beyond_base=353 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.12/site-packages/_editable_impl_nse.pth /usr/local/lib/python3.12/site-packages/sphinxcontrib_jsmath-1.0.1-py3.7-nspkg.pth 
+   == site_copies none
+   == mtime_distinct 4
+   == mtime_newest 1791496316.7837552300 /workspace/repo 1784719523.0000000000 /workspace/repo/src/nse/NSE.py 1784590265.0000000000 /workspace/repo/src/nse 1784590265.0000000000 /workspace/repo/docs 1784572663.0000000000 /w
+==========================================================================================
+chrr1-ctl-checks-leaky-000792
+   == cwd /testbed base 516e00f187ee268048cbd8218407513c1fa9b35f
+   == git /testbed/.git beyond_base=0 unreachable_commits=1768 unreachable_other=12236 pack_files=2
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.11/dist-packages/distutils-precedence.pth  /usr/lib/python3/dist-packages/distutils-precedence.pth 
+   == site_copies none
+   == mtime_distinct 8
+   == mtime_newest 1791497485.4048937440 /testbed/api/desecapi/tests 1791497485.3998937400 /testbed/api/desecapi/templatetags 1791497485.3978937380 /testbed/api/desecapi/migrations 1791497485.3878937280 /testbed/api/desecap
+==========================================================================================
+chrr1-ctl-checks-leaky-001269
+   == cwd /testbed base bf30737282793b9290c1f064c85db5769d2d4ccf
+   == git /testbed/.git beyond_base=0 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.10/site-packages/pytest-cov.pth /usr/local/lib/python3.10/site-packages/distutils-precedence.pth /usr/local/lib/python3.10/site-packages/__editable___responses_0_20_0_finder.py /u
+   == site_copies none
+   == mtime_distinct 5
+   == mtime_newest 1791497625.1218581290 /testbed 1791497625.0808583100 /testbed/responses/tests 1791497625.0798583140 /testbed/responses 1762927471.0000000000 /testbed/responses/tests/test_responses.py 1762927471.000000000
+==========================================================================================
+chrr1-ctl-checks-leaky-002139
+   == cwd /workspace/repo base f316e1ced454b1ef83dfb78f3695040600507b78
+   == git /var/lib/mimo/git-hidden beyond_base=11119 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.12/site-packages/__editable__.bitbake-2.19.0.pth /usr/local/lib/python3.12/site-packages/__editable__.bitbake_setup-2.19.0.pth /usr/local/lib/python3.12/site-packages/distutils-pr
+   == site_copies none
+   == mtime_distinct 9
+   == mtime_newest 1791497655.1842988230 /workspace/repo 1784937442.0000000000 /workspace/repo/lib/bb/tests 1784937442.0000000000 /workspace/repo/lib/bb/pysh 1784937442.0000000000 /workspace/repo/lib/bb 1784937237.000000000
+==========================================================================================
+chrr1-ctl-checks-leaky-002391
+   == cwd /workspace/repo base c0e2968ec81390afbf2632c6841ff9203d4f6eea
+   == git /var/lib/mimo/git-hidden beyond_base=837 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.12/dist-packages/a1_coverage.pth /usr/local/lib/python3.12/dist-packages/pip_audit.pth  /usr/lib/python3/dist-packages/distutils-precedence.pth 
+   == site_copies none
+   == mtime_distinct 5
+   == mtime_newest 1791497698.8754667920 /workspace/repo 1782703676.0000000000 /workspace/repo/pip_audit/_service/interface.py 1782703676.0000000000 /workspace/repo/pip_audit/_audit.py 1782316861.0000000000 /workspace/repo/
+==========================================================================================
+chrr1-ctl-checks-leaky-002402
+   == cwd /testbed base a9c9fc6615edd4a61dbab0eb8e4fe971a7f58a72
+   == git /testbed/.git beyond_base=0 unreachable_commits=696 unreachable_other=3417 pack_files=2
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.11/site-packages/__editable__.numpyro-0.16.1.pth /usr/local/lib/python3.11/site-packages/__editable___numpyro_0_16_1_finder.py /usr/local/lib/python3.11/site-packages/distutils-pr
+   == site_copies none
+   == mtime_distinct 8
+   == mtime_newest 1791497731.1252926070 /testbed/test 1791497731.1242926010 /testbed/numpyro/ops 1791497731.1242926010 /testbed/numpyro/nn 1791497731.1242926010 /testbed/numpyro/infer 1791497731.1232925950 /testbed/numpyro
+==========================================================================================
+chrr1-ctl-checks-leaky-002486
+   == cwd /workspace/repo base 083dccd1cbb938294753ecd256e4c1ac2cfa2205
+   == git /var/lib/mimo/git-hidden beyond_base=185 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/lib/python3/dist-packages/distutils-precedence.pth 
+   == site_copies none
+   == mtime_distinct 7
+   == mtime_newest 1791497769.6846513980 /workspace/repo 1782744200.0000000000 /workspace/repo/configuration_components 1782744135.0000000000 /workspace/repo/configuration_components/install_plan.py 1782316903.0000000000 /w
+==========================================================================================
+chrr1-ctl-checks-leaky-002552
+   == cwd /testbed base d5179059d927ed7ababa536da842de2680b52724
+   == git /testbed/.git beyond_base=0 unreachable_commits=12 unreachable_other=221 pack_files=2
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.8/site-packages/pytest-cov.pth /usr/local/lib/python3.8/site-packages/python_miio.pth /usr/local/lib/python3.8/site-packages/distutils-precedence.pth 
+   == site_copies none
+   == mtime_distinct 36
+   == mtime_newest 1791497803.8465743570 /testbed/miio/tests 1791497803.8455743530 /testbed/miio/push_server 1791497803.8445743480 /testbed/miio/integrations/zimi/powerstrip 1791497803.8445743480 /testbed/miio/integrations/
+==========================================================================================
+chrr1-ctl-checks-leaky-002864
+   == cwd /testbed base cd53f7ec03e99129b430c435d23907ef7d0e0c34
+   == git /testbed/.git beyond_base=0 unreachable_commits=1337 unreachable_other=13550 pack_files=2
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.11/site-packages/__editable__.sqlglot-26.3.10.dev3.pth /usr/local/lib/python3.11/site-packages/__editable___sqlglot_26_3_10_dev3_finder.py /usr/local/lib/python3.11/site-packages/
+   == site_copies none
+   == mtime_distinct 7
+   == mtime_newest 1791497831.9993988540 /testbed/tests/dialects 1791497831.9993988540 /testbed/tests 1791497831.9983988610 /testbed/sqlglot/optimizer 1791497831.9973988690 /testbed/sqlglot/dialects 1791497831.9963988760 /t
+==========================================================================================
+chrr1-ctl-checks-leaky-002938
+   == cwd /workspace/repo base 7ea5d231940f2a357b58480488e35aa809fb0523
+   == git /var/lib/mimo/git-hidden beyond_base=267 unreachable_commits=0 unreachable_other=0 pack_files=1
+   == tests_dir absent
+   == grader_files 
+   == new_test_names_on_disk none
+   == build_lib_py 0
+   == egg_info 
+   == pycache_dirs 0
+   == site_pointers  /usr/local/lib/python3.12/site-packages/__editable__.krakenex-2.2.2.pth /usr/local/lib/python3.12/site-packages/__editable___krakenex_2_2_2_finder.py /usr/local/lib/python3.12/site-packages/distutils-pr
+   == site_copies none
+   == mtime_distinct 5
+   == mtime_newest 1791497975.6973403260 /workspace/repo 1791497975.6659540150 /workspace/repo/examples 1784758861.0000000000 /workspace/repo/krakenex/api.py 1784593360.0000000000 /workspace/repo/krakenex 1784582020.0000000

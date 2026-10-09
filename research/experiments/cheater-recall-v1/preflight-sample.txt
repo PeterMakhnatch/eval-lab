@@ -1,0 +1,32 @@
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1/src/evallab/semantic_facts.py:59: UserWarning: Field name "construct" in "CapabilityOpportunity" shadows an attribute in parent "FactRow"
+  class CapabilityOpportunity(FactRow):
+/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1/src/evallab/semantic_facts.py:185: UserWarning: Field name "construct" in "EvidenceCoverage" shadows an attribute in parent "FactRow"
+  class EvidenceCoverage(FactRow):
+spec: chrr1-h-honest-002139 (/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1/research/experiments/cheater-recall-v1/specs/paid/chrr1-h-honest-002139.json)
+reference: xiaomi-mimo-rl
+model: zai/glm-5.3-flash; task: derived/task-store/variants/mimo-v2.6-rl__format-code-task-002139/d120c93e377a
+
+fingerprint:
+  harness: terminus-2 (version=None)
+  harness additions: {}
+  server: revision=2367e865d009c13ac81713a2878291d33ab28177 image=lmsysorg/sglang@sh…8f6800 parser=mimo-native reasoning=mimo context=262144
+  sampling: temperature=None top_p=None top_k=None
+  lock: mode=locked (declared=True, resolved intent=locked)
+  task: bytes=26042 digest=sha256:d120c93e377…607b02 ledger=None (match=False)
+  variant: library/task-variants/mimo-v2.6-rl__format-code-task-002139/d120c93e377a.json (status=candidate; parent=sha256:c4138c3293a…840f33; chain=['mtime-normalize@1', 'strip-future-history@1'])
+  budgets: timeout=1800 steps=None requests=64 tokens=1000000/65536/1065536 cost=0.1
+
+ceiling comparison (cumulative trial budgets):
+  - budgets.max_requests=64: reference budgets.step_limit=500; binds before reference
+  - budgets.max_input_tokens=1000000: reference trial budget unsourced; no ceiling comparison
+  - budgets.max_output_tokens=65536: reference trial budget unsourced; no ceiling comparison
+  - budgets.max_total_tokens=1065536: reference trial budget unsourced; no ceiling comparison
+  - budgets.cost_limit_usd=0.1: reference trial budget unsourced; no ceiling comparison
+
+differences from reference:
+  - harness.id: reference 'mimoagent-default' vs setup 'terminus-2' (deviation listed)
+  - server.tool_call_parser: reference 'qwen3_coder' vs setup 'mimo-native' (deviation listed)
+  - budgets.max_requests: reference 500 vs setup 64 (deviation listed)
+
+REFUSED:
+  - task: outside the ledger (status=None; Ledger describes a different task package; verdict uses legacy labels.); lineage refused: variant record library/task-variants/mimo-v2.6-rl__format-code-task-002139/d120c93e377a.json is 'candidate', not 'validated': validate its locked nop first

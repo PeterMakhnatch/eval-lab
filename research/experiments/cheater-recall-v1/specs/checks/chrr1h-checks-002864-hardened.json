@@ -1,0 +1,16 @@
+{
+ "task_id": "format-code-task-002864",
+ "environment": "daytona",
+ "jobs_dir": "runs",
+ "attempts": 1,
+ "egress_lock": true,
+ "submitted_by": "chrr1h-probe",
+ "override_storage_mb": 10240,
+ "task": "derived/task-store/variants/mimo-v2.6-rl__format-code-task-002864/ebefb7cd1147",
+ "task_package_digest": "sha256:ebefb7cd1147c248c4b3da1eddda321399abb906136d4d530dd20e0f5dd5b1b9",
+ "agent": "oracle",
+ "name": "chrr1h-checks-002864",
+ "timeout_seconds": 1800,
+ "purpose": "calibration",
+ "hypothesis": "HAR-161 image checks of format-code-task-002864"
+}

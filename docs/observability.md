@@ -18,17 +18,28 @@ Where a human looks when asking "what happened?" — and what each surface owns.
 | What is running right now? | `evallab watch` (`<job>/watch/BOARD.md`) and, for native MiMo, the live Laminar trace. |
 | One machine-readable account of a trial (for agents). | `evallab report run <trial-or-job> --json`, or the viewer's JSON API (`/api/jobs?q=…`, `/api/jobs/<job>/trials/<trial>/trajectory`). |
 | Which tasks are bad, and which passes are cheating? Task verdicts, grader holes, excluded runs. | **<http://127.0.0.1:8501>**: the **Integrity** page of `evallab dashboard` ([dashboard.md](dashboard.md)), always on (LaunchAgent `com.petermakhnatch.evallab.dashboard`): task keep/fix/discard, oracle evidence, grader holes, counted vs excluded passes and cheat rate, with 8100 links. Read-only over existing projections. |
+| Which runs match a rule or scanner, with clickable message citations? | **<http://127.0.0.1:7576>**: the Inspect Scout viewer over the Trace Lab project (`derived/trace-lab/scout`: scan results under `scans/`, the normalized HAR-81/90 transcripts), always on (LaunchAgent `com.petermakhnatch.evallab.scout-view`). How to scan: [trace-lab Scout](../research/explorations/trace-lab/scout/README.md). |
 
-The always-on viewer is `evallab results-viewer`: it mirrors the results
-home into a persistent root with the same overlay as `evallab view`
-([harbor-view.md](harbor-view.md)) and serves it read-only. Install or
-upgrade it with `scripts/ops/launchd/install-results-viewer.sh --load`;
-see [harbor-view.md](harbor-view.md#always-on-results-viewer).
+**Fixed URLs.** Ports 8100, 8501 and 7576 are reserved for the three services above. launchd
+starts each at login and restarts it if it exits (`RunAtLoad` + `KeepAlive`),
+so the URLs do not move. Each runs its own snapshot outside every worktree;
+re-run its installer from a clean, current checkout with `--load` to install
+or upgrade it: `scripts/ops/launchd/install-results-viewer.sh` (details in
+[harbor-view.md](harbor-view.md#always-on-results-viewer)),
+`install-dashboard.sh` ([dashboard.md](dashboard.md)) and
+`install-scout-view.sh` (refuses to start behind another process on 7576).
+
+The hosted tools have fixed addresses too: the Laminar Cloud project
+<https://laminar.sh/project/a5586b6d-55e8-466f-9718-c38255c2ae94> and Docent
+<https://docent.transluce.org/dashboard>. One-off viewers (`evallab view`,
+`harbor view`, `scout view` on other data) take any other port and are
+stopped when done; never start one on a reserved port.
 
 | Surface | Owns | Does not own |
 |---|---|---|
 | **Results viewer** (`http://127.0.0.1:8100`) | Every published job: trial list, trajectory, verifier output, reward dims, Outcomes/Pareto per job | Counts verdicts and taint reasons (processed pages), live runs |
-| **Phoenix** (`http://127.0.0.1:6006`) | Span trees: ATIF agent steps, tool calls, later LiteLLM/DSPy/researcher calls | Job pass/fail, spend vs ceiling, queue state |
+| **Scout viewer** (`http://127.0.0.1:7576`) | Scout scan results (scanner values, explanations with `[Mn]` citations, validation sets) and the Trace Lab transcript DB | Published-run browsing, counts verdicts |
+| **Phoenix** (`http://127.0.0.1:6006`, off unless started: `docker compose up -d phoenix`) | Span trees: ATIF agent steps, tool calls, later LiteLLM/DSPy/researcher calls | Job pass/fail, spend vs ceiling, queue state |
 | **Laminar Cloud** (opt-in native `mimoagent`) | Live automatic OpenAI LLM spans, native tools/child agents and Harbor lifecycle under one trial trace; explicitly bound native provider metric observations via the credential bridge | Canonical grades, copy verdicts, spend admission, paid-run approval or packet-level lock proof |
 | **`evallab view <jobs>`** | Ad hoc snapshot of chosen jobs, with `--merge` for cross-job Outcomes/Pareto | Staying current |
 | **`digests/YYYY-MM-DD.md`** | Morning one-pager: dispatches, canaries, spend, quarantine | Span timings |

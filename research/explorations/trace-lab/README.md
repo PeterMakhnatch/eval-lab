@@ -88,18 +88,15 @@ cd research/explorations/trace-lab/docent
 python score_reading.py
 ```
 
-```sh
-# Open the Scout viewer (data + a scout.yaml copy live in derived)
-cd ~/Developer/eval-lab/derived/trace-lab/scout
-uv run --no-project --python 3.12 --with inspect-scout==0.5.3 --with harbor==0.21.0 \
-  scout view --host 127.0.0.1 --port 7576 --no-browser
-# then open http://127.0.0.1:7576/
-```
+The Scout viewer is always on at <http://127.0.0.1:7576/> (data + `scout.yaml`
+in `derived/trace-lab/scout`; see `scout/README.md`). Published runs are in
+the always-on results viewer at <http://127.0.0.1:8100>.
 
 ```sh
-# Open harbor view on the normalized fixtures (tracked) or raw jobs (derived)
-uv run --no-project --python 3.12 --with harbor==0.21.0 harbor view \
-  research/explorations/trace-lab/viewers/harbor-norm-jobs --port 8602
+# One-off harbor view of the normalized fixtures (tracked) or raw jobs (derived);
+# a throwaway port, stopped when done (fixed ports: docs/observability.md)
+uv run --no-project --python 3.12 --with harbor==0.24.0 harbor view \
+  research/explorations/trace-lab/viewers/harbor-norm-jobs --port 8700
 ```
 
 Behavior metrics on any job dir (`--help` on each script lists flags):

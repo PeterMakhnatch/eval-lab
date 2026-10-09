@@ -179,15 +179,27 @@ fi
 # Rust: the worktree target dir and this crate's registry copies.
 if [ -f "$CWD/Cargo.toml" ]; then
   _pbc_crate=$(sed -n '/^\\[package\\]/,/^\\[/s/^name[[:space:]]*=[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/Cargo.toml" | head -n 1)
-  [ -n "$_pbc_crate" ] || fail "purge-build-caches@2 cannot read the crate name in $CWD/Cargo.toml"
+  _pbc_members=""
+  if [ -z "$_pbc_crate" ]; then
+    # Virtual workspace root (no [package]): resolve member crate names.
+    _pbc_members=$(sed -n '/^members[[:space:]]*=[[:space:]]*\\[/,/\\]/p' "$CWD/Cargo.toml" | grep -o '"[^"]*"' | tr -d '"' || true)
+    [ -n "$_pbc_members" ] || fail "purge-build-caches@2 cannot read the crate name or workspace members in $CWD/Cargo.toml"
+    for _pbc_m in $_pbc_members; do
+      _pbc_mname=$(sed -n '/^\\[package\\]/,/^\\[/s/^name[[:space:]]*=[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/$_pbc_m/Cargo.toml" 2>/dev/null | head -n 1 || true)
+      [ -n "$_pbc_mname" ] || fail "purge-build-caches@2 cannot read the crate name in $CWD/$_pbc_m/Cargo.toml"
+      _pbc_crate="$_pbc_crate $_pbc_mname"
+    done
+  fi
   rm -rf "$CWD/target" 2>/dev/null || fail "purge-build-caches@2 cannot remove $CWD/target"
   [ ! -e "$CWD/target" ] || fail "purge-build-caches@2 left $CWD/target"
   _pbc_cargo="${CARGO_HOME:-$HOME/.cargo}"
   for _pbc_reg in "$_pbc_cargo/registry/cache" "$_pbc_cargo/registry/src" /root/.cargo/registry/cache /root/.cargo/registry/src; do
     [ -d "$_pbc_reg" ] || continue
-    find "$_pbc_reg" -maxdepth 2 -iname "${_pbc_crate}-*" -exec rm -rf {} + 2>/dev/null || fail "purge-build-caches@2 cannot purge the cargo registry"
-    _pbc_reg_left=$(find "$_pbc_reg" -maxdepth 2 -iname "${_pbc_crate}-*" -print 2>/dev/null | head -n 5)
-    [ -z "$_pbc_reg_left" ] || fail "purge-build-caches@2 left cargo registry entries: $_pbc_reg_left"
+    for _pbc_one in $_pbc_crate; do
+      find "$_pbc_reg" -maxdepth 2 -iname "${_pbc_one}-*" -exec rm -rf {} + 2>/dev/null || fail "purge-build-caches@2 cannot purge the cargo registry"
+      _pbc_reg_left=$(find "$_pbc_reg" -maxdepth 2 -iname "${_pbc_one}-*" -print 2>/dev/null | head -n 5)
+      [ -z "$_pbc_reg_left" ] || fail "purge-build-caches@2 left cargo registry entries: $_pbc_reg_left"
+    done
   done
 fi
 # Java (Maven): this project's artifacts in the local repository.
@@ -299,7 +311,9 @@ def build_setup_sh_v2(parent_setup_sh: str) -> str:
     if MARKER_V2 in parent_setup_sh:
         raise VariantInvalid("parent setup.sh already carries purge-build-caches@2")
     if MARKER in parent_setup_sh:
-        raise VariantInvalid("parent setup.sh already carries purge-build-caches@1; @2 supersedes it")
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@1; @2 supersedes it"
+        )
     if ANCHOR not in parent_setup_sh:
         raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge caches")
     return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v2(), 1)

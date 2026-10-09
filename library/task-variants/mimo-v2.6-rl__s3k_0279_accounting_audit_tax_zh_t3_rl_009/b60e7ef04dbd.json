@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0279_accounting_audit_tax_zh_t3_rl_009",
+  "variant_digest": "sha256:b60e7ef04dbd47223c9879f56cab4c098db568087717cf8cff78a3b53f6a0e96",
+  "variant_harbor_digest": "sha256:e482902d9be1ea4dabda293ebd0722ca89b79273a483967648aa3c3d28b1712a",
+  "parent": {
+    "digest": "sha256:5b6f36b5a8434d1a8b107ea5be023349e0aaf6cde65d621a7bd03d4edb939e69",
+    "harbor_digest": "sha256:c7b3dccd97f3baf75a0daeb5c71a1ae54444ca3ec602934abc4c619ad4b81fee",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0279_accounting_audit_tax_zh_t3_rl_009/5b6f36b5a843.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:6ec3129cc2ba3f47d6c110694bf0f595e1abea8ca3ea193dfeb74aa51149e934",
+      "after_sha256": "sha256:5ca7829e7316b3ed2874366deca3dc5193124b76770deb303d66c1d2472a0245",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"alert_registered\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_alert_registered\",\n      \"question\": \"\",\n      \"ground_truth\": {\n        \"dataset_code\": \"FBI_VAT_HIK_2024\",\n        \"refresh_id\": \"REF_FBI_20241231_1800\",\n        \"metric_code\": \"VAT_PAYABLE_DISPLAY\",\n        \"scenario_id\": \"SCN_GOODS90_SERVICE10\",\n        \"alert_status\": \"OPEN\",\n        \"severity\": \"WARN\",\n        \"message_requirements\": [\n          \"展示值或展示指标\",\n          \"人民币分\",\n          \"精确\",\n          \"申报\",\n          \"审批\"\n        ]\n      }\n    },\n    {\n      \"id\": \"observations_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_observations_unchanged\",\n      \"ground_truth\": {\n        \"refresh_id\": \"REF_FBI_20241231_1800\",\n        \"scenario_id\": \"SCN_GOODS90_SERVICE10\",\n        \"VAT_PAYABLE_CENT\": 1137510682917,\n        \"VAT_PAYABLE_DISPLAY\": 114,\n        \"current\": 1\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"report_exact_amount\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终答复是否准确报出正式报告中90/10情景的应纳增值税精确金额，并将其按人民币元保留两位小数表达？\",\n      \"pass_anchor\": \"必须识别：90/10情景正式报告精确应纳增值税为 11,375,106,829.17 元（等价人民币分 1,137,510,682,917；允许合理千分位、货币符号或中文金额格式，数值误差不超过0.01元）。\"\n    },\n    {\n      \"id\": \"dashboard_pair_and_boundary\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终答复是否同时识别当前成功刷新90/10情景的人民币分精确指标与亿元展示指标，并准确解释两者的单位/汇总边界及使用限制？\",\n      \"pass_anchor\": \"必须同时识别同一刷新 REF_FBI_20241231_1800、90/10情景下：VAT_PAYABLE_CENT 的观测值为 1,137,510,682,917 人民币分，即 11,375,106,829.17 元；VAT_PAYABLE_DISPLAY 的观测值为 114，单位为人民币亿元。必须说明精确指标以 CNY_CENT 整数分保存、展示指标以 CNY_100M 亿元保存并经过展示四舍五入；114亿元只能作图表展示，不能支撑精确申报或审批金额，精确值应回溯人民币分指标。无需强制出现 SUM/LAST 字样，只要表达上述保存/展示边界。\"\n    },\n    {\n      \"id\": \"scenario_qualification\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终答复是否正确限定90/10情景的业务性质，而没有把它误写成年度报告披露的实际业务拆分？\",\n      \"pass_anchor\": \"必须明确：90/10是在总销售额固定条件下的内部规划/敏感性分析情景，不是年度报告披露的实际业务拆分；正式报告的精确锚点与仪表盘观测应作为本次告警的口径依据。\"\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _db(ws):\\n    return ws.parent / \\\"system\\\" / \\\"finebi_vat_dashboard\\\" / \\\"state.db\\\"\\n\\n\\ndef check_alert_registered(ws):\\n    con = sqlite3.connect(_db(ws))\\n    con.row_factory = sqlite3.Row\\n    try:\\n        row = con.execute(\\n            \\\"\\\"\\\"SELECT dd.dataset_code, da.refresh_id, md.metric_code, da.scenario_id,\\n                      da.alert_type, da.alert_status, da.severity, da.alert_message\\n                 FROM dashboard_alerts da\\n                 JOIN dashboard_datasets dd ON dd.dataset_id=da.dataset_id\\n                 JOIN metric_definitions md ON md.metric_id=da.metric_id\\n                WHERE dd.dataset_code=? AND da.refresh_id=? AND md.metric_code=?\\n                  AND da.scenario_id=? AND da.alert_status=?\\n                  AND da.severity=?\\n                ORDER BY da.created_at DESC LIMIT 1\\\"\\\"\\\",\\n            (\\\"FBI_VAT_HIK_2024\\\", \\\"REF_FBI_20241231_1800\\\", \\\"VAT_PAYABLE_DISPLAY\\\",\\n             \\\"SCN_GOODS90_SERVICE10\\\", \\\"OPEN\\\", \\\"WARN\\\"),\\n        ).fetchone()\\n        if row is None:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"未找到目标刷新、情景、展示指标、OPEN/WARN 后态\\\"}\\n        message = row[\\\"alert_message\\\"] or \\\"\\\"\\n        missing = []\\n        if not any(x in message for x in (\\\"展示值\\\", \\\"展示指标\\\", \\\"展示金额\\\", \\\"亿元展示\\\")):\\n            missing.append(\\\"展示值/展示指标\\\")\\n        for x in (\\\"人民币分\\\", \\\"精确\\\", \\\"申报\\\", \\\"审批\\\"):\\n            if x not in message:\\n                missing.append(x)\\n        if missing:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"告警关联正确，但消息缺少关键口径词: \\\" + \\\",\\\".join(missing)}\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"已登记目标告警并正确关联定稿刷新、90/10和亿元展示指标\\\"}\\n    finally:\\n        con.close()\\n\\n\\ndef check_observations_unchanged(ws):\\n    con = sqlite3.connect(_db(ws))\\n    try:\\n        rows = con.execute(\\n            \\\"\\\"\\\"SELECT md.metric_code, mo.metric_value_int, mo.is_current\\n                 FROM metric_observations mo JOIN metric_definitions md ON md.metric_id=mo.metric_id\\n                WHERE mo.refresh_id=? AND mo.scenario_id=?\\n                  AND md.metric_code IN ('VAT_PAYABLE_CENT','VAT_PAYABLE_DISPLAY')\\\"\\\"\\\",\\n            (\\\"REF_FBI_20241231_1800\\\", \\\"SCN_GOODS90_SERVICE10\\\"),\\n        ).fetchall()\\n        got = {r[0]: (r[1], r[2]) for r in rows}\\n        expected = {\\\"VAT_PAYABLE_CENT\\\": (1137510682917, 1), \\\"VAT_PAYABLE_DISPLAY\\\": (114, 1)}\\n        if got != expected:\\n            return {\\\"score\\\": 0, \\\"detail\\\": f\\\"目标观测值或current标记被改动: {got}\\\"}\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"两条目标观测值保持不变\\\"}\\n    finally:\\n        con.close()\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "observations_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:00Z",
+  "status": "candidate",
+  "evidence": []
+}

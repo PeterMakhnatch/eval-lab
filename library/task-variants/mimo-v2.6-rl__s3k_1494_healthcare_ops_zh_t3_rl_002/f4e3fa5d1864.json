@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1494_healthcare_ops_zh_t3_rl_002",
+  "variant_digest": "sha256:f4e3fa5d18644ed27d95adb7f776b2ac826a713f50ca64a1208e1439e75e2028",
+  "variant_harbor_digest": "sha256:ee52d2c7ba2e694919b1812485acd5e74312f3042ac3745b1e75920e2ace8b81",
+  "parent": {
+    "digest": "sha256:cadf53e13750f54bda397c15edf772dace356ec52b86d2935dccd8167de4f574",
+    "harbor_digest": "sha256:5ae9bc3ee4920447809bedcfcabc07024e39ddb011964c5ad2996efa644cb7af",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1494_healthcare_ops_zh_t3_rl_002/cadf53e13750.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:da1c3747cd6db844e1214535b3c4402f5750117ed24a7f65cf98809b544a1b1c",
+      "after_sha256": "sha256:853c8fb99a5dab1b0949dec276ff6294dd97666b1d8c5ed0f15a1ff06d9991ba",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"public_note_updated\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_public_note\",\n      \"description\": \"申报明细对外说明已改为四类最终剔除原因并保留37条留痕语义。\",\n      \"ground_truth\": {\n        \"sheet\": \"申报明细\",\n        \"target\": \"末尾注释\",\n        \"required_categories\": [\n          \"重复结算11条\",\n          \"已冲正结算9条\",\n          \"国家医保业务编码不完整7条\",\n          \"收费票据金额不一致10条\"\n        ],\n        \"total\": 37,\n        \"must_not_contain\": [\n          \"跨期记录\",\n          \"冲正未配对\"\n        ]\n      }\n    },\n    {\n      \"id\": \"draft_note_updated\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_draft_note\",\n      \"description\": \"隐藏复核草稿的初抽说明已同步改为四类最终剔除原因并保留37条留痕语义。\",\n      \"ground_truth\": {\n        \"sheet\": \"复核草稿\",\n        \"target\": \"初抽批次差异原因\",\n        \"required_categories\": [\n          \"重复结算11条\",\n          \"已冲正结算9条\",\n          \"国家医保业务编码不完整7条\",\n          \"收费票据金额不一致10条\"\n        ],\n        \"total\": 37,\n        \"must_not_contain\": [\n          \"跨期记录\",\n          \"冲正未配对\"\n        ]\n      }\n    },\n    {\n      \"id\": \"protected_detail_integrity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_protected_details\",\n      \"description\": \"有效申报明细记录与金额区域保持不变。\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"final_report\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否准确说明了从异常处置清单核实到的四类剔除原因及数量、合计37条且处置过程在复核草稿留痕，并说明实际修改文件/位置及未改动有效明细和金额区域？\",\n      \"pass_anchor\": \"应识别四类且数量分别为：重复结算11条、已冲正结算9条、国家医保业务编码不完整7条、收费票据金额不一致10条；合计37条；说明处置过程在复核草稿留痕；指出修改的是《三明市第一医院_2024年04月门诊医保费用申报明细表.xlsx》的申报明细末尾注释和隐藏复核草稿初抽说明；并明确有效申报明细行与金额区域未改动。允许自然语言、顺序变化和合理标点差异。\"\n    }\n  ],\n  \"check_code\": \"import hashlib\\nimport json\\nfrom pathlib import Path\\nfrom openpyxl import load_workbook\\n\\nFILE_NAME = \\\"三明市第一医院_2024年04月门诊医保费用申报明细表.xlsx\\\"\\nCATEGORIES = (\\\"重复结算11条\\\", \\\"已冲正结算9条\\\", \\\"国家医保业务编码不完整7条\\\", \\\"收费票据金额不一致10条\\\")\\nOLD = (\\\"跨期记录\\\", \\\"冲正未配对\\\")\\nEXPECTED_DETAIL_HASH = \\\"1f7496632c064f5142d3fbc5400428f860102225feca5f5dac8adc35d161a772\\\"\\n\\n\\ndef _path(ws):\\n    return Path(ws) / \\\"03_对外报送\\\" / FILE_NAME\\n\\n\\ndef _ok_text(value, has_trace=None):\\n    text = str(value or \\\"\\\")\\n    missing = [part for part in CATEGORIES if part not in text]\\n    old = [part for part in OLD if part in text]\\n    has_total = \\\"37\\\" in text and (\\\"条\\\" in text or \\\"笔\\\" in text or \\\"记录\\\" in text)\\n    if has_trace is None:\\n        has_trace = any(x in text for x in (\\\"留痕\\\", \\\"留存\\\", \\\"处置过程\\\")) and \\\"复核草稿\\\" in text\\n    if missing or old or not has_total or not has_trace:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"缺少={missing};旧表述={old};合计语义={has_total};留痕语义={has_trace}\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"四类定稿原因、37条及复核草稿留痕语义均存在，旧表述已清除\\\"}\\n\\n\\ndef check_public_note(ws):\\n    path = _path(ws)\\n    wb = load_workbook(path, data_only=True, read_only=False)\\n    value = wb[\\\"申报明细\\\"][\\\"A5292\\\"].value\\n    return _ok_text(value)\\n\\n\\ndef check_draft_note(ws):\\n    path = _path(ws)\\n    wb = load_workbook(path, data_only=True, read_only=False)\\n    sheet = wb[\\\"复核草稿\\\"]\\n    value = sheet[\\\"E4\\\"].value\\n    trace_text = \\\" \\\".join(str(sheet[cell].value or \\\"\\\") for cell in (\\\"F4\\\", \\\"F5\\\"))\\n    has_trace = any(x in trace_text for x in (\\\"逐项核验\\\", \\\"转下期复核\\\", \\\"留痕\\\", \\\"留存\\\", \\\"处置过程\\\"))\\n    return _ok_text(value, has_trace=has_trace)\\n\\n\\ndef _detail_hash(ws_obj):\\n    rows = []\\n    for r in range(5, 5291):\\n        values = []\\n        for c in list(range(1, 12)) + list(range(13, 18)) + list(range(20, 26)):\\n            value = ws_obj.cell(r, c).value\\n            if hasattr(value, \\\"isoformat\\\"):\\n                value = value.isoformat()\\n            values.append(value)\\n        rows.append(values)\\n    raw = json.dumps(rows, ensure_ascii=False, separators=(\\\",\\\", \\\":\\\"), default=str).encode()\\n    return hashlib.sha256(raw).hexdigest()\\n\\n\\ndef check_protected_details(ws):\\n    path = _path(ws)\\n    wb = load_workbook(path, data_only=True, read_only=False)\\n    sheet = wb[\\\"申报明细\\\"]\\n    record_count = sum(1 for r in range(5, 5291) if isinstance(sheet.cell(r, 1).value, (int, float)))\\n    amount = sum(float(sheet.cell(r, 9).value or 0) for r in range(5, 5291))\\n    digest = _detail_hash(sheet)\\n    if record_count != 5286 or abs(amount - 6842719.36) > 0.01 or digest != EXPECTED_DETAIL_HASH:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"有效记录数={record_count};医疗总费用={amount:.2f};指纹={digest}\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"5286条有效记录、医疗总费用6842719.36元及保护区域指纹未变化\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"edit_workspace\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "protected_detail_integrity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:10Z",
+  "status": "candidate",
+  "evidence": []
+}

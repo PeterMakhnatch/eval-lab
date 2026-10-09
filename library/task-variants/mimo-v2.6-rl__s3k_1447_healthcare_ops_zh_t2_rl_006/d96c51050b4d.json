@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1447_healthcare_ops_zh_t2_rl_006",
+  "variant_digest": "sha256:d96c51050b4d7928ab0748faa854a59dbc54adf70e2ddbe3a4c78688bc67816e",
+  "variant_harbor_digest": "sha256:3ebcd2fe8e3f96beb1efedbfb7fd4e0d3de885aa7791be30a6efac3f22446c1f",
+  "parent": {
+    "digest": "sha256:2e6f0b7a0c20f814194458416dde361b5c954fc6105d84b6716fe50a2f909b30",
+    "harbor_digest": "sha256:a6f0719ca44e5a2d35457e138ad29cb02c583b365278e05f670b81fc72b37c3d",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1447_healthcare_ops_zh_t2_rl_006/2e6f0b7a0c20.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:dc50f56e326fec3ee46f6dd49a469c2d366c5ad37a948a1329990b431d9b9e77",
+      "after_sha256": "sha256:03e79347e72f2f83dce266910efe65a07757fa04630eeb41801ba235f9474b64",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_sessions_terminated\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_sessions\",\n      \"question\": \"\",\n      \"ground_truth\": {\n        \"entitlement_ids\": [\n          \"ENT-2016-00417\",\n          \"ENT-2016-00503\"\n        ],\n        \"authorization_status\": \"revoked\",\n        \"active_session_flag\": 0\n      }\n    },\n    {\n      \"id\": \"target_identity_and_before_after\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否识别出两条目标授权分别为人员授权与厂商远程维护授权，并准确说明两条记录操作前为已撤权但会话活跃、操作后仍为已撤权且会话已终止？\",\n      \"pass_anchor\": \"真实数据锚点：目标授权集合为 ENT-2016-00417（principal_type=workforce，principal_id=osu\\\\j.mitchell，access_scope=apache configuration and production log read）与 ENT-2016-00503（principal_type=vendor，principal_id=osu\\\\r.sanders，access_scope=remote web maintenance shell）。两条操作前 authorization_status 均为 revoked、active_session_flag 均为 1；正确后态为 authorization_status 仍为 revoked、active_session_flag 均为 0。回答可用中文业务表述或给出这些标识，不要求固定格式。\"\n    },\n    {\n      \"id\": \"operation_scope_reported\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否明确说明实际执行的是仅终止这两条已撤权授权的活跃会话，并确认未改变授权状态、访问范围或其他机构/其他授权？\",\n      \"pass_anchor\": \"真实操作口径：仅对 ENT-2016-00417 与 ENT-2016-00503 将活跃会话清零；两条的 authorization_status 继续为 revoked，access_scope、其他授权及非目标机构不应被修改。最终回复需报告已执行的会话终止及范围守恒结论，不能只给出计划。\"\n    },\n    {\n      \"id\": \"non_target_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_non_target_preserved\",\n      \"question\": \"\",\n      \"ground_truth\": {\n        \"allowed_changes\": [\n          {\n            \"entitlement_id\": \"ENT-2016-00417\",\n            \"column\": \"active_session_flag\",\n            \"from\": 1,\n            \"to\": 0\n          },\n          {\n            \"entitlement_id\": \"ENT-2016-00503\",\n            \"column\": \"active_session_flag\",\n            \"from\": 1,\n            \"to\": 0\n          }\n        ]\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport sqlite3\\nimport hashlib\\nimport json\\n\\n\\ndef _db_path(ws):\\n    return Path(ws).resolve().parent / \\\"system\\\" / \\\"sailpoint_identityiq\\\" / \\\"state.db\\\"\\n\\n\\ndef _rows(path):\\n    con = sqlite3.connect(f\\\"file:{path}?mode=ro\\\", uri=True)\\n    con.row_factory = sqlite3.Row\\n    try:\\n        return [dict(r) for r in con.execute(\\\"SELECT * FROM access_entitlement ORDER BY entitlement_id\\\")]\\n    finally:\\n        con.close()\\n\\n\\ndef check_target_sessions(ws):\\n    targets = {\\\"ENT-2016-00417\\\", \\\"ENT-2016-00503\\\"}\\n    rows = {r[\\\"entitlement_id\\\"]: r for r in _rows(_db_path(ws))}\\n    if set(rows) & targets != targets:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标授权记录不完整\\\"}\\n    bad = []\\n    for entitlement_id in sorted(targets):\\n        row = rows[entitlement_id]\\n        if row[\\\"authorization_status\\\"] != \\\"revoked\\\" or row[\\\"active_session_flag\\\"] != 0:\\n            bad.append({\\\"entitlement_id\\\": entitlement_id, \\\"authorization_status\\\": row[\\\"authorization_status\\\"], \\\"active_session_flag\\\": row[\\\"active_session_flag\\\"]})\\n    if bad:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"目标后态不符: {bad}\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"两条目标授权均保持 revoked 且 active_session_flag=0\\\"}\\n\\n\\ndef check_non_target_preserved(ws):\\n    targets = {\\\"ENT-2016-00417\\\", \\\"ENT-2016-00503\\\"}\\n    rows = _rows(_db_path(ws))\\n    normalized = []\\n    for row in rows:\\n        if row[\\\"entitlement_id\\\"] in targets:\\n            row = {k: v for k, v in row.items() if k != \\\"active_session_flag\\\"}\\n        normalized.append(row)\\n    digest = hashlib.sha256(json.dumps(normalized, sort_keys=True, separators=(\\\",\\\", \\\":\\\")).encode()).hexdigest()\\n    if digest != \\\"06f8ea15262b5be3295bf713a73b44e520260bb01633635719aaaa6e09aafa7f\\\":\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"发现目标以外授权或目标其他字段发生变更\\\"}\\n    if len(rows) != 84:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"授权记录数量发生变化\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"除两条目标 active_session_flag 从1到0外无授权表变更\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "non_target_preserved": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:10Z",
+  "status": "candidate",
+  "evidence": []
+}

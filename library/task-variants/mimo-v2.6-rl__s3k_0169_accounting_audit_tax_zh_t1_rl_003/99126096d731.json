@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0169_accounting_audit_tax_zh_t1_rl_003",
+  "variant_digest": "sha256:99126096d7312cf2748268fb782f73ec8202599f19412eff732c7cdd97c482da",
+  "variant_harbor_digest": "sha256:28e7fcd6c8d4270f60029e8b746cd3433594409cc857a0048308b7ac29d9d31a",
+  "parent": {
+    "digest": "sha256:350e939f00a293319bc1860dc66a0b397668e269640f75efba893a91a16fbafa",
+    "harbor_digest": "sha256:224de0e738fca9178fa0b3a2a738e68aca657c3c02b5ebd0c4ecb2d45c7729cd",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0169_accounting_audit_tax_zh_t1_rl_003/350e939f00a2.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:b0f0fb0a73a948e55f0b2fcfa7a44f45089396bd2cc6f4936bdcc793798eeead",
+      "after_sha256": "sha256:b37b6c3c0147604eebd450b2d079ec74a8d5b3ee9a5df0c0e3cf8d4d2b2f7b29",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"L01_scope_reconciliation\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确给出并勾稽2023年度一级子公司合并范围的期初数、本期新增数、本期减少数、期末数和净变动？\",\n      \"pass_anchor\": \"必须识别为：期初23家；本期新增1家；本期减少6家；期末18家；净变动为-5家（净减少5家），且给出23 + 1 - 6 = 18、1 - 6 = -5的勾稽关系。允许中文或阿拉伯数字及自然语言表述，不要求固定格式。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"L02_named_entity_classification\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确识别审计报告等源文件明确列出的合并范围变动主体及其分类/关联主体，并避免把未列名的减少主体臆造为具体名称？\",\n      \"pass_anchor\": \"必须依据源文件明确列名识别：杭州吉利智能创新企业管理有限公司=新设并纳入合并范围；浙江众尖投资有限公司转让给众尖投资集团有限公司、浙江浩物网络科技有限公司转让给浙江吉利产投控股有限公司、上海锦鲤吉品商业管理有限公司转让给浙江吉利数字科技有限公司=集团内层级转入（一级子公司减少但集团层面继续合并）；威睿电动汽车技术（苏州）有限公司=注销减少；宁波易捷股权投资基金管理合伙企业（有限合伙）=注销减少；浙江吉利铭泰科技有限公司=股权转让后丧失控制权，吉利集团（宁波）有限公司为受让/纳入主体。应明确这六个减少事项由上述三项集团内层级转入、两项注销和一项丧失控制权构成；不得把未由源文件列名的减少主体臆造为具体名称，也不得把集团内层级转入误称为集团层面退出。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"L03_cas33_timing_mapping\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否把新增和处置事项映射到正确的合并报表期间处理规则，并准确处理同一控制与非同一控制新增的区别？\",\n      \"pass_anchor\": \"必须说明：同一控制下新增子公司通常调整合并资产负债表期初数，并将当期期初至期末的损益和现金流纳入；非同一控制下新增不调整期初数，自购买日（控制取得日）至期末纳入合并损益和现金流；处置/丧失控制权主体应将期初至处置日的损益和现金流纳入合并。可将新增主体的实际证据状态表述为“新设并纳入”，但不得在源文件未提供时擅自断定其属于同一控制或非同一控制。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"L04_date_evidence_boundary\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否准确区分两类日期证据状态，并明确不能以2023年12月31日替代生效日？\",\n      \"pass_anchor\": \"必须指出：威睿电动汽车技术（苏州）有限公司和浙江吉利铭泰科技有限公司的源文件未披露精确注销/处置生效日；宁波易捷股权投资基金管理合伙企业（有限合伙）的日期为空且处于待二次核实状态。应明确不得把报告期末2023年12月31日当作这些事项的生效日，也不得自行补写日期。将宁波易捷一并概括为“日期未提供”可接受，但需保留其“待二核”状态，不能误称为已核实的源未披露结论。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"S01_read_only_integrity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_read_only_integrity\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\n\\n\\nREQUIRED_FILES = (\\n    \\\"geely_holding_2023_audit_report.pdf\\\",\\n    \\\"浙江吉利控股2023合并范围与披露指标抽取.csv\\\",\\n    \\\"浙江吉利控股2023合并报表汇总及抵销复核底稿.xlsx\\\",\\n)\\n\\n\\ndef check_read_only_integrity(ws):\\n    missing = [name for name in REQUIRED_FILES if not (Path(ws) / name).exists()]\\n    if missing:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"只读源文件缺失: \\\" + \\\", \\\".join(missing)}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"只读题源文件均保留\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "S01_read_only_integrity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:59Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,49 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/dasyn_260630_00734",
+  "variant_digest": "sha256:f132a9c7e057fd2de5b72ad2ab731b0904c640c9d25477e0304ad4fd6ff6dffe",
+  "variant_harbor_digest": "sha256:4ff38a451f3d4594324fb8a6b72ba8c3e2425a683dd335e6a3decae58e64bd5a",
+  "parent": {
+    "digest": "sha256:25955a86f1928cbaca9ad22debd4b0c6b4c5f209862065d1d8af367590d8f22d",
+    "harbor_digest": "sha256:69d0d6fa7fdfe3469f224b863ffc5f2ba401b803f11e65280b237201d882af62",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-webdev",
+      "revision": "e1a6293376e8910e1fb1f28efabd93dad2f8b475",
+      "path": "tasks/dasyn_260630_00734",
+      "record": null
+    }
+  },
+  "transform": "webdev-temp0-pin@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/grade.json",
+      "before_sha256": "sha256:7dbfc468d2608ac4d3509c6c343ec6e7a594ad6f294edf13e62388261cfd33c4",
+      "after_sha256": "sha256:059fe41ab5f2c457bcef8628153e3b65bd9068ce850069a9ffebe39723383c7a",
+      "content": "{\n \"cwd\": \"/workspace\",\n \"query\": \"Create a modern static Nuxt website for a beauty-themed restaurant fan page called Glow Garden Café. It should feel like Apple product pages: lots of white space, premium typography, smooth sections, soft material cards, subtle shadows, clean gradients, and very polished mobile responsive UI. Website language: English.\\n\\nPages/sections needed:\\n- Sticky navbar with logo, Menu, Specials, Fan Picks, Gallery, About, Visit\\n- Hero section: \\\"Where Beauty Meets Brunch\\\" with big headline, elegant food/beauty vibe, CTA buttons \\\"View Menu\\\" and \\\"Explore Fan Picks\\\"\\n- Feature cards for signature items: Rose Latte, Pearl Pancakes, Sakura Salad, Velvet Berry Tart\\n- Fan page section with customer-style quotes, favorite dishes, and small profile avatars using static/mock content only\\n- Menu preview with category tabs or simple buttons: Brunch, Drinks, Desserts, Wellness Bowls (front-end only, no database)\\n- Apple-inspired product showcase style section for one signature dish with large image placeholder, specs like calories, mood, flavor notes\\n- Gallery grid with elegant beauty/restaurant placeholders\\n- Visit section with opening hours, address placeholder, reservation CTA button that does not need backend\\n- Footer with socials, newsletter visual input only (no real submit), and quick links\\n\\nDesign requirements:\\n- Material design components but premium Apple-like minimal layout\\n- Colors: ivory, blush pink, champagne gold, soft charcoal\\n- Use static sample data, no API, no backend, no login, no database\\n- Simple interactions only: hover states, smooth scroll, responsive menu, static tabs/filter if easy\\n- Build as a static Nuxt front-end site with clean reusable components and modern CSS.\",\n \"judge\": {\n  \"model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8\",\n  \"model_sha\": \"94125d2bd83076b21eed33119525e29eaf3894f4\",\n  \"request_model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8:novita\",\n  \"provider\": \"novita\",\n  \"pinned_on\": \"2026-10-09\",\n  \"temperature\": 0,\n  \"max_tokens\": 1024,\n  \"rubric_id\": \"rva1:mean(visual,query,asset)\"\n }\n}\n"
+    },
+    {
+      "path": "tests/grade.py",
+      "before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+      "after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368",
+      "content": "\"\"\"Grade a Webdev task as the explorer does (verl recipes/design webdev-eval): render, shrink, judge.\n\nNo index.html in dist/ scores 0. A render that fails, or a judge that never answers, writes no reward (not scored):\nneither says anything about the page.\"\"\"\nimport base64\nimport io\nimport json\nimport os\nimport random\nimport subprocess\nimport sys\nimport time\nimport urllib.request\nfrom pathlib import Path\n\nsys.path.insert(0, \"/tests\")\nos.environ[\"WEBDEV_GRADE_HTTP\"] = \"1\"   # serve over loopback http so React/Vue/ES-module sites actually run\nfrom webdev.eval_rubric import build_prompt  # noqa: E402\nfrom webdev.shot import _build_shot_cmd, _parse_render_env, _parse_shot_b64  # noqa: E402\nfrom webdev.verdict import parse_verdict  # noqa: E402\n\ncfg = json.loads(Path(\"/tests/grade.json\").read_text())\nV = Path(\"/logs/verifier\")\nV.mkdir(parents=True, exist_ok=True)\ndist = Path(cfg[\"cwd\"]) / \"dist\"\n\n\ndef done(reward: float | None, why: str, **extra) -> None:\n    (V / \"result.json\").write_text(json.dumps({\"reward\": reward, \"summary\": why, **extra}, indent=1))\n    print(why)\n    if reward is None:\n        print(\"not scored\", file=sys.stderr)\n        sys.exit(1)\n    (V / \"reward.txt\").write_text(f\"{reward}\\n\")\n    sys.exit(0)\n\n\nfiles = sorted(str(p.relative_to(dist)) for p in dist.rglob(\"*\") if p.is_file())[:200] if dist.is_dir() else []\nif \"index.html\" not in files:\n    done(0.0, \"The agent delivered nothing to dist/.\" if not files else \"dist/ has no index.html, so there is no page to open.\",\n         delivered=files)\nres = subprocess.run([\"sh\", \"-c\", _build_shot_cmd(f\"file://{dist}/index.html\")], capture_output=True, text=True,\n                     timeout=150)   # SHOT_TIMEOUT_S\nshot = {\"output\": (res.stdout or \"\") + \"\\n\" + (res.stderr or \"\")}\nshot_b64, console_errors = _parse_shot_b64(shot)\nrender_env = _parse_render_env(shot)\nif render_env.get(\"proxy_failed\") or not shot_b64:\n    print(shot[\"output\"][-2000:], file=sys.stderr)\n    done(None, \"external assets were unreachable on every route\" if render_env.get(\"proxy_failed\")\n         else \"the screenshot produced no image\")\njpg = base64.b64decode(shot_b64)\ntry:   # eval_mode._shrink: the judge refuses shots over 20 MP; proportional, quality 75\n    from PIL import Image\n    Image.MAX_IMAGE_PIXELS = None\n    im = Image.open(io.BytesIO(jpg))\n    size = im.size\n    if im.width * im.height > 20e6:\n        k = (20e6 / (im.width * im.height)) ** 0.5\n        im = im.convert(\"RGB\").resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)\n        b = io.BytesIO(); im.save(b, \"JPEG\", quality=75); jpg = b.getvalue(); size = im.size\nexcept ImportError:\n    size = None\n(V / \"screenshot.jpg\").write_bytes(jpg)\ncontent = [{\"type\": \"image_url\", \"image_url\": {\"url\": \"data:image/jpeg;base64,\" + base64.b64encode(jpg).decode()}},\n           {\"type\": \"text\", \"text\": build_prompt().format(query=cfg[\"query\"][:1500])}]   # QUERY_CAP\nurl = os.environ.get(\"WEBDEV_JUDGE_URL\", \"https://router.huggingface.co/v1\").rstrip(\"/\") + \"/chat/completions\"\n_judge_pin = cfg[\"judge\"]\nif os.environ.get(\"WEBDEV_JUDGE_REVISION\") != _judge_pin[\"model_sha\"]:\n    done(None, \"Judge deployment revision is unbound; not scored.\")\n(V / \"judge_config.json\").write_text(json.dumps(_judge_pin, indent=1))\nbody = json.dumps({\"model\": cfg[\"judge\"][\"request_model\"], \"temperature\": 0, \"max_tokens\": 1024,  # webdev-temp0-pin@1\n                   \"messages\": [{\"role\": \"user\", \"content\": content}]}).encode()\nverdict, last = None, \"\"\nfor attempt in range(4):   # JUDGE_RETRIES, with eval_mode's backoff\n    if attempt:\n        time.sleep(min(60.0, 3.0 * (3 ** (attempt - 1))) * (0.5 + random.random()))\n    try:\n        req = urllib.request.Request(url, data=body, method=\"POST\", headers={\n            \"Content-Type\": \"application/json\", \"Authorization\": f\"Bearer {os.environ.get('WEBDEV_JUDGE_KEY', '')}\"})\n        with urllib.request.urlopen(req, timeout=180) as r:   # JUDGE_TIMEOUT_S\n            _judge_reply = json.loads(r.read())\n            if _judge_reply.get(\"model_revision\") != _judge_pin[\"model_sha\"]:\n                done(None, \"Judge response revision differs from the task pin; not scored.\")\n            msg = _judge_reply[\"choices\"][0][\"message\"]\n        v = parse_verdict(msg.get(\"content\") or msg.get(\"reasoning_content\") or \"\")\n        if \"_failed\" not in v:\n            verdict = v\n            break\n        last = v[\"_failed\"]\n    except Exception as e:  # noqa: BLE001\n        last = f\"{type(e).__name__}: {e}\"[:200]\nif not verdict:\n    done(None, f\"judge unavailable: {last}\")\ndone(verdict[\"score\"], verdict.get(\"reason\", \"\"), dims=verdict[\"dims\"], visual=verdict[\"visual\"], screenshot_size=size,\n     console_errors=console_errors[:1500] if console_errors not in (\"\", \"[]\") else \"\")\n"
+    }
+  ],
+  "rationale": "Use temperature zero and bind the model/provider request and artifact revision; mask absent or mismatched deployment/response revision. Version-aware judge endpoint validation is staged.",
+  "inputs": {
+    "parent_task": "mimo-v2.6-rl/dasyn_260630_00734",
+    "judge_model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "judge_model_sha": "94125d2bd83076b21eed33119525e29eaf3894f4",
+    "judge_temperature": 0,
+    "rubric_id": "rva1:mean(visual,query,asset)",
+    "grade_before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+    "grade_after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:33Z",
+  "status": "candidate",
+  "evidence": []
+}

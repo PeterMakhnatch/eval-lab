@@ -1,0 +1,49 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/dasyn_260638_00009",
+  "variant_digest": "sha256:8da09763f53458545d828c2c1845a46ab1973d0aa0a088a663a9cddab64de37c",
+  "variant_harbor_digest": "sha256:f8e5ad46dd9b3750fd14e83205b6d8b4d269079ad86425dd9f23a97df5ccbeba",
+  "parent": {
+    "digest": "sha256:71dcc8598be2fd40986900316f831aad9c51cacadc5a112c7cf601db2b72ec36",
+    "harbor_digest": "sha256:203e210328288cc10aafba5feaf08ebb84f736740ecd188c9f3c4629f5e3eb85",
+    "source": {
+      "kind": "hf",
+      "repo": "FineEnvs/MiMo-V2.6-RL-harbor-webdev",
+      "revision": "e1a6293376e8910e1fb1f28efabd93dad2f8b475",
+      "path": "tasks/dasyn_260638_00009",
+      "record": null
+    }
+  },
+  "transform": "webdev-temp0-pin@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/grade.json",
+      "before_sha256": "sha256:eb9ef1021954bb5aafde5558deb966c8546fbdbc9e9f03e541caa0bf393e4df3",
+      "after_sha256": "sha256:90c1659198284a1714a9795f95d6b040624967a25e4512d6ce34032939838422",
+      "content": "{\n \"cwd\": \"/workspace\",\n \"query\": \"can you build me a clean minimalist landing page for a local community plumbing help network, kind of inspired by Linear with lots of white space, sharp typography, soft gradients, smooth sections and a very polished modern feel. It should be for neighbors who need quick plumbing help or want to find trusted local plumbers, but only as a static website, no backend or real booking system needed. I want the homepage to feel professional but friendly, with a hero section, community trust stats, plumber cards, common services like leak repair, drain cleaning, water heater checks, emergency pipe issues, and a big search area where someone can type or choose a plumbing problem and it filters or visually highlights matching static sample results on the page. Use mock data only, like fake plumber names, fake neighborhoods, fake ratings, sample service tags, and fake testimonials. Make it complex enough to feel like a real product landing page with sections for how it works, popular searches, service categories, pricing examples, safety checklist, FAQ, and a final call to action, but keep it fully front end and static. The style should be simple and elegant, not cartoonish, with blue/gray tones, subtle motion if possible, clean cards, sticky nav, responsive mobile layout, and search interaction that works locally in the page without any API. Please make the copy sound warm and community focused like neighbors helping neighbors find reliable plumbing support.\",\n \"judge\": {\n  \"model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8\",\n  \"model_sha\": \"94125d2bd83076b21eed33119525e29eaf3894f4\",\n  \"request_model\": \"meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8:novita\",\n  \"provider\": \"novita\",\n  \"pinned_on\": \"2026-10-09\",\n  \"temperature\": 0,\n  \"max_tokens\": 1024,\n  \"rubric_id\": \"rva1:mean(visual,query,asset)\"\n }\n}\n"
+    },
+    {
+      "path": "tests/grade.py",
+      "before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+      "after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368",
+      "content": "\"\"\"Grade a Webdev task as the explorer does (verl recipes/design webdev-eval): render, shrink, judge.\n\nNo index.html in dist/ scores 0. A render that fails, or a judge that never answers, writes no reward (not scored):\nneither says anything about the page.\"\"\"\nimport base64\nimport io\nimport json\nimport os\nimport random\nimport subprocess\nimport sys\nimport time\nimport urllib.request\nfrom pathlib import Path\n\nsys.path.insert(0, \"/tests\")\nos.environ[\"WEBDEV_GRADE_HTTP\"] = \"1\"   # serve over loopback http so React/Vue/ES-module sites actually run\nfrom webdev.eval_rubric import build_prompt  # noqa: E402\nfrom webdev.shot import _build_shot_cmd, _parse_render_env, _parse_shot_b64  # noqa: E402\nfrom webdev.verdict import parse_verdict  # noqa: E402\n\ncfg = json.loads(Path(\"/tests/grade.json\").read_text())\nV = Path(\"/logs/verifier\")\nV.mkdir(parents=True, exist_ok=True)\ndist = Path(cfg[\"cwd\"]) / \"dist\"\n\n\ndef done(reward: float | None, why: str, **extra) -> None:\n    (V / \"result.json\").write_text(json.dumps({\"reward\": reward, \"summary\": why, **extra}, indent=1))\n    print(why)\n    if reward is None:\n        print(\"not scored\", file=sys.stderr)\n        sys.exit(1)\n    (V / \"reward.txt\").write_text(f\"{reward}\\n\")\n    sys.exit(0)\n\n\nfiles = sorted(str(p.relative_to(dist)) for p in dist.rglob(\"*\") if p.is_file())[:200] if dist.is_dir() else []\nif \"index.html\" not in files:\n    done(0.0, \"The agent delivered nothing to dist/.\" if not files else \"dist/ has no index.html, so there is no page to open.\",\n         delivered=files)\nres = subprocess.run([\"sh\", \"-c\", _build_shot_cmd(f\"file://{dist}/index.html\")], capture_output=True, text=True,\n                     timeout=150)   # SHOT_TIMEOUT_S\nshot = {\"output\": (res.stdout or \"\") + \"\\n\" + (res.stderr or \"\")}\nshot_b64, console_errors = _parse_shot_b64(shot)\nrender_env = _parse_render_env(shot)\nif render_env.get(\"proxy_failed\") or not shot_b64:\n    print(shot[\"output\"][-2000:], file=sys.stderr)\n    done(None, \"external assets were unreachable on every route\" if render_env.get(\"proxy_failed\")\n         else \"the screenshot produced no image\")\njpg = base64.b64decode(shot_b64)\ntry:   # eval_mode._shrink: the judge refuses shots over 20 MP; proportional, quality 75\n    from PIL import Image\n    Image.MAX_IMAGE_PIXELS = None\n    im = Image.open(io.BytesIO(jpg))\n    size = im.size\n    if im.width * im.height > 20e6:\n        k = (20e6 / (im.width * im.height)) ** 0.5\n        im = im.convert(\"RGB\").resize((max(1, int(im.width * k)), max(1, int(im.height * k))), Image.LANCZOS)\n        b = io.BytesIO(); im.save(b, \"JPEG\", quality=75); jpg = b.getvalue(); size = im.size\nexcept ImportError:\n    size = None\n(V / \"screenshot.jpg\").write_bytes(jpg)\ncontent = [{\"type\": \"image_url\", \"image_url\": {\"url\": \"data:image/jpeg;base64,\" + base64.b64encode(jpg).decode()}},\n           {\"type\": \"text\", \"text\": build_prompt().format(query=cfg[\"query\"][:1500])}]   # QUERY_CAP\nurl = os.environ.get(\"WEBDEV_JUDGE_URL\", \"https://router.huggingface.co/v1\").rstrip(\"/\") + \"/chat/completions\"\n_judge_pin = cfg[\"judge\"]\nif os.environ.get(\"WEBDEV_JUDGE_REVISION\") != _judge_pin[\"model_sha\"]:\n    done(None, \"Judge deployment revision is unbound; not scored.\")\n(V / \"judge_config.json\").write_text(json.dumps(_judge_pin, indent=1))\nbody = json.dumps({\"model\": cfg[\"judge\"][\"request_model\"], \"temperature\": 0, \"max_tokens\": 1024,  # webdev-temp0-pin@1\n                   \"messages\": [{\"role\": \"user\", \"content\": content}]}).encode()\nverdict, last = None, \"\"\nfor attempt in range(4):   # JUDGE_RETRIES, with eval_mode's backoff\n    if attempt:\n        time.sleep(min(60.0, 3.0 * (3 ** (attempt - 1))) * (0.5 + random.random()))\n    try:\n        req = urllib.request.Request(url, data=body, method=\"POST\", headers={\n            \"Content-Type\": \"application/json\", \"Authorization\": f\"Bearer {os.environ.get('WEBDEV_JUDGE_KEY', '')}\"})\n        with urllib.request.urlopen(req, timeout=180) as r:   # JUDGE_TIMEOUT_S\n            _judge_reply = json.loads(r.read())\n            if _judge_reply.get(\"model_revision\") != _judge_pin[\"model_sha\"]:\n                done(None, \"Judge response revision differs from the task pin; not scored.\")\n            msg = _judge_reply[\"choices\"][0][\"message\"]\n        v = parse_verdict(msg.get(\"content\") or msg.get(\"reasoning_content\") or \"\")\n        if \"_failed\" not in v:\n            verdict = v\n            break\n        last = v[\"_failed\"]\n    except Exception as e:  # noqa: BLE001\n        last = f\"{type(e).__name__}: {e}\"[:200]\nif not verdict:\n    done(None, f\"judge unavailable: {last}\")\ndone(verdict[\"score\"], verdict.get(\"reason\", \"\"), dims=verdict[\"dims\"], visual=verdict[\"visual\"], screenshot_size=size,\n     console_errors=console_errors[:1500] if console_errors not in (\"\", \"[]\") else \"\")\n"
+    }
+  ],
+  "rationale": "Use temperature zero and bind the model/provider request and artifact revision; mask absent or mismatched deployment/response revision. Version-aware judge endpoint validation is staged.",
+  "inputs": {
+    "parent_task": "mimo-v2.6-rl/dasyn_260638_00009",
+    "judge_model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+    "judge_model_sha": "94125d2bd83076b21eed33119525e29eaf3894f4",
+    "judge_temperature": 0,
+    "rubric_id": "rva1:mean(visual,query,asset)",
+    "grade_before_sha256": "sha256:6ac029932cc38b6de327e8359d69fbd98609198aacf4a4ba05f3e3a8250f0c0b",
+    "grade_after_sha256": "sha256:be2aa514bca541cb3ab833c2d62f1f0b8d61cf5fab2310b223fb4c2201c1c368"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:58Z",
+  "status": "candidate",
+  "evidence": []
+}

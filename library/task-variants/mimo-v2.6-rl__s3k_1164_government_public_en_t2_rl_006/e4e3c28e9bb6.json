@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1164_government_public_en_t2_rl_006",
+  "variant_digest": "sha256:e4e3c28e9bb6e83510bfc61365d4262527120b6275e1058ea496ed9859ca8811",
+  "variant_harbor_digest": "sha256:b52ea9ecd5e8282b907c7108ca970256d0f94ecb6b4d0390f1d6a28968548f98",
+  "parent": {
+    "digest": "sha256:27beb5593d29fd6a56ced3957bf58d9e0a2d993fd6d9f8e00b21f32364a5a8af",
+    "harbor_digest": "sha256:7e92d9959970eb77181eb76cd6d48c789ee99aeabfafe9242dae66cedca0f02f",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1164_government_public_en_t2_rl_006/27beb5593d29.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:93489d152c13d1ee67ecb1c11c8c3e38ebc4c800490629885bb16011ef391c84",
+      "after_sha256": "sha256:7d774c1a37fdf3604587f96484ca8c92064790feb1faaece7c22718d0dcb5df0",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_note_updated\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_note_updated\",\n      \"ground_truth\": \"Cancelled after the secure scanning accommodation was unavailable.\\n\\nAudit clarification: Cancelled overflow-scanning pilot retains completed triage-rule reference for audit history; it is not an active blocker.\"\n    },\n    {\n      \"id\": \"dependency_chain_identified\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response identify the retained historical dependency ID and both linked Planner action IDs, including which is the successor and predecessor, with their correct statuses?\",\n      \"pass_anchor\": \"The answer must identify DEP-DCU-24-036 as linking successor ACT-DCU-24-078, whose status is cancelled, to predecessor ACT-DCU-24-061, whose status is completed. Equivalent prose or a compact list is acceptable. All three IDs, both link roles, and both statuses must be correct; repeating either action title is not required.\"\n    },\n    {\n      \"id\": \"historical_not_blocking\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response correctly explain why the retained dependency is audit history rather than an active blocker and report the operation performed?\",\n      \"pass_anchor\": \"The answer must explain that the dependency is a historical-orphan/historical-reference record retained for audit history, not a live blocked dependency, because the successor pilot is cancelled and the referenced predecessor is already completed. It must also confirm that only the notes on ACT-DCU-24-078 were updated, preserving the original cancellation note and appending the dependency note as the Audit clarification paragraph, with no status or other action changes.\"\n    },\n    {\n      \"id\": \"target_fields_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_fields_unchanged\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"other_actions_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_other_actions_unchanged\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import hashlib\\nimport json\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\nSYSTEM_NAME = \\\"microsoft_planner_dcu_recovery\\\"\\nTARGET_ACTION_ID = \\\"ACT-DCU-24-078\\\"\\nTARGET_DEPENDENCY_ID = \\\"DEP-DCU-24-036\\\"\\nOTHER_ACTIONS_BASELINE_SHA256 = \\\"ddfeab33e2692da2611cb452936ac1de3027b42555017629bc80a111a73e9a2c\\\"\\n\\n\\ndef _paths(ws):\\n    system_dir = Path(ws).resolve().parent / \\\"system\\\" / SYSTEM_NAME\\n    return system_dir / \\\"state.db\\\", system_dir / \\\"state.db.pinned_backup\\\"\\n\\n\\ndef _connect(path):\\n    connection = sqlite3.connect(path)\\n    connection.row_factory = sqlite3.Row\\n    return connection\\n\\n\\ndef _row(connection, query, params=()):\\n    return connection.execute(query, params).fetchone()\\n\\n\\ndef check_target_note_updated(ws):\\n    current_path, baseline_path = _paths(ws)\\n    with _connect(current_path) as current, _connect(baseline_path) as baseline:\\n        current_row = _row(\\n            current,\\n            \\\"SELECT notes FROM recovery_actions WHERE action_id = ?\\\",\\n            (TARGET_ACTION_ID,),\\n        )\\n        original_row = _row(\\n            baseline,\\n            \\\"SELECT notes FROM recovery_actions WHERE action_id = ?\\\",\\n            (TARGET_ACTION_ID,),\\n        )\\n        dependency_row = _row(\\n            baseline,\\n            \\\"SELECT dependency_note FROM action_dependencies WHERE dependency_id = ?\\\",\\n            (TARGET_DEPENDENCY_ID,),\\n        )\\n        if current_row is None or original_row is None or dependency_row is None:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"The target action or dependency is missing.\\\"}\\n        expected = (\\n            original_row[\\\"notes\\\"]\\n            + \\\"\\\\n\\\\nAudit clarification: \\\"\\n            + dependency_row[\\\"dependency_note\\\"]\\n        )\\n        actual = current_row[\\\"notes\\\"]\\n        if actual == expected:\\n            return {\\\"score\\\": 1, \\\"detail\\\": \\\"The target note preserves the cancellation text and appends the exact audit clarification.\\\"}\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"Target note mismatch. Expected {expected!r}; found {actual!r}.\\\"}\\n\\n\\ndef check_target_fields_unchanged(ws):\\n    current_path, baseline_path = _paths(ws)\\n    with _connect(current_path) as current, _connect(baseline_path) as baseline:\\n        current_row = _row(current, \\\"SELECT * FROM recovery_actions WHERE action_id = ?\\\", (TARGET_ACTION_ID,))\\n        baseline_row = _row(baseline, \\\"SELECT * FROM recovery_actions WHERE action_id = ?\\\", (TARGET_ACTION_ID,))\\n        if current_row is None or baseline_row is None:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"The target action is missing.\\\"}\\n        changed = [\\n            column\\n            for column in baseline_row.keys()\\n            if column != \\\"notes\\\" and current_row[column] != baseline_row[column]\\n        ]\\n        if changed:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"Non-note target fields changed: \\\" + \\\", \\\".join(changed)}\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"All non-note fields on the target action remain unchanged.\\\"}\\n\\n\\ndef check_other_actions_unchanged(ws):\\n    current_path, _ = _paths(ws)\\n    with _connect(current_path) as current:\\n        current_rows = [\\n            dict(row)\\n            for row in current.execute(\\n                \\\"SELECT * FROM recovery_actions WHERE action_id <> ? ORDER BY action_id\\\",\\n                (TARGET_ACTION_ID,),\\n            )\\n        ]\\n        payload = json.dumps(\\n            current_rows,\\n            sort_keys=True,\\n            separators=(\\\",\\\", \\\":\\\"),\\n            ensure_ascii=False,\\n        )\\n        digest = hashlib.sha256(payload.encode(\\\"utf-8\\\")).hexdigest()\\n        if digest != OTHER_ACTIONS_BASELINE_SHA256:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"One or more non-target recovery actions changed.\\\"}\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"All other recovery actions remain unchanged.\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "target_fields_unchanged": 1.0,
+      "other_actions_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:07Z",
+  "status": "candidate",
+  "evidence": []
+}

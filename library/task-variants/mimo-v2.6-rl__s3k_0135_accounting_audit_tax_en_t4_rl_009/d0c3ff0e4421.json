@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0135_accounting_audit_tax_en_t4_rl_009",
+  "variant_digest": "sha256:d0c3ff0e442130990c8f4e4e4855d9588a34210731a4b37c64169699e8355842",
+  "variant_harbor_digest": "sha256:27e833f91f2653aafaa89e7c8ef256977977611b43cd451ed6e5bcb3ee4a9c8f",
+  "parent": {
+    "digest": "sha256:74083c6c92cce8b3e5d3a078968af474766f1d2cfe56f9209c60408183eb4703",
+    "harbor_digest": "sha256:b01fc8a6a5556a5bc2da6897114fb3ff9e8bd75fdbf32f79ea124ef2fc89ff42",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0135_accounting_audit_tax_en_t4_rl_009/74083c6c92cc.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:a3486ac6735f3b56480d9167c54a76ddf0f4ade59aecda4f33afada7540ae2ec",
+      "after_sha256": "sha256:d7c92c979768fc5600e5c69037d2d08a7cb78b767a025f8272148ec4e757cbb3",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"memo_signoff_chain\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_memo_signoff_chain\",\n      \"ground_truth\": {\n        \"evidence_ref_id\": \"EV-25Q3-INV-0158\",\n        \"signoffs\": [\n          {\n            \"sequence\": 1,\n            \"display_name\": \"Marcus Whitfield\",\n            \"role\": \"PREPARER\",\n            \"decision\": \"APPROVED\"\n          },\n          {\n            \"sequence\": 2,\n            \"display_name\": \"Elena Martinez\",\n            \"role\": \"REVIEWER\",\n            \"decision\": \"APPROVED\"\n          }\n        ],\n        \"comment_requirements\": [\n          \"controlled Q3 memo\",\n          \"October 14\"\n        ],\n        \"signoff_id_prefix\": \"SGN-API-\"\n      }\n    },\n    {\n      \"id\": \"required_evidence_set\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Did the final answer identify all six evidence types required by the quarterly inventory-reserve control?\",\n      \"pass_anchor\": \"The answer must state that the required set was complete and identify all six types: INVENTORY_AGING, FIFO_COST_EXTRACT, DEMAND_FORECAST, NRV_AND_EXCESS_MODEL, ACCOUNTING_MEMO, and CERTIFIED_ADJUSTMENT. Business-language equivalents such as inventory aging, FIFO cost extract, demand forecast, NRV/excess model, accounting memo, and certified adjustment also pass.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"pre_action_gap\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Did the final answer report that the accounting-memo evidence had no sign-offs before the mutation?\",\n      \"pass_anchor\": \"The answer must clearly state that the targeted accounting-memo evidence had an empty/zero sign-off chain before the two approvals were appended, rather than claiming that prior approvals were replaced or edited.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"preservation_report\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Did the final answer report that the certified-adjustment chain and other evidence references were left unchanged?\",\n      \"pass_anchor\": \"The answer must state that the certified-adjustment evidence retained its five existing sign-offs and that other evidence references were not changed. It should identify the certified-adjustment chain as preserved, not merely say the task was completed.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"immutability_sanity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_untouched_records\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import hashlib\\nimport json\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\nBASELINE_EVIDENCE_HASH = \\\"1ab54c2539d3cd02e39ebb69435f4bc626bdac4a9d565b83ba0f2017e960b98f\\\"\\nBASELINE_SIGNOFF_HASH = \\\"0683b28c220c454e1abc8fd0e97de2330f7a3c0946ba3069b0cb45722b49bb57\\\"\\n\\n\\ndef _db(workspace):\\n    return Path(workspace).parent / \\\"system\\\" / \\\"workiva_controls\\\" / \\\"state.db\\\"\\n\\n\\ndef _rows(db, sql, params=()):\\n    con = sqlite3.connect(db)\\n    con.row_factory = sqlite3.Row\\n    try:\\n        return [dict(row) for row in con.execute(sql, params).fetchall()]\\n    finally:\\n        con.close()\\n\\n\\ndef _norm(value):\\n    return \\\" \\\".join(str(value or \\\"\\\").lower().replace(\\\"-\\\", \\\" \\\").replace(\\\"_\\\", \\\" \\\").split())\\n\\n\\ndef _digest(rows):\\n    return hashlib.sha256(json.dumps(rows, sort_keys=True, separators=(\\\",\\\", \\\":\\\")).encode()).hexdigest()\\n\\n\\ndef check_memo_signoff_chain(workspace):\\n    rows = _rows(_db(workspace), \\\"SELECT * FROM review_signoffs WHERE evidence_ref_id=? ORDER BY signoff_sequence, decision_timestamp\\\", (\\\"EV-25Q3-INV-0158\\\",))\\n    if len(rows) != 2:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"target memo has {len(rows)} sign-offs; expected exactly 2\\\"}\\n    expected = [\\n        (1, \\\"marcus whitfield\\\", \\\"preparer\\\", \\\"approved\\\"),\\n        (2, \\\"elena martinez\\\", \\\"reviewer\\\", \\\"approved\\\"),\\n    ]\\n    for row, want in zip(rows, expected):\\n        got = (row[\\\"signoff_sequence\\\"], _norm(row[\\\"reviewer_display_name\\\"]), _norm(row[\\\"review_role\\\"]), _norm(row[\\\"decision\\\"]))\\n        if got != want:\\n            return {\\\"score\\\": 0, \\\"detail\\\": f\\\"unexpected sign-off tuple {got}; expected {want}\\\"}\\n        if not str(row[\\\"signoff_id\\\"]).startswith(\\\"SGN-API-\\\"):\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"sign-off is not an API/idempotent sign-off\\\"}\\n        comment = _norm(row[\\\"comments\\\"])\\n        if \\\"controlled q3 memo\\\" not in comment and not (\\\"q3\\\" in comment and \\\"memo\\\" in comment):\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"comment does not reference the controlled Q3 memo\\\"}\\n        if \\\"october 14\\\" not in comment and \\\"oct 14\\\" not in comment and \\\"10 14\\\" not in comment:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"comment does not reference the October 14 review\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"memo sign-off chain is exactly PREPARER then REVIEWER with required attribution\\\"}\\n\\n\\ndef check_untouched_records(workspace):\\n    db = _db(workspace)\\n    evidence = _rows(db, \\\"SELECT * FROM evidence_references ORDER BY evidence_ref_id\\\")\\n    signoffs = _rows(db, \\\"SELECT * FROM review_signoffs WHERE evidence_ref_id <> ? ORDER BY signoff_id\\\", (\\\"EV-25Q3-INV-0158\\\",))\\n    if _digest(evidence) != BASELINE_EVIDENCE_HASH:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"an evidence reference was changed\\\"}\\n    if _digest(signoffs) != BASELINE_SIGNOFF_HASH:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"a non-target sign-off record was changed\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"all evidence references and all non-target sign-offs are unchanged\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "immutability_sanity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:58Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0027_accounting_audit_tax_en_t2_rl_006",
+  "variant_digest": "sha256:89a117736c9d35fa7eedcd17cb13a6fce4e390f50f676f7ae7dfff0c7ed641ea",
+  "variant_harbor_digest": "sha256:53f836b38ac539b37152e4ea0b402718d07678cccc512b212e2ecf455d0247d6",
+  "parent": {
+    "digest": "sha256:9a31e05423590d3a9944a35e9b2e2b00088400df5761555df161e30c96e63cd5",
+    "harbor_digest": "sha256:a98bc4c8fa7c086a886a6b17403977c3af83e32bddf9ab3284ea9850534358c0",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0027_accounting_audit_tax_en_t2_rl_006/9a31e0542359.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:db49fd542f20a81cf8a8e01ec8028a075bc377edd36c70374d35f1935818fba2",
+      "after_sha256": "sha256:0902a7213c2d9fea346bdf1898845e9469aba3916ed3f5f19fe8ff74f775e7bf",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"review_post_state\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_review_post_state\",\n      \"ground_truth\": {\n        \"mcp\": \"mmg_source_evidence\",\n        \"review_count\": 1,\n        \"fact_id\": \"FACT-MMG-REV-23-DUP\",\n        \"reviewer_disposition\": \"rejected\",\n        \"normalization_decision\": \"rejected\",\n        \"citation_status\": \"verified\",\n        \"review_note_requirements\": [\n          \"duplicate\",\n          \"exclude\"\n        ]\n      }\n    },\n    {\n      \"id\": \"source_payload_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_source_payload_unchanged\",\n      \"ground_truth\": {\n        \"mcp\": \"mmg_source_evidence\",\n        \"protected_tables\": [\n          \"operational_fact_lines\",\n          \"source_citations\"\n        ]\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"shared_hash_and_fact_identity\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response identify the shared citation fingerprint and both revenue fact IDs discovered in the registry?\",\n      \"pass_anchor\": \"Pass only if the response identifies the shared citation fingerprint sha256:mmg-revenue-2023-h1 and names both FACT-MMG-REV-23-A and FACT-MMG-REV-23-DUP as the two US$2.150 billion (stored as 2,150,000 USD-thousands) revenue extractions. Allow normal punctuation, casing, and currency/unit presentation variation, but all three identifiers and the common amount must be materially correct. Ground truth was read directly from the MMG Source Evidence Registry source_citations and operational_fact_lines rows.\"\n    },\n    {\n      \"id\": \"authority_rationale\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response correctly explain which extraction is retained and why the other is excluded from additive revenue totals?\",\n      \"pass_anchor\": \"Pass if the response states that FACT-MMG-REV-23-A is retained as authoritative because its authority_rank is 1, while FACT-MMG-REV-23-DUP is the non-additive duplicate because its authority_rank is 2, despite sharing the same citation fingerprint and amount. It must make clear that the duplicate is reviewed/excluded rather than changing either fact payload. Ground truth: both rows are present in the registry with amount_integer 2,150,000, and their authority ranks are 1 and 2 respectively; both citations use sha256:mmg-revenue-2023-h1 and both citation statuses are verified before the requested review.\"\n    }\n  ],\n  \"check_code\": \"#!/usr/bin/env python3\\n\\\"\\\"\\\"Deterministic post-state checks for the MMG source-review mutation.\\\"\\\"\\\"\\n\\nfrom pathlib import Path\\nimport hashlib\\nimport sqlite3\\n\\nMCP = \\\"mmg_source_evidence\\\"\\nEXPECTED_FACTS_HASH = \\\"174120ae83b528d441c4fb68b2b067a1388b9d0bfd6727679cd49e6952bb6f90\\\"\\nEXPECTED_CITATIONS_HASH = \\\"96b97af73f638243e4749d8598289b1557611a927f7e1d9ad2f5f7593644d8c5\\\"\\n\\n\\ndef _connection(workspace):\\n    db = Path(workspace).resolve().parent / \\\"system\\\" / MCP / \\\"state.db\\\"\\n    connection = sqlite3.connect(f\\\"file:{db}?mode=ro\\\", uri=True)\\n    connection.row_factory = sqlite3.Row\\n    return connection\\n\\n\\ndef _table_hash(connection, table):\\n    rows = sorted(hashlib.sha256(repr(tuple(row)).encode(\\\"utf-8\\\")).hexdigest() for row in connection.execute(f'SELECT * FROM \\\"{table}\\\"'))\\n    return hashlib.sha256(\\\"|\\\".join(rows).encode(\\\"utf-8\\\")).hexdigest()\\n\\n\\ndef check_review_post_state(workspace):\\n    try:\\n        connection = _connection(workspace)\\n    except Exception as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"Unable to open MMG registry: {exc}\\\"}\\n    try:\\n        tables = {row[0] for row in connection.execute(\\\"SELECT name FROM sqlite_master WHERE type='table'\\\")}\\n        if \\\"source_reviews\\\" not in tables:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"source_reviews table is absent; no review event was recorded\\\"}\\n        rows = [dict(row) for row in connection.execute(\\\"SELECT fact_id, reviewer_disposition, normalization_decision, citation_status, review_note FROM source_reviews\\\")]\\n        if len(rows) != 1:\\n            return {\\\"score\\\": 0, \\\"detail\\\": f\\\"Expected exactly one review event, found {len(rows)}\\\"}\\n        row = rows[0]\\n        note = (row.get(\\\"review_note\\\") or \\\"\\\").casefold()\\n        required = (\\\"duplicate\\\", \\\"exclude\\\")\\n        if row[\\\"fact_id\\\"] != \\\"FACT-MMG-REV-23-DUP\\\":\\n            return {\\\"score\\\": 0, \\\"detail\\\": f\\\"Review targets {row['fact_id']!r}, not the lower-authority duplicate\\\"}\\n        if row[\\\"reviewer_disposition\\\"] != \\\"rejected\\\" or row[\\\"normalization_decision\\\"] != \\\"rejected\\\" or row[\\\"citation_status\\\"] != \\\"verified\\\":\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"Review dispositions or citation status do not match the required independent review\\\"}\\n        if not all(term in note for term in required):\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"Review note does not explain duplicate exclusion\\\"}\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"Exactly one correctly targeted duplicate review is present\\\"}\\n    finally:\\n        connection.close()\\n\\n\\ndef check_source_payload_unchanged(workspace):\\n    try:\\n        connection = _connection(workspace)\\n    except Exception as exc:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"Unable to open MMG registry: {exc}\\\"}\\n    try:\\n        facts_hash = _table_hash(connection, \\\"operational_fact_lines\\\")\\n        citations_hash = _table_hash(connection, \\\"source_citations\\\")\\n        if facts_hash != EXPECTED_FACTS_HASH or citations_hash != EXPECTED_CITATIONS_HASH:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"Operational fact lines or source citations changed\\\"}\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"Operational fact lines and source citations retain their original payloads\\\"}\\n    finally:\\n        connection.close()\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "source_payload_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:57Z",
+  "status": "candidate",
+  "evidence": []
+}

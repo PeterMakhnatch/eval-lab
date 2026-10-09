@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0052_accounting_audit_tax_en_t2_rl_005",
+  "variant_digest": "sha256:f067012cfd751a32d481fc0dc7e9b36ddf8409dcc04f76b594ba521c31aae0d1",
+  "variant_harbor_digest": "sha256:28db1fd08c7bdf9686438d1cb6fd9f0c9e3bb1483f94de2a78dde39fdfce65e8",
+  "parent": {
+    "digest": "sha256:90c733132cb2a1b6d62fcb62537124663c0100da962761b9d91f1a2762016d14",
+    "harbor_digest": "sha256:a4a43580dc1efad8341395e11fab08f51ea44d94c37c639bc84eb5dcd5dfc5aa",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0052_accounting_audit_tax_en_t2_rl_005/90c733132cb2.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:ab1df5c571a8108892f2ad8763c2447b8ad9a686a94b51b49e75d026dbf339ac",
+      "after_sha256": "sha256:fd122301ce8ab2938c28a0df95aa97ee426670d889555dc43ecca1e91a312ac8",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"payment_stream_exception_post_state\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_payment_stream_exception_post_state\",\n      \"ground_truth\": {\n        \"lease_id\": \"LA-2024-017\",\n        \"payment_stream_id\": \"PS-2024-017-V2\",\n        \"exception_type\": \"COMPLETENESS\",\n        \"raised_by\": \"Sarah Chen\",\n        \"idempotency_key\": \"T005-SEP2024-LA-2024-017-COMPLETENESS\",\n        \"status\": \"OPEN\",\n        \"description_terms\": [\n          \"September 2024\",\n          \"excluded\",\n          \"renewal\",\n          \"latest\",\n          \"source stream\"\n        ]\n      }\n    },\n    {\n      \"id\": \"evidence_and_reconciliation_conclusions\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final response report the selected lease evidence, the current stream facts, and the contract-register control context accurately?\",\n      \"pass_anchor\": \"The response must identify LeaseAccelerator lease LA-2024-017 / contract US-RETAIL-24017 at 1450 Market Street, San Francisco. It must state that the lease is selected for the September 2024 validation population, has a renewal option ending 2039-01-06 that is excluded as not reasonably certain, and has validation workflow status INCOMPLETE. It must identify PS-2024-017-V2 as the current non-superseded stream, distinguish PS-2024-017-V1 as superseded, and report the current stream's monthly USD fixed payment of 7,304,527 cents ($73,045.27) and annualized amount of 87,654,321 cents ($876,543.21), accepting equivalent formatting. It must also state that the CSV/memo selected control has five records totaling $4,918,760.35 annual fixed payments and is not the complete lease population.\"\n    },\n    {\n      \"id\": \"preserve_source_accounting_records\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_preserve_source_accounting_records\",\n      \"ground_truth\": {\n        \"target_lease\": \"LA-2024-017\",\n        \"protected_streams\": [\n          \"PS-2024-017-V1\",\n          \"PS-2024-017-V2\"\n        ],\n        \"protected_measurement_component_count\": 0\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _db(ws):\\n    return sqlite3.connect(Path(ws).parent / \\\"system\\\" / \\\"leaseaccelerator_lease_accounting\\\" / \\\"state.db\\\")\\n\\n\\ndef _norm(value):\\n    return \\\" \\\".join(str(value or \\\"\\\").casefold().replace(\\\"-\\\", \\\" \\\").split())\\n\\n\\ndef check_payment_stream_exception_post_state(ws):\\n    con = _db(ws)\\n    try:\\n        try:\\n            rows = con.execute(\\n                \\\"SELECT lease_id, payment_stream_id, exception_type, description, raised_by, idempotency_key, status \\\"\\n                \\\"FROM payment_stream_exceptions WHERE idempotency_key = ?\\\",\\n                (\\\"T005-SEP2024-LA-2024-017-COMPLETENESS\\\",),\\n            ).fetchall()\\n        except sqlite3.OperationalError:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"The payment-stream exception record was not created.\\\"}\\n        if len(rows) != 1:\\n            return {\\\"score\\\": 0, \\\"detail\\\": f\\\"Expected one idempotent exception, found {len(rows)}.\\\"}\\n        lease_id, stream_id, exception_type, description, raised_by, key, status = rows[0]\\n        text = _norm(description)\\n        required = [\\\"september 2024\\\", \\\"excluded\\\", \\\"renewal\\\", \\\"latest\\\", \\\"source\\\", \\\"stream\\\"]\\n        ok = (\\n            lease_id == \\\"LA-2024-017\\\" and stream_id == \\\"PS-2024-017-V2\\\" and\\n            exception_type == \\\"COMPLETENESS\\\" and raised_by == \\\"Sarah Chen\\\" and\\n            key == \\\"T005-SEP2024-LA-2024-017-COMPLETENESS\\\" and status == \\\"OPEN\\\" and\\n            all(term in text for term in required)\\n        )\\n        return {\\\"score\\\": int(ok), \\\"detail\\\": f\\\"exception={rows[0]}\\\"}\\n    finally:\\n        con.close()\\n\\n\\ndef check_preserve_source_accounting_records(ws):\\n    con = _db(ws)\\n    try:\\n        streams = con.execute(\\n            \\\"SELECT payment_stream_id, lease_id, payment_start_date, payment_end_date, payment_frequency, \\\"\\n            \\\"fixed_payment_cents, annualized_fixed_payment_cents, currency_code, component_combination_flag, \\\"\\n            \\\"source_version, superseded_flag, duplicate_of_stream_id, source_file_name \\\"\\n            \\\"FROM lease_payment_streams WHERE payment_stream_id IN (?, ?) ORDER BY payment_stream_id\\\",\\n            (\\\"PS-2024-017-V1\\\", \\\"PS-2024-017-V2\\\"),\\n        ).fetchall()\\n        expected = [\\n            (\\\"PS-2024-017-V1\\\", \\\"LA-2024-017\\\", \\\"2024-01-07\\\", \\\"2034-01-06\\\", \\\"MONTHLY\\\", 7150000, 85800000, \\\"USD\\\", 1, 1, 1, None, \\\"US_RENT_ROLL_2024-08-30.csv\\\"),\\n            (\\\"PS-2024-017-V2\\\", \\\"LA-2024-017\\\", \\\"2024-01-07\\\", \\\"2034-01-06\\\", \\\"MONTHLY\\\", 7304527, 87654321, \\\"USD\\\", 1, 2, 0, \\\"PS-2024-017-V1\\\", \\\"US_RENT_ROLL_2024-09-18.csv\\\"),\\n        ]\\n        if streams != expected:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"A source payment stream was edited, superseded, or deleted.\\\"}\\n        count = con.execute(\\n            \\\"SELECT COUNT(*) FROM measurement_components WHERE lease_id = ?\\\",\\n            (\\\"LA-2024-017\\\",),\\n        ).fetchone()[0]\\n        if count != 0:\\n            return {\\\"score\\\": 0, \\\"detail\\\": f\\\"Measurement component count changed from 0 to {count}.\\\"}\\n        return {\\\"score\\\": 1, \\\"detail\\\": \\\"Source payment streams and measurement components remain unchanged.\\\"}\\n    finally:\\n        con.close()\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "preserve_source_accounting_records": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:57Z",
+  "status": "candidate",
+  "evidence": []
+}

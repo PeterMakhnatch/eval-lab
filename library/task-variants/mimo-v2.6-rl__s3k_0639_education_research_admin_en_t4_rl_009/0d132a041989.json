@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0639_education_research_admin_en_t4_rl_009",
+  "variant_digest": "sha256:0d132a0419891c106434cd5d4baeef490ee5e6dcc0d063c423327f61cc136850",
+  "variant_harbor_digest": "sha256:e3e5699866f3e4795efd18424a9e0c0fd6ac73e5fdac85934459bc5f1e6a71b8",
+  "parent": {
+    "digest": "sha256:3855765ba3c5099bf25e16e540ded3f8a684be576116cc882bd21a07c93802b8",
+    "harbor_digest": "sha256:03a1c63dd04a72bef79d844fd8495a043e43f4cfee0db878d6b7aa1671527094",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0639_education_research_admin_en_t4_rl_009/3855765ba3c5.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:c57b8d78677546b842ebe3c795fe50bc14bc00c0f3d8c05e3e8bc05f8fa6ba55",
+      "after_sha256": "sha256:d76af15f1d9c89dcb318e52907cb946ac55e48726a25812b5c58984c19755c3f",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"registered_action_poststate\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_registered_action\",\n      \"ground_truth\": {\n        \"project_id\": \"ORG-EDUC\",\n        \"owner_org_id\": \"ORG-EDUC-PRO\",\n        \"title\": \"Launch the accelerated competitive procurement and document market engagement.\",\n        \"status_code\": \"Open\",\n        \"opened_date\": \"2025-09-18\",\n        \"due_date\": \"2025-09-24\",\n        \"closed_date\": null,\n        \"duplicate_of_action_id\": null,\n        \"linked_risk_id\": \"RISK-R-11\",\n        \"description_requirements\": [\n          \"Thomas Reed\",\n          \"procurement notice\",\n          \"supplier list\",\n          \"market-engagement record\"\n        ]\n      },\n      \"question\": \"\"\n    },\n    {\n      \"id\": \"preexisting_actions_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_preexisting_actions_unchanged\",\n      \"ground_truth\": {\n        \"preexisting_review_actions_sha256\": \"5f83f5201f263c233b96d10c56d20e82279efc85c90e5e87e403b2d5e0245c8a\",\n        \"preexisting_row_count\": 62\n      },\n      \"question\": \"\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"source_and_governance_conclusions\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Did the final answer report the independently verified meeting-record and governance conclusions needed to support the registered action?\",\n      \"pass_anchor\": \"Pass only if the answer identifies the EDUC Programme Review Record dated 18 September 2025 as the meeting-record source; states that approved DEC-07 authorizes the accelerated competitive procurement and that ACT-038 is the corresponding launch-and-market-engagement obligation; identifies Thomas Reed as the accountable person (the Procurement Office role may be stated but is not required); gives the due date as 24 September 2025; links the action to active RISK-R-11 at the 12 September 2025 cut-off; and names all three required evidence elements: the procurement notice, supplier list, and market-engagement record. It must clearly distinguish the governance target from the later operational planned-award snapshot. Explicit non-conflation language such as \\\"kept distinct\\\" or \\\"separate from\\\" is sufficient even when the two dates are not both repeated; naming 15 October 2025 and 31 October 2025 is also acceptable.\"\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"Deterministic post-state checks for the Jira action registration.\\\"\\\"\\\"\\nimport hashlib\\nimport json\\nimport re\\nimport sqlite3\\nfrom pathlib import Path\\n\\n_EXPECTED_PREEXISTING_SHA256 = \\\"5f83f5201f263c233b96d10c56d20e82279efc85c90e5e87e403b2d5e0245c8a\\\"\\n_EXPECTED_PREEXISTING_COUNT = 62\\n\\ndef _jira_db(ws):\\n    return Path(ws).parent / \\\"system\\\" / \\\"jira_review_actions\\\" / \\\"state.db\\\"\\n\\ndef _norm(value):\\n    return re.sub(r\\\"[^a-z0-9]+\\\", \\\" \\\", \\\"\\\" if value is None else str(value).lower()).strip()\\n\\ndef _rows(con):\\n    return [tuple(row) for row in con.execute(\\\"SELECT action_id, project_id, owner_org_id, title, description, status_code, opened_date, due_date, closed_date, duplicate_of_action_id, linked_risk_id FROM review_actions ORDER BY action_id\\\")]\\n\\ndef check_registered_action(ws):\\n    with sqlite3.connect(_jira_db(Path(ws))) as con:\\n        rows = _rows(con)\\n    new_rows = [row for row in rows if str(row[0]).startswith(\\\"ACT-NEW-\\\")]\\n    if len(new_rows) != 1:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"expected exactly one new action, found {len(new_rows)}\\\"}\\n    row = new_rows[0]\\n    if (row[1], row[2], _norm(row[3]), row[5], row[6], row[7], row[8], row[9], row[10]) != (\\\"ORG-EDUC\\\", \\\"ORG-EDUC-PRO\\\", _norm(\\\"Launch the accelerated competitive procurement and document market engagement.\\\"), \\\"Open\\\", \\\"2025-09-18\\\", \\\"2025-09-24\\\", None, None, \\\"RISK-R-11\\\"):\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"new action {row[0]} does not match the controlled post-state\\\"}\\n    if not all(term in _norm(row[4]) for term in (\\\"thomas reed\\\", \\\"procurement notice\\\", \\\"supplier list\\\", \\\"market engagement record\\\")):\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"new action {row[0]} is missing required description content\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": f\\\"registered action {row[0]} matches the controlled post-state\\\"}\\n\\ndef check_preexisting_actions_unchanged(ws):\\n    with sqlite3.connect(_jira_db(Path(ws))) as con:\\n        rows = _rows(con)\\n    baseline = [row for row in rows if not str(row[0]).startswith(\\\"ACT-NEW-\\\")]\\n    digest = hashlib.sha256(json.dumps(baseline, separators=(\\\",\\\", \\\":\\\"), ensure_ascii=True).encode()).hexdigest()\\n    if len(baseline) != _EXPECTED_PREEXISTING_COUNT or digest != _EXPECTED_PREEXISTING_SHA256:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"pre-existing Jira actions changed (count={len(baseline)}, digest={digest})\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"all pre-existing Jira action rows remain unchanged\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "preexisting_actions_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:03Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1660_hr_people_en_t4_rl_007",
+  "variant_digest": "sha256:ed344980a52e3b69a9337ea39f9d8d825cee9ff589e664867d196cff728d1b87",
+  "variant_harbor_digest": "sha256:f36066e9bb7fc533970b0a46852ec6d6ba4bd46ca4a86a9e8883c1c297212646",
+  "parent": {
+    "digest": "sha256:249ba8d1e82f855abc863641c74f3803af6473ce63609e01b69a5bb6c3e99331",
+    "harbor_digest": "sha256:db5a4cb78b7a9db34737ac7ef0f6723589ec78eb7ba746e27542e2b81e7abed1",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1660_hr_people_en_t4_rl_007/249ba8d1e82f.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:5899eb122f13ba8b2124b29f67b1f1ed31adf8df67400f615edc502691157063",
+      "after_sha256": "sha256:3d054cb3c8855db56a1dc9381f437d8c5724e9036d9d2fea9354ca7feda91104",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"event_queue_complete\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response identify the complete eight-event FY2026 queue with the correct worker, event type, and effective date for every event?\",\n      \"pass_anchor\": \"The response must contain exactly these eight event identities and dates, in any order: Reese Thompson — TRANSFER — August 18, 2025; Frankie Gray — LEAVE_START — September 22, 2025; Casey Wilson — HIRE — October 13, 2025; Rowan Kim — TRANSFER — November 3, 2025; Priya Nair — TRANSFER — December 1, 2025; Frankie Gray — RETURN — December 8, 2025; Elliot Rivera — HIRE — January 12, 2026; Payton Long — TERMINATION — May 22, 2026. Minor date-format and capitalization variations are acceptable, but omissions, substitutions, or wrong dates fail this item.\"\n    },\n    {\n      \"id\": \"lifecycle_actions\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response map every event to the correct lifecycle control family from the approved plan materials, including the required owner or escalation path?\",\n      \"pass_anchor\": \"The response must apply these control families without treating the annual approved compensation profile as a proration calculation: both hires require an effective, complete PCP and effective-dated new-hire ramp/proration treatment; all three transfers require a superseding or amended PCP and forward-looking territory/crediting controls before the new measurement period (the Rowan Kim move also requires quota/proration treatment because the event record says quota proration); the leave start and return for Frankie Gray require leave-neutral People Operations and Legal review, reconfirmation of quota/coverage treatment, and effective-dated documentation; the Payton Long termination requires earned-amount, separation-ledger, and final-pay review with Payroll and Employment Counsel. The answer should recognize PCP/effective-date documentation and escalation to the Plan Administration Committee when interpretation or an exception is needed. Equivalent clear wording is acceptable.\"\n    },\n    {\n      \"id\": \"event_counts\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final response summarize the correct counts by event type?\",\n      \"pass_anchor\": \"The totals must be 2 hires, 3 transfers, 1 leave start, 1 return, and 1 termination, for 8 events total. Counts must refer to the selected FY2026 Workday queue rather than all historical or cancelled events.\"\n    },\n    {\n      \"id\": \"read_only_integrity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_read_only_integrity\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\n\\n\\ndef check_read_only_integrity(ws):\\n    \\\"\\\"\\\"Sanity check: the read-only task workspace remains available and unaltered in structure.\\\"\\\"\\\"\\n    required = [\\n        ws / \\\"01_Source_Interpretation\\\",\\n        ws / \\\"02_Model_and_Finance\\\",\\n        ws / \\\"03_Governance_and_Plan\\\",\\n        ws / \\\"04_Employee_Communications\\\",\\n        ws / \\\"99_Archive\\\",\\n    ]\\n    missing = [str(path.relative_to(ws)) for path in required if not path.is_dir()]\\n    if missing:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"missing workspace directories: \\\" + \\\", \\\".join(missing)}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"workspace directory structure is present\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "read_only_integrity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:12Z",
+  "status": "candidate",
+  "evidence": []
+}

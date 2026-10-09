@@ -1,0 +1,143 @@
+{
+  "evidence_tier": "MEASURED",
+  "task": "dasyn_260630_00001",
+  "task_package_digest": "sha256:60c457fba6295b3ff1a3eba4d37dfbc5f091c07d740071f295f75d9134986855",
+  "command": "uv run python research/experiments/judge-variants-night/controls.py",
+  "docker": {
+    "image": "docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:6e30e61bdbe1504470cd1f705b120d317da9e7f57df3ba04a906db6b2e95e14d",
+    "network": "none",
+    "containers": 1,
+    "rm": true
+  },
+  "exit_code": 0,
+  "model_calls": 0,
+  "stdout": " * Starting MySQL database server mysqld\n   ...done.\n * Starting PostgreSQL 16 database server\n   ...done.\nStarting redis-server: redis-server.\nabout to fork child process, waiting until server is ready for connections.\nforked process: 306\nchild process started successfully, parent exiting\nStructural gates failed: blank rendered DOM; no brief-keyword DOM presence\nStructural gates failed: no brief-keyword DOM presence\nStructural gates failed: horizontal overflow\nJudge deployment revision is unbound; not scored.\n",
+  "stderr": "WARNING: The requested image's platform (linux/amd64) does not match the detected host platform (linux/arm64/v8) and no specific platform was requested\nnot scored\n",
+  "controls": [
+    {
+      "control": "blank",
+      "result": {
+        "reward": 0.0,
+        "summary": "Structural gates failed: blank rendered DOM; no brief-keyword DOM presence",
+        "structural_gates": [
+          "blank rendered DOM",
+          "no brief-keyword DOM presence"
+        ]
+      },
+      "gates": {
+        "passed": false,
+        "failed": [
+          "blank rendered DOM",
+          "no brief-keyword DOM presence"
+        ],
+        "dom_chars": 0,
+        "keywords": [
+          "Nexa Prote\u00e7\u00e3o",
+          "artigos em destaque",
+          "Seguro Auto",
+          "Vida",
+          "Sa\u00fade",
+          "Empresarial",
+          "FAQ",
+          "WhatsApp"
+        ],
+        "layout": {
+          "scroll_w": 1440,
+          "client_w": 1440,
+          "text": " "
+        }
+      }
+    },
+    {
+      "control": "hidden-keyword",
+      "result": {
+        "reward": 0.0,
+        "summary": "Structural gates failed: no brief-keyword DOM presence",
+        "structural_gates": [
+          "no brief-keyword DOM presence"
+        ]
+      },
+      "gates": {
+        "passed": false,
+        "failed": [
+          "no brief-keyword DOM presence"
+        ],
+        "dom_chars": 14,
+        "keywords": [
+          "Nexa Prote\u00e7\u00e3o",
+          "artigos em destaque",
+          "Seguro Auto",
+          "Vida",
+          "Sa\u00fade",
+          "Empresarial",
+          "FAQ",
+          "WhatsApp"
+        ],
+        "layout": {
+          "scroll_w": 1440,
+          "client_w": 1440,
+          "text": "Unrelated page "
+        }
+      }
+    },
+    {
+      "control": "overflow",
+      "result": {
+        "reward": 0.0,
+        "summary": "Structural gates failed: horizontal overflow",
+        "structural_gates": [
+          "horizontal overflow"
+        ]
+      },
+      "gates": {
+        "passed": false,
+        "failed": [
+          "horizontal overflow"
+        ],
+        "dom_chars": 13,
+        "keywords": [
+          "Nexa Prote\u00e7\u00e3o",
+          "artigos em destaque",
+          "Seguro Auto",
+          "Vida",
+          "Sa\u00fade",
+          "Empresarial",
+          "FAQ",
+          "WhatsApp"
+        ],
+        "layout": {
+          "scroll_w": 3008,
+          "client_w": 1440,
+          "text": "Nexa Prote\u00e7\u00e3o "
+        }
+      }
+    },
+    {
+      "control": "necessary-gates-pass",
+      "result": {
+        "reward": null,
+        "summary": "Judge deployment revision is unbound; not scored."
+      },
+      "gates": {
+        "passed": true,
+        "failed": [],
+        "dom_chars": 53,
+        "keywords": [
+          "Nexa Prote\u00e7\u00e3o",
+          "artigos em destaque",
+          "Seguro Auto",
+          "Vida",
+          "Sa\u00fade",
+          "Empresarial",
+          "FAQ",
+          "WhatsApp"
+        ],
+        "layout": {
+          "scroll_w": 1440,
+          "client_w": 1440,
+          "text": "Nexa Prote\u00e7\u00e3o\n\nSeguro Auto, Vida, Sa\u00fade, FAQ, WhatsApp "
+        }
+      }
+    }
+  ]
+}

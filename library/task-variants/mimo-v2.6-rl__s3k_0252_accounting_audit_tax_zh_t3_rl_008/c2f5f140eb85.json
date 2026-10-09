@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0252_accounting_audit_tax_zh_t3_rl_008",
+  "variant_digest": "sha256:c2f5f140eb85c5092c6e14e9108977efcb1bb38ed37affaa589000a8b00d8d20",
+  "variant_harbor_digest": "sha256:11bb38ca99b08535aff06b824c622cd9341544bf779fc8d3bec9600f56279d4a",
+  "parent": {
+    "digest": "sha256:348ae0658623fc56e7d5b1f3ac9dbc88cb8b8931ece8814f61c90694e3601bbd",
+    "harbor_digest": "sha256:e00af0fdcd10e8ba647914a72fbd76b02dd2d1b6827e765db1f487fc00ec432b",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0252_accounting_audit_tax_zh_t3_rl_008/348ae0658623.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:3f8acd6adcc1c882874ff1c6f27cd30484e584171f4874f43f530a5f57a2dfdd",
+      "after_sha256": "sha256:3f44912b0b01d71aa4d2f12b7667dbd6dfa58f36314d9d156ede371bbf671625",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"new_payment_review_step\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_new_payment_review_step\",\n      \"description\": \"目标申请新增唯一的付款审核复核通过人工节点，操作人、任职、委托标志和稳定幂等标记均正确。\",\n      \"ground_truth\": {\n        \"request_id\": \"REQ-PAY-2024-0241\",\n        \"sequence_no\": 4,\n        \"step_code\": \"PAYMENT_REVIEW\",\n        \"action_code\": \"APPROVE\",\n        \"approver_assignment_id\": \"ASN-HE-PAYREV-202301\",\n        \"actual_operator_person_id\": \"PERSON_HE_JIACHENG\",\n        \"delegated_flag\": 0,\n        \"action_comment_contains_idempotency_marker\": true\n      }\n    },\n    {\n      \"id\": \"request_status_in_review\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_request_status\",\n      \"description\": \"目标付款申请登记复核通过后状态为处理中。\",\n      \"ground_truth\": {\n        \"request_id\": \"REQ-PAY-2024-0241\",\n        \"request_status\": \"IN_REVIEW\"\n      }\n    },\n    {\n      \"id\": \"historical_steps_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_historical_steps_unchanged\",\n      \"description\": \"原有三条历史审批节点保持不变，且未新增客户端系统归档动作。\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"timeline_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终答复是否准确重建了该申请的人工处理顺序，并识别出先发生付款审核退回、后由应付会计补件，且明确排除了流程引擎自动归档记录？\",\n      \"pass_anchor\": \"应明确说明 E9-PAY-2024-0241 的人工顺序是：序号1提交付款申请；序号2由付款审核环节退回，原因是缺少本批次检验报告签章页；序号3由应付会计补件，说明已上传检验报告、等待付款审核人复核。系统中若提到自动归档，只能作为被排除的系统动作，不能算人工审批。\"\n    },\n    {\n      \"id\": \"reviewer_assignment_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终答复是否识别出复核审核人的有效任职、实际身份与委托结论？\",\n      \"pass_anchor\": \"应识别何嘉诚（规范身份 PERSON_HE_JIACHENG）使用 ASN-HE-PAYREV-202301，职责为 PAYMENT_REVIEWER/付款审核，任职自 2023-01-16 起有效且没有结束日；实际操作人与该任职匹配，delegated_flag=0，未发现可依据的委托关系。\"\n    },\n    {\n      \"id\": \"operation_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终答复是否说明已经完成了正确的数据库操作及其关键后态？\",\n      \"pass_anchor\": \"应说明已在 REQ-PAY-2024-0241 追加唯一序号4的 PAYMENT_REVIEW/APPROVE 人工节点，由何嘉诚执行，未使用委托，并带有稳定幂等标记；申请状态已更新为 IN_REVIEW（处理中/复核中）。不应声称伪造或新增 SYSTEM_ARCHIVE。\"\n    }\n  ],\n  \"check_code\": \"import re\\nimport sqlite3\\nfrom pathlib import Path\\n\\nREQUEST_ID = \\\"REQ-PAY-2024-0241\\\"\\nEXPECTED_HISTORY = [\\n    (\\\"STP-PAY-0241-01\\\", \\\"PAYMENT_REQUEST_SUBMIT\\\", \\\"ASN-ZHOU-AP-202401\\\", \\\"PERSON_ZHOU_YINING\\\", \\\"SUBMIT\\\", 0, 1, \\\"提交APV-2024-04-00241付款申请。\\\"),\\n    (\\\"STP-PAY-0241-02\\\", \\\"PAYMENT_REVIEW\\\", \\\"ASN-HE-PAYREV-202301\\\", \\\"PERSON_HE_JIACHENG\\\", \\\"RETURN\\\", 0, 2, \\\"缺少本批次检验报告签章页，请补充后再审。\\\"),\\n    (\\\"STP-PAY-0241-03\\\", \\\"SUPPLEMENT_MATERIAL\\\", \\\"ASN-ZHOU-AP-202401\\\", \\\"PERSON_ZHOU_YINING\\\", \\\"SUPPLEMENT\\\", 0, 3, \\\"已上传检验报告，等待付款审核人复核。\\\"),\\n]\\n\\n\\ndef _db(ws):\\n    ws = Path(ws)\\n    candidates = [ws.parent / \\\"system\\\" / \\\"weaver_e9_approval\\\" / \\\"state.db\\\", Path(\\\"system/weaver_e9_approval/state.db\\\")]\\n    for path in candidates:\\n        if path.exists():\\n            con = sqlite3.connect(path)\\n            con.row_factory = sqlite3.Row\\n            return con\\n    raise FileNotFoundError(\\\"weaver_e9_approval/state.db not found\\\")\\n\\n\\ndef _result(ok, detail):\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": detail}\\n\\n\\ndef check_new_payment_review_step(ws):\\n    with _db(ws) as con:\\n        rows = con.execute(\\n            \\\"SELECT * FROM approval_steps WHERE request_id=? AND sequence_no=4\\\",\\n            (REQUEST_ID,),\\n        ).fetchall()\\n    if len(rows) != 1:\\n        return _result(False, f\\\"序号4节点数量为 {len(rows)}，应为1\\\")\\n    row = rows[0]\\n    checks = [\\n        row[\\\"step_code\\\"] == \\\"PAYMENT_REVIEW\\\",\\n        row[\\\"action_code\\\"] == \\\"APPROVE\\\",\\n        row[\\\"approver_assignment_id\\\"] == \\\"ASN-HE-PAYREV-202301\\\",\\n        row[\\\"actual_operator_person_id\\\"] == \\\"PERSON_HE_JIACHENG\\\",\\n        row[\\\"delegated_flag\\\"] == 0,\\n        bool(re.search(r\\\"\\\\[idem:[^\\\\]\\\\s]+\\\\]\\\", row[\\\"action_comment\\\"] or \\\"\\\")),\\n    ]\\n    if not all(checks):\\n        return _result(False, \\\"序号4的节点类型、动作、审核人、委托标志或幂等标记不符合要求\\\")\\n    return _result(True, \\\"已找到符合约束的唯一序号4付款审核通过节点\\\")\\n\\n\\ndef check_request_status(ws):\\n    with _db(ws) as con:\\n        row = con.execute(\\n            \\\"SELECT request_status FROM approval_requests WHERE request_id=?\\\",\\n            (REQUEST_ID,),\\n        ).fetchone()\\n    ok = row is not None and row[\\\"request_status\\\"] == \\\"IN_REVIEW\\\"\\n    return _result(ok, \\\"申请状态为 IN_REVIEW\\\" if ok else \\\"申请不存在或状态不是 IN_REVIEW\\\")\\n\\n\\ndef check_historical_steps_unchanged(ws):\\n    with _db(ws) as con:\\n        rows = con.execute(\\n            \\\"SELECT step_id,step_code,approver_assignment_id,actual_operator_person_id,action_code,delegated_flag,sequence_no,action_comment \\\"\\n            \\\"FROM approval_steps WHERE request_id=? AND sequence_no<=3 ORDER BY sequence_no\\\",\\n            (REQUEST_ID,),\\n        ).fetchall()\\n        archives = con.execute(\\n            \\\"SELECT COUNT(*) AS n FROM approval_steps WHERE request_id=? AND step_code='SYSTEM_ARCHIVE' AND action_code='SYSTEM'\\\",\\n            (REQUEST_ID,),\\n        ).fetchone()[\\\"n\\\"]\\n    actual = [tuple(row) for row in rows]\\n    ok = actual == EXPECTED_HISTORY and archives == 0\\n    return _result(ok, \\\"原三条历史节点未改变且未新增系统归档动作\\\" if ok else \\\"历史节点被修改、删除或新增了系统归档动作\\\")\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "historical_steps_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:59Z",
+  "status": "candidate",
+  "evidence": []
+}

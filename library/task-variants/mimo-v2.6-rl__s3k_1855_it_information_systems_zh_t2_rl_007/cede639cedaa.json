@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1855_it_information_systems_zh_t2_rl_007",
+  "variant_digest": "sha256:cede639cedaaf7e0c75e922d8910a76296ac30424f963a794f3ed55ebc314042",
+  "variant_harbor_digest": "sha256:310cea564b07381122650cdf8b234df14b86ff0d6b5c96311b8c3bdbe8802fb2",
+  "parent": {
+    "digest": "sha256:08fced51a0d452823d2e295301157082b122359f4b6a61d8e9c738cd3215aca5",
+    "harbor_digest": "sha256:0ef3e5d8db50b4e77ec5b07f1e8aff90d934e22662bac18ebf3cc69b799b1083",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1855_it_information_systems_zh_t2_rl_007/08fced51a0d4.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:3f49eb324daf57573112d1d8bf9f1d4278ce085e2134e3573ceb82d0f4045e64",
+      "after_sha256": "sha256:1665b2ddc227c38d16fe33cdc25256f27c4520e4bc2497b51873366f948f0a6f",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_review_state\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_review_state\",\n      \"description\": \"目标质检记录被确认，规范分类为 MFA，且 ServiceNow 关联状态仍为 missing。\",\n      \"ground_truth\": {\n        \"review_id\": \"GQA-202512-0043\",\n        \"call_rollup_id\": \"GCR-20251218-R214\",\n        \"qa_status\": \"confirmed\",\n        \"confirmed_service_category\": \"MFA\",\n        \"correlation_status\": \"missing\"\n      }\n    },\n    {\n      \"id\": \"audit_note\",\n      \"tier\": \"important\",\n      \"method\": \"rule\",\n      \"fn\": \"check_audit_note\",\n      \"description\": \"目标记录的审核说明保留 MFA 分类、弃接、无 ServiceNow 关联及不进入电话 FCR 分母的业务理由。\",\n      \"ground_truth\": {\n        \"required_concepts\": [\n          \"MFA classification\",\n          \"abandoned\",\n          \"missing ServiceNow correlation\",\n          \"excluded from phone FCR denominator\"\n        ]\n      }\n    },\n    {\n      \"id\": \"unchanged_other_reviews\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_other_reviews_unchanged\",\n      \"description\": \"除目标复核项外，其余 Genesys 质检记录保持不变。\",\n      \"ground_truth\": {\n        \"sha256_excluding_target\": \"56fec0e29b91944d6434311d78d9f6d6ff9a38555503161f349b253fa950d11e\",\n        \"row_count\": 115\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"unchanged_call_rollup\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_call_rollup_unchanged\",\n      \"description\": \"目标电话汇总的原始交互数据保持不变。\",\n      \"ground_truth\": {\n        \"sha256\": \"b29d4f3692886acbb7d435849302638fd399eb654939b2b2ed8e6bf50ae77969\"\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"voice_evidence\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否识别出目标通话为弃接、其加权件数为 6，且因没有 ServiceNow 工单关联而不属于电话 FCR 分母，同时说明规范分类为 MFA？\",\n      \"pass_anchor\": \"必须同时表达以下真实证据链：目标通话 GCR-20251218-R214 的 disposition 是 abandoned，interaction weight/abandoned weight 均为 6；ServiceNow correlation key 为空或缺失；因此该事件不能成为 Help Desk 创建的合格电话事件，不进入电话 FCR 分母；质检观察到的 Multi-Factor Authentication 变体规范化为 MFA。允许中文或英文、自然语言及合理同义表达。\"\n    },\n    {\n      \"id\": \"operation_report\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否明确报告已对目标复核项执行了什么 QA 操作，并给出后态为 confirmed、分类 MFA、关联仍 missing？\",\n      \"pass_anchor\": \"回复应明确说明已完成目标质检项的确认/更新操作，并报告后态 qa_status=confirmed、规范服务分类=MFA、关联状态保持 missing；可用中文业务表述，不要求逐字字段名。\"\n    }\n  ],\n  \"check_code\": \"import hashlib\\nimport json\\nimport re\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\nREVIEW_ID = \\\"GQA-202512-0043\\\"\\nROLLUP_ID = \\\"GCR-20251218-R214\\\"\\nOTHER_REVIEWS_SHA256 = \\\"56fec0e29b91944d6434311d78d9f6d6ff9a38555503161f349b253fa950d11e\\\"\\nROLLUP_SHA256 = \\\"b29d4f3692886acbb7d435849302638fd399eb654939b2b2ed8e6bf50ae77969\\\"\\n\\n\\ndef _connection(ws):\\n    db = Path(ws).resolve().parent / \\\"system\\\" / \\\"genesys_cloud\\\" / \\\"state.db\\\"\\n    con = sqlite3.connect(f\\\"file:{db}?mode=ro\\\", uri=True)\\n    con.row_factory = sqlite3.Row\\n    return con\\n\\n\\ndef _digest(value):\\n    raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(\\\",\\\", \\\":\\\"))\\n    return hashlib.sha256(raw.encode(\\\"utf-8\\\")).hexdigest()\\n\\n\\ndef check_target_review_state(ws):\\n    con = _connection(ws)\\n    try:\\n        row = con.execute(\\\"SELECT review_id, call_rollup_id, qa_status, confirmed_service_category, correlation_status FROM call_quality_reviews WHERE review_id = ?\\\", (REVIEW_ID,)).fetchone()\\n    finally:\\n        con.close()\\n    got = dict(row) if row else None\\n    expected = {\\\"review_id\\\": REVIEW_ID, \\\"call_rollup_id\\\": ROLLUP_ID, \\\"qa_status\\\": \\\"confirmed\\\", \\\"confirmed_service_category\\\": \\\"MFA\\\", \\\"correlation_status\\\": \\\"missing\\\"}\\n    ok = got == expected\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": f\\\"got={got}, expected={expected}\\\"}\\n\\n\\ndef check_audit_note(ws):\\n    con = _connection(ws)\\n    try:\\n        row = con.execute(\\\"SELECT review_note FROM call_quality_reviews WHERE review_id = ?\\\", (REVIEW_ID,)).fetchone()\\n    finally:\\n        con.close()\\n    note = (row[\\\"review_note\\\"] if row else \\\"\\\") or \\\"\\\"\\n    text = re.sub(r\\\"[^a-z0-9一-龥]+\\\", \\\" \\\", note.lower())\\n    groups = {\\n        \\\"mfa\\\": (\\\"mfa\\\", \\\"multi factor\\\", \\\"multi-factor\\\", \\\"多因素\\\", \\\"多因子\\\"),\\n        \\\"abandoned\\\": (\\\"abandoned\\\", \\\"abandon\\\", \\\"disconnected\\\", \\\"弃接\\\", \\\"放弃\\\", \\\"未接通\\\"),\\n        \\\"missing correlation\\\": (\\\"no servicenow\\\", \\\"missing servicenow\\\", \\\"no ticket\\\", \\\"without ticket\\\", \\\"no correlation\\\", \\\"missing correlation\\\", \\\"无工单\\\", \\\"没有工单\\\", \\\"无关联\\\", \\\"缺少关联\\\"),\\n        \\\"fcr exclusion\\\": (\\\"fcr denominator\\\", \\\"fcr denominator\\\", \\\"not in fcr\\\", \\\"excluded from fcr\\\", \\\"exclude fcr\\\", \\\"hd fcr 60m denominator\\\", \\\"不进入 fcr\\\", \\\"不纳入 fcr\\\", \\\"fcr 分母\\\", \\\"fcr分母\\\")\\n    }\\n    missing = [name for name, variants in groups.items() if not any(v in text for v in variants)]\\n    ok = bool(note.strip()) and not missing\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": f\\\"missing={missing}, note={note!r}\\\"}\\n\\n\\ndef check_other_reviews_unchanged(ws):\\n    con = _connection(ws)\\n    try:\\n        rows = [dict(r) for r in con.execute(\\\"SELECT * FROM call_quality_reviews WHERE review_id <> ? ORDER BY review_id\\\", (REVIEW_ID,)).fetchall()]\\n    finally:\\n        con.close()\\n    digest = _digest(rows)\\n    ok = len(rows) == 115 and digest == OTHER_REVIEWS_SHA256\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": f\\\"rows={len(rows)}, sha256={digest}\\\"}\\n\\n\\ndef check_call_rollup_unchanged(ws):\\n    con = _connection(ws)\\n    try:\\n        row = con.execute(\\\"SELECT * FROM call_interaction_rollup WHERE call_rollup_id = ?\\\", (ROLLUP_ID,)).fetchone()\\n    finally:\\n        con.close()\\n    digest = _digest(dict(row)) if row else \\\"\\\"\\n    ok = digest == ROLLUP_SHA256\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": f\\\"sha256={digest}\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "unchanged_other_reviews": 1.0,
+      "unchanged_call_rollup": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:13Z",
+  "status": "candidate",
+  "evidence": []
+}

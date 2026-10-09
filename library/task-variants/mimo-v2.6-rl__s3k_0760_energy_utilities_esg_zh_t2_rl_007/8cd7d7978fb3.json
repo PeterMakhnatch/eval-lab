@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0760_energy_utilities_esg_zh_t2_rl_007",
+  "variant_digest": "sha256:8cd7d7978fb322993dcbc36d3814d119a1c9de7114c3e4e7265e6de568e624d5",
+  "variant_harbor_digest": "sha256:214aa344ce711bc31c8460fafb8c7d7e17e58aebff86ecb92e1580fb4d22ba68",
+  "parent": {
+    "digest": "sha256:675c7fa3baf1fbdccbb3d0e2a591a0e3c6a4c7d59715e677bd6c56226fcc0cc7",
+    "harbor_digest": "sha256:db66d56c6d8474439690e02ab0336474b6bd550577d1d3aafaaf18280f5b39e8",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0760_energy_utilities_esg_zh_t2_rl_007/675c7fa3baf1.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:6e955d9c8206ddd1fc9b9cdee1a28c4db70ed8324549b9786e41a2dd050b185a",
+      "after_sha256": "sha256:d59d945a25314d42fc48eee2b693dacf44fade81f1031caf9ea183edd2e549f1",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"condition_event_post_state\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_condition_event_post_state\",\n      \"ground_truth\": \"Exactly one new valid MCP event for the Bayswater 2025Q3 case; event_type CONDITIONS_RECORDED; from_status=APPROVED; to_status=APPROVED; payload_contracts=1400; actor_entity_id=BODY_AGL_ENERGY_RISK_COMMITTEE; case remains APPROVED with approved_contracts=1400 and decision_date=2025-06-27. The idempotency-derived event id may vary.\",\n      \"files\": [\n        \"system/servicenow_energy_risk_approval/state.db\"\n      ]\n    },\n    {\n      \"id\": \"historical_integrity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_historical_integrity\",\n      \"ground_truth\": \"All pre-existing approval_event rows and all decision_condition rows for the target case remain identical to the pinned baseline; only one new MCP event may be appended.\",\n      \"files\": [\n        \"system/servicenow_energy_risk_approval/state.db\"\n      ],\n      \"weight\": 0\n    },\n    {\n      \"id\": \"approval_timeline_and_quantity\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确识别出该审批事项的最终有效状态、获批合同数及关键定稿时间线？\",\n      \"pass_anchor\": \"ground_truth: the valid final decision is APPROVED for 1,400 contracts; the valid vote/approval event is dated 2025-06-24 and the valid FINALIZED event is dated 2025-06-27. The initial requested quantity was 1,800 and must not be reported as the final approved quantity. The 2025-06-26 APPROVED→UNDER_REVIEW STATUS_TEST is invalid and must be ignored.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"four_condition_thresholds\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否逐项给出四类风险条件的正确阈值、单位含义和责任归属？\",\n      \"pass_anchor\": \"ground_truth: VOLUME threshold is 1,400 contracts; SHAPE threshold is 7.50% (peak uncovered volume deviation versus approved nominal quantity); REGIONAL_BASIS threshold is AUD 8.50/MWh absolute rolling basis; FUEL_BASIS threshold is AUD 0.75/GJ actual coal-price versus plan fuel baseline. All four active conditions are owned by ORG_AGL_ENERGY_LIMITED (AGL Energy Limited). A complete answer must list all four risk classes separately, not claim one coverage percentage eliminates them.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"operation_reported\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否明确说明实际追加了一次正式条件复核事件，并报告了事件凭据及其保持 APPROVED/1,400 的结果？\",\n      \"pass_anchor\": \"ground_truth: the response must say that one non-test CONDITIONS_RECORDED event was appended to the Bayswater 2025Q3 approval case, with APPROVED→APPROVED and 1,400 contracts, and must provide the returned event credential/id (the generated EVT-MCP-* id may vary). It must not claim that history was rewritten or that the invalid test rollback was used.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"Deterministic post-state checks for the ServiceNow mutation task.\\\"\\\"\\\"\\n\\nfrom pathlib import Path\\nimport sqlite3\\n\\n\\nCASE_ID = \\\"CASE_BAY_2025Q3_0042\\\"\\n\\n\\ndef _db(workspace):\\n    root = Path(workspace).resolve().parent\\n    return root / \\\"system\\\" / \\\"servicenow_energy_risk_approval\\\" / \\\"state.db\\\"\\n\\n\\ndef _rows(path, query, params=()):\\n    con = sqlite3.connect(path)\\n    con.row_factory = sqlite3.Row\\n    try:\\n        return [dict(r) for r in con.execute(query, params)]\\n    finally:\\n        con.close()\\n\\n\\ndef check_condition_event_post_state(workspace):\\n    path = _db(workspace)\\n    events = _rows(\\n        path,\\n        \\\"SELECT * FROM approval_event WHERE case_id=? AND event_id LIKE 'EVT-MCP-%'\\\",\\n        (CASE_ID,),\\n    )\\n    case = _rows(path, \\\"SELECT * FROM approval_case WHERE case_id=?\\\", (CASE_ID,))\\n    if len(events) != 1:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"expected exactly one new MCP event, found {len(events)}\\\"}\\n    event = events[0]\\n    checks = {\\n        \\\"event_type\\\": event[\\\"event_type\\\"] == \\\"CONDITIONS_RECORDED\\\",\\n        \\\"actor\\\": event[\\\"actor_entity_id\\\"] == \\\"BODY_AGL_ENERGY_RISK_COMMITTEE\\\",\\n        \\\"from_status\\\": event[\\\"from_status\\\"] == \\\"APPROVED\\\",\\n        \\\"to_status\\\": event[\\\"to_status\\\"] == \\\"APPROVED\\\",\\n        \\\"contracts\\\": event[\\\"payload_contracts\\\"] == 1400,\\n        \\\"valid\\\": event[\\\"event_valid_flag\\\"] == 1,\\n        \\\"case\\\": bool(case) and case[0][\\\"case_status\\\"] == \\\"APPROVED\\\" and case[0][\\\"approved_contracts\\\"] == 1400 and case[0][\\\"decision_date\\\"] == \\\"2025-06-27\\\",\\n    }\\n    failed = [name for name, ok in checks.items() if not ok]\\n    return {\\\"score\\\": 0 if failed else 1, \\\"detail\\\": \\\"failed: \\\" + \\\", \\\".join(failed) if failed else f\\\"valid event {event['event_id']}\\\"}\\n\\n\\ndef check_historical_integrity(workspace):\\n    path = _db(workspace)\\n    baseline = path.with_name(\\\"state.db.pinned_backup\\\")\\n    if not baseline.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"pinned baseline database is missing\\\"}\\n    current_events = _rows(path, \\\"SELECT * FROM approval_event WHERE case_id=? AND event_id NOT LIKE 'EVT-MCP-%' ORDER BY event_id\\\", (CASE_ID,))\\n    base_events = _rows(baseline, \\\"SELECT * FROM approval_event WHERE case_id=? ORDER BY event_id\\\", (CASE_ID,))\\n    current_conditions = _rows(path, \\\"SELECT * FROM decision_condition WHERE case_id=? ORDER BY condition_id\\\", (CASE_ID,))\\n    base_conditions = _rows(baseline, \\\"SELECT * FROM decision_condition WHERE case_id=? ORDER BY condition_id\\\", (CASE_ID,))\\n    ok = current_events == base_events and current_conditions == base_conditions\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": \\\"historical events and conditions unchanged\\\" if ok else \\\"historical event or condition rows changed\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "historical_integrity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:04Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0238_accounting_audit_tax_zh_t3_rl_009",
+  "variant_digest": "sha256:0041de9d0dca3afe613511228ff436f6553b30d328179e7b7fc0a6aa8ef68b95",
+  "variant_harbor_digest": "sha256:6785cb137787f6566b0caaa82bc22307d8ed11e0568adf68d62b32443c80e00b",
+  "parent": {
+    "digest": "sha256:3fcdbc240168478ecf6bf9e7ac04a0af3ed12795e42ade192f3f966311a15e40",
+    "harbor_digest": "sha256:3cff4d90e6d946b3b81287414c6ba20d86a036625a770f09ea25567ef7de953a",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0238_accounting_audit_tax_zh_t3_rl_009/3fcdbc240168.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:9338e9ace7f1a196bafec63e7003fba1ab6d22a073c0ee3d769c432a58b36dfd",
+      "after_sha256": "sha256:f3bf21177489df94e1efda1e234c1115506d711951736871bc82f96fa22da693",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_alert_post_state\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_alert\",\n      \"description\": \"目标9月外购电量告警已解释且内审接受，OA关联未被替换，并留下包含证据闭环与无需调整结论的复核说明。\"\n    },\n    {\n      \"id\": \"sibling_alert_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_sibling_alert_unchanged\",\n      \"description\": \"同月外购电力排放告警保持原状。\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"monthly_recalculation\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确给出正式快照下9月外购电量相对8月的重算结果，并区分监测告警采用的观测变化率与阈值？\",\n      \"pass_anchor\": \"应识别9月外购电量为1407.54 MWh、8月为1128.45 MWh，增加279.09 MWh；文档中的环比为24.73%，FineBI 目标告警的观测变化率为2473bp，阈值为1500bp。允许等价单位、百分比/基点换写及合理四舍五入，但不能把外购电量告警的2473bp误写成同月外购电力排放告警的3235bp。\"\n    },\n    {\n      \"id\": \"document_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确说明9月异常已解除且年度核查无需要调整的重大错报？\",\n      \"pass_anchor\": \"应说明9月异常已解除/已解释，并给出文档支持的正向归因与证据闭合：生产任务/订单集中、设备调试用电增加（可具体写试车台延长运行或新设备连续调试）能够解释上升；发票、能耗台账、生产抄表等核对一致，且明确排除程序已完成（可列边界、重复计量、漏计、截止性、排放因子等，或用‘证据链闭合/经截止性调整相符/异常预警保留但年度错报风险已解除’等文档等价表述）。年度结论为核查前后排放量差异0.00 tCO2e、无需调整，不应把月度预警写成年度排放错报。\"\n    },\n    {\n      \"id\": \"oa_approval_evidence\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确核对 OA 流程已完成审批，并列出实际补充的关键证据？\",\n      \"pass_anchor\": \"应识别关联 OA 异常解释流程为已完成/已批准，且说明该（2023年9月流程，月份可由WFI-2023-ENV-00917等上下文明确）补充并核对一致的证据至少包括电费发票、能耗台账、生产抄表记录；还应提到内审复核同意异常解除或等价结论。\"\n    },\n    {\n      \"id\": \"operation_and_separation\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否清楚报告了实际更新，并明确没有把同月另一条外购电力排放告警混入本次处理？\",\n      \"pass_anchor\": \"应明确已在 FineBI 将9月外购电量告警更新为已解释/内审接受，保留原 OA 关联并写入复核说明；同时明确同月外购电力排放告警是独立指标，未被修改、覆盖或合并。\"\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport sqlite3\\n\\n\\ndef _db(ws):\\n    return Path(ws).parent / \\\"system\\\" / \\\"finebi_carbon_monitor\\\" / \\\"state.db\\\"\\n\\n\\ndef check_target_alert(ws):\\n    \\\"\\\"\\\"验目标告警的确定性后态，不读取自由文本答案。\\\"\\\"\\\"\\n    con = sqlite3.connect(_db(ws))\\n    con.row_factory = sqlite3.Row\\n    try:\\n        row = con.execute(\\n            \\\"SELECT * FROM anomaly_alerts WHERE alert_id = 31009\\\"\\n        ).fetchone()\\n    finally:\\n        con.close()\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标告警不存在\\\"}\\n    reason = row[\\\"alert_reason\\\"] or \\\"\\\"\\n    required = (\\\"复核记录\\\", \\\"台账\\\", \\\"抄表\\\", \\\"无需调整\\\")\\n    ok = (\\n        row[\\\"snapshot_id\\\"] == 1001\\n        and row[\\\"metric_id\\\"] == 1\\n        and row[\\\"reporting_month\\\"] == 9\\n        and row[\\\"observed_rate_bp\\\"] == 2473\\n        and row[\\\"threshold_bp\\\"] == 1500\\n        and row[\\\"alert_status\\\"] == \\\"explained\\\"\\n        and row[\\\"audit_review_status\\\"] == \\\"accepted\\\"\\n        and row[\\\"oa_instance_id\\\"] == \\\"OA-CARBON-2024-00917\\\"\\n        and all(token in reason for token in required)\\n    )\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"目标告警后态符合要求\\\" if ok else \\\"目标告警状态、OA关联或复核说明不符合要求\\\"}\\n\\n\\ndef check_sibling_alert_unchanged(ws):\\n    \\\"\\\"\\\"sanity：仅保护未涉及的同月独立指标告警。\\\"\\\"\\\"\\n    con = sqlite3.connect(_db(ws))\\n    con.row_factory = sqlite3.Row\\n    try:\\n        row = con.execute(\\n            \\\"SELECT * FROM anomaly_alerts WHERE alert_id = 31010\\\"\\n        ).fetchone()\\n    finally:\\n        con.close()\\n    expected = {\\n        \\\"snapshot_id\\\": 1001,\\n        \\\"metric_id\\\": 2,\\n        \\\"reporting_month\\\": 9,\\n        \\\"observed_rate_bp\\\": 3235,\\n        \\\"threshold_bp\\\": 1500,\\n        \\\"alert_status\\\": \\\"under_review\\\",\\n        \\\"oa_instance_id\\\": \\\"OA-CARBON-2024-00918\\\",\\n        \\\"audit_review_status\\\": \\\"pending\\\",\\n        \\\"alert_reason\\\": \\\"9月净购入使用电力排放较8月上升，需复核购售电发票、活动数据和排放因子。\\\",\\n    }\\n    ok = row is not None and all(row[key] == value for key, value in expected.items())\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"同月独立告警未被改动\\\" if ok else \\\"同月独立告警被误改\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "sibling_alert_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:59Z",
+  "status": "candidate",
+  "evidence": []
+}

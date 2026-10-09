@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0139_accounting_audit_tax_en_t4_rl_006",
+  "variant_digest": "sha256:277974353a26e7bf6bf13ebda3860342a319e00a42567a47ddfc660663c07a46",
+  "variant_harbor_digest": "sha256:43dde7ad21b01544e599e37f2b7a30fd0baef31ec85a30c5dabed809103c9760",
+  "parent": {
+    "digest": "sha256:4074b038d1429123d73682bfe6dbaa5ba830c25c723255c3b492fa4248d3ed77",
+    "harbor_digest": "sha256:5bba21d023d9b4365b5bd19a4813687c9658171889137ac683b2fca4b8fda8c5",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0139_accounting_audit_tax_en_t4_rl_006/4074b038d142.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:07dec3c75a536a1706bac42671192f63ffc0a50cf0f042cfaaa42f2a82d886a3",
+      "after_sha256": "sha256:7abb026ba85f25d4bae59e17feec29a92a02f2049f5d9e211a9b0da876e80840",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"superseded_version_retired\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_superseded_version_retired\",\n      \"ground_truth\": {\n        \"cutoff_line_id\": \"CL-2004-0628-071-V1\",\n        \"source_version\": 1,\n        \"review_status\": \"EXCEPTION\",\n        \"reason_semantics\": \"The reason identifies this row as superseded by source version 2.\"\n      }\n    },\n    {\n      \"id\": \"duplicate_and_retained_detail\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final answer correctly identify the duplicated Racine transfer, distinguish its two source versions, and report the retained latest-version amount without adding both versions?\",\n      \"pass_anchor\": \"The answer identifies transfer ICT-2004-44522 and cutoff lines CL-2004-0628-071-V1 and CL-2004-0628-071-V2. It identifies version 2 / CL-2004-0628-071-V2 as retained at $3,322,753.81. It must treat version 1's $3,301,800.14 as superseded rather than adding the two amounts. Equivalent currency formatting is acceptable.\"\n    },\n    {\n      \"id\": \"controlled_population_recomputed\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"Does the final answer report the correct post-update June 30, 2004 buyer-owned detail population under the workpaper's latest-version and ownership rules?\",\n      \"pass_anchor\": \"The answer reports a post-update buyer-owned detail population of $29,718,000.00 for June 30, 2004. It may also report the supported split of $26,941,382.64 on hand and $2,776,617.36 in transit. The total must exclude the superseded version and any precomputed summary/control row. Equivalent currency formatting is acceptable.\"\n    },\n    {\n      \"id\": \"retained_version_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_retained_version_preserved\",\n      \"ground_truth\": {\n        \"cutoff_line_id\": \"CL-2004-0628-071-V2\",\n        \"source_version\": 2,\n        \"transfer_price_usd_cents\": 332275381,\n        \"inventory_status\": \"ON_HAND\",\n        \"review_status\": \"VALIDATED\",\n        \"exclusion_reason\": null,\n        \"reviewed_by\": \"costacct.jmiller\",\n        \"reviewed_at\": \"2004-07-14T13:22:09Z\"\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"unrelated_cutoff_preserved\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_unrelated_cutoff_preserved\",\n      \"ground_truth\": {\n        \"cutoff_line_id\": \"CL-2004-0603-018\",\n        \"transfer_id\": \"ICT-2004-44018\",\n        \"transfer_price_usd_cents\": 681244537,\n        \"inventory_status\": \"ON_HAND\",\n        \"review_status\": \"VALIDATED\",\n        \"exclusion_reason\": null\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import re\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _db_path(ws):\\n    return Path(ws).resolve().parent / \\\"system\\\" / \\\"sap_inventory_logistics\\\" / \\\"state.db\\\"\\n\\n\\ndef _row(ws, cutoff_line_id, columns):\\n    database = _db_path(ws)\\n    if not database.exists():\\n        return None\\n    with sqlite3.connect(database) as connection:\\n        connection.row_factory = sqlite3.Row\\n        selected = \\\", \\\".join(columns)\\n        return connection.execute(\\n            f\\\"SELECT {selected} FROM inventory_cutoff_lines WHERE cutoff_line_id = ?\\\",\\n            (cutoff_line_id,),\\n        ).fetchone()\\n\\n\\ndef _norm_text(value):\\n    return re.sub(r\\\"[^a-z0-9]+\\\", \\\" \\\", str(value or \\\"\\\").lower()).strip()\\n\\n\\ndef check_superseded_version_retired(ws):\\n    columns = [\\\"source_version\\\", \\\"review_status\\\", \\\"exclusion_reason\\\"]\\n    row = _row(ws, \\\"CL-2004-0628-071-V1\\\", columns)\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"The superseded cutoff line is missing.\\\"}\\n    reason = _norm_text(row[\\\"exclusion_reason\\\"])\\n    reason_ok = \\\"supersed\\\" in reason and re.search(r\\\"\\\\b(version|source)\\\\s*(2|two)\\\\b\\\", reason)\\n    passed = row[\\\"source_version\\\"] == 1 and row[\\\"review_status\\\"] == \\\"EXCEPTION\\\" and bool(reason_ok)\\n    return {\\n        \\\"score\\\": 1 if passed else 0,\\n        \\\"detail\\\": (\\n            \\\"Version 1 is recorded as an exception with a reason identifying source version 2 as superseding it.\\\"\\n            if passed\\n            else f\\\"Observed source_version={row['source_version']}, review_status={row['review_status']}, exclusion_reason={row['exclusion_reason']!r}.\\\"\\n        ),\\n    }\\n\\n\\ndef check_retained_version_preserved(ws):\\n    columns = [\\n        \\\"source_version\\\",\\n        \\\"transfer_price_usd_cents\\\",\\n        \\\"inventory_status\\\",\\n        \\\"review_status\\\",\\n        \\\"exclusion_reason\\\",\\n        \\\"reviewed_by\\\",\\n        \\\"reviewed_at\\\",\\n    ]\\n    row = _row(ws, \\\"CL-2004-0628-071-V2\\\", columns)\\n    expected = (2, 332275381, \\\"ON_HAND\\\", \\\"VALIDATED\\\", None, \\\"costacct.jmiller\\\", \\\"2004-07-14T13:22:09Z\\\")\\n    observed = tuple(row[column] for column in columns) if row is not None else None\\n    return {\\n        \\\"score\\\": 1 if observed == expected else 0,\\n        \\\"detail\\\": \\\"The retained version 2 row is unchanged.\\\" if observed == expected else f\\\"Retained version changed: {observed!r}.\\\",\\n    }\\n\\n\\ndef check_unrelated_cutoff_preserved(ws):\\n    columns = [\\n        \\\"transfer_id\\\",\\n        \\\"transfer_price_usd_cents\\\",\\n        \\\"inventory_status\\\",\\n        \\\"review_status\\\",\\n        \\\"exclusion_reason\\\",\\n    ]\\n    row = _row(ws, \\\"CL-2004-0603-018\\\", columns)\\n    expected = (\\\"ICT-2004-44018\\\", 681244537, \\\"ON_HAND\\\", \\\"VALIDATED\\\", None)\\n    observed = tuple(row[column] for column in columns) if row is not None else None\\n    return {\\n        \\\"score\\\": 1 if observed == expected else 0,\\n        \\\"detail\\\": \\\"The sampled unrelated June 2004 cutoff row is unchanged.\\\" if observed == expected else f\\\"Unrelated cutoff row changed: {observed!r}.\\\",\\n    }\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "retained_version_preserved": 1.0,
+      "unrelated_cutoff_preserved": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:41:58Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0538_consulting_bizops_analytics_zh_t3_rl_007",
+  "variant_digest": "sha256:7c81e9536fed8d985f215f5af599693c4fc0df7d1fccc6481e316bb3493e5b14",
+  "variant_harbor_digest": "sha256:bef63e7286d6e0c1afa03e475e616ac8c951cacaaf92bc45ad7893d32f703ee5",
+  "parent": {
+    "digest": "sha256:7101c62959236337a9c1878c10ea98ffd24e8f2c99ca0cbd87e3f55277d26441",
+    "harbor_digest": "sha256:71b1de7d81789ff3c5f4bf4d768bfc60d82e6303e765b572186bef8c98182e0c",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0538_consulting_bizops_analytics_zh_t3_rl_007/7101c6295923.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:5426e24f92aebcba537d8b139efa827df32409a7696e3895acb5f26c2463f387",
+      "after_sha256": "sha256:0187003f33ae8e27bec508a8a25da2bd1950a807cabbf9a6a201abac59dd240e",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"unmitigated_exposure\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"是否按本周同一截止点的已批准周度数据延迟范围，正确重算事件数量和总未缓解成本暴露？\",\n      \"pass_anchor\": \"真实数据锚点：Unifier QRA模型中项目 CRL-PROG-001、报告期 CRL-WEEK-2015-07-13-17、截止点 CRL-CUTOFF-2015-07-17-1700-BST 的已批准周度数据延迟范围共有7项事件；未缓解暴露合计为3,874个GBP 10,000单位，即£38,740,000或£38.74 million。数量和金额均应正确，金额允许等价单位表达和正常四舍五入。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"cost_emv_and_version_control\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"是否使用有效的当前成本版本和事件概率正确重算成本EMV，并正确处理被替代的商业索赔版本？\",\n      \"pass_anchor\": \"真实数据锚点：仅汇总未被替代的成本构成，并以各事件概率基点加权后，原始EMV为682.208个GBP 10,000单位，即£6.82208 million；按报告口径为£6.82 million（或按工具的最近GBP 10,000取整为£6.82 million）。QRAE-2015-0717-001的COMMERCIAL_CLAIM当前有效版本是版本2、241个GBP 10,000单位；版本1、268个单位已被替代，不能重复计入或替代当前值。若使用旧版本会得到约£6.88148 million，属于错误。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"schedule_p80_selection\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"是否选出同一截止点下已批准的数据延迟P80报告结果，并与P50管理摘要明确区分？\",\n      \"pass_anchor\": \"真实数据锚点：应采用批准运行 QRAR-2015-0717-DD-P80-V4 的P80结果17个工作日。相同项目、报告期、截止点及DATA_DELAY范围另有批准的P50管理摘要 QRAR-2015-0717-DD-P50-MGMT，为12个工作日；不得任取批准行或以12天替代17天。另一个SYSTEMS_INTEGRATION范围的P80为23天，也不属于本题数据延迟范围。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"event_emv_drivers\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"是否正确识别Unifier中按事件EMV排序的主要事件驱动及其贡献？\",\n      \"pass_anchor\": \"真实数据锚点：按当前成本构成和事件概率计算，前三个事件EMV驱动依次为：QRAE-2015-0717-001（RISK-DD-001，C201 cost feed arrives after weekly integration freeze）161.7个GBP 10,000单位，即£1.617m；QRAE-2015-0717-002（RISK-DD-002，C205 schedule update misses the integrated programme window）110.16个单位，即£1.1016m；QRAE-2015-0717-007（RISK-DD-007，Contract package progress evidence fails validation before reporting close）107.64个单位，即£1.0764m。答案至少应完整识别这三项及正确顺序，金额允许合理四舍五入。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"cost_category_drivers\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"是否正确识别按成本类别汇总的主要EMV驱动及其贡献？\",\n      \"pass_anchor\": \"真实数据锚点：当前成本版本按类别汇总后，最大两类依次为COMMERCIAL_CLAIM，EMV 237.046个GBP 10,000单位，即£2.37046m；REWORK，EMV 215.754个单位，即£2.15754m。其后为IDLE_TIME £1.58226m和ANALYSIS_RERUN £0.71182m。答案须至少正确给出前两类及顺序，金额允许合理四舍五入。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"workbook_sensitivity_drivers\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"是否从QRA工作簿敏感性分析中识别贡献最高的三项事件及其成本EMV？\",\n      \"pass_anchor\": \"真实工作簿锚点：《Crossrail_数据延迟定量风险评估_QRA_20150717.xlsx》的敏感性输出按成本EMV从高到低前三项为RID-DS-001 £2.52m、RID-DS-002 £1.6875m、RID-DS-003 £1.18m；三项均为Red且在计算页的治理优先带为Immediate。答案至少须列出前三项正确顺序及其EMV，金额允许合理四舍五入。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"metric_interpretation\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"是否准确解释未缓解暴露、概率加权EMV和P80工期的不同业务含义，并明确禁止错误合并或损失认定？\",\n      \"pass_anchor\": \"通过要求：答案应表达未缓解暴露是事件发生时、缓解前的潜在成本规模或总风险暴露；EMV是用事件发生概率加权后的期望成本，不是确定支出；P80是工期影响分布的第80百分位，表示约80%的模拟结果不超过17个工作日（或约20%可能更差），它是时间指标而非货币金额。必须明确£38.74m、£6.82m和17个工作日维度不同，不能相加；三者均不是已经发生或已实现的会计损失。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"read_only_sanity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_read_only_task\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"只读分析题：本文件仅提供无副作用的完整性检查。\\\"\\\"\\\"\\n\\n\\ndef check_read_only_task(workspace):\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"act=none，无需验证文件或数据库后态。\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "read_only_sanity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:02Z",
+  "status": "candidate",
+  "evidence": []
+}

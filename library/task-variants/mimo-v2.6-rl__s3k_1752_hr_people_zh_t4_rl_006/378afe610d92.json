@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1752_hr_people_zh_t4_rl_006",
+  "variant_digest": "sha256:378afe610d9238f4540848cb64c9d61e9c97eff7843f54774fc461cc9564d4e3",
+  "variant_harbor_digest": "sha256:11838044d73d986637a7f8a0fbee3d2103a03cb619770ff6786c208abc8660e7",
+  "parent": {
+    "digest": "sha256:b3d2ccd5374c2f52e5b8b1a9ad07d7735dff48690656d49734f11d0e4624ce9c",
+    "harbor_digest": "sha256:d0027f97dd336cbd3fa5d70910616db68a89724477a14178df94404e02adb899",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1752_hr_people_zh_t4_rl_006/b3d2ccd5374c.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:0537414b23dc59e10980ddea986a5edbac6e1336f46c97561b6b6d4b7d3c0484",
+      "after_sha256": "sha256:2a5b88558e7c81a08338e016027f74713de1fd64ac933002bf4564b85d5d229d",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_approved\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_approved\",\n      \"ground_truth\": \"CHK_2026_0220_0136 的 correction_status 为 APPROVED，approved_by_id 为 Priya Nanduri 的 P_PRIYA_NANDURI（审计命名空间）或 PERSON_PRIYA_NANDURI（HRIS 命名空间），corrected_value 保持 2026-01-08T14:17:00Z。\"\n    },\n    {\n      \"id\": \"non_target_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_market_record_unchanged\",\n      \"ground_truth\": \"CHK_2026_0220_0162 仍保持 APPLIED、未填写审批人和审批时间，修正值仍为 2026-02-14T20:11:00Z。\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"identified_target\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否准确识别出产品与工程范围内应审批的开启时间修正检查及其申请单？\",\n      \"pass_anchor\": \"ground_truth=检查 CHK_2026_0220_0136，对应申请单 REQ_2026_ENG_044（Senior Data Engineer），问题是申请单开启时间缺失；不得把市场岗位检查 CHK_2026_0220_0162 当作目标。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"corrected_timestamp\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否报告了目标修正的准确时间值，并说明审批没有改动该值？\",\n      \"pass_anchor\": \"ground_truth=2026-01-08T14:17:00Z；可用等价 UTC 日期时间表达，但必须是同一时点，并明确该值作为既有修正值获批而非被重新计算或改写。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"approved_rule_and_evidence\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否说明所用修正规则已经批准，并准确概括规则及证据口径？\",\n      \"pass_anchor\": \"ground_truth=RULE_WDQA_001，状态 APPROVED；规则是在申请单开启时间缺失且申请单批准时间存在时，用申请单批准时间补齐；目标记录证据来源为 Workday Recruiting 的申请单记录/申请单批准或开启证据。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"metric_boundary_reason\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确解释不能用候选人申请时间替代申请单开启时间的指标口径原因？\",\n      \"pass_anchor\": \"ground_truth=time-to-fill 从招聘申请单开启到候选人接受 offer；候选人申请到接受 offer 属于 time-to-hire。用候选人申请时间补开启时间会混淆两个指标并缩短或扭曲 time-to-fill 起点。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"priya_role_and_action\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否把 Priya Nanduri 的文档职责与实际完成的审批动作对应起来？\",\n      \"pass_anchor\": \"ground_truth=整改行动计划中 Priya Nanduri 负责指标复测及数据质量审计（包括开启日等字段审计）；回复应说明已由 Priya 完成目标修正审批，并且未处理市场岗位的另一条待审批记录。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _database_path(workspace):\\n    workspace_path = Path(workspace).resolve()\\n    candidates = [\\n        workspace_path.parent / \\\"system\\\" / \\\"workday_data_quality_audit\\\" / \\\"state.db\\\",\\n        workspace_path / \\\"system\\\" / \\\"workday_data_quality_audit\\\" / \\\"state.db\\\",\\n    ]\\n    for candidate in candidates:\\n        if candidate.exists():\\n            return candidate\\n    raise FileNotFoundError(\\\"找不到 Workday Data Quality Audit 数据库\\\")\\n\\n\\ndef _fetch_check(workspace, check_id):\\n    with sqlite3.connect(_database_path(workspace)) as connection:\\n        connection.row_factory = sqlite3.Row\\n        row = connection.execute(\\n            \\\"SELECT check_id, correction_status, approved_by_id, approved_at, \\\"\\n            \\\"corrected_value FROM quality_checks WHERE check_id = ?\\\",\\n            (check_id,),\\n        ).fetchone()\\n    return dict(row) if row is not None else None\\n\\n\\ndef check_target_approved(workspace):\\n    row = _fetch_check(workspace, \\\"CHK_2026_0220_0136\\\")\\n    expected = {\\n        \\\"correction_status\\\": \\\"APPROVED\\\",\\n        \\\"approved_by_id\\\": \\\"P_PRIYA_NANDURI\\\",\\n        \\\"corrected_value\\\": \\\"2026-01-08T14:17:00Z\\\",\\n    }\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标检查不存在\\\"}\\n    # The HRIS PERSON_ namespace and audit P_ namespace identify the same Priya.\\n    approver_ids = {\\\"P_PRIYA_NANDURI\\\", \\\"PERSON_PRIYA_NANDURI\\\"}\\n    mismatches = [\\n        key for key, value in expected.items()\\n        if (row.get(key) not in approver_ids if key == \\\"approved_by_id\\\" else row.get(key) != value)\\n    ]\\n    if row.get(\\\"approved_at\\\") is None:\\n        mismatches.append(\\\"approved_at\\\")\\n    if mismatches:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标检查后态不符: %s; actual=%s\\\" % (\\\", \\\".join(mismatches), row)}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"目标开启时间修正已由 Priya 批准，修正值保持不变\\\"}\\n\\n\\ndef check_market_record_unchanged(workspace):\\n    row = _fetch_check(workspace, \\\"CHK_2026_0220_0162\\\")\\n    expected = {\\n        \\\"correction_status\\\": \\\"APPLIED\\\",\\n        \\\"approved_by_id\\\": None,\\n        \\\"approved_at\\\": None,\\n        \\\"corrected_value\\\": \\\"2026-02-14T20:11:00Z\\\",\\n    }\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"非目标市场岗位检查不存在\\\"}\\n    mismatches = [key for key, value in expected.items() if row.get(key) != value]\\n    if mismatches:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"非目标市场岗位记录被改动: %s; actual=%s\\\" % (\\\", \\\".join(mismatches), row)}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"非目标市场岗位待审批记录保持原状\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "non_target_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:12Z",
+  "status": "candidate",
+  "evidence": []
+}

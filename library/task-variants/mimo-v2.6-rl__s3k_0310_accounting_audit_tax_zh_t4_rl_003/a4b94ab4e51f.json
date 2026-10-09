@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0310_accounting_audit_tax_zh_t4_rl_003",
+  "variant_digest": "sha256:a4b94ab4e51f2f0f63a9b24265a79c5b351bcb5af358dd127f4f6417ebcf6496",
+  "variant_harbor_digest": "sha256:79712f3e6021a7e0f942ea33557292873c887936c579435d8e29622ede2502fb",
+  "parent": {
+    "digest": "sha256:41df982b74b3da5db7141005d7cdfb143ea14455d9eb2e65d96be1ee126b68a4",
+    "harbor_digest": "sha256:66b20b39dee6341df43fc80ee7eb15718afcf79256a1016f438a664ee053a4e5",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0310_accounting_audit_tax_zh_t4_rl_003/41df982b74b3.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:80d873c6d2d836709ed26127a85f5b2ffaa2eab826872fd89f2fa60f1b2ded90",
+      "after_sha256": "sha256:3f3bf3c17360123a3771b71806f9fe1224a977eb2ebf1472325354eb858f0c77",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"amount\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否识别出2025年6月主测算表中的预计即征即退金额为564,285.71元，并将其理解为申报测算值而非已经确认的退税金额？\",\n      \"pass_anchor\": \"材料中的目标值是：2025年6月预计即征即退税额564,285.71元。它是申报测算值；答案须明确区分申报测算值与会计确认值，不能把该数额表述为6月30日已经确认的退税。金额允许常见千分位、币种和小数位表达差异，但数值含义须一致。\"\n    },\n    {\n      \"id\": \"no_direct_booking\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否明确回答6月30日不能仅凭预计测算表把预计退税直接计入当期损益？\",\n      \"pass_anchor\": \"核算及会计处理口径说明的结论是：确认条件满足前，不得仅凭测算表入账。因此合格答案必须明确回答“不能仅凭测算表直接入账/计入损益”，而不是只说需要谨慎、建议复核或可以先确认。\"\n    },\n    {\n      \"id\": \"conditions_trigger_subject\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否明确说明会计确认的实际触发逻辑和确认科目？\",\n      \"pass_anchor\": \"合格答案应说明：仅完成6月30日内部测算或税务受理并不触发损益确认；实际收到退税款，或在相关条件已经满足并取得税务批复等足以证明退税权利、可可靠确认退款的依据后，才触发确认。确认后计入“其他收益—增值税即征即退”（可接受同义的“其他收益”明细科目表述），而不是直接冲减主营业务收入。实际收到、可靠确认退款、税务批复/形成可靠收款权利等语义等价表述均可，不要求机械使用材料原句。\"\n    },\n    {\n      \"id\": \"application_conditions\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否说明退税政策适用、申报放行及资料留存方面的条件前提？\",\n      \"pass_anchor\": \"材料中的关键前提包括软件著作权登记证书持续有效、软件销售额/销项税额/可抵扣进项独立核算、嵌入式软硬件分别核算、共同进项采用有效备案的实际成本比例分摊法且备案期内不变更，以及申报资料或重大较高风险缺口补齐关闭。答案可以概括为全部政策适用和申报条件满足、相关资料缺口关闭，但须同时举出至少一项材料中的具体关键条件或未关闭缺口（例如软著证书/版本映射、分摊备案回执、独立或分别核算、申报资料补齐）；不要求机械逐项列全。\"\n    },\n    {\n      \"id\": \"sanity_noop\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_workspace_unchanged\",\n      \"ground_truth\": {\n        \"always\": true\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\n\\n\\ndef check_workspace_unchanged(ws):\\n    \\\"\\\"\\\"只读题不应产生 workspace 副作用。\\\"\\\"\\\"\\n    if not Path(ws).exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"workspace 不存在\\\"}\\n    changed = [p for p in Path(ws).rglob(\\\"*\\\") if p.is_file() and p.name == \\\".task_mutated\\\"]\\n    if changed:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"发现不应存在的副作用标记\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"未发现副作用标记\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "sanity_noop": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:00Z",
+  "status": "candidate",
+  "evidence": []
+}

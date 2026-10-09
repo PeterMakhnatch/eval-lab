@@ -1,0 +1,64 @@
+{
+  "schema": "mimo.judge_reliability_spec/v1",
+  "status": "staged-no-paid-calls",
+  "enabled": false,
+  "approval_required": true,
+  "spend_usd_measured": 0,
+  "candidate_manifest": "research/experiments/judge-variants-night/packages.jsonl",
+  "cohort_file": "research/experiments/judge-variants-night/reliability-cohort.json",
+  "prerequisites": [
+    "Author and independently review honest oracle deliverables; neither domain ships an oracle.",
+    "Provide a version-aware Maverick deployment accepting the fixed Novita-qualified model ID and reporting model_revision exactly 94125d2bd83076b21eed33119525e29eaf3894f4. The public HF router does not document this capability; do not fake the field in a forwarding shim.",
+    "Resolve or explicitly exclude the measured general rule runtime failures listed by task/item in the census.",
+    "Obtain Peter's paid-call approval for the exact bounded spec and actual deployment quote; catalogue router rates are not a quote for a new version-aware deployment."
+  ],
+  "sampling": {"general_tasks": 50, "general_text_atoms_max": 200, "webdev_tasks": 50,
+               "selection": "deterministic evenly spaced sorted task names; first four eligible text atoms per general task, not a full-domain qualification"},
+  "variants_per_input": ["honest-oracle", "empty-nop", "shipped-input-copied-as-answer", "answer-injection", "wrong-brief-or-answer", "single-critical-semantic-mutation"],
+  "repeats": 5,
+  "general": {
+    "model": "thinkingmachines/Inkling:deepinfra",
+    "temperature": 0,
+    "upstream_output_tokens_max": 4000,
+    "judge_calls_max": 6000,
+    "acceptance": {"oracle_item_score": 1, "negative_item_score": 0,
+                   "unanimous_five_repeat_fraction_min": 0.98, "nop_rule_credit": 0},
+    "reporting": ["every item score and mask separately", "actual request model/provider and revision", "input/output token usage and billed spend", "repeat disagreement", "oracle-minus-mutation score gap"]
+  },
+  "webdev": {
+    "model_artifact_sha": "94125d2bd83076b21eed33119525e29eaf3894f4",
+    "request_model": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8:novita",
+    "temperature": 0,
+    "output_tokens_max": 1024,
+    "judge_calls_max": 1500,
+    "viewport_widths": [375, 768, 1440],
+    "oracle_gate_false_rejections_allowed": 0,
+    "acceptance": {"oracle_score_min": 0.8, "negative_score_max": 0.2,
+                   "within_input_repeat_stddev_max": 0.05, "oracle_minus_mutation_gap_min": 0.5},
+    "reporting": ["scores plus visual/query/asset dimensions", "structural gate failures versus infrastructure masks", "layout and query provenance", "actual billed image/text/output tokens", "endpoint deployment/response revision receipts"],
+    "warning": "Keyword presence is necessary, not sufficient. Visible keyword dumps can pass these gates and must be rejected by independent semantic controls."
+  },
+  "stop_rules": [
+    "No initial paid call until the prerequisites and approval are satisfied.",
+    "Run a 10-atom/10-page three-repeat pilot before expansion; stop on wrong revision, oracle rejection, structural false rejection or mask rate above 5%.",
+    "Concurrency 1, at most four transport attempts per judgment, no hidden judge fallback.",
+    "Record provider usage after each response and debit all attempts. Recompute the quote after the pilot; stop before the next call when it would cross the approved spend ceiling."
+  ],
+  "cost_projection": {
+    "evidence_tier_for_rates": "MEASURED",
+    "rate_receipt": "research/experiments/judge-variants-night/pricing.json",
+    "units": "USD per million tokens, no HF markup",
+    "general_rates": {"input": 0.95, "output": 4.05},
+    "webdev_rates": {"input": 0.27, "output": 0.85},
+    "evidence_tier_for_token_assumptions": "[INFERENCE]",
+    "general_assumed_tokens_per_call": {"input": 6000, "output": 200},
+    "webdev_assumed_tokens_per_call_including_image": {"input": 12000, "output": 512},
+    "general_6000_successful_calls_usd": 39.06,
+    "general_if_every_output_hits_4000_tokens_usd": 131.4,
+    "webdev_1500_successful_calls_usd": 5.5128,
+    "webdev_if_every_output_hits_1024_tokens_usd": 6.1656,
+    "combined_expected_usd": 44.5728,
+    "four_attempt_expected_tokens_projection_usd": 178.2912,
+    "limits": "These are projections, not billed results or a hard upper bound: actual image token accounting, retry token charges and version-aware endpoint rates are unmeasured. The four-attempt figure assumes the stated token sizes on every attempt. Credits were not counted as free money. Refresh rates and quote the actual endpoint before seeking approval."
+  }
+}

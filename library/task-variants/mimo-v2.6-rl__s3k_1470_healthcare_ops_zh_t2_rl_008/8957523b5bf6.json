@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1470_healthcare_ops_zh_t2_rl_008",
+  "variant_digest": "sha256:8957523b5bf6a242fcf1273944d2682b38df615b721ae26687f284cc06d11b47",
+  "variant_harbor_digest": "sha256:d6412e7d95e3b8dab1d2f6af19de348093bd3e7ba4235ba577be6936fdc0e3b9",
+  "parent": {
+    "digest": "sha256:44cac5d3ddb641e311585639f83222246a47a445ed27069106b0873639d43c86",
+    "harbor_digest": "sha256:687a40ad3d516cb7249f28e53043289f060e69f38426b08a6731523d4e8cd609",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1470_healthcare_ops_zh_t2_rl_008/44cac5d3ddb6.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:c5da307a8ff79b138c3e4a4cc1f723e3a4b424644823853353027b8423243437",
+      "after_sha256": "sha256:647b061a48b868fce0533b0e2279dfc5595f6bd790b77e27d6dc28da03705d52",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"rejected_ed_revision\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_rejected_ed_revision\",\n      \"ground_truth\": {\n        \"system\": \"confluence_tat_rules\",\n        \"rule_id\": \"TAT-R-2025-0501-ED\",\n        \"old_value\": \"threshold_minutes=30\",\n        \"new_value\": \"threshold_minutes=25\",\n        \"effective_from\": \"2025-06-15\",\n        \"approval_status\": \"rejected\"\n      }\n    },\n    {\n      \"id\": \"frozen_rule_state\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_frozen_rule_state\",\n      \"ground_truth\": {\n        \"ed_threshold_minutes\": 30,\n        \"green_exemption_code\": \"GREEN_CHANNEL_EXEMPT\",\n        \"green_threshold_minutes\": 30\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"meeting_freeze_and_boundary\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确提炼了晨会对六月复测口径冻结及规则变更审批边界的结论？\",\n      \"pass_anchor\": \"答案必须明确表达：2025年6月复测沿用2025年5月的节点、国家指标口径和预警阈值，不因改善结果临时修改口径；涉及规则变更的事项要另行验证与审批，不能以该晨会纪要替代验证文件。允许等义表述，不强制逐字写出WS/T 616—2018标准号，但若提及则不得歪曲其审批边界；不能把六月复测安排本身说成已完成变更审批。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"cross_system_rule_facts\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否报告了知识库中急诊阈值提案链和绿色通道提案的关键状态与数值？\",\n      \"pass_anchor\": \"答案必须说明：急诊检验前TAT正式现行阈值为30分钟；从30分钟降至25分钟、建议2025年6月15日执行的提案原已处于待审批状态；绿色通道取消豁免的提案处于已驳回状态并继续沿用绿色通道豁免。不得把待审批25分钟提案误当成已生效规则，也不得声称绿色通道豁免已被取消。证据对应知识库中的TAT-R-2025-0501-ED、TAT-R-2025-0501-GREEN及其修订记录。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _db_path(ws):\\n    return Path(ws).parent / \\\"system\\\" / \\\"confluence_tat_rules\\\" / \\\"state.db\\\"\\n\\n\\ndef _backup_path(ws):\\n    return Path(ws).parent / \\\"system\\\" / \\\"confluence_tat_rules\\\" / \\\"state.db.pinned_backup\\\"\\n\\n\\ndef _rows(db_path, sql, params=()):\\n    con = sqlite3.connect(str(db_path))\\n    con.row_factory = sqlite3.Row\\n    try:\\n        return [dict(row) for row in con.execute(sql, params)]\\n    finally:\\n        con.close()\\n\\n\\ndef check_rejected_ed_revision(ws):\\n    rows = _rows(\\n        _db_path(ws),\\n        \\\"\\\"\\\"SELECT rule_id, old_value, new_value, effective_from, approval_status\\n           FROM rule_revision\\n           WHERE rule_id = ? AND old_value = ? AND new_value = ?\\n             AND effective_from = ? AND approval_status = ?\\\"\\\"\\\",\\n        (\\n            \\\"TAT-R-2025-0501-ED\\\",\\n            \\\"threshold_minutes=30\\\",\\n            \\\"threshold_minutes=25\\\",\\n            \\\"2025-06-15\\\",\\n            \\\"rejected\\\",\\n        ),\\n    )\\n    if len(rows) != 1:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"匹配的急诊驳回修订审计记录数为 {len(rows)}，应为1\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"已找到唯一的急诊阈值驳回修订审计，原值30、新值25、生效日2025-06-15。\\\"}\\n\\n\\ndef check_frozen_rule_state(ws):\\n    db = _db_path(ws)\\n    rows = _rows(\\n        db,\\n        \\\"\\\"\\\"SELECT rule_id, threshold_minutes, exemption_code\\n           FROM tat_rule\\n           WHERE rule_id IN (?, ?)\\\"\\\"\\\",\\n        (\\\"TAT-R-2025-0501-ED\\\", \\\"TAT-R-2025-0501-GREEN\\\"),\\n    )\\n    got = {row[\\\"rule_id\\\"]: row for row in rows}\\n    ed = got.get(\\\"TAT-R-2025-0501-ED\\\")\\n    green = got.get(\\\"TAT-R-2025-0501-GREEN\\\")\\n    if not ed or not green:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"急诊或绿色通道现行规则缺失\\\"}\\n    if ed[\\\"threshold_minutes\\\"] != 30:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"现行急诊阈值被改为 {ed['threshold_minutes']}，应保持30分钟\\\"}\\n    if green[\\\"threshold_minutes\\\"] != 30 or green[\\\"exemption_code\\\"] != \\\"GREEN_CHANNEL_EXEMPT\\\":\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"绿色通道现行阈值或豁免口径被改动\\\"}\\n\\n    backup = _backup_path(ws)\\n    if backup.exists():\\n        # pinned_backup is a scoped snapshot, not the complete tat_rule table.\\n        before = _rows(backup, \\\"SELECT * FROM tat_rule ORDER BY rule_id\\\")\\n        after_by_id = {\\n            row[\\\"rule_id\\\"]: row\\n            for row in _rows(db, \\\"SELECT * FROM tat_rule ORDER BY rule_id\\\")\\n        }\\n        if any(after_by_id.get(row[\\\"rule_id\\\"]) != row for row in before):\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"pinned_backup 覆盖的 tat_rule 记录被改动\\\"}\\n        before_rev = _rows(backup, \\\"SELECT * FROM rule_revision ORDER BY revision_id\\\")\\n        after_rev = _rows(db, \\\"SELECT * FROM rule_revision ORDER BY revision_id\\\")\\n        before_ids = {row[\\\"revision_id\\\"] for row in before_rev}\\n        after_existing = [row for row in after_rev if row[\\\"revision_id\\\"] in before_ids]\\n        if before_rev != after_existing:\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"已有修订审计记录被改动\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"现行急诊30分钟阈值、绿色通道豁免及历史记录均保持不变\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "frozen_rule_state": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:10Z",
+  "status": "candidate",
+  "evidence": []
+}

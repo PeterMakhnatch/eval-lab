@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1473_healthcare_ops_zh_t2_rl_001",
+  "variant_digest": "sha256:24647ea7bca4d9e4680f3979b4d90a9b8ea321e99051ee677c815ed87c254c0d",
+  "variant_harbor_digest": "sha256:f230b76c437b0dbd2c281245952e7ea72b6a54a9d714410c6de2eb3807dd8f6f",
+  "parent": {
+    "digest": "sha256:a9af300bbe022d4d058eaaadfc8395f0f79e78902908853ce04525f5b343400a",
+    "harbor_digest": "sha256:71f08bf4df3f5b4611b67c6e54c18482c333cccf65afeb96cb98e0ee2d61c3de",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1473_healthcare_ops_zh_t2_rl_001/a9af300bbe02.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:17b73313a4a9aa1606a6665c433c6eb343e48117afcc7766a4824fcd3d8fa585",
+      "after_sha256": "sha256:f41a2d431edf408f9fb03f5617306df0ff63d277e88d3e2ef4d22f5b5242e55c",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"z33_rule_effect\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否识别出 Z33 作为主要诊断时的规则效果及其业务含义？\",\n      \"pass_anchor\": \"必须明确：Z33（附带妊娠状态）仅可作附加说明，不能作为入组主要诊断；把它放在主要诊断位置会触发编码排除/阻断，不能按原主诊直接入组。允许等义表述，不要求逐字复述规则编号。\"\n    },\n    {\n      \"id\": \"z33_disposition\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否给出了与规则矩阵一致的后续处置？\",\n      \"pass_anchor\": \"必须明确：调整主要诊断排序（回归本次住院实际治疗疾病，采用合适的真实疾病作为主诊）并重新预分组/重跑分组；不能仅保留 Z33 原主诊后直接放行。\"\n    },\n    {\n      \"id\": \"released_case_evidence\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否从质控清单准确识别出已更正、复核并放行的 Z33 异常病案及其原建议值和调整建议？\",\n      \"pass_anchor\": \"必须同时给出：病案号 250210455；原建议代码 Z33.x00（原主要诊断为附带妊娠状态）；调整后的建议诊断为妊娠期高血压，建议代码 O13.x00；该记录结算放行状态为已放行。若回答主动声称 Z33 闭环病案总数或列举其他 Z33 病案，所述数量和记录必须与清单一致（已更正、复核并放行共 2 例），不得写成 11 例等错误事实。\"\n    },\n    {\n      \"id\": \"z33_claim_consistency\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_z33_claim_consistency\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"若回答扩展声称 Z33 病案数量或列举其他 Z33 病案，是否与质控清单事实一致？\",\n      \"pass_anchor\": \"不作扩展声称则通过；若声称数量或列举记录，必须与清单中 Z33 异常且已闭环放行的 2 例一致。\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"Check optional Z33 case-count/list claims against the source workbook.\\\"\\\"\\\"\\n\\nimport re\\nfrom openpyxl import load_workbook\\n\\ndef check_z33_claim_consistency(workspace):\\n    answer = (workspace / \\\"answer.md\\\").read_text(encoding=\\\"utf-8\\\") if (workspace / \\\"answer.md\\\").exists() else \\\"\\\"\\n    source = workspace / \\\"02_预分组分析/澄湖人民医院2025年2月病案首页分组质控清单.xlsx\\\"\\n    if not source.exists():\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"质控清单缺失\\\"}\\n    ws = load_workbook(source, data_only=True, read_only=True)[\\\"异常病案清单\\\"]\\n    closed = set()\\n    for row in ws.iter_rows(min_row=7, values_only=True):\\n        case, desc, orig, conclusion, completion, release = row[2], row[8], row[10], row[22], row[25], row[26]\\n        if ((str(orig or \\\"\\\").startswith(\\\"Z33\\\") or \\\"Z33\\\" in str(desc or \\\"\\\"))\\n                and completion and conclusion in {\\\"同意修改\\\", \\\"维持原值\\\", \\\"补充证据后通过\\\"}\\n                and release == \\\"已放行\\\"):\\n            closed.add(str(case))\\n    if closed != {\\\"250210455\\\", \\\"250210972\\\"}:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"源清单闭环集合异常\\\"}\\n    # Only police claims explicitly tied to the Z33 case evidence, leaving omission acceptable.\\n    for line in answer.splitlines():\\n        if \\\"Z33\\\" not in line:\\n            continue\\n        counts = []\\n        counts += re.findall(r\\\"(?<!\\\\d)(\\\\d+)\\\\s*例[^，。；;]{0,20}(?:Z33|妊娠状态)\\\", line)\\n        counts += re.findall(r\\\"(?:Z33|妊娠状态)[^，。；;]{0,20}?(\\\\d+)\\\\s*例\\\", line)\\n        if counts and any(int(n) != len(closed) for n in counts):\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"Z33 数量声称与清单不符\\\"}\\n        ids = re.findall(r\\\"(?:250210\\\\d{3}|CY2502-\\\\d{4})\\\", line)\\n        if ids and any(case not in closed for case in ids):\\n            return {\\\"score\\\": 0, \\\"detail\\\": \\\"Z33 病案号声称与清单不符\\\"}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"Z33 扩展声称与清单一致或未声称\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "z33_claim_consistency": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:10Z",
+  "status": "candidate",
+  "evidence": []
+}

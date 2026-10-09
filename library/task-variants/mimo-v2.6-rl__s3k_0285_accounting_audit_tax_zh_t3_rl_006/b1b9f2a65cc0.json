@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0285_accounting_audit_tax_zh_t3_rl_006",
+  "variant_digest": "sha256:b1b9f2a65cc06fd5c0866e5d04c69e4bca563bb043d897f87c37983143ba704b",
+  "variant_harbor_digest": "sha256:2e510f41a05e099518c62156cf5bd84b7e286c48a909f917b74019f60c73693d",
+  "parent": {
+    "digest": "sha256:b7171fd1dd3b981a86234d4c50eec3a88a274347976be77a906696cf4e4ad4e2",
+    "harbor_digest": "sha256:f2d7f89a78a4945cb48ba55d7b844a82426dbc59c4f0d21a8fb1beabe636ebf8",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0285_accounting_audit_tax_zh_t3_rl_006/b7171fd1dd3b.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:0e4e472b7fd5d9fd7b713cf26479c287b4518906240398283e65bfda9bf1c270",
+      "after_sha256": "sha256:81e6fe43052c3cb02b852b303731bacd34eb8a049412f7335aeff36dd9242712",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"reconciliation_closed\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_reconciliation_closed\",\n      \"description\": \"目标生产设备行映射勾稽记录已关闭，且差异事实未被改写，解释和证据已落库。\",\n      \"ground_truth\": {\n        \"recon_id\": \"RECON-2025-LINE-MAP-009\",\n        \"recon_status\": \"RESOLVED\",\n        \"return_amount_yuan\": 35241700,\n        \"source_amount_yuan\": 35241709,\n        \"difference_yuan\": -9,\n        \"evidence_ref\": \"EVD-A105080-ROUNDING-2025-04\",\n        \"note_requirements\": [\n          \"非空\",\n          \"包含旧底稿/展示值回算造成舍入差异的语义\"\n        ]\n      }\n    },\n    {\n      \"id\": \"approved_mapping_amount\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否算出并正确识别批准逐资产映射的2025年生产设备税收扣除合计、旧申报行金额及两者差异？\",\n      \"pass_anchor\": \"真实数据锚点：税友集团亿企赢批准运行 RUN-ONEOFF-20251218-04（方案三：符合条件设备一次性扣除）对应的2025年十项资产扣除合计为35,241,709元；金蝶批准申报版本 TFME_EQUIPMENT_BATCH_2025 的机器、机械和其他生产设备行原申报税收扣除为35,241,700元；按申报行减逐资产映射计算差异为-9元。回答需表达这三个事实，允许人民币元/万元等等价单位及合理格式差异。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"display_precision_explanation\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确解释差异来自旧底稿的万元展示值回算/舍入，并明确不是资产计税基础或批准方案金额发生变化？\",\n      \"pass_anchor\": \"真实证据锚点：金蝶目标勾稽记录现有说明明确为“旧底稿先按万元展示值汇总后回算，少9元”，证据引用为 EVD-A105080-ROUNDING-2025-04；批准逐资产映射与税友定稿运行的元级合计均为35,241,709元，底稿《通富微电子2025年度A105080申报衔接底稿.xlsx》复核草稿也载明2025年一次性方案扣除为3524.1709万元。回答需将其定性为展示精度/舍入差异，而非计税基础差异，并提及关键底稿或系统证据。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"other_2025_reconciliations_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_other_2025_reconciliations_unchanged\",\n      \"description\": \"除目标记录外，其他2025年度勾稽记录的既有业务字段保持不变。\",\n      \"ground_truth\": \"目标记录之外的2025年度勾稽记录保持基线状态和金额。\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _db(ws):\\n    return Path(ws).resolve().parent / \\\"system\\\" / \\\"kingdee_a105080_filing\\\" / \\\"state.db\\\"\\n\\n\\ndef _connect(ws):\\n    con = sqlite3.connect(_db(ws))\\n    con.row_factory = sqlite3.Row\\n    return con\\n\\n\\ndef check_reconciliation_closed(ws):\\n    with _connect(ws) as con:\\n        row = con.execute(\\n            \\\"\\\"\\\"SELECT recon_status, return_amount_yuan, source_amount_yuan,\\n                       difference_yuan, resolution_note, evidence_ref\\n                FROM filing_reconciliations\\n                WHERE recon_id = ?\\\"\\\"\\\",\\n            (\\\"RECON-2025-LINE-MAP-009\\\",),\\n        ).fetchone()\\n    if row is None:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"目标勾稽记录不存在\\\"}\\n    note = (row[\\\"resolution_note\\\"] or \\\"\\\").strip()\\n    evidence = (row[\\\"evidence_ref\\\"] or \\\"\\\").strip()\\n    note_ok = len(note) >= 10 and any(\\n        term in note for term in (\\\"万元\\\", \\\"展示值\\\", \\\"展示\\\", \\\"舍入\\\", \\\"回算\\\")\\n    )\\n    evidence_ok = bool(evidence) and any(\\n        ref in evidence for ref in (\\n            \\\"EVD-A105080-ROUNDING-2025-04\\\", \\\"RECON-2025-LINE-MAP-009\\\",\\n            \\\"LINE-TFME-2025-04-PROD\\\", \\\"TFME_EQUIPMENT_BATCH_2025\\\",\\n            \\\"TPRUN-2025-ONETIME-FINAL\\\", \\\"A105080\\\",\\n            \\\"通富微电子2025年度A105080申报衔接底稿\\\",\\n        )\\n    )\\n    ok = (\\n        row[\\\"recon_status\\\"] == \\\"RESOLVED\\\"\\n        and row[\\\"return_amount_yuan\\\"] == 35241700\\n        and row[\\\"source_amount_yuan\\\"] == 35241709\\n        and row[\\\"difference_yuan\\\"] == -9\\n        and note_ok\\n        and evidence_ok\\n    )\\n    detail = (\\n        f\\\"status={row['recon_status']}, return={row['return_amount_yuan']}, \\\"\\n        f\\\"source={row['source_amount_yuan']}, difference={row['difference_yuan']}, \\\"\\n        f\\\"note_ok={note_ok}, evidence_ok={evidence_ok}, evidence={evidence}\\\"\\n    )\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": detail}\\n\\n\\ndef check_other_2025_reconciliations_unchanged(ws):\\n    expected = {\\n        \\\"RECON-2025-AUDIT-SCOPE\\\": (\\\"CONTROLLED_SCOPE\\\", 10, 6, 4, \\\"AUD-TFME-2025-A105080-SAMPLE-06\\\"),\\n        \\\"RECON-2025-LEDGER-DEPR\\\": (\\\"MATCHED\\\", 3147073, 3147073, 0, \\\"TFME_CO_LTD|2025|TFME_EQUIPMENT_BATCH_2025\\\"),\\n        \\\"RECON-2025-PLANNING-DEDUCTION\\\": (\\\"MATCHED\\\", 35241709, 35241709, 0, \\\"TPRUN-2025-ONETIME-FINAL\\\"),\\n    }\\n    with _connect(ws) as con:\\n        rows = con.execute(\\n            \\\"\\\"\\\"SELECT recon_id, recon_status, return_amount_yuan,\\n                       source_amount_yuan, difference_yuan, source_record_id\\n                FROM filing_reconciliations\\n                WHERE return_id = ? AND recon_id <> ?\\\"\\\"\\\",\\n            (\\\"TFME_EQUIPMENT_BATCH_2025\\\", \\\"RECON-2025-LINE-MAP-009\\\"),\\n        ).fetchall()\\n    actual = {r[\\\"recon_id\\\"]: tuple(r[k] for k in (\\n        \\\"recon_status\\\", \\\"return_amount_yuan\\\", \\\"source_amount_yuan\\\", \\\"difference_yuan\\\", \\\"source_record_id\\\"\\n    )) for r in rows}\\n    ok = actual == expected\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": f\\\"other_2025={actual}\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "other_2025_reconciliations_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:00Z",
+  "status": "candidate",
+  "evidence": []
+}

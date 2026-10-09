@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0531_consulting_bizops_analytics_zh_t3_rl_006",
+  "variant_digest": "sha256:d6993b1cb3fac376af9b9feeb7b9a2ae8a2194ace84655a1acdb885a9f2ff608",
+  "variant_harbor_digest": "sha256:2898f0765498f67a1139d0bbb085a46b483cb82371c2ec22180b2b477c5e5e5d",
+  "parent": {
+    "digest": "sha256:97bf294b47270833befd29cd8bde3f5d41c82208f52418c8000edd86eca32571",
+    "harbor_digest": "sha256:549e857d67a20a0576d63d012baca919ebab839160e6c2e925c29ec730a1aa67",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0531_consulting_bizops_analytics_zh_t3_rl_006/97bf294b4727.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:decc48a1635347d9e81a4057a970cdb68d92e4b78643268252ff219ae548d05a",
+      "after_sha256": "sha256:7ad9c82a0098e0b5ec9f5f14beeb63e921d08c88f2d733b1b148df7e4af34f50",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"tariff_assessment_poststate\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_tariff_assessment_poststate\",\n      \"description\": \"候选项目的容量电费条款评估已按要求补录。\"\n    },\n    {\n      \"id\": \"existing_construction_assessment_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_existing_construction_assessment_unchanged\",\n      \"description\": \"既有同步建设不合规评估保持不变。\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"boundary_conclusion\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确说明：CAND_GZ_HIGHWAY_003 不能仅凭新建高速公路服务区身份享受集中式充换电设施的容量（需量）电费豁免；该项目对应的普通商业/非集中式边界是不适用，且不能把该政策泛化为所有商业充电站？\",\n      \"pass_anchor\": \"真实数据锚点：政策合规库中 CLA_GBF19_033 的 active 适用规则包括 APP_GBF19_033_GENERAL，其 facility_condition 是“普通工商业充电站，非集中式充换电设施”，exemption_code 为 NOT_ELIGIBLE_GENERAL_COMMERCIAL，rule_note 为“不得套用集中式充换电设施容量电费豁免”；另一条 APP_GBF19_033_CENTRAL 只覆盖“实行两部制电价的集中式充换电设施”，截至 2030-12-31。高速服务区场景本身不等同于 centralized_swap，不能仅凭场景名称取得该豁免。\"\n    },\n    {\n      \"id\": \"evidence_and_distinction\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否同时引用了项目既有同步建设评估及其证据，并清楚区分两个判断：同步建设义务的合规性，与容量电费豁免的适用性？\",\n      \"pass_anchor\": \"真实数据锚点：既有记录 ASM_GZHW_2025_0017 属于候选项目 CAND_GZ_HIGHWAY_003、政策 POL_GBF_2023_19、条款 CLA_GBF19_019，状态为 noncompliant，evidence_ref 为 EV-GZHW-2025-006:初步设计图纸，finding_note 为“服务区主体已开工，图纸未列充电基础设施同步建设内容。”新增记录应针对同一候选项目和同一政策下的容量电费条款 CLA_GBF19_033，状态为 not_applicable，并保留 EV-GZHW-2025-006 作为证据来源。合格回答应说明：前者判断是否履行同步建设义务，后者判断是否满足集中式充换电设施容量电费豁免边界，二者不是同一结论。\"\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"Policy compliance registry post-state checks for task_006.\\\"\\\"\\\"\\nfrom pathlib import Path\\nimport sqlite3\\n\\nCANDIDATE = \\\"CAND_GZ_HIGHWAY_003\\\"\\nPOLICY = \\\"POL_GBF_2023_19\\\"\\nTARIFF_CLAUSE = \\\"CLA_GBF19_033\\\"\\nCONSTRUCTION_ASSESSMENT = \\\"ASM_GZHW_2025_0017\\\"\\nEVIDENCE = \\\"EV-GZHW-2025-006\\\"\\n\\n\\ndef _db(workspace):\\n    root = Path(workspace)\\n    db = root.parent / \\\"system\\\" / \\\"policy_compliance_registry\\\" / \\\"state.db\\\"\\n    con = sqlite3.connect(db)\\n    con.row_factory = sqlite3.Row\\n    return con\\n\\n\\ndef check_tariff_assessment_poststate(workspace):\\n    with _db(workspace) as con:\\n        rows = con.execute(\\n            \\\"\\\"\\\"SELECT candidate_id, policy_id, clause_id, assessment_status,\\n                      evidence_ref\\n               FROM compliance_assessments\\n               WHERE candidate_id = ? AND policy_id = ? AND clause_id = ?\\\"\\\"\\\",\\n            (CANDIDATE, POLICY, TARIFF_CLAUSE),\\n        ).fetchall()\\n        if len(rows) != 1:\\n            return {\\\"score\\\": 0.0, \\\"detail\\\": \\\"容量电费评估记录数量不为1\\\"}\\n        row = rows[0]\\n        ok = (\\n            row[\\\"candidate_id\\\"] == CANDIDATE\\n            and row[\\\"policy_id\\\"] == POLICY\\n            and row[\\\"clause_id\\\"] == TARIFF_CLAUSE\\n            and row[\\\"assessment_status\\\"] == \\\"not_applicable\\\"\\n            and EVIDENCE in (row[\\\"evidence_ref\\\"] or \\\"\\\")\\n        )\\n        return {\\\"score\\\": 1.0 if ok else 0.0, \\\"detail\\\": \\\"容量电费评估符合预期\\\" if ok else \\\"容量电费评估字段不符合预期\\\"}\\n\\n\\ndef check_existing_construction_assessment_unchanged(workspace):\\n    expected = {\\n        \\\"assessment_id\\\": CONSTRUCTION_ASSESSMENT,\\n        \\\"candidate_id\\\": CANDIDATE,\\n        \\\"policy_id\\\": POLICY,\\n        \\\"clause_id\\\": \\\"CLA_GBF19_019\\\",\\n        \\\"external_clause_ref\\\": \\\"国办发〔2023〕19号-三（十一）\\\",\\n        \\\"assessment_status\\\": \\\"noncompliant\\\",\\n        \\\"evidence_ref\\\": \\\"EV-GZHW-2025-006:初步设计图纸\\\",\\n        \\\"remediation_due_date\\\": \\\"2025-08-15\\\",\\n        \\\"assessed_at\\\": \\\"2025-03-27\\\",\\n        \\\"assessor_name\\\": \\\"华南项目合规\\\",\\n        \\\"finding_note\\\": \\\"服务区主体已开工，图纸未列充电基础设施同步建设内容。\\\",\\n    }\\n    with _db(workspace) as con:\\n        rows = con.execute(\\n            \\\"SELECT * FROM compliance_assessments WHERE assessment_id = ?\\\",\\n            (CONSTRUCTION_ASSESSMENT,),\\n        ).fetchall()\\n        if len(rows) != 1:\\n            return {\\\"score\\\": 0.0, \\\"detail\\\": \\\"既有同步建设评估记录缺失或重复\\\"}\\n        row = dict(rows[0])\\n        ok = all(row.get(key) == value for key, value in expected.items())\\n        return {\\\"score\\\": 1.0 if ok else 0.0, \\\"detail\\\": \\\"既有同步建设评估未变更\\\" if ok else \\\"既有同步建设评估被修改\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "existing_construction_assessment_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:02Z",
+  "status": "candidate",
+  "evidence": []
+}

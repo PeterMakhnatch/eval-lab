@@ -1,0 +1,20 @@
+{
+  "evidence_tier": "MEASURED",
+  "retrieved_at_utc": "2026-10-09T13:31:48.696027+00:00",
+  "url": "https://router.huggingface.co/v1/models",
+  "command": "unauthenticated public GET /v1/models; select exact model ids and provider pricing/context fields",
+  "units": "USD per million input/output tokens",
+  "models": [
+    {"id": "thinkingmachines/Inkling", "providers": [
+      {"provider": "together", "status": "live", "context_length": 524288, "pricing": {"input": 1, "output": 4.05}, "is_free": false},
+      {"provider": "fireworks-ai", "status": "live", "context_length": 1048576, "is_free": false, "pricing_not_reported": true},
+      {"provider": "deepinfra", "status": "live", "context_length": 524288, "pricing": {"input": 0.95, "output": 4.05}, "is_free": false}
+    ]},
+    {"id": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8", "providers": [
+      {"provider": "novita", "status": "live", "context_length": 1048576, "pricing": {"input": 0.27, "output": 0.85}, "is_free": false}
+    ]}
+  ],
+  "billing_policy_source": "https://huggingface.co/docs/inference-providers/pricing",
+  "spend_usd": 0,
+  "limits": "Public catalogue rates, not token-usage measurements. No deployed model artifact revision field or revision selector is reported."
+}

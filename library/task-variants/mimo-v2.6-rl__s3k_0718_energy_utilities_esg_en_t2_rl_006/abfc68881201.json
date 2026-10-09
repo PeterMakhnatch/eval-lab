@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0718_energy_utilities_esg_en_t2_rl_006",
+  "variant_digest": "sha256:abfc68881201e418d5c0cefebfc7f040f9ecbef69a5030d4f38c5a65b445d759",
+  "variant_harbor_digest": "sha256:9a10c7a740473c61b802024c1062c9b58dbe33673ee6d0ba5ce38e15422a219d",
+  "parent": {
+    "digest": "sha256:fc47f0c807fed57d5348affecfe80348c3c973a44cc0aa4956308e97f52ddb3a",
+    "harbor_digest": "sha256:9f7bd91469a8ad2ac66441724caecd26691e7a1a4d885119915f69b832065910",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0718_energy_utilities_esg_en_t2_rl_006/fc47f0c807fe.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:f1f593bfa3d22cf515a99e1ec238edc9cec75f1ba56ac189991af421f8efcda6",
+      "after_sha256": "sha256:e6a48609002e48985e0dcd84c319f0380b3ee4ead0903594ebf3b15916a925cf",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"duplicate_copy_rejected\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_duplicate_copy_rejected\",\n      \"ground_truth\": {\n        \"evidence_item_id\": \"EVI-2010-0524-NRC-R01\",\n        \"latest_review_status\": \"REJECTED\",\n        \"evidence_status\": \"ACTIVE\"\n      },\n      \"description\": \"The redundant repository-upload item has a latest custody review of REJECTED while remaining an ACTIVE evidence row.\"\n    },\n    {\n      \"id\": \"authoritative_copy_preserved\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_authoritative_copy_preserved\",\n      \"ground_truth\": {\n        \"evidence_item_id\": \"EVI-2010-0524-NRC-A01\",\n        \"latest_review_status\": \"APPROVED\",\n        \"evidence_status\": \"ACTIVE\"\n      },\n      \"description\": \"The approved email-attachment item remains approved and active.\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"notification_reconciliation\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Does the final response correctly reconcile the completed federal notification reference and identify the two active Documentum acknowledgment entries as one duplicate-content pair, while distinguishing the approved email attachment as authoritative?\",\n      \"pass_anchor\": \"Ground truth from the live systems: Enablon notification case NC-ONCOR-NRC-20100524 is closed with decision_code reported, applicability_code applicable, agency ORG-NRC, and external reference NRC 941489. Its linked completed notification and acknowledgment events also carry NRC 941489. Documentum has exactly two active NRC_ACKNOWLEDGMENT rows for external reference NRC 941489: EVI-2010-0524-NRC-A01 titled 'NRC notification acknowledgment' and EVI-2010-0524-NRC-R01 titled 'NRC 941489 repository upload'. Both have content_hash sha256:nrc-941489-7f2a. A01's latest existing review is APPROVED; R01's prior custody history is REVIEWED and the required new disposition is REJECTED as duplicate content. The response must say that A01 remains the single authoritative approved acknowledgment and R01 is the redundant repository copy. Equivalent wording is acceptable; do not require exact formatting.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"preserve_evidence_rows_and_history\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_rows_and_history_preserved\",\n      \"ground_truth\": {\n        \"active_item_ids\": [\n          \"EVI-2010-0524-NRC-A01\",\n          \"EVI-2010-0524-NRC-R01\"\n        ],\n        \"original_custody_event_ids\": [\n          \"CE-2010-0524-NRC-A01-01\",\n          \"CE-2010-0524-NRC-A01-02\",\n          \"CE-2010-0524-NRC-R01-01\"\n        ]\n      },\n      \"description\": \"Both evidence rows and all pre-existing custody events remain present; the task is append-only.\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _db(ws):\\n    return Path(ws).parent / \\\"system\\\" / \\\"documentum_evidence\\\" / \\\"state.db\\\"\\n\\n\\ndef _latest(con, item_id):\\n    return con.execute(\\n        \\\"SELECT review_status FROM custody_versions \\\"\\n        \\\"WHERE evidence_item_id = ? \\\"\\n        \\\"ORDER BY event_timestamp DESC, version_number DESC, custody_event_id DESC LIMIT 1\\\",\\n        (item_id,),\\n    ).fetchone()\\n\\n\\ndef check_duplicate_copy_rejected(ws):\\n    con = sqlite3.connect(_db(ws))\\n    try:\\n        row = con.execute(\\n            \\\"SELECT evidence_status FROM evidence_items WHERE evidence_item_id = ?\\\",\\n            (\\\"EVI-2010-0524-NRC-R01\\\",),\\n        ).fetchone()\\n        latest = _latest(con, \\\"EVI-2010-0524-NRC-R01\\\")\\n        ok = row is not None and row[0] == \\\"ACTIVE\\\" and latest is not None and latest[0] == \\\"REJECTED\\\"\\n        return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"R01 is ACTIVE with latest review REJECTED\\\" if ok else \\\"R01 is not in the required post-state\\\"}\\n    finally:\\n        con.close()\\n\\n\\ndef check_authoritative_copy_preserved(ws):\\n    con = sqlite3.connect(_db(ws))\\n    try:\\n        row = con.execute(\\n            \\\"SELECT evidence_status FROM evidence_items WHERE evidence_item_id = ?\\\",\\n            (\\\"EVI-2010-0524-NRC-A01\\\",),\\n        ).fetchone()\\n        latest = _latest(con, \\\"EVI-2010-0524-NRC-A01\\\")\\n        ok = row is not None and row[0] == \\\"ACTIVE\\\" and latest is not None and latest[0] == \\\"APPROVED\\\"\\n        return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"A01 remains ACTIVE with latest review APPROVED\\\" if ok else \\\"A01 was changed or is missing\\\"}\\n    finally:\\n        con.close()\\n\\n\\ndef check_rows_and_history_preserved(ws):\\n    con = sqlite3.connect(_db(ws))\\n    try:\\n        rows = con.execute(\\n            \\\"SELECT evidence_item_id FROM evidence_items \\\"\\n            \\\"WHERE evidence_item_id IN (?, ?) AND evidence_status = 'ACTIVE'\\\",\\n            (\\\"EVI-2010-0524-NRC-A01\\\", \\\"EVI-2010-0524-NRC-R01\\\"),\\n        ).fetchall()\\n        event_ids = {r[0] for r in con.execute(\\n            \\\"SELECT custody_event_id FROM custody_versions \\\"\\n            \\\"WHERE custody_event_id IN (?, ?, ?)\\\",\\n            (\\\"CE-2010-0524-NRC-A01-01\\\", \\\"CE-2010-0524-NRC-A01-02\\\", \\\"CE-2010-0524-NRC-R01-01\\\"),\\n        )}\\n        expected = {\\\"CE-2010-0524-NRC-A01-01\\\", \\\"CE-2010-0524-NRC-A01-02\\\", \\\"CE-2010-0524-NRC-R01-01\\\"}\\n        ok = {r[0] for r in rows} == {\\\"EVI-2010-0524-NRC-A01\\\", \\\"EVI-2010-0524-NRC-R01\\\"} and event_ids == expected\\n        return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"Both active rows and original custody history remain\\\" if ok else \\\"Evidence rows or pre-existing history was removed\\\"}\\n    finally:\\n        con.close()\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "authoritative_copy_preserved": 1.0,
+      "preserve_evidence_rows_and_history": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:04Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_2172_legal_compliance_zh_t3_rl_009",
+  "variant_digest": "sha256:cd6d070f16e290d6ceaaf03db1841c141ce19fc77d53bb6188916701f0891ce4",
+  "variant_harbor_digest": "sha256:f907376cb2775802a36fe4af31fcccc425c5abd9cf0e67aa50bbcd6682ffe806",
+  "parent": {
+    "digest": "sha256:db63eb2e507ce6ceee3da30cc3831e5b0fdb993569c95832154d93823cfc112e",
+    "harbor_digest": "sha256:db5465b3ed312c584dc5555d9abce35b4ccb33910f804f45474bd0838f5a40a9",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_2172_legal_compliance_zh_t3_rl_009/db63eb2e507c.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:e547c9d269a4d6d058b16dd2d8017b8cf6c0650aaa9ec013cd3a8250cc2f4dcb",
+      "after_sha256": "sha256:278b09bda7b75f433531a30b20860479a4cd747bc02c1b84c926e097b85efd6a",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"fiscal_obligation_closed\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_fiscal_obligation_closed\",\n      \"ground_truth\": {\n        \"obligation_id\": \"OBL_CTR0001_022\",\n        \"actual_status\": \"COMPLETED\",\n        \"completed_date\": \"2025-09-23\",\n        \"evidence_ref\": \"FIN-REVIEW-20250923-02\",\n        \"version_no\": 2\n      }\n    },\n    {\n      \"id\": \"term2_payment_obligation_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_term2_payment_obligation_unchanged\",\n      \"ground_truth\": {\n        \"obligation_id\": \"OBL_CTR0001_023\",\n        \"actual_status\": \"IN_PROGRESS\",\n        \"completed_date\": null,\n        \"evidence_ref\": null,\n        \"version_no\": 1\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"invoice_review_evidence\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否准确说明了金蝶第二期发票财政审核的关键核对结果，并确认收款方与合同供应商一致？\",\n      \"pass_anchor\": \"答案应说明第二期发票记录INVREC-FZ-2025-0043的审核结果为已通过，财政审核日期为2025-09-23；收款方标识ORG_FJ_INTELLIGENT_TRAFFIC与用友合同供应商标识一致，供应商为福建省智能交通信息工程有限公司。允许不同时展示标识和中文名称，但必须表达收款方与合同供应商一致，且审核状态和日期准确。\"\n    },\n    {\n      \"id\": \"event_and_condition_chain\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否准确说明了项目协同事件与付款条件复核单共同支持第二期财政审核闭环？\",\n      \"pass_anchor\": \"答案应指出项目协同履约验收台账存在有效的第二期财政审核完成事件，日期为2025-09-23，来源编号为FIN-REVIEW-20250923-02；并说明《亭江科技治超点位付款条件复核单.docx》将财政审核列为第二期付款前置条件。可同时提及发票或其他条件，但无需额外复述资料归档日期，只要准确说明财政审核的付款条件定位即可。\"\n    },\n    {\n      \"id\": \"closure_not_full_payment\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否明确区分财政审核闭环与第二期付款闭环，并给出正确的剩余付款结论？\",\n      \"pass_anchor\": \"答案必须明确说明第二期财政审核已完成不等于第二期款项已全部付清；第二期合同金额882,172.50元，已付款582,234.76元，仍有299,937.74元未付，状态仍属支付待闭环，因此不得关闭第二期付款条件/付款义务。允许金额使用等值分单位或不同千分位格式。\"\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\nTARGET_ID = \\\"OBL_CTR0001_022\\\"\\nPAYMENT_CONDITION_ID = \\\"OBL_CTR0001_023\\\"\\n\\n\\ndef _db_path(ws):\\n    workspace = Path(ws).resolve()\\n    return workspace.parent / \\\"system\\\" / \\\"yonyou_contract_erp\\\" / \\\"state.db\\\"\\n\\n\\ndef _fetch_obligation(ws, obligation_id):\\n    db_path = _db_path(ws)\\n    connection = sqlite3.connect(f\\\"file:{db_path}?mode=ro\\\", uri=True)\\n    connection.row_factory = sqlite3.Row\\n    try:\\n        row = connection.execute(\\n            \\\"\\\"\\\"\\n            SELECT obligation_id, actual_status, completed_date, evidence_ref, version_no\\n            FROM contract_obligation_lines\\n            WHERE obligation_id = ?\\n            \\\"\\\"\\\",\\n            (obligation_id,),\\n        ).fetchone()\\n        return dict(row) if row else None\\n    finally:\\n        connection.close()\\n\\n\\ndef check_fiscal_obligation_closed(ws):\\n    expected = {\\n        \\\"obligation_id\\\": TARGET_ID,\\n        \\\"actual_status\\\": \\\"COMPLETED\\\",\\n        \\\"completed_date\\\": \\\"2025-09-23\\\",\\n        \\\"evidence_ref\\\": \\\"FIN-REVIEW-20250923-02\\\",\\n        \\\"version_no\\\": 2,\\n    }\\n    actual = _fetch_obligation(ws, TARGET_ID)\\n    passed = actual == expected\\n    return {\\n        \\\"score\\\": 1 if passed else 0,\\n        \\\"detail\\\": \\\"目标财政审核义务后态正确\\\" if passed else f\\\"期望 {expected}，实际 {actual}\\\",\\n    }\\n\\n\\ndef check_term2_payment_obligation_unchanged(ws):\\n    expected = {\\n        \\\"obligation_id\\\": PAYMENT_CONDITION_ID,\\n        \\\"actual_status\\\": \\\"IN_PROGRESS\\\",\\n        \\\"completed_date\\\": None,\\n        \\\"evidence_ref\\\": None,\\n        \\\"version_no\\\": 1,\\n    }\\n    actual = _fetch_obligation(ws, PAYMENT_CONDITION_ID)\\n    passed = actual == expected\\n    return {\\n        \\\"score\\\": 1 if passed else 0,\\n        \\\"detail\\\": \\\"第二期付款条件义务保持未闭环\\\" if passed else f\\\"第二期付款条件义务被误改：{actual}\\\",\\n    }\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "term2_payment_obligation_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:15Z",
+  "status": "candidate",
+  "evidence": []
+}

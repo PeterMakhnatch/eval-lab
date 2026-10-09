@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1783_it_information_systems_en_t2_rl_007",
+  "variant_digest": "sha256:3f7f9f3dc8e931134586a55a8eef5f16c01164d5a5fbdf2d18a238a6559eab83",
+  "variant_harbor_digest": "sha256:2ef3c9a10dc7a753e20fa385ce50a75bacb78f68e4dd8c8d648349626fb7f240",
+  "parent": {
+    "digest": "sha256:42ae1e372dfac31d77c17d90a00cd18b0af632e60c6cd0a07f8232107e3f7580",
+    "harbor_digest": "sha256:234ab9f7dcde3bfdee84dcb8f2c93f7512a3b129645ffc982b9726c15f401623",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1783_it_information_systems_en_t2_rl_007/42ae1e372dfa.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:676048437f9f9596604d7beea1bcb3894d25742d2799e21253ff2f2628d53d18",
+      "after_sha256": "sha256:62c91ae204475c52baa88e067b14e260ba20b31cfb1659f0ff7df10b962859a4",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"approved_meridian_signoff\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_approved_signoff\",\n      \"ground_truth\": {\n        \"run_id\": \"RUN-DEC24-SB-05\",\n        \"review_status\": \"APPROVED\",\n        \"reviewer_required\": true,\n        \"run_status\": \"COMPLETED\",\n        \"calculated_value_wan\": 1612450,\n        \"calculated_unit\": \"HKD_WAN\"\n      }\n    },\n    {\n      \"id\": \"action_log_update\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_action_log_update\",\n      \"ground_truth\": {\n        \"action_id\": \"ACT-005\",\n        \"evidence_total_wan\": 1612450,\n        \"rounding_variance_wan\": 2450,\n        \"currency\": \"HKD\",\n        \"orphan_disposition\": \"separate retired-snapshot reference remains outstanding\"\n      }\n    },\n    {\n      \"id\": \"evidence_total_and_variance\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"question\": \"Does the final response state the independently recomputed Southbound evidence total, stored comparison, and workbook-rounding variance correctly?\",\n      \"pass_anchor\": \"Ground truth: the included valid Southbound evidence for RUN-DEC24-SB-05 totals 1,612,450 HKD wan, exactly matching the stored calculated value of 1,612,450 HKD wan. The superseded workbook value is 1,610,000 HKD wan (HKD161.0bn), so the controlled workbook-rounding variance is 2,450 HKD wan (HKD24.5 million). Accept equivalent comma, decimal, and HKD million/billion presentations, but do not accept a value in RMB or a Northbound-inclusive total.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"currency_boundary\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Does the final response preserve the Southbound/Northbound currency boundary and explain what was excluded from the sign-off?\",\n      \"pass_anchor\": \"The answer must say that this sign-off is Southbound-only in native HKD and that Northbound monitoring remains a separate RMB measure; no FX conversion, netting, or combined HKD/RMB flow is permitted. It should identify that the Northbound RMB evidence was not included in the Southbound total.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"orphan_reference_disposition\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Does the final response correctly distinguish the rounding variance from the separate orphan source-reference exception?\",\n      \"pass_anchor\": \"The answer must explain that the retired Stock Connect snapshot reference is unresolved/open and remains a separate outstanding exception with controlled follow-up; it must not say the reference was resolved, deleted, waived, or closed as part of the Southbound sign-off. The 2,450 HKD wan workbook rounding variance is a different, explained item.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"post_action_summary\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"Does the final response identify both required operational changes?\",\n      \"pass_anchor\": \"The answer must report that an APPROVED Meridian review sign-off was recorded for the pending December Southbound run with a reviewer, and that the Southbound action entry in HKEX_December_2024_Data_Exceptions_and_Action_Log.docx was updated with the HKD evidence total, the rounding explanation, and the separate outstanding-reference disposition.\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"preserve_separate_exception\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_orphan_exception_untouched\",\n      \"ground_truth\": {\n        \"exception_id\": \"EXC-DEC24-OPS-027\",\n        \"status\": \"OPEN\",\n        \"resolution_note\": null\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nimport sqlite3,re\\nfrom docx import Document\\ndef db(w): return Path(w).parent/'system'/'meridian_capital_reconciliation_hub'/'state.db'\\ndef row(w,q,p=()):\\n c=sqlite3.connect(db(w)); c.row_factory=sqlite3.Row\\n try:return c.execute(q,p).fetchone()\\n finally:c.close()\\ndef check_approved_signoff(w):\\n r=row(w,'select run_status,review_status,reviewer,calculated_value_wan,calculated_unit from reconciliation_runs where run_id=?',('RUN-DEC24-SB-05',)); ok=bool(r and r['run_status']=='COMPLETED' and r['review_status']=='APPROVED' and (r['reviewer'] or '').strip() and r['calculated_value_wan']==1612450 and r['calculated_unit']=='HKD_WAN'); return {'score':int(ok),'detail':'approved' if ok else 'not approved'}\\ndef check_stored_value_preserved(w):\\n r=row(w,'select calculated_value_wan,calculated_unit from reconciliation_runs where run_id=?',('RUN-DEC24-SB-05',)); ok=bool(r and r['calculated_value_wan']==1612450 and r['calculated_unit']=='HKD_WAN'); return {'score':int(ok),'detail':'preserved' if ok else 'changed'}\\ndef check_action_log_update(w):\\n d=Document(Path(w)/'03_Leadership_Materials'/'HKEX_December_2024_Data_Exceptions_and_Action_Log.docx')\\n for t in d.tables:\\n  h=[c.text.strip().lower() for c in t.rows[0].cells]\\n  if 'action id' in h and 'status' in h:\\n   ai=h.index('action id')\\n   for rr in t.rows[1:]:\\n    v=[c.text for c in rr.cells]\\n    if len(v)>ai and v[ai].strip().upper()=='ACT-005':\\n     e=dict(zip(h,v)).get('evidence required',''); n=re.sub(r'\\\\s+',' ',e).lower(); nums=re.sub(r'[^0-9]','',e); ok='hkd' in n and 'round' in n and 'retired' in n and ('open' in n or 'outstanding' in n) and '1612450' in nums and '2450' in nums; return {'score':int(ok),'detail':'required evidence' if ok else 'missing evidence'}\\n return {'score':0,'detail':'missing ACT-005'}\\ndef check_orphan_exception_untouched(w):\\n r=row(w,'select status,resolution_note from reconciliation_exceptions where exception_id=?',('EXC-DEC24-OPS-027',)); ok=bool(r and r['status']=='OPEN' and r['resolution_note'] is None); return {'score':int(ok),'detail':'open' if ok else 'altered'}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"both\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "preserve_separate_exception": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:13Z",
+  "status": "candidate",
+  "evidence": []
+}

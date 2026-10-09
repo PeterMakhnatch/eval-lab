@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1753_hr_people_zh_t4_rl_001",
+  "variant_digest": "sha256:ce21b8cff900ea482bed1747dab7153faecf6f5a5f397badb6a7afe5f1a8a157",
+  "variant_harbor_digest": "sha256:88b32abe4a3ea1e76e866fc1c8dc36af8fc8b9175856ace48d8a95f35451ca80",
+  "parent": {
+    "digest": "sha256:000c3a287ad52f7e9d7a9751a1b662ce953212c3859548c0e8dcd5ac5aa147ea",
+    "harbor_digest": "sha256:ed6c2142c3661fdddb4bb9f7f23dae812410e6df9039ce4940f5f6659adacb54",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1753_hr_people_zh_t4_rl_001/000c3a287ad5.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:83fd9c6f24c9a937e2ee40ed4b2a642e891007bf02bc6af488038dbebc60caac",
+      "after_sha256": "sha256:21bc9f9b50ef8a336e69fce0c881935ee2050cfe3811456fae9716a0d4ca07b4",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"category\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否识别出岗位供给人数最高的统一岗位方向？\",\n      \"pass_anchor\": \"真实数据按唯一岗位口径聚合后，最高方向是“土木工程”；该结论需在最终回复中明确表达。\"\n    },\n    {\n      \"id\": \"headcount\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否给出了最高方向对应的岗位人数，并与真实数据一致？\",\n      \"pass_anchor\": \"最高方向对应 68 个岗位（源表招聘人数展开、汇总映射按岗位ID首映射去重；不能把类别合计展示行或专业映射行重复计入）。允许自然语言或带单位表达。\"\n    },\n    {\n      \"id\": \"share\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否算出最高方向占 196 个岗位的比例，并与真实数据一致？\",\n      \"pass_anchor\": \"比例应为 68/196 = 0.3469387755，即约 34.69%（接受合理四舍五入，如 34.7% 或 34.69%）。\"\n    },\n    {\n      \"id\": \"unit_count\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否给出了提供该最高方向岗位的参会单位去重数量，并与真实数据一致？\",\n      \"pass_anchor\": \"“土木工程”方向覆盖 3 家不同参会单位；单位数按单位去重，不按岗位行或专业映射行计数。\"\n    },\n    {\n      \"id\": \"read_only\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_read_only\",\n      \"ground_truth\": \"workspace is unchanged\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\n\\n\\ndef check_read_only(ws):\\n    return {\\\"score\\\": 1.0, \\\"detail\\\": \\\"read-only task; no post-state mutation is required\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "read_only": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:13Z",
+  "status": "candidate",
+  "evidence": []
+}

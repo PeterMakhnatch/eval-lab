@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1098_finance_insurance_zh_t3_rl_003",
+  "variant_digest": "sha256:a5d984e46a1b1906db1a35647e4cf0438c66b19d381b0df4889f9817eeefd2d0",
+  "variant_harbor_digest": "sha256:e07e07a1fd21f2e1a0ef704d8e0e25fbd9abb25212e867e6402dd7da9a3511a7",
+  "parent": {
+    "digest": "sha256:71d8772b9c68af02c0a7c88500450b47ac8538098e7111a28f94a4afcf5229cb",
+    "harbor_digest": "sha256:a936b434bcfac97e831457d1c2b37bddde54da732eb98bd0546815ff51994f86",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1098_finance_insurance_zh_t3_rl_003/71d8772b9c68.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:b51a8a601b765338774429c165dd291c8753ecb18145cbc3b72699371983c7fd",
+      "after_sha256": "sha256:ce7b5253c48cb1c3e68d956c3649247867674908cc3a7793d19cb622b682e197",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"approved_claim_amount\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否识别出审批呈报中的正式核赔金额结论？\",\n      \"pass_anchor\": \"应指出《京N8Q27P_核赔审批呈报》的赔款核定结论为人民币24,107.60元（允许等价金额格式），表明金额审批/核定结论已经形成。\"\n    },\n    {\n      \"id\": \"invoice_condition_satisfied\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否正确判断维修结算票据这一付款前置条件的状态？\",\n      \"pass_anchor\": \"应明确说明票据与结算清单已经核验，证据包括增值税专用发票、维修结算清单及授权收款资料已核验；不得将该项说成待补或未核验。\"\n    },\n    {\n      \"id\": \"account_condition_blocking\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否识别出阻止付款放行的账户一致性门禁？\",\n      \"pass_anchor\": \"应明确指出收款账户名称与授权主体的一致性尚为待人工核验，是现有文件中唯一明确未完成的付款前置条件，因此不能仅凭核赔金额已核定和票据已核验就认定全部条件通过。等价表述可接受，但不得声称账户一致性已经通过。\"\n    },\n    {\n      \"id\": \"payment_status_and_decision\",\n      \"tier\": \"critical\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"最终回复是否给出与支付登记一致的当前状态和放行结论？\",\n      \"pass_anchor\": \"应指出当前支付状态为待支付，付款指令尚未形成/为空，并据此判断现阶段不能放行付款；下一步需完成人工账户名称一致性核验后再进入付款指令或放行流程。\"\n    },\n    {\n      \"id\": \"source_integrity\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_source_integrity\",\n      \"description\": \"只读任务引用的两份源文件未被改写或删除。\",\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"\\\"\\\"\\\"Deterministic sanity checks for the read-only source documents.\\\"\\\"\\\"\\n\\nfrom hashlib import sha256\\n\\n\\nEXPECTED_HASHES = {\\n    \\\"03_核赔报批/京N8Q27P_核赔审批呈报.docx\\\": \\\"a03f4cdd2574e109a7e4ca3a413e278fd253e48314f96dc5a49d5df79cbe57c5\\\",\\n    \\\"03_核赔报批/京N8Q27P_维修赔款核定清单.xlsx\\\": \\\"92be4add37d09bdb7a66e07280d08d7561b04f898c544ed91658ae67e0173935\\\",\\n}\\n\\n\\ndef check_source_integrity(ws):\\n    mismatches = []\\n    for relative_path, expected_hash in EXPECTED_HASHES.items():\\n        path = ws / relative_path\\n        if not path.is_file():\\n            mismatches.append(f\\\"missing: {relative_path}\\\")\\n            continue\\n        actual_hash = sha256(path.read_bytes()).hexdigest()\\n        if actual_hash != expected_hash:\\n            mismatches.append(f\\\"modified: {relative_path}\\\")\\n    if mismatches:\\n        return {\\\"score\\\": 0, \\\"detail\\\": \\\"; \\\".join(mismatches)}\\n    return {\\\"score\\\": 1, \\\"detail\\\": \\\"referenced source documents unchanged\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"workspace\",\n  \"act\": \"none\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "source_integrity": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:07Z",
+  "status": "candidate",
+  "evidence": []
+}

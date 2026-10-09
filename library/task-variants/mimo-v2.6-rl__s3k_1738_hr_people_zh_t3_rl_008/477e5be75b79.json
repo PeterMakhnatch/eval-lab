@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1738_hr_people_zh_t3_rl_008",
+  "variant_digest": "sha256:477e5be75b798e848b3cbf4b988cdaac1acd27404bf830f0d5091f84dd69eb6f",
+  "variant_harbor_digest": "sha256:517b3461cb521fad3c3cbeab638656ad0b71f2865d99992210386dae82f5c0c3",
+  "parent": {
+    "digest": "sha256:4c61d29250afe1c7483e7b125f9c1726c1555475b39d2ec677afa70a238601ae",
+    "harbor_digest": "sha256:a04e72c5aec182026a141ce2060437fd7c011461c2e348778540f9349e063e6e",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1738_hr_people_zh_t3_rl_008/4c61d29250af.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:c6a061bc88b16b6425ebf7e83390c7464a0e9566f1e9eb81a3ab09f392e87adc",
+      "after_sha256": "sha256:c6ecf7f627700ebced776ddce68d06cde0491ca9fd8c2ca427f01ae1e19de353",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"action_progressed\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_action_progressed\",\n      \"ground_truth\": {\n        \"action_id\": \"ACT-2608-001-A\",\n        \"defect_id\": \"DFT-2608-001\",\n        \"action_status\": \"in_progress\",\n        \"verification_evidence_ref\": \"EVD-CIS-ACCESS-081-04\",\n        \"verified_closed_at\": null,\n        \"updated_by\": \"PERSON-MARCUS-ELLISON\"\n      }\n    },\n    {\n      \"id\": \"defect_remains_open\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_defect_remains_open\",\n      \"ground_truth\": {\n        \"defect_id\": \"DFT-2608-001\",\n        \"defect_status\": \"Open\"\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"permission_regression_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否正确算出并解释最新正式成员隔离权限回归的总用例数、通过数、跨成员访问数和全局目录越权编辑数，并区分正式 case 执行与汇总/历史试跑？\",\n      \"pass_anchor\": \"真实数据锚点：最新正式成员隔离权限回归为 2026-06-18 的正式 case_execution；答案必须明确给出总用例 740、通过 740、跨成员访问 0、全局目录越权编辑 0，并说明未把 RUN_SUMMARY 导入汇总或历史 dry_run 试跑混入。无需复述具体 run ID、数据库内部筛选字段或分角色拆分。答案需说明这表示权限回归通过，但不是缺陷已独立验证关闭。\"\n    },\n    {\n      \"id\": \"defect_workflow_conclusion\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"是否识别出 DFT-2608-001 的缺陷仍为开放状态、唯一整改动作正在等待安全复测，并准确报告动作、责任人和证据引用，从而说明为何不能关闭？\",\n      \"pass_anchor\": \"真实数据锚点：DFT-2608-001 仍为 Open、严重级别 S1 且属于首阶段阻断项；唯一动作 ACT-2608-001-A 更新后为 in_progress，责任人为 Marcus Ellison，保留整改证据引用 EVD-CIS-ACCESS-081-04，verified_closed_at 为空。答案必须说明零越权只是测试结果，不等于独立安全复测完成，因此缺陷和动作不得关闭。无需复述更新前 verification_result 原文或数据库内部责任人 ID。\"\n    },\n    {\n      \"id\": \"okta_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_okta_unchanged\",\n      \"ground_truth\": {\n        \"expected_run_ids\": [\n          \"RUN_SUMMARY\",\n          \"RUN-2026-06-18-044\",\n          \"RUN-2026-06-18-043\",\n          \"RUN-2026-06-18-042\",\n          \"RUN-2026-06-18-041\"\n        ],\n        \"expected_statuses\": [\n          \"accepted\",\n          \"accepted\",\n          \"accepted\",\n          \"accepted\",\n          \"accepted\"\n        ]\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\n\\ndef _db(workspace, system_name):\\n    return Path(workspace).parent / \\\"system\\\" / system_name / \\\"state.db\\\"\\n\\n\\ndef check_action_progressed(workspace):\\n    db = _db(workspace, \\\"servicenow_migration_defects\\\")\\n    with sqlite3.connect(db) as con:\\n        con.row_factory = sqlite3.Row\\n        action = con.execute(\\n            \\\"SELECT action_id, defect_id, action_status, verification_evidence_ref, verified_closed_at \\\"\\n            \\\"FROM remediation_actions WHERE action_id = ?\\\",\\n            (\\\"ACT-2608-001-A\\\",),\\n        ).fetchone()\\n        try:\\n            audit = con.execute(\\n                \\\"SELECT updated_by FROM remediation_action_audit WHERE action_id = ? \\\"\\n                \\\"ORDER BY audit_id DESC LIMIT 1\\\",\\n                (\\\"ACT-2608-001-A\\\",),\\n            ).fetchone()\\n        except sqlite3.OperationalError:\\n            audit = None\\n    ok = bool(action and audit and action[\\\"defect_id\\\"] == \\\"DFT-2608-001\\\"\\n              and action[\\\"action_status\\\"] == \\\"in_progress\\\"\\n              and action[\\\"verification_evidence_ref\\\"] == \\\"EVD-CIS-ACCESS-081-04\\\"\\n              and action[\\\"verified_closed_at\\\"] is None\\n              and audit[\\\"updated_by\\\"] in (\\\"PERSON-MARCUS-ELLISON\\\", \\\"Marcus Ellison\\\"))\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"target remediation action has the required in-progress state and audit actor\\\" if ok else \\\"target remediation action state/evidence/audit actor is incorrect\\\"}\\n\\n\\ndef check_defect_remains_open(workspace):\\n    db = _db(workspace, \\\"servicenow_migration_defects\\\")\\n    with sqlite3.connect(db) as con:\\n        row = con.execute(\\n            \\\"SELECT defect_status FROM defect_register WHERE defect_id = ?\\\",\\n            (\\\"DFT-2608-001\\\",),\\n        ).fetchone()\\n    ok = bool(row and row[0] == \\\"Open\\\")\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"defect remains Open\\\" if ok else \\\"defect was incorrectly closed or missing\\\"}\\n\\n\\ndef check_okta_unchanged(workspace):\\n    db = _db(workspace, \\\"okta_access_audit\\\")\\n    with sqlite3.connect(db) as con:\\n        rows = con.execute(\\n            \\\"SELECT test_run_id, disposition_status FROM access_test_runs \\\"\\n            \\\"WHERE test_run_id IN ('RUN_SUMMARY','RUN-2026-06-18-044','RUN-2026-06-18-043','RUN-2026-06-18-042','RUN-2026-06-18-041') \\\"\\n            \\\"ORDER BY CASE test_run_id WHEN 'RUN_SUMMARY' THEN 0 WHEN 'RUN-2026-06-18-044' THEN 1 WHEN 'RUN-2026-06-18-043' THEN 2 WHEN 'RUN-2026-06-18-042' THEN 3 WHEN 'RUN-2026-06-18-041' THEN 4 END\\\"\\n        ).fetchall()\\n    expected = [\\\"RUN_SUMMARY\\\", \\\"RUN-2026-06-18-044\\\", \\\"RUN-2026-06-18-043\\\", \\\"RUN-2026-06-18-042\\\", \\\"RUN-2026-06-18-041\\\"]\\n    ok = [r[0] for r in rows] == expected and all(r[1] == \\\"accepted\\\" for r in rows)\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": \\\"Okta regression records were not modified\\\" if ok else \\\"Okta regression records changed\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "defect_remains_open": 1.0,
+      "okta_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:12Z",
+  "status": "candidate",
+  "evidence": []
+}

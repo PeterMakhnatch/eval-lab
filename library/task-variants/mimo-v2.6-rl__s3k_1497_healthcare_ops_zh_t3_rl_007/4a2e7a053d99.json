@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1497_healthcare_ops_zh_t3_rl_007",
+  "variant_digest": "sha256:4a2e7a053d99bf17905f7d0507c0635c7ef7c2ec152b6c51f242e3ba0158ffa1",
+  "variant_harbor_digest": "sha256:7bcf8b4d822e1e3e36e46d2e9b182e4b31a44d669b4a7f71655c7a43e3c66e87",
+  "parent": {
+    "digest": "sha256:ff09d6a720f0bb5413b4c87636562782b3f5dce83c7a044c634425728dd77b0a",
+    "harbor_digest": "sha256:49a6553739a496237df38dd7584187c65056d990469ad13bce02fc30db7f9dc5",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1497_healthcare_ops_zh_t3_rl_007/ff09d6a720f0.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:92b78a4fe7a8d1f80b9cbb036c9518316c6c7e3c218f32aa2581cb0379574c11",
+      "after_sha256": "sha256:75a010c1d4eab8b866f9a05d79c06812036cf36419b0d74a5cfdb26ea6e7b6c3",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_source_name_normalized\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_source_name\",\n      \"ground_truth\": {\n        \"hospital_id\": \"HN_XY_001\",\n        \"source_org_name\": \"中南大学湘雅医院医保信息科\"\n      }\n    },\n    {\n      \"id\": \"canonical_identity_preserved\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_canonical_identity\",\n      \"ground_truth\": {\n        \"hospital_id\": \"HN_XY_001\",\n        \"hospital_name_std\": \"中南大学湘雅医院\",\n        \"batch_id\": \"HN_XY_202502\",\n        \"responsible_department\": \"医保信息科\"\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"variant_and_scope_explained\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确识别了来源名称变体、规范机构身份及本次统一范围？\",\n      \"pass_anchor\": \"应指出主数据中心原来源名称为“湘雅医院医保办”，对应的规范机构为“中南大学湘雅医院”，规范机构 ID 为 HN_XY_001；湖南省医疗服务价格项目目录相关机构来源中也存在“湘雅医院”这一来源称谓，2025年2月批次的责任部门是“医保信息科”，整改协同台的牵头组织写作“中南大学湘雅医院医保信息科”。统一范围是该规范机构在本次 2025 年 2 月目录映射核验中的来源显示名称，不是新建医院或修改其他机构。允许等价表述，但不得把 HN_XY_002/HN_XY_003 或其他医院当成目标。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"operation_and_no_impact_reported\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否明确报告了实际执行的来源名称变更，并说明规范 ID、批次责任部门、项目映射和其他医院未被改动？\",\n      \"pass_anchor\": \"应明确说明已在湖南医保目录维护主数据中心执行来源显示名称从“湘雅医院医保办”到“中南大学湘雅医院医保信息科”的变更；规范机构 ID HN_XY_001 保持不变，HN_XY_202502 的责任部门“医保信息科”保持不变，并说明没有修改其他医院、历史批次、映射项目或经办/审核显示信息。最终回复必须同时呈现分析结论和实际操作结果，不能只说“已处理”。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"unrelated_records_unchanged\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_unrelated_records\",\n      \"ground_truth\": {\n        \"other_hospital_source_names\": {\n          \"HN_YY_019\": \"岳阳市人民医院医保科\",\n          \"HN_CZ_011\": \"郴州一医院医保信息组\",\n          \"HN_CS_014\": \"长沙市中心医院医保管理科\",\n          \"HN_YI_032\": \"益阳市中心医院医保办\",\n          \"ORG_HN_PRICE_007\": \"湖南省医保事务中心\",\n          \"ORG_NHSA_001\": \"国家医保局\",\n          \"HN_ZZ_021\": \"株洲市中心医院医保办\",\n          \"HN_LD_009\": \"娄底市中心医院医保办\",\n          \"HN_XJ_018\": \"湘西州人民医院医保科\",\n          \"HN_YZ_016\": \"永州市中心医院医保科\",\n          \"HN_HY_017\": \"附一医院医保科\",\n          \"HN_SY_025\": \"邵阳市中心医院医保办\",\n          \"HN_CD_013\": \"常德一医院医保办\"\n        },\n        \"target_batch_responsible_department\": \"医保信息科\",\n        \"target_mapping_count\": 9\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import sqlite3\\nfrom pathlib import Path\\n\\nTARGET_ID = \\\"HN_XY_001\\\"\\nTARGET_SOURCE = \\\"中南大学湘雅医院医保信息科\\\"\\nTARGET_BATCH = \\\"HN_XY_202502\\\"\\n\\n\\ndef _db(ws):\\n    return Path(ws).parent / \\\"system\\\" / \\\"xiangya_catalog_mdm\\\" / \\\"state.db\\\"\\n\\n\\ndef check_target_source_name(ws):\\n    with sqlite3.connect(_db(ws)) as con:\\n        row = con.execute(\\n            \\\"SELECT hospital_id, source_org_name FROM hospital_org WHERE hospital_id=?\\\",\\n            (TARGET_ID,),\\n        ).fetchone()\\n    ok = row == (TARGET_ID, TARGET_SOURCE)\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": f\\\"target={row!r}, expected={(TARGET_ID, TARGET_SOURCE)!r}\\\"}\\n\\n\\ndef check_canonical_identity(ws):\\n    with sqlite3.connect(_db(ws)) as con:\\n        row = con.execute(\\n            \\\"SELECT h.hospital_id,h.hospital_name_std,b.batch_id,b.responsible_department \\\"\\n            \\\"FROM hospital_org h JOIN catalog_maintenance_batch b ON b.hospital_id=h.hospital_id \\\"\\n            \\\"WHERE h.hospital_id=? AND b.batch_id=?\\\",\\n            (TARGET_ID, TARGET_BATCH),\\n        ).fetchone()\\n    expected = (TARGET_ID, \\\"中南大学湘雅医院\\\", TARGET_BATCH, \\\"医保信息科\\\")\\n    ok = row == expected\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": f\\\"identity={row!r}, expected={expected!r}\\\"}\\n\\n\\ndef check_unrelated_records(ws):\\n    expected = {\\n        \\\"HN_YY_019\\\": \\\"岳阳市人民医院医保科\\\", \\\"HN_CZ_011\\\": \\\"郴州一医院医保信息组\\\",\\n        \\\"HN_CS_014\\\": \\\"长沙市中心医院医保管理科\\\", \\\"HN_YI_032\\\": \\\"益阳市中心医院医保办\\\",\\n        \\\"ORG_HN_PRICE_007\\\": \\\"湖南省医保事务中心\\\", \\\"ORG_NHSA_001\\\": \\\"国家医保局\\\",\\n        \\\"HN_ZZ_021\\\": \\\"株洲市中心医院医保办\\\", \\\"HN_LD_009\\\": \\\"娄底市中心医院医保办\\\",\\n        \\\"HN_XJ_018\\\": \\\"湘西州人民医院医保科\\\", \\\"HN_YZ_016\\\": \\\"永州市中心医院医保科\\\",\\n        \\\"HN_HY_017\\\": \\\"附一医院医保科\\\", \\\"HN_SY_025\\\": \\\"邵阳市中心医院医保办\\\",\\n        \\\"HN_CD_013\\\": \\\"常德一医院医保办\\\"\\n    }\\n    with sqlite3.connect(_db(ws)) as con:\\n        rows = dict(con.execute(\\n            \\\"SELECT hospital_id,source_org_name FROM hospital_org WHERE hospital_id<>?\\\",\\n            (TARGET_ID,),\\n        ).fetchall())\\n        batch_dept = con.execute(\\n            \\\"SELECT responsible_department FROM catalog_maintenance_batch WHERE batch_id=?\\\",\\n            (TARGET_BATCH,),\\n        ).fetchone()\\n        mapping_count = con.execute(\\n            \\\"SELECT COUNT(*) FROM catalog_mapping_segment WHERE batch_id=?\\\",\\n            (TARGET_BATCH,),\\n        ).fetchone()[0]\\n    # The rubric lists protected non-target records as a subset.\\n    other_ok = all(rows.get(hospital_id) == source_name\\n                   for hospital_id, source_name in expected.items())\\n    ok = other_ok and batch_dept == (\\\"医保信息科\\\",) and mapping_count == 9\\n    return {\\\"score\\\": 1 if ok else 0, \\\"detail\\\": f\\\"other_orgs_ok={other_ok}, batch={batch_dept!r}, mappings={mapping_count}\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "canonical_identity_preserved": 1.0,
+      "unrelated_records_unchanged": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:10Z",
+  "status": "candidate",
+  "evidence": []
+}

@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_0276_accounting_audit_tax_zh_t3_rl_003",
+  "variant_digest": "sha256:c74618a7105f8f917b251ed3b935840747e713e1142db91c96d0e88f98e363d3",
+  "variant_harbor_digest": "sha256:3583b3824557861d9d327a21463b0b4ea1d1bf2133502cdb5c57aa8051193301",
+  "parent": {
+    "digest": "sha256:b8a4de03c3f26a1785945cc7968a9a9cea772d8f46c20d90aca139d0c0751797",
+    "harbor_digest": "sha256:bcab93a3d2dc8df297b4227869367a0412764dedecee93db8b590c03e919c085",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_0276_accounting_audit_tax_zh_t3_rl_003/b8a4de03c3f2.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:78c7d49da85bf947649d77b63e775ef65651a56a1aaa7d127701f1b6124dd42d",
+      "after_sha256": "sha256:3fa0fdfab799d1dee831bee6e2e467bfc3cbc0f567c18c471112b9ff6fadb73d",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"target_variant_registered\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_target_variant_registered\",\n      \"ground_truth\": {\n        \"party_id\": \"PTY-CAR-0002\",\n        \"record_status\": \"MASTER\",\n        \"active_status\": \"ACTIVE\",\n        \"legal_name\": \"顺丰速运有限公司\",\n        \"display_name\": \"顺丰\",\n        \"legacy_name\": \"顺丰供应链有限公司\",\n        \"source_reference\": \"HOF-2024-1230-0071\",\n        \"effective_date\": \"2024-12-30\"\n      }\n    },\n    {\n      \"id\": \"master_not_duplicated\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_master_not_duplicated\",\n      \"ground_truth\": {\n        \"party_id\": \"PTY-CAR-0002\",\n        \"master_row_count\": 1,\n        \"business_party_count\": 53\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"analysis_and_receipt\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"question\": \"最终回复是否正确说明运输记录中的名称、来源记录、对应的有效主档、变体登记信息、操作结果和编码优先原则？\",\n      \"pass_anchor\": \"真实证据链：midea_tms_shipping_delivery 的 carrier_handoffs 记录 HOF-2024-1230-0071（shipment_id=SHP-2024-1230-0087，handoff_datetime=2024-12-30 10:22:18）使用 carrier_name=“顺丰供应链有限公司”；midea_master_data_directory 中 party_id=PTY-CAR-0002 的 MASTER 主档 legal_name=“顺丰速运有限公司”、display_name=“顺丰”、active_status=ACTIVE，登记后 legacy_name 应为“顺丰供应链有限公司”。正确登记回执的语义应为 BUSINESS_PARTY/PTY-CAR-0002、LEGACY_NAME、来源系统为美的集团运输管理系统、来源记录为 HOF-2024-1230-0071、生效日期为 2024-12-30，且状态 RESOLVED。最终回复必须说明后续勾稽使用 party_id/承运商编码优先，不能把名称变体当成新实体。允许中文、英文标识和日期的等价表达。\",\n      \"files\": [\n        \"answer.md\"\n      ]\n    },\n    {\n      \"id\": \"untouched_master_data\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_untouched_master_data\",\n      \"ground_truth\": {\n        \"target_party_id\": \"PTY-CAR-0002\",\n        \"business_party_count\": 53,\n        \"warehouse_count\": 17\n      },\n      \"weight\": 0\n    }\n  ],\n  \"check_code\": \"import hashlib\\nimport json\\nimport sqlite3\\nfrom pathlib import Path\\n\\n\\nTARGET = \\\"PTY-CAR-0002\\\"\\nEXPECTED_LEGACY = \\\"顺丰供应链有限公司\\\"\\nEXPECTED_OTHER_PARTIES_SHA256 = \\\"08ff549ccf903e359b82a64b7571ae163068946c5dbfb2834bc256d2974120a9\\\"\\n\\n\\ndef _db(ws):\\n    return Path(ws).resolve().parent / \\\"system\\\" / \\\"midea_master_data_directory\\\" / \\\"state.db\\\"\\n\\n\\ndef _con(ws):\\n    con = sqlite3.connect(_db(ws))\\n    con.row_factory = sqlite3.Row\\n    return con\\n\\n\\ndef _party_tuple(row):\\n    return tuple(row[k] for k in (\\n        \\\"party_id\\\", \\\"party_type\\\", \\\"legal_name\\\", \\\"display_name\\\", \\\"legacy_name\\\",\\n        \\\"organization_id\\\", \\\"active_status\\\", \\\"record_status\\\", \\\"effective_date\\\", \\\"end_date\\\"\\n    ))\\n\\n\\ndef check_target_variant_registered(ws):\\n    with _con(ws) as con:\\n        rows = con.execute(\\n            \\\"SELECT party_id, party_type, legal_name, display_name, legacy_name, \\\"\\n            \\\"active_status, record_status FROM business_parties WHERE party_id = ?\\\",\\n            (TARGET,),\\n        ).fetchall()\\n    if len(rows) != 1:\\n        return {\\\"score\\\": 0, \\\"detail\\\": f\\\"target_rows={len(rows)}\\\"}\\n    row = rows[0]\\n    ok = (\\n        row[\\\"party_type\\\"] == \\\"CARRIER\\\"\\n        and row[\\\"legal_name\\\"] == \\\"顺丰速运有限公司\\\"\\n        and row[\\\"display_name\\\"] == \\\"顺丰\\\"\\n        and row[\\\"legacy_name\\\"] == EXPECTED_LEGACY\\n        and row[\\\"active_status\\\"] == \\\"ACTIVE\\\"\\n        and row[\\\"record_status\\\"] == \\\"MASTER\\\"\\n    )\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": f\\\"party={dict(row)}\\\"}\\n\\n\\ndef check_master_not_duplicated(ws):\\n    with _con(ws) as con:\\n        master_count = con.execute(\\n            \\\"SELECT COUNT(*) FROM business_parties WHERE party_id = ? AND record_status = 'MASTER'\\\",\\n            (TARGET,),\\n        ).fetchone()[0]\\n        total = con.execute(\\\"SELECT COUNT(*) FROM business_parties\\\").fetchone()[0]\\n    ok = master_count == 1 and total == 53\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": f\\\"target_master_rows={master_count}, business_party_total={total}\\\"}\\n\\n\\ndef check_untouched_master_data(ws):\\n    with _con(ws) as con:\\n        rows = [dict(row) for row in con.execute(\\n            \\\"SELECT * FROM business_parties WHERE party_id <> ? ORDER BY party_id\\\", (TARGET,)\\n        ).fetchall()]\\n        warehouses = con.execute(\\\"SELECT COUNT(*) FROM warehouses\\\").fetchone()[0]\\n    digest = hashlib.sha256(json.dumps(rows, ensure_ascii=False, sort_keys=True, separators=(\\\",\\\", \\\":\\\")).encode()).hexdigest()\\n    ok = len(rows) == 52 and digest == EXPECTED_OTHER_PARTIES_SHA256 and warehouses == 17\\n    return {\\\"score\\\": int(ok), \\\"detail\\\": f\\\"other_parties={len(rows)}, warehouses={warehouses}, digest={digest}\\\"}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"db\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "master_not_duplicated": 1.0,
+      "untouched_master_data": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:00Z",
+  "status": "candidate",
+  "evidence": []
+}

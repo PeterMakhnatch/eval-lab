@@ -1,0 +1,41 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "mimo-v2.6-rl/s3k_1132_finance_insurance_zh_t4_rl_005",
+  "variant_digest": "sha256:b60664cb08b93c10f17cedfdcc3aa699b569e8020a550f1a261e9c773a4c4ace",
+  "variant_harbor_digest": "sha256:b36a711b4f24c913f7962613dd73f89aef143b8e6eeec19ee3fc22791f2c360d",
+  "parent": {
+    "digest": "sha256:2ed5e44491aebf7d24ece73adbd7b2833a44b1c1efa8f4fb7725dbb3b054c668",
+    "harbor_digest": "sha256:7fe14268720540028022b526356edca8463c6136577677abeee650778f6c6280",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/mimo-v2.6-rl__s3k_1132_finance_insurance_zh_t4_rl_005/2ed5e44491ae.json"
+    }
+  },
+  "transform": "general-nop-zero-weight@1",
+  "components_changed": [
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "tests/verifier/verifier_meta.json",
+      "before_sha256": "sha256:9e445d275309fd89eb70b3c054ddd28afa012c566e38aa343f8912e0b5ade161",
+      "after_sha256": "sha256:9412b538a71bcb2386e787e9449987821934a6e9eb83b34551d70d7f4448f30e",
+      "content": "{\n  \"items\": [\n    {\n      \"id\": \"disease_check_pass\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_disease_check_pass\",\n      \"ground_truth\": {\n        \"claim_id\": \"CLAIM-CL2025081700936\",\n        \"check_type\": \"DISEASE_DEFINITION\",\n        \"check_result\": \"PASS\"\n      },\n      \"weight\": 0\n    },\n    {\n      \"id\": \"disease_check_value_and_evidence\",\n      \"tier\": \"critical\",\n      \"method\": \"rule\",\n      \"fn\": \"check_disease_check_value_and_evidence\",\n      \"ground_truth\": {\n        \"canonical_disease_id\": \"DISEASE-SEVERE-AMI-2020\",\n        \"base_diagnosis\": \"PASS\",\n        \"cTn_uln_multiple\": 18.6,\n        \"CK-MB_uln_multiple\": 2.4,\n        \"LVEF_6w_percent\": 43.0,\n        \"criteria\": [\n          \"AMI_BASE_DIAGNOSIS\",\n          \"AMI_CTN_GE_15X\",\n          \"AMI_CKMB_GE_2X\",\n          \"AMI_LVEF_LT_50_6W\"\n        ],\n        \"evidence_ids\": [\n          \"DX-20250817-041\",\n          \"LAB-20250817-CTN-002\",\n          \"LAB-20250817-CKMB-011\",\n          \"CF-20250928-021\"\n        ],\n        \"checked_at_required\": true,\n        \"checked_by_required\": true\n      }\n    },\n    {\n      \"id\": \"unchanged_other_checks\",\n      \"tier\": \"sanity\",\n      \"method\": \"rule\",\n      \"fn\": \"check_other_liability_checks_unchanged\",\n      \"weight\": 0\n    },\n    {\n      \"id\": \"medical_reasoning\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"答案是否说明标准疾病归一、急性心肌梗死基础以及 cTn、CK-MB、六周后 LVEF 的关键证据和阈值结论？\",\n      \"pass_anchor\": \"满足以下事实即可：标准疾病为 DISEASE-SEVERE-AMI-2020/较重急性心肌梗死；明确急性心肌梗死基础；最终 cTn 为18.60倍、最终 CK-MB为2.40倍、确诊满六周LVEF为43.00%，并说明这些证据使定义条件通过。证据编号可写原始 DX/LAB/CF 编号或对应 FINAL ASM 审核编号，表述使用等价中文或英文均可。\"\n    },\n    {\n      \"id\": \"old_value_and_operation_report\",\n      \"tier\": \"important\",\n      \"method\": \"llm\",\n      \"files\": [\n        \"answer.md\"\n      ],\n      \"question\": \"答案是否解释旧恶性肿瘤核验值不适用，并报告疾病定义责任更新结果和其他责任项未改动？\",\n      \"pass_anchor\": \"满足以下事实即可：指出旧 checked_value 的恶性肿瘤、病理/ICD-O-3字段及 PATH-SZ-20250816-20871 属于错误疾病口径；明确 DISEASE_DEFINITION 已更新/覆盖为 AMI 的 PASS，给出至少一个 DX/LAB/CF 或 FINAL ASM 医学证据引用和本次核验时间；并确认 WAITING_PERIOD、INITIAL_ONSET、PRE_EXISTING_DIAGNOSIS、POLICY_IN_FORCE、SUM_ASSURED_VALIDITY、AGE_DECLARATION、PREMIUM_ARREARS 七项未改动。核心系统的等价称谓和合法时间格式均可接受。\"\n    }\n  ],\n  \"check_code\": \"from pathlib import Path\\nfrom datetime import datetime\\nimport re,sqlite3\\nCLAIM_ID='CLAIM-CL2025081700936';TARGET='DISEASE_DEFINITION'\\nEXPECTED={'WAITING_PERIOD':('PASS','effective_days=170;waiting_days=90;excess_days=80;accident_exemption=0','POLICY-EFF-20250301-8764','2025-08-20 09:16:08','USR-SZ-CLAIM-0812'),'INITIAL_ONSET':('PASS','initial_onset_flag=1','MED-REV-20250819-118','2025-08-20 09:22:41','USR-SZ-MED-0331'),'PRE_EXISTING_DIAGNOSIS':('PASS','pre_effective_diagnosis_found=0','MED-HIS-SEARCH-20250820-441','2025-08-20 09:25:17','USR-SZ-MED-0331'),'POLICY_IN_FORCE':('PASS','coverage_status=IN_FORCE;loss_date_in_period=1','POLICY-STATUS-20250817-8764','2025-08-20 10:01:42','USR-SZ-CLAIM-0812'),'SUM_ASSURED_VALIDITY':('PASS','loss_date_sum_assured_yuan=320000;endorsement_after_loss=0','POLICY-SA-20250817-8764','2025-08-21 14:25:10','USR-SZ-CLAIM-0812'),'AGE_DECLARATION':('PASS','age_error_ratio_bp=10000','UW-AGE-VERIFY-20250821-8764','2025-08-21 14:28:46','USR-SZ-CLAIM-0812'),'PREMIUM_ARREARS':('PASS','arrears_yuan=0','PREMIUM-LEDGER-20250821-8764','2025-08-21 14:31:03','USR-SZ-CLAIM-0812')}\\ndef _con(w):\\n c=sqlite3.connect(Path(w).resolve().parent/'system'/'pingan_claims_core'/'state.db');c.row_factory=sqlite3.Row;return c\\ndef _target(w):\\n c=_con(w)\\n try:return c.execute('SELECT * FROM liability_checks WHERE claim_id=? AND check_type=?',(CLAIM_ID,TARGET)).fetchone()\\n finally:c.close()\\ndef check_disease_check_pass(w):\\n r=_target(w);ok=r is not None and r['check_result']=='PASS';return {'score':1.0 if ok else 0.0,'detail':'DISEASE_DEFINITION result is PASS' if ok else 'target check missing or not PASS'}\\ndef check_disease_check_value_and_evidence(w):\\n r=_target(w)\\n if r is None:return {'score':0.0,'detail':'target check missing'}\\n v=(r['checked_value'] or '')+';'+(r['evidence_ref'] or '')\\n def has_num(pattern,expected):\\n  for m in re.finditer(pattern,v,re.I):\\n   if any(abs(float(n)-expected)<=0.01 for n in re.findall(r'\\\\d+(?:\\\\.\\\\d+)?',v[m.start():m.start()+110])):return True\\n  return False\\n asm=['ASM-20251001-1001','ASM-20251001-1002','ASM-20251001-1003','ASM-20251001-1004']\\n canonical=('DISEASE-SEVERE-AMI-2020' in v) or ('较重急性心肌梗死' in v and all(x in v for x in asm))\\n base='较重急性心肌梗死' in v and bool(re.search(r'(?:PASS|all_pass=1)',v,re.I))\\n measurements=has_num(r'cTn',18.6) and has_num(r'CK[-_ ]?MB',2.4) and has_num(r'LVEF(?:_6w)?',43.0)\\n raw=['DX-20250817-041','LAB-20250817-CTN-002','LAB-20250817-CKMB-011','CF-20250928-021']\\n evidence=all(x in v for x in raw) or all(x in v for x in asm)\\n try:timestamp=bool(r['checked_at']) and datetime.fromisoformat(r['checked_at']) is not None\\n except (TypeError,ValueError):timestamp=False\\n ok=canonical and base and measurements and evidence and timestamp and bool(r['checked_by'])\\n return {'score':1.0 if ok else 0.0,'detail':'AMI canonical value, measurements, source evidence, operator, and write time are correct' if ok else 'target value lacks required AMI semantics, source evidence, operator, or write time'}\\ndef check_other_liability_checks_unchanged(w):\\n c=_con(w)\\n try:rows={x['check_type']:x for x in c.execute('SELECT * FROM liability_checks WHERE claim_id=?',(CLAIM_ID,))}\\n finally:c.close()\\n ok=set(rows)==set(EXPECTED)|{TARGET};bad=[]\\n for typ,exp in EXPECTED.items():\\n  x=rows.get(typ);actual=None if x is None else (x['check_result'],x['checked_value'],x['evidence_ref'],x['checked_at'],x['checked_by'])\\n  if actual!=exp:ok=False;bad.append(typ)\\n return {'score':1.0 if ok else 0.0,'detail':'all seven non-target liability checks unchanged' if ok else 'changed or missing checks: '+', '.join(bad)}\\n\",\n  \"gold_answer\": null,\n  \"input\": \"both\",\n  \"act\": \"mutate_db\",\n  \"output\": \"none\",\n  \"reward\": \"rl_grade\"\n}\n"
+    }
+  ],
+  "rationale": "Zero reward weight for rules measured passing on pristine state; keep the checks and failure reports.",
+  "inputs": {
+    "measured_scores": {
+      "disease_check_pass": 1.0,
+      "unchanged_other_checks": 1.0
+    },
+    "evidence": "research/experiments/judge-variants-night/rule-census.jsonl"
+  },
+  "created_by": "judge-variants-night",
+  "created_at": "2026-10-09T13:42:07Z",
+  "status": "candidate",
+  "evidence": []
+}

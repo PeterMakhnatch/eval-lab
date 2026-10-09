@@ -23,6 +23,16 @@ a failed check stops setup, with no hide-only or network-open fallback.
   site imports (candidate-0109: planted skip-all plugin flipped reward 0 to
   1; no terminal grader needs a third-party plugin, so honest grading is
   unchanged).
+* ``general-pinned-backup@1`` takes consistent pre-agent SQLite backups;
+  50 tasks contain references; the retained census measures item-level effects.
+* ``general-strict-answer@1`` keeps a missing ``answer.md`` missing.
+* ``general-nop-zero-weight@1`` removes reward credit from measured pristine
+  rule passes while retaining execution and failure reporting.
+* ``webdev-temp0-pin@1`` binds temperature/model/provider/revision and masks
+  unversioned judge deployments or replies. A version-aware endpoint is staged.
+* ``webdev-structural-gate@1`` rejects blank/off-brief/overflowing rendered DOM;
+  missing browser measurements mask. Oracle false-rejection validation is staged.
+* ``webdev-brief-explicit@1`` sends full long briefs with hash/length provenance.
 
 A verifier that passes only with egress open is not a package transform.
 Allow-listing the verifier is rejected: Harbor drops the no-network overlay
@@ -33,6 +43,12 @@ market data. The default is discard.
 
 from __future__ import annotations
 
+from evallab.general_nop_gate import TRANSFORM_ID as GENERAL_NOP_GATE_ID
+from evallab.general_nop_gate import derive_general_nop_gate
+from evallab.general_pinned_backup import TRANSFORM_ID as GENERAL_PINNED_BACKUP_ID
+from evallab.general_pinned_backup import derive_general_pinned_backup
+from evallab.general_strict_answer import TRANSFORM_ID as GENERAL_STRICT_ANSWER_ID
+from evallab.general_strict_answer import derive_general_strict_answer
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
 from evallab.purge_build_caches import TRANSFORM_ID as CACHE_ID
@@ -45,8 +61,16 @@ from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.strip_future_history import derive_strip_future_history
 from evallab.terminal_guard import TRANSFORM_ID as TERMINAL_GUARD_ID
 from evallab.terminal_guard import derive_terminal_guard, derive_terminal_prefetch
+from evallab.webdev_brief_explicit import TRANSFORM_ID as WEBDEV_BRIEF_EXPLICIT_ID
+from evallab.webdev_brief_explicit import derive_webdev_brief_explicit
+from evallab.webdev_structural_gate import TRANSFORM_ID as WEBDEV_STRUCTURAL_GATE_ID
+from evallab.webdev_structural_gate import derive_webdev_structural_gate
+from evallab.webdev_temp0_pin import TRANSFORM_ID as WEBDEV_TEMP0_PIN_ID
+from evallab.webdev_temp0_pin import derive_webdev_temp0_pin
 
-TRANSFORMS = (STRIP_ID, PURGE_ID, CACHE_ID, SEPARATE_ID, MTIME_ID, TERMINAL_GUARD_ID)
+TRANSFORMS = (STRIP_ID, PURGE_ID, CACHE_ID, SEPARATE_ID, MTIME_ID, TERMINAL_GUARD_ID,
+              GENERAL_PINNED_BACKUP_ID, GENERAL_STRICT_ANSWER_ID, GENERAL_NOP_GATE_ID,
+              WEBDEV_TEMP0_PIN_ID, WEBDEV_STRUCTURAL_GATE_ID, WEBDEV_BRIEF_EXPLICIT_ID)
 NETWORK_LABEL = "oracle:fail-network"
 NETWORK_DEFAULT = "discard"
 #: Installed-copy leaks confirmed by reading the image, not by a sample guess.
@@ -58,6 +82,9 @@ CONFIRMED_PURGE = (
 __all__ = [
     "CACHE_ID",
     "CONFIRMED_PURGE",
+    "GENERAL_NOP_GATE_ID",
+    "GENERAL_PINNED_BACKUP_ID",
+    "GENERAL_STRICT_ANSWER_ID",
     "MTIME_ID",
     "NETWORK_DEFAULT",
     "NETWORK_LABEL",
@@ -66,6 +93,12 @@ __all__ = [
     "STRIP_ID",
     "TERMINAL_GUARD_ID",
     "TRANSFORMS",
+    "WEBDEV_BRIEF_EXPLICIT_ID",
+    "WEBDEV_STRUCTURAL_GATE_ID",
+    "WEBDEV_TEMP0_PIN_ID",
+    "derive_general_nop_gate",
+    "derive_general_pinned_backup",
+    "derive_general_strict_answer",
     "derive_mtime_normalize",
     "derive_purge_build_caches",
     "derive_purge_installed_copies",
@@ -73,6 +106,9 @@ __all__ = [
     "derive_strip_future_history",
     "derive_terminal_guard",
     "derive_terminal_prefetch",
+    "derive_webdev_brief_explicit",
+    "derive_webdev_structural_gate",
+    "derive_webdev_temp0_pin",
     "network_discard_reason",
 ]
 

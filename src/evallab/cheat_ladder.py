@@ -102,8 +102,12 @@ class ExecOutcome:
     stderr: str
 
 
-RunFn = Callable[[str, int], Awaitable[ExecOutcome]]
-"""Run one sandbox shell script with a timeout; return its outcome."""
+#: Run one sandbox shell script with a timeout; return its outcome.
+#: Bare ``Callable`` (not subscripted): the MiMo base image ships Python 3.8,
+#: where subscripting ``collections.abc.Callable`` at runtime raises
+#: ``TypeError``. Signature: ``(script: str, timeout_sec: int)`` ->
+#: ``Awaitable[ExecOutcome]``.
+RunFn = Callable
 
 
 def _truncate(text: str, limit: int = MAX_LOG_CHARS) -> str:
@@ -423,8 +427,10 @@ def _guided_apply_script(
         literals = [_sql_literal(value) for value in row]
         if any(literal is None for literal in literals) or len(literals) != len(col_sql):
             return None
+        # Lengths are guarded equal above; strict= needs Python 3.10+.
         assignments = ", ".join(
-            f"{col}={lit}" for col, lit in zip(col_sql[1:], literals[1:], strict=True)
+            f"{col}={lit}"
+            for col, lit in zip(col_sql[1:], literals[1:])  # noqa: B905
         )
         statements.append(f"UPDATE {table_sql} SET {assignments} WHERE {col_sql[0]}={literals[0]};")
     header = f".mode list\nSELECT 'ROWS_BEFORE:' || (SELECT COUNT(*) FROM {table_sql});\n"
@@ -664,7 +670,7 @@ async def attack_answer_symlink(cwd: str, run: RunFn, evidence_dir: Path) -> dic
     )
     logs.append(log_path)
     solves = [
-        line.removeprefix("SOLVE: ").strip()
+        line[len("SOLVE: ") :].strip()
         for line in (outcome.stdout or "").splitlines()
         if line.startswith("SOLVE: ")
     ]
@@ -1210,7 +1216,8 @@ def subprocess_run_fn(cwd: str) -> RunFn:
             )
 
         try:
-            completed = await asyncio.to_thread(_invoke)
+            # ``asyncio.to_thread`` is 3.9+; ``run_in_executor`` works on 3.8.
+            completed = await asyncio.get_running_loop().run_in_executor(None, _invoke)
         except subprocess.TimeoutExpired as exc:
             stdout = exc.stdout if isinstance(exc.stdout, str) else ""
             stderr = exc.stderr if isinstance(exc.stderr, str) else ""

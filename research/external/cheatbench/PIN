@@ -1,0 +1,3 @@
+steinad/CheatBench @ 461360b34e93644955563dcc9243c6cc1a53bd0f (MIT)
+file: data/processed/parquet/full.parquet (sha256:b4d2a1496e5f8de7b4c0e4791bd9f8fcbd0a3567f95d2e759b5da20ebb160e63, 499691327 bytes)
+note: public Hugging Face dataset; 4,472 labelled agent traces from public benchmark runs

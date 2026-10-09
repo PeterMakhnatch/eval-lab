@@ -7,9 +7,10 @@ Model-free, spend-free bridges:
   The inspect path never imports ``inspect_harbor``; the karotte path flags
   every lossy or impossible mapping in a generated ``MAPPING.md`` instead of
   silently dropping it.
-- ``matrix`` runs scripted oracle/nop/cheat agents against each wired target
-  (``MATRIX_TARGETS`` registry: harbor + inspect here, karotte/verifiers wired
-  at integration) and prints the grading table plus a JSON envelope.
+- ``matrix`` runs scripted oracle/nop/cheat agents against each target in the
+  ``MATRIX_TARGETS`` registry (harbor, inspect, karotte via ``interop_karotte``,
+  verifiers via ``interop_verifiers``) and prints the grading table plus a
+  JSON envelope.
 
 The scripted agents are platform-neutral plans (``scripted_agent_plan``):
 oracle stages ``solution/`` and runs ``solve.sh``; nop does nothing; cheat
@@ -1615,11 +1616,31 @@ def validate_karotte(env_dir: str | Path) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 # matrix: per-task grading table across wired targets
 # ---------------------------------------------------------------------------
+def run_karotte_cell(
+    task_dir: str | Path, agent: str, attacks: tuple[str, ...] = (), **kw: Any
+) -> dict[str, Any]:
+    """Karotte target (lazy: ``interop_karotte`` imports this module)."""
+    from evallab.interop_karotte import run_cell
+
+    return run_cell(task_dir, agent, attacks, **kw)
+
+
+def run_verifiers_cell(
+    task_dir: str | Path, agent: str, attacks: tuple[str, ...] = (), **kw: Any
+) -> dict[str, Any]:
+    """Prime verifiers target (lazy: ``interop_verifiers`` imports this module)."""
+    from evallab.interop_verifiers import run_cell
+
+    return run_cell(Path(task_dir), agent, tuple(attacks), **kw)
+
+
 MATRIX_TARGETS: dict[str, Callable[..., dict[str, Any]]] = {
     "harbor": run_harbor_cell,
     "inspect": run_inspect_cell,
+    "karotte": run_karotte_cell,
+    "verifiers": run_verifiers_cell,
 }
-"""Target name -> ``run_cell`` runner. Karotte/verifiers runners wire in here."""
+"""Target name -> ``run_cell`` runner (contract: task_dir, agent, attacks, *, workdir, timeout_seconds)."""
 
 MATRIX_AGENTS = ("oracle", "nop", "cheat")
 

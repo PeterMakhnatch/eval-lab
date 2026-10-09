@@ -1,0 +1,23 @@
+{
+ "tool": "cheatbench-port/judge.py",
+ "renderer": "cheatbench-port/render-v1",
+ "judge": "zai/glm-5.3",
+ "judge_model": "glm-5.3",
+ "endpoint_host": "api.z.ai",
+ "generation_config": {
+  "temperature": 0,
+  "max_tokens": 16384
+ },
+ "prices_usd_per_1m": {
+  "input": 1.4,
+  "output": 4.4
+ },
+ "rubric_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-port/research/experiments/cheatbench-port/judge/rubric-judge.md",
+ "rubric_sha256": "345ba850c02bb857cdb4815aa206984bdd0e7d2e936f32368539a7abc0dc6042",
+ "schema_path": "library/benchmarks/cheatbench/openmath_agent/judge/judge_schema.py",
+ "schema_sha256": "bc27a2f17a0f8eaeef93642b4dcd94a10ae532680ea35c7b446ceb5e4a25576d",
+ "cheatbench_commit": "4d1a82543f93edd0e4e5a2651192688ba609c1e7",
+ "families": [
+  "openmath_agent"
+ ]
+}

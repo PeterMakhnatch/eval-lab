@@ -1,0 +1,6 @@
+# Generated Harbor task packages (subset_sum ~17 MB, prime_factorization ~28 MB,
+# openmath_agent ~675 MB). Rebuild them byte-identically with each family's build.py;
+# MANIFEST.md records the expected package digests.
+*/tasks/
+*/_build_cache/
+__pycache__/

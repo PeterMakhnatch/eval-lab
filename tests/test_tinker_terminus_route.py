@@ -91,6 +91,21 @@ def test_parse_tinker_model_accepts_admitted_selectors(
 
 
 @pytest.mark.parametrize(
+    ("selector", "returned", "accepted"),
+    [
+        # Tinker echoes the native id without the lab's ``tinker/`` prefix.
+        (TINKER_BASE_SELECTOR, TINKER_BASE, True),
+        (TINKER_BASE_SELECTOR, "Qwen/Qwen3.8-27B", False),
+        # A checkpoint replay must not pass when the provider served base weights.
+        (CHECKPOINT_SELECTOR, CHECKPOINT, True),
+        (CHECKPOINT_SELECTOR, TINKER_BASE, False),
+    ],
+)
+def test_tinker_returned_model_identity(selector: str, returned: str, accepted: bool) -> None:
+    assert (returned in runner_module._accepted_returned_models(selector)) is accepted
+
+
+@pytest.mark.parametrize(
     "selector",
     [
         "tinker/Qwen/Qwen3.6-35B",  # unknown base

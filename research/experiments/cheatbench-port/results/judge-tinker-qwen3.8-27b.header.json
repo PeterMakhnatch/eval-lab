@@ -1,0 +1,23 @@
+{
+ "tool": "cheatbench-port/judge.py",
+ "renderer": "cheatbench-port/render-v1",
+ "judge": "tinker/Qwen/Qwen3.8-27B",
+ "judge_model": "Qwen/Qwen3.8-27B",
+ "endpoint_host": "tinker.thinkingmachines.dev",
+ "generation_config": {
+  "temperature": 0,
+  "max_tokens": 16384
+ },
+ "prices_usd_per_1m": {
+  "input": 1.86,
+  "output": 5.595
+ },
+ "rubric_path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-port/research/experiments/cheatbench-port/judge/rubric-judge.md",
+ "rubric_sha256": "345ba850c02bb857cdb4815aa206984bdd0e7d2e936f32368539a7abc0dc6042",
+ "schema_path": "library/benchmarks/cheatbench/prime_factorization/judge/judge_schema.py",
+ "schema_sha256": "2ad835137f81fee305188b57723b3b1701121fb46f604e6525a729721fad3d6d",
+ "cheatbench_commit": "4d1a82543f93edd0e4e5a2651192688ba609c1e7",
+ "families": [
+  "prime_factorization"
+ ]
+}

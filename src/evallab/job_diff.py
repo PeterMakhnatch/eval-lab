@@ -136,6 +136,7 @@ def harbor_job_config(
             if setup_fingerprint is not None
             else lock_setup_fingerprint(request, repo_root=repo_root)
         ),
+        repo_root=repo_root,
     )
     command = subscription_command(request, command, repo_root=repo_root)
     harbor_index = next(

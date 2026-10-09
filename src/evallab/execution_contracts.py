@@ -17,7 +17,7 @@ import secrets
 import stat
 import tomllib
 import urllib.parse
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -175,6 +175,14 @@ MIMO_AGENT = "mimoagent"
 MIMO_AGENT_IMPORT_PATH = "evallab.harbor_mimoagent:NativeMimoAgent"
 CHEAT_AGENT_IMPORT_PATH = "evallab.harbor_cheat:CheatAgent"
 MIMO_SAMPLING_PROFILE_ENV = "EVALLAB_MIMO_SAMPLING_PROFILE"
+#: Opt-in Xiaomi antihack guard for the mimoagent lane (`evallab.harbor_mimoagent`).
+#: Set to 1/true to arm it. Default off: the task-level strip is the real fix
+#: and the guard is bypassable (Vals' pack-parser run). Every trial records
+#: the effective value in its agent metadata either way.
+MIMO_ANTIHACK_ENV_VAR = "EVALLAB_MIMO_ANTIHACK"
+#: Opt-in explicit-rules instruction addendum for the mimoagent lane, using
+#: Vals' exact tested wording. Default off; recorded in trial metadata either way.
+MIMO_EXPLICIT_RULES_ENV_VAR = "EVALLAB_MIMO_EXPLICIT_RULES"
 TERMINUS_AGENT = "terminus-2"
 TERMINUS_AGENT_IMPORT_PATH = "evallab.harbor_terminus:SecretSafeTerminus2"
 TERMINUS_PROXY_URL_ENV = "EVALLAB_TERMINUS_PROXY_URL"
@@ -1933,7 +1941,77 @@ def terminus_agent_kwargs(request: RunRequest) -> dict[str, Any]:
     return kwargs
 
 
-def build_command(request: RunRequest, *, setup_fingerprint: str | None = None) -> list[str]:
+def _env_opt_in(name: str) -> bool:
+    """Whether an opt-in env knob is armed (1/true/yes/on; default off)."""
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def format_task_chain(newest_first: Iterable[str]) -> str:
+    """Join lineage transforms oldest-first (`a>b`), or `"original"` when bare."""
+    ordered = list(newest_first)
+    return ">".join(reversed(ordered)) if ordered else "original"
+
+
+def mimoagent_agent_kwargs(
+    task_dir: Path, *, repo_root: Path | None = None
+) -> dict[str, Any]:
+    """Harbor agent kwargs for the mimoagent lane, all recorded in trial metadata.
+
+    ``antihack``/``explicit_rules`` come from their env knobs (default off);
+    ``task_chain_digest`` is the exact package digest and ``task_chain`` the
+    lineage transform chain, oldest first. The chain resolves only when a
+    lineage record matches the digest — original and ad-hoc tasks omit it,
+    and the digest still identifies the bytes. The lookup globs the digest
+    filename directly and never scans the records tree. The adapter
+    normalizes and records every value, so unset options are recorded as
+    off, never as missing.
+    """
+    from evallab.registry import task_directory_digest
+
+    digest = task_directory_digest(task_dir)
+    kwargs: dict[str, Any] = {
+        "antihack": _env_opt_in(MIMO_ANTIHACK_ENV_VAR),
+        "explicit_rules": _env_opt_in(MIMO_EXPLICIT_RULES_ENV_VAR),
+        "task_chain_digest": digest,
+    }
+    chain = _resolve_task_chain(digest, repo_root=repo_root)
+    if chain is not None:
+        kwargs["task_chain"] = chain
+    return kwargs
+
+
+def _resolve_task_chain(digest: str, *, repo_root: Path | None) -> str | None:
+    """Lineage chain for a package digest, or ``None`` when unresolvable.
+
+    Fail-open and scan-free: the digest filename addresses the record
+    directly (``<records>/<slug>/<digest12>.json``), so an original task
+    costs one failed glob, not a tree walk.
+    """
+    try:
+        from evallab.task_variants import RECORDS_DIRNAME, lineage_chain, resolve_record
+
+        root = Path(repo_root).resolve() if repo_root is not None else Path.cwd().resolve()
+        short = digest.split(":", 1)[1][:12]
+        for candidate in sorted((root / RECORDS_DIRNAME).glob(f"*/{short}.json")):
+            try:
+                record = resolve_record(candidate, repo_root=root)
+            except Exception:
+                continue
+            if record.variant_digest != digest:
+                continue
+            steps = lineage_chain(record, repo_root=root)
+            return format_task_chain(step.record.transform for step in steps)
+    except Exception:
+        return None
+    return None
+
+
+def build_command(
+    request: RunRequest,
+    *,
+    setup_fingerprint: str | None = None,
+    repo_root: Path | None = None,
+) -> list[str]:
     """Build the exact Harbor CLI invocation command for a RunRequest."""
     from evallab.setup_fingerprint import lock_setup_fingerprint
 
@@ -2119,6 +2197,15 @@ def build_command(request: RunRequest, *, setup_fingerprint: str | None = None) 
         )
     if request.agent == MIMO_AGENT:
         command.extend(["--n-concurrent-agents", "1", "--n-tasks", "1", "--max-retries", "0"])
+        for key, value in sorted(
+            mimoagent_agent_kwargs(request.task, repo_root=repo_root).items()
+        ):
+            command.extend(
+                [
+                    "--agent-kwarg",
+                    f"{key}={json.dumps(value, separators=(',', ':'), allow_nan=False)}",
+                ]
+            )
     if request.agent == TERMINUS_AGENT:
         command.extend(["--n-concurrent-agents", "1", "--n-tasks", "1", "--max-retries", "0"])
         for key, value in sorted(terminus_agent_kwargs(request).items()):

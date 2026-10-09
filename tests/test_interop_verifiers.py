@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import base64
 import json
+import shutil
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -75,9 +76,8 @@ def test_materialize_oracle_needs_solve_sh(tmp_path: Path) -> None:
     task_dir = make_task(tmp_path)
     (task_dir / "solution" / "solve.sh").unlink()
     task = SimpleNamespace(task_dir=task_dir)
-    plan = _interop.scripted_agent_plan(task, "oracle", ())
-    with pytest.raises(ValueError, match="oracle needs solution/solve.sh"):
-        vf.materialize_files(task, "oracle", plan)
+    with pytest.raises(ValueError, match="oracle plan needs"):
+        _interop.scripted_agent_plan(task, "oracle", ())
 
 
 def test_factory_nop_is_empty(tmp_path: Path) -> None:
@@ -108,6 +108,17 @@ def test_factory_rejects_unknown_agent(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
     with pytest.raises(ValueError, match="oracle/nop/cheat"):
         _interop.scripted_agent_plan(task, "wizard", ())
+
+
+def test_relaxed_load_allows_solution_less_tasks(tmp_path: Path) -> None:
+    task_dir = make_task(tmp_path)
+    shutil.rmtree(task_dir / "solution")
+    task = _interop.load_harbor_task(task_dir, require_solution=False)
+    with pytest.raises(ValueError, match="oracle plan needs"):
+        _interop.scripted_agent_plan(task, "oracle", ())
+    assert _interop.scripted_agent_plan(task, "nop", ()).command is None
+    full = _interop.scripted_agent_plan(task, "cheat", ())
+    assert "--attacks" not in (full.command or "")
 
 
 def test_harness_alias_registers_module() -> None:

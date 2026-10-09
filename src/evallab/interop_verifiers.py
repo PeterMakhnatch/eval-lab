@@ -107,9 +107,9 @@ def materialize_files(task: Any, agent: str, plan: Any) -> dict[str, bytes]:
     """
     files = dict(plan.files)
     if agent == "oracle":
+        # The factory guarantees solution/solve.sh for oracle plans; stage the
+        # whole solution dir from the task package.
         solution_dir = task.task_dir / "solution"
-        if not (solution_dir / "solve.sh").is_file():
-            raise ValueError(f"{task.task_dir}: oracle needs solution/solve.sh")
         workdir = container_workdir(task.task_dir)
         for path in sorted(solution_dir.rglob("*")):
             if path.is_file():
@@ -258,7 +258,7 @@ async def _arun_cell(
     _ensure_harness_alias()
     version = verifiers_version() or "unknown"
     platform_version = f"verifiers {version}"
-    task = load_harbor_task(task_dir)
+    task = load_harbor_task(task_dir, require_solution=(agent == "oracle"))
     plan = scripted_agent_plan(task, agent, tuple(attacks))
     plan = replace(plan, files=materialize_files(task, agent, plan))
     image, how = await asyncio.to_thread(resolve_task_image, task)

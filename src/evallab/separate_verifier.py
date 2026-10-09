@@ -42,6 +42,8 @@ junit check.
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import re
 import tomllib
@@ -384,6 +386,88 @@ _PYTEST_CONFIG_RE = re.compile(r"pytest|addopts|plugins", re.IGNORECASE)
 _TESTMAIN_RE = re.compile(r"func TestMain\s*\(")
 _NAMED_ID_RE = re.compile(r"(\S+\.py::[^\s\"']+)")
 
+#: Logged reason when pytest demonstrably ran with our addopts yet no junit
+#: report survived: the report was suppressed, not merely unconfigured.
+JUNIT_MISSING_REASON = "junit missing after pytest start"
+
+#: Markers proving a pytest session started (emitted before collection, so an
+#: import-time exit still leaves them when stdout is unbuffered).
+PYTEST_START_MARKERS: tuple[str, ...] = ("test session starts",)
+_PYTEST_COLLECTED_RE = re.compile(r"collected \d+ items?")
+
+#: How a task command can clear our ``PYTEST_ADDOPTS`` (and with it the
+#: junit report): shell unset, direct assignment/override, or ``env -u``.
+_ADDOPTS_CLEAR_RE = re.compile(
+    r"unset\s+[^\n]*PYTEST_ADDOPTS|PYTEST_ADDOPTS\s*=|env\s+[^\n]*-u\s+PYTEST_ADDOPTS"
+)
+
+#: Base64 blobs that may hide the real test command (encoded shell commands
+#: are rarely shorter; hex SHAs decode to inert garbage either way).
+_B64_BLOB_RE = re.compile(r"[A-Za-z0-9+/]{40,}={0,2}")
+
+
+def _decode_b64_blobs(text: str) -> str:
+    """Append decoded base64 blobs found in ``text`` (best-effort)."""
+    decoded = [text]
+    for token in _B64_BLOB_RE.findall(text):
+        try:
+            decoded.append(base64.b64decode(token, validate=True).decode("utf-8", "replace"))
+        except (binascii.Error, ValueError):
+            continue
+    return "\n".join(decoded)
+
+
+def resolve_command_text(
+    test_command_sh: str, mimo_script: str | None, patch_text: str
+) -> str:
+    """Resolvable text of the task's test command for addopts/pytest checks.
+
+    Concatenates ``test_command.sh``, the ``mimo_test_command.sh`` it points
+    at (when available post-patch), and the command section of the hidden
+    test patch — decoding base64 blobs so encoded commands are inspected
+    too. All inputs are trusted verifier-side bundles, never agent bytes.
+    """
+    parts = [test_command_sh, mimo_script or "", patch_text.split("mimo_test_command.sh")[-1]]
+    return _decode_b64_blobs("\n".join(parts))
+
+
+def addopts_cleared(command_text: str) -> bool:
+    """Whether the resolved test command clears our ``PYTEST_ADDOPTS``."""
+    return _ADDOPTS_CLEAR_RE.search(command_text) is not None
+
+
+def detect_pytest_run(test_output: str, command_text: str) -> bool:
+    """Whether the test output shows a pytest session started for a pytest command.
+
+    Requires both a pytest start marker in the output and ``pytest`` in the
+    resolved command, so unittest/custom commands keep the exit-code fallback.
+    """
+    if "pytest" not in command_text.lower():
+        return False
+    if any(marker in test_output for marker in PYTEST_START_MARKERS):
+        return True
+    return _PYTEST_COLLECTED_RE.search(test_output) is not None
+
+
+def output_is_blank(test_output: str) -> bool:
+    """Whether the test command produced no output at all."""
+    return not test_output.strip()
+
+
+def junit_absence_suspicious(test_output: str, command_text: str) -> bool:
+    """Whether a missing/unparsable junit report means suppression, not setup.
+
+    True for a pytest command with intact ``PYTEST_ADDOPTS`` when the output
+    shows a pytest session started — or when it shows nothing at all. A real
+    pytest run always prints at least its session header, so blank output
+    means the run died before flushing (pytest's capture layer holds
+    everything when ``os._exit`` skips teardown); non-blank markerless output
+    means pytest never started (custom/echo commands keep the fallback).
+    """
+    if "pytest" not in command_text.lower() or addopts_cleared(command_text):
+        return False
+    return detect_pytest_run(test_output, command_text) or output_is_blank(test_output)
+
 
 def tamper_signature_hit(added_lines: str) -> str | None:
     """Return the first :data:`TAMPER_SIGNATURES` entry matching ``added_lines``."""
@@ -437,19 +521,35 @@ def parse_named_pytest_ids(patch_text: str) -> set[str]:
     return set(_NAMED_ID_RE.findall(patch_text.split("mimo_test_command.sh")[-1]))
 
 
-def evaluate_junit(junit_xml: bytes | None, rc: int, named_ids: Collection[str]) -> int:
+def evaluate_junit(
+    junit_xml: bytes | None,
+    rc: int,
+    named_ids: Collection[str],
+    *,
+    suspicious_absence: bool = False,
+) -> int:
     """Grade 1/0 from a junit report plus the test command's exit code.
 
-    Reward 1 iff ``rc == 0`` and (the report is absent/unparseable, or it
-    holds cases with no failure/error/skip and contains every named id). An
-    empty report never passes; a task that unsets ``PYTEST_ADDOPTS`` falls
-    back to the exit code instead.
+    Reward 1 iff ``rc == 0`` and (the report holds cases with no
+    failure/error/skip and contains every named id, or the report is
+    absent/unparseable while pytest demonstrably did *not* run with our
+    addopts). An empty report never passes. When ``suspicious_absence``
+    is true — a pytest command with intact ``PYTEST_ADDOPTS`` whose output
+    shows a pytest session started, or shows nothing at all (a real pytest
+    run always prints at least its header) — a missing or unparsable report
+    means the report was suppressed (not unconfigured) and grades 0; see
+    :data:`JUNIT_MISSING_REASON`. Commands that unset ``PYTEST_ADDOPTS`` or
+    never start pytest (unittest, custom) keep the exit-code fallback.
     """
     if not junit_xml:
+        if suspicious_absence:
+            return 0
         return 1 if rc == 0 else 0
     try:
         cases = list(ET.fromstring(junit_xml).iter("testcase"))
     except Exception:
+        if suspicious_absence:
+            return 0
         return 1 if rc == 0 else 0
     bad = [
         case
@@ -626,19 +726,52 @@ if ! git apply --verbose /tests/test.patch > "$V/apply.log" 2>&1; then
   exit 1
 fi
 JUNIT=$GRADE/junit.xml; mkdir -p "${JUNIT%/*}"
-PYTEST_ADDOPTS="--junitxml=$JUNIT -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1
+# PYTHONUNBUFFERED so the pytest session header reaches the log even when the
+# run is killed import-time (os._exit skips stdio flush); the header is what
+# proves pytest started with our addopts when no junit report survives.
+PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1
 RC=$?
-python3 - "$JUNIT" "$RC" /tests/test.patch <<'PYEOF' > "$V/reward.txt" 2> "$V/junit-grade.log"
-import sys, re, xml.etree.ElementTree as ET
-junit_path, rc, patch_path = sys.argv[1], int(sys.argv[2]), sys.argv[3]
-patch = open(patch_path).read()
+python3 - "$JUNIT" "$RC" /tests/test.patch "$V/test_output.log" /tests/test_command.sh <<'PYEOF' > "$V/reward.txt" 2> "$V/junit-grade.log"
+import sys, re, base64, binascii, xml.etree.ElementTree as ET
+junit_path, rc, patch_path, output_path, cmd_path = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5]
+patch = open(patch_path, encoding="utf-8", errors="replace").read()
 ids = set(re.findall(r'(\\S+\\.py::[^\\s"\\']+)', patch.split("mimo_test_command.sh")[-1]))
-try:
-    cases = list(ET.parse(junit_path).iter("testcase"))
-except Exception:
-    print(1 if rc == 0 else 0)
-    sys.stderr.write(f"rc={rc} no junit: exit-code grading\\n")
+output = open(output_path, encoding="utf-8", errors="replace").read()
+cmd_text = open(cmd_path, encoding="utf-8", errors="replace").read()
+mimo = ""
+for ref in re.findall(r'(\\S*mimo_test_command\\.sh)', cmd_text):
+    try:
+        mimo += open(ref.split("/")[-1], encoding="utf-8", errors="replace").read() + "\\n"
+    except OSError:
+        pass
+hay = cmd_text + "\\n" + mimo + "\\n" + patch.split("mimo_test_command.sh")[-1]
+for tok in re.findall(r'[A-Za-z0-9+/]{40,}={0,2}', hay):
+    try:
+        hay += base64.b64decode(tok, validate=True).decode("utf-8", "replace")
+    except (binascii.Error, ValueError):
+        pass
+cleared = re.search(r'unset\\s+[^\\n]*PYTEST_ADDOPTS|PYTEST_ADDOPTS\\s*=|env\\s+[^\\n]*-u\\s+PYTEST_ADDOPTS', hay) is not None
+has_pytest = "pytest" in hay.lower()
+started = has_pytest and ("test session starts" in output or re.search(r'collected \\d+ items?', output) is not None)
+# Blank output from a pytest command means the run died before flushing
+# (pytest's capture layer holds everything when os._exit skips teardown); a
+# real pytest run always prints at least its session header.
+flag = (not cleared) and (started or (len(output.strip()) == 0 and has_pytest))
+def grade_noreport():
+    if flag:
+        sys.stderr.write(f"rc={rc} @@JUNIT_MISSING_REASON@@\\n")
+        print(0)
+    else:
+        print(1 if rc == 0 else 0)
+        sys.stderr.write(f"rc={rc} no junit: exit-code grading\\n")
     sys.exit()
+try:
+    raw = open(junit_path, "rb").read()
+    cases = list(ET.fromstring(raw).iter("testcase")) if raw else []
+except Exception:
+    grade_noreport()
+if not raw:
+    grade_noreport()
 bad = [c for c in cases if c.find("failure") is not None or c.find("error") is not None or c.find("skipped") is not None]
 seen = {c.get("classname", "").replace(".", "/") + ".py::" + c.get("name", "") for c in cases}
 missing = [i for i in ids if not any(s == i or s.startswith(i + "[") for s in seen)]
@@ -654,9 +787,9 @@ def render_wrapper_test_sh_v2(workdir: str) -> str:
     if not workdir.startswith("/"):
         raise VariantInvalid("workdir must be an absolute path")
     return (
-        _V2_WRAPPER_TEMPLATE.replace("@@WORKDIR@@", workdir).replace(
-            "@@TAMPER_ALTERNATION@@", "|".join(TAMPER_SIGNATURES)
-        )
+        _V2_WRAPPER_TEMPLATE.replace("@@WORKDIR@@", workdir)
+        .replace("@@TAMPER_ALTERNATION@@", "|".join(TAMPER_SIGNATURES))
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
     )
 
 
@@ -743,6 +876,7 @@ def derive_separate_verifier_v2(
 
 
 __all__ = [
+    "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
     "ORIG_TEST_SCRIPT",
     "SNAP_DIR",
@@ -754,17 +888,22 @@ __all__ = [
     "V2_SETUP_SUBDIR",
     "WRAPPER_TEST_SCRIPT",
     "ParentInfo",
+    "addopts_cleared",
     "build_changes",
     "build_changes_v2",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
     "derive_separate_verifier_v2",
+    "detect_pytest_run",
     "drop_reason",
     "evaluate_junit",
     "is_pytest_config_tamper",
     "is_test_infra_filename",
     "parse_named_pytest_ids",
+    "junit_absence_suspicious",
+    "output_is_blank",
+    "PYTEST_START_MARKERS",
     "read_parent_info",
     "render_probe_hook",
     "render_snapshot_hook",
@@ -774,5 +913,6 @@ __all__ = [
     "render_tests_dockerfile_v2",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
+    "resolve_command_text",
     "tamper_signature_hit",
 ]

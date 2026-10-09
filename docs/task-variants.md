@@ -109,9 +109,16 @@ nothing.
   `setup.cfg`/`pyproject.toml` hunks), gates added lines against the single
   `TAMPER_SIGNATURES` constant in `evallab.separate_verifier`, then applies
   the hidden test patch and runs the original test command with
-  `PYTEST_ADDOPTS=--junitxml=<path outside repo>`. Reward 1 iff the command
-  exits 0 and (no junit report, or the report has no failure/error/skip and
-  contains every pytest node id named in the command).
+  `PYTEST_ADDOPTS=--junitxml=<path outside repo>` (plus `PYTHONUNBUFFERED=1`
+  so the pytest session header survives an import-time kill). Reward 1 iff
+  the command exits 0 and (the report has no failure/error/skip and contains
+  every pytest node id named in the command, or no report exists while pytest
+  demonstrably did *not* run with our addopts). When the output shows a
+  pytest session started for a pytest command that keeps `PYTEST_ADDOPTS`
+  (base64-encoded command forms decoded), a missing or unparsable report
+  grades 0 (`junit missing after pytest start`): the report was suppressed,
+  not unconfigured. Commands that unset `PYTEST_ADDOPTS` or never start
+  pytest (unittest, custom) keep the exit-code fallback.
 
 ## Commands
 

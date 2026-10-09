@@ -154,9 +154,13 @@ def test_v2_block_purges_fixture_caches_without_touching_deps(tmp_path: Path) ->
     cwd.mkdir()
     (cwd / "go.mod").write_text("module example.com/fixtureproj\n\ngo 1.21\n", encoding="utf-8")
     # Virtual workspace root: member crate names resolve for the registry purge.
-    (cwd / "Cargo.toml").write_text('[workspace]\nmembers = ["crates/fixtureproj"]\n', encoding="utf-8")
+    (cwd / "Cargo.toml").write_text(
+        '[workspace]\nmembers = ["crates/fixtureproj"]\n', encoding="utf-8"
+    )
     (cwd / "crates" / "fixtureproj").mkdir(parents=True)
-    (cwd / "crates" / "fixtureproj" / "Cargo.toml").write_text('[package]\nname = "fixtureproj"\n', encoding="utf-8")
+    (cwd / "crates" / "fixtureproj" / "Cargo.toml").write_text(
+        '[package]\nname = "fixtureproj"\n', encoding="utf-8"
+    )
     (cwd / "package.json").write_text('{"name": "fixtureproj"}\n', encoding="utf-8")
     # Poetry-style project (no [project] name): the pip section skips when the
     # pip cache dir is absent instead of failing closed on the name.

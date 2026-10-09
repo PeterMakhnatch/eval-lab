@@ -66,9 +66,8 @@ from evallab.general_strict_answer import derive_general_strict_answer
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
 from evallab.purge_build_caches import TRANSFORM_ID as CACHE_ID
-from evallab.purge_build_caches import derive_purge_build_caches
 from evallab.purge_build_caches import TRANSFORM_ID_V2 as CACHE_V2_ID
-from evallab.purge_build_caches import derive_purge_build_caches_v2
+from evallab.purge_build_caches import derive_purge_build_caches, derive_purge_build_caches_v2
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
 from evallab.separate_verifier import TRANSFORM_ID as SEPARATE_ID
@@ -85,10 +84,22 @@ from evallab.webdev_structural_gate import derive_webdev_structural_gate
 from evallab.webdev_temp0_pin import TRANSFORM_ID as WEBDEV_TEMP0_PIN_ID
 from evallab.webdev_temp0_pin import derive_webdev_temp0_pin
 
-TRANSFORMS = (STRIP_ID, PURGE_ID, CACHE_ID, CACHE_V2_ID, SEPARATE_ID, SEPARATE_V2_ID, MTIME_ID,
-              TERMINAL_GUARD_ID,
-              GENERAL_PINNED_BACKUP_ID, GENERAL_STRICT_ANSWER_ID, GENERAL_NOP_GATE_ID,
-              WEBDEV_TEMP0_PIN_ID, WEBDEV_STRUCTURAL_GATE_ID, WEBDEV_BRIEF_EXPLICIT_ID)
+TRANSFORMS = (
+    STRIP_ID,
+    PURGE_ID,
+    CACHE_ID,
+    CACHE_V2_ID,
+    SEPARATE_ID,
+    SEPARATE_V2_ID,
+    MTIME_ID,
+    TERMINAL_GUARD_ID,
+    GENERAL_PINNED_BACKUP_ID,
+    GENERAL_STRICT_ANSWER_ID,
+    GENERAL_NOP_GATE_ID,
+    WEBDEV_TEMP0_PIN_ID,
+    WEBDEV_STRUCTURAL_GATE_ID,
+    WEBDEV_BRIEF_EXPLICIT_ID,
+)
 NETWORK_LABEL = "oracle:fail-network"
 NETWORK_DEFAULT = "discard"
 #: Installed-copy leaks confirmed by reading the image, not by a sample guess.

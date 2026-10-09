@@ -538,7 +538,7 @@ def test_run_inspect_cell_rejects_unknown_agent_and_attack(
     assert cell["verdict"] == "error"
     cell = run_inspect_cell(REAL_TASK, "cheat", ("nope",), workdir=tmp_path / "c")
     assert cell["verdict"] == "error"
-    assert "unknown attack" in (cell["reason"] or "")
+    assert "cannot build cheat plan" in (cell["reason"] or "")
 
 
 def test_run_inspect_cell_control_ignores_attacks(
@@ -558,8 +558,6 @@ def test_run_inspect_cell_control_ignores_attacks(
     cell = run_inspect_cell(REAL_TASK, "oracle", ("skip_plant",), workdir=tmp_path / "b")
     assert captured["attacks"] == ()
     assert cell["attacks"] == []
-    assert cell["verdict"] == "error"
-    assert "uv" in (cell["reason"] or "")
 
 
 # -- harbor cells (seams injected) ----------------------------------------------
@@ -823,3 +821,74 @@ def test_matrix_command_rejects_bad_attacks() -> None:
     args = parser.parse_args(["interop", "matrix", "some-task", "--attacks", "nope"])
     with patch.object(interop, "matrix_task_row", side_effect=AssertionError("must not run")):
         assert interop_command(args, REPO_ROOT) == 2
+
+
+# -- solution-less tasks (oracle needs solution/, nop/cheat do not) ---------------
+
+
+def _solution_less_task(root: Path) -> Path:
+    task_dir = make_task(root)
+    shutil.rmtree(task_dir / "solution")
+    return task_dir
+
+
+def test_load_solution_required_only_for_oracle(tmp_path: Path) -> None:
+    task_dir = _solution_less_task(tmp_path / "nosol")
+    with pytest.raises(ValueError, match="solution/solve.sh"):
+        load_harbor_task(task_dir)
+    task = load_harbor_task(task_dir, require_solution=False)
+    assert task.task_dir == task_dir
+    no_tests = make_task(tmp_path / "notests")
+    (no_tests / "tests" / "test.sh").unlink()
+    with pytest.raises(ValueError, match="test.sh"):
+        load_harbor_task(no_tests, require_solution=False)
+
+
+def test_scripted_agent_plan_oracle_needs_solution(tmp_path: Path) -> None:
+    task = load_harbor_task(_solution_less_task(tmp_path / "nosol"), require_solution=False)
+    with pytest.raises(ValueError, match="oracle plan needs solution"):
+        scripted_agent_plan(task, "oracle", ())
+    assert scripted_agent_plan(task, "nop", ()).command is None
+    assert scripted_agent_plan(task, "cheat", ()).command is not None
+
+
+def test_run_harbor_cell_solution_less_oracle_errors_nop_runs(tmp_path: Path) -> None:
+    task_dir = _solution_less_task(tmp_path / "nosol")
+    with (
+        patch.object(interop, "run_harbor_control", side_effect=AssertionError("must not run")),
+        patch.object(interop, "harbor_revision", return_value="rev"),
+    ):
+        cell = run_harbor_cell(task_dir, "oracle", (), workdir=tmp_path / "o")
+    assert cell["verdict"] == "error"
+    assert "solution/solve.sh" in (cell["reason"] or "")
+    with (
+        patch.object(interop, "run_harbor_control", return_value=_control_result("fail", 0.0)),
+        patch.object(interop, "harbor_revision", return_value="rev"),
+    ):
+        cell = run_harbor_cell(task_dir, "nop", (), workdir=tmp_path / "n")
+    assert cell["verdict"] == "fail"
+
+
+def test_run_inspect_cell_solution_less_oracle_errors_nop_stages(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    task_dir = _solution_less_task(tmp_path / "nosol")
+    with patch.object(interop, "_write_inspect_run", side_effect=AssertionError("must not run")):
+        cell = run_inspect_cell(task_dir, "oracle", (), workdir=tmp_path / "o")
+    assert cell["verdict"] == "error"
+    assert "solution/solve.sh" in (cell["reason"] or "")
+    captured: dict = {}
+
+    def fake_stage(work: Path, task: object, **kwargs: object) -> Path:
+        captured.update(kwargs)
+        driver = Path(work) / "inspect_driver.py"
+        driver.write_text("x", encoding="utf-8")
+        return driver
+
+    monkeypatch.setattr(interop, "_write_inspect_run", fake_stage)
+    monkeypatch.setattr(interop, "_docker_ps", lambda: {})
+    monkeypatch.setattr(shutil, "which", lambda *args, **kwargs: None)
+    cell = run_inspect_cell(task_dir, "nop", (), workdir=tmp_path / "n")
+    assert captured["agent"] == "nop"
+    assert cell["verdict"] == "error"
+    assert "uv" in (cell["reason"] or "")

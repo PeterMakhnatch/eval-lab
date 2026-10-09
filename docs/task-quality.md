@@ -97,6 +97,20 @@ separate `--stages exploit` probe is requested.
   reference oracle (expect 1), no-agent control (expect 0), then one run per
   script, with `# expect: 1` on the script's first lines recording the author's
   prediction. Without `--execute` it writes the plan only.
+- `evallab hack mutate <package> [--target PATH ...] [--max-mutants N] [--workers 1|2]
+  [--mutant ID ...] [--execute]` — verifier mutation testing for the
+  insufficient-checking family (a verifier that rewards a wrong answer). It
+  captures the reference solution's target files (declared `artifacts`, or
+  `--target`) through `/logs/artifacts`, then grades one blank control per file
+  and a balanced sample of one-edit mutants (comparison boundaries, `and`/`or`,
+  `+`/`-`, `min`/`max`, conditional branches, negated flags and conditions,
+  dropped statements; Python by AST, C-family lexically, JSON by value) with the
+  same oracle-channel matrix path. A mutant that keeps full reward while the
+  file's blank control scores 0 is a **survivor**: a reproducible input written
+  as `inputs/<id>/<id>.patch` against the reference output, recorded in
+  `hypotheses.jsonl` with `status: candidate`. It may be behaviour-equivalent or
+  change behaviour the instruction does not require, so a human or an objective
+  check confirms it before it becomes a task finding.
 
 Receipts land in `runs/.reward-hack/<slug>-<ulid>/` (`hack-report.json`,
 `hack-report.md`, `matrix.json`, staged script copies with digests); the matrix
@@ -105,7 +119,11 @@ receipt and invocation log stay under `runs/.executor/`. Verdicts are
 `unscored` / `planned`. `task_broken` (a no-agent pass, or a failing reference
 solution) outranks hackability and must be fixed before quoting any number from
 that run path. A resisted script is a negative result for that channel on that
-exact revision, never a certificate of robustness.
+exact revision, never a certificate of robustness. `hack mutate` receipts land in
+`runs/.envcheck/<slug>-<nonce>/` (`mutation-report.{json,md}`, `hypotheses.jsonl`,
+`inputs/`, `capture/`, staged scripts and matrices); verdicts are `survivors_found`
+/ `no_survivors` / `no_mutants` / `task_broken` / `unscored` / `planned`, with a
+mutation score of killed over informative scored mutants.
 
 The authoring procedure — legitimacy rules, channel order, honesty requirements —
 is `.omp/skills/reward-hacking-audit/SKILL.md`. Only the replay adapter is

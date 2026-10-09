@@ -446,11 +446,14 @@ def materialize_tw(manifest_rows, cache_dir, tw_root):
 
 
 def load_manifest(corpus_dir):
+    """detectors-v1 rows for the `external` split. CheatBench rows (source `cb`, added
+    in #800) are skipped: the same traces are read from the parquet with family splits."""
     rows = [
         json.loads(line)
         for line in (corpus_dir / "manifest.jsonl").read_text().splitlines()
         if line.strip()
     ]
+    rows = [r for r in rows if r["trial"]["kind"] != "cheatbench"]
     rows.sort(key=lambda r: r["id"])
     return rows
 

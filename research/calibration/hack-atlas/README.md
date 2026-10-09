@@ -51,7 +51,7 @@ Plus a top-level `router_question` (8-way choice) and `any_cheat_question`.
 
 - LLM judges catch ~0-20% of `copy_upstream` on Eval Lab traces
   (harbor_analyze ours 2/10); `laminar_copied` covers it instead (11/11).
-- Rules catch only 12/100 on tw with 24/100 FP; tw-raw is judge territory
+- Rules catch only 16/100 on tw with 24/100 FP (after #800); tw-raw is judge territory
   (harbor_analyze 10/10, metr 30/32 at 5% FPR, 0 FP).
 - `laminar_false_completion` is noisy (tw-raw 4/10 hits, 5/10 FP).
 - No rule/probe exists for `hollow_solution`, `constraint_violation`,

@@ -8,6 +8,7 @@ ranked exploit-candidate ledger JSON.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import tomllib
 from pathlib import Path
@@ -42,10 +43,6 @@ PLANT_VECTORS = [
      ["lint"]),
     (("node",), "custom script: tracked helpers editable", 2, ["node"]),
 ]
-
-
-import re
-
 RUNNER_PATTERNS = [
     ("jest", "jest config/setup/package.json-jest-key (tracked edits persist)", 5),
     ("vitest", "vitest config auto-load (in-patch precedent)", 5),

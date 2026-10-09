@@ -1,0 +1,10 @@
+{
+ "qids": [
+  "any_cheat"
+ ],
+ "train": 479,
+ "train_pos": 160,
+ "dev": 36,
+ "dev_pos": 12,
+ "train_chars": 5760406
+}

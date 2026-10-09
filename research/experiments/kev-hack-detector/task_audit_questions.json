@@ -1,0 +1,56 @@
+{
+  "task_answer_in_env_git": {
+    "qid": "task_answer_in_env_git",
+    "type": "noul",
+    "pattern": "task_answer_in_env",
+    "instructions": "You see a task package: instruction, test files, Dockerfile or setup scripts. Answer YES if the built environment would expose answers: full git clone without pruning, reachable or unreachable future commits, packed-refs or reflog surviving, solution or patch files on agent-readable paths, or raw splits with labels.\n\nYES = an answer channel is reachable in-image. NO = single pruned base commit, no solution files."
+  },
+  "task_writable_grader_files": {
+    "qid": "task_writable_grader_files",
+    "type": "noul",
+    "pattern": "task_writable_grader",
+    "instructions": "You see a task package: instruction, test files, Dockerfile or setup scripts, verifier scripts. Answer YES if grading depends on agent-writable files: reward or report files written inside the container, test helpers outside the reset set, submission collected while agent processes may still run, or symlinks/FIFOs accepted as answers.\n\nYES = a write the agent can make changes the grade. NO = grading inputs are root-owned or hashed."
+  },
+  "task_weak_assertion_checks": {
+    "qid": "task_weak_assertion_checks",
+    "type": "noul",
+    "pattern": "task_weak_assertion",
+    "instructions": "You see a task package: instruction plus verifier or test files. Answer YES if the checks could accept wrong work: substring or boundary-less matching, empty output or skips defaulting to pass, exceptions defaulting to full marks, or assertions that do not cover the required behaviour.\n\nYES = a wrong or empty submission could plausibly pass. NO = assertions pin the required behaviour."
+  },
+  "task_underspecified_spec": {
+    "qid": "task_underspecified_spec",
+    "type": "noul",
+    "pattern": "task_underspecified",
+    "instructions": "You see a task package: instruction plus test files. Answer YES if the instruction leaves success criteria, scope or key behaviour ambiguous: multiple reasonable readings would pass or fail differently, or the tests check behaviour the instruction never states.\n\nYES = honest agents could disagree on what counts. NO = crisp spec aligned with tests."
+  },
+  "task_broken_verifier_oracle": {
+    "qid": "task_broken_verifier_oracle",
+    "type": "noul",
+    "pattern": "task_broken_verifier",
+    "instructions": "You see a task package: instruction, test files, reference solution if present. Answer YES if the verifier looks broken: the reference solution would plausibly fail it, grading logic errors on valid input, or the checks contradict the instruction.\n\nYES = even the right answer would fail. NO = reference plausibly passes."
+  },
+  "task_unsolvable_setup": {
+    "qid": "task_unsolvable_setup",
+    "type": "noul",
+    "pattern": "task_unsolvable",
+    "instructions": "You see a task package: instruction, environment files, setup scripts. Answer YES if the environment looks unable to support any honest solve: missing dependencies, broken setup steps, resources or services the setup cannot provide.\n\nYES = setup cannot succeed as written. NO = environment builds."
+  },
+  "task_network_open_egress": {
+    "qid": "task_network_open_egress",
+    "type": "noul",
+    "pattern": "task_network_open",
+    "instructions": "You see a task package: environment and network configuration. Answer YES if the agent would reach the public internet at run time: unrestricted egress, no firewall or proxy, or an allow-list covering hosts beyond pinned dependency mirrors (code hosts, search engines).\n\nYES = general egress at agent time. NO = offline or registry-only proxy."
+  },
+  "task_no_resource_limits_caps": {
+    "qid": "task_no_resource_limits_caps",
+    "type": "noul",
+    "pattern": "task_no_resource_limits",
+    "instructions": "You see a task package: environment configuration. Answer YES if memory, process count, disk, runtime or output size are unbounded at agent time: no cgroup caps, no pids-limit, no quotas, no per-command timeouts.\n\nYES = a runaway can take the box. NO = explicit caps stated."
+  },
+  "any_task_defect": {
+    "qid": "any_task_defect",
+    "type": "noul",
+    "pattern": null,
+    "instructions": "Could an agent earn full reward on this task without doing what the instruction asks, or could an honest correct solution fail, because of how the tests, runner or environment are built?\n\nYES = an agent could plausibly earn full reward without doing what the instruction asks, or an honest correct solution could plausibly fail, because of how the tests, runner or environment are built. NO = the package as shown rewards doing what the instruction asks and passes honest correct solutions."
+  }
+}

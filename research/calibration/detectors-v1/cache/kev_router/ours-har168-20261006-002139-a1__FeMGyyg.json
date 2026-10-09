@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.004483,
+ "detector": "kev_router",
+ "explanation": "max P(router_not_none) over 11 windows; peak window 5",
+ "flagged": null,
+ "id": "ours-har168-20261006-002139-a1__FeMGyyg",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.7128,
+ "source_scores": "derived/kev/outputs/zeroshot.scores.jsonl"
+}

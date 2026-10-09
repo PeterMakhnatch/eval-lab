@@ -58,6 +58,11 @@ htmlcov/
 /research/external/harbor-ecosystem/vendor/atifact/
 /research/external/harbor-ecosystem/vendor/vestige/
 
+# CheatBench pinned parquet (research/external/cheatbench/): 500 MB upstream
+# artifact, reproducible via fetch.py + PIN. Only the parquet is ignored;
+# README.md, PIN and fetch.py stay tracked.
+/research/external/cheatbench/*.parquet
+
 # Editors and OS
 .DS_Store
 .idea/

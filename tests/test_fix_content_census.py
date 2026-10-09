@@ -100,8 +100,11 @@ def test_probe_covers_all_stages() -> None:
         "fix_present_pre",
         "setup.sh",
         "fix_present_post",
+        "git_hidden",
         "rev-list --all",
         "fsck --unreachable",
+        "patterns_raw",
+        "grep -qF",
         "grep -rlF",
         "hit_detail",
         "fix_mtimes",
@@ -260,3 +263,62 @@ def test_patterns_awk_matches_host_classifier(tmp_path: Path) -> None:
     )
     assert proc.returncode == 0, proc.stderr
     assert sorted(proc.stdout.splitlines()) == sorted(distinctive_added_lines(PATCH))
+
+
+def test_recover_fix_lite_finds_continuous_toucher(tmp_path: Path) -> None:
+    """Lite S1 on a fixture repo: first continuous test+source toucher wins."""
+    import shutil
+    import subprocess
+
+    from evallab.fix_content_census import recover_fix_lite
+
+    if shutil.which("git") is None:
+        pytest.skip("needs git")
+    repo = tmp_path / "repo"
+    (repo / "src").mkdir(parents=True)
+    (repo / "tests").mkdir()
+    (repo / "src" / "a.py").write_text("def a():\n    return 1\n", encoding="utf-8")
+    (repo / "tests" / "test_a.py").write_text("def test_a(): pass\n", encoding="utf-8")
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/local/bin",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
+    }
+    subprocess.run(["git", "init", "-q", str(repo)], check=True, env=env, timeout=60)
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, env=env, timeout=60)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm", "base"], check=True, env=env, timeout=60
+    )
+    base = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+        timeout=60,
+    ).stdout.strip()
+    (repo / "src" / "a.py").write_text("def a():\n    return promote_batch_shape(1)\n", encoding="utf-8")
+    (repo / "tests" / "test_a.py").write_text(
+        "def test_a(): pass\ndef test_promote(): pass\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "-C", str(repo), "add", "-A"], check=True, env=env, timeout=60)
+    subprocess.run(
+        ["git", "-C", str(repo), "commit", "-qm", "fix"],
+        check=True,
+        env=env,
+        timeout=60,
+    )
+    fix = subprocess.run(
+        ["git", "-C", str(repo), "rev-parse", "HEAD"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=env,
+        timeout=60,
+    ).stdout.strip()
+    found = recover_fix_lite(repo / ".git", base, ["tests/test_a.py"])
+    assert found.get("sha") == fix
+    assert recover_fix_lite(repo / ".git", base, ["tests/missing.py"])["status"] == "no-test-blobs"
+    assert recover_fix_lite(repo / ".git", fix, ["tests/test_a.py"])["status"] == "no-candidate"

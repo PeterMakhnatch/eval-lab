@@ -60,6 +60,7 @@ CSV_FIELDS = (
     "tags",
     "stash",
     "patterns",
+    "patterns_raw",
     "hits_total",
     "hits_by_route",
     "blob_matches",
@@ -242,7 +243,17 @@ while IFS= read -r f; do
   _sha=$(git -C "$WORKDIR" rev-parse "$FIX:$f" 2>/dev/null || true)
   [ -n "$_sha" ] && printf '%s\t%s\n' "$_sha" "$f" >> "$OUT/blobs.txt"
 done < "$OUT/changed.txt"
-awk -f "$STAGE/patterns.awk" "$OUT/fix.diff" 2>/dev/null | sort -u > "$OUT/patterns.txt" || true
+awk -f "$STAGE/patterns.awk" "$OUT/fix.diff" 2>/dev/null | sort -u > "$OUT/patterns_raw.txt" || true
+# Distinctive patterns: added lines absent from the base tree. A line the
+# base already contains is not fix content, no matter where else it appears.
+: > "$OUT/patterns.txt"
+if [ -s "$OUT/patterns_raw.txt" ] && [ -n "$BASE" ]; then
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    git -C "$WORKDIR" grep -qF -e "$p" "$BASE" -- . 2>/dev/null || printf '%s\n' "$p" >> "$OUT/patterns.txt"
+  done < "$OUT/patterns_raw.txt"
+fi
+wc -l < "$OUT/patterns_raw.txt" | tr -d ' ' > "$OUT/pattern_raw_count"
 wc -l < "$OUT/patterns.txt" | tr -d ' ' > "$OUT/pattern_count"
 # ---- staged setup (published or clean chain) ----
 mkdir -p /var/lib/mimo
@@ -252,6 +263,8 @@ printf '%s' "$?" > "$OUT/setup_rc"
 if [ -f /var/lib/mimo/ready ]; then echo yes > "$OUT/ready"; else echo no > "$OUT/ready"; fi
 # ---- stage 2: git recoverability (V2/V4) ----
 if git -C "$WORKDIR" cat-file -t "$FIX" >/dev/null 2>&1; then echo yes > "$OUT/fix_present_post"; else echo no > "$OUT/fix_present_post"; fi
+if [ -d /var/lib/mimo/git-hidden ]; then echo yes > "$OUT/git_hidden"; else echo no > "$OUT/git_hidden"; fi
+if [ -d "$WORKDIR/.git" ]; then echo yes > "$OUT/git_present"; else echo no > "$OUT/git_present"; fi
 git -C "$WORKDIR" rev-list --all --count 2>/dev/null > "$OUT/rev_count" || echo ? > "$OUT/rev_count"
 git -C "$WORKDIR" branch -a 2>/dev/null > "$OUT/branches.txt" || true
 git -C "$WORKDIR" tag 2>/dev/null > "$OUT/tags.txt" || true
@@ -465,6 +478,10 @@ def collect_result(
         notes.append("ready sentinel missing")
     if _read(out / "docker_rc") != "0":
         notes.append(f"docker rc={_read(out / 'docker_rc')}")
+    if _read(out / "git_hidden") == "yes":
+        notes.append("setup hid .git (git-hidden); post git checks are blind")
+    if _read(out / "git_present") == "no":
+        notes.append("no worktree .git post-setup")
     return {
         "task_id": task_id,
         "language": language,
@@ -482,6 +499,7 @@ def collect_result(
         "tags": len(_read_lines(out / "tags.txt")),
         "stash": len(_read_lines(out / "stash.txt")),
         "patterns": _read(out / "pattern_count"),
+        "patterns_raw": _read(out / "pattern_raw_count"),
         "hits_total": len(hits),
         "hits_by_route": json.dumps(counts, sort_keys=True),
         "blob_matches": json.dumps(sorted(blob_matches)),
@@ -601,6 +619,88 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
+def recover_fix_lite(
+    git_dir: Path | str, base: str, test_files: list[str]
+) -> dict[str, Any]:
+    """Fallback fix recovery for histories the HAR-191 extractor refuses.
+
+    Same core signal as extractor S1 (before-blob continuity: the first
+    future toucher of a task test file keeps the base blob) plus a non-test
+    file change in the same commit, without the keyword/divergence scoring.
+    Returns ``{"sha": ...}`` or ``{"status": ..., "rationale": ...}``.
+    Host-side, plain ``git`` CLI only.
+    """
+    git = str(git_dir)
+
+    def run(*args: str) -> str:
+        proc = subprocess.run(
+            ["git", "--git-dir", git, *args],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(f"git {' '.join(args)}: {proc.stderr[:200]}")
+        return proc.stdout
+
+    try:
+        base_blobs: dict[str, str] = {}
+        for f in test_files:
+            try:
+                out = run("rev-parse", f"{base}:{f}").strip()
+            except RuntimeError:
+                continue
+            if re.fullmatch(r"[0-9a-f]{40}", out):
+                base_blobs[f] = out
+        if not base_blobs:
+            return {"status": "no-test-blobs", "rationale": "no task test file in base"}
+        log = run(
+            "log", "--all", "--format=%H %P %aI", "--name-only", "--", *test_files
+        )
+    except RuntimeError as exc:
+        return {"status": "git-error", "rationale": str(exc)}
+    candidates: list[tuple[str, str]] = []
+    header: list[str] | None = None
+    names: list[str] = []
+    records: list[tuple[list[str], list[str]]] = []
+    for line in log.split("\n"):
+        if re.match(r"^[0-9a-f]{40}( |$)", line):
+            if header is not None:
+                records.append((header, names))
+            header = line.split(" ")
+            names = []
+        elif line.strip():
+            if header is not None:
+                names.append(line.strip())
+    if header is not None:
+        records.append((header, names))
+    for toks, files in records:
+        if len(toks) < 3 or not re.fullmatch(r"[0-9a-f]{40}", toks[0]):
+            continue
+        sha, date = toks[0], toks[-1]
+        parents = " ".join(toks[1:-1])
+        parent = parents.split()[0] if parents.split() else ""
+        touched = [p for p in files if p in base_blobs]
+        if not touched or not parent:
+            continue
+        try:
+            continuous = [
+                f
+                for f in touched
+                if run("rev-parse", f"{parent}:{f}").strip() == base_blobs[f]
+            ]
+            changed = run("diff", "--name-only", parent, sha).split()
+            non_test = non_test_files(changed)
+        except RuntimeError:
+            continue
+        if continuous and non_test:
+            candidates.append((sha, date))
+    if not candidates:
+        return {"status": "no-candidate", "rationale": "no continuous test+source toucher"}
+    candidates.sort(key=lambda c: c[1])
+    return {"sha": candidates[0][0], "method": "lite-s1"}
+
+
 __all__ = [
     "CSV_FIELDS",
     "DISTINCTIVE_MIN_LEN",
@@ -617,8 +717,10 @@ __all__ = [
     "main",
     "non_test_files",
     "parse_diff_added_lines",
+    "recover_fix_lite",
     "run_probe",
     "stage_probe",
     "summarize_hits",
     "write_csv",
 ]
+

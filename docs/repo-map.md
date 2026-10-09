@@ -687,7 +687,7 @@ inputs:
   - path: src/evallab/verdicts.py
     digest: sha256:31d4d5d3dbcd6fd83bff63b955f33536242fc273ae15a12a0310900e4c9d8437
   - path: src/evallab/verifier_mutation.py
-    digest: sha256:7efbfa7e6a37b391f2b9b74fa702d54cbaa826ff3722751dd16c724fff33ab44
+    digest: sha256:5d5ed6366c11af24324b59a5513c7490ebd6827a18ae88178ebbaad98cff43ed
   - path: src/evallab/webdev_brief_explicit.py
     digest: sha256:02603e742231363f4c327d3322769e6bceb606ddb6d74c890453de23f957461f
   - path: src/evallab/webdev_structural_gate.py

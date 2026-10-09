@@ -7253,6 +7253,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.reward_hack import build_reward_hack_parser
 
     build_reward_hack_parser(commands)
+    from evallab.vcheck_cli import build_vcheck_parser
+
+    build_vcheck_parser(commands)
     from evallab.laminar import build_laminar_parser
 
     build_laminar_parser(commands)

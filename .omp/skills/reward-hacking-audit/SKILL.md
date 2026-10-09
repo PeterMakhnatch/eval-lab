@@ -29,6 +29,13 @@ benchmark's own verifier is the only authority on whether an exploit scores.
    Read each survivor's diff against `instruction.md`: an equivalent mutant (unreachable branch, a
    `parents=False` on a directory that exists) is noise; a survivor that changes required behaviour is a
    candidate defect. Re-run one survivor with `--mutant <id>` before quoting it.
+5. **Red/blue verifier campaign (spend-gated, model search).** `evallab vcheck run --manifest
+   campaign.json --budget-usd X --approve "..."` plans for free; add `--execute` to spend.
+   Per-task red agents (GLM 5.3, 30 steps) read the grader, coach blue-solver probes, and submit
+   wrong answers the task's own verifier scores; harness controls (oracle 1, empty 0) outrank any
+   claim. Confirm survivors with `evallab vcheck confirm <id> --verdict confirm|reject`, export
+   with `evallab vcheck export <finding-id>`. Survivors are candidates: read each against the
+   requirement map, discard equivalent mutants, never quote a clean run as a certificate.
 
 ```bash
 evallab hack scan library/tasks/<task>

@@ -67,9 +67,9 @@ imported into the viewer.
 
 ```bash
 python research/external/cheatbench/fetch.py   # pinned download + sha256, into this dir
-uv run --with inspect-scout==0.5.4 python \
+uv run --with inspect-scout==0.5.4 --with harbor==0.24.0 python \
   research/explorations/trace-lab/scout/import_cheatbench.py \
-  --db <scout-transcripts-dir> --staging <staging-dir>
+  --parquet <full.parquet> --db <fresh-scout-transcripts-dir> --staging <staging-dir>
 ```
 
 Converter: `src/evallab/cheatbench.py` (`cheatbench.raw_trace.v1` → staged
@@ -80,13 +80,16 @@ step and transcript message number of the cheat). Tests:
 
 ## How to open
 
-Throwaway Scout view (never on 7576/8100/8501):
+Live copy (2026-10-09): parquet at `derived/external/cheatbench/full.parquet`,
+transcripts DB at `derived/trace-lab/scout/data/transcripts_cheatbench`
+(194 transcripts). The always-on Scout viewer opens any transcripts directory
+by URL, so no service change is needed:
+`http://127.0.0.1:7576/#/transcripts/<base64url("file://<absolute-db-dir>"), no padding>`.
+Each transcript ends with a marked `[CheatBench annotation]` message naming
+the cheat's transcript message (`M<n>`).
 
-```bash
-scout view <project-dir-with-scout.yaml> -T <db> --port <free-port> --no-browser
-```
+Scout insert is first-write-wins on transcript id: re-import into a fresh
+directory, never over an existing one.
 
-Go-live on the always-on Scout viewer (`http://127.0.0.1:7576`) is a
-parent-run step: see the PR report for the exact post-merge commands.
 Our 8501/8100 run counts are untouched — nothing is written to
 `~/Developer/eval-lab-results`.

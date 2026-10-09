@@ -201,10 +201,56 @@ def harbor_version() -> str | None:
     return text or None
 
 
-def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+def run_cheat_trial(
+    task: Path,
+    attacks: tuple[str, ...],
+    *,
+    repo_root: Path,
+    jobs_dir: Path,
+    name: str,
+    attempts: int = 1,
+    timeout_seconds: int = 600,
+) -> tuple[Path, dict[str, Any]]:
+    """Execute the cheat lane once through direct execution; return (job_dir, verdicts).
+
+    Shared by ``evallab cheat run`` and sibling lanes (e.g. the interop
+    matrix): the attack subset travels in ``EVALLAB_CHEAT_ATTACKS`` under the
+    process-env lock, the trial runs on local Docker ($0), and the verdicts
+    payload comes from the benchmark's own verifier reward. Raises on
+    infrastructure failure (callers map that to their error verdict).
+    """
     from evallab.execution_contracts import RunRequest
-    from evallab.harbor_view import installed_harbor_version
     from evallab.queue import Executor
+
+    request = RunRequest(
+        task=task,
+        agent=CHEAT_AGENT,
+        name=name,
+        jobs_dir=jobs_dir,
+        environment="docker",
+        model=None,
+        concurrency=1,
+        attempts=attempts,
+        timeout_seconds=timeout_seconds,
+        allow_billable=False,
+    )
+    with _CHEAT_ENV_LOCK:
+        previous = os.environ.get(CHEAT_ATTACKS_ENV_VAR)
+        os.environ[CHEAT_ATTACKS_ENV_VAR] = ",".join(attacks)
+        try:
+            job_dir = Executor.from_repo(repo_root).execute_direct(request)
+        finally:
+            if previous is None:
+                os.environ.pop(CHEAT_ATTACKS_ENV_VAR, None)
+            else:
+                os.environ[CHEAT_ATTACKS_ENV_VAR] = previous
+    verdicts_path = write_cheat_verdicts(job_dir, harbor_rev=harbor_version())
+    payload = json.loads(verdicts_path.read_text(encoding="utf-8"))
+    return job_dir, payload
+
+
+def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    from evallab.harbor_view import installed_harbor_version
 
     version = installed_harbor_version()
     if version is None or version < (0, 24):
@@ -218,30 +264,16 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     selected = parse_attack_selection(args.attacks)
     task = args.task if args.task.is_absolute() else (root / args.task).resolve()
     jobs_dir = args.jobs_dir if args.jobs_dir.is_absolute() else (root / args.jobs_dir).resolve()
-    request = RunRequest(
-        task=task,
-        agent=CHEAT_AGENT,
-        name=args.name,
+    job_dir, payload = run_cheat_trial(
+        task,
+        selected,
+        repo_root=root,
         jobs_dir=jobs_dir,
-        environment="docker",
-        model=None,
-        concurrency=1,
+        name=args.name,
         attempts=args.attempts,
         timeout_seconds=args.timeout_seconds,
-        allow_billable=False,
     )
-    with _CHEAT_ENV_LOCK:
-        previous = os.environ.get(CHEAT_ATTACKS_ENV_VAR)
-        os.environ[CHEAT_ATTACKS_ENV_VAR] = ",".join(selected)
-        try:
-            job_dir = Executor.from_repo(root).execute_direct(request)
-        finally:
-            if previous is None:
-                os.environ.pop(CHEAT_ATTACKS_ENV_VAR, None)
-            else:
-                os.environ[CHEAT_ATTACKS_ENV_VAR] = previous
-    verdicts_path = write_cheat_verdicts(job_dir, harbor_rev=harbor_version())
-    payload = json.loads(verdicts_path.read_text(encoding="utf-8"))
+    verdicts_path = job_dir / VERDICTS_FILENAME
     print(f"completed: {job_dir}")
     for trial in payload["trials"]:
         method = trial["method"] or "none"

@@ -1,18 +1,26 @@
-"""HAR-204: Harbor <-> Inspect AI <-> Karotte interop (local, $0 only).
+"""HAR-204: Harbor <-> Inspect AI <-> Karotte <-> verifiers interop (local, $0 only).
 
-Three commands, all model-free and spend-free:
+Model-free, spend-free bridges:
 
 - ``export-harbor`` converts a Harbor task directory into an Inspect AI task
   (``--to inspect``) or a Karotte environment scaffold (``--to karotte``).
   The inspect path never imports ``inspect_harbor``; the karotte path flags
   every lossy or impossible mapping in a generated ``MAPPING.md`` instead of
   silently dropping it.
-- ``run-inspect`` runs a local Harbor task dir under Inspect AI through the
-  repo-pinned ``inspect-harbor`` generic interface (``harbor(path=...)`` task
-  + oracle solver + local docker sandbox) and prints that verdict next to the
-  Harbor-native oracle verdict for the same task.
-- ``parity`` runs oracle/nop on each locally executable target and prints the
-  verdict-equality matrix, including the karotte-validate column.
+- ``matrix`` runs scripted oracle/nop/cheat agents against each wired target
+  (``MATRIX_TARGETS`` registry: harbor + inspect here, karotte/verifiers wired
+  at integration) and prints the grading table plus a JSON envelope.
+
+The scripted agents are platform-neutral plans (``scripted_agent_plan``):
+oracle stages ``solution/`` and runs ``solve.sh``; nop does nothing; cheat
+stages the stdlib-only ``evallab.cheat_ladder`` and runs it with the attack
+subset (empty = full ladder). Every target runner exposes
+``run_cell(task_dir, agent, attacks, *, workdir, timeout_seconds)`` returning
+a pass/fail/skipped/error verdict dict (reward >= 1.0 passes).
+
+Live-Docker paths attempt execution exactly like ``evallab run`` /
+``evallab cheat run`` (direct execution, no campaign-queue admission gate):
+infrastructure failures are ``error`` cells, never ``fail``.
 
 This module is stdlib-only: ``inspect_ai``/``inspect_harbor``/``karotte`` are
 invoked in subprocesses via pinned ``uv run --with`` so exporting never
@@ -31,9 +39,12 @@ import subprocess
 import sys
 import tempfile
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+from evallab.cheat_ladder import parse_attack_selection
 
 INSPECT_AI_PIN = "0.3.276"
 INSPECT_HARBOR_PIN = "1.0.0"
@@ -117,6 +128,65 @@ def load_harbor_task(task_dir: str | Path) -> HarborTask:
         metadata=metadata,
         artifacts=artifacts,
     )
+
+
+#: Absolute container path the cheat ladder is staged at for scripted agents.
+CHEAT_LADDER_CONTAINER_PATH = "/tmp/cheat_ladder.py"
+
+#: Container workdir the inspect runner materializes (mirrors the repo mount
+#: Harbor agents see natively); the plan command runs with this as its cwd.
+INSPECT_TASK_WORKDIR = "/taskwork"
+
+#: Bounds for task files staged into a foreign sandbox (solution/ + tests/).
+#: Tasks larger than this need a runner with a real mount, not write_file.
+MAX_STAGED_FILE_BYTES = 1_000_000
+
+#: Sandbox container bounds used when the task declares none (shared laptop
+#: daemon: stay small; the smoke tasks are sqlite + pytest, not GPU jobs).
+DEFAULT_INSPECT_CPUS = 2
+DEFAULT_INSPECT_MEMORY_MB = 2048
+
+
+@dataclass
+class ScriptedPlan:
+    """A platform-neutral scripted agent: files to stage plus one command."""
+
+    files: dict[str, bytes]
+    """Absolute container path -> bytes to stage before running."""
+    command: str | None
+    """Shell command to run once as the agent, in the task workdir; None = nop."""
+
+
+def _cheat_ladder_bytes() -> bytes:
+    """Read the single-file ladder staged into foreign sandboxes."""
+    return (Path(__file__).with_name("cheat_ladder.py")).read_bytes()
+
+
+def scripted_agent_plan(
+    task: HarborTask, agent: str, attacks: tuple[str, ...] = ()
+) -> ScriptedPlan:
+    """Build the scripted plan for one agent: oracle/nop/cheat.
+
+    Oracle stages ``solution/`` and runs ``solve.sh``; nop stages nothing and
+    runs nothing (``command`` is None); cheat stages ``cheat_ladder.py`` and
+    runs it with the attack subset (empty ``attacks`` = full ladder). Unknown
+    agents and unknown attack names raise ``ValueError``.
+    """
+    del task  # the plan is task-independent; runners materialize the workdir
+    if agent == "nop":
+        return ScriptedPlan(files={}, command=None)
+    if agent == "oracle":
+        return ScriptedPlan(files={}, command="bash solution/solve.sh")
+    if agent == "cheat":
+        selected = parse_attack_selection(",".join(attacks) if attacks else None)
+        command = f"python3 {CHEAT_LADDER_CONTAINER_PATH} --cwd . --evidence-dir ./cheat"
+        if attacks:
+            command += f" --attacks {','.join(selected)}"
+        return ScriptedPlan(
+            files={CHEAT_LADDER_CONTAINER_PATH: _cheat_ladder_bytes()},
+            command=command,
+        )
+    raise ValueError(f"unknown scripted agent {agent!r} (oracle/nop/cheat only)")
 
 
 def harbor_revision() -> str:
@@ -211,8 +281,8 @@ def run_harbor_control(
 ) -> dict[str, Any]:
     """Run the Harbor-native oracle/nop control locally (docker, $0).
 
-    Goes through the repo's own guarded ``Executor.execute_direct`` path, so
-    the verdict is the same one a native lab control would record. Returns a
+    Direct execution through ``Executor.execute_direct`` -- the same path
+    ``evallab run`` uses, with no campaign-queue admission gate. Returns a
     verdict dict; infrastructure failures are ``error``, never ``fail``.
     """
     from evallab.execution_contracts import RunRequest
@@ -224,18 +294,6 @@ def run_harbor_control(
     root = Path(repo_root)
     task = load_harbor_task(task_dir)
     harbor_rev = harbor_revision()
-    admitted, admission_detail = docker_admission()
-    if not admitted:
-        return {
-            "target": "harbor",
-            "agent": agent,
-            "task_id": task.task_id,
-            "verdict": "skip",
-            "reward": None,
-            "reason": admission_detail,
-            "job_dir": None,
-            "harbor_rev": harbor_rev,
-        }
     work = (
         Path(jobs_dir) if jobs_dir is not None else Path(tempfile.mkdtemp(prefix="interop-jobs-"))
     )
@@ -300,26 +358,149 @@ def run_harbor_control(
     }
 
 
-SKIP_NO_DAEMON = "shared daemon not admitted"
+def _repo_root() -> Path:
+    """Repo root for direct execution (this file lives at src/evallab/)."""
+    return Path(__file__).resolve().parents[2]
 
 
-def docker_admission() -> tuple[bool, str]:
-    """Attempt shared-daemon admission via the repo's own resource gate.
+def _trial_reward_from_job(job_dir: Path) -> float:
+    """Read the single trial's primary reward; raise when unscored."""
+    from evallab.results import load_job
 
-    Read-only: it never touches other owners' containers. Returns
-    ``(True, detail)`` when a live-Docker run may proceed, else
-    ``(False, reason)``; live paths report ``shared daemon not admitted``
-    and skip instead of failing.
+    job = load_job(job_dir)
+    if len(job.trials) != 1:
+        raise ValueError(f"expected one trial in {job_dir}, found {len(job.trials)}")
+    reward = job.trials[0].primary_reward
+    if reward is None:
+        raise ValueError(f"native trial in {job_dir} recorded no reward")
+    return reward
+
+
+def run_harbor_cell(
+    task_dir: str | Path,
+    agent: str,
+    attacks: tuple[str, ...] = (),
+    *,
+    workdir: str | Path,
+    timeout_seconds: int | None = None,
+) -> dict[str, Any]:
+    """Run one matrix cell on the Harbor target (oracle/nop/cheat, docker, $0).
+
+    Oracle/nop reuse ``run_harbor_control``; cheat reuses the ``evallab cheat``
+    lane (``cheat.run_cheat_trial``), never a copy of it. Returns the shared
+    cell dict: pass/fail/skipped/error verdict (reward >= 1.0 passes),
+    reward, reason, platform version, and evidence path.
     """
-    try:
-        from evallab.campaign_execution import docker_available_resources
-    except ImportError as exc:
-        return False, f"{SKIP_NO_DAEMON}: admission helper unavailable ({exc})"
-    try:
-        cpus, memory_mb = docker_available_resources()
-    except Exception as exc:
-        return False, f"{SKIP_NO_DAEMON}: {type(exc).__name__}: {exc}"
-    return True, f"admitted with {cpus:.1f} CPUs / {memory_mb} MiB available"
+    from evallab.cheat import run_cheat_trial
+
+    task = load_harbor_task(task_dir)
+    work = Path(workdir)
+    work.mkdir(parents=True, exist_ok=True)
+    harbor_rev = harbor_revision()
+    cell: dict[str, Any] = {
+        "target": "harbor",
+        "agent": agent,
+        "attacks": list(attacks),
+        "platform_version": harbor_rev,
+    }
+    if agent in ("oracle", "nop"):
+        # --attacks selects the ladder subset for cheat cells only; controls
+        # ignore it (matrix passes one attack list for the whole row).
+        cell["attacks"] = []
+        try:
+            result = run_harbor_control(
+                task.task_dir,
+                agent,
+                repo_root=_repo_root(),
+                jobs_dir=work / "jobs",
+                timeout_seconds=timeout_seconds,
+            )
+        except Exception as exc:
+            cell.update(
+                {
+                    "verdict": "error",
+                    "reward": None,
+                    "reason": f"harbor execution failed: {type(exc).__name__}: {exc}",
+                    "evidence": None,
+                }
+            )
+            return cell
+        cell.update(
+            {
+                "verdict": result["verdict"],
+                "reward": result.get("reward"),
+                "reason": result.get("reason"),
+                "evidence": result.get("job_dir"),
+            }
+        )
+        return cell
+    if agent == "cheat":
+        try:
+            selected = parse_attack_selection(",".join(attacks) if attacks else None)
+        except ValueError as exc:
+            cell.update(
+                {
+                    "verdict": "error",
+                    "reward": None,
+                    "reason": f"unknown attack: {exc}",
+                    "evidence": None,
+                }
+            )
+            return cell
+        try:
+            from evallab.harbor_view import installed_harbor_version
+
+            version = installed_harbor_version()
+            if version is None or version < (0, 24):
+                raise RuntimeError(
+                    "evallab cheat lane needs Harbor >= 0.24 (uv sync --frozen --extra laminar)"
+                )
+            job_dir, _payload = run_cheat_trial(
+                task.task_dir,
+                selected,
+                repo_root=_repo_root(),
+                jobs_dir=work / "jobs",
+                name=_slug(task.task_id, "cheat"),
+                timeout_seconds=timeout_seconds or 600,
+            )
+            reward = _trial_reward_from_job(job_dir)
+        except Exception as exc:
+            cell.update(
+                {
+                    "verdict": "error",
+                    "reward": None,
+                    "reason": f"harbor cheat run failed: {type(exc).__name__}: {exc}",
+                    "evidence": None,
+                }
+            )
+            return cell
+        cell.update(
+            {
+                "verdict": verdict_for_reward(reward),
+                "reward": reward,
+                "reason": None,
+                "evidence": str(job_dir),
+            }
+        )
+        return cell
+    cell.update(
+        {
+            "verdict": "error",
+            "reward": None,
+            "reason": f"unknown agent {agent!r} (oracle/nop/cheat only)",
+            "evidence": None,
+        }
+    )
+    return cell
+
+
+#: Live runs deliberately skip the campaign queue's dedicated-host admission
+#: gate (``campaign_execution.docker_available_resources`` refuses whenever
+#: ANY container on the shared laptop daemon is unbounded, e.g. the lab's own
+#: postgres or another agent's long-running container). Local ``evallab run``
+#: and ``evallab cheat run`` use no such pre-check: they attempt direct
+#: execution and surface Docker failures as errors. Interop live cells do the
+#: same -- infrastructure failures are ``error`` cells, never ``fail``.
 
 
 # ---------------------------------------------------------------------------
@@ -895,119 +1076,338 @@ def export_karotte(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# run-inspect: Harbor task dir under Inspect AI (pinned inspect-harbor)
+# inspect: scripted oracle/nop/cheat cells under Inspect AI (pinned)
 # ---------------------------------------------------------------------------
-INSPECT_DRIVER = '''"""Run one local Harbor task under Inspect AI (generated driver, $0)."""
+INSPECT_SCRIPTED_DRIVER = '''"""Run one scripted agent (oracle/nop/cheat) under Inspect AI (generated, $0)."""
+import importlib.metadata
 import json
-import sys
 from pathlib import Path
 
+WORK = Path(@@WORK_REPR@@)
 TASK_DIR = Path(@@TASK_DIR_REPR@@)
-TIMEOUT = @@TIMEOUT_REPR@@
 
 
-def main() -> int:
-    import inspect_ai
-    import inspect_harbor
-    from inspect_ai import eval as inspect_eval
-
-    try:
-        oracle_solver = inspect_harbor.oracle
-    except AttributeError:
-        from inspect_harbor._harbor.solver import oracle as oracle_solver
-    task_obj = inspect_harbor.harbor(path=str(TASK_DIR), sandbox_env_name="docker")
-    logs = inspect_eval(
-        tasks=[task_obj],
-        solver=[oracle_solver()],
-        model="mockllm/model",
-        limit=1,
-        log_format="json",
-    )
-    if not logs or not logs[0].samples:
-        print(json.dumps({"verdict": "error", "reason": "inspect produced no samples"}))
-        return 0
-    sample = logs[0].samples[0]
-    if sample.error:
-        print(json.dumps({"verdict": "error", "reason": str(sample.error)[:500]}))
-        return 0
-    values = [s.value for s in (sample.scores or {}).values()]
+def _reward_from_values(values):
     reward = None
     for value in values:
         if isinstance(value, bool):
             reward = 1.0 if value else 0.0
         elif isinstance(value, (int, float)):
             reward = float(value)
-        elif value == "C":
+        elif value == 'C':
             reward = 1.0
-        elif value == "I":
+        elif value == 'I':
             reward = 0.0
+    return reward
+
+
+def _dist_version(name, module=None):
+    try:
+        return importlib.metadata.version(name)
+    except importlib.metadata.PackageNotFoundError:
+        return getattr(module, '__version__', 'unknown') if module is not None else 'unknown'
+
+
+def main() -> int:
+    manifest = json.loads((WORK / 'manifest.json').read_text(encoding='utf-8'))
+    agent = manifest['agent']
+    import inspect_ai
+    import inspect_harbor
+    from inspect_ai import eval as inspect_eval
+    from inspect_ai.solver import Generate, Solver, TaskState, solver
+    from inspect_ai.util import sandbox
+
+    try:
+        from inspect_harbor._harbor.sandbox_utils import resolve_env_vars
+    except ImportError:
+        resolve_env_vars = None
+
+    @solver
+    def scripted_solver() -> Solver:
+        async def solve(state: TaskState, generate: Generate) -> TaskState:
+            record = {'agent': agent, 'command': manifest.get('command')}
+            if agent != 'nop':
+                sb = sandbox()
+                await sb.exec(['mkdir', '-p', manifest['workdir'], '/logs/verifier'])
+                for rel in manifest.get('task_files', []):
+                    await sb.write_file(
+                        manifest['workdir'] + '/' + rel, (TASK_DIR / rel).read_bytes()
+                    )
+                for container_path, blob in manifest.get('files', []):
+                    await sb.write_file(container_path, (WORK / blob).read_bytes())
+                command = manifest.get('command')
+                if command:
+                    solution_env_raw = state.metadata.get('solution_env', {})
+                    if solution_env_raw and resolve_env_vars is not None:
+                        solution_env = resolve_env_vars(solution_env_raw)
+                    else:
+                        solution_env = None
+                    completed = await sb.exec(
+                        ['bash', '-c', command],
+                        cwd=manifest['workdir'],
+                        timeout=manifest.get('agent_timeout'),
+                        timeout_retry=False,
+                        env=solution_env,
+                    )
+                    record['returncode'] = completed.returncode
+                    record['stdout_tail'] = (completed.stdout or '')[-4000:]
+                    record['stderr_tail'] = (completed.stderr or '')[-4000:]
+            (WORK / 'agent-exec.json').write_text(json.dumps(record, indent=2) + '\\n')
+            return state
+
+        return solve
+
+    task_obj = inspect_harbor.harbor(
+        path=str(TASK_DIR),
+        sandbox_env_name='docker',
+        override_cpus=manifest.get('override_cpus'),
+        override_memory_mb=manifest.get('override_memory_mb'),
+    )
+    logs = inspect_eval(
+        tasks=[task_obj],
+        solver=[scripted_solver()],
+        model='mockllm/model',
+        limit=1,
+        log_format='json',
+        log_dir=str(WORK / 'inspect-logs'),
+    )
+    if not logs or not logs[0].samples:
+        print(json.dumps({'verdict': 'error', 'reason': 'inspect produced no samples'}))
+        return 0
+    sample = logs[0].samples[0]
+    if sample.error:
+        print(json.dumps({'verdict': 'error', 'reason': str(sample.error)[:500]}))
+        return 0
+    reward = _reward_from_values([s.value for s in (sample.scores or {}).values()])
     if reward is None:
-        print(json.dumps({"verdict": "error", "reason": f"unreadable score values: {values!r}"[:300]}))
+        values = [repr(s.value) for s in (sample.scores or {}).values()]
+        detail = ','.join(values)[:300]
+        print(json.dumps({'verdict': 'error', 'reason': 'unreadable scores: ' + detail}))
         return 0
     print(json.dumps({
-        "verdict": "pass" if reward >= 1.0 else "fail",
-        "reward": reward,
-        "inspect_ai": inspect_ai.__version__,
-        "inspect_harbor": getattr(inspect_harbor, "__version__", "unknown"),
+        'verdict': 'pass' if reward >= 1.0 else 'fail',
+        'reward': reward,
+        'inspect_ai': _dist_version('inspect-ai', inspect_ai),
+        'inspect_harbor': _dist_version('inspect-harbor', inspect_harbor),
     }))
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())
 '''
 
 
-def run_inspect_oracle(
-    task_dir: str | Path,
-    *,
-    timeout_seconds: int = 1800,
-    workdir: str | Path | None = None,
-) -> dict[str, Any]:
-    """Run a Harbor task dir under Inspect AI with the oracle solver ($0).
+def _collect_task_files(task: HarborTask) -> tuple[list[str], list[str]]:
+    """Stageable solution/ + tests/ files (task-relative posix) plus skipped-large.
 
-    Uses the repo-pinned inspect-harbor generic interface
-    (``harbor(path=...)`` + oracle solver + local docker sandbox) inside a
-    pinned ``uv run --with`` subprocess, so the lab venv never needs the
-    inspect stack. Admission-gated: skips with ``shared daemon not admitted``
-    when the shared Docker daemon refuses.
+    Mirrors the repo mount Harbor agents see natively, so recon attacks observe
+    the same surface. Files over ``MAX_STAGED_FILE_BYTES`` are skipped and
+    reported; tasks that need more want a runner with a real mount.
     """
-    task = load_harbor_task(task_dir)
-    admitted, admission_detail = docker_admission()
-    if not admitted:
-        return {
-            "target": "inspect",
-            "agent": "oracle",
-            "task_id": task.task_id,
-            "verdict": "skip",
-            "reward": None,
-            "reason": admission_detail,
-            "inspect_ai": INSPECT_AI_PIN,
-            "inspect_harbor": INSPECT_HARBOR_PIN,
-        }
-    work = (
-        Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="interop-inspect-"))
-    )
+    collected: list[str] = []
+    skipped: list[str] = []
+    for base in ("solution", "tests"):
+        root = task.task_dir / base
+        if not root.is_dir():
+            continue
+        for path in sorted(root.rglob("*")):
+            if not path.is_file() or path.is_symlink():
+                continue
+            rel = path.relative_to(task.task_dir).as_posix()
+            if path.stat().st_size > MAX_STAGED_FILE_BYTES:
+                skipped.append(rel)
+                continue
+            collected.append(rel)
+    return collected, skipped
+
+
+def _write_inspect_run(
+    work: Path,
+    task: HarborTask,
+    *,
+    agent: str,
+    attacks: tuple[str, ...],
+    agent_timeout: int,
+    override_cpus: int,
+    override_memory_mb: int,
+) -> Path:
+    """Stage the manifest, plan blobs, and driver for one inspect cell (no docker).
+
+    Pure file staging: safe to unit-test without a daemon. Raises ``ValueError``
+    for unknown agents/attacks via ``scripted_agent_plan``.
+    """
+    plan = scripted_agent_plan(task, agent, attacks)
     work.mkdir(parents=True, exist_ok=True)
+    stage = work / "stage"
+    stage.mkdir(exist_ok=True)
+    blobs: list[list[str]] = []
+    for index, (container_path, data) in enumerate(plan.files.items()):
+        name = f"blob-{index}.bin"
+        (stage / name).write_bytes(data)
+        blobs.append([container_path, f"stage/{name}"])
+    task_files, skipped = _collect_task_files(task) if agent != "nop" else ([], [])
+    manifest = {
+        "agent": agent,
+        "attacks": list(attacks),
+        "command": plan.command,
+        "files": blobs,
+        "task_files": task_files,
+        "skipped_large": skipped,
+        "workdir": INSPECT_TASK_WORKDIR,
+        "agent_timeout": agent_timeout,
+        "override_cpus": override_cpus,
+        "override_memory_mb": override_memory_mb,
+    }
+    (work / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     driver = work / "inspect_driver.py"
     driver.write_text(
-        INSPECT_DRIVER.replace("@@TASK_DIR_REPR@@", repr(str(task.task_dir))).replace(
-            "@@TIMEOUT_REPR@@", repr(timeout_seconds)
+        INSPECT_SCRIPTED_DRIVER.replace("@@WORK_REPR@@", repr(str(work))).replace(
+            "@@TASK_DIR_REPR@@", repr(str(task.task_dir))
         ),
         encoding="utf-8",
     )
+    return driver
+
+
+def _docker_ps() -> dict[str, str] | None:
+    """Running container ID -> image, or None when the daemon is unreachable."""
+    try:
+        completed = subprocess.run(
+            ["docker", "ps", "--format", "{{.ID}} {{.Image}}"],
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    running: dict[str, str] = {}
+    for line in completed.stdout.splitlines():
+        parts = line.split(None, 1)
+        if parts:
+            running[parts[0]] = parts[1] if len(parts) > 1 else ""
+    return running
+
+
+def _cleanup_inspect_containers(before: dict[str, str] | None, work: Path) -> dict[str, Any]:
+    """Remove sandbox containers this cell started; never touch others'.
+
+    Ownership is strict: only containers absent from ``before`` whose image
+    name starts with inspect_harbor's content-addressed ``hb__`` task-image
+    prefix are removed. Anything else new is reported, not removed.
+    """
+    report: dict[str, Any] = {"removed": [], "left": []}
+    after = _docker_ps()
+    if before is None or after is None:
+        report["left"].append("daemon unreachable for cleanup snapshot")
+        (work / "container-cleanup.json").write_text(
+            json.dumps(report, indent=2) + "\n", encoding="utf-8"
+        )
+        return report
+    for cid, image in sorted(after.items()):
+        if cid in before:
+            continue
+        repo = image.rsplit("/", 1)[-1].split(":")[0]
+        if not repo.startswith("hb__"):
+            report["left"].append(f"{cid} ({image or 'no-image'})")
+            continue
+        try:
+            completed = subprocess.run(
+                ["docker", "rm", "--force", cid],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=60,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            report["left"].append(f"{cid} ({image}): {type(exc).__name__}")
+            continue
+        if completed.returncode == 0:
+            report["removed"].append(f"{cid} ({image})")
+        else:
+            report["left"].append(f"{cid} ({image}): {completed.stderr.strip()[-200:]}")
+    (work / "container-cleanup.json").write_text(
+        json.dumps(report, indent=2) + "\n", encoding="utf-8"
+    )
+    return report
+
+
+def run_inspect_cell(
+    task_dir: str | Path,
+    agent: str,
+    attacks: tuple[str, ...] = (),
+    *,
+    workdir: str | Path,
+    timeout_seconds: int | None = None,
+) -> dict[str, Any]:
+    """Run one matrix cell on the Inspect AI target (oracle/nop/cheat, $0).
+
+    The pinned subprocess driver builds the ``inspect_harbor.harbor(path=...)``
+    task with a bounded local docker sandbox and runs a generated scripted
+    solver: it stages the plan files via ``sandbox().write_file`` and runs the
+    plan command via ``sandbox().exec`` (nop is a no-op solver), then the
+    inspect_harbor scorer grades. Sandbox containers are bounded (task
+    resources, else 2 CPU / 2048 MB) and removed when verifiably ours.
+    """
+    task = load_harbor_task(task_dir)
+    attacks = tuple(attacks)
+    work = Path(workdir)
+    work.mkdir(parents=True, exist_ok=True)
+    cell: dict[str, Any] = {
+        "target": "inspect",
+        "agent": agent,
+        "attacks": list(attacks),
+        "platform_version": f"inspect-ai {INSPECT_AI_PIN} + inspect-harbor {INSPECT_HARBOR_PIN}",
+    }
+
+    def _fail(reason: str) -> dict[str, Any]:
+        cell.update({"verdict": "error", "reward": None, "reason": reason, "evidence": str(work)})
+        return cell
+
+    if agent not in ("oracle", "nop", "cheat"):
+        return _fail(f"unknown agent {agent!r} (oracle/nop/cheat only)")
+    if agent in ("oracle", "nop"):
+        # --attacks selects the ladder subset for cheat cells only; controls
+        # ignore it (matrix passes one attack list for the whole row).
+        attacks = ()
+        cell["attacks"] = []
+    try:
+        scripted_agent_plan(task, agent, attacks)
+    except ValueError as exc:
+        return _fail(f"unknown attack: {exc}")
+    agent_timeout = timeout_seconds or 900
+    resources = task.resources
+    raw_cpus = resources.get("cpus")
+    override_cpus = (
+        int(raw_cpus)
+        if isinstance(raw_cpus, (int, float)) and not isinstance(raw_cpus, bool) and raw_cpus > 0
+        else DEFAULT_INSPECT_CPUS
+    )
+    raw_memory = resources.get("memory_mb")
+    override_memory_mb = (
+        int(raw_memory)
+        if isinstance(raw_memory, int) and not isinstance(raw_memory, bool) and raw_memory > 0
+        else DEFAULT_INSPECT_MEMORY_MB
+    )
+    before = _docker_ps()
+    try:
+        driver = _write_inspect_run(
+            work,
+            task,
+            agent=agent,
+            attacks=attacks,
+            agent_timeout=agent_timeout,
+            override_cpus=override_cpus,
+            override_memory_mb=override_memory_mb,
+        )
+    except (OSError, ValueError) as exc:
+        return _fail(f"cannot stage inspect run: {type(exc).__name__}: {exc}")
     uv = shutil.which("uv")
     if uv is None:
-        return {
-            "target": "inspect",
-            "agent": "oracle",
-            "task_id": task.task_id,
-            "verdict": "error",
-            "reward": None,
-            "reason": "uv binary not found; cannot provision the pinned inspect stack",
-            "inspect_ai": INSPECT_AI_PIN,
-            "inspect_harbor": INSPECT_HARBOR_PIN,
-        }
+        return _fail("uv binary not found; cannot provision the pinned inspect stack")
     try:
         completed = subprocess.run(
             [
@@ -1024,20 +1424,13 @@ def run_inspect_oracle(
             check=False,
             capture_output=True,
             text=True,
-            timeout=timeout_seconds + 300,
+            timeout=agent_timeout + 600,
             cwd=str(work),
         )
     except subprocess.TimeoutExpired as exc:
-        return {
-            "target": "inspect",
-            "agent": "oracle",
-            "task_id": task.task_id,
-            "verdict": "error",
-            "reward": None,
-            "reason": f"inspect run timed out after {exc.timeout}s",
-            "inspect_ai": INSPECT_AI_PIN,
-            "inspect_harbor": INSPECT_HARBOR_PIN,
-        }
+        _cleanup_inspect_containers(before, work)
+        return _fail(f"inspect run timed out after {exc.timeout}s")
+    _cleanup_inspect_containers(before, work)
     payload: dict[str, Any] | None = None
     for line in (completed.stdout or "").strip().splitlines()[::-1]:
         try:
@@ -1049,26 +1442,23 @@ def run_inspect_oracle(
             break
     if payload is None:
         detail = ((completed.stdout or "") + (completed.stderr or ""))[-800:]
-        return {
-            "target": "inspect",
-            "agent": "oracle",
-            "task_id": task.task_id,
-            "verdict": "error",
-            "reward": None,
-            "reason": f"inspect driver produced no verdict JSON (exit {completed.returncode}): {detail}",
-            "inspect_ai": INSPECT_AI_PIN,
-            "inspect_harbor": INSPECT_HARBOR_PIN,
+        return _fail(
+            f"inspect driver produced no verdict JSON (exit {completed.returncode}): {detail}"
+        )
+    if payload.get("inspect_ai") or payload.get("inspect_harbor"):
+        cell["platform_version"] = (
+            f"inspect-ai {payload.get('inspect_ai', INSPECT_AI_PIN)} + "
+            f"inspect-harbor {payload.get('inspect_harbor', INSPECT_HARBOR_PIN)}"
+        )
+    cell.update(
+        {
+            "verdict": payload.get("verdict", "error"),
+            "reward": payload.get("reward"),
+            "reason": payload.get("reason"),
+            "evidence": str(work),
         }
-    return {
-        "target": "inspect",
-        "agent": "oracle",
-        "task_id": task.task_id,
-        "verdict": payload.get("verdict", "error"),
-        "reward": payload.get("reward"),
-        "reason": payload.get("reason"),
-        "inspect_ai": payload.get("inspect_ai", INSPECT_AI_PIN),
-        "inspect_harbor": payload.get("inspect_harbor", INSPECT_HARBOR_PIN),
-    }
+    )
+    return cell
 
 
 # ---------------------------------------------------------------------------
@@ -1194,93 +1584,131 @@ def validate_karotte(env_dir: str | Path) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
-# parity: verdict-equality matrix across locally executable targets
+# matrix: per-task grading table across wired targets
 # ---------------------------------------------------------------------------
-COMPARABLE_VERDICTS = frozenset({"pass", "fail"})
+MATRIX_TARGETS: dict[str, Callable[..., dict[str, Any]]] = {
+    "harbor": run_harbor_cell,
+    "inspect": run_inspect_cell,
+}
+"""Target name -> ``run_cell`` runner. Karotte/verifiers runners wire in here."""
+
+MATRIX_AGENTS = ("oracle", "nop", "cheat")
 
 
-def matrix_equal(cells: dict[str, str]) -> bool | None:
-    """Whether the comparable (pass/fail) cell verdicts agree.
+def _cell_display(target: str, agent: str, verdict: str) -> str:
+    """Table text: control cells show pass/fail, cheat cells show cracked/clean."""
+    del target
+    if agent == "cheat":
+        return {"pass": "cracked", "fail": "clean"}.get(verdict, verdict)
+    return verdict
 
-    ``None`` when fewer than two cells are comparable (skips/errors carry no
-    verdict signal); otherwise True iff every comparable verdict is identical.
+
+def grade_task_row(
+    cells: dict[str, str], *, targets: list[str], agents: list[str]
+) -> tuple[str, list[str]]:
+    """Grade one task row: ``ok`` | ``broken`` | ``n/a`` plus problem list.
+
+    Grading is broken when a comparable oracle cell is not ``pass`` or a
+    comparable nop cell is not ``fail``. Skipped/error cells carry no grading
+    signal; rows with no comparable control cell grade ``n/a``.
     """
-    comparable = sorted(v for v in cells.values() if v in COMPARABLE_VERDICTS)
-    if len(comparable) < 2:
-        return None
-    return len(set(comparable)) == 1
+    problems: list[str] = []
+    seen_control = False
+    for target in targets:
+        for agent in agents:
+            if agent not in ("oracle", "nop"):
+                continue
+            verdict = cells.get(f"{target}:{agent}")
+            if verdict not in ("pass", "fail"):
+                continue
+            seen_control = True
+            if agent == "oracle" and verdict != "pass":
+                problems.append(f"{target}:oracle expected pass, got {verdict}")
+            if agent == "nop" and verdict != "fail":
+                problems.append(f"{target}:nop expected fail, got {verdict}")
+    if problems:
+        return "broken", problems
+    return ("ok" if seen_control else "n/a"), []
 
 
-def parity_row(
+def matrix_task_row(
     task_dir: str | Path,
     *,
-    repo_root: str | Path,
-    targets: tuple[str, ...] = ("harbor", "inspect", "karotte-validate"),
-    jobs_dir: str | Path | None = None,
+    targets: tuple[str, ...],
+    agents: tuple[str, ...],
+    attacks: tuple[str, ...],
+    workdir: str | Path,
     timeout_seconds: int | None = None,
-    workdir: str | Path | None = None,
 ) -> dict[str, Any]:
-    """Run oracle/nop on each locally executable target for one task dir."""
+    """Run every (target, agent) cell for one task dir through ``MATRIX_TARGETS``."""
     task = load_harbor_task(task_dir)
-    harbor_rev = harbor_revision()
+    work = Path(workdir)
+    work.mkdir(parents=True, exist_ok=True)
     cells: dict[str, str] = {}
     details: dict[str, Any] = {}
-    work = (
-        Path(workdir) if workdir is not None else Path(tempfile.mkdtemp(prefix="interop-parity-"))
-    )
-    work.mkdir(parents=True, exist_ok=True)
-    if "harbor" in targets:
-        for agent in ("oracle", "nop"):
-            result = run_harbor_control(
-                task.task_dir,
-                agent,
-                repo_root=repo_root,
-                jobs_dir=jobs_dir,
-                timeout_seconds=timeout_seconds,
-            )
-            cells[f"harbor:{agent}"] = result["verdict"]
-            details[f"harbor:{agent}"] = result
-    if "inspect" in targets:
-        result = run_inspect_oracle(task.task_dir, workdir=work / "inspect")
-        cells["inspect:oracle"] = result["verdict"]
-        details["inspect:oracle"] = result
-        details["inspect:nop"] = {
-            "target": "inspect",
-            "agent": "nop",
-            "task_id": task.task_id,
-            "verdict": "n/a",
-            "reason": "inspect_harbor ships no nop solver; nop signal comes from harbor:nop",
-        }
-    if "karotte-validate" in targets:
-        scaffold = work / "karotte-scaffold"
-        try:
-            export_karotte(task.task_dir, scaffold)
-            result = validate_karotte(scaffold / "environment")
-        except (OSError, ValueError) as exc:
-            result = {
-                "target": "karotte-validate",
-                "verdict": "error",
-                "reason": f"scaffold export failed: {exc}",
-            }
-        cells["karotte-validate"] = result["verdict"]
-        details["karotte-validate"] = result
-    equal = matrix_equal(cells)
+    for target in targets:
+        runner = MATRIX_TARGETS.get(target)
+        for agent in agents:
+            key = f"{target}:{agent}"
+            if runner is None:
+                cell = {
+                    "target": target,
+                    "agent": agent,
+                    "attacks": list(attacks),
+                    "verdict": "skipped",
+                    "reward": None,
+                    "reason": f"target {target!r} has no runner in MATRIX_TARGETS",
+                    "platform_version": None,
+                    "evidence": None,
+                }
+            else:
+                try:
+                    cell = runner(
+                        task.task_dir,
+                        agent,
+                        tuple(attacks),
+                        workdir=work / f"{target}-{agent}",
+                        timeout_seconds=timeout_seconds,
+                    )
+                except Exception as exc:
+                    cell = {
+                        "target": target,
+                        "agent": agent,
+                        "attacks": list(attacks),
+                        "verdict": "error",
+                        "reward": None,
+                        "reason": f"cell runner raised {type(exc).__name__}: {exc}",
+                        "platform_version": None,
+                        "evidence": None,
+                    }
+            cells[key] = cell.get("verdict", "error")
+            details[key] = cell
+    grading, problems = grade_task_row(cells, targets=list(targets), agents=list(agents))
+    versions: dict[str, Any] = {}
+    for target in targets:
+        for agent in agents:
+            version = details.get(f"{target}:{agent}", {}).get("platform_version")
+            if version is not None and target not in versions:
+                versions[target] = version
     return {
         "task_id": task.task_id,
         "task_dir": str(task.task_dir),
         "cells": cells,
-        "equal": equal,
-        "harbor_rev": harbor_rev,
+        "grading": grading,
+        "problems": problems,
+        "versions": versions,
         "details": details,
     }
 
 
-def render_matrix(rows: list[dict[str, Any]]) -> str:
-    """Render the parity equality matrix as aligned text."""
-    columns = ["harbor:oracle", "harbor:nop", "inspect:oracle", "karotte-validate"]
-    header = ["task", *columns, "equal"]
+def render_grading_matrix(
+    rows: list[dict[str, Any]], *, targets: list[str], agents: list[str]
+) -> str:
+    """Render the matrix: control cells pass/fail, cheat cells cracked/clean."""
+    columns = [f"{target}:{agent}" for target in targets for agent in agents]
+    header = ["task", *columns, "grading"]
     widths = [max(len(r["task_id"]) for r in rows + [{"task_id": "task"}])]
-    widths += [max(len(c), 6) for c in columns] + [5]
+    widths += [max(len(c), 7) for c in columns] + [7]
 
     def fmt(values: list[str]) -> str:
         return "  ".join(v.ljust(w) for v, w in zip(values, widths, strict=True))
@@ -1288,13 +1716,16 @@ def render_matrix(rows: list[dict[str, Any]]) -> str:
     lines = [fmt(header)]
     for row in rows:
         cells = row["cells"]
-        equal = row["equal"]
         lines.append(
             fmt(
                 [
                     row["task_id"],
-                    *(cells.get(c, "-") for c in columns),
-                    {True: "True", False: "False", None: "n/a"}[equal],
+                    *(
+                        _cell_display(target, agent, cells.get(f"{target}:{agent}", "-"))
+                        for target in targets
+                        for agent in agents
+                    ),
+                    row["grading"],
                 ]
             )
         )
@@ -1341,88 +1772,61 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
                 for item in extra:
                     print(f"  - {item if isinstance(item, str) else item}")
         return 0
-    if command == "run-inspect":
-        task_dirs = _resolve_task_dirs([args.task_dir], root)
-        task = load_harbor_task(task_dirs[0])
-        inspected = run_inspect_oracle(task_dirs[0], timeout_seconds=args.timeout)
-        native = run_harbor_control(
-            task_dirs[0],
-            "oracle",
-            repo_root=root,
-            jobs_dir=args.jobs_dir,
-            timeout_seconds=args.timeout,
-        )
-        report = {
-            "task_id": task.task_id,
-            "inspect_oracle": inspected,
-            "harbor_oracle": native,
-            "agree": (
-                inspected["verdict"] == native["verdict"]
-                if inspected["verdict"] in COMPARABLE_VERDICTS
-                and native["verdict"] in COMPARABLE_VERDICTS
-                else None
-            ),
-            "harbor_rev": native.get("harbor_rev", harbor_revision()),
-            "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
-        }
-        if args.json:
-            print(json.dumps(report, indent=2, sort_keys=True))
-        else:
-            print(f"task: {task.task_id}")
-            print(
-                f"  inspect oracle: {inspected['verdict']}"
-                + (
-                    f" (reward {inspected.get('reward')})"
-                    if inspected.get("reward") is not None
-                    else ""
-                )
-                + (f" -- {inspected.get('reason')}" if inspected.get("reason") else "")
-            )
-            print(
-                f"  harbor  oracle: {native['verdict']}"
-                + (f" (reward {native.get('reward')})" if native.get("reward") is not None else "")
-                + (f" -- {native.get('reason')}" if native.get("reason") else "")
-            )
-            print(f"  agree: {report['agree']}")
-            print(f"  harbor_rev: {report['harbor_rev']}")
-        comparable = report["agree"] is not None
-        return 0 if (report["agree"] or not comparable) else 1
-    if command == "parity":
+    if command == "matrix":
         task_dirs = _resolve_task_dirs(args.task_dirs, root)
+        try:
+            attacks = parse_attack_selection(args.attacks)
+        except ValueError as exc:
+            print(f"interop matrix: {exc}", file=sys.stderr)
+            return 2
+        targets = list(args.targets)
+        agents = list(args.agents)
+        work = Path(tempfile.mkdtemp(prefix="interop-matrix-"))
         rows = [
-            parity_row(
+            matrix_task_row(
                 task_dir,
-                repo_root=root,
-                targets=tuple(args.targets),
-                jobs_dir=args.jobs_dir,
+                targets=tuple(targets),
+                agents=tuple(agents),
+                attacks=attacks,
+                workdir=work / f"task-{index}",
                 timeout_seconds=args.timeout,
             )
-            for task_dir in task_dirs
+            for index, task_dir in enumerate(task_dirs)
         ]
+        versions: dict[str, Any] = {}
+        for row in rows:
+            for target, version in row["versions"].items():
+                versions.setdefault(target, version)
         envelope = {
             "rows": rows,
-            "harbor_rev": harbor_revision(),
-            "targets": list(args.targets),
+            "targets": targets,
+            "agents": agents,
+            "attacks": list(attacks),
+            "versions": versions,
+            "workdir": str(work),
             "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         }
         if args.json:
             print(json.dumps(envelope, indent=2, sort_keys=True))
         else:
-            print(render_matrix(rows))
-            print(f"harbor_rev: {envelope['harbor_rev']}")
+            print(render_grading_matrix(rows, targets=targets, agents=agents))
+            for target, version in versions.items():
+                print(f"{target} version: {version}")
+            print(f"workdir: {work}")
             for row in rows:
-                for key in ("harbor:oracle", "harbor:nop", "inspect:oracle", "karotte-validate"):
-                    detail = row["details"].get(key, {})
+                for problem in row["problems"]:
+                    print(f"  {row['task_id']}: grading broken -- {problem}")
+                for key, detail in row["details"].items():
                     reason = detail.get("reason") if isinstance(detail, dict) else None
-                    if reason and detail.get("verdict") not in COMPARABLE_VERDICTS:
+                    if reason and detail.get("verdict") not in ("pass", "fail"):
                         print(f"  {row['task_id']} {key}: {reason}")
-        disagreements = sum(1 for r in rows if r["equal"] is False)
-        if not disagreements and all(r["equal"] is None for r in rows):
+        broken = sum(1 for r in rows if r["grading"] == "broken")
+        if not broken and all(r["grading"] == "n/a" for r in rows):
             print(
-                "note: no row had two comparable verdicts "
+                "note: no row had a comparable control cell "
                 "(all skipped/error); exit 0 is not agreement"
             )
-        return 1 if disagreements else 0
+        return 1 if broken else 0
     print("interop: unknown command", file=sys.stderr)
     return 2
 
@@ -1430,7 +1834,7 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
 def build_interop_parser(commands: argparse._SubParsersAction) -> None:
     parser = commands.add_parser(
         "interop",
-        help="Harbor <-> Inspect AI <-> Karotte converters and parity ($0, model-free)",
+        help="Harbor <-> Inspect AI <-> Karotte <-> verifiers matrix ($0, model-free)",
         description=__doc__.split("\n\n")[0] if __doc__ else "Harbor interop",
     )
     sub = parser.add_subparsers(dest="interop_command", required=True)
@@ -1440,24 +1844,25 @@ def build_interop_parser(commands: argparse._SubParsersAction) -> None:
     p.add_argument("--out", type=Path, required=True, help="Empty output directory")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=interop_command)
-    p = sub.add_parser(
-        "run-inspect",
-        help="Run a Harbor task dir under Inspect AI (oracle) next to the native verdict",
-    )
-    p.add_argument("task_dir", help="Harbor task directory")
-    p.add_argument("--timeout", type=int, default=1800)
-    p.add_argument("--jobs-dir", type=Path, default=None)
-    p.add_argument("--json", action="store_true")
-    p.set_defaults(func=interop_command)
-    p = sub.add_parser("parity", help="Verdict-equality matrix across locally executable targets")
+    p = sub.add_parser("matrix", help="Grading matrix across wired targets and agents")
     p.add_argument("task_dirs", nargs="+", help="Harbor task directories")
     p.add_argument(
         "--targets",
         nargs="+",
-        default=["harbor", "inspect", "karotte-validate"],
-        choices=("harbor", "inspect", "karotte-validate"),
+        default=["harbor", "inspect", "karotte", "verifiers"],
+        choices=("harbor", "inspect", "karotte", "verifiers"),
+    )
+    p.add_argument(
+        "--agents",
+        nargs="+",
+        default=["oracle", "nop", "cheat"],
+        choices=("oracle", "nop", "cheat"),
+    )
+    p.add_argument(
+        "--attacks",
+        default=None,
+        help="comma-separated cheat attack subset (cheat cells only); default: full ladder",
     )
     p.add_argument("--timeout", type=int, default=None)
-    p.add_argument("--jobs-dir", type=Path, default=None)
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=interop_command)

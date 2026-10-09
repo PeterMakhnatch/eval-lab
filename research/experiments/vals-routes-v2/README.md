@@ -13,8 +13,7 @@ languages), each in (a) published setup and (b) clean chain
 (strip → purge-installed-copies where applicable → purge-build-caches@2 →
 mtime-normalize, composed with the real transform functions).
 
-- `census.csv`: one row per task/mode (65 rows; `000011 clean` pending rerun
-  after the node-skip fix).
+- `census.csv`: one row per task/mode (66 rows over 33 tasks).
 - `run_census.py`: fan-out driver (task → fix map in, staged setups + both
   probes out). Fix map: `oracle_sweep.csv` shas re-verified in-image (14),
   full HAR-191 extractor runs on copied `.git` (9 ok incl. 2 divergent,

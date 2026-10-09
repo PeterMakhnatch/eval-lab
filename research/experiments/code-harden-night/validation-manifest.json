@@ -1,0 +1,66 @@
+{
+ "format-code-task-000045-chain-nop": {
+  "task_id": "format-code-task-000045",
+  "package": "chain",
+  "agent": "nop",
+  "variant_digest": "sha256:62d8c23f9735ff58a9594285a728dfebce6977e4db8c324d65a7fcae8b2a3dfb",
+  "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000045/62d8c23f9735.json",
+  "solve_sha12": null
+ },
+ "format-code-task-000045-strip-nop": {
+  "task_id": "format-code-task-000045",
+  "package": "strip",
+  "agent": "nop",
+  "variant_digest": "sha256:6a2fef14538817554c793e5a082366b18e090e20ed998d6ef58fcfff6a5bb51b",
+  "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000045/6a2fef145388.json",
+  "solve_sha12": null
+ },
+ "format-code-task-000047-chain-nop": {
+  "task_id": "format-code-task-000047",
+  "package": "chain",
+  "agent": "nop",
+  "variant_digest": "sha256:44840028d5fa77b0679c04f54c1ac3d15117ba20af3dba5cf69be5209264290f",
+  "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000047/44840028d5fa.json",
+  "solve_sha12": null
+ },
+ "format-code-task-000236-chain-nop": {
+  "task_id": "format-code-task-000236",
+  "package": "chain",
+  "agent": "nop",
+  "variant_digest": "sha256:bfce6f0a0fade8220b6294d902dea75c13f473633c02d7c302be69b0bffe068e",
+  "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000236/bfce6f0a0fad.json",
+  "solve_sha12": null
+ },
+ "format-code-task-000553-chain-nop": {
+  "task_id": "format-code-task-000553",
+  "package": "chain",
+  "agent": "nop",
+  "variant_digest": "sha256:6cabd9f5ff7d9c4a57b869aff3e3e3e6babc4c3e3dcf5c55e9270dd1728e860c",
+  "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000553/6cabd9f5ff7d.json",
+  "solve_sha12": null
+ },
+ "format-code-task-000553-chain-oracle": {
+  "task_id": "format-code-task-000553",
+  "package": "chain",
+  "agent": "oracle",
+  "variant_digest": "sha256:6cabd9f5ff7d9c4a57b869aff3e3e3e6babc4c3e3dcf5c55e9270dd1728e860c",
+  "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000553/6cabd9f5ff7d.json",
+  "solve_sha12": "3faaa44b8f90"
+ },
+ "format-code-task-000007-chain-nop": {
+  "task_id": "format-code-task-000007",
+  "package": "chain",
+  "agent": "nop",
+  "variant_digest": "sha256:7a69198f76836ccae1311dd5f692a2ff72e49441d9b960b74e7d6365437a7605",
+  "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000007/7a69198f7683.json",
+  "solve_sha12": null
+ },
+ "format-code-task-000007-chain-oracle": {
+  "task_id": "format-code-task-000007",
+  "package": "chain",
+  "agent": "oracle",
+  "variant_digest": "sha256:7a69198f76836ccae1311dd5f692a2ff72e49441d9b960b74e7d6365437a7605",
+  "variant_record": "library/task-variants/mimo-v2.6-rl__format-code-task-000007/7a69198f7683.json",
+  "solve_sha12": "ea3a43f75eca"
+ }
+}

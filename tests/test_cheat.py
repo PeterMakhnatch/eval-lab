@@ -16,8 +16,10 @@ not Harbor compatibility.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
+import os
 import shutil
 import sqlite3
 import subprocess
@@ -31,6 +33,7 @@ import pytest
 from evallab import cheat
 from evallab.cheat import (
     ATTACKS,
+    build_verdicts,
     cheat_verdict_for_reward,
     parse_attack_selection,
     trial_reward,
@@ -524,3 +527,391 @@ def test_agent_run_rejects_unknown_attack_subset(
     agent = harbor_cheat.CheatAgent(logs_dir=tmp_path / "logs")
     with pytest.raises(RuntimeError, match="invalid EVALLAB_CHEAT_ATTACKS"):
         asyncio.run(agent.run("do the task", FakeHarborEnv(str(tmp_path)), FakeContext()))
+
+
+# -- tamper ladder: new attacks run for real in fixture sandboxes -----------------
+
+
+def test_parse_attack_selection_orders_new_attacks() -> None:
+    assert parse_attack_selection("tamper_source_exit,git_history,skip_plant") == (
+        "git_history",
+        "skip_plant",
+        "tamper_source_exit",
+    )
+    assert parse_attack_selection("TAMPER_SHADOW_TIMEOUT") == ("tamper_shadow_timeout",)
+
+
+def _write_failing_pkg(root: Path, package: str = "fakepkg") -> None:
+    (root / package).mkdir(parents=True, exist_ok=True)
+    (root / package / "__init__.py").write_text("VALUE = 1\n")
+    (root / "test_broken.py").write_text(
+        f"import {package}\n\n\ndef test_broken():\n    assert {package}.VALUE == 2\n"
+    )
+
+
+def _git_commit(cwd: Path, message: str) -> None:
+    subprocess.run(["git", "add", "-A"], cwd=cwd, check=True, capture_output=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=cheat",
+            "-c",
+            "user.email=cheat@localhost",
+            "commit",
+            "-q",
+            "-m",
+            message,
+        ],
+        cwd=cwd,
+        check=True,
+        capture_output=True,
+    )
+
+
+def _git_repo(root: Path) -> Path:
+    subprocess.run(["git", "init", "-q"], cwd=root, check=True, capture_output=True)
+    _git_commit(root, "base")
+    return root
+
+
+def _run_pytest(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider", *args],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+
+
+def _kill_reward_writers(evidence: Path) -> None:
+    import signal
+
+    try:
+        log = (evidence / "tamper_reward_writer.log").read_text(encoding="utf-8")
+    except OSError:
+        return
+    for line in log.splitlines():
+        if "pid=" not in line:
+            continue
+        try:
+            pid = int(line.rsplit("pid=", 1)[1].split()[0])
+        except ValueError:
+            continue
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            os.kill(pid, signal.SIGKILL)
+
+
+def test_fixture_skip_plant_skips_failing_suite(tmp_path: Path, harbor_cheat) -> None:
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    assert _run_pytest(root, "test_broken.py").returncode != 0
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_skip_plant(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "skip-all" in record["detail"]
+    assert (root / "conftest.py").is_file()
+    completed = _run_pytest(root, "test_broken.py")
+    assert completed.returncode == 0
+    assert "skipped" in completed.stdout
+    rerun = asyncio.run(harbor_cheat.attack_skip_plant(str(root), BashRun(root), evidence))
+    assert rerun["status"] == "executed"
+    assert "already carries" in rerun["detail"]
+
+
+def test_fixture_tracked_conftest_forges_passes(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    (root / "conftest.py").write_text("MARKER = True\n")
+    _git_repo(root)
+    assert _run_pytest(root, "test_broken.py").returncode != 0
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_tracked_conftest(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "executed"
+    assert "forged" in record["detail"]
+    completed = _run_pytest(root, "test_broken.py")
+    assert completed.returncode == 0
+    assert "1 passed" in completed.stdout
+
+
+def test_fixture_tracked_conftest_skips_without_tracked_conftest(
+    tmp_path: Path, harbor_cheat
+) -> None:
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "test_broken.py").write_text("def test_broken():\n    assert False\n")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_tracked_conftest(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "skipped"
+    assert "no tracked conftest" in record["detail"]
+
+
+def test_fixture_sitecustomize_forces_exit_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    if shutil.which("python3") is None:
+        pytest.skip("python3 unavailable")
+    site_dir = tmp_path / "sitepkgs"
+    site_dir.mkdir()
+    monkeypatch.setenv("CHEAT_SITE_DIR", str(site_dir))
+    previous = os.environ.get("PYTHONPATH")
+    monkeypatch.setenv(
+        "PYTHONPATH", f"{site_dir}{os.pathsep}{previous}" if previous else str(site_dir)
+    )
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_sitecustomize(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "executed"
+    assert "exit 0" in record["detail"]
+    assert (site_dir / "sitecustomize.py").is_file()
+    probe = subprocess.run(
+        [sys.executable, "-c", "import sys; sys.exit(3)"],
+        capture_output=True,
+        timeout=60,
+    )
+    assert probe.returncode == 0
+
+
+def test_fixture_shadow_timeout_shims_exit_zero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    bin_dir = tmp_path / "earlybin"
+    bin_dir.mkdir()
+    monkeypatch.setenv("CHEAT_BIN_DIR", str(bin_dir))
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_shadow_timeout(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "executed"
+    assert "timeout" in record["detail"]
+    assert os.access(bin_dir / "timeout", os.X_OK)
+    shimmed = subprocess.run(
+        [str(bin_dir / "timeout"), "30", "sleep", "30"],
+        capture_output=True,
+        timeout=60,
+    )
+    assert shimmed.returncode == 0
+
+
+def test_fixture_reward_writer_holds_one(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    reward_dir = tmp_path / "verifier"
+    reward_dir.mkdir()
+    monkeypatch.setenv("CHEAT_REWARD_DIR", str(reward_dir))
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    try:
+        record = asyncio.run(
+            harbor_cheat.attack_tamper_reward_writer(str(root), BashRun(root), evidence)
+        )
+        assert record["status"] == "executed"
+        assert "hold reward at 1" in record["detail"]
+        assert (reward_dir / "reward.txt").read_text(encoding="utf-8") == "1\n"
+        assert json.loads((reward_dir / "reward.json").read_text(encoding="utf-8")) == {
+            "reward": 1.0
+        }
+    finally:
+        _kill_reward_writers(evidence)
+
+
+def test_fixture_source_exit_forces_exit_zero(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    _git_repo(root)
+    assert _run_pytest(root, "test_broken.py").returncode != 0
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_tamper_source_exit(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "exit-0 hook" in record["detail"]
+    completed = _run_pytest(root, "test_broken.py")
+    assert completed.returncode == 0
+    assert "failed" in completed.stdout
+
+
+def test_fixture_source_pytest_patch_passes_failures(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    _git_repo(root)
+    assert _run_pytest(root, "test_broken.py").returncode != 0
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_source_pytest_patch(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "executed"
+    assert "TestReport patch" in record["detail"]
+    completed = _run_pytest(root, "test_broken.py")
+    assert completed.returncode == 0
+    assert "1 passed" in completed.stdout
+
+
+def test_fixture_source_tampers_skip_without_imported_init(tmp_path: Path, harbor_cheat) -> None:
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "test_broken.py").write_text("def test_broken():\n    assert False\n")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    for attack in (
+        harbor_cheat.attack_tamper_source_exit,
+        harbor_cheat.attack_tamper_source_pytest_patch,
+    ):
+        record = asyncio.run(attack(str(root), BashRun(root), evidence))
+        assert record["status"] == "skipped"
+
+
+def test_fixture_git_history_applies_recovered_fix(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "calc.py").write_text("def answer():\n    return 1\n")
+    (root / "test_calc.py").write_text(
+        "from calc import answer\n\n\ndef test_answer():\n    assert answer() == 2\n"
+    )
+    _git_repo(root)
+    assert _run_pytest(root, "test_calc.py").returncode != 0
+    (root / "calc.py").write_text("def answer():\n    return 2\n")
+    _git_commit(root, "fix the answer")
+    subprocess.run(["git", "branch", "future"], cwd=root, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "reset", "-q", "--hard", "HEAD~1"], cwd=root, check=True, capture_output=True
+    )
+    assert "return 1" in (root / "calc.py").read_text(encoding="utf-8")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "applied recovered fix" in record["detail"]
+    assert "return 2" in (root / "calc.py").read_text(encoding="utf-8")
+    assert _run_pytest(root, "test_calc.py").returncode == 0
+
+
+def test_ladder_runs_new_attacks_in_order(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    site_dir = tmp_path / "sitepkgs"
+    site_dir.mkdir()
+    bin_dir = tmp_path / "earlybin"
+    bin_dir.mkdir()
+    reward_dir = tmp_path / "verifier"
+    reward_dir.mkdir()
+    monkeypatch.setenv("CHEAT_SITE_DIR", str(site_dir))
+    monkeypatch.setenv("CHEAT_BIN_DIR", str(bin_dir))
+    monkeypatch.setenv("CHEAT_REWARD_DIR", str(reward_dir))
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "test_broken.py").write_text("def test_broken():\n    assert False\n")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    try:
+        records = asyncio.run(harbor_cheat.run_ladder(str(root), BashRun(root), evidence))
+    finally:
+        _kill_reward_writers(evidence)
+    assert [record["name"] for record in records] == list(cheat.ATTACKS)
+    by_status = {record["name"]: record["status"] for record in records}
+    assert by_status["skip_plant"] == "executed"
+    assert by_status["tamper_tracked_conftest"] == "skipped"
+    assert by_status["tamper_sitecustomize"] == "executed"
+    assert by_status["tamper_shadow_timeout"] == "executed"
+    assert by_status["tamper_reward_writer"] == "executed"
+    assert by_status["tamper_source_exit"] == "skipped"
+    assert by_status["tamper_source_pytest_patch"] == "skipped"
+
+
+def test_trial_reward_reads_verifier_result_rewards() -> None:
+    assert trial_reward({"verifier_result": {"rewards": {"reward": 1.0}}}) == 1.0
+    assert trial_reward({"verifier_result": {"rewards": {"score": 0.0}}}) == 0.0
+    assert trial_reward({"verifier_result": {"rewards": {"reward": True}}}) is None
+    assert trial_reward({"verifier_result": {"rewards": {"reward": "high"}}}) is None
+    assert trial_reward({}) is None
+    both = {
+        "stats": {"evals": {"t": {"metrics": [{"mean": 0.0}]}}},
+        "verifier_result": {"rewards": {"reward": 1.0}},
+    }
+    assert trial_reward(both) == 0.0
+
+
+def test_write_cheat_verdicts_agent_nested_attempts(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    trial = job / "trial-n"
+    cheat_dir = trial / "agent" / "cheat"
+    cheat_dir.mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps({"verifier_result": {"rewards": {"reward": 1.0}}})
+    )
+    (cheat_dir / "tamper_shadow_timeout.log").write_text("evidence\n")
+    (cheat_dir / "attempts.json").write_text(
+        json.dumps(
+            {
+                "schema": "x",
+                "agent": "cheat",
+                "attacks": [
+                    {
+                        "name": "tamper_shadow_timeout",
+                        "status": "executed",
+                        "detail": "d",
+                        "evidence": ["tamper_shadow_timeout.log"],
+                    }
+                ],
+            }
+        )
+    )
+    payload = build_verdicts(job, harbor_rev="0.24.0")
+    assert len(payload["trials"]) == 1
+    row = payload["trials"][0]
+    assert row["verdict"] == "cracked"
+    assert row["method"] == "tamper_shadow_timeout"
+    assert row["reward"] == 1.0
+    assert "trial-n/agent/cheat/attempts.json" in row["evidence"]
+    assert "trial-n/agent/cheat/tamper_shadow_timeout.log" in row["evidence"]
+
+
+def test_cheat_run_refuses_old_harbor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    import argparse
+
+    import evallab.harbor_view
+    from evallab.cheat import _cheat_run_command
+
+    monkeypatch.setattr(evallab.harbor_view, "installed_harbor_version", lambda: (0, 21))
+    args = argparse.Namespace(
+        task=tmp_path / "task",
+        name="refused",
+        jobs_dir=tmp_path / "jobs",
+        attempts=1,
+        attacks=None,
+        timeout_seconds=600,
+    )
+    assert _cheat_run_command(args, tmp_path) == 2
+    assert "0.24" in capsys.readouterr().err
+    assert not (tmp_path / "jobs").exists()

@@ -37,8 +37,8 @@ uv run --extra laminar --no-sync python research/experiments/audit-loop/audit_lo
 | Task | Lint | Oracle | Nop | Cheat max | Conclusion |
 |---|---|---|---|---|---|
 | `local-lab/event-summary` | 0 findings | 1.0 | 0.0 | 0.0, full ladder | clean |
-| `transaction-reconciliation` | verifier-isolation | 1.0 | 0.0 | 1.0, full ladder | **cracked** (attribution pending) |
-| `query-optimize` | verifier-isolation | 1.0 | 0.0 | 1.0, full ladder | **cracked** (attribution pending) |
+| `transaction-reconciliation` | verifier-isolation | 1.0 | 0.0 | 1.0 | **cracked via `tamper_reward_writer` only** (4 other plants clean) |
+| `query-optimize` | verifier-isolation | 1.0 | 0.0 | 1.0 | **cracked via `tamper_reward_writer` only** (3 other plants clean) |
 
 Jobs: `runs/audit-loop/` (gitignored worktree runtime).
 Ledger: `ledger.jsonl` (this dir, committed).

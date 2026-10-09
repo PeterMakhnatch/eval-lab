@@ -51,9 +51,10 @@ the fix in compiled output that setup's ``git clean`` spares via
 ``lib/``/``dist/`` references in worktree tests, configs, or the test
 script, and no self-link resolving through package entry points) are
 deleted; dirs the tests resolve through are deleted and rebuilt from the
-base tree via the package build/compile script, and setup fails when there
-is no build script or the rebuild does not regenerate them. @3 supersedes
-@2: it refuses @1/@2 parents.
+base tree via the package ``compile`` script (``build`` as fallback;
+compile regenerates output without running the packaged test suite), and
+setup fails when there is no build script or the rebuild does not
+regenerate them. @3 supersedes @2: it refuses @1/@2 parents.
 
 Grading (``tests/``), the instruction and the image are unchanged. The setup
 is re-embedded in the task.toml healthcheck payload, which is what executes.
@@ -372,13 +373,13 @@ if [ -f "$CWD/package.json" ]; then
     done
     if [ -n "$_pbc_left_dep" ]; then
       _pbc_script=""
-      if command -v node >/dev/null 2>&1; then _pbc_script=$(node -p "const s=require('$CWD/package.json').scripts||{};s.build?'build':(s.compile?'compile':'')" 2>/dev/null || true); [ "$_pbc_script" = "undefined" ] && _pbc_script=""; fi
-      if [ -z "$_pbc_script" ] && command -v python3 >/dev/null 2>&1; then _pbc_script=$(python3 -c "import json;s=json.load(open('$CWD/package.json')).get('scripts') or {};print('build' if 'build' in s else ('compile' if 'compile' in s else ''))" 2>/dev/null || true); fi
+      if command -v node >/dev/null 2>&1; then _pbc_script=$(node -p "const s=require('$CWD/package.json').scripts||{};s.compile?'compile':(s.build?'build':'')" 2>/dev/null || true); [ "$_pbc_script" = "undefined" ] && _pbc_script=""; fi
+      if [ -z "$_pbc_script" ] && command -v python3 >/dev/null 2>&1; then _pbc_script=$(python3 -c "import json;s=json.load(open('$CWD/package.json')).get('scripts') or {};print('compile' if 'compile' in s else ('build' if 'build' in s else ''))" 2>/dev/null || true); fi
       [ -n "$_pbc_script" ] || fail "purge-build-caches@3 needs a build script for grader-used output:$_pbc_left_dep"
       for _pbc_d in $_pbc_dep; do
         rm -rf "$CWD/$_pbc_d" 2>/dev/null || fail "purge-build-caches@3 cannot remove stale build output $CWD/$_pbc_d"
       done
-      if command -v timeout >/dev/null 2>&1; then timeout 600 npm run "$_pbc_script" --prefix "$CWD" >/dev/null 2>&1 || fail "purge-build-caches@3 rebuild failed";
+      if command -v timeout >/dev/null 2>&1; then timeout 900 npm run "$_pbc_script" --prefix "$CWD" >/dev/null 2>&1 || fail "purge-build-caches@3 rebuild failed";
       else (cd "$CWD" && npm run "$_pbc_script" >/dev/null 2>&1) || fail "purge-build-caches@3 rebuild failed"; fi
       for _pbc_d in $_pbc_left_dep; do
         [ -d "$CWD/$_pbc_d" ] || fail "purge-build-caches@3 rebuild did not regenerate $CWD/$_pbc_d"

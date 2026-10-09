@@ -171,10 +171,17 @@ def test_v2_block_purges_fixture_caches_without_touching_deps(tmp_path: Path) ->
     (reg / "otherdep-2.0.0").mkdir()
     npm_idx = tmp_path / "npm" / "_cacache" / "index-v5" / "aa"
     npm_idx.mkdir(parents=True)
-    (npm_idx / "entry").write_text("make-fetch-happen:request-cache:https://r/fixtureproj/-/fixtureproj-1.tgz\n", encoding="utf-8")
+    (npm_idx / "entry").write_text(
+        "make-fetch-happen:request-cache:https://r/fixtureproj/-/fixtureproj-1.tgz\n",
+        encoding="utf-8",
+    )
     runner = tmp_path / "run.sh"
     runner.write_text(
-        "#!/bin/bash\nCWD=%s\nfail() { echo \"setup: $*\" >&2; exit 1; }\n%s\n" % (cwd, LANG_BLOCK),
+        "#!/bin/bash\nCWD="
+        + str(cwd)
+        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
+        + LANG_BLOCK
+        + "\n",
         encoding="utf-8",
     )
     env = {
@@ -187,7 +194,9 @@ def test_v2_block_purges_fixture_caches_without_touching_deps(tmp_path: Path) ->
         "PIP_CACHE_DIR": str(tmp_path / "no-pip-cache"),
     }
     (tmp_path / "home").mkdir()
-    proc = subprocess.run(["bash", str(runner)], capture_output=True, text=True, timeout=120, env=env)
+    proc = subprocess.run(
+        ["bash", str(runner)], capture_output=True, text=True, timeout=120, env=env
+    )
     assert proc.returncode == 0, proc.stderr
     assert not (gomod / "fixtureproj@v1.0.0").exists()
     assert (gomod / "otherdep@v2.0.0").exists()
@@ -214,7 +223,11 @@ def test_v2_block_fails_closed_on_unresolvable_python_name(tmp_path: Path) -> No
     pipcache.mkdir()
     runner = tmp_path / "run.sh"
     runner.write_text(
-        "#!/bin/bash\nCWD=%s\nfail() { echo \"setup: $*\" >&2; exit 1; }\n%s\n" % (cwd, LANG_BLOCK),
+        "#!/bin/bash\nCWD="
+        + str(cwd)
+        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
+        + LANG_BLOCK
+        + "\n",
         encoding="utf-8",
     )
     proc = subprocess.run(
@@ -243,7 +256,11 @@ def test_v2_block_fails_closed_on_unresolvable_names(tmp_path: Path) -> None:
     (cwd / "go.mod").write_text("// no module line\n", encoding="utf-8")
     runner = tmp_path / "run.sh"
     runner.write_text(
-        "#!/bin/bash\nCWD=%s\nfail() { echo \"setup: $*\" >&2; exit 1; }\n%s\n" % (cwd, LANG_BLOCK),
+        "#!/bin/bash\nCWD="
+        + str(cwd)
+        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
+        + LANG_BLOCK
+        + "\n",
         encoding="utf-8",
     )
     proc = subprocess.run(

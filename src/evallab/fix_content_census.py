@@ -31,6 +31,7 @@ pure helpers covered by unit tests.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import csv
 import importlib.util
 import json
@@ -320,9 +321,7 @@ def _rmtree(path: Path) -> None:
     shutil.rmtree(path, ignore_errors=True)
 
 
-def stage_probe(
-    stage_dir: Path, setup_source: Path, setup_sh: bytes | None = None
-) -> None:
+def stage_probe(stage_dir: Path, setup_source: Path, setup_sh: bytes | None = None) -> None:
     """Write the probe stage dir: probe.sh plus the setup payload to run."""
     stage = Path(stage_dir)
     setup = stage / "setup"
@@ -330,18 +329,14 @@ def stage_probe(
     shutil.copytree(setup_source, setup)
     if setup_sh is not None:
         target = setup / "setup.sh"
-        try:
+        with contextlib.suppress(OSError):
             os.chmod(target, 0o644)
-        except OSError:
-            pass
         target.write_bytes(setup_sh)
     (stage / "probe.sh").write_text(PROBE_SH, encoding="utf-8")
     (stage / "patterns.awk").write_text(PATTERNS_AWK, encoding="utf-8")
 
 
-def compose_clean_setup(
-    root_setup_sh: str, *, with_purge: bool
-) -> tuple[str, list[str]]:
+def compose_clean_setup(root_setup_sh: str, *, with_purge: bool) -> tuple[str, list[str]]:
     """Clean-chain setup.sh composed with the real transform functions.
 
     Order: strip-future-history@1, purge-installed-copies@1 (Python tasks
@@ -470,9 +465,7 @@ def collect_result(
     mtimes = _read_lines(out / "fix_mtimes.txt")
     fix_epochs = sorted({line.partition("\t")[0] for line in mtimes} - {"", "?"})
     worktree_mtimes = _read(out / "worktree_mtimes")
-    mtime_signal = (
-        len(fix_epochs) == 1 and len(mtimes) >= 2 and worktree_mtimes not in ("?", "1")
-    )
+    mtime_signal = len(fix_epochs) == 1 and len(mtimes) >= 2 and worktree_mtimes not in ("?", "1")
     notes: list[str] = []
     if _read(out / "fix_present_pre") != "yes":
         notes.append("fix absent pre-setup; content scan has no oracle")
@@ -510,7 +503,9 @@ def collect_result(
         "mtime_signal": "yes" if mtime_signal else "no",
         "mtime_detail": f"fix_epochs={','.join(fix_epochs) or '?'} "
         f"fix_files={len(mtimes)} worktree_distinct={worktree_mtimes}",
-        "caches": json.dumps([c for c in _read_lines(out / "caches.txt") if c.startswith("present")]),
+        "caches": json.dumps(
+            [c for c in _read_lines(out / "caches.txt") if c.startswith("present")]
+        ),
         "open_leak": "yes" if open_leak else "no",
         "notes": "; ".join(notes),
         "hits": hits,
@@ -623,9 +618,7 @@ if __name__ == "__main__":
     raise SystemExit(main())
 
 
-def recover_fix_lite(
-    git_dir: Path | str, base: str, test_files: list[str]
-) -> dict[str, Any]:
+def recover_fix_lite(git_dir: Path | str, base: str, test_files: list[str]) -> dict[str, Any]:
     """Fallback fix recovery for histories the HAR-191 extractor refuses.
 
     Same core signal as extractor S1 (before-blob continuity: the first
@@ -658,9 +651,7 @@ def recover_fix_lite(
                 base_blobs[f] = out
         if not base_blobs:
             return {"status": "no-test-blobs", "rationale": "no task test file in base"}
-        log = run(
-            "log", "--all", "--format=%H %P %aI", "--name-only", "--", *test_files
-        )
+        log = run("log", "--all", "--format=%H %P %aI", "--name-only", "--", *test_files)
     except RuntimeError as exc:
         return {"status": "git-error", "rationale": str(exc)}
     candidates: list[tuple[str, str]] = []
@@ -689,9 +680,7 @@ def recover_fix_lite(
             continue
         try:
             continuous = [
-                f
-                for f in touched
-                if run("rev-parse", f"{parent}:{f}").strip() == base_blobs[f]
+                f for f in touched if run("rev-parse", f"{parent}:{f}").strip() == base_blobs[f]
             ]
             changed = run("diff", "--name-only", parent, sha).split()
             non_test = non_test_files(changed)
@@ -727,4 +716,3 @@ __all__ = [
     "summarize_hits",
     "write_csv",
 ]
-

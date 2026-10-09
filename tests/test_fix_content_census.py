@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from evallab.fix_content_census import (
     CSV_FIELDS,
     PROBE_SH,
@@ -47,9 +49,7 @@ def test_test_paths_never_carry_fix_content() -> None:
     assert is_test_path("mimo_test_command.sh")
     assert not is_test_path("pkg/core.py")
     assert not is_test_path("src/main.go")
-    assert non_test_files(["pkg/core.py", "tests/test_core.py", "pkg/core.py"]) == [
-        "pkg/core.py"
-    ]
+    assert non_test_files(["pkg/core.py", "tests/test_core.py", "pkg/core.py"]) == ["pkg/core.py"]
 
 
 def test_added_lines_come_from_non_test_files_only() -> None:
@@ -185,7 +185,9 @@ def test_collect_result_flags_open_leaks(tmp_path: Path) -> None:
     )
     (out / "fix_mtimes.txt").write_text("1700000000\tpkg/core.py\n", encoding="utf-8")
     (out / "worktree_mtimes").write_text("5", encoding="utf-8")
-    (out / "caches.txt").write_text("present /root/.cache/pip\nabsent /root/.npm\n", encoding="utf-8")
+    (out / "caches.txt").write_text(
+        "present /root/.cache/pip\nabsent /root/.npm\n", encoding="utf-8"
+    )
     row = collect_result("format-code-task-000001", "Go", "abc123def456", "clean", out)
     assert row["open_leak"] == "yes"
     assert row["hits_total"] == 1
@@ -210,9 +212,7 @@ def test_collect_result_clean_row_has_no_leak(tmp_path: Path) -> None:
     (out / "pattern_count").write_text("3", encoding="utf-8")
     (out / "blobs.txt").write_text("", encoding="utf-8")
     (out / "hit_detail.txt").write_text("", encoding="utf-8")
-    (out / "fix_mtimes.txt").write_text(
-        "1700000000\ta.py\n1700000000\tb.py\n", encoding="utf-8"
-    )
+    (out / "fix_mtimes.txt").write_text("1700000000\ta.py\n1700000000\tb.py\n", encoding="utf-8")
     (out / "worktree_mtimes").write_text("1", encoding="utf-8")
     (out / "caches.txt").write_text("", encoding="utf-8")
     row = collect_result("format-code-task-000001", "Go", "abc123def456", "clean", out)
@@ -299,7 +299,9 @@ def test_recover_fix_lite_finds_continuous_toucher(tmp_path: Path) -> None:
         env=env,
         timeout=60,
     ).stdout.strip()
-    (repo / "src" / "a.py").write_text("def a():\n    return promote_batch_shape(1)\n", encoding="utf-8")
+    (repo / "src" / "a.py").write_text(
+        "def a():\n    return promote_batch_shape(1)\n", encoding="utf-8"
+    )
     (repo / "tests" / "test_a.py").write_text(
         "def test_a(): pass\ndef test_promote(): pass\n", encoding="utf-8"
     )
@@ -335,7 +337,5 @@ def test_rendered_probe_parses_as_shell(tmp_path: Path) -> None:
         pytest.skip("needs bash")
     script = tmp_path / "probe.sh"
     script.write_text(PROBE_SH, encoding="utf-8")
-    proc = subprocess.run(
-        ["bash", "-n", str(script)], capture_output=True, text=True, timeout=60
-    )
+    proc = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, proc.stderr

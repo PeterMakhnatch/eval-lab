@@ -14,6 +14,8 @@ from pathlib import Path
 import pytest
 
 from evallab.separate_verifier import (
+    JUNIT_MISSING_REASON,
+    PYTEST_START_MARKERS,
     SNAP_DIR,
     TAMPER_SIGNATURES,
     TRAJECTORY_ARTIFACT,
@@ -21,18 +23,23 @@ from evallab.separate_verifier import (
     TRANSFORM_ID_V2,
     V2_GRADE_DIR,
     V2_SETUP_SUBDIR,
+    addopts_cleared,
     build_changes,
     build_changes_v2,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
+    detect_pytest_run,
     drop_reason,
     evaluate_junit,
     is_pytest_config_tamper,
     is_test_infra_filename,
+    junit_absence_suspicious,
+    output_is_blank,
     parse_named_pytest_ids,
     read_parent_info,
     render_wrapper_test_sh_v2,
+    resolve_command_text,
     tamper_signature_hit,
 )
 from evallab.task_variants import VariantInvalid
@@ -420,3 +427,90 @@ def test_v2_derive_records_transform_id(parent_dir_v2: Path, tmp_path: Path) -> 
     )
     assert expected_record.is_file()
     assert (store / record.task_slug / record.digest12).is_dir()
+
+
+# --------------------------------------------------------------------------- #
+# junit absence after a pytest start (obfuscated exit-forcing close)
+# --------------------------------------------------------------------------- #
+
+PYTEST_CMD = "bash /testbed/mimo_test_command.sh"
+PYTEST_OUT = "=== test session starts ===\ncollected 4 items\n"
+
+
+def test_addopts_cleared_detects_unset_and_override() -> None:
+    assert addopts_cleared("export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\nunset PYTEST_ADDOPTS PYTEST_PLUGINS")
+    assert addopts_cleared("PYTEST_ADDOPTS='' python -m pytest")
+    assert addopts_cleared("env -u PYTEST_ADDOPTS python -m pytest")
+    assert not addopts_cleared("python -m pytest tests/ -v")
+    assert not addopts_cleared(PYTEST_CMD)
+
+
+def test_detect_pytest_run_needs_markers_and_a_pytest_command() -> None:
+    assert detect_pytest_run(PYTEST_OUT, "python -m pytest tests/ -v")
+    assert detect_pytest_run("collected 13 items\n", "python -m pytest -k x")
+    assert not detect_pytest_run(PYTEST_OUT, "python -m unittest discover")
+    assert not detect_pytest_run("ok\n", "python -m pytest tests/")
+    assert not detect_pytest_run("", "python -m pytest tests/")
+
+
+def test_resolve_command_text_decodes_base64_forms() -> None:
+    import base64
+
+    hidden = base64.b64encode(b"exec python -m pytest tests/ -v; unset PYTEST_ADDOPTS").decode()
+    resolved = resolve_command_text(
+        "bash /testbed/mimo_test_command.sh",
+        f"echo {hidden} | base64 -d | sh",
+        "diff --git a/mimo_test_command.sh",
+    )
+    assert "pytest" in resolved
+    assert addopts_cleared(resolved)
+    plain = resolve_command_text(PYTEST_CMD, "python -m pytest tests/ -v", "")
+    assert "pytest" in plain
+    assert not addopts_cleared(plain)
+
+
+def test_missing_junit_after_pytest_start_grades_zero() -> None:
+    assert evaluate_junit(None, 0, set(), suspicious_absence=True) == 0
+    assert evaluate_junit(b"not xml <", 0, set(), suspicious_absence=True) == 0
+    assert evaluate_junit(None, 0, set(), suspicious_absence=False) == 1
+    assert evaluate_junit(None, 1, set(), suspicious_absence=True) == 0
+
+
+def test_obfuscated_exit_forcing_needs_the_junit_rule() -> None:
+    # No literal signature survives string-splitting, so the gate passes ...
+    added = "+getattr(__import__('o'+'s'), '_e'+'xit')(0)\n"
+    assert tamper_signature_hit(added) is None
+    # ... but the missing report after a pytest start still grades 0.
+    assert evaluate_junit(None, 0, set(), suspicious_absence=True) == 0
+
+
+def test_missing_reason_is_logged_by_the_grader() -> None:
+    assert JUNIT_MISSING_REASON == "junit missing after pytest start"
+    assert len(PYTEST_START_MARKERS) >= 1
+    wrapper = render_wrapper_test_sh_v2("/testbed")
+    assert JUNIT_MISSING_REASON in wrapper
+    assert "PYTHONUNBUFFERED=1" in wrapper
+
+
+def test_junit_absence_rule_covers_markers_and_blank_output() -> None:
+    cmd = "python -m pytest tests/ -v"
+    assert output_is_blank("")
+    assert output_is_blank("  \n ")
+    assert not output_is_blank(PYTEST_OUT)
+    # Markers: pytest ran, report suppressed.
+    assert junit_absence_suspicious(PYTEST_OUT, cmd)
+    # Blank: pytest should have printed at least its header.
+    assert junit_absence_suspicious("", cmd)
+    assert junit_absence_suspicious("  \n", cmd)
+    # Non-blank markerless output: pytest never started (custom commands).
+    assert not junit_absence_suspicious("hello\n", cmd)
+    # Unset addopts or non-pytest commands keep the fallback.
+    assert not junit_absence_suspicious(PYTEST_OUT, "unset PYTEST_ADDOPTS\n" + cmd)
+    assert not junit_absence_suspicious("", "python -m unittest discover")
+    assert not junit_absence_suspicious(PYTEST_OUT, "python -m unittest discover")
+
+
+def test_blank_kill_grades_zero_through_the_full_rule() -> None:
+    cmd = "python -m pytest tests/ -v"
+    assert junit_absence_suspicious("", cmd)
+    assert evaluate_junit(None, 0, set(), suspicious_absence=True) == 0

@@ -144,6 +144,8 @@ inputs:
     digest: sha256:d04133547758a35c8908000b0d2a8961d764853f82180d27f0bb5c386c71c506
   - path: docs/verifier-calibration.md
     digest: sha256:22f01a0f9b9ad3ea437dcaa3c253de41dafb9039dbbde201def191f280e9088a
+  - path: docs/verifier-check.md
+    digest: sha256:da6790f58421ab6affdab8c0a4e4d470d27564bc37d563d026d1b9c98dda7925
 ---
 
 <!-- generated-by: docindex v1 -->
@@ -266,6 +268,7 @@ an operator can see what is archived.
 | `docs/trial-treatment.md` | Trial treatment keys and capture records | `living` | `analyst, runner` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
 | `docs/verifier-calibration.md` | Verifier Calibration and Selection Lift | `living` | `builder, analyst` |
+| `docs/verifier-check.md` | VerifierCheck: red/blue verifier audits | `living` | `analyst, operator` |
 
 ### historical
 
@@ -373,6 +376,7 @@ an operator can see what is archived.
 | `docs/task-variants.md` | Task variants: versioning modified tasks without touching the original | `living` | `builder, analyst, operator` |
 | `docs/tidy.md` | Working Tree Discipline and Tidy Sweeps (`evallab tidy`) | `living` | `operator, builder` |
 | `docs/verdicts.md` | Human Verdict Decision Record (§2.1, §2.2, §6) | `living` | `operator, analyst` |
+| `docs/verifier-check.md` | VerifierCheck: red/blue verifier audits | `living` | `analyst, operator` |
 
 ### historical
 

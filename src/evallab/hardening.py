@@ -8,6 +8,11 @@ a failed check stops setup, with no hide-only or network-open fallback.
   site-packages copies, then reinstalls the base tree editable and offline.
   Confirmed targets are 001269 and 002308. HAR-185 confirmed 0 of 100 sampled
   images, so this is not applied to the rest of the corpus.
+* ``purge-build-caches@1`` removes regenerable build/module caches
+  (``__pycache__``, ``.pytest_cache``, mypy/ruff/hypothesis caches, node
+  ``.cache``/``.vitest``) that can carry the fixed tree (Vals rung 5).
+  Dependency dirs and project copies stay: offline graders need the former
+  and the latter belong to ``purge-installed-copies@1``.
 * ``separate-verifier@1`` runs hidden tests in a second container where Harbor
   0.24 supports it (HAR-169: oracle pass and nop fail on 001269, 000905, 002391).
 * ``terminal-guard-extend@1`` snapshots the terminal interpreter hook surface
@@ -30,6 +35,8 @@ from __future__ import annotations
 
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
+from evallab.purge_build_caches import TRANSFORM_ID as CACHE_ID
+from evallab.purge_build_caches import derive_purge_build_caches
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
 from evallab.separate_verifier import TRANSFORM_ID as SEPARATE_ID
@@ -39,7 +46,7 @@ from evallab.strip_future_history import derive_strip_future_history
 from evallab.terminal_guard import TRANSFORM_ID as TERMINAL_GUARD_ID
 from evallab.terminal_guard import derive_terminal_guard, derive_terminal_prefetch
 
-TRANSFORMS = (STRIP_ID, PURGE_ID, SEPARATE_ID, MTIME_ID, TERMINAL_GUARD_ID)
+TRANSFORMS = (STRIP_ID, PURGE_ID, CACHE_ID, SEPARATE_ID, MTIME_ID, TERMINAL_GUARD_ID)
 NETWORK_LABEL = "oracle:fail-network"
 NETWORK_DEFAULT = "discard"
 #: Installed-copy leaks confirmed by reading the image, not by a sample guess.
@@ -49,6 +56,7 @@ CONFIRMED_PURGE = (
 )
 
 __all__ = [
+    "CACHE_ID",
     "CONFIRMED_PURGE",
     "MTIME_ID",
     "NETWORK_DEFAULT",
@@ -59,6 +67,7 @@ __all__ = [
     "TERMINAL_GUARD_ID",
     "TRANSFORMS",
     "derive_mtime_normalize",
+    "derive_purge_build_caches",
     "derive_purge_installed_copies",
     "derive_separate_verifier",
     "derive_strip_future_history",

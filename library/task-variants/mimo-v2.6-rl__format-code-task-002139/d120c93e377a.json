@@ -44,6 +44,13 @@
   },
   "created_by": "probe-harden",
   "created_at": "2026-10-08T18:49:21Z",
-  "status": "candidate",
-  "evidence": []
+  "status": "validated",
+  "evidence": [
+    {
+      "at": "2026-10-09T13:44:08Z",
+      "by": "vals-closure",
+      "status": "validated",
+      "evidence": "local Docker --network none. Receipts research/experiments/vals-closure/receipts/route4/. strip->mtime: setup ok; mtime_distinct 1; nop reward 0 (11 failed)."
+    }
+  ]
 }

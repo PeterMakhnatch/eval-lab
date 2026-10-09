@@ -45,14 +45,51 @@ def _run(cmd: list[str]) -> None:
         )
 
 
+def _reward_from_trial(trial_dir: Path) -> float | None:
+    """Reward for one trial dir: reward.txt, reward.json, then result.json."""
+    verifier = trial_dir / "verifier"
+    txt = verifier / "reward.txt"
+    if txt.is_file():
+        try:
+            return float(txt.read_text(encoding="utf-8").strip().split()[0])
+        except (ValueError, IndexError, OSError):
+            pass
+    js = verifier / "reward.json"
+    if js.is_file():
+        try:
+            payload = json.loads(js.read_text(encoding="utf-8"))
+        except (ValueError, OSError):
+            payload = None
+        if isinstance(payload, dict):
+            ordered = ["reward"] if "reward" in payload else sorted(payload)
+            for key in ordered:
+                value = payload[key]
+                if isinstance(value, bool):
+                    continue
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    continue
+    result = trial_dir / "result.json"
+    if result.is_file():
+        try:
+            from evallab.cheat import trial_reward
+
+            return trial_reward(json.loads(result.read_text(encoding="utf-8")))
+        except (ValueError, OSError):
+            return None
+    return None
+
+
 def _rewards_in_job(job_dir: Path) -> list[float]:
     """All verifier rewards recorded under a finished job directory."""
     rewards: list[float] = []
-    for reward_file in sorted(job_dir.rglob("verifier/reward.txt")):
-        try:
-            rewards.append(float(reward_file.read_text(encoding="utf-8").strip().split()[0]))
-        except (ValueError, IndexError, OSError):
-            continue
+    trial_dirs = {p.parent for p in job_dir.rglob("verifier/reward.*")}
+    trial_dirs |= {p.parent for p in job_dir.glob("*/result.json")}
+    for trial_dir in sorted(trial_dirs):
+        reward = _reward_from_trial(trial_dir)
+        if reward is not None:
+            rewards.append(reward)
     return rewards
 
 

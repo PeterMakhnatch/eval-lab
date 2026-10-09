@@ -336,11 +336,13 @@ def stage_probe(stage_dir: Path, setup_source: Path, setup_sh: bytes | None = No
     (stage / "patterns.awk").write_text(PATTERNS_AWK, encoding="utf-8")
 
 
-def compose_clean_setup(root_setup_sh: str, *, with_purge: bool) -> tuple[str, list[str]]:
+def compose_clean_setup(
+    root_setup_sh: str, *, with_purge: bool, caches_version: int = 2
+) -> tuple[str, list[str]]:
     """Clean-chain setup.sh composed with the real transform functions.
 
     Order: strip-future-history@1, purge-installed-copies@1 (Python tasks
-    where it applies), purge-build-caches@2, mtime-normalize@1. Returns
+    where it applies), purge-build-caches@2/@3, mtime-normalize@1. Returns
     (setup text, applied transform ids).
     """
     from evallab import mtime_normalize, purge_build_caches, strip_future_history
@@ -348,6 +350,8 @@ def compose_clean_setup(root_setup_sh: str, *, with_purge: bool) -> tuple[str, l
     from evallab.purge_installed_copies import build_setup_sh as purge_setup
     from evallab.task_variants import VariantInvalid
 
+    if caches_version not in (2, 3):
+        raise ValueError(f"caches_version must be 2 or 3, got {caches_version}")
     applied: list[str] = []
     text = strip_future_history.build_setup_sh(root_setup_sh)
     applied.append(strip_future_history.TRANSFORM_ID)
@@ -357,8 +361,12 @@ def compose_clean_setup(root_setup_sh: str, *, with_purge: bool) -> tuple[str, l
             applied.append(PURGE_ID)
         except VariantInvalid:
             applied.append(PURGE_ID + "(present)")
-    text = purge_build_caches.build_setup_sh_v2(text)
-    applied.append(purge_build_caches.TRANSFORM_ID_V2)
+    if caches_version == 3:
+        text = purge_build_caches.build_setup_sh_v3(text)
+        applied.append(purge_build_caches.TRANSFORM_ID_V3)
+    else:
+        text = purge_build_caches.build_setup_sh_v2(text)
+        applied.append(purge_build_caches.TRANSFORM_ID_V2)
     text = mtime_normalize.build_setup_sh(text)
     applied.append(mtime_normalize.TRANSFORM_ID)
     return text, applied

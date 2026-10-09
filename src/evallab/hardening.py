@@ -19,6 +19,11 @@ a failed check stops setup, with no hide-only or network-open fallback.
   project cache, npm/yarn/pnpm package entries), each fail-closed. It
   supersedes @1 and refuses @1 parents; chain adoption is the clean-set
   owner's call.
+* ``purge-build-caches@3`` adds node gitignored build outputs (``lib/``,
+  ``dist/``, ``build/``, ``out/``): delete when grading tests import from
+  ``src/``, else rebuild from the base tree via the package build/compile
+  script and fail setup when neither is safe. It supersedes @2 and refuses
+  @1/@2 parents; the clean chain is strip → purge → @3 → mtime.
 * ``separate-verifier@1`` runs hidden tests in a second container where Harbor
   0.24 supports it (HAR-169: oracle pass and nop fail on 001269, 000905, 002391).
   @1 restores the agent's workspace, ``.git`` and base sha into the verifier,
@@ -67,7 +72,12 @@ from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
 from evallab.purge_build_caches import TRANSFORM_ID as CACHE_ID
 from evallab.purge_build_caches import TRANSFORM_ID_V2 as CACHE_V2_ID
-from evallab.purge_build_caches import derive_purge_build_caches, derive_purge_build_caches_v2
+from evallab.purge_build_caches import TRANSFORM_ID_V3 as CACHE_V3_ID
+from evallab.purge_build_caches import (
+    derive_purge_build_caches,
+    derive_purge_build_caches_v2,
+    derive_purge_build_caches_v3,
+)
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
 from evallab.separate_verifier import TRANSFORM_ID as SEPARATE_ID
@@ -89,6 +99,7 @@ TRANSFORMS = (
     PURGE_ID,
     CACHE_ID,
     CACHE_V2_ID,
+    CACHE_V3_ID,
     SEPARATE_ID,
     SEPARATE_V2_ID,
     MTIME_ID,
@@ -111,6 +122,7 @@ CONFIRMED_PURGE = (
 __all__ = [
     "CACHE_ID",
     "CACHE_V2_ID",
+    "CACHE_V3_ID",
     "CONFIRMED_PURGE",
     "GENERAL_NOP_GATE_ID",
     "GENERAL_PINNED_BACKUP_ID",
@@ -133,6 +145,7 @@ __all__ = [
     "derive_mtime_normalize",
     "derive_purge_build_caches",
     "derive_purge_build_caches_v2",
+    "derive_purge_build_caches_v3",
     "derive_purge_installed_copies",
     "derive_separate_verifier",
     "derive_separate_verifier_v2",

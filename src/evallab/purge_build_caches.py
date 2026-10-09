@@ -44,6 +44,17 @@ survives. pnpm's content-addressed store has no per-package eviction, so a
 reference there fails closed for manual triage. @2 supersedes @1: it refuses
 a parent that already carries @1.
 
+``purge-build-caches@3`` adds node gitignored build outputs (``lib/``,
+``dist/``, ``build/``, ``out/``): images baked from the fixed tree carry
+the fix in compiled output that setup's ``git clean`` spares via
+``--exclude``. Dirs the grading tests import from ``src/`` for (no
+``lib/``/``dist/`` references in worktree tests, configs, or the test
+script, and no self-link resolving through package entry points) are
+deleted; dirs the tests resolve through are deleted and rebuilt from the
+base tree via the package build/compile script, and setup fails when there
+is no build script or the rebuild does not regenerate them. @3 supersedes
+@2: it refuses @1/@2 parents.
+
 Grading (``tests/``), the instruction and the image are unchanged. The setup
 is re-embedded in the task.toml healthcheck payload, which is what executes.
 """
@@ -305,6 +316,78 @@ if [ -f "$CWD/package.json" ]; then
 fi
 
 """
+#: Node gitignored build-output handling appended by ``shell_block_v3``.
+#: Compiled output (lib/, dist/, build/, out/) baked from the fixed tree
+#: carries the fix, and setup's ``git clean`` spares some of these via
+#: ``--exclude``. Tests importing from src/ never need them (delete);
+#: tests resolving through them need a base-tree rebuild (else fail closed).
+NODE_BUILD_BLOCK = """\\
+# purge-build-caches@3: node gitignored build outputs (lib/, dist/, build/, out/).
+if [ -f "$CWD/package.json" ]; then
+  _pbc_bout=""
+  for _pbc_d in lib dist build out; do
+    if [ -d "$CWD/$_pbc_d" ] && git -C "$CWD" check-ignore -q "$_pbc_d" 2>/dev/null; then
+      _pbc_bout="$_pbc_bout $_pbc_d"
+    fi
+  done
+  if [ -n "$_pbc_bout" ]; then
+    _pbc_dep=""
+    _pbc_tscript=""
+    if command -v node >/dev/null 2>&1; then _pbc_tscript=$(node -p "(require('$CWD/package.json').scripts||{}).test||''" 2>/dev/null || true); [ "$_pbc_tscript" = "undefined" ] && _pbc_tscript=""; fi
+    if [ -z "$_pbc_tscript" ] && command -v python3 >/dev/null 2>&1; then _pbc_tscript=$(python3 -c "import json;print((json.load(open('$CWD/package.json')).get('scripts') or {}).get('test') or '')" 2>/dev/null || true); fi
+    for _pbc_d in $_pbc_bout; do
+      if grep -rlE "(from\\s*|require\\()\\s*['\\\"][^'\\\"]*/$_pbc_d/" "$CWD/test" "$CWD/tests" "$CWD/__tests__" "$CWD/spec" 2>/dev/null | head -n 1 | grep -q .; then _pbc_dep="$_pbc_dep $_pbc_d"; fi
+      for _pbc_cfg in "$CWD/jest.config.js" "$CWD/jest.config.ts" "$CWD/jest.config.json" "$CWD/vitest.config.js" "$CWD/vitest.config.ts" "$CWD/.mocharc.js" "$CWD/.mocharc.json" "$CWD/.mocharc.yml" "$CWD/karma.conf.js"; do
+        [ -f "$_pbc_cfg" ] || continue
+        if grep -E -q "['\\"/]$_pbc_d/" "$_pbc_cfg" 2>/dev/null; then _pbc_dep="$_pbc_dep $_pbc_d"; break; fi
+      done
+      if [ -n "$_pbc_tscript" ] && printf '%s' "$_pbc_tscript" | grep -E -q "['\\"/]$_pbc_d/" 2>/dev/null; then _pbc_dep="$_pbc_dep $_pbc_d"; fi
+    done
+    _pbc_pkg3=""
+    if command -v node >/dev/null 2>&1; then _pbc_pkg3=$(node -p "require('$CWD/package.json').name" 2>/dev/null || true); [ "$_pbc_pkg3" = "undefined" ] && _pbc_pkg3=""; fi
+    if [ -z "$_pbc_pkg3" ] && command -v python3 >/dev/null 2>&1; then _pbc_pkg3=$(python3 -c "import json;print(json.load(open('$CWD/package.json')).get('name') or '')" 2>/dev/null || true); fi
+    if [ -z "$_pbc_pkg3" ]; then _pbc_pkg3=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$CWD/package.json" | head -n 1); fi
+    if [ -n "$_pbc_pkg3" ] && [ -L "$CWD/node_modules/$_pbc_pkg3" ]; then
+      _pbc_entry=""
+      if command -v node >/dev/null 2>&1; then _pbc_entry=$(node -p "const p=require('$CWD/package.json');p.main||p.types||''" 2>/dev/null || true); [ "$_pbc_entry" = "undefined" ] && _pbc_entry=""; fi
+      if [ -z "$_pbc_entry" ] && command -v python3 >/dev/null 2>&1; then _pbc_entry=$(python3 -c "import json;p=json.load(open('$CWD/package.json'));print(p.get('main') or p.get('types') or '')" 2>/dev/null || true); fi
+      _pbc_first=$(printf '%s' "$_pbc_entry" | cut -d/ -f1)
+      for _pbc_d in $_pbc_bout; do
+        if [ -n "$_pbc_first" ] && [ "$_pbc_first" = "$_pbc_d" ]; then _pbc_dep="$_pbc_dep $_pbc_d"; fi
+      done
+    fi
+    _pbc_dep=$(printf '%s' "$_pbc_dep" | tr ' ' '\\n' | sort -u | tr '\\n' ' ')
+    for _pbc_d in $_pbc_bout; do
+      case " $_pbc_dep " in
+        *" $_pbc_d "*) continue;;
+      esac
+      rm -rf "$CWD/$_pbc_d" 2>/dev/null || fail "purge-build-caches@3 cannot remove $CWD/$_pbc_d"
+      [ ! -e "$CWD/$_pbc_d" ] || fail "purge-build-caches@3 left $CWD/$_pbc_d"
+    done
+    _pbc_left_dep=""
+    for _pbc_d in $_pbc_bout; do
+      case " $_pbc_dep " in
+        *" $_pbc_d "*) [ -d "$CWD/$_pbc_d" ] && _pbc_left_dep="$_pbc_left_dep $_pbc_d";;
+      esac
+    done
+    if [ -n "$_pbc_left_dep" ]; then
+      _pbc_script=""
+      if command -v node >/dev/null 2>&1; then _pbc_script=$(node -p "const s=require('$CWD/package.json').scripts||{};s.build?'build':(s.compile?'compile':'')" 2>/dev/null || true); [ "$_pbc_script" = "undefined" ] && _pbc_script=""; fi
+      if [ -z "$_pbc_script" ] && command -v python3 >/dev/null 2>&1; then _pbc_script=$(python3 -c "import json;s=json.load(open('$CWD/package.json')).get('scripts') or {};print('build' if 'build' in s else ('compile' if 'compile' in s else ''))" 2>/dev/null || true); fi
+      [ -n "$_pbc_script" ] || fail "purge-build-caches@3 needs a build script for grader-used output:$_pbc_left_dep"
+      for _pbc_d in $_pbc_dep; do
+        rm -rf "$CWD/$_pbc_d" 2>/dev/null || fail "purge-build-caches@3 cannot remove stale build output $CWD/$_pbc_d"
+      done
+      if command -v timeout >/dev/null 2>&1; then timeout 600 npm run "$_pbc_script" --prefix "$CWD" >/dev/null 2>&1 || fail "purge-build-caches@3 rebuild failed";
+      else (cd "$CWD" && npm run "$_pbc_script" >/dev/null 2>&1) || fail "purge-build-caches@3 rebuild failed"; fi
+      for _pbc_d in $_pbc_left_dep; do
+        [ -d "$CWD/$_pbc_d" ] || fail "purge-build-caches@3 rebuild did not regenerate $CWD/$_pbc_d"
+      done
+    fi
+  fi
+fi
+
+"""
 
 
 def shell_block() -> str:
@@ -333,6 +416,32 @@ LANGUAGE_SECTIONS = (
 def shell_block_v2() -> str:
     """@1 sweep plus the language-aware project-cache purge. Fail closed."""
     return CACHE_BLOCK + LANG_BLOCK
+
+
+TRANSFORM_ID_V3 = "purge-build-caches@3"
+MARKER_V3 = "purge-build-caches@3"
+
+
+def shell_block_v3() -> str:
+    """@2 plus the node gitignored build-output handling. Fail closed."""
+    return CACHE_BLOCK + LANG_BLOCK + NODE_BUILD_BLOCK
+
+
+def build_setup_sh_v3(parent_setup_sh: str) -> str:
+    """Parent ``setup.sh`` plus the @3 block. Refuses @1/@2/@3 parents and bare setups."""
+    if MARKER_V3 in parent_setup_sh:
+        raise VariantInvalid("parent setup.sh already carries purge-build-caches@3")
+    if MARKER_V2 in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@2; @3 supersedes it"
+        )
+    if MARKER in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@1; @3 supersedes it"
+        )
+    if ANCHOR not in parent_setup_sh:
+        raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge caches")
+    return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v3(), 1)
 
 
 def build_setup_sh_v2(parent_setup_sh: str) -> str:
@@ -500,6 +609,69 @@ def derive_purge_build_caches_v2(
     )
 
 
+def build_changes_v3(
+    parent_dir: Path | str,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @3."""
+    parent = Path(parent_dir)
+    task_name, workdir, image, setup_sh = _read_parent(parent)
+    new_setup = build_setup_sh_v3(setup_sh)
+    new_blob = pack_setup(parent / "environment" / "setup", setup_sh=new_setup.encode("utf-8"))
+    parent_toml = (parent / "task.toml").read_text(encoding="utf-8")
+    changes: dict[str, bytes | None] = {
+        SETUP_REL: new_setup.encode("utf-8"),
+        "task.toml": render_task_toml(parent_toml, new_blob=new_blob).encode("utf-8"),
+    }
+    inputs: dict[str, Any] = {
+        "parent_task": task_name,
+        "workdir": workdir,
+        "docker_image": image,
+        "cache_names": list(CACHE_NAMES),
+        "cache_globs": list(CACHE_GLOBS),
+        "language_sections": list(LANGUAGE_SECTIONS),
+        "build_output_dirs": ["lib", "dist", "build", "out"],
+        "setup_before_sha256": f"sha256:{hashlib.sha256(setup_sh.encode()).hexdigest()}",
+        "setup_after_sha256": f"sha256:{hashlib.sha256(new_setup.encode()).hexdigest()}",
+    }
+    return changes, inputs
+
+
+def derive_purge_build_caches_v3(
+    parent_dir: Path | str,
+    *,
+    rationale: str = (
+        "Remove regenerable caches (@2: sweep plus project entries in shared "
+        "caches) plus node gitignored build outputs (lib/, dist/, build/, "
+        "out/): delete when grading tests import from src/, else rebuild "
+        "from the base tree and fail setup when neither is safe. "
+        "Shared dependency caches stay."
+    ),
+    created_by: str = "vals-routes-v3",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive ``purge-build-caches@3`` for a MiMo task package."""
+    parent = Path(parent_dir)
+    changes, inputs = build_changes_v3(parent)
+    kwargs: dict[str, Any] = {}
+    if repo_root is not None:
+        kwargs["repo_root"] = repo_root
+    if parent_source is not None:
+        kwargs["parent_source"] = parent_source
+    if variants_root is not None:
+        kwargs["variants_root"] = variants_root
+    return derive_task(
+        parent,
+        changes=changes,
+        transform=TRANSFORM_ID_V3,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        **kwargs,
+    )
+
+
 def foreign_pth_leaks(cwd: Path | str, roots: list[Path | str]) -> list[str]:
     """Project-external ``.pth``/``egg-link`` targets (test seam, no I/O beyond reads).
 
@@ -547,16 +719,23 @@ __all__ = [
     "LANGUAGE_SECTIONS",
     "MARKER",
     "MARKER_V2",
+    "MARKER_V3",
+    "NODE_BUILD_BLOCK",
     "SETUP_REL",
     "TRANSFORM_ID",
     "TRANSFORM_ID_V2",
+    "TRANSFORM_ID_V3",
     "build_changes",
     "build_changes_v2",
+    "build_changes_v3",
     "build_setup_sh",
     "build_setup_sh_v2",
+    "build_setup_sh_v3",
     "derive_purge_build_caches",
     "derive_purge_build_caches_v2",
+    "derive_purge_build_caches_v3",
     "foreign_pth_leaks",
     "shell_block",
     "shell_block_v2",
+    "shell_block_v3",
 ]

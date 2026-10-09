@@ -392,3 +392,186 @@ def test_v2_block_removes_project_wheels_and_verifies(tmp_path: Path) -> None:
     )
     assert proc.returncode != 0
     assert "left pip cache entries" in proc.stderr
+
+
+def _node_fixture(tmp_path: Path, *, test_import: str, scripts: str) -> Path:
+    """Git repo fixture: ignored lib/ with stale output, src/, one test."""
+    import subprocess
+
+    cwd = tmp_path / "repo"
+    (cwd / "src").mkdir(parents=True)
+    (cwd / "test").mkdir()
+    (cwd / "lib").mkdir()
+    (cwd / "lib" / "stale.js").write_text("// stale fixed build output\n", encoding="utf-8")
+    (cwd / "src" / "a.ts").write_text("export const a = 1;\n", encoding="utf-8")
+    (cwd / "test" / "t.test.ts").write_text(
+        f"import {{ a }} from '{test_import}';\nconsole.log(a);\n", encoding="utf-8"
+    )
+    (cwd / "package.json").write_text(
+        '{"name": "fixtureproj", "scripts": {' + scripts + "}}\n", encoding="utf-8"
+    )
+    (cwd / ".gitignore").write_text("/lib\n", encoding="utf-8")
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/local/bin",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
+    }
+    subprocess.run(["git", "init", "-q", str(cwd)], check=True, env=env, timeout=60)
+    subprocess.run(["git", "-C", str(cwd), "add", "-A"], check=True, env=env, timeout=60)
+    subprocess.run(
+        ["git", "-C", str(cwd), "commit", "-qm", "base"], check=True, env=env, timeout=60
+    )
+    return cwd
+
+
+def _run_node_block(
+    tmp_path: Path, cwd: Path, extra_path: str = ""
+) -> subprocess.CompletedProcess[str]:
+    import subprocess
+
+    from evallab.purge_build_caches import NODE_BUILD_BLOCK
+
+    runner = tmp_path / "run-node.sh"
+    runner.write_text(
+        "#!/bin/bash\nCWD="
+        + str(cwd)
+        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
+        + NODE_BUILD_BLOCK
+        + "\n",
+        encoding="utf-8",
+    )
+    return subprocess.run(
+        ["bash", str(runner)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={
+            "PATH": extra_path + "/usr/bin:/bin:/usr/local/bin",
+            "HOME": str(tmp_path),
+        },
+    )
+
+
+def test_v3_supersedes_v2_and_refuses_marked_parents() -> None:
+    from evallab.purge_build_caches import build_setup_sh_v2, build_setup_sh_v3
+
+    updated = build_setup_sh_v3(PARENT_SETUP)
+    assert "purge-build-caches@3" in updated
+    assert "purge-build-caches@2" in updated  # @3 embeds @2
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@3"):
+        build_setup_sh_v3(updated)
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@2"):
+        build_setup_sh_v3(build_setup_sh_v2(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@1"):
+        build_setup_sh_v3(build_setup_sh(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="write_blocklist"):
+        build_setup_sh_v3("#!/bin/bash\nfail() { exit 1; }\n")
+
+
+def test_v3_block_names_build_outputs_and_fail_closed_verifies() -> None:
+    from evallab.purge_build_caches import shell_block_v3
+
+    block = shell_block_v3()
+    for token in ("check-ignore", "did not regenerate", "needs a build script", "npm run"):
+        assert token in block
+    for dirname in ("lib", "dist", "build", "out"):
+        assert dirname in block
+
+
+def test_v3_generated_setup_parses_as_shell(tmp_path: Path) -> None:
+    import subprocess
+
+    from evallab.purge_build_caches import build_setup_sh_v3
+
+    script = tmp_path / "setup.sh"
+    script.write_text(build_setup_sh_v3(PARENT_SETUP), encoding="utf-8")
+    proc = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_v3_deletes_src_tested_build_output(tmp_path: Path) -> None:
+    """Tests import from src/: ignored lib/ is deleted, sources stay."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture(tmp_path, test_import="../src/a", scripts='"build": "exit 0"')
+    proc = _run_node_block(tmp_path, cwd)
+    assert proc.returncode == 0, proc.stderr
+    assert not (cwd / "lib").exists()
+    assert (cwd / "src" / "a.ts").is_file()
+
+
+def test_v3_rebuilds_grader_used_output(tmp_path: Path) -> None:
+    """Tests resolve through lib/: stale output is rebuilt, not kept."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture(tmp_path, test_import="../lib/stale", scripts='"build": "make-lib"')
+    stub = tmp_path / "bin" / "npm"
+    stub.parent.mkdir()
+    stub.write_text(
+        "#!/bin/bash\n"
+        'D="$PWD"\n'
+        'prev=""\n'
+        'for a in "$@"; do\n'
+        '  if [ "$prev" = "--prefix" ]; then D="$a"; fi\n'
+        '  prev="$a"\n'
+        "done\n"
+        'mkdir -p "$D/lib"\n'
+        'echo "// rebuilt from base" > "$D/lib/stale.js"\n',
+        encoding="utf-8",
+    )
+    stub.chmod(0o755)
+    proc = _run_node_block(tmp_path, cwd, extra_path=str(stub.parent) + ":")
+    assert proc.returncode == 0, proc.stderr
+    rebuilt = (cwd / "lib" / "stale.js").read_text(encoding="utf-8")
+    assert "rebuilt from base" in rebuilt
+    assert "stale fixed" not in rebuilt
+
+
+def test_v3_fails_closed_without_build_script(tmp_path: Path) -> None:
+    """Grader-used output with no build script stops the block."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture(tmp_path, test_import="../lib/stale", scripts="")
+    proc = _run_node_block(tmp_path, cwd)
+    assert proc.returncode != 0
+    assert "needs a build script" in proc.stderr
+    assert (cwd / "lib" / "stale.js").is_file()  # untouched on failure
+
+
+def test_v3_skips_without_ignored_output(tmp_path: Path) -> None:
+    """No lib/dist/build/out dirs: the section is a silent no-op."""
+    import shutil
+    import subprocess
+
+    from evallab.purge_build_caches import NODE_BUILD_BLOCK
+
+    if shutil.which("git") is None:
+        pytest.skip("needs git")
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "package.json").write_text('{"name": "fixtureproj"}\n', encoding="utf-8")
+    runner = tmp_path / "run-node.sh"
+    runner.write_text(
+        "#!/bin/bash\nCWD="
+        + str(cwd)
+        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
+        + NODE_BUILD_BLOCK
+        + "\n",
+        encoding="utf-8",
+    )
+    proc = subprocess.run(
+        ["bash", str(runner)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(tmp_path)},
+    )
+    assert proc.returncode == 0, proc.stderr

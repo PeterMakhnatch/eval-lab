@@ -12,8 +12,11 @@ import streamlit as st
 
 from dashboard import integrity as iq
 from dashboard.integrity import SourceUnavailable
+from dashboard.snapshot_cache import RefreshingCache
 
 Row = dict[str, Any]
+SnapshotKey = tuple[str, str | None]
+SNAPSHOT_MAX_AGE_S = 300
 
 REPO_ROOT = Path(
     os.environ.get("EVALLAB_DASHBOARD_ROOT", Path(__file__).resolve().parents[1])
@@ -24,11 +27,10 @@ def _derived() -> Path | None:
     return iq.resolve_derived(REPO_ROOT)
 
 
-@st.cache_data(ttl=300, show_spinner=False)
 def load_snapshot(
     repo_root_value: str, explicit_derived_value: str | None
 ) -> dict[str, Any]:
-    """One cached snapshot: ``{"rows": {...}, "errors": {...}}``."""
+    """One snapshot: ``{"rows": {...}, "errors": {...}}`` (about 30 s to build)."""
     repo_root = Path(repo_root_value)
     derived = Path(explicit_derived_value) if explicit_derived_value else None
     rows: dict[str, Any] = {}
@@ -88,6 +90,11 @@ def load_snapshot(
     return rows
 
 
+@st.cache_resource(show_spinner=False)
+def _snapshots() -> RefreshingCache[SnapshotKey, dict[str, Any]]:
+    return RefreshingCache(lambda key: load_snapshot(*key), SNAPSHOT_MAX_AGE_S)
+
+
 def _err(rows: dict[str, Any], label: str) -> str | None:
     return (rows.get("errors") or {}).get(label)
 
@@ -95,7 +102,11 @@ def _err(rows: dict[str, Any], label: str) -> str | None:
 def render_integrity_page() -> None:
     """Default page: pool-scoped Integrity tabs (zero-arg for ``st.Page``)."""
     st.title("Integrity")
-    snapshot = load_snapshot(str(REPO_ROOT), str(_derived()) if _derived() else None)
+    key = (str(REPO_ROOT), str(_derived()) if _derived() else None)
+    snapshot = _snapshots().get(key)
+    if snapshot is None:
+        with st.spinner("Loading projections; the first view after a restart takes ~30 s."):
+            snapshot = _snapshots().build(key)
     if _err(snapshot, "attach"):
         st.warning(_err(snapshot, "attach"))
         return

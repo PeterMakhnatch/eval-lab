@@ -4,8 +4,6 @@
  "explanation": "fired: none",
  "flagged": false,
  "id": "twraw-0010",
- "implementation": "HAR-187 prototype score.py (commands from episode responses, no observations)",
- "reused": false,
  "schema": "evallab.detector_verdict/v1",
  "score": null
 }

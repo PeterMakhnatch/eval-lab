@@ -38,7 +38,9 @@ jobs:
     services:
       postgres:
         # An empty image disables the service; docs-only runs do not start PostgreSQL.
-        image: ${{ needs.scope.outputs.profile == 'true' && 'postgres:18.4-alpine3.24' || '' }}
+        # mirror.gcr.io is Google's public pull-through mirror of Docker Hub library
+        # images (same tags); avoids anonymous Docker Hub auth from GitHub runners.
+        image: ${{ needs.scope.outputs.profile == 'true' && 'mirror.gcr.io/library/postgres:18.4-alpine3.24' || '' }}
         env:
           POSTGRES_DB: evallab_speed_prof
           POSTGRES_USER: evallab

@@ -90,3 +90,50 @@ markerless output, rc 0, no junit) still takes the fallback. Closing it
 needs the pure command-based rule (pytest-cmd + intact addopts + missing
 junit ⇒ 0), which would trade away the custom-echo edge currently kept on
 fallback.
+
+## separate-verifier@3 port validation (2026-10-09, $0 local Docker)
+
+Transform under test: `separate-verifier@3`
+(`src/evallab/separate_verifier.py`; tests
+`tests/test_separate_verifier.py`). 86 cells across 22 tasks: per task,
+oracle (reference fix) and nop under @3, plus a language-appropriate tamper
+graded both by the task's own current grading (`cur`, shared container,
+exit code) and under @3. Every reward is trial `verifier/reward.txt`.
+Tamper solutions make NO attempt to fix the bug. Full table, anomaly
+resolutions, and residuals: `docs/mimo/separate-verifier.md`
+(§"Port validation").
+
+| family | tasks | oracle @3 | nop @3 | tamper @3 | tamper cur |
+|---|---|---|---|---|---|
+| go-test | 000001, 000553 | 0 (env) + 1 | 0, 0 | 0, 0 | 1, 1 |
+| jest | 000047, 000236 | 1, 1 | 0, 0 | 0, 0 | 1, 1 |
+| mocha | 000045, 002928 | 1, 1 | 0, 0 | 0, 0 | 1, 1 |
+| vitest | 000128, 000198 | 1, 1 | 0, 0 | 0, 0 | 1, 1 |
+| usecase-sh | 000008, 000291 | 1, 1 | 0, 0 | 0, 0 | 1, 1 |
+| unittest | 000803, 000838 | 1, 1 | 0, 0 | 0, 0 | 1, 1 |
+| pytest (ADDOPTS-cleared) | 000666, 000523 | 1, 1 | 0, 0 | 0, 0 | 1, 1 |
+| phpunit | 000214 (+000137 tamper-only) | 1 | 0, 0 | 0, 0 | 1, 1 |
+| rspec | 000947 (+001227 env-broken) | n/a | 0 (+0 env) | 0 (+0 env) | 1 (+0 env) |
+| mvn | 000965, 001172 | 0, 0 (env) | 0, 0 (env) | 0, 0 (env) | 0, 0 (env) |
+| cargo | 001083 | 0 (env) | 0 (env) | 0 (env) | 0 (env) |
+| make | 000898 | 1 | 0 | 1 (residual R1, confirmed) | 1 |
+| anomaly control | 000001 cur-oracle | 0 (matches @3) | — | — | — |
+
+79/86 cells at expectation. The 7 deviations are environment breakage
+(E5/E6), identical on both gradings, each with a quoted failure signature
+in the table above: 000001 full-`rc==0` (BN256 stdlib drift + a
+network-dependent libp2p broadcast test; the corrected oracle builds and
+the `state` suite passes on both), 000965/001172 (offline Maven cannot
+resolve parent/junit-bom POMs), 001083 (`cargo` absent), 001227 (offline
+Ruby gems missing). Two preliminary anomalies were root-caused and
+re-proven: the batch-1 000001 oracle failed to build (wrong-era files),
+and the batch-1 000001 PATH shadow never triggered (wrong absolute path);
+both replacements discriminate correctly now.
+
+Mechanism spot-checks (from trial `verifier/` dirs): `os.Exit` gate
+(000553), `process.exit` gate (000045/002928), scoped `exit(0)` gate
+(PHP/Ruby), empty-patch isolation (go-binary overwrite, fakes, all with
+pristine failures), conftest-hook suspicion (ADDOPTS-cleared obfuscated
+exits), blank-output structured rules (unittest/vitest/jest/mocha
+zero-test configs — including a kept tracked `vitest.config.ts`, graded 0
+despite rc 0), and the `*_test.go` / TestMain drops.

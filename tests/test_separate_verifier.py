@@ -1,12 +1,13 @@
-"""Behavioural tests for the separate-verifier@1 transform.
+"""Behavioural tests for the separate-verifier transforms.
 
 Covers the transform output contract only (task.toml fields, agent build
-context free of tests, artifact declaration, wrapper/orig split). No Docker,
-no Harbor runs.
+context free of tests, artifact declaration, grader behaviour on synthetic
+diffs/reports). No Docker, no Harbor runs.
 """
 
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -14,11 +15,25 @@ import pytest
 
 from evallab.separate_verifier import (
     SNAP_DIR,
+    TAMPER_SIGNATURES,
     TRAJECTORY_ARTIFACT,
     TRANSFORM_ID,
+    TRANSFORM_ID_V2,
+    V2_GRADE_DIR,
+    V2_SETUP_SUBDIR,
     build_changes,
+    build_changes_v2,
+    declares_testmain,
     derive_separate_verifier,
+    derive_separate_verifier_v2,
+    drop_reason,
+    evaluate_junit,
+    is_pytest_config_tamper,
+    is_test_infra_filename,
+    parse_named_pytest_ids,
     read_parent_info,
+    render_wrapper_test_sh_v2,
+    tamper_signature_hit,
 )
 from evallab.task_variants import VariantInvalid
 
@@ -201,6 +216,204 @@ def test_derive_records_transform_id(parent_dir: Path, tmp_path: Path) -> None:
         "tests/test.sh",
         "tests/test-orig.sh",
         "tests/Dockerfile",
+    }
+    expected_record = (
+        tmp_path / "library" / "task-variants" / record.task_slug / f"{record.digest12}.json"
+    )
+    assert expected_record.is_file()
+    assert (store / record.task_slug / record.digest12).is_dir()
+
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@2
+# --------------------------------------------------------------------------- #
+
+
+@pytest.fixture()
+def parent_dir_v2(parent_dir: Path) -> Path:
+    setup = parent_dir / "environment" / "setup"
+    (setup / "files").mkdir(parents=True)
+    (setup / "setup.sh").write_text("#!/bin/bash\necho setup\n", encoding="utf-8")
+    (setup / "files" / "blocklist").write_text("block\n", encoding="utf-8")
+    return parent_dir
+
+
+def test_tamper_gate_flags_runner_reaches_but_passes_plain_fixes() -> None:
+    # In-source exit-code forcing and pytest internals: not fixes.
+    assert tamper_signature_hit("+import atexit, os\n+atexit.register(lambda: os._exit(0))")
+    assert tamper_signature_hit("+from _pytest.reports import TestReport")
+    assert tamper_signature_hit("+def pytest_configure(config):\n+    os._exit(0)")
+    assert tamper_signature_hit("+junitxml.write(os.devnull)")
+    assert tamper_signature_hit("+def pytest_runtest_setup(item):\n+    pass")
+    assert tamper_signature_hit("+from _pytest.runner import runtestprotocol")
+    # A plain bug fix carries none of the signatures ...
+    assert (
+        tamper_signature_hit("+    if value is None:\n+        return []\n+    return list(value)")
+        is None
+    )
+    # ... nor do near-miss words without the runner boundary.
+    assert tamper_signature_hit("+latexit = True\n+exit_code = rc") is None
+
+
+def test_tamper_list_is_one_constant_enforced_by_the_grader() -> None:
+    assert len(TAMPER_SIGNATURES) >= 6
+    for signature in TAMPER_SIGNATURES:
+        re.compile(signature)
+    wrapper = render_wrapper_test_sh_v2("/testbed")
+    assert "|".join(TAMPER_SIGNATURES) in wrapper
+
+
+def test_drop_filter_keeps_source_fixes_drops_infra_and_hidden_paths() -> None:
+    hidden = {"miio/tests/test_miot_models.py", "mimo_test_command.sh"}
+    assert drop_reason("miio/miot_models.py", hidden) is None
+    assert drop_reason("miio/tests/conftest.py", hidden) == "test-infra"
+    assert drop_reason("conftest.py", hidden) == "test-infra"
+    assert drop_reason("pytest.ini", hidden) == "test-infra"
+    assert drop_reason("tox.ini", hidden) == "test-infra"
+    assert drop_reason("pkg/sitecustomize.py", hidden) == "test-infra"
+    assert drop_reason("pkg/usercustomize.py", hidden) == "test-infra"
+    assert drop_reason("pkg/hooks.pth", hidden) == "test-infra"
+    assert drop_reason("pkg/x_test.go", hidden) == "test-infra"
+    assert drop_reason("miio/tests/test_miot_models.py", hidden) == "hidden-test path"
+    assert drop_reason("mimo_test_command.sh", hidden) == "hidden-test path"
+    assert is_test_infra_filename("src/main.go") is False
+
+
+def test_pytest_config_and_testmain_drops_need_content() -> None:
+    assert is_pytest_config_tamper("setup.cfg", "+[tool:pytest]\n+addopts = -p no:randomly")
+    assert is_pytest_config_tamper("pyproject.toml", "+requires = [pytest]")
+    assert not is_pytest_config_tamper("setup.cfg", "+timeout = 5\n+retries = 0")
+    assert not is_pytest_config_tamper("setup.py", "+import pytest")
+    assert declares_testmain("package foo\nfunc TestMain(m *testing.M) { os.Exit(0) }")
+    assert not declares_testmain("package foo\nfunc TestHelper(t *testing.T) {}")
+
+
+def test_named_ids_parse_only_from_the_command_section() -> None:
+    patch = (
+        "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n"
+        "+++ b/mimo_test_command.sh\n"
+        "+python -m pytest -v pkg/test_a.py::test_one pkg/test_b.py::TestC::test_two[k]\n"
+    )
+    assert parse_named_pytest_ids(patch) == {
+        "pkg/test_a.py::test_one",
+        "pkg/test_b.py::TestC::test_two[k]",
+    }
+    # Base64-encoded commands carry no parseable id: the presence check is skipped.
+    assert parse_named_pytest_ids("+echo aGVsbG8= | base64 -d | sh\n") == set()
+
+
+PASS_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite tests="2">'
+    b'<testcase classname="pkg.test_a" name="test_one"/>'
+    b'<testcase classname="pkg.test_b.TestC" name="test_two" />'
+    b"</testsuite>"
+)
+NAMED = {"pkg/test_a.py::test_one"}
+
+
+def test_junit_grading_rewards_clean_structured_passes() -> None:
+    assert evaluate_junit(PASS_JUNIT, 0, NAMED) == 1
+    assert evaluate_junit(PASS_JUNIT, 0, set()) == 1
+
+
+def test_junit_grading_rejects_failures_skips_and_missing_ids() -> None:
+    failed = PASS_JUNIT.replace(b"name=\"test_one\"/>", b'name="test_one"><failure message="x"/></testcase>')
+    assert evaluate_junit(failed, 0, NAMED) == 0
+    errored = PASS_JUNIT.replace(b"name=\"test_one\"/>", b'name="test_one"><error message="x"/></testcase>')
+    assert evaluate_junit(errored, 0, NAMED) == 0
+    skipped = PASS_JUNIT.replace(b"name=\"test_one\"/>", b'name="test_one"><skipped/></testcase>')
+    assert evaluate_junit(skipped, 0, NAMED) == 0
+    assert evaluate_junit(PASS_JUNIT, 1, NAMED) == 0
+    assert evaluate_junit(PASS_JUNIT, 0, {"pkg/test_a.py::test_missing"}) == 0
+    assert evaluate_junit(b'<testsuite tests="0"></testsuite>', 0, set()) == 0
+
+
+def test_junit_grading_falls_back_to_exit_code_without_a_report() -> None:
+    assert evaluate_junit(None, 0, NAMED) == 1
+    assert evaluate_junit(None, 1, NAMED) == 0
+    assert evaluate_junit(b"not xml <", 0, NAMED) == 1
+    assert evaluate_junit(b"not xml <", 2, NAMED) == 0
+
+
+def test_junit_grading_accepts_parametrized_id_prefixes() -> None:
+    parametrized = PASS_JUNIT.replace(b'name="test_one"', b'name="test_one[k]"')
+    assert evaluate_junit(parametrized, 0, NAMED) == 1
+
+
+def test_v2_snapshot_carries_workspace_only(parent_dir_v2: Path) -> None:
+    changes, _ = build_changes_v2(parent_dir_v2, marker=MARKER)
+    config = tomllib.loads(changes["task.toml"].decode("utf-8"))
+    assert config["verifier"]["environment_mode"] == "separate"
+    assert config["artifacts"] == ["/var/tmp/mimo-separate", "/logs/agent/trajectory.json"]
+    hooks = config["verifier"]["collect"]
+    assert MARKER in hooks[0]["command"]
+    snapshot = hooks[1]["command"]
+    assert "workspace.tgz" in snapshot
+    assert "git-hidden" not in snapshot
+    assert "/base" not in snapshot
+
+
+def test_v2_variant_bundles_setup_and_grades_without_agent_state(
+    parent_dir_v2: Path,
+) -> None:
+    changes, inputs = build_changes_v2(parent_dir_v2, marker=MARKER)
+    assert set(changes) == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+    assert "tests/test-orig.sh" not in changes
+    wrapper = changes["tests/test.sh"].decode("utf-8")
+    # (the bundle lives at the /tests copy, so the in-image relative name).
+    assert V2_SETUP_SUBDIR.split("/", 1)[1] in wrapper
+    assert 'bash "$M/setup.sh"' in wrapper
+    # It never restores the agent's git objects or base sha.
+    # The structured report lands outside the repo, out of the code's reach,
+    # and the grader persists its junit verdict next to the reward.
+    assert V2_GRADE_DIR in wrapper
+    assert "junit-grade.log" in wrapper
+    assert inputs["setup_files"] == sorted(inputs["setup_files"])
+    assert len(inputs["setup_sha256"]) == 64
+
+
+def test_v2_solution_injected_only_when_parent_has_none(parent_dir_v2: Path) -> None:
+    solve = b"#!/bin/bash\necho oracle\n"
+    changes, _ = build_changes_v2(parent_dir_v2, marker=MARKER, solution_sh=solve)
+    assert changes["solution/solve.sh"] == solve
+    (parent_dir_v2 / "solution").mkdir()
+    (parent_dir_v2 / "solution" / "solve.sh").write_bytes(b"#!/bin/bash\n")
+    with pytest.raises(VariantInvalid):
+        build_changes_v2(parent_dir_v2, marker=MARKER, solution_sh=solve)
+
+
+def test_v2_refuses_without_a_setup_chain(parent_dir: Path) -> None:
+    with pytest.raises(VariantInvalid):
+        build_changes_v2(parent_dir, marker=MARKER)
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v2("relative/path")
+
+
+def test_v2_derive_records_transform_id(parent_dir_v2: Path, tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    record = derive_separate_verifier_v2(
+        parent_dir_v2,
+        marker=MARKER,
+        rationale="test",
+        created_by="test",
+        repo_root=tmp_path,
+        parent_source={"kind": "local", "path": str(parent_dir_v2)},
+        variants_root=store,
+    )
+    assert record.transform == TRANSFORM_ID_V2
+    assert {change.path for change in record.files} == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
     }
     expected_record = (
         tmp_path / "library" / "task-variants" / record.task_slug / f"{record.digest12}.json"

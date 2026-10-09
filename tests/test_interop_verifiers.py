@@ -53,60 +53,61 @@ def make_task(root: Path, *, name: str = "lab/synthetic", workdir: str | None = 
     return task_dir
 
 
-def load_plan_fallback(task, agent, attacks):
-    # Call the fallback directly: it stays unit-testable after
-    # interop.scripted_agent_plan lands (load_plan then prefers the factory).
-    return vf._fallback_plan(task, agent, tuple(attacks))
+# -- plans (single factory in interop; this runner only materializes) -----------
 
 
-# -- plans --------------------------------------------------------------------
-
-
-def test_plan_oracle_stages_solution(tmp_path: Path) -> None:
+def test_factory_oracle_runs_solve_in_workdir(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
-    plan = load_plan_fallback(task, "oracle", ())
-    assert plan.command == f"bash {vf.ORACLE_STAGE_DIR}/solve.sh"
-    assert plan.files[f"{vf.ORACLE_STAGE_DIR}/solve.sh"] == b"#!/bin/bash\necho solved\n"
+    plan = _interop.scripted_agent_plan(task, "oracle", ())
+    assert plan.command == "bash solution/solve.sh"
+    assert plan.files == {}
 
 
-def test_plan_nop_is_empty(tmp_path: Path) -> None:
+def test_materialize_oracle_uploads_solution(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
-    plan = load_plan_fallback(task, "oracle", ())
-    nop = load_plan_fallback(task, "nop", ())
-    assert nop.files == {} and nop.command is None
-    assert plan.files and plan.command
+    plan = _interop.scripted_agent_plan(task, "oracle", ())
+    files = vf.materialize_files(task, "oracle", plan)
+    assert files["/app/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
+    assert files["/solution/solve.sh"] == b"#!/bin/bash\necho solved\n"
 
 
-def test_plan_cheat_stages_ladder_with_subset(tmp_path: Path) -> None:
+def test_materialize_oracle_needs_solve_sh(tmp_path: Path) -> None:
+    task_dir = make_task(tmp_path)
+    (task_dir / "solution" / "solve.sh").unlink()
+    task = SimpleNamespace(task_dir=task_dir)
+    plan = _interop.scripted_agent_plan(task, "oracle", ())
+    with pytest.raises(ValueError, match="oracle needs solution/solve.sh"):
+        vf.materialize_files(task, "oracle", plan)
+
+
+def test_factory_nop_is_empty(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
-    plan = load_plan_fallback(task, "cheat", ("reward_plant", "skip_plant"))
-    assert set(plan.files) == {vf.CHEAT_STAGE_PATH}
-    assert b"CHEAT_LADDER_RESULT=" in plan.files[vf.CHEAT_STAGE_PATH]
+    plan = _interop.scripted_agent_plan(task, "nop", ())
+    assert plan.files == {} and plan.command is None
+    assert vf.materialize_files(task, "nop", plan) == {}
+
+
+def test_factory_cheat_stages_ladder_with_subset(tmp_path: Path) -> None:
+    task = _interop.load_harbor_task(make_task(tmp_path))
+    plan = _interop.scripted_agent_plan(task, "cheat", ("reward_plant", "skip_plant"))
+    assert set(plan.files) == {_interop.CHEAT_LADDER_CONTAINER_PATH}
+    assert b"CHEAT_LADDER_RESULT=" in plan.files[_interop.CHEAT_LADDER_CONTAINER_PATH]
     assert "--attacks reward_plant,skip_plant" in (plan.command or "")
-    assert "--cwd /app" in (plan.command or "")
-    full = load_plan_fallback(task, "cheat", ())
+    assert "--cwd ." in (plan.command or "")
+    full = _interop.scripted_agent_plan(task, "cheat", ())
     assert "--attacks" not in (full.command or "")
 
 
-def test_plan_cheat_rejects_unknown_attack(tmp_path: Path) -> None:
+def test_factory_cheat_rejects_unknown_attack(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
-    with pytest.raises(ValueError, match="unknown cheat attacks"):
-        load_plan_fallback(task, "cheat", ("nope",))
+    with pytest.raises(ValueError, match="unknown cheat attack"):
+        _interop.scripted_agent_plan(task, "cheat", ("nope",))
 
 
-def test_plan_rejects_unknown_agent(tmp_path: Path) -> None:
+def test_factory_rejects_unknown_agent(tmp_path: Path) -> None:
     task = _interop.load_harbor_task(make_task(tmp_path))
     with pytest.raises(ValueError, match="oracle/nop/cheat"):
-        load_plan_fallback(task, "wizard", ())
-
-
-def test_load_plan_prefers_interop_factory(tmp_path: Path, monkeypatch) -> None:
-    task = _interop.load_harbor_task(make_task(tmp_path))
-    sentinel = object()
-    monkeypatch.setattr(
-        _interop, "scripted_agent_plan", lambda t, a, s: sentinel, raising=False
-    )
-    assert vf.load_plan(task, "nop", ()) is sentinel
+        _interop.scripted_agent_plan(task, "wizard", ())
 
 
 def test_harness_alias_registers_module() -> None:
@@ -124,7 +125,9 @@ def test_harness_alias_registers_module() -> None:
 
 
 def test_harness_config_round_trips_files() -> None:
-    plan = vf.Plan(files={"/x/solve.sh": b"echo hi\n"}, command="bash /x/solve.sh")
+    plan = _interop.ScriptedPlan(
+        files={"/x/solve.sh": b"echo hi\n"}, command="bash /x/solve.sh"
+    )
     cfg = vf.harness_config(plan)
     assert cfg["id"] == vf.VERIFIERS_HARNESS_ID
     assert cfg["command"] == "bash /x/solve.sh"
@@ -132,7 +135,7 @@ def test_harness_config_round_trips_files() -> None:
 
 
 def test_harness_config_nop_has_no_command() -> None:
-    cfg = vf.harness_config(vf.Plan(files={}, command=None))
+    cfg = vf.harness_config(_interop.ScriptedPlan(files={}, command=None))
     assert cfg["command"] is None and cfg["files_b64"] == {}
 
 
@@ -150,6 +153,26 @@ def test_resolve_task_image_declared(tmp_path: Path) -> None:
     )
     task = _interop.load_harbor_task(task_dir)
     assert vf.resolve_task_image(task) == ("example/img:1", "declared")
+
+
+def test_agent_runtime_uses_declared_resources() -> None:
+    declared = SimpleNamespace(cpu=2.0, memory=8.0)
+    assert vf.agent_runtime("img:1", declared) == {
+        "type": "docker",
+        "cpu": 2.0,
+        "memory": 8.0,
+        "image": "img:1",
+    }
+
+
+def test_agent_runtime_defaults_when_undeclared() -> None:
+    empty = SimpleNamespace(cpu=None, memory=None)
+    assert vf.agent_runtime(None, empty) == {
+        "type": "docker",
+        "cpu": vf.AGENT_CPU,
+        "memory": vf.AGENT_MEMORY_GB,
+    }
+
 
 
 def test_resolve_task_image_default_without_dockerfile(tmp_path: Path) -> None:
@@ -244,6 +267,32 @@ def test_cell_from_trace_fail_and_unscored_is_error() -> None:
 def test_run_cell_rejects_unknown_agent(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="oracle/nop/cheat"):
         vf.run_cell(tmp_path, "wizard", (), workdir=tmp_path / "cell", timeout_seconds=1)
+
+
+def test_run_cell_rejects_unknown_isolation(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="default/shared"):
+        vf.run_cell(
+            tmp_path, "nop", (), workdir=tmp_path / "cell", timeout_seconds=1,
+            isolation="separate",
+        )
+
+
+def test_run_cell_passes_isolation_through(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(vf, "verifiers_available", lambda: True)
+    monkeypatch.setattr(vf, "_docker_reachable", lambda: (True, "docker x"))
+    seen: dict = {}
+
+    async def fake_arun(*args, **kwargs):
+        seen.update(kwargs)
+        return {"verdict": "fail"}
+
+    monkeypatch.setattr(vf, "_arun_cell", fake_arun)
+    vf.run_cell(
+        tmp_path, "nop", (), workdir=tmp_path / "cell", timeout_seconds=1,
+        isolation="shared",
+    )
+    assert seen.get("isolation") == "shared"
+
 
 
 def test_run_cell_without_verifiers_is_error(tmp_path: Path, monkeypatch) -> None:

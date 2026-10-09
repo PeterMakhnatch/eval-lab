@@ -54,6 +54,10 @@ class ScriptedHarness(Harness[ScriptedHarnessConfig]):
     EXECUTES_CODE = True
     NEEDS_CONTAINER = True
 
+    #: Trace-record tail bound: program output stays reviewable evidence (e.g.
+    #: the cheat ladder's CHEAT_LADDER_RESULT line for per-attack status).
+    MAX_OUTPUT_CHARS = 6000
+
     async def launch(
         self,
         ctx: ModelContext,
@@ -67,6 +71,14 @@ class ScriptedHarness(Harness[ScriptedHarnessConfig]):
     ) -> ProgramResult:
         for path, payload in self.config.files_b64.items():
             await runtime.write(path, base64.b64decode(payload))
-        if self.config.command:
-            return await runtime.run_program(["sh", "-c", self.config.command], {})
-        return ProgramResult(0, "", "scripted nop: staged files, ran no command")
+        if not self.config.command:
+            return ProgramResult(0, "", "scripted nop: staged files, ran no command")
+        result = await runtime.run_program(["sh", "-c", self.config.command], {})
+        trace.info["scripted_command"] = self.config.command
+        trace.info["scripted_exit"] = result.exit_code
+        trace.info["scripted_stdout_tail"] = result.stdout[-self.MAX_OUTPUT_CHARS :]
+        trace.info["scripted_stderr_tail"] = result.stderr[-self.MAX_OUTPUT_CHARS :]
+        for line in result.stdout.splitlines():
+            if line.startswith("CHEAT_LADDER_RESULT="):
+                trace.info["cheat_ladder_result"] = line.split("=", 1)[1][:65536]
+        return result

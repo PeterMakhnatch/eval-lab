@@ -27,11 +27,11 @@ import json
 import re
 import subprocess
 import tomllib
-from dataclasses import dataclass, field
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
-from evallab.interop import load_harbor_task, verdict_for_reward
+from evallab.interop import load_harbor_task, scripted_agent_plan, verdict_for_reward
 
 VERIFIERS_PIN = "0.3.1"
 VERIFIERS_HARNESS_ID = "evallab_vf_scripted_harness"
@@ -58,25 +58,13 @@ def _ensure_harness_alias() -> None:
             )
         sys.modules[VERIFIERS_HARNESS_ID] = module
 
-ORACLE_STAGE_DIR = "/tmp/oracle-solve"
-CHEAT_STAGE_PATH = "/tmp/cheat_ladder.py"
-CHEAT_EVIDENCE_DIR = "/tmp/cheat-evidence"
-
 AGENT_CPU = 1.0
 AGENT_MEMORY_GB = 2.0
 
-SETUP_TIMEOUT_SECONDS = 300.0
+SETUP_TIMEOUT_SECONDS = 600.0
 FINALIZE_TIMEOUT_SECONDS = 180.0
 
 _CELL_AGENTS = ("oracle", "nop", "cheat")
-
-
-@dataclass(frozen=True)
-class Plan:
-    """Fallback plan shape: mirrors interop.ScriptedPlan (files + command)."""
-
-    files: dict[str, bytes] = field(default_factory=dict)
-    command: str | None = None
 
 
 def verifiers_version() -> str | None:
@@ -106,54 +94,30 @@ def container_workdir(task_dir: str | Path) -> str:
     return "/app"
 
 
-def load_plan(task: Any, agent: str, attacks: tuple[str, ...]) -> Any:
-    """Plan for one cell: interop.scripted_agent_plan when it lands, else fallback.
+def materialize_files(task: Any, agent: str, plan: Any) -> dict[str, bytes]:
+    """Files to stage for a plan: the plan's own plus runner-side materialization.
 
-    The fallback implements the same documented semantics (oracle stages
-    solution/ and runs solve.sh; nop stages nothing and runs nothing; cheat
-    stages cheat_ladder.py and runs it with the attack subset) without copying
-    any ladder code — it only reads cheat_ladder.py's bytes.
+    The factory is task-independent; the verifiers container only holds the
+    task image's content, so the oracle's ``solution/`` (which the plan command
+    addresses relative to the workdir) is uploaded from the task package here:
+    at ``{workdir}/solution/`` for the relative command and at ``/solution/``
+    for solutions that reference it absolutely (the inspect runner stages it
+    there too). No plan logic is duplicated: file bytes come from the package,
+    the command from the factory.
     """
-    from evallab import interop as _interop
-
-    factory = getattr(_interop, "scripted_agent_plan", None)
-    if callable(factory):
-        return factory(task, agent, tuple(attacks))
-    return _fallback_plan(task, agent, tuple(attacks))
-
-
-def _fallback_plan(task: Any, agent: str, attacks: tuple[str, ...]) -> Plan:
-    if agent == "nop":
-        return Plan(files={}, command=None)
+    files = dict(plan.files)
     if agent == "oracle":
         solution_dir = task.task_dir / "solution"
-        solve = solution_dir / "solve.sh"
-        if not solve.is_file():
+        if not (solution_dir / "solve.sh").is_file():
             raise ValueError(f"{task.task_dir}: oracle needs solution/solve.sh")
-        files = {
-            f"{ORACLE_STAGE_DIR}/{path.relative_to(solution_dir).as_posix()}": path.read_bytes()
-            for path in sorted(solution_dir.rglob("*"))
-            if path.is_file()
-        }
-        return Plan(files=files, command=f"bash {ORACLE_STAGE_DIR}/solve.sh")
-    if agent == "cheat":
-        from evallab.cheat_ladder import ATTACKS
-
-        unknown = [name for name in attacks if name not in ATTACKS]
-        if unknown:
-            raise ValueError(f"unknown cheat attacks: {unknown} (ladder: {list(ATTACKS)})")
-        from evallab import cheat_ladder as _ladder
-
-        ladder_path = Path(_ladder.__file__ or "")
-        files = {CHEAT_STAGE_PATH: ladder_path.read_bytes()}
-        command = (
-            f"python3 {CHEAT_STAGE_PATH} --cwd {container_workdir(task.task_dir)}"
-            f" --evidence-dir {CHEAT_EVIDENCE_DIR}"
-        )
-        if attacks:
-            command += f" --attacks {','.join(attacks)}"
-        return Plan(files=files, command=command)
-    raise ValueError(f"unknown agent {agent!r} (oracle/nop/cheat only, $0)")
+        workdir = container_workdir(task.task_dir)
+        for path in sorted(solution_dir.rglob("*")):
+            if path.is_file():
+                payload = path.read_bytes()
+                rel = path.relative_to(solution_dir).as_posix()
+                files[f"{workdir}/solution/{rel}"] = payload
+                files[f"/solution/{rel}"] = payload
+    return files
 
 
 def harness_config(plan: Any) -> dict[str, Any]:
@@ -202,6 +166,18 @@ def resolve_task_image(task: Any) -> tuple[str | None, str]:
             raise RuntimeError(f"docker build failed for {task.task_id}: {detail}")
         return tag, "built"
     return None, "default"
+
+
+def agent_runtime(image: str | None, resources: Any) -> dict[str, Any]:
+    """Docker runtime dict: task-declared cpu/memory win, else bounded defaults."""
+    runtime: dict[str, Any] = {
+        "type": "docker",
+        "cpu": resources.cpu or AGENT_CPU,
+        "memory": resources.memory or AGENT_MEMORY_GB,
+    }
+    if image is not None:
+        runtime["image"] = image
+    return runtime
 
 
 def _docker_reachable() -> tuple[bool, str]:
@@ -267,6 +243,7 @@ async def _arun_cell(
     *,
     workdir: Path,
     timeout_seconds: int | None,
+    isolation: str = "default",
 ) -> dict[str, Any]:
     from verifiers.v1.clients import ModelContext  # ty: ignore[unresolved-import]
     from verifiers.v1.configs.client import EvalClientConfig  # ty: ignore[unresolved-import]
@@ -282,23 +259,25 @@ async def _arun_cell(
     version = verifiers_version() or "unknown"
     platform_version = f"verifiers {version}"
     task = load_harbor_task(task_dir)
-    plan = load_plan(task, agent, attacks)
+    plan = scripted_agent_plan(task, agent, tuple(attacks))
+    plan = replace(plan, files=materialize_files(task, agent, plan))
     image, how = await asyncio.to_thread(resolve_task_image, task)
 
-    harbor_config = HarborConfig(ignore_dockerfile=True, ignore_timeouts=False)
+    force_shared = isolation == "shared"
+    harbor_config = HarborConfig(
+        ignore_dockerfile=True,
+        ignore_timeouts=False,
+        ignore_separate_verifier=force_shared,
+    )
     data = parse_task(task.task_dir, 0, harbor_config)
     if image is not None:
         data = data.model_copy(update={"image": image})
-    isolation = "separate" if data.verifier is not None else "shared"
+    effective_isolation = "separate" if data.verifier is not None else "shared"
     harbor_task = HarborTask(data, harbor_config.task)
 
-    runtime: dict[str, Any] = {
-        "type": "docker",
-        "cpu": AGENT_CPU,
-        "memory": AGENT_MEMORY_GB,
-    }
-    if image is not None:
-        runtime["image"] = image
+    # Task-declared resources are bounded by authorship; the runner's defaults
+    # only bound tasks that declare nothing.
+    runtime = agent_runtime(image, data.resources)
     env = HarborEnv(
         HarborEnvConfig(
             taskset={
@@ -306,6 +285,7 @@ async def _arun_cell(
                 "dataset": "harbor/hello-world",
                 "ignore_dockerfile": True,
                 "ignore_timeouts": False,
+                "ignore_separate_verifier": force_shared,
             },
             agent={
                 "harness": harness_config(plan),
@@ -344,7 +324,8 @@ async def _arun_cell(
         "attacks": list(attacks),
         "image": image,
         "image_source": how,
-        "isolation": isolation,
+        "isolation": effective_isolation,
+        "isolation_requested": isolation,
         "command": plan.command,
         "staged_files": sorted(plan.files),
         "platform_version": platform_version,
@@ -361,7 +342,7 @@ async def _arun_cell(
         attacks=attacks,
         reward=reward,
         scored=bool(scored_names),
-        isolation=isolation,
+        isolation=effective_isolation,
         platform_version=platform_version,
         evidence=str(workdir),
         error=error,
@@ -375,15 +356,22 @@ def run_cell(
     *,
     workdir: Path,
     timeout_seconds: int | None,
+    isolation: str = "default",
 ) -> dict:
     """Run one (task, agent) cell under verifiers (contract #3).
 
     Local docker runtime only, no model calls, $0. Reward >= 1.0 is pass;
     infrastructure failures are error (never fail); an unreachable daemon is
-    skipped instead of failing.
+    skipped instead of failing. ``isolation`` is ``"default"`` (the task's own
+    shared/separate declaration) or ``"shared"`` (force grading in the agent's
+    box via ignore_separate_verifier); forcing a separate box for a shared
+    task is not supported by HarborEnv, so it is refused. The cell records
+    the effective mode.
     """
     if agent not in _CELL_AGENTS:
         raise ValueError(f"refusing non-scripted agent {agent!r} (oracle/nop/cheat only, $0)")
+    if isolation not in ("default", "shared"):
+        raise ValueError(f"unknown isolation {isolation!r} (default/shared only, $0)")
     attacks = tuple(attacks)
     if not verifiers_available():
         return {
@@ -418,7 +406,7 @@ def run_cell(
     try:
         return asyncio.run(
             _arun_cell(Path(task_dir), agent, attacks, workdir=Path(workdir),
-                       timeout_seconds=timeout_seconds)
+                       timeout_seconds=timeout_seconds, isolation=isolation)
         )
     except Exception as exc:
         return {

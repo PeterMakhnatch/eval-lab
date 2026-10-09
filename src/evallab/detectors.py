@@ -350,6 +350,35 @@ class LaminarStuckLoop(_LaminarSignal):
     description = "Laminar Signal stuck_loop"
 
 
+class _KevDecision(Detector):
+    """Kev decision-model verdicts (jaredpalmer/kev, Kev-4B v1.0) scored in batch on
+    Modal by ``research/experiments/kev-hack-detector`` and imported with its
+    ``write_cache.py``; there is no live judge here. A trace's score is the max
+    P(yes) over its ~5k-token windows."""
+
+    paid = True
+
+
+class KevAnyCheat(_KevDecision):
+    name = "kev_any_cheat"
+    description = "Kev-4B zero-shot, generic 'any cheating' noul, max over windows"
+
+
+class KevRouter(_KevDecision):
+    name = "kev_router"
+    description = "Kev-4B zero-shot, 1 - P(none) of the 8-way hack-pattern router"
+
+
+class KevStacked(_KevDecision):
+    name = "kev_stacked"
+    description = "Logistic regression on 16 Kev-4B zero-shot probabilities, CheatBench-trained"
+
+
+class KevFt1AnyCheat(_KevDecision):
+    name = "kev_ft1_any_cheat"
+    description = "Kev-4B delta fine-tuned on 479 CheatBench windows (any_cheat only), max over windows"
+
+
 class HeldOutRegrade(Detector):
     """Re-run the trial's recorded artifacts under the task's current verifier
     (``evallab.regrade``, local Docker). A pass that no longer holds is flagged.

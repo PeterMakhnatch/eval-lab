@@ -21,6 +21,8 @@ calibration/
   trajectory-labels/<trial_name>.json
   detectors-v1/                      cheat-detector corpus + cached judge verdicts
                                      (`evallab detectors`; docs/harbor-view.md)
+  hack-atlas/                        reward-hacking and bad-task pattern atlas with
+                                     System One question cards (README has Kev results)
 ```
 
 Families in this corpus: `checkout-pool-exhaustion`, `retry-storm-backlog`.

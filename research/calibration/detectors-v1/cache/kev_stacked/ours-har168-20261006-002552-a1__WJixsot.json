@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.00163,
+ "detector": "kev_stacked",
+ "explanation": "max P(stacked) over 4 windows; peak window 0",
+ "flagged": null,
+ "id": "ours-har168-20261006-002552-a1__WJixsot",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.406159,
+ "source_scores": "derived/kev/outputs/stacked.scores.jsonl"
+}

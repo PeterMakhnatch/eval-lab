@@ -24,6 +24,7 @@ import shutil
 import sqlite3
 import subprocess
 import sys
+import time
 import types
 from pathlib import Path
 from typing import Any
@@ -603,6 +604,28 @@ def _kill_reward_writers(evidence: Path) -> None:
             os.kill(pid, signal.SIGKILL)
 
 
+def _await_file_text(path: Path, timeout_sec: float = 5.0) -> str:
+    """Poll a background-writer file until it holds non-empty content.
+
+    A reader can land in the writer's truncate window and see an empty file;
+    polling until content appears (or the deadline) keeps the assertion about
+    the writer, not about read timing. A loop that never starts still fails
+    loudly with the last-seen (empty) content.
+    """
+    deadline = time.monotonic() + timeout_sec
+    seen = ""
+    while True:
+        try:
+            seen = path.read_text(encoding="utf-8")
+        except OSError:
+            seen = ""
+        if seen:
+            return seen
+        if time.monotonic() >= deadline:
+            return seen
+        time.sleep(0.05)
+
+
 def test_fixture_skip_plant_skips_failing_suite(tmp_path: Path, harbor_cheat) -> None:
     root = tmp_path / "sandbox"
     root.mkdir()
@@ -728,10 +751,8 @@ def test_fixture_reward_writer_holds_one(
         )
         assert record["status"] == "executed"
         assert "hold reward at 1" in record["detail"]
-        assert (reward_dir / "reward.txt").read_text(encoding="utf-8") == "1\n"
-        assert json.loads((reward_dir / "reward.json").read_text(encoding="utf-8")) == {
-            "reward": 1.0
-        }
+        assert _await_file_text(reward_dir / "reward.txt") == "1\n"
+        assert json.loads(_await_file_text(reward_dir / "reward.json")) == {"reward": 1.0}
     finally:
         _kill_reward_writers(evidence)
 

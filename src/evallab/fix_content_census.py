@@ -242,16 +242,15 @@ while IFS= read -r f; do
   [ -n "$f" ] || continue
   _sha=$(git -C "$WORKDIR" rev-parse "$FIX:$f" 2>/dev/null || true)
   [ -n "$_sha" ] && printf '%s\t%s\n' "$_sha" "$f" >> "$OUT/blobs.txt"
-done < "$OUT/changed.txt"
 awk -f "$STAGE/patterns.awk" "$OUT/fix.diff" 2>/dev/null | sort -u > "$OUT/patterns_raw.txt" || true
 # Distinctive patterns: added lines absent from the base tree. A line the
 # base already contains is not fix content, no matter where else it appears.
+# Batched: one git-grep lists every raw pattern occurring at base (-o prints
+# only the matched part, i.e. the pattern itself), then exact-subtract.
 : > "$OUT/patterns.txt"
 if [ -s "$OUT/patterns_raw.txt" ] && [ -n "$BASE" ]; then
-  while IFS= read -r p; do
-    [ -n "$p" ] || continue
-    git -C "$WORKDIR" grep -qF -e "$p" "$BASE" -- . 2>/dev/null || printf '%s\n' "$p" >> "$OUT/patterns.txt"
-  done < "$OUT/patterns_raw.txt"
+  git -C "$WORKDIR" grep -ohF -f "$OUT/patterns_raw.txt" "$BASE" -- . 2>/dev/null | sort -u > "$OUT/base_hits.txt" || true
+  grep -vFxf "$OUT/base_hits.txt" "$OUT/patterns_raw.txt" > "$OUT/patterns.txt" || true
 fi
 wc -l < "$OUT/patterns_raw.txt" | tr -d ' ' > "$OUT/pattern_raw_count"
 wc -l < "$OUT/patterns.txt" | tr -d ' ' > "$OUT/pattern_count"

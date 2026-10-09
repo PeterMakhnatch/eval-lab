@@ -104,7 +104,7 @@ def test_probe_covers_all_stages() -> None:
         "rev-list --all",
         "fsck --unreachable",
         "patterns_raw",
-        "grep -qF",
+        "grep -ohF",
         "grep -rlF",
         "hit_detail",
         "fix_mtimes",

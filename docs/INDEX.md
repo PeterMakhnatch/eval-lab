@@ -69,7 +69,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:270f36022d2afd2a2be7845918749c6c14fc275c69f25ff2828cbf2bb90b6ee9
+    digest: sha256:c544654d817b77506ad378294de58183a208e54259e7a4a702c8bdb6703cdb10
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -127,7 +127,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-quality.md
-    digest: sha256:c547acf59f6742ff27f987281590c1aaeff2478b15c4ed239ab70ca9f7a3d4d8
+    digest: sha256:1028bb2b776797db492c9e19ef465a039132086babc9d74d84a1a4ddb0932339
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

@@ -1,0 +1,57 @@
+{
+ "name": "kev4b-rh-ft1",
+ "init_from": "jaredpalmer/kev-4b@v1.0",
+ "base": "Qwen/Qwen3.5-4B-Base",
+ "base_revision": "1001bb4d826a52d1f399e183466143f4da7b741b",
+ "train_cmd": "kev.train --data /runs/kev4b-rh-ft1/data/train.jsonl --init_from jaredpalmer/kev-4b@v1.0 --base Qwen/Qwen3.5-4B-Base --out /runs/kev4b-rh-ft1/checkpoint --device cuda --dtype bf16 --epochs 1 --lr 2e-05 --batch 1 --accum 8 --checkpointing 1 --seed 0 --max_state 6144 --lora 16 --head_dim 256 --lora_targets all --option_isolation 0 --special_embeddings 0 --weights_dtype fp32 --p_none_pair 0.25 --base_revision 1001bb4d826a52d1f399e183466143f4da7b741b",
+ "temperature": 1.148698354997035,
+ "n_dev": 36,
+ "dev_metrics": {
+  "n": 36,
+  "nll": 0.03035248819359454,
+  "acc": 0.9722222222222222,
+  "ece": 0.019982071430812667,
+  "brier": 0.02250827276475127,
+  "mean_conf": 0.9874918744738063,
+  "confident_error_rate": 0.0,
+  "coverage_at_0_9": 0.9722222222222222,
+  "accuracy_at_0_9": 1.0,
+  "coverage_at_5pct_error": 1.0,
+  "coverage_at_1pct_error": 0.9722222222222222,
+  "aurc": 0.0007716049382716049,
+  "error_rate_at_0_9": 0.0,
+  "confidence_bias": 0.015269652251584054,
+  "top_bins": {
+   "0.9": {
+    "n": 35,
+    "errors": 0,
+    "error_rate": 0.0
+   },
+   "0.95": {
+    "n": 35,
+    "errors": 0,
+    "error_rate": 0.0
+   },
+   "0.99": {
+    "n": 33,
+    "errors": 0,
+    "error_rate": 0.0
+   }
+  },
+  "selective": {
+   "0.5": {
+    "coverage": 0.5,
+    "accuracy": 1.0,
+    "confidence_cutoff": 0.9999099947127517
+   },
+   "0.8": {
+    "coverage": 0.8055555555555556,
+    "accuracy": 1.0,
+    "confidence_cutoff": 0.9992601676844746
+   }
+  }
+ },
+ "wall_seconds": 429,
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "kev_ref": "53cb0b548381e51bd88ecf3ba45e8191fe9fa7ae"
+}

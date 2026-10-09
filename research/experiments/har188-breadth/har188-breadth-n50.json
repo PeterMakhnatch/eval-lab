@@ -9,12 +9,14 @@
   "allowed_deviations": [
     {
       "field": "harness.additions",
-      "reason": "HAR-164 explicitly authorized native transport, terminal metadata, logical child-log and FineEnvs instruction-boundary adapters; pinned tools, successful-answer semantics, sampling and 500 steps remain unchanged.",
+      "reason": "HAR-164 explicitly authorized native transport, terminal metadata, logical child-log and FineEnvs instruction-boundary adapters; mimo-clean adds the default-off Xiaomi antihack guard and explicit-rules recorder; pinned tools, successful-answer semantics, sampling and 500 steps remain unchanged.",
       "value": {
         "agent_log_paths": "logical_childlog",
         "cold_start_retry_window_seconds": 300.0,
+        "explicit_rules_addendum": "recorded_opt_in_flag",
         "fineenv_issue_header": "strip_one_leading_copy",
-        "infrastructure_errors": "stop_metadata"
+        "infrastructure_errors": "stop_metadata",
+        "xiaomi_antihack_guard": "opt_in_every_default_agent"
       }
     }
   ],

@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "cb-003184",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

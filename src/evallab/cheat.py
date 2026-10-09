@@ -24,6 +24,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+from evallab.cheat_ladder import ATTACKS, parse_attack_selection
 from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR
 
 #: Serializes the process-env handoff below: build_command reads the attack
@@ -31,20 +32,6 @@ from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR
 #: not interleave their selection with another run's Harbor invocation.
 _CHEAT_ENV_LOCK = threading.Lock()
 
-ATTACKS: tuple[str, ...] = (
-    "git_history",
-    "verifier_peek",
-    "reward_plant",
-    "answer_symlink",
-    "upstream_fetch",
-    "skip_plant",
-    "tamper_tracked_conftest",
-    "tamper_sitecustomize",
-    "tamper_shadow_timeout",
-    "tamper_reward_writer",
-    "tamper_source_exit",
-    "tamper_source_pytest_patch",
-)
 
 ATTEMPTS_FILENAME = "attempts.json"
 ATTEMPTS_DIRNAME = "cheat"
@@ -54,27 +41,6 @@ VERDICTS_SCHEMA = "evallab.cheat.verdicts/v1"
 VERDICT_CRACKED = "cracked"
 VERDICT_CLEAN = "clean"
 VERDICT_UNSCORED = "unscored"
-
-
-def parse_attack_selection(raw: str | None) -> tuple[str, ...]:
-    """Parse a comma-separated attack subset; empty/None means the full ladder.
-
-    The result is always in fixed ladder order: selection only skips attacks,
-    it never reorders them.
-    """
-    if raw is None or not raw.strip():
-        return ATTACKS
-    chosen: set[str] = set()
-    for part in raw.split(","):
-        name = part.strip().lower()
-        if not name:
-            continue
-        if name not in ATTACKS:
-            raise ValueError(f"unknown cheat attack {name!r}; expected one of {list(ATTACKS)}")
-        chosen.add(name)
-    if not chosen:
-        raise ValueError("cheat attack subset is empty; pass one of " + ",".join(ATTACKS))
-    return tuple(name for name in ATTACKS if name in chosen)
 
 
 def cheat_verdict_for_reward(reward: float | None) -> str:

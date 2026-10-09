@@ -4,9 +4,10 @@ Live-Docker coverage lives in test_cheat_docker.py (opt-in). Everything here
 runs at $0 with no daemon: pure helper checks plus a fixture sandbox where
 attack scripts execute for real through ``bash``.
 
-The attack ladder lives in ``evallab.harbor_cheat``, whose only Harbor
-dependency is the ``BaseAgent`` contract itself. These tests stub the four
-Harbor names the module imports — scoped to this module with teardown — so
+The attack ladder lives in ``evallab.cheat_ladder`` (stdlib-only, runnable
+inside containers) and is re-exported through ``evallab.harbor_cheat`` for
+the agent. These tests stub the four Harbor names ``evallab.harbor_cheat``
+imports — scoped to this module with teardown — so
 the ladder runs in every suite, including CI shards without Harbor
 installed. The stubs are faithful only to what the agent uses
 (construction, ``_get_env``, attribute context); they prove ladder logic,

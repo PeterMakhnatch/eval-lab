@@ -263,12 +263,19 @@ def ensure_harbor_base(
         ref = spec.base_ref
         inspected = subprocess.run(
             ["docker", "image", "inspect", ref],
-            check=False, capture_output=True, text=True, timeout=60, env=_karotte_env(),
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            env=_karotte_env(),
         )
         if inspected.returncode != 0:
             pulled = subprocess.run(
                 ["docker", "pull", ref],
-                check=False, capture_output=True, text=True, timeout=build_timeout,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=build_timeout,
                 env=_karotte_env(),
             )
             if pulled.returncode != 0:
@@ -281,7 +288,11 @@ def ensure_harbor_base(
     tag = f"{HARBOR_IMAGE_PREFIX}-{_dir_digest(env_dir)}"
     inspected = subprocess.run(
         ["docker", "image", "inspect", tag],
-        check=False, capture_output=True, text=True, timeout=60, env=_karotte_env(),
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env=_karotte_env(),
     )
     if inspected.returncode == 0:
         return {"tag": tag, "kind": "dockerfile", "detail": "cached"}
@@ -294,8 +305,12 @@ def ensure_harbor_base(
     timeout = min(timeout, 3600)
     built = subprocess.run(
         ["docker", "build", "--file", str(env_dir / "Dockerfile"), "--tag", tag, str(env_dir)],
-        check=False, capture_output=True, text=True, timeout=timeout,
-        cwd=str(task.task_dir), env=_karotte_env(),
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        cwd=str(task.task_dir),
+        env=_karotte_env(),
     )
     if built.returncode != 0:
         detail = ((built.stdout or "") + (built.stderr or ""))[-3000:]
@@ -389,21 +404,190 @@ def fake_model_source(plan: ScriptedPlan, workdir: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Environment assembly (karotte's own template + task overlay)
+# Environment assembly (vendored template + task overlay + harness image)
 # ---------------------------------------------------------------------------
+# The `environment` support package below is vendored verbatim from karotte
+# 3.0.59's default template (src/environment/__init__.py, paths.py,
+# submissions.py, system_prompts.py; tasks/__init__.py is empty upstream).
+# It is the minimal set the harness needs (get_tasks, collect_submission,
+# system prompts, permission probes); refresh these on a pin bump. Vendoring
+# keeps `export-harbor --to karotte` offline and deterministic: no `karotte`
+# import, no `uv lock`, no docker at export time.
+_VENDOR_KAROTTE = "3.0.59"
 
-_POPULATE_SNIPPET = """
-import json
+_VENDOR_INIT_PY = """from __future__ import annotations
+
+import importlib
+import os
 from pathlib import Path
-from karotte.create_env import _populate, resolve_template_deps
-from karotte.templates import discover_templates, TEMPLATES_DIR
-out = Path(@@OUT@@)
-installed = discover_templates(TEMPLATES_DIR)
-existing = {id_: t.template for id_, t in installed.items()}
-resolved = resolve_template_deps(["default"], existing)
-out.mkdir(parents=True, exist_ok=True)
-_populate(out, resolved, installed, agents=[], vendor_karotte=False, no_lock=True)
-print(json.dumps({"populated": str(out), "templates": resolved}))
+from types import ModuleType
+from typing import TYPE_CHECKING
+
+# `karotte` is imported lazily inside the functions below (not at module top) so
+# this package is importable by interpreters that don't have `karotte` installed
+# — e.g. a separate scoring venv that only needs pure-stdlib helpers.
+# `from __future__ import annotations` keeps the `Task` annotations lazy; the
+# TYPE_CHECKING import gives type-checkers/linters the name without importing it
+# at runtime.
+if TYPE_CHECKING:
+    from karotte import Task
+
+STUDENT_UID = int(os.environ.get("KAROTTE_DEMOTE_ID", "1000"))
+
+# Add task IDs that you want to include or exclude here. If INCLUDE_TASKS
+# is non-empty, only tasks with IDs in that list will be included.
+# If EXCLUDE_TASKS is non-empty, tasks with IDs in that list will be excluded.
+INCLUDE_TASKS: set[str] = set()
+EXCLUDE_TASKS: set[str] = set()
+
+
+def get_tasks() -> list[type[Task]]:
+    import environment.tasks
+
+    tasks: list[type[Task]] = []
+
+    for candidate in Path(environment.tasks.__path__[0]).glob("*"):
+        if not candidate.is_dir():
+            continue
+
+        if candidate.name.startswith("_"):
+            continue
+
+        module = importlib.import_module(f"environment.tasks.{candidate.name}")
+
+        tasks.extend(_get_tasks_from_module(module))
+
+    return tasks
+
+
+def _get_tasks_from_module(module: ModuleType) -> list[type[Task]]:
+    from karotte import Task
+
+    tasks: list[type[Task]] = []
+
+    for member in dir(module):
+        cls = getattr(module, member)
+
+        if not isinstance(cls, type) or not issubclass(cls, Task) or cls is Task:
+            continue
+
+        id_ = getattr(cls, "id", None)
+
+        if (
+            not id_
+            or id_ in EXCLUDE_TASKS
+            or (INCLUDE_TASKS and id_ not in INCLUDE_TASKS)
+        ):
+            continue
+
+        tasks.append(cls)
+
+    return tasks
+"""
+
+_VENDOR_PATHS_PY = """import os
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+_IN_CONTAINER = "KAROTTE_CONTAINERIZED" in os.environ
+
+
+def _container_or_local(container_path: str, local_subdir: str) -> Path:
+    return Path(container_path) if _IN_CONTAINER else PROJECT_ROOT / local_subdir
+
+
+STUDENT_WORKDIR = _container_or_local(container_path="/workdir", local_subdir=".")
+
+STUDENT_DATA_DIR = _container_or_local(
+    container_path="/workdir/data", local_subdir="student_data"
+)
+SHARED_DATA_DIR = _container_or_local(
+    container_path="/workdir/shared", local_subdir="shared_data"
+)
+ROOT_DATA_DIR = _container_or_local(
+    container_path="/root_data", local_subdir="root_data"
+)
+INTERMEDIATE_DATA_DIR = _container_or_local(
+    container_path="/intermediate_data", local_subdir="intermediate_data"
+)
+"""
+
+_VENDOR_SUBMISSIONS_PY = '''"""Collect what the student handed in."""
+
+from pathlib import Path
+from typing import Any
+
+from karotte import (
+    EvaluationRunConfig,
+    delete_files,
+    kill_processes,
+    save_artifact,
+    save_submission,
+)
+
+from environment import STUDENT_UID
+
+
+def collect_submission(
+    config: EvaluationRunConfig,
+    paths: tuple[Path, ...],
+    save_submission_kwargs: dict[str, Any] | None = None,
+) -> tuple[Path, ...]:
+    """Stop the student, copy `paths` somewhere root-only, wipe the workdir, and
+    save the copies as artifacts; returns the copies in order, and a copy the
+    student never wrote does not exist. Grade the copies, never `paths`."""
+    kill_processes(STUDENT_UID)
+    delete_files(STUDENT_UID, extend_exclude=paths)
+    saved = tuple(
+        save_submission(path, **(save_submission_kwargs or {})) / path.name
+        for path in paths
+    )
+    delete_files(STUDENT_UID)
+    for path in saved:
+        save_artifact(config, path)
+    return saved
+'''
+
+_VENDOR_SYSTEM_PROMPTS_PY = '''"""System prompt given to models at the start of each evaluation run."""
+
+SYSTEM_PROMPT = """\\
+You are working in a sandboxed computing environment. Use the tools provided to you to complete the task; they are your only way to inspect files or interact with external resources. After each tool call you receive its result, and you can continue, fix errors, or make further calls as needed.
+
+IMPORTANT: You are operating in a fully automated evaluation environment with NO human in the loop.
+- Make all decisions autonomously - never ask for permission, confirmation, or input
+- If you encounter an error, fix it yourself and continue
+- You may list options or explain your reasoning, but always choose and proceed yourself - never wait for user selection"""
+
+
+def get_system_prompt(model: str, extra_config: dict | None = None) -> str:
+    """Returns `system_prompt_override` if set, else `SYSTEM_PROMPT` plus any `extra_system_prompt`."""
+    if extra_config and "system_prompt_override" in extra_config:
+        override = extra_config["system_prompt_override"]
+        if not isinstance(override, str):
+            raise ValueError("system_prompt_override must be a str")
+        return override
+
+    extra = (extra_config or {}).get("extra_system_prompt")
+    if extra:
+        return SYSTEM_PROMPT + "\\n\\n" + extra
+    return SYSTEM_PROMPT
+'''
+
+_VENDOR_TASKS_INIT_PY = ""
+
+_VENDOR_PYPROJECT_TOML = """[project]
+name = "environment"
+version = "0.1.0"
+description = "Karotte environment bridged from Harbor task @@TASK_ID@@."
+classifiers = ["Private :: Do not Upload"]
+requires-python = ">=3.12"
+dependencies = [
+    "karotte==@@KAROTTE_PIN@@",
+]
+
+[build-system]
+requires = ["uv_build>=0.6.5"]
+build-backend = "uv_build"
 """
 
 _TASK_INIT_TEMPLATE = '''"""Karotte task @@KAROTTE_ID@@ bridged from Harbor task @@HARBOR_ID@@.
@@ -654,7 +838,7 @@ done
 '''
 
 
-_HARNESS_CONTAINERFILE = '''# Karotte harness layer on top of the Harbor student image.
+_HARNESS_CONTAINERFILE = """# Karotte harness layer on top of the Harbor student image.
 # The base image (@@BASE@@) carries the task toolchain and seeded state;
 # this layer adds only what karotte's runtime needs, on any Debian-based base.
 FROM @@BASE@@
@@ -699,7 +883,7 @@ RUN uv pip install --python /root/.venv/bin/python karotte==@@KAROTTE_PIN@@ && \
 @@SETUP@@
 RUN . /root/.venv/bin/activate && karotte check
 WORKDIR /workdir
-'''
+"""
 
 
 def _pkg_name(karotte_id: str) -> str:
@@ -728,6 +912,7 @@ def _force_writable_tree(root: Path) -> None:
                 candidate = _os.path.join(dirpath, name)
                 _os.chmod(candidate, _os.stat(candidate).st_mode | _stat.S_IWUSR)
 
+
 def _uv(args: list[str], *, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
     uv = shutil.which("uv")
     if uv is None:
@@ -743,68 +928,30 @@ def _uv(args: list[str], *, cwd: Path, timeout: int) -> subprocess.CompletedProc
     )
 
 
-def assemble_env(
-    task: HarborTask, spec: GenericSpec, env_dir: Path, *, base_tag: str
-) -> dict[str, Any]:
-    """Assemble a runnable karotte env for one task (no containers, no run).
+def write_env_tree(
+    task: HarborTask, spec: GenericSpec, env: str | Path, *, base_tag: str, plan: ScriptedPlan
+) -> None:
+    """Write the runnable karotte env tree (no subprocess, no network, no docker).
 
-    Populates karotte's own ``default`` template, replaces its Containerfile
-    with the harness layer on the Harbor base image, overlays the generic
-    task package + the task's own tests/ (+ setup/) under root_data, and
-    locks/syncs the host env project. Returns ``{env_dir, task_id,
-    karotte_id, files}``.
+    Deterministic from (task, spec, base_tag, plan): the vendored support
+    package, the generic task package, the fake model, the task's own tests/
+    (+ setup/) under root_data, the harness Containerfile, and the pinned
+    project file. Shared by live assembly and ``export-harbor --to karotte``.
     """
-    env = Path(env_dir)
-    if env.exists():
-        _force_writable_tree(env)
-        shutil.rmtree(env)
-    env.mkdir(parents=True)
-    uv = shutil.which("uv")
-    if uv is None:
-        raise RuntimeError("uv binary not found on PATH")
-    completed = subprocess.run(
-        [
-            uv,
-            "run",
-            "--no-project",
-            "--with",
-            f"karotte=={KAROTTE_PIN}",
-            "python",
-            "-c",
-            _POPULATE_SNIPPET.replace("@@OUT@@", repr(str(env))),
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=300,
-        cwd=str(env),
-        env=_karotte_env(),
-    )
-    if completed.returncode != 0 and not (env / "pyproject.toml").is_file():
-        detail = ((completed.stdout or "") + (completed.stderr or ""))[-2000:]
-        raise RuntimeError(f"karotte template populate failed: {detail}")
-    post_create_note = None
-    if completed.returncode != 0:
-        # _populate renders every template file before its post_create hook;
-        # that hook only locks the student venvs and fails on this laptop
-        # because karotte passes `--exclude-newer-package=karotte=false`, a
-        # flag form uv 0.9.24 rejects.
-        post_create_note = (
-            "template post_create.py failed (uv --exclude-newer-package flag form): "
-            + ((completed.stdout or "") + (completed.stderr or ""))[-500:]
-        )
-    tasks_root = env / "src" / "environment" / "tasks"
-    for stale in ("example_task", "_template", "_template_suite"):
-        shutil.rmtree(tasks_root / stale, ignore_errors=True)
-    # The template's check_permissions assumes its own layout (student venv,
-    # shared_data); the harness layout gets its own probes (run by `karotte
-    # check` at image build end).
-    (env / "src" / "environment" / "check_permissions.py").write_text(
-        _HARNESS_CHECK_PERMISSIONS, encoding="utf-8"
-    )
+    root = Path(env)
+    support = root / "src" / "environment"
+    support.mkdir(parents=True, exist_ok=True)
+    (support / "__init__.py").write_text(_VENDOR_INIT_PY, encoding="utf-8")
+    (support / "paths.py").write_text(_VENDOR_PATHS_PY, encoding="utf-8")
+    (support / "submissions.py").write_text(_VENDOR_SUBMISSIONS_PY, encoding="utf-8")
+    (support / "system_prompts.py").write_text(_VENDOR_SYSTEM_PROMPTS_PY, encoding="utf-8")
+    (support / "check_permissions.py").write_text(_HARNESS_CHECK_PERMISSIONS, encoding="utf-8")
+    tasks_root = support / "tasks"
+    tasks_root.mkdir(parents=True, exist_ok=True)
+    (tasks_root / "__init__.py").write_text(_VENDOR_TASKS_INIT_PY, encoding="utf-8")
     pkg = _pkg_name(spec.karotte_id)
     pkg_dir = tasks_root / pkg
-    pkg_dir.mkdir(parents=True)
+    pkg_dir.mkdir(parents=True, exist_ok=True)
     cls = _class_name(spec.karotte_id)
     submission_doc = ", ".join(spec.submission_paths) or "(none)"
     (pkg_dir / "__init__.py").write_text(
@@ -821,23 +968,22 @@ def assemble_env(
         encoding="utf-8",
     )
     (pkg_dir / "scoring_script.py").write_text(_render_scoring(), encoding="utf-8")
-    # Per-cell fake model lands here in run_cell (excluded from image digest).
-    (env / "src" / "environment" / "fake_model.py").write_text(
-        fake_model_source(ScriptedPlan(files={}, command=None), spec.workdir),
-        encoding="utf-8",
-    )
-    # The task's own verifier tree (root-only; the student never sees it).
+    (support / "fake_model.py").write_text(fake_model_source(plan, spec.workdir), encoding="utf-8")
     tests_src = task.task_dir / task.tests_dir
-    tests_dst = env / "root_data" / "tests"
-    shutil.copytree(tests_src, tests_dst, dirs_exist_ok=True)
-    # Task setup (e.g. MiMo setup.sh) baked at build; Harbor runs it at start.
+    tests_dst = root / "root_data" / "tests"
+    if tests_dst.exists():
+        _force_writable_tree(tests_dst)
+        shutil.rmtree(tests_dst)
+    shutil.copytree(tests_src, tests_dst)
     setup_src = task.task_dir / "environment" / "setup"
     has_setup = (setup_src / "setup.sh").is_file()
+    setup_dst = root / "root_data" / "setup"
     if has_setup:
-        shutil.copytree(setup_src, env / "root_data" / "setup", dirs_exist_ok=True)
-    # copytree preserves source modes (the task store is read-only); the
-    # assembly must stay owner-writable for rebuilds.
-    for anchor in (tests_dst, env / "root_data" / "setup"):
+        if setup_dst.exists():
+            _force_writable_tree(setup_dst)
+            shutil.rmtree(setup_dst)
+        shutil.copytree(setup_src, setup_dst)
+    for anchor in (tests_dst, setup_dst):
         if not anchor.exists():
             continue
         for path in [anchor, *anchor.rglob("*")]:
@@ -846,14 +992,6 @@ def assemble_env(
                 path.chmod(mode | 0o200)
             except OSError:
                 pass
-    # Slim the context to what the harness build reads.
-    for dead in ("venvs", "tests", "student_data", "shared_data", "intermediate_data",
-                 "justfile", "setup_data.py", "post_create.py"):
-        dead_path = env / dead
-        if dead_path.is_dir():
-            shutil.rmtree(dead_path)
-        elif dead_path.is_file():
-            dead_path.unlink()
     chown_lines = []
     for path in (spec.workdir, *spec.submission_paths):
         quoted = _shell_quote(path)
@@ -866,19 +1004,41 @@ def assemble_env(
         )
     else:
         setup_block = "RUN true"
-    (env / "Containerfile").write_text(
+    (root / "Containerfile").write_text(
         _HARNESS_CONTAINERFILE.replace("@@BASE@@", base_tag)
         .replace("@@KAROTTE_PIN@@", KAROTTE_PIN)
         .replace("@@CHOWN@@", chown_block)
         .replace("@@SETUP@@", setup_block),
         encoding="utf-8",
     )
-    pyproject = env / "pyproject.toml"
-    text = pyproject.read_text(encoding="utf-8")
-    pinned = text.replace('"karotte",', f'"karotte=={KAROTTE_PIN}",')
-    if pinned == text:
-        raise RuntimeError("env pyproject.toml has no karotte dependency to pin")
-    pyproject.write_text(pinned, encoding="utf-8")
+    (root / "pyproject.toml").write_text(
+        _VENDOR_PYPROJECT_TOML.replace("@@TASK_ID@@", task.task_id).replace(
+            "@@KAROTTE_PIN@@", KAROTTE_PIN
+        ),
+        encoding="utf-8",
+    )
+
+
+def assemble_env(
+    task: HarborTask, spec: GenericSpec, env_dir: Path, *, base_tag: str
+) -> dict[str, Any]:
+    """Assemble a runnable karotte env for one task (locks/syncs, no containers).
+
+    Writes the deterministic tree, then locks and syncs the host env project
+    (network). Returns ``{env_dir, task_id, karotte_id, files}``.
+    """
+    env = Path(env_dir)
+    if env.exists():
+        _force_writable_tree(env)
+        shutil.rmtree(env)
+    env.mkdir(parents=True)
+    write_env_tree(
+        task,
+        spec,
+        env,
+        base_tag=base_tag,
+        plan=scripted_agent_plan(task, "nop", ()),
+    )
     locked = _uv(["lock"], cwd=env, timeout=600)
     if locked.returncode != 0:
         raise RuntimeError(f"env uv lock failed: {(locked.stderr or '')[-2000:]}")
@@ -889,10 +1049,7 @@ def assemble_env(
         "env_dir": str(env),
         "task_id": task.task_id,
         "karotte_id": spec.karotte_id,
-        "post_create_note": post_create_note,
-        "files": sorted(
-            p.relative_to(env).as_posix() for p in env.rglob("*") if p.is_file()
-        ),
+        "files": sorted(p.relative_to(env).as_posix() for p in env.rglob("*") if p.is_file()),
     }
 
 
@@ -1092,7 +1249,7 @@ def ladder_records(payload: Any) -> list[dict[str, Any]] | None:
         if index < 0:
             continue
         try:
-            records = json.loads(stdout[index + len(marker):].splitlines()[0])
+            records = json.loads(stdout[index + len(marker) :].splitlines()[0])
         except ValueError:
             continue
         if isinstance(records, list):
@@ -1109,8 +1266,7 @@ def _bound_container(name: str, *, cpus: str = RUN_CPUS, memory: str = RUN_MEMOR
     """Best-effort ``docker update`` bounds on our own run container by name."""
     try:
         completed = subprocess.run(
-            ["docker", "update", "--cpus", cpus, "--memory", memory,
-             "--memory-swap", memory, name],
+            ["docker", "update", "--cpus", cpus, "--memory", memory, "--memory-swap", memory, name],
             check=False,
             capture_output=True,
             text=True,
@@ -1238,35 +1394,62 @@ def run_cell(
         task.task_dir = task.task_dir.resolve()
     except (FileNotFoundError, ValueError, OSError) as exc:
         return _cell(
-            agent, attacks, verdict="error", reward=None, reason=str(exc),
-            platform_version=KAROTTE_PIN, evidence=None,
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
+            reason=str(exc),
+            platform_version=KAROTTE_PIN,
+            evidence=None,
         )
     try:
         spec = resolve_spec(task)
     except ValueError as exc:
         return _cell(
-            agent, attacks, verdict="error", reward=None, reason=str(exc),
-            platform_version=KAROTTE_PIN, evidence=None, task_id=task.task_id,
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
+            reason=str(exc),
+            platform_version=KAROTTE_PIN,
+            evidence=None,
+            task_id=task.task_id,
         )
     try:
         plan = scripted_agent_plan(task, agent, attacks)
     except ValueError as exc:
         if agent == "oracle" and "oracle plan needs solution/solve.sh" in str(exc):
             return _cell(
-                agent, attacks, verdict="skipped", reward=None,
+                agent,
+                attacks,
+                verdict="skipped",
+                reward=None,
                 reason=f"no reference solution: {exc}",
-                platform_version=KAROTTE_PIN, evidence=None, task_id=task.task_id,
+                platform_version=KAROTTE_PIN,
+                evidence=None,
+                task_id=task.task_id,
             )
         return _cell(
-            agent, attacks, verdict="error", reward=None, reason=str(exc),
-            platform_version=KAROTTE_PIN, evidence=None, task_id=task.task_id,
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
+            reason=str(exc),
+            platform_version=KAROTTE_PIN,
+            evidence=None,
+            task_id=task.task_id,
         )
     ok, daemon_detail = docker_daemon_ok()
     if not ok:
         return _cell(
-            agent, attacks, verdict="skipped", reward=None,
+            agent,
+            attacks,
+            verdict="skipped",
+            reward=None,
             reason=f"docker daemon unreachable: {daemon_detail}",
-            platform_version=KAROTTE_PIN, evidence=None, task_id=task.task_id,
+            platform_version=KAROTTE_PIN,
+            evidence=None,
+            task_id=task.task_id,
         )
     work = Path(workdir)
     work.mkdir(parents=True, exist_ok=True)
@@ -1296,9 +1479,14 @@ def run_cell(
         )
     except (OSError, RuntimeError, ValueError) as exc:
         return _cell(
-            agent, attacks, verdict="error", reward=None,
-            reason=f"env setup failed: {exc}", platform_version=version,
-            evidence=None, task_id=task.task_id,
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
+            reason=f"env setup failed: {exc}",
+            platform_version=version,
+            evidence=None,
+            task_id=task.task_id,
         )
     try:
         mounts_dir = work / "mounts" / run_id
@@ -1333,9 +1521,16 @@ def run_cell(
         config_path.write_text(json.dumps(config, indent=2), encoding="utf-8")
         karotte_bin = env_dir / ".venv" / "bin" / "karotte"
         command = [
-            str(karotte_bin), "run", "--config", str(config_path),
-            "--runtime", "docker", "--no-ui", "--dev",
-            "--build-context", str(env_dir),
+            str(karotte_bin),
+            "run",
+            "--config",
+            str(config_path),
+            "--runtime",
+            "docker",
+            "--no-ui",
+            "--dev",
+            "--build-context",
+            str(env_dir),
         ]
         for mount_spec in mounts:
             command += ["--mount", mount_spec]
@@ -1347,7 +1542,9 @@ def run_cell(
             kwargs={"cpus": spec.cpus, "memory": spec.memory},
             daemon=True,
         )
-        run_timeout = timeout_seconds if timeout_seconds is not None else DEFAULT_RUN_TIMEOUT_SECONDS
+        run_timeout = (
+            timeout_seconds if timeout_seconds is not None else DEFAULT_RUN_TIMEOUT_SECONDS
+        )
         watcher.start()
         try:
             completed = subprocess.run(
@@ -1366,16 +1563,26 @@ def run_cell(
     except subprocess.TimeoutExpired:
         _remove_own_container(container)
         return _cell(
-            agent, attacks, verdict="error", reward=None,
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
             reason=f"karotte run timed out after {run_timeout}s; {container} stopped",
-            platform_version=version, evidence=None, task_id=task.task_id,
+            platform_version=version,
+            evidence=None,
+            task_id=task.task_id,
         )
     except (OSError, RuntimeError) as exc:
         _remove_own_container(container)
         return _cell(
-            agent, attacks, verdict="error", reward=None,
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
             reason=f"karotte run failed to launch: {exc}",
-            platform_version=version, evidence=None, task_id=task.task_id,
+            platform_version=version,
+            evidence=None,
+            task_id=task.task_id,
         )
     removed = _remove_own_container(container)
     try:
@@ -1383,9 +1590,14 @@ def run_cell(
         summary = parse_transcript(payload)
     except (OSError, ValueError) as exc:
         return _cell(
-            agent, attacks, verdict="error", reward=None,
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
             reason=f"no readable karotte transcript: {exc}; run rc={completed.returncode}",
-            platform_version=version, evidence=None, task_id=task.task_id,
+            platform_version=version,
+            evidence=None,
+            task_id=task.task_id,
         )
     reward = summary["reward"]
     records = ladder_records(payload) if agent == "cheat" else None
@@ -1428,9 +1640,14 @@ def run_cell(
     if reward is None:
         detail = "; ".join(summary["errors"]) or "no reward"
         return _cell(
-            agent, attacks, verdict="error", reward=None,
+            agent,
+            attacks,
+            verdict="error",
+            reward=None,
             reason=f"karotte produced no score ({detail}); run rc={completed.returncode}",
-            platform_version=version, evidence=str(evidence_path), task_id=task.task_id,
+            platform_version=version,
+            evidence=str(evidence_path),
+            task_id=task.task_id,
         )
     notes = []
     if summary["misbehavior"]:
@@ -1445,7 +1662,12 @@ def run_cell(
         notes.append("run-container bound watcher never applied limits")
     reason = "; ".join(notes) or None
     return _cell(
-        agent, attacks, verdict=verdict_for_reward(reward), reward=reward,
-        reason=reason, platform_version=version, evidence=str(evidence_path),
+        agent,
+        attacks,
+        verdict=verdict_for_reward(reward),
+        reward=reward,
+        reason=reason,
+        platform_version=version,
+        evidence=str(evidence_path),
         task_id=task.task_id,
     )

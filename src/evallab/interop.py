@@ -3,10 +3,10 @@
 Model-free, spend-free bridges:
 
 - ``export-harbor`` converts a Harbor task directory into an Inspect AI task
-  (``--to inspect``) or a Karotte environment scaffold (``--to karotte``).
-  The inspect path never imports ``inspect_harbor``; the karotte path flags
-  every lossy or impossible mapping in a generated ``MAPPING.md`` instead of
-  silently dropping it.
+  (``--to inspect``) or the runnable karotte env ``interop_karotte.run_cell``
+  assembles (``--to karotte``). Both paths never import their frameworks;
+  the karotte path flags every lossy or impossible mapping in a generated
+  ``MAPPING.md`` instead of silently dropping it.
 - ``matrix`` runs scripted oracle/nop/cheat agents against each target in the
   ``MATRIX_TARGETS`` registry (harbor, inspect, karotte via ``interop_karotte``,
   verifiers via ``interop_verifiers``) and prints the grading table plus a
@@ -761,6 +761,9 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
 
     Returns ``[{code, detail}]``; an empty list means a faithful mapping.
     Anything detected here lands in the generated MAPPING.md, never dropped.
+    Only real losses of the generic runner are flagged: the judge replays the
+    task's own tests/test.sh as root against collected submission copies, so
+    verifier packaging (apt/sudo) and artifact-less tasks map faithfully.
     """
     flags: list[dict[str, str]] = []
     env_dir = task.task_dir / "environment"
@@ -769,25 +772,9 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
             {
                 "code": "multi-service-compose",
                 "detail": (
-                    "task ships its own Compose file; the scaffold maps only the main "
-                    "environment/Dockerfile to a single Containerfile. Extra services "
-                    "must be re-expressed as karotte data mounts or sidecars manually."
-                ),
-            }
-        )
-    test_sh = task.task_dir / task.tests_dir / "test.sh"
-    try:
-        test_text = test_sh.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        test_text = ""
-    if re.search(r"(^|\s)(apt-get|apt|sudo|yum|apk)(\s|$)", test_text):
-        flags.append(
-            {
-                "code": "verifier-as-root",
-                "detail": (
-                    "tests/test.sh installs system packages (apt/sudo), i.e. the Harbor "
-                    "verifier assumes root. Karotte judges may run confined/non-root; "
-                    "fold these deps into the Containerfile or grant the judge privilege."
+                    "task ships its own Compose file; the generic runner builds "
+                    "one image and errors on compose tasks. Re-express extra "
+                    "services as data mounts or sidecars manually."
                 ),
             }
         )
@@ -797,8 +784,9 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
                 "code": "network-policy",
                 "detail": (
                     f"task.toml network_mode={task.network_mode!r} has no karotte "
-                    "equivalent; the scaffold runs under default karotte confinement. "
-                    "Re-check any verifier that depends on public egress."
+                    "equivalent: karotte cannot enforce Harbor network policies, "
+                    "it only confines the student (or degrades to open). "
+                    "Re-check any verifier that depends on egress control."
                 ),
             }
         )
@@ -807,9 +795,9 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
             {
                 "code": "resource-rounding",
                 "detail": (
-                    f"task resources {task.resources} do not map 1:1 onto karotte "
-                    "hardware plugins (named buckets); pick the nearest bucket and "
-                    "record the choice in the environment manifest."
+                    f"task resources {task.resources} are not honored: the runner "
+                    "bounds every run container to a fixed 2 CPU / 2 GiB "
+                    "(heavier tasks via override). Record any task that needs more."
                 ),
             }
         )
@@ -819,19 +807,9 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
                 "code": "separate-verifier-image",
                 "detail": (
                     "verifier.environment_mode=separate: Harbor scores in a dedicated "
-                    "verifier image (tests/Dockerfile). The scaffold judges inside one "
-                    "container; merge verifier-only system deps into the Containerfile."
-                ),
-            }
-        )
-    if not task.artifacts:
-        flags.append(
-            {
-                "code": "no-submission-paths",
-                "detail": (
-                    "task.toml declares no artifacts, so Step.submission_paths cannot be "
-                    "derived; the scaffold scores the whole workdir. Declare the files "
-                    "the student must hand in."
+                    "verifier image (tests/Dockerfile). The generic runner grades "
+                    "in the same container with the task toolchain; fold "
+                    "verifier-only system deps into the grade or accept the drift."
                 ),
             }
         )
@@ -842,7 +820,8 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
                 "code": "mcp-servers",
                 "detail": (
                     "task declares environment MCP servers, which have no karotte "
-                    "mapping; re-provide them as karotte tools or drop with justification."
+                    "mapping (no sidecars); re-provide them as karotte tools or "
+                    "drop with justification."
                 ),
             }
         )
@@ -853,249 +832,85 @@ def karotte_flags(task: HarborTask) -> list[dict[str, str]]:
                 "code": "solution-env",
                 "detail": (
                     "task declares [solution.env] overrides for the oracle run; the "
-                    "scaffold does not execute solve.sh, so these are documentation only."
+                    "generic oracle runs solve.sh without them, so these are "
+                    "documentation only."
                 ),
             }
         )
     return flags
 
 
-def _class_name(task_id: str) -> str:
-    parts = re.split(r"[^0-9a-zA-Z]+", task_id)
-    name = "".join(p[:1].upper() + p[1:] for p in parts if p)
-    return (name or "Harbor") + "Task"
-
-
-KAROTTE_TASK_TEMPLATE = '''"""Karotte environment scaffold exported from Harbor task @@TASK_ID@@.
-
-Generated by ``evallab interop export-harbor --to karotte``. See MAPPING.md for
-every lossy mapping. Layout contract:
-
-- ``student_data``: paths the student may write (Harbor artifacts +
-  task workdirs, e.g. @@ARTIFACTS@@).
-- ``root_data``: verifier-only material (tests/, solution/, judge_entry.py);
-  the student never sees these.
-"""
-from __future__ import annotations
-
-import sys
-from pathlib import Path
-
-from karotte import Step, Task
-from karotte.judges.executable_judge import ExecutableJudge
-from karotte.judges.judge import Judge
-
-HERE = Path(__file__).resolve().parent
-INSTRUCTIONS = (HERE / "instruction.md").read_text(encoding="utf-8")
-
-# Student-writable submission paths (Harbor artifacts, absolute as Step requires).
-SUBMISSION_PATHS = @@SUBMISSION_PATHS@@
-
-
-class @@STEP_CLASS@@(Step):
-    """One step: follow the Harbor instruction, hand in the artifacts."""
-
-    @property
-    def instructions(self) -> str:
-        return INSTRUCTIONS
-
-    @property
-    def judge(self) -> Judge:
-        # ExecutableJudge runs the Harbor verifier (tests/test.sh) via
-        # judge_entry.py, which converts reward.txt/reward.json to the
-        # {"score": float, "metadata": dict} karotte expects.
-        return ExecutableJudge(
-            [sys.executable, str(HERE / "judge_entry.py"), "judge_output.json"],
-            continue_threshold=1.0,
-        )
-
-    @property
-    def submission_paths(self) -> tuple[Path, ...] | None:
-        paths = tuple(Path(p) for p in SUBMISSION_PATHS)
-        return paths or None
-
-
-class @@TASK_CLASS@@(Task):
-    """Harbor task @@TASK_ID@@ as a single-step karotte task."""
-
-    id = "@@TASK_SLUG@@"
-
-    @property
-    def system_prompt(self) -> str | None:
-        return None
-
-    @property
-    def steps(self) -> list[Step]:
-        return [@@STEP_CLASS@@(self.config)]
-
-    @property
-    def tools(self) -> list[str]:
-        # Default tool surface; confirm against the karotte tool plugin in use.
-        # Flagged in MAPPING.md when the Harbor task needs more (see mcp-servers).
-        return ["bash", "python"]
-'''
-
-KAROTTE_JUDGE_TEMPLATE = '''"""Karotte judge entry: run the Harbor verifier, emit karotte scoring JSON.
-
-Usage: judge_entry.py <output.json>  (ExecutableJudge rewrites the final arg to
-a temp path.) Runs tests/test.sh from the environment root, converts the
-reward.txt/reward.json it writes to {"score": float, "metadata": dict}.
-A missing reward file scores 0 with metadata {"error": ...}, never silently.
-"""
-from __future__ import annotations
-
-import json
-import subprocess
-import sys
-from pathlib import Path
-
-HERE = Path(__file__).resolve().parent
-ROOT_DATA = HERE  # verifier-only: tests/, solution/, this script
-
-
-def read_reward(reward_dir: Path) -> tuple[float | None, str | None]:
-    txt = reward_dir / "reward.txt"
-    js = reward_dir / "reward.json"
-    if txt.is_file():
-        try:
-            return float(txt.read_text(encoding="utf-8").strip()), None
-        except ValueError:
-            return None, "reward.txt is not a number"
-    if js.is_file():
-        try:
-            payload = json.loads(js.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            return None, f"reward.json is not valid JSON: {exc}"
-        for key in ("score", "reward"):
-            if isinstance(payload, dict) and isinstance(payload.get(key), (int, float)):
-                return float(payload[key]), None
-        return None, "reward.json has no numeric score/reward key"
-    return None, "neither reward.txt nor reward.json exists"
-
-
-def main() -> int:
-    output = Path(sys.argv[-1])
-    logs = Path("/logs/verifier")
-    logs.mkdir(parents=True, exist_ok=True)
-    completed = subprocess.run(
-        ["bash", str(ROOT_DATA / "tests" / "test.sh")],
-        check=False,
-        capture_output=True,
-        text=True,
-        cwd=str(ROOT_DATA),
-    )
-    reward, error = read_reward(logs)
-    if error is not None:
-        payload = {"score": 0.0, "metadata": {"error": error, "exit": completed.returncode}}
-    else:
-        assert reward is not None
-        payload = {
-            "score": reward,
-            "metadata": {"exit": completed.returncode, "verdict": "pass" if reward >= 1.0 else "fail"},
-        }
-    output.write_text(json.dumps(payload), encoding="utf-8")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-'''
-
-KAROTTE_FAKE_MODEL = '''"""Nop-behavior fake model for local karotte runs (no inference, $0).
-
-``karotte.fake_model.setup_fake_model`` imports ``get_messages`` from
-``environment.fake_model``; returning no messages makes the student a no-op,
-so a fake-model run must FAIL on a sound task (the nop control analogue).
-"""
-from __future__ import annotations
-
-from typing import Any
-
-
-def get_messages(config: Any) -> list[Any]:
-    return []
-'''
-
-
 def export_karotte(task_dir: str | Path, out_dir: str | Path) -> dict[str, Any]:
-    """Export a Harbor task dir to a karotte environment scaffold dir."""
-    task = load_harbor_task(task_dir)
+    """Export a Harbor task dir to the runnable karotte env the runner builds.
+
+    Writes the same deterministic tree ``interop_karotte.run_cell`` assembles
+    (vendored support package, generic task package, nop fake model, the
+    task's own tests/ under root_data, harness Containerfile, pinned
+    project), plus MAPPING.md. Offline and deterministic: no karotte import,
+    no ``uv lock``, no docker. The base image tag for Dockerfile tasks is
+    reserved (``evallab-harbor-<digest>``) and built on first run; run
+    ``uv lock && uv sync`` in the output dir before ``karotte build``.
+    """
+    from evallab.interop_karotte import (
+        _dir_digest,
+        resolve_spec,
+        write_env_tree,
+    )
+
+    task = load_harbor_task(task_dir, require_solution=False)
+    task.task_dir = task.task_dir.resolve()
+    spec = resolve_spec(task)
+    if spec.base_kind == "docker_image":
+        base_tag = spec.base_ref
+    else:
+        base_tag = f"evallab-harbor-{_dir_digest(task.task_dir / 'environment')}"
     out = Path(out_dir)
     if out.exists() and any(out.iterdir()):
         raise ValueError(f"refusing to write into non-empty directory: {out}")
-    env = out / "environment"
-    (env / "tests").mkdir(parents=True, exist_ok=True)
-    (env / "solution").mkdir(parents=True, exist_ok=True)
-    (env / "instruction.md").write_text(task.instruction, encoding="utf-8")
-    for child in sorted((task.task_dir / task.tests_dir).iterdir()):
-        dest = env / "tests" / child.name
-        if child.is_dir():
-            shutil.copytree(child, dest, dirs_exist_ok=True)
-        else:
-            shutil.copy2(child, dest)
-    solution_src = task.task_dir / "solution"
-    for child in sorted(solution_src.iterdir()):
-        dest = env / "solution" / child.name
-        if child.is_dir():
-            shutil.copytree(child, dest, dirs_exist_ok=True)
-        else:
-            shutil.copy2(child, dest)
-    dockerfile_src = task.task_dir / "environment" / "Dockerfile"
-    if dockerfile_src.is_file():
-        dockerfile_body = dockerfile_src.read_text(encoding="utf-8")
-        dockerfile_note = "copied verbatim; verifier-only deps flagged in MAPPING.md"
-    else:
-        dockerfile_body = "FROM python:3.12-slim-bookworm\n"
-        dockerfile_note = "missing: fell back to python:3.12-slim"
-    (out / "Containerfile").write_text(
-        f"# Karotte scaffold for Harbor task {task.task_id}.\n"
-        f"# Derived from environment/Dockerfile ({dockerfile_note}).\n" + dockerfile_body,
-        encoding="utf-8",
+    out.mkdir(parents=True, exist_ok=True)
+    write_env_tree(
+        task,
+        spec,
+        out,
+        base_tag=base_tag,
+        plan=scripted_agent_plan(task, "nop", ()),
     )
-    submission = [a if a.startswith("/") else f"/app/{a.lstrip('/')}" for a in task.artifacts]
-    task_class = _class_name(task.task_id)
-    step_class = task_class.removesuffix("Task") + "Step"
-    slug = re.sub(r"[^a-z0-9]+", "-", task.task_id.lower()).strip("-")[:200] or "harbor-task"
-    artifacts_doc = ", ".join(submission) if submission else "(none declared)"
-    (env / "task.py").write_text(
-        KAROTTE_TASK_TEMPLATE.replace("@@TASK_ID@@", task.task_id)
-        .replace("@@TASK_CLASS@@", task_class)
-        .replace("@@STEP_CLASS@@", step_class)
-        .replace("@@TASK_SLUG@@", slug)
-        .replace("@@ARTIFACTS@@", artifacts_doc)
-        .replace("@@SUBMISSION_PATHS@@", repr(submission)),
-        encoding="utf-8",
-    )
-    (env / "judge_entry.py").write_text(KAROTTE_JUDGE_TEMPLATE, encoding="utf-8")
-    (env / "fake_model.py").write_text(KAROTTE_FAKE_MODEL, encoding="utf-8")
     flags = karotte_flags(task)
+    submission_doc = ", ".join(spec.submission_paths) or "(none)"
     mapping = (
-        f"# Karotte scaffold mapping: {task.task_id}\n\n"
+        f"# Karotte env mapping: {task.task_id}\n\n"
         f"Source: `{task.task_dir}`\n\n"
-        "| Harbor | Karotte scaffold |\n"
+        f"Base image: `{base_tag}`"
+        f"{' (pinned task image)' if spec.base_kind == 'docker_image' else ' (reserved; built from environment/Dockerfile on first run)'}\n\n"
+        "| Harbor | Karotte env |\n"
         "| --- | --- |\n"
-        "| instruction.md | Step.instructions (environment/task.py) |\n"
-        "| task artifacts | Step.submission_paths (student_data) |\n"
-        "| tests/test.sh | ExecutableJudge via environment/judge_entry.py |\n"
-        "| reward.txt / reward.json | judge score float; missing file = score 0 + error metadata |\n"
-        "| solution/solve.sh | root_data reference only (scaffold never executes it) |\n"
-        "| environment/Dockerfile | Containerfile (single image) |\n"
+        "| instruction.md | Step.instructions (generic task package) |\n"
+        f"| task artifacts | Step.submission_paths ({submission_doc}) |\n"
+        "| tests/test.sh | generic judge restores collected copies at original paths, runs `bash /tests/test.sh` from "
+        f"{spec.workdir}, grades /logs/verifier via interop.parse_reward_bytes |\n"
+        "| solution/solve.sh | mounted at `<workdir>/solution` + `/solution` for oracle cells only |\n"
+        "| environment/Dockerfile | harness Containerfile FROM the Harbor student image |\n"
         "| task.toml [task] + [metadata] | Task.id + module docstring |\n"
-        "\n## student_data / root_data split\n\n"
-        f"- student_data (student-writable): {artifacts_doc}\n"
-        "- root_data (verifier-only, student never sees): tests/, solution/, judge_entry.py\n"
+        "\n## Submission / custody split\n\n"
+        f"- student-writable: {submission_doc} (collected root-only, workdir wiped, copies graded)\n"
+        "- verifier-only, student never sees: root_data/tests, scoring module, fake model\n"
         "\n## Lossy or impossible mappings (never silently dropped)\n\n"
         + (
             "".join(f"- **{f['code']}**: {f['detail']}\n" for f in flags)
             if flags
             else "None: the Harbor surface above maps directly.\n"
         )
+        + "\n## Build\n\n"
+        "- `uv lock && uv sync` in this dir (network), then `karotte build --runtime docker`.\n"
+        "- Fake model default: nop (single text message, zero tool calls).\n"
     )
     (out / "MAPPING.md").write_text(mapping, encoding="utf-8")
     return {
         "target": "karotte",
         "task_id": task.task_id,
+        "karotte_id": spec.karotte_id,
         "out_dir": str(out),
+        "base": base_tag,
         "files": sorted(p.relative_to(out).as_posix() for p in out.rglob("*") if p.is_file()),
         "flags": [f["code"] for f in flags],
     }
@@ -1492,128 +1307,6 @@ def run_inspect_cell(
 
 
 # ---------------------------------------------------------------------------
-# karotte-validate: structural validation of an exported scaffold ($0)
-# ---------------------------------------------------------------------------
-KAROTTE_VALIDATE_SNIPPET = """
-import importlib.util
-import json
-import sys
-from pathlib import Path
-
-ENV_DIR = Path(@@ENV_DIR_REPR@@)
-sys.path.insert(0, str(ENV_DIR.parent))
-
-spec = importlib.util.spec_from_file_location("interop_env_task", ENV_DIR / "task.py")
-assert spec and spec.loader, "cannot load environment/task.py"
-module = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(module)
-
-from karotte import Step, Task
-from karotte.judges.judge import Judge
-from karotte.schemas.evaluation_run_config import EvaluationRunConfig
-
-tasks = [
-    obj for obj in vars(module).values()
-    if isinstance(obj, type) and issubclass(obj, Task) and obj is not Task
-]
-assert tasks, "no Task subclass in environment/task.py"
-config = EvaluationRunConfig(run_id="interop-validate", task_id=tasks[0].__name__, model="", model_api_key="")
-report = {"task_classes": [c.__name__ for c in tasks], "steps": []}
-for cls in tasks:
-    inst = cls(config)
-    assert isinstance(inst.system_prompt, (str, type(None))), "system_prompt must be str|None"
-    steps = list(inst.steps)
-    assert steps, "Task.steps is empty"
-    for step in steps:
-        assert isinstance(step, Step), "step is not a Step"
-        assert isinstance(step.instructions, str) and step.instructions.strip(), "empty instructions"
-        assert isinstance(step.judge, Judge), "judge is not a Judge"
-        paths = step.submission_paths
-        assert paths is None or all(p.is_absolute() for p in paths), "submission_paths must be absolute"
-        report["steps"].append({
-            "instructions_chars": len(step.instructions),
-            "judge": type(step.judge).__name__,
-            "submission_paths": [str(p) for p in paths] if paths else [],
-        })
-print(json.dumps({"verdict": "pass", "report": report}))
-"""
-
-
-def validate_karotte(env_dir: str | Path) -> dict[str, Any]:
-    """Structurally validate an exported karotte scaffold (no containers, $0).
-
-    Imports ``environment/task.py`` with karotte on the path, instantiates the
-    Task with a sample run config, and checks steps/instructions/judge/
-    submission_paths. This is validate-only: a real fake-model run needs the
-    karotte env image built around the scaffold (documented follow-up).
-    """
-    env = Path(env_dir)
-    task_file = env / "task.py"
-    if not task_file.is_file():
-        return {
-            "target": "karotte-validate",
-            "verdict": "error",
-            "reason": f"{env}: no environment/task.py (export a karotte scaffold first)",
-        }
-    uv = shutil.which("uv")
-    if uv is None:
-        return {
-            "target": "karotte-validate",
-            "verdict": "error",
-            "reason": "uv binary not found; cannot provision karotte for validation",
-        }
-    try:
-        completed = subprocess.run(
-            [
-                uv,
-                "run",
-                "--no-project",
-                "--with",
-                f"karotte=={KAROTTE_PIN}",
-                "python",
-                "-c",
-                KAROTTE_VALIDATE_SNIPPET.replace("@@ENV_DIR_REPR@@", repr(str(env))),
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=300,
-            cwd=str(env),
-        )
-    except subprocess.TimeoutExpired:
-        return {
-            "target": "karotte-validate",
-            "verdict": "error",
-            "reason": "karotte validation timed out",
-        }
-    for line in (completed.stdout or "").strip().splitlines()[::-1]:
-        try:
-            candidate = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(candidate, dict) and candidate.get("verdict") == "pass":
-            return {
-                "target": "karotte-validate",
-                "verdict": "pass",
-                "reward": None,
-                "reason": None,
-                "report": candidate.get("report"),
-                "karotte": KAROTTE_PIN,
-                "note": (
-                    "validate-only: a real fake-model run needs the karotte env "
-                    "image built around this scaffold (see research/interop/README.md)"
-                ),
-            }
-    detail = ((completed.stdout or "") + (completed.stderr or ""))[-800:]
-    return {
-        "target": "karotte-validate",
-        "verdict": "fail",
-        "reward": None,
-        "reason": f"scaffold failed structural validation (exit {completed.returncode}): {detail}",
-    }
-
-
-# ---------------------------------------------------------------------------
 # matrix: per-task grading table across wired targets
 # ---------------------------------------------------------------------------
 def run_karotte_cell(
@@ -1733,7 +1426,7 @@ def matrix_task_row(
                         "platform_version": None,
                         "evidence": None,
                     }
-            cells[key] = cell.get("verdict", "error")
+            cells[key] = str(cell.get("verdict", "error"))
             details[key] = cell
     grading, problems = grade_task_row(cells, targets=list(targets), agents=list(agents))
     versions: dict[str, Any] = {}

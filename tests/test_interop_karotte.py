@@ -162,8 +162,7 @@ def test_lenient_load_mimo():
 def test_parse_dockerfile_workdir(tmp_path):
     dockerfile = tmp_path / "Dockerfile"
     dockerfile.write_text(
-        "FROM python:3.12-slim\nWORKDIR /app\n"
-        "FROM scratch\nWORKDIR /x\nWORKDIR sub\n",
+        "FROM python:3.12-slim\nWORKDIR /app\nFROM scratch\nWORKDIR /x\nWORKDIR sub\n",
         encoding="utf-8",
     )
     assert ik.parse_dockerfile_workdir(dockerfile) == "/x/sub"
@@ -194,7 +193,9 @@ def test_resolve_spec_real_tasks():
 
 def test_resolve_spec_rejects_compose_and_root(tmp_path):
     task_dir = make_task(tmp_path / "compose")
-    (task_dir / "environment" / "docker-compose.yaml").write_text("services: {}\n", encoding="utf-8")
+    (task_dir / "environment" / "docker-compose.yaml").write_text(
+        "services: {}\n", encoding="utf-8"
+    )
     with pytest.raises(ValueError, match="multi-service compose"):
         ik.resolve_spec(load_harbor_task(task_dir))
     task_dir = make_task(tmp_path / "rootfs", workdir="/")
@@ -339,7 +340,9 @@ def test_run_cell_validation_errors_without_docker(tmp_path):
     cell = ik.run_cell(tmp_path / "missing", "oracle", (), workdir=tmp_path)
     assert cell["verdict"] == "error"
     task_dir = make_task(tmp_path / "compose")
-    (task_dir / "environment" / "docker-compose.yaml").write_text("services: {}\n", encoding="utf-8")
+    (task_dir / "environment" / "docker-compose.yaml").write_text(
+        "services: {}\n", encoding="utf-8"
+    )
     cell = ik.run_cell(task_dir, "nop", (), workdir=tmp_path)
     assert cell["verdict"] == "error" and "compose" in (cell["reason"] or "")
 
@@ -406,7 +409,9 @@ def test_run_cell_pass_and_fail_with_stubbed_karotte(tmp_path, monkeypatch):
         ik, "ensure_image", lambda env_dir, build_timeout=1800: {"tag": "t", "rebuilt": False}
     )
     monkeypatch.setattr(
-        ik, "_watch_bounds", lambda name, stop, record, cpus="2", memory="2g": record.update(bounded=True)
+        ik,
+        "_watch_bounds",
+        lambda name, stop, record, cpus="2", memory="2g": record.update(bounded=True),
     )
     monkeypatch.setattr(ik, "_remove_own_container", lambda name: True)
     import evallab.cheat_ladder as ladder

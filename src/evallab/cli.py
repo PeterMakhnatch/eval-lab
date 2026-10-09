@@ -3492,6 +3492,8 @@ def _tasks_admit_command(
             by=args.by,
             repeat_n=args.repeat,
             timeout_seconds=args.timeout_seconds,
+            max_mutants=args.max_mutants,
+            skip_mutation=args.skip_mutation,
             output=_resolve(root, args.output) if args.output is not None else None,
             reference_arg=args.reference,
             sweep_csv=_resolve(root, args.sweep_csv) if args.sweep_csv is not None else None,
@@ -3514,6 +3516,13 @@ def _tasks_admit_command(
             print(f"cracked attacks: {', '.join(record.failed_attacks)}")
         if record.unproven_steps:
             print(f"unproven steps: {', '.join(record.unproven_steps)}")
+        if record.review_steps:
+            print(f"needs review: {', '.join(record.review_steps)}")
+        if record.survivor_patches:
+            for patch in record.survivor_patches:
+                print(f"survivor patch: {patch}")
+        if record.mutation_skipped:
+            print("mutation step skipped (--skip-mutation)")
         for row in record.steps:
             if row.reference:
                 print(f"{row.name} reference: {row.reference}")
@@ -6429,7 +6438,7 @@ def parser() -> argparse.ArgumentParser:
     tasks_stability_run.set_defaults(func=_tasks_stability_run_command)
     tasks_admit = tasks_commands.add_parser(
         "admit",
-        help="Fail-closed admission gate: static scan + oracle/nop controls + full cheat ladder ($0)",
+        help="Fail-closed admission gate: static scan + oracle/nop controls + cheat ladder + verifier mutation ($0)",
     )
     tasks_admit.add_argument("--task", type=Path, required=True, help="Task package directory")
     tasks_admit.add_argument("--job-prefix", default="admit", help="Job name prefix")
@@ -6454,6 +6463,17 @@ def parser() -> argparse.ArgumentParser:
     )
     tasks_admit.add_argument(
         "--sweep-csv", type=Path, help="Oracle sweep projection override (default: committed copy)"
+    )
+    tasks_admit.add_argument(
+        "--max-mutants",
+        type=int,
+        default=12,
+        help="Mutants graded by the post-ladder mutation step (default: 12)",
+    )
+    tasks_admit.add_argument(
+        "--skip-mutation",
+        action="store_true",
+        help="Skip the mutation step (recorded on the record as mutation_skipped)",
     )
     tasks_admit.add_argument(
         "--no-variant-status",

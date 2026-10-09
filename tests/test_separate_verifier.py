@@ -21,26 +21,45 @@ from evallab.separate_verifier import (
     TRAJECTORY_ARTIFACT,
     TRANSFORM_ID,
     TRANSFORM_ID_V2,
+    TRANSFORM_ID_V3,
     V2_GRADE_DIR,
     V2_SETUP_SUBDIR,
+    V3_CONFTEST_HOOK,
+    V3_NEW_INFRA_BASENAMES,
+    V3_STRUCTURED_RUNNERS,
+    V3_TAMPER_SIGNATURES,
     addopts_cleared,
     build_changes,
     build_changes_v2,
+    build_changes_v3,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
+    derive_separate_verifier_v3,
     detect_pytest_run,
+    detect_runner,
     drop_reason,
+    evaluate_cargo_output,
+    evaluate_go_output,
+    evaluate_js_output,
     evaluate_junit,
+    evaluate_phpunit_output,
+    evaluate_rspec_output,
+    evaluate_surefire_reports,
+    evaluate_unittest,
     is_pytest_config_tamper,
     is_test_infra_filename,
+    is_v3_new_infra,
     junit_absence_suspicious,
     output_is_blank,
     parse_named_pytest_ids,
     read_parent_info,
     render_wrapper_test_sh_v2,
+    render_wrapper_test_sh_v3,
     resolve_command_text,
     tamper_signature_hit,
+    v3_config_revert_reason,
+    v3_tamper_hit_for_file,
 )
 from evallab.task_variants import VariantInvalid
 
@@ -514,3 +533,338 @@ def test_blank_kill_grades_zero_through_the_full_rule() -> None:
     cmd = "python -m pytest tests/ -v"
     assert junit_absence_suspicious("", cmd)
     assert evaluate_junit(None, 0, set(), suspicious_absence=True) == 0
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@3 (multi-runner patch-only verifier)
+# --------------------------------------------------------------------------- #
+
+
+def test_v3_signatures_extend_v2_and_stay_ere_compatible() -> None:
+    assert set(TAMPER_SIGNATURES) <= set(V3_TAMPER_SIGNATURES)
+    assert len(V3_TAMPER_SIGNATURES) > len(TAMPER_SIGNATURES)
+    for signature in V3_TAMPER_SIGNATURES:
+        assert "(?" not in signature  # no lookaround: shared with grep -E
+        re.compile(signature)
+
+
+def test_v3_tamper_gate_catches_exit_forcing_per_language() -> None:
+    assert v3_tamper_hit_for_file("pkg/x.go", "+  os.Exit(0)\n") is not None
+    assert v3_tamper_hit_for_file("lib/a.js", "+process.exit(0)\n") is not None
+    assert v3_tamper_hit_for_file("lib/a.ts", "+process.exitCode = 1\n") is not None
+    assert v3_tamper_hit_for_file("src/Main.java", "+    System.exit(0);\n") is not None
+    assert v3_tamper_hit_for_file("src/lib.rs", "+    std::process::exit(0);\n") is not None
+    assert v3_tamper_hit_for_file("lib/x.rb", "+  Kernel.exit(0)\n") is not None
+    assert v3_tamper_hit_for_file("jest.setup.js", "+global.it = function () {};\n") is not None
+    # Scoped exit(0): Ruby/PHP only; C/shell fixes may legitimately exit.
+    assert v3_tamper_hit_for_file("lib/x.rb", "+  exit(0)\n") is not None
+    assert v3_tamper_hit_for_file("lib/x.php", "+exit(0);\n") is not None
+    assert v3_tamper_hit_for_file("lib/x.php", "+die(0);\n") is not None
+    assert v3_tamper_hit_for_file("src/x.c", "+  exit(0);\n") is None
+    assert v3_tamper_hit_for_file("run.sh", "+exit 0\n") is None
+
+
+def test_v3_tamper_gate_passes_plain_fixes() -> None:
+    assert v3_tamper_hit_for_file("pkg/x.go", "+  return fmt.Errorf(\"bad %s\", v)\n") is None
+    assert v3_tamper_hit_for_file("lib/a.js", "+  return { status: 200 };\n") is None
+    assert v3_tamper_hit_for_file("src/x.c", "+  return EXIT_FAILURE;\n") is None
+    assert v3_tamper_hit_for_file("lib/x.rb", "+  raise ArgumentError, \"bad\"\n") is None
+    assert v3_tamper_hit_for_file("src/Main.java", "+  throw new IllegalStateException();\n") is None
+    assert v3_tamper_hit_for_file("lib/x.py", "+latexit = True\n") is None
+
+
+def test_v3_new_infra_drops_only_new_files() -> None:
+    assert is_v3_new_infra("jest.setup.js", in_base=False)
+    assert is_v3_new_infra("config/jest.config.ts", in_base=False)
+    assert is_v3_new_infra(".mocharc.json", in_base=False)
+    assert is_v3_new_infra("vitest.workspace.ts", in_base=False)
+    assert is_v3_new_infra("build.rs", in_base=False)
+    assert is_v3_new_infra("phpunit.xml.dist", in_base=False)
+    assert is_v3_new_infra("target/surefire-reports/TEST-x.xml", in_base=False)
+    assert is_v3_new_infra("build/test-results/test/TEST-x.xml", in_base=False)
+    # Tracked files are never name-dropped (hunk rules decide instead).
+    assert not is_v3_new_infra("jest.setup.js", in_base=True)
+    assert not is_v3_new_infra("build.rs", in_base=True)
+    assert not is_v3_new_infra("target/surefire-reports/TEST-x.xml", in_base=True)
+    # Source files are never infra.
+    assert not is_v3_new_infra("src/main.go", in_base=False)
+    assert not is_v3_new_infra("package.json", in_base=False)
+
+
+def test_v3_config_revert_rules_catch_runner_keys_only() -> None:
+    assert v3_config_revert_reason("package.json", '+  "jest": {"setupFiles": ["./evil.js"]}') is not None
+    assert v3_config_revert_reason("package.json", '+    "mocha": {"require": "./stub.js"}') is not None
+    assert v3_config_revert_reason("pom.xml", '+<artifactId>maven-surefire-plugin</artifactId>\n+<excludes>') is not None
+    assert v3_config_revert_reason("build.gradle", '+  exclude "hidden/**"') is not None
+    assert v3_config_revert_reason(".rspec", '+--require ./planted_stub') is not None
+    assert v3_config_revert_reason("phpunit.xml", '+  bootstrap="tests/evil.php"') is not None
+    assert v3_config_revert_reason("go.mod", '+toolchain go1.24.1') is not None
+    assert v3_config_revert_reason(".mocharc.json", '+  "spec": "test/empty-*.js"') is not None
+    # Honest dependency/source hunks survive.
+    assert v3_config_revert_reason("package.json", '+    "lodash": "^4.17.21"') is None
+    assert v3_config_revert_reason("pom.xml", '+<artifactId>maven-compiler-plugin</artifactId>') is None
+    assert v3_config_revert_reason("go.mod", '+require example.com/mod v1.2.3') is None
+    assert v3_config_revert_reason("src/main.go", '+  "jest": true') is None
+
+
+def test_detect_runner_covers_measured_mix() -> None:
+    assert detect_runner("go test -v ./...") == "go-test"
+    assert detect_runner('exec "$GO_BIN" test -mod=readonly -v ./pkg') == "go-test"
+    assert detect_runner("npx jest src/a.test.jsx --verbose") == "jest"
+    assert detect_runner("npx vitest run") == "vitest"
+    assert detect_runner("npx mocha test/BootBot.spec.js") == "mocha"
+    assert detect_runner("./node_modules/.bin/_mocha out/") == "mocha"
+    assert detect_runner("node --test out/test.js") == "node-test"
+    assert detect_runner("cargo test --offline") == "cargo-test"
+    assert detect_runner("bundle exec rspec spec/") == "rspec"
+    assert detect_runner("vendor/bin/phpunit --verbose") == "phpunit"
+    assert detect_runner("mvn -o -Dtest=XTest test") == "mvn"
+    assert detect_runner("./gradlew :mod:test") == "gradle"
+    assert detect_runner("python -m pytest tests/ -v") == "pytest"
+    assert detect_runner("python -m unittest tests.test_x -v") == "unittest"
+    assert detect_runner("forge test -vvv") == "forge"
+    assert detect_runner("bash bin/test.sh") == "custom"
+    assert detect_runner("bash usercase-test-coderl/usecase.sh") == "custom"
+
+
+def test_evaluate_go_output() -> None:
+    passing = "=== RUN TestX\n--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/mod/pkg\t0.1s\n"
+    assert evaluate_go_output(passing, 0) == 1
+    assert evaluate_go_output(passing, 1) == 0
+    failing = "--- FAIL: TestX (0.00s)\nFAIL\nexit status 1\nFAIL\texample.com/mod/pkg\n"
+    assert evaluate_go_output(failing, 1) == 0
+    assert evaluate_go_output("?   \texample.com/mod/pkg\t[no test files]\n", 0) == 0
+    assert evaluate_go_output("", 0) == 0
+    assert evaluate_go_output("panic: runtime error\n", 0) == 0
+
+
+def test_evaluate_js_output() -> None:
+    jest_pass = "Tests:       4 passed, 4 total\nTest Suites: 1 passed, 1 total\n"
+    assert evaluate_js_output("jest", jest_pass, 0) == 1
+    assert evaluate_js_output("jest", "Tests: 1 failed, 3 passed, 4 total\n", 0) == 0
+    assert evaluate_js_output("jest", "", 0) == 0
+    mocha_pass = "  9 passing (20ms)\n"
+    assert evaluate_js_output("mocha", mocha_pass, 0) == 1
+    assert evaluate_js_output("mocha", "  9 passing (20ms)\n  2 failing\n", 1) == 0
+    assert evaluate_js_output("mocha", "  9 passing (20ms)\n  0 failing\n", 0) == 1
+    vitest_pass = " Test Files  2 passed (2)\n      Tests  8 passed (8)\n"
+    assert evaluate_js_output("vitest", vitest_pass, 0) == 1
+    assert evaluate_js_output("vitest", " Tests  1 failed | 7 passed (8)\n", 1) == 0
+    tap_pass = "ok 1 - first\nok 2 - second\n# pass 2\n"
+    assert evaluate_js_output("tap", tap_pass, 0) == 1
+    assert evaluate_js_output("tap", "not ok 1 - first\n", 1) == 0
+
+
+def test_evaluate_unittest() -> None:
+    passing = "Ran 3 tests in 0.01s\n\nOK\n"
+    assert evaluate_unittest(passing, 0) == 1
+    assert evaluate_unittest(passing, 1) == 0
+    assert evaluate_unittest("Ran 3 tests in 0.01s\n\nFAILED (failures=1)\n", 1) == 0
+    assert evaluate_unittest("Ran 0 tests in 0.00s\n\nOK\n", 0) == 0
+    assert evaluate_unittest("", 0) == 0
+
+
+def test_evaluate_rspec_phpunit_cargo() -> None:
+    assert evaluate_rspec_output("3 examples, 0 failures\n", 0) == 1
+    assert evaluate_rspec_output("3 examples, 1 failure\n", 1) == 0
+    assert evaluate_rspec_output("", 0) == 0
+    assert evaluate_phpunit_output("OK (7 tests, 14 assertions)\n", 0) == 1
+    assert evaluate_phpunit_output("FAILURES!\nTests: 7, Assertions: 10, Failures: 1.\n", 1) == 0
+    assert evaluate_cargo_output("test result: ok. 5 passed; 0 failed\n", 0) == 1
+    assert evaluate_cargo_output("test result: FAILED. 4 passed; 1 failed\n", 101) == 0
+    assert evaluate_cargo_output("", 0) == 0
+
+
+def test_evaluate_surefire_reports() -> None:
+    passing = (
+        b'<testsuite tests="2"><testcase classname="X" name="a"/>'
+        b'<testcase classname="X" name="b"/></testsuite>'
+    )
+    assert evaluate_surefire_reports([passing], 0) == 1
+    assert evaluate_surefire_reports([passing], 1) == 0
+    failing = (
+        b'<testsuite tests="1"><testcase classname="X" name="a">'
+        b'<failure message="x"/></testcase></testsuite>'
+    )
+    assert evaluate_surefire_reports([failing], 0) == 0
+    assert evaluate_surefire_reports([], 0) is None
+    assert evaluate_surefire_reports([b"not xml <"], 0) == 0
+
+
+def _v3_grader_block() -> str:
+    """Extract the embedded @3 grading script (last PYEOF heredoc)."""
+    import re as _re
+
+    from evallab.separate_verifier import render_wrapper_test_sh_v3 as _render
+    blocks = _re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", _render("/testbed"), _re.S)
+    assert len(blocks) == 2
+    return blocks[1]
+
+
+def _run_embedded_grader(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner_cmd: str,
+    output: str,
+    rc: int,
+    junit: bytes | None = None,
+    patch_extra: str = "",
+) -> str:
+    """Run the shipped @3 grading script against synthetic files; return reward."""
+    junit_path = tmp_path / "junit.xml"
+    if junit is None:
+        if junit_path.exists():
+            junit_path.unlink()
+    else:
+        junit_path.write_bytes(junit)
+    patch_path = tmp_path / "test.patch"
+    patch_path.write_text(
+        "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n"
+        f"+{runner_cmd}\n{patch_extra}",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "test_output.log"
+    output_path.write_text(output, encoding="utf-8")
+    cmd_path = tmp_path / "test_command.sh"
+    cmd_path.write_text(runner_cmd, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["grader", str(junit_path), str(rc), str(patch_path), str(output_path), str(cmd_path), str(tmp_path)],
+    )
+    with pytest.raises(SystemExit):
+        exec(compile(_v3_grader_block(), "v3grader", "exec"), {"__name__": "v3grader"})
+    return capsys.readouterr().out.strip()
+
+
+def test_embedded_grader_matches_pure_evaluators(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    go_pass = "=== RUN TestX\n--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/m\t0.1s\n"
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="go test -v ./...", output=go_pass, rc=0) == "1"
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="go test -v ./...", output="", rc=0) == "0"
+    jest_pass = "Tests:       4 passed, 4 total\nTest Suites: 1 passed, 1 total\n"
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="npx jest a.test.jsx", output=jest_pass, rc=0) == "1"
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="npx jest a.test.jsx", output="Tests: 1 failed\n", rc=1) == "0"
+    unit_pass = "Ran 3 tests in 0.01s\n\nOK\n"
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="python -m unittest tests.test_x", output=unit_pass, rc=0) == "1"
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="python -m unittest tests.test_x", output="", rc=0) == "0"
+    # pytest branch keeps @2 semantics: structured pass grades 1.
+    from evallab.separate_verifier import resolve_command_text as _resolve
+    assert _resolve("bash /testbed/mimo_test_command.sh", None, "x") is not None
+    pytest_out = "=== test session starts ===\ncollected 1 item\n"
+    junit_pass = b'<testsuite tests="1"><testcase classname="t" name="x"/></testsuite>'
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="python -m pytest tests/ -v", output=pytest_out, rc=0, junit=junit_pass) == "1"
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="python -m pytest tests/ -v", output=pytest_out, rc=0, junit=None) == "0"
+    # Silent families keep the exit-code fallback.
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="bash usercase-test-coderl/usecase.sh", output="", rc=0) == "1"
+    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="bash usercase-test-coderl/usecase.sh", output="boom\n", rc=1) == "0"
+
+
+def test_v3_template_pins() -> None:
+    wrapper = render_wrapper_test_sh_v3("/testbed")
+    assert "@@" not in wrapper
+    for name in V3_NEW_INFRA_BASENAMES:
+        assert name in wrapper
+    for runner in ("go-test", "jest", "vitest", "mocha", "pytest", "unittest", "mvn", "rspec", "phpunit", "cargo-test"):
+        assert runner in wrapper
+    for runner in sorted(V3_STRUCTURED_RUNNERS):
+        assert runner in wrapper
+    for signature in V3_TAMPER_SIGNATURES:
+        assert repr(signature) in wrapper
+    assert "hook_installed" in wrapper
+    assert "surefire-reports" in wrapper
+    assert "verifier conftest hook" in wrapper
+    assert JUNIT_MISSING_REASON in wrapper
+    assert "test session starts" in wrapper  # pytest @2-parity branch
+    assert "RUNNER=$RUNNER" in wrapper
+    assert "mimo_build_env.tar.gz.b64" in wrapper  # opaque command resolution
+    assert "/testbed" in wrapper
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v3("relative/path")
+
+
+def test_v3_conftest_hook_collects_a_junit_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    junit_path = tmp_path / "junit.xml"
+    monkeypatch.setenv("MIMO_VERIFIER_JUNIT", str(junit_path))
+    namespace: dict[str, object] = {}
+    exec(compile(V3_CONFTEST_HOOK, "v3hook", "exec"), namespace)
+    logreport = namespace["pytest_runtest_logreport"]  # type: ignore[operator]
+    sessionfinish = namespace["pytest_sessionfinish"]  # type: ignore[operator]
+
+    class _Report:
+        def __init__(self, nodeid: str, when: str, outcome: str, skipped: bool = False) -> None:
+            self.nodeid = nodeid
+            self.when = when
+            self.outcome = "skipped" if skipped else outcome
+            self.skipped = skipped
+
+    logreport(_Report("test_x.py::test_a", "call", "passed"))
+    logreport(_Report("test_x.py::test_b", "call", "failed"))
+    logreport(_Report("test_x.py::test_c", "setup", "passed", skipped=True))
+    sessionfinish(None, 0)
+    import xml.etree.ElementTree as _ET
+    cases = list(_ET.parse(str(junit_path)).getroot().iter("testcase"))
+    assert len(cases) == 3
+    assert sum(1 for c in cases if c.find("failure") is not None) == 1
+    assert sum(1 for c in cases if c.find("skipped") is not None) == 1
+
+
+def test_v3_variant_bundles_setup_and_records_runner(parent_dir_v2: Path) -> None:
+    changes, inputs = build_changes_v3(parent_dir_v2, marker=MARKER)
+    assert set(changes) == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+    assert "tests/test-orig.sh" not in changes
+    wrapper = changes["tests/test.sh"].decode("utf-8")
+    assert "@@" not in wrapper
+    assert "RUNNER=$RUNNER" in wrapper
+    assert inputs["runner"] in ("custom", "pytest", "unittest")
+    assert len(inputs["setup_sha256"]) == 64
+
+
+def test_v3_solution_injected_only_when_parent_has_none(parent_dir_v2: Path) -> None:
+    solve = b"#!/bin/bash\necho oracle\n"
+    changes, _ = build_changes_v3(parent_dir_v2, marker=MARKER, solution_sh=solve)
+    assert changes["solution/solve.sh"] == solve
+    (parent_dir_v2 / "solution").mkdir()
+    (parent_dir_v2 / "solution" / "solve.sh").write_bytes(b"#!/bin/bash\n")
+    with pytest.raises(VariantInvalid):
+        build_changes_v3(parent_dir_v2, marker=MARKER, solution_sh=solve)
+
+
+def test_v3_derive_records_transform_id(parent_dir_v2: Path, tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    record = derive_separate_verifier_v3(
+        parent_dir_v2,
+        marker=MARKER,
+        rationale="test",
+        created_by="test",
+        repo_root=tmp_path,
+        parent_source={"kind": "local", "path": str(parent_dir_v2)},
+        variants_root=store,
+    )
+    assert record.transform == TRANSFORM_ID_V3
+    assert {change.path for change in record.files} == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+    expected_record = (
+        tmp_path / "library" / "task-variants" / record.task_slug / f"{record.digest12}.json"
+    )
+    assert expected_record.is_file()
+    assert (store / record.task_slug / record.digest12).is_dir()
+
+
+def test_v3_refuses_without_a_setup_chain(parent_dir: Path) -> None:
+    with pytest.raises(VariantInvalid):
+        build_changes_v3(parent_dir, marker=MARKER)
+    with pytest.raises(VariantInvalid):
+        build_changes_v3(parent_dir, marker="  ")

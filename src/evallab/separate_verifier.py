@@ -875,6 +875,902 @@ def derive_separate_verifier_v2(
     )
 
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@3 ("multi-runner patch-only verifier")
+# --------------------------------------------------------------------------- #
+# @3 keeps every @2 guarantee for Python/pytest tasks and extends the same
+# patch-only shape to the non-Python runners measured over the 1,519
+# non-Python code tasks (task store
+# ``derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks``;
+# census: go-test 718 incl. opaque-wrap, jest 135, mocha 113, usecase-sh 81,
+# node 50+12, vitest 37, tap/ava/karma/jasmine ~40, pytest 14, make/ctest 11,
+# phpunit 7+13 opaque, rspec 4+16 opaque, junit-mvn/gradle 3+21 opaque,
+# cargo 1+5 opaque, forge 3, long tail ~120 incl. 532 fully opaque
+# build-env wrappers whose real command resolves only at grade time).
+#
+# Semantics change vs @2, so this is a new transform id; no @2 symbol or
+# template byte changes, and @2 records stay valid. See
+# docs/mimo/separate-verifier.md for the per-language table.
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V3 = "separate-verifier@3"
+
+#: New-file runner configs dropped from the kept agent change when the path
+#: is absent at BASE (an honest fix never adds runner configuration). The
+#: rendered grader embeds the same list as a shell ``case`` (see
+#: :func:`render_wrapper_test_sh_v3`); keep the two in sync (pinned by
+#: ``test_v3_new_infra_list_matches_grader``).
+V3_NEW_INFRA_BASENAMES = frozenset(
+    {
+        "jest.config.js",
+        "jest.config.cjs",
+        "jest.config.mjs",
+        "jest.config.ts",
+        "jest.config.json",
+        "jest.setup.js",
+        "jest.setup.cjs",
+        "jest.setup.mjs",
+        "jest.setup.ts",
+        "jest.preset.js",
+        "vitest.config.js",
+        "vitest.config.ts",
+        "vitest.config.mts",
+        "vitest.setup.js",
+        "vitest.setup.ts",
+        "vitest.workspace.js",
+        "vitest.workspace.ts",
+        "vitest.shared.js",
+        "vitest.shared.ts",
+        "ava.config.js",
+        "ava.config.cjs",
+        "ava.config.mjs",
+        "karma.conf.js",
+        ".mocharc.js",
+        ".mocharc.cjs",
+        ".mocharc.mjs",
+        ".mocharc.json",
+        ".mocharc.yml",
+        ".mocharc.yaml",
+        ".taprc",
+        ".nycrc",
+        ".nycrc.json",
+        "jasmine.json",
+        "build.rs",
+        "phpunit.xml",
+        "phpunit.xml.dist",
+        "phpunit.dist.xml",
+        ".rspec",
+    }
+)
+
+#: Build-output dirs dropped from the kept change when absent at BASE (never
+#: fix content; may carry pre-planted structured reports).
+V3_BUILD_OUTPUT_DIR_RES = (
+    r"(^|/)target/surefire-reports/",
+    r"(^|/)target/failsafe-reports/",
+    r"(^|/)build/test-results/",
+    r"(^|/)\.nyc_output/",
+    r"(^|/)coverage/",
+)
+_V3_BUILD_OUTPUT_RES_COMPILED = tuple(re.compile(p) for p in V3_BUILD_OUTPUT_DIR_RES)
+
+
+def is_v3_new_infra(path: str, *, in_base: bool) -> bool:
+    """Whether ``path`` is @3 test infrastructure dropped as a new file.
+
+    Only new files (absent at BASE) are dropped: tracked runner configs are
+    handled by :func:`v3_config_revert_reason` so honest tracked edits
+    survive unless their changed lines touch runner keys.
+    """
+    if in_base:
+        return False
+    if PurePosixPath(path).name in V3_NEW_INFRA_BASENAMES:
+        return True
+    return any(rx.search(path) for rx in _V3_BUILD_OUTPUT_RES_COMPILED)
+
+
+#: Tracked configs reverted to BASE when the kept change's changed lines
+#: touch runner keys: (rule label, basenames, key regex). An honest fix
+#: never flips these keys (false positives measured against reference
+#: fixes; see docs/mimo/separate-verifier.md).
+V3_CONFIG_HUNK_RULES: tuple[tuple[str, tuple[str, ...], str], ...] = (
+    ("package.json runner key", ("package.json",), r'"(jest|mocha|vitest|ava|tap|karma|jasmine|nyc|c8)"\s*:'),
+    ("pom.xml surefire", ("pom.xml",), r"surefire|failsafe|skipTests|<excludes?>"),
+    ("gradle test block", ("build.gradle", "build.gradle.kts"), r"exclude|ignoreFailures|useJUnit|test\s*\{"),
+    ("rspec options", (".rspec",), r"--require|--format|--tag|--exclude-pattern"),
+    (
+        "phpunit config",
+        ("phpunit.xml", "phpunit.xml.dist", "phpunit.dist.xml"),
+        r"bootstrap|suffix=|exclude|executionOrder|printer",
+    ),
+    ("go toolchain", ("go.mod",), r"toolchain"),
+    (
+        "mocha options",
+        (".mocharc.js", ".mocharc.cjs", ".mocharc.mjs", ".mocharc.json", ".mocharc.yml", ".mocharc.yaml"),
+        r"spec|require|ignore|exclude|grep|invert|reporter",
+    ),
+)
+_V3_CONFIG_HUNK_COMPILED = tuple(
+    (label, frozenset(names), re.compile(pattern, re.IGNORECASE))
+    for label, names, pattern in V3_CONFIG_HUNK_RULES
+)
+
+
+def v3_config_revert_reason(path: str, changed_lines: str) -> str | None:
+    """Rule label when a tracked config change touches runner keys (revert to BASE)."""
+    base = PurePosixPath(path).name
+    for label, names, pattern in _V3_CONFIG_HUNK_COMPILED:
+        if base in names and pattern.search(changed_lines):
+            return label
+    return None
+
+
+#: Cross-language tamper signatures gated on added lines of the kept agent
+#: change (universal: any path). Extends :data:`TAMPER_SIGNATURES`; every
+#: entry is valid both as Python ``re`` and as ERE for the grader's
+#: embedded python gate. False positives measured against reference fixes
+#: (docs/mimo/separate-verifier.md).
+V3_TAMPER_SIGNATURES: tuple[str, ...] = TAMPER_SIGNATURES + (
+    r"\bos\.Exit\s*\(",
+    r"\bprocess\.exit\s*\(",
+    r"\bprocess\.exitCode\s*=",
+    r"\bDeno\.exit\s*\(",
+    r"\bSystem\.exit\s*\(",
+    r"\bRuntime\.getRuntime\(\)\.halt\s*\(",
+    r"process::exit\s*\(",
+    r"\bstd::process::exit",
+    r"\bKernel\.exit\b",
+    r"\bglobal\.(it|test|describe|fit)\s*=",
+)
+
+#: Scoped signatures: ``exit(0)`` is legitimate C/shell fix content, so it
+#: only gates Ruby/PHP paths (added lines of files with these extensions).
+V3_SCOPED_SIGNATURES: tuple[tuple[tuple[str, ...], str], ...] = (
+    ((".rb",), r"\bexit\s*\(\s*0\s*\)|\bexit!\s*\(\s*0?\s*\)"),
+    ((".php",), r"\bexit\s*\(\s*0\s*\)|\bdie\s*\(\s*0\s*\)"),
+)
+_V3_SCOPED_COMPILED = tuple(
+    (frozenset(exts), re.compile(pattern)) for exts, pattern in V3_SCOPED_SIGNATURES
+)
+
+
+def v3_tamper_hit_for_file(path: str, added_lines: str) -> str | None:
+    """First @3 tamper signature matching a file's added lines (``None`` keeps)."""
+    for signature in V3_TAMPER_SIGNATURES:
+        if re.search(signature, added_lines):
+            return signature
+    ext = PurePosixPath(path).suffix.lower()
+    for exts, pattern in _V3_SCOPED_COMPILED:
+        if ext in exts and pattern.search(added_lines):
+            return pattern.pattern
+    return None
+
+# --------------------------------------------------------------------------- #
+# @3 runner detection and structured output grading
+# --------------------------------------------------------------------------- #
+
+#: Runner ids detected from the resolved test command (first match wins).
+#: ``custom`` and silent families keep the exit-code fallback.
+V3_RUNNER_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    ("go-test", re.compile(r"(?<![\w])go\s+test\b|GO_BIN\"\s+test\b|\$GO_BIN\"\s+test")),
+    ("jest", re.compile(r"(?<![\w])jest\b")),
+    ("vitest", re.compile(r"(?<![\w])vitest\b")),
+    ("mocha", re.compile(r"(?<![\w])mocha\b|_mocha\b")),
+    ("ava", re.compile(r"(?<![\w])ava\b")),
+    ("tap", re.compile(r"(?<![\w])tap\b")),
+    ("karma", re.compile(r"(?<![\w])karma\b")),
+    ("jasmine", re.compile(r"(?<![\w])jasmine\b")),
+    ("node-test", re.compile(r"node\s+--test\b")),
+    ("cargo-test", re.compile(r"cargo\s+test\b")),
+    ("rspec", re.compile(r"(?<![\w])rspec\b")),
+    ("phpunit", re.compile(r"(?<![\w])phpunit\b")),
+    ("mvn", re.compile(r"(?<![\w])mvn\b|surefire|failsafe")),
+    ("gradle", re.compile(r"(?<![\w])gradlew?\b")),
+    ("pytest", re.compile(r"(?<![\w])pytest\b")),
+    ("unittest", re.compile(r"-m\s+unittest\b")),
+    ("forge", re.compile(r"(?<![\w])forge\s+test\b")),
+    ("node-run", re.compile(r"(?<![\w])node\b")),
+    ("make", re.compile(r"(?<![\w])(make|ctest|cmake)\b")),
+    ("bats", re.compile(r"(?<![\w])bats\b")),
+)
+
+
+def detect_runner(command_text: str) -> str:
+    """Detect the test runner from resolved command text (``custom`` fallback)."""
+    for runner, pattern in V3_RUNNER_PATTERNS:
+        if pattern.search(command_text):
+            return runner
+    return "custom"
+
+
+#: Runners with cheap pass/fail output markers. A passing run always prints,
+#: so ``rc == 0`` with blank output grades 0 (generalized A7 rule). Silent
+#: families (usecase-sh, make, forge, custom, node-run, bats, ...) keep the
+#: exit-code fallback.
+V3_STRUCTURED_RUNNERS = frozenset(
+    {
+        "go-test",
+        "jest",
+        "vitest",
+        "mocha",
+        "ava",
+        "tap",
+        "node-test",
+        "karma",
+        "jasmine",
+        "cargo-test",
+        "rspec",
+        "phpunit",
+        "mvn",
+        "gradle",
+        "unittest",
+    }
+)
+
+_GO_OK_RE = re.compile(r"^ok\s+\S+", re.MULTILINE)
+_GO_FAIL_RE = re.compile(r"^(FAIL|--- FAIL|panic:)", re.MULTILINE)
+_JEST_PASS_RE = re.compile(r"Tests:\s+\d+\s+passed")
+_JEST_FAIL_RE = re.compile(r"Tests:\s+.*failed|Test Suites:\s+.*failed")
+_VITEST_PASS_RE = re.compile(r"(Test Files|Tests)\s+\d+\s+passed")
+_VITEST_FAIL_RE = re.compile(r"(Test Files|Tests)\s+.*failed")
+_MOCHA_PASS_RE = re.compile(r"\d+\s+passing")
+_MOCHA_FAIL_RE = re.compile(r"[1-9]\d*\s+failing")
+_TAP_FAIL_RE = re.compile(r"^not ok\b", re.MULTILINE)
+_TAP_PASS_RE = re.compile(r"^ok\b", re.MULTILINE)
+_KARMA_PASS_RE = re.compile(r"SUCCESS")
+_KARMA_FAIL_RE = re.compile(r"FAILED")
+_RSPEC_PASS_RE = re.compile(r"0\s+failures")
+_RSPEC_FAIL_RE = re.compile(r"[1-9]\d*\s+failures")
+_PHPUNIT_PASS_RE = re.compile(r"^OK\b", re.MULTILINE)
+_PHPUNIT_FAIL_RE = re.compile(r"FAILURES!|ERRORS!|No tests executed")
+_CARGO_PASS_RE = re.compile(r"test result:\s+ok")
+_CARGO_FAIL_RE = re.compile(r"test result:\s+FAILED|panicked")
+_UNITTEST_RAN_RE = re.compile(r"Ran (\d+) test")
+_UNITTEST_OK_RE = re.compile(r"^OK\b", re.MULTILINE)
+_UNITTEST_BAD_RE = re.compile(r"^(FAILED|ERROR)", re.MULTILINE)
+_JASMINE_FAIL_RE = re.compile(r"[1-9]\d*\s+failures?|failed expectations")
+
+
+def evaluate_unittest(test_output: str, rc: int) -> int:
+    """Grade 1/0 from unittest text output plus the exit code.
+
+    A real unittest run always prints ``Ran N tests`` and ``OK``/``FAILED``
+    to stderr, so reward 1 iff ``rc == 0`` with ``N >= 1``, an ``OK`` line,
+    and no failure marker. Blank or exit-forced output grades 0.
+    """
+    match = _UNITTEST_RAN_RE.search(test_output)
+    ran = int(match.group(1)) if match else 0
+    if rc != 0:
+        return 0
+    if ran < 1 or not _UNITTEST_OK_RE.search(test_output):
+        return 0
+    if _UNITTEST_BAD_RE.search(test_output):
+        return 0
+    return 1
+
+
+def evaluate_go_output(test_output: str, rc: int) -> int:
+    """Grade 1/0 from ``go test`` text output plus the exit code.
+
+    Reward 1 iff ``rc == 0`` with at least one ``ok <pkg>`` line and no
+    failure/panic marker. ``[no test files]`` (tests deleted), blank, or
+    exit-forced output grades 0.
+    """
+    if rc != 0:
+        return 0
+    if _GO_FAIL_RE.search(test_output):
+        return 0
+    return 1 if _GO_OK_RE.search(test_output) else 0
+
+
+def evaluate_js_output(runner: str, test_output: str, rc: int) -> int:
+    """Grade 1/0 from jest/vitest/mocha/tap/ava/node-test/karma/jasmine output."""
+    if rc != 0:
+        return 0
+    if runner == "jest":
+        return 1 if _JEST_PASS_RE.search(test_output) and not _JEST_FAIL_RE.search(test_output) else 0
+    if runner == "vitest":
+        return 1 if _VITEST_PASS_RE.search(test_output) and not _VITEST_FAIL_RE.search(test_output) else 0
+    if runner == "mocha":
+        return 1 if _MOCHA_PASS_RE.search(test_output) and not _MOCHA_FAIL_RE.search(test_output) else 0
+    if runner in ("tap", "ava", "node-test"):
+        return 1 if _TAP_PASS_RE.search(test_output) and not _TAP_FAIL_RE.search(test_output) else 0
+    if runner == "karma":
+        return 1 if _KARMA_PASS_RE.search(test_output) and not _KARMA_FAIL_RE.search(test_output) else 0
+    if runner == "jasmine":
+        return 1 if not _JASMINE_FAIL_RE.search(test_output) else 0
+    return 1
+
+
+def evaluate_rspec_output(test_output: str, rc: int) -> int:
+    """Grade 1/0 from rspec text output (``N examples, 0 failures``)."""
+    if rc != 0:
+        return 0
+    if _RSPEC_FAIL_RE.search(test_output):
+        return 0
+    return 1 if _RSPEC_PASS_RE.search(test_output) else 0
+
+
+def evaluate_phpunit_output(test_output: str, rc: int) -> int:
+    """Grade 1/0 from phpunit text output (``OK (...)``)."""
+    if rc != 0:
+        return 0
+    if _PHPUNIT_FAIL_RE.search(test_output):
+        return 0
+    return 1 if _PHPUNIT_PASS_RE.search(test_output) else 0
+
+
+def evaluate_cargo_output(test_output: str, rc: int) -> int:
+    """Grade 1/0 from ``cargo test`` text output (``test result: ok``)."""
+    if rc != 0:
+        return 0
+    if _CARGO_FAIL_RE.search(test_output):
+        return 0
+    return 1 if _CARGO_PASS_RE.search(test_output) else 0
+
+
+def evaluate_surefire_reports(report_xmls: list[bytes], rc: int) -> int | None:
+    """Grade 1/0 from maven/gradle surefire-style XML reports.
+
+    Returns ``None`` when no reports exist (caller keeps the exit-code
+    fallback): some modules genuinely emit none, and inventing suspicion
+    there would false-positive honest passes.
+    """
+    if not report_xmls:
+        return None
+    cases: list[ET.Element] = []
+    for raw in report_xmls:
+        try:
+            cases.extend(ET.fromstring(raw).iter("testcase"))
+        except Exception:
+            return 0
+    bad = [
+        case
+        for case in cases
+        if case.find("failure") is not None
+        or case.find("error") is not None
+        or case.find("skipped") is not None
+    ]
+    return 1 if rc == 0 and cases and not bad else 0
+
+
+#: Verifier-owned pytest hook for commands that clear PYTEST_ADDOPTS (8
+#: Python tasks, e.g. 000666, all of which also set
+#: ``PYTEST_DISABLE_PLUGIN_AUTOLOAD=1`` and clear ``PYTEST_PLUGINS``). A root
+#: ``conftest.py`` is always collected (not a plugin: autoload switches do
+#: not affect it), so appending this hook after the hidden-test apply gives
+#: a junit report no env scrubbing can remove. Appended, never clobbering a
+#: hidden-test conftest.py. Writes outside the repo where code under test
+#: cannot reach. Embedded base64-encoded in the grader.
+V3_CONFTEST_HOOK = (
+    "# separate-verifier@3 hook: structured report for addopts-cleared runs.\n"
+    "import os as _v3_os\n"
+    "_V3_JUNIT_PATH = _v3_os.environ.get("
+    '"MIMO_VERIFIER_JUNIT", "/var/lib/mimo-grade/junit.xml")\n'
+    "_V3_COLLECTED = []\n"
+    "def pytest_runtest_logreport(report):\n"
+    '    if report.when == "call" or (report.when == "setup" and report.skipped):\n'
+    "        _V3_COLLECTED.append((report.nodeid, report.outcome))\n"
+    "def pytest_sessionfinish(session, exitstatus):\n"
+    "    try:\n"
+    "        import xml.etree.ElementTree as ET\n"
+    '        suite = ET.Element("testsuite", name="verifier", tests=str(len(_V3_COLLECTED)))\n'
+    "        for nodeid, outcome in _V3_COLLECTED:\n"
+    '            name = nodeid.split("::")[-1]\n'
+    '            case = ET.SubElement(suite, "testcase", classname=nodeid, name=name)\n'
+    '            if outcome == "failed":\n'
+    '                ET.SubElement(case, "failure", message="failed")\n'
+    '            elif outcome == "skipped":\n'
+    '                ET.SubElement(case, "skipped", message="skipped")\n'
+    "        ET.ElementTree(suite).write(_V3_JUNIT_PATH)\n"
+    "    except Exception:\n"
+    "        pass\n"
+)
+
+#: @3 grader entry point, part A (setup, agent diff, @3 drops). Tokens
+#: ``@@WORKDIR@@`` / ``@@V3_NEW_INFRA_CASE@@`` are filled by
+#: :func:`render_wrapper_test_sh_v3` (token replacement, since the embedded
+#: python heredocs are brace-heavy).
+_V3_WRAPPER_A = """#!/bin/bash
+# separate-verifier@3 entry: patch-only grading in a pristine verifier checkout.
+# Extends @2 with multi-runner drops, cross-language tamper gates, and
+# structured per-runner grading (exit-code fallback for silent families).
+# Exit 0 whenever grading completes (reward in /logs/verifier/reward.txt);
+# exit 1 only for testbed problems (setup/patch failures: not scored).
+set -u
+SNAP="/var/tmp/mimo-separate"
+M="/var/lib/mimo"
+CWD="@@WORKDIR@@"
+V=/logs/verifier
+GRADE=/var/lib/mimo-grade
+TS_BAK="$GRADE/tests"
+mkdir -p "$V" "$GRADE"
+# 0. Pristine checkout: rerun the bundled clean setup (same as @2).
+rm -rf "$TS_BAK"; cp -a /tests "$TS_BAK"
+mkdir -p "$M"; cp -r "$TS_BAK/_verifier-setup/." "$M/"
+if ! bash "$M/setup.sh" > "$GRADE/setup.log" 2>&1; then
+  echo "verifier setup failed (testbed problem, not scored)" >&2; exit 1
+fi
+rm -rf /tests; cp -a "$TS_BAK" /tests; rm -rf "$TS_BAK"
+mkdir -p "$V"; cp "$GRADE/setup.log" "$V/setup.log"
+BASE=$(cat "$M/base" 2>/dev/null) || { echo "verifier setup never ran (no $M/base)" >&2; exit 1; }
+cd "$CWD" || exit 1
+if [ -d "$M/git-hidden" ]; then rm -rf "$CWD/.git"; mv "$M/git-hidden" "$CWD/.git"; fi
+test -f /tests/test.patch || { echo "bundled test.patch missing (testbed problem)" >&2; exit 1; }
+test -f /tests/test_command.sh || { echo "bundled test_command.sh missing (testbed)" >&2; exit 1; }
+# 1. The agent's change, computed by the verifier's own git against the clean
+# base (same as @2).
+test -f "$SNAP/workspace.tgz" || { echo "snapshot missing: $SNAP/workspace.tgz" >&2; exit 1; }
+rm -rf /tmp/agentcopy && mkdir -p /tmp/agentcopy
+tar -xzf "$SNAP/workspace.tgz" -C /tmp/agentcopy || { echo "snapshot unreadable" >&2; exit 1; }
+rm -rf /tmp/agentcopy/.git
+git --git-dir="$CWD/.git" show "$BASE:.gitignore" > /tmp/base.gitignore 2>/dev/null || : > /tmp/base.gitignore
+cp /tmp/base.gitignore /tmp/agentcopy/.gitignore
+export GIT_INDEX_FILE=/tmp/agent.index; rm -f "$GIT_INDEX_FILE"
+git --git-dir="$CWD/.git" --work-tree=/tmp/agentcopy read-tree "$BASE" || { echo "clean-tree read failed" >&2; exit 1; }
+git --git-dir="$CWD/.git" --work-tree=/tmp/agentcopy add -A
+git --git-dir="$CWD/.git" --work-tree=/tmp/agentcopy diff --cached --binary "$BASE" > "$V/agent.full.diff"
+CHANGED=$(git --git-dir="$CWD/.git" --work-tree=/tmp/agentcopy diff --cached --name-only "$BASE")
+unset GIT_INDEX_FILE
+# 2. @3 drops: @2 infra names and hidden-test paths, plus new-file runner
+# configs and build outputs; tracked runner-config hunks revert to BASE.
+TESTFILES=$(grep '^diff --git' /tests/test.patch | sed 's#.* b/##')
+KEEP=/tmp/keep.list; REVERT=/tmp/revert.list; : > "$KEEP"; : > "$REVERT"; : > "$V/dropped.log"
+for f in $CHANGED; do
+  b=${f##*/}; drop=""; reverted=""
+  case "$b" in conftest.py|pytest.ini|tox.ini|sitecustomize.py|usercustomize.py|*.pth|*_test.go) drop="test-infra";; esac
+  if [ -z "$drop" ]; then
+    case "$b" in @@V3_NEW_INFRA_CASE@@)
+      if ! git --git-dir="$CWD/.git" cat-file -e "$BASE:$f" 2>/dev/null; then drop="new runner config"; fi;;
+    esac
+  fi
+  if [ -z "$drop" ]; then
+    case "$f" in target/surefire-reports/*|target/failsafe-reports/*|build/test-results/*|.nyc_output/*|coverage/*)
+      if ! git --git-dir="$CWD/.git" cat-file -e "$BASE:$f" 2>/dev/null; then drop="new build output"; fi;;
+    esac
+  fi
+  if [ -z "$drop" ] && printf '%s\\n' "$TESTFILES" | grep -qxF -- "$f"; then drop="hidden-test path"; fi
+  if [ -z "$drop" ]; then
+    case "$b" in setup.cfg|pyproject.toml)
+      if diff <(git --git-dir="$CWD/.git" show "$BASE:$f" 2>/dev/null) "/tmp/agentcopy/$f" 2>/dev/null | grep -E '^[<>]' | grep -qiE 'pytest|addopts|plugins'; then drop="pytest config"; fi;;
+    esac
+  fi
+  if [ -z "$drop" ]; then
+    case "$f" in *.go)
+      if grep -qE 'func TestMain[[:space:]]*\\(' "/tmp/agentcopy/$f" 2>/dev/null; then drop="go TestMain"; fi;;
+    esac
+  fi
+  if [ -z "$drop" ] && git --git-dir="$CWD/.git" cat-file -e "$BASE:$f" 2>/dev/null; then
+    CHLINES=$(diff <(git --git-dir="$CWD/.git" show "$BASE:$f" 2>/dev/null) "/tmp/agentcopy/$f" 2>/dev/null | grep -E '^[<>]' || true)
+    rule=""
+    case "$b" in package.json)
+      if printf '%s\\n' "$CHLINES" | grep -qiE '"(jest|mocha|vitest|ava|tap|karma|jasmine|nyc|c8)"[[:space:]]*:'; then rule="package.json runner key"; fi;;
+    esac
+    case "$b" in pom.xml)
+      if printf '%s\\n' "$CHLINES" | grep -qiE 'surefire|failsafe|skipTests|<excludes?>'; then rule="pom.xml surefire"; fi;;
+    esac
+    case "$b" in build.gradle|build.gradle.kts)
+      if printf '%s\\n' "$CHLINES" | grep -qiE 'exclude|ignoreFailures|useJUnit|test[[:space:]]*\\{'; then rule="gradle test block"; fi;;
+    esac
+    case "$b" in .rspec)
+      if printf '%s\\n' "$CHLINES" | grep -qE -- '--require|--format|--tag|--exclude-pattern'; then rule="rspec options"; fi;;
+    esac
+    case "$b" in phpunit.xml|phpunit.xml.dist|phpunit.dist.xml)
+      if printf '%s\\n' "$CHLINES" | grep -qiE 'bootstrap|suffix=|exclude|executionOrder|printer'; then rule="phpunit config"; fi;;
+    esac
+    case "$b" in go.mod)
+      if printf '%s\\n' "$CHLINES" | grep -qiE 'toolchain'; then rule="go toolchain"; fi;;
+    esac
+    case "$b" in .mocharc.js|.mocharc.cjs|.mocharc.mjs|.mocharc.json|.mocharc.yml|.mocharc.yaml)
+      if printf '%s\\n' "$CHLINES" | grep -qiE 'spec|require|ignore|exclude|grep|invert|reporter'; then rule="mocha options"; fi;;
+    esac
+    if [ -n "$rule" ]; then reverted="$rule"; echo "reverted $f ($rule)" >> "$V/dropped.log"; echo "$f" >> "$REVERT"; fi
+  fi
+  if [ -n "$drop" ]; then echo "dropped $f ($drop)" >> "$V/dropped.log"; elif [ -z "$reverted" ]; then echo "$f" >> "$KEEP"; fi
+done
+# 3. Copy the kept files over the pristine tree (deletions too), then
+# restore reverted configs to BASE.
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if [ -e "/tmp/agentcopy/$f" ] || [ -L "/tmp/agentcopy/$f" ]; then
+    mkdir -p "$(dirname "$f")"
+    cp -a "/tmp/agentcopy/$f" "$f"
+  else rm -f "$f"; fi
+done < "$KEEP"
+while IFS= read -r f; do
+  [ -z "$f" ] && continue
+  if git --git-dir="$CWD/.git" cat-file -e "$BASE:$f" 2>/dev/null; then
+    git --git-dir="$CWD/.git" show "$BASE:$f" > "$f"
+  else rm -f "$f"; fi
+done < "$REVERT"
+"""
+
+#: @3 grader entry point, part B (tamper gate, hidden tests, command
+#: resolution). Tokens ``@@V3_UNIVERSAL@@`` / ``@@V3_SCOPED@@`` /
+#: ``@@V3_CONFTEST_HOOK_B64@@`` are filled by :func:`render_wrapper_test_sh_v3`.
+_V3_WRAPPER_B = """# 3b. Source that reaches into the test runner or forces the exit code is not a fix.
+# Per-file gate: universal signatures on any path, exit(0) only on Ruby/PHP.
+git add -A >/dev/null 2>&1 && git diff --cached "$BASE" > "$V/agent.kept.diff"; git reset -q
+python3 - "$V/agent.kept.diff" <<'PYEOF' > "$V/tamper.log" 2>&1
+import sys, re
+diff = open(sys.argv[1], encoding="utf-8", errors="replace").read()
+universal = @@V3_UNIVERSAL@@
+scoped = @@V3_SCOPED@@
+cur = None
+added = {}
+for line in diff.splitlines():
+    if line.startswith("+++ b/"):
+        cur = line[6:]
+        added.setdefault(cur, [])
+    elif cur is not None and line.startswith("+") and not line.startswith("+++"):
+        added[cur].append(line[1:])
+for path, lines in added.items():
+    text = "\\n".join(lines)
+    for sig in universal:
+        if re.search(sig, text):
+            print("tamper %s in %s" % (sig, path))
+            sys.exit(10)
+    leaf = path.rsplit("/", 1)[-1]
+    ext = "." + leaf.rsplit(".", 1)[-1].lower() if "." in leaf else ""
+    for exts, sig in scoped:
+        if ext in exts and re.search(sig, text):
+            print("scoped tamper %s in %s" % (sig, path))
+            sys.exit(10)
+PYEOF
+if [ $? -eq 10 ]; then
+  echo 0 > "$V/reward.txt"; echo "REWARD=0 tamper signature in agent diff"; exit 0
+fi
+# 4. Hidden tests, then resolve the real test command. Opaque build-env
+# wrappers (mimo_build_env.tar.gz.b64, from the hidden patch) decode here:
+# the tarball is trusted verifier-side bundle content, never agent bytes.
+printf '%s\\n' "$TESTFILES" | while IFS= read -r tf; do
+  [ -z "$tf" ] && continue
+  if git cat-file -e "$BASE:$tf" 2>/dev/null; then
+    git checkout -q "$BASE" -- "$tf" 2>/dev/null || true
+  else
+    git rm -f --cached "$tf" >/dev/null 2>&1 || true
+    rm -f "$tf"
+  fi
+done
+if ! git apply --verbose /tests/test.patch > "$V/apply.log" 2>&1; then
+  cat "$V/apply.log" >&2
+  echo "the hidden tests could not be applied (testbed problem, not scored)" >&2
+  exit 1
+fi
+RESOLVED=$(cat /tests/test_command.sh)
+for ref in $(grep -oE '[^ "]*mimo_test_command\\.sh' /tests/test_command.sh | sort -u); do
+  base=${ref##*/}
+  if [ -f "$base" ]; then RESOLVED="$RESOLVED
+$(cat "$base")"; fi
+done
+if printf '%s' "$RESOLVED" | grep -q 'build_env/test_command'; then
+  if [ -f mimo_build_env.tar.gz.b64 ]; then
+    rm -rf "$GRADE/build_env" && mkdir -p "$GRADE/build_env"
+    if base64 -d mimo_build_env.tar.gz.b64 2>/dev/null | tar -xzf - -C "$GRADE/build_env" 2>/dev/null; then
+      BE_TC=$(find "$GRADE/build_env" -name 'test_command.sh' | head -1)
+      if [ -n "$BE_TC" ]; then RESOLVED="$RESOLVED
+$(cat "$BE_TC")"; fi
+    fi
+  fi
+fi
+printf '%s' "$RESOLVED" > "$V/resolved_command.txt"
+RUNNER=custom
+if printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])go +test( |$)'; then RUNNER=go-test
+elif printf '%s' "$RESOLVED" | grep -qE 'GO_BIN" +test( |$)'; then RUNNER=go-test
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])jest([^[:alnum:]_]|$)'; then RUNNER=jest
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])vitest([^[:alnum:]_]|$)'; then RUNNER=vitest
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])_?mocha([^[:alnum:]_]|$)'; then RUNNER=mocha
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])ava([^[:alnum:]_]|$)'; then RUNNER=ava
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])tap([^[:alnum:]_]|$)'; then RUNNER=tap
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])karma([^[:alnum:]_]|$)'; then RUNNER=karma
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])jasmine([^[:alnum:]_]|$)'; then RUNNER=jasmine
+elif printf '%s' "$RESOLVED" | grep -qE 'node +--test([^[:alnum:]_]|$)'; then RUNNER=node-test
+elif printf '%s' "$RESOLVED" | grep -qE 'cargo +test([^[:alnum:]_]|$)'; then RUNNER=cargo-test
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])rspec([^[:alnum:]_]|$)'; then RUNNER=rspec
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])phpunit([^[:alnum:]_]|$)'; then RUNNER=phpunit
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])mvn([^[:alnum:]_]|$)|surefire|failsafe'; then RUNNER=mvn
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])gradlew?([^[:alnum:]_]|$)'; then RUNNER=gradle
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])pytest([^[:alnum:]_]|$)'; then RUNNER=pytest
+elif printf '%s' "$RESOLVED" | grep -qE '\\-m +unittest([^[:alnum:]_]|$)'; then RUNNER=unittest
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])forge +test([^[:alnum:]_]|$)'; then RUNNER=forge
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])node([^[:alnum:]_]|$)'; then RUNNER=node-run
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])(make|ctest|cmake)([^[:alnum:]_]|$)'; then RUNNER=make
+elif printf '%s' "$RESOLVED" | grep -qE '(^|[^[:alnum:]_])bats([^[:alnum:]_]|$)'; then RUNNER=bats
+fi
+echo "RUNNER=$RUNNER" > "$V/runner.txt"
+# Verifier-owned conftest hook for pytest commands that clear our addopts:
+# a root conftest.py is always collected, so the structured report survives
+# any env scrubbing. Appended after the hidden-test apply, never clobbering.
+if [ "$RUNNER" = pytest ]; then
+  CLEARED=0
+  printf '%s' "$RESOLVED" | grep -q 'unset.*PYTEST_ADDOPTS' && CLEARED=1
+  printf '%s' "$RESOLVED" | grep -q 'PYTEST_ADDOPTS=' && CLEARED=1
+  printf '%s' "$RESOLVED" | grep -qE 'env +([^ ]+ +)*-u([^ ]* +)*PYTEST_ADDOPTS|env +-u +PYTEST_ADDOPTS' && CLEARED=1
+  if [ "$CLEARED" = 1 ]; then
+    echo "@@V3_CONFTEST_HOOK_B64@@" | base64 -d >> ./conftest.py
+    touch "$GRADE/hook_installed"
+    echo "installed verifier conftest hook (addopts cleared)" >> "$V/dropped.log"
+  fi
+fi
+export MIMO_VERIFIER_JUNIT="$GRADE/junit.xml"
+"""
+
+#: @3 grader entry point, part C (test run, structured per-runner grading).
+_V3_WRAPPER_C = """JUNIT=$GRADE/junit.xml; mkdir -p "${JUNIT%/*}"
+# PYTHONUNBUFFERED so the pytest session header reaches the log even when the
+# run is killed import-time (same as @2).
+PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1
+RC=$?
+python3 - "$JUNIT" "$RC" /tests/test.patch "$V/test_output.log" /tests/test_command.sh "$CWD" <<'PYEOF' > "$V/reward.txt" 2> "$V/junit-grade.log"
+import sys, re, base64, binascii, glob, os, xml.etree.ElementTree as ET
+junit_path, rc, patch_path, output_path, cmd_path, cwd = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4], sys.argv[5], sys.argv[6]
+patch = open(patch_path, encoding="utf-8", errors="replace").read()
+ids = set(re.findall(r'(\\S+\\.py::[^\\s"\\']+)', patch.split("mimo_test_command.sh")[-1]))
+output = open(output_path, encoding="utf-8", errors="replace").read()
+cmd_text = open(cmd_path, encoding="utf-8", errors="replace").read()
+mimo = ""
+for ref in re.findall(r'(\\S*mimo_test_command\\.sh)', cmd_text):
+    try:
+        mimo += open(ref.split("/")[-1], encoding="utf-8", errors="replace").read() + "\\n"
+    except OSError:
+        pass
+if "build_env/test_command" in cmd_text + mimo:
+    for root, _dirs, files in os.walk("/var/lib/mimo-grade/build_env"):
+        for fn in files:
+            if fn == "test_command.sh":
+                try:
+                    mimo += open(os.path.join(root, fn), encoding="utf-8", errors="replace").read() + "\\n"
+                except OSError:
+                    pass
+hay = cmd_text + "\\n" + mimo + "\\n" + patch.split("mimo_test_command.sh")[-1]
+for tok in re.findall(r'[A-Za-z0-9+/]{40,}={0,2}', hay):
+    try:
+        hay += base64.b64decode(tok, validate=True).decode("utf-8", "replace")
+    except (binascii.Error, ValueError):
+        pass
+order = [
+    ("go-test", r"(?<![\\w])go\\s+test\\b|GO_BIN\\\"\\s+test\\b|\\$GO_BIN\\\"\\s+test"),
+    ("jest", r"(?<![\\w])jest\\b"),
+    ("vitest", r"(?<![\\w])vitest\\b"),
+    ("mocha", r"(?<![\\w])mocha\\b|_mocha\\b"),
+    ("ava", r"(?<![\\w])ava\\b"),
+    ("tap", r"(?<![\\w])tap\\b"),
+    ("karma", r"(?<![\\w])karma\\b"),
+    ("jasmine", r"(?<![\\w])jasmine\\b"),
+    ("node-test", r"node\\s+--test\\b"),
+    ("cargo-test", r"cargo\\s+test\\b"),
+    ("rspec", r"(?<![\\w])rspec\\b"),
+    ("phpunit", r"(?<![\\w])phpunit\\b"),
+    ("mvn", r"(?<![\\w])mvn\\b|surefire|failsafe"),
+    ("gradle", r"(?<![\\w])gradlew?\\b"),
+    ("pytest", r"(?<![\\w])pytest\\b"),
+    ("unittest", r"-m\\s+unittest\\b"),
+    ("forge", r"(?<![\\w])forge\\s+test\\b"),
+    ("node-run", r"(?<![\\w])node\\b"),
+    ("make", r"(?<![\\w])(make|ctest|cmake)\\b"),
+    ("bats", r"(?<![\\w])bats\\b"),
+]
+runner = "custom"
+for name, rx in order:
+    if re.search(rx, hay):
+        runner = name
+        break
+sys.stderr.write("runner=%s rc=%d\\n" % (runner, rc))
+blank = len(output.strip()) == 0
+def fallback():
+    print(1 if rc == 0 else 0)
+    sys.stderr.write("rc=%d %s: exit-code grading\\n" % (rc, runner))
+    sys.exit()
+if runner == "pytest":
+    cleared = re.search(r'unset\\s+[^\\n]*PYTEST_ADDOPTS|PYTEST_ADDOPTS\\s*=|env\\s+[^\\n]*-u\\s+PYTEST_ADDOPTS', hay) is not None
+    has_pytest = "pytest" in hay.lower()
+    started = has_pytest and ("test session starts" in output or re.search(r'collected \\d+ items?', output) is not None)
+    flag = os.path.exists("/var/lib/mimo-grade/hook_installed") or ((not cleared) and (started or (len(output.strip()) == 0 and has_pytest)))
+    def grade_noreport():
+        if flag:
+            sys.stderr.write("rc=%d @@JUNIT_MISSING_REASON@@\\n" % rc)
+            print(0)
+        else:
+            print(1 if rc == 0 else 0)
+            sys.stderr.write("rc=%d no junit: exit-code grading\\n" % rc)
+        sys.exit()
+    try:
+        raw = open(junit_path, "rb").read()
+        cases = list(ET.fromstring(raw).iter("testcase")) if raw else []
+    except Exception:
+        grade_noreport()
+    if not raw:
+        grade_noreport()
+    bad = [c for c in cases if c.find("failure") is not None or c.find("error") is not None or c.find("skipped") is not None]
+    seen = {c.get("classname", "").replace(".", "/") + ".py::" + c.get("name", "") for c in cases}
+    missing = [i for i in ids if not any(s == i or s.startswith(i + "[") for s in seen)]
+    print(1 if rc == 0 and cases and not bad and not missing else 0)
+    sys.stderr.write("rc=%d cases=%d bad=%d named=%d missing=%s\\n" % (rc, len(cases), len(bad), len(ids), missing))
+    sys.exit()
+if runner in ("go-test", "jest", "vitest", "mocha", "ava", "tap", "node-test", "karma", "jasmine", "cargo-test", "rspec", "phpunit", "unittest"):
+    if blank:
+        sys.stderr.write("rc=%d blank %s output: no test evidence\\n" % (rc, runner))
+        print(0)
+        sys.exit()
+    if rc != 0:
+        print(0)
+        sys.stderr.write("rc=%d %s nonzero exit\\n" % (rc, runner))
+        sys.exit()
+    ok = False
+    if runner == "go-test":
+        ok = re.search(r"^ok\\s+\\S+", output, re.M) is not None and re.search(r"^(FAIL|--- FAIL|panic:)", output, re.M) is None
+    elif runner == "jest":
+        ok = re.search(r"Tests:\\s+\\d+\\s+passed", output) is not None and re.search(r"Tests:\\s+.*failed|Test Suites:\\s+.*failed", output) is None
+    elif runner == "vitest":
+        ok = re.search(r"(Test Files|Tests)\\s+\\d+\\s+passed", output) is not None and re.search(r"(Test Files|Tests)\\s+.*failed", output) is None
+    elif runner == "mocha":
+        ok = re.search(r"\\d+\\s+passing", output) is not None and re.search(r"[1-9]\\d*\\s+failing", output) is None
+    elif runner in ("tap", "ava", "node-test"):
+        ok = re.search(r"^ok\\b", output, re.M) is not None and re.search(r"^not ok\\b", output, re.M) is None
+    elif runner == "karma":
+        ok = "SUCCESS" in output and "FAILED" not in output
+    elif runner == "jasmine":
+        ok = re.search(r"[1-9]\\d*\\s+failures?|failed expectations", output) is None
+    elif runner == "cargo-test":
+        ok = re.search(r"test result:\\s+ok", output) is not None and re.search(r"test result:\\s+FAILED|panicked", output) is None
+    elif runner == "rspec":
+        ok = re.search(r"0\\s+failures", output) is not None and re.search(r"[1-9]\\d*\\s+failures", output) is None
+    elif runner == "phpunit":
+        ok = re.search(r"^OK\\b", output, re.M) is not None and re.search(r"FAILURES!|ERRORS!|No tests executed", output) is None
+    elif runner == "unittest":
+        m = re.search(r"Ran (\\d+) test", output)
+        ok = (m is not None and int(m.group(1)) >= 1 and re.search(r"^OK\\b", output, re.M) is not None and re.search(r"^(FAILED|ERROR)", output, re.M) is None)
+    print(1 if ok else 0)
+    sys.stderr.write("rc=%d %s markers=%s\\n" % (rc, runner, ok))
+    sys.exit()
+if runner in ("mvn", "gradle"):
+    paths = []
+    for pat in ("target/surefire-reports/*.xml", "target/failsafe-reports/*.xml", "build/test-results/test/*.xml", "build/test-results/**/*.xml"):
+        paths.extend(glob.glob(os.path.join(cwd, pat), recursive=True))
+    if not paths:
+        if blank:
+            sys.stderr.write("rc=%d %s blank with no surefire reports\\n" % (rc, runner))
+            print(0)
+            sys.exit()
+        fallback()
+    cases = []
+    try:
+        for p in paths:
+            cases.extend(ET.parse(p).getroot().iter("testcase"))
+    except Exception:
+        print(0)
+        sys.stderr.write("rc=%d %s unparsable surefire report\\n" % (rc, runner))
+        sys.exit()
+    bad = [c for c in cases if c.find("failure") is not None or c.find("error") is not None or c.find("skipped") is not None]
+    print(1 if rc == 0 and cases and not bad else 0)
+    sys.stderr.write("rc=%d %s surefire=%d cases=%d bad=%d\\n" % (rc, runner, len(paths), len(cases), len(bad)))
+    sys.exit()
+fallback()
+PYEOF
+echo "REWARD=$(cat "$V/reward.txt") rc=$RC runner=$(cat "$V/runner.txt")" | tee -a "$V/test_output.log"
+"""
+
+def render_wrapper_test_sh_v3(workdir: str) -> str:
+    """Verifier entry point: @3 patch-only grading (never trusts agent state)."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
+    scoped = (
+        "["
+        + ", ".join(
+            f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES
+        )
+        + "]"
+    )
+    hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
+    return (
+        (_V3_WRAPPER_A + _V3_WRAPPER_B + _V3_WRAPPER_C)
+        .replace("@@WORKDIR@@", workdir)
+        .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
+        .replace("@@V3_UNIVERSAL@@", universal)
+        .replace("@@V3_SCOPED@@", scoped)
+        .replace("@@V3_CONFTEST_HOOK_B64@@", hook_b64)
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
+    )
+
+
+def render_tests_dockerfile_v3(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup (@3)."""
+    return (
+        "# Separate-verifier image (separate-verifier@3): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def build_changes_v3(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @3.
+
+    Same bundle shape as @2 (clean setup chain + patch-only grader, no
+    ``tests/test-orig.sh`` kept); the grader is the multi-runner @3 entry
+    point. ``solution_sh`` adds an oracle-control reference solution when
+    the parent has none. Refuses to overwrite an existing solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    try:
+        patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        runner = detect_runner(resolve_command_text(command_sh, None, patch_text))
+    except OSError:
+        runner = "unknown"
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v3(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v3(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "runner": runner,
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v3(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with the hidden tests and structured per-runner checks.",
+    created_by: str = "multi-runner-patch-only-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@3`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v3(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V3,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
 __all__ = [
     "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
@@ -883,23 +1779,43 @@ __all__ = [
     "TAMPER_SIGNATURES",
     "TRANSFORM_ID",
     "TRANSFORM_ID_V2",
+    "TRANSFORM_ID_V3",
     "TRAJECTORY_ARTIFACT",
     "V2_GRADE_DIR",
     "V2_SETUP_SUBDIR",
+    "V3_BUILD_OUTPUT_DIR_RES",
+    "V3_CONFIG_HUNK_RULES",
+    "V3_CONFTEST_HOOK",
+    "V3_NEW_INFRA_BASENAMES",
+    "V3_RUNNER_PATTERNS",
+    "V3_SCOPED_SIGNATURES",
+    "V3_STRUCTURED_RUNNERS",
+    "V3_TAMPER_SIGNATURES",
     "WRAPPER_TEST_SCRIPT",
     "ParentInfo",
     "addopts_cleared",
     "build_changes",
     "build_changes_v2",
+    "build_changes_v3",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
     "derive_separate_verifier_v2",
+    "derive_separate_verifier_v3",
     "detect_pytest_run",
+    "detect_runner",
     "drop_reason",
+    "evaluate_cargo_output",
+    "evaluate_go_output",
+    "evaluate_js_output",
     "evaluate_junit",
+    "evaluate_phpunit_output",
+    "evaluate_rspec_output",
+    "evaluate_surefire_reports",
+    "evaluate_unittest",
     "is_pytest_config_tamper",
     "is_test_infra_filename",
+    "is_v3_new_infra",
     "parse_named_pytest_ids",
     "junit_absence_suspicious",
     "output_is_blank",
@@ -911,8 +1827,12 @@ __all__ = [
     "render_task_toml",
     "render_tests_dockerfile",
     "render_tests_dockerfile_v2",
+    "render_tests_dockerfile_v3",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
+    "render_wrapper_test_sh_v3",
     "resolve_command_text",
     "tamper_signature_hit",
+    "v3_config_revert_reason",
+    "v3_tamper_hit_for_file",
 ]

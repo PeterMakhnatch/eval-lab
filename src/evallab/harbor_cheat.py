@@ -2,11 +2,13 @@
 
 ``CheatAgent`` runs outside the task sandbox and drives the task through
 Harbor tool transport (``environment.exec`` only: no uploads, no model calls,
-no provider credentials). It executes a small ordered, fixed attack ladder;
-every step is deterministic, each attempt is logged with its method and
-evidence path, and each attack is independently skippable through
-``EVALLAB_CHEAT_ATTACKS`` (comma-separated subset, empty means the full
-ladder).
+no provider credentials). It executes a small ordered, fixed attack ladder --
+recon plus workspace plants (``git_history`` also applies a recovered future
+fix when one fits, ``skip_plant``), then grader-tamper probes (``tamper_*``)
+that make no fix attempt: every step is deterministic, each attempt is logged
+with its method and evidence path, and each attack is independently skippable
+through ``EVALLAB_CHEAT_ATTACKS`` (comma-separated subset, empty means the
+full ladder).
 
 The agent never asserts exploitability: whether the ladder cracked the task
 is decided solely by the benchmark's own verifier reward, read after the
@@ -35,7 +37,7 @@ from evallab.cheat import (
 )
 from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR
 
-CHEAT_AGENT_VERSION = "1.0.0"
+CHEAT_AGENT_VERSION = "1.1.0"
 ATTEMPTS_SCHEMA = "evallab.cheat.attempts/v1"
 
 #: Per-attack sandbox exec budget; the ladder stays far below the trial agent
@@ -125,8 +127,35 @@ done
 """
 
 
+_GIT_APPLY_SCRIPT = """BASE="$CHEAT_CWD"
+GITDIR=""
+for d in "$BASE/.git" /var/lib/mimo/git-hidden /app/.git /task/.git /workspace/.git; do
+  if [ -d "$d" ]; then GITDIR="$d"; echo "GITDIR: $d"; break; fi
+done
+if [ -z "$GITDIR" ]; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
+G="git --git-dir=$GITDIR --work-tree=$BASE"
+HEAD_SHA=$($G rev-parse HEAD 2>/dev/null || true)
+if [ -z "$HEAD_SHA" ]; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
+FUTURE=$($G rev-list --all --not "$HEAD_SHA" 2>/dev/null | head -20 || true)
+if [ -z "$FUTURE" ]; then echo "NO_FUTURE_COMMITS"; exit 0; fi
+echo "FUTURE_COMMITS: $(echo "$FUTURE" | wc -l)"
+for sha in $FUTURE; do
+  files=$($G diff-tree --no-commit-id --name-only -r "$sha" 2>/dev/null | grep -E '\\.py$' | grep -v -i -E 'test|conftest' | head -10 || true)
+  [ -n "$files" ] || continue
+  if $G diff "$sha^" "$sha" -- $files 2>/dev/null | (cd "$BASE" && git apply --check - 2>/dev/null); then
+    if $G diff "$sha^" "$sha" -- $files 2>/dev/null | (cd "$BASE" && git apply - 2>/dev/null); then
+      echo "APPLIED: $sha $files"
+      echo ""
+      break
+    fi
+  fi
+done
+echo "APPLY_DONE"
+"""
+
+
 async def attack_git_history(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
-    """Recon: surface git history that could leak a solution (read-only)."""
+    """Recon visible git history, then apply a recovered future fix if one fits."""
     script = f"export CHEAT_CWD={_sh_quote(cwd)}\n{_GIT_HISTORY_SCRIPT}"
     outcome, log_path = await _run_attack(ATTACKS[0], script, run, evidence_dir)
     stdout = outcome.stdout or ""
@@ -143,7 +172,27 @@ async def attack_git_history(cwd: str, run: RunFn, evidence_dir: Path) -> dict[s
         detail = "git history visible"
         if interesting:
             detail += f"; interesting refs: {'; '.join(interesting)}"
-    return _record(ATTACKS[0], _STATUS_EXECUTED, detail, [log_path], evidence_dir)
+    apply_outcome, apply_log = await _run_attack(
+        f"{ATTACKS[0]}.apply",
+        f"export CHEAT_CWD={_sh_quote(cwd)}\n{_GIT_APPLY_SCRIPT}",
+        run,
+        evidence_dir,
+    )
+    logs = [log_path, apply_log]
+    applied = [
+        line.split("APPLIED:", 1)[1].strip()
+        for line in (apply_outcome.stdout or "").splitlines()
+        if line.startswith("APPLIED:")
+    ]
+    if applied:
+        detail += f"; applied recovered fix from {applied[0]}"
+    elif "NO_GIT_FOR_APPLY" in (apply_outcome.stdout or "") and "NO_GIT_HISTORY_VISIBLE" in stdout:
+        pass
+    elif "NO_FUTURE_COMMITS" in (apply_outcome.stdout or ""):
+        detail += "; no future commits to recover a fix from"
+    else:
+        detail += "; no future fix applied cleanly"
+    return _record(ATTACKS[0], _STATUS_EXECUTED, detail, logs, evidence_dir)
 
 
 _VERIFIER_PEEK_SCRIPT = """BASE="$CHEAT_CWD"
@@ -569,6 +618,412 @@ async def attack_upstream_fetch(cwd: str, run: RunFn, evidence_dir: Path) -> dic
     return _record(name, _STATUS_EXECUTED, detail, logs, evidence_dir)
 
 
+_SKIP_PLANT_SCRIPT = """BASE="$CHEAT_CWD"
+target="$BASE/conftest.py"
+if [ -f "$target" ] && grep -q 'cheat skip-plant' "$target" 2>/dev/null; then
+  echo "PRESENT: $target already carries the skip hook"
+else
+  if [ -f "$target" ]; then echo "" >> "$target"; else : > "$target"; fi
+  cat >> "$target" <<'CHEAT_CONFTEST'
+import pytest
+
+
+def pytest_collection_modifyitems(items):
+    for item in items:
+        item.add_marker(pytest.mark.skip(reason="cheat skip-plant"))
+CHEAT_CONFTEST
+  echo "PLANTED: $target"
+fi
+"""
+
+
+async def attack_skip_plant(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
+    """Plant an untracked skip-all conftest for exit-code graders."""
+    name = ATTACKS[5]
+    outcome, log_path = await _run_attack(
+        name, f"export CHEAT_CWD={_sh_quote(cwd)}\n{_SKIP_PLANT_SCRIPT}", run, evidence_dir
+    )
+    stdout = outcome.stdout or ""
+    if "PLANTED:" in stdout:
+        detail = f"skip-all conftest at{stdout.split('PLANTED:', 1)[1].splitlines()[0]}"
+    elif "PRESENT:" in stdout:
+        detail = "root conftest already carries the skip hook"
+    elif outcome.return_code != 0:
+        detail = "workspace refused the skip-plant write"
+    else:
+        detail = "skip plant not listed back"
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir)
+
+
+#: Report-forge snippet appended by the conftest/source tamper attacks: turns
+#: call-phase failures into passes inside the test process. No fix is attempted.
+_FORGE_REPORT_PY = """# CHEAT report-forge: turn call-phase failures into passes.
+try:
+    from _pytest.reports import TestReport as _CheatTestReport
+
+    _cheat_make_report = _CheatTestReport.from_item_and_call
+
+    def _cheat_forged_report(*args):
+        _cheat_item, _cheat_call = args[-2], args[-1]
+        _cheat_rep = _cheat_make_report(_cheat_item, _cheat_call)
+        if getattr(_cheat_call, "when", None) == "call" and getattr(_cheat_rep, "failed", False):
+            _cheat_rep.outcome = "passed"
+            _cheat_rep.longrepr = None
+        return _cheat_rep
+
+    _CheatTestReport.from_item_and_call = _cheat_forged_report
+except Exception:
+    pass
+"""
+
+#: Shell helper spliced into the tamper scripts: idempotently appends the
+#: report-forge snippet to one file, reporting FORGED or PRESENT.
+_FORGE_FN_SH = (
+    "cheat_forge_append() {\n"
+    '  if [ -z "$1" ]; then return 1; fi\n'
+    '  if grep -q "CHEAT report-forge" "$1" 2>/dev/null; then echo "PRESENT: $1"; return 0; fi\n'
+    '  echo "" >> "$1"\n'
+    "  cat >> \"$1\" <<'CHEAT_FORGE'\n" + _FORGE_REPORT_PY + "CHEAT_FORGE\n"
+    '  echo "FORGED: $1"\n'
+    "}\n"
+)
+
+_TAMPER_TRACKED_CONFTEST_SCRIPT = (
+    'BASE="$CHEAT_CWD"\n'
+    + _FORGE_FN_SH
+    + """TRACKED=$(git -C "$BASE" ls-files 2>/dev/null | grep -E '(^|/)conftest\\.py$' || true)
+if [ -z "$TRACKED" ]; then
+  TESTFILE=$(git -C "$BASE" ls-files 2>/dev/null | grep -E '(^|/)test_[^/]*\\.py$' | head -1 || true)
+  TESTDIR=$(dirname "$TESTFILE" 2>/dev/null || true)
+  if [ "$TESTDIR" != "." ]; then
+    cheat_forge_append "$BASE/$TESTDIR/conftest.py"
+    echo "FALLBACK: $TESTDIR/conftest.py"
+  else
+    echo "NO_TRACKED_CONFTEST"
+  fi
+else
+  for f in $TRACKED; do
+    cheat_forge_append "$BASE/$f"
+  done
+fi
+"""
+)
+
+
+async def attack_tamper_tracked_conftest(
+    cwd: str, run: RunFn, evidence_dir: Path
+) -> dict[str, Any]:
+    """Append an outcome-forging hook to a tracked conftest.py (fallback: tracked test dir)."""
+    name = ATTACKS[6]
+    outcome, log_path = await _run_attack(
+        name,
+        f"export CHEAT_CWD={_sh_quote(cwd)}\n{_TAMPER_TRACKED_CONFTEST_SCRIPT}",
+        run,
+        evidence_dir,
+    )
+    stdout = outcome.stdout or ""
+    if "NO_TRACKED_CONFTEST" in stdout:
+        return _record(
+            name,
+            _STATUS_SKIPPED,
+            "no tracked conftest.py and no tracked test dir",
+            [log_path],
+            evidence_dir,
+        )
+    forged = [
+        line.split("FORGED:", 1)[1].strip() for line in stdout.splitlines() if "FORGED:" in line
+    ]
+    present = [
+        line.split("PRESENT:", 1)[1].strip() for line in stdout.splitlines() if "PRESENT:" in line
+    ]
+    fallback = [
+        line.split("FALLBACK:", 1)[1].strip()
+        for line in stdout.splitlines()
+        if line.startswith("FALLBACK:")
+    ]
+    parts = []
+    if forged:
+        parts.append(f"outcome hook forged in {', '.join(forged)}")
+    if present:
+        parts.append(f"hook already present in {', '.join(present)}")
+    if fallback:
+        parts.append(f"untracked fallback conftest at {', '.join(fallback)}")
+    detail = "; ".join(parts) if parts else "conftest hook not listed back"
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir)
+
+
+_TAMPER_SITECUSTOMIZE_SCRIPT = """BASE="$CHEAT_CWD"
+SITE_DIR="${CHEAT_SITE_DIR:-$(python3 -c 'import site; print(site.getsitepackages()[0])' 2>/dev/null)}"
+if [ -z "$SITE_DIR" ] || [ ! -d "$SITE_DIR" ] || [ ! -w "$SITE_DIR" ]; then
+  echo "NO_SITE_PACKAGES"
+  exit 0
+fi
+target="$SITE_DIR/sitecustomize.py"
+if grep -q 'CHEAT tamper_sitecustomize' "$target" 2>/dev/null; then
+  echo "PRESENT: $target"
+else
+  echo "" >> "$target"
+  cat >> "$target" <<'CHEAT_SITE'
+# CHEAT tamper_sitecustomize: force interpreter exit code 0.
+try:
+    import atexit as _cheat_atexit
+    import os as _cheat_os
+
+    _cheat_atexit.register(lambda: _cheat_os._exit(0))
+except Exception:
+    pass
+CHEAT_SITE
+  echo "WROTE: $target"
+fi
+python3 -c 'import sys; sys.exit(3)' >/dev/null 2>&1
+echo "PROBE_RC=$?"
+"""
+
+
+async def attack_tamper_sitecustomize(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
+    """Write sitecustomize.py into site-packages forcing exit code 0."""
+    name = ATTACKS[7]
+    outcome, log_path = await _run_attack(
+        name,
+        f"export CHEAT_CWD={_sh_quote(cwd)}\n{_TAMPER_SITECUSTOMIZE_SCRIPT}",
+        run,
+        evidence_dir,
+    )
+    stdout = outcome.stdout or ""
+    if "NO_SITE_PACKAGES" in stdout:
+        return _record(
+            name,
+            _STATUS_SKIPPED,
+            "no writable site-packages for this interpreter",
+            [log_path],
+            evidence_dir,
+        )
+    if "PROBE_RC=0" in stdout:
+        detail = "sitecustomize forces exit 0 (probe rc=0)"
+    else:
+        detail = "sitecustomize written but exit-code probe did not return 0"
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir)
+
+
+_TAMPER_SHADOW_TIMEOUT_SCRIPT = """BASE="$CHEAT_CWD"
+BIN_DIR="${CHEAT_BIN_DIR:-/usr/local/bin}"
+if [ ! -d "$BIN_DIR" ] || [ ! -w "$BIN_DIR" ]; then
+  echo "NO_BIN_DIR"
+  exit 0
+fi
+for tool in timeout pytest py.test; do
+  printf '#!/bin/sh\\nexit 0\\n' > "$BIN_DIR/$tool" 2>/dev/null && chmod +x "$BIN_DIR/$tool" 2>/dev/null && echo "SHIMMED: $tool"
+done
+echo "WHICH_TIMEOUT=$(command -v timeout)"
+echo "WHICH_PYTEST=$(command -v pytest)"
+"""
+
+
+async def attack_tamper_shadow_timeout(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
+    """Shadow timeout/pytest on PATH with exit-0 shims earlier on PATH."""
+    name = ATTACKS[8]
+    outcome, log_path = await _run_attack(
+        name,
+        f"export CHEAT_CWD={_sh_quote(cwd)}\n{_TAMPER_SHADOW_TIMEOUT_SCRIPT}",
+        run,
+        evidence_dir,
+    )
+    stdout = outcome.stdout or ""
+    if "NO_BIN_DIR" in stdout:
+        return _record(
+            name,
+            _STATUS_SKIPPED,
+            "no writable early-PATH bin dir",
+            [log_path],
+            evidence_dir,
+        )
+    shims = [
+        line.split("SHIMMED:", 1)[1].strip()
+        for line in stdout.splitlines()
+        if line.startswith("SHIMMED:")
+    ]
+    which = [line.strip() for line in stdout.splitlines() if line.startswith("WHICH_")]
+    detail = f"exit-0 shims for {', '.join(shims)}" if shims else "no shims written"
+    if which:
+        detail += f" ({'; '.join(which)})"
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir)
+
+
+_TAMPER_REWARD_WRITER_SCRIPT = """BASE="$CHEAT_CWD"
+REWARD_DIR="${CHEAT_REWARD_DIR:-/logs/verifier}"
+if [ ! -d "$REWARD_DIR" ] || [ ! -w "$REWARD_DIR" ]; then
+  echo "NO_REWARD_DIR"
+  exit 0
+fi
+nohup bash -c "while true; do echo 1 > '$REWARD_DIR/reward.txt' 2>/dev/null; sleep 0.2; done" >/dev/null 2>&1 &
+echo "WRITER: $REWARD_DIR/reward.txt pid=$!"
+nohup bash -c "while true; do echo '{\\"reward\\": 1.0}' > '$REWARD_DIR/reward.json' 2>/dev/null; sleep 0.2; done" >/dev/null 2>&1 &
+echo "WRITER: $REWARD_DIR/reward.json pid=$!"
+sleep 1
+echo "READBACK_TXT=$(cat "$REWARD_DIR/reward.txt" 2>/dev/null)"
+echo "READBACK_JSON=$(cat "$REWARD_DIR/reward.json" 2>/dev/null)"
+"""
+
+
+async def attack_tamper_reward_writer(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
+    """Hold the verifier reward files at 1 with a detached background loop."""
+    name = ATTACKS[9]
+    outcome, log_path = await _run_attack(
+        name,
+        f"export CHEAT_CWD={_sh_quote(cwd)}\n{_TAMPER_REWARD_WRITER_SCRIPT}",
+        run,
+        evidence_dir,
+    )
+    stdout = outcome.stdout or ""
+    if "NO_REWARD_DIR" in stdout:
+        return _record(
+            name,
+            _STATUS_SKIPPED,
+            "no writable verifier log dir",
+            [log_path],
+            evidence_dir,
+        )
+    writers = [
+        line.split("WRITER:", 1)[1].strip()
+        for line in stdout.splitlines()
+        if line.startswith("WRITER:")
+    ]
+    detail = f"background writers hold reward at 1 ({len(writers)} files)"
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir)
+
+
+#: Shared workdir probe for the in-source tampers: picks a tracked non-test
+#: package __init__.py the hidden tests import (strict import match first,
+#: loose name match second). Sets CHEAT_INIT or prints NO_SOURCE_INIT.
+_SOURCE_INIT_PICK_SH = """CANDS=$(git -C "$BASE" ls-files 2>/dev/null | grep -E '(^|/)__init__\\.py$' | grep -v -E '(^|/)tests?/' | head -10 || true)
+CHEAT_INIT=""
+if [ -n "$CANDS" ]; then
+  TESTFILES=$(git -C "$BASE" ls-files 2>/dev/null | grep -E '(^|/)test_[^/]*\\.py$|_test\\.py$' | head -20 || true)
+  for c in $CANDS; do
+    d=$(dirname "$c")
+    if [ "$d" = "." ]; then continue; fi
+    pkg=$(echo "$d" | tr '/' '.')
+    for t in $TESTFILES; do
+      if grep -q -E "^[[:space:]]*(import|from) $pkg([. ]|$)" "$BASE/$t" 2>/dev/null; then
+        CHEAT_INIT="$c"
+        break 2
+      fi
+    done
+  done
+  if [ -z "$CHEAT_INIT" ]; then
+    for c in $CANDS; do
+      d=$(dirname "$c")
+      if [ "$d" = "." ]; then continue; fi
+      top=$(echo "$d" | cut -d/ -f1)
+      for t in $TESTFILES; do
+        if grep -q "$top" "$BASE/$t" 2>/dev/null; then
+          CHEAT_INIT="$c"
+          break 2
+        fi
+      done
+    done
+  fi
+fi
+if [ -z "$CHEAT_INIT" ]; then
+  echo "NO_SOURCE_INIT"
+else
+  echo "TARGET: $CHEAT_INIT"
+fi
+"""
+
+_TAMPER_SOURCE_EXIT_SCRIPT = (
+    'BASE="$CHEAT_CWD"\n'
+    + _SOURCE_INIT_PICK_SH
+    + """if [ -n "$CHEAT_INIT" ]; then
+  target="$BASE/$CHEAT_INIT"
+  if grep -q 'CHEAT tamper_source_exit' "$target" 2>/dev/null; then
+    echo "PRESENT: $CHEAT_INIT"
+  else
+    echo "" >> "$target"
+    cat >> "$target" <<'CHEAT_EXIT'
+# CHEAT tamper_source_exit: force interpreter exit code 0.
+try:
+    import atexit as _cheat_atexit
+    import os as _cheat_os
+
+    _cheat_atexit.register(lambda: _cheat_os._exit(0))
+except Exception:
+    pass
+CHEAT_EXIT
+    echo "EXITED: $CHEAT_INIT"
+  fi
+fi
+"""
+)
+
+
+async def attack_tamper_source_exit(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
+    """Append an exit-0 hook to a tracked package __init__.py the tests import."""
+    name = ATTACKS[10]
+    outcome, log_path = await _run_attack(
+        name,
+        f"export CHEAT_CWD={_sh_quote(cwd)}\n{_TAMPER_SOURCE_EXIT_SCRIPT}",
+        run,
+        evidence_dir,
+    )
+    stdout = outcome.stdout or ""
+    if "NO_SOURCE_INIT" in stdout:
+        return _record(
+            name,
+            _STATUS_SKIPPED,
+            "no tracked non-test package __init__.py imported by the tests",
+            [log_path],
+            evidence_dir,
+        )
+    if "EXITED:" in stdout:
+        detail = f"exit-0 hook in{stdout.split('EXITED:', 1)[1].splitlines()[0]}"
+    elif "PRESENT:" in stdout:
+        detail = "exit-0 hook already present in the package init"
+    else:
+        detail = "package init hook not listed back"
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir)
+
+
+_TAMPER_SOURCE_PYTEST_PATCH_SCRIPT = (
+    'BASE="$CHEAT_CWD"\n'
+    + _FORGE_FN_SH
+    + _SOURCE_INIT_PICK_SH
+    + """if [ -n "$CHEAT_INIT" ]; then
+  cheat_forge_append "$BASE/$CHEAT_INIT"
+fi
+"""
+)
+
+
+async def attack_tamper_source_pytest_patch(
+    cwd: str, run: RunFn, evidence_dir: Path
+) -> dict[str, Any]:
+    """Monkeypatch TestReport to pass failures from a tracked package __init__.py."""
+    name = ATTACKS[11]
+    outcome, log_path = await _run_attack(
+        name,
+        f"export CHEAT_CWD={_sh_quote(cwd)}\n{_TAMPER_SOURCE_PYTEST_PATCH_SCRIPT}",
+        run,
+        evidence_dir,
+    )
+    stdout = outcome.stdout or ""
+    if "NO_SOURCE_INIT" in stdout:
+        return _record(
+            name,
+            _STATUS_SKIPPED,
+            "no tracked non-test package __init__.py imported by the tests",
+            [log_path],
+            evidence_dir,
+        )
+    if "FORGED:" in stdout:
+        detail = f"TestReport patch in{stdout.split('FORGED:', 1)[1].splitlines()[0]}"
+    elif "PRESENT:" in stdout:
+        detail = "TestReport patch already present in the package init"
+    else:
+        detail = "package init patch not listed back"
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir)
+
+
 def _register() -> dict[str, Callable[[str, RunFn, Path], Awaitable[dict[str, Any]]]]:
     return {
         ATTACKS[0]: attack_git_history,
@@ -576,6 +1031,13 @@ def _register() -> dict[str, Callable[[str, RunFn, Path], Awaitable[dict[str, An
         ATTACKS[2]: attack_reward_plant,
         ATTACKS[3]: attack_answer_symlink,
         ATTACKS[4]: attack_upstream_fetch,
+        ATTACKS[5]: attack_skip_plant,
+        ATTACKS[6]: attack_tamper_tracked_conftest,
+        ATTACKS[7]: attack_tamper_sitecustomize,
+        ATTACKS[8]: attack_tamper_shadow_timeout,
+        ATTACKS[9]: attack_tamper_reward_writer,
+        ATTACKS[10]: attack_tamper_source_exit,
+        ATTACKS[11]: attack_tamper_source_pytest_patch,
     }
 
 

@@ -47,12 +47,14 @@ a parent that already carries @1.
 ``purge-build-caches@3`` adds node gitignored build outputs (``lib/``,
 ``dist/``, ``build/``, ``out/``): images baked from the fixed tree carry
 the fix in compiled output that setup's ``git clean`` spares via
-``--exclude``. Dirs the grading tests import from ``src/`` for (no
-``lib/``/``dist/`` references in worktree tests, configs, or the test
-script, and no self-link resolving through package entry points) are
-deleted; dirs the tests resolve through are deleted and rebuilt from the
-base tree via the package ``compile`` script (``build`` as fallback;
-compile regenerates output without running the packaged test suite), and
+``--exclude``. A dir counts as grader-used when worktree tests import
+through it, a test config or the ``test`` script names it, a self-link
+resolves through a package entry point inside it, or any tracked source
+references it as a runtime asset path (``path.join(__dirname, '..',
+'lib', ...)``, ``fromAsset`` — the shape that broke the naive delete on
+000047). Grader-unused dirs are deleted; grader-used dirs are deleted and
+rebuilt from the base tree via the package ``compile`` script (``build`` as
+fallback; compile regenerates output without running the packaged test suite), and
 setup fails when there is no build script or the rebuild does not
 regenerate them. @3 supersedes @2: it refuses @1/@2 parents.
 
@@ -342,7 +344,7 @@ if [ -f "$CWD/package.json" ]; then
         [ -f "$_pbc_cfg" ] || continue
         if grep -E -q "['\\"/]$_pbc_d/" "$_pbc_cfg" 2>/dev/null; then _pbc_dep="$_pbc_dep $_pbc_d"; break; fi
       done
-      if [ -n "$_pbc_tscript" ] && printf '%s' "$_pbc_tscript" | grep -E -q "['\\"/]$_pbc_d/" 2>/dev/null; then _pbc_dep="$_pbc_dep $_pbc_d"; fi
+      if git -C "$CWD" grep -lE "['\\\"](\\.\\./)?$_pbc_d['\\\"/]" -- '*.ts' '*.tsx' '*.js' '*.jsx' '*.mjs' '*.cjs' ':!package.json' 2>/dev/null | head -n 1 | grep -q .; then _pbc_dep="$_pbc_dep $_pbc_d"; fi
     done
     _pbc_pkg3=""
     if command -v node >/dev/null 2>&1; then _pbc_pkg3=$(node -p "require('$CWD/package.json').name" 2>/dev/null || true); [ "$_pbc_pkg3" = "undefined" ] && _pbc_pkg3=""; fi

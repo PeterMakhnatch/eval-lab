@@ -394,7 +394,9 @@ def test_v2_block_removes_project_wheels_and_verifies(tmp_path: Path) -> None:
     assert "left pip cache entries" in proc.stderr
 
 
-def _node_fixture(tmp_path: Path, *, test_import: str, scripts: str) -> Path:
+def _node_fixture(
+    tmp_path: Path, *, test_import: str, scripts: str, asset_ref: bool = False
+) -> Path:
     """Git repo fixture: ignored lib/ with stale output, src/, one test."""
     import subprocess
 
@@ -403,7 +405,10 @@ def _node_fixture(tmp_path: Path, *, test_import: str, scripts: str) -> Path:
     (cwd / "test").mkdir()
     (cwd / "lib").mkdir()
     (cwd / "lib" / "stale.js").write_text("// stale fixed build output\n", encoding="utf-8")
-    (cwd / "src" / "a.ts").write_text("export const a = 1;\n", encoding="utf-8")
+    src = "export const a = 1;\n"
+    if asset_ref:
+        src += "export const asset = require('path').join(__dirname, '..', 'lib', 'data.json');\n"
+    (cwd / "src" / "a.ts").write_text(src, encoding="utf-8")
     (cwd / "test" / "t.test.ts").write_text(
         f"import {{ a }} from '{test_import}';\nconsole.log(a);\n", encoding="utf-8"
     )
@@ -511,6 +516,37 @@ def test_v3_rebuilds_grader_used_output(tmp_path: Path) -> None:
     if shutil.which("git") is None or shutil.which("python3") is None:
         pytest.skip("needs git and python3")
     cwd = _node_fixture(tmp_path, test_import="../lib/stale", scripts='"build": "make-lib"')
+    stub = tmp_path / "bin" / "npm"
+    stub.parent.mkdir()
+    stub.write_text(
+        "#!/bin/bash\n"
+        'D="$PWD"\n'
+        'prev=""\n'
+        'for a in "$@"; do\n'
+        '  if [ "$prev" = "--prefix" ]; then D="$a"; fi\n'
+        '  prev="$a"\n'
+        "done\n"
+        'mkdir -p "$D/lib"\n'
+        'echo "// rebuilt from base" > "$D/lib/stale.js"\n',
+        encoding="utf-8",
+    )
+    stub.chmod(0o755)
+    proc = _run_node_block(tmp_path, cwd, extra_path=str(stub.parent) + ":")
+    assert proc.returncode == 0, proc.stderr
+    rebuilt = (cwd / "lib" / "stale.js").read_text(encoding="utf-8")
+    assert "rebuilt from base" in rebuilt
+    assert "stale fixed" not in rebuilt
+
+
+def test_v3_rebuilds_on_runtime_asset_reference(tmp_path: Path) -> None:
+    """Tracked src/ reading lib/ at runtime forces the rebuild path."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture(
+        tmp_path, test_import="../src/a", scripts='"build": "make-lib"', asset_ref=True
+    )
     stub = tmp_path / "bin" / "npm"
     stub.parent.mkdir()
     stub.write_text(

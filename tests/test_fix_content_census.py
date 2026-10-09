@@ -322,3 +322,20 @@ def test_recover_fix_lite_finds_continuous_toucher(tmp_path: Path) -> None:
     assert found.get("sha") == fix
     assert recover_fix_lite(repo / ".git", base, ["tests/missing.py"])["status"] == "no-test-blobs"
     assert recover_fix_lite(repo / ".git", fix, ["tests/test_a.py"])["status"] == "no-candidate"
+
+
+def test_rendered_probe_parses_as_shell(tmp_path: Path) -> None:
+    """The staged probe must parse: a dropped loop closer kills every run."""
+    import shutil
+    import subprocess
+
+    from evallab.fix_content_census import PROBE_SH
+
+    if shutil.which("bash") is None:
+        pytest.skip("needs bash")
+    script = tmp_path / "probe.sh"
+    script.write_text(PROBE_SH, encoding="utf-8")
+    proc = subprocess.run(
+        ["bash", "-n", str(script)], capture_output=True, text=True, timeout=60
+    )
+    assert proc.returncode == 0, proc.stderr

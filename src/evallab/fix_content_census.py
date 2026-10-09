@@ -242,6 +242,7 @@ while IFS= read -r f; do
   [ -n "$f" ] || continue
   _sha=$(git -C "$WORKDIR" rev-parse "$FIX:$f" 2>/dev/null || true)
   [ -n "$_sha" ] && printf '%s\t%s\n' "$_sha" "$f" >> "$OUT/blobs.txt"
+done < "$OUT/changed.txt"
 awk -f "$STAGE/patterns.awk" "$OUT/fix.diff" 2>/dev/null | sort -u > "$OUT/patterns_raw.txt" || true
 # Distinctive patterns: added lines absent from the base tree. A line the
 # base already contains is not fix content, no matter where else it appears.

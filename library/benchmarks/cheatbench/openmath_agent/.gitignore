@@ -1,0 +1,5 @@
+# Build-time scratch: pinned downloads and offline-mirror TLS keys.
+# Regenerating without this cache re-downloads assets and mints fresh keys
+# (functionally identical, different key bytes). Never commit key material.
+_build_cache/
+__pycache__/

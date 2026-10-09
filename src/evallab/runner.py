@@ -1991,6 +1991,11 @@ def _accepted_returned_models(model: str) -> frozenset[str]:
     if is_mimo_selfhosted_model(model):
         # SGLang echoes its --served-model-name: the selector minus ``selfhosted/``.
         accepted.add(parse_mimo_selfhosted_model(model))
+    if is_tinker_terminus_model(model):
+        # Tinker echoes the native id it sampled: the selector minus ``tinker/``
+        # (observed 2026-10-09 for ``Qwen/Qwen3.6-35B-A3B``). A checkpoint replay
+        # accepts only its own checkpoint path, never the base id.
+        accepted.add(parse_tinker_model(model).native_model)
     if is_openrouter_model(model):
         # OpenRouter echoes the canonical slug of the endpoint that served
         # the call; the route lists the echoes of its pinned endpoint.

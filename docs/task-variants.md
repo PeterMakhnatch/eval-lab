@@ -85,6 +85,34 @@ it byte for byte as the adapter does (`gzip.GzipFile` with `mtime=0` and an
 empty filename; `gzip.compress` stamps a different OS byte on macOS) and
 checks that the on-disk setup reproduces the embedded one before a change.
 
+## Separate-verifier variants (MiMo code tasks)
+
+Two transforms move hidden tests into a Harbor 0.24 separate verifier
+environment (`[verifier] environment_mode = "separate"` plus a
+`tests/Dockerfile`, so the agent container never sees `/tests`). Both keep
+the `@1` lineage records: `@2` supersedes the grading path but deletes
+nothing.
+
+* `separate-verifier@1` snapshots the agent workspace **plus** the agent's
+  `.git` and base sha, restores all three in the verifier, and `exec`s the
+  original grading script. Container-root tamper (tracked conftest edits,
+  `sitecustomize`, `PATH` shadowing, background writers, in-source
+  exit/`pytest` hooks) still grades 1 without fixing the bug.
+* `separate-verifier@2` ("patch-only verifier") trusts nothing from the
+  agent environment except repo file bytes. The verifier reruns the bundled
+  clean setup itself (`tests/_verifier-setup/`, the parent's
+  `environment/setup/*` at derive time), computes `BASE` there, diffs the
+  snapshot files with its own git under the BASE tree's ignore rules, drops
+  test-infra paths (`conftest.py`, `pytest.ini`, `tox.ini`,
+  `sitecustomize.py`, `usercustomize.py`, `*.pth`, `*_test.go`, Go files
+  declaring `TestMain`, every hidden-test-patch path, pytest-related
+  `setup.cfg`/`pyproject.toml` hunks), gates added lines against the single
+  `TAMPER_SIGNATURES` constant in `evallab.separate_verifier`, then applies
+  the hidden test patch and runs the original test command with
+  `PYTEST_ADDOPTS=--junitxml=<path outside repo>`. Reward 1 iff the command
+  exits 0 and (no junit report, or the report has no failure/error/skip and
+  contains every pytest node id named in the command).
+
 ## Commands
 
 ```bash

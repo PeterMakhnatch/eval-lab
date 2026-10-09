@@ -15,6 +15,14 @@ a failed check stops setup, with no hide-only or network-open fallback.
   and the latter belong to ``purge-installed-copies@1``.
 * ``separate-verifier@1`` runs hidden tests in a second container where Harbor
   0.24 supports it (HAR-169: oracle pass and nop fail on 001269, 000905, 002391).
+  @1 restores the agent's workspace, ``.git`` and base sha into the verifier,
+  so container-root tamper (tracked conftest, sitecustomize, PATH shadowing,
+  background writers, in-source exit/pytest hooks) still grades 1.
+* ``separate-verifier@2`` ("patch-only verifier") grades only the agent's
+  repo-file patch: the verifier reruns the bundled clean setup itself,
+  computes BASE there, diffs with its own git under the BASE tree's ignore
+  rules, drops test-infra paths, gates tamper signatures, then applies the
+  hidden tests and grades with a structured junit check.
 * ``terminal-guard-extend@1`` snapshots the terminal interpreter hook surface
   (``sitecustomize`` / ``usercustomize`` / ``*.pth`` / ``pytest11`` entry
   points) at end of setup, quarantines additions and fails closed on anchor
@@ -56,7 +64,8 @@ from evallab.purge_build_caches import derive_purge_build_caches
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
 from evallab.separate_verifier import TRANSFORM_ID as SEPARATE_ID
-from evallab.separate_verifier import derive_separate_verifier
+from evallab.separate_verifier import TRANSFORM_ID_V2 as SEPARATE_V2_ID
+from evallab.separate_verifier import derive_separate_verifier, derive_separate_verifier_v2
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.strip_future_history import derive_strip_future_history
 from evallab.terminal_guard import TRANSFORM_ID as TERMINAL_GUARD_ID
@@ -68,7 +77,8 @@ from evallab.webdev_structural_gate import derive_webdev_structural_gate
 from evallab.webdev_temp0_pin import TRANSFORM_ID as WEBDEV_TEMP0_PIN_ID
 from evallab.webdev_temp0_pin import derive_webdev_temp0_pin
 
-TRANSFORMS = (STRIP_ID, PURGE_ID, CACHE_ID, SEPARATE_ID, MTIME_ID, TERMINAL_GUARD_ID,
+TRANSFORMS = (STRIP_ID, PURGE_ID, CACHE_ID, SEPARATE_ID, SEPARATE_V2_ID, MTIME_ID,
+              TERMINAL_GUARD_ID,
               GENERAL_PINNED_BACKUP_ID, GENERAL_STRICT_ANSWER_ID, GENERAL_NOP_GATE_ID,
               WEBDEV_TEMP0_PIN_ID, WEBDEV_STRUCTURAL_GATE_ID, WEBDEV_BRIEF_EXPLICIT_ID)
 NETWORK_LABEL = "oracle:fail-network"
@@ -90,6 +100,7 @@ __all__ = [
     "NETWORK_LABEL",
     "PURGE_ID",
     "SEPARATE_ID",
+    "SEPARATE_V2_ID",
     "STRIP_ID",
     "TERMINAL_GUARD_ID",
     "TRANSFORMS",
@@ -103,6 +114,7 @@ __all__ = [
     "derive_purge_build_caches",
     "derive_purge_installed_copies",
     "derive_separate_verifier",
+    "derive_separate_verifier_v2",
     "derive_strip_future_history",
     "derive_terminal_guard",
     "derive_terminal_prefetch",

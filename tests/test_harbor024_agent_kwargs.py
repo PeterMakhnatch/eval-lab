@@ -90,6 +90,14 @@ TERMINUS_LAB_KNOB_FIELDS = frozenset(
     }
 )
 
+# Lab NativeMimoAgent kwargs (evallab/harbor_mimoagent.py NativeMimoAgent.__init__).
+# Harbor 0.24 declares no options_model for import-path agents, so preflight
+# ignores leftovers; the adapter normalizes each value and records it in
+# trial metadata, which is what makes a new kwarg safe to add.
+MIMO_OPTION_FIELDS = frozenset(
+    {"antihack", "explicit_rules", "task_chain", "task_chain_digest"}
+)
+
 # Lab LabRlmOptions fields (evallab/harbor_rlm.py). The stock DspyRlmOptions
 # knows none of these; the lane targets our adapter, not stock dspy-rlm.
 RLM_OPTION_FIELDS = frozenset(
@@ -191,9 +199,22 @@ def test_rlm_lane_emits_only_lab_rlm_options(tmp_path: Path) -> None:
     assert set(emitted) <= RLM_OPTION_FIELDS
 
 
-def test_mimo_and_opencode_lanes_emit_no_agent_kwargs(tmp_path: Path) -> None:
+def test_mimo_lane_emits_only_lab_mimo_options(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.delenv("EVALLAB_MIMO_ANTIHACK", raising=False)
+    monkeypatch.delenv("EVALLAB_MIMO_EXPLICIT_RULES", raising=False)
     mimo = _request(tmp_path, "mimoagent", "selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B")
-    assert _agent_kwargs(build_command(mimo)) == {}
+    emitted = _agent_kwargs(build_command(mimo))
+    assert set(emitted) <= MIMO_OPTION_FIELDS, sorted(emitted)
+    assert set(emitted) >= {"antihack", "explicit_rules", "task_chain_digest"}
+    raw = {key: value.partition("=")[2] for key, value in emitted.items()}
+    assert json.loads(raw["antihack"]) is False
+    assert json.loads(raw["explicit_rules"]) is False
+    assert json.loads(raw["task_chain_digest"]).startswith("sha256:")
+
+
+def test_opencode_lane_emits_no_agent_kwargs(tmp_path: Path) -> None:
     opencode = _request(tmp_path, "zai-opencode", "zai-coding-plan/glm-5.3-flash")
     assert _agent_kwargs(build_command(opencode)) == {}
 

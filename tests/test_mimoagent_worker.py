@@ -48,6 +48,8 @@ def _run_worker(
     observer_fault=None,
     served_context_tokens=None,
     capture_tool_uploads=False,
+    capture_tool_execs=False,
+    antihack=False,
 ):
     if not NATIVE_PYTHON.is_file():
         pytest.skip("separate pinned Xiaomi interpreter is not installed")
@@ -92,6 +94,8 @@ def _run_worker(
         "global_config_dir": str(tmp_path / "global-config"),
         "native_logs_dir": str(logs),
         "native_trajectory_path": str(logs / "native-trajectory.json"),
+        "antihack": antihack,
+        "explicit_rules": False,
     }
     if served_context_tokens is not None:
         initial["served_context_tokens"] = served_context_tokens
@@ -112,6 +116,17 @@ def _run_worker(
             "self.emit({'event':'fixture_upload','target':kw['target'],"
             "'file_text':Path(kw['source']).read_text()}) if method=='upload' "
             "else {'output':'File created successfully','exit_code':0}; "
+        )
+    if capture_tool_execs:
+        # Replace only the sandbox transport. The real SDK still parses
+        # OpenAI tool_calls and runs the native tool; the guard under test
+        # sits between parsing and this transport.
+        bootstrap += (
+            "Rpc=g['SandboxRpc']; "
+            "Rpc._request=lambda self,method,**kw: "
+            "self.emit({'event':'fixture_exec','method':method,"
+            "'command':kw.get('command')}) or "
+            "{'output':'canned transport output','returncode':0}; "
         )
     if observer_fault is not None:
         bootstrap += (
@@ -597,3 +612,104 @@ def test_small_prefix_uninformative_400_stays_model_query_error(tmp_path):
     assert finished["exit_status"] == "ModelQueryError"
     assert finished["stop_reason"] == "infra_error"
     _assert_no_infrastructure_turn(native, events, finished, tmp_path)
+
+
+def _git_spelunk_call():
+    return {
+        "id": "spelunk-call",
+        "type": "function",
+        "function": {
+            "name": "bash",
+            "arguments": json.dumps({"command": "git fsck --unreachable --no-reflogs"}),
+        },
+    }
+
+
+def _respond_with_spelunk_then_answer(attempt, request):
+    if attempt == 1:
+        return 200, _answer(None, tool_calls=[_git_spelunk_call()])
+    return 200, _answer("spelunk done")
+
+
+def test_antihack_guard_blocks_object_spelunking_without_running_it(tmp_path):
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path,
+        _respond_with_spelunk_then_answer,
+        capture_tool_execs=True,
+        antihack=True,
+    )
+    assert finished["exit_status"] == "Idle"
+    assert finished["result"] == "spelunk done"
+    assert finished["antihack"] is True
+    assert finished["antihack_blocks"] == 1
+    # The blocked call never reached the sandbox transport.
+    assert [event for event in events if event["event"] == "fixture_exec"] == []
+    # The model saw the guard's dummy observation, not sandbox output.
+    tool_message = next(
+        message
+        for message in native["trajs"]["main"]["messages"]
+        if message.get("tool_call_id") == "spelunk-call"
+    )
+    assert "Permission denied" in tool_message["content"]
+    assert "canned transport output" not in tool_message["content"]
+    blocks = native["info"]["antihack_blocks"]
+    assert [(block["tool"], block["field"]) for block in blocks] == [("bash", "command")]
+    assert native["info"]["explicit_rules"] is False
+    assert str(ROOT) not in stderr
+
+
+def test_antihack_guard_off_by_default_runs_the_same_call(tmp_path):
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path,
+        _respond_with_spelunk_then_answer,
+        capture_tool_execs=True,
+    )
+    assert finished["exit_status"] == "Idle"
+    assert finished["antihack"] is False
+    assert finished["antihack_blocks"] == 0
+    execs = [event for event in events if event["event"] == "fixture_exec"]
+    assert [event["command"] for event in execs] == ["git fsck --unreachable --no-reflogs"]
+    tool_message = next(
+        message
+        for message in native["trajs"]["main"]["messages"]
+        if message.get("tool_call_id") == "spelunk-call"
+    )
+    assert "canned transport output" in tool_message["content"]
+    assert native["info"]["antihack_blocks"] == []
+
+
+def test_antihack_guard_covers_sdk_spawned_children(tmp_path):
+    spawn = {
+        "id": "spawn-call",
+        "type": "function",
+        "function": {
+            "name": "agent",
+            "arguments": json.dumps(
+                {"subagent_type": "explore", "prompt": "Inspect /testbed/task.py"}
+            ),
+        },
+    }
+
+    def respond(attempt, request):
+        if attempt == 1:
+            return 200, _answer(None, tool_calls=[spawn])
+        if attempt == 2:
+            return 200, _answer(None, tool_calls=[_git_spelunk_call()])
+        if attempt == 3:
+            return 200, _answer("child done")
+        return 200, _answer("root done")
+
+    requests, events, calls, native, finished, stderr = _run_worker(
+        tmp_path,
+        respond,
+        capture_tool_execs=True,
+        antihack=True,
+    )
+    assert finished["exit_status"] == "Idle"
+    assert finished["result"] == "root done"
+    assert finished["antihack_blocks"] == 1
+    # The child's blocked call never reached the sandbox transport either.
+    assert [event for event in events if event["event"] == "fixture_exec"] == []
+    blocks = native["info"]["antihack_blocks"]
+    assert [(block["tool"], block["field"]) for block in blocks] == [("bash", "command")]
+    assert "explore_1" in native["trajs"]

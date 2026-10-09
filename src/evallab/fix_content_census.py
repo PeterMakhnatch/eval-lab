@@ -72,10 +72,12 @@ CSV_FIELDS = (
 )
 
 #: Added lines this long (stripped) count as searchable patterns in the probe.
-PATTERN_MIN_LEN = 15
+#: Floor 20 (not 15): 15-char lines coincide across unrelated packages
+#: (measured: ``aliases: Set[str]`` in pydantic vs a pip-audit fix).
+PATTERN_MIN_LEN = 20
 
 #: Added lines this long (stripped) count as distinctive for verdicts.
-DISTINCTIVE_MIN_LEN = 15
+DISTINCTIVE_MIN_LEN = 20
 
 _DIFF_GIT_RE = re.compile(r"^diff --git a/(.*) b/(.*)$")
 
@@ -210,15 +212,17 @@ def summarize_hits(
 
 
 #: Awk program selecting searchable patterns from a fix diff: stripped added
-#: lines (length >= 15) from NON-TEST files only. Test-path classification
-#: mirrors :func:`is_test_path`. Staged as ``patterns.awk`` by
-#: :func:`stage_probe` and run by the probe; unit-tested via bash.
-PATTERNS_AWK = r"""
+#: lines (length >= ``PATTERN_MIN_LEN``) from NON-TEST files only.
+#: Test-path classification mirrors :func:`is_test_path`. Staged as
+#: ``patterns.awk`` by :func:`stage_probe` and run by the probe;
+#: unit-tested via bash.
+_PATTERNS_AWK_TEMPLATE = r"""
 /^\+\+\+ / { f = $2; sub(/^b\//, "", f); test = (f ~ /(^|\/)(tests?|testing|test_|_test|spec|specs|e2e)(\/|$)/ || f ~ /\.(spec|test)\.[A-Za-z]+$/ || f ~ /(^|\/)(conftest\.py|mimo_test_command\.sh|test_commands\.json|test\.patch|test_command\.sh)$/); next }
 /^--- / { next }
 test { next }
-/^\+/ { line = substr($0, 2); gsub(/^[ \t]+|[ \t]+$/, "", line); if (length(line) >= 15) print line }
+/^\+/ { line = substr($0, 2); gsub(/^[ \t]+|[ \t]+$/, "", line); if (length(line) >= @@MIN@@) print line }
 """
+PATTERNS_AWK = _PATTERNS_AWK_TEMPLATE.replace("@@MIN@@", str(PATTERN_MIN_LEN))
 
 PROBE_SH = """\
 #!/bin/bash

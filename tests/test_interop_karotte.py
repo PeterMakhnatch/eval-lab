@@ -1,8 +1,9 @@
-"""Karotte runner cells: scripted agents, transcript verdicts, no docker ($0).
+"""Karotte generic runner: plans, specs, transcript verdicts, no docker ($0).
 
 Live-Docker execution is covered by manual smoke cells (see the worker's
 final report), never by these tests: every external probe or subprocess is
-injected or stubbed here per the deterministic-test rule.
+injected or stubbed here per the deterministic-test rule. Agent scripts come
+from ``evallab.interop.scripted_agent_plan`` (identical on every platform).
 """
 
 from __future__ import annotations
@@ -15,14 +16,18 @@ from pathlib import Path
 import pytest
 
 from evallab import interop_karotte as ik
-from evallab.interop import load_harbor_task
+from evallab.interop import ScriptedPlan, load_harbor_task, scripted_agent_plan
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 TXN_TASK = REPO_ROOT / "library/tasks/transaction-reconciliation"
 EVSUM_TASK = REPO_ROOT / "library/tasks/event-summary"
+MIMO_TASK = Path(
+    "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/hf/"
+    "FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6/tasks/format-code-task-002552"
+)
 
 
-def make_task(root: Path, *, name: str = "lab/synthetic") -> Path:
+def make_task(root: Path, *, name: str = "lab/synthetic", workdir: str = "/app") -> Path:
     task_dir = root / "task"
     (task_dir / "solution").mkdir(parents=True)
     (task_dir / "tests").mkdir(parents=True)
@@ -37,7 +42,9 @@ def make_task(root: Path, *, name: str = "lab/synthetic") -> Path:
         'artifacts = []\n\n[task]\nname = "'
         + name
         + '"\n\n[metadata]\ndifficulty = "easy"\n'
-        + "\n[verifier]\ntimeout_sec = 60.0\n\n[environment]\n",
+        + "\n[verifier]\ntimeout_sec = 60.0\n\n[environment]\nworkdir = "
+        + json.dumps(workdir)
+        + "\n",
         encoding="utf-8",
     )
     return task_dir
@@ -101,7 +108,7 @@ def exec_fake_model(source: str) -> list[dict]:
 def test_plan_messages_nop_has_no_tool_calls():
     messages = ik.plan_messages(())
     assert len(messages) == 1
-    assert messages[0]["tool_calls"] is None or not messages[0].get("tool_calls")
+    assert not messages[0].get("tool_calls")
     assert messages[0]["role"] == "assistant"
 
 
@@ -117,84 +124,115 @@ def test_plan_messages_one_bash_call_per_command():
     assert messages[-1].get("tool_calls") in (None, [])
 
 
-def test_cheat_command_full_and_subset():
-    full = ik.cheat_command(())
-    assert "--attacks" not in full
-    assert "/tmp/cheat_ladder.py" in full and "--cwd /workdir" in full
-    subset = ik.cheat_command(("reward_plant", "skip_plant"))
-    assert "--attacks reward_plant,skip_plant" in subset
+def test_canonical_plans():
+    task = load_harbor_task(TXN_TASK)
+    oracle = scripted_agent_plan(task, "oracle", ())
+    assert oracle == ScriptedPlan(files={}, command="bash solution/solve.sh")
+    assert scripted_agent_plan(task, "nop", ()) == ScriptedPlan(files={}, command=None)
+    cheat = scripted_agent_plan(task, "cheat", ("skip_plant",))
+    assert list(cheat.files) == ["/tmp/cheat_ladder.py"]
+    assert "--attacks skip_plant" in (cheat.command or "")
+    assert "--cwd ." in (cheat.command or "")
+    full = scripted_agent_plan(task, "cheat", ())
+    assert "--attacks" not in (full.command or "")
+    with pytest.raises(ValueError, match="unknown scripted agent"):
+        scripted_agent_plan(task, "oracle-ish", ())
+    with pytest.raises(ValueError, match="unknown cheat attack"):
+        scripted_agent_plan(task, "cheat", ("nope",))
 
 
-def test_selected_cheat_attacks_validates_names():
-    assert ik.selected_cheat_attacks(())  # full ladder, fixed order
-    assert ik.selected_cheat_attacks(("skip_plant",)) == ("skip_plant",)
-    with pytest.raises(ValueError):
-        ik.selected_cheat_attacks(("nope",))
+def test_canonical_oracle_needs_solution(tmp_path):
+    task_dir = make_task(tmp_path)
+    (task_dir / "solution" / "solve.sh").unlink()
+    task = load_harbor_task(task_dir, require_solution=False)
+    with pytest.raises(ValueError, match="oracle plan needs solution/solve.sh"):
+        scripted_agent_plan(task, "oracle", ())
+    assert scripted_agent_plan(task, "nop", ()).command is None
+    assert scripted_agent_plan(task, "cheat", ()).command
 
 
-def test_fake_model_oracle_nop_cheat_execute():
-    txn = ik.adapter_for(load_harbor_task(TXN_TASK))
-    oracle = exec_fake_model(ik.fake_model_source("oracle", adapter=txn))
-    assert len(oracle) == len(txn.oracle_commands) + 1
-    assert "sqlite3" in oracle[0]["tool_calls"][0]["arguments"]["command"]
+def test_lenient_load_mimo():
+    assert not (MIMO_TASK / "solution" / "solve.sh").is_file()
+    task = load_harbor_task(MIMO_TASK, require_solution=False)
+    assert task.task_id == "mimo-v2.6-rl/format-code-task-002552"
+    with pytest.raises(ValueError, match="instruction.md"):
+        load_harbor_task(REPO_ROOT, require_solution=False)
+
+
+def test_parse_dockerfile_workdir(tmp_path):
+    dockerfile = tmp_path / "Dockerfile"
+    dockerfile.write_text(
+        "FROM python:3.12-slim\nWORKDIR /app\n"
+        "FROM scratch\nWORKDIR /x\nWORKDIR sub\n",
+        encoding="utf-8",
+    )
+    assert ik.parse_dockerfile_workdir(dockerfile) == "/x/sub"
+    dockerfile.write_text("FROM x\n", encoding="utf-8")
+    assert ik.parse_dockerfile_workdir(dockerfile) is None
+    assert ik.parse_dockerfile_workdir(tmp_path / "missing") is None
+
+
+def test_resolve_spec_real_tasks():
+    txn = ik.resolve_spec(load_harbor_task(TXN_TASK))
+    assert txn.workdir == "/app"
+    assert txn.submission_paths == ("/app",)
+    assert txn.base_kind == "dockerfile" and txn.has_solution
+    assert (txn.cpus, txn.memory) == (ik.RUN_CPUS, ik.RUN_MEMORY)
+    evsum = ik.resolve_spec(load_harbor_task(EVSUM_TASK))
+    assert evsum.workdir == "/app"
+    assert evsum.submission_paths == (
+        "/app/input/events.jsonl",
+        "/app/output/summary.json",
+    )
+    mimo = ik.resolve_spec(load_harbor_task(MIMO_TASK, require_solution=False))
+    assert mimo.workdir == "/testbed"
+    assert mimo.submission_paths == ("/testbed",)
+    assert mimo.base_kind == "docker_image" and not mimo.has_solution
+    assert mimo.base_ref.startswith("docker.io/xiaomimimo/")
+    assert (mimo.cpus, mimo.memory) == ("4", "4g")
+
+
+def test_resolve_spec_rejects_compose_and_root(tmp_path):
+    task_dir = make_task(tmp_path / "compose")
+    (task_dir / "environment" / "docker-compose.yaml").write_text("services: {}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="multi-service compose"):
+        ik.resolve_spec(load_harbor_task(task_dir))
+    task_dir = make_task(tmp_path / "rootfs", workdir="/")
+    with pytest.raises(ValueError, match="whole-filesystem"):
+        ik.resolve_spec(load_harbor_task(task_dir))
+
+
+def test_fake_model_from_canonical_plan_executes():
+    task = load_harbor_task(TXN_TASK)
+    oracle = exec_fake_model(ik.fake_model_source(scripted_agent_plan(task, "oracle", ()), "/app"))
+    assert len(oracle) == 2
+    command = oracle[0]["tool_calls"][0]["arguments"]["command"]
+    assert command == "cd /app && bash solution/solve.sh"
     assert oracle[-1]["tool_calls"] == []
-    nop = exec_fake_model(ik.fake_model_source("nop", adapter=txn))
+    nop = exec_fake_model(ik.fake_model_source(scripted_agent_plan(task, "nop", ()), "/app"))
     assert len(nop) == 1 and nop[0]["tool_calls"] == []
     cheat = exec_fake_model(
-        ik.fake_model_source("cheat", adapter=txn, attacks=("skip_plant",))
+        ik.fake_model_source(scripted_agent_plan(task, "cheat", ("skip_plant",)), "/testbed")
     )
-    assert len(cheat) == 2
-    call = cheat[0]["tool_calls"][0]
-    assert "cheat_ladder.py" in call["arguments"]["command"]
-    assert "skip_plant" in call["arguments"]["command"]
-    assert call["arguments"]["timeout_s"] == ik.CHEAT_TIMEOUT_S
-    with pytest.raises(ValueError):
-        ik.fake_model_source("oracle-ish", adapter=txn)
+    command = cheat[0]["tool_calls"][0]["arguments"]["command"]
+    assert command.startswith("cd /testbed && python3 /tmp/cheat_ladder.py")
+    assert "skip_plant" in command
+    assert cheat[0]["tool_calls"][0]["arguments"]["timeout_s"] == ik.CHEAT_TIMEOUT_S
 
 
-def test_adapters_from_real_tasks():
-    for task_dir, key, submissions in (
-        (TXN_TASK, "transaction-reconciliation", ("/workdir/data/ledger.db",)),
-        (
-            EVSUM_TASK,
-            "event-summary",
-            (
-                "/workdir/data/input/events.jsonl",
-                "/workdir/data/output/summary.json",
-            ),
-        ),
-    ):
-        adapter = ik.adapter_for(load_harbor_task(task_dir))
-        assert adapter.task_key == key
-        assert adapter.submission_paths == submissions
-        assert adapter.oracle_commands
-        assert adapter.student_files and adapter.root_files
-        compile(adapter.scoring_source, "scoring_script.py", "exec")
-        compile(
-            ik.fake_model_source("oracle", adapter=adapter), "fake_model.py", "exec"
-        )
+def test_render_scoring_embeds_canonical_parser():
+    from evallab.interop import parse_reward_bytes
 
-
-def test_txn_seed_matches_harbor_start_state(tmp_path):
-    import sqlite3
-
-    adapter = ik.adapter_for(load_harbor_task(TXN_TASK))
-    db_path = tmp_path / "ledger.db"
-    db_path.write_bytes(adapter.student_files["ledger.db"])
-    connection = sqlite3.connect(db_path)
-    try:
-        (pending,) = connection.execute(
-            "SELECT COUNT(*) FROM ledger_entries WHERE reconciliation_status='pending'"
-        ).fetchone()
-    finally:
-        connection.close()
-    assert pending == 1
-
-
-def test_adapter_for_unknown_task(tmp_path):
-    task = load_harbor_task(make_task(tmp_path))
-    with pytest.raises(ValueError, match="no karotte runner adapter"):
-        ik.adapter_for(task)
+    source = ik._render_scoring()
+    assert "def parse_reward_bytes(" in source
+    assert "@@PARSE_REWARD_BYTES@@" not in source
+    compile(source, "scoring_script.py", "exec")
+    namespace: dict = {}
+    exec(compile(source, "scoring_script.py", "exec"), namespace)  # noqa: S102
+    embedded = namespace["parse_reward_bytes"]
+    assert embedded(b"1", None) == parse_reward_bytes(b"1", None) == 1.0
+    with pytest.raises(FileNotFoundError):
+        embedded(None, None)
 
 
 def scoring_event(score, **meta):
@@ -245,6 +283,26 @@ def test_parse_transcript_error_and_misbehavior():
         assert ik.parse_transcript(bad)["reward"] is None
 
 
+def test_ladder_records_extraction():
+    records = [{"name": "skip_plant", "status": "executed", "detail": "x"}]
+    payload = {
+        "run_id": "r",
+        "events": [
+            {
+                "type": "tool_call_completed",
+                "result": {
+                    "structuredContent": {
+                        "stdout": "CHEAT_LADDER_RESULT=" + json.dumps(records) + "\n"
+                    }
+                },
+            }
+        ],
+    }
+    assert ik.ladder_records(payload) == records
+    assert ik.ladder_records({"run_id": "r", "events": []}) is None
+    assert ik.ladder_records(None) is None
+
+
 def test_image_digest_ignores_fake_model(tmp_path):
     env = tmp_path / "env"
     (env / "src" / "environment").mkdir(parents=True)
@@ -259,6 +317,13 @@ def test_image_digest_ignores_fake_model(tmp_path):
     assert ik.image_tag(env).startswith(ik.IMAGE_CACHE_PREFIX + "-")
 
 
+def test_dir_digest_stable(tmp_path):
+    context = tmp_path / "environment"
+    context.mkdir()
+    (context / "Dockerfile").write_text("FROM x\n", encoding="utf-8")
+    assert ik._dir_digest(context) == ik._dir_digest(context)
+
+
 def test_karotte_env_drops_ci(monkeypatch):
     monkeypatch.setenv("CI", "true")
     assert "CI" not in ik._karotte_env()
@@ -271,14 +336,21 @@ def test_run_cell_rejects_bad_agent(tmp_path):
 
 
 def test_run_cell_validation_errors_without_docker(tmp_path):
-    cell = ik.run_cell(TXN_TASK, "oracle", ("skip_plant",), workdir=tmp_path)
-    assert cell["verdict"] == "error" and "cheat" in (cell["reason"] or "")
-    cell = ik.run_cell(TXN_TASK, "cheat", ("nope",), workdir=tmp_path)
-    assert cell["verdict"] == "error" and "nope" in (cell["reason"] or "")
     cell = ik.run_cell(tmp_path / "missing", "oracle", (), workdir=tmp_path)
     assert cell["verdict"] == "error"
-    cell = ik.run_cell(make_task(tmp_path / "syn"), "oracle", (), workdir=tmp_path)
-    assert cell["verdict"] == "error" and "adapter" in (cell["reason"] or "")
+    task_dir = make_task(tmp_path / "compose")
+    (task_dir / "environment" / "docker-compose.yaml").write_text("services: {}\n", encoding="utf-8")
+    cell = ik.run_cell(task_dir, "nop", (), workdir=tmp_path)
+    assert cell["verdict"] == "error" and "compose" in (cell["reason"] or "")
+
+
+def test_run_cell_oracle_without_solution_skips_without_docker(tmp_path):
+    task_dir = make_task(tmp_path / "nosol")
+    (task_dir / "solution" / "solve.sh").unlink()
+    cell = ik.run_cell(task_dir, "oracle", (), workdir=tmp_path)
+    assert cell["verdict"] == "skipped" and "solution" in (cell["reason"] or "")
+    cell = ik.run_cell(task_dir, "cheat", ("nope",), workdir=tmp_path)
+    assert cell["verdict"] == "error"
 
 
 def test_run_cell_skipped_without_daemon(tmp_path, monkeypatch):
@@ -296,11 +368,11 @@ class _Done:
 
 def _stub_run_factory(score: float):
     def _stub_run(cmd, **kwargs):
-        assert "--dev" in cmd  # per-agent fake_model rides the dev bind-mount
+        assert "--dev" in cmd  # per-cell fake_model rides the dev bind-mount
         config_path = cmd[cmd.index("--config") + 1]
         config = json.loads(Path(config_path).read_text(encoding="utf-8"))
         assert config["use_fake_model"] is True
-        out = Path(kwargs["cwd"]) / config["transcript_file"]
+        out = Path(config["transcript_file"])
         out.parent.mkdir(parents=True, exist_ok=True)
         out.write_text(
             json.dumps(
@@ -320,18 +392,21 @@ def _stub_run_factory(score: float):
 
 
 def test_run_cell_pass_and_fail_with_stubbed_karotte(tmp_path, monkeypatch):
-    def _assemble(task, adapter, env_dir):
+    def _assemble(task, spec, env_dir, *, base_tag):
         (Path(env_dir) / "src" / "environment").mkdir(parents=True, exist_ok=True)
         return {"env_dir": str(env_dir)}
 
     monkeypatch.setattr(ik, "docker_daemon_ok", lambda timeout=30: (True, "mock"))
+    monkeypatch.setattr(
+        ik, "ensure_harbor_base", lambda task, spec, build_timeout: {"tag": "base", "kind": "mock"}
+    )
     monkeypatch.setattr(ik, "assemble_env", _assemble)
     monkeypatch.setattr(ik, "resolved_karotte_version", lambda env_dir: "3.0.59")
     monkeypatch.setattr(
-        ik, "ensure_image", lambda env_dir: {"tag": "t", "digest": "d", "rebuilt": False}
+        ik, "ensure_image", lambda env_dir, build_timeout=1800: {"tag": "t", "rebuilt": False}
     )
     monkeypatch.setattr(
-        ik, "_watch_bounds", lambda name, stop, record: record.update(bounded=True)
+        ik, "_watch_bounds", lambda name, stop, record, cpus="2", memory="2g": record.update(bounded=True)
     )
     monkeypatch.setattr(ik, "_remove_own_container", lambda name: True)
     import evallab.cheat_ladder as ladder
@@ -343,8 +418,10 @@ def test_run_cell_pass_and_fail_with_stubbed_karotte(tmp_path, monkeypatch):
     assert cell["verdict"] == "pass" and cell["reward"] == 1.0
     assert cell["platform_version"] == "3.0.59"
     evidence = json.loads(Path(cell["evidence"]).read_text(encoding="utf-8"))
-    assert evidence["container_bounded_2cpu_2g"] is True
+    assert evidence["container_bounded"] is True
     assert evidence["container_removed"] is True
+    assert evidence["spec"]["workdir"] == "/app"
+    assert evidence["plan"]["command"] == "bash solution/solve.sh"
     monkeypatch.setattr(ik.subprocess, "run", _stub_run_factory(0.0))
     cell = ik.run_cell(TXN_TASK, "nop", (), workdir=work)
     assert cell["verdict"] == "fail" and cell["reward"] == 0.0

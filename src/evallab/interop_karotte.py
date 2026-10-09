@@ -21,12 +21,13 @@ touching containers it did not start.
 from __future__ import annotations
 
 import hashlib
+import inspect
 import json
 import os
 import re
+import shlex
 import shutil
 import subprocess
-import tempfile
 import threading
 import time
 import uuid
@@ -34,28 +35,43 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from evallab.interop import KAROTTE_PIN, HarborTask, load_harbor_task, verdict_for_reward
+from evallab.interop import (
+    CHEAT_LADDER_CONTAINER_PATH,
+    KAROTTE_PIN,
+    HarborTask,
+    ScriptedPlan,
+    load_harbor_task,
+    parse_reward_bytes,
+    scripted_agent_plan,
+    verdict_for_reward,
+)
 
 #: Image tag karotte's ``run`` reads (hardcoded upstream); content-keyed tags
 #: below let cells skip rebuilds and retag this name.
 KAROTTE_IMAGE = "karotte"
 #: Cache tag prefix for built task images (``evallab-karotte-<digest>``).
 IMAGE_CACHE_PREFIX = "evallab-karotte"
-#: Bounds applied to each run container (cpus, memory).
+#: Cache tag prefix for built Harbor base images (``evallab-harbor-<digest>``).
+HARBOR_IMAGE_PREFIX = "evallab-harbor"
+#: Default bounds applied to each run container (cpus, memory).
 RUN_CPUS = "2"
 RUN_MEMORY = "2g"
-#: Build budget per task image; the run phase uses ``timeout_seconds``.
+#: Per-task bound overrides by task-dir name (heavier verifiers).
+TASK_BOUNDS = {
+    "format-code-task-002552": ("4", "4g"),
+}
+#: Build budget floor per task image; the run phase uses ``timeout_seconds``.
 BUILD_TIMEOUT_SECONDS = 1800
 DEFAULT_RUN_TIMEOUT_SECONDS = 1200
 #: Per-command timeout (seconds) for scripted bash tool calls.
 BASH_TIMEOUT_S = 300
-#: Timeout for the cheat-ladder tool call (full ladder worst case ~7 min).
-CHEAT_TIMEOUT_S = 900
+#: Timeout for the cheat-ladder tool call (large repos, emulated arch).
+CHEAT_TIMEOUT_S = 1500
 #: Files the cell runner never hashes into the image digest (per-cell inputs).
 _UNHASHED_NAMES = {"fake_model.py"}
 _UNHASHED_DIRS = {"out"}
-#: Ladder source, staged into the student container for cheat cells.
-CHEAT_LADDER_MOUNT = "/tmp/cheat_ladder.py"
+#: Oracle solution tree, mounted (never baked) for oracle cells only.
+SOLUTION_MOUNT = "/solution"
 
 
 def _karotte_env(extra: dict[str, str] | None = None) -> dict[str, str]:
@@ -92,290 +108,199 @@ def docker_daemon_ok(timeout: int = 30) -> tuple[bool, str]:
     return True, f"docker server {(completed.stdout or '').strip()}"
 
 
-def selected_cheat_attacks(attacks: tuple[str, ...] | list[str]) -> tuple[str, ...]:
-    """Validate a cheat attack subset against the ladder; empty means full."""
-    from evallab.cheat_ladder import parse_attack_selection
-
-    raw = ",".join(attacks) if attacks else None
-    return parse_attack_selection(raw)
-
-
 # ---------------------------------------------------------------------------
-# Task adapters: Harbor task -> karotte student data + oracle + scoring
+# Generic Harbor task spec (no per-task adapters)
 # ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class KarotteTaskAdapter:
-    """Everything karotte needs that is Harbor-task-specific."""
-
-    #: library dir name this adapter handles.
-    task_key: str
-    #: karotte ``Task.id`` (also the ``environment.tasks`` package name seed).
-    karotte_id: str
-    #: absolute container paths the student must hand in.
-    submission_paths: tuple[str, ...]
-    #: ``student_data/`` overlay: relative path -> file bytes.
-    student_files: dict[str, bytes]
-    #: ``root_data/`` overlay: relative path -> file bytes.
-    root_files: dict[str, bytes]
-    #: bash commands the oracle fake-model runs in the student workdir.
-    oracle_commands: tuple[str, ...]
-    #: scoring module source (``scoring_script.py``): argv = saved copies...,
-    #: last argv = output JSON path; writes ``{"score", "metadata"}``.
-    scoring_source: str
-
-
-_TXN_SCORING = '''"""Score the collected ledger copy with the Harbor verifier (root-only)."""
-import json
-import subprocess
-import sys
-from pathlib import Path
-
-STAGE = Path("/app/data/ledger.db")
-TESTS = Path("/root_data/task-tests")
-
-
-def main() -> int:
-    saved = sys.argv[1:-1]
-    output = Path(sys.argv[-1])
-    db = Path(saved[0]) if saved else None
-    if db is None or not db.is_file():
-        output.write_text(json.dumps({
-            "score": 0.0,
-            "metadata": {"error": "no ledger database handed in"},
-        }))
-        return 0
-    STAGE.parent.mkdir(parents=True, exist_ok=True)
-    if STAGE.exists():
-        STAGE.unlink()
-    STAGE.write_bytes(db.read_bytes())
-    completed = subprocess.run(
-        [sys.executable, "-m", "pytest", "test_outputs.py", "-q",
-         "--no-header", "-p", "no:cacheprovider"],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=600,
-        cwd=str(TESTS),
-    )
-    tail = ((completed.stdout or "") + (completed.stderr or ""))[-2000:]
-    if completed.returncode == 0:
-        payload = {"score": 1.0, "metadata": {"exit": 0}}
-    else:
-        payload = {"score": 0.0,
-                   "metadata": {"exit": completed.returncode, "output_tail": tail}}
-    output.write_text(json.dumps(payload))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-'''
-
-_EVSUM_SCORING = '''"""Score the collected summary with the Harbor verifier (root-only)."""
-import json
-import shutil
-import subprocess
-import sys
-from pathlib import Path
-
-APP_IN = Path("/app/input/events.jsonl")
-APP_OUT = Path("/app/output/summary.json")
-FIX_SRC = Path("/root_data/fixtures/events.jsonl")
-FIX_DST = Path("/tests/fixtures/events.jsonl")
-VERIFY = Path("/root_data/task-tests/verify.py")
-LOG_REWARD = Path("/logs/verifier/reward.json")
-
-
-def main() -> int:
-    saved = sys.argv[1:-1]
-    output = Path(sys.argv[-1])
-    if len(saved) < 2:
-        output.write_text(json.dumps({
-            "score": 0.0, "metadata": {"error": "expected input+output copies"},
-        }))
-        return 0
-    src_in, src_out = Path(saved[0]), Path(saved[1])
-    if not src_out.is_file():
-        output.write_text(json.dumps({
-            "score": 0.0, "metadata": {"error": "summary.json is missing"},
-        }))
-        return 0
-    for path in (APP_IN, APP_OUT, FIX_DST):
-        path.parent.mkdir(parents=True, exist_ok=True)
-    if src_in.is_file():
-        APP_IN.write_bytes(src_in.read_bytes())
-    elif APP_IN.exists():
-        APP_IN.unlink()
-    APP_OUT.write_bytes(src_out.read_bytes())
-    FIX_DST.write_bytes(FIX_SRC.read_bytes())
-    if LOG_REWARD.exists():
-        LOG_REWARD.unlink()
-    completed = subprocess.run(
-        [sys.executable, str(VERIFY)],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=600,
-        cwd=str(VERIFY.parent),
-    )
-    reward: float | None = None
-    error: str | None = None
-    if LOG_REWARD.is_file():
-        try:
-            payload = json.loads(LOG_REWARD.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            error = f"reward.json unreadable: {exc}"
-        else:
-            for key in ("score", "reward"):
-                value = payload.get(key) if isinstance(payload, dict) else None
-                if isinstance(value, (int, float)) and not isinstance(value, bool):
-                    reward = float(value)
-                    break
-            if reward is None:
-                error = "reward.json has no numeric score/reward key"
-    else:
-        error = "verifier wrote no reward.json"
-    if error is not None:
-        tail = ((completed.stdout or "") + (completed.stderr or ""))[-2000:]
-        output.write_text(json.dumps({
-            "score": 0.0,
-            "metadata": {"error": error, "exit": completed.returncode,
-                         "output_tail": tail},
-        }))
-        return 0
-    assert reward is not None
-    output.write_text(json.dumps({
-        "score": reward,
-        "metadata": {"exit": completed.returncode,
-                     "verdict": "pass" if reward >= 1.0 else "fail"},
-    }))
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
-'''
+# Agent scripts come from ``evallab.interop.scripted_agent_plan`` (contract
+# #2): identical plans on every platform. This module only replays them.
 
 
 def _shell_quote(value: str) -> str:
     return "'" + value.replace("'", "'\"'\"'") + "'"
 
 
-def _txn_oracle_commands() -> tuple[str, ...]:
-    script = (
-        "import sqlite3\n"
-        "db = sqlite3.connect('/workdir/data/ledger.db')\n"
-        "db.execute(\"UPDATE ledger_entries SET settled_amount_cents = "
-        "(SELECT amount_cents FROM settlement_feed WHERE "
-        "settlement_feed.external_id = ledger_entries.external_id), "
-        "reconciliation_status = 'reconciled' WHERE EXISTS (SELECT 1 FROM "
-        "settlement_feed WHERE settlement_feed.external_id = "
-        "ledger_entries.external_id AND settlement_feed.amount_cents != "
-        "ledger_entries.settled_amount_cents)\")\n"
-        "db.commit()\n"
-        "print('reconciled', db.total_changes)\n"
-        "db.close()\n"
-    )
-    return (f"python3 - <<'PYEOF'\n{script}PYEOF",)
+def _artifact_sources(task: HarborTask) -> list[str]:
+    """Absolute submission sources from task.toml artifacts (str or table)."""
+    raw = task.config.get("artifacts")
+    if not isinstance(raw, list):
+        return []
+    sources: list[str] = []
+    for entry in raw:
+        if isinstance(entry, str):
+            candidate = entry
+        elif isinstance(entry, dict):
+            candidate = str(entry.get("source", ""))
+        else:
+            continue
+        if candidate.startswith("/"):
+            sources.append(candidate)
+    return sources
 
 
-def _evsum_oracle_commands() -> tuple[str, ...]:
-    script = (
-        "import json, math\n"
-        "from collections import Counter\n"
-        "from pathlib import Path\n"
-        "events = [json.loads(l) for l in "
-        "Path('/workdir/data/input/events.jsonl').read_text().splitlines() if l.strip()]\n"
-        "durs = sorted(e['duration_ms'] for e in events)\n"
-        "counts = Counter(e['kind'] for e in events)\n"
-        "summary = {'schema_version': 1, 'total_events': len(events), "
-        "'counts': {k: counts[k] for k in sorted(counts)}, "
-        "'total_duration_ms': sum(durs), "
-        "'p95_duration_ms': durs[math.ceil(0.95 * len(durs)) - 1]}\n"
-        "out = Path('/workdir/data/output/summary.json')\n"
-        "out.parent.mkdir(parents=True, exist_ok=True)\n"
-        "out.write_text(json.dumps(summary, separators=(',', ':')) + chr(10))\n"
-        "print('wrote', out)\n"
-    )
-    return (f"python3 - <<'PYEOF'\n{script}PYEOF",)
+def parse_dockerfile_workdir(dockerfile: Path) -> str | None:
+    """Effective WORKDIR of the final build stage (Harbor definition.py rule).
 
-
-def _seeded_ledger_db(task: HarborTask) -> bytes:
-    """Seed the starting ledger with the task's own seed script (host-side)."""
-    import sqlite3
-
-    seed = (task.task_dir / "environment" / "seed_db.py").read_text(encoding="utf-8")
-    marker = 'database_path = Path("/app/data/ledger.db")'
-    if marker not in seed:
-        raise ValueError("seed_db.py no longer declares the /app/data/ledger.db path")
-    with tempfile.TemporaryDirectory(prefix="karotte-seed-") as tmp:
-        target = Path(tmp) / "ledger.db"
-        patched = seed.replace(marker, f"database_path = Path({str(target)!r})", 1)
-        namespace: dict[str, Any] = {}
-        exec(compile(patched, "seed_db.py", "exec"), namespace)  # noqa: S102
-        connection = sqlite3.connect(target)
-        try:
-            (rows,) = connection.execute("SELECT COUNT(*) FROM ledger_entries").fetchone()
-        finally:
-            connection.close()
-        if rows != 6:
-            raise ValueError(f"seeded ledger has {rows} entries, expected 6")
-        return target.read_bytes()
-
-
-def txn_adapter(task: HarborTask) -> KarotteTaskAdapter:
-    tests = task.task_dir / task.tests_dir / "test_outputs.py"
-    return KarotteTaskAdapter(
-        task_key="transaction-reconciliation",
-        karotte_id="transaction-reconciliation",
-        submission_paths=("/workdir/data/ledger.db",),
-        student_files={"ledger.db": _seeded_ledger_db(task)},
-        root_files={"task-tests/test_outputs.py": tests.read_bytes()},
-        oracle_commands=_txn_oracle_commands(),
-        scoring_source=_TXN_SCORING,
-    )
-
-
-def evsum_adapter(task: HarborTask) -> KarotteTaskAdapter:
-    tests = task.task_dir / task.tests_dir
-    env = task.task_dir / "environment"
-    return KarotteTaskAdapter(
-        task_key="event-summary",
-        karotte_id="event-summary",
-        submission_paths=(
-            "/workdir/data/input/events.jsonl",
-            "/workdir/data/output/summary.json",
-        ),
-        student_files={
-            "input/events.jsonl": (env / "events.jsonl").read_bytes(),
-        },
-        root_files={
-            "task-tests/verify.py": (tests / "verify.py").read_bytes(),
-            "fixtures/events.jsonl": (tests / "fixtures" / "events.jsonl").read_bytes(),
-        },
-        oracle_commands=_evsum_oracle_commands(),
-        scoring_source=_EVSUM_SCORING,
-    )
-
-
-ADAPTERS = {
-    "transaction-reconciliation": txn_adapter,
-    "event-summary": evsum_adapter,
-}
-"""Task-dir names with a real karotte runner adapter (no generic fallback)."""
-
-
-def adapter_for(task: HarborTask) -> KarotteTaskAdapter:
+    Each FROM resets; relative values resolve against the stage workdir.
+    """
     try:
-        build = ADAPTERS[task.task_dir.name]
-    except KeyError:
+        text = dockerfile.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    workdir: str | None = None
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        keyword, _, rest = line.partition(" ")
+        keyword = keyword.upper()
+        if keyword == "FROM":
+            workdir = None
+        elif keyword == "WORKDIR":
+            value = rest.strip().strip("\"'")
+            if not value:
+                continue
+            workdir = value if value.startswith("/") else str(Path(workdir or "/") / value)
+    return workdir
+
+
+@dataclass(frozen=True)
+class GenericSpec:
+    """Everything karotte needs, derived from the Harbor task (no hand work)."""
+
+    task_key: str
+    karotte_id: str
+    workdir: str
+    base_kind: str
+    base_ref: str
+    submission_paths: tuple[str, ...]
+    has_solution: bool
+    grade_timeout: float
+    cpus: str
+    memory: str
+
+
+def _karotte_slug(task_id: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", task_id.lower()).strip("-")[:120] or "harbor-task"
+
+
+def resolve_spec(task: HarborTask) -> GenericSpec:
+    """Derive the runnable spec: workdir, base image, submission scope."""
+    env_cfg = task.config.get("environment")
+    env_cfg = env_cfg if isinstance(env_cfg, dict) else {}
+    workdir = (
+        env_cfg.get("workdir")
+        or parse_dockerfile_workdir(task.task_dir / "environment" / "Dockerfile")
+        or "/"
+    )
+    if not workdir.startswith("/"):
+        workdir = "/" + workdir
+    env_dir = task.task_dir / "environment"
+    if any((env_dir / name).is_file() for name in ("docker-compose.yaml", "docker-compose.yml")):
         raise ValueError(
-            f"no karotte runner adapter for task dir {task.task_dir.name!r} "
-            f"(have: {sorted(ADAPTERS)})"
-        ) from None
-    return build(task)
+            f"{task.task_id}: multi-service compose has no single-image karotte mapping"
+        )
+    docker_image = env_cfg.get("docker_image")
+    if isinstance(docker_image, str) and docker_image:
+        base_kind, base_ref = "docker_image", docker_image
+    elif (env_dir / "Dockerfile").is_file():
+        base_kind, base_ref = "dockerfile", ""
+    else:
+        raise ValueError(
+            f"{task.task_id}: no environment/Dockerfile or [environment] docker_image "
+            "to build the student image from"
+        )
+    sources = _artifact_sources(task)
+    if sources:
+        submissions = tuple(sources)
+    elif workdir == "/":
+        raise ValueError(
+            f"{task.task_id}: workdir / with no artifacts: refusing whole-filesystem submission"
+        )
+    else:
+        submissions = (workdir,)
+    verifier = task.config.get("verifier")
+    verifier = verifier if isinstance(verifier, dict) else {}
+    try:
+        grade_timeout = float(verifier.get("timeout_sec") or 600)
+    except (TypeError, ValueError):
+        grade_timeout = 600.0
+    grade_timeout = min(max(grade_timeout, 300.0), 2100.0)
+    cpus, memory = TASK_BOUNDS.get(task.task_dir.name, (RUN_CPUS, RUN_MEMORY))
+    return GenericSpec(
+        task_key=task.task_dir.name,
+        karotte_id=_karotte_slug(task.task_id),
+        workdir=workdir,
+        base_kind=base_kind,
+        base_ref=base_ref,
+        submission_paths=submissions,
+        has_solution=(task.task_dir / "solution" / "solve.sh").is_file(),
+        grade_timeout=grade_timeout,
+        cpus=cpus,
+        memory=memory,
+    )
+
+
+def _dir_digest(path: Path) -> str:
+    """Content hash of a build-context directory (sorted relpath + bytes)."""
+    digest = hashlib.sha256()
+    for child in sorted(path.rglob("*")):
+        if not child.is_file() or child.is_symlink():
+            continue
+        rel = child.relative_to(path).as_posix()
+        digest.update(rel.encode() + b"\0" + child.read_bytes() + b"\0")
+    return digest.hexdigest()[:16]
+
+
+def ensure_harbor_base(
+    task: HarborTask, spec: GenericSpec, *, build_timeout: int
+) -> dict[str, Any]:
+    """Provide the Harbor student image: pull a pinned ref or build the Dockerfile.
+
+    Build context is the task's ``environment/`` dir (Harbor semantics);
+    Dockerfile builds are content-keyed (``evallab-harbor-<digest>``).
+    """
+    if spec.base_kind == "docker_image":
+        ref = spec.base_ref
+        inspected = subprocess.run(
+            ["docker", "image", "inspect", ref],
+            check=False, capture_output=True, text=True, timeout=60, env=_karotte_env(),
+        )
+        if inspected.returncode != 0:
+            pulled = subprocess.run(
+                ["docker", "pull", ref],
+                check=False, capture_output=True, text=True, timeout=build_timeout,
+                env=_karotte_env(),
+            )
+            if pulled.returncode != 0:
+                raise RuntimeError(f"docker pull {ref} failed: {(pulled.stderr or '')[-2000:]}")
+            detail = "pulled"
+        else:
+            detail = "cached"
+        return {"tag": ref, "kind": "docker_image", "detail": detail}
+    env_dir = task.task_dir / "environment"
+    tag = f"{HARBOR_IMAGE_PREFIX}-{_dir_digest(env_dir)}"
+    inspected = subprocess.run(
+        ["docker", "image", "inspect", tag],
+        check=False, capture_output=True, text=True, timeout=60, env=_karotte_env(),
+    )
+    if inspected.returncode == 0:
+        return {"tag": tag, "kind": "dockerfile", "detail": "cached"}
+    env_cfg = task.config.get("environment")
+    env_cfg = env_cfg if isinstance(env_cfg, dict) else {}
+    try:
+        timeout = max(int(env_cfg.get("build_timeout_sec") or 600), 300)
+    except (TypeError, ValueError):
+        timeout = 600
+    timeout = min(timeout, 3600)
+    built = subprocess.run(
+        ["docker", "build", "--file", str(env_dir / "Dockerfile"), "--tag", tag, str(env_dir)],
+        check=False, capture_output=True, text=True, timeout=timeout,
+        cwd=str(task.task_dir), env=_karotte_env(),
+    )
+    if built.returncode != 0:
+        detail = ((built.stdout or "") + (built.stderr or ""))[-3000:]
+        raise RuntimeError(f"harbor base build failed: {detail}")
+    return {"tag": tag, "kind": "dockerfile", "detail": "built"}
 
 
 # ---------------------------------------------------------------------------
@@ -419,40 +344,19 @@ def plan_messages(
     return messages
 
 
-def cheat_command(attacks: tuple[str, ...]) -> str:
-    """Shell command running the staged ladder in the student workdir."""
-    parts = [f"python3 {_shell_quote(CHEAT_LADDER_MOUNT)}", "--cwd /workdir"]
-    if attacks:
-        parts += ["--attacks", ",".join(attacks)]
-    parts += ["--evidence-dir /tmp/cheat-evidence"]
-    return " ".join(parts)
+def fake_model_source(plan: ScriptedPlan, workdir: str) -> str:
+    """Render ``environment/fake_model.py`` for one cell from its plan.
 
-
-def fake_model_source(
-    agent: str,
-    *,
-    adapter: KarotteTaskAdapter,
-    attacks: tuple[str, ...] = (),
-) -> str:
-    """Render ``environment/fake_model.py`` for one cell.
-
-    oracle replays the task's oracle commands; nop sends a single text-only
-    message (no tool calls); cheat replays the staged ``cheat_ladder.py``
-    (``evallab.cheat_ladder``, same ladder ``evallab cheat run`` executes).
+    A plan command becomes one ``bash`` tool call run with cwd at the task
+    workdir (files ride per-run mounts); a None command (nop) becomes one
+    text-only message, so the step ends with zero tool calls.
     """
-    if agent == "oracle":
-        messages = plan_messages(adapter.oracle_commands)
-    elif agent == "nop":
+    if plan.command is None:
         messages = plan_messages((), done_text="No changes; grading the initial state.")
-    elif agent == "cheat":
-        selection = selected_cheat_attacks(tuple(attacks))
-        messages = plan_messages(
-            (cheat_command(selection),),
-            command_timeout_s=CHEAT_TIMEOUT_S,
-            done_text="Cheat ladder finished.",
-        )
     else:
-        raise ValueError(f"unknown karotte agent {agent!r} (oracle/nop/cheat)")
+        timeout = CHEAT_TIMEOUT_S if CHEAT_LADDER_CONTAINER_PATH in plan.command else BASH_TIMEOUT_S
+        wrapped = f"cd {shlex.quote(workdir)} && {plan.command}"
+        messages = plan_messages((wrapped,), command_timeout_s=timeout)
     return (
         '"""Scripted $0 agent for one karotte cell (no inference)."""\n'
         "from __future__ import annotations\n"
@@ -504,9 +408,10 @@ print(json.dumps({"populated": str(out), "templates": resolved}))
 
 _TASK_INIT_TEMPLATE = '''"""Karotte task @@KAROTTE_ID@@ bridged from Harbor task @@HARBOR_ID@@.
 
-Student-writable: @@SUBMISSION_DOC@@. The judge grades karotte's own
-collected submission copies (root-only) with the Harbor verifier logic;
-workspace reward-claim files are never read.
+Generic bridge (no per-task code): the student works at @@WORKDIR@@, the
+pre-scoring hook collects @@SUBMISSION_DOC@@ into root-only copies, and the
+judge restores those copies at their original absolute paths and runs the
+task's own tests/test.sh from @@WORKDIR@@, exactly like Harbor shared mode.
 """
 from __future__ import annotations
 
@@ -521,7 +426,9 @@ from karotte.judges.judge import Judge
 from environment.submissions import collect_submission
 from environment.system_prompts import get_system_prompt
 
+WORKDIR = "@@WORKDIR@@"
 SUBMISSION_PATHS = @@SUBMISSION_REPR@@
+GRADE_TIMEOUT = @@GRADE_TIMEOUT@@
 
 INSTRUCTIONS = @@INSTRUCTIONS_REPR@@
 
@@ -541,16 +448,13 @@ class @@STEP_CLASS@@(Step):
     @property
     def judge(self) -> Judge:
         assert self.saved_submissions, "pre_scoring_hook has not run"
-        return ExecutableJudge(
-            [
-                sys.executable,
-                "-m",
-                "environment.tasks.@@PKG@@.scoring_script",
-                *(str(p) for p in self.saved_submissions),
-                "score_output.json",
-            ],
-            continue_threshold=1.0,
-        )
+        assert len(self.saved_submissions) == len(SUBMISSION_PATHS)
+        argv = [sys.executable, "-m", "environment.tasks.@@PKG@@.scoring_script"]
+        argv += [str(GRADE_TIMEOUT), WORKDIR]
+        for orig, saved in zip(SUBMISSION_PATHS, self.saved_submissions, strict=True):
+            argv += [orig, str(saved)]
+        argv += ["score_output.json"]
+        return ExecutableJudge(argv, continue_threshold=1.0)
 
     def pre_scoring_hook(self) -> None:
         self.saved_submissions = collect_submission(self.config, self.submission_paths)
@@ -574,6 +478,230 @@ class @@TASK_CLASS@@(Task):
 '''
 
 
+_GENERIC_SCORING = '''"""Generic Harbor-verifier judge (root-only, same for every task).
+
+argv: <grade_timeout> <workdir> [<orig> <saved>]... <output.json>
+(ExecutableJudge rewrites the last arg to a temp path.) Restores each
+collected submission copy at its original absolute path, stages the task's
+own tests/ tree at /tests, runs ``bash /tests/test.sh`` from the workdir
+(Harbor shared-mode grading), and converts /logs/verifier/reward.txt (or
+reward.json) to karotte's {"score", "metadata"} with the embedded
+``evallab.interop.parse_reward_bytes`` (identical reward semantics).
+Stale reward files are wiped first, so a planted reward can never be trusted.
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+TESTS_SRC = Path("/root_data/tests")
+TESTS_DST = Path("/tests")
+LOG_DIR = Path("/logs/verifier")
+
+@@PARSE_REWARD_BYTES@@
+
+def read_reward() -> tuple[float | None, str | None]:
+    txt_path = LOG_DIR / "reward.txt"
+    js_path = LOG_DIR / "reward.json"
+    txt = txt_path.read_bytes() if txt_path.is_file() else None
+    js = js_path.read_bytes() if js_path.is_file() else None
+    try:
+        return parse_reward_bytes(txt, js, source=str(LOG_DIR)), None
+    except FileNotFoundError as exc:
+        return None, str(exc)
+    except ValueError as exc:
+        return None, str(exc)
+
+
+def main() -> int:
+    timeout = float(sys.argv[1])
+    workdir = sys.argv[2]
+    pairs = list(zip(sys.argv[3:-1:2], sys.argv[4:-1:2], strict=False))
+    output = Path(sys.argv[-1])
+    missing: list[str] = []
+    unrestored: list[str] = []
+    for orig_s, saved_s in pairs:
+        orig, saved = Path(orig_s), Path(saved_s)
+        if not saved.exists():
+            missing.append(orig_s)
+            continue
+        try:
+            orig.parent.mkdir(parents=True, exist_ok=True)
+            if saved.is_dir() and not saved.is_symlink():
+                shutil.copytree(saved, orig, dirs_exist_ok=True)
+            elif saved.is_file() and not saved.is_symlink():
+                if orig.is_dir() and not orig.is_symlink():
+                    shutil.rmtree(orig)
+                shutil.copy2(saved, orig)
+            else:
+                missing.append(f"{orig_s} (not a regular file or directory)")
+        except OSError as exc:
+            # Read-only harness mounts (e.g. the oracle's /solution files)
+            # ride inside the submission scope but cannot change: the graded
+            # original is byte-identical to the copy. Anything else would
+            # have failed collection, not restoration.
+            unrestored.append(f"{orig_s} ({exc.strerror or exc})")
+    if TESTS_DST.exists():
+        shutil.rmtree(TESTS_DST)
+    shutil.copytree(TESTS_SRC, TESTS_DST)
+    LOG_DIR.mkdir(parents=True, exist_ok=True)
+    for name in ("reward.txt", "reward.json"):
+        stale = LOG_DIR / name
+        if stale.exists():
+            stale.unlink()
+    try:
+        completed = subprocess.run(
+            ["bash", str(TESTS_DST / "test.sh")],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            cwd=workdir,
+        )
+        failed: str | None = None
+    except subprocess.TimeoutExpired:
+        completed = None
+        failed = f"test.sh timed out after {timeout}s"
+    reward, error = read_reward()
+    metadata: dict[str, object] = {}
+    if missing:
+        metadata["missing_submissions"] = missing
+    if unrestored:
+        metadata["unrestored_readonly"] = unrestored
+    if completed is not None:
+        metadata["exit"] = completed.returncode
+        metadata["output_tail"] = ((completed.stdout or "") + (completed.stderr or ""))[-2000:]
+    if failed is not None:
+        metadata["error"] = failed
+    elif error is not None:
+        metadata["error"] = error
+    if reward is None:
+        payload = {"score": 0.0, "metadata": metadata}
+    else:
+        metadata["verdict"] = "pass" if reward >= 1.0 else "fail"
+        payload = {"score": reward, "metadata": metadata}
+    output.write_text(json.dumps(payload))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
+'''
+
+
+def _render_scoring() -> str:
+    """Render the generic scoring module with the canonical reward parser.
+
+    ``inspect.getsource`` inlines ``evallab.interop.parse_reward_bytes``
+    verbatim, so the judge's reward semantics track interop exactly (and any
+    interop change busts the image digest, forcing a rebuild).
+    """
+    import textwrap
+
+    source = textwrap.dedent(inspect.getsource(parse_reward_bytes))
+    return _GENERIC_SCORING.replace("@@PARSE_REWARD_BYTES@@", source)
+
+
+_HARNESS_CHECK_PERMISSIONS = '''"""Permission checks for the Harbor-base harness layout."""
+import subprocess
+
+
+def check_permissions():
+    """Checks that the permission model is correctly enforced in the container."""
+    from karotte.trusted_bin import trusted_binary
+
+    test_script = """
+set -e
+echo "Running test: student user exists"
+id student > /dev/null
+echo "PASS: student user exists"
+echo "Running test: student can write the karotte workdir"
+runuser -u student -- bash -c 'echo ok > /workdir/.perm_probe && rm /workdir/.perm_probe'
+echo "PASS: student can write the karotte workdir"
+for d in /root_data /intermediate_data; do
+  echo "Running test: student cannot read $d"
+  if runuser -u student -- ls "$d" > /dev/null 2>&1; then
+    echo "FAIL: student can read $d"
+    exit 1
+  fi
+  echo "PASS: student cannot read $d"
+done
+for d in /tests /solution; do
+  echo "Running test: student cannot write $d"
+  if runuser -u student -- touch "$d/.perm_probe" > /dev/null 2>&1; then
+    rm -f "$d/.perm_probe"
+    echo "FAIL: student can write $d"
+    exit 1
+  fi
+  echo "PASS: student cannot write $d"
+done
+# NOTE: /logs/verifier perms are task-determined (MiMo setup chmods 777, same
+# as Harbor): the reward-overwrite guarantee comes from the task's own
+# test.sh, which the ladder probes empirically.
+"""
+    result = subprocess.run(
+        [trusted_binary("bash"), "-c", test_script],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, (
+        f"Permission tests failed with exit code {result.returncode}:\\n"
+        f"stdout:\\n{result.stdout}\\nstderr:\\n{result.stderr}"
+    )
+'''
+
+
+_HARNESS_CONTAINERFILE = '''# Karotte harness layer on top of the Harbor student image.
+# The base image (@@BASE@@) carries the task toolchain and seeded state;
+# this layer adds only what karotte's runtime needs, on any Debian-based base.
+FROM @@BASE@@
+USER root
+ENV KAROTTE_CONTAINERIZED=1 \
+  KAROTTE_WORKDIR=/workdir \
+  PYTHONUNBUFFERED=1 \
+  UV_VERSION=0.11.32 \
+  UV_INSTALL_DIR=/opt/uv \
+  PATH="/opt/uv:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin" \
+  UV_CACHE_DIR=/root/.cache/uv \
+  UV_LINK_MODE=copy \
+  UV_PYTHON_INSTALL_DIR=/opt/uv/python \
+  KAROTTE_DEMOTE_ID=1000 \
+  STUDENT_WORKDIR=/workdir \
+  ROOT_WORKDIR=/root \
+  PYTHONSAFEPATH=1 \\
+  DEBIAN_FRONTEND=noninteractive
+# karotte runtime floor: demotion/user tools, namespaces, firewall, fetch.
+RUN apt-get update && apt-get install -y --no-install-recommends \\
+    bash util-linux mount passwd login iptables curl ca-certificates procps git \\
+    && rm -rf /var/lib/apt/lists/*
+RUN groupadd -g 1000 student 2>/dev/null || true && \\
+  useradd -M -d /workdir -u 1000 -g 1000 student 2>/dev/null || true
+RUN mkdir -p /workdir /root_data /intermediate_data /tests /logs/agent /logs/verifier /logs/artifacts /solution && \\
+  chmod 1777 /workdir && chmod 0700 /root_data /intermediate_data
+# uv + a uniform harness python 3.12 (the task toolchain stays the default).
+RUN curl -LsSf https://astral.sh/uv/${UV_VERSION}/install.sh | sh && \\
+  chown -R root:root /opt/uv && \\
+  uv python install --no-bin 3.12 && \\
+  uv venv --python 3.12 /root/.venv && \\
+  rm -rf /root/.cache/uv
+COPY root_data/ /root_data/
+COPY pyproject.toml /root/pyproject.toml
+COPY src/ /root/src/
+RUN uv pip install --python /root/.venv/bin/python karotte==@@KAROTTE_PIN@@ && \
+  uv pip install --python /root/.venv/bin/python /root && \
+  rm -rf /root/.cache/uv
+# the student owns the task work (Harbor workdir + submission paths).
+@@CHOWN@@
+# task setup baked at build (Harbor runs it at container start instead).
+@@SETUP@@
+RUN . /root/.venv/bin/activate && karotte check
+WORKDIR /workdir
+'''
+
+
 def _pkg_name(karotte_id: str) -> str:
     pkg = re.sub(r"[^a-z0-9]+", "_", karotte_id.lower()).strip("_") or "harbor_task"
     if pkg[:1].isdigit():
@@ -585,6 +713,20 @@ def _class_name(karotte_id: str) -> str:
     parts = re.split(r"[^0-9a-zA-Z]+", karotte_id)
     return "".join(p[:1].upper() + p[1:] for p in parts if p) or "Harbor"
 
+
+def _force_writable_tree(root: Path) -> None:
+    """Owner-writable chmod over a tree (copied task trees may be read-only)."""
+    import contextlib
+    import os as _os
+    import stat as _stat
+
+    with contextlib.suppress(OSError):
+        _os.chmod(root, _os.stat(root).st_mode | _stat.S_IWUSR)
+    for dirpath, dirnames, filenames in _os.walk(root):
+        for name in (*dirnames, *filenames):
+            with contextlib.suppress(OSError):
+                candidate = _os.path.join(dirpath, name)
+                _os.chmod(candidate, _os.stat(candidate).st_mode | _stat.S_IWUSR)
 
 def _uv(args: list[str], *, cwd: Path, timeout: int) -> subprocess.CompletedProcess[str]:
     uv = shutil.which("uv")
@@ -602,16 +744,19 @@ def _uv(args: list[str], *, cwd: Path, timeout: int) -> subprocess.CompletedProc
 
 
 def assemble_env(
-    task: HarborTask, adapter: KarotteTaskAdapter, env_dir: Path
+    task: HarborTask, spec: GenericSpec, env_dir: Path, *, base_tag: str
 ) -> dict[str, Any]:
     """Assemble a runnable karotte env for one task (no containers, no run).
 
-    Populates karotte's own ``default`` template, overlays the single task
-    package + data + a pinned ``karotte==`` dependency, and locks/syncs the
-    env project. Returns ``{env_dir, task_id, karotte_id, files}``.
+    Populates karotte's own ``default`` template, replaces its Containerfile
+    with the harness layer on the Harbor base image, overlays the generic
+    task package + the task's own tests/ (+ setup/) under root_data, and
+    locks/syncs the host env project. Returns ``{env_dir, task_id,
+    karotte_id, files}``.
     """
     env = Path(env_dir)
     if env.exists():
+        _force_writable_tree(env)
         shutil.rmtree(env)
     env.mkdir(parents=True)
     uv = shutil.which("uv")
@@ -643,75 +788,107 @@ def assemble_env(
         # _populate renders every template file before its post_create hook;
         # that hook only locks the student venvs and fails on this laptop
         # because karotte passes `--exclude-newer-package=karotte=false`, a
-        # flag form uv 0.9.24 rejects. The venv locks run below instead.
+        # flag form uv 0.9.24 rejects.
         post_create_note = (
-            "template post_create.py failed (uv --exclude-newer-package flag "
-            "form); venv locks run manually: "
+            "template post_create.py failed (uv --exclude-newer-package flag form): "
             + ((completed.stdout or "") + (completed.stderr or ""))[-500:]
         )
     tasks_root = env / "src" / "environment" / "tasks"
     for stale in ("example_task", "_template", "_template_suite"):
         shutil.rmtree(tasks_root / stale, ignore_errors=True)
-    pkg = _pkg_name(adapter.karotte_id)
+    # The template's check_permissions assumes its own layout (student venv,
+    # shared_data); the harness layout gets its own probes (run by `karotte
+    # check` at image build end).
+    (env / "src" / "environment" / "check_permissions.py").write_text(
+        _HARNESS_CHECK_PERMISSIONS, encoding="utf-8"
+    )
+    pkg = _pkg_name(spec.karotte_id)
     pkg_dir = tasks_root / pkg
     pkg_dir.mkdir(parents=True)
-    cls = _class_name(adapter.karotte_id)
-    submission_doc = ", ".join(adapter.submission_paths) or "(none)"
+    cls = _class_name(spec.karotte_id)
+    submission_doc = ", ".join(spec.submission_paths) or "(none)"
     (pkg_dir / "__init__.py").write_text(
-        _TASK_INIT_TEMPLATE.replace("@@KAROTTE_ID@@", adapter.karotte_id)
+        _TASK_INIT_TEMPLATE.replace("@@KAROTTE_ID@@", spec.karotte_id)
         .replace("@@HARBOR_ID@@", task.task_id)
+        .replace("@@WORKDIR@@", spec.workdir)
         .replace("@@SUBMISSION_DOC@@", submission_doc)
-        .replace("@@SUBMISSION_REPR@@", repr(list(adapter.submission_paths)))
+        .replace("@@SUBMISSION_REPR@@", repr(list(spec.submission_paths)))
+        .replace("@@GRADE_TIMEOUT@@", repr(spec.grade_timeout))
         .replace("@@INSTRUCTIONS_REPR@@", repr(task.instruction))
         .replace("@@STEP_CLASS@@", f"{cls}Step")
         .replace("@@TASK_CLASS@@", f"{cls}Task")
         .replace("@@PKG@@", pkg),
         encoding="utf-8",
     )
-    (pkg_dir / "scoring_script.py").write_text(adapter.scoring_source, encoding="utf-8")
+    (pkg_dir / "scoring_script.py").write_text(_render_scoring(), encoding="utf-8")
     # Per-cell fake model lands here in run_cell (excluded from image digest).
     (env / "src" / "environment" / "fake_model.py").write_text(
-        fake_model_source("nop", adapter=adapter), encoding="utf-8"
+        fake_model_source(ScriptedPlan(files={}, command=None), spec.workdir),
+        encoding="utf-8",
     )
-    student_data = env / "student_data"
-    for rel, data in adapter.student_files.items():
-        dest = student_data / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(data)
-    # Drop template placeholders so only task data ships in the image.
-    for placeholder in student_data.rglob(".gitkeep"):
-        placeholder.unlink(missing_ok=True)
-    root_data = env / "root_data"
-    for rel, data in adapter.root_files.items():
-        dest = root_data / rel
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        dest.write_bytes(data)
-    for placeholder in root_data.rglob(".gitkeep"):
-        placeholder.unlink(missing_ok=True)
+    # The task's own verifier tree (root-only; the student never sees it).
+    tests_src = task.task_dir / task.tests_dir
+    tests_dst = env / "root_data" / "tests"
+    shutil.copytree(tests_src, tests_dst, dirs_exist_ok=True)
+    # Task setup (e.g. MiMo setup.sh) baked at build; Harbor runs it at start.
+    setup_src = task.task_dir / "environment" / "setup"
+    has_setup = (setup_src / "setup.sh").is_file()
+    if has_setup:
+        shutil.copytree(setup_src, env / "root_data" / "setup", dirs_exist_ok=True)
+    # copytree preserves source modes (the task store is read-only); the
+    # assembly must stay owner-writable for rebuilds.
+    for anchor in (tests_dst, env / "root_data" / "setup"):
+        if not anchor.exists():
+            continue
+        for path in [anchor, *anchor.rglob("*")]:
+            try:
+                mode = path.stat().st_mode
+                path.chmod(mode | 0o200)
+            except OSError:
+                pass
+    # Slim the context to what the harness build reads.
+    for dead in ("venvs", "tests", "student_data", "shared_data", "intermediate_data",
+                 "justfile", "setup_data.py", "post_create.py"):
+        dead_path = env / dead
+        if dead_path.is_dir():
+            shutil.rmtree(dead_path)
+        elif dead_path.is_file():
+            dead_path.unlink()
+    chown_lines = []
+    for path in (spec.workdir, *spec.submission_paths):
+        quoted = _shell_quote(path)
+        chown_lines.append(f"if [ -e {quoted} ]; then chown -R student:student {quoted}; fi")
+    chown_block = "RUN " + " && \\\n  ".join(chown_lines) if chown_lines else "RUN true"
+    if has_setup:
+        setup_block = (
+            "RUN mkdir -p /var/lib/mimo && cp -r /root_data/setup/. /var/lib/mimo/ && "
+            "bash /var/lib/mimo/setup.sh"
+        )
+    else:
+        setup_block = "RUN true"
+    (env / "Containerfile").write_text(
+        _HARNESS_CONTAINERFILE.replace("@@BASE@@", base_tag)
+        .replace("@@KAROTTE_PIN@@", KAROTTE_PIN)
+        .replace("@@CHOWN@@", chown_block)
+        .replace("@@SETUP@@", setup_block),
+        encoding="utf-8",
+    )
     pyproject = env / "pyproject.toml"
     text = pyproject.read_text(encoding="utf-8")
-    pinned = text.replace('"karotte",', f'"karotte=={KAROTTE_PIN}",\n    "pytest==8.4.1",')
+    pinned = text.replace('"karotte",', f'"karotte=={KAROTTE_PIN}",')
     if pinned == text:
         raise RuntimeError("env pyproject.toml has no karotte dependency to pin")
     pyproject.write_text(pinned, encoding="utf-8")
     locked = _uv(["lock"], cwd=env, timeout=600)
     if locked.returncode != 0:
         raise RuntimeError(f"env uv lock failed: {(locked.stderr or '')[-2000:]}")
-    for venv_dir in sorted((env / "venvs").iterdir()):
-        if (venv_dir / "pyproject.toml").is_file():
-            venv_lock = _uv(["lock"], cwd=venv_dir, timeout=600)
-            if venv_lock.returncode != 0:
-                raise RuntimeError(
-                    f"env venv uv lock failed in {venv_dir.name}: "
-                    f"{(venv_lock.stderr or '')[-2000:]}"
-                )
-    synced = _uv(["sync", "--extra", "dev"], cwd=env, timeout=900)
+    synced = _uv(["sync"], cwd=env, timeout=900)
     if synced.returncode != 0:
         raise RuntimeError(f"env uv sync failed: {(synced.stderr or '')[-2000:]}")
     return {
         "env_dir": str(env),
         "task_id": task.task_id,
-        "karotte_id": adapter.karotte_id,
+        "karotte_id": spec.karotte_id,
         "post_create_note": post_create_note,
         "files": sorted(
             p.relative_to(env).as_posix() for p in env.rglob("*") if p.is_file()
@@ -900,6 +1077,29 @@ def parse_transcript(payload: Any) -> dict[str, Any]:
     }
 
 
+def ladder_records(payload: Any) -> list[dict[str, Any]] | None:
+    """Per-attack records from a cheat cell transcript (None when absent)."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("events"), list):
+        return None
+    for event in payload["events"]:
+        if not isinstance(event, dict) or event.get("type") != "tool_call_completed":
+            continue
+        result = event.get("result")
+        structured = result.get("structuredContent") if isinstance(result, dict) else None
+        stdout = structured.get("stdout", "") if isinstance(structured, dict) else ""
+        marker = "CHEAT_LADDER_RESULT="
+        index = stdout.find(marker)
+        if index < 0:
+            continue
+        try:
+            records = json.loads(stdout[index + len(marker):].splitlines()[0])
+        except ValueError:
+            continue
+        if isinstance(records, list):
+            return records
+    return None
+
+
 # ---------------------------------------------------------------------------
 # run_cell: one task x one scripted agent under karotte custody
 # ---------------------------------------------------------------------------
@@ -922,7 +1122,14 @@ def _bound_container(name: str, *, cpus: str = RUN_CPUS, memory: str = RUN_MEMOR
     return completed.returncode == 0
 
 
-def _watch_bounds(name: str, stop: threading.Event, record: dict[str, Any]) -> None:
+def _watch_bounds(
+    name: str,
+    stop: threading.Event,
+    record: dict[str, Any],
+    *,
+    cpus: str = RUN_CPUS,
+    memory: str = RUN_MEMORY,
+) -> None:
     """Poll for our container's appearance and bound it once (60s budget)."""
     deadline = time.time() + 60
     while not stop.is_set() and time.time() < deadline:
@@ -939,7 +1146,8 @@ def _watch_bounds(name: str, stop: threading.Event, record: dict[str, Any]) -> N
             time.sleep(2)
             continue
         if name in (found.stdout or "").split():
-            record["bounded"] = _bound_container(name)
+            record["bounded"] = _bound_container(name, cpus=cpus, memory=memory)
+            record["bounds"] = [cpus, memory]
             record["bound_attempts"] = record.get("bound_attempts", 0) + 1
             return
         time.sleep(2)
@@ -1025,30 +1233,30 @@ def run_cell(
     attacks = tuple(attacks or ())
     if agent not in ("oracle", "nop", "cheat"):
         raise ValueError(f"unknown karotte agent {agent!r} (oracle/nop/cheat)")
-    if agent in ("oracle", "nop") and attacks:
-        return _cell(
-            agent, attacks, verdict="error", reward=None,
-            reason="attacks only apply to the cheat agent",
-            platform_version=KAROTTE_PIN, evidence=None,
-        )
-    if agent == "cheat":
-        try:
-            attacks = selected_cheat_attacks(attacks)
-        except ValueError as exc:
-            return _cell(
-                agent, tuple(attacks), verdict="error", reward=None,
-                reason=str(exc), platform_version=KAROTTE_PIN, evidence=None,
-            )
     try:
-        task = load_harbor_task(task_dir)
+        task = load_harbor_task(task_dir, require_solution=False)
+        task.task_dir = task.task_dir.resolve()
     except (FileNotFoundError, ValueError, OSError) as exc:
         return _cell(
             agent, attacks, verdict="error", reward=None, reason=str(exc),
             platform_version=KAROTTE_PIN, evidence=None,
         )
     try:
-        adapter = adapter_for(task)
+        spec = resolve_spec(task)
     except ValueError as exc:
+        return _cell(
+            agent, attacks, verdict="error", reward=None, reason=str(exc),
+            platform_version=KAROTTE_PIN, evidence=None, task_id=task.task_id,
+        )
+    try:
+        plan = scripted_agent_plan(task, agent, attacks)
+    except ValueError as exc:
+        if agent == "oracle" and "oracle plan needs solution/solve.sh" in str(exc):
+            return _cell(
+                agent, attacks, verdict="skipped", reward=None,
+                reason=f"no reference solution: {exc}",
+                platform_version=KAROTTE_PIN, evidence=None, task_id=task.task_id,
+            )
         return _cell(
             agent, attacks, verdict="error", reward=None, reason=str(exc),
             platform_version=KAROTTE_PIN, evidence=None, task_id=task.task_id,
@@ -1062,8 +1270,15 @@ def run_cell(
         )
     work = Path(workdir)
     work.mkdir(parents=True, exist_ok=True)
-    env_dir = work / "karotte-env"
+    # Fresh env dir per cell: Docker Desktop keeps serving stale file-sharing
+    # state for a bind path that was mounted, deleted, and recreated, which
+    # breaks karotte's --dev bind-mount (rc=125). Prune predecessors first.
+    for stale in sorted(work.glob("karotte-env-*")):
+        if stale.is_dir():
+            _force_writable_tree(stale)
+            shutil.rmtree(stale, ignore_errors=True)
     run_id = f"evallab-{uuid.uuid4().hex[:8]}"
+    env_dir = work / f"karotte-env-{run_id}"
     container = f"karotte_run_{run_id}"
     out_dir = work / "out"
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -1071,11 +1286,13 @@ def run_cell(
     evidence_path = out_dir / f"{run_id}.evidence.json"
     version = KAROTTE_PIN
     try:
-        assemble_env(task, adapter, env_dir)
+        base = ensure_harbor_base(task, spec, build_timeout=BUILD_TIMEOUT_SECONDS)
+        assemble_env(task, spec, env_dir, base_tag=base["tag"])
         version = resolved_karotte_version(env_dir)
-        image = ensure_image(env_dir)
+        image_build_timeout = 3600 if spec.base_kind == "docker_image" else BUILD_TIMEOUT_SECONDS
+        image = ensure_image(env_dir, build_timeout=image_build_timeout)
         (env_dir / "src" / "environment" / "fake_model.py").write_text(
-            fake_model_source(agent, adapter=adapter, attacks=attacks), encoding="utf-8"
+            fake_model_source(plan, spec.workdir), encoding="utf-8"
         )
     except (OSError, RuntimeError, ValueError) as exc:
         return _cell(
@@ -1084,21 +1301,30 @@ def run_cell(
             evidence=None, task_id=task.task_id,
         )
     try:
-        ladder_src = Path(__file__).resolve().parent / "cheat_ladder.py"
+        mounts_dir = work / "mounts" / run_id
+        mounts_dir.mkdir(parents=True, exist_ok=True)
         mounts: list[str] = []
-        if agent == "cheat":
-            if not ladder_src.is_file():
-                return _cell(
-                    agent, attacks, verdict="error", reward=None,
-                    reason="cheat_ladder.py missing from src/evallab",
-                    platform_version=version, evidence=None, task_id=task.task_id,
-                )
-            staged = work / "cheat_ladder.py"
-            staged.write_bytes(ladder_src.read_bytes())
-            mounts.append(f"{staged}:{CHEAT_LADDER_MOUNT}:ro")
+        staged: dict[str, bytes] = dict(plan.files)
+        if agent == "oracle":
+            # The canonical oracle plan runs `solution/solve.sh` from the task
+            # workdir; the runner stages the host solution tree there (and at
+            # Harbor's own /solution path for absolute references). Oracle-only:
+            # nop/cheat cells never see the reference solution.
+            solution_root = task.task_dir / "solution"
+            for path in sorted(solution_root.rglob("*")):
+                if not path.is_file() or path.is_symlink():
+                    continue
+                rel = path.relative_to(solution_root).as_posix()
+                data = path.read_bytes()
+                staged[f"{spec.workdir}/solution/{rel}"] = data
+                staged[f"{SOLUTION_MOUNT}/{rel}"] = data
+        for index, (container_path, data) in enumerate(staged.items()):
+            host_path = mounts_dir / f"{index:02d}.bin"
+            host_path.write_bytes(data)
+            mounts.append(f"{host_path}:{container_path}:ro")
         config = {
             "run_id": run_id,
-            "task_id": adapter.karotte_id,
+            "task_id": spec.karotte_id,
             "model": "fake/fake",
             "use_fake_model": True,
             "transcript_file": str(transcript_path),
@@ -1111,12 +1337,15 @@ def run_cell(
             "--runtime", "docker", "--no-ui", "--dev",
             "--build-context", str(env_dir),
         ]
-        for spec in mounts:
-            command += ["--mount", spec]
+        for mount_spec in mounts:
+            command += ["--mount", mount_spec]
         bounds: dict[str, Any] = {"bounded": False}
         stop = threading.Event()
         watcher = threading.Thread(
-            target=_watch_bounds, args=(container, stop, bounds), daemon=True
+            target=_watch_bounds,
+            args=(container, stop, bounds),
+            kwargs={"cpus": spec.cpus, "memory": spec.memory},
+            daemon=True,
         )
         run_timeout = timeout_seconds if timeout_seconds is not None else DEFAULT_RUN_TIMEOUT_SECONDS
         watcher.start()
@@ -1159,20 +1388,36 @@ def run_cell(
             platform_version=version, evidence=None, task_id=task.task_id,
         )
     reward = summary["reward"]
+    records = ladder_records(payload) if agent == "cheat" else None
     evidence_path.write_text(
         json.dumps(
             {
                 "run_id": run_id,
                 "container": container,
                 "container_removed": removed,
-                "container_bounded_2cpu_2g": bounds.get("bounded", False),
+                "container_bounded": bounds.get("bounded", False),
+                "bounds": bounds.get("bounds", [spec.cpus, spec.memory]),
+                "base": base,
                 "image": image,
+                "spec": {
+                    "task_key": spec.task_key,
+                    "karotte_id": spec.karotte_id,
+                    "workdir": spec.workdir,
+                    "submission_paths": list(spec.submission_paths),
+                    "has_solution": spec.has_solution,
+                    "grade_timeout": spec.grade_timeout,
+                },
+                "plan": {
+                    "files": sorted(plan.files),
+                    "command": plan.command,
+                },
                 "daemon": daemon_detail,
                 "transcript": str(transcript_path),
                 "status": summary["status"],
                 "errors": summary["errors"],
                 "misbehavior": summary["misbehavior"],
                 "scoring": summary["scoring"],
+                "ladder": records,
                 "run_exit": completed.returncode,
                 "run_log_tail": run_log,
             },

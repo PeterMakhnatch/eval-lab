@@ -23,6 +23,7 @@ from evallab.mcp_substrate import (
     DEFAULT_TARGET_PLATFORM_TAG,
     DEFAULT_TARGET_PYTHON_TAG,
     FASTMCP_VERSION_CONSTRAINTS,
+    MIRROR_PINNED_BASE_IMAGE,
     PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST,
     PINNED_BASE_IMAGE_INDEX_DIGEST,
     MCPToolDefinition,
@@ -491,6 +492,18 @@ def test_default_base_runtime_is_pinned_cpython312_slim():
     assert runtime["base_image"] == DEFAULT_PINNED_BASE_IMAGE
     assert runtime["base_image_index_digest"] == PINNED_BASE_IMAGE_INDEX_DIGEST
     assert runtime["base_image_amd64_manifest_digest"] == PINNED_BASE_IMAGE_AMD64_MANIFEST_DIGEST
+
+
+def test_mirror_base_runtime_accepts_same_digest_without_docker_hub():
+    assert MIRROR_PINNED_BASE_IMAGE.split("@", 1)[1] == PINNED_BASE_IMAGE_INDEX_DIGEST
+    runtime = validate_target_base_runtime(
+        DEFAULT_TARGET_PYTHON_TAG, DEFAULT_TARGET_PLATFORM_TAG, MIRROR_PINNED_BASE_IMAGE
+    )
+    assert runtime["base_image"] == MIRROR_PINNED_BASE_IMAGE
+    assert runtime["base_image_index_digest"] == PINNED_BASE_IMAGE_INDEX_DIGEST
+    dockerfile = render_mcp_sidecar_dockerfile(base_image=MIRROR_PINNED_BASE_IMAGE)
+    assert dockerfile.startswith(f"FROM {MIRROR_PINNED_BASE_IMAGE}\n")
+    assert PINNED_BASE_IMAGE_INDEX_DIGEST in dockerfile
 
 
 def test_target_base_runtime_rejects_mismatch_and_unpinned_images():

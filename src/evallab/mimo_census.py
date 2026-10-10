@@ -66,18 +66,41 @@ RESULTS_COLUMNS = (
     "backend",
     "cost_usd",
     "run_ids",
+    "ladder_version",
+    "modal_resource_policy",
 )
 
-#: Manifest ``verify`` grades owned by this census.
-VERIFY_CLEAN = "verified-clean"
-VERIFY_OPEN_LEAK = "open-leak"
-VERIFY_GRADER_HOLE = "grader-hole"
+#: Manifest ``verify`` grades owned by this census. Vocabulary: ``pass``,
+#: ``fail:<class>`` (open-leak | grader-hole | oracle-wrong), ``env-broken``,
+#: ``unverified``. Anything ambiguous or not fully executed (missing cells,
+#: partial ladders, probe-blind fix probes, backend refusals, ``-noexec``
+#: grades) stays ``unverified``; the per-check columns carry the explicit
+#: classification.
+VERIFY_PASS = "pass"
+VERIFY_FAIL_OPEN_LEAK = "fail:open-leak"
+VERIFY_FAIL_GRADER_HOLE = "fail:grader-hole"
+VERIFY_FAIL_ORACLE_WRONG = "fail:oracle-wrong"
 VERIFY_ENV_BROKEN = "env-broken"
-VERIFY_ORACLE_WRONG = "oracle-wrong"
-VERIFY_INFRA_FLAKE = "infra-flake"
-VERIFY_NEEDS_TRIAGE = "needs-triage"
 VERIFY_UNVERIFIED = "unverified"
-VERIFY_BACKEND_UNSUPPORTED = "backend-unsupported"
+VERIFY_FAIL_CLASSES = (
+    VERIFY_FAIL_OPEN_LEAK,
+    VERIFY_FAIL_GRADER_HOLE,
+    VERIFY_FAIL_ORACLE_WRONG,
+)
+
+#: Selectable census checks (``--checks``). ``nop``/``oracle`` are the
+#: controls cells, ``ladder`` the cheat-ladder cells, ``fix`` the fix-content
+#: probe (check d).
+CHECKS = ("nop", "oracle", "ladder", "fix")
+GRADING_CHECKS = ("nop", "oracle", "ladder")
+
+#: Worker bounds for ``--workers`` (process workers; the cheat ladder hands
+#: the attack subset through process ``os.environ`` under a global lock, so
+#: threads would race). Remote backends fan out; local Docker stays serial
+#: enough to never wedge the shared daemon.
+DEFAULT_WORKERS = 1
+MAX_REMOTE_WORKERS = 19
+MAX_DOCKER_WORKERS = 2
 
 #: Backends the census runner supports. ``modal`` runs Harbor's native
 #: ModalEnvironment; ``daytona`` the bounded Daytona sandbox env. Paid
@@ -85,6 +108,16 @@ VERIFY_BACKEND_UNSUPPORTED = "backend-unsupported"
 #: modal`` + ~/.modal.toml; daytona: DAYTONA_API_KEY in the environment).
 BACKENDS = ("docker", "modal", "daytona")
 JOB_PREFIX = "mimo-census-v1"
+
+#: Modal resource-policy values for ``--modal-resource-policy`` (row form).
+#: ``auto`` is the Harbor default (RunRequest None); ``limit`` opts into
+#: cpu/memory enforcement (Modal + census app only, validated downstream).
+MODAL_POLICY_AUTO = "auto"
+MODAL_POLICY_LIMIT = "limit"
+MODAL_RESOURCE_POLICIES = (MODAL_POLICY_AUTO, MODAL_POLICY_LIMIT)
+
+#: Enforcement kwargs the policy maps to (mirrors build_command forwarding).
+RESOURCE_ENFORCEMENT_KEYS = ("cpu_enforcement_policy", "memory_enforcement_policy")
 
 #: Slice spend cap (USD) — see the assignment; enforced per batch.
 SLICE_CAP_USD = 13.00
@@ -105,6 +138,35 @@ def parse_task_list(raw: str | None) -> tuple[str, ...]:
         if task_id and task_id not in seen:
             seen.append(task_id)
     return tuple(seen)
+
+
+def parse_check_list(raw: str | None) -> tuple[str, ...]:
+    """Parse a ``--checks`` comma set (None/empty means all checks)."""
+    if raw is None or not raw.strip():
+        return CHECKS
+    seen: list[str] = []
+    for part in raw.split(","):
+        name = part.strip().lower()
+        if not name or name in seen:
+            continue
+        if name not in CHECKS:
+            raise ValueError(f"unknown check {name!r}; expected one of {list(CHECKS)}")
+        seen.append(name)
+    if not seen:
+        raise ValueError(f"empty check set; expected one of {list(CHECKS)}")
+    return tuple(name for name in CHECKS if name in seen)
+
+
+def resolve_worker_count(*, backend: str, requested: int | None) -> int:
+    """Validate ``--workers`` against the backend bound (default 1)."""
+    count = DEFAULT_WORKERS if requested is None else requested
+    limit = MAX_DOCKER_WORKERS if backend == "docker" else MAX_REMOTE_WORKERS
+    if count < 1 or count > limit:
+        raise ValueError(
+            f"workers={count} out of bounds for backend {backend!r}: "
+            f"need 1..{limit} (default {DEFAULT_WORKERS})"
+        )
+    return count
 
 
 def parse_junit_grade(text: str) -> dict[str, Any] | None:
@@ -132,8 +194,46 @@ def trial_grade_logs(trial_dir: Path) -> list[dict[str, Any]]:
     return grades
 
 
-_PYTEST_RESULT_LINE_RE = re.compile(r"(?m)^(?:FAILED|ERROR|PASSED)\s+\S+")
-_PYTEST_SUMMARY_RE = re.compile(r"\b\d+\s+(?:failed|passed|error)\b.*in\s+[\d.]+s")
+_PYTEST_RESULT_LINE_RE = re.compile(r"(?m)^(?:FAILED|PASSED)\s+\S+")
+_PYTEST_ERROR_LINE_RE = re.compile(r"(?m)^ERROR\s+\S*::\S+")
+_PYTEST_SUMMARY_RE = re.compile(r"(?m)^.*\b\d+\s+(?:failed|passed|error)\b.*in\s+[\d.]+s.*$")
+_PYTEST_COUNT_RE = re.compile(r"(\d+)\s+(failed|passed|error)")
+_PYTEST_COLLECTED_NONE_RE = re.compile(r"collected 0 items?")
+
+#: v3 structured grade lines (same ``junit-grade.log`` file): the runner
+#: identity line, surefire case counts for mvn/gradle, and the marker
+#: verdict for runners without countable reports.
+_RUNNER_LINE_RE = re.compile(r"(?m)^runner=(?P<runner>[A-Za-z-]+)\s+rc=(?P<rc>-?\d+)")
+_SUREFIRE_GRADE_RE = re.compile(
+    r"rc=(?P<rc>-?\d+)\s+(?P<runner>mvn|gradle)\s+surefire=\d+\s+cases=(?P<cases>\d+)\s+bad=\d+"
+)
+_MARKERS_GRADE_RE = re.compile(
+    r"(?m)^rc=(?P<rc>-?\d+)\s+(?P<runner>[A-Za-z-]+)\s+markers=(?P<markers>True|False)"
+)
+
+#: Runner-specific case evidence in ``test_output.log`` (mirrors the
+#: verifier's own marker checks, widened so failed cases still prove
+#: execution — a failing test ran; only no-tests/collection errors stay
+#: noexec). Custom/node-run/make-style fallbacks have no case evidence:
+#: an exit-code rc alone is never execution.
+_GO_CASE_RE = re.compile(r"(?m)^--- (?:FAIL|PASS)|^=== RUN\s+\S|panic:")
+_GO_PACKAGE_RE = re.compile(r"(?m)^(ok|FAIL)\s+\S+")
+_GO_NOCASE_RE = re.compile(r"no test files|no tests to run|\[build failed\]")
+_JEST_TESTS_RE = re.compile(r"Tests:\s+([^\n]+)")
+_JEST_NO_TESTS_RE = re.compile(r"No tests found")
+_VITEST_SUMMARY_RE = re.compile(r"(?:Test Files|Tests)\s+([^\n]+)")
+_MOCHA_COUNT_RE = re.compile(r"(\d+)\s+(?:passing|failing|pending)")
+_TAP_OK_RE = re.compile(r"(?m)^(ok|not ok)\b")
+_TAP_PLAN_RE = re.compile(r"(?m)^1\.\.(\d+)")
+_UNITTEST_RAN_RE = re.compile(r"Ran (\d+) tests?")
+_PHPUNIT_OK_RE = re.compile(r"(?m)^OK\s*\(|FAILURES!|ERRORS!")
+_PHPUNIT_TESTS_RE = re.compile(r"Tests:\s*(\d+)")
+_PHPUNIT_NO_TESTS_RE = re.compile(r"No tests executed")
+_RSPEC_SUMMARY_RE = re.compile(r"(\d+) examples?, (\d+) failures?")
+_CARGO_RESULT_RE = re.compile(r"test result:\s*\S+\.\s*(\d+) passed(?:;\s*(\d+) failed)?")
+_KARMA_EXECUTED_RE = re.compile(r"Executed\s+([1-9]\d*)\s+of")
+_JASMINE_SUMMARY_RE = re.compile(r"(\d+) specs?, (\d+) failures?")
+_INT_RE = re.compile(r"\d+")
 
 
 def trial_output_logs(trial_dir: Path, name: str) -> list[str]:
@@ -147,19 +247,113 @@ def trial_output_logs(trial_dir: Path, name: str) -> list[str]:
     return texts
 
 
+def trial_runner(trial_dir: Path) -> str:
+    """Test-runner family for one trial (``pytest`` when unrecorded).
+
+    Reads the verifier-owned ``runner.txt`` (``RUNNER=<name>``), falling back
+    to the ``runner=`` identity line in the structured grade log. Legacy
+    pytest-only cells record neither and default to ``pytest``.
+    """
+    for log_path in sorted(trial_dir.rglob("runner.txt")):
+        try:
+            text = log_path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        match = re.search(r"(?m)^RUNNER=(\S+)", text)
+        if match:
+            return match.group(1)
+    for text in trial_output_logs(trial_dir, "junit-grade.log"):
+        match = _RUNNER_LINE_RE.search(text)
+        if match:
+            return match.group("runner")
+    return "pytest"
+
+
+def _ints_total(text: str) -> int:
+    return sum(int(item) for item in _INT_RE.findall(text))
+
+
+def _runner_output_executed(runner: str, output: str) -> bool:
+    """Whether runner output shows test cases ran (failures count as ran).
+
+    No-tests and collection errors stay False; frameworks without case
+    evidence (custom/node-run/make-style exit-code fallbacks) are always
+    False — an rc alone never proves execution.
+    """
+    if runner == "go-test":
+        if _GO_CASE_RE.search(output):
+            return True
+        return _GO_PACKAGE_RE.search(output) is not None and not _GO_NOCASE_RE.search(output)
+    if runner == "jest":
+        if _JEST_NO_TESTS_RE.search(output):
+            return False
+        return any(_ints_total(segment) > 0 for segment in _JEST_TESTS_RE.findall(output))
+    if runner == "vitest":
+        return any(_ints_total(segment) > 0 for segment in _VITEST_SUMMARY_RE.findall(output))
+    if runner == "mocha":
+        return sum(int(count) for count in _MOCHA_COUNT_RE.findall(output)) > 0
+    if runner in ("tap", "ava", "node-test"):
+        if _TAP_OK_RE.search(output):
+            return True
+        return any(int(count) > 0 for count in _TAP_PLAN_RE.findall(output))
+    if runner == "unittest":
+        return any(int(count) >= 1 for count in _UNITTEST_RAN_RE.findall(output))
+    if runner == "phpunit":
+        if _PHPUNIT_NO_TESTS_RE.search(output):
+            return False
+        if _PHPUNIT_OK_RE.search(output):
+            return True
+        return any(int(count) > 0 for count in _PHPUNIT_TESTS_RE.findall(output))
+    if runner == "rspec":
+        return any(int(examples) > 0 for examples, _ in _RSPEC_SUMMARY_RE.findall(output))
+    if runner == "cargo-test":
+        return any(
+            int(passed) + int(failed or 0) > 0
+            for passed, failed in _CARGO_RESULT_RE.findall(output)
+        )
+    if runner == "karma":
+        return _KARMA_EXECUTED_RE.search(output) is not None or "FAILED" in output
+    if runner == "jasmine":
+        return any(int(specs) > 0 for specs, _ in _JASMINE_SUMMARY_RE.findall(output))
+    if runner == "pytest":
+        if _PYTEST_COLLECTED_NONE_RE.search(output):
+            return False
+        if _PYTEST_RESULT_LINE_RE.search(output) or _PYTEST_ERROR_LINE_RE.search(output):
+            return True
+        for line in _PYTEST_SUMMARY_RE.findall(output):
+            counts = {kind: int(count) for count, kind in _PYTEST_COUNT_RE.findall(line)}
+            if counts.get("failed", 0) > 0 or counts.get("passed", 0) > 0:
+                return True
+        return False
+    return False
+
+
 def trial_tests_executed(trial_dir: Path) -> bool:
     """Whether a trial has evidence the verifier actually ran test cases.
 
-    Two shapes: JUnit grade logs with ``cases > 0`` (``named`` is diagnostic
-    only — some suites report cases without parsable names), or pytest
-    result/summary lines in ``test_output.log`` for exit-code-graded suites
-    that emit no JUnit XML.
+    Three tiers: countable reports (JUnit ``cases > 0``, surefire
+    ``cases > 0``), the verifier's own ``markers=True`` verdict, then
+    runner-specific case evidence in ``test_output.log`` for the trial's
+    recorded runner (go-test/jest/vitest/mocha/tap/ava/node-test/karma/
+    jasmine/cargo-test/rspec/phpunit/unittest/pytest). ``named`` is
+    diagnostic only — some suites report cases without parsable names.
+    Fallback runners (custom/node-run/make-style exit-code grading) carry
+    no case evidence, so an rc alone stays noexec, as do no-tests and
+    collection-error outputs.
     """
     if any(grade["cases"] > 0 for grade in trial_grade_logs(trial_dir)):
         return True
+    grade_texts = trial_output_logs(trial_dir, "junit-grade.log")
+    for text in grade_texts:
+        surefire = _SUREFIRE_GRADE_RE.search(text)
+        if surefire and int(surefire.group("cases")) > 0:
+            return True
+        markers = _MARKERS_GRADE_RE.search(text)
+        if markers and markers.group("markers") == "True":
+            return True
+    runner = trial_runner(trial_dir)
     return any(
-        _PYTEST_RESULT_LINE_RE.search(text) is not None
-        or _PYTEST_SUMMARY_RE.search(text) is not None
+        _runner_output_executed(runner, text)
         for text in trial_output_logs(trial_dir, "test_output.log")
     )
 
@@ -362,53 +556,179 @@ def verify_grade_for(
     oracle: str,
     ladder_verdict: str,
     census_locations: int | str | None,
+    has_reference_fix: bool = True,
 ) -> str:
-    """Map per-check signals to one manifest ``verify`` grade."""
+    """Map per-check signals to one manifest ``verify`` grade.
+
+    Vocabulary: ``pass``, ``fail:<class>`` (open-leak | grader-hole |
+    oracle-wrong), ``env-broken``, ``unverified``. Anything not fully
+    executed (missing/unscored/partial cells, backend refusals, probe-blind
+    fix probes, ``-noexec`` grades, blank unselected checks) stays
+    ``unverified``; the per-check result columns carry the explicit
+    classification for the receipt taxonomy. On a known-patch task a blank
+    fix cell (``""`` — fix phase not yet run) stays ``unverified`` until
+    the fix phase completes; tasks with no reference fix report explicit
+    ``"n/a"`` and can pass without it.
+    """
     if (
-        nop == "backend-unsupported"
-        or oracle == "backend-unsupported"
-        or ladder_verdict == "backend-unsupported"
+        nop in ("", "missing", "unscored", "backend-unsupported")
+        or oracle in ("", "missing", "unscored", "backend-unsupported")
+        or ladder_verdict in ("", "missing", "unscored", "partial", "backend-unsupported")
     ):
-        return VERIFY_BACKEND_UNSUPPORTED
-    if nop in ("missing", "unscored") or ladder_verdict in ("missing", "unscored", "partial"):
-        return VERIFY_UNVERIFIED
-    if oracle in ("missing", "unscored"):
         return VERIFY_UNVERIFIED
     if census_locations == "probe-blind":
-        return VERIFY_NEEDS_TRIAGE
+        return VERIFY_UNVERIFIED
+    if has_reference_fix:
+        if census_locations in ("", None):
+            return VERIFY_UNVERIFIED
+    elif census_locations in ("", None, "n/a"):
+        census_locations = "0"
     leak_count = 0
     if isinstance(census_locations, int):
         leak_count = census_locations
-    elif isinstance(census_locations, str) and census_locations not in ("", "probe-blind"):
+    elif isinstance(census_locations, str) and census_locations not in ("",):
         try:
             leak_count = int(census_locations)
         except ValueError:
-            return VERIFY_NEEDS_TRIAGE
+            return VERIFY_UNVERIFIED
     if leak_count > 0:
-        return VERIFY_OPEN_LEAK
+        return VERIFY_FAIL_OPEN_LEAK
     if ladder_verdict == "cracked":
-        return VERIFY_GRADER_HOLE
+        return VERIFY_FAIL_GRADER_HOLE
     if nop == "setup-fail" or oracle == "setup-fail":
         return VERIFY_ENV_BROKEN
     if nop != "0":
         if nop.startswith("fail:"):
             return VERIFY_ENV_BROKEN
-        return VERIFY_NEEDS_TRIAGE
+        return VERIFY_UNVERIFIED
     if oracle not in ("1", "n/a"):
         if oracle.startswith("fail:"):
-            return VERIFY_ORACLE_WRONG
-        return VERIFY_NEEDS_TRIAGE
-    return VERIFY_CLEAN
+            return VERIFY_FAIL_ORACLE_WRONG
+        return VERIFY_UNVERIFIED
+    return VERIFY_PASS
 
 
-def census_row_pass(row: Mapping[str, Any]) -> bool:
-    """Whether a results row meets census acceptance (all four checks)."""
+def census_row_pass(row: Mapping[str, Any], *, has_reference_fix: bool = True) -> bool:
+    """Whether a results row meets census acceptance (all four checks).
+
+    On a known-patch task the fix phase must have completed with a clean
+    probe (``census_locations == 0``); a blank fix cell never passes.
+    Tasks with no reference fix pass with explicit ``"n/a"`` (or a blank
+    cell from rows written before the explicit marker existed).
+    """
     oracle_ok = row.get("oracle") in ("1", "n/a")
     nop_ok = row.get("nop") == "0"
     ladder_ok = row.get("ladder_verdict") == "clean" and not row.get("ladder_cracking_attacks")
     census_raw = row.get("census_locations")
-    census_ok = census_raw in ("", None) or str(census_raw) == "0"
+    if has_reference_fix:
+        census_ok = str(census_raw) == "0"
+    else:
+        census_ok = census_raw in ("", None, "n/a") or str(census_raw) == "0"
     return bool(oracle_ok and nop_ok and ladder_ok and census_ok)
+
+
+#: Result columns holding per-check evidence (merged across phases, never
+#: clobbered by a later partial row carrying blanks for unselected checks).
+CHECK_COLUMNS = (
+    "nop",
+    "oracle",
+    "ladder_verdict",
+    "ladder_cracking_attacks",
+    "census_locations",
+    "ladder_version",
+)
+
+#: Check-column sentinels meaning "no evidence" when combining rows across
+#: phases/backends: a blank (unselected check) or ``missing`` (cell absent)
+#: never overwrites real evidence, and never counts as evidence itself.
+NO_EVIDENCE = ("", None, "missing")
+
+
+def merge_census_rows(existing: Mapping[str, Any], incoming: Mapping[str, Any]) -> dict[str, Any]:
+    """Merge a later partial row into an earlier one (report-side).
+
+    Per-check columns only move forward: blank/unselected incoming cells
+    never overwrite prior nop/oracle/ladder/fix evidence. ``run_ids`` takes
+    the ordered union; identity columns keep the newest non-blank value.
+    """
+    merged = dict(existing)
+    for key in CHECK_COLUMNS:
+        value = incoming.get(key)
+        if value not in NO_EVIDENCE:
+            merged[key] = value
+    for key in ("manifest_version", "final_digest", "backend", "cost_usd"):
+        value = incoming.get(key)
+        if value not in ("", None):
+            merged[key] = value
+    seen: list[str] = []
+    for chunk in (str(existing.get("run_ids", "")), str(incoming.get("run_ids", ""))):
+        for run_id in chunk.split(","):
+            if run_id and run_id not in seen:
+                seen.append(run_id)
+    merged["run_ids"] = ",".join(seen)
+    return merged
+
+
+def combine_task_rows(
+    rows: Collection[Mapping[str, Any]],
+    *,
+    has_reference_fix: bool = True,
+    final_digest: str | None = None,
+) -> dict[str, Any] | None:
+    """Aggregate one task's per-backend rows into a single task status.
+
+    Only rows sharing one non-blank ``final_digest`` combine (controls row
+    from Daytona plus ladder/fix rows from Modal, for example); a blank or
+    ``missing`` check cell never stands in for evidence. When
+    ``final_digest`` is given, only that exact generation combines (the
+    manifest's current digest at report time) — never a most-evidence older
+    winner. Without it, a single generation combines; multiple generations
+    refuse (None) rather than guess. ``has_reference_fix`` (from the
+    manifest, never assumed from old rows) decides whether a blank fix cell
+    blocks ``pass``. Returns the combined record with a ``verify`` grade, or
+    None when no row carries a combinable digest.
+    """
+    groups: dict[str, list[Mapping[str, Any]]] = {}
+    for row in rows:
+        digest = str(row.get("final_digest", ""))
+        if digest:
+            groups.setdefault(digest, []).append(row)
+    if not groups:
+        return None
+
+    if final_digest is not None:
+        group = groups.get(final_digest)
+        if not group:
+            return None
+        digest = final_digest
+    elif len(groups) == 1:
+        digest, group = next(iter(groups.items()))
+    else:
+        return None
+    group = sorted(group, key=lambda row: str(row.get("backend", "")))
+    combined: dict[str, Any] = {
+        "task_id": str(group[0].get("task_id", "")),
+        "final_digest": digest,
+        "backends": ",".join(
+            dict.fromkeys(str(row.get("backend", "")) for row in group if row.get("backend"))
+        ),
+    }
+    for key in CHECK_COLUMNS:
+        combined[key] = next((row.get(key) for row in group if row.get(key) not in NO_EVIDENCE), "")
+    seen_runs: list[str] = []
+    for row in group:
+        for run_id in str(row.get("run_ids", "")).split(","):
+            if run_id and run_id not in seen_runs:
+                seen_runs.append(run_id)
+    combined["run_ids"] = ",".join(seen_runs)
+    combined["verify"] = verify_grade_for(
+        nop=str(combined["nop"]),
+        oracle=str(combined["oracle"]),
+        ladder_verdict=str(combined["ladder_verdict"]),
+        census_locations=combined["census_locations"],
+        has_reference_fix=has_reference_fix,
+    )
+    return combined
 
 
 def acceptance_matches(
@@ -453,7 +773,64 @@ def blank_row(task_id: str, *, manifest_version: str, backend: str) -> dict[str,
         "backend": backend,
         "cost_usd": "",
         "run_ids": "",
+        "ladder_version": "",
+        "modal_resource_policy": MODAL_POLICY_AUTO,
     }
+
+
+def normalize_modal_resource_policy(raw: str | None) -> str | None:
+    """Normalize a ``--modal-resource-policy`` value (None = auto default)."""
+    if raw is None or str(raw).strip().lower() in ("", MODAL_POLICY_AUTO):
+        return None
+    if str(raw).strip().lower() == MODAL_POLICY_LIMIT:
+        return MODAL_POLICY_LIMIT
+    raise ValueError(
+        f"unknown modal resource policy {raw!r}; expected one of {list(MODAL_RESOURCE_POLICIES)}"
+    )
+
+
+def policy_row_value(modal_resource_policy: str | None) -> str:
+    """Row form of a normalized policy (None -> ``"auto"``)."""
+    return MODAL_POLICY_LIMIT if modal_resource_policy == MODAL_POLICY_LIMIT else MODAL_POLICY_AUTO
+
+
+def expected_resource_kwargs(modal_resource_policy: str | None) -> dict[str, str]:
+    """Enforcement kwargs a policy implies (auto implies none recorded)."""
+    if modal_resource_policy == MODAL_POLICY_LIMIT:
+        return {key: MODAL_POLICY_LIMIT for key in RESOURCE_ENFORCEMENT_KEYS}
+    return {}
+
+
+def recorded_resource_kwargs(candidate: Path) -> dict[str, str]:
+    """Enforcement kwargs recorded for a cell (config + command tokens).
+
+    Reads ``config.json`` ``environment.kwargs`` primarily, filling gaps
+    from ``lab-metadata.json`` ``--environment-kwarg key=value`` tokens.
+    Absent everywhere means the Harbor default (auto).
+    """
+    recorded: dict[str, str] = {}
+    try:
+        payload = json.loads((candidate / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        payload = None
+    if isinstance(payload, dict):
+        environment = payload.get("environment")
+        if isinstance(environment, dict):
+            kwargs = environment.get("kwargs")
+            if isinstance(kwargs, dict):
+                for key in RESOURCE_ENFORCEMENT_KEYS:
+                    value = kwargs.get(key)
+                    if value is not None:
+                        recorded[key] = str(value)
+    command = _job_lab_metadata(candidate).get("command")
+    if isinstance(command, list):
+        for index, token in enumerate(command):
+            if token == "--environment-kwarg" and index + 1 < len(command):
+                pair = str(command[index + 1])
+                key, _, value = pair.partition("=")
+                if key in RESOURCE_ENFORCEMENT_KEYS and key not in recorded and value:
+                    recorded[key] = value
+    return recorded
 
 
 def write_results(rows: Collection[Mapping[str, Any]], path: Path) -> Path:
@@ -474,14 +851,24 @@ def load_results(path: Path) -> list[dict[str, Any]]:
         return [dict(row) for row in csv.DictReader(handle)]
 
 
-def summarize_results(rows: Collection[Mapping[str, Any]]) -> dict[str, Any]:
-    """Pass-rate summary plus per-signal failure buckets for the receipt."""
+def summarize_results(
+    rows: Collection[Mapping[str, Any]],
+    *,
+    has_reference_fix: Mapping[str, bool] | None = None,
+) -> dict[str, Any]:
+    """Pass-rate summary plus per-signal failure buckets for the receipt.
+
+    ``has_reference_fix`` maps task ids to whether the manifest carries a
+    reference fix; without it every task is graded strictly (a blank fix
+    cell never passes), so partial-phase rows can never slip through.
+    """
     rows = list(rows)
     buckets: dict[str, int] = {}
     failures: list[dict[str, str]] = []
     for row in rows:
         task_id = str(row.get("task_id", ""))
-        if census_row_pass(row):
+        fix_known = has_reference_fix.get(task_id, True) if has_reference_fix else True
+        if census_row_pass(row, has_reference_fix=fix_known):
             buckets["pass"] = buckets.get("pass", 0) + 1
             continue
         if "backend-unsupported" in (
@@ -490,6 +877,12 @@ def summarize_results(rows: Collection[Mapping[str, Any]]) -> dict[str, Any]:
             str(row.get("ladder_verdict", "")),
         ):
             buckets["backend-unsupported"] = buckets.get("backend-unsupported", 0) + 1
+            continue
+        if any(row.get(key) in ("", None) for key in ("nop", "oracle", "ladder_verdict")):
+            # Phased row: some checks never ran in this backend's phase.
+            # The task-level verdict comes from combine_task_rows; a
+            # partial row alone is neither pass nor failure.
+            buckets["partial"] = buckets.get("partial", 0) + 1
             continue
         buckets["fail"] = buckets.get("fail", 0) + 1
         reasons: list[str] = []
@@ -504,7 +897,10 @@ def summarize_results(rows: Collection[Mapping[str, Any]]) -> dict[str, Any]:
                 f"ladder={row.get('ladder_verdict', '')}:{row.get('ladder_cracking_attacks', '')}"
             )
         census_raw = str(row.get("census_locations", ""))
-        if census_raw not in ("", "0"):
+        if fix_known:
+            if census_raw != "0":
+                reasons.append(f"census={census_raw or 'pending'}")
+        elif census_raw not in ("", "0", "n/a"):
             reasons.append(f"census={census_raw}")
         failures.append({"task_id": task_id, "reasons": "; ".join(reasons)})
     return {
@@ -512,6 +908,7 @@ def summarize_results(rows: Collection[Mapping[str, Any]]) -> dict[str, Any]:
         "passed": buckets.get("pass", 0),
         "failed": buckets.get("fail", 0),
         "backend_unsupported": buckets.get("backend-unsupported", 0),
+        "partial": buckets.get("partial", 0),
         "failures": sorted(failures, key=lambda item: item["task_id"]),
     }
 
@@ -544,6 +941,161 @@ def next_free_name(task_jobs: Path, base: str) -> str:
     return name
 
 
+#: Modal app name attributing census grading cells to this slice's exact
+#: billing (approved narrow app_name; fix probes use a separate app owned by
+#: the fix-content lane). Only set for ``backend="modal"``.
+MODAL_CENSUS_APP_NAME = "mimo-clean-census"
+
+
+def _job_lab_metadata(candidate: Path) -> dict[str, Any]:
+    """Parsed ``lab-metadata.json`` for a cell dir ({} when absent)."""
+    try:
+        payload = json.loads((candidate / "lab-metadata.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _job_agent_name(candidate: Path) -> str | None:
+    """Agent recorded in a cell's ``config.json`` (None when absent)."""
+    try:
+        payload = json.loads((candidate / "config.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    agents = payload.get("agents") if isinstance(payload, dict) else None
+    if isinstance(agents, list) and agents and isinstance(agents[0], dict):
+        name = agents[0].get("name")
+        return str(name) if name else None
+    return None
+
+
+def _job_backend_name(candidate: Path) -> str | None:
+    """Backend recorded in a cell's ``lab-metadata.json`` (None when absent)."""
+    command = _job_lab_metadata(candidate).get("command")
+    if not isinstance(command, list):
+        return None
+    for index, token in enumerate(command):
+        if token == "--env" and index + 1 < len(command):
+            return str(command[index + 1])
+    return None
+
+
+def current_ladder_version() -> str:
+    """Cheat-agent version driving ladder cells (reuse generation marker)."""
+    try:
+        from evallab.harbor_cheat import CHEAT_AGENT_VERSION
+    except Exception:  # noqa: BLE001 - version pin is best-effort
+        return "unknown"
+    return str(CHEAT_AGENT_VERSION)
+
+
+def cheat_cell_ladder_version(cheat_dir: Path | None) -> str | None:
+    """Uniform ``attempts.json`` version across a ladder cell's trials.
+
+    None when the cell is absent, has no trials, or mixes generations —
+    none of which are reusable as the current ladder.
+    """
+    if cheat_dir is None or not cheat_dir.is_dir():
+        return None
+    versions: set[str] = set()
+    for trial in _trial_dirs_with_results(cheat_dir):
+        for name in ("agent/cheat/attempts.json", "cheat/attempts.json"):
+            path = trial / name
+            if not path.is_file():
+                continue
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return None
+            version = payload.get("version") if isinstance(payload, dict) else None
+            if not version:
+                return None
+            versions.add(str(version))
+            break
+        else:
+            return None
+    if len(versions) != 1:
+        return None
+    return next(iter(versions))
+
+
+_ATTEMPT_RE = re.compile(r"^(?P<base>.+)-attempt(?P<n>\d+)$")
+
+
+def cell_reusable(
+    candidate: Path,
+    *,
+    expected_digest: str,
+    expected_agent: str,
+    expected_backend: str,
+    expected_ladder_version: str | None = None,
+    expected_resource_kwargs: Mapping[str, str] | None = None,
+) -> bool:
+    """Whether a completed cell dir may be reused verbatim.
+
+    A cell is bound to the package digest it staged
+    (``lab-metadata.json`` ``task_staging.source_package_digest``), the
+    agent in ``config.json``, the backend in ``lab-metadata.json``, and the
+    recorded cpu/memory enforcement policy. Ladder cells additionally bind
+    to the current cheat-agent version. Anything unverifiable or from
+    another generation returns False: the caller launches a fresh
+    ``-attemptN`` cell instead of reusing. AUTO and LIMIT policies never
+    share cells.
+    """
+    if not expected_digest or not candidate.is_dir():
+        return False
+    staging = _job_lab_metadata(candidate).get("task_staging")
+    staged_digest = staging.get("source_package_digest") if isinstance(staging, dict) else None
+    if staged_digest != expected_digest:
+        return False
+    if _job_agent_name(candidate) != expected_agent:
+        return False
+    if _job_backend_name(candidate) != expected_backend:
+        return False
+    if (
+        expected_ladder_version is not None
+        and cheat_cell_ladder_version(candidate) != expected_ladder_version
+    ):
+        return False
+    if expected_resource_kwargs is not None:
+        recorded = recorded_resource_kwargs(candidate)
+        wanted = {
+            key: expected_resource_kwargs[key]
+            for key in RESOURCE_ENFORCEMENT_KEYS
+            if key in expected_resource_kwargs
+        }
+        actual = {
+            key: recorded[key]
+            for key in RESOURCE_ENFORCEMENT_KEYS
+            if recorded.get(key) not in (None, "", MODAL_POLICY_AUTO)
+        }
+        if actual != wanted:
+            return False
+    return True
+
+
+def scannable_cell_dirs(task_jobs: Path, base: str) -> list[Path]:
+    """Existing dirs for one cell base, newest attempt first.
+
+    Covers the base name plus every ``base-attemptN`` cell: a base-only
+    lookup never reuses a valid newer attempt, so reuse scans all of them.
+    """
+    found: list[tuple[int, Path]] = []
+    if not task_jobs.is_dir():
+        return []
+    for child in sorted(task_jobs.iterdir(), key=lambda entry: entry.name):
+        if not child.is_dir():
+            continue
+        if child.name == base:
+            found.append((1, child))
+            continue
+        match = _ATTEMPT_RE.match(child.name)
+        if match and match.group("base") == base:
+            found.append((int(match.group("n")), child))
+    found.sort(key=lambda item: item[0], reverse=True)
+    return [child for _, child in found]
+
+
 def run_cell(
     *,
     package: Path,
@@ -554,6 +1106,7 @@ def run_cell(
     timeout_seconds: int,
     attacks: str | None = None,
     egress_lock: bool | None = None,
+    modal_resource_policy: str | None = None,
     root: Path,
 ) -> Path:
     """Run one census cell through Harbor; return the job dir.
@@ -562,6 +1115,8 @@ def run_cell(
     clobbered; anything else launches under the next free ``-attemptN`` name.
     ``attacks`` selects the cheat-ladder subset (None = controls).
     ``egress_lock`` overrides the backend default (None = resolve).
+    ``modal_resource_policy`` is None (auto default) or ``"limit"`` (Modal
+    census-app only; anything else raises here before dispatch).
     """
     import os
 
@@ -571,19 +1126,31 @@ def run_cell(
 
     if backend not in BACKENDS:
         raise ValueError(f"unknown backend {backend!r}; expected one of {BACKENDS}")
-    request = RunRequest(
-        task=package,
-        agent=agent,
-        name=name,
-        jobs_dir=jobs_dir,
-        environment=backend,
-        model=None,
-        concurrency=1,
-        attempts=1,
-        timeout_seconds=timeout_seconds,
-        allow_billable=backend != "docker",
-        egress_lock=egress_lock,
-    )
+    if modal_resource_policy not in (None, MODAL_POLICY_LIMIT):
+        raise ValueError(
+            f"unknown modal resource policy {modal_resource_policy!r}; "
+            "expected None (auto) or 'limit'"
+        )
+    if modal_resource_policy is not None and backend != "modal":
+        raise ValueError("modal_resource_policy requires the Modal backend")
+    request_kwargs: dict[str, Any] = {
+        "task": package,
+        "agent": agent,
+        "name": name,
+        "jobs_dir": jobs_dir,
+        "environment": backend,
+        "model": None,
+        "concurrency": 1,
+        "attempts": 1,
+        "timeout_seconds": timeout_seconds,
+        "allow_billable": backend != "docker",
+        "egress_lock": egress_lock,
+        "modal_resource_policy": modal_resource_policy,
+    }
+    if backend == "modal":
+        # Exact-slice billing attribution (approved narrow app_name).
+        request_kwargs["modal_app_name"] = MODAL_CENSUS_APP_NAME
+    request = RunRequest(**request_kwargs)
     if attacks is None:
         return Executor.from_repo(root).execute_direct(request)
     with _CHEAT_ENV_LOCK:
@@ -607,132 +1174,252 @@ def census_task(
     backend: str,
     timeout_seconds: int,
     root: Path,
+    checks: Collection[str] = GRADING_CHECKS,
+    modal_resource_policy: str | None = None,
 ) -> dict[str, Any]:
-    """Run all grading cells for one manifest row; return partial results.
+    """Run selected grading cells for one manifest row; return partial results.
 
-    Fix-content census (check d) is backend-independent content analysis and
-    runs separately via :func:`census_fix_content`; this function covers the
-    nop/oracle/ladder grading cells, including per-attack attribution trials
+    ``checks`` selects among ``nop``/``oracle``/``ladder`` (default all
+    three); unselected checks launch nothing and report blank grades, so a
+    controls-only phase never touches ladder cells and vice versa. Fix-content
+    census (check ``fix``) runs separately via :func:`census_fix_content`.
+    Completed cells are reused only when bound to this package digest,
+    agent/backend, resource policy, and (ladder cells) the current ladder
+    version; reuse scans the base plus every ``-attemptN`` cell newest-first
+    so a valid newer attempt is never skipped. Anything else launches under
+    the next free ``-attemptN`` name. Per-attack attribution trials launch
     when a full-ladder trial cracks.
     """
     from evallab.execution_contracts import CHEAT_AGENT
 
+    wanted = tuple(checks)
+    unknown = [name for name in wanted if name not in GRADING_CHECKS]
+    if unknown:
+        raise ValueError(
+            f"unknown grading checks {unknown}; expected subset of {list(GRADING_CHECKS)}"
+        )
+    if modal_resource_policy not in (None, MODAL_POLICY_LIMIT):
+        raise ValueError(
+            f"unknown modal resource policy {modal_resource_policy!r}; "
+            "expected None (auto) or 'limit'"
+        )
     task_jobs = jobs_root / task_id
     task_jobs.mkdir(parents=True, exist_ok=True)
     package = primary / Path(str(manifest_row["package_path"]))
     has_fix = str(manifest_row.get("reference_fix", "")) not in ("", "none")
+    expected_digest = str(manifest_row.get("final_digest", ""))
+    expected_kwargs = expected_resource_kwargs(modal_resource_policy)
 
-    oracle_dir: Path | None = None
-    if has_fix:
-        base = cell_job_name(task_id=task_id, backend=backend, cell="oracle")
-        candidate = task_jobs / base
-        if summarize_trials(candidate) and all(
-            reward is not None for reward in summarize_trials(candidate)
-        ):
-            oracle_dir = candidate
-        else:
-            oracle_dir = run_cell(
-                package=package,
-                agent="oracle",
-                name=next_free_name(task_jobs, base),
-                jobs_dir=task_jobs,
-                backend=backend,
-                timeout_seconds=timeout_seconds,
-                root=root,
-            )
-    base = cell_job_name(task_id=task_id, backend=backend, cell="nop")
-    candidate = task_jobs / base
-    if summarize_trials(candidate) and all(
-        reward is not None for reward in summarize_trials(candidate)
-    ):
-        nop_dir = candidate
-    else:
-        nop_dir = run_cell(
+    def _reuse_scored(base: str, agent: str) -> Path | None:
+        for candidate in scannable_cell_dirs(task_jobs, base):
+            rewards = summarize_trials(candidate)
+            if not rewards or any(reward is None for reward in rewards):
+                continue
+            if not cell_reusable(
+                candidate,
+                expected_digest=expected_digest,
+                expected_agent=agent,
+                expected_backend=backend,
+                expected_resource_kwargs=expected_kwargs,
+            ):
+                continue
+            return candidate
+        return None
+
+    def _launch(base: str, agent: str, attacks: str | None) -> Path:
+        return run_cell(
             package=package,
-            agent="nop",
+            agent=agent,
             name=next_free_name(task_jobs, base),
             jobs_dir=task_jobs,
             backend=backend,
             timeout_seconds=timeout_seconds,
+            attacks=attacks,
+            modal_resource_policy=modal_resource_policy,
             root=root,
         )
-    base = cell_job_name(task_id=task_id, backend=backend, cell="cheat")
-    candidate = task_jobs / base
-    if _trial_dirs_with_results(candidate):
-        cheat_dir: Path | None = candidate
-    else:
-        # Cheat cells use the backend default lock: the cheat agent is outside
-        # every egress-lock set, so locked backends refuse it at dispatch
-        # (Daytona+MiMo additionally refuses explicit unlocked). A refusal is
-        # recorded as backend-unsupported, never a failure; cheat coverage
-        # for those tasks comes from a backend that admits it (docker now,
-        # Modal once mtime-normalize@2 unblocks it) as a separate results row.
-        try:
-            cheat_dir = run_cell(
-                package=package,
-                agent=CHEAT_AGENT,
-                name=next_free_name(task_jobs, base),
-                jobs_dir=task_jobs,
-                backend=backend,
-                timeout_seconds=timeout_seconds,
-                attacks="",
-                root=root,
-            )
-        except ValueError as exc:
-            if "egress_lock" not in str(exc):
-                raise
-            print(f"note {task_id}: cheat refused on {backend} ({exc})")
-            cheat_dir = None
-    summary = (
-        ladder_summary(cheat_dir)
-        if cheat_dir is not None
-        else {"verdict": "backend-unsupported", "executed": [], "cracking": []}
-    )
-    run_ids = [nop_dir.name]
-    if cheat_dir is not None:
-        run_ids.append(cheat_dir.name)
-    if summary["verdict"] == "cracked" and "full-ladder-unattributed" in summary["cracking"]:
-        for attack in ATTACKS:
-            attack_base = cell_job_name(task_id=task_id, backend=backend, cell=f"cheat-{attack}")
-            attack_candidate = task_jobs / attack_base
-            if _trial_dirs_with_results(attack_candidate):
-                attack_dir = attack_candidate
-            else:
-                attack_dir = run_cell(
-                    package=package,
-                    agent=CHEAT_AGENT,
-                    name=next_free_name(task_jobs, attack_base),
-                    jobs_dir=task_jobs,
-                    backend=backend,
-                    timeout_seconds=timeout_seconds,
-                    attacks=attack,
-                    root=root,
+
+    oracle_dir: Path | None = None
+    oracle_grade = ""
+    if "oracle" in wanted:
+        if not has_fix:
+            oracle_grade = "n/a"
+        else:
+            base = cell_job_name(task_id=task_id, backend=backend, cell="oracle")
+            oracle_dir = _reuse_scored(base, "oracle") or _launch(base, "oracle", None)
+            oracle_grade = oracle_cell_grade(oracle_dir, has_reference_fix=True)
+    nop_dir: Path | None = None
+    nop_grade = ""
+    if "nop" in wanted:
+        base = cell_job_name(task_id=task_id, backend=backend, cell="nop")
+        nop_dir = _reuse_scored(base, "nop") or _launch(base, "nop", None)
+        nop_grade = nop_cell_grade(nop_dir)
+    cheat_dir: Path | None = None
+    ladder_version = ""
+    summary: dict[str, Any] = {"verdict": "", "executed": [], "cracking": []}
+    run_ids: list[str] = []
+    if nop_dir is not None:
+        run_ids.append(nop_dir.name)
+    if oracle_dir is not None:
+        run_ids.append(oracle_dir.name)
+    if "ladder" in wanted:
+        ladder_generation = current_ladder_version()
+        base = cell_job_name(task_id=task_id, backend=backend, cell="cheat")
+        for candidate in scannable_cell_dirs(task_jobs, base):
+            if _trial_dirs_with_results(candidate) and cell_reusable(
+                candidate,
+                expected_digest=expected_digest,
+                expected_agent=CHEAT_AGENT,
+                expected_backend=backend,
+                expected_ladder_version=ladder_generation,
+                expected_resource_kwargs=expected_kwargs,
+            ):
+                cheat_dir = candidate
+                break
+        if cheat_dir is None:
+            # Cheat cells use the backend default lock: the cheat agent is outside
+            # every egress-lock set, so locked backends refuse it at dispatch
+            # (Daytona+MiMo additionally refuses explicit unlocked). A refusal is
+            # recorded as backend-unsupported, never a failure; cheat coverage
+            # for those tasks comes from a backend that admits it (docker now,
+            # Modal once mtime-normalize@2 unblocks it) as a separate results row.
+            try:
+                cheat_dir = _launch(base, CHEAT_AGENT, "")
+            except ValueError as exc:
+                if "egress_lock" not in str(exc):
+                    raise
+                print(f"note {task_id}: cheat refused on {backend} ({exc})")
+                cheat_dir = None
+        summary = (
+            ladder_summary(cheat_dir)
+            if cheat_dir is not None
+            else {"verdict": "backend-unsupported", "executed": [], "cracking": []}
+        )
+        if cheat_dir is not None:
+            run_ids.append(cheat_dir.name)
+            ladder_version = cheat_cell_ladder_version(cheat_dir) or ""
+        if summary["verdict"] == "cracked" and "full-ladder-unattributed" in summary["cracking"]:
+            for attack in ATTACKS:
+                attack_base = cell_job_name(
+                    task_id=task_id, backend=backend, cell=f"cheat-{attack}"
                 )
-            run_ids.append(attack_dir.name)
-        assert cheat_dir is not None  # cracked verdict implies a cheat dir
-        summary = ladder_summary(cheat_dir)
-        for run_id in run_ids:
-            if run_id.startswith(cell_job_name(task_id=task_id, backend=backend, cell="cheat-")):
-                single = ladder_summary(task_jobs / run_id)
-                if single["verdict"] == "cracked":
-                    attack_name = run_id.removeprefix(
-                        cell_job_name(task_id=task_id, backend=backend, cell="") + "-"
-                    )
-                    if attack_name not in summary["cracking"]:
-                        summary["cracking"].append(attack_name)
-        summary["cracking"] = sorted(
-            name for name in summary["cracking"] if name != "full-ladder-unattributed"
-        ) or ["full-ladder-unattributed"]
-    nop_grade = nop_cell_grade(nop_dir)
-    oracle_grade = oracle_cell_grade(oracle_dir, has_reference_fix=has_fix)
+                attack_dir: Path | None = None
+                for attack_candidate in scannable_cell_dirs(task_jobs, attack_base):
+                    if _trial_dirs_with_results(attack_candidate) and cell_reusable(
+                        attack_candidate,
+                        expected_digest=expected_digest,
+                        expected_agent=CHEAT_AGENT,
+                        expected_backend=backend,
+                        expected_ladder_version=ladder_generation,
+                        expected_resource_kwargs=expected_kwargs,
+                    ):
+                        attack_dir = attack_candidate
+                        break
+                if attack_dir is None:
+                    attack_dir = _launch(attack_base, CHEAT_AGENT, attack)
+                run_ids.append(attack_dir.name)
+            assert cheat_dir is not None  # cracked verdict implies a cheat dir
+            summary = ladder_summary(cheat_dir)
+            for run_id in run_ids:
+                if run_id.startswith(
+                    cell_job_name(task_id=task_id, backend=backend, cell="cheat-")
+                ):
+                    single = ladder_summary(task_jobs / run_id)
+                    if single["verdict"] == "cracked":
+                        attack_name = run_id.removeprefix(
+                            cell_job_name(task_id=task_id, backend=backend, cell="") + "-"
+                        )
+                        if attack_name not in summary["cracking"]:
+                            summary["cracking"].append(attack_name)
+            summary["cracking"] = sorted(
+                name for name in summary["cracking"] if name != "full-ladder-unattributed"
+            ) or ["full-ladder-unattributed"]
     return {
         "nop": nop_grade,
         "oracle": oracle_grade,
         "ladder_verdict": summary["verdict"],
         "ladder_cracking_attacks": ",".join(summary["cracking"]),
         "ladder_executed": ",".join(summary["executed"]),
+        "ladder_version": ladder_version,
         "run_ids": ",".join(run_ids),
     }
+
+
+def fix_probe_egress_lock(clean_package: Path) -> bool:
+    """Egress lock for fix probes from the shipped package network contract.
+
+    Reads the derived clean package ``task.toml`` ``[environment]``
+    ``network_mode``: public tasks probe unlocked (``False``) so the probe
+    matches package semantics instead of default-locking them; every other
+    mode (``none``/``no-network``/future locked modes) and any unreadable
+    contract probe locked (``True``, fail closed).
+    """
+    try:
+        document = tomllib.loads((clean_package / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+        return True
+    if not isinstance(document, dict):
+        return True
+    environment = document.get("environment")
+    if not isinstance(environment, dict):
+        return True
+    return str(environment.get("network_mode", "")) != "public"
+
+
+def probe_evidence(row: Mapping[str, Any]) -> dict[str, Any]:
+    """Completion evidence extract of a probe result row (meta provenance)."""
+    return {
+        key: row.get(key) for key in ("setup_rc", "ready", "probe_rc", "scan_complete", "scan_rc")
+    }
+
+
+def probe_completion(row: Mapping[str, Any] | None) -> tuple[bool, str]:
+    """Whether a probe result row is a completed probe run.
+
+    Complete needs ``setup_rc == "0"``, ``ready == "yes"``,
+    ``probe_rc == "0"``, and scan evidence (``scan_complete`` true, or a
+    ``scan_rc`` of 0/1). Anything else returns False with an explicit
+    reason — an incomplete probe never yields a clean bill (never 0).
+    """
+    if not isinstance(row, Mapping) or not row:
+        return False, "no probe result"
+    if str(row.get("setup_rc", "")) != "0":
+        return False, f"setup_rc={row.get('setup_rc', '') or 'missing'}"
+    if str(row.get("ready", "")) != "yes":
+        return False, "ready sentinel missing"
+    if str(row.get("probe_rc", "")) != "0":
+        return False, f"probe_rc={row.get('probe_rc', '') or 'missing'}"
+    complete = row.get("scan_complete")
+    if complete is True or str(complete).lower() == "true":
+        return True, ""
+    try:
+        if int(str(row.get("scan_rc", ""))) in (0, 1):
+            return True, ""
+    except (TypeError, ValueError):
+        pass
+    return False, f"scan incomplete (scan_rc={row.get('scan_rc', '') or 'missing'})"
+
+
+def _invoke_probe(
+    image: str,
+    workdir: str,
+    fix_sha: str,
+    stage_dir: Path,
+    out_dir: Path,
+    *,
+    backend: str = "docker",
+    egress_lock: bool = True,
+) -> None:
+    """Run one fix-content probe on ``backend`` with the package egress lock.
+
+    ``backend``/``egress_lock`` are owned by the fix-content lane (Docker
+    default; ``modal`` replays the staged probe remotely with
+    ``block_network=egress_lock``). Daytona never relaxes its standing
+    policy: callers clamp ``egress_lock`` to True for it.
+    """
+    from evallab.fix_content_census import run_probe
+
+    run_probe(image, workdir, fix_sha, stage_dir, out_dir, backend=backend, egress_lock=egress_lock)
 
 
 def _known_patch_census(
@@ -748,18 +1435,23 @@ def _known_patch_census(
     patch_text: str,
     patch_sha: str,
     patterns: list[str],
+    backend: str = "docker",
+    egress_lock: bool = True,
 ) -> dict[str, Any]:
     """Probe published vs shipped setups with patterns from a known patch.
 
     The published setup is the positive control: zero hits there means the
     probe is blind to this fix (reported ``probe-blind``), not that the
-    chain is clean.
+    chain is clean. ``backend`` forwards to the probe runner (the reference
+    known-patch path supports remote execution; image archaeology stays
+    Docker-only in :func:`census_fix_content`). ``egress_lock`` carries the
+    shipped package network contract (same policy for the published
+    positive control and the clean probe).
     """
     from evallab.fix_content_census import (
         collect_result,
         non_test_files,
         parse_diff_added_lines,
-        run_probe,
         stage_probe,
     )
 
@@ -774,8 +1466,17 @@ def _known_patch_census(
     published_stage = scratch / "stage-published"
     published_out = scratch / "out-published"
     stage_probe(published_stage, setup_source, None, precomputed=precomputed)
-    run_probe(image, workdir, "", published_stage, published_out)
+    _invoke_probe(
+        image, workdir, "", published_stage, published_out, backend=backend, egress_lock=egress_lock
+    )
     published_row = collect_result(task_id, language, image12, "published", published_out)
+    published_done, published_why = probe_completion(published_row)
+    if not published_done:
+        return {
+            "census_locations": None,
+            "reason": f"published probe incomplete: {published_why}",
+            "detail": published_row,
+        }
     if not published_row.get("hits_total") and published_row.get("open_leak") != "yes":
         meta_path = scratch / "census.meta.json"
         meta_path.write_text(
@@ -787,8 +1488,11 @@ def _known_patch_census(
                     "clean_setup": "package environment/setup/setup.sh",
                     "clean_setup_sha256": clean_setup_sha,
                     "image": image,
+                    "backend": backend,
+                    "egress_lock": egress_lock,
                     "probe_blind": True,
                     "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
+                    "published_complete": probe_evidence(published_row),
                 },
                 indent=2,
             )
@@ -802,8 +1506,17 @@ def _known_patch_census(
     clean_stage = scratch / "stage-clean"
     clean_out = scratch / "out-clean"
     stage_probe(clean_stage, clean_source, None, precomputed=precomputed)
-    run_probe(image, workdir, "", clean_stage, clean_out)
+    _invoke_probe(
+        image, workdir, "", clean_stage, clean_out, backend=backend, egress_lock=egress_lock
+    )
     clean_row = collect_result(task_id, language, image12, "clean", clean_out)
+    clean_done, clean_why = probe_completion(clean_row)
+    if not clean_done:
+        return {
+            "census_locations": None,
+            "reason": f"clean probe incomplete: {clean_why}",
+            "detail": clean_row,
+        }
     meta_path = scratch / "census.meta.json"
     meta_path.write_text(
         json.dumps(
@@ -814,6 +1527,8 @@ def _known_patch_census(
                 "clean_setup": "package environment/setup/setup.sh",
                 "clean_setup_sha256": clean_setup_sha,
                 "image": image,
+                "backend": backend,
+                "egress_lock": egress_lock,
                 "probe_blind": False,
                 "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
                 "clean": clean_row,
@@ -824,9 +1539,13 @@ def _known_patch_census(
         encoding="utf-8",
     )
     try:
-        locations = int(clean_row.get("hits_total", 0))
+        locations = int(clean_row.get("hits_total", ""))
     except (TypeError, ValueError):
-        locations = 0
+        return {
+            "census_locations": None,
+            "reason": "clean hits_total unparseable",
+            "detail": clean_row,
+        }
     return {"census_locations": locations, "reason": "", "detail": clean_row}
 
 
@@ -838,17 +1557,20 @@ def census_fix_content(
     language: str,
     scratch_root: Path,
     reference_fix: Path | None = None,
+    backend: str = "docker",
 ) -> dict[str, Any]:
     """Fix-content census for one task (check d, local Docker, $0).
 
     Two modes. Known-patch mode (a manifest ``reference_fix`` patch with
     distinctive non-test lines): patterns seed both probes directly — the
     published setup is the positive control (zero hits there reports
-    ``probe-blind``), the ACTUAL clean package setup is what ships. Extractor
-    mode (no reference patch): recover the fix from the published image
-    history, then probe published vs clean. Returns the clean-chain
-    ``collect_result`` row, ``probe-blind``, or ``{"census_locations": None}``
-    when no fix is recoverable.
+    ``probe-blind``), the ACTUAL clean package setup is what ships; this
+    path forwards ``backend`` to the probe runner for fix-only remote
+    phases. Extractor mode (no reference patch): recover the fix from the
+    published image history, then probe published vs clean — Docker-only
+    (remote archaeology reports explicit unavailable, never a finding).
+    Returns the clean-chain ``collect_result`` row, ``probe-blind``, or
+    ``{"census_locations": None}`` when no fix is recoverable.
     """
     import hashlib
 
@@ -858,7 +1580,6 @@ def census_fix_content(
         distinctive_added_lines,
         leak_oracle_extract,
         recover_fix_lite,
-        run_probe,
         stage_probe,
     )
 
@@ -892,7 +1613,8 @@ def census_fix_content(
             meta = {}
         # Reuse completed probes verbatim (deterministic): same image, same
         # shipped setup, same fix identity (recovered SHA or patch SHA), and
-        # an integer clean hit count. Null/vacuous rows never match.
+        # completion evidence for the recorded outcome. Null/vacuous rows
+        # never match; metadata without scan evidence is never reusable.
         identity = meta.get("patch_sha") or meta.get("fix_sha")
         want_identity = patch_sha or None
         if (
@@ -901,16 +1623,27 @@ def census_fix_content(
             and isinstance(identity, str)
             and identity
             and (identity == want_identity if want_identity else len(identity) == 40)
-            and isinstance(meta.get("clean", {}).get("hits_total"), int)
         ):
-            locations_meta = meta["clean"]["hits_total"]
             if meta.get("probe_blind"):
-                return {
-                    "census_locations": "probe-blind",
-                    "reason": "probe-blind",
-                    "detail": meta["clean"],
-                }
-            return {"census_locations": locations_meta, "reason": "", "detail": meta["clean"]}
+                blind_done, _ = probe_completion(meta.get("published_complete", {}))
+                if blind_done:
+                    return {
+                        "census_locations": "probe-blind",
+                        "reason": "probe-blind",
+                        "detail": {},
+                    }
+            elif isinstance(meta.get("clean", {}).get("hits_total"), int):
+                clean_done, _ = probe_completion(meta["clean"])
+                if clean_done:
+                    return {
+                        "census_locations": meta["clean"]["hits_total"],
+                        "reason": "",
+                        "detail": meta["clean"],
+                    }
+    # Probe network policy comes from the shipped package contract: public
+    # tasks probe unlocked, locked modes stay locked. Daytona never relaxes
+    # its standing policy, so it always probes locked.
+    probe_egress_lock = True if backend == "daytona" else fix_probe_egress_lock(clean_package)
     if known_patterns:
         return _known_patch_census(
             task_id=task_id,
@@ -924,7 +1657,14 @@ def census_fix_content(
             patch_text=patch_text,
             patch_sha=patch_sha,
             patterns=known_patterns,
+            backend=backend,
+            egress_lock=probe_egress_lock,
         )
+    if backend != "docker":
+        return {
+            "census_locations": None,
+            "reason": f"remote archaeology unavailable on {backend}; run fix census on docker",
+        }
     git_dir = scratch / "git-copy"
     if not copy_git_from_image(image, workdir, git_dir):
         return {"census_locations": None, "reason": "could not copy .git from image"}
@@ -955,14 +1695,30 @@ def census_fix_content(
     published_stage = scratch / "stage-published"
     published_out = scratch / "out-published"
     stage_probe(published_stage, setup_source)
-    run_probe(image, workdir, fix_sha, published_stage, published_out)
+    _invoke_probe(
+        image,
+        workdir,
+        fix_sha,
+        published_stage,
+        published_out,
+        backend=backend,
+        egress_lock=probe_egress_lock,
+    )
     clean_source = clean_package / "environment" / "setup"
     if not clean_setup_sha:
         return {"census_locations": None, "reason": "clean package has no setup.sh"}
     clean_stage = scratch / "stage-clean"
     clean_out = scratch / "out-clean"
     stage_probe(clean_stage, clean_source)
-    run_probe(image, workdir, fix_sha, clean_stage, clean_out)
+    _invoke_probe(
+        image,
+        workdir,
+        fix_sha,
+        clean_stage,
+        clean_out,
+        backend=backend,
+        egress_lock=probe_egress_lock,
+    )
     published_row = collect_result(task_id, language, image12, "published", published_out)
     clean_row = collect_result(task_id, language, image12, "clean", clean_out)
     meta_path = scratch / "census.meta.json"
@@ -975,6 +1731,8 @@ def census_fix_content(
                 "clean_setup": "package environment/setup/setup.sh",
                 "clean_setup_sha256": clean_setup_sha,
                 "image": image,
+                "backend": backend,
+                "egress_lock": probe_egress_lock,
                 "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
                 "clean": clean_row,
             },
@@ -1235,13 +1993,126 @@ def _add_run_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--timeout-seconds", type=int, default=1800)
     parser.add_argument("--worst-case-usd-per-task", type=float, default=0.25)
     parser.add_argument(
-        "--skip-fix-census", action="store_true", help="skip check (d), grading cells only"
+        "--workers",
+        type=int,
+        default=None,
+        help=(
+            "process workers for the batch (default 1, serial; "
+            f"max {MAX_DOCKER_WORKERS} on docker, max {MAX_REMOTE_WORKERS} remote)"
+        ),
+    )
+    parser.add_argument(
+        "--checks",
+        default=None,
+        help=(
+            "comma subset of nop,oracle,ladder,fix (default all; "
+            "unselected checks launch nothing and report blank)"
+        ),
+    )
+    parser.add_argument(
+        "--skip-fix-census",
+        action="store_true",
+        help="skip check (d), grading cells only (alias for --checks without fix)",
+    )
+    parser.add_argument(
+        "--modal-resource-policy",
+        choices=list(MODAL_RESOURCE_POLICIES),
+        default=MODAL_POLICY_AUTO,
+        help=(
+            "Modal resource policy for grading cells (default auto; "
+            "limit opts into cpu/memory enforcement on the census app)"
+        ),
     )
 
 
-def _run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+def run_task_record(spec: Mapping[str, Any]) -> dict[str, Any]:
+    """Run one task's selected checks; return exactly one results record.
+
+    Worker-side entry point for the process pool (and the serial path):
+    runs grading cells plus the fix probe per ``spec["checks"]`` and returns
+    the record dict. Never appends JSONL — only the parent writes, so
+    concurrent workers share no writer. Unselected checks report blank
+    grades (never ``missing``), which report-side merging treats as no
+    evidence rather than an outcome.
+    """
     from evallab.mimo_clean import run_package_rel
 
+    task_id = str(spec["task_id"])
+    manifest_row = {str(key): str(value) for key, value in dict(spec["manifest_row"]).items()}
+    manifest_version = str(spec["manifest_version"])
+    primary = Path(str(spec["primary"]))
+    jobs_root = Path(str(spec["jobs_root"]))
+    backend = str(spec["backend"])
+    root = Path(str(spec["root"]))
+    selected_checks = tuple(str(name) for name in spec["checks"])
+    grading = [name for name in selected_checks if name in GRADING_CHECKS]
+    record: dict[str, Any] = blank_row(task_id, manifest_version=manifest_version, backend=backend)
+    record["final_digest"] = manifest_row.get("final_digest", "")
+    modal_resource_policy = normalize_modal_resource_policy(spec.get("modal_resource_policy"))
+    record["modal_resource_policy"] = policy_row_value(modal_resource_policy)
+    if grading:
+        partial = census_task(
+            task_id=task_id,
+            manifest_row=manifest_row,
+            primary=primary,
+            jobs_root=jobs_root,
+            backend=backend,
+            timeout_seconds=int(spec["timeout_seconds"]),
+            root=root,
+            checks=grading,
+            modal_resource_policy=modal_resource_policy,
+        )
+        record["nop"] = partial["nop"] if "nop" in grading else ""
+        record["oracle"] = partial["oracle"] if "oracle" in grading else ""
+        if "ladder" in grading:
+            record["ladder_verdict"] = partial["ladder_verdict"]
+            record["ladder_cracking_attacks"] = partial["ladder_cracking_attacks"]
+            record["ladder_version"] = partial["ladder_version"]
+        else:
+            record["ladder_verdict"] = ""
+            record["ladder_cracking_attacks"] = ""
+            record["ladder_version"] = ""
+        record["run_ids"] = partial["run_ids"]
+    else:
+        record["nop"] = ""
+        record["oracle"] = ""
+        record["ladder_verdict"] = ""
+        record["ladder_cracking_attacks"] = ""
+        record["ladder_version"] = ""
+    if "fix" in selected_checks:
+        fix_ref = manifest_row.get("reference_fix", "")
+        if fix_ref in ("", "none"):
+            # No reference fix exists: check (d) is explicitly not
+            # applicable, so controls+ladder alone can pass.
+            record["census_locations"] = "n/a"
+        else:
+            ledger_row = spec.get("ledger_row")
+            if ledger_row is not None:
+                reference_fix: Path | None = None
+                if fix_ref not in ("", "none"):
+                    candidate = Path(fix_ref)
+                    # Absolute sweep paths stay absolute; anything else resolves
+                    # against the primary checkout (index.csv patch_path later).
+                    reference_fix = candidate if candidate.is_absolute() else primary / candidate
+                try:
+                    fix_result = census_fix_content(
+                        task_id=task_id,
+                        clean_package=primary / Path(str(manifest_row["package_path"])),
+                        run_package=primary / run_package_rel(dict(ledger_row)),
+                        language=manifest_row.get("language", "python"),
+                        scratch_root=jobs_root / "fix-census-scratch",
+                        reference_fix=reference_fix,
+                        backend=backend,
+                    )
+                except Exception as exc:  # noqa: BLE001 - probe failure is a finding
+                    print(f"fix-census {task_id}: {type(exc).__name__}: {exc}")
+                else:
+                    if fix_result.get("census_locations") is not None:
+                        record["census_locations"] = str(fix_result["census_locations"])
+    return record
+
+
+def _run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     ctx = resolve_context(args, root)
     manifest = {row["task_id"]: row for row in load_manifest(ctx.manifest_path)}
     wanted = parse_task_list(args.tasks)
@@ -1256,13 +2127,33 @@ def _run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         for task_id in wanted:
             if task_id not in manifest:
                 print(f"skip {task_id}: not in manifest {ctx.manifest_path}")
+    try:
+        selected_checks = parse_check_list(args.checks)
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 2
+    if args.skip_fix_census:
+        if args.checks is not None and "fix" in selected_checks:
+            print("error: --skip-fix-census conflicts with --checks including fix")
+            return 2
+        selected_checks = tuple(name for name in selected_checks if name != "fix")
+    try:
+        workers = resolve_worker_count(backend=args.backend, requested=args.workers)
+        modal_resource_policy = normalize_modal_resource_policy(args.modal_resource_policy)
+        if modal_resource_policy is not None and args.backend != "modal":
+            raise ValueError("--modal-resource-policy limit requires --backend modal")
+    except ValueError as exc:
+        print(f"error: {exc}")
+        return 2
     ledger: dict[str, dict[str, str]] = {}
-    if not args.skip_fix_census:
+    if "fix" in selected_checks:
         ledger_path = _resolve(root, args.ledger)
         if ledger_path.is_file():
             ledger = {row["task_id"]: row for row in load_manifest(ledger_path)}
         else:
             print(f"note: ledger {ledger_path} absent; fix-content census skipped")
+    # The whole batch is fenced before any worker starts; workers never
+    # re-check the cap (actuals land via record-spend/cost after the run).
     if args.backend != "docker":
         projected = len(selected) * args.worst_case_usd_per_task
         spent = slice_spent_usd(ctx.receipt_dir)
@@ -1276,87 +2167,113 @@ def _run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             f"spend fence ok: spent ${spent:.2f} + projected ${projected:.2f} "
             f"<= ${SLICE_CAP_USD:.2f}"
         )
+    print(
+        f"census plan: {len(selected)} tasks x checks={','.join(selected_checks)} "
+        f"backend={args.backend} workers={workers} "
+        f"modal_resource_policy={policy_row_value(modal_resource_policy)}"
+    )
+    specs: list[dict[str, Any]] = [
+        {
+            "task_id": task_id,
+            "manifest_row": dict(row),
+            "manifest_version": ctx.manifest_version,
+            "primary": str(ctx.primary),
+            "jobs_root": str(ctx.jobs_dir),
+            "backend": args.backend,
+            "timeout_seconds": args.timeout_seconds,
+            "root": str(root),
+            "checks": list(selected_checks),
+            "ledger_row": dict(ledger[task_id]) if task_id in ledger else None,
+            "modal_resource_policy": modal_resource_policy,
+        }
+        for task_id, row in selected
+    ]
     rows_path = ctx.jobs_dir / ROWS_FILENAME
     ctx.jobs_dir.mkdir(parents=True, exist_ok=True)
-    for task_id, row in selected:
-        try:
-            partial = census_task(
-                task_id=task_id,
-                manifest_row=row,
-                primary=ctx.primary,
-                jobs_root=ctx.jobs_dir,
-                backend=args.backend,
-                timeout_seconds=args.timeout_seconds,
-                root=root,
-            )
-        except Exception as exc:  # noqa: BLE001 - one task never kills the batch
-            print(f"error {task_id}: {type(exc).__name__}: {exc}")
-            continue
-        record: dict[str, Any] = blank_row(
-            task_id, manifest_version=ctx.manifest_version, backend=args.backend
-        )
-        record["final_digest"] = row.get("final_digest", "")
-        record.update(
-            {
-                "nop": partial["nop"],
-                "oracle": partial["oracle"],
-                "ladder_verdict": partial["ladder_verdict"],
-                "ladder_cracking_attacks": partial["ladder_cracking_attacks"],
-                "run_ids": partial["run_ids"],
-            }
-        )
-        ledger_row = ledger.get(task_id)
-        if not args.skip_fix_census and ledger_row is not None:
-            reference_fix: Path | None = None
-            fix_ref = str(row.get("reference_fix", ""))
-            if fix_ref not in ("", "none"):
-                candidate = Path(fix_ref)
-                # Absolute sweep paths stay absolute; anything else resolves
-                # against the primary checkout (index.csv patch_path later).
-                reference_fix = candidate if candidate.is_absolute() else ctx.primary / candidate
-            try:
-                fix_result = census_fix_content(
-                    task_id=task_id,
-                    clean_package=ctx.primary / Path(str(row["package_path"])),
-                    run_package=ctx.primary / run_package_rel(ledger_row),
-                    language=row.get("language", "python"),
-                    scratch_root=ctx.jobs_dir / "fix-census-scratch",
-                    reference_fix=reference_fix,
-                )
-            except Exception as exc:  # noqa: BLE001 - probe failure is a finding
-                print(f"fix-census {task_id}: {type(exc).__name__}: {exc}")
-            else:
-                if fix_result.get("census_locations") is not None:
-                    record["census_locations"] = str(fix_result["census_locations"])
+
+    def _emit(record: Mapping[str, Any]) -> None:
+        # Only the parent appends: one record per selected task, serially,
+        # so concurrent workers never share a writer.
         with rows_path.open("a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record) + "\n")
+            handle.write(json.dumps(dict(record)) + "\n")
         print(
-            f"| {task_id} | oracle={record['oracle']} nop={record['nop']} "
+            f"| {record['task_id']} | oracle={record['oracle']} nop={record['nop']} "
             f"ladder={record['ladder_verdict']}:{record['ladder_cracking_attacks'] or '-'} "
             f"census={record['census_locations'] or 'n/a'} |"
         )
+
+    if workers == 1:
+        # Native serial path: in-process, one task at a time.
+        for spec in specs:
+            try:
+                _emit(run_task_record(spec))
+            except Exception as exc:  # noqa: BLE001 - one task never kills the batch
+                print(f"error {spec['task_id']}: {type(exc).__name__}: {exc}")
+    else:
+        # Remote fan-out: process workers (never threads — the cheat ladder
+        # hands its attack subset through process os.environ under a lock).
+        from concurrent.futures import ProcessPoolExecutor
+
+        with ProcessPoolExecutor(max_workers=workers) as pool:
+            futures = [pool.submit(run_task_record, spec) for spec in specs]
+            for spec, future in zip(specs, futures, strict=True):
+                try:
+                    _emit(future.result())
+                except Exception as exc:  # noqa: BLE001 - one task never kills the batch
+                    print(f"error {spec['task_id']}: {type(exc).__name__}: {exc}")
     print(f"census rows appended -> {rows_path}")
     return 0
 
 
+def report_row_key(record: Mapping[str, Any]) -> tuple[str, str, str, str, str]:
+    """Generation-bound report key: never merge across generations.
+
+    ``(task_id, backend, manifest_version, final_digest,
+    modal_resource_policy)`` — a v3 ladder-only row never merges into a v2
+    controls row, and AUTO/LIMIT rows never merge. Missing policies predate
+    the flag and ran as auto; unrecognized values stay distinct (truthful,
+    never merged).
+    """
+    raw_policy = str(record.get("modal_resource_policy", "") or "")
+    policy = raw_policy.strip().lower()
+    if policy in ("", MODAL_POLICY_AUTO):
+        policy = MODAL_POLICY_AUTO
+    elif policy != MODAL_POLICY_LIMIT:
+        policy = raw_policy
+    return (
+        str(record.get("task_id", "")),
+        str(record.get("backend", "")),
+        str(record.get("manifest_version", "")),
+        str(record.get("final_digest", "")),
+        policy,
+    )
+
+
 def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    from evallab.mimo_clean import write_manifest
+
     ctx = resolve_context(args, root)
     rows_path = ctx.jobs_dir / ROWS_FILENAME
     if not rows_path.is_file():
         print(f"error: no census rows at {rows_path}; run `mimo-census run` first")
         return 2
-    # Rows are keyed (task_id, backend): one task may carry a daytona row
-    # (controls; ladder backend-unsupported) plus a docker row (full ladder).
-    latest: dict[tuple[str, str], dict[str, Any]] = {}
+    # Rows merge only within one generation key: one task may carry a daytona
+    # controls row plus a docker ladder row, and v2 rows never merge into v3.
+    # A later ladder-only row carries blanks for unselected checks, which
+    # never overwrite prior nop/oracle evidence within its generation.
+    latest: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
     with rows_path.open(encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():
                 continue
-            record = json.loads(line)
-            key = (str(record["task_id"]), str(record.get("backend", "")))
-            latest[key] = {str(key): value for key, value in record.items()}
+            record = {str(key): value for key, value in json.loads(line).items()}
+            key = report_row_key(record)
+            record["modal_resource_policy"] = key[4]
+            latest[key] = merge_census_rows(latest[key], record) if key in latest else record
+    # Recorded amounts accumulate per (task, backend) across batches. Costs
+    # are amortizations, not per-task invoices; legacy Daytona is modeled.
+    batch_cost: dict[tuple[str, str], float] = {}
     spend_path = ctx.receipt_dir / SPEND_FILENAME
-    batch_cost: dict[str, float] = {}
     if spend_path.is_file():
         for line in spend_path.read_text(encoding="utf-8").splitlines():
             if not line.strip():
@@ -1365,23 +2282,109 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             tasks = parse_task_list(str(entry.get("tasks", "")))
             if tasks:
                 share = amortized_cost(float(entry.get("actual_usd", 0.0)), len(tasks))
+                entry_backend = str(entry.get("backend", ""))
                 for task_id in tasks:
-                    batch_cost[task_id] = share
-    rows: list[dict[str, Any]] = []
-    for (task_id, _backend), record in sorted(latest.items()):
-        record["manifest_version"] = ctx.manifest_version
+                    key = (task_id, entry_backend)
+                    batch_cost[key] = batch_cost.get(key, 0.0) + share
+    # Whether each task has a reference fix, and its current digest, comes
+    # from the current manifest, never from old rows: a known-patch task
+    # with a blank fix cell stays unverified until the fix phase completes,
+    # while a task with no reference reports explicit ``n/a``.
+    manifest_rows: list[dict[str, str]] = []
+    if ctx.manifest_path.is_file():
+        manifest_rows = load_manifest(ctx.manifest_path)
+    has_reference_fix: dict[str, bool] | None = (
+        {
+            str(row["task_id"]): str(row.get("reference_fix", "")) not in ("", "none")
+            for row in manifest_rows
+        }
+        if manifest_rows
+        else None
+    )
+    current_digest = {
+        str(row["task_id"]): str(row.get("final_digest", "")) for row in manifest_rows
+    }
+    unpriced_count: dict[tuple[str, str], int] = {}
+    for key, record in latest.items():
         if record.get("cost_usd", "") in ("", None):
+            cost_key = (key[0], key[1])
+            unpriced_count[cost_key] = unpriced_count.get(cost_key, 0) + 1
+    rows: list[dict[str, Any]] = []
+    for key, record in sorted(latest.items()):
+        task_id = key[0]
+        backend = key[1]
+        # Original row versions stay truthful: never relabel manifest_version.
+        if record.get("cost_usd", "") in ("", None):
+            share = batch_cost.get((task_id, backend))
+            if share is not None:
+                share /= unpriced_count[(task_id, backend)]
             record["cost_usd"] = (
-                f"{batch_cost[task_id]:.4f}"
-                if task_id in batch_cost
-                else f"{args.cost_default_usd:.2f}"
+                f"{share:.4f}" if share is not None else f"{args.cost_default_usd:.2f}"
             )
+        if (
+            has_reference_fix is not None
+            and not has_reference_fix.get(task_id, True)
+            and record.get("census_locations", "") in ("", None)
+        ):
+            record["census_locations"] = "n/a"
         rows.append(record)
     out = write_results(rows, ctx.receipt_dir / RESULTS_FILENAME)
-    summary = summarize_results(rows)
-    print(f"results.csv: {summary['passed']}/{summary['total']} pass -> {out}")
+    current_rows = (
+        [
+            record
+            for record in rows
+            if record.get("final_digest") == current_digest.get(str(record["task_id"]))
+        ]
+        if manifest_rows
+        else rows
+    )
+    summary = summarize_results(current_rows, has_reference_fix=has_reference_fix)
+    print(
+        f"results.csv: {summary['passed']}/{summary['total']} current-digest rows pass "
+        f"({len(rows)} historical/current rows retained) -> {out}"
+    )
     for failure in summary["failures"]:
         print(f"FAIL {failure['task_id']}: {failure['reasons']}")
+    # Task-level aggregate: combine each task's per-backend rows on the exact
+    # current manifest digest (controls Daytona + ladder/fix Modal) into the
+    # verify grade that lands in manifest.verify. Per-check columns above
+    # carry the explicit classification behind every unverified grade.
+    by_task: dict[str, list[dict[str, Any]]] = {}
+    for record in rows:
+        by_task.setdefault(str(record["task_id"]), []).append(record)
+    aggregates: dict[str, dict[str, Any]] = {}
+    for task_id in sorted(by_task):
+        fix_known = has_reference_fix.get(task_id, True) if has_reference_fix else True
+        exact = current_digest.get(task_id) or None
+        aggregate = combine_task_rows(
+            by_task[task_id], has_reference_fix=fix_known, final_digest=exact
+        )
+        if aggregate is None:
+            print(f"AGG {task_id}: verify={VERIFY_UNVERIFIED} (no exact-digest rows)")
+            continue
+        aggregates[task_id] = aggregate
+        print(
+            f"AGG {task_id}: verify={aggregate['verify']} "
+            f"nop={aggregate['nop'] or '-'} oracle={aggregate['oracle'] or '-'} "
+            f"ladder={aggregate['ladder_verdict'] or '-'}:"
+            f"{aggregate['ladder_cracking_attacks'] or '-'} "
+            f"census={aggregate['census_locations'] or 'n/a'} "
+            f"backends={aggregate['backends']}"
+        )
+    # Manifest verify writes ONLY aggregates on the exact current digest for
+    # that task; every other manifest row (and column) is left untouched.
+    if manifest_rows:
+        updated = 0
+        for row in manifest_rows:
+            task_id = str(row["task_id"])
+            aggregate = aggregates.get(task_id)
+            if aggregate is not None and aggregate["final_digest"] == str(
+                row.get("final_digest", "")
+            ):
+                row["verify"] = str(aggregate["verify"])
+                updated += 1
+        write_manifest(manifest_rows, ctx.manifest_path)
+        print(f"manifest verify updated for {updated}/{len(manifest_rows)} tasks")
     return 0 if summary["failed"] == 0 else 1
 
 
@@ -1445,20 +2448,27 @@ __all__ = [
     "ATTACKS",
     "BACKENDS",
     "CENSUS_VERSION",
-    "JOB_PREFIX",
-    "RESULTS_COLUMNS",
+    "CHECK_COLUMNS",
+    "CHECKS",
+    "DEFAULT_WORKERS",
+    "GRADING_CHECKS",
+    "MAX_REMOTE_WORKERS",
+    "MODAL_CENSUS_APP_NAME",
+    "MODAL_POLICY_AUTO",
+    "MODAL_POLICY_LIMIT",
+    "MODAL_RESOURCE_POLICIES",
+    "NO_EVIDENCE",
+    "RESOURCE_ENFORCEMENT_KEYS",
     "RESULTS_FILENAME",
     "ROWS_FILENAME",
     "SLICE_CAP_USD",
     "SPEND_FILENAME",
-    "VERIFY_BACKEND_UNSUPPORTED",
-    "VERIFY_CLEAN",
     "VERIFY_ENV_BROKEN",
-    "VERIFY_GRADER_HOLE",
-    "VERIFY_INFRA_FLAKE",
-    "VERIFY_NEEDS_TRIAGE",
-    "VERIFY_OPEN_LEAK",
-    "VERIFY_ORACLE_WRONG",
+    "VERIFY_FAIL_CLASSES",
+    "VERIFY_FAIL_GRADER_HOLE",
+    "VERIFY_FAIL_OPEN_LEAK",
+    "VERIFY_FAIL_ORACLE_WRONG",
+    "VERIFY_PASS",
     "VERIFY_UNVERIFIED",
     "acceptance_matches",
     "amortized_cost",
@@ -1468,19 +2478,35 @@ __all__ = [
     "census_fix_content",
     "census_row_pass",
     "census_task",
+    "cell_reusable",
+    "cheat_cell_ladder_version",
+    "combine_task_rows",
+    "current_ladder_version",
     "daytona_batch_cost_usd",
     "daytona_hourly_usd",
     "cell_job_name",
+    "expected_resource_kwargs",
     "fence_allows",
+    "fix_probe_egress_lock",
     "job_has_trial_errors",
     "ladder_summary",
     "load_results",
+    "merge_census_rows",
     "next_free_name",
     "nop_cell_grade",
     "oracle_cell_grade",
+    "parse_check_list",
     "parse_junit_grade",
     "parse_task_list",
+    "policy_row_value",
+    "probe_completion",
+    "probe_evidence",
+    "resolve_worker_count",
+    "report_row_key",
+    "resolve_worker_count",
     "run_cell",
+    "run_task_record",
+    "scannable_cell_dirs",
     "slice_spent_usd",
     "summarize_results",
     "summarize_trials",
@@ -1488,6 +2514,7 @@ __all__ = [
     "trial_grade_logs",
     "trial_disk_exhausted",
     "trial_output_logs",
+    "trial_runner",
     "trial_tests_executed",
     "trial_wall_hours",
     "utc_now_iso",

@@ -705,6 +705,28 @@ def _validate_egress_lock(request: RunRequest) -> None:
         )
 
 
+def _validate_modal_app_name(request: RunRequest) -> None:
+    """A billing-app override changes attribution, never backend or policy."""
+    if request.modal_app_name is None:
+        return
+    if request.environment != "modal":
+        raise ValueError("modal_app_name requires the Modal backend")
+    if not isinstance(request.modal_app_name, str) or not request.modal_app_name.strip():
+        raise ValueError("modal_app_name must be a nonempty string")
+
+
+def _validate_modal_resource_policy(request: RunRequest) -> None:
+    """Opt-in census billing optimization; preserve declared resource caps."""
+    if request.modal_resource_policy is None:
+        return
+    if request.environment != "modal":
+        raise ValueError("modal_resource_policy requires the Modal backend")
+    if request.modal_app_name != "mimo-clean-census":
+        raise ValueError("modal_resource_policy is restricted to the census billing app")
+    if request.modal_resource_policy != "limit":
+        raise ValueError("modal_resource_policy must be 'limit' or None")
+
+
 def mimo_selfhosted_trial_cost_usd(
     trial_hours: float, concurrency: int, sandbox_usd: float
 ) -> float:
@@ -1011,6 +1033,8 @@ class RunRequest:
     provider_returned_model_id: str | None = None
     inference_settings: ProfileInferenceSettings | None = None
     egress_lock: bool | None = None
+    modal_app_name: str | None = None
+    modal_resource_policy: str | None = None
     diff_sources: tuple[Path, ...] = ()
 
     @property
@@ -1623,6 +1647,8 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
         raise ValueError(
             f"Concurrency and attempts must be positive; timeout must be 1-{MAX_TRIAL_TIMEOUT_SECONDS} seconds"
         )
+    _validate_modal_app_name(request)
+    _validate_modal_resource_policy(request)
     proxy_limits = (
         request.max_requests,
         request.max_input_tokens,
@@ -1952,9 +1978,7 @@ def format_task_chain(newest_first: Iterable[str]) -> str:
     return ">".join(reversed(ordered)) if ordered else "original"
 
 
-def mimoagent_agent_kwargs(
-    task_dir: Path, *, repo_root: Path | None = None
-) -> dict[str, Any]:
+def mimoagent_agent_kwargs(task_dir: Path, *, repo_root: Path | None = None) -> dict[str, Any]:
     """Harbor agent kwargs for the mimoagent lane, all recorded in trial metadata.
 
     ``antihack``/``explicit_rules`` come from their env knobs (default off);
@@ -2064,6 +2088,18 @@ def build_command(
         # Provider-side destruction still applies if the local controller dies.
         ttl_minutes = (request.trial_watchdog_seconds + 59) // 60
         command.extend(["--environment-kwarg", f"ttl_minutes={ttl_minutes}"])
+    _validate_modal_app_name(request)
+    if request.modal_app_name is not None:
+        command.extend(["--environment-kwarg", f"app_name={request.modal_app_name}"])
+    _validate_modal_resource_policy(request)
+    if request.modal_resource_policy is not None:
+        for resource in ("cpu", "memory"):
+            command.extend(
+                [
+                    "--environment-kwarg",
+                    f"{resource}_enforcement_policy={request.modal_resource_policy}",
+                ]
+            )
     if resolve_egress_lock(request):
         _validate_egress_lock(request)
         command.extend(["--environment-kwarg", "egress_lock=true"])
@@ -2197,9 +2233,7 @@ def build_command(
         )
     if request.agent == MIMO_AGENT:
         command.extend(["--n-concurrent-agents", "1", "--n-tasks", "1", "--max-retries", "0"])
-        for key, value in sorted(
-            mimoagent_agent_kwargs(request.task, repo_root=repo_root).items()
-        ):
+        for key, value in sorted(mimoagent_agent_kwargs(request.task, repo_root=repo_root).items()):
             command.extend(
                 [
                     "--agent-kwarg",

@@ -1,11 +1,14 @@
 # mimo-clean-census: fleet-wide clean-set verification receipt
 
-Date: 2026-10-09. Lane: FleetCensus. Slice cap: **$15.00** (of Peter's $25
-day approval, 2026-10-09 chat). Method: `docs/mimo/verification.md`. Runner:
+Date: 2026-10-10. Lane: CensusFinish (continuing FleetCensus).
+Slice cap: **$13.00 cumulative**, including earlier FleetCensus spend
+(within Peter's $25 approval). Method: `docs/mimo/verification.md`. Runner:
 `src/evallab/mimo_census.py` (`evallab mimo-census run|report|record-spend`).
 
-Raw run output (out of git):
-`/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-clean-census/`.
+Raw run output (out of git, preserved by package version):
+`/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-clean-census/`
+and
+`/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-clean-census/`.
 
 ## Spend ledger (provider actuals only)
 

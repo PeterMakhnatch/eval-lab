@@ -20,11 +20,17 @@ Two modes per task:
   purge-build-caches@2, mtime-normalize@1) with the same ``build_setup_sh``
   functions the derives use, so the bytes match a derived chain.
 
-Any location found in ``clean`` mode is an open leak. $0: local Docker with
-``--network none`` only; no model calls, no paid compute.
+Any location found in ``clean`` mode is an open leak. Standalone probes
+default to local Docker with ``--network none``. :func:`run_probe` also
+supports ``backend="modal"`` for paid, known-patch census phases, using the
+same pinned image, staged :data:`PROBE_SH`, setup payload, workdir and root.
+The census forwards the package network contract via ``egress_lock``;
+recovery/image archaeology stays Docker-only. Failed setup or incomplete
+content scans never establish zero surviving locations.
 
-Container work happens in :data:`PROBE_SH` (staged via bind mount, results
-in a second mount); everything else here is host-side orchestration plus
+Container work happens in :data:`PROBE_SH` (Docker: staged via bind mount,
+results in a second mount; Modal: the same stage uploaded, outputs
+downloaded); everything else here is host-side orchestration plus
 pure helpers covered by unit tests.
 """
 
@@ -41,6 +47,7 @@ import shutil
 import subprocess
 import sys
 from collections.abc import Mapping
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -70,6 +77,9 @@ CSV_FIELDS = (
     "mtime_detail",
     "caches",
     "open_leak",
+    "scan_rc",
+    "scan_complete",
+    "probe_rc",
     "notes",
 )
 
@@ -292,9 +302,11 @@ _to=""; command -v timeout >/dev/null 2>&1 && _to="timeout 240"
 $_to git -C "$WORKDIR" fsck --unreachable --no-reflogs 2>/dev/null | wc -l | tr -d ' ' > "$OUT/fsck_unreachable" || echo ? > "$OUT/fsck_unreachable"
 # ---- stage 2: filesystem content scan outside .git and the census mounts ----
 : > "$OUT/hits.txt"
+printf '%s' no-patterns > "$OUT/scan_rc"
 if [ -s "$OUT/patterns.txt" ]; then
   _gto=""; command -v timeout >/dev/null 2>&1 && _gto="timeout 1200"
-  $_gto grep -rlF -f "$OUT/patterns.txt" --exclude-dir=proc --exclude-dir=sys --exclude-dir=dev --exclude-dir=.git --exclude-dir=census-stage --exclude-dir=census-out / 2>/dev/null > "$OUT/hits.txt" || true
+  $_gto grep -rlF -f "$OUT/patterns.txt" --exclude-dir=proc --exclude-dir=sys --exclude-dir=dev --exclude-dir=.git --exclude-dir=census-stage --exclude-dir=census-out / 2>"$OUT/scan-stderr.txt" > "$OUT/hits.txt"
+  printf '%s' "$?" > "$OUT/scan_rc"
 fi
 : > "$OUT/hit_detail.txt"
 while IFS= read -r p; do
@@ -414,19 +426,47 @@ def run_probe(
     out_dir: Path | str,
     *,
     timeout: int = 2700,
+    backend: str = "docker",
+    egress_lock: bool = True,
 ) -> None:
-    """Run the census probe in a locked local container (root, no network)."""
+    """Run the census probe in a container (root; network per ``egress_lock``).
+
+    ``backend="docker"`` (default) uses local Docker, ``--network none`` when
+    ``egress_lock`` is true (default; existing behavior unchanged).
+    ``backend="modal"`` replays the same staged probe in a Modal sandbox on
+    the same pinned image: same ``probe.sh`` + setup payload, same workdir
+    and fix arguments, root, ``block_network=egress_lock``, billed to the
+    named census app with a ``probe-runtime.json`` lifecycle receipt. The
+    census runner passes ``egress_lock`` from the task package network
+    contract (``network_mode == "none"``), so published/clean setups match
+    package semantics. The sandbox is terminated on success and on error; a
+    failed termination is recorded and raised (possible continued billing),
+    never suppressed. SDK failures raise explicitly and never fabricate
+    result files.
+    """
+    if backend not in ("docker", "modal"):
+        raise ValueError(f"backend must be 'docker' or 'modal', got {backend!r}")
     out = Path(out_dir)
     _rmtree(out)
     out.mkdir(parents=True)
+    if backend == "modal":
+        _run_probe_modal(
+            image,
+            workdir,
+            fix_sha,
+            stage_dir,
+            out,
+            timeout=timeout,
+            egress_lock=egress_lock,
+        )
+        return
     cmd = [
         "docker",
         "run",
         "--rm",
         "--platform",
         "linux/amd64",
-        "--network",
-        "none",
+        *(["--network", "none"] if egress_lock else []),
         "--user",
         "root",
         "-v",
@@ -445,6 +485,160 @@ def run_probe(
         (out / "docker_stdout.txt").write_text(proc.stdout[-20000:], encoding="utf-8")
     if proc.stderr:
         (out / "docker_stderr.txt").write_text(proc.stderr[-20000:], encoding="utf-8")
+
+
+#: Modal app for fix-content-census probes. A looked-up named app (not an
+#: ephemeral ``App(name=...)``) so slice spend attributes to the exact billed
+#: app; approved by Main for exact slice billing.
+_MODAL_APP_NAME = "mimo-clean-census-fix"
+
+#: Headroom added to the Modal sandbox lifetime past the probe ``timeout`` so
+#: stage upload and output download are not censored by a probe that runs the
+#: full bound.
+_MODAL_LIFETIME_HEADROOM_S = 300
+
+
+def _modal_text(value: bytes | str) -> str:
+    """Decode a Modal exec stream chunk (text mode returns ``str``)."""
+    if isinstance(value, bytes):
+        return value.decode("utf-8", errors="replace")
+    return value
+
+
+def _modal_exec(
+    sandbox: Any, argv: list[str], *, workdir: str, timeout: int
+) -> tuple[int, str, str]:
+    """Run one sandbox command; return (rc, stdout, stderr) as text."""
+    proc = sandbox.exec(*argv, workdir=workdir, timeout=timeout)
+    stdout = _modal_text(proc.stdout.read())
+    stderr = _modal_text(proc.stderr.read())
+    return proc.wait(), stdout, stderr
+
+
+def _run_probe_modal(
+    image: str,
+    workdir: str,
+    fix_sha: str,
+    stage_dir: Path | str,
+    out: Path,
+    *,
+    timeout: int,
+    egress_lock: bool = True,
+) -> None:
+    """Replay the staged probe in a Modal sandbox (root).
+
+    Same pinned image (``linux/amd64``), same ``/census-stage`` payload as the
+    Docker path, same ``probe.sh`` arguments. Network follows ``egress_lock``
+    (``block_network``), honouring the task package network contract like the
+    Docker path. Probe outputs are downloaded from ``/census-out``
+    byte-for-byte so :func:`collect_result` consumes real equivalent files,
+    and ``probe-runtime.json`` records the billed app, sandbox id, and UTC
+    lifecycle for spend attribution. A nonzero probe rc is recorded as
+    evidence (like the Docker path), never raised; orchestration failures
+    raise explicitly.
+    """
+    try:
+        import modal
+    except ImportError as exc:
+        raise RuntimeError(
+            "run_probe(backend='modal') requires the Modal SDK "
+            "(e.g. 'uv run --with modal==1.6.1 ...'); not installed here"
+        ) from exc
+    stage = Path(stage_dir)
+    app = modal.App.lookup(_MODAL_APP_NAME, create_if_missing=True)
+    modal_image = modal.Image.from_registry(image, platform="linux/amd64")
+    started = datetime.now(UTC)
+    sandbox = modal.Sandbox.create(
+        "sleep",
+        str(timeout + _MODAL_LIFETIME_HEADROOM_S),
+        app=app,
+        image=modal_image,
+        workdir=workdir,
+        block_network=egress_lock,
+        timeout=timeout + _MODAL_LIFETIME_HEADROOM_S,
+    )
+    failure: BaseException | None = None
+    try:
+        payloads = [
+            (f"/census-stage/{path.relative_to(stage).as_posix()}", path.read_bytes())
+            for path in sorted(stage.rglob("*"))
+            if not path.is_dir()
+        ]
+        parents = sorted({remote.rpartition("/")[0] for remote, _ in payloads})
+        rc, _, mkdir_err = _modal_exec(
+            sandbox,
+            ["mkdir", "-p", "/census-stage", "/census-out", *parents],
+            workdir=workdir,
+            timeout=120,
+        )
+        if rc != 0:
+            raise RuntimeError(f"modal stage mkdir failed (rc={rc}): {mkdir_err[-2000:]}")
+        for remote, data in payloads:
+            with sandbox.open(remote, "wb") as handle:
+                handle.write(data)
+        rc, stdout, stderr = _modal_exec(
+            sandbox,
+            ["bash", "/census-stage/probe.sh", workdir, fix_sha],
+            workdir=workdir,
+            timeout=timeout,
+        )
+        (out / "modal_rc").write_text(str(rc), encoding="utf-8")
+        if stdout:
+            (out / "modal_stdout.txt").write_text(stdout[-20000:], encoding="utf-8")
+        if stderr:
+            (out / "modal_stderr.txt").write_text(stderr[-20000:], encoding="utf-8")
+        rc, listing, list_err = _modal_exec(
+            sandbox,
+            ["find", "/census-out", "-type", "f", "-print"],
+            workdir=workdir,
+            timeout=120,
+        )
+        if rc != 0:
+            raise RuntimeError(f"modal probe output listing failed (rc={rc}): {list_err[-2000:]}")
+        for line in listing.splitlines():
+            remote = line.strip()
+            if not remote.startswith("/census-out/") or remote == "/census-out/":
+                continue
+            dest = out / remote[len("/census-out/") :]
+            with sandbox.open(remote, "rb") as handle:
+                data = handle.read()
+            if isinstance(data, str):
+                data = data.encode("utf-8")
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
+    except BaseException as exc:
+        failure = exc
+        raise
+    finally:
+        ended = datetime.now(UTC)
+        (out / "probe-runtime.json").write_text(
+            json.dumps(
+                {
+                    "backend": "modal",
+                    "app_name": _MODAL_APP_NAME,
+                    "sandbox_id": getattr(sandbox, "object_id", "?"),
+                    "image": image,
+                    "workdir": workdir,
+                    "started_at": started.isoformat(),
+                    "ended_at": ended.isoformat(),
+                },
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        try:
+            sandbox.terminate()
+        except Exception as term_exc:
+            # A failed termination may mean continued billing: always retain
+            # the evidence; raise only when no probe failure is already
+            # propagating, so the original error is never hidden.
+            (out / "modal_terminate_error.txt").write_text(
+                f"{type(term_exc).__name__}: {term_exc}\n", encoding="utf-8"
+            )
+            if failure is None:
+                raise
 
 
 def _read(path: Path, default: str = "?") -> str:
@@ -520,8 +714,18 @@ def collect_result(
         notes.append(f"setup rc={_read(out / 'setup_rc')}")
     if ready != "yes":
         notes.append("ready sentinel missing")
-    if _read(out / "docker_rc") != "0":
-        notes.append(f"docker rc={_read(out / 'docker_rc')}")
+    # Runner evidence: whichever backend ran the probe records its rc; a Modal
+    # run has no docker_rc, so only present files are judged (a missing
+    # docker_rc on a Modal run is expected, not a finding).
+    rc_names = [name for name in ("docker_rc", "modal_rc") if (out / name).exists()]
+    for rc_name in rc_names or ["docker_rc"]:
+        if _read(out / rc_name) != "0":
+            notes.append(f"{rc_name} rc={_read(out / rc_name)}")
+    scan_rc = _read(out / "scan_rc")
+    scan_complete = scan_rc in ("0", "1", "no-patterns")
+    if not scan_complete:
+        notes.append(f"content scan incomplete rc={scan_rc}")
+    probe_rc = _read(out / rc_names[0]) if len(rc_names) == 1 else "unknown"
     if _read(out / "git_hidden") == "yes":
         notes.append("setup hid .git (git-hidden); post git checks are blind")
     if _read(out / "git_present") == "no":
@@ -533,6 +737,9 @@ def collect_result(
         "mode": mode,
         "setup_rc": _read(out / "setup_rc"),
         "ready": ready,
+        "scan_rc": scan_rc,
+        "scan_complete": scan_complete,
+        "probe_rc": probe_rc,
         "fix_sha": fix_sha,
         "fix_source": _read(out / "fix_source", ""),
         "fix_present_pre": _read(out / "fix_present_pre"),

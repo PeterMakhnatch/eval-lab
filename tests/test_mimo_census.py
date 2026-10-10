@@ -379,8 +379,8 @@ def test_acceptance_matches_mimo_clean_predicate() -> None:
 
 
 def test_fence_and_amortized_cost() -> None:
-    assert fence_allows(spent_usd=0.0, projected_usd=15.00)
-    assert not fence_allows(spent_usd=0.01, projected_usd=15.00)
+    assert fence_allows(spent_usd=0.0, projected_usd=13.00)
+    assert not fence_allows(spent_usd=0.01, projected_usd=13.00)
     assert fence_allows(spent_usd=3.0, projected_usd=5.0, cap_usd=10.0)
     assert amortized_cost(2.0, 4) == 0.5
     assert amortized_cost(2.0, 0) == 0.0

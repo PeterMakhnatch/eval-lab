@@ -47,15 +47,19 @@ For every clean-set manifest row, four checks on the FINAL clean package
   lifecycle. Requires the Modal SDK at run time (not in the lockfile):
   `uv run --with "modal>=1.5.4" --with "dockerfile-parse>=2.0.1" --extra
   laminar evallab ...` plus `~/.modal.toml` auth.
-  **Known block (2026-10-09, open issue)**: mtime-normalize@1's fail-closed
-  check trips on Modal `_ModalDirect` (`Image.from_registry` lazily
-  materializes layers, re-bumping directory mtimes after the touch walk;
-  repeat touch+check in the same sandbox shows 0 offenders). Setup fails
-  with `mtime-normalize@1 found paths newer than the fixed timestamp`
-  before any agent phase — every Modal cell grades `setup-fail`. Same
-  package passes on Docker (eager materialization). Hardening the transform
-  (materialization warm pass) is routed to the mtime owner via Main; the
-  census does NOT work around it in-runner.
+  **2026-10-09 block (mtime@1) RESOLVED by mtime-normalize@2** (PR #813):
+  v2 packages carry `@2` and pass setup on Docker. **2026-10-10 finding
+  (open portability issue, NO transform change per Main — it would change
+  every digest mid-census): Modal is UNSUPPORTED for the v2 fleet.**
+  Modal sandboxes disable the pip cache (`python3 -m pip cache dir` →
+  "ERROR: pip cache commands can not function since cache is disabled"),
+  so purge-build-caches@3's fail-closed precondition (`_pbc_dir` empty →
+  fail) trips before any agent phase: 3/3 v2 parity tasks grade
+  `setup-fail` on Modal while identical packages pass on Docker
+  (oracle=1/nop=0/ladder=clean). Output repro: `/tmp/modal_hc_repro.py`
+  + `/tmp/modal_pip_diag.py` (sandbox `sb-01M4J4GD8M1SW5SQWBCJM9DQ2V`
+  area, cents). Fleet backend is Daytona (+ Docker where the image is
+  cached); Modal parity re-check waits on a purge-leg port.
 - `daytona` — bounded Daytona sandbox env (`DAYTONA_API_KEY`), the paid
   fallback while Modal-direct is blocked. Controls run under the default
   MiMo egress lock; the cheat agent is outside every lock set and
@@ -94,12 +98,15 @@ clean) · `infra-flake` (transient infra failure, passes on retry) ·
 unattributed crack) · `unverified` (missing/unscored cells). Mapping:
 `mimo_census.verify_grade_for`; row acceptance: `mimo_census.census_row_pass`.
 
-## Spend discipline ($15 slice cap)
+## Spend discipline ($13 slice cap)
 
-`run --backend modal` refuses when slice actuals (receipt `spend.jsonl`) +
-`n_tasks × --worst-case-usd-per-task` exceeds the cap. Per-batch provider
-actuals (Modal billing deltas, not estimates) are recorded with
-`record-spend --evidence <receipt>` before the next batch launches.
+`run --backend modal`/`daytona` refuses when slice actuals (receipt
+`spend.jsonl`) + `n_tasks × --worst-case-usd-per-task` exceeds the cap.
+Per-batch provider actuals (billing/usage deltas, not estimates) are recorded
+with `record-spend` (or `cost` for Daytona usage) before the next batch
+launches. Daytona images exceeding the 10 GiB per-sandbox disk grade
+`backend-unsupported` (never failures); as many as feasible run on local
+Docker at the end (≤2 concurrent trials on the shared daemon).
 
 ## Results
 

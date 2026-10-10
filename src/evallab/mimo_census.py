@@ -87,7 +87,7 @@ BACKENDS = ("docker", "modal", "daytona")
 JOB_PREFIX = "mimo-census-v1"
 
 #: Slice spend cap (USD) — see the assignment; enforced per batch.
-SLICE_CAP_USD = 15.00
+SLICE_CAP_USD = 13.00
 
 _JUNIT_RE = re.compile(
     r"rc=(?P<rc>-?\d+)\s+cases=(?P<cases>\d+)\s+bad=(?P<bad>\d+)\s+"

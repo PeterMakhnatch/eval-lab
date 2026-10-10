@@ -40,6 +40,7 @@ unrelated evolution; applyability is not an oracle-pass claim.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import os
 import posixpath
@@ -50,6 +51,9 @@ from pathlib import Path
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 DIFF_GIT_RE = re.compile(r"^diff --git a/(.*) b/(.*)$")
+# Unreachable-commit batch size for --no-walk calls: 1000 SHAs fit any
+# command line (41KB) while keeping process-spawn overhead off big repos.
+PICKAXE_BATCH = 1000
 HARNESS_FILES = {"test_commands.json", "mimo_test_command.sh"}
 TEST_PATH_RES = [
     re.compile(r"(^|/)tests?/"),
@@ -57,7 +61,10 @@ TEST_PATH_RES = [
     re.compile(r"(^|/)test_.*\.py$"),
     re.compile(r"(^|/)conftest\.py$"),
     re.compile(r"_test\.py$"),
-    re.compile(r"\.test\.[jt]s$"),
+    re.compile(r"_test\.go$"),
+    re.compile(r"\.test\.[jt]sx?$"),
+    re.compile(r"\.spec\.[jt]sx?$"),
+    re.compile(r"(^|/)__tests__/"),
 ]
 STOPWORDS = frozenset(
     [
@@ -258,18 +265,69 @@ def git_diff(git_dir: str, start: str, end: str, paths: list[str]) -> str:
 def is_test_path(path: str) -> bool:
     return any(rx.search(path) for rx in TEST_PATH_RES)
 
+def _c_unquote(token: str) -> str:
+    """Decode a C-quoted path token (git core.quotePath style) to text.
+
+    Raises ExtractionError (unsupported-path) on unclosed quotes or undecodable
+    bytes; the caller still runs the result through safe_path.
+    """
+    if len(token) < 2 or not token.startswith('"') or not token.endswith('"'):
+        raise ExtractionError("unsupported-path", "C-quoted diff paths are unsupported")
+    try:
+        raw = token[1:-1].encode("latin-1")
+        # Octal escapes are byte-oriented: unicode_escape first, then reinterpret
+        # the resulting chars as bytes before decoding UTF-8.
+        return raw.decode("unicode_escape").encode("latin-1").decode("utf-8")
+    except (UnicodeError, ValueError) as exc:
+        raise ExtractionError("unsupported-path", "C-quoted diff paths are unsupported") from exc
+
+
+def _split_diff_git(line: str) -> tuple[str, str] | None:
+    """Split a `diff --git` line into (a-side, b-side) path tokens."""
+    literal = DIFF_GIT_RE.match(line)
+    if literal:
+        return literal.group(1), literal.group(2)
+    if not line.startswith('diff --git "'):
+        return None
+    # C-quoted form: diff --git "a/<path>" "b/<path>" with backslash escapes.
+    rest = line[len('diff --git "') :]
+    chars = []
+    escaped = False
+    for index, char in enumerate(rest):
+        if escaped:
+            chars.append("\\" + char)
+            escaped = False
+        elif char == "\\":
+            escaped = True
+        elif char == '"':
+            closing = index
+            break
+        else:
+            chars.append(char)
+    else:
+        return None
+    a_token = "".join(chars)
+    remainder = rest[closing + 1 :]
+    if not remainder.startswith(' "b/') or not remainder.endswith('"'):
+        return None
+    b_token = remainder[len(' "') : -1]
+    if not a_token.startswith("a/") or not b_token.startswith("b/"):
+        return None
+    return _c_unquote('"' + a_token[2:] + '"'), _c_unquote('"' + b_token[2:] + '"')
+
 
 def parse_test_patch(patch_text: str) -> list[str]:
     """Repo-relative b-side paths from a unified diff."""
     files: list[str] = []
     for line in patch_text.splitlines():
-        m = DIFF_GIT_RE.match(line)
-        if m:
-            b = safe_path(m.group(2))
-            if b not in files:
-                files.append(b)
-        elif line.startswith("diff --git "):
+        if not line.startswith("diff --git "):
+            continue
+        split = _split_diff_git(line)
+        if split is None:
             raise ExtractionError("unsupported-path", "C-quoted diff paths are unsupported")
+        b = safe_path(split[1])
+        if b not in files:
+            files.append(b)
     return files
 
 
@@ -400,10 +458,14 @@ def parse_log_records(out: str) -> list[dict]:
     return records
 
 
-def future_commits(git_dir: str, base: str) -> list[dict]:
+def future_commits(git_dir: str, base: str) -> tuple[list[dict], dict | None]:
     """Every future commit (on-ref beyond base + unreachable) with metadata.
 
-    One `git log` over all refs plus one fsck pass; metadata-only.
+    One `git log` over all refs plus one fsck pass; metadata-only. A nonzero
+    fsck exit no longer fails the extraction: corrupt unreachable objects the
+    selection never touches must not censor the reachable future. The note
+    (None when fsck is clean) records the diagnostic for the receipt; any
+    object the selection actually needs still fails honestly downstream.
     """
     beyond = run_git(
         git_dir,
@@ -429,17 +491,14 @@ def future_commits(git_dir: str, base: str) -> list[dict]:
         encoding="utf-8",
         errors="replace",
     )
-    # Truncated task images have broken remote-HEAD refs. Preserve this known
-    # diagnostic, but never turn corrupt/missing objects into "no fix".
+    # Truncated task images have broken remote-HEAD refs and occasionally
+    # corrupt unreachable objects. Preserve the diagnostic, but never turn
+    # objects the selection may never touch into "no fix": parse whatever
+    # stdout lists and let commands on actually-needed objects fail honestly.
     errors = [line for line in fsck.stderr.splitlines() if line and not line.startswith("notice:")]
-    if fsck.returncode and (
-        not errors
-        or any(
-            not re.match(r"error: (?:refs/[^:]+|HEAD): invalid sha1 pointer ", line)
-            for line in errors
-        )
-    ):
-        raise ExtractionError("git-error", "git fsck failed: " + fsck.stderr[:500])
+    fsck_note: dict | None = None
+    if fsck.returncode and errors:
+        fsck_note = {"returncode": fsck.returncode, "stderr_head": errors[:3]}
     unreach = []
     for line in fsck.stdout.splitlines():
         parts = line.split()
@@ -447,7 +506,7 @@ def future_commits(git_dir: str, base: str) -> list[dict]:
             unreach.append(parts[2])
     unreach.sort()
     missing = [s for s in unreach if s not in commits]
-    for i in range(0, len(missing), 200):
+    for i in range(0, len(missing), PICKAXE_BATCH):
         out = run_git(
             git_dir,
             "log",
@@ -456,12 +515,12 @@ def future_commits(git_dir: str, base: str) -> list[dict]:
             "--name-status",
             "--no-renames",
             "--no-ext-diff",
-            *missing[i : i + 200],
+            *missing[i : i + PICKAXE_BATCH],
             timeout=600,
         )
         for record in parse_log_records(out):
             commits[record["sha"]] = {**record, "on_ref": False}
-    return [commits[sha] for sha in sorted(commits)]
+    return [commits[sha] for sha in sorted(commits)], fsck_note
 
 
 def blob_at(git_dir: str, commit: str, path: str) -> str | None:
@@ -478,9 +537,30 @@ def blob_at(git_dir: str, commit: str, path: str) -> str | None:
     return out if proc.returncode == 0 and SHA_RE.match(out) else None
 
 
-def base_tree_paths(git_dir: str, base: str) -> set[str]:
+def _is_git_nested(path: str) -> bool:
+    """True when any segment is a `.git` directory (vendored test fixtures)."""
+    return any(part.casefold() == ".git" for part in path.split("/"))
+
+
+def base_tree_paths(git_dir: str, base: str) -> tuple[set[str], int]:
+    """Base-tree file set plus the count of skipped `.git`-nested fixtures.
+
+    Fixture repos vendored under test directories (e.g. dulwich's) can never
+    be task test files usefully: skipping them instead of failing keeps one
+    bad fixture from censoring the whole future. The count is recorded in
+    evidence; unpack_base applies the same skip so the two stay consistent.
+    """
     out = run_git(git_dir, "ls-tree", "-rz", "--name-only", base, timeout=300)
-    return {safe_path(path) for path in out.split("\x00") if path}
+    paths = set()
+    skipped = 0
+    for path in out.split("\x00"):
+        if not path:
+            continue
+        if _is_git_nested(path):
+            skipped += 1
+            continue
+        paths.add(safe_path(path))
+    return paths, skipped
 
 
 def graph_distance(git_dir: str, base: str, sha: str) -> int | None:
@@ -579,7 +659,7 @@ def pickaxe(
     ]
     outputs = [run_git(git_dir, *args, timeout=600)]
     # Search both sets; dangling commits must not suppress on-ref fixes.
-    for offset in range(0, len(extra_shas or []), 200):
+    for offset in range(0, len(extra_shas or []), PICKAXE_BATCH):
         outputs.append(
             run_git(
                 git_dir,
@@ -590,7 +670,7 @@ def pickaxe(
                 "--no-textconv",
                 "-S",
                 identifier,
-                *(extra_shas or [])[offset : offset + 200],
+                *(extra_shas or [])[offset : offset + PICKAXE_BATCH],
                 timeout=600,
             )
         )
@@ -621,34 +701,54 @@ def pickaxe(
 
 
 def ref_tips_with(git_dir: str, identifiers: list[str], base: str) -> list[dict]:
-    """Branch tips whose trees contain the identifiers (for divergent futures)."""
+    """Branch tips whose trees contain the identifiers (for divergent futures).
+
+    One `git grep` per identifier across all candidate tips (600-call
+    ref-times-ident fan-out was the second extraction hog on big repos):
+    git prefixes each hit with its commit, so attribution is exact.
+    """
     out = run_git(git_dir, "for-each-ref", "--format=%(refname) %(objectname)", timeout=60)
-    tips = []
+    refs: dict[str, list[str]] = {}
     for line in out.splitlines():
         ref, _, sha = line.partition(" ")
         if not SHA_RE.match(sha) or sha == base:
             continue
-        found = []
-        for ident in identifiers[:12]:
-            proc = git_process(
-                git_dir,
-                "grep",
-                "-l",
-                "-F",
-                "-e",
-                ident,
-                sha,
-                "--",
-                encoding="utf-8",
-                errors="replace",
-                timeout=120,
-            )
-            if proc.returncode == 0 and proc.stdout.strip():
-                found.append(ident)
-            elif proc.returncode not in (0, 1):
-                raise ExtractionError("git-error", proc.stderr[:500])
-        if found:
-            tips.append({"ref": ref, "sha": sha, "identifiers_found": found})
+        refs.setdefault(sha, []).append(ref)
+    if not refs:
+        return []
+    shas = sorted(refs)
+    found: dict[str, set[str]] = {sha: set() for sha in shas}
+    for ident in identifiers[:12]:
+        proc = git_process(
+            git_dir,
+            "grep",
+            "-l",
+            "-F",
+            "-e",
+            ident,
+            *shas,
+            "--",
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+        if proc.returncode not in (0, 1):
+            raise ExtractionError("git-error", proc.stderr[:500])
+        if proc.returncode != 0:
+            continue
+        for line in proc.stdout.splitlines():
+            head, sep, _ = line.partition(":")
+            if sep and head in found:
+                found[head].add(ident)
+            elif len(shas) == 1:
+                # Single-tree grep omits the commit prefix.
+                found[shas[0]].add(ident)
+    tips = [
+        {"ref": ref, "sha": sha, "identifiers_found": sorted(found[sha])}
+        for sha in shas
+        for ref in refs[sha]
+        if found[sha]
+    ]
     return sorted(tips, key=lambda t: (-len(t["identifiers_found"]), t["ref"], t["sha"]))
 
 
@@ -719,6 +819,17 @@ def extract(
         evidence = _extract(task_dir, str(git_path), out_dir, tip, files)
     except ExtractionError as exc:
         evidence.update({"status": exc.status, "rationale": str(exc)})
+        # Failure evidence must still self-describe the source it was read
+        # from: without a base the runtime cannot tell a classified extractor
+        # failure (unsupported-tree, ...) from a binding violation, and masked
+        # all 42 as "evidence differs". Best effort and read-only.
+        if "base" not in evidence:
+            try:
+                base = run_git(str(git_path), "rev-parse", "--verify", "HEAD^{commit}", timeout=60)
+                if SHA_RE.match(base.strip()):
+                    evidence["base"] = base.strip()
+            except Exception:  # noqa: BLE001 - base stays absent, status preserved
+                pass
     except (OSError, UnicodeError, ValueError) as exc:
         evidence.update({"status": "input-error", "rationale": str(exc)})
     except Exception as exc:
@@ -759,7 +870,7 @@ def _extract(
     base = run_git(git_dir, "rev-parse", "--verify", "HEAD^{commit}").strip()
     if not SHA_RE.match(base):
         raise ExtractionError("unsupported-tree", "only SHA-1 Git repositories are supported")
-    tree_paths = base_tree_paths(git_dir, base)
+    tree_paths, skipped_git_nested = base_tree_paths(git_dir, base)
     # Task test files: named by test.patch AND present in the base tree.
     # This drops Xiaomi harness files (test_commands.json, mimo_test_command.sh).
     task_test_files = [
@@ -774,7 +885,7 @@ def _extract(
     )
 
     source_paths = extract_source_paths(instruction, patch_text)
-    future = future_commits(git_dir, base)
+    future, fsck_note = future_commits(git_dir, base)
     candidates = []
     for c in future:
         touched = [p for _, p in c["files"] if p in task_test_files]
@@ -839,6 +950,8 @@ def _extract(
         "base": base,
         "n_future_commits": len(future),
         "n_future_on_ref": sum(1 for c in future if c["on_ref"]),
+        "fsck_note": fsck_note,
+        "skipped_git_nested_base_paths": skipped_git_nested,
         "test_patch_files": patch_files,
         "task_test_files": task_test_files,
         "fail_to_pass": fail_to_pass,
@@ -1023,7 +1136,7 @@ def s2b_excluded(path: str) -> bool:
 
 def anchor_paths(git_dir: str, tree: str, modules: list[str]) -> dict[str, str]:
     """Map test-imported modules to repo paths in `tree` (base or tip)."""
-    paths = sorted(base_tree_paths(git_dir, tree))
+    paths = sorted(base_tree_paths(git_dir, tree)[0])
     anchored = {}
     for mod in modules:
         rel = mod.replace(".", "/")
@@ -1406,11 +1519,44 @@ def finish(
     return evidence
 
 
-def unpack_base(git_dir: str, base: str, destination: Path) -> None:
+def _fs_case_sensitive(directory: Path) -> bool:
+    """Probe whether `directory` distinguishes case (for case-colliding trees)."""
+    probe = directory / ".oracle-case-probe-AA"
+    shadow = directory / ".oracle-case-probe-aa"
+    directory.mkdir(parents=True, exist_ok=True)
+    probe.write_bytes(b"1")
+    try:
+        if not shadow.exists():
+            return True
+        try:
+            return not shadow.samefile(probe)
+        except OSError:
+            return True
+    finally:
+        with contextlib.suppress(OSError):
+            probe.unlink()
+
+
+def unpack_base(
+    git_dir: str,
+    base: str,
+    destination: Path,
+    *,
+    skipped: list[str] | None = None,
+    case_sensitive: bool | None = None,
+) -> None:
     """Materialize raw base blobs, bypassing unsafe archive/filter semantics.
 
     Nothing is checked out through Git filters, tar extraction or the source
     index. Symlinks are validated before any filesystem write.
+
+    `.git`-nested fixture entries are skipped (mirroring base_tree_paths) and
+    appended to `skipped` when given: a diff touching them then honestly fails
+    the apply check instead of censoring the whole tree. Submodules and
+    special modes still fail loudly: silently dropping them could validate a
+    partial patch as the full fix. Case-colliding trees are allowed only on
+    case-sensitive filesystems (`case_sensitive` overrides the probe, for
+    deterministic tests).
     """
     manifest = {}
     for entry in run_git(git_dir, "ls-tree", "-rz", base).split("\x00"):
@@ -1418,6 +1564,10 @@ def unpack_base(git_dir: str, base: str, destination: Path) -> None:
             continue
         metadata, path = entry.split("\t", 1)
         mode, kind, sha = metadata.split()
+        if _is_git_nested(path):
+            if skipped is not None:
+                skipped.append(path)
+            continue
         path = safe_path(path)
         if kind != "blob" or mode not in ("100644", "100755", "120000"):
             raise ExtractionError(
@@ -1426,7 +1576,9 @@ def unpack_base(git_dir: str, base: str, destination: Path) -> None:
         manifest[path] = (mode, sha)
     folded = [path.casefold() for path in manifest]
     if len(set(folded)) != len(folded):
-        raise ExtractionError("unsupported-tree", "case-colliding base paths are unsupported")
+        sensitive = _fs_case_sensitive(destination) if case_sensitive is None else case_sensitive
+        if not sensitive:
+            raise ExtractionError("unsupported-tree", "case-colliding base paths are unsupported")
     links = {path for path, (mode, _) in manifest.items() if mode == "120000"}
     for path in manifest:
         parents = path.split("/")[:-1]

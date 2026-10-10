@@ -97,16 +97,69 @@ def _report() -> dict:
     }
 
 
+def _parse_interpreter_probe(text: str) -> tuple[str, int]:
+    """Parse the extractor-python probe stdout into (path, version code).
+
+    The probe prints exactly two lines: the chosen interpreter path and its
+    numeric version (major * 100 + minor). Anything else — empty output (all
+    interpreters too old), extra lines (a merged stream), a relative path —
+    fails closed. Pure function; the shell probe itself is validated against
+    real task images, not unit tests.
+    """
+    picked = text.splitlines()
+    if len(picked) != 2 or not picked[0].startswith("/") or not picked[1].isdigit():
+        raise RuntimeFailure("could not bind existing in-image Python interpreter")
+    return picked[0], int(picked[1])
+
+
+
+
+BUILD_ATTEMPTS = 3
+
+
 async def _build_image(task: dict, app: Any) -> tuple[Any, dict]:
-    """Hydrate once before any sandbox clock; cold imports are separate evidence."""
+    """Hydrate once before any sandbox clock; cold imports are separate evidence.
+
+    Registry hydration is transiently flaky at this scale (227 wave-1
+    ImageBuildErrors on images that pull cleanly elsewhere, zero in wave 2),
+    so retry boundedly. Builds are outside the sandbox-reservation fence;
+    attempts are recorded, never silently absorbed.
+    """
     started = time.monotonic()
-    record = {"image": task["image"], "image_id": None, "started_at": _utc()}
+    record: dict = {
+        "image": task["image"],
+        "image_id": None,
+        "started_at": _utc(),
+        "attempts": 0,
+        "attempt_errors": [],
+    }
+    image = None
     try:
         import modal
 
-        image = modal.Image.from_registry(task["image"])
-        image = await image.build.aio(app)
-        record.update({"status": "complete", "image_id": image.object_id})
+        for attempt in range(1, BUILD_ATTEMPTS + 1):
+            record["attempts"] = attempt
+            try:
+                candidate = modal.Image.from_registry(task["image"])
+                image = await candidate.build.aio(app)
+                record.update({"status": "complete", "image_id": image.object_id})
+                break
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - recorded, retried, reported
+                record["attempt_errors"].append(f"{type(exc).__name__}: {exc}"[:300])
+                if attempt == BUILD_ATTEMPTS:
+                    record.update(
+                        {
+                            "status": "infrastructure-error",
+                            "reason": (
+                                f"image build: {record['attempt_errors'][-1]} "
+                                f"({BUILD_ATTEMPTS} attempts)"
+                            ),
+                        }
+                    )
+                else:
+                    await asyncio.sleep(min(30.0, 5.0 * attempt))
     except asyncio.CancelledError:
         image = None
         record.update(
@@ -114,14 +167,6 @@ async def _build_image(task: dict, app: Any) -> tuple[Any, dict]:
                 "status": "infrastructure-error",
                 "cancelled": True,
                 "reason": "cancelled during image build; no sandbox creation attempted",
-            }
-        )
-    except Exception as exc:
-        image = None
-        record.update(
-            {
-                "status": "infrastructure-error",
-                "reason": f"image build: {type(exc).__name__}: {exc}",
             }
         )
     record.update({"finished_at": _utc(), "elapsed_seconds": max(0.0, time.monotonic() - started)})
@@ -245,6 +290,8 @@ class _Session:
         }
         self.patch = None
         self.git_dir = None
+        self._base_dirt: set[str] | None = None
+        self._last_dirt: set[str] | None = None
         self.log_path = directory / "evidence.log"
         self.log_path.touch(exist_ok=False)
 
@@ -317,10 +364,14 @@ class _Session:
         try:
 
             async def execute():
+                # Streams stay separate: machine-parsed probes read stdout only,
+                # so interpreter warnings and .pth tracebacks on stderr can no
+                # longer pollute the parsed value (152-task interp-bind class).
+                # Both streams remain retained as separate artifacts.
                 proc = await self.sandbox.exec.aio(
                     "bash",
                     "-c",
-                    "exec 2>&1\n" + command,
+                    command,
                     workdir=self.task["workdir"],
                     timeout=max(1, math.floor(self.remaining())),
                     text=False,
@@ -406,6 +457,21 @@ class _Session:
         if len(data) != 2 or not data[0].startswith("/") or not SHA40.fullmatch(data[1]):
             raise RuntimeFailure("image Git directory/base cannot be positively bound")
         self.git_dir = data[0]
+        # Worktree dirt baseline: images ship with tracked files already
+        # modified or deleted (108-task setup-clean-base class). Setup must not
+        # add NEW tracked dirt; pre-existing dirt is recorded and tolerated
+        # because both arms observe the identical image worktree.
+        dirt = await self.command(
+            f"{phase}-dirt",
+            f"git -c safe.directory={workdir} --git-dir={shlex.quote(self.git_dir)} "
+            f"--work-tree={workdir} status --porcelain=v1 --untracked-files=all",
+        )
+        if dirt["exit_code"] == 0:
+            lines = dirt["stdout"].read_bytes().decode("utf-8", errors="replace").splitlines()
+            self.arm[f"{phase}_dirt_lines"] = len(lines)
+            if self._base_dirt is None:
+                self._base_dirt = set(lines)
+            self._last_dirt = set(lines)
         return data[1]
 
     async def extract(self, inputs: dict, extractor: bytes) -> None:
@@ -413,14 +479,28 @@ class _Session:
         await self.upload(f"{STAGE}/extract.py", extractor)
         for name, data in inputs["files"].items():
             await self.upload(f"{remote_task}/{name}", data)
+        # Probe every visible interpreter and bind the newest >= 3.7. PATH order
+        # is not a version order (3.6-first images that also ship 3.9+), and
+        # startup warnings on stderr must not pollute the parsed value now that
+        # streams are separate. Exit 46: no interpreter; exit 47: all < 3.7.
         version = await self.require(
             "extractor-python",
-            "P=$(command -v python3 || command -v python) || exit 46\n"
-            "\"$P\" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 7) else 47)' && printf '%s\\n' \"$P\"",
+            "best=''; bestv=0\n"
+            "for P in $(command -v python3 2>/dev/null; command -v python 2>/dev/null; "
+            "ls -d /usr/bin/python3* /usr/local/bin/python3* /opt/*/bin/python3* "
+            "/root/.pyenv/versions/*/bin/python3* 2>/dev/null); do\n"
+            '  v=$("$P" -c \'import sys; v=sys.version_info; '
+            "print(v[0]*100+v[1]) if v >= (3, 7) else exit(47)' 2>/dev/null) || continue\n"
+            '  case "$v" in *[!0-9]*) continue;; esac\n'
+            '  if [ "$v" -gt "$bestv" ]; then best="$P"; bestv="$v"; fi\n'
+            "done\n"
+            '[ -n "$best" ] || exit 46\n'
+            'printf \'%s\\n%s\\n\' "$best" "$bestv"',
         )
-        python = version["stdout"].read_bytes().decode().strip()
-        if not python.startswith("/") or "\n" in python:
-            raise RuntimeFailure("could not bind existing in-image Python interpreter")
+        picked = version["stdout"].read_bytes().decode()
+        python, _version_code = _parse_interpreter_probe(picked)
+        self.arm["interpreter"] = python
+        self.arm["interpreter_version_code"] = _version_code
         process = await self.command(
             "extraction",
             f"{shlex.quote(python)} {STAGE}/extract.py --task {shlex.quote(remote_task)} "
@@ -444,8 +524,22 @@ class _Session:
                 "extractor_sha256": _sha(extractor),
             }
         )
-        if evidence.get("base") != self.arm["base"] or evidence.get("task") != self.task["task_id"]:
-            raise RuntimeFailure("extractor evidence differs from actual selected task/image base")
+        # The extractor's own failure statuses (unsupported-tree,
+        # unsupported-path, git-error, ...) are terminal evidence, not a
+        # binding violation: preserve them so the sweep classifies each
+        # distinctly instead of relabeling all 42 as "evidence differs".
+        # Enforce the base/task binding only when the evidence carries a base.
+        status = evidence.get("status")
+        if status not in SUCCESS:
+            if evidence.get("task") != self.task["task_id"]:
+                raise RuntimeFailure(
+                    "extractor evidence differs from actual selected task/image base"
+                )
+            if evidence.get("base") is not None and evidence.get("base") != self.arm["base"]:
+                raise RuntimeFailure(
+                    "extractor evidence differs from actual selected task/image base"
+                )
+            return
         if evidence.get("status") in SUCCESS:
             if process["exit_code"] != 0 or evidence.get("apply_check_on_base") is not True:
                 raise RuntimeFailure(
@@ -478,7 +572,25 @@ class _Session:
             f"git -c safe.directory={shlex.quote(self.task['workdir'])} "
             f"--git-dir={shlex.quote(self.git_dir)} --work-tree={shlex.quote(self.task['workdir'])}"
         )
-        await self.require("setup-clean-base", f"{git} diff --quiet HEAD --")
+        # The setup-base probe above already snapshotted post-setup dirt. Fail
+        # only on NEW tracked dirt versus the image-base baseline: pre-existing
+        # image dirt is identical in both arms, so the control stays balanced.
+        # Untracked setup outputs were never gated (diff ignores them).
+        current = await self.command("setup-clean-base", f"{git} diff --quiet HEAD --")
+        post = self._last_dirt if self._last_dirt is not None else set()
+        baseline = self._base_dirt if self._base_dirt is not None else set()
+        new_tracked = sorted(
+            line for line in (post - baseline) if line.strip() and not line.startswith("??")
+        )
+        self.arm["setup_new_tracked_dirt"] = new_tracked[:20]
+        if current["exit_code"] != 0 and new_tracked:
+            raise RuntimeFailure(
+                "setup introduced new tracked worktree dirt: " + "; ".join(new_tracked[:10])
+            )
+        if current["exit_code"] not in (0, 1):
+            raise RuntimeFailure(
+                f"setup-clean-base failed with exit {current['exit_code']}; see retained logs"
+            )
         self.arm["setup_base_bound"] = True
 
     async def apply(self, patch: bytes) -> None:

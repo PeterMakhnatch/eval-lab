@@ -761,6 +761,28 @@ def census_fix_content(
     workdir = str(environment.get("workdir", "/testbed"))
     if not image:
         return {"census_locations": None, "reason": "run package has no docker_image pin"}
+    clean_setup_sha = ""
+    clean_sh_path = clean_package / "environment" / "setup" / "setup.sh"
+    if clean_sh_path.is_file():
+        clean_setup_sha = hashlib.sha256(clean_sh_path.read_bytes()).hexdigest()
+    meta_path = scratch / "census.meta.json"
+    if meta_path.is_file():
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            meta = {}
+        # Reuse completed probes verbatim (deterministic): same image (fix
+        # source) and same shipped setup means the same locations count.
+        if (
+            meta.get("image") == image
+            and meta.get("clean_setup_sha256") == clean_setup_sha
+            and isinstance(meta.get("clean", {}).get("hits_total"), int)
+        ):
+            return {
+                "census_locations": meta["clean"]["hits_total"],
+                "reason": "",
+                "detail": meta["clean"],
+            }
     git_dir = scratch / "git-copy"
     if not copy_git_from_image(image, workdir, git_dir):
         return {"census_locations": None, "reason": "could not copy .git from image"}
@@ -786,10 +808,8 @@ def census_fix_content(
     stage_probe(published_stage, setup_source)
     run_probe(image, workdir, fix_sha, published_stage, published_out)
     clean_source = clean_package / "environment" / "setup"
-    clean_sh_path = clean_source / "setup.sh"
-    if not clean_sh_path.is_file():
+    if not clean_setup_sha:
         return {"census_locations": None, "reason": "clean package has no setup.sh"}
-    clean_setup_sha = hashlib.sha256(clean_sh_path.read_bytes()).hexdigest()
     clean_stage = scratch / "stage-clean"
     clean_out = scratch / "out-clean"
     stage_probe(clean_stage, clean_source)
@@ -804,6 +824,7 @@ def census_fix_content(
                 "fix_sha": fix_sha,
                 "clean_setup": "package environment/setup/setup.sh",
                 "clean_setup_sha256": clean_setup_sha,
+                "image": image,
                 "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
                 "clean": clean_row,
             },

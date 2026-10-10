@@ -460,3 +460,34 @@ def test_trial_wall_hours_and_batch_cost(tmp_path: Path) -> None:
     assert result["per_task_usd"]["task-a"] == pytest.approx(0.23094)
     assert result["batch_usd"] == pytest.approx(0.23094)
     assert result["unscored"] == []
+
+
+def test_fix_census_reuses_completed_probes(tmp_path: Path) -> None:
+    import hashlib
+
+    from evallab.mimo_census import census_fix_content
+
+    clean = tmp_path / "clean"
+    (clean / "environment" / "setup").mkdir(parents=True)
+    (clean / "environment" / "setup" / "setup.sh").write_text("# ship\n", encoding="utf-8")
+    run = tmp_path / "runpkg"
+    (run).mkdir()
+    (run / "task.toml").write_text(
+        '[environment]\ndocker_image = "img:1"\nworkdir = "/testbed"\n', encoding="utf-8"
+    )
+    scratch = tmp_path / "scratch" / "task-x"
+    scratch.mkdir(parents=True)
+    sha = hashlib.sha256(b"# ship\n").hexdigest()
+    (scratch / "census.meta.json").write_text(
+        json.dumps({"image": "img:1", "clean_setup_sha256": sha, "clean": {"hits_total": 0}}),
+        encoding="utf-8",
+    )
+    # No Docker needed: reuse short-circuits before any container call.
+    result = census_fix_content(
+        task_id="task-x",
+        clean_package=clean,
+        run_package=run,
+        language="python",
+        scratch_root=tmp_path / "scratch",
+    )
+    assert result["census_locations"] == 0

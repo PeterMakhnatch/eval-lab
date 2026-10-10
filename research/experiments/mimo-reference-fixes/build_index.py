@@ -31,7 +31,18 @@ HAR191_PROJECTION = ROOT / "research/experiments/python-task-ledger/oracle_sweep
 HAR191_TASKS = Path.home() / "Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks"
 
 # (observations csv, wave tasks dir, source tag) for this slice's waves.
-WAVES: list[tuple[Path, Path, str]] = []
+WAVES: list[tuple[Path, Path, str]] = [
+    (
+        HERE / "observations-w1.csv",
+        Path.home() / "Developer/eval-lab-results/2026-10-09/mimo-ref-fixes-sweep-w1/tasks",
+        "sweep-2026-10-09",
+    ),
+    (
+        HERE / "observations-w2.csv",
+        Path.home() / "Developer/eval-lab-results/2026-10-09/mimo-ref-fixes-sweep-w2/tasks",
+        "sweep-2026-10-09",
+    ),
+]
 
 INDEX_COLUMNS = ("task_id", "label", "fix_commit", "patch_path", "patch_sha256", "source")
 

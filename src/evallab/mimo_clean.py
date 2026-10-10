@@ -1,4 +1,4 @@
-"""mimo-clean-v3: canonical clean chain for the MiMo code pool (all languages).
+"""mimo-clean-v4: canonical clean chain for the MiMo code pool (all languages).
 
 Builds one clean package per code task:
 
@@ -8,13 +8,13 @@ Builds one clean package per code task:
   targets and run packages that already carry the marker; fail-closed tasks
   skip with reason, everything else skips per the HAR-194 scope stance) ->
   ``purge-build-caches@4`` -> ``mtime-normalize@2`` ->
-  ``separate-verifier@5`` -> ``agent-network-none@1``, with a reference
+  ``separate-verifier@6`` -> ``agent-network-none@1``, with a reference
   solution when one exists and a probe marker derived from the hidden
   test patch. Every manifest row records the complete transform chain.
 - Non-Python tasks (every snapshot task whose ``task.toml`` category is not
   Python, minus ledger members which the ledger row owns): snapshot task dir
   -> ``strip-future-history@1`` -> ``purge-build-caches@4`` ->
-  ``mtime-normalize@2`` -> ``separate-verifier@5`` -> ``agent-network-none@1``.
+  ``mtime-normalize@2`` -> ``separate-verifier@6`` -> ``agent-network-none@1``.
   ``purge-installed-copies`` is a Python pip mechanism and never applies;
   it is noted, not derived.
 
@@ -58,8 +58,8 @@ from evallab.purge_build_caches import derive_purge_build_caches_v4
 from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
-from evallab.separate_verifier import TRANSFORM_ID_V5 as SEPARATE_V5_ID
-from evallab.separate_verifier import derive_separate_verifier_v5
+from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
+from evallab.separate_verifier import derive_separate_verifier_v6
 from evallab.strip_future_history import STRIP_MARKER, derive_strip_future_history
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.task_variants import (
@@ -73,13 +73,13 @@ from evallab.task_variants import (
 )
 
 #: Clean-set version id (manifest + job-name namespace).
-CLEAN_SET_VERSION = "mimo-clean-v3"
+CLEAN_SET_VERSION = "mimo-clean-v4"
 
 #: Who the builder blames in lineage records.
-CREATED_BY = "mimo-clean-v3"
+CREATED_BY = "mimo-clean-v4"
 
-#: Tracked manifest path (repo-relative). v1/v2 stay as history untouched.
-MANIFEST_REL = Path("research/experiments/mimo-clean-v3/manifest.csv")
+#: Tracked manifest path (repo-relative). v1/v2/v3 stay as history untouched.
+MANIFEST_REL = Path("research/experiments/mimo-clean-v4/manifest.csv")
 
 #: Manifest columns (contract: at least task_id, domain, language, chain,
 #: final_digest, package_path, reference_fix, status, reason; ``verify`` is
@@ -148,7 +148,7 @@ PYTHON_CHAIN = (
     PURGE_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
-    SEPARATE_V5_ID,
+    SEPARATE_V6_ID,
     AGENT_NETWORK_NONE_ID,
 )
 
@@ -158,13 +158,13 @@ NONPYTHON_CHAIN = (
     STRIP_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
-    SEPARATE_V5_ID,
+    SEPARATE_V6_ID,
     AGENT_NETWORK_NONE_ID,
 )
 
 #: Language plugs for the builder. ``python`` is the ledger pool;
 #: every other resolved language takes the non-Python chain (including
-#: ``unknown`` snapshot categories: @5 grades those with the exit-code
+#: ``unknown`` snapshot categories: @6 grades those with the exit-code
 #: fallback under patch isolation). ``None`` (unresolvable task) has no chain.
 LANGUAGE_CHAINS: dict[str, tuple[str, ...] | None] = {
     "python": PYTHON_CHAIN,
@@ -885,7 +885,7 @@ class ChainBuilder:
             )
             result.chain.append(transform)
 
-        # separate-verifier@5 bundles setup, the hidden-test marker, and the
+        # separate-verifier@6 bundles setup, the hidden-test marker, and the
         # oracle-pass solution. The agent network declaration is appended last.
         patch_file = current / "tests" / "test.patch"
         marker = derive_marker(
@@ -914,20 +914,20 @@ class ChainBuilder:
         try:
             record, _ = self.find_or_derive(
                 task_id,
-                SEPARATE_V5_ID,
+                SEPARATE_V6_ID,
                 current,
                 current_digest,
-                derive_separate_verifier_v5,
+                derive_separate_verifier_v6,
                 parent_source=source,
                 expected_inputs={"marker": marker, "solution": solution_tag},
                 marker=marker,
                 solution_sh=solution_sh,
             )
         except VariantInvalid as exc:
-            result.reason = f"separate-verifier@5 failed: {exc}"
+            result.reason = f"separate-verifier@6 failed: {exc}"
             return result
         current_digest = record.variant_digest
-        result.chain.append(SEPARATE_V5_ID)
+        result.chain.append(SEPARATE_V6_ID)
         current, current_digest, source = self._advance(task_id, current_digest, row, start_digest)
         try:
             record, _ = self.find_or_derive(
@@ -1033,8 +1033,8 @@ def build_mimo_clean_parser(commands) -> None:
     """Register the ``evallab mimo-clean`` subcommand (one self-contained block)."""
     mimo = commands.add_parser(
         "mimo-clean",
-        help="Build and locally verify the mimo-clean-v3 task set ($0, model-free)",
-        description=__doc__.split("\n\n")[0] if __doc__ else "mimo-clean-v3",
+        help="Build and locally verify the mimo-clean-v4 task set ($0, model-free)",
+        description=__doc__.split("\n\n")[0] if __doc__ else "mimo-clean-v4",
     )
     sub = mimo.add_subparsers(dest="mimo_clean_cmd", required=True)
     build = sub.add_parser("build", help="Derive the canonical clean chain for code tasks")
@@ -1072,7 +1072,7 @@ def build_mimo_clean_parser(commands) -> None:
     )
     verify.add_argument("--tasks", required=True, help="comma-separated task ids")
     verify.add_argument("--manifest", type=Path, default=MANIFEST_REL, help="manifest CSV to read")
-    verify.add_argument("--jobs-dir", type=Path, default=Path("runs/mimo-clean-v3"))
+    verify.add_argument("--jobs-dir", type=Path, default=Path("runs/mimo-clean-v4"))
     verify.add_argument("--timeout-seconds", type=int, default=1800)
     verify.set_defaults(func=_mimo_clean_command)
 
@@ -1398,7 +1398,7 @@ __all__ = [
     "PYTHON_CHAIN",
     "REFERENCE_INDEX_REL",
     "SELECTED_VERDICTS",
-    "SEPARATE_V5_ID",
+    "SEPARATE_V6_ID",
     "STATUS_BUILT",
     "STATUS_SKIPPED",
     "STRIP_ID",

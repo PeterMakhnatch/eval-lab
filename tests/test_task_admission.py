@@ -130,7 +130,7 @@ def test_admit_all_pass_writes_digest_bound_record(tmp_path: Path) -> None:
     assert result.record.verdict == "admitted"
     assert result.record.failing_steps == []
     assert result.record.failed_attacks == []
-    assert len(result.record.steps) == 16  # scan + oracle + nop + 12 attacks + mutation
+    assert len(result.record.steps) == 18  # scan + oracle + nop + 14 attacks + mutation
     assert result.record.steps[-1].name == "mutation"
     assert result.record.steps[-1].status == "pass"
     assert result.record_path.name == admission.record_filename(result.record.package_digest)
@@ -170,7 +170,7 @@ def test_reject_stops_at_first_failure(tmp_path: Path) -> None:
     # Early stop: nop and the ladder never ran.
     assert calls == ["oracle"]
     assert result.record.skipped_steps[0] == "nop"
-    assert len(result.record.skipped_steps) == 14
+    assert len(result.record.skipped_steps) == 16
 
 
 def test_reject_names_cracked_attack(tmp_path: Path) -> None:
@@ -311,7 +311,7 @@ def test_plan_lists_every_step_without_running(tmp_path: Path) -> None:
     plan = admission.plan_admission()
     assert [entry["name"] for entry in plan[:3]] == ["static-scan", "oracle", "nop"]
     assert plan[-1]["name"] == "mutation"
-    assert len(plan) == 16
+    assert len(plan) == 18
     assert all(entry["command"] for entry in plan)
 
 

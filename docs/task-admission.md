@@ -8,7 +8,7 @@ audience:
 # Task admission gate (`evallab tasks admit`)
 
 One fail-closed gate over a task package directory: offline static scan,
-$0 oracle/nop controls, then the full 12-attack cheat ladder, then a
+$0 oracle/nop controls, then the full 14-attack cheat ladder, then a
 verifier-mutation probe — in that order, stopping at the first
 non-passing step, always writing a digest-bound admission record
 (`evallab.task_admission/v1`).
@@ -16,7 +16,7 @@ non-passing step, always writing a digest-bound admission record
 ## Usage
 
 ```bash
-# print the 16-step plan without running Docker
+# print the 18-step plan without running Docker
 uv run evallab tasks admit --task <package> --dry-run
 # run the gate ($0, local Docker, n-concurrent 1)
 uv run evallab tasks admit --task <package> --job-prefix admit --json
@@ -43,8 +43,8 @@ against records you do not want to flip.
 | 1 | `static-scan` (`hack scan` in-process) | the scan executes; findings are recorded as advisory evidence, never a veto (see below) |
 | 2 | `oracle` (stability-job path, repeat 3) | every trial reward is exactly 1.0 — via the shipped `solution/solve.sh`, or via the HAR-191 reference (see below); `unproven` when neither exists |
 | 3 | `nop` (stability-job path, repeat 3) | every trial reward is exactly 0.0 |
-| 4–15 | `cheat:<attack>` (one single-trial cheat job per attack, full 12-attack ladder) | reward < 1.0 (the lane rule: cracked iff reward >= 1.0) |
-| 16 | `mutation` (`hack mutate` audit, `--max-mutants` 12) | every scored mutant is killed (see below) |
+| 4–17 | `cheat:<attack>` (one single-trial cheat job per attack, full 14-attack ladder) | reward < 1.0 (the lane rule: cracked iff reward >= 1.0) |
+| 18 | `mutation` (`hack mutate` audit, `--max-mutants` 12) | every scored mutant is killed (see below) |
 
 Each executed step records command, job dir, reward(s), duration, and
 (for oracle/mutation) the reference provenance. Verdicts: `admitted`

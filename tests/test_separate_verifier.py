@@ -24,6 +24,7 @@ from evallab.separate_verifier import (
     TRANSFORM_ID_V3,
     TRANSFORM_ID_V4,
     TRANSFORM_ID_V5,
+    TRANSFORM_ID_V6,
     V2_GRADE_DIR,
     V2_SETUP_SUBDIR,
     V3_CONFTEST_HOOK,
@@ -37,30 +38,37 @@ from evallab.separate_verifier import (
     build_changes_v3,
     build_changes_v4,
     build_changes_v5,
+    build_changes_v6,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
     derive_separate_verifier_v3,
     derive_separate_verifier_v4,
     derive_separate_verifier_v5,
+    derive_separate_verifier_v6,
     detect_pytest_run,
     detect_runner,
     drop_reason,
     evaluate_cargo_output,
     evaluate_go_output,
+    evaluate_go_output_v6,
     evaluate_js_output,
     evaluate_junit,
     evaluate_junit_v4,
     evaluate_junit_v5,
+    evaluate_junit_v6,
     evaluate_phpunit_output,
     evaluate_rspec_output,
     evaluate_surefire_reports,
     evaluate_unittest,
+    evaluate_unittest_v6,
     is_pytest_config_tamper,
     is_test_infra_filename,
     is_v3_new_infra,
     junit_absence_suspicious,
     junit_case_matches_expected,
+    junit_case_status,
+    junit_status_map,
     output_is_blank,
     parse_named_pytest_ids,
     parse_pytest_node_id,
@@ -69,6 +77,7 @@ from evallab.separate_verifier import (
     render_wrapper_test_sh_v3,
     render_wrapper_test_sh_v4,
     render_wrapper_test_sh_v5,
+    render_wrapper_test_sh_v6,
     resolve_command_text,
     tamper_signature_hit,
     v3_config_revert_reason,
@@ -1977,3 +1986,455 @@ def test_v5_refuses_without_a_setup_chain(parent_dir: Path) -> None:
         build_changes_v5(parent_dir, marker=MARKER)
     with pytest.raises(VariantInvalid):
         build_changes_v5(parent_dir, marker="  ")
+
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@6: pristine-baseline fail-to-pass grading
+# --------------------------------------------------------------------------- #
+
+_V6_BASE_JUNIT = (
+    b'<testsuite tests="4">'
+    b'<testcase classname="pkg.test_a" name="test_fail_one"><failure message="x"/></testcase>'
+    b'<testcase classname="pkg.test_a" name="test_fail_two"><error message="x"/></testcase>'
+    b'<testcase classname="pkg.test_a" name="test_pass_one"/>'
+    b'<testcase classname="pkg.test_a" name="test_skip_one"><skipped message="x"/></testcase>'
+    b"</testsuite>"
+)
+
+_V6_ORACLE_JUNIT = (
+    b'<testsuite tests="4">'
+    b'<testcase classname="pkg.test_a" name="test_fail_one"/>'
+    b'<testcase classname="pkg.test_a" name="test_fail_two"/>'
+    b'<testcase classname="pkg.test_a" name="test_pass_one"/>'
+    b'<testcase classname="pkg.test_a" name="test_skip_one"><skipped message="x"/></testcase>'
+    b"</testsuite>"
+)
+
+_V6_SKIP_JUNIT = (
+    b'<testsuite tests="4">'
+    b'<testcase classname="pkg.test_a" name="test_fail_one"><skipped message="x"/></testcase>'
+    b'<testcase classname="pkg.test_a" name="test_fail_two"><skipped message="x"/></testcase>'
+    b'<testcase classname="pkg.test_a" name="test_pass_one"><skipped message="x"/></testcase>'
+    b'<testcase classname="pkg.test_a" name="test_skip_one"><skipped message="x"/></testcase>'
+    b"</testsuite>"
+)
+
+_V6_NAMED = {
+    "pkg/test_a.py::test_fail_one",
+    "pkg/test_a.py::test_fail_two",
+    "pkg/test_a.py::test_pass_one",
+    "pkg/test_a.py::test_skip_one",
+}
+
+
+def test_v6_status_map_keeps_the_worst_outcome() -> None:
+    import xml.etree.ElementTree as ET
+
+    assert junit_case_status(ET.fromstring(
+        b'<testcase classname="X" name="a"><failure/></testcase>'
+    )) == "bad"
+    assert junit_case_status(ET.fromstring(
+        b'<testcase classname="X" name="a"><skipped/></testcase>'
+    )) == "skipped"
+    assert junit_case_status(ET.fromstring(
+        b'<testcase classname="X" name="a"/>'
+    )) == "passed"
+    key = ("pkg.test_a", "test_fail_one", "")
+    assert junit_status_map([_V6_BASE_JUNIT]) == {
+        ("pkg.test_a", "test_fail_one", ""): "bad",
+        ("pkg.test_a", "test_fail_two", ""): "bad",
+        ("pkg.test_a", "test_pass_one", ""): "passed",
+        ("pkg.test_a", "test_skip_one", ""): "skipped",
+    }
+    assert junit_status_map([_V6_BASE_JUNIT])[key] == "bad"
+    assert junit_status_map([]) == {}
+    assert junit_status_map([None, b"not xml <"]) == {}
+
+
+def test_v6_grading_requires_fail_to_pass() -> None:
+    # Oracle: pristine failures now pass, passes still pass, pristine skips
+    # still skipped.
+    assert evaluate_junit_v6([_V6_ORACLE_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 1
+    # Skip attack: pristine failures skipped instead of passing.
+    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
+    # Nop: pristine failures still failing.
+    assert evaluate_junit_v6([_V6_BASE_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
+    # Pass-to-pass broken: a pristine pass now fails.
+    broken = _V6_ORACLE_JUNIT.replace(
+        b'name="test_pass_one"/>', b'name="test_pass_one"><failure message="x"/></testcase>'
+    )
+    assert evaluate_junit_v6([broken], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
+    # New skip: a pristine pass skipped instead.
+    reskipped = _V6_ORACLE_JUNIT.replace(
+        b'name="test_pass_one"/>', b'name="test_pass_one"><skipped message="x"/></testcase>'
+    )
+    assert evaluate_junit_v6([reskipped], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
+    # Pristine skip now passing is fine.
+    unskipped = _V6_ORACLE_JUNIT.replace(
+        b'name="test_skip_one"><skipped message="x"/></testcase>',
+        b'name="test_skip_one"/>',
+    )
+    assert evaluate_junit_v6([unskipped], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 1
+
+
+def test_v6_grading_without_baseline_is_v5() -> None:
+    # No baseline artifacts: the skip attack grades like @5 (documents the
+    # fallback; the shipped grader always records a baseline for pytest).
+    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, None) == 1
+    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, []) == 1
+    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, [None]) == 1
+    assert evaluate_junit_v6([_V6_ORACLE_JUNIT], 0, _V6_NAMED, None) == 1
+    assert evaluate_junit_v6([_V6_BASE_JUNIT], 0, _V6_NAMED, None) == 0
+    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 1, _V6_NAMED, None) == 0
+
+
+def test_v6_unittest_counts() -> None:
+    base_fail = "Ran 8 tests in 0.01s\n\nFAILED (failures=3)\n"
+    oracle = "Ran 8 tests in 0.01s\n\nOK\n"
+    attack = "Ran 8 tests in 0.01s\n\nOK (skipped=8)\n"
+    assert evaluate_unittest_v6(oracle, 0, base_fail) == 1
+    assert evaluate_unittest_v6(attack, 0, base_fail) == 0
+    assert evaluate_unittest_v6(base_fail, 1, base_fail) == 0
+    # Skips tolerated only up to the pristine count; runs must not shrink.
+    base_skip = "Ran 8 tests in 0.01s\n\nOK (skipped=2)\n"
+    assert evaluate_unittest_v6("Ran 8 tests in 0.01s\n\nOK (skipped=2)\n", 0, base_skip) == 1
+    assert evaluate_unittest_v6("Ran 8 tests in 0.01s\n\nOK (skipped=3)\n", 0, base_skip) == 0
+    assert evaluate_unittest_v6("Ran 7 tests in 0.01s\n\nOK (skipped=2)\n", 0, base_skip) == 0
+    # No (or unparsable) baseline: exactly @5.
+    assert evaluate_unittest_v6(attack, 0, None) == 1
+    assert evaluate_unittest_v6(attack, 0, "traceback noise") == 1
+    assert evaluate_unittest_v6(oracle, 0, None) == 1
+    assert evaluate_unittest_v6(attack, 1, base_fail) == 0
+
+
+def test_v6_go_empty_run_grades_zero() -> None:
+    empty = "ok  \texample.com/mod/pkg\t0.026s [no tests to run]\n"
+    assert evaluate_go_output_v6(empty, 0) == 0
+    assert evaluate_go_output(empty, 0) == 1  # @5 still grades the shape 1
+    passing = "--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/mod/pkg\t0.1s\n"
+    assert evaluate_go_output_v6(passing, 0) == 1
+    assert evaluate_go_output_v6(passing, 1) == 0
+    assert evaluate_go_output_v6("FAIL\n", 1) == 0
+
+
+def _v6_grader_block() -> str:
+    """Extract the embedded @6 grading script (last PYEOF heredoc)."""
+    import re as _re
+
+    from evallab.separate_verifier import render_wrapper_test_sh_v6 as _render
+
+    blocks = _re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", _render("/testbed"), _re.S)
+    assert len(blocks) == 3
+    return blocks[2]
+
+
+def _run_embedded_v6_grader(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner_cmd: str,
+    output: str,
+    rc: int,
+    junit: bytes | None = None,
+    phase_xmls: list[bytes] | None = None,
+    baseline_junit: bytes | None = None,
+    baseline_phases: list[bytes] | None = None,
+    baseline_output: str | None = None,
+    patch_extra: str = "",
+) -> str:
+    """Run the shipped @6 grading script against synthetic files; return reward."""
+    junit_path = tmp_path / "junit.xml"
+    if junit is None:
+        if junit_path.exists():
+            junit_path.unlink()
+    else:
+        junit_path.write_bytes(junit)
+    phases_dir = tmp_path / "junit-phases"
+    if phase_xmls:
+        phases_dir.mkdir(exist_ok=True)
+        for index, raw in enumerate(phase_xmls):
+            (phases_dir / f"junit-hook-{index}.xml").write_bytes(raw)
+    baseline_dir = tmp_path / "baseline"
+    if baseline_junit is not None:
+        baseline_dir.mkdir(exist_ok=True)
+        (baseline_dir / "junit.xml").write_bytes(baseline_junit)
+    if baseline_phases:
+        (baseline_dir / "junit-phases").mkdir(exist_ok=True)
+        for index, raw in enumerate(baseline_phases):
+            (baseline_dir / "junit-phases" / f"junit-hook-{index}.xml").write_bytes(raw)
+    if baseline_output is not None:
+        baseline_dir.mkdir(exist_ok=True)
+        (baseline_dir / "output.log").write_text(baseline_output, encoding="utf-8")
+    if baseline_junit is None and not baseline_phases and baseline_output is None:
+        # Absent baseline must keep @5 rules: drop artifacts staged by an
+        # earlier case sharing tmp_path.
+        import shutil
+
+        shutil.rmtree(baseline_dir, ignore_errors=True)
+    patch_path = tmp_path / "test.patch"
+    patch_path.write_text(
+        f"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+{runner_cmd}\n{patch_extra}",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "test_output.log"
+    output_path.write_text(output, encoding="utf-8")
+    cmd_path = tmp_path / "test_command.sh"
+    cmd_path.write_text(runner_cmd, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "grader",
+            str(junit_path),
+            str(rc),
+            str(patch_path),
+            str(output_path),
+            str(cmd_path),
+            str(tmp_path),
+        ],
+    )
+    with pytest.raises(SystemExit):
+        exec(compile(_v6_grader_block(), "v6grader", "exec"), {"__name__": "v6grader"})
+    return capsys.readouterr().out.strip()
+
+
+def _v6_pytest_case(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    agent: bytes,
+    baseline: bytes | None,
+) -> str:
+    cmd = "python -m pytest pkg/test_a.py -v"
+    out = "=== test session starts ===\ncollected 4 items\n"
+    named = "".join(f"+    {node}\n" for node in sorted(_V6_NAMED))
+    return _run_embedded_v6_grader(
+        tmp_path,
+        capsys,
+        monkeypatch,
+        runner_cmd=cmd,
+        output=out,
+        rc=0,
+        junit=agent,
+        baseline_junit=baseline,
+        patch_extra=named,
+    )
+
+
+def test_embedded_v6_pytest_fail_to_pass(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert _v6_pytest_case(tmp_path, capsys, monkeypatch, _V6_ORACLE_JUNIT, _V6_BASE_JUNIT) == "1"
+    assert _v6_pytest_case(tmp_path, capsys, monkeypatch, _V6_SKIP_JUNIT, _V6_BASE_JUNIT) == "0"
+    assert _v6_pytest_case(tmp_path, capsys, monkeypatch, _V6_BASE_JUNIT, _V6_BASE_JUNIT) == "0"
+    # Without baseline artifacts the embedded grader keeps @5 rules.
+    assert _v6_pytest_case(tmp_path, capsys, monkeypatch, _V6_SKIP_JUNIT, None) == "1"
+    # Mirror and embedded agree on every shape above.
+    assert evaluate_junit_v6([_V6_ORACLE_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 1
+    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
+    assert evaluate_junit_v6([_V6_SKIP_JUNIT], 0, _V6_NAMED, None) == 1
+
+
+def test_embedded_v6_grades_from_archives_without_plugin_report(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The 000666 ADDOPTS-cleared shape: no plugin junit, per-phase archives
+    # only. @5 takes the missing-report path (grade 0); @6 grades the union.
+    cmd = "unset PYTEST_ADDOPTS; python -m pytest pkg/test_a.py -v"
+    out = "=== test session starts ===\ncollected 4 items\n"
+    named = "".join(f"+    {node}\n" for node in sorted(_V6_NAMED))
+    assert (
+        _run_embedded_v6_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=None,
+            phase_xmls=[_V6_ORACLE_JUNIT],
+            baseline_junit=_V6_BASE_JUNIT,
+            patch_extra=named,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v6_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=None,
+            phase_xmls=[_V6_SKIP_JUNIT],
+            baseline_junit=_V6_BASE_JUNIT,
+            patch_extra=named,
+        )
+        == "0"
+    )
+    # Mirror agrees (missing plugin report is simply absent from the union).
+    assert evaluate_junit_v6([None, _V6_ORACLE_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 1
+    assert evaluate_junit_v6([None, _V6_SKIP_JUNIT], 0, _V6_NAMED, [_V6_BASE_JUNIT]) == 0
+
+
+def test_embedded_v6_unittest_counts(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cmd = "python -m unittest tests.test_tools -v"
+    oracle_out = (
+        "test_one (tests.test_tools.TestX) ... ok\n"
+        "Ran 8 tests in 0.01s\n\nOK\n"
+    )
+    attack_out = (
+        "test_one (tests.test_tools.TestX) ... skipped 'x'\n"
+        "Ran 8 tests in 0.01s\n\nOK (skipped=8)\n"
+    )
+    base_out = "Ran 8 tests in 0.01s\n\nFAILED (failures=3)\n"
+    assert (
+        _run_embedded_v6_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=oracle_out,
+            rc=0,
+            baseline_output=base_out,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v6_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=attack_out,
+            rc=0,
+            baseline_output=base_out,
+        )
+        == "0"
+    )
+    # Mirror agrees.
+    assert evaluate_unittest_v6(oracle_out, 0, base_out) == 1
+    assert evaluate_unittest_v6(attack_out, 0, base_out) == 0
+
+
+def test_embedded_v6_go_empty_run(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cmd = "go test ./..."
+    empty = "ok  \texample.com/mod/pkg\t0.026s [no tests to run]\n"
+    passing = "--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/mod/pkg\t0.1s\n"
+    assert (
+        _run_embedded_v6_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=empty, rc=0
+        )
+        == "0"
+    )
+    assert (
+        _run_embedded_v6_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=passing, rc=0
+        )
+        == "1"
+    )
+    assert evaluate_go_output_v6(empty, 0) == 0
+    assert evaluate_go_output_v6(passing, 0) == 1
+
+
+def test_v6_template_pins() -> None:
+    wrapper = render_wrapper_test_sh_v6("/testbed")
+    assert "@@" not in wrapper
+    assert TRANSFORM_ID_V6 not in wrapper  # transform ids live in lineage, not the grader
+    assert "RUNNER_B=custom" in wrapper
+    assert "baseline/junit.xml" in wrapper
+    assert "fail-to-pass" in wrapper
+    assert "no tests to run" in wrapper
+    assert "timing.log" in wrapper
+    assert "PYEOF_BASELINE" in wrapper
+    assert "mimo-baseline-noexitfirst/1" in wrapper
+    import re as _re
+
+    assert len(_re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", wrapper, _re.S)) == 3
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v6("relative/path")
+
+
+def test_v6_grader_differs_from_v5_only_in_pinned_blocks() -> None:
+    from evallab import separate_verifier as sv
+
+    def _neutralize_c(text: str) -> str:
+        return (
+            text.replace(sv._V6_PYTEST_FTP_BLOCK, "FTP")
+            .replace(sv._V5_PYTEST_PRINT, "FTP")
+            .replace(sv._V6_UNITTEST_OK, "UOK")
+            .replace(sv._V5_UNITTEST_OK, "UOK")
+            .replace(sv._V6_GO_OK, "GOK")
+            .replace(sv._V5_GO_OK, "GOK")
+            .replace(sv._V6_RUN_TIMED, "RUN")
+            .replace(sv._V5_RUN_LINE_TIMED, "RUN")
+            .replace(sv._V6_PLUGIN_READ, "LOAD")
+            .replace(sv._V5_PLUGIN_READ, "LOAD")
+        )
+
+    assert _neutralize_c(sv._V6_WRAPPER_C) == _neutralize_c(sv._V5_WRAPPER_C)
+    assert sv._V6_WRAPPER_B == sv._V5_WRAPPER_B
+    assert sv._V6_WRAPPER_A.count(sv._V6_BASELINE_BLOCK) == 1
+    assert sv._V6_WRAPPER_A.replace(sv._V6_BASELINE_BLOCK, "") == sv._V5_WRAPPER_A
+
+
+def test_v6_variant_bundles_setup_and_records_runner(parent_dir_v2: Path) -> None:
+    changes, inputs = build_changes_v6(parent_dir_v2, marker=MARKER)
+    assert set(changes) == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+    assert "tests/test-orig.sh" not in changes
+    wrapper = changes["tests/test.sh"].decode("utf-8")  # type: ignore[union-attr]
+    assert "@@" not in wrapper
+    assert "RUNNER=$RUNNER" in wrapper
+    assert "MIMO_VERIFIER_ARCHIVE_DIR" in wrapper
+    assert "fail-to-pass" in wrapper
+    assert inputs["runner"] in ("custom", "pytest", "unittest")
+    assert len(inputs["setup_sha256"]) == 64
+
+
+def test_v6_solution_injected_only_when_parent_has_none(parent_dir_v2: Path) -> None:
+    solve = b"#!/bin/bash\necho oracle\n"
+    changes, _ = build_changes_v6(parent_dir_v2, marker=MARKER, solution_sh=solve)
+    assert changes["solution/solve.sh"] == solve
+    (parent_dir_v2 / "solution").mkdir()
+    (parent_dir_v2 / "solution" / "solve.sh").write_bytes(b"#!/bin/bash\n")
+    with pytest.raises(VariantInvalid):
+        build_changes_v6(parent_dir_v2, marker=MARKER, solution_sh=solve)
+
+
+def test_v6_derive_records_transform_id(parent_dir_v2: Path, tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    record = derive_separate_verifier_v6(
+        parent_dir_v2,
+        marker=MARKER,
+        rationale="test",
+        created_by="test",
+        repo_root=tmp_path,
+        parent_source={"kind": "local", "path": str(parent_dir_v2)},
+        variants_root=store,
+    )
+    assert record.transform == TRANSFORM_ID_V6
+    assert {change.path for change in record.files} == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+
+
+def test_v6_refuses_without_a_setup_chain(parent_dir: Path) -> None:
+    with pytest.raises(VariantInvalid):
+        build_changes_v6(parent_dir, marker=MARKER)
+    with pytest.raises(VariantInvalid):
+        build_changes_v6(parent_dir, marker="  ")

@@ -23,6 +23,16 @@ task, each carrying the full clean chain in its lineage.
   (`research/experiments/mimo-clean-v1/`) covered the Python pool only,
   ending at `purge-build-caches@1` + `separate-verifier@2`.
 
+> **Successor:** `mimo-clean-v4` is the same chain with
+> `separate-verifier@6` replacing `@5` (pristine-baseline fail-to-pass;
+> see `docs/mimo/separate-verifier.md`), built with all reference fixes
+> on main at build time. Manifest:
+> `research/experiments/mimo-clean-v4/manifest.csv`, receipt:
+> `research/experiments/mimo-clean-v4/README.md`. The cheat ladder is 14
+> attacks from v4 on (`tamper_source_skip`, `tamper_source_skiptest`).
+> This page otherwise documents v3 exactly as built and is frozen apart
+> from this pointer.
+
 ## The canonical Python chain
 
 ```

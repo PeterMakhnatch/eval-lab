@@ -770,6 +770,139 @@ def evaluate_junit_v5(
     return 1 if rc == 0 and not bad and not missing else 0
 
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@6 fail-to-pass helpers (pure; mirrored in the @6 grader)
+# --------------------------------------------------------------------------- #
+# @5 grades failures/errors only and ignores skips. A source-level skip in a
+#: module the hidden tests import needs no knowledge of the tests and yields
+#: reward 1 with zero tests passing (measured on @5 packages: 002552 pytest,
+#: rc 0 with 12/12 skipped and 4/4 named IDs present; 000803 unittest, ``Ran
+#: 8 tests OK (skipped=8)``; go ``ok ... [no tests to run]``, rc 0 — all via
+#: call-time hooks from the imported package, invisible to every tamper
+#: signature). @6 runs the hidden tests on its pristine tree first and
+#: requires the fail-to-pass shape: pristine failures must now pass.
+
+
+def junit_case_status(case: ET.Element) -> str:
+    """Per-case outcome: ``bad`` (failure/error), ``skipped``, or ``passed``."""
+    if case.find("failure") is not None or case.find("error") is not None:
+        return "bad"
+    if case.find("skipped") is not None:
+        return "skipped"
+    return "passed"
+
+
+def junit_status_map(
+    report_xmls: list[bytes | None],
+) -> dict[tuple[str, str, str], str]:
+    """Worst-outcome map per test key across junit reports (multi-phase union).
+
+    Keys are ``(classname, name, file)``; duplicates keep the worst outcome
+    (bad > skipped > passed), matching the union rule that a failure in any
+    phase fails the run.
+    """
+    worst = {"passed": 0, "skipped": 1, "bad": 2}
+    statuses: dict[tuple[str, str, str], str] = {}
+    for raw in report_xmls:
+        if not raw:
+            continue
+        try:
+            found = ET.fromstring(raw).iter("testcase")
+        except Exception:
+            continue
+        for case in found:
+            key = (case.get("classname") or "", case.get("name") or "", case.get("file") or "")
+            status = junit_case_status(case)
+            if key not in statuses or worst[status] > worst[statuses[key]]:
+                statuses[key] = status
+    return statuses
+
+
+def evaluate_junit_v6(
+    report_xmls: list[bytes | None],
+    rc: int,
+    named_ids: Collection[str],
+    baseline_xmls: list[bytes | None] | None = None,
+) -> int:
+    """Grade 1/0 with the fail-to-pass rule against a pristine baseline (@6).
+
+    Keeps every @5 rule (failures/errors, exit code, empty union, named-ID
+    matching). When a non-empty baseline union is given, every test that
+    failed/errored on pristine must now PASS (not skip, not vanish), every
+    test that passed on pristine must still pass, and skips are tolerated
+    only for tests also skipped on pristine. With no baseline (None or
+    empty), grading is exactly @5.
+    """
+    if evaluate_junit_v5(report_xmls, rc, named_ids) == 0:
+        return 0
+    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
+    if not baseline:
+        return 1
+    agent = junit_status_map(report_xmls)
+    baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
+    for key, status in baseline.items():
+        if status != "skipped" and agent.get(key) != "passed":
+            return 0
+    for key, status in agent.items():
+        if status == "skipped" and key not in baseline_skipped:
+            return 0
+    return 1
+
+
+_UNITTEST_SKIP_RE = re.compile(r"skipped=(\d+)")
+
+
+def _unittest_counts(test_output: str) -> tuple[int, int] | None:
+    """``(ran, skipped)`` from unittest summary text; ``None`` when unparsable."""
+    match = _UNITTEST_RAN_RE.search(test_output)
+    if match is None:
+        return None
+    skipped = _UNITTEST_SKIP_RE.search(test_output)
+    return (int(match.group(1)), int(skipped.group(1)) if skipped else 0)
+
+
+def evaluate_unittest_v6(
+    test_output: str, rc: int, baseline_output: str | None = None
+) -> int:
+    """Grade 1/0 from unittest output with baseline run/skip counts (@6).
+
+    Keeps every @5 rule; when the pristine baseline summary parses, the agent
+    run must execute at least as many tests and skip at most as many: every
+    pristine failure must now pass rather than skip or vanish. With no (or an
+    unparsable) baseline, grading is exactly @5.
+    """
+    if evaluate_unittest(test_output, rc) == 0:
+        return 0
+    if baseline_output is None:
+        return 1
+    base = _unittest_counts(baseline_output)
+    if base is None:
+        return 1
+    agent = _unittest_counts(test_output)
+    if agent is None:  # unreachable: evaluate_unittest already passed above
+        return 0
+    (ran_base, skipped_base) = base
+    (ran_agent, skipped_agent) = agent
+    if ran_agent < ran_base or skipped_agent > skipped_base:
+        return 0
+    return 1
+
+
+def evaluate_go_output_v6(test_output: str, rc: int) -> int:
+    """Grade 1/0 from ``go test`` output with the non-empty-run rule (@6).
+
+    Keeps every @5 rule; a run selecting zero tests (``no tests to run``)
+    grades 0 even with ``rc == 0`` and an ``ok`` line. An init hook appending
+    ``-test.run=^$`` to ``os.Args`` empties the run with zero tests passing
+    (measured in the 000553 image: ``ok pkg 0.026s [no tests to run]``,
+    rc 0). Legitimate suites never select zero tests; ``--- SKIP`` lines from
+    ``t.Skip`` do not carry this marker.
+    """
+    if "no tests to run" in test_output:
+        return 0
+    return evaluate_go_output(test_output, rc)
+
+
 def render_snapshot_hook_v2(workdir: str) -> str:
     """Collect-hook command snapshotting workspace files only (``sh -c``; POSIX
     only, no single quotes so it fits a TOML literal string).
@@ -2590,6 +2723,507 @@ def derive_separate_verifier_v5(
     )
 
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@6 template, build, and derive
+# --------------------------------------------------------------------------- #
+# @6 keeps every @5 guarantee and closes the source-skip hole with a
+# fail-to-pass rule. @5 grades failures/errors only and ignores skips; a
+# source-level skip in a module the hidden tests import needs no knowledge of
+# the tests and still grades 1 with zero tests passing (measured on @5
+# packages: 002552 pytest rc 0 with every case skipped and every named ID
+# present; 000803 unittest ``Ran 8 tests OK (skipped=8)``; go ``ok ...
+# [no tests to run]`` rc 0 — the first two via call-time hooks from the
+# imported package, the third via an init hook narrowing ``-test.run``; none
+# matches a tamper signature). The literal module-level one-liner
+# (``pytest.skip(..., allow_module_level=True)`` / ``raise SkipTest``) never
+# reaches reward 1 (conftest-startup crash rc 1, or whole-module
+# collection skips with rc 5 and missing IDs), so @5's skip tolerance looked
+# safe from the ladder: it is not.
+#
+# @6 runs the hidden tests on its pristine tree first (test patch applied, no
+# agent bytes) and records per-test outcomes. Reward 1 then requires the
+# fail-to-pass shape: rc success AND every test that failed/errored on
+# pristine now PASSES (not skipped, not vanished) AND no test that passed on
+# pristine now fails/errors; skips are tolerated only for tests also skipped
+# on pristine. Pytest compares junit unions (multi-phase included, @4
+# named-ID matching kept); unittest compares run/skip counts; go-test keeps
+# its markers plus a non-empty-run rule. With no structured baseline report,
+# grading keeps the existing exit-code fallback rules. Deriving by pinned
+# replacement (like @4/@5) keeps the rest byte-identical to @5.
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V6 = "separate-verifier@6"
+
+
+#: @6 baseline block: hidden tests on the pristine tree before any agent byte
+#: is imported. The tree at this point IS pristine (setup just ran), so the
+#: hidden-test apply, command resolution, pytest hook install, and test run
+#: mirror the agent path below. Only pytest/unittest runs execute (the only
+#: consumers of a baseline); every other runner still applies, resolves, and
+#: resets so the runner decision stays grounded. Afterwards the tree returns
+#: to exactly ``$PRISTINE``: tracked modifications via the pristine tree
+#: object, created files via the pre/post untracked difference (baked files
+#: exist in both listings and are never deleted). A broken baseline never
+#: fails grading by itself: with no baseline artifacts, grading keeps @5.
+#: The conftest-target computer uses its own heredoc delimiter so the
+#: ``<<'PYEOF'`` grader extractor keeps finding exactly three blocks.
+_V6_BASELINE_BLOCK = """# @6 baseline: hidden tests on the pristine tree (no agent bytes), for the
+# fail-to-pass rule. Afterwards the tree returns to exactly $PRISTINE.
+export GIT_INDEX_FILE=/tmp/baseline.index; rm -f "$GIT_INDEX_FILE"
+git read-tree "$PRISTINE" || { echo "baseline index failed" >&2; exit 1; }
+git ls-files --others --ignored --exclude-standard -z > "$V/pre_ignored.bin" 2>/dev/null || : > "$V/pre_ignored.bin"
+BTESTFILES=$(grep '^diff --git' /tests/test.patch | sed 's#.* b/##')
+printf '%s\\n' "$BTESTFILES" | while IFS= read -r tf; do
+  [ -z "$tf" ] && continue
+  if git cat-file -e "$PRISTINE:$tf" 2>/dev/null; then
+    git checkout -q "$PRISTINE" -- "$tf" 2>/dev/null || true
+  else
+    git rm -f --cached "$tf" >/dev/null 2>&1 || true
+    rm -f "$tf"
+  fi
+done
+if git apply --verbose /tests/test.patch > "$V/baseline_apply.log" 2>&1; then
+  RES_B=$(cat /tests/test_command.sh)
+  for ref in $(grep -oE '[^ "]*mimo_test_command\\.sh' /tests/test_command.sh | sort -u); do
+    base=${ref##*/}
+    if [ -f "$base" ]; then RES_B="$RES_B
+$(cat "$base")"; fi
+  done
+  if printf '%s' "$RES_B" | grep -q 'build_env/test_command'; then
+    if [ -f mimo_build_env.tar.gz.b64 ]; then
+      rm -rf "$GRADE/build_env" && mkdir -p "$GRADE/build_env"
+      if base64 -d mimo_build_env.tar.gz.b64 2>/dev/null | tar -xzf - -C "$GRADE/build_env" 2>/dev/null; then
+        BE_TC=$(find "$GRADE/build_env" -name 'test_command.sh' | head -1)
+        if [ -n "$BE_TC" ]; then RES_B="$RES_B
+$(cat "$BE_TC")"; fi
+      fi
+    fi
+  fi
+  printf '%s' "$RES_B" > "$V/baseline_resolved.txt"
+  RUNNER_B=custom
+  if printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])go +test( |$)'; then RUNNER_B=go-test
+  elif printf '%s' "$RES_B" | grep -qE 'GO_BIN" +test( |$)'; then RUNNER_B=go-test
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])jest([^[:alnum:]_]|$)'; then RUNNER_B=jest
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])vitest([^[:alnum:]_]|$)'; then RUNNER_B=vitest
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])_?mocha([^[:alnum:]_]|$)'; then RUNNER_B=mocha
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])ava([^[:alnum:]_]|$)'; then RUNNER_B=ava
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])tap([^[:alnum:]_]|$)'; then RUNNER_B=tap
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])karma([^[:alnum:]_]|$)'; then RUNNER_B=karma
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])jasmine([^[:alnum:]_]|$)'; then RUNNER_B=jasmine
+  elif printf '%s' "$RES_B" | grep -qE 'node +--test([^[:alnum:]_]|$)'; then RUNNER_B=node-test
+  elif printf '%s' "$RES_B" | grep -qE 'cargo +test([^[:alnum:]_]|$)'; then RUNNER_B=cargo-test
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])rspec([^[:alnum:]_]|$)'; then RUNNER_B=rspec
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])phpunit([^[:alnum:]_]|$)'; then RUNNER_B=phpunit
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])mvn([^[:alnum:]_]|$)|surefire|failsafe'; then RUNNER_B=mvn
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])gradlew?([^[:alnum:]_]|$)'; then RUNNER_B=gradle
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])pytest([^[:alnum:]_]|$)'; then RUNNER_B=pytest
+  elif printf '%s' "$RES_B" | grep -qE '\\-m +unittest([^[:alnum:]_]|$)'; then RUNNER_B=unittest
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])forge +test([^[:alnum:]_]|$)'; then RUNNER_B=forge
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])node([^[:alnum:]_]|$)'; then RUNNER_B=node-run
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])(make|ctest|cmake)([^[:alnum:]_]|$)'; then RUNNER_B=make
+  elif printf '%s' "$RES_B" | grep -qE '(^|[^[:alnum:]_])bats([^[:alnum:]_]|$)'; then RUNNER_B=bats
+  fi
+  echo "RUNNER_B=$RUNNER_B" > "$V/baseline_runner.txt"
+  : > "$V/baseline.log"
+  if [ "$RUNNER_B" = pytest ]; then
+    CLEARED_B=0
+    printf '%s' "$RES_B" | grep -q 'unset.*PYTEST_ADDOPTS' && CLEARED_B=1
+    printf '%s' "$RES_B" | grep -q 'PYTEST_ADDOPTS=' && CLEARED_B=1
+    printf '%s' "$RES_B" | grep -qE 'env +([^ ]+ +)*-u([^ ]* +)*PYTEST_ADDOPTS|env +-u +PYTEST_ADDOPTS' && CLEARED_B=1
+    if [ "$CLEARED_B" = 1 ]; then
+      echo "@@V3_CONFTEST_HOOK_B64@@" | base64 -d >> ./conftest.py
+      echo "installed verifier conftest hook (addopts cleared)" >> "$V/baseline.log"
+    fi
+    python3 - "$RES_B" "$CWD" > "$V/baseline-conftest-targets.txt" 2>/dev/null <<'PYEOF_BASELINE' || true
+import os, re, sys
+resolved, cwd = sys.argv[1], sys.argv[2]
+seen = []
+for tok in re.findall(r'[A-Za-z0-9_./-]+\\.py', resolved):
+    rel = tok
+    if os.path.isabs(rel):
+        try:
+            rel = os.path.relpath(rel, cwd)
+        except ValueError:
+            continue
+    if rel.startswith(".."):
+        continue
+    if os.path.isfile(os.path.join(cwd, rel)):
+        d = os.path.dirname(rel) or "."
+        if d not in seen:
+            seen.append(d)
+for d in ["."] + seen:
+    print(d)
+PYEOF_BASELINE
+    while IFS= read -r _v5_d; do
+      [ -n "$_v5_d" ] || continue
+      _v5_cf="$CWD/$_v5_d/conftest.py"
+      mkdir -p "$(dirname "$_v5_cf")"
+      if ! grep -q "mimo-junit-archive/1" "$_v5_cf" 2>/dev/null; then
+        echo "@@V5_ARCHIVE_HOOK_B64@@" | base64 -d >> "$_v5_cf"
+      fi
+    done < "$V/baseline-conftest-targets.txt"
+    echo "installed verifier junit archive hook" >> "$V/baseline.log"
+    # The baseline runs to completion: -x/--exitfirst/--maxfail (from the
+    # command, ini, or env) would truncate it at the first failure and hide
+    # later skips/failures from fail-to-pass (measured: 000203 oracle
+    # false-0). Neutralize maxfail via a wrapping pytest_configure hook
+    # (previous same-file hook still runs); the reset below removes it, so
+    # the agent path keeps the original command.
+    while IFS= read -r _v6_d; do
+      [ -n "$_v6_d" ] || continue
+      _v6_cf="$CWD/$_v6_d/conftest.py"
+      if ! grep -q "mimo-baseline-noexitfirst/1" "$_v6_cf" 2>/dev/null; then
+        cat >> "$_v6_cf" <<'PYEOF_NOEXITFIRST' || true
+# mimo-baseline-noexitfirst/1: run the pristine baseline to completion.
+_prev_baseline_configure = globals().get("pytest_configure")
+def pytest_configure(config):
+    try:
+        if _prev_baseline_configure is not None:
+            _prev_baseline_configure(config)
+    except Exception:
+        pass
+    try:
+        if getattr(config.option, "maxfail", 0):
+            config.option.maxfail = 1000000
+    except Exception:
+        pass
+PYEOF_NOEXITFIRST
+      fi
+    done < "$V/baseline-conftest-targets.txt"
+    echo "installed baseline noexitfirst hook" >> "$V/baseline.log"
+  fi
+  if [ "$RUNNER_B" = pytest ] || [ "$RUNNER_B" = unittest ]; then
+    JUNIT_B=$GRADE/baseline/junit.xml; mkdir -p "${JUNIT_B%/*}" "$GRADE/baseline/junit-phases"
+    START_B=$(date +%s)
+    MIMO_VERIFIER_JUNIT="$GRADE/baseline/junit.xml" MIMO_VERIFIER_ARCHIVE_DIR="$GRADE/baseline/junit-phases" PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT_B -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/baseline_output.log" 2>&1
+    echo "$?" > "$V/baseline_rc.txt"
+    echo "baseline_sec=$(($(date +%s) - START_B)) runner=$RUNNER_B rc=$(cat "$V/baseline_rc.txt")" > "$V/timing.log"
+    cp "$V/baseline_output.log" "$GRADE/baseline/output.log"
+  else
+    echo "no baseline consumer for runner $RUNNER_B" >> "$V/baseline.log"
+  fi
+else
+  echo "baseline hidden-test apply failed; grading keeps @5 rules" > "$V/baseline.log"
+fi
+# Reset to pristine bytes exactly (always, even without a baseline run).
+git read-tree "$PRISTINE" || { echo "baseline reset failed" >&2; exit 1; }
+git checkout-index -f -a || { echo "baseline restore failed" >&2; exit 1; }
+git clean -fdq || { echo "baseline clean failed" >&2; exit 1; }
+git ls-files --others --ignored --exclude-standard -z > /tmp/post_ignored.bin 2>/dev/null || : > /tmp/post_ignored.bin
+if [ -s /tmp/post_ignored.bin ] || [ -s "$V/pre_ignored.bin" ]; then
+  comm -z -13 "$V/pre_ignored.bin" /tmp/post_ignored.bin 2>/dev/null | xargs -0 -r rm -rf -- 2>/dev/null || true
+fi
+unset GIT_INDEX_FILE
+"""
+
+#: Exact @5 wrapper-A insertion point (pristine capture, then the agent diff).
+_V6_A_INSERT = _V4_PRISTINE_TREE + "# 1. The agent's change"
+
+assert _V5_WRAPPER_A.count(_V6_A_INSERT) == 1, (
+    "@5 wrapper A moved; re-pin the @6 baseline insertion"
+)
+
+#: @6 grader entry point, part A: @5 with the pristine baseline run.
+_V6_WRAPPER_A = _V5_WRAPPER_A.replace(
+    _V6_A_INSERT, _V4_PRISTINE_TREE + _V6_BASELINE_BLOCK + "# 1. The agent's change"
+)
+
+assert _V6_WRAPPER_A != _V5_WRAPPER_A, "@6 baseline insertion did not apply"
+
+#: @6 grader entry point, part B: identical to @5.
+_V6_WRAPPER_B = _V5_WRAPPER_B
+
+#: Exact @5 pytest grade line extended with the fail-to-pass gate.
+_V5_PYTEST_PRINT = (
+    "    print(1 if rc == 0 and cases and not bad and not missing else 0)"
+)
+
+#: @6 pytest grade block: baseline union plus the fail-to-pass comparison,
+#: mirroring :func:`evaluate_junit_v6` (worst-outcome maps, unmatched agent
+#: skips and unpreserved pristine outcomes fail). Absent baseline: @5 rules.
+_V6_PYTEST_FTP_BLOCK = """    base_union = os.path.join(os.path.dirname(junit_path), "baseline")
+    base_cases = []
+    try:
+        with open(os.path.join(base_union, "junit.xml"), "rb") as _bf:
+            _braw = _bf.read()
+    except Exception:
+        _braw = b""
+    if _braw:
+        try:
+            base_cases.extend(ET.fromstring(_braw).iter("testcase"))
+        except Exception:
+            base_cases = []
+    for _bphase in sorted(glob.glob(os.path.join(base_union, "junit-phases", "junit-hook-*.xml"))):
+        try:
+            _bpraw = open(_bphase, "rb").read()
+        except Exception:
+            continue
+        if _bpraw:
+            try:
+                base_cases.extend(ET.fromstring(_bpraw).iter("testcase"))
+            except Exception:
+                pass
+    ftp_bad = False
+    if base_cases:
+        def _v6st(_c):
+            if _c.find("failure") is not None or _c.find("error") is not None:
+                return "bad"
+            if _c.find("skipped") is not None:
+                return "skipped"
+            return "passed"
+        def _v6key(_c):
+            return (_c.get("classname") or "", _c.get("name") or "", _c.get("file") or "")
+        _v6rank = {"passed": 0, "skipped": 1, "bad": 2}
+        _bm = {}
+        for _c in base_cases:
+            _k = _v6key(_c)
+            _s = _v6st(_c)
+            if _k not in _bm or _v6rank[_s] > _v6rank[_bm[_k]]:
+                _bm[_k] = _s
+        _am = {}
+        for _c in cases:
+            _k = _v6key(_c)
+            _s = _v6st(_c)
+            if _k not in _am or _v6rank[_s] > _v6rank[_am[_k]]:
+                _am[_k] = _s
+        _bs = set(_k for _k, _s in _bm.items() if _s == "skipped")
+        for _k, _s in _bm.items():
+            if _s != "skipped" and _am.get(_k) != "passed":
+                ftp_bad = True
+        for _k, _s in _am.items():
+            if _s == "skipped" and _k not in _bs:
+                ftp_bad = True
+    if ftp_bad:
+        sys.stderr.write("fail-to-pass: pristine outcomes not preserved\\n")
+    print(1 if rc == 0 and cases and not bad and not missing and not ftp_bad else 0)"""
+
+#: Exact @5 unittest grade line extended with the baseline count rule.
+_V5_UNITTEST_OK = '        ok = (m is not None and int(m.group(1)) >= 1 and re.search(r"^OK\\b", output, re.M) is not None and re.search(r"^(FAILED|ERROR)", output, re.M) is None)'
+
+#: @6 unittest grade lines: with a parsable pristine baseline, the run must
+#: execute at least as many tests and skip at most as many, mirroring
+#: :func:`evaluate_unittest_v6`. Absent baseline: @5 rules.
+_V6_UNITTEST_OK = (
+    _V5_UNITTEST_OK
+    + """
+        # @6 fail-to-pass counts vs the pristine baseline when available.
+        _v6base = ""
+        try:
+            with open(os.path.join(os.path.dirname(junit_path), "baseline", "output.log"), encoding="utf-8", errors="replace") as _v6f:
+                _v6base = _v6f.read()
+        except Exception:
+            pass
+        _v6bm = re.search(r"Ran (\\d+) test", _v6base)
+        if _v6bm is not None:
+            _v6bran = int(_v6bm.group(1))
+            _v6bs = re.search(r"skipped=(\\d+)", _v6base)
+            _v6bskip = int(_v6bs.group(1)) if _v6bs else 0
+            _v6as = re.search(r"skipped=(\\d+)", output)
+            _v6askip = int(_v6as.group(1)) if _v6as else 0
+            _v6aran = int(m.group(1)) if m else 0
+            if _v6aran < _v6bran or _v6askip > _v6bskip:
+                ok = False
+                sys.stderr.write("unittest fail-to-pass: ran=%d<%d or skipped=%d>%d\\n" % (_v6aran, _v6bran, _v6askip, _v6bskip))"""
+)
+
+#: Exact @5 go-test grade line extended with the non-empty-run rule.
+_V5_GO_OK = '        ok = re.search(r"^ok\\s+\\S+", output, re.M) is not None and re.search(r"^(FAIL|--- FAIL|panic:)", output, re.M) is None'
+
+#: @6 go-test grade line: an empty selection grades 0, mirroring
+#: :func:`evaluate_go_output_v6`.
+_V6_GO_OK = (
+    '        ok = re.search(r"^ok\\s+\\S+", output, re.M) is not None and re.search(r"^(FAIL|--- FAIL|panic:)", output, re.M) is None and "no tests to run" not in output'
+)
+
+#: Exact @5 agent run lines wrapped with grading-time measurement: the grade
+#: reads ``RC`` captured immediately after the test command, so timing lands
+#: after the capture, never between the run and ``RC=$?`` (which would force
+#: rc 0 for every trial).
+_V5_RUN_LINE_TIMED = _V5_RUN_LINE + "\nRC=$?"
+
+#: @6 agent run lines: the command is unchanged; wall time lands in timing.log.
+_V6_RUN_TIMED = (
+    "_START_A=$(date +%s)\n"
+    + _V5_RUN_LINE
+    + "\nRC=$?"
+    + '\necho "agent_sec=$(($(date +%s) - _START_A))" >> "$V/timing.log"'
+)
+
+#: Exact @5 plugin-report read: any ``open()`` failure (including a missing
+#: file) takes the missing-report path, even when per-phase archives exist.
+_V5_PLUGIN_READ = """    try:
+        raw = open(junit_path, "rb").read()
+        cases = list(ET.fromstring(raw).iter("testcase")) if raw else []
+    except Exception:
+        grade_noreport()"""
+
+#: @6 plugin-report read: a missing/unreadable plugin report grades from the
+#: per-phase archives (measured: ADDOPTS-cleared runs such as 000666 never
+#: write the plugin report, and the archiver shadows the V3 hook's report,
+#: so @5 graded every such oracle 0 via the missing-report path). A corrupt
+#: (present but unparsable) report keeps the missing-report path, as in @5.
+_V6_PLUGIN_READ = """    try:
+        raw = open(junit_path, "rb").read()
+    except OSError:
+        raw = b""
+    try:
+        cases = list(ET.fromstring(raw).iter("testcase")) if raw else []
+    except Exception:
+        grade_noreport()"""
+
+
+assert _V5_WRAPPER_C.count(_V5_PYTEST_PRINT) == 1, (
+    "@5 pytest grade line moved; re-pin the @6 replacement"
+)
+assert _V5_WRAPPER_C.count(_V5_UNITTEST_OK) == 1, (
+    "@5 unittest grade line moved; re-pin the @6 replacement"
+)
+assert _V5_WRAPPER_C.count(_V5_GO_OK) == 1, (
+    "@5 go grade line moved; re-pin the @6 replacement"
+)
+assert _V5_WRAPPER_C.count(_V5_RUN_LINE_TIMED) == 1, (
+    "@5 run line moved; re-pin the @6 replacement"
+)
+assert _V5_WRAPPER_C.count(_V5_PLUGIN_READ) == 1, (
+    "@5 plugin read moved; re-pin the @6 replacement"
+)
+
+#: @6 grader entry point, part C: @5 with fail-to-pass pytest/unittest
+#: grading, the go non-empty-run rule, agent timing, and archive-tolerant
+#: plugin loading.
+_V6_WRAPPER_C = (
+    _V5_WRAPPER_C.replace(_V5_PYTEST_PRINT, _V6_PYTEST_FTP_BLOCK)
+    .replace(_V5_UNITTEST_OK, _V6_UNITTEST_OK)
+    .replace(_V5_GO_OK, _V6_GO_OK)
+    .replace(_V5_RUN_LINE_TIMED, _V6_RUN_TIMED)
+    .replace(_V5_PLUGIN_READ, _V6_PLUGIN_READ)
+)
+
+assert _V6_WRAPPER_C != _V5_WRAPPER_C, "@6 replacement did not apply"
+
+
+def render_wrapper_test_sh_v6(workdir: str) -> str:
+    """Verifier entry point: @6 fail-to-pass grading over a pristine baseline."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
+    scoped = (
+        "["
+        + ", ".join(f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES)
+        + "]"
+    )
+    hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
+    archive_b64 = base64.b64encode(V5_ARCHIVE_HOOK.encode("utf-8")).decode("ascii")
+    return (
+        (_V6_WRAPPER_A + _V6_WRAPPER_B + _V6_WRAPPER_C)
+        .replace("@@WORKDIR@@", workdir)
+        .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
+        .replace("@@V3_UNIVERSAL@@", universal)
+        .replace("@@V3_SCOPED@@", scoped)
+        .replace("@@V3_CONFTEST_HOOK_B64@@", hook_b64)
+        .replace("@@V5_ARCHIVE_HOOK_B64@@", archive_b64)
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
+    )
+
+
+def render_tests_dockerfile_v6(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup (@6)."""
+    return (
+        "# Separate-verifier image (separate-verifier@6): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def build_changes_v6(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @6.
+
+    Same bundle shape as @5; the grader is the @6 entry point with the
+    pristine-baseline fail-to-pass rule. ``solution_sh`` adds an
+    oracle-control reference solution when the parent has none. Refuses to
+    overwrite an existing solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    try:
+        patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        runner = detect_runner(resolve_command_text(command_sh, None, patch_text))
+    except OSError:
+        runner = "unknown"
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v6(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v6(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "runner": runner,
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v6(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with the hidden tests and fail-to-pass checks.",
+    created_by: str = "fail-to-pass-baseline-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@6`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v6(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V6,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
+
 __all__ = [
     "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
@@ -2601,6 +3235,7 @@ __all__ = [
     "TRANSFORM_ID_V3",
     "TRANSFORM_ID_V4",
     "TRANSFORM_ID_V5",
+    "TRANSFORM_ID_V6",
     "TRAJECTORY_ARTIFACT",
     "V2_GRADE_DIR",
     "V2_SETUP_SUBDIR",
@@ -2621,6 +3256,7 @@ __all__ = [
     "build_changes_v3",
     "build_changes_v4",
     "build_changes_v5",
+    "build_changes_v6",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
@@ -2628,25 +3264,31 @@ __all__ = [
     "derive_separate_verifier_v3",
     "derive_separate_verifier_v4",
     "derive_separate_verifier_v5",
+    "derive_separate_verifier_v6",
     "detect_pytest_run",
     "detect_runner",
     "drop_reason",
     "evaluate_cargo_output",
     "evaluate_go_output",
+    "evaluate_go_output_v6",
     "evaluate_js_output",
     "evaluate_junit",
     "evaluate_junit_v4",
     "evaluate_junit_v5",
+    "evaluate_junit_v6",
     "evaluate_phpunit_output",
     "evaluate_rspec_output",
     "evaluate_surefire_reports",
     "evaluate_unittest",
+    "evaluate_unittest_v6",
     "is_pytest_config_tamper",
     "is_test_infra_filename",
     "is_v3_new_infra",
     "parse_named_pytest_ids",
     "junit_absence_suspicious",
     "junit_case_matches_expected",
+    "junit_case_status",
+    "junit_status_map",
     "output_is_blank",
     "PYTEST_START_MARKERS",
     "parse_pytest_node_id",
@@ -2660,11 +3302,13 @@ __all__ = [
     "render_tests_dockerfile_v3",
     "render_tests_dockerfile_v4",
     "render_tests_dockerfile_v5",
+    "render_tests_dockerfile_v6",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
     "render_wrapper_test_sh_v3",
     "render_wrapper_test_sh_v4",
     "render_wrapper_test_sh_v5",
+    "render_wrapper_test_sh_v6",
     "resolve_command_text",
     "tamper_signature_hit",
     "v3_config_revert_reason",

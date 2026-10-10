@@ -62,6 +62,8 @@ market data. The default is discard.
 
 from __future__ import annotations
 
+from evallab.agent_network_policy import TRANSFORM_ID as AGENT_NETWORK_NONE_ID
+from evallab.agent_network_policy import derive_agent_network_none
 from evallab.general_nop_gate import TRANSFORM_ID as GENERAL_NOP_GATE_ID
 from evallab.general_nop_gate import derive_general_nop_gate
 from evallab.general_pinned_backup import TRANSFORM_ID as GENERAL_PINNED_BACKUP_ID
@@ -103,6 +105,7 @@ TRANSFORMS = (
     CACHE_V3_ID,
     SEPARATE_ID,
     SEPARATE_V2_ID,
+    AGENT_NETWORK_NONE_ID,
     MTIME_ID,
     MTIME_V2_ID,
     TERMINAL_GUARD_ID,
@@ -122,6 +125,7 @@ CONFIRMED_PURGE = (
 )
 
 __all__ = [
+    "AGENT_NETWORK_NONE_ID",
     "CACHE_ID",
     "CACHE_V2_ID",
     "CACHE_V3_ID",
@@ -142,6 +146,7 @@ __all__ = [
     "WEBDEV_BRIEF_EXPLICIT_ID",
     "WEBDEV_STRUCTURAL_GATE_ID",
     "WEBDEV_TEMP0_PIN_ID",
+    "derive_agent_network_none",
     "derive_general_nop_gate",
     "derive_general_pinned_backup",
     "derive_general_strict_answer",

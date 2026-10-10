@@ -1,4 +1,4 @@
-# Vals routes: fix-content census, cache purge @3, explicit instruction rules
+# Vals routes: fix-content census, cache purge @3, explicit instruction rules, agent egress lock
 
 Owner: ValsRoutes. $0 (local Docker `--network none`, registry pulls, host git).
 No model calls, no paid compute.
@@ -207,6 +207,47 @@ stays the backstop. Use for ban-replication experiments (see the staged
 spec in `research/experiments/vals-closure/prompt-ban-spec.md`), never for
 training packages.
 
+## V6: agent-network-none@1 (agent-phase egress lock)
+
+New transform `src/evallab/agent_network_policy.py` (registered in
+`hardening.py` as `AGENT_NETWORK_NONE_ID`) adds one declaration to a
+clean package: `[agent] network_mode = "no-network"`. Harbor 0.24
+resolves the agent phase to this explicit override
+(`trial/network_policy.py:resolve_agent_phase_policy`) and applies it
+around `agent.run()` only (`trial.py:_phase_network_policy`); the
+verifier is untouched, so under separate-verifier@3 the verifier
+environment stays a fresh copy of the still-public `[environment]` and
+grade-time fetchers keep working. `[environment]`-level `no-network`
+was deliberately not used: the separate-verifier baseline would inherit
+it and take the verifier build/setup offline too.
+
+Enforcement as Harbor 0.24 implements it (all fail closed): Docker
+attaches the egress sidecar and runs `deny-all` (TCP to an
+empty-allowlist proxy — `pip`/`curl`/`git ls-remote` fail; DNS to the
+resolver and ICMP still pass by sidecar design, so names resolve but
+nothing is fetchable); Daytona sets `network_block_all`; Modal sets
+empty outbound allowlists (both outside compose mode; MiMo packages ship
+no compose). The transform refuses Windows targets, second application,
+and `[agent] allowed_hosts` without a mode.
+
+Proven at $0 on local Docker (Harbor 0.24.0): clean 002552 plus the
+transform vs the same package open — agent-phase `pip download` rc 1
+vs 0, `curl https://pypi.org` rc 35 vs 0, `git ls-remote
+https://github.com/git/git.git` rc 128 vs 0 (TLS terminated in all
+three locked legs); oracle 1 / nop 0; cheat `upstream_fetch` clean
+(reward 0.0; no remote configured so recon only — the direct probes
+above are the ls-remote evidence). Network-grader proof: oracle 000199
+(grade-time `pip install`) rewards 1.0 locked and 1.0 open — the lock
+changes nothing grade-side; a throwaway 002552 copy with a
+verifier-side `curl` shows `verifier_egress http=200` from inside the
+separate verifier under the lock. 000114 rewards 0.0 on both legs with
+identical `.venv/_pytest` tamper hits, i.e. the known verifier
+false-tamper bug (not this slice), never a network verdict. Staging
+passes the declaration through byte-identical on every host (the adapter
+tracks only `[environment]`/`[verifier.environment]`/`[verifier]`).
+Receipt: `research/experiments/agent-network-none/`. Chain adoption is
+the clean-set owner's call.
+
 ## Per-route status (all routes)
 
 - V1 future history on branches: CLOSED by strip (published setups already
@@ -228,9 +269,17 @@ training packages.
   entries; @3 covers node gitignored build outputs (delete or rebuild,
   fail-closed).
 
-- V6 newer-release download: no content route (egress-locked graders);
-  closed at the network layer by the FineEnvs 1.3.0 blocklist (see the
-  FineEnvs audit page); not re-proven here.
+- V6 newer-release download: CLOSED at the task layer by
+  `agent-network-none@1` (next section): `[agent]
+  network_mode = "no-network"` locks the agent phase on every Harbor
+  backend while the separate verifier keeps the public baseline, so
+  grade-time fetchers keep working. Proven on local Docker (002552:
+  pip/curl/ls-remote fail locked, succeed open; oracle 1 / nop 0;
+  cheat `upstream_fetch` clean; network-grader 000199 oracle 1.0 locked
+  = 1.0 open; verifier-side curl `http=200` under the lock; 000114 0.0
+  on both legs is the known verifier false-tamper bug — see above). The
+  FineEnvs 1.3.0 `/etc/hosts` blocklist (see the FineEnvs audit page) is
+  a complement, not the guard: a root agent can rewrite it.
 - V7 prompt wording: opt-in variant shipped (above); default instruction
   unchanged. Replication experiment still needs paid approval (prompt-ban
   spec §cost).
@@ -245,3 +294,7 @@ training packages.
 4. Fleet-wide census (2,698 tasks × 2 modes, $0 local Docker, ~2 min/probe,
    16-way ≈ 11 h wall): command sketch in the receipt; no spend needed, no
    spend requested.
+5. `agent-network-none@1` chain adoption is the clean-set owner's call
+   (registry entry `AGENT_NETWORK_NONE_ID` shipped; `mimo_clean.py`
+   untouched). Run-level `extra_allowed_hosts` can widen any policy at
+   launch — ours, but third-party runners should be audited for it.

@@ -163,3 +163,88 @@ stubs (rewritten; 9/9 in-container, then 1 under @3).
   environment bugs, not verifier gaps.
 - Reference fixes for non-Python tasks: none shipped with the dataset; the
   matrix above substitutes history-extracted or debugged oracles per task.
+
+## separate-verifier@4: rootdir matching and pristine-workdir deltas (2026-10-10)
+
+`separate-verifier@4` (`TRANSFORM_ID_V4`, `build_changes_v4`,
+`derive_separate_verifier_v4`, `render_wrapper_test_sh_v4` in
+`src/evallab/separate_verifier.py`; tests in
+`tests/test_separate_verifier.py`) keeps every `@3` guarantee, fixes the
+pytest named-id presence check, and computes agent changes against the
+verifier's complete post-setup pristine workdir instead of BASE's tracked
+tree. No `@2`/`@3` symbol or template byte changes, so their records stay
+valid. Ships in `mimo-clean-v3` (see `docs/mimo/clean-set.md`).
+
+### The bug (found by the fleet census on Daytona)
+
+The `@3` pytest grader exact-matches expected test ids (from
+`test.patch`/command, e.g. `tests/unit/test_x.py::test_y`) against
+junit-classname-derived ids (`s == i or s.startswith(i + '[')`). When
+pytest's rootdir sits under `tests/` — e.g. the cloud-sql-connector family
+with rootdir=/testbed/tests — junit classnames lack the `tests/` segment
+(`unit.test_x` instead of `tests.unit.test_x`), so `missing == all` and the
+reward is 0 even with the reference fix applied and every test passing.
+Proven on Daytona: 000102 oracle 8/8 PASSED but reward 0 with missing=[all
+8]; same shape on 000156/000157/000227/000242. 223/1,148 built Python
+tasks pin parseable named ids (83 of the 256 indexed oracle tasks). Their
+named-id grading can differ; baked untracked content can also differ for
+the independent fix below.
+
+### The matcher
+
+`junit_case_matches_expected(classname, name, file, expected_id)` (pure;
+`evaluate_junit_v4` wraps it with the unchanged `@3` contract):
+
+- Module paths align by suffix at `/` or `.` component boundaries — either
+  side may carry an extra prefix (`tests/unit/test_x` ≡ `unit/test_x`).
+- The class chain (`TestC::` segments, incl. nested classes via classname
+  or `file`-attribute split) must agree exactly.
+- The test name must agree exactly, or by parametrize prefix when the
+  expected id carries no params (`test_two` covers `test_two[k]`; a
+  parametrized expected id needs its exact params) — the `@3` prefix rule.
+- The junit `file` attribute, when present (absolute or relative), locates
+  the module while the classname prefix aligned with it locates the
+  classes.
+- An expected id never matches a case with a different test name
+  (prefix/superstring names, same name in another module or class).
+- A class-level expected id (`file.py::TestClass`, naming no test — e.g.
+  000242's `lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex`)
+  is satisfied by any case of exactly that class: the command asked to run
+  the class, and with no failure/error/skip in the report the class ran and
+  passed. A `test_`-prefixed id still names a function, never a class.
+
+The shipped grading block inlines the same matcher (`_V4_WRAPPER_C`,
+derived from `_V3_WRAPPER_C` by block replacement). Its report and
+exit-code semantics are unchanged outside the junit matcher; patch
+selection now uses the full pristine workdir for every language.
+
+### Baked untracked dependencies are not agent changes
+
+Task 000114's image contains an untracked `.venv` under its workdir. `@3`
+diffed the imported workspace against BASE's tracked tree; the untouched
+baked `_pytest` sources appeared to be agent additions, falsely firing the
+tamper gate. `@4` captures a verifier-owned Git tree immediately after
+pristine setup, before importing any agent bytes. It includes tracked,
+untracked, and ignored files; both full and kept diffs use that tree.
+Config restoration and hidden-test restoration use the same pristine
+contents. Unchanged dependencies disappear from the diff; actual additions,
+modifications, and deletions remain visible even in ignored directories.
+The baseline index and Git objects never cross from the agent environment.
+
+`pristine-extra-files.log` lists post-setup files differing from BASE, for
+sample-level measurement. This is not a claim that every task has baked
+untracked content. Behavioral tests execute the actual rendered grader with
+a baked `.venv/_pytest`: honest oracle 1, nop 0, and an actual runner change
+0, both with and without `.venv` in `.gitignore`.
+
+### Validation (MEASURED, 2026-10-10, $0)
+
+- Unit: real junit samples from rootdir-shifted runs (000102's 8
+  `unit.test_iam_user_format` cases vs its 8 `tests/unit/...` expected
+  ids, with and without the `file` attribute) — @3 grades 0, @4 grades 1;
+  every @3 rejection (rc≠0, failure/error/skip, missing id, empty report,
+  suspicious absence) still grades 0 under @4; the embedded `@4` grading
+  script is executed against the shifted report (1) and a renamed test (0).
+- Local Docker on the v3 fleet: 000102 + 2 more pinned tasks
+  (oracle 1, nop 0); 002552 + 000666 + one go task unchanged
+  (see `research/experiments/mimo-clean-v3/README.md`).

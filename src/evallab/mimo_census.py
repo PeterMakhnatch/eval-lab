@@ -97,10 +97,11 @@ GRADING_CHECKS = ("nop", "oracle", "ladder")
 
 #: Worker bounds for ``--workers`` (process workers; the cheat ladder hands
 #: the attack subset through process ``os.environ`` under a global lock, so
-#: threads would race). Remote backends fan out; local Docker stays serial
-#: enough to never wedge the shared daemon.
+#: threads would race). Remote backends fan out (Modal pulls avoid Docker Hub
+#: limits; 24-wide authorized for the 2026-10-10 fleet census); local Docker
+#: stays serial enough to never wedge the shared daemon.
 DEFAULT_WORKERS = 1
-MAX_REMOTE_WORKERS = 19
+MAX_REMOTE_WORKERS = 24
 MAX_DOCKER_WORKERS = 2
 
 #: Backends the census runner supports. ``modal`` runs Harbor's native

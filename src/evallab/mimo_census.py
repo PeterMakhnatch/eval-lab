@@ -725,17 +725,6 @@ def census_task(
     }
 
 
-def setup_carries_marker(package: Path, marker: str) -> bool:
-    """Whether a package setup.sh already applies the marked transform."""
-    setup = package / "environment" / "setup" / "setup.sh"
-    if not setup.is_file():
-        return False
-    try:
-        return marker in setup.read_text(errors="replace")
-    except OSError:
-        return False
-
-
 def census_fix_content(
     *,
     task_id: str,
@@ -747,21 +736,22 @@ def census_fix_content(
     """Fix-content census for one task (check d, local Docker, $0).
 
     Recovers the reference fix from the published image (pre-cleanup run
-    package), probes the published setup, then probes the clean-chain setup
-    composed with the real transform functions. Returns the clean-chain
+    package), probes the published setup, then probes the ACTUAL clean
+    package setup (what ships — never a recomposed approximation, so new
+    transform versions are measured exactly). Returns the clean-chain
     ``collect_result`` row, or ``{"census_locations": None}`` when no fix is
     recoverable.
     """
+    import hashlib
+
     from evallab.fix_content_census import (
         collect_result,
-        compose_clean_setup,
         copy_git_from_image,
         leak_oracle_extract,
         recover_fix_lite,
         run_probe,
         stage_probe,
     )
-    from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 
     scratch = scratch_root / task_id
     scratch.mkdir(parents=True, exist_ok=True)
@@ -795,12 +785,14 @@ def census_fix_content(
     published_out = scratch / "out-published"
     stage_probe(published_stage, setup_source)
     run_probe(image, workdir, fix_sha, published_stage, published_out)
-    root_setup = (setup_source / "setup.sh").read_text(errors="replace")
-    with_purge = setup_carries_marker(run_package, PURGE_MARKER)
-    clean_sh, _applied = compose_clean_setup(root_setup, with_purge=with_purge)
+    clean_source = clean_package / "environment" / "setup"
+    clean_sh_path = clean_source / "setup.sh"
+    if not clean_sh_path.is_file():
+        return {"census_locations": None, "reason": "clean package has no setup.sh"}
+    clean_setup_sha = hashlib.sha256(clean_sh_path.read_bytes()).hexdigest()
     clean_stage = scratch / "stage-clean"
     clean_out = scratch / "out-clean"
-    stage_probe(clean_stage, setup_source, clean_sh.encode())
+    stage_probe(clean_stage, clean_source)
     run_probe(image, workdir, fix_sha, clean_stage, clean_out)
     published_row = collect_result(task_id, language, image12, "published", published_out)
     clean_row = collect_result(task_id, language, image12, "clean", clean_out)
@@ -810,6 +802,8 @@ def census_fix_content(
             {
                 "task_id": task_id,
                 "fix_sha": fix_sha,
+                "clean_setup": "package environment/setup/setup.sh",
+                "clean_setup_sha256": clean_setup_sha,
                 "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
                 "clean": clean_row,
             },
@@ -1154,7 +1148,6 @@ __all__ = [
     "parse_junit_grade",
     "parse_task_list",
     "run_cell",
-    "setup_carries_marker",
     "slice_spent_usd",
     "summarize_results",
     "summarize_trials",

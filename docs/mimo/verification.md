@@ -29,9 +29,10 @@ For every clean-set manifest row, four checks on the FINAL clean package
     `full-ladder-unattributed`.
 (d) **fix-content census = 0 locations** — for tasks with a recoverable fix,
     `evallab.fix_content_census` probes the published image (pre-cleanup run
-    package, fix recovered from image history) and then the clean chain
-    composed with the real transform functions. The clean-chain open-leak
-    count must be 0.
+    package, fix recovered from image history) and then the ACTUAL clean
+    package setup (what ships — never a recomposed approximation, so new
+    transform versions like mtime-normalize@2 are measured exactly). The
+    clean-chain open-leak count must be 0.
 
 ## Backends and parity
 

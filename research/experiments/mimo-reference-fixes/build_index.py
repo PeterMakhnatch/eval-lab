@@ -3,12 +3,15 @@
 
 Seed: the 192 HAR-191 oracle:pass+nop:fail rows from the committed
 python-task-ledger projection (oracle_sweep.csv, which already excludes the
-moved-package task 002308). Merge: classified rows from this slice's resume
-waves (observations CSVs written by the reused leak-oracle sweep).
+moved-package task 002308). Merge: classified rows from the 2026-10-09 resume
+waves (observations-w1/w2) and the 2026-10-10 recovery + language waves
+(observations-w3/w4/w5 python, -go, -js).
 
-Patch bytes are hidden-solution material: they are copied to
+Patch bytes are hidden-solution material: 2026-10-09 rows publish to
 ~/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/<task>/solution.patch
-(outside the repo, never visible to an agent container) and index.csv carries
+and 2026-10-10 rows to
+~/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/<task>/solution.patch
+(outside the repo, never visible to an agent container); index.csv carries
 only the absolute patch_path + patch_sha256. Rows without a passing oracle
 patch leave patch_path/patch_sha256 empty.
 
@@ -26,21 +29,56 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 RESULTS = Path.home() / "Developer/eval-lab-results/2026-10-09/mimo-reference-fixes"
-
+RESULTS_2026_10_10 = Path.home() / "Developer/eval-lab-results/2026-10-10/mimo-reference-fixes"
 HAR191_PROJECTION = ROOT / "research/experiments/python-task-ledger/oracle_sweep.csv"
 HAR191_TASKS = Path.home() / "Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks"
 
-# (observations csv, wave tasks dir, source tag) for this slice's waves.
-WAVES: list[tuple[Path, Path, str]] = [
+
+# (observations csv, wave tasks dir, patch results dir, source tag) for this
+# slice's waves. w1/w2 patch bytes publish to the 2026-10-09 results dir (frozen);
+# 2026-10-10 waves publish to the 2026-10-10 results dir (task sets disjoint).
+WAVES: list[tuple[Path, Path, Path, str]] = [
     (
         HERE / "observations-w1.csv",
         Path.home() / "Developer/eval-lab-results/2026-10-09/mimo-ref-fixes-sweep-w1/tasks",
+        RESULTS,
         "sweep-2026-10-09",
     ),
     (
         HERE / "observations-w2.csv",
         Path.home() / "Developer/eval-lab-results/2026-10-09/mimo-ref-fixes-sweep-w2/tasks",
+        RESULTS,
         "sweep-2026-10-09",
+    ),
+    (
+        HERE / "observations-w3.csv",
+        Path.home() / "Developer/eval-lab-results/2026-10-10/mimo-ref-fixes-sweep-w3/tasks",
+        RESULTS_2026_10_10,
+        "sweep-2026-10-10",
+    ),
+    (
+        HERE / "observations-w4.csv",
+        Path.home() / "Developer/eval-lab-results/2026-10-10/mimo-ref-fixes-sweep-w4/tasks",
+        RESULTS_2026_10_10,
+        "sweep-2026-10-10",
+    ),
+    (
+        HERE / "observations-w5.csv",
+        Path.home() / "Developer/eval-lab-results/2026-10-10/mimo-ref-fixes-sweep-w5/tasks",
+        RESULTS_2026_10_10,
+        "sweep-2026-10-10",
+    ),
+    (
+        HERE / "observations-go.csv",
+        Path.home() / "Developer/eval-lab-results/2026-10-10/mimo-ref-fixes-sweep-go/tasks",
+        RESULTS_2026_10_10,
+        "sweep-2026-10-10-go",
+    ),
+    (
+        HERE / "observations-js.csv",
+        Path.home() / "Developer/eval-lab-results/2026-10-10/mimo-ref-fixes-sweep-javascript-typescript/tasks",
+        RESULTS_2026_10_10,
+        "sweep-2026-10-10-js",
     ),
 ]
 
@@ -55,8 +93,8 @@ def _sha_file(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _publish_patch(task_id: str, patch_bytes: Path) -> tuple[str, str]:
-    destination = RESULTS / task_id / "solution.patch"
+def _publish_patch(task_id: str, patch_bytes: Path, results_dir: Path) -> tuple[str, str]:
+    destination = results_dir / task_id / "solution.patch"
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(patch_bytes, destination)
     return str(destination), _sha_file(destination)
@@ -76,7 +114,7 @@ def _har191_seed() -> list[dict]:
             raise ValueError(f"{task_id}: missing/empty retained patch bytes")
         if patch_err.is_file() and patch_err.stat().st_size:
             raise ValueError(f"{task_id}: retained patch stderr is not empty")
-        patch_path, patch_sha = _publish_patch(task_id, patch_log)
+        patch_path, patch_sha = _publish_patch(task_id, patch_log, RESULTS)
         index.append(
             {
                 "task_id": task_id,
@@ -93,7 +131,7 @@ def _har191_seed() -> list[dict]:
 def _wave_rows() -> list[dict]:
     index = []
     seen: set[str] = set()
-    for observations_csv, wave_tasks, source in WAVES:
+    for observations_csv, wave_tasks, results_dir, source in WAVES:
         with observations_csv.open(newline="", encoding="utf-8") as stream:
             rows = list(csv.DictReader(stream))
         for row in rows:
@@ -109,7 +147,7 @@ def _wave_rows() -> list[dict]:
                     raise ValueError(f"{task_id}: pass row without retained patch bytes")
                 if patch_err.is_file() and patch_err.stat().st_size:
                     raise ValueError(f"{task_id}: pass row with non-empty patch stderr")
-                patch_path, patch_sha = _publish_patch(task_id, patch_log)
+                patch_path, patch_sha = _publish_patch(task_id, patch_log, results_dir)
             index.append(
                 {
                     "task_id": task_id,

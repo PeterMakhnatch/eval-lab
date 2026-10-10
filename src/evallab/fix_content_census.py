@@ -538,11 +538,11 @@ def _run_probe_modal(
     raise explicitly.
     """
     try:
-        import modal
+        modal = importlib.import_module("modal")
     except ImportError as exc:
         raise RuntimeError(
             "run_probe(backend='modal') requires the Modal SDK "
-            "(e.g. 'uv run --with modal==1.6.1 ...'); not installed here"
+            "(e.g. \"uv run --with 'modal>=1.5.4' ...\"); not installed here"
         ) from exc
     stage = Path(stage_dir)
     app = modal.App.lookup(_MODAL_APP_NAME, create_if_missing=True)

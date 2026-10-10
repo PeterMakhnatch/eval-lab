@@ -748,12 +748,12 @@ def acceptance_matches(
 
 
 def fence_allows(*, spent_usd: float, projected_usd: float, cap_usd: float = SLICE_CAP_USD) -> bool:
-    """Whether a batch fits the spend fence (actuals + worst case <= cap)."""
+    """Whether accounted spend plus the reserved batch projection fits the cap."""
     return spent_usd + projected_usd <= cap_usd
 
 
 def amortized_cost(batch_actual_usd: float, n_tasks: int) -> float:
-    """Per-task cost share of one batch's provider actual (0 when empty)."""
+    """Per-task cost share of one recorded batch total (0 when empty)."""
     if n_tasks <= 0:
         return 0.0
     return batch_actual_usd / n_tasks
@@ -1559,7 +1559,7 @@ def census_fix_content(
     reference_fix: Path | None = None,
     backend: str = "docker",
 ) -> dict[str, Any]:
-    """Fix-content census for one task (check d, local Docker, $0).
+    """Fix-content census for one task (check d; Docker or supported remote probe).
 
     Two modes. Known-patch mode (a manifest ``reference_fix`` patch with
     distinctive non-test lines): patterns seed both probes directly — the
@@ -1749,7 +1749,7 @@ def census_fix_content(
 
 
 def append_spend_record(receipt_dir: Path, record: Mapping[str, Any]) -> Path:
-    """Append one batch spend record (provider actuals) to spend.jsonl."""
+    """Append one sourced batch spend record to spend.jsonl."""
     path = receipt_dir / SPEND_FILENAME
     receipt_dir.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -1758,7 +1758,7 @@ def append_spend_record(receipt_dir: Path, record: Mapping[str, Any]) -> Path:
 
 
 def slice_spent_usd(receipt_dir: Path) -> float:
-    """Total slice spend so far from recorded batch actuals."""
+    """Sum recorded batch dollars; historical modeled totals are not invoices."""
     path = receipt_dir / SPEND_FILENAME
     if not path.is_file():
         return 0.0
@@ -1777,10 +1777,10 @@ def slice_spent_usd(receipt_dir: Path) -> float:
     return total
 
 
-#: Daytona pay-as-you-go rates (USD per hour) for usage-based actuals. Basis:
-#: measured HAR-88 census (code stratum); posted wallet charges are not
-#: API-accessible, so usage x rate-card is the provider actuals source the
-#: census records (the assignment names Daytona usage explicitly).
+#: Daytona pay-as-you-go rates (USD per hour), used for a rate-card
+#: reconstruction rather than provider billing actuals. The single-allocation
+#: wall-time model omits overlapping fresh-verifier allocations and can
+#: undercount; callers must reserve that uncertainty separately.
 DAYTONA_RATE_CPU_USD_H = 0.0504
 DAYTONA_RATE_MEM_GIB_USD_H = 0.0162
 DAYTONA_RATE_DISK_GIB_USD_H = 0.000108
@@ -1843,12 +1843,12 @@ def daytona_batch_cost_usd(
     primary: Path,
     manifest: Mapping[str, Mapping[str, str]],
 ) -> dict[str, Any]:
-    """Usage-based actuals for Daytona cells: per-task and batch totals.
+    """Rate-card lower-bound reconstruction for Daytona cells.
 
-    Sums trial wall-hours x task-declared allocation rate over every
-    ``*-daytona-*`` job dir under each task's jobs dir. Trials without
-    parseable timestamps are listed unscored (excluded from the total, never
-    zero-filled).
+    Sums trial wall-hours x one task-declared allocation over every
+    ``*-daytona-*`` job dir. Overlapping agent/fresh-verifier allocations are
+    not counted separately, so this is not an invoice or complete usage bill.
+    Trials without parseable timestamps are excluded, never zero-filled.
     """
     per_task: dict[str, float] = {}
     unscored: list[str] = []
@@ -1971,7 +1971,7 @@ def _register_census_commands(sub: Any) -> None:
     record.add_argument("--actual-usd", type=float, required=True)
     record.add_argument("--evidence", default="", help="provider receipt path or query")
     record.set_defaults(func=_record_spend_command)
-    cost = sub.add_parser("cost", help="Compute Daytona usage-based actuals and record them")
+    cost = sub.add_parser("cost", help="Record Daytona rate-card estimates, not provider invoices")
     _add_common(cost)
     cost.add_argument("--batch-id", required=True)
     cost.add_argument("--tasks", required=True, help="comma-separated task ids in the batch")
@@ -2431,15 +2431,17 @@ def _cost_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             "actual_usd": round(result["batch_usd"], 4),
             "trials": result["trials"],
             "unscored": result["unscored"],
+            "measurement_kind": "rate-card-lower-bound",
+            "provider_actual_usd": None,
             "evidence": result["basis"],
         },
     )
     for task_id in sorted(result["per_task_usd"]):
-        print(f"daytona {task_id}: ${result['per_task_usd'][task_id]:.4f}")
+        print(f"daytona estimate {task_id}: ${result['per_task_usd'][task_id]:.4f}")
     for unscored in result["unscored"]:
         print(f"unscored (excluded): {unscored}")
     total = slice_spent_usd(ctx.receipt_dir)
-    print(f"recorded batch {args.batch_id}: ${result['batch_usd']:.4f} -> {path}")
+    print(f"recorded lower-bound estimate {args.batch_id}: ${result['batch_usd']:.4f} -> {path}")
     print(f"slice total so far: ${total:.4f} / ${SLICE_CAP_USD:.2f}")
     return 0
 
@@ -2503,7 +2505,6 @@ __all__ = [
     "probe_evidence",
     "resolve_worker_count",
     "report_row_key",
-    "resolve_worker_count",
     "run_cell",
     "run_task_record",
     "scannable_cell_dirs",

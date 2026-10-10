@@ -73,10 +73,10 @@ uv run --with inspect-scout==0.5.4 --with harbor==0.24.0 python \
 ```
 
 Converter: `src/evallab/cheatbench.py` (`cheatbench.raw_trace.v1` → staged
-ATIF; label, mechanism, rationale and localization carried as transcript
-metadata plus a clearly-marked final annotation message stating the ATIF
-step and transcript message number of the cheat). Tests:
-`tests/test_cheatbench.py`.
+ATIF via the same single converter the detectors score; label, mechanism,
+rationale and localization carried as transcript metadata plus a
+clearly-marked final annotation message stating the ATIF step and transcript
+message number of the cheat). Tests: `tests/test_cheatbench.py`.
 
 ## How to open
 

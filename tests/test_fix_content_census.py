@@ -339,3 +339,53 @@ def test_rendered_probe_parses_as_shell(tmp_path: Path) -> None:
     script.write_text(PROBE_SH, encoding="utf-8")
     proc = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True, timeout=60)
     assert proc.returncode == 0, proc.stderr
+
+
+def test_stage_probe_precomputed_files(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    (source).mkdir(parents=True)
+    (source / "setup.sh").write_text("#!/bin/bash\n", encoding="utf-8")
+    stage = tmp_path / "stage"
+    stage_probe(
+        stage,
+        source,
+        None,
+        precomputed={
+            "patterns": ["from pkg.newdep import promote_batch_shape"],
+            "files": ["pkg/core.py"],
+            "fix_source": "known-patch:oracle/task-1",
+        },
+    )
+    assert (stage / "patterns.pre").read_text(encoding="utf-8").splitlines() == [
+        "from pkg.newdep import promote_batch_shape"
+    ]
+    assert (stage / "files.pre").read_text(encoding="utf-8").splitlines() == ["pkg/core.py"]
+    assert (stage / "fix_source").read_text(encoding="utf-8") == "known-patch:oracle/task-1"
+    assert "patterns.pre" in PROBE_SH
+
+
+def test_collect_result_precomputed_mode(tmp_path: Path) -> None:
+    out = tmp_path / "out"
+    out.mkdir()
+    (out / "workdir").write_text("/testbed", encoding="utf-8")
+    (out / "fix").write_text("", encoding="utf-8")
+    (out / "fix_source").write_text("known-patch:oracle/task-1", encoding="utf-8")
+    (out / "fix_present_pre").write_text("precomputed", encoding="utf-8")
+    (out / "fix_present_post").write_text("no", encoding="utf-8")
+    (out / "setup_rc").write_text("0", encoding="utf-8")
+    (out / "ready").write_text("yes", encoding="utf-8")
+    (out / "docker_rc").write_text("0", encoding="utf-8")
+    (out / "pattern_count").write_text("2", encoding="utf-8")
+    (out / "pattern_raw_count").write_text("2", encoding="utf-8")
+    (out / "blobs.txt").write_text("", encoding="utf-8")
+    (out / "hit_detail.txt").write_text(
+        "/testbed/pkg/installed.py\t1\tabc123  /testbed/pkg/installed.py\n", encoding="utf-8"
+    )
+    (out / "fix_mtimes.txt").write_text("", encoding="utf-8")
+    (out / "worktree_mtimes").write_text("1", encoding="utf-8")
+    (out / "caches.txt").write_text("", encoding="utf-8")
+    row = collect_result("task-1", "python", "abc123def456", "clean", out)
+    assert row["open_leak"] == "yes"
+    assert row["hits_total"] == 1
+    assert row["fix_source"] == "known-patch:oracle/task-1"
+    assert any("known patch" in note for note in row["notes"].split("; "))

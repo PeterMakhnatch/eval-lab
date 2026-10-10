@@ -40,6 +40,7 @@ import re
 import shutil
 import subprocess
 import sys
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -236,23 +237,36 @@ OUT=/census-out
 mkdir -p "$OUT"
 printf '%s' "$WORKDIR" > "$OUT/workdir"
 printf '%s' "$FIX" > "$OUT/fix"
-# ---- stage 0: reference fix from the leaked pre-setup history ----
-BASE=$(git -C "$WORKDIR" rev-parse HEAD 2>/dev/null || true)
-printf '%s' "$BASE" > "$OUT/base"
-if git -C "$WORKDIR" cat-file -t "$FIX" >/dev/null 2>&1; then echo yes > "$OUT/fix_present_pre"; else echo no > "$OUT/fix_present_pre"; fi
-git -C "$WORKDIR" diff "$FIX^" "$FIX" --name-only 2>/dev/null > "$OUT/changed.txt" || true
-git -C "$WORKDIR" diff "$FIX^" "$FIX" 2>/dev/null > "$OUT/fix.diff" || true
-: > "$OUT/blobs.txt"
-while IFS= read -r f; do
-  [ -n "$f" ] || continue
-  _sha=$(git -C "$WORKDIR" rev-parse "$FIX:$f" 2>/dev/null || true)
-  [ -n "$_sha" ] && printf '%s\t%s\n' "$_sha" "$f" >> "$OUT/blobs.txt"
-done < "$OUT/changed.txt"
-awk -f "$STAGE/patterns.awk" "$OUT/fix.diff" 2>/dev/null | sort -u > "$OUT/patterns_raw.txt" || true
+# ---- stage 0: reference fix from the leaked pre-setup history, or ----
+# ---- precomputed patterns from a known reference patch (no in-image fix) ----
+if [ -f "$STAGE/patterns.pre" ]; then
+  cp "$STAGE/patterns.pre" "$OUT/patterns_raw.txt"
+  { cat "$STAGE/fix_source" 2>/dev/null || echo unknown-patch; } > "$OUT/fix_source"
+  echo precomputed > "$OUT/fix_present_pre"
+  BASE=$(git -C "$WORKDIR" rev-parse HEAD 2>/dev/null || true)
+  printf '%s' "$BASE" > "$OUT/base"
+  : > "$OUT/blobs.txt"
+  : > "$OUT/fix.diff"
+  cp "$STAGE/files.pre" "$OUT/changed.txt" 2>/dev/null || : > "$OUT/changed.txt"
+else
+  BASE=$(git -C "$WORKDIR" rev-parse HEAD 2>/dev/null || true)
+  printf '%s' "$BASE" > "$OUT/base"
+  if git -C "$WORKDIR" cat-file -t "$FIX" >/dev/null 2>&1; then echo yes > "$OUT/fix_present_pre"; else echo no > "$OUT/fix_present_pre"; fi
+  git -C "$WORKDIR" diff "$FIX^" "$FIX" --name-only 2>/dev/null > "$OUT/changed.txt" || true
+  git -C "$WORKDIR" diff "$FIX^" "$FIX" 2>/dev/null > "$OUT/fix.diff" || true
+  : > "$OUT/blobs.txt"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    _sha=$(git -C "$WORKDIR" rev-parse "$FIX:$f" 2>/dev/null || true)
+    [ -n "$_sha" ] && printf '%s\t%s\n' "$_sha" "$f" >> "$OUT/blobs.txt"
+  done < "$OUT/changed.txt"
+  awk -f "$STAGE/patterns.awk" "$OUT/fix.diff" 2>/dev/null | sort -u > "$OUT/patterns_raw.txt" || true
+fi
 # Distinctive patterns: added lines absent from the base tree. A line the
 # base already contains is not fix content, no matter where else it appears.
 # Batched: one git-grep lists every raw pattern occurring at base (-o prints
 # only the matched part, i.e. the pattern itself), then exact-subtract.
+# Applies to both recovered and precomputed raw patterns.
 : > "$OUT/patterns.txt"
 if [ -s "$OUT/patterns_raw.txt" ] && [ -n "$BASE" ]; then
   git -C "$WORKDIR" grep -ohF -f "$OUT/patterns_raw.txt" "$BASE" -- . 2>/dev/null | sort -u > "$OUT/base_hits.txt" || true
@@ -321,8 +335,20 @@ def _rmtree(path: Path) -> None:
     shutil.rmtree(path, ignore_errors=True)
 
 
-def stage_probe(stage_dir: Path, setup_source: Path, setup_sh: bytes | None = None) -> None:
-    """Write the probe stage dir: probe.sh plus the setup payload to run."""
+def stage_probe(
+    stage_dir: Path,
+    setup_source: Path,
+    setup_sh: bytes | None = None,
+    *,
+    precomputed: Mapping[str, Any] | None = None,
+) -> None:
+    """Write the probe stage dir: probe.sh plus the setup payload to run.
+
+    ``precomputed`` seeds the probe from a known reference patch instead of
+    in-image git archaeology: ``{"patterns": [...], "files": [...],
+    "fix_source": str}`` stages ``patterns.pre``/``files.pre``/``fix_source``
+    for the probe's stage-0 branch (base-tree subtraction still applies).
+    """
     stage = Path(stage_dir)
     setup = stage / "setup"
     _rmtree(stage)
@@ -334,6 +360,14 @@ def stage_probe(stage_dir: Path, setup_source: Path, setup_sh: bytes | None = No
         target.write_bytes(setup_sh)
     (stage / "probe.sh").write_text(PROBE_SH, encoding="utf-8")
     (stage / "patterns.awk").write_text(PATTERNS_AWK, encoding="utf-8")
+    if precomputed is not None:
+        patterns = [str(line) for line in precomputed.get("patterns", []) if str(line).strip()]
+        files = [str(path) for path in precomputed.get("files", []) if str(path).strip()]
+        (stage / "patterns.pre").write_text("\n".join(patterns) + "\n", encoding="utf-8")
+        (stage / "files.pre").write_text("\n".join(files) + "\n", encoding="utf-8")
+        (stage / "fix_source").write_text(
+            str(precomputed.get("fix_source", "unknown-patch")), encoding="utf-8"
+        )
 
 
 def compose_clean_setup(
@@ -475,7 +509,12 @@ def collect_result(
     worktree_mtimes = _read(out / "worktree_mtimes")
     mtime_signal = len(fix_epochs) == 1 and len(mtimes) >= 2 and worktree_mtimes not in ("?", "1")
     notes: list[str] = []
-    if _read(out / "fix_present_pre") != "yes":
+    fix_pre = _read(out / "fix_present_pre")
+    if fix_pre == "precomputed":
+        notes.append(
+            f"patterns from known patch ({_read(out / 'fix_source')}); no in-image fix commit"
+        )
+    elif fix_pre != "yes":
         notes.append("fix absent pre-setup; content scan has no oracle")
     if _read(out / "setup_rc") != "0":
         notes.append(f"setup rc={_read(out / 'setup_rc')}")
@@ -495,7 +534,7 @@ def collect_result(
         "setup_rc": _read(out / "setup_rc"),
         "ready": ready,
         "fix_sha": fix_sha,
-        "fix_source": "",
+        "fix_source": _read(out / "fix_source", ""),
         "fix_present_pre": _read(out / "fix_present_pre"),
         "fix_present_post": fix_present_post,
         "rev_count": _read(out / "rev_count"),

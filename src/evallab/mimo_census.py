@@ -361,7 +361,7 @@ def verify_grade_for(
     nop: str,
     oracle: str,
     ladder_verdict: str,
-    census_locations: int | None,
+    census_locations: int | str | None,
 ) -> str:
     """Map per-check signals to one manifest ``verify`` grade."""
     if (
@@ -374,7 +374,17 @@ def verify_grade_for(
         return VERIFY_UNVERIFIED
     if oracle in ("missing", "unscored"):
         return VERIFY_UNVERIFIED
-    if census_locations is not None and census_locations > 0:
+    if census_locations == "probe-blind":
+        return VERIFY_NEEDS_TRIAGE
+    leak_count = 0
+    if isinstance(census_locations, int):
+        leak_count = census_locations
+    elif isinstance(census_locations, str) and census_locations not in ("", "probe-blind"):
+        try:
+            leak_count = int(census_locations)
+        except ValueError:
+            return VERIFY_NEEDS_TRIAGE
+    if leak_count > 0:
         return VERIFY_OPEN_LEAK
     if ladder_verdict == "cracked":
         return VERIFY_GRADER_HOLE
@@ -725,6 +735,101 @@ def census_task(
     }
 
 
+def _known_patch_census(
+    *,
+    task_id: str,
+    clean_package: Path,
+    run_package: Path,
+    language: str,
+    scratch: Path,
+    image: str,
+    workdir: str,
+    clean_setup_sha: str,
+    patch_text: str,
+    patch_sha: str,
+    patterns: list[str],
+) -> dict[str, Any]:
+    """Probe published vs shipped setups with patterns from a known patch.
+
+    The published setup is the positive control: zero hits there means the
+    probe is blind to this fix (reported ``probe-blind``), not that the
+    chain is clean.
+    """
+    from evallab.fix_content_census import (
+        collect_result,
+        non_test_files,
+        parse_diff_added_lines,
+        run_probe,
+        stage_probe,
+    )
+
+    image12 = image.split("@sha256:")[-1][:12] if "@sha256:" in image else image[-12:]
+    files = non_test_files(list(parse_diff_added_lines(patch_text)))
+    precomputed: dict[str, Any] = {
+        "patterns": patterns,
+        "files": files,
+        "fix_source": f"known-patch:{task_id}",
+    }
+    setup_source = run_package / "environment" / "setup"
+    published_stage = scratch / "stage-published"
+    published_out = scratch / "out-published"
+    stage_probe(published_stage, setup_source, None, precomputed=precomputed)
+    run_probe(image, workdir, "", published_stage, published_out)
+    published_row = collect_result(task_id, language, image12, "published", published_out)
+    if not published_row.get("hits_total") and published_row.get("open_leak") != "yes":
+        meta_path = scratch / "census.meta.json"
+        meta_path.write_text(
+            json.dumps(
+                {
+                    "task_id": task_id,
+                    "patch_sha": patch_sha,
+                    "extract_status": "known-patch",
+                    "clean_setup": "package environment/setup/setup.sh",
+                    "clean_setup_sha256": clean_setup_sha,
+                    "image": image,
+                    "probe_blind": True,
+                    "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return {"census_locations": "probe-blind", "reason": "probe-blind", "detail": {}}
+    if not clean_setup_sha:
+        return {"census_locations": None, "reason": "clean package has no setup.sh"}
+    clean_source = clean_package / "environment" / "setup"
+    clean_stage = scratch / "stage-clean"
+    clean_out = scratch / "out-clean"
+    stage_probe(clean_stage, clean_source, None, precomputed=precomputed)
+    run_probe(image, workdir, "", clean_stage, clean_out)
+    clean_row = collect_result(task_id, language, image12, "clean", clean_out)
+    meta_path = scratch / "census.meta.json"
+    meta_path.write_text(
+        json.dumps(
+            {
+                "task_id": task_id,
+                "patch_sha": patch_sha,
+                "extract_status": "known-patch",
+                "clean_setup": "package environment/setup/setup.sh",
+                "clean_setup_sha256": clean_setup_sha,
+                "image": image,
+                "probe_blind": False,
+                "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
+                "clean": clean_row,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    try:
+        locations = int(clean_row.get("hits_total", 0))
+    except (TypeError, ValueError):
+        locations = 0
+    return {"census_locations": locations, "reason": "", "detail": clean_row}
+
+
 def census_fix_content(
     *,
     task_id: str,
@@ -732,21 +837,25 @@ def census_fix_content(
     run_package: Path,
     language: str,
     scratch_root: Path,
+    reference_fix: Path | None = None,
 ) -> dict[str, Any]:
     """Fix-content census for one task (check d, local Docker, $0).
 
-    Recovers the reference fix from the published image (pre-cleanup run
-    package), probes the published setup, then probes the ACTUAL clean
-    package setup (what ships — never a recomposed approximation, so new
-    transform versions are measured exactly). Returns the clean-chain
-    ``collect_result`` row, or ``{"census_locations": None}`` when no fix is
-    recoverable.
+    Two modes. Known-patch mode (a manifest ``reference_fix`` patch with
+    distinctive non-test lines): patterns seed both probes directly — the
+    published setup is the positive control (zero hits there reports
+    ``probe-blind``), the ACTUAL clean package setup is what ships. Extractor
+    mode (no reference patch): recover the fix from the published image
+    history, then probe published vs clean. Returns the clean-chain
+    ``collect_result`` row, ``probe-blind``, or ``{"census_locations": None}``
+    when no fix is recoverable.
     """
     import hashlib
 
     from evallab.fix_content_census import (
         collect_result,
         copy_git_from_image,
+        distinctive_added_lines,
         leak_oracle_extract,
         recover_fix_lite,
         run_probe,
@@ -765,29 +874,57 @@ def census_fix_content(
     clean_sh_path = clean_package / "environment" / "setup" / "setup.sh"
     if clean_sh_path.is_file():
         clean_setup_sha = hashlib.sha256(clean_sh_path.read_bytes()).hexdigest()
+    patch_text = ""
+    patch_sha = ""
+    if reference_fix is not None:
+        try:
+            patch_text = reference_fix.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            patch_text = ""
+        if patch_text.strip():
+            patch_sha = hashlib.sha256(patch_text.encode()).hexdigest()
+    known_patterns = distinctive_added_lines(patch_text) if patch_sha else []
     meta_path = scratch / "census.meta.json"
     if meta_path.is_file():
         try:
             meta = json.loads(meta_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             meta = {}
-        # Reuse completed probes verbatim (deterministic): same image (fix
-        # source), same shipped setup, and a real recovered fix SHA. The
-        # fix_sha requirement excludes vacuous rows recorded before strict
-        # null-fix rejection existed.
-        fix_meta = meta.get("fix_sha")
+        # Reuse completed probes verbatim (deterministic): same image, same
+        # shipped setup, same fix identity (recovered SHA or patch SHA), and
+        # an integer clean hit count. Null/vacuous rows never match.
+        identity = meta.get("patch_sha") or meta.get("fix_sha")
+        want_identity = patch_sha or None
         if (
             meta.get("image") == image
             and meta.get("clean_setup_sha256") == clean_setup_sha
-            and isinstance(fix_meta, str)
-            and len(fix_meta) == 40
+            and isinstance(identity, str)
+            and identity
+            and (identity == want_identity if want_identity else len(identity) == 40)
             and isinstance(meta.get("clean", {}).get("hits_total"), int)
         ):
-            return {
-                "census_locations": meta["clean"]["hits_total"],
-                "reason": "",
-                "detail": meta["clean"],
-            }
+            locations_meta = meta["clean"]["hits_total"]
+            if meta.get("probe_blind"):
+                return {
+                    "census_locations": "probe-blind",
+                    "reason": "probe-blind",
+                    "detail": meta["clean"],
+                }
+            return {"census_locations": locations_meta, "reason": "", "detail": meta["clean"]}
+    if known_patterns:
+        return _known_patch_census(
+            task_id=task_id,
+            clean_package=clean_package,
+            run_package=run_package,
+            language=language,
+            scratch=scratch,
+            image=image,
+            workdir=workdir,
+            clean_setup_sha=clean_setup_sha,
+            patch_text=patch_text,
+            patch_sha=patch_sha,
+            patterns=known_patterns,
+        )
     git_dir = scratch / "git-copy"
     if not copy_git_from_image(image, workdir, git_dir):
         return {"census_locations": None, "reason": "could not copy .git from image"}
@@ -1170,6 +1307,13 @@ def _run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         )
         ledger_row = ledger.get(task_id)
         if not args.skip_fix_census and ledger_row is not None:
+            reference_fix: Path | None = None
+            fix_ref = str(row.get("reference_fix", ""))
+            if fix_ref not in ("", "none"):
+                candidate = Path(fix_ref)
+                # Absolute sweep paths stay absolute; anything else resolves
+                # against the primary checkout (index.csv patch_path later).
+                reference_fix = candidate if candidate.is_absolute() else ctx.primary / candidate
             try:
                 fix_result = census_fix_content(
                     task_id=task_id,
@@ -1177,6 +1321,7 @@ def _run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
                     run_package=ctx.primary / run_package_rel(ledger_row),
                     language=row.get("language", "python"),
                     scratch_root=ctx.jobs_dir / "fix-census-scratch",
+                    reference_fix=reference_fix,
                 )
             except Exception as exc:  # noqa: BLE001 - probe failure is a finding
                 print(f"fix-census {task_id}: {type(exc).__name__}: {exc}")

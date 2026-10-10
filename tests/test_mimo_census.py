@@ -540,3 +540,157 @@ def test_fix_census_rejects_unrecoverable_fix(tmp_path: Path, monkeypatch: Any) 
     )
     assert result["census_locations"] is None
     assert str(result["reason"]).startswith("no recoverable fix")
+
+
+KNOWN_PATCH = """\
+diff --git a/pkg/core.py b/pkg/core.py
+--- a/pkg/core.py
++++ b/pkg/core.py
+@@ -1,2 +1,3 @@
++from pkg.newdep import promote_batch_shape
+ def run(x):
+-    return x
++    return promote_batch_shape(x)
+"""
+
+
+def _write_patch_package(tmp_path: Path, name: str) -> Path:
+    package = tmp_path / name
+    (package / "environment" / "setup").mkdir(parents=True)
+    (package / "environment" / "setup" / "setup.sh").write_text("# ship\n", encoding="utf-8")
+    (package / "task.toml").write_text(
+        '[environment]\ndocker_image = "img:1"\nworkdir = "/testbed"\n', encoding="utf-8"
+    )
+    return package
+
+
+def _fake_probe_out(out: Path, *, hits: int) -> None:
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "workdir").write_text("/testbed", encoding="utf-8")
+    (out / "fix").write_text("", encoding="utf-8")
+    (out / "fix_source").write_text("known-patch:task-k", encoding="utf-8")
+    (out / "fix_present_pre").write_text("precomputed", encoding="utf-8")
+    (out / "fix_present_post").write_text("no", encoding="utf-8")
+    (out / "setup_rc").write_text("0", encoding="utf-8")
+    (out / "ready").write_text("yes", encoding="utf-8")
+    (out / "docker_rc").write_text("0", encoding="utf-8")
+    (out / "pattern_count").write_text("2", encoding="utf-8")
+    (out / "pattern_raw_count").write_text("2", encoding="utf-8")
+    (out / "blobs.txt").write_text("", encoding="utf-8")
+    if hits:
+        (out / "hit_detail.txt").write_text(
+            "/testbed/pkg/installed.py\t1\tabc123  f\n", encoding="utf-8"
+        )
+    else:
+        (out / "hit_detail.txt").write_text("", encoding="utf-8")
+    (out / "fix_mtimes.txt").write_text("", encoding="utf-8")
+    (out / "worktree_mtimes").write_text("1", encoding="utf-8")
+    (out / "caches.txt").write_text("", encoding="utf-8")
+
+
+def test_known_patch_probe_blind(tmp_path: Path, monkeypatch: Any) -> None:
+    import evallab.fix_content_census as fcc
+    from evallab.mimo_census import census_fix_content
+
+    clean = _write_patch_package(tmp_path, "clean")
+    run = _write_patch_package(tmp_path, "runpkg")
+    patch = tmp_path / "fix.patch"
+    patch.write_text(KNOWN_PATCH, encoding="utf-8")
+    staged: list[str] = []
+
+    def fake_stage(stage_dir: object, *args: Any, **kwargs: Any) -> None:
+        staged.append(str(stage_dir))
+        precomputed = kwargs.get("precomputed")
+        assert precomputed and len(precomputed["patterns"]) >= 1
+
+    def fake_run(image: str, workdir: str, fix: str, stage: object, out: object) -> None:
+        _fake_probe_out(Path(str(out)), hits=0)
+
+    monkeypatch.setattr(fcc, "stage_probe", fake_stage)
+    monkeypatch.setattr(fcc, "run_probe", fake_run)
+    result = census_fix_content(
+        task_id="task-k",
+        clean_package=clean,
+        run_package=run,
+        language="python",
+        scratch_root=tmp_path / "scratch",
+        reference_fix=patch,
+    )
+    # Published probe finds nothing: blind, and the clean probe never runs.
+    assert result["census_locations"] == "probe-blind"
+    assert len(staged) == 1 and "published" in staged[0]
+    assert (
+        verify_grade_for(
+            nop="0", oracle="1", ladder_verdict="clean", census_locations="probe-blind"
+        )
+        == VERIFY_NEEDS_TRIAGE
+    )
+
+
+def test_known_patch_clean_leak_counted(tmp_path: Path, monkeypatch: Any) -> None:
+    import evallab.fix_content_census as fcc
+    from evallab.mimo_census import census_fix_content
+
+    clean = _write_patch_package(tmp_path, "clean")
+    run = _write_patch_package(tmp_path, "runpkg")
+    patch = tmp_path / "fix.patch"
+    patch.write_text(KNOWN_PATCH, encoding="utf-8")
+
+    def fake_stage(stage_dir: object, *args: Any, **kwargs: Any) -> None:
+        return None
+
+    def fake_run(image: str, workdir: str, fix: str, stage: object, out: object) -> None:
+        _fake_probe_out(Path(str(out)), hits=1 if "published" in str(out) else 0)
+
+    monkeypatch.setattr(fcc, "stage_probe", fake_stage)
+    monkeypatch.setattr(fcc, "run_probe", fake_run)
+    result = census_fix_content(
+        task_id="task-k",
+        clean_package=clean,
+        run_package=run,
+        language="python",
+        scratch_root=tmp_path / "scratch",
+        reference_fix=patch,
+    )
+    assert result["census_locations"] == 0
+
+
+def test_known_patch_reuse_by_patch_sha(tmp_path: Path, monkeypatch: Any) -> None:
+    import hashlib
+
+    import evallab.fix_content_census as fcc
+    from evallab.mimo_census import census_fix_content
+
+    clean = _write_patch_package(tmp_path, "clean")
+    run = _write_patch_package(tmp_path, "runpkg")
+    patch = tmp_path / "fix.patch"
+    patch.write_text(KNOWN_PATCH, encoding="utf-8")
+    scratch = tmp_path / "scratch" / "task-k"
+    scratch.mkdir(parents=True)
+    setup_sha = hashlib.sha256(b"# ship\n").hexdigest()
+    patch_sha = hashlib.sha256(KNOWN_PATCH.encode()).hexdigest()
+    (scratch / "census.meta.json").write_text(
+        json.dumps(
+            {
+                "image": "img:1",
+                "clean_setup_sha256": setup_sha,
+                "patch_sha": patch_sha,
+                "clean": {"hits_total": 0},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def fail_stage(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("reuse must skip staging")
+
+    monkeypatch.setattr(fcc, "stage_probe", fail_stage)
+    result = census_fix_content(
+        task_id="task-k",
+        clean_package=clean,
+        run_package=run,
+        language="python",
+        scratch_root=tmp_path / "scratch",
+        reference_fix=patch,
+    )
+    assert result["census_locations"] == 0

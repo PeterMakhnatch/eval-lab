@@ -1,4 +1,4 @@
-"""Fail-closed task admission gate: static scan plus $0 controls plus cheat ladder.
+"""Fail-closed task admission gate: static scan plus $0 controls plus cheat ladder plus mutation.
 
 ``evallab tasks admit`` runs one ordered gate over a task package directory and
 writes a digest-bound admission record. The home is ``tasks`` (beside
@@ -13,14 +13,17 @@ paths instead of duplicating them:
   :func:`evallab.task_variants.append_status_evidence` — no second ledger.
 
 Step order is cheapest-first (offline scan, then Docker controls, then the
-12-attack ladder) with early stop on the first non-passing step. Every step
-records its command, job directory, reward(s), and duration; the record always
-lands, even for infrastructure failures.
+12-attack ladder, then verifier mutation) with early stop on the first
+non-passing step. Every step records its command, job directory, reward(s),
+and duration; the record always lands, even for infrastructure failures.
 
 Verdicts: ``admitted`` (every step passed), ``rejected`` (a step proved the
-task bad: wrong control score or a cracked attack), ``not_admitted``
-(infrastructure broke before proof either way: Harbor errors, missing jobs,
-unreadable rewards), ``unproven`` (no oracle reference covers the task, so
+task bad: wrong control score, a cracked attack, or mutation capture
+controls mis-scoring the staged reference), ``needs_review`` (the verifier
+lets a mutant of the fix pass: a survivor hypothesis for a human, never an
+auto-flip), ``not_admitted`` (infrastructure broke before proof either way:
+Harbor errors, missing jobs, unreadable rewards, or an uninformative
+mutation probe), ``unproven`` (no oracle reference covers the task, so
 solvability cannot be shown — distinct from infra). Fail-closed means infra
 never silently passes.
 
@@ -45,9 +48,9 @@ parents. The dynamic proofs (oracle/nop/cheat) are the vetoes; findings stay
 first-class evidence in the record for later policy or human review.
 
 The step list is data-driven: :func:`default_steps` owns the order and
-``STEP_RUNNERS`` maps each step kind to its runner. A later verifier-mutation
-step lands as one new registry entry plus one new :class:`StepDef` — no gate
-logic changes. No mutation step exists yet.
+``STEP_RUNNERS`` maps each step kind to its runner. The verifier-mutation
+step runs the ``evallab hack mutate`` audit (:mod:`evallab.verifier_mutation`)
+against the staged oracle package after the cheat ladder.
 """
 
 from __future__ import annotations
@@ -76,10 +79,14 @@ if TYPE_CHECKING:
 ADMISSION_SCHEMA = "evallab.task_admission/v1"
 
 #: Gate implementation version pinned in every record (step-list revisions bump this).
-GATE_VERSION = "tasks.admit/v1"
+GATE_VERSION = "tasks.admit/v2"
 
-AdmissionVerdict = Literal["admitted", "rejected", "not_admitted", "unproven"]
-StepStatus = Literal["pass", "fail", "infra", "unproven"]
+#: Default ``--max-mutants`` for the mutation step: one Docker trial per
+#: mutant, so this bounds the step near the 12-trial cheat ladder.
+DEFAULT_MAX_MUTANTS = 12
+
+AdmissionVerdict = Literal["admitted", "rejected", "needs_review", "not_admitted", "unproven"]
+StepStatus = Literal["pass", "fail", "infra", "unproven", "review"]
 
 
 class AdmissionError(RuntimeError):
@@ -103,12 +110,13 @@ class StepDef:
 
 
 def default_steps() -> list[StepDef]:
-    """The ordered gate: scan, oracle, nop, then one step per ladder attack."""
+    """The ordered gate: scan, oracle, nop, one step per ladder attack, mutation."""
     return [
         StepDef(name="static-scan", kind="static-scan"),
         StepDef(name="oracle", kind="control", agent="oracle", expect=1.0),
         StepDef(name="nop", kind="control", agent="nop", expect=0.0),
         *(StepDef(name=f"cheat:{attack}", kind="cheat", attack=attack) for attack in ATTACKS),
+        StepDef(name="mutation", kind="mutation"),
     ]
 
 
@@ -139,6 +147,8 @@ class AdmissionStepRecord(ContractModel):
     detail: str = ""
     findings: list[AdmissionFinding] = Field(default_factory=list)
     reference: str = ""
+    #: Survivor-mutant patch files; set only by the mutation step on ``review``.
+    survivor_patches: list[str] = Field(default_factory=list)
 
 
 class AdmissionRecord(ContractModel):
@@ -160,6 +170,14 @@ class AdmissionRecord(ContractModel):
     failing_steps: list[str] = Field(default_factory=list)
     failed_attacks: list[str] = Field(default_factory=list)
     unproven_steps: list[str] = Field(default_factory=list)
+    #: Mutation steps routed to human review (verdict ``needs_review``).
+    review_steps: list[str] = Field(default_factory=list)
+    #: Surviving-mutant patch files (``inputs/<id>/<id>.patch`` under the
+    #: mutation run dir) behind a ``needs_review`` verdict.
+    survivor_patches: list[str] = Field(default_factory=list)
+    #: ``--skip-mutation`` recorded explicitly (the step also stays listed
+    #: under ``skipped_steps``).
+    mutation_skipped: bool = False
     duration_s: float = Field(ge=0.0)
 
 
@@ -206,6 +224,25 @@ class CheatOutcome:
 
 
 @dataclass
+class MutationOutcome:
+    """What the mutation step needs: the audit verdict plus scored counts."""
+
+    report_verdict: str = "planned"
+    verdict_reason: str = ""
+    mutation_score: float | None = None
+    counts: dict[str, int] = field(default_factory=dict)
+    #: Mutant ids that kept reward (survived or partial), in run order.
+    survivors: list[str] = field(default_factory=list)
+    #: Patch files behind each survivor (``inputs/<id>/<id>.patch``).
+    survivor_patches: list[str] = field(default_factory=list)
+    run_dir: Path | None = None
+    report_path: Path | None = None
+    targets: list[str] = field(default_factory=list)
+    task_broken: bool = False
+    command: list[str] = field(default_factory=list)
+
+
+@dataclass
 class StepContext:
     """Shared execution context threaded through every step runner."""
 
@@ -217,12 +254,20 @@ class StepContext:
     slug: str
     repeat_n: int = 3
     timeout_seconds: int = 600
+    max_mutants: int = DEFAULT_MAX_MUTANTS
     scan: Callable[[Path], ScanOutcome] | None = None
     control: Callable[..., ControlOutcome] | None = None
     cheat: Callable[..., CheatOutcome] | None = None
+    mutation: Callable[..., MutationOutcome] | None = None
     reference: Callable[..., OracleReference | None] | None = None
     reference_arg: str = "auto"
     sweep_csv: Path | None = None
+    #: The exact package the oracle step graded: the staged reference tree
+    #: when the HAR-191 path applied, else the task package itself. The
+    #: mutation step mutates this same tree.
+    oracle_package: Path | None = None
+    #: The proven reference behind ``oracle_package`` (None for shipped solve.sh).
+    oracle_reference: OracleReference | None = None
 
 
 def default_scan(task_dir: Path) -> ScanOutcome:
@@ -356,6 +401,92 @@ def default_cheat(
         verdict=trials[0]["verdict"],
         command=command,
     )
+
+def default_mutation(
+    *,
+    package: Path,
+    targets: Sequence[str],
+    max_mutants: int,
+    job_name: str,
+    jobs_dir: Path,
+    repo_root: Path,
+    timeout_seconds: int,
+) -> MutationOutcome:
+    """Run the verifier-mutation audit over the staged oracle package ($0, local Docker)."""
+    from evallab.verifier_mutation import run_mutation_audit
+
+    output_dir: Path | None = jobs_dir / f"{job_name}-mutation"
+    try:
+        inside_repo = output_dir.resolve().is_relative_to(repo_root.resolve())
+    except OSError:
+        inside_repo = False
+    if not inside_repo:
+        # The audit requires its run dir inside the repo; fall back to its
+        # default (``runs/.envcheck``) when the jobs dir lives elsewhere.
+        output_dir = None
+    command = [
+        "evallab",
+        "hack",
+        "mutate",
+        str(package),
+        "--execute",
+        "--json",
+        "--max-mutants",
+        str(max_mutants),
+    ]
+    for target in targets:
+        command += ["--target", target]
+    report, run_dir = run_mutation_audit(
+        package,
+        repo_root=repo_root,
+        targets=list(targets),
+        max_mutants=max_mutants,
+        execute=True,
+        workers=1,
+        timeout_seconds=timeout_seconds,
+        output_dir=output_dir,
+    )
+    inputs = run_dir / "inputs"
+    patches = [
+        str(inputs / mutant_id / f"{mutant_id}.patch") for mutant_id in report.survivors
+    ]
+    return MutationOutcome(
+        report_verdict=report.verdict,
+        verdict_reason=report.verdict_reason,
+        mutation_score=report.mutation_score,
+        counts=dict(report.counts),
+        survivors=list(report.survivors),
+        survivor_patches=patches,
+        run_dir=run_dir,
+        report_path=run_dir / "mutation-report.json",
+        targets=list(report.targets),
+        task_broken=report.verdict == "task_broken",
+        command=command,
+    )
+
+
+def _patch_container_targets(patch: bytes, workdir: str) -> list[str]:
+    """Absolute container paths for every file the reference patch rewrites.
+
+    The patch is repo-relative (``+++ b/<path>``); the container applies it
+    under the task workdir, so mutants of those files are edits of the fix.
+    """
+    root = workdir.rstrip("/")
+    targets: list[str] = []
+    for line in patch.decode("utf-8", errors="replace").splitlines():
+        if not line.startswith("+++ "):
+            continue
+        candidate = line[len("+++ "):].strip().strip('"').strip("'")
+        if candidate in ("/dev/null", "dev/null"):
+            continue
+        if candidate.startswith("b/"):
+            candidate = candidate[len("b/"):]
+        if not candidate or candidate.startswith("/"):
+            continue
+        absolute = f"{root}/{candidate}"
+        if absolute not in targets:
+            targets.append(absolute)
+    return targets
 
 
 # --------------------------------------------------------------------------- #
@@ -642,6 +773,11 @@ def _run_control_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
         )
     if step.agent == "oracle" and not (ctx.task_dir / "solution" / "solve.sh").is_file():
         return _run_oracle_reference_step(step, ctx, started)
+    if step.agent == "oracle":
+        # Shipped solve.sh: the oracle grades the package itself, so the
+        # mutation step later mutates this same tree (no reference).
+        ctx.oracle_package = ctx.task_dir
+        ctx.oracle_reference = None
     job_name = _safe_job_name(ctx.job_prefix, ctx.slug, step.agent or "control")
     try:
         run = ctx.control or default_control
@@ -812,6 +948,10 @@ def _run_oracle_reference_step(
         solve.parent.mkdir(parents=True, exist_ok=True)
         solve.write_bytes(render_reference_solve_sh(workdir, ref.patch_bytes, ref.patch_sha256))
         os.chmod(solve, 0o755)
+        # The mutation step later mutates this same staged tree (with the
+        # planted reference solve.sh) and targets the files the patch changes.
+        ctx.oracle_package = staged
+        ctx.oracle_reference = ref
     except OSError as exc:
         return AdmissionStepRecord(
             name=step.name,
@@ -935,12 +1075,193 @@ def _run_cheat_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
     )
 
 
-#: Step-kind registry. A future verifier-mutation step registers one entry
-#: here and appends one :class:`StepDef` in :func:`default_steps`.
+def _declared_mutation_targets(package: Path) -> list[str]:
+    """Absolute container paths from the package's declared artifacts."""
+    import tomllib
+
+    from evallab.verifier_mutation import declared_targets
+
+    try:
+        config = tomllib.loads((package / "task.toml").read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError) as exc:
+        raise AdmissionError(f"cannot read task.toml for mutation targets: {exc}") from exc
+    if not isinstance(config, dict):
+        raise AdmissionError("task.toml has no mapping for mutation targets")
+    return declared_targets(config)
+
+
+def _run_mutation_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
+    """Mutate the staged oracle package and grade each mutant with the verifier.
+
+    Runs only after every earlier step passed (the gate stops at the first
+    non-passing step). With a HAR-191 reference, targets are the source files
+    the reference patch changes, as absolute container paths, so mutants are
+    edits of the fix; otherwise the package's declared artifacts are used.
+    """
+    started = time.monotonic()
+    package = ctx.oracle_package if ctx.oracle_package is not None else ctx.task_dir
+    ref = ctx.oracle_reference
+    reference_label = _ref_label(ref, ctx.task_dir) if ref is not None else ""
+    targets: list[str] = []
+    try:
+        if ref is not None:
+            targets = _patch_container_targets(ref.patch_bytes, _task_workdir(ctx.task_dir))
+            if not targets:
+                raise AdmissionError(
+                    "the reference patch names no container file to mutate; "
+                    "mutants would not be edits of the fix"
+                )
+        else:
+            targets = _declared_mutation_targets(package)
+            if not targets:
+                raise AdmissionError(
+                    f"{package} declares no artifacts and has no oracle reference; "
+                    "pass explicit mutation targets"
+                )
+    except AdmissionError as exc:
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=["evallab", "hack", "mutate", str(package), "--execute", "--json"],
+            job_dir=None,
+            duration_s=time.monotonic() - started,
+            status="infra",
+            detail=f"mutation has no targets: {exc}",
+            reference=reference_label,
+        )
+    except ReferenceUnproven as exc:
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=["evallab", "hack", "mutate", str(package), "--execute", "--json"],
+            job_dir=None,
+            duration_s=time.monotonic() - started,
+            status="infra",
+            detail=f"mutation targets unreadable: {exc}",
+            reference=reference_label,
+        )
+    job_name = _safe_job_name(ctx.job_prefix, ctx.slug, "mutation")
+    try:
+        run = ctx.mutation or default_mutation
+        outcome = run(
+            package=package,
+            targets=targets,
+            max_mutants=ctx.max_mutants,
+            job_name=job_name,
+            jobs_dir=ctx.jobs_dir,
+            repo_root=ctx.repo_root,
+            timeout_seconds=ctx.timeout_seconds,
+        )
+    except Exception as exc:
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=["evallab", "hack", "mutate", str(package), "--execute", "--json"],
+            job_dir=None,
+            duration_s=time.monotonic() - started,
+            status="infra",
+            detail=f"mutation broke: {exc}",
+            reference=reference_label,
+        )
+    return _score_mutation_outcome(step, outcome, started, reference=reference_label)
+
+
+def _score_mutation_outcome(
+    step: StepDef,
+    outcome: MutationOutcome,
+    started: float,
+    *,
+    reference: str = "",
+) -> AdmissionStepRecord:
+    """Map the audit verdict to a gate step status.
+
+    ``task_broken`` is a ``fail`` (``rejected``): the capture controls
+    re-prove oracle=1/base=0 on the exact staged package, so an objective
+    mis-score is the same evidence class as a control-step failure — the
+    harness ran fine, the task's verifier is demonstrably wrong. Any
+    survivor or partial is ``review`` (``needs_review``): a hypothesis for a
+    human, never an auto-reject. Anything uninformative is ``infra``
+    (``not_admitted``): fail-closed, stated plainly — the gate cannot show
+    verifier sensitivity, so admission is blocked.
+    """
+    duration = time.monotonic() - started
+    job = str(outcome.run_dir) if outcome.run_dir is not None else None
+    counts = outcome.counts
+    total = counts.get("total", 0)
+    killed = counts.get("killed", 0)
+    escaped = counts.get("survived", 0) + counts.get("partial", 0)
+    score = "—" if outcome.mutation_score is None else f"{outcome.mutation_score:.0%}"
+    report = str(outcome.report_path) if outcome.report_path is not None else "unwritten"
+    if outcome.task_broken or outcome.report_verdict == "task_broken":
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=outcome.command,
+            job_dir=job,
+            duration_s=duration,
+            status="fail",
+            detail=(
+                f"mutation capture controls failed on the staged package "
+                f"({outcome.verdict_reason}); the verifier mis-scores the reference "
+                f"solution or the base environment — task rejected (report: {report})"
+            ),
+            reference=reference,
+        )
+    if escaped > 0 or outcome.report_verdict == "survivors_found":
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=outcome.command,
+            job_dir=job,
+            duration_s=duration,
+            status="review",
+            detail=(
+                f"mutation score {score}: {escaped}/{total} mutant(s) kept reward "
+                f"({', '.join(outcome.survivors) or 'ids unlisted'}); routed to human "
+                f"review — survivor patches: "
+                f"{', '.join(outcome.survivor_patches) or 'unwritten'} (report: {report})"
+            ),
+            reference=reference,
+            survivor_patches=list(outcome.survivor_patches),
+        )
+    if outcome.report_verdict == "no_survivors":
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=outcome.command,
+            job_dir=job,
+            duration_s=duration,
+            status="pass",
+            detail=(
+                f"mutation killed every scored mutant ({killed}/{total}, "
+                f"score {score}; targets: {', '.join(outcome.targets)}) "
+                f"(report: {report})"
+            ),
+            reference=reference,
+        )
+    return AdmissionStepRecord(
+        name=step.name,
+        kind=step.kind,
+        command=outcome.command,
+        job_dir=job,
+        duration_s=duration,
+        status="infra",
+        detail=(
+            f"mutation produced nothing informative ({outcome.report_verdict}: "
+            f"{outcome.verdict_reason or 'no reason recorded'}); verifier sensitivity "
+            f"is unproven — blocks admission (report: {report})"
+        ),
+        reference=reference,
+    )
+
+
+#: Step-kind registry: each kind maps to its runner; :func:`default_steps`
+#: owns the order.
 STEP_RUNNERS: dict[str, Callable[[StepDef, StepContext], AdmissionStepRecord]] = {
     "static-scan": _run_scan_step,
     "control": _run_control_step,
     "cheat": _run_cheat_step,
+    "mutation": _run_mutation_step,
 }
 
 
@@ -990,6 +1311,17 @@ def plan_admission(
                 "--attempts",
                 "1",
             ]
+        elif step.kind == "mutation":
+            command = [
+                "evallab",
+                "hack",
+                "mutate",
+                "<task>",
+                "--execute",
+                "--json",
+                "--max-mutants",
+                str(DEFAULT_MAX_MUTANTS),
+            ]
         else:
             command = [f"<{step.kind}>", "<task>"]
         planned.append({"name": step.name, "kind": step.kind, "command": command})
@@ -1011,11 +1343,14 @@ def admit_task(
     by: str = "operator",
     repeat_n: int = 3,
     timeout_seconds: int = 600,
+    max_mutants: int = DEFAULT_MAX_MUTANTS,
+    skip_mutation: bool = False,
     steps: Sequence[StepDef] | None = None,
     step_runners: Mapping[str, Callable[[StepDef, StepContext], AdmissionStepRecord]] | None = None,
     scan: Callable[[Path], ScanOutcome] | None = None,
     control: Callable[..., ControlOutcome] | None = None,
     cheat: Callable[..., CheatOutcome] | None = None,
+    mutation: Callable[..., MutationOutcome] | None = None,
     reference: Callable[..., OracleReference | None] | None = None,
     reference_arg: str = "auto",
     sweep_csv: Path | str | None = None,
@@ -1041,6 +1376,10 @@ def admit_task(
 
     runners = dict(STEP_RUNNERS) if step_runners is None else dict(step_runners)
     ordered = list(steps) if steps is not None else default_steps()
+    skipped_mutation: list[str] = []
+    if skip_mutation:
+        skipped_mutation = [step.name for step in ordered if step.kind == "mutation"]
+        ordered = [step for step in ordered if step.kind != "mutation"]
     ctx = StepContext(
         task_dir=task,
         jobs_dir=jobs,
@@ -1050,9 +1389,11 @@ def admit_task(
         slug=_task_slug(task),
         repeat_n=repeat_n,
         timeout_seconds=timeout_seconds,
+        max_mutants=max_mutants,
         scan=scan,
         control=control,
         cheat=cheat,
+        mutation=mutation,
         reference=reference,
         reference_arg=reference_arg,
         sweep_csv=(Path(sweep_csv) if sweep_csv is not None else root / DEFAULT_SWEEP_CSV),
@@ -1092,19 +1433,25 @@ def admit_task(
     failing = [row.name for row in executed if row.status == "fail"]
     infra = [row.name for row in executed if row.status == "infra"]
     unproven = [row.name for row in executed if row.status == "unproven"]
+    review = [row.name for row in executed if row.status == "review"]
     verdict: AdmissionVerdict = (
         "admitted"
-        if not failing and not infra and not unproven
+        if not failing and not infra and not unproven and not review
         else "rejected"
         if failing
+        else "not_admitted"
+        if infra
         else "unproven"
         if unproven
-        else "not_admitted"
+        else "needs_review"
     )
     failed_attacks = [
         row.name.split(":", 1)[1]
         for row in executed
         if row.status == "fail" and row.kind == "cheat" and ":" in row.name
+    ]
+    survivor_patches = [
+        patch for row in executed if row.status == "review" for patch in row.survivor_patches
     ]
     record = AdmissionRecord(
         task=str(task),
@@ -1113,11 +1460,14 @@ def admit_task(
         created_by=by,
         created_at=_utc_now_iso(),
         steps=executed,
-        skipped_steps=skipped,
+        skipped_steps=[*skipped, *skipped_mutation],
         verdict=verdict,
         failing_steps=[*failing, *infra],
         failed_attacks=failed_attacks,
         unproven_steps=unproven,
+        review_steps=review,
+        survivor_patches=survivor_patches,
+        mutation_skipped=bool(skipped_mutation),
         duration_s=time.monotonic() - gate_started,
     )
 
@@ -1143,6 +1493,9 @@ def admit_task(
         from evallab.task_variants import VariantError, append_status_evidence
 
         head = resolve_task_record(task, repo_root=root, records_dir=records_dir)
+        # Only final verdicts finalize lineage. ``needs_review`` routes to a
+        # human and must leave lineage untouched; ``not_admitted``/``unproven``
+        # prove nothing either way.
         if head is not None and verdict in ("admitted", "rejected"):
             status = "validated" if verdict == "admitted" else "rejected"
             current = head.status
@@ -1195,6 +1548,8 @@ __all__ = [
     "AdmissionStepRecord",
     "CheatOutcome",
     "ControlOutcome",
+    "DEFAULT_MAX_MUTANTS",
+    "MutationOutcome",
     "ScanOutcome",
     "StepContext",
     "StepDef",
@@ -1206,6 +1561,7 @@ __all__ = [
     "admit_task",
     "default_cheat",
     "default_control",
+    "default_mutation",
     "default_scan",
     "default_steps",
     "plan_admission",

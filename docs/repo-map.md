@@ -253,7 +253,7 @@ inputs:
   - path: src/evallab/harbor_zai_opencode.py
     digest: sha256:dedcf9945bd7e9c88b0956cbb080e7fd3be30b0276fdbb8256d25e3e4301c91a
   - path: src/evallab/hardening.py
-    digest: sha256:76965784421511906b1fa1bb75bb155733ddc683013e7792b1ff5765d7abd378
+    digest: sha256:6bcb6af91f22f3c089a4cea9b0de268d3760494dfa5f6cb0ad90e3d7533bb219
   - path: src/evallab/heldout_regrade.py
     digest: sha256:729cc4af70656fec61a61c8c20b2c62b5fd4557e9fe59648df5b66146735be88
   - path: src/evallab/heldout_tests.py
@@ -477,7 +477,7 @@ inputs:
   - path: src/evallab/provenance.py
     digest: sha256:8b76204b8281dc651babfe786a51a88688c3e462adf6e274a8b172d9b6c09807
   - path: src/evallab/purge_build_caches.py
-    digest: sha256:3ab7efe983e406008ea1061eb53766130f79b8ec74c76e5964d7f33345618478
+    digest: sha256:a8670cbf4320bf449e5e13be8e3d75f2692c2524e9b9ca3f1957d8dedbaed71d
   - path: src/evallab/purge_container.py
     digest: sha256:543e09ac793e15e1445268076da2c38df77875cd2ba22e96c2759a5b7d530602
   - path: src/evallab/purge_installed_copies.py

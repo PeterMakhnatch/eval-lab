@@ -7,17 +7,16 @@ Builds one clean package per code task:
   ``strip-future-history@1`` -> ``purge-installed-copies@1`` (CONFIRMED_PURGE
   targets and run packages that already carry the marker; fail-closed tasks
   skip with reason, everything else skips per the HAR-194 scope stance) ->
-  ``purge-build-caches@3`` -> ``mtime-normalize@2`` ->
-  ``separate-verifier@4`` last, with ``solution/solve.sh`` built from the
-  reference fix when one exists, and the probe marker auto-derived from the
-  hidden test patch. (Cache ``@3`` and mtime ``@2`` are the active
-  generations, resolved at import and recorded per row in the manifest
-  ``chain``.)
+  ``purge-build-caches@4`` -> ``mtime-normalize@2`` ->
+  ``separate-verifier@4`` -> ``agent-network-none@1``, with a reference
+  solution when one exists and a probe marker derived from the hidden
+  test patch. Every manifest row records the complete transform chain.
 - Non-Python tasks (every snapshot task whose ``task.toml`` category is not
   Python, minus ledger members which the ledger row owns): snapshot task dir
-  -> ``strip-future-history@1`` -> ``purge-build-caches@3`` ->
-  ``mtime-normalize@2`` -> ``separate-verifier@4``. ``purge-installed-copies``
-  is a Python pip mechanism and never applies; it is noted, not derived.
+  -> ``strip-future-history@1`` -> ``purge-build-caches@4`` ->
+  ``mtime-normalize@2`` -> ``separate-verifier@4`` -> ``agent-network-none@1``.
+  ``purge-installed-copies`` is a Python pip mechanism and never applies;
+  it is noted, not derived.
 
 Deterministic and idempotent: every step reuses the existing lineage record
 for ``(task, transform, parent digest)`` and derives (content-addressed via
@@ -47,14 +46,15 @@ from pathlib import Path
 from typing import Any
 
 from evallab import mtime_normalize as _mtime_normalize_mod
-from evallab import purge_build_caches as _purge_build_caches_mod
+from evallab.agent_network_policy import TRANSFORM_ID as AGENT_NETWORK_NONE_ID
+from evallab.agent_network_policy import derive_agent_network_none
 from evallab.hardening import CONFIRMED_PURGE
 from evallab.mtime_normalize import MARKER as MTIME_MARKER
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
-from evallab.purge_build_caches import MARKER_V2 as CACHE_V2_MARKER
-from evallab.purge_build_caches import TRANSFORM_ID_V2 as CACHE_V2_ID
-from evallab.purge_build_caches import derive_purge_build_caches_v2
+from evallab.purge_build_caches import MARKER_V4 as CACHE_ACTIVE_MARKER
+from evallab.purge_build_caches import TRANSFORM_ID_V4 as CACHE_ACTIVE_ID
+from evallab.purge_build_caches import derive_purge_build_caches_v4
 from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
@@ -109,36 +109,6 @@ STATUS_SKIPPED = "skipped"
 #: Ledger verdicts selected into the clean set.
 SELECTED_VERDICTS = frozenset({"keep", "fix"})
 
-#: Active purge-build-caches generation. ``@3`` (node build-output handling)
-#: is preferred once ``purge_build_caches`` ships it; until then ``@2``.
-#: Resolved at import so a rebase onto the @3 merge switches the chain (and
-#: its manifest strings) with no further edit.
-CACHE_ACTIVE_ID: str = getattr(_purge_build_caches_mod, "TRANSFORM_ID_V3", CACHE_V2_ID)
-CACHE_ACTIVE_MARKER: str = getattr(_purge_build_caches_mod, "MARKER_V3", CACHE_V2_MARKER)
-
-
-def _derive_cache_active(
-    parent_dir: Path | str,
-    *,
-    rationale: str | None = None,
-    created_by: str = CREATED_BY,
-    repo_root: Path | str | None = None,
-    parent_source: dict[str, Any] | None = None,
-    variants_root: Path | str | None = None,
-) -> VariantRecord:
-    """Derive the active purge-build-caches generation for a parent package."""
-    derive_v3 = getattr(_purge_build_caches_mod, "derive_purge_build_caches_v3", None)
-    derive = derive_v3 if derive_v3 is not None else derive_purge_build_caches_v2
-    kwargs: dict[str, Any] = {"created_by": created_by}
-    if rationale is not None:
-        kwargs["rationale"] = rationale
-    if repo_root is not None:
-        kwargs["repo_root"] = repo_root
-    if parent_source is not None:
-        kwargs["parent_source"] = parent_source
-    if variants_root is not None:
-        kwargs["variants_root"] = variants_root
-    return derive(parent_dir, **kwargs)
 
 
 #: Active mtime-normalize generation. ``@2`` (Modal lazy-layer
@@ -173,14 +143,15 @@ def _derive_mtime_active(
     return derive(parent_dir, **kwargs)
 
 
-#: Canonical Python chain, in application order. ``separate-verifier@4`` is
-#: always last: it bundles the parent's clean setup chain into the verifier.
+#: Canonical Python chain. The verifier bundles all clean setup steps;
+#: the final network declaration locks only the agent phase.
 PYTHON_CHAIN = (
     STRIP_ID,
     PURGE_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
     SEPARATE_V4_ID,
+    AGENT_NETWORK_NONE_ID,
 )
 
 #: Canonical non-Python chain: snapshot instead of a repairs run package, and
@@ -190,6 +161,7 @@ NONPYTHON_CHAIN = (
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
     SEPARATE_V4_ID,
+    AGENT_NETWORK_NONE_ID,
 )
 
 #: Language plugs for the builder. ``python`` is the ledger pool;
@@ -890,7 +862,7 @@ class ChainBuilder:
         # Active purge-build-caches and mtime-normalize generations
         # (mechanical, continue the chain past a single-step failure).
         for transform, marker, derive in (
-            (CACHE_ACTIVE_ID, CACHE_ACTIVE_MARKER, _derive_cache_active),
+            (CACHE_ACTIVE_ID, CACHE_ACTIVE_MARKER, derive_purge_build_caches_v4),
             (MTIME_ACTIVE_ID, MTIME_ACTIVE_MARKER, _derive_mtime_active),
         ):
             if setup_carries(current, marker):
@@ -915,8 +887,8 @@ class ChainBuilder:
             )
             result.chain.append(transform)
 
-        # separate-verifier@4 last: marker from the hidden test patch,
-        # solution from the oracle-pass reference fix when one exists.
+        # separate-verifier@4 bundles setup, the hidden-test marker, and the
+        # oracle-pass solution. The agent network declaration is appended last.
         patch_file = current / "tests" / "test.patch"
         marker = derive_marker(
             patch_file.read_text(errors="replace") if patch_file.is_file() else "",
@@ -958,6 +930,23 @@ class ChainBuilder:
             return result
         current_digest = record.variant_digest
         result.chain.append(SEPARATE_V4_ID)
+        current, current_digest, source = self._advance(
+            task_id, current_digest, row, start_digest
+        )
+        try:
+            record, _ = self.find_or_derive(
+                task_id,
+                AGENT_NETWORK_NONE_ID,
+                current,
+                current_digest,
+                derive_agent_network_none,
+                parent_source=source,
+            )
+        except VariantInvalid as exc:
+            result.reason = f"{AGENT_NETWORK_NONE_ID} failed: {exc}"
+            return result
+        current_digest = record.variant_digest
+        result.chain.append(AGENT_NETWORK_NONE_ID)
 
         result.status = STATUS_BUILT
         result.final_digest = current_digest
@@ -1396,10 +1385,9 @@ def _mimo_clean_command(args, root: Path, **_: Any) -> int:
 
 
 __all__ = [
+    "AGENT_NETWORK_NONE_ID",
     "CACHE_ACTIVE_ID",
     "CACHE_ACTIVE_MARKER",
-    "CACHE_V2_ID",
-    "CACHE_V2_MARKER",
     "CLEAN_SET_VERSION",
     "CREATED_BY",
     "LANGUAGE_CHAINS",

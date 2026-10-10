@@ -29,27 +29,30 @@ task, each carrying the full clean chain in its lineage.
 ledger run package (repairs)
   -> strip-future-history@1
   -> purge-installed-copies@1   (scoped; see below)
-  -> purge-build-caches@3
+  -> purge-build-caches@4
   -> mtime-normalize@2
-  -> separate-verifier@4        (last; + solution/solve.sh from the reference fix)
+  -> separate-verifier@4        (+ solution/solve.sh from the reference fix)
+  -> agent-network-none@1       (agent phase only; verifier remains public)
 ```
 
 | Step | Transform | Closes | Why it is in the chain |
 |---|---|---|---|
 | 1 | `strip-future-history@1` | V1 future history on branches, V2 unreachable git objects | Rebuilds agent-visible git storage from exactly BASE and its ancestors; without it 67% of code tasks leak the answer through git objects. |
 | 2 | `purge-installed-copies@1` | E1 installed/build copies of the fixed project | Removes `build/`, project egg-info and site-packages copies, then reinstalls the base tree editable offline. Scoped to validated targets (below): the block fails closed at setup, and unvalidated projects would break setup instead of leaking. |
-| 3 | `purge-build-caches@3` | V5 build/module caches | The `@1` sweep plus this project's own entries in shared caches (pip wheels, Go module/build cache, cargo target + registry copies, Maven artifacts, Gradle project cache, npm/yarn/pnpm entries), each fail-closed, plus node gitignored build outputs (`lib/`, `dist/`, `build/`, `out/`): deleted when grading tests import from `src/`, else rebuilt from the base tree, setup fails when neither is safe. Shipped as `purge-build-caches@3` (vals-routes-v3, PR #810); the builder prefers `@3` when `purge_build_caches` ships it and records whichever generation it used in the manifest `chain` (v2 carries `@3` throughout). |
-| 4 | `mtime-normalize@2` | V3 file mtimes pointing at fixed files | Touches the worktree to one stamp so `find -newermt` cannot rank the fixed files; warms lazy layers (stat pass) and retries touch+check so Modal's materialization-time directory stamps cannot trip the fail-closed check (Docker-neutral). Shipped as `mtime-normalize@2` (mtime lane, PR #813); the builder resolves the active generation at import like the cache step. |
-| 5 | `separate-verifier@4` | E2 grader tamper, all runners | Patch-only grading with structured runner checks, cross-language tamper gates, config drops, and rootdir-robust junit matching (see `docs/mimo/separate-verifier.md`). Both agent diffs use the complete verifier-owned post-setup workdir, so unchanged baked untracked dependencies do not trigger the tamper gate. Retains `@3`'s agent-tamper protections; it is last because it bundles the parent's clean setup into the verifier image. |
+| 3 | `purge-build-caches@4` | V5 build/module caches | Retains `@3`'s language-aware and node-build-output purge, while allowing a cache explicitly disabled by its tool (Modal pip cache). Unknown cache failures still fail closed. Pinned to the landed `@4`; historical v2 packages keep `@3`. |
+| 4 | `mtime-normalize@2` | V3 fix-bearing mtimes | Touches the worktree to one stamp, warms lazy layers, and retries touch+check so Modal materialization timestamps cannot trip the fail-closed check. Shipped in PR #813; the builder resolves the active mtime generation and records it per manifest row. |
+| 5 | `separate-verifier@4` | E2 grader tamper, all runners | Patch-only grading with structured runner checks, tamper gates, config drops, rootdir-robust junit matching, and complete pristine-workdir deltas (see `docs/mimo/separate-verifier.md`). Runs after all setup-cleaning steps so the verifier inherits the clean setup. |
+| 6 | `agent-network-none@1` | V6 upstream fetches | Appends `[agent] network_mode = "no-network"` after verifier derivation. Setup and the separate verifier retain the public baseline; only the agent phase is locked. See the `agent-network-none` receipt and `docs/mimo/vals-routes.md` for backend enforcement. |
 
 ## The canonical non-Python chain (all 1,518 tasks)
 
 ```
 snapshot task dir
   -> strip-future-history@1
-  -> purge-build-caches@3
+  -> purge-build-caches@4
   -> mtime-normalize@2
   -> separate-verifier@4
+  -> agent-network-none@1
 ```
 
 `purge-installed-copies` is a Python pip mechanism and never applies to

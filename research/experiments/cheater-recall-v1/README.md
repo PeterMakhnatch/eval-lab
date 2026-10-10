@@ -88,6 +88,11 @@ At Tinker prices ($0.54/$1.335 per M, no cached-prefill credit) that is
 inside the $15 approval. Both campaigns were approved by the Cheating chat as
 delegate (`--actor cheating-lead`).
 
+Dispatched 2026-10-10 03:30–04:55 UTC (all 19 attempts finished; $7.81
+settled). Two attempts failed before Harbor started because local Docker was
+slow (fixed for Daytona in PR #816) and were resubmitted. Results are in
+RESULTS.md under "Wave 2".
+
 ## Campaigns (three files; validate admits all, dispatch does not)
 
 One `ExperimentCampaign` pins a single digest per task_id, so leaky + hardened

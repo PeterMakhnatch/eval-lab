@@ -20,19 +20,15 @@ from evallab.cheatbench import (
     SHA256,
     CheatbenchError,
     _anchor_line,
-    _split_rendered_log,
     build_annotation,
     convert,
     convert_row,
-    convert_trace,
     counts_table,
     fetch_parquet,
     is_subset_row,
     locate_cheat,
     locate_row,
     message_number,
-    parse_function_markup,
-    parse_openai_tool_calls,
     parse_raw_trace,
     resolve_field_path,
     select_subset,
@@ -337,8 +333,8 @@ def test_iquest_edit_spans_preserved_for_tamper_rule() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Viewer-layer tests (HAR-203 second wave): faithful staged-ATIF conversion,
-# localization -> step/message mapping, badge arithmetic, fetch digest.
+# Viewer-subset tests: staging over the single converter (span refs,
+# localization -> step/message mapping, badge arithmetic, fetch digest).
 # ---------------------------------------------------------------------------
 
 
@@ -389,7 +385,7 @@ def test_parse_raw_trace_schema_policy():
 
 def test_text_of_heterogeneous_content():
     assert text_of("abc") == "abc"
-    assert text_of([{"text": "a", "type": "text"}, {"text": "b", "type": "text"}]) == "ab"
+    assert text_of([{"text": "a", "type": "text"}, {"text": "b", "type": "text"}]) == "a\nb"
     assert text_of(None) == ""
 
 
@@ -405,64 +401,17 @@ def test_messages_mapping_preserves_order_roles_and_markup():
             {"role": "user", "content": "OBSERVATION:\nok"},
         ],
     }
-    steps, warnings = convert_trace(trace)
-    assert [s["source"] for s in steps] == ["system", "agent", "user"]
-    assert [s["step_id"] for s in steps] == [1, 2, 3]
-    assert steps[1]["tool_calls"][0]["function_name"] == "execute_bash"
-    assert steps[1]["tool_calls"][0]["arguments"] == {"command": "ls"}
-    assert warnings == []
+    doc, stats = convert("t", trace, _meta())
+    # Context step first, then the trace's own steps in order
+    # (the converter folds system text into user steps).
+    assert [s["source"] for s in doc["steps"]] == ["user", "user", "agent"]
+    agent = [s for s in doc["steps"] if s["source"] == "agent"]
+    assert agent[0]["tool_calls"][0]["function_name"] == "execute_bash"
+    assert agent[0]["tool_calls"][0]["arguments"] == {"command": "ls"}
+    assert "ok" in agent[0]["observation"]["results"][0]["content"]
 
 
-def test_function_markup_multiple_params():
-    calls = parse_function_markup(
-        "<function=f>\n<parameter=a>1</parameter>\n<parameter=b>2</parameter>\n</function>"
-    )
-    assert calls[0]["arguments"] == {"a": "1", "b": "2"}
-
-
-def test_openai_tool_calls_string_arguments():
-    calls = parse_openai_tool_calls(
-        [{"id": "1", "function": {"name": "bash", "arguments": '{"command": "ls"}'}}]
-    )
-    assert calls[0] == {
-        "tool_call_id": "1",
-        "function_name": "bash",
-        "arguments": {"command": "ls"},
-    }
-
-
-def test_tool_event_attaches_to_previous_agent_with_call_id():
-    trace = {
-        "events": [
-            {"role": "assistant", "content": "run it"},
-            {"role": "tool", "content": "output", "tool_call_ids": ["c1"]},
-        ]
-    }
-    steps, _ = convert_trace(trace)
-    assert len(steps) == 1
-    assert steps[0]["observation"]["results"] == [{"content": "output", "source_call_id": "c1"}]
-
-
-def test_trace_role_maps_to_agent_and_action_inlined():
-    trace = {
-        "events": [
-            {
-                "role": "assistant",
-                "content": "thinking",
-                "message_type": "action",
-                "action": "rm -rf /tmp/x",
-                "tool_calls": [],
-            }
-        ]
-    }
-    steps, _ = convert_trace(trace)
-    assert steps[0]["source"] == "agent"
-    assert "rm -rf /tmp/x" in steps[0]["message"]
-    assert steps[0]["extra"]["cheatbench"]["note"] == "action-inlined"
-    assert steps[0]["tool_calls"][0]["arguments"] == {"command": "rm -rf /tmp/x"}
-
-
-def test_step_event_tools_and_obs():
+def test_staged_steps_carry_span_refs_and_obs_badge():
     trace = {
         "events": [
             {
@@ -474,15 +423,75 @@ def test_step_event_tools_and_obs():
             }
         ]
     }
-    steps, _ = convert_trace(trace)
-    assert steps[0]["tool_calls"][0]["tool_call_id"] == "call_3_0"
-    assert steps[0]["observation"]["results"] == [{"content": "done"}]
-    ref = steps[0]["extra"]["cheatbench"]
-    assert ref["source_ref"] == {"field": "events[0].msg", "line_start": None, "line_end": None}
-    assert ref["obs_refs"] == [{"field": "events[0].obs", "line_start": 1, "line_end": 1}]
+    row = _row(
+        trace=json.dumps(trace),
+        loc_field_path="events[0].obs",
+        loc_line_start=1,
+        loc_snippet="done",
+    )
+    trajectory, meta, warnings = convert_row(row)
+    assert validate_staged(trajectory) == []
+    assert warnings == []
+    refs = [s["extra"]["cheatbench"]["source_ref"]["field"] for s in trajectory["steps"][:-1]]
+    assert refs == [None, "events[0].msg"]
+    obs_refs = trajectory["steps"][1]["extra"]["cheatbench"]["obs_refs"]
+    assert [r["field"] for r in obs_refs] == ["events[0].obs"]
+    # The cheat sits in the tool output: step-localized, no transcript badge.
+    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_message_no"] is None
+    assert meta["loc_correction"] is None
 
 
-def test_forgecode_stdout_segments_and_duplicate_text():
+def test_tool_event_attaches_to_previous_agent():
+    trace = {
+        "events": [
+            {"role": "assistant", "content": "run it"},
+            {"role": "tool", "content": "output"},
+        ]
+    }
+    doc, stats = convert("t", trace, _meta())
+    assert stats["envelope"] == "messages"
+    agent = [s for s in doc["steps"] if s["source"] == "agent"]
+    assert len(agent) == 1
+    assert agent[0]["observation"]["results"] == [
+        {"source_call_id": "unknown", "content": "output"}
+    ]
+
+
+def test_content_event_without_machine_calls_stages_prose():
+    # The unified converter keeps prose from content events; harness-specific
+    # OpenAI tool-call envelopes are not recovered (detectors never had them).
+    trace = {
+        "events": [
+            {
+                "role": "assistant",
+                "content": "thinking",
+                "message_type": "action",
+                "action": "rm -rf /tmp/x",
+                "tool_calls": [],
+            }
+        ]
+    }
+    doc, _ = convert("t", trace, _meta())
+    agent = [s for s in doc["steps"] if s["source"] == "agent"]
+    assert agent[0]["message"] == "thinking"
+    assert "tool_calls" not in agent[0]
+    row = _row(
+        trace=json.dumps(trace),
+        loc_field_path="events[0].content",
+        loc_line_start=1,
+        loc_snippet="thinking",
+    )
+    trajectory, meta, warnings = convert_row(row)
+    assert validate_staged(trajectory) == []
+    assert warnings == []
+    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_message_no"] == 2
+
+def test_untyped_rendered_transcript_is_excluded_but_stages_annotation():
+    # Rendered-transcript shapes with no typed envelope carry no agent steps
+    # for the detectors; staging keeps an annotation-only transcript so the
+    # viewer subset build never crashes on them.
     stdout = "banner\n⏺ first\nline a\n⏺ second\nline b"
     trace = {
         "events": [
@@ -490,44 +499,40 @@ def test_forgecode_stdout_segments_and_duplicate_text():
             {"id": "t", "text": "⏺ first\nline a", "type": "y"},
         ]
     }
-    steps, warnings = convert_trace(trace)
-    fields = [s["extra"]["cheatbench"]["source_ref"]["field"] for s in steps]
-    assert fields == ["events[0].stdout"] * 2
-    assert any("contained in events[0].stdout" in w for w in warnings)
-    assert steps[0]["extra"]["cheatbench"]["shell_command"] == "run"
-    ranges = [
-        (
-            s["extra"]["cheatbench"]["source_ref"]["line_start"],
-            s["extra"]["cheatbench"]["source_ref"]["line_end"],
-        )
-        for s in steps
-    ]
-    assert ranges == [(1, 3), (4, 5)]
+    with pytest.raises(ValueError, match="no_agent_content"):
+        convert("t", trace, _meta())
+    row = _row(trace=json.dumps(trace))
+    trajectory, meta, warnings = convert_row(row)
+    assert meta["cheat_step_id"] is None
+    assert warnings and "no_agent_content" in warnings[0]
+    assert validate_staged(trajectory) == []
+    assert len(trajectory["steps"]) == 1
+    assert trajectory["steps"][0]["message"].startswith("[CheatBench annotation")
 
 
 def test_message_number_counts_tool_calls_not_observations():
-    steps, _ = convert_trace(
-        {
-            "events": [
-                {"role": "assistant", "content": "a"},
-                {"role": "tool", "content": "out"},
-                {
-                    "msg": "do",
-                    "src": "agent",
-                    "step": 0,
-                    "tools": [{"fn": "shell", "cmd": "x"}, {"fn": "shell", "cmd": "y"}],
-                },
-            ]
-        }
-    )
-    # Step 1 (agent) + attached tool output (no badge) + step 2 (agent, 2 calls).
-    assert message_number(steps, 2, None) == 2
-    assert len(steps) == 2
-
-
-def test_split_rendered_log_without_markers():
-    assert _split_rendered_log("a\nb") == [("a\nb", 1, 2)]
-    assert _split_rendered_log("") == []
+    raw = {
+        "task_name": "t",
+        "benchmark": "b",
+        "events": [
+            {
+                "msg": "a",
+                "src": "agent",
+                "step": 0,
+                "tools": [{"fn": "shell", "cmd": "x"}, {"fn": "shell", "cmd": "y"}],
+                "obs": "out",
+            },
+            {"msg": "b", "src": "agent", "step": 1},
+        ],
+    }
+    doc, _ = convert("t", raw, _meta())
+    steps = doc["steps"]
+    assert len(steps) == 3  # context + two agent steps
+    # Context badge M1, first agent message M2, second M5 (2 tool calls in between).
+    assert message_number(steps, 1, None) == 2
+    assert message_number(steps, 2, None) == 5
+    # A cheat inside the tool output has no badge number (step only).
+    assert message_number(steps, 1, 0) is None
 
 
 def test_prefixed_log_turns_and_tool_calls():
@@ -535,26 +540,42 @@ def test_prefixed_log_turns_and_tool_calls():
         [
             "[0001] role=assistant name=-",
             "[0001] look at history",
-            "[0001] TOOL_CALL[1] execute_bash: git log --all",
+            "TOOL_CALL[1] execute_bash: git log --all",
             "[0002] role=tool name=execute_bash",
             "[0002] abc123 first commit",
         ]
     )
-    steps, _ = convert_trace({"events": [{"content": content, "kind": "x", "role": "trace"}]})
-    assert [s["source"] for s in steps] == ["agent"]
-    assert steps[0]["tool_calls"][0]["function_name"] == "execute_bash"
-    assert "abc123" in steps[0]["observation"]["results"][0]["content"]
-
-
-def test_locate_exact_stdout_line_and_message_number():
-    steps, _ = convert_trace(
-        {"events": [{"command": "r", "stdout": "banner\n⏺ a\nx\n⏺ b\ny", "type": "x"}]}
+    doc, stats = convert(
+        "t", {"events": [{"content": content, "kind": "x", "role": "trace"}]}, _meta()
     )
-    step_id, result, correction = locate_cheat(steps, "events[0].stdout", 5)
-    assert (step_id, result, correction) == (2, None, None)
-    assert message_number(steps, 2, None) == 2
-    step_id, _, _ = locate_cheat(steps, "events[0].stdout", 2)
-    assert step_id == 1
+    assert stats["envelope"] == "openhands_flat"
+    agent = [s for s in doc["steps"] if s["source"] == "agent"]
+    assert agent[0]["tool_calls"][0]["function_name"] == "execute_bash"
+    assert "abc123" in agent[0]["observation"]["results"][0]["content"]
+
+
+def test_locate_pilot_stdout_and_message_number():
+    stdout = json.dumps(
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "checking history"}]},
+        }
+    )
+    trace = {
+        "task_name": "t",
+        "benchmark": "terminal-bench-2",
+        "events": [{"type": "agent_command", "command": "pilot task", "stdout": stdout}],
+    }
+    row = _row(
+        trace=json.dumps(trace),
+        loc_field_path="events[0].stdout",
+        loc_line_start=1,
+        loc_snippet="checking history",
+    )
+    trajectory, meta, _ = convert_row(row)
+    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_message_no"] == 2
+    assert meta["loc_correction"] is None
 
 
 def test_locate_tools_cmd_falls_back_to_owning_event():
@@ -569,25 +590,44 @@ def test_locate_tools_cmd_falls_back_to_owning_event():
             }
         ]
     }
-    steps, _ = convert_trace(trace)
-    step_id, result, correction = locate_cheat(steps, "events[0].tools[0].cmd", 1)
-    assert (step_id, result, correction) == (1, None, "event-index-fallback")
+    row = _row(
+        trace=json.dumps(trace),
+        loc_field_path="events[0].tools[0].cmd",
+        loc_line_start=1,
+        loc_snippet="evil",
+    )
+    trajectory, meta, _ = convert_row(row)
+    assert meta["cheat_step_id"] == 2
+    assert meta["loc_correction"] == "event-index-fallback"
     # The obs subfield resolves exactly to the tool output, which Scout
     # renders without a badge number: step only, no message number.
-    step_id, result, correction = locate_cheat(steps, "events[0].obs", 1)
-    assert (step_id, result, correction) == (1, 0, None)
-    assert message_number(steps, 1, 0) is None
+    row = _row(
+        trace=json.dumps(trace),
+        loc_field_path="events[0].obs",
+        loc_line_start=1,
+        loc_snippet="o",
+    )
+    trajectory, meta, _ = convert_row(row)
+    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_message_no"] is None
+    assert meta["loc_correction"] is None
 
 
 def test_locate_single_event_fallback_and_empty_path():
     trace = {
         "events": [{"content": "[0001] role=assistant name=-\nhi", "kind": "x", "role": "trace"}]
     }
-    steps, _ = convert_trace(trace)
-    step_id, _, correction = locate_cheat(steps, "events[1].content", 1)
-    assert step_id == 1 and correction == "single-event-fallback"
-    assert locate_cheat(steps, "", 1) == (None, None, None)
-    assert locate_cheat(steps, "messages[0].content", 1) == (None, None, None)
+    row = _row(
+        trace=json.dumps(trace),
+        loc_field_path="events[1].content",
+        loc_line_start=1,
+        loc_snippet="hi",
+    )
+    trajectory, meta, _ = convert_row(row)
+    assert meta["cheat_step_id"] == 2
+    assert meta["loc_correction"] == "single-event-fallback"
+    assert locate_cheat(trajectory["steps"], "", 1) == (None, None, None)
+    assert locate_cheat(trajectory["steps"], "messages[0].content", 1) == (None, None, None)
 
 
 def test_anchor_line_snippet_calibration_and_pipe_variant():
@@ -608,15 +648,20 @@ def test_locate_row_single_event_path_rewrite():
             {"content": "[0001] role=assistant name=-\ngit log --all", "kind": "x", "role": "trace"}
         ]
     }
-    steps, _ = convert_trace(trace)
     row = _row(
         trace=json.dumps(trace),
         loc_field_path="events[1].content",
         loc_line_start=2,
         loc_snippet="git log",
     )
-    step_id, _, correction, adjusted = locate_row(trace, steps, row)
-    assert step_id == 1 and correction == "single-event-fallback" and adjusted is False
+    trajectory, meta, _ = convert_row(row)
+    assert meta["cheat_step_id"] == 2
+    assert meta["loc_correction"] == "single-event-fallback"
+    assert meta["loc_line_adjusted"] is False
+    # Direct layer call on the staged steps agrees.
+    parsed = parse_raw_trace(row["trace"])
+    step_id, _, correction, adjusted = locate_row(parsed, trajectory["steps"][:-1], row)
+    assert (step_id, correction, adjusted) == (2, "single-event-fallback", False)
 
 
 def test_convert_row_end_to_end_annotation_and_meta():
@@ -632,9 +677,10 @@ def test_convert_row_end_to_end_annotation_and_meta():
     assert validate_staged(trajectory) == []
     assert trajectory["session_id"] == "cheatbench-cb-test-1"
     assert trajectory["steps"][-1]["message"].startswith("[CheatBench annotation")
-    assert "transcript message M2" in trajectory["steps"][-1]["message"]
+    assert "transcript message M3" in trajectory["steps"][-1]["message"]
     assert "secret_discovery_in_environment" in trajectory["steps"][-1]["message"]
-    assert meta["cheat_step_id"] == 2
+    assert meta["cheat_step_id"] == 3
+    assert meta["cheat_message_no"] == 3
     assert meta["reward"] == 1.0 and meta["verdict"] == "passed"
     assert meta["loc_corrected"] is False and warnings == []
 

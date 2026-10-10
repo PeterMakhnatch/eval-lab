@@ -1,4 +1,4 @@
-"""CheatBench as a calibration source for ``evallab detectors``.
+"""CheatBench as a calibration source for ``evallab detectors`` and the Scout viewer.
 
 Source: steinad/CheatBench on Hugging Face (MIT license), pinned to
 ``REVISION``. Only opaque row metadata (ids, labels, mechanisms, benchmarks,
@@ -28,18 +28,29 @@ Trace envelopes (all observed in the pinned revision):
 Rows that cannot be converted are excluded with a recorded reason
 (``no_agent_content``, ``weave_unparseable``, ``unknown_envelope``) and
 counted; nothing is silently dropped.
+
+One converter serves both consumers. ``convert`` turns a raw trace into
+detector ATIF (lossy by design: message/observation caps, dropped orphan
+observations); the builder also records per-step source spans in a
+side-channel that never enters the detector bytes. The viewer pipeline
+(``convert_row``) decorates those same steps with the spans and runs the
+cheat-localization layer (``locate_row`` / ``message_number`` /
+``build_annotation``) to stage Scout transcripts with a clearly-marked
+annotation message. The fetch path is a single sha256-verified pinned
+download (``fetch_parquet``).
 """
 
 from __future__ import annotations
 
 import argparse
 import ast
+import contextlib
 import hashlib
 import json
 import re
 import sys
 import urllib.request
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -62,7 +73,7 @@ def _cap(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit] + "\n…[truncated]"
 
 
-def _text_of(content: Any) -> str:
+def text_of(content: Any) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
@@ -212,19 +223,34 @@ class _Steps:
         self.model = model
         self.n_tool_calls = 0
         self.n_dropped_obs = 0
+        # Source spans, parallel to ``steps``: {"field": own field, "obs": [obs fields]}.
+        # Never serialized into detector trial bytes; the viewer pipeline
+        # decorates staged steps from these. ``_span`` scopes set the default
+        # field; an explicit ``field`` overrides it for msg/obs precision.
+        self.regions: list[dict[str, Any]] = []
+        self._scope: list[str] = []
 
-    def user(self, text: str) -> None:
+    def _field(self, explicit: str | None) -> str | None:
+        if explicit is not None:
+            return explicit
+        return self._scope[-1] if self._scope else None
+
+    def user(self, text: str, *, field: str | None = None) -> None:
         text = text.strip()
         if text:
             self.steps.append(
                 {"step_id": len(self.steps) + 1, "source": "user", "message": _cap(text, MSG_CAP)}
             )
+            self.regions.append({"field": self._field(field), "obs": []})
 
     def agent(
         self,
         text: str,
         calls: list[dict] | None = None,
         results: list[dict] | None = None,
+        *,
+        field: str | None = None,
+        obs_field: str | None = None,
     ) -> None:
         text = text.strip()
         if not text and not calls and not results:
@@ -239,45 +265,64 @@ class _Steps:
         if calls:
             step["tool_calls"] = calls
             self.n_tool_calls += len(calls)
+        own = self._field(field)
         if results:
             step["observation"] = {"results": results}
         self.steps.append(step)
+        self.regions.append(
+            {
+                "field": own,
+                "obs": [{"field": obs_field or own} for _ in (results or [])],
+            }
+        )
 
-    def observe(self, text: str, call_id: str = "unknown") -> None:
+    def observe(self, text: str, call_id: str = "unknown", *, field: str | None = None) -> None:
         text = text.strip()
         if not text:
             return
-        for step in reversed(self.steps):
-            if step.get("source") == "agent":
-                obs = step.setdefault("observation", {"results": []})
+        for idx in range(len(self.steps) - 1, -1, -1):
+            if self.steps[idx].get("source") == "agent":
+                obs = self.steps[idx].setdefault("observation", {"results": []})
                 obs["results"].append({"source_call_id": call_id, "content": _cap(text, OBS_CAP)})
+                self.regions[idx]["obs"].append({"field": self._field(field)})
                 return
         self.n_dropped_obs += 1
+
+
+@contextlib.contextmanager
+def _span(builder: _Steps, field: str) -> Iterator[None]:
+    """Default source field for steps built inside the block (span side-channel)."""
+    builder._scope.append(field)
+    try:
+        yield
+    finally:
+        builder._scope.pop()
 
 
 # ---------------------------------------------------------------------------
 # envelope A: TB2 raw_trace (typed events)
 
 
-def _convert_agent_command(builder: _Steps, event: dict) -> bool:
+def _convert_agent_command(builder: _Steps, event: dict, index: int) -> bool:
     """An ``agent_command`` event; True when agent content was extracted."""
     stdout = event.get("stdout") or ""
     triples = _pilot_steps(stdout)
     if triples:
-        for text, calls, results in triples:
-            known = {c["tool_call_id"] for c in calls}
-            fixed_calls = list(calls)
-            for result in results:
-                if result["source_call_id"] not in known:
-                    known.add(result["source_call_id"])
-                    fixed_calls.append(
-                        {
-                            "tool_call_id": result["source_call_id"],
-                            "function_name": "unknown_tool",
-                            "arguments": {},
-                        }
-                    )
-            builder.agent(text, fixed_calls, results or None)
+        with _span(builder, f"events[{index}].stdout"):
+            for text, calls, results in triples:
+                known = {c["tool_call_id"] for c in calls}
+                fixed_calls = list(calls)
+                for result in results:
+                    if result["source_call_id"] not in known:
+                        known.add(result["source_call_id"])
+                        fixed_calls.append(
+                            {
+                                "tool_call_id": result["source_call_id"],
+                                "function_name": "unknown_tool",
+                                "arguments": {},
+                            }
+                        )
+                builder.agent(text, fixed_calls, results or None)
         return True
     command = event.get("command") or ""
     obs = ((event.get("stdout") or "") + "\n" + (event.get("stderr") or "")).strip()
@@ -298,11 +343,12 @@ def _convert_agent_command(builder: _Steps, event: dict) -> bool:
         if command
         else None
     )
-    builder.agent(
-        f"terminal command (exit {event.get('return_code')})" if command else "(output only)",
-        calls,
-        [{"source_call_id": call_id, "content": _cap(obs, OBS_CAP)}] if obs else None,
-    )
+    with _span(builder, f"events[{index}]"):
+        builder.agent(
+            f"terminal command (exit {event.get('return_code')})" if command else "(output only)",
+            calls,
+            [{"source_call_id": call_id, "content": _cap(obs, OBS_CAP)}] if obs else None,
+        )
     return True
 
 
@@ -603,7 +649,7 @@ def _convert_mle(builder: _Steps, text: str) -> None:
 def _convert_weave(builder: _Steps, events: list[Any]) -> bool:
     """Convert weave ``litellm.acompletion`` spans; False when unparseable."""
     ok = False
-    for event in events:
+    for index, event in enumerate(events):
         if not isinstance(event, dict):
             continue
         try:
@@ -620,15 +666,16 @@ def _convert_weave(builder: _Steps, events: list[Any]) -> bool:
             inputs["kwargs"].get("messages"), list
         ):
             messages = inputs["kwargs"]["messages"]
-        if messages:
-            for message in messages:
-                if isinstance(message, dict) and message.get("role") == "user":
-                    builder.user(_text_of(message.get("content")))
-        try:
-            content = output["choices"][0]["message"]["content"]
-        except (KeyError, IndexError, TypeError):
-            content = ""
-        builder.agent(_text_of(content))
+        with _span(builder, f"events[{index}]"):
+            if messages:
+                for message in messages:
+                    if isinstance(message, dict) and message.get("role") == "user":
+                        builder.user(text_of(message.get("content")))
+            try:
+                content = output["choices"][0]["message"]["content"]
+            except (KeyError, IndexError, TypeError):
+                content = ""
+            builder.agent(text_of(content))
         ok = True
     return ok
 
@@ -637,11 +684,14 @@ def _convert_weave(builder: _Steps, events: list[Any]) -> bool:
 # top-level conversion
 
 
-def convert(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict]:
+def _convert_inner(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict, list[dict]]:
     """Convert one CheatBench trace to ATIF.
 
-    Returns ``(doc, stats)``; raises ``ValueError(reason)`` with a reason in
-    ``EXCLUDED_REASONS`` when the row cannot be converted.
+    Returns ``(doc, stats, regions)``; raises ``ValueError(reason)`` with a
+    reason in ``EXCLUDED_REASONS`` when the row cannot be converted.
+    ``regions`` are per-step source spans parallel to ``doc["steps"]``
+    (plus one ``None``-field entry prepended for the context step by the
+    viewer pipeline); they never enter the detector bytes.
     """
     model = str(meta.get("model") or "")
     builder = _Steps(model=model)
@@ -655,25 +705,28 @@ def convert(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict]:
         and "type" in raw["events"][0]
     ):
         envelope = "tb2_typed"
-        for event in raw["events"]:
+        for index, event in enumerate(raw["events"]):
             if not isinstance(event, dict):
                 continue
             etype = event.get("type")
             if etype == "agent_command":
-                _convert_agent_command(builder, event)
+                _convert_agent_command(builder, event, index)
             elif etype == "agent_log":
                 text = (event.get("text") or "").strip()
                 if text:
-                    builder.agent(text)
+                    with _span(builder, f"events[{index}].text"):
+                        builder.agent(text)
             elif etype == "agent_episode":
                 prompt = event.get("prompt")
                 if isinstance(prompt, str) and prompt.strip():
-                    builder.observe(prompt)
+                    with _span(builder, f"events[{index}].prompt"):
+                        builder.observe(prompt)
                 content, calls = _episode_calls(event.get("response"))
                 if content or calls:
-                    builder.agent(content, calls or None)
+                    with _span(builder, f"events[{index}].response"):
+                        builder.agent(content, calls or None)
             elif isinstance(event, dict) and any(k in event for k in ("msg", "tools", "obs")):
-                _convert_msg_event(builder, event)
+                _convert_msg_event(builder, event, index)
     elif (
         isinstance(raw.get("events"), list)
         and raw.get("events")
@@ -681,23 +734,23 @@ def convert(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict]:
         and {"step", "src", "msg"} <= set(raw["events"][0])
     ):
         envelope = "tb2_step"
-        for event in raw["events"]:
+        for index, event in enumerate(raw["events"]):
             if isinstance(event, dict):
-                _convert_msg_event(builder, event)
+                _convert_msg_event(builder, event, index)
     elif isinstance(raw.get("messages"), list):
         envelope = (
             "iquest"
             if raw.get("source") == "iquest" or _looks_iquest(raw["messages"])
             else "messages"
         )
-        _convert_messages(builder, raw["messages"], envelope=envelope)
+        _convert_messages(builder, raw["messages"], envelope=envelope, base="messages")
     elif (
         isinstance(raw.get("events"), list)
         and raw.get("events")
         and all(isinstance(e, dict) and "role" in e for e in raw["events"][:3])
     ):
         envelope = _classify_message_events(raw["events"])
-        _convert_messages(builder, raw["events"], envelope=envelope)
+        _convert_messages(builder, raw["events"], envelope=envelope, base="events")
     elif (
         isinstance(raw.get("events"), list)
         and raw.get("events")
@@ -743,12 +796,22 @@ def convert(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict]:
         "dropped_obs": builder.n_dropped_obs,
         **extra,
     }
+    return doc, stats, builder.regions
+
+
+def convert(trace_id: str, raw: dict, meta: dict) -> tuple[dict, dict]:
+    """Convert one CheatBench trace to ATIF.
+
+    Returns ``(doc, stats)``; raises ``ValueError(reason)`` with a reason in
+    ``EXCLUDED_REASONS`` when the row cannot be converted.
+    """
+    doc, stats, _ = _convert_inner(trace_id, raw, meta)
     return doc, stats
 
 
 def _looks_iquest(messages: list[Any]) -> bool:
     for message in messages[:20]:
-        if isinstance(message, dict) and "<function=" in _text_of(message.get("content")):
+        if isinstance(message, dict) and "<function=" in text_of(message.get("content")):
             return True
     return False
 
@@ -757,7 +820,7 @@ def _classify_message_events(events: list[Any]) -> str:
     for event in events[:10]:
         if not isinstance(event, dict):
             continue
-        text = _text_of(event.get("content"))
+        text = text_of(event.get("content"))
         if event.get("role") == "trace":
             if "[action]" in text:
                 return "codex"
@@ -774,94 +837,117 @@ def _classify_message_events(events: list[Any]) -> str:
     if roles <= {"system", "assistant"}:
         return (
             "codex"
-            if any("[action]" in _text_of(e.get("content")) for e in events if isinstance(e, dict))
+            if any("[action]" in text_of(e.get("content")) for e in events if isinstance(e, dict))
             else "messages"
         )
     return "messages"
 
 
-def _convert_msg_event(builder: _Steps, event: dict) -> None:
+def _convert_msg_event(builder: _Steps, event: dict, index: int) -> None:
     src = str(event.get("src") or "agent").lower()
     msg = event.get("msg")
-    msg_text = msg if isinstance(msg, str) else _text_of(msg)
+    msg_text = msg if isinstance(msg, str) else text_of(msg)
     calls = _msg_tool_calls(event.get("tools")) if event.get("tools") else []
     obs = event.get("obs")
-    obs_text = obs if isinstance(obs, str) else _text_of(obs)
+    obs_text = obs if isinstance(obs, str) else text_of(obs)
     if src in ("user", "system"):
         if msg_text.strip():
-            builder.user(msg_text)
+            with _span(builder, f"events[{index}].msg"):
+                builder.user(msg_text)
         return
-    builder.agent(msg_text, calls or None)
+    with _span(builder, f"events[{index}].msg"):
+        builder.agent(msg_text, calls or None)
     if obs_text.strip():
-        builder.observe(obs_text)
+        builder.observe(obs_text, field=f"events[{index}].obs")
 
 
-def _convert_messages(builder: _Steps, messages: list[Any], *, envelope: str) -> None:
-    for message in messages:
+def _convert_messages(
+    builder: _Steps, messages: list[Any], *, envelope: str, base: str = "messages"
+) -> None:
+    for index, message in enumerate(messages):
         if not isinstance(message, dict):
             continue
-        role = str(message.get("role") or "")
-        text = _text_of(message.get("content"))
-        if role in ("system", "user"):
-            if role == "user" and text.lstrip().startswith("OBSERVATION:"):
-                builder.observe(text)
-            else:
-                builder.user(text)
-        elif role == "assistant":
-            if envelope == "iquest" or "<function=" in text:
-                prose, calls = _iquest_calls(text)
-                builder.agent(prose, calls or None)
-            elif envelope == "codex":
-                _convert_codex(builder, text)
-            elif envelope == "openhands_flat":
-                _convert_openhands_flat(builder, text)
-            elif envelope == "mle":
-                _convert_mle(builder, text)
-            elif envelope == "cybench" or _SHELL_JSON_RE.search(text):
-                prose, calls = _cybench_calls(text)
-                builder.agent(prose, calls or None)
-            else:
-                builder.agent(text)
-        elif role == "tool":
+        with _span(builder, f"{base}[{index}].content"):
+            _convert_message(builder, message, envelope=envelope)
+
+
+def _convert_message(builder: _Steps, message: dict, *, envelope: str) -> None:
+    role = str(message.get("role") or "")
+    text = text_of(message.get("content"))
+    if role in ("system", "user"):
+        if role == "user" and text.lstrip().startswith("OBSERVATION:"):
             builder.observe(text)
-        elif role == "trace":
-            if envelope == "codex":
-                _convert_codex(builder, text)
-            elif envelope == "openhands_flat":
-                _convert_openhands_flat(builder, text)
-            elif envelope == "mle":
-                _convert_mle(builder, text)
-            else:
-                builder.agent(text)
-        elif text.strip():
-            builder.user(f"[{role or 'unknown'}] {text}")
+        else:
+            builder.user(text)
+    elif role == "assistant":
+        if envelope == "iquest" or "<function=" in text:
+            prose, calls = _iquest_calls(text)
+            builder.agent(prose, calls or None)
+        elif envelope == "codex":
+            _convert_codex(builder, text)
+        elif envelope == "openhands_flat":
+            _convert_openhands_flat(builder, text)
+        elif envelope == "mle":
+            _convert_mle(builder, text)
+        elif envelope == "cybench" or _SHELL_JSON_RE.search(text):
+            prose, calls = _cybench_calls(text)
+            builder.agent(prose, calls or None)
+        else:
+            builder.agent(text)
+    elif role == "tool":
+        builder.observe(text)
+    elif role == "trace":
+        if envelope == "codex":
+            _convert_codex(builder, text)
+        elif envelope == "openhands_flat":
+            _convert_openhands_flat(builder, text)
+        elif envelope == "mle":
+            _convert_mle(builder, text)
+        else:
+            builder.agent(text)
+    elif text.strip():
+        builder.user(f"[{role or 'unknown'}] {text}")
 
 
 # ---------------------------------------------------------------------------
 # fetch / subset / materialize
 
 
-def fetch(split: str, dest: str | Path) -> Path:
-    """Download the pinned parquet split (and manifests) into ``dest``."""
-    from huggingface_hub import hf_hub_download
+def source_url() -> str:
+    """Pinned HTTPS URL of the full parquet (never a moving ref)."""
+    return f"https://huggingface.co/datasets/{DATASET}/resolve/{REVISION}/{FILENAME}"
 
+
+def fetch_parquet(dest: str | Path, *, downloader: Callable[[str], bytes] | None = None) -> Path:
+    """Download the pinned parquet to ``dest`` and verify its sha256.
+
+    ``downloader`` is injectable so tests never reach the network.
+    """
     dest = Path(dest)
-    dest.mkdir(parents=True, exist_ok=True)
-    names = [
-        f"data/processed/parquet/{split}.parquet",
-        f"data/processed/subsets/cheatbench-{split}.manifest.jsonl",
-        f"data/processed/subsets/cheatbench-{split}.summary.json",
-    ]
-    for name in names:
-        hf_hub_download(DATASET, name, repo_type="dataset", revision=REVISION, local_dir=dest)
-    return dest / "data" / "processed" / "parquet" / f"{split}.parquet"
+    if dest.is_file() and hashlib.sha256(dest.read_bytes()).hexdigest() == SHA256:
+        return dest
+    payload = (downloader or _anonymous_download)(source_url())
+    actual = hashlib.sha256(payload).hexdigest()
+    if actual != SHA256:
+        raise CheatbenchError(
+            f"digest mismatch for {DATASET}@{REVISION}: expected {SHA256}, got {actual}"
+        )
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(payload)
+    return dest
 
 
-def _iter_parquet(parquet_path: str | Path) -> Any:
-    import pyarrow.parquet as pq
+def _anonymous_download(url: str) -> bytes:
+    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    with urllib.request.urlopen(request, timeout=300) as response:  # noqa: S310
+        return response.read()
 
-    table = pq.read_table(str(parquet_path))
-    yield from table.to_pylist()
+
+def fetch(split: str, dest: str | Path) -> Path:
+    """Download the pinned parquet split into ``dest`` (sha256-verified)."""
+    if split != "full":
+        raise CheatbenchError(f"only the pinned 'full' split is available, not {split!r}")
+    return fetch_parquet(Path(dest) / "data" / "processed" / "parquet" / f"{split}.parquet")
 
 
 def row_meta(row: dict) -> dict:
@@ -903,10 +989,6 @@ def _index_entry(meta: dict) -> dict:
     if loc:
         entry["loc"] = loc
     return entry
-
-
-def trajectory_id(row_id: str) -> str:
-    return row_id
 
 
 def detector_row(trace_id: str, meta: dict, trajectory_sha256: str | None) -> dict:
@@ -956,7 +1038,7 @@ def materialize(parquet_path: str | Path, cb_root: str | Path) -> dict:
         "with_tool_calls": 0,
     }
     exclusions: list[dict] = []
-    for row in _iter_parquet(parquet_path):
+    for row in load_rows(parquet_path):
         trace_id = str(row.get("trace_id"))
         stats["rows"] += 1
         meta = row_meta(row)
@@ -1026,7 +1108,7 @@ def subset(parquet_path: str | Path) -> tuple[list[dict], list[dict], dict]:
     index_rows: list[dict] = []
     manifest_rows: list[dict] = []
     stats: dict[str, Any] = {"rows": 0, "converted": 0, "excluded": {}, "envelopes": {}}
-    for row in _iter_parquet(parquet_path):
+    for row in load_rows(parquet_path):
         trace_id = str(row.get("trace_id"))
         stats["rows"] += 1
         meta = row_meta(row)
@@ -1120,13 +1202,10 @@ if __name__ == "__main__":
 
 
 # ---------------------------------------------------------------------------
-# Viewer layer: faithful staged-ATIF conversion for the Trace Lab Scout viewer
-# (HAR-203 second wave). The calibration layer above is lossy by design
-# (caps, dropped observations, exclusion reasons) and its step ids are not
-# Scout-validated; this layer keeps every message/tool call/output verbatim,
-# tracks raw line spans per step, and maps each row's localization to the
-# owning ATIF step plus a clearly-marked annotation message. Pinned constants
-# (DATASET/REVISION/LICENSE/USER_AGENT) are shared above.
+# Viewer subset: the MiMo-relevant rows staged for the Trace Lab Scout viewer.
+# Staging reuses the single converter above (same steps the detectors score)
+# and runs the cheat-localization layer over its span side-channel, ending
+# each transcript with a clearly-marked annotation message.
 # ---------------------------------------------------------------------------
 
 FILENAME = "data/processed/parquet/full.parquet"
@@ -1152,36 +1231,6 @@ _STAGED_BY = "src/evallab/cheatbench.py"
 
 class CheatbenchError(Exception):
     """Pinned-fetch or conversion failure for the CheatBench corpus."""
-
-
-def source_url() -> str:
-    """Pinned HTTPS URL of the full parquet (never a moving ref)."""
-    return f"https://huggingface.co/datasets/{DATASET}/resolve/{REVISION}/{FILENAME}"
-
-
-def fetch_parquet(dest: str | Path, *, downloader: Callable[[str], bytes] | None = None) -> Path:
-    """Download the pinned parquet to ``dest`` and verify its sha256.
-
-    ``downloader`` is injectable so tests never reach the network.
-    """
-    dest = Path(dest)
-    if dest.is_file() and hashlib.sha256(dest.read_bytes()).hexdigest() == SHA256:
-        return dest
-    payload = (downloader or _anonymous_download)(source_url())
-    actual = hashlib.sha256(payload).hexdigest()
-    if actual != SHA256:
-        raise CheatbenchError(
-            f"digest mismatch for {DATASET}@{REVISION}: expected {SHA256}, got {actual}"
-        )
-    dest.parent.mkdir(parents=True, exist_ok=True)
-    dest.write_bytes(payload)
-    return dest
-
-
-def _anonymous_download(url: str) -> bytes:
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
-    with urllib.request.urlopen(request, timeout=300) as response:  # noqa: S310
-        return response.read()
 
 
 def load_rows(parquet_path: str | Path, *, columns: list[str] | None = None) -> list[dict]:
@@ -1213,8 +1262,6 @@ def counts_table(rows: list[dict]) -> list[tuple[Any, Any, Any, int]]:
     return [(b, m, label, counts[(b, m, label)]) for (b, m, label) in sorted(counts)]
 
 
-_FUNCTION_MARKUP = re.compile(r"<function=([^>]+)>")
-_PARAMETER_MARKUP = re.compile(r"<parameter=([^>]+)>(.*?)</parameter>", re.DOTALL)
 _PATH_TOKEN = re.compile(r"([^.\[\]]+)|\[(\d+)\]")
 
 
@@ -1246,67 +1293,6 @@ def parse_raw_trace(payload: str) -> dict:
     return trace
 
 
-def text_of(content: Any) -> str:
-    """Best-effort plain text of heterogeneous message content."""
-    if content is None:
-        return ""
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for part in content:
-            if isinstance(part, str):
-                parts.append(part)
-            elif isinstance(part, dict):
-                for key in ("text", "content", "output"):
-                    value = part.get(key)
-                    if isinstance(value, str):
-                        parts.append(value)
-                        break
-        return "".join(parts)
-    if isinstance(content, dict):
-        return json.dumps(content)
-    return str(content)
-
-
-def parse_function_markup(message: str) -> list[dict]:
-    """SWE-bench-style ``<function=f><parameter=k>v</parameter>`` calls."""
-    calls = []
-    for index, fn_match in enumerate(_FUNCTION_MARKUP.finditer(message), start=1):
-        params = {key: value for key, value in _PARAMETER_MARKUP.findall(message[fn_match.end() :])}
-        calls.append(
-            {
-                "tool_call_id": f"markup_{index}",
-                "function_name": fn_match.group(1),
-                "arguments": params,
-            }
-        )
-    return calls
-
-
-def parse_openai_tool_calls(tool_calls: Any) -> list[dict]:
-    """OpenAI-style ``{id, function: {name, arguments}}`` to staged shape."""
-    staged = []
-    for call in tool_calls or []:
-        if not isinstance(call, dict):
-            continue
-        function = call.get("function") or {}
-        arguments = function.get("arguments")
-        if isinstance(arguments, str):
-            try:
-                arguments = json.loads(arguments)
-            except ValueError:
-                arguments = {"command": arguments}
-        staged.append(
-            {
-                "tool_call_id": str(call.get("id") or f"call_{len(staged) + 1}"),
-                "function_name": str(function.get("name") or "unknown"),
-                "arguments": arguments if isinstance(arguments, dict) else {},
-            }
-        )
-    return staged
-
-
 def _new_step(
     step_id: int,
     source: str,
@@ -1331,375 +1317,16 @@ def _new_step(
     return step
 
 
-def _attach_observation(
-    steps: list[dict],
-    content: str,
-    *,
-    field: str,
-    line_start: int | None = None,
-    line_end: int | None = None,
-    source_call_id: str | None = None,
-    warnings: list[str],
-) -> int | None:
-    """Attach tool output to the latest agent step; return its step_id."""
-    text = content if isinstance(content, str) else text_of(content)
-    result: dict[str, Any] = {"content": text}
-    if source_call_id:
-        result["source_call_id"] = source_call_id
-    for step in reversed(steps):
-        if step["source"] == "agent":
-            observation = step.setdefault("observation", {"results": []})
-            observation["results"].append(result)
-            ref = step["extra"]["cheatbench"].setdefault("obs_refs", [])
-            ref.append({"field": field, "line_start": line_start, "line_end": line_end})
-            return step["step_id"]
-    warnings.append(f"tool output at {field} has no preceding agent step; kept as user step")
-    steps.append(_new_step(len(steps) + 1, "user", text, field=field, note="remapped-tool-output"))
-    return steps[-1]["step_id"]
-
-
-#: MLE-bench turn events use ``role: trace`` for agent narrations
-#: (``LLM_OUTPUT: ...``); the swe-rebench single-log kind event never reaches
-#: role mapping (its content is parsed into turns instead).
-_ROLE_MAP = {"system": "system", "user": "user", "assistant": "agent", "trace": "agent"}
-
-
-def _map_role(role: Any, *, field: str, warnings: list[str]) -> str:
-    mapped = _ROLE_MAP.get(role)
-    if mapped is None:
-        warnings.append(f"unknown role {role!r} at {field}; kept as user step")
-        return "user"
-    return mapped
-
-
-def convert_trace(trace: dict) -> tuple[list[dict], list[str]]:
-    """Convert one parsed raw trace to ATIF steps (1-based step_id)."""
-    warnings: list[str] = []
-    if "messages" in trace:
-        return _convert_viewer_messages(trace, warnings), warnings
-    return _convert_events(trace, warnings), warnings
-
-
-def _convert_viewer_messages(trace: dict, warnings: list[str]) -> list[dict]:
-    steps = []
-    for index, message in enumerate(trace.get("messages") or []):
-        field = f"messages[{index}].content"
-        role = message.get("role") if isinstance(message, dict) else None
-        content = text_of(message.get("content") if isinstance(message, dict) else message)
-        source = _map_role(role, field=field, warnings=warnings)
-        calls = parse_function_markup(content) if source == "agent" else []
-        step = _new_step(len(steps) + 1, source, content, field=field)
-        if calls:
-            step["tool_calls"] = calls
-        steps.append(step)
-    if not steps:
-        warnings.append("trace has an empty messages[] list")
-    return steps
-
-
-def _convert_events(trace: dict, warnings: list[str]) -> list[dict]:
-    events = trace.get("events") or []
-    if isinstance(events, dict):
-        events = [events]
-    kinds = {tuple(sorted(e.keys())) for e in events if isinstance(e, dict)}
-    if kinds == {("content", "kind", "role")} and len(events) == 1:
-        content = events[0].get("content")
-        if isinstance(content, str) and re.search(r"^\[\d+\]\s+role=", content, re.MULTILINE):
-            return _convert_prefixed_log(content, "events[0].content", warnings)
-    stdout_corpus = "\n".join(
-        event.get("stdout")
-        for event in events
-        if isinstance(event, dict) and isinstance(event.get("stdout"), str)
-    )
-    steps: list[dict] = []
-    for index, event in enumerate(events):
-        if not isinstance(event, dict):
-            warnings.append(f"events[{index}] is not an object; skipped")
-            continue
-        keys = set(event.keys())
-        if {"msg", "step"} <= keys:
-            _convert_step_event(event, index, steps, warnings)
-        elif {"prompt", "response"} <= keys:
-            _convert_episode_event(event, index, steps, warnings)
-        elif "stdout" in keys or ("text" in keys and "command" in keys):
-            _convert_forgecode_event(event, index, steps, warnings)
-        elif "text" in keys and "content" not in keys:
-            _convert_text_event(event, index, steps, warnings, stdout_corpus=stdout_corpus)
-        elif "content" in keys:
-            _convert_content_event(event, index, steps, warnings)
-        else:
-            warnings.append(f"events[{index}] has unhandled keys {sorted(keys)}; skipped")
-    return steps
-
-
-def _convert_content_event(event: dict, index: int, steps: list[dict], warnings: list[str]) -> None:
-    field = f"events[{index}].content"
-    role = event.get("role")
-    content = text_of(event.get("content"))
-    if role == "tool":
-        ids = event.get("tool_call_ids") or []
-        call_id = str(ids[0]) if ids else None
-        lines = content.split("\n")
-        _attach_observation(
-            steps,
-            content,
-            field=field,
-            line_start=1,
-            line_end=len(lines) or 1,
-            source_call_id=call_id,
-            warnings=warnings,
-        )
-        return
-    source = _map_role(role, field=field, warnings=warnings)
-    message = content
-    action = event.get("action") if isinstance(event.get("action"), str) else None
-    if source == "agent" and action and action not in content:
-        # The executed command lives in ``action`` (and in tool_calls
-        # arguments); inline it so the cheat step stays text-searchable.
-        message = f"{content}\n\n[action]\n{action}" if content else f"[action]\n{action}"
-        step = _new_step(len(steps) + 1, source, message, field=field, note="action-inlined")
-    else:
-        step = _new_step(len(steps) + 1, source, content, field=field)
-    if source == "agent":
-        message_type = event.get("message_type")
-        if message_type == "action" or action:
-            calls = parse_openai_tool_calls(event.get("tool_calls"))
-            if action and not calls:
-                calls = [
-                    {
-                        "tool_call_id": f"action_{len(steps)}",
-                        "function_name": "bash",
-                        "arguments": {"command": action},
-                    }
-                ]
-            if calls:
-                step["tool_calls"] = calls
-        elif event.get("tool_calls"):
-            step["tool_calls"] = parse_openai_tool_calls(event.get("tool_calls"))
-    steps.append(step)
-
-
-def _convert_step_event(event: dict, index: int, steps: list[dict], warnings: list[str]) -> None:
-    """Codex/mini-swe-agent style ``{msg, obs, src, step, tools?}`` events."""
-    src = event.get("src", "agent")
-    source = _map_role(
-        {"agent": "assistant", "user": "user"}.get(src, src),
-        field=f"events[{index}].src",
-        warnings=warnings,
-    )
-    message = event.get("msg") or ""
-    step = _new_step(len(steps) + 1, source, message, field=f"events[{index}].msg")
-    tools = event.get("tools") or []
-    calls = []
-    for position, tool in enumerate(tools):
-        if not isinstance(tool, dict):
-            continue
-        calls.append(
-            {
-                "tool_call_id": f"call_{event.get('step', index)}_{position}",
-                "function_name": str(tool.get("fn") or "shell"),
-                "arguments": {"cmd": tool.get("cmd")},
-            }
-        )
-    if calls:
-        step["tool_calls"] = calls
-    obs = event.get("obs")
-    if isinstance(obs, str) and obs:
-        lines = obs.split("\n")
-        step["observation"] = {"results": [{"content": obs}]}
-        step["extra"]["cheatbench"]["obs_refs"] = [
-            {"field": f"events[{index}].obs", "line_start": 1, "line_end": len(lines) or 1}
-        ]
-    steps.append(step)
-
-
-def _convert_episode_event(event: dict, index: int, steps: list[dict], warnings: list[str]) -> None:
-    """Meta-Harness style ``{prompt, response}`` episode events."""
-    prompt = event.get("prompt") or ""
-    response = event.get("response") or ""
-    response_text = response if isinstance(response, str) else text_of(response)
-    steps.append(_new_step(len(steps) + 1, "user", prompt, field=f"events[{index}].prompt"))
-    step = _new_step(len(steps) + 1, "agent", response_text, field=f"events[{index}].response")
-    calls = _parse_embedded_tool_calls(response_text)
-    if calls:
-        step["tool_calls"] = calls
-    elif "Tool Calls" in response_text:
-        warnings.append(f"events[{index}].response mentions tool calls that did not parse")
-    steps.append(step)
-
-
-_TOOL_CALLS_JSON = re.compile(r"Tool Calls:\s*(\[.*\])", re.DOTALL)
-
-
-def _parse_embedded_tool_calls(response_text: str) -> list[dict]:
-    match = _TOOL_CALLS_JSON.search(response_text)
-    if not match:
-        return []
-    try:
-        return parse_openai_tool_calls(json.loads(match.group(1)))
-    except ValueError:
-        return []
-
-
-def _convert_forgecode_event(
-    event: dict, index: int, steps: list[dict], warnings: list[str]
-) -> None:
-    """ForgeCode ``{command, stdout}`` + ``{text}`` events (Claude renderings).
-
-    ``text`` is the same rendered transcript as ``stdout`` minus the shell
-    banner, so when it is fully contained it is not emitted twice.
-    """
-    stdout = event.get("stdout") or ""
-    command = event.get("command") or ""
-    return_code = event.get("return_code")
-    if "stdout" in event:
-        for segment, start, end in _split_rendered_log(stdout):
-            step = _new_step(
-                len(steps) + 1,
-                "agent",
-                segment,
-                field=f"events[{index}].stdout",
-                line_start=start,
-                line_end=end,
-            )
-            if start == 1 and command:
-                step["extra"]["cheatbench"]["shell_command"] = command
-                step["extra"]["cheatbench"]["return_code"] = return_code
-            steps.append(step)
-    if "text" in event:
-        _convert_text_event(event, index, steps, warnings, stdout_corpus=stdout)
-
-
-def _convert_text_event(
-    event: dict, index: int, steps: list[dict], warnings: list[str], *, stdout_corpus: str
-) -> None:
-    """ForgeCode ``{id, text, type}`` events: skip when stdout already holds them.
-
-    The skipped text is recorded as a line-offset alias on the first stdout
-    step so localizations against ``events[i].text`` still map (cb-001975).
-    """
-    text = event.get("text")
-    field = f"events[{index}].text"
-    if not isinstance(text, str) or not text:
-        warnings.append(f"{field} is empty; skipped")
-        return
-    if text in stdout_corpus:
-        line_offset = stdout_corpus[: stdout_corpus.find(text)].count("\n")
-        for step in steps:
-            ref = step["extra"]["cheatbench"]["source_ref"]
-            if ref["field"].endswith(".stdout"):
-                step["extra"]["cheatbench"].setdefault("text_aliases", []).append(
-                    {"field": field, "line_offset": line_offset}
-                )
-                warnings.append(f"{field} is contained in {ref['field']}; emitted once")
-                return
-        warnings.append(f"{field} is contained in stdout but no stdout step exists; emitting")
-    for segment, start, end in _split_rendered_log(text):
-        steps.append(
-            _new_step(len(steps) + 1, "agent", segment, field=field, line_start=start, line_end=end)
-        )
-
-
-def _split_rendered_log(stdout: str) -> list[tuple[str, int, int]]:
-    """Split a Claude rendered transcript on ``⏺`` markers (1-based lines)."""
-    lines = stdout.split("\n")
-    starts = [n for n, line in enumerate(lines) if line.startswith("⏺ ")]
-    if not starts:
-        return [(stdout, 1, len(lines) or 1)] if stdout else []
-    boundaries = [0] + starts[1:] + [len(lines)]
-    segments = []
-    for start, end in zip(boundaries[:-1], boundaries[1:], strict=True):
-        body = "\n".join(lines[start:end]).strip("\n")
-        if body:
-            segments.append((body, start + 1, end))
-    return segments
-
-
-_LOG_TURN = re.compile(r"^\[(\d+)\]\s+role=(system|assistant|tool)\b")
-_LOG_CALL = re.compile(r"^TOOL_CALL\[(\d+)\]\s+(\w+):\s*(.*)$", re.DOTALL)
-_LOG_PREFIX = re.compile(r"^\[\d+\]\s+")
-
-
-def _convert_prefixed_log(content: str, field: str, warnings: list[str]) -> list[dict]:
-    """SWE-rebench single-log ``[NNNN] role=X`` transcripts."""
-    steps: list[dict] = []
-    current: dict[str, Any] | None = None
-
-    def flush() -> None:
-        nonlocal current
-        if current is None:
-            return
-        role = current["role"]
-        text = "\n".join(current["lines"])
-        if role == "tool":
-            _attach_observation(
-                steps,
-                text,
-                field=field,
-                line_start=current["start"],
-                line_end=current["end"],
-                warnings=warnings,
-            )
-        else:
-            step = _new_step(
-                len(steps) + 1,
-                _map_role(role, field=field, warnings=warnings),
-                text,
-                field=field,
-                line_start=current["start"],
-                line_end=current["end"],
-            )
-            if current["calls"]:
-                step["tool_calls"] = current["calls"]
-            steps.append(step)
-        current = None
-
-    for lineno, raw in enumerate(content.split("\n"), start=1):
-        body = _LOG_PREFIX.sub("", raw)
-        turn = _LOG_TURN.match(raw)
-        if turn:
-            flush()
-            current = {
-                "role": turn.group(2),
-                "lines": [raw],
-                "calls": [],
-                "start": lineno,
-                "end": lineno,
-            }
-            continue
-        call = _LOG_CALL.match(body)
-        if call and current is not None and current["role"] == "assistant":
-            current["calls"].append(
-                {
-                    "tool_call_id": f"log_{current['start']}_{call.group(1)}",
-                    "function_name": call.group(2),
-                    "arguments": {"command": call.group(3)},
-                }
-            )
-        if current is None:
-            current = {
-                "role": "assistant",
-                "lines": [],
-                "calls": [],
-                "start": lineno,
-                "end": lineno,
-            }
-        assert current is not None
-        current["lines"].append(raw)
-        current["end"] = lineno
-    flush()
-    if not steps:
-        warnings.append(f"{field}: prefixed log produced no steps")
-    return steps
-
-
-def _step_line_span(step: dict) -> list[tuple[str, int, int]]:
-    """(field, start, end) spans a step covers: own ref plus obs refs."""
-    spans = []
-    ref = step["extra"]["cheatbench"]["source_ref"]
-    spans.append((ref["field"], ref.get("line_start"), ref.get("line_end")))
-    for obs in step["extra"]["cheatbench"].get("obs_refs", []):
-        spans.append((obs["field"], obs.get("line_start"), obs.get("line_end")))
+def _spans(step: dict) -> list[tuple[str | None, None, None]]:
+    """(field, None, None) spans a staged step covers: own ref plus obs refs."""
+    spans: list[tuple[str | None, None, None]] = []
+    extra = step.get("extra", {}).get("cheatbench", {})
+    ref = extra.get("source_ref") or {}
+    if ref.get("field"):
+        spans.append((ref["field"], None, None))
+    for obs in extra.get("obs_refs", []):
+        if obs.get("field"):
+            spans.append((obs["field"], None, None))
     return spans
 
 
@@ -1709,10 +1336,8 @@ def locate_cheat(
     """Map a CheatBench localization to (step_id, obs result idx|None, correction).
 
     ``correction`` is None on an exact match, else one of
-    ``single-event-fallback`` (swe-rebench ``events[1]`` on 1-event traces),
-    ``text-alias`` (skipped-duplicate ``events[i].text``), or
-    ``event-index-fallback`` (subfields with no own span: ``tools[j].cmd``,
-    ``action``).
+    ``single-event-fallback`` (swe-rebench ``events[1]`` on 1-event traces) or
+    ``event-index-fallback`` (subfields with no own span: ``tools[j].cmd``).
     """
     if not loc_field_path:
         return None, None, None
@@ -1723,29 +1348,28 @@ def locate_cheat(
     match = re.fullmatch(r"(messages|events)\[(\d+)\](\..+)?", loc_field_path)
     if match is None:
         return None, None, None
-    kind, wanted, _rest = match.group(1), int(match.group(2)), match.group(3)
+    kind, wanted = match.group(1), int(match.group(2))
     correction: str | None = None
-    fields = {span[0] for step in steps for span in _step_line_span(step)}
+    fields = {span[0] for step in steps for span in _spans(step)}
     if loc_field_path not in fields:
-        aliased = _resolve_text_alias(steps, loc_field_path, line)
-        if aliased is not None:
-            loc_field_path, line = aliased
-            correction = "text-alias"
-        elif kind == "events" and wanted == 1 and f"events[0]{loc_field_path[9:]}" in fields:
+        if kind == "events" and wanted == 1 and f"events[0]{loc_field_path[9:]}" in fields:
             loc_field_path = f"events[0]{loc_field_path[9:]}"
             correction = "single-event-fallback"
         else:
             event_steps = [
                 step["step_id"]
                 for step in steps
-                for field, _s, _e in _step_line_span(step)
-                if field.startswith(f"events[{wanted}].")
+                for field, _s, _e in _spans(step)
+                if field is not None
+                and (
+                    field == f"events[{wanted}]" or field.startswith(f"events[{wanted}].")
+                )
             ]
             if kind == "events" and event_steps:
                 return event_steps[0], None, "event-index-fallback"
             return None, None, None
     for step in steps:
-        for position, (field, start, end) in enumerate(_step_line_span(step)):
+        for position, (field, start, end) in enumerate(_spans(step)):
             if field != loc_field_path:
                 continue
             if line is None or start is None or end is None or start <= line <= end:
@@ -1753,30 +1377,10 @@ def locate_cheat(
     first = next(
         step["step_id"]
         for step in steps
-        for field, _s, _e in _step_line_span(step)
+        for field, _s, _e in _spans(step)
         if field == loc_field_path
     )
     return first, None, correction
-
-
-def _resolve_text_alias(
-    steps: list[dict], loc_field_path: str, line: int | None
-) -> tuple[str, int | None] | None:
-    """Map a skipped-duplicate ``events[i].text`` line into its stdout step."""
-    for step in steps:
-        for alias in step["extra"]["cheatbench"].get("text_aliases", []):
-            if alias["field"] != loc_field_path:
-                continue
-            for field, start, end in _step_line_span(step):
-                if not field.endswith(".stdout"):
-                    continue
-                shifted = None if line is None else line + alias["line_offset"]
-                if shifted is None or start is None or end is None or start <= shifted <= end:
-                    return field, shifted
-            for field, _s, _e in _step_line_span(step):
-                if field.endswith(".stdout"):
-                    return field, None
-    return None
 
 
 def _resolve_loc_content(trace: dict, loc_field_path: str) -> tuple[str | None, str | None]:
@@ -1853,10 +1457,6 @@ _CORRECTION_NOTES = {
         "note: raw loc path events[1].content did not resolve (single-event trace); "
         "mapped to events[0].content"
     ),
-    "text-alias": (
-        "note: raw loc events[i].text is a duplicate of the shell stdout; "
-        "mapped into the stdout steps"
-    ),
     "event-index-fallback": (
         "note: raw loc subfield (tools[j].cmd/action) has no own text span; "
         "mapped to the owning event's step"
@@ -1931,10 +1531,45 @@ def locate_row(
     return cheat_step_id, result_index, correction, line_adjusted
 
 
+def _decorate(steps: list[dict], regions: list[dict]) -> None:
+    """Attach span side-channel refs to staged steps (in place)."""
+    for step, region in zip(steps, regions, strict=True):
+        extra: dict[str, Any] = {
+            "source_ref": {"field": region["field"], "line_start": None, "line_end": None}
+        }
+        if region["obs"]:
+            extra["obs_refs"] = [
+                {"field": obs["field"], "line_start": None, "line_end": None}
+                for obs in region["obs"]
+            ]
+        step["extra"] = {"cheatbench": extra}
+
+
 def convert_row(row: Mapping[str, Any]) -> tuple[dict, dict, list[str]]:
-    """Convert one parquet row to (staged trajectory, scout metadata, warnings)."""
+    """Convert one parquet row to (staged trajectory, scout metadata, warnings).
+
+    Stages the single converter's steps (the same content the detectors
+    score), renumbered 1-based with span refs attached, plus the annotation
+    message. Rows the converter excludes stage as an annotation-only
+    transcript with the exclusion recorded as a warning.
+    """
+    trace_id = str(row.get("trace_id"))
     trace = parse_raw_trace(row["trace"])
-    steps, warnings = convert_trace(trace)
+    warnings: list[str] = []
+    try:
+        doc, _stats, regions = _convert_inner(trace_id, trace, row_meta(dict(row)))
+    except ValueError as exc:
+        warnings.append(f"trace excluded from staged steps: {exc}")
+        steps: list[dict] = []
+    else:
+        steps = doc["steps"]
+        steps[0].setdefault(
+            "extra",
+            {"cheatbench": {"source_ref": {"field": None, "line_start": None, "line_end": None}}},
+        )
+        _decorate(steps[1:], regions)
+    for position, step in enumerate(steps, start=1):
+        step["step_id"] = position
     cheat_step_id, result_index, correction, line_adjusted = locate_row(trace, steps, row)
     cheat_message_no = message_number(steps, cheat_step_id, result_index)
     annotation = build_annotation(

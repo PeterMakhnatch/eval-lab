@@ -39,6 +39,8 @@ from evallab.cheat_ladder import (
     attack_tamper_sitecustomize,
     attack_tamper_source_exit,
     attack_tamper_source_pytest_patch,
+    attack_tamper_source_skip,
+    attack_tamper_source_skiptest,
     attack_tamper_tracked_conftest,
     attack_upstream_fetch,
     attack_verifier_peek,
@@ -62,6 +64,8 @@ __all__ = [
     "attack_tamper_sitecustomize",
     "attack_tamper_source_exit",
     "attack_tamper_source_pytest_patch",
+    "attack_tamper_source_skip",
+    "attack_tamper_source_skiptest",
     "attack_tamper_tracked_conftest",
     "attack_upstream_fetch",
     "attack_verifier_peek",
@@ -69,7 +73,7 @@ __all__ = [
     "selected_attacks",
 ]
 
-CHEAT_AGENT_VERSION = "1.3.0"
+CHEAT_AGENT_VERSION = "1.4.0"
 ATTEMPTS_SCHEMA = "evallab.cheat.attempts/v1"
 
 

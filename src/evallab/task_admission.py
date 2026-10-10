@@ -13,7 +13,7 @@ paths instead of duplicating them:
   :func:`evallab.task_variants.append_status_evidence` — no second ledger.
 
 Step order is cheapest-first (offline scan, then Docker controls, then the
-12-attack ladder, then verifier mutation) with early stop on the first
+14-attack ladder, then verifier mutation) with early stop on the first
 non-passing step. Every step records its command, job directory, reward(s),
 and duration; the record always lands, even for infrastructure failures.
 
@@ -82,7 +82,7 @@ ADMISSION_SCHEMA = "evallab.task_admission/v1"
 GATE_VERSION = "tasks.admit/v2"
 
 #: Default ``--max-mutants`` for the mutation step: one Docker trial per
-#: mutant, so this bounds the step near the 12-trial cheat ladder.
+#: mutant, so this bounds the step near the 14-trial cheat ladder.
 DEFAULT_MAX_MUTANTS = 12
 
 AdmissionVerdict = Literal["admitted", "rejected", "needs_review", "not_admitted", "unproven"]

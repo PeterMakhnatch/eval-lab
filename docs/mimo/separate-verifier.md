@@ -286,6 +286,23 @@ selected tests and both are overfitting, which held-out tests — not the
 regression grader — address), so skip-tolerance opens no grader-level hole
 beyond what the missing/failure gates already carry.
 
+> **Correction (2026-10-10, measured): the last paragraph above is wrong.**
+> A source-level skip is *not* equivalent to hard-coding values. Measured
+> on `@5` packages on local Docker ($0): a call-time skip planted in the
+> imported package (`pytest.Function.runtest` patched to `pytest.skip`, plus
+> a `unittest.TestCase.run` patch, no test knowledge, no tamper-signature
+> match) grades **reward 1 with zero tests passing** — 002552: `rc=0
+> cases=12 bad=0 skipped=12 named=4 missing=[]`; 000803 (unittest): `Ran 8
+> tests OK (skipped=8)`, rc 0. A go init hook appending `-test.run=^$` to
+> `os.Args` yields `ok pkg [no tests to run]`, rc 0, which the `@5` go
+> markers also grade 1. The literal module-level one-liner
+> (`pytest.skip(..., allow_module_level=True)` / `raise SkipTest`) never
+> reaches reward 1 (conftest-startup crash rc 1, or whole-module
+> collection skips with rc 5 and missing IDs) — which is why the ladder
+> stayed clean and the hole looked closed. `separate-verifier@6` closes the
+> family behaviorally with a pristine-baseline fail-to-pass rule (next
+> section).
+
 ### Multi-phase commands grade every phase
 
 Every pytest invocation used to overwrite the single `junit.xml`, so only
@@ -317,3 +334,76 @@ skipped.
   differs from `@4` only in the pinned blocks.
 - Local Docker: 000163/000200/000203 oracle 1, nop 0 on `@5` packages;
   cheat ladder still clean (see the PR receipts).
+
+## separate-verifier@6: pristine-baseline fail-to-pass (2026-10-10)
+
+`separate-verifier@6` (`TRANSFORM_ID_V6`, `build_changes_v6`,
+`derive_separate_verifier_v6`, `render_wrapper_test_sh_v6`,
+`evaluate_junit_v6`, `evaluate_unittest_v6` in
+`src/evallab/separate_verifier.py`; tests in
+`tests/test_separate_verifier.py`) keeps every `@5` guarantee and closes the
+source-skip hole behaviorally. No `@2`–`@5` symbol or template byte changes,
+so their records stay valid.
+
+### Fail-to-pass over a pristine baseline
+
+The verifier first runs the hidden tests on its own pristine tree (test
+patch applied, no agent bytes — a `git read-tree`/`checkout-index`/`clean`
+reset restores it before the agent run, with a `comm`-based sweep for
+ignored build residue) and records per-test outcomes. Reward 1 iff the
+run succeeds as under `@5` AND every test that failed/errored on pristine
+now PASSES (not skipped) AND no test that passed on pristine now
+fails/errors; skips are tolerated only for tests also skipped on pristine.
+With no baseline artifacts (setup-stage failure), grading keeps `@5`
+rules exactly. The baseline itself runs to completion: a verifier-owned
+`pytest_configure` hook clears `-x`/`--exitfirst`/`--maxfail` addopts so a
+first failure cannot hide later fail-to-pass evidence.
+
+Per-runner rules: pytest compares worst-outcome maps keyed by
+`(classname, name, file)` over the plugin report plus the `@5` per-phase
+archive union; unittest requires at least as many ran and at most as many
+skipped as the pristine `output.log` counts; go-test keeps the `@5`
+markers and adds a non-empty-run rule (`ok` line with no `FAIL`/`panic`
+and at least one `=== RUN`/`PASS:`/`ok` line), so an emptied selection
+(`[no tests to run]`, rc 0) grades 0. Baseline and agent wall time land in
+`verifier/timing.log` (`baseline_sec`, `agent_sec`).
+
+### Two `@5` defects fixed along the way
+
+- The `@5` embedded loader called the missing-report path on ANY `open()`
+  failure of the plugin report — including file-not-found — before
+  consulting the per-phase archives. ADDOPTS-cleared runs (e.g. 000666)
+  never write the plugin report, and the archiver shadows the V3 hook's
+  report, so `@5` graded every such oracle 0. `@6` treats a
+  missing/unreadable plugin report as empty and grades the archive union;
+  a corrupt (present but unparsable) report keeps the missing-report path.
+- The `@6` agent run line kept a timing `echo` between the test command
+  and `RC=$?`, forcing rc 0 for every trial; the capture now sits
+  immediately after the run.
+
+### Validation (MEASURED, 2026-10-10, $0)
+
+- Unit: mirror/embedded agree on oracle, skip-attack, no-progress, and
+  no-baseline shapes; archive-only grading (missing plugin report +
+  per-phase archives, the 000666 shape); unittest count rules; go
+  empty-run rule; `@6`-vs-`@5` diff confinement (pinned blocks only).
+- Local Docker, final `@6` packages, oracle 1 / nop 0 on all of 000163,
+  000200, 000203, 002552, 000666, 000114, 000102, 000803, and 000553 (go;
+  oracle via a temporary control package adding `solution/solve.sh` with
+  the real `main.go` at image-history `53b42c1` — canonical keeps
+  `reference_fix=none`, same arrangement as the `@4` receipt).
+- Proof table (live): `tamper_source_skip` on the `@5` 002552 package —
+  `rc=0 cases=12 bad=0 skipped=12 named=4 missing=[]`, reward **1**; the
+  same attack on the `@6` package — same shape plus `fail-to-pass:
+  pristine outcomes not preserved`, reward **0**. `tamper_source_skiptest`
+  on 000803 surfaces the import-time raise as a unittest error (rc 1),
+  reward 0 under both — a regression probe, not a hole.
+- Overhead: `baseline_sec=2 agent_sec=2` on the 002552 skip trial (local
+  Docker) — grading costs about one extra pristine test run.
+
+The cheat ladder gains `tamper_source_skip` (call-time pytest/unittest
+skip hooks in the imported package) and `tamper_source_skiptest`
+(import-time `SkipTest` raise); ladder version 1.3.0 → 1.4.0 (14 attacks).
+The `@5` correction block above stands amended: only the pytest call-time
+hook was ever measured at rc 0 with reward 1; the module-level one-liners
+and the unittest import-time raise fail closed.

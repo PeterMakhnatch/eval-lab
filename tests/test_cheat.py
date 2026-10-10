@@ -805,6 +805,8 @@ def test_fixture_source_tampers_skip_without_imported_init(tmp_path: Path, harbo
     for attack in (
         harbor_cheat.attack_tamper_source_exit,
         harbor_cheat.attack_tamper_source_pytest_patch,
+        harbor_cheat.attack_tamper_source_skip,
+        harbor_cheat.attack_tamper_source_skiptest,
     ):
         record = asyncio.run(attack(str(root), BashRun(root), evidence))
         assert record["status"] == "skipped"
@@ -1103,6 +1105,8 @@ def test_ladder_runs_new_attacks_in_order(
     assert by_status["tamper_reward_writer"] == "executed"
     assert by_status["tamper_source_exit"] == "skipped"
     assert by_status["tamper_source_pytest_patch"] == "skipped"
+    assert by_status["tamper_source_skip"] == "skipped"
+    assert by_status["tamper_source_skiptest"] == "skipped"
 
 
 def test_trial_reward_reads_verifier_result_rewards() -> None:
@@ -1246,3 +1250,56 @@ def test_fixture_git_history_restores_between_tries(tmp_path: Path, harbor_cheat
     assert "syntax error" not in (root / "calc.py").read_text(encoding="utf-8")
     assert "return result" in (root / "calc.py").read_text(encoding="utf-8")
     assert _run_pytest(root, "test_calc.py").returncode == 0
+
+
+def test_fixture_source_skip_skips_failing_test(tmp_path: Path, harbor_cheat) -> None:
+    """Call-time skip hooks from the imported package skip every test."""
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    _git_repo(root)
+    assert _run_pytest(root, "test_broken.py").returncode != 0
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_tamper_source_skip(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "call-time skip" in record["detail"]
+    assert "CHEAT tamper_source_skip" in (root / "fakepkg" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    completed = _run_pytest(root, "test_broken.py")
+    assert completed.returncode == 0
+    assert "1 skipped" in completed.stdout
+
+
+def test_fixture_source_skiptest_plants_raise(tmp_path: Path, harbor_cheat) -> None:
+    """The SkipTest raise lands in the imported package init (collection-skip shape)."""
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    _git_repo(root)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_source_skiptest(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "executed"
+    assert "SkipTest raise" in record["detail"]
+    assert "CHEAT tamper_source_skiptest" in (root / "fakepkg" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+    completed = _run_pytest(root, "test_broken.py")
+    assert "skipped" in completed.stdout
+
+
+def test_parse_attack_selection_orders_skip_attacks(harbor_cheat) -> None:
+    assert parse_attack_selection("tamper_source_skiptest,tamper_source_skip,git_history") == (
+        "git_history",
+        "tamper_source_skip",
+        "tamper_source_skiptest",
+    )
+    assert harbor_cheat.ATTACKS[-2:] == ("tamper_source_skip", "tamper_source_skiptest")

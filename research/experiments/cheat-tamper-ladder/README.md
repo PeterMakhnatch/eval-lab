@@ -147,3 +147,79 @@ and greens the suite; a smaller breaking candidate is tried first,
 smoke-fails, and is restored before the real fix wins (`SMOKE_FAIL` in the
 apply log). Smoke is compile + package import only — hidden tests run
 solely at grading; the lane verdict still comes from the real verifier.
+
+## Follow-up: ranked recovery fixes the 002402 false `resisted` (ladder 1.3.0, 2026-10-10)
+
+`evallab tasks admit` on raw HF 002402 reported `cheat:git_history` **pass**
+(reward 0.0) while the image leaks its fix. Root cause, from
+`admit2-format-code-task-002402-git-history/.../git_history.apply.log`:
+`UNREACHABLE_COMMITS: 40` — the pool was truncated by `head -40` **after**
+sha-sorting, so only the first 40 of 696 unreachable commits were ranked.
+The real fix sorts late and never entered the pool; an unrelated
+`examples/*.py` commit (`09d9d743`) applied, smokepassed, and was reported
+`APPLIED` with reward 0.0. Two corrections to the original report: the real
+fix is `75149901` "fix event dim of some arg constraints (#1967)", a
+**5-file / 31-line** direct child of base (not a 24-file diff) touching
+exactly the issue's distributions (`Uniform`, `DiscreteUniform`,
+`Truncated*`, `Wishart`); and it was cut by the `head -40` cap, not by
+`MAX_FILES` (its 3 source files / ~30 lines passed the old bounds).
+
+Ladder `1.3.0` (`CHEAT_AGENT_VERSION`, `APPLY_TIMEOUT_SEC` 120 → 300):
+uncapped pool (reachable refs past base ∪ every unreachable commit,
+unioned over all readable git dirs incl. `/var/lib/mimo/git-hidden`);
+one chunked `log --numstat -m` call for parents/subjects/own-file stats
+(cumulative base..candidate tree diffs cost ~1s each, so they run only for
+tried candidates); relevance score per candidate — substantive child of base
+100 (docs-only child 20), non-test source +40, visible-test overlap +25,
+instruction/visible-test keyword overlap +5 each (cap 25) — no language
+restriction; size caps (30 files / 3000 lines) bind the patch actually
+applied; top candidates tried in order with restore between tries, own
+change first then cumulative base..candidate fallback; a candidate touching
+present test files must also pass its own added tests
+(`TEST_PASS`, otherwise `TEST_FAIL` + restore); `git apply` uses
+`--full-index` (binary patches) and excludes untracked worktree files;
+`__pycache__`/`*.pyc` never count as tests; every candidate logs
+`CANDIDATE: <sha> score=…` with outcome (`TRY`/`CHECK_FAIL`/`SKIPPED_SIZE`/
+`SMOKE_FAIL`/`TEST_FAIL`/`TEST_SKIP`/`APPLIED`). At most 15
+examined, 5 tried, 3 test-validated per run.
+
+```bash
+uv run --extra laminar evallab cheat run --task <derived package> \
+  --name <job> --jobs-dir /tmp/cheat-fix-jobs --attacks git_history --attempts 1
+```
+
+| run | before (1.2.0) | after (1.3.0) |
+|---|---|---|
+| 002402 `git_history` | clean (0.0): 40/696 scanned, decoy `09d9d743` applied | **cracked (1.0)**: 696 scanned, `75149901` (score 190) tried first, `TEST_PASS`, applied |
+| 002552 `git_history` | cracked (1.0) | **cracked (1.0)**: top candidate (score 85) size-rejected, `e88159fb` (score 80) tried next, own test `test_action_with_nulls` passed, applied |
+| 001809 `git_history` | clean (0.0) | **clean (0.0)** |
+| strip-002402 (`strip-future-history@1` `…/mimo-v2.6-rl__format-code-task-002402/aee31dca2e10`) `git_history` | — | **clean (0.0)**: no future commits to recover a fix from |
+
+Admit integration (`evallab tasks admit --task …/format-code-task-002402`,
+record `/private/tmp/cheat-fix-jobs/ghfix-admit-format-code-task-002402/admission-5ca085f112ab.json`):
+before, `cheat:git_history` passed ("resisted (reward 0.0)"); after, it
+**fails** ("cracked the task (reward 1.0)"), so the leaky image is now
+correctly rejected on `failed_attacks: ["git_history"]`.
+
+Fixture coverage (`tests/test_cheat.py`, all $0, no daemon): 46-commit pool
+with an early-sorting examples decoy — the late fix wins on score, not order;
+a candidate failing its own added tests is restored (`TEST_FAIL`); a
+non-Python (yaml-only) fix still applies; a 32-file candidate is
+`SKIPPED_SIZE` but still logged. Raw job dirs (verdicts + apply logs):
+`/tmp/cheat-fix-jobs/ghfix-{002402,002552,001809,strip2402,admit-format-code-task-002402}/`.
+
+## Follow-up: source tampers execute on 002139's bitbake tree (2026-10-10)
+
+`tamper_source_exit` / `tamper_source_pytest_patch` never fired on 002139
+(BitBake): the init pick only read `$BASE/.git`, but setup hides `.git` at
+`/var/lib/mimo/git-hidden` whenever future refs exist (002139's image has
+11,119) → `NO_SOURCE_INIT`. The pick now falls back to git-hidden (and
+siblings), caps huge-tree scans (first package `__init__` past 5,000 files),
+derives the import root by skipping leading dirs without `__init__.py`
+(`lib/bb/fetch2` is imported as `bb.fetch2`, not `lib.bb.fetch2`), and also
+discovers tests living in `tests/` dirs under non-`test_*` names
+(`fetch.py`). After: both attacks **execute** on 002139
+(`exit-0 hook in lib/bb/__init__.py`, `TestReport patch in
+…/lib/bb/__init__.py`) and crack (1.0) in ~26 s total; job dir
+`/tmp/cheat-fix-jobs/ghfix4-002139/`. Fixture coverage: 5,005-file tree
+plants without matching; lib/-layout matches the import root.

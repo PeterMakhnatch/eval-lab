@@ -45,6 +45,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from evallab import mtime_normalize as _mtime_normalize_mod
 from evallab import purge_build_caches as _purge_build_caches_mod
 from evallab.hardening import CONFIRMED_PURGE
 from evallab.mtime_normalize import MARKER as MTIME_MARKER
@@ -142,6 +143,37 @@ def _derive_cache_active(
         kwargs["variants_root"] = variants_root
     return derive(parent_dir, **kwargs)
 
+#: Active mtime-normalize generation. ``@2`` (Modal lazy-layer
+#: materialization fix; Docker-neutral) is preferred once
+#: ``mtime_normalize`` ships it; until then ``@1``. Same import-time
+#: resolution as the cache generation above.
+MTIME_ACTIVE_ID: str = getattr(_mtime_normalize_mod, "TRANSFORM_ID_V2", MTIME_ID)
+MTIME_ACTIVE_MARKER: str = getattr(_mtime_normalize_mod, "MARKER_V2", MTIME_MARKER)
+
+
+def _derive_mtime_active(
+    parent_dir: Path | str,
+    *,
+    rationale: str | None = None,
+    created_by: str = CREATED_BY,
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the active mtime-normalize generation for a parent package."""
+    derive_v2 = getattr(_mtime_normalize_mod, "derive_mtime_normalize_v2", None)
+    derive = derive_v2 if derive_v2 is not None else derive_mtime_normalize
+    kwargs: dict[str, Any] = {"created_by": created_by}
+    if rationale is not None:
+        kwargs["rationale"] = rationale
+    if repo_root is not None:
+        kwargs["repo_root"] = repo_root
+    if parent_source is not None:
+        kwargs["parent_source"] = parent_source
+    if variants_root is not None:
+        kwargs["variants_root"] = variants_root
+    return derive(parent_dir, **kwargs)
+
 
 #: Canonical Python chain, in application order. ``separate-verifier@3`` is
 #: always last: it bundles the parent's clean setup chain into the verifier.
@@ -149,7 +181,7 @@ PYTHON_CHAIN = (
     STRIP_ID,
     PURGE_ID,
     CACHE_ACTIVE_ID,
-    MTIME_ID,
+    MTIME_ACTIVE_ID,
     SEPARATE_V3_ID,
 )
 
@@ -158,7 +190,7 @@ PYTHON_CHAIN = (
 NONPYTHON_CHAIN = (
     STRIP_ID,
     CACHE_ACTIVE_ID,
-    MTIME_ID,
+    MTIME_ACTIVE_ID,
     SEPARATE_V3_ID,
 )
 
@@ -860,11 +892,11 @@ class ChainBuilder:
                 f"purge-installed-copies@1 n/a to {result.language}: Python pip mechanism"
             )
 
-        # Active purge-build-caches generation then mtime-normalize@1
+        # Active purge-build-caches and mtime-normalize generations
         # (mechanical, continue the chain past a single-step failure).
         for transform, marker, derive in (
             (CACHE_ACTIVE_ID, CACHE_ACTIVE_MARKER, _derive_cache_active),
-            (MTIME_ID, MTIME_MARKER, derive_mtime_normalize),
+            (MTIME_ACTIVE_ID, MTIME_ACTIVE_MARKER, _derive_mtime_active),
         ):
             if setup_carries(current, marker):
                 notes.append(f"{transform} already in {start_kind}")
@@ -1384,6 +1416,8 @@ __all__ = [
     "LANGUAGE_CHAINS",
     "MANIFEST_COLUMNS",
     "MANIFEST_REL",
+    "MTIME_ACTIVE_ID",
+    "MTIME_ACTIVE_MARKER",
     "MTIME_ID",
     "NONPYTHON_CHAIN",
     "ORACLE_PASS_PREFIX",

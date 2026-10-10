@@ -19,7 +19,7 @@ import pytest
 from evallab import mimo_clean
 from evallab.mimo_clean import (
     CACHE_ACTIVE_ID,
-    MTIME_ID,
+    MTIME_ACTIVE_ID,
     NONPYTHON_CHAIN,
     PURGE_ID,
     PYTHON_CHAIN,
@@ -53,6 +53,13 @@ def test_active_cache_generation_prefers_v3() -> None:
     from evallab import purge_build_caches
 
     assert mimo_clean.CACHE_ACTIVE_ID == purge_build_caches.TRANSFORM_ID_V3
+
+
+def test_active_mtime_generation_tracks_module() -> None:
+    from evallab import mtime_normalize
+
+    expected = getattr(mtime_normalize, "TRANSFORM_ID_V2", mtime_normalize.TRANSFORM_ID)
+    assert expected == mimo_clean.MTIME_ACTIVE_ID
 
 
 TASK_ID = "format-code-task-000000"
@@ -397,7 +404,7 @@ def test_build_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
     result = builder.build_task(TASK_ID, _row(package, TASK_ID), oracle=oracle)
     assert result.status == STATUS_BUILT
     # Purge is out of scope for unconfirmed projects (HAR-194 stance).
-    assert result.chain == [STRIP_ID, CACHE_ACTIVE_ID, MTIME_ID, SEPARATE_V3_ID]
+    assert result.chain == [STRIP_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V3_ID]
     assert "purge-installed-copies@1 skipped" in result.reason
     final = _final(tmp_path, result)
     assert (final / "solution" / "solve.sh").is_file()
@@ -414,7 +421,7 @@ def test_build_snapshot_chain_end_to_end(tmp_path: Path) -> None:
     _write_snapshot_package(tmp_path, task_id, "JavaScript")
     result = _builder(tmp_path).build_task(task_id, None, oracle=None)
     assert result.status == STATUS_BUILT
-    assert result.chain == [STRIP_ID, CACHE_ACTIVE_ID, MTIME_ID, SEPARATE_V3_ID]
+    assert result.chain == [STRIP_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V3_ID]
     assert result.language == "javascript"
     assert "purge-installed-copies@1 n/a to javascript" in result.reason
     assert result.reference_fix == "none"
@@ -465,7 +472,7 @@ def test_build_confirmed_purge_task_carries_purge(tmp_path: Path, oracle: Oracle
     package = _write_run_package(tmp_path, task_id)
     result = _builder(tmp_path).build_task(task_id, _row(package, task_id), oracle=oracle)
     assert result.status == STATUS_BUILT
-    assert result.chain == [STRIP_ID, PURGE_ID, CACHE_ACTIVE_ID, MTIME_ID, SEPARATE_V3_ID]
+    assert result.chain == [STRIP_ID, PURGE_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V3_ID]
 
 
 def test_build_fail_closed_task_skips_purge_with_reason(tmp_path: Path, oracle: OracleInfo) -> None:

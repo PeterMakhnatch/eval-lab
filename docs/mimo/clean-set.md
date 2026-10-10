@@ -28,7 +28,7 @@ task, each carrying the full clean chain in its lineage.
 ledger run package (repairs)
   -> strip-future-history@1
   -> purge-installed-copies@1   (scoped; see below)
-  -> purge-build-caches@2       (@3 when the node build-output port lands)
+  -> purge-build-caches@3
   -> mtime-normalize@1
   -> separate-verifier@3        (last; + solution/solve.sh from the reference fix)
 ```
@@ -37,23 +37,16 @@ ledger run package (repairs)
 |---|---|---|---|
 | 1 | `strip-future-history@1` | V1 future history on branches, V2 unreachable git objects | Rebuilds agent-visible git storage from exactly BASE and its ancestors; without it 67% of code tasks leak the answer through git objects. |
 | 2 | `purge-installed-copies@1` | E1 installed/build copies of the fixed project | Removes `build/`, project egg-info and site-packages copies, then reinstalls the base tree editable offline. Scoped to validated targets (below): the block fails closed at setup, and unvalidated projects would break setup instead of leaking. |
-| 3 | `purge-build-caches@2` | V5 build/module caches | The `@1` sweep plus this project's own entries in shared caches (pip wheels, Go module/build cache, cargo target + registry copies, Maven artifacts, Gradle project cache, npm/yarn/pnpm entries), each fail-closed. `@3` adds node gitignored build-output handling (the 000047 `lib/` leak); the builder prefers `@3` once `purge_build_caches` ships it and records whichever generation it used in the manifest `chain`. |
+| 3 | `purge-build-caches@3` | V5 build/module caches | The `@1` sweep plus this project's own entries in shared caches (pip wheels, Go module/build cache, cargo target + registry copies, Maven artifacts, Gradle project cache, npm/yarn/pnpm entries), each fail-closed, plus node gitignored build outputs (`lib/`, `dist/`, `build/`, `out/`): deleted when grading tests import from `src/`, else rebuilt from the base tree, setup fails when neither is safe. Shipped as `purge-build-caches@3` (vals-routes-v3, PR #810); the builder prefers `@3` when `purge_build_caches` ships it and records whichever generation it used in the manifest `chain` (v2 carries `@3` throughout). |
 | 4 | `mtime-normalize@1` | V3 file mtimes pointing at fixed files | Touches the worktree to one stamp so `find -newermt` cannot rank the fixed files. |
 | 5 | `separate-verifier@3` | E2 grader tamper, all runners | Patch-only grading in a pristine verifier checkout with structured per-runner checks (go/jest/mocha/vitest/phpunit/rspec/cargo/…; see `docs/mimo/separate-verifier.md`), cross-language tamper gates, new-file config drops, and the Python residuals (unittest parse, ADDOPTS-clearing conftest hook). Keeps every `@2` guarantee byte-for-byte for Python/pytest. It is last because it bundles the parent's clean setup chain into the verifier image. |
 
-The builder reuses the existing `derive_*` functions in order and records
-each step's lineage via `evallab.task_variants.derive_task`. Steps the run
-package already carries (repair rows ship strip/purge) are kept, not
-re-derived. A single mechanical step that raises `VariantInvalid` is
-skipped with reason while the rest of the chain continues (same tolerance
-as v1); strip failure is fatal for that task.
-
-## The canonical non-Python chain (all 1,519 tasks)
+## The canonical non-Python chain (all 1,518 tasks)
 
 ```
 snapshot task dir
   -> strip-future-history@1
-  -> purge-build-caches@2 (or @3, same rule as above)
+  -> purge-build-caches@3
   -> mtime-normalize@1
   -> separate-verifier@3
 ```
@@ -178,9 +171,20 @@ git; the acceptance table is recorded in
   (0/100) plus the vals-routes-v2 census; the fail-closed tasks keep their
   copies by design. If a new installed-copy leak is confirmed anywhere, add
   the task id to `CONFIRMED_PURGE` and rebuild.
-- The 000047 `lib/` build-output leak stays open until
-  `purge-build-caches@3` lands and the set rebuilds (the manifest `chain`
-  shows which generation each package carries).
+- The 000047 `lib/` build-output leak is closed by `purge-build-caches@3`
+  (vals-routes-v3 receipt: rebuild via `npm run compile`, oracle 1 / nop 0;
+  every v2 package carries `@3` — see the manifest `chain`).
+- First confirmed pnpm fail-closed: `format-code-task-000128` (TS/vitest)
+  cannot set up under the v2 chain — `@3` finds `create-typescript-app`
+  references in the image's pnpm store
+  (`/root/.local/share/pnpm/store/v10`) with no safe per-package eviction
+  and fails setup closed (4/4 trials: nop, nop-attempt2, cheat,
+  cheat-attempt2, all healthcheck rc=1; Docker repro of the built setup in
+  12 s — see the v2 README receipt). The transform behaves as designed;
+  the task needs manual purge-port triage. Setup-failing packages are the
+  reason every manifest row ships `verify=unverified`: the fleet census
+  grades them into its own `setup-fail` bucket (unscored rewards with trial
+  errors), not as grading failures.
 - Tasks without a reference fix skip the oracle cell; their acceptance is
   nop 0 + cheat clean, and solvability still rests on the census evidence
   cited in the ledger (Python) or the `@3` port-validation oracles

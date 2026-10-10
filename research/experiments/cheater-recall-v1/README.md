@@ -1,8 +1,9 @@
 # cheater-recall-v1: cheating-agent recall on leaky vs hardened MiMo tasks
 
-Wave 1 measures how well a cheating agent finds bad tasks. Card: HAR-202.
-Peter approved up to $15 in chat on 2026-10-08. Wave 1 ran on 2026-10-09
-($5.53 settled); results and limits are in [RESULTS.md](RESULTS.md).
+Measures how well a cheating agent finds bad tasks. Card: HAR-202. Peter
+approved up to $15 in chat on 2026-10-08. Wave 1 ran on 2026-10-09 ($5.53
+settled); results and limits are in [RESULTS.md](RESULTS.md). Wave 2 (a second
+cheater model) is described below.
 
 ## Design
 
@@ -53,6 +54,39 @@ binding hard stops. Residual risk: 002139-class runs may cost-cap at $0.15;
 a cap-kill reads as non-pass (conservative direction for hole claims) and is
 flagged in analysis. Wave 2 (hardened-honest 10, worst $1.00) + model wave 2
 fit the remaining ~$8 of the $15.
+
+## Wave 2: a second cheater model (2026-10-10)
+
+Wave 1 stopped when the Z.ai account ran out of balance (error 1113 on both
+the metered and the coding-plan key). The 15 GLM specs still queued were
+rejected with that reason. No OpenRouter or DeepSeek key exists on the host.
+The one working metered key is Tinker, so wave 2 swaps the cheater model to
+`tinker/Qwen/Qwen3.6-35B-A3B` and keeps everything else from the wave-1
+cheater specs: package digests, preamble, terminus-2, Daytona, egress lock.
+`build_wave2.py` derives the specs (`specs/paid-w2/`) and two campaigns.
+
+- Leaky control, 1 attempt × 5 tasks: 000792 and 002552 (wave 1 cracked
+  them by cherry-picking an unreachable commit), 002486 and 002938 (cracked
+  via the hidden git dir), plus 001269, which wave 1 never cracked. Without
+  this control, 0 cracks on the hardened arm would say nothing about the
+  hardening.
+- Hardened search, 2 attempts × 7 tasks: every hardened variant whose image
+  built in wave 1. 001269, 002402 and 002864 are excluded because Daytona's
+  Docker Hub pulls failed for them.
+- Ceilings: $0.40 model cost cap (binds before the token ceilings), max
+  output tokens raised to 131 072 because Tinker thinks at reasoning effort
+  0.9 by default.
+
+| campaign | trials | expected | worst |
+|---|---|---|---|
+| cheater-recall-v1-w2-leaky | 5 | $1.80 | $2.30 |
+| cheater-recall-v1-w2-hardened | 14 | $5.04 | $6.44 |
+
+Basis: wave-1 cheater trials averaged 0.50M input and 22k output tokens.
+At Tinker prices ($0.54/$1.335 per M, no cached-prefill credit) that is
+~$0.30 per trial, plus ~$0.06 Daytona. Wave 1 + wave 2 worst case is $14.27,
+inside the $15 approval. Both campaigns were approved by the Cheating chat as
+delegate (`--actor cheating-lead`).
 
 ## Campaigns (three files; validate admits all, dispatch does not)
 

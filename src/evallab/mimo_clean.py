@@ -8,13 +8,13 @@ Builds one clean package per code task:
   targets and run packages that already carry the marker; fail-closed tasks
   skip with reason, everything else skips per the HAR-194 scope stance) ->
   ``purge-build-caches@4`` -> ``mtime-normalize@2`` ->
-  ``separate-verifier@4`` -> ``agent-network-none@1``, with a reference
+  ``separate-verifier@5`` -> ``agent-network-none@1``, with a reference
   solution when one exists and a probe marker derived from the hidden
   test patch. Every manifest row records the complete transform chain.
 - Non-Python tasks (every snapshot task whose ``task.toml`` category is not
   Python, minus ledger members which the ledger row owns): snapshot task dir
   -> ``strip-future-history@1`` -> ``purge-build-caches@4`` ->
-  ``mtime-normalize@2`` -> ``separate-verifier@4`` -> ``agent-network-none@1``.
+  ``mtime-normalize@2`` -> ``separate-verifier@5`` -> ``agent-network-none@1``.
   ``purge-installed-copies`` is a Python pip mechanism and never applies;
   it is noted, not derived.
 
@@ -58,8 +58,8 @@ from evallab.purge_build_caches import derive_purge_build_caches_v4
 from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
-from evallab.separate_verifier import TRANSFORM_ID_V4 as SEPARATE_V4_ID
-from evallab.separate_verifier import derive_separate_verifier_v4
+from evallab.separate_verifier import TRANSFORM_ID_V5 as SEPARATE_V5_ID
+from evallab.separate_verifier import derive_separate_verifier_v5
 from evallab.strip_future_history import STRIP_MARKER, derive_strip_future_history
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.task_variants import (
@@ -148,7 +148,7 @@ PYTHON_CHAIN = (
     PURGE_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
-    SEPARATE_V4_ID,
+    SEPARATE_V5_ID,
     AGENT_NETWORK_NONE_ID,
 )
 
@@ -158,13 +158,13 @@ NONPYTHON_CHAIN = (
     STRIP_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
-    SEPARATE_V4_ID,
+    SEPARATE_V5_ID,
     AGENT_NETWORK_NONE_ID,
 )
 
 #: Language plugs for the builder. ``python`` is the ledger pool;
 #: every other resolved language takes the non-Python chain (including
-#: ``unknown`` snapshot categories: @4 grades those with the exit-code
+#: ``unknown`` snapshot categories: @5 grades those with the exit-code
 #: fallback under patch isolation). ``None`` (unresolvable task) has no chain.
 LANGUAGE_CHAINS: dict[str, tuple[str, ...] | None] = {
     "python": PYTHON_CHAIN,
@@ -885,7 +885,7 @@ class ChainBuilder:
             )
             result.chain.append(transform)
 
-        # separate-verifier@4 bundles setup, the hidden-test marker, and the
+        # separate-verifier@5 bundles setup, the hidden-test marker, and the
         # oracle-pass solution. The agent network declaration is appended last.
         patch_file = current / "tests" / "test.patch"
         marker = derive_marker(
@@ -914,20 +914,20 @@ class ChainBuilder:
         try:
             record, _ = self.find_or_derive(
                 task_id,
-                SEPARATE_V4_ID,
+                SEPARATE_V5_ID,
                 current,
                 current_digest,
-                derive_separate_verifier_v4,
+                derive_separate_verifier_v5,
                 parent_source=source,
                 expected_inputs={"marker": marker, "solution": solution_tag},
                 marker=marker,
                 solution_sh=solution_sh,
             )
         except VariantInvalid as exc:
-            result.reason = f"separate-verifier@4 failed: {exc}"
+            result.reason = f"separate-verifier@5 failed: {exc}"
             return result
         current_digest = record.variant_digest
-        result.chain.append(SEPARATE_V4_ID)
+        result.chain.append(SEPARATE_V5_ID)
         current, current_digest, source = self._advance(task_id, current_digest, row, start_digest)
         try:
             record, _ = self.find_or_derive(
@@ -1398,7 +1398,7 @@ __all__ = [
     "PYTHON_CHAIN",
     "REFERENCE_INDEX_REL",
     "SELECTED_VERDICTS",
-    "SEPARATE_V4_ID",
+    "SEPARATE_V5_ID",
     "STATUS_BUILT",
     "STATUS_SKIPPED",
     "STRIP_ID",

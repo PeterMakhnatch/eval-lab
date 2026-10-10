@@ -25,7 +25,7 @@ from evallab.mimo_clean import (
     NONPYTHON_CHAIN,
     PURGE_ID,
     PYTHON_CHAIN,
-    SEPARATE_V4_ID,
+    SEPARATE_V5_ID,
     STATUS_BUILT,
     STATUS_SKIPPED,
     STRIP_ID,
@@ -274,7 +274,7 @@ def test_chain_for_language_matrix() -> None:
     assert chain_for_language(None) is None
     assert PURGE_ID in PYTHON_CHAIN
     assert PURGE_ID not in NONPYTHON_CHAIN
-    assert NONPYTHON_CHAIN[-2:] == (SEPARATE_V4_ID, AGENT_NETWORK_NONE_ID)
+    assert NONPYTHON_CHAIN[-2:] == (SEPARATE_V5_ID, AGENT_NETWORK_NONE_ID)
 
 
 def test_snapshot_category_reads_task_toml(tmp_path: Path) -> None:
@@ -410,7 +410,7 @@ def test_build_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
         STRIP_ID,
         CACHE_ACTIVE_ID,
         MTIME_ACTIVE_ID,
-        SEPARATE_V4_ID,
+        SEPARATE_V5_ID,
         AGENT_NETWORK_NONE_ID,
     ]
     assert "purge-installed-copies@1 skipped" in result.reason
@@ -438,7 +438,7 @@ def test_build_snapshot_chain_end_to_end(tmp_path: Path) -> None:
         STRIP_ID,
         CACHE_ACTIVE_ID,
         MTIME_ACTIVE_ID,
-        SEPARATE_V4_ID,
+        SEPARATE_V5_ID,
         AGENT_NETWORK_NONE_ID,
     ]
     assert result.language == "javascript"
@@ -499,7 +499,7 @@ def test_build_confirmed_purge_task_carries_purge(tmp_path: Path, oracle: Oracle
         PURGE_ID,
         CACHE_ACTIVE_ID,
         MTIME_ACTIVE_ID,
-        SEPARATE_V4_ID,
+        SEPARATE_V5_ID,
         AGENT_NETWORK_NONE_ID,
     ]
 
@@ -665,4 +665,4 @@ def test_run_cli_build_writes_manifest(tmp_path: Path, capsys: pytest.CaptureFix
     loaded = load_manifest(tmp_path / "out" / "manifest.csv")
     assert len(loaded) == 1
     assert loaded[0]["status"] == STATUS_BUILT
-    assert loaded[0]["chain"].endswith(f"{SEPARATE_V4_ID}>{AGENT_NETWORK_NONE_ID}")
+    assert loaded[0]["chain"].endswith(f"{SEPARATE_V5_ID}>{AGENT_NETWORK_NONE_ID}")

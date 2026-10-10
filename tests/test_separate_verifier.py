@@ -1272,6 +1272,42 @@ def _run_embedded_v4_grader(
     return capsys.readouterr().out.strip()
 
 
+@pytest.mark.parametrize(
+    ("actual_name", "expected_reward"), [("test_selected", "1"), ("test_different", "0")]
+)
+def test_embedded_v4_ignores_option_values_but_requires_selected_ids(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    actual_name: str,
+    expected_reward: str,
+) -> None:
+    # 000114 runs base tests with --deselect, then selects new tests from an array.
+    # Attached option values must never become additional required node IDs.
+    module = "hypothesis-python/tests/py3/test_lookup.py"
+    runner_cmd = (
+        f"python -m pytest {module} --deselect={module}::test_excluded\n"
+        'python -m pytest "${NEW_TESTS[@]}"'
+    )
+    junit = (
+        '<testsuite><testcase classname="hypothesis-python.tests.py3.test_lookup" '
+        f'name="{actual_name}"/></testsuite>'
+    ).encode()
+    assert (
+        _run_embedded_v4_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=runner_cmd,
+            output="1 passed",
+            rc=0,
+            junit=junit,
+            patch_extra=f"+  {module}::test_selected\n",
+        )
+        == expected_reward
+    )
+
+
 def test_embedded_v4_grader_grades_rootdir_shifted_reports(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:

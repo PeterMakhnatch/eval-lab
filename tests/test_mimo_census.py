@@ -713,9 +713,26 @@ def test_known_patch_probe_blind(tmp_path: Path, monkeypatch: Any) -> None:
         scratch_root=tmp_path / "scratch",
         reference_fix=patch,
     )
-    # Published probe finds nothing: blind, and the clean probe never runs.
+    # Both actual setups are scanned; a blind positive control still cannot
+    # turn a completed clean zero into a cleanliness claim.
     assert result["census_locations"] == "probe-blind"
-    assert len(staged) == 1 and "published" in staged[0]
+    assert [Path(path).name for path in staged] == ["stage-published", "stage-clean"]
+    metadata = json.loads(
+        (tmp_path / "scratch" / "task-k" / "census.meta.json").read_text(encoding="utf-8")
+    )
+    assert probe_completion(metadata["published_complete"]) == (True, "")
+    assert probe_completion(metadata["clean"]) == (True, "")
+    assert metadata["clean"]["hits_total"] == 0
+    reused = census_fix_content(
+        task_id="task-k",
+        clean_package=clean,
+        run_package=run,
+        language="python",
+        scratch_root=tmp_path / "scratch",
+        reference_fix=patch,
+    )
+    assert reused["census_locations"] == "probe-blind"
+    assert len(staged) == 2
     assert (
         verify_grade_for(
             nop="0", oracle="1", ladder_verdict="clean", census_locations="probe-blind"
@@ -2032,6 +2049,7 @@ def test_known_patch_incomplete_published_never_blind(tmp_path: Path, monkeypatc
     run = _write_patch_package(tmp_path, "runpkg")
     patch = tmp_path / "fix.patch"
     patch.write_text(KNOWN_PATCH, encoding="utf-8")
+    measured: list[str] = []
 
     def fake_stage(stage_dir: object, *args: Any, **kwargs: Any) -> None:
         return None
@@ -2047,8 +2065,10 @@ def test_known_patch_incomplete_published_never_blind(tmp_path: Path, monkeypatc
         egress_lock: bool = True,
     ) -> None:
         assert egress_lock is True
+        measured.append(Path(str(out)).name)
         _fake_probe_out(Path(str(out)), hits=0)
-        (Path(str(out)) / "setup_rc").write_text("1", encoding="utf-8")
+        if "published" in str(out):
+            (Path(str(out)) / "setup_rc").write_text("1", encoding="utf-8")
 
     monkeypatch.setattr(fcc, "stage_probe", fake_stage)
     monkeypatch.setattr(fcc, "run_probe", fake_run)
@@ -2062,6 +2082,12 @@ def test_known_patch_incomplete_published_never_blind(tmp_path: Path, monkeypatc
     )
     assert result["census_locations"] is None
     assert "published probe incomplete" in str(result["reason"])
+    assert measured == ["out-published", "out-clean"]
+    metadata = json.loads(
+        (tmp_path / "scratch" / "task-k" / "census.meta.json").read_text(encoding="utf-8")
+    )
+    assert not probe_completion(metadata["published_complete"])[0]
+    assert probe_completion(metadata["clean"]) == (True, "")
 
 
 def test_known_patch_incomplete_clean_never_zero(tmp_path: Path, monkeypatch: Any) -> None:
@@ -2105,7 +2131,16 @@ def test_known_patch_incomplete_clean_never_zero(tmp_path: Path, monkeypatch: An
     assert "clean probe incomplete" in str(result["reason"])
 
 
-def test_blind_reuse_needs_published_completion(tmp_path: Path, monkeypatch: Any) -> None:
+@pytest.mark.parametrize(
+    "published_complete",
+    [
+        {},
+        {"setup_rc": "0", "ready": "yes", "probe_rc": "0", "scan_rc": "0"},
+    ],
+)
+def test_blind_reuse_needs_both_probe_completions(
+    tmp_path: Path, monkeypatch: Any, published_complete: dict[str, Any]
+) -> None:
     import hashlib
 
     import evallab.fix_content_census as fcc
@@ -2127,13 +2162,14 @@ def test_blind_reuse_needs_published_completion(tmp_path: Path, monkeypatch: Any
                 "patch_sha": patch_sha,
                 "probe_blind": True,
                 "published": {"hits_total": 0, "open_leak": "no"},
+                "published_complete": published_complete,
             }
         ),
         encoding="utf-8",
     )
 
     def fail_stage(*args: Any, **kwargs: Any) -> None:
-        raise AssertionError("old blind metadata must re-probe, not reuse")
+        raise AssertionError("incomplete blind metadata must re-probe, not reuse")
 
     monkeypatch.setattr(fcc, "stage_probe", fail_stage)
     with pytest.raises(AssertionError):

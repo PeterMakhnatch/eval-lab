@@ -453,29 +453,22 @@ class _FakeProc:
         return self._rc
 
 
-class _FakeHandle:
-    """Modal ``sandbox.open`` stub over the fake remote filesystem."""
+class _FakeFilesystem:
+    """Modal ``sandbox.filesystem`` stub (write_bytes/read_bytes)."""
 
-    def __init__(self, sandbox: _FakeSandbox, path: str, mode: str) -> None:
+    def __init__(self, sandbox: _FakeSandbox) -> None:
         self._sandbox = sandbox
-        self._path = path
-        self._mode = mode
 
-    def __enter__(self) -> _FakeHandle:
-        if "r" in self._mode and self._path not in self._sandbox.remote:
-            raise FileNotFoundError(self._path)
-        return self
-
-    def __exit__(self, *exc: object) -> bool:
-        return False
-
-    def write(self, data: bytes) -> None:
+    def write_bytes(self, data: bytes, remote_path: str) -> None:
         if isinstance(data, str):
             data = data.encode("utf-8")
-        self._sandbox.remote[self._path] = data
+        self._sandbox.remote[remote_path] = bytes(data)
 
-    def read(self) -> bytes:
-        return self._sandbox.remote[self._path]
+    def read_bytes(self, remote_path: str) -> bytes:
+        return self._sandbox.remote[remote_path]
+
+    def make_directory(self, remote_path: str, create_parents: bool = True) -> None:
+        self._sandbox.remote.setdefault(remote_path + "/.dir", b"")
 
 
 class _FakeSandbox:
@@ -497,6 +490,7 @@ class _FakeSandbox:
         self.probe_outputs = dict(probe_outputs or {})
         self.probe_rc = probe_rc
         self.fail_on = tuple(fail_on)
+        self.filesystem = _FakeFilesystem(self)
 
     def exec(self, *argv: str, workdir: str | None = None, timeout: int | None = None):
         self.exec_calls.append({"argv": list(argv), "workdir": workdir, "timeout": timeout})
@@ -512,9 +506,6 @@ class _FakeSandbox:
             names = sorted(p for p in self.remote if p.startswith("/census-out/"))
             return _FakeProc(0, stdout="".join(f"{name}\n" for name in names))
         raise AssertionError(f"unexpected fake exec: {argv!r}")
-
-    def open(self, path: str, mode: str = "r") -> _FakeHandle:
-        return _FakeHandle(self, path, mode)
 
     def terminate(self) -> None:
         self.terminated = True
@@ -536,9 +527,10 @@ def _install_fake_modal(monkeypatch: pytest.MonkeyPatch, sandbox: _FakeSandbox) 
 
     class Image:
         @staticmethod
-        def from_registry(image: str, platform: str | None = None, **kwargs: object):
+        def from_registry(image: str, **kwargs: object):
+            # Real SDK takes no platform kwarg; Modal requires linux/amd64.
             record["image"] = image
-            record["platform"] = platform
+            record["kwargs"] = dict(kwargs)
             return ("fake-image", image)
 
     class SandboxNS:
@@ -660,13 +652,14 @@ def test_run_probe_modal_replays_same_stage(
         out,
         backend="modal",
     )
-    # Same pinned image and platform, same workdir, root sandbox, no network.
+    # Same pinned image, same workdir, root sandbox, no network.
     # The named billed app is looked up (never an ephemeral App) for exact
-    # slice attribution.
+    # slice attribution. Modal requires linux/amd64 registry images and
+    # takes no platform kwarg (modal>=1.5).
     assert record["lookup_name"] == "mimo-clean-census-fix"
     assert record["create_if_missing"] is True
     assert record["image"] == "docker.io/x/mimo@sha256:deadbeef"
-    assert record["platform"] == "linux/amd64"
+    assert record.get("kwargs", {}) == {}
     assert record["create_kwargs"]["workdir"] == "/testbed"
     assert record["create_kwargs"]["block_network"] is True
     assert record["create_kwargs"]["app"] == ("fake-app", "mimo-clean-census-fix")

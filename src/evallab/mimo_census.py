@@ -1435,15 +1435,13 @@ def _known_patch_census(
     backend: str = "docker",
     egress_lock: bool = True,
 ) -> dict[str, Any]:
-    """Probe published vs shipped setups with patterns from a known patch.
+    """Probe both published and shipped setups with known-patch patterns.
 
-    The published setup is the positive control: zero hits there means the
-    probe is blind to this fix (reported ``probe-blind``), not that the
-    chain is clean. ``backend`` forwards to the probe runner (the reference
-    known-patch path supports remote execution; image archaeology stays
-    Docker-only in :func:`census_fix_content`). ``egress_lock`` carries the
-    shipped package network contract (same policy for the published
-    positive control and the clean probe).
+    Both setups are measured even when the published positive control is
+    blind or incomplete. A clean scan can establish zero locations only
+    with a complete, positive published control; neither blind nor
+    incomplete probes establish cleanliness. ``egress_lock`` carries the
+    shipped package's setup network contract for both probes.
     """
     from evallab.fix_content_census import (
         collect_result,
@@ -1468,37 +1466,15 @@ def _known_patch_census(
     )
     published_row = collect_result(task_id, language, image12, "published", published_out)
     published_done, published_why = probe_completion(published_row)
-    if not published_done:
+    published_positive = bool(published_row.get("hits_total")) or (
+        published_row.get("open_leak") == "yes"
+    )
+    if not clean_setup_sha:
         return {
             "census_locations": None,
-            "reason": f"published probe incomplete: {published_why}",
-            "detail": published_row,
+            "reason": "clean package has no setup.sh",
+            "detail": {"published": published_row},
         }
-    if not published_row.get("hits_total") and published_row.get("open_leak") != "yes":
-        meta_path = scratch / "census.meta.json"
-        meta_path.write_text(
-            json.dumps(
-                {
-                    "task_id": task_id,
-                    "patch_sha": patch_sha,
-                    "extract_status": "known-patch",
-                    "clean_setup": "package environment/setup/setup.sh",
-                    "clean_setup_sha256": clean_setup_sha,
-                    "image": image,
-                    "backend": backend,
-                    "egress_lock": egress_lock,
-                    "probe_blind": True,
-                    "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
-                    "published_complete": probe_evidence(published_row),
-                },
-                indent=2,
-            )
-            + "\n",
-            encoding="utf-8",
-        )
-        return {"census_locations": "probe-blind", "reason": "probe-blind", "detail": {}}
-    if not clean_setup_sha:
-        return {"census_locations": None, "reason": "clean package has no setup.sh"}
     clean_source = clean_package / "environment" / "setup"
     clean_stage = scratch / "stage-clean"
     clean_out = scratch / "out-clean"
@@ -1508,12 +1484,7 @@ def _known_patch_census(
     )
     clean_row = collect_result(task_id, language, image12, "clean", clean_out)
     clean_done, clean_why = probe_completion(clean_row)
-    if not clean_done:
-        return {
-            "census_locations": None,
-            "reason": f"clean probe incomplete: {clean_why}",
-            "detail": clean_row,
-        }
+    probe_blind = published_done and not published_positive
     meta_path = scratch / "census.meta.json"
     meta_path.write_text(
         json.dumps(
@@ -1526,8 +1497,9 @@ def _known_patch_census(
                 "image": image,
                 "backend": backend,
                 "egress_lock": egress_lock,
-                "probe_blind": False,
-                "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
+                "probe_blind": probe_blind,
+                "published": published_row,
+                "published_complete": probe_evidence(published_row),
                 "clean": clean_row,
             },
             indent=2,
@@ -1535,6 +1507,20 @@ def _known_patch_census(
         + "\n",
         encoding="utf-8",
     )
+    if not published_done:
+        return {
+            "census_locations": None,
+            "reason": f"published probe incomplete: {published_why}",
+            "detail": {"published": published_row, "clean": clean_row},
+        }
+    if not clean_done:
+        return {
+            "census_locations": None,
+            "reason": f"clean probe incomplete: {clean_why}",
+            "detail": {"published": published_row, "clean": clean_row},
+        }
+    if probe_blind:
+        return {"census_locations": "probe-blind", "reason": "probe-blind", "detail": clean_row}
     try:
         locations = int(clean_row.get("hits_total", ""))
     except (TypeError, ValueError):
@@ -1623,11 +1609,12 @@ def census_fix_content(
         ):
             if meta.get("probe_blind"):
                 blind_done, _ = probe_completion(meta.get("published_complete", {}))
-                if blind_done:
+                clean_done, _ = probe_completion(meta.get("clean", {}))
+                if blind_done and clean_done:
                     return {
                         "census_locations": "probe-blind",
                         "reason": "probe-blind",
-                        "detail": {},
+                        "detail": meta["clean"],
                     }
             elif isinstance(meta.get("clean", {}).get("hits_total"), int):
                 clean_done, _ = probe_completion(meta["clean"])

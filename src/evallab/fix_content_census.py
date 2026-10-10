@@ -527,12 +527,14 @@ def _run_probe_modal(
 ) -> None:
     """Replay the staged probe in a Modal sandbox (root).
 
-    Same pinned image (``linux/amd64``), same ``/census-stage`` payload as the
-    Docker path, same ``probe.sh`` arguments. Network follows ``egress_lock``
-    (``block_network``), honouring the task package network contract like the
-    Docker path. Probe outputs are downloaded from ``/census-out``
-    byte-for-byte so :func:`collect_result` consumes real equivalent files,
-    and ``probe-runtime.json`` records the billed app, sandbox id, and UTC
+    Same pinned image (Modal requires ``linux/amd64``; ``from_registry``
+    takes no ``platform`` argument on modal>=1.5), same ``/census-stage``
+    payload as the Docker path, same ``probe.sh`` arguments. Network
+    follows ``egress_lock`` (``block_network``), honouring the task package
+    network contract like the Docker path. Probe outputs are downloaded
+    from ``/census-out`` byte-for-byte via ``sandbox.filesystem`` so
+    :func:`collect_result` consumes real equivalent files, and
+    ``probe-runtime.json`` records the billed app, sandbox id, and UTC
     lifecycle for spend attribution. A nonzero probe rc is recorded as
     evidence (like the Docker path), never raised; orchestration failures
     raise explicitly.
@@ -546,7 +548,8 @@ def _run_probe_modal(
         ) from exc
     stage = Path(stage_dir)
     app = modal.App.lookup(_MODAL_APP_NAME, create_if_missing=True)
-    modal_image = modal.Image.from_registry(image, platform="linux/amd64")
+    # Modal builds registry images for linux/amd64 only; no platform kwarg.
+    modal_image = modal.Image.from_registry(image)
     started = datetime.now(UTC)
     sandbox = modal.Sandbox.create(
         "sleep",
@@ -574,8 +577,7 @@ def _run_probe_modal(
         if rc != 0:
             raise RuntimeError(f"modal stage mkdir failed (rc={rc}): {mkdir_err[-2000:]}")
         for remote, data in payloads:
-            with sandbox.open(remote, "wb") as handle:
-                handle.write(data)
+            sandbox.filesystem.write_bytes(data, remote)
         rc, stdout, stderr = _modal_exec(
             sandbox,
             ["bash", "/census-stage/probe.sh", workdir, fix_sha],
@@ -600,8 +602,7 @@ def _run_probe_modal(
             if not remote.startswith("/census-out/") or remote == "/census-out/":
                 continue
             dest = out / remote[len("/census-out/") :]
-            with sandbox.open(remote, "rb") as handle:
-                data = handle.read()
+            data = sandbox.filesystem.read_bytes(remote)
             if isinstance(data, str):
                 data = data.encode("utf-8")
             dest.parent.mkdir(parents=True, exist_ok=True)

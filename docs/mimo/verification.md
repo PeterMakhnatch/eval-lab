@@ -1,6 +1,6 @@
 # MiMo clean-set verification (fleet census)
 
-Date: 2026-10-09. Owner: FleetCensus lane. Runner: `src/evallab/mimo_census.py`,
+Date: 2026-10-10. Owner: CensusFinish lane. Runner: `src/evallab/mimo_census.py`,
 CLI: `evallab mimo-census run|report|record-spend`. Receipt:
 `research/experiments/mimo-clean-census/` (`results.csv` + `README.md`).
 
@@ -10,16 +10,19 @@ For every clean-set manifest row, four checks on the FINAL clean package
 (digest-bound, not the historical HAR-191 rows):
 
 (a) **nop = 0 with tests executed** — the nop control grades 0 AND the
-    trial carries test-execution evidence: JUnit grade logs with `cases > 0`
-    (`named` is diagnostic only — some suites report cases without parsable
-    names), or pytest result/summary lines in `verifier/test_output.log` for
-    exit-code-graded suites that emit no JUnit XML. A 0 without evidence
-    grades `0-noexec` (needs triage), never pass.
-(b) **oracle = 1 where a reference fix exists** — manifest `reference_fix`
-    points at the HAR-191 solution patch; the oracle control must grade 1.
-    Rows with `reference_fix = none` report `n/a`.
+    trial carries recognized test-case evidence: countable JUnit/surefire
+    reports, the verifier's explicit runner markers, or runner-appropriate
+    result/summary lines in `verifier/test_output.log`. `named` is diagnostic
+    only; `cases > 0` is sufficient. An exit code alone never proves case
+    execution. `0-noexec` means no recognized execution proof, not a claim
+    that a custom harness necessarily ran no tests; it remains unverified.
+(b) **oracle = 1 with tests executed where a reference fix exists** —
+    manifest `reference_fix` identifies the indexed HAR-191/sweep patch.
+    Reward 1 without execution evidence grades `1-noexec`, never pass.
+    Rows with `reference_fix = none` report `n/a`; that is not a solvability
+    proof.
 (c) **cheat ladder = clean** — every attack of `evallab.cheat_ladder.ATTACKS`
-    (v1.2.0, executed through the model-free `cheat` agent; payloads reused,
+    (v1.3.0, executed through the model-free `cheat` agent; payloads reused,
     never forked) ends `executed` or legitimately `skipped` (per-attack
     inapplicability with a recorded reason — e.g. source-tamper attacks on
     tasks with no imported package `__init__`), and the benchmark's own
@@ -27,20 +30,25 @@ For every clean-set manifest row, four checks on the FINAL clean package
     `partial` (unverified). A cracked full-ladder trial triggers per-attack
     single trials for attribution; unattributed cracks report
     `full-ladder-unattributed`.
-(d) **fix-content census = 0 locations** — for tasks with a recoverable fix,
-    `evallab.fix_content_census` probes the published image (pre-cleanup run
-    package, fix recovered from image history) and then the ACTUAL clean
-    package setup (what ships — never a recomposed approximation, so new
-    transform versions like mtime-normalize@2 are measured exactly). The
-    clean-chain open-leak count must be 0.
+(d) **fix-content census = 0 locations with a real positive control** —
+    for all reference tasks, `evallab.fix_content_census` stages signatures
+    from the actual indexed patch and measures BOTH the published-image
+    baseline setup and the ACTUAL shipped clean-package setup. No synthetic
+    marker is injected, and no setup is recomposed. Published zero is
+    `probe-blind`, even if the clean scan also finds zero; it cannot prove
+    cleanliness. Setup, readiness, probe, and scan completion must all be
+    evidenced before a clean location count can pass. Both outcomes and
+    sandbox lifecycle are retained, including incomplete/blind controls.
 
 ## Backends and parity
 
 - `docker` — local Docker, $0, honoring the package's declared network
-  contract. The v2 packages declare `network_mode = "public"` and census
-  trials do not add a runtime egress lock. This tests network attacks with
-  real egress, not a vacuous network-denied result. Parity baseline: the
-  same Harbor trial path as `evallab mimo-clean verify-local` under a
+  contract, never a census-only runtime egress lock. Historical v2 packages
+  declare `network_mode = "public"`, so `upstream_fetch` had real agent
+  egress. Canonical v3 adds `agent-network-none@1`: only the agent phase is
+  blocked; setup and the separate verifier remain public. The ladder now
+  measures that shipped restriction, not our backend override. Parity uses
+  the same Harbor trial path as `evallab mimo-clean verify-local` under a
   census job namespace.
 - `modal` — Harbor 0.24's native ModalEnvironment running the REAL clean
   package semantics: embedded-healthcheck setup, agent phase, workspace
@@ -57,7 +65,7 @@ For every clean-set manifest row, four checks on the FINAL clean package
   @3 misclassified that disabled state as a purge failure. The 3/3
   failed v2 parity cells remain historical `setup-fail` evidence.
   @4 has a full Modal final-setup proof (`rc=0`, `ready=yes`);
-  native reward/resource-policy parity is a separate census gate.
+  final-v3 native reward/resource-policy parity is recorded separately below.
 - `daytona` — bounded Daytona sandbox env (`DAYTONA_API_KEY`), an alternate
   control backend. Controls run under the default
   MiMo egress lock; the cheat agent is outside every lock set and
@@ -73,8 +81,8 @@ For every clean-set manifest row, four checks on the FINAL clean package
   weaken V6 (untestable under lock) while Docker ladders test it with
   egress. Ladders stay on Docker/Modal.
   Cheat coverage for those tasks comes from a backend that admits it as a
-  SEPARATE results row: results.csv is keyed (task_id, backend), so one task
-  may carry a daytona row (controls) plus a docker row (full ladder).
+  SEPARATE results row: keys include task, backend, manifest version, exact
+  digest, and Modal policy; historical generations are never relabeled.
 
 Parity gate (required before any paid batch): on ≥5 tasks, local-Docker
 Harbor results == census-runner docker-backend results for oracle/nop/ladder.
@@ -97,6 +105,16 @@ full cap. The override is rejected outside Modal and outside the census
 billing app. Each result records its policy; reusable cells must match it.
 Before fleet use, compare AUTO and LIMIT on at least three tasks against
 the Docker rewards, including the ladder, and check for OOMs/timeouts.
+
+The final-v3 gate passed on 000085, 000158, and 002552: Docker, Modal AUTO,
+and Modal LIMIT all returned oracle 1, nop 0, and a clean full ladder on
+identical digests. All 18 controls have actual test-execution evidence; all
+27 trials have no reported OOM, timeout, or trial exception. The exact
+configs, caps, raw paths, and grades are in
+`research/experiments/mimo-clean-census/modal-limit-parity.json`.
+The direct SDK fix probes are separate AUTO/default-resource executions,
+not native LIMIT trials; their lifecycle metadata records the actual SDK
+path and the isolated fix-probe app.
 
 CLI surface note: the census ships as top-level `evallab mimo-census`
 (deliberate — CleanSetV2 declined an in-file `mimo-clean census` hook so both

@@ -153,7 +153,7 @@ inputs:
   - path: src/evallab/file_access_capture.py
     digest: sha256:aab6ae10e5361ccb0809305dcce8bd637235ec290748949ea6d49358048d798d
   - path: src/evallab/fix_content_census.py
-    digest: sha256:a8ca9658c6259e89ccd702db9850a6e208f00a536fe34e5cbd2199428f8c6dba
+    digest: sha256:6517021a8af77b25486df27c9353d1b028f09f31cc33b56f8ae4deb48c5dd06d
   - path: src/evallab/flight/__init__.py
     digest: sha256:8b3573c4569f520f75acc5ef29c07448849efe5e1c445213ce00cc27acf581f9
   - path: src/evallab/flight/gateway.py
@@ -425,7 +425,7 @@ inputs:
   - path: src/evallab/mcp_substrate.py
     digest: sha256:0874a6d911df541b03103ad1316a0730fd5f18b26fbe80959e059057597ec851
   - path: src/evallab/mimo_census.py
-    digest: sha256:c061a3aa02b7066cd6a2d3eff28c0e2dae7c2eb41ccdc853984af5b764b6a94b
+    digest: sha256:aabdacbb85d18770d96db39ef28e74491eadca127b12254b2acb4879943034ec
   - path: src/evallab/mimo_clean.py
     digest: sha256:982b3c6da2c9de7e01dab5985cce002c6f257e0462ad045f6dc937ed268b2380
   - path: src/evallab/mimo_exploit.py

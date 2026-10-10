@@ -31,7 +31,7 @@ ledger run package (repairs)
   -> purge-installed-copies@1   (scoped; see below)
   -> purge-build-caches@4
   -> mtime-normalize@2
-  -> separate-verifier@4        (+ solution/solve.sh from the reference fix)
+  -> separate-verifier@5        (+ solution/solve.sh from the reference fix)
   -> agent-network-none@1       (agent phase only; verifier remains public)
 ```
 
@@ -41,7 +41,7 @@ ledger run package (repairs)
 | 2 | `purge-installed-copies@1` | E1 installed/build copies of the fixed project | Removes `build/`, project egg-info and site-packages copies, then reinstalls the base tree editable offline. Scoped to validated targets (below): the block fails closed at setup, and unvalidated projects would break setup instead of leaking. |
 | 3 | `purge-build-caches@4` | V5 build/module caches | Retains `@3`'s language-aware and node-build-output purge, while allowing a cache explicitly disabled by its tool (Modal pip cache). Unknown cache failures still fail closed. Pinned to the landed `@4`; historical v2 packages keep `@3`. |
 | 4 | `mtime-normalize@2` | V3 fix-bearing mtimes | Touches the worktree to one stamp, warms lazy layers, and retries touch+check so Modal materialization timestamps cannot trip the fail-closed check. Shipped in PR #813; the builder resolves the active mtime generation and records it per manifest row. |
-| 5 | `separate-verifier@4` | E2 grader tamper, all runners | Patch-only grading with structured runner checks, tamper gates, config drops, rootdir-robust junit matching, and complete pristine-workdir deltas (see `docs/mimo/separate-verifier.md`). Runs after all setup-cleaning steps so the verifier inherits the clean setup. |
+| 5 | `separate-verifier@5` | E2 grader tamper, all runners | Patch-only grading with structured runner checks, tamper gates, config drops, rootdir-robust junit matching, complete pristine-workdir deltas, skip-tolerant grading, and multi-phase junit union (see `docs/mimo/separate-verifier.md`). Runs after all setup-cleaning steps so the verifier inherits the clean setup. |
 | 6 | `agent-network-none@1` | V6 upstream fetches | Appends `[agent] network_mode = "no-network"` after verifier derivation. Setup and the separate verifier retain the public baseline; only the agent phase is locked. See the `agent-network-none` receipt and `docs/mimo/vals-routes.md` for backend enforcement. |
 
 ## The canonical non-Python chain (all 1,518 tasks)
@@ -51,7 +51,7 @@ snapshot task dir
   -> strip-future-history@1
   -> purge-build-caches@4
   -> mtime-normalize@2
-  -> separate-verifier@4
+  -> separate-verifier@5
   -> agent-network-none@1
 ```
 

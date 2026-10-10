@@ -729,6 +729,47 @@ def evaluate_junit_v4(
     return 1 if rc == 0 and cases and not bad and not missing else 0
 
 
+def evaluate_junit_v5(
+    report_xmls: list[bytes | None],
+    rc: int,
+    named_ids: Collection[str],
+) -> int:
+    """Grade 1/0 from junit reports (multi-phase union) plus exit code (@5).
+
+    ``report_xmls`` holds every phase report (plugin report plus per-phase
+    archives); empty/unparsable entries are ignored. Skipped testcases are
+    not failures: reference test patches legitimately mark still-failing
+    behaviors skipped, and environments skip tests for missing optional
+    dependencies. Only failure/error cases, a nonzero exit code, an empty
+    case union, or missing named ids grade 0. Named ids match by aligned
+    path-suffix (:func:`junit_case_matches_expected`).
+    """
+    cases: list[ET.Element] = []
+    for raw in report_xmls:
+        if not raw:
+            continue
+        try:
+            cases.extend(ET.fromstring(raw).iter("testcase"))
+        except Exception:
+            continue
+    if not cases:
+        return 0
+    bad = [
+        case for case in cases if case.find("failure") is not None or case.find("error") is not None
+    ]
+    missing = [
+        node
+        for node in named_ids
+        if not any(
+            junit_case_matches_expected(
+                case.get("classname"), case.get("name"), case.get("file"), node
+            )
+            for case in cases
+        )
+    ]
+    return 1 if rc == 0 and not bad and not missing else 0
+
+
 def render_snapshot_hook_v2(workdir: str) -> str:
     """Collect-hook command snapshotting workspace files only (``sh -c``; POSIX
     only, no single quotes so it fits a TOML literal string).
@@ -1401,6 +1442,7 @@ def evaluate_cargo_output(test_output: str, rc: int) -> int:
 def evaluate_surefire_reports(report_xmls: list[bytes], rc: int) -> int | None:
     """Grade 1/0 from maven/gradle surefire-style XML reports.
 
+    Skipped testcases are not failures (same @5 rule as the junit grader).
     Returns ``None`` when no reports exist (caller keeps the exit-code
     fallback): some modules genuinely emit none, and inventing suspicion
     there would false-positive honest passes.
@@ -1414,11 +1456,7 @@ def evaluate_surefire_reports(report_xmls: list[bytes], rc: int) -> int | None:
         except Exception:
             return 0
     bad = [
-        case
-        for case in cases
-        if case.find("failure") is not None
-        or case.find("error") is not None
-        or case.find("skipped") is not None
+        case for case in cases if case.find("failure") is not None or case.find("error") is not None
     ]
     return 1 if rc == 0 and cases and not bad else 0
 
@@ -2189,6 +2227,369 @@ def derive_separate_verifier_v4(
     )
 
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@5 template, build, and derive
+# --------------------------------------------------------------------------- #
+# @5 keeps every @4 guarantee and fixes two oracle false-0 shapes measured on
+# exact-v3 packages (fleet census 2026-10-10):
+#
+# 1. Skipped testcases no longer count as bad. Reference test patches
+#    legitimately mark still-failing behaviors skipped (000163:
+#    @skip_or_fail, 35 passed + 41 skipped, pytest rc 0), and environments
+#    skip tests for missing optional dependencies (000203: 31 passed + 9
+#    skipped, rc 0). @4 graded both reward 0 while the reference fixes pass
+#    under the published exit-code grading. Anti-cheat is preserved: agent
+#    test-infra (conftest.py, pytest.ini, sitecustomize, *.pth, pytest config
+#    keys) is still dropped from the kept change, the missing-ID gate still
+#    fires for deselected named tests, and an empty case set still grades 0.
+#
+# 2. Multi-phase pytest commands no longer grade only the last phase. Every
+#    pytest invocation used to overwrite the single junit.xml, so named IDs
+#    selected by earlier phases read as missing (000200: `base && new`, the
+#    three base classes missing although both phases pass). @5 appends a
+#    verifier-owned per-phase archiver to the root conftest for every pytest
+#    run and grades the union of the plugin report with all archived phases.
+#
+# Deriving by pinned replacement (like @4) keeps the rest byte-identical to
+# @4 by construction.
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V5 = "separate-verifier@5"
+
+
+#: Verifier-owned pytest hook archiving each session's collected outcomes to
+#: a counter-suffixed report under ``MIMO_VERIFIER_ARCHIVE_DIR``. Appended to
+#: the root conftest.py for every pytest run after the hidden-test apply
+#: (never clobbering); a root conftest is always collected, so env scrubbing
+#: cannot remove it. Best effort: any failure is swallowed so a hook problem
+#: can never break grading. Embedded base64-encoded in the grader.
+V5_ARCHIVE_HOOK = (
+    "# mimo-junit-archive/1: per-phase junit archive.\n"
+    "import os as _v5_os\n"
+    '_V5_DIR = _v5_os.environ.get("MIMO_VERIFIER_ARCHIVE_DIR", "")\n'
+    "_V5_COLLECTED = []\n"
+    "def pytest_runtest_logreport(report):\n"
+    '    if report.when == "call" or (report.when == "setup" and report.skipped):\n'
+    "        _V5_COLLECTED.append((report.nodeid, report.outcome))\n"
+    "def pytest_sessionfinish(session, exitstatus):\n"
+    "    try:\n"
+    "        if not _V5_DIR:\n"
+    "            return\n"
+    "        _v5_os.makedirs(_V5_DIR, exist_ok=True)\n"
+    '        _v5_count_path = _v5_os.path.join(_V5_DIR, "count")\n'
+    "        try:\n"
+    '            with open(_v5_count_path, encoding="utf-8") as _v5_f:\n'
+    '                _v5_n = int((_v5_f.read() or "0").strip())\n'
+    "        except Exception:\n"
+    "            _v5_n = 0\n"
+    "        import xml.etree.ElementTree as _v5_ET\n"
+    '        _v5_suite = _v5_ET.Element("testsuite", name="verifier-archive", tests=str(len(_V5_COLLECTED)))\n'
+    "        for _v5_nodeid, _v5_outcome in _V5_COLLECTED:\n"
+    '            _v5_parts = _v5_nodeid.split("::")\n'
+    "            _v5_file = _v5_parts[0]\n"
+    "            _v5_rest = _v5_parts[1:]\n"
+    '            _v5_mod = _v5_file.replace("/", ".").replace(chr(92), ".")\n'
+    '            if _v5_mod.endswith(".py"):\n'
+    "                _v5_mod = _v5_mod[:-3]\n"
+    "            if len(_v5_rest) > 1:\n"
+    '                _v5_cn = (_v5_mod + "." + ".".join(_v5_rest[:-1])) if _v5_mod else ".".join(_v5_rest[:-1])\n'
+    "                _v5_name = _v5_rest[-1]\n"
+    "            elif _v5_rest:\n"
+    "                _v5_cn = _v5_mod\n"
+    "                _v5_name = _v5_rest[0]\n"
+    "            else:\n"
+    "                _v5_cn = _v5_mod\n"
+    "                _v5_name = _v5_nodeid\n"
+    '            _v5_case = _v5_ET.SubElement(_v5_suite, "testcase", classname=_v5_cn, name=_v5_name, file=_v5_file)\n'
+    '            if _v5_outcome == "failed":\n'
+    '                _v5_ET.SubElement(_v5_case, "failure", message="failed")\n'
+    '            elif _v5_outcome == "skipped":\n'
+    '                _v5_ET.SubElement(_v5_case, "skipped", message="skipped")\n'
+    '        _v5_ET.ElementTree(_v5_suite).write(_v5_os.path.join(_V5_DIR, "junit-hook-%d.xml" % _v5_n))\n'
+    '        with open(_v5_count_path, "w", encoding="utf-8") as _v5_f:\n'
+    "            _v5_f.write(str(_v5_n + 1))\n"
+    "    except Exception:\n"
+    "        pass\n"
+)
+
+#: Exact @4 pytest/surefire grading line replaced by the @5 skip-tolerant
+#: rule (failures/errors are bad; skips are reported, not failures).
+_V4_BAD_LINE = '    bad = [c for c in cases if c.find("failure") is not None or c.find("error") is not None or c.find("skipped") is not None]'
+
+_V5_BAD_LINE = (
+    '    bad = [c for c in cases if c.find("failure") is not None or c.find("error") is not None]\n'
+    '    skipped = [c for c in cases if c.find("skipped") is not None]'
+)
+
+#: Exact @4 pytest report-loading block (single junit.xml) replaced by the
+#: @5 union loader (plugin report plus per-phase hook archives). A corrupt
+#: main report keeps today's missing-report path; corrupt archives are
+#: skipped; with neither, grading falls through to it as well.
+_V4_PYTEST_LOAD_BLOCK = """    try:
+        raw = open(junit_path, "rb").read()
+        cases = list(ET.fromstring(raw).iter("testcase")) if raw else []
+    except Exception:
+        grade_noreport()
+    if not raw:
+        grade_noreport()"""
+
+_V5_PYTEST_LOAD_BLOCK = """    arch = []
+    for phase in sorted(glob.glob(os.path.join(os.path.dirname(junit_path), "junit-phases", "junit-hook-*.xml"))):
+        try:
+            praw = open(phase, "rb").read()
+        except Exception:
+            continue
+        if praw:
+            arch.append(praw)
+    try:
+        raw = open(junit_path, "rb").read()
+        cases = list(ET.fromstring(raw).iter("testcase")) if raw else []
+    except Exception:
+        grade_noreport()
+    if not raw and not arch:
+        grade_noreport()
+    for rep in arch:
+        try:
+            cases.extend(list(ET.fromstring(rep).iter("testcase")))
+        except Exception:
+            pass"""
+
+#: Exact @4 pytest stderr line extended with the skip count.
+_V4_PYTEST_LOG_LINE = '    sys.stderr.write("rc=%d cases=%d bad=%d named=%d missing=%s\\n" % (rc, len(cases), len(bad), len(ids), missing))'
+
+_V5_PYTEST_LOG_LINE = '    sys.stderr.write("rc=%d cases=%d bad=%d skipped=%d named=%d missing=%s\\n" % (rc, len(cases), len(bad), len(skipped), len(ids), missing))'
+
+#: Exact @4 surefire stderr line extended with the skip count.
+_V4_SUREFIRE_LOG_LINE = '    sys.stderr.write("rc=%d %s surefire=%d cases=%d bad=%d\\n" % (rc, runner, len(paths), len(cases), len(bad)))'
+
+_V5_SUREFIRE_LOG_LINE = '    sys.stderr.write("rc=%d %s surefire=%d cases=%d bad=%d skipped=%d\\n" % (rc, runner, len(paths), len(cases), len(bad), len(skipped)))'
+
+#: Exact @4 run head extended with the per-phase archive directory.
+_V4_RUN_HEAD = 'JUNIT=$GRADE/junit.xml; mkdir -p "${JUNIT%/*}"'
+
+_V5_RUN_HEAD = """JUNIT=$GRADE/junit.xml; mkdir -p "${JUNIT%/*}"
+# @5 per-phase junit archive: every pytest session appends its outcomes here
+# so multi-phase commands grade all phases, not just the last report.
+JUNIT_PHASES=$GRADE/junit-phases; mkdir -p "$JUNIT_PHASES"
+"""
+
+#: Exact @4 pytest run line extended with the archive directory env.
+_V4_RUN_LINE = 'PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1'
+
+_V5_RUN_LINE = 'MIMO_VERIFIER_ARCHIVE_DIR="$JUNIT_PHASES" PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1'
+
+assert _V4_WRAPPER_C.count(_V4_BAD_LINE) == 2, "@4 grader bad line moved; re-pin the @5 replacement"
+assert _V4_WRAPPER_C.count(_V4_PYTEST_LOAD_BLOCK) == 1, (
+    "@4 pytest report loader moved; re-pin the @5 replacement"
+)
+assert _V4_WRAPPER_C.count(_V4_PYTEST_LOG_LINE) == 1, (
+    "@4 pytest grade line moved; re-pin the @5 replacement"
+)
+assert _V4_WRAPPER_C.count(_V4_SUREFIRE_LOG_LINE) == 1, (
+    "@4 surefire grade line moved; re-pin the @5 replacement"
+)
+assert _V4_WRAPPER_C.count(_V4_RUN_HEAD) == 1, "@4 run head moved; re-pin the @5 replacement"
+assert _V4_WRAPPER_C.count(_V4_RUN_LINE) == 1, "@4 run line moved; re-pin the @5 replacement"
+
+#: @5 grader entry point, part C: @4 with skip-tolerant grading, the
+#: multi-phase union loader, and the archive directory on the run line.
+_V5_WRAPPER_C = (
+    _V4_WRAPPER_C.replace(_V4_BAD_LINE, _V5_BAD_LINE)
+    .replace(_V4_PYTEST_LOAD_BLOCK, _V5_PYTEST_LOAD_BLOCK)
+    .replace(_V4_PYTEST_LOG_LINE, _V5_PYTEST_LOG_LINE)
+    .replace(_V4_SUREFIRE_LOG_LINE, _V5_SUREFIRE_LOG_LINE)
+    .replace(_V4_RUN_HEAD, _V5_RUN_HEAD)
+    .replace(_V4_RUN_LINE, _V5_RUN_LINE)
+)
+
+assert _V5_WRAPPER_C != _V4_WRAPPER_C, "@5 replacement did not apply"
+
+#: Exact @4 hook-install block extended with the unconditional @5 archiver.
+#: The archiver goes to the root conftest AND to the conftest of every
+#: test-file directory named by the resolved command (existence-grounded):
+#: a multi-phase command with a nested rootdir (e.g. rootdir=/testbed/tests)
+#: never collects the workdir root conftest, while a test file's own
+#: directory conftest always loads for that file. Appends are marker-guarded
+#: and hook-only, so extra copies can only add union content, never change
+#: test behavior; commands naming no files degrade to the root copy.
+_V4_HOOK_INSTALL_BLOCK = """  if [ "$CLEARED" = 1 ]; then
+    echo "@@V3_CONFTEST_HOOK_B64@@" | base64 -d >> ./conftest.py
+    touch "$GRADE/hook_installed"
+    echo "installed verifier conftest hook (addopts cleared)" >> "$V/dropped.log"
+  fi
+fi"""
+
+_V5_HOOK_INSTALL_BLOCK = """  if [ "$CLEARED" = 1 ]; then
+    echo "@@V3_CONFTEST_HOOK_B64@@" | base64 -d >> ./conftest.py
+    touch "$GRADE/hook_installed"
+    echo "installed verifier conftest hook (addopts cleared)" >> "$V/dropped.log"
+  fi
+  python3 - "$RESOLVED" "$CWD" > "$V/conftest-targets.txt" 2>/dev/null <<'PYEOF' || true
+import os, re, sys
+resolved, cwd = sys.argv[1], sys.argv[2]
+seen = []
+for tok in re.findall(r'[A-Za-z0-9_./-]+\\.py', resolved):
+    rel = tok
+    if os.path.isabs(rel):
+        try:
+            rel = os.path.relpath(rel, cwd)
+        except ValueError:
+            continue
+    if rel.startswith(".."):
+        continue
+    if os.path.isfile(os.path.join(cwd, rel)):
+        d = os.path.dirname(rel) or "."
+        if d not in seen:
+            seen.append(d)
+for d in ["."] + seen:
+    print(d)
+PYEOF
+  while IFS= read -r _v5_d; do
+    [ -n "$_v5_d" ] || continue
+    _v5_cf="$CWD/$_v5_d/conftest.py"
+    mkdir -p "$(dirname "$_v5_cf")"
+    if ! grep -q "mimo-junit-archive/1" "$_v5_cf" 2>/dev/null; then
+      echo "@@V5_ARCHIVE_HOOK_B64@@" | base64 -d >> "$_v5_cf"
+    fi
+  done < "$V/conftest-targets.txt"
+  echo "installed verifier junit archive hook" >> "$V/dropped.log"
+fi"""
+
+assert _V4_WRAPPER_B.count(_V4_HOOK_INSTALL_BLOCK) == 1, (
+    "@4 hook-install block moved; re-pin the @5 replacement"
+)
+
+#: @5 grader entry point, part B: @4 with the archive hook install.
+_V5_WRAPPER_B = _V4_WRAPPER_B.replace(_V4_HOOK_INSTALL_BLOCK, _V5_HOOK_INSTALL_BLOCK)
+
+assert _V5_WRAPPER_B != _V4_WRAPPER_B, "@5 hook replacement did not apply"
+
+#: @5 grader entry point, part A: identical to @4.
+_V5_WRAPPER_A = _V4_WRAPPER_A
+
+
+def render_wrapper_test_sh_v5(workdir: str) -> str:
+    """Verifier entry point: @5 skip-tolerant, multi-phase junit grading."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
+    scoped = (
+        "["
+        + ", ".join(f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES)
+        + "]"
+    )
+    hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
+    archive_b64 = base64.b64encode(V5_ARCHIVE_HOOK.encode("utf-8")).decode("ascii")
+    return (
+        (_V5_WRAPPER_A + _V5_WRAPPER_B + _V5_WRAPPER_C)
+        .replace("@@WORKDIR@@", workdir)
+        .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
+        .replace("@@V3_UNIVERSAL@@", universal)
+        .replace("@@V3_SCOPED@@", scoped)
+        .replace("@@V3_CONFTEST_HOOK_B64@@", hook_b64)
+        .replace("@@V5_ARCHIVE_HOOK_B64@@", archive_b64)
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
+    )
+
+
+def render_tests_dockerfile_v5(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup (@5)."""
+    return (
+        "# Separate-verifier image (separate-verifier@5): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def build_changes_v5(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @5.
+
+    Same bundle shape as @4; the grader is the @5 entry point with
+    skip-tolerant junit grading and the multi-phase archive hook.
+    ``solution_sh`` adds an oracle-control reference solution when the parent
+    has none. Refuses to overwrite an existing solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    try:
+        patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        runner = detect_runner(resolve_command_text(command_sh, None, patch_text))
+    except OSError:
+        runner = "unknown"
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v5(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v5(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "runner": runner,
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v5(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with the hidden tests and structured per-runner checks.",
+    created_by: str = "skip-tolerant-multi-phase-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@5`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v5(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V5,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
+
 __all__ = [
     "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
@@ -2199,6 +2600,7 @@ __all__ = [
     "TRANSFORM_ID_V2",
     "TRANSFORM_ID_V3",
     "TRANSFORM_ID_V4",
+    "TRANSFORM_ID_V5",
     "TRAJECTORY_ARTIFACT",
     "V2_GRADE_DIR",
     "V2_SETUP_SUBDIR",
@@ -2210,6 +2612,7 @@ __all__ = [
     "V3_SCOPED_SIGNATURES",
     "V3_STRUCTURED_RUNNERS",
     "V3_TAMPER_SIGNATURES",
+    "V5_ARCHIVE_HOOK",
     "WRAPPER_TEST_SCRIPT",
     "ParentInfo",
     "addopts_cleared",
@@ -2217,12 +2620,14 @@ __all__ = [
     "build_changes_v2",
     "build_changes_v3",
     "build_changes_v4",
+    "build_changes_v5",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
     "derive_separate_verifier_v2",
     "derive_separate_verifier_v3",
     "derive_separate_verifier_v4",
+    "derive_separate_verifier_v5",
     "detect_pytest_run",
     "detect_runner",
     "drop_reason",
@@ -2231,6 +2636,7 @@ __all__ = [
     "evaluate_js_output",
     "evaluate_junit",
     "evaluate_junit_v4",
+    "evaluate_junit_v5",
     "evaluate_phpunit_output",
     "evaluate_rspec_output",
     "evaluate_surefire_reports",
@@ -2253,10 +2659,12 @@ __all__ = [
     "render_tests_dockerfile_v2",
     "render_tests_dockerfile_v3",
     "render_tests_dockerfile_v4",
+    "render_tests_dockerfile_v5",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
     "render_wrapper_test_sh_v3",
     "render_wrapper_test_sh_v4",
+    "render_wrapper_test_sh_v5",
     "resolve_command_text",
     "tamper_signature_hit",
     "v3_config_revert_reason",

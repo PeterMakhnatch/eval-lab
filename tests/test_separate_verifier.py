@@ -23,22 +23,26 @@ from evallab.separate_verifier import (
     TRANSFORM_ID_V2,
     TRANSFORM_ID_V3,
     TRANSFORM_ID_V4,
+    TRANSFORM_ID_V5,
     V2_GRADE_DIR,
     V2_SETUP_SUBDIR,
     V3_CONFTEST_HOOK,
     V3_NEW_INFRA_BASENAMES,
     V3_STRUCTURED_RUNNERS,
     V3_TAMPER_SIGNATURES,
+    V5_ARCHIVE_HOOK,
     addopts_cleared,
     build_changes,
     build_changes_v2,
     build_changes_v3,
     build_changes_v4,
+    build_changes_v5,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
     derive_separate_verifier_v3,
     derive_separate_verifier_v4,
+    derive_separate_verifier_v5,
     detect_pytest_run,
     detect_runner,
     drop_reason,
@@ -47,6 +51,7 @@ from evallab.separate_verifier import (
     evaluate_js_output,
     evaluate_junit,
     evaluate_junit_v4,
+    evaluate_junit_v5,
     evaluate_phpunit_output,
     evaluate_rspec_output,
     evaluate_surefire_reports,
@@ -63,6 +68,7 @@ from evallab.separate_verifier import (
     render_wrapper_test_sh_v2,
     render_wrapper_test_sh_v3,
     render_wrapper_test_sh_v4,
+    render_wrapper_test_sh_v5,
     resolve_command_text,
     tamper_signature_hit,
     v3_config_revert_reason,
@@ -716,6 +722,11 @@ def test_evaluate_surefire_reports() -> None:
         b'<failure message="x"/></testcase></testsuite>'
     )
     assert evaluate_surefire_reports([failing], 0) == 0
+    skipped = (
+        b'<testsuite tests="2"><testcase classname="X" name="a"/>'
+        b'<testcase classname="X" name="b"><skipped/></testcase></testsuite>'
+    )
+    assert evaluate_surefire_reports([skipped], 0) == 1
     assert evaluate_surefire_reports([], 0) is None
     assert evaluate_surefire_reports([b"not xml <"], 0) == 0
 
@@ -1562,3 +1573,407 @@ def test_v4_refuses_without_a_setup_chain(parent_dir: Path) -> None:
         build_changes_v4(parent_dir, marker=MARKER)
     with pytest.raises(VariantInvalid):
         build_changes_v4(parent_dir, marker="  ")
+
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@5 (skip-tolerant grading, multi-phase junit union)
+# --------------------------------------------------------------------------- #
+#
+# Fixtures mirror the census oracle evidence: 000163 (passing tests plus
+# reference-declared skips, rc 0), 000203 (passing tests plus environmental
+# skips, rc 0), 000200 (base && new phases where the last-phase-only report
+# misses the base named IDs).
+
+_V5_SKIP_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite tests="3">'
+    b'<testcase classname="pkg.test_a" name="test_one"/>'
+    b'<testcase classname="pkg.test_a" name="test_two"><skipped message="reference"/></testcase>'
+    b'<testcase classname="pkg.test_a" name="test_three"><skipped message="env"/></testcase>'
+    b"</testsuite>"
+)
+_V5_SKIP_NAMED = {"pkg/test_a.py::test_one"}
+
+_V5_BASE_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite tests="2">'
+    b'<testcase classname="ops.test_ops" name="test_base_one"/>'
+    b'<testcase classname="ops.test_ops" name="test_base_two"/>'
+    b"</testsuite>"
+)
+_V5_NEW_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite tests="1">'
+    b'<testcase classname="ops.test_ops" name="test_new_only"/>'
+    b"</testsuite>"
+)
+_V5_MULTI_NAMED = {"ops/test_ops.py::test_base_one", "ops/test_ops.py::test_new_only"}
+
+
+def test_v5_grading_accepts_skips_while_v4_rejects() -> None:
+    # The 000163/000203 oracle shape: passing tests plus skips, exit code 0.
+    assert evaluate_junit_v4(_V5_SKIP_JUNIT, 0, _V5_SKIP_NAMED) == 0
+    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 0, _V5_SKIP_NAMED) == 1
+    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 0, set()) == 1
+
+
+def test_v5_grading_keeps_every_v4_rejection() -> None:
+    failed = _V5_SKIP_JUNIT.replace(b"<skipped", b"<failure")
+    assert evaluate_junit_v5([failed], 0, _V5_SKIP_NAMED) == 0
+    errored = _V5_SKIP_JUNIT.replace(b"<skipped", b"<error")
+    assert evaluate_junit_v5([errored], 0, _V5_SKIP_NAMED) == 0
+    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 1, _V5_SKIP_NAMED) == 0
+    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 0, {"pkg/test_a.py::test_missing"}) == 0
+    assert evaluate_junit_v5([b'<testsuite tests="0"></testsuite>'], 0, set()) == 0
+    assert evaluate_junit_v5([], 0, _V5_SKIP_NAMED) == 0
+    assert evaluate_junit_v5([None, b"not xml <"], 0, _V5_SKIP_NAMED) == 0
+
+
+def test_v5_grading_unions_multi_phase_reports() -> None:
+    # The 000200 oracle shape: base classes pass in phase one, new tests pass
+    # in phase two; neither report alone covers every named ID.
+    assert evaluate_junit_v4(_V5_NEW_JUNIT, 0, _V5_MULTI_NAMED) == 0
+    assert evaluate_junit_v5([_V5_BASE_JUNIT, _V5_NEW_JUNIT], 0, _V5_MULTI_NAMED) == 1
+    assert evaluate_junit_v5([_V5_NEW_JUNIT, _V5_BASE_JUNIT], 0, _V5_MULTI_NAMED) == 1
+    # A failure in any phase still grades 0, as does a missing ID.
+    failed_base = _V5_BASE_JUNIT.replace(
+        b'name="test_base_one"/>', b'name="test_base_one"><failure/></testcase>'
+    )
+    assert evaluate_junit_v5([failed_base, _V5_NEW_JUNIT], 0, _V5_MULTI_NAMED) == 0
+    assert evaluate_junit_v5([_V5_BASE_JUNIT], 0, _V5_MULTI_NAMED) == 0
+    assert evaluate_junit_v5([_V5_BASE_JUNIT, None], 0, _V5_MULTI_NAMED) == 0
+
+
+def _v5_hook_namespace(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    monkeypatch.setenv("MIMO_VERIFIER_ARCHIVE_DIR", str(tmp_path))
+    namespace: dict[str, object] = {}
+    exec(compile(V5_ARCHIVE_HOOK, "v5hook", "exec"), namespace)
+    return namespace
+
+
+def test_v5_archive_hook_collects_per_phase_reports(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive = tmp_path / "phases"
+    namespace = _v5_hook_namespace(archive, monkeypatch)
+    logreport = namespace["pytest_runtest_logreport"]  # type: ignore[operator]
+    sessionfinish = namespace["pytest_sessionfinish"]  # type: ignore[operator]
+
+    class _Report:
+        def __init__(self, nodeid: str, when: str, outcome: str, skipped: bool = False) -> None:
+            self.nodeid = nodeid
+            self.when = when
+            self.outcome = "skipped" if skipped else outcome
+            self.skipped = skipped
+
+    logreport(_Report("tests/ops/test_ops.py::TestC::test_m[param]", "call", "passed"))
+    logreport(_Report("tests/ops/test_ops.py::test_plain", "call", "failed"))
+    logreport(_Report("tests/ops/test_ops.py::test_env", "setup", "passed", skipped=True))
+    sessionfinish(None, 0)
+    # Second session in a fresh process reuses the counter file.
+    namespace["_V5_COLLECTED"] = []
+    logreport(_Report("tests/ops/test_ops.py::TestC::test_second", "call", "passed"))
+    sessionfinish(None, 0)
+
+    import xml.etree.ElementTree as _ET
+
+    first = list(_ET.parse(str(archive / "junit-hook-0.xml")).getroot().iter("testcase"))
+    assert len(first) == 3
+    by_name = {c.get("name"): c for c in first}
+    assert by_name["test_m[param]"].get("classname") == "tests.ops.test_ops.TestC"
+    assert by_name["test_m[param]"].get("file") == "tests/ops/test_ops.py"
+    assert by_name["test_plain"].find("failure") is not None
+    assert by_name["test_env"].find("skipped") is not None
+    second = list(_ET.parse(str(archive / "junit-hook-1.xml")).getroot().iter("testcase"))
+    assert [c.get("name") for c in second] == ["test_second"]
+    assert (archive / "count").read_text(encoding="utf-8") == "2"
+    # Without the env dir a freshly loaded hook is a silent no-op.
+    monkeypatch.delenv("MIMO_VERIFIER_ARCHIVE_DIR")
+    bare: dict[str, object] = {}
+    exec(compile(V5_ARCHIVE_HOOK, "v5hook-bare", "exec"), bare)
+    bare_finish = bare["pytest_sessionfinish"]  # type: ignore[operator]
+    bare_finish(None, 0)
+    assert (archive / "count").read_text(encoding="utf-8") == "2"
+    assert not (archive / "junit-hook-2.xml").exists()
+
+
+def test_v5_archive_hook_results_grade_through_v5_mirror(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    archive = tmp_path / "phases"
+    namespace = _v5_hook_namespace(archive, monkeypatch)
+    logreport = namespace["pytest_runtest_logreport"]  # type: ignore[operator]
+    sessionfinish = namespace["pytest_sessionfinish"]  # type: ignore[operator]
+
+    class _Report:
+        def __init__(self, nodeid: str, when: str, outcome: str) -> None:
+            self.nodeid = nodeid
+            self.when = when
+            self.outcome = outcome
+            self.skipped = outcome == "skipped"
+
+    logreport(_Report("tests/ops/test_ops.py::test_base_one", "call", "passed"))
+    sessionfinish(None, 0)
+    phase = (archive / "junit-hook-0.xml").read_bytes()
+    # The 000200 shape grades 1 only on the union of the hook archive (base
+    # phase) with the plugin report (new phase).
+    assert evaluate_junit_v5([_V5_NEW_JUNIT], 0, _V5_MULTI_NAMED) == 0
+    assert evaluate_junit_v5([_V5_NEW_JUNIT, phase], 0, _V5_MULTI_NAMED) == 1
+
+
+def _v5_grader_block() -> str:
+    """Extract the embedded @5 grading script (last PYEOF heredoc)."""
+    import re as _re
+
+    from evallab.separate_verifier import render_wrapper_test_sh_v5 as _render
+
+    blocks = _re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", _render("/testbed"), _re.S)
+    assert len(blocks) == 3
+    return blocks[2]
+
+
+def _run_embedded_v5_grader(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner_cmd: str,
+    output: str,
+    rc: int,
+    junit: bytes | None = None,
+    phase_xmls: list[bytes] | None = None,
+    patch_extra: str = "",
+) -> str:
+    """Run the shipped @5 grading script against synthetic files; return reward."""
+    junit_path = tmp_path / "junit.xml"
+    if junit is None:
+        if junit_path.exists():
+            junit_path.unlink()
+    else:
+        junit_path.write_bytes(junit)
+    phases_dir = tmp_path / "junit-phases"
+    if phase_xmls:
+        phases_dir.mkdir(exist_ok=True)
+        for index, raw in enumerate(phase_xmls):
+            (phases_dir / f"junit-hook-{index}.xml").write_bytes(raw)
+    patch_path = tmp_path / "test.patch"
+    patch_path.write_text(
+        f"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+{runner_cmd}\n{patch_extra}",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "test_output.log"
+    output_path.write_text(output, encoding="utf-8")
+    cmd_path = tmp_path / "test_command.sh"
+    cmd_path.write_text(runner_cmd, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "grader",
+            str(junit_path),
+            str(rc),
+            str(patch_path),
+            str(output_path),
+            str(cmd_path),
+            str(tmp_path),
+        ],
+    )
+    with pytest.raises(SystemExit):
+        exec(compile(_v5_grader_block(), "v5grader", "exec"), {"__name__": "v5grader"})
+    return capsys.readouterr().out.strip()
+
+
+def test_embedded_v5_grader_matches_v5_mirror(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest_out = "=== test session starts ===\ncollected 3 items\n"
+    cmd = "python -m pytest tests/ -v"
+    # Skip-tolerant pass grades 1 in both the mirror and the shipped grader.
+    assert evaluate_junit_v5([_V5_SKIP_JUNIT], 0, _V5_SKIP_NAMED) == 1
+    assert (
+        _run_embedded_v5_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=pytest_out,
+            rc=0,
+            junit=_V5_SKIP_JUNIT,
+        )
+        == "1"
+    )
+    # Failures still grade 0 in both.
+    failed = _V5_SKIP_JUNIT.replace(b"<skipped", b"<failure")
+    assert evaluate_junit_v5([failed], 0, _V5_SKIP_NAMED) == 0
+    assert (
+        _run_embedded_v5_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=pytest_out, rc=0, junit=failed
+        )
+        == "0"
+    )
+    # Multi-phase union: the main report alone misses the base ID, the union
+    # of the main report with the archived base phase grades 1.
+    multi_out = "=== test session starts ===\ncollected 2 items\n"
+    multi_named = (
+        "+    python -m pytest ops/test_ops.py::test_base_one ops/test_ops.py::test_new_only\n"
+    )
+    assert (
+        _run_embedded_v5_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=multi_out,
+            rc=0,
+            junit=_V5_NEW_JUNIT,
+            patch_extra=multi_named,
+        )
+        == "0"
+    )
+    assert (
+        _run_embedded_v5_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=multi_out,
+            rc=0,
+            junit=_V5_NEW_JUNIT,
+            phase_xmls=[_V5_BASE_JUNIT],
+            patch_extra=multi_named,
+        )
+        == "1"
+    )
+
+
+def test_v5_template_pins() -> None:
+    wrapper = render_wrapper_test_sh_v5("/testbed")
+    assert "@@" not in wrapper
+    assert TRANSFORM_ID_V5 not in wrapper  # transform ids live in lineage, not the grader
+    assert "MIMO_VERIFIER_ARCHIVE_DIR" in wrapper
+    assert "junit-hook-" in wrapper
+    assert "hook_installed" in wrapper
+    assert JUNIT_MISSING_REASON in wrapper
+    assert "/testbed" in wrapper
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v5("relative/path")
+
+
+def test_v5_grader_differs_from_v4_only_in_pinned_blocks() -> None:
+    from evallab import separate_verifier as sv
+
+    def _neutralize_c(text: str) -> str:
+        return (
+            text.replace(sv._V5_BAD_LINE, "BAD")
+            .replace(sv._V4_BAD_LINE, "BAD")
+            .replace(sv._V5_PYTEST_LOAD_BLOCK, "LOAD")
+            .replace(sv._V4_PYTEST_LOAD_BLOCK, "LOAD")
+            .replace(sv._V5_PYTEST_LOG_LINE, "LOG")
+            .replace(sv._V4_PYTEST_LOG_LINE, "LOG")
+            .replace(sv._V5_SUREFIRE_LOG_LINE, "SLOG")
+            .replace(sv._V4_SUREFIRE_LOG_LINE, "SLOG")
+            .replace(sv._V5_RUN_HEAD, "HEAD")
+            .replace(sv._V4_RUN_HEAD, "HEAD")
+            .replace(sv._V5_RUN_LINE, "RUN")
+            .replace(sv._V4_RUN_LINE, "RUN")
+        )
+
+    assert _neutralize_c(sv._V5_WRAPPER_C) == _neutralize_c(sv._V4_WRAPPER_C)
+    assert sv._V5_WRAPPER_B != sv._V4_WRAPPER_B
+    assert sv._V5_WRAPPER_B.replace(sv._V5_HOOK_INSTALL_BLOCK, "HOOK") == (
+        sv._V4_WRAPPER_B.replace(sv._V4_HOOK_INSTALL_BLOCK, "HOOK")
+    )
+    assert sv._V5_WRAPPER_A == sv._V4_WRAPPER_A
+
+
+def _v5_target_script() -> str:
+    """Extract the embedded conftest-target computer from the @5 wrapper."""
+    import re as _re
+
+    from evallab.separate_verifier import render_wrapper_test_sh_v5 as _render
+
+    blocks = _re.findall(
+        r"python3 - \"\$RESOLVED\" \"\$CWD\" > \"\$V/conftest-targets.txt\".*?\n(.*?)\nPYEOF",
+        _render("/testbed"),
+        _re.S,
+    )
+    assert len(blocks) == 1
+    return blocks[0]
+
+
+def test_v5_hook_targets_cover_named_test_dirs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # Existence-grounded: only test files present under the workdir yield
+    # install targets, always including the root.
+    cwd = tmp_path / "testbed"
+    (cwd / "tests" / "ops" / "qubit").mkdir(parents=True)
+    (cwd / "tests" / "ops" / "qubit" / "test_non_parametric_ops.py").write_text(
+        "", encoding="utf-8"
+    )
+    (cwd / "tests" / "other").mkdir(parents=True)
+    (cwd / "tests" / "other" / "test_other.py").write_text("", encoding="utf-8")
+    resolved = (
+        "bash /testbed/mimo_test_command.sh base && bash /testbed/mimo_test_command.sh new\n"
+        "python3 -m pytest tests/ops/qubit/test_non_parametric_ops.py::TestOperations "
+        "tests/ops/qubit/test_non_parametric_ops.py::TestDecompositions -x -v\n"
+        "python3 -m pytest missing_dir/test_ghost.py -q\n"
+    )
+    monkeypatch.setattr("sys.argv", ["targets", resolved, str(cwd)])
+    exec(compile(_v5_target_script(), "v5targets", "exec"), {"__name__": "v5targets"})
+    assert capsys.readouterr().out.split() == [".", "tests/ops/qubit"]
+
+
+def test_v5_variant_bundles_setup_and_records_runner(parent_dir_v2: Path) -> None:
+    changes, inputs = build_changes_v5(parent_dir_v2, marker=MARKER)
+    assert set(changes) == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+    assert "tests/test-orig.sh" not in changes
+    wrapper = changes["tests/test.sh"].decode("utf-8")  # type: ignore[union-attr]
+    assert "@@" not in wrapper
+    assert "RUNNER=$RUNNER" in wrapper
+    assert "MIMO_VERIFIER_ARCHIVE_DIR" in wrapper
+    assert inputs["runner"] in ("custom", "pytest", "unittest")
+    assert len(inputs["setup_sha256"]) == 64
+
+
+def test_v5_solution_injected_only_when_parent_has_none(parent_dir_v2: Path) -> None:
+    solve = b"#!/bin/bash\necho oracle\n"
+    changes, _ = build_changes_v5(parent_dir_v2, marker=MARKER, solution_sh=solve)
+    assert changes["solution/solve.sh"] == solve
+    (parent_dir_v2 / "solution").mkdir()
+    (parent_dir_v2 / "solution" / "solve.sh").write_bytes(b"#!/bin/bash\n")
+    with pytest.raises(VariantInvalid):
+        build_changes_v5(parent_dir_v2, marker=MARKER, solution_sh=solve)
+
+
+def test_v5_derive_records_transform_id(parent_dir_v2: Path, tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    record = derive_separate_verifier_v5(
+        parent_dir_v2,
+        marker=MARKER,
+        rationale="test",
+        created_by="test",
+        repo_root=tmp_path,
+        parent_source={"kind": "local", "path": str(parent_dir_v2)},
+        variants_root=store,
+    )
+    assert record.transform == TRANSFORM_ID_V5
+    assert {change.path for change in record.files} == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+
+
+def test_v5_refuses_without_a_setup_chain(parent_dir: Path) -> None:
+    with pytest.raises(VariantInvalid):
+        build_changes_v5(parent_dir, marker=MARKER)
+    with pytest.raises(VariantInvalid):
+        build_changes_v5(parent_dir, marker="  ")

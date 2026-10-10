@@ -252,3 +252,68 @@ a baked `.venv/_pytest`: honest oracle 1, nop 0, and an actual runner change
 - Local Docker on the v3 fleet: 000102 + 2 more pinned tasks
   (oracle 1, nop 0); 002552 + 000666 + one go task unchanged
   (see `research/experiments/mimo-clean-v3/README.md`).
+
+## separate-verifier@5: skip-tolerant grading and multi-phase junit union (2026-10-10)
+
+`separate-verifier@5` (`TRANSFORM_ID_V5`, `build_changes_v5`,
+`derive_separate_verifier_v5`, `render_wrapper_test_sh_v5`,
+`evaluate_junit_v5`, `V5_ARCHIVE_HOOK` in
+`src/evallab/separate_verifier.py`; tests in
+`tests/test_separate_verifier.py`) keeps every `@4` guarantee and fixes two
+oracle false-0 shapes measured on exact-v3 packages (fleet census
+2026-10-10). No `@2`/`@3`/`@4` symbol or template byte changes, so their
+records stay valid.
+
+### Skips are not failures
+
+The `@4` pytest (and surefire) grader counted `<skipped/>` testcases as
+bad, so any skipped test forced reward 0. Two legitimate shapes false-0'd:
+reference test patches that mark still-failing behaviors skipped (000163:
+`@skip_or_fail`, 35 passed + 41 skipped, pytest rc 0 while the reference
+fix passes under the published exit-code grading), and environments that
+skip tests for missing optional dependencies (000203: 31 passed + 9
+skipped, rc 0). `@5` grades failures/errors only and reports the skip
+count in `junit-grade.log` without gating on it.
+
+Anti-cheat is preserved, not assumed: agent test-infra (`conftest.py`,
+`pytest.ini`, `sitecustomize.py`, `*.pth`, pytest config keys in
+`setup.cfg`/`pyproject.toml`) is still dropped from the kept change before
+grading, so an agent cannot inject skips through the runner configuration;
+the missing-ID gate still fires for deselected named tests; an empty case
+set still grades 0. A source-level conditional skip has the same power as
+hard-coding the expected value for the tested arguments (both pass the
+selected tests and both are overfitting, which held-out tests — not the
+regression grader — address), so skip-tolerance opens no grader-level hole
+beyond what the missing/failure gates already carry.
+
+### Multi-phase commands grade every phase
+
+Every pytest invocation used to overwrite the single `junit.xml`, so only
+the last phase's report survived and named IDs selected by earlier phases
+read as missing (000200: `mimo_test_command.sh base && ... new` — the
+three base classes missing although both phases pass; 161 fleet tasks run
+pytest more than once in their resolved command). `@5` appends a
+verifier-owned per-phase archiver (`V5_ARCHIVE_HOOK`) to the root
+`conftest.py` and to the conftest of every test-file directory named by
+the resolved command (existence-grounded; a nested rootdir such as
+`/testbed/tests` never collects the workdir root conftest, while a test
+file's own directory conftest always loads for that file) — after the
+hidden-test apply, never clobbering, marker-guarded against double
+install. Each session writes counter-suffixed reports outside the repo
+where code under test cannot reach, and the grader unions them with the
+plugin report. Extra copies can only add union content, never change test
+behavior; commands naming no files degrade to the root copy; a corrupt
+main report keeps the missing-report path while corrupt archives are
+skipped.
+
+### Validation (MEASURED, 2026-10-10, $0)
+
+- Unit: the 000163/000203 oracle shapes (pass + skips, rc 0) grade 1 under
+  `@5` (mirror and embedded script) while `@4` grades 0; failures, errors,
+  nonzero exit, missing IDs, and empty unions still grade 0 under `@5`;
+  the 000200 shape (base-phase archive + new-phase plugin report) grades 1
+  only on the union; the archive hook's node-id mapping (classes, params,
+  file attribute) satisfies the `@4` matcher; the rendered `@5` wrapper
+  differs from `@4` only in the pinned blocks.
+- Local Docker: 000163/000200/000203 oracle 1, nop 0 on `@5` packages;
+  cheat ladder still clean (see the PR receipts).

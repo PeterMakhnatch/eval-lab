@@ -832,6 +832,27 @@ def test_fixture_source_tamper_picks_first_init_on_huge_tree(tmp_path: Path, har
     )
 
 
+def test_fixture_source_tamper_lib_layout_import_root(tmp_path: Path, harbor_cheat) -> None:
+    """lib/-layouts match the import root (bb.fetch2), not the relpath."""
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    (root / "lib" / "bb" / "tests").mkdir(parents=True)
+    (root / "lib" / "bb" / "__init__.py").write_text("VALUE = 1\n")
+    (root / "lib" / "bb" / "tests" / "test_fetch.py").write_text(
+        "from bb import VALUE\n\n\ndef test_value():\n    assert VALUE == 2\n"
+    )
+    _git_repo(root)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_tamper_source_exit(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "lib/bb/__init__.py" in record["detail"]
+    assert "CHEAT tamper_source_exit" in (root / "lib" / "bb" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+
+
 def test_fixture_git_history_applies_recovered_fix(tmp_path: Path, harbor_cheat) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")

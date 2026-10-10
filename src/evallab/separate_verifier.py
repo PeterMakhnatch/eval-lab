@@ -417,9 +417,7 @@ def _decode_b64_blobs(text: str) -> str:
     return "\n".join(decoded)
 
 
-def resolve_command_text(
-    test_command_sh: str, mimo_script: str | None, patch_text: str
-) -> str:
+def resolve_command_text(test_command_sh: str, mimo_script: str | None, patch_text: str) -> str:
     """Resolvable text of the task's test command for addopts/pytest checks.
 
     Concatenates ``test_command.sh``, the ``mimo_test_command.sh`` it points
@@ -480,9 +478,7 @@ def tamper_signature_hit(added_lines: str) -> str | None:
 def is_test_infra_filename(path: str) -> bool:
     """Whether ``path`` is test infrastructure dropped by name (any directory)."""
     base = PurePosixPath(path).name
-    return (
-        base in _TEST_INFRA_BASENAMES or base.endswith(".pth") or base.endswith("_test.go")
-    )
+    return base in _TEST_INFRA_BASENAMES or base.endswith(".pth") or base.endswith("_test.go")
 
 
 def is_pytest_config_tamper(path: str, changed_lines: str) -> bool:
@@ -563,9 +559,172 @@ def evaluate_junit(
         for case in cases
     }
     missing = [
+        node for node in named_ids if not any(s == node or s.startswith(node + "[") for s in seen)
+    ]
+    return 1 if rc == 0 and cases and not bad and not missing else 0
+
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@4 ("rootdir-robust junit matching")
+# --------------------------------------------------------------------------- #
+# @4 keeps every @3 guarantee and changes only the pytest named-id presence
+# check: @3 exact-matches expected node ids (from test.patch/command, e.g.
+# ``tests/unit/test_x.py::test_y``) against junit-classname-derived ids, so a
+# pytest rootdir under ``tests/`` (e.g. the cloud-sql-connector family with
+# rootdir=/testbed/tests) yields classnames without the ``tests/`` segment
+# and grades a fully passing oracle 0 (missing=all). @4 matches expected ids
+# to junit cases by aligned path-suffix instead: module path components
+# compared from the right at '/' or '.' boundaries (either side may carry an
+# extra prefix), plus exact class-chain and test-name agreement (parametrize
+# ids keep the @3 prefix rule). No @2/@3 symbol or template byte changes, so
+# @2/@3 records stay valid. See docs/mimo/separate-verifier.md.
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V4 = "separate-verifier@4"
+
+
+def _module_comps(path: str) -> list[str]:
+    """Module path components: split on ``/`` and ``.``, drop ``.py``/empties."""
+    text = path.replace("\\", "/").strip()
+    while text.startswith("./"):
+        text = text[2:]
+    text = text.lstrip("/")
+    if text.endswith(".py"):
+        text = text[:-3]
+    return [part for part in re.split(r"[/.]+", text) if part]
+
+
+def parse_pytest_node_id(node_id: str) -> tuple[list[str], list[str], str]:
+    """Split a pytest node id into (module components, class chain, test name)."""
+    parts = node_id.split("::")
+    return (_module_comps(parts[0]), parts[1:-1], parts[-1])
+
+
+def _test_name_matches(seen_test: str, expected_test: str) -> bool:
+    """Whether a junit test name satisfies an expected id's test (the @3 prefix rule)."""
+    if "[" in expected_test:
+        return seen_test == expected_test
+    return seen_test == expected_test or seen_test.startswith(expected_test + "[")
+
+
+def _comps_tail(shorter: list[str], longer: list[str]) -> bool:
+    """Whether ``shorter`` equals the tail of ``longer`` (component-wise)."""
+    return (
+        bool(shorter)
+        and len(shorter) <= len(longer)
+        and shorter == longer[len(longer) - len(shorter) :]
+    )
+
+
+def _module_aligned(first: list[str], second: list[str]) -> bool:
+    """Whether two module paths agree from the right (either may add a prefix)."""
+    if not first or not second:
+        return False
+    shorter, longer = (first, second) if len(first) <= len(second) else (second, first)
+    return _comps_tail(shorter, longer)
+
+
+def _junit_case_candidates(
+    classname: str | None, name: str | None, file: str | None
+) -> tuple[tuple[list[str], list[str], str], ...]:
+    """(module, classes, test) interpretations of one junit testcase.
+
+    The classname splits into (module, classes) at every cut; the junit
+    ``file`` attribute, when present, locates the module while the classname
+    prefix aligned with it locates the classes.
+    """
+    name_parts = (name or "").split("::")
+    seen_test = name_parts[-1]
+    extra_classes = name_parts[:-1]
+    class_parts: list[str] = classname.split(".") if classname else []
+    candidates = [
+        (class_parts[:cut], class_parts[cut:] + extra_classes, seen_test)
+        for cut in range(1, len(class_parts) + 1)
+    ]
+    if file:
+        seen_mod = _module_comps(file)
+        candidates.extend(
+            (seen_mod, class_parts[cut:] + extra_classes, seen_test)
+            for cut in range(len(class_parts) + 1)
+            if cut == 0 or _comps_tail(class_parts[:cut], seen_mod)
+        )
+    return tuple(candidates)
+
+
+def junit_case_matches_expected(
+    classname: str | None,
+    name: str | None,
+    file: str | None,
+    expected_id: str,
+) -> bool:
+    """Whether one junit testcase satisfies a pytest node id from the test command.
+
+    The module path aligns by suffix at component boundaries (so a rootdir
+    under ``tests/`` still matches), the class chain must agree exactly, and
+    the test name must agree exactly (or by parametrize prefix). A junit
+    ``file`` attribute, when present, locates the module while the classname
+    prefix aligned with it locates the classes. A class-level expected id
+    (``file.py::TestClass``, naming no test) is satisfied by any case of
+    exactly that class — the command asked to run the class, and (with no
+    failure/error/skip in the report) the class ran and passed. An expected
+    id never matches a case with a different test name or class.
+    """
+    exp_mod, exp_classes, exp_test = parse_pytest_node_id(expected_id)
+    if not exp_mod or not exp_test:
+        return False
+    # A `test_`-prefixed id names a function, never a class.
+    class_level = not exp_test.startswith("test_")
+    for mod, classes, seen_test in _junit_case_candidates(classname, name, file):
+        if not _module_aligned(mod, exp_mod):
+            continue
+        if classes == exp_classes and _test_name_matches(seen_test, exp_test):
+            return True
+        if class_level and classes == exp_classes + [exp_test]:
+            return True
+    return False
+
+
+def evaluate_junit_v4(
+    junit_xml: bytes | None,
+    rc: int,
+    named_ids: Collection[str],
+    *,
+    suspicious_absence: bool = False,
+) -> int:
+    """Grade 1/0 from a junit report plus the test command's exit code (@4).
+
+    Same contract as :func:`evaluate_junit`, except the named-id presence
+    check matches by aligned path-suffix
+    (:func:`junit_case_matches_expected`) instead of exact string equality,
+    so pytest rootdir shifts (classnames without the ``tests/`` segment)
+    no longer grade a passing run 0.
+    """
+    if not junit_xml:
+        if suspicious_absence:
+            return 0
+        return 1 if rc == 0 else 0
+    try:
+        cases = list(ET.fromstring(junit_xml).iter("testcase"))
+    except Exception:
+        if suspicious_absence:
+            return 0
+        return 1 if rc == 0 else 0
+    bad = [
+        case
+        for case in cases
+        if case.find("failure") is not None
+        or case.find("error") is not None
+        or case.find("skipped") is not None
+    ]
+    missing = [
         node
         for node in named_ids
-        if not any(s == node or s.startswith(node + "[") for s in seen)
+        if not any(
+            junit_case_matches_expected(
+                case.get("classname"), case.get("name"), case.get("file"), node
+            )
+            for case in cases
+        )
     ]
     return 1 if rc == 0 and cases and not bad and not missing else 0
 
@@ -974,9 +1133,17 @@ def is_v3_new_infra(path: str, *, in_base: bool) -> bool:
 #: never flips these keys (false positives measured against reference
 #: fixes; see docs/mimo/separate-verifier.md).
 V3_CONFIG_HUNK_RULES: tuple[tuple[str, tuple[str, ...], str], ...] = (
-    ("package.json runner key", ("package.json",), r'"(jest|mocha|vitest|ava|tap|karma|jasmine|nyc|c8)"\s*:'),
+    (
+        "package.json runner key",
+        ("package.json",),
+        r'"(jest|mocha|vitest|ava|tap|karma|jasmine|nyc|c8)"\s*:',
+    ),
     ("pom.xml surefire", ("pom.xml",), r"surefire|failsafe|skipTests|<excludes?>"),
-    ("gradle test block", ("build.gradle", "build.gradle.kts"), r"exclude|ignoreFailures|useJUnit|test\s*\{"),
+    (
+        "gradle test block",
+        ("build.gradle", "build.gradle.kts"),
+        r"exclude|ignoreFailures|useJUnit|test\s*\{",
+    ),
     ("rspec options", (".rspec",), r"--require|--format|--tag|--exclude-pattern"),
     (
         "phpunit config",
@@ -986,7 +1153,14 @@ V3_CONFIG_HUNK_RULES: tuple[tuple[str, tuple[str, ...], str], ...] = (
     ("go toolchain", ("go.mod",), r"toolchain"),
     (
         "mocha options",
-        (".mocharc.js", ".mocharc.cjs", ".mocharc.mjs", ".mocharc.json", ".mocharc.yml", ".mocharc.yaml"),
+        (
+            ".mocharc.js",
+            ".mocharc.cjs",
+            ".mocharc.mjs",
+            ".mocharc.json",
+            ".mocharc.yml",
+            ".mocharc.yaml",
+        ),
         r"spec|require|ignore|exclude|grep|invert|reporter",
     ),
 )
@@ -1044,6 +1218,7 @@ def v3_tamper_hit_for_file(path: str, added_lines: str) -> str | None:
         if ext in exts and pattern.search(added_lines):
             return pattern.pattern
     return None
+
 
 # --------------------------------------------------------------------------- #
 # @3 runner detection and structured output grading
@@ -1168,15 +1343,29 @@ def evaluate_js_output(runner: str, test_output: str, rc: int) -> int:
     if rc != 0:
         return 0
     if runner == "jest":
-        return 1 if _JEST_PASS_RE.search(test_output) and not _JEST_FAIL_RE.search(test_output) else 0
+        return (
+            1 if _JEST_PASS_RE.search(test_output) and not _JEST_FAIL_RE.search(test_output) else 0
+        )
     if runner == "vitest":
-        return 1 if _VITEST_PASS_RE.search(test_output) and not _VITEST_FAIL_RE.search(test_output) else 0
+        return (
+            1
+            if _VITEST_PASS_RE.search(test_output) and not _VITEST_FAIL_RE.search(test_output)
+            else 0
+        )
     if runner == "mocha":
-        return 1 if _MOCHA_PASS_RE.search(test_output) and not _MOCHA_FAIL_RE.search(test_output) else 0
+        return (
+            1
+            if _MOCHA_PASS_RE.search(test_output) and not _MOCHA_FAIL_RE.search(test_output)
+            else 0
+        )
     if runner in ("tap", "ava", "node-test"):
         return 1 if _TAP_PASS_RE.search(test_output) and not _TAP_FAIL_RE.search(test_output) else 0
     if runner == "karma":
-        return 1 if _KARMA_PASS_RE.search(test_output) and not _KARMA_FAIL_RE.search(test_output) else 0
+        return (
+            1
+            if _KARMA_PASS_RE.search(test_output) and not _KARMA_FAIL_RE.search(test_output)
+            else 0
+        )
     if runner == "jasmine":
         return 1 if not _JASMINE_FAIL_RE.search(test_output) else 0
     return 1
@@ -1650,6 +1839,7 @@ PYEOF
 echo "REWARD=$(cat "$V/reward.txt") rc=$RC runner=$(cat "$V/runner.txt")" | tee -a "$V/test_output.log"
 """
 
+
 def render_wrapper_test_sh_v3(workdir: str) -> str:
     """Verifier entry point: @3 patch-only grading (never trusts agent state)."""
     if not workdir.startswith("/"):
@@ -1657,9 +1847,7 @@ def render_wrapper_test_sh_v3(workdir: str) -> str:
     universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
     scoped = (
         "["
-        + ", ".join(
-            f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES
-        )
+        + ", ".join(f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES)
         + "]"
     )
     hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
@@ -1771,6 +1959,234 @@ def derive_separate_verifier_v3(
         variants_root=variants_root,
     )
 
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@4 template, build, and derive
+# --------------------------------------------------------------------------- #
+# The @4 grader is the @3 grader with only the pytest named-id presence
+# check replaced by the aligned path-suffix matcher (same semantics as
+# :func:`junit_case_matches_expected`, inlined because the grader ships as
+# a brace-heavy heredoc). Deriving the C block by replacement (pinned below)
+# keeps the rest byte-identical to @3 by construction.
+
+#: Exact @3 junit-matching lines replaced by the @4 suffix matcher.
+_V3_JUNIT_MATCH_BLOCK = """    seen = {c.get("classname", "").replace(".", "/") + ".py::" + c.get("name", "") for c in cases}
+    missing = [i for i in ids if not any(s == i or s.startswith(i + "[") for s in seen)]"""
+
+#: @4 junit-matching replacement (aligned path-suffix; mirrors
+#: :func:`junit_case_matches_expected`).
+_V4_JUNIT_MATCH_BLOCK = """    def _comps(p):
+        p = p.replace("\\\\", "/").strip()
+        while p.startswith("./"):
+            p = p[2:]
+        p = p.lstrip("/")
+        if p.endswith(".py"):
+            p = p[:-3]
+        return [c for c in re.split(r"[/.]+", p) if c]
+    def _parse_node(n):
+        parts = n.split("::")
+        return (_comps(parts[0]), parts[1:-1], parts[-1])
+    def _test_ok(seen_t, exp_t):
+        if "[" in exp_t:
+            return seen_t == exp_t
+        return seen_t == exp_t or seen_t.startswith(exp_t + "[")
+    def _tail(shorter, longer):
+        return bool(shorter) and len(shorter) <= len(longer) and shorter == longer[len(longer) - len(shorter):]
+    def _aligned(a, b):
+        if not a or not b:
+            return False
+        s, l = (a, b) if len(a) <= len(b) else (b, a)
+        return _tail(s, l)
+    def _hit(cn, nm, fl, exp):
+        em, ec, et = _parse_node(exp)
+        if not em or not et:
+            return False
+        np = (nm or "").split("::")
+        st = np[-1]
+        extra = np[:-1]
+        cp = (cn or "").split(".") if cn else []
+        cands = []
+        for cut in range(1, len(cp) + 1):
+            cands.append((cp[:cut], cp[cut:] + extra, st))
+        if fl:
+            sm = _comps(fl)
+            for cut in range(len(cp) + 1):
+                if cut == 0 or _tail(cp[:cut], sm):
+                    cands.append((sm, cp[cut:] + extra, st))
+        class_level = not et.startswith("test_")
+        for mod, cls, seen_t in cands:
+            if not _aligned(mod, em):
+                continue
+            if cls == ec and _test_ok(seen_t, et):
+                return True
+            if class_level and cls == ec + [et]:
+                return True
+        return False
+    missing = [i for i in ids if not any(_hit(c.get("classname"), c.get("name"), c.get("file"), i) for c in cases)]"""
+
+assert _V3_JUNIT_MATCH_BLOCK in _V3_WRAPPER_C, (
+    "@3 grader junit block moved; re-pin the @4 replacement"
+)
+
+#: @3 grader entry point, part C, with the @4 junit matcher.
+_V4_WRAPPER_C = _V3_WRAPPER_C.replace(_V3_JUNIT_MATCH_BLOCK, _V4_JUNIT_MATCH_BLOCK)
+
+assert _V4_WRAPPER_C != _V3_WRAPPER_C, "@4 replacement did not apply"
+
+#: The verifier's complete post-setup workdir is the only trusted diff base.
+#: Baked untracked/ignored dependencies are present before the agent runs, so
+#: their unchanged runner code must not be mistaken for an agent addition.
+_V4_PRISTINE_TREE = """# Capture tracked, untracked, and ignored files before importing agent bytes.
+export GIT_INDEX_FILE=/tmp/pristine.index; rm -f "$GIT_INDEX_FILE"
+git read-tree "$BASE" || { echo "pristine-tree read failed" >&2; exit 1; }
+git add -A -f . || { echo "pristine-tree capture failed" >&2; exit 1; }
+PRISTINE=$(git write-tree) || { echo "pristine-tree write failed" >&2; exit 1; }
+git diff --cached --name-only "$BASE" > "$V/pristine-extra-files.log"
+unset GIT_INDEX_FILE
+"""
+
+_V4_WRAPPER_A = (
+    _V3_WRAPPER_A.replace("$BASE", "$PRISTINE")
+    .replace("# 1. The agent's change", _V4_PRISTINE_TREE + "# 1. The agent's change", 1)
+    .replace(" add -A\n", " add -A -f\n")
+    .replace(
+        "cp /tmp/base.gitignore /tmp/agentcopy/.gitignore",
+        'if git --git-dir="$CWD/.git" cat-file -e "$PRISTINE:.gitignore" 2>/dev/null; then\n'
+        "  cp /tmp/base.gitignore /tmp/agentcopy/.gitignore\n"
+        "else rm -f /tmp/agentcopy/.gitignore; fi",
+    )
+)
+_V4_WRAPPER_B = _V3_WRAPPER_B.replace("$BASE", "$PRISTINE").replace(
+    'git add -A >/dev/null 2>&1 && git diff --cached "$PRISTINE" > "$V/agent.kept.diff"; git reset -q',
+    """export GIT_INDEX_FILE=/tmp/kept.index; rm -f "$GIT_INDEX_FILE"
+git read-tree "$PRISTINE" && git add -A -f . && git diff --cached "$PRISTINE" > "$V/agent.kept.diff" || {
+  echo "kept-tree diff failed" >&2; exit 1
+}
+unset GIT_INDEX_FILE""",
+)
+
+
+def render_wrapper_test_sh_v4(workdir: str) -> str:
+    """Verifier entry point: @4 pristine-workdir delta and rootdir-robust junit."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
+    scoped = (
+        "["
+        + ", ".join(f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES)
+        + "]"
+    )
+    hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
+    return (
+        (_V4_WRAPPER_A + _V4_WRAPPER_B + _V4_WRAPPER_C)
+        .replace("@@WORKDIR@@", workdir)
+        .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
+        .replace("@@V3_UNIVERSAL@@", universal)
+        .replace("@@V3_SCOPED@@", scoped)
+        .replace("@@V3_CONFTEST_HOOK_B64@@", hook_b64)
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
+    )
+
+
+def render_tests_dockerfile_v4(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup (@4)."""
+    return (
+        "# Separate-verifier image (separate-verifier@4): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def build_changes_v4(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @4.
+
+    Same bundle shape as @3 (clean setup chain + patch-only grader, no
+    ``tests/test-orig.sh`` kept); the grader is the @4 entry point with the
+    rootdir-robust junit matcher. ``solution_sh`` adds an oracle-control
+    reference solution when the parent has none. Refuses to overwrite an
+    existing solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    try:
+        patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        runner = detect_runner(resolve_command_text(command_sh, None, patch_text))
+    except OSError:
+        runner = "unknown"
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v4(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v4(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "runner": runner,
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v4(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with the hidden tests and structured per-runner checks.",
+    created_by: str = "rootdir-robust-patch-only-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@4`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v4(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V4,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
+
 __all__ = [
     "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
@@ -1780,6 +2196,7 @@ __all__ = [
     "TRANSFORM_ID",
     "TRANSFORM_ID_V2",
     "TRANSFORM_ID_V3",
+    "TRANSFORM_ID_V4",
     "TRAJECTORY_ARTIFACT",
     "V2_GRADE_DIR",
     "V2_SETUP_SUBDIR",
@@ -1797,11 +2214,13 @@ __all__ = [
     "build_changes",
     "build_changes_v2",
     "build_changes_v3",
+    "build_changes_v4",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
     "derive_separate_verifier_v2",
     "derive_separate_verifier_v3",
+    "derive_separate_verifier_v4",
     "detect_pytest_run",
     "detect_runner",
     "drop_reason",
@@ -1809,6 +2228,7 @@ __all__ = [
     "evaluate_go_output",
     "evaluate_js_output",
     "evaluate_junit",
+    "evaluate_junit_v4",
     "evaluate_phpunit_output",
     "evaluate_rspec_output",
     "evaluate_surefire_reports",
@@ -1818,8 +2238,10 @@ __all__ = [
     "is_v3_new_infra",
     "parse_named_pytest_ids",
     "junit_absence_suspicious",
+    "junit_case_matches_expected",
     "output_is_blank",
     "PYTEST_START_MARKERS",
+    "parse_pytest_node_id",
     "read_parent_info",
     "render_probe_hook",
     "render_snapshot_hook",
@@ -1828,9 +2250,11 @@ __all__ = [
     "render_tests_dockerfile",
     "render_tests_dockerfile_v2",
     "render_tests_dockerfile_v3",
+    "render_tests_dockerfile_v4",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
     "render_wrapper_test_sh_v3",
+    "render_wrapper_test_sh_v4",
     "resolve_command_text",
     "tamper_signature_hit",
     "v3_config_revert_reason",

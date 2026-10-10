@@ -22,6 +22,7 @@ from evallab.separate_verifier import (
     TRANSFORM_ID,
     TRANSFORM_ID_V2,
     TRANSFORM_ID_V3,
+    TRANSFORM_ID_V4,
     V2_GRADE_DIR,
     V2_SETUP_SUBDIR,
     V3_CONFTEST_HOOK,
@@ -32,10 +33,12 @@ from evallab.separate_verifier import (
     build_changes,
     build_changes_v2,
     build_changes_v3,
+    build_changes_v4,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
     derive_separate_verifier_v3,
+    derive_separate_verifier_v4,
     detect_pytest_run,
     detect_runner,
     drop_reason,
@@ -43,6 +46,7 @@ from evallab.separate_verifier import (
     evaluate_go_output,
     evaluate_js_output,
     evaluate_junit,
+    evaluate_junit_v4,
     evaluate_phpunit_output,
     evaluate_rspec_output,
     evaluate_surefire_reports,
@@ -51,11 +55,14 @@ from evallab.separate_verifier import (
     is_test_infra_filename,
     is_v3_new_infra,
     junit_absence_suspicious,
+    junit_case_matches_expected,
     output_is_blank,
     parse_named_pytest_ids,
+    parse_pytest_node_id,
     read_parent_info,
     render_wrapper_test_sh_v2,
     render_wrapper_test_sh_v3,
+    render_wrapper_test_sh_v4,
     resolve_command_text,
     tamper_signature_hit,
     v3_config_revert_reason,
@@ -344,11 +351,15 @@ def test_junit_grading_rewards_clean_structured_passes() -> None:
 
 
 def test_junit_grading_rejects_failures_skips_and_missing_ids() -> None:
-    failed = PASS_JUNIT.replace(b"name=\"test_one\"/>", b'name="test_one"><failure message="x"/></testcase>')
+    failed = PASS_JUNIT.replace(
+        b'name="test_one"/>', b'name="test_one"><failure message="x"/></testcase>'
+    )
     assert evaluate_junit(failed, 0, NAMED) == 0
-    errored = PASS_JUNIT.replace(b"name=\"test_one\"/>", b'name="test_one"><error message="x"/></testcase>')
+    errored = PASS_JUNIT.replace(
+        b'name="test_one"/>', b'name="test_one"><error message="x"/></testcase>'
+    )
     assert evaluate_junit(errored, 0, NAMED) == 0
-    skipped = PASS_JUNIT.replace(b"name=\"test_one\"/>", b'name="test_one"><skipped/></testcase>')
+    skipped = PASS_JUNIT.replace(b'name="test_one"/>', b'name="test_one"><skipped/></testcase>')
     assert evaluate_junit(skipped, 0, NAMED) == 0
     assert evaluate_junit(PASS_JUNIT, 1, NAMED) == 0
     assert evaluate_junit(PASS_JUNIT, 0, {"pkg/test_a.py::test_missing"}) == 0
@@ -457,7 +468,9 @@ PYTEST_OUT = "=== test session starts ===\ncollected 4 items\n"
 
 
 def test_addopts_cleared_detects_unset_and_override() -> None:
-    assert addopts_cleared("export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\nunset PYTEST_ADDOPTS PYTEST_PLUGINS")
+    assert addopts_cleared(
+        "export PYTEST_DISABLE_PLUGIN_AUTOLOAD=1\nunset PYTEST_ADDOPTS PYTEST_PLUGINS"
+    )
     assert addopts_cleared("PYTEST_ADDOPTS='' python -m pytest")
     assert addopts_cleared("env -u PYTEST_ADDOPTS python -m pytest")
     assert not addopts_cleared("python -m pytest tests/ -v")
@@ -534,6 +547,7 @@ def test_blank_kill_grades_zero_through_the_full_rule() -> None:
     assert junit_absence_suspicious("", cmd)
     assert evaluate_junit(None, 0, set(), suspicious_absence=True) == 0
 
+
 # --------------------------------------------------------------------------- #
 # separate-verifier@3 (multi-runner patch-only verifier)
 # --------------------------------------------------------------------------- #
@@ -564,11 +578,13 @@ def test_v3_tamper_gate_catches_exit_forcing_per_language() -> None:
 
 
 def test_v3_tamper_gate_passes_plain_fixes() -> None:
-    assert v3_tamper_hit_for_file("pkg/x.go", "+  return fmt.Errorf(\"bad %s\", v)\n") is None
+    assert v3_tamper_hit_for_file("pkg/x.go", '+  return fmt.Errorf("bad %s", v)\n') is None
     assert v3_tamper_hit_for_file("lib/a.js", "+  return { status: 200 };\n") is None
     assert v3_tamper_hit_for_file("src/x.c", "+  return EXIT_FAILURE;\n") is None
-    assert v3_tamper_hit_for_file("lib/x.rb", "+  raise ArgumentError, \"bad\"\n") is None
-    assert v3_tamper_hit_for_file("src/Main.java", "+  throw new IllegalStateException();\n") is None
+    assert v3_tamper_hit_for_file("lib/x.rb", '+  raise ArgumentError, "bad"\n') is None
+    assert (
+        v3_tamper_hit_for_file("src/Main.java", "+  throw new IllegalStateException();\n") is None
+    )
     assert v3_tamper_hit_for_file("lib/x.py", "+latexit = True\n") is None
 
 
@@ -591,18 +607,32 @@ def test_v3_new_infra_drops_only_new_files() -> None:
 
 
 def test_v3_config_revert_rules_catch_runner_keys_only() -> None:
-    assert v3_config_revert_reason("package.json", '+  "jest": {"setupFiles": ["./evil.js"]}') is not None
-    assert v3_config_revert_reason("package.json", '+    "mocha": {"require": "./stub.js"}') is not None
-    assert v3_config_revert_reason("pom.xml", '+<artifactId>maven-surefire-plugin</artifactId>\n+<excludes>') is not None
+    assert (
+        v3_config_revert_reason("package.json", '+  "jest": {"setupFiles": ["./evil.js"]}')
+        is not None
+    )
+    assert (
+        v3_config_revert_reason("package.json", '+    "mocha": {"require": "./stub.js"}')
+        is not None
+    )
+    assert (
+        v3_config_revert_reason(
+            "pom.xml", "+<artifactId>maven-surefire-plugin</artifactId>\n+<excludes>"
+        )
+        is not None
+    )
     assert v3_config_revert_reason("build.gradle", '+  exclude "hidden/**"') is not None
-    assert v3_config_revert_reason(".rspec", '+--require ./planted_stub') is not None
+    assert v3_config_revert_reason(".rspec", "+--require ./planted_stub") is not None
     assert v3_config_revert_reason("phpunit.xml", '+  bootstrap="tests/evil.php"') is not None
-    assert v3_config_revert_reason("go.mod", '+toolchain go1.24.1') is not None
+    assert v3_config_revert_reason("go.mod", "+toolchain go1.24.1") is not None
     assert v3_config_revert_reason(".mocharc.json", '+  "spec": "test/empty-*.js"') is not None
     # Honest dependency/source hunks survive.
     assert v3_config_revert_reason("package.json", '+    "lodash": "^4.17.21"') is None
-    assert v3_config_revert_reason("pom.xml", '+<artifactId>maven-compiler-plugin</artifactId>') is None
-    assert v3_config_revert_reason("go.mod", '+require example.com/mod v1.2.3') is None
+    assert (
+        v3_config_revert_reason("pom.xml", "+<artifactId>maven-compiler-plugin</artifactId>")
+        is None
+    )
+    assert v3_config_revert_reason("go.mod", "+require example.com/mod v1.2.3") is None
     assert v3_config_revert_reason("src/main.go", '+  "jest": true') is None
 
 
@@ -695,6 +725,7 @@ def _v3_grader_block() -> str:
     import re as _re
 
     from evallab.separate_verifier import render_wrapper_test_sh_v3 as _render
+
     blocks = _re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", _render("/testbed"), _re.S)
     assert len(blocks) == 2
     return blocks[1]
@@ -720,8 +751,7 @@ def _run_embedded_grader(
         junit_path.write_bytes(junit)
     patch_path = tmp_path / "test.patch"
     patch_path.write_text(
-        "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n"
-        f"+{runner_cmd}\n{patch_extra}",
+        f"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+{runner_cmd}\n{patch_extra}",
         encoding="utf-8",
     )
     output_path = tmp_path / "test_output.log"
@@ -730,7 +760,15 @@ def _run_embedded_grader(
     cmd_path.write_text(runner_cmd, encoding="utf-8")
     monkeypatch.setattr(
         "sys.argv",
-        ["grader", str(junit_path), str(rc), str(patch_path), str(output_path), str(cmd_path), str(tmp_path)],
+        [
+            "grader",
+            str(junit_path),
+            str(rc),
+            str(patch_path),
+            str(output_path),
+            str(cmd_path),
+            str(tmp_path),
+        ],
     )
     with pytest.raises(SystemExit):
         exec(compile(_v3_grader_block(), "v3grader", "exec"), {"__name__": "v3grader"})
@@ -741,24 +779,112 @@ def test_embedded_grader_matches_pure_evaluators(
     tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
 ) -> None:
     go_pass = "=== RUN TestX\n--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/m\t0.1s\n"
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="go test -v ./...", output=go_pass, rc=0) == "1"
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="go test -v ./...", output="", rc=0) == "0"
+    assert (
+        _run_embedded_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd="go test -v ./...", output=go_pass, rc=0
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd="go test -v ./...", output="", rc=0
+        )
+        == "0"
+    )
     jest_pass = "Tests:       4 passed, 4 total\nTest Suites: 1 passed, 1 total\n"
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="npx jest a.test.jsx", output=jest_pass, rc=0) == "1"
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="npx jest a.test.jsx", output="Tests: 1 failed\n", rc=1) == "0"
+    assert (
+        _run_embedded_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd="npx jest a.test.jsx", output=jest_pass, rc=0
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="npx jest a.test.jsx",
+            output="Tests: 1 failed\n",
+            rc=1,
+        )
+        == "0"
+    )
     unit_pass = "Ran 3 tests in 0.01s\n\nOK\n"
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="python -m unittest tests.test_x", output=unit_pass, rc=0) == "1"
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="python -m unittest tests.test_x", output="", rc=0) == "0"
+    assert (
+        _run_embedded_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="python -m unittest tests.test_x",
+            output=unit_pass,
+            rc=0,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="python -m unittest tests.test_x",
+            output="",
+            rc=0,
+        )
+        == "0"
+    )
     # pytest branch keeps @2 semantics: structured pass grades 1.
     from evallab.separate_verifier import resolve_command_text as _resolve
+
     assert _resolve("bash /testbed/mimo_test_command.sh", None, "x") is not None
     pytest_out = "=== test session starts ===\ncollected 1 item\n"
     junit_pass = b'<testsuite tests="1"><testcase classname="t" name="x"/></testsuite>'
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="python -m pytest tests/ -v", output=pytest_out, rc=0, junit=junit_pass) == "1"
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="python -m pytest tests/ -v", output=pytest_out, rc=0, junit=None) == "0"
+    assert (
+        _run_embedded_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="python -m pytest tests/ -v",
+            output=pytest_out,
+            rc=0,
+            junit=junit_pass,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="python -m pytest tests/ -v",
+            output=pytest_out,
+            rc=0,
+            junit=None,
+        )
+        == "0"
+    )
     # Silent families keep the exit-code fallback.
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="bash usercase-test-coderl/usecase.sh", output="", rc=0) == "1"
-    assert _run_embedded_grader(tmp_path, capsys, monkeypatch, runner_cmd="bash usercase-test-coderl/usecase.sh", output="boom\n", rc=1) == "0"
+    assert (
+        _run_embedded_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="bash usercase-test-coderl/usecase.sh",
+            output="",
+            rc=0,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="bash usercase-test-coderl/usecase.sh",
+            output="boom\n",
+            rc=1,
+        )
+        == "0"
+    )
 
 
 def test_v3_template_pins() -> None:
@@ -766,7 +892,18 @@ def test_v3_template_pins() -> None:
     assert "@@" not in wrapper
     for name in V3_NEW_INFRA_BASENAMES:
         assert name in wrapper
-    for runner in ("go-test", "jest", "vitest", "mocha", "pytest", "unittest", "mvn", "rspec", "phpunit", "cargo-test"):
+    for runner in (
+        "go-test",
+        "jest",
+        "vitest",
+        "mocha",
+        "pytest",
+        "unittest",
+        "mvn",
+        "rspec",
+        "phpunit",
+        "cargo-test",
+    ):
         assert runner in wrapper
     for runner in sorted(V3_STRUCTURED_RUNNERS):
         assert runner in wrapper
@@ -784,7 +921,9 @@ def test_v3_template_pins() -> None:
         render_wrapper_test_sh_v3("relative/path")
 
 
-def test_v3_conftest_hook_collects_a_junit_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_v3_conftest_hook_collects_a_junit_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     junit_path = tmp_path / "junit.xml"
     monkeypatch.setenv("MIMO_VERIFIER_JUNIT", str(junit_path))
     namespace: dict[str, object] = {}
@@ -804,6 +943,7 @@ def test_v3_conftest_hook_collects_a_junit_report(tmp_path: Path, monkeypatch: p
     logreport(_Report("test_x.py::test_c", "setup", "passed", skipped=True))
     sessionfinish(None, 0)
     import xml.etree.ElementTree as _ET
+
     cases = list(_ET.parse(str(junit_path)).getroot().iter("testcase"))
     assert len(cases) == 3
     assert sum(1 for c in cases if c.find("failure") is not None) == 1
@@ -868,3 +1008,521 @@ def test_v3_refuses_without_a_setup_chain(parent_dir: Path) -> None:
         build_changes_v3(parent_dir, marker=MARKER)
     with pytest.raises(VariantInvalid):
         build_changes_v3(parent_dir, marker="  ")
+
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@4 (rootdir-robust junit matching)
+# --------------------------------------------------------------------------- #
+#
+# The fixtures below mirror the Daytona oracle evidence for the
+# cloud-sql-connector family (representative: format-code-task-000102):
+# the test command pins ``tests/unit/test_iam_user_format.py::test_*`` ids
+# while pytest runs with rootdir=/testbed/tests, so junit classnames carry
+# no ``tests/`` segment (``unit.test_iam_user_format``). @3 exact-matching
+# graded that 8/8-passing oracle 0 (missing=all); @4 suffix-matching
+# grades it 1.
+
+_V4_SHIFTED_TESTS = (
+    "test_postgres_iam_user_with_gserviceaccount_suffix_is_truncated",
+    "test_postgres_iam_user_without_suffix_is_unchanged",
+    "test_postgres_iam_bare_username_is_unchanged",
+    "test_mysql_iam_user_with_at_sign_is_truncated",
+    "test_mysql_iam_service_account_user_is_truncated",
+    "test_mysql_iam_bare_username_is_unchanged",
+    "test_postgres_no_iam_auth_user_is_unchanged",
+    "test_mysql_no_iam_auth_user_is_unchanged",
+)
+
+
+def _shifted_junit(*, with_file: bool = False) -> bytes:
+    """Rootdir-shifted junit: classnames without the ``tests/`` segment."""
+    cases = "".join(
+        "<testcase"
+        + f' classname="unit.test_iam_user_format" name="{test}"'
+        + (' file="tests/unit/test_iam_user_format.py"' if with_file else "")
+        + "/>"
+        for test in _V4_SHIFTED_TESTS
+    )
+    return (
+        b'<?xml version="1.0" encoding="utf-8"?>'
+        b'<testsuite name="pytest" errors="0" failures="0" skipped="0" tests="8">'
+        + cases.encode("utf-8")
+        + b"</testsuite>"
+    )
+
+
+def _shifted_named() -> set[str]:
+    return {f"tests/unit/test_iam_user_format.py::{test}" for test in _V4_SHIFTED_TESTS}
+
+
+def test_parse_pytest_node_id_splits_module_classes_and_test() -> None:
+    assert parse_pytest_node_id("pkg/test_a.py::test_one") == (
+        ["pkg", "test_a"],
+        [],
+        "test_one",
+    )
+    assert parse_pytest_node_id("pkg/test_b.py::TestC::test_two[k]") == (
+        ["pkg", "test_b"],
+        ["TestC"],
+        "test_two[k]",
+    )
+    assert parse_pytest_node_id("./tests/unit/test_x.py::test_y") == (
+        ["tests", "unit", "test_x"],
+        [],
+        "test_y",
+    )
+
+
+def test_v4_matcher_accepts_rootdir_shifted_ids() -> None:
+    for test in _V4_SHIFTED_TESTS:
+        assert junit_case_matches_expected(
+            "unit.test_iam_user_format",
+            test,
+            None,
+            f"tests/unit/test_iam_user_format.py::{test}",
+        )
+    # Unshifted reports keep matching too.
+    assert junit_case_matches_expected(
+        "tests.unit.test_iam_user_format",
+        _V4_SHIFTED_TESTS[0],
+        None,
+        f"tests/unit/test_iam_user_format.py::{_V4_SHIFTED_TESTS[0]}",
+    )
+
+
+def test_v4_matcher_handles_file_attribute_nested_classes_and_params() -> None:
+    # junit file attribute locates the module; the classname prefix locates classes.
+    assert junit_case_matches_expected(
+        "test_b.TestC",
+        "test_two",
+        "tests/unit/test_b.py",
+        "tests/unit/test_b.py::TestC::test_two",
+    )
+    # Absolute file paths (rootdir-prefixed) align by suffix.
+    assert junit_case_matches_expected(
+        "unit.test_b.TestC",
+        "test_two",
+        "/testbed/tests/unit/test_b.py",
+        "tests/unit/test_b.py::TestC::test_two",
+    )
+    # Nested class via classname, with a rootdir shift on top.
+    assert junit_case_matches_expected(
+        "test_b.TestC",
+        "test_two[k]",
+        None,
+        "pkg/test_b.py::TestC::test_two[k]",
+    )
+    # Expected id without params covers parametrized cases (the @3 prefix rule).
+    assert junit_case_matches_expected(
+        "pkg.test_b.TestC", "test_two[k2]", None, "pkg/test_b.py::TestC::test_two"
+    )
+    # Expected id with params needs the exact params.
+    assert not junit_case_matches_expected(
+        "pkg.test_b.TestC", "test_two[k2]", None, "pkg/test_b.py::TestC::test_two[k1]"
+    )
+
+
+def test_v4_matcher_never_matches_a_different_test_name() -> None:
+    expected = "tests/unit/test_iam_user_format.py::test_mysql_iam_bare_username_is_unchanged"
+    assert not junit_case_matches_expected(
+        "unit.test_iam_user_format", "test_postgres_iam_bare_username_is_unchanged", None, expected
+    )
+    # Prefix and superstring names are different tests.
+    assert not junit_case_matches_expected(
+        "unit.test_iam_user_format",
+        "test_mysql_iam_bare_username_is_unchanged_extra",
+        None,
+        expected,
+    )
+    assert not junit_case_matches_expected(
+        "unit.test_iam_user_format", "test_mysql_iam_bare_username", None, expected
+    )
+    # Same test name in another module or another class is a different test.
+    assert not junit_case_matches_expected(
+        "other.test_iam_user_format",
+        "test_mysql_iam_bare_username_is_unchanged",
+        None,
+        expected,
+    )
+    assert not junit_case_matches_expected(
+        "unit.test_iam_user_format.TestC",
+        "test_mysql_iam_bare_username_is_unchanged",
+        None,
+        expected,
+    )
+    assert not junit_case_matches_expected(
+        "unit.test_iam_user_format",
+        "test_mysql_iam_bare_username_is_unchanged",
+        None,
+        "tests/unit/test_iam_user_format.py::TestC::test_mysql_iam_bare_username_is_unchanged",
+    )
+
+
+def test_v4_matcher_handles_class_level_expected_ids() -> None:
+    # 000242's shape: the command pins the class, whose member tests pass.
+    assert junit_case_matches_expected(
+        "cartopy.tests.test_polygon.TestDatelineRepeatedVertex",
+        "test_no_polygon_fills_entire_domain",
+        None,
+        "lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex",
+    )
+    # A member of another class never satisfies a class-level id.
+    assert not junit_case_matches_expected(
+        "cartopy.tests.test_polygon.TestOther",
+        "test_something",
+        None,
+        "lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex",
+    )
+    # A bare function with exactly the expected name is the named test
+    # (function-level exact match; the id is ambiguous, the match is sound).
+    assert junit_case_matches_expected(
+        "cartopy.tests.test_polygon",
+        "TestDatelineRepeatedVertex",
+        None,
+        "lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex",
+    )
+    # A `test_`-prefixed id names a function, never a class.
+    assert not junit_case_matches_expected(
+        "pkg.test_b.test_two",
+        "test_three",
+        None,
+        "pkg/test_b.py::test_two",
+    )
+
+
+def test_v4_grading_fixes_the_daytona_oracle_while_v3_stays_exact() -> None:
+    shifted = _shifted_junit()
+    # The Daytona oracle shape: rc 0, all 8 passing, @3 grades 0 (missing=all).
+    assert evaluate_junit(shifted, 0, _shifted_named()) == 0
+    assert evaluate_junit_v4(shifted, 0, _shifted_named()) == 1
+    # Same with the junit file attribute present.
+    assert evaluate_junit_v4(_shifted_junit(with_file=True), 0, _shifted_named()) == 1
+
+
+def test_v4_grading_keeps_every_v3_rejection() -> None:
+    shifted = _shifted_junit()
+    assert evaluate_junit_v4(shifted, 1, _shifted_named()) == 0
+    assert evaluate_junit_v4(shifted, 0, {"tests/unit/test_iam_user_format.py::test_missing"}) == 0
+    failed = shifted.replace(
+        b'name="%s"/>' % _V4_SHIFTED_TESTS[0].encode(),
+        b'name="%s"><failure message="x"/></testcase>' % _V4_SHIFTED_TESTS[0].encode(),
+    )
+    assert evaluate_junit_v4(failed, 0, _shifted_named()) == 0
+    assert evaluate_junit_v4(b'<testsuite tests="0"></testsuite>', 0, set()) == 0
+    # Absence semantics unchanged: exit-code fallback, suspicion grades 0.
+    assert evaluate_junit_v4(None, 0, _shifted_named()) == 1
+    assert evaluate_junit_v4(None, 1, _shifted_named()) == 0
+    assert evaluate_junit_v4(None, 0, set(), suspicious_absence=True) == 0
+    assert evaluate_junit_v4(b"not xml <", 0, _shifted_named()) == 1
+    assert evaluate_junit_v4(b"not xml <", 2, _shifted_named()) == 0
+
+
+def _v4_grader_block() -> str:
+    """Extract the embedded @4 grading script (last PYEOF heredoc)."""
+    import re as _re
+
+    blocks = _re.findall(
+        r"<<'PYEOF'.*?\n(.*?)\nPYEOF", render_wrapper_test_sh_v4("/testbed"), _re.S
+    )
+    assert len(blocks) == 2
+    return blocks[1]
+
+
+def _run_embedded_v4_grader(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner_cmd: str,
+    output: str,
+    rc: int,
+    junit: bytes | None = None,
+    patch_extra: str = "",
+) -> str:
+    """Run the shipped @4 grading script against synthetic files; return reward."""
+    junit_path = tmp_path / "junit.xml"
+    if junit is None:
+        if junit_path.exists():
+            junit_path.unlink()
+    else:
+        junit_path.write_bytes(junit)
+    patch_path = tmp_path / "test.patch"
+    patch_path.write_text(
+        f"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+{runner_cmd}\n{patch_extra}",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "test_output.log"
+    output_path.write_text(output, encoding="utf-8")
+    cmd_path = tmp_path / "test_command.sh"
+    cmd_path.write_text(runner_cmd, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "grader",
+            str(junit_path),
+            str(rc),
+            str(patch_path),
+            str(output_path),
+            str(cmd_path),
+            str(tmp_path),
+        ],
+    )
+    with pytest.raises(SystemExit):
+        exec(compile(_v4_grader_block(), "v4grader", "exec"), {"__name__": "v4grader"})
+    return capsys.readouterr().out.strip()
+
+
+def test_embedded_v4_grader_grades_rootdir_shifted_reports(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pytest_cmd = "python -m pytest -v " + " ".join(sorted(_shifted_named()))
+    pytest_out = "=== test session starts ===\ncollected 8 items\n"
+    patch_extra = "".join(f"+{node}\n" for node in sorted(_shifted_named()))
+    assert (
+        _run_embedded_v4_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=pytest_cmd,
+            output=pytest_out,
+            rc=0,
+            junit=_shifted_junit(),
+            patch_extra=patch_extra,
+        )
+        == "1"
+    )
+    # A different test name in the report still grades 0 (no cross-test match).
+    renamed = _shifted_junit().replace(_V4_SHIFTED_TESTS[0].encode(), b"test_some_other_name")
+    assert (
+        _run_embedded_v4_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=pytest_cmd,
+            output=pytest_out,
+            rc=0,
+            junit=renamed,
+            patch_extra=patch_extra,
+        )
+        == "0"
+    )
+    # Class-level expected ids (000242's shape) grade through the embedded script.
+    class_junit = (
+        b'<testsuite tests="1">'
+        b'<testcase classname="cartopy.tests.test_polygon.TestDatelineRepeatedVertex"'
+        b' name="test_no_polygon_fills_entire_domain"/>'
+        b"</testsuite>"
+    )
+    assert (
+        _run_embedded_v4_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="python -m pytest lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex",
+            output="=== test session starts ===\ncollected 1 item\n",
+            rc=0,
+            junit=class_junit,
+            patch_extra="+lib/cartopy/tests/test_polygon.py::TestDatelineRepeatedVertex\n",
+        )
+        == "1"
+    )
+    # Non-pytest runners keep @3 semantics through the @4 template.
+    go_pass = "=== RUN TestX\n--- PASS: TestX (0.00s)\nPASS\nok  \texample.com/m\t0.1s\n"
+    assert (
+        _run_embedded_v4_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd="go test -v ./...", output=go_pass, rc=0
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v4_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd="go test -v ./...", output="", rc=0
+        )
+        == "0"
+    )
+
+
+def test_v4_template_pins() -> None:
+    wrapper = render_wrapper_test_sh_v4("/testbed")
+    assert "@@" not in wrapper
+    assert TRANSFORM_ID_V4 not in wrapper  # transform ids live in lineage, not the grader
+    for runner in (
+        "go-test",
+        "jest",
+        "vitest",
+        "mocha",
+        "pytest",
+        "unittest",
+        "mvn",
+        "rspec",
+        "phpunit",
+        "cargo-test",
+    ):
+        assert runner in wrapper
+    assert "hook_installed" in wrapper
+    assert JUNIT_MISSING_REASON in wrapper
+    assert "test session starts" in wrapper  # pytest @2-parity branch
+    assert "mimo_build_env.tar.gz.b64" in wrapper  # opaque command resolution
+    assert "/testbed" in wrapper
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v4("relative/path")
+
+
+def test_v4_grader_differs_from_v3_only_in_the_junit_matcher() -> None:
+    from evallab import separate_verifier as sv
+
+    assert sv._V4_WRAPPER_C != sv._V3_WRAPPER_C
+    assert sv._V4_WRAPPER_C.replace(sv._V4_JUNIT_MATCH_BLOCK, "JUNIT_MATCH") == (
+        sv._V3_WRAPPER_C.replace(sv._V3_JUNIT_MATCH_BLOCK, "JUNIT_MATCH")
+    )
+
+
+@pytest.mark.parametrize("ignored", [False, True])
+@pytest.mark.parametrize("edit", ["nop", "oracle", "tamper"])
+def test_v4_uses_pristine_untracked_dependencies_as_the_diff_base(
+    tmp_path: Path, ignored: bool, edit: str
+) -> None:
+    import re
+    import subprocess
+    import tarfile
+
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / "core.py").write_text("VALUE = 1\n")
+    (repo / ".gitignore").write_text(".venv/\n" if ignored else "")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "user.name=Test",
+            "-c",
+            "user.email=test@example.com",
+            "commit",
+            "-qm",
+            "base",
+        ],
+        cwd=repo,
+        check=True,
+    )
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    baked = repo / ".venv/lib/python3.11/site-packages/_pytest/__init__.py"
+    baked.parent.mkdir(parents=True)
+    baked.write_text("# baked runner\nimport _pytest\n")
+    original_baked = baked.read_bytes()
+    agent = tmp_path / "agent"
+    import shutil
+
+    shutil.copytree(repo, agent, ignore=shutil.ignore_patterns(".git"))
+    if edit == "oracle":
+        (agent / "core.py").write_text("VALUE = 2\n")
+    if edit == "tamper":
+        (agent / baked.relative_to(repo)).write_text(
+            "# baked runner\nimport _pytest\n_pytest.skip_everything = True\n"
+        )
+    snap = tmp_path / "snapshot"
+    snap.mkdir()
+    with tarfile.open(snap / "workspace.tgz", "w:gz") as archive:
+        archive.add(agent, arcname=".")
+    tests = tmp_path / "tests"
+    setup = tests / "_verifier-setup"
+    setup.mkdir(parents=True)
+    state = tmp_path / "state"
+    (setup / "setup.sh").write_text(f"mkdir -p '{state}'\necho '{base}' > '{state}/base'\n")
+    (tests / "test.patch").write_text(
+        "diff --git a/hidden.txt b/hidden.txt\n"
+        "new file mode 100644\n--- /dev/null\n+++ b/hidden.txt\n@@ -0,0 +1 @@\n+hidden\n"
+    )
+    (tests / "test_command.sh").write_text(
+        "python3 -c 'from core import VALUE; assert VALUE == 2'\n"
+    )
+    script = render_wrapper_test_sh_v4(str(repo))
+    for before, after in [
+        ("/var/tmp/mimo-separate", str(snap)),
+        ("/var/lib/mimo-grade", str(tmp_path / "grade")),
+        ("/var/lib/mimo", str(state)),
+        ("/logs/verifier", str(tmp_path / "verifier")),
+        ("/tests", str(tests)),
+        ("/tmp/agentcopy", str(tmp_path / "agentcopy")),
+        ("/tmp/agent.index", str(tmp_path / "agent.index")),
+        ("/tmp/pristine.index", str(tmp_path / "pristine.index")),
+        ("/tmp/kept.index", str(tmp_path / "kept.index")),
+        ("/tmp/base.gitignore", str(tmp_path / "base.gitignore")),
+        ("/tmp/keep.list", str(tmp_path / "keep.list")),
+        ("/tmp/revert.list", str(tmp_path / "revert.list")),
+    ]:
+        script = re.sub(r"(?<![\w$])" + re.escape(before), lambda _, after=after: after, script)
+    # Linux's coreutils timeout is not installed on the macOS test host.
+    script = script.replace("timeout 1800 sh -c", "sh -c")
+    run = subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+    assert run.returncode == 0, run.stdout + run.stderr
+    verifier = tmp_path / "verifier"
+    assert (verifier / "reward.txt").read_text().strip() == ("1" if edit == "oracle" else "0")
+    if edit == "tamper":
+        assert "tamper" in (verifier / "tamper.log").read_text()
+    else:
+        assert baked.read_bytes() == original_baked
+        assert ".venv" not in (verifier / "agent.kept.diff").read_text()
+        assert "tamper" not in (verifier / "tamper.log").read_text()
+    assert baked.relative_to(repo).as_posix() in (verifier / "pristine-extra-files.log").read_text()
+
+
+def test_v4_variant_bundles_setup_and_records_runner(parent_dir_v2: Path) -> None:
+    changes, inputs = build_changes_v4(parent_dir_v2, marker=MARKER)
+    assert set(changes) == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+    assert "tests/test-orig.sh" not in changes
+    wrapper = changes["tests/test.sh"].decode("utf-8")  # type: ignore[union-attr]
+    assert "@@" not in wrapper
+    assert "RUNNER=$RUNNER" in wrapper
+    assert inputs["runner"] in ("custom", "pytest", "unittest")
+    assert len(inputs["setup_sha256"]) == 64
+
+
+def test_v4_solution_injected_only_when_parent_has_none(parent_dir_v2: Path) -> None:
+    solve = b"#!/bin/bash\necho oracle\n"
+    changes, _ = build_changes_v4(parent_dir_v2, marker=MARKER, solution_sh=solve)
+    assert changes["solution/solve.sh"] == solve
+    (parent_dir_v2 / "solution").mkdir()
+    (parent_dir_v2 / "solution" / "solve.sh").write_bytes(b"#!/bin/bash\n")
+    with pytest.raises(VariantInvalid):
+        build_changes_v4(parent_dir_v2, marker=MARKER, solution_sh=solve)
+
+
+def test_v4_derive_records_transform_id(parent_dir_v2: Path, tmp_path: Path) -> None:
+    store = tmp_path / "store"
+    record = derive_separate_verifier_v4(
+        parent_dir_v2,
+        marker=MARKER,
+        rationale="test",
+        created_by="test",
+        repo_root=tmp_path,
+        parent_source={"kind": "local", "path": str(parent_dir_v2)},
+        variants_root=store,
+    )
+    assert record.transform == TRANSFORM_ID_V4
+    assert {change.path for change in record.files} == {
+        "task.toml",
+        "tests/test.sh",
+        "tests/Dockerfile",
+        f"{V2_SETUP_SUBDIR}/setup.sh",
+        f"{V2_SETUP_SUBDIR}/files/blocklist",
+    }
+    expected_record = (
+        tmp_path / "library" / "task-variants" / record.task_slug / f"{record.digest12}.json"
+    )
+    assert expected_record.is_file()
+    assert (store / record.task_slug / record.digest12).is_dir()
+
+
+def test_v4_refuses_without_a_setup_chain(parent_dir: Path) -> None:
+    with pytest.raises(VariantInvalid):
+        build_changes_v4(parent_dir, marker=MARKER)
+    with pytest.raises(VariantInvalid):
+        build_changes_v4(parent_dir, marker="  ")

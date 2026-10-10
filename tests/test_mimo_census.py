@@ -479,7 +479,14 @@ def test_fix_census_reuses_completed_probes(tmp_path: Path) -> None:
     scratch.mkdir(parents=True)
     sha = hashlib.sha256(b"# ship\n").hexdigest()
     (scratch / "census.meta.json").write_text(
-        json.dumps({"image": "img:1", "clean_setup_sha256": sha, "clean": {"hits_total": 0}}),
+        json.dumps(
+            {
+                "image": "img:1",
+                "clean_setup_sha256": sha,
+                "fix_sha": "a" * 40,
+                "clean": {"hits_total": 0},
+            }
+        ),
         encoding="utf-8",
     )
     # No Docker needed: reuse short-circuits before any container call.

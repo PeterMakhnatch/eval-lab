@@ -772,10 +772,15 @@ def census_fix_content(
         except (OSError, ValueError):
             meta = {}
         # Reuse completed probes verbatim (deterministic): same image (fix
-        # source) and same shipped setup means the same locations count.
+        # source), same shipped setup, and a real recovered fix SHA. The
+        # fix_sha requirement excludes vacuous rows recorded before strict
+        # null-fix rejection existed.
+        fix_meta = meta.get("fix_sha")
         if (
             meta.get("image") == image
             and meta.get("clean_setup_sha256") == clean_setup_sha
+            and isinstance(fix_meta, str)
+            and len(fix_meta) == 40
             and isinstance(meta.get("clean", {}).get("hits_total"), int)
         ):
             return {

@@ -279,3 +279,31 @@ def test_case_colliding_base_needs_sensitive_fs(tmp_path):
     assert excinfo.value.status == "unsupported-tree"
     assert isinstance(oracle._fs_case_sensitive(tmp_path / "probe"), bool)
     assert not (tmp_path / "probe" / ".oracle-case-probe-AA").exists()
+
+
+def test_ref_tips_attribute_identifiers_across_refs(tmp_path):
+    history = History(tmp_path / "git")
+    base = history.commit({"main.py": "x\n"}, "baseline")
+    history.git("checkout", "--quiet", "-b", "alpha", base)
+    history.commit({"pkg/a.py": "ALPHA_MARKER = 1\n"}, "alpha work")
+    history.git("checkout", "--quiet", "main")
+    history.git("checkout", "--quiet", "-b", "beta", base)
+    history.commit({"pkg/b.py": "BETA_MARKER = 2\n"}, "beta work")
+    history.git("checkout", "--quiet", "main")
+    tips = oracle.ref_tips_with(history.git_dir, ["ALPHA_MARKER", "BETA_MARKER"], base)
+    by_ref = {t["ref"]: t for t in tips}
+    assert by_ref["refs/heads/alpha"]["identifiers_found"] == ["ALPHA_MARKER"]
+    assert by_ref["refs/heads/beta"]["identifiers_found"] == ["BETA_MARKER"]
+    assert oracle.ref_tips_with(history.git_dir, ["NO_SUCH_MARKER"], base) == []
+
+
+def test_go_and_js_test_files_recognized():
+    assert oracle.is_test_path("state/transition_recoverable_test.go")
+    assert oracle.is_test_path("txpool/decrease_nonce_test.go")
+    assert oracle.is_test_path("src/comp.test.ts")
+    assert oracle.is_test_path("src/comp.spec.tsx")
+    assert oracle.is_test_path("__tests__/comp.js")
+    assert not oracle.is_test_path("state/transition.go")
+    assert not oracle.is_test_path("src/comp.ts")
+    assert not oracle.is_test_path("package/core.py")
+    assert oracle.is_test_path("tests/test_core.py")

@@ -51,6 +51,9 @@ from pathlib import Path
 
 SHA_RE = re.compile(r"^[0-9a-f]{40}$")
 DIFF_GIT_RE = re.compile(r"^diff --git a/(.*) b/(.*)$")
+# Unreachable-commit batch size for --no-walk calls: 1000 SHAs fit any
+# command line (41KB) while keeping process-spawn overhead off big repos.
+PICKAXE_BATCH = 1000
 HARNESS_FILES = {"test_commands.json", "mimo_test_command.sh"}
 TEST_PATH_RES = [
     re.compile(r"(^|/)tests?/"),
@@ -58,7 +61,10 @@ TEST_PATH_RES = [
     re.compile(r"(^|/)test_.*\.py$"),
     re.compile(r"(^|/)conftest\.py$"),
     re.compile(r"_test\.py$"),
-    re.compile(r"\.test\.[jt]s$"),
+    re.compile(r"_test\.go$"),
+    re.compile(r"\.test\.[jt]sx?$"),
+    re.compile(r"\.spec\.[jt]sx?$"),
+    re.compile(r"(^|/)__tests__/"),
 ]
 STOPWORDS = frozenset(
     [
@@ -500,7 +506,7 @@ def future_commits(git_dir: str, base: str) -> tuple[list[dict], dict | None]:
             unreach.append(parts[2])
     unreach.sort()
     missing = [s for s in unreach if s not in commits]
-    for i in range(0, len(missing), 200):
+    for i in range(0, len(missing), PICKAXE_BATCH):
         out = run_git(
             git_dir,
             "log",
@@ -509,7 +515,7 @@ def future_commits(git_dir: str, base: str) -> tuple[list[dict], dict | None]:
             "--name-status",
             "--no-renames",
             "--no-ext-diff",
-            *missing[i : i + 200],
+            *missing[i : i + PICKAXE_BATCH],
             timeout=600,
         )
         for record in parse_log_records(out):
@@ -653,7 +659,7 @@ def pickaxe(
     ]
     outputs = [run_git(git_dir, *args, timeout=600)]
     # Search both sets; dangling commits must not suppress on-ref fixes.
-    for offset in range(0, len(extra_shas or []), 200):
+    for offset in range(0, len(extra_shas or []), PICKAXE_BATCH):
         outputs.append(
             run_git(
                 git_dir,
@@ -664,7 +670,7 @@ def pickaxe(
                 "--no-textconv",
                 "-S",
                 identifier,
-                *(extra_shas or [])[offset : offset + 200],
+                *(extra_shas or [])[offset : offset + PICKAXE_BATCH],
                 timeout=600,
             )
         )
@@ -695,34 +701,54 @@ def pickaxe(
 
 
 def ref_tips_with(git_dir: str, identifiers: list[str], base: str) -> list[dict]:
-    """Branch tips whose trees contain the identifiers (for divergent futures)."""
+    """Branch tips whose trees contain the identifiers (for divergent futures).
+
+    One `git grep` per identifier across all candidate tips (600-call
+    ref-times-ident fan-out was the second extraction hog on big repos):
+    git prefixes each hit with its commit, so attribution is exact.
+    """
     out = run_git(git_dir, "for-each-ref", "--format=%(refname) %(objectname)", timeout=60)
-    tips = []
+    refs: dict[str, list[str]] = {}
     for line in out.splitlines():
         ref, _, sha = line.partition(" ")
         if not SHA_RE.match(sha) or sha == base:
             continue
-        found = []
-        for ident in identifiers[:12]:
-            proc = git_process(
-                git_dir,
-                "grep",
-                "-l",
-                "-F",
-                "-e",
-                ident,
-                sha,
-                "--",
-                encoding="utf-8",
-                errors="replace",
-                timeout=120,
-            )
-            if proc.returncode == 0 and proc.stdout.strip():
-                found.append(ident)
-            elif proc.returncode not in (0, 1):
-                raise ExtractionError("git-error", proc.stderr[:500])
-        if found:
-            tips.append({"ref": ref, "sha": sha, "identifiers_found": found})
+        refs.setdefault(sha, []).append(ref)
+    if not refs:
+        return []
+    shas = sorted(refs)
+    found: dict[str, set[str]] = {sha: set() for sha in shas}
+    for ident in identifiers[:12]:
+        proc = git_process(
+            git_dir,
+            "grep",
+            "-l",
+            "-F",
+            "-e",
+            ident,
+            *shas,
+            "--",
+            encoding="utf-8",
+            errors="replace",
+            timeout=120,
+        )
+        if proc.returncode not in (0, 1):
+            raise ExtractionError("git-error", proc.stderr[:500])
+        if proc.returncode != 0:
+            continue
+        for line in proc.stdout.splitlines():
+            head, sep, _ = line.partition(":")
+            if sep and head in found:
+                found[head].add(ident)
+            elif len(shas) == 1:
+                # Single-tree grep omits the commit prefix.
+                found[shas[0]].add(ident)
+    tips = [
+        {"ref": ref, "sha": sha, "identifiers_found": sorted(found[sha])}
+        for sha in shas
+        for ref in refs[sha]
+        if found[sha]
+    ]
     return sorted(tips, key=lambda t: (-len(t["identifiers_found"]), t["ref"], t["sha"]))
 
 

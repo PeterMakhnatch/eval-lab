@@ -1,4 +1,4 @@
-"""Behavioural tests for the mimo-clean-v2 clean-set builder.
+"""Behavioural tests for the mimo-clean-v3 clean-set builder.
 
 Covers the pure helpers (marker, solution, selection, language, reference
 index, manifest, acceptance) plus the real derive chain on synthetic run
@@ -11,6 +11,7 @@ from __future__ import annotations
 import base64
 import csv
 import hashlib
+import tomllib
 from pathlib import Path
 from typing import Any
 
@@ -18,12 +19,13 @@ import pytest
 
 from evallab import mimo_clean
 from evallab.mimo_clean import (
+    AGENT_NETWORK_NONE_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
     NONPYTHON_CHAIN,
     PURGE_ID,
     PYTHON_CHAIN,
-    SEPARATE_V3_ID,
+    SEPARATE_V4_ID,
     STATUS_BUILT,
     STATUS_SKIPPED,
     STRIP_ID,
@@ -49,10 +51,10 @@ from evallab.strip_future_history import pack_setup
 from evallab.task_variants import VariantInvalid, task_directory_digest
 
 
-def test_active_cache_generation_prefers_v3() -> None:
+def test_active_cache_generation_is_v4() -> None:
     from evallab import purge_build_caches
 
-    assert mimo_clean.CACHE_ACTIVE_ID == purge_build_caches.TRANSFORM_ID_V3
+    assert mimo_clean.CACHE_ACTIVE_ID == purge_build_caches.TRANSFORM_ID_V4
 
 
 def test_active_mtime_generation_tracks_module() -> None:
@@ -272,7 +274,7 @@ def test_chain_for_language_matrix() -> None:
     assert chain_for_language(None) is None
     assert PURGE_ID in PYTHON_CHAIN
     assert PURGE_ID not in NONPYTHON_CHAIN
-    assert NONPYTHON_CHAIN[-1] == SEPARATE_V3_ID
+    assert NONPYTHON_CHAIN[-2:] == (SEPARATE_V4_ID, AGENT_NETWORK_NONE_ID)
 
 
 def test_snapshot_category_reads_task_toml(tmp_path: Path) -> None:
@@ -404,11 +406,22 @@ def test_build_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
     result = builder.build_task(TASK_ID, _row(package, TASK_ID), oracle=oracle)
     assert result.status == STATUS_BUILT
     # Purge is out of scope for unconfirmed projects (HAR-194 stance).
-    assert result.chain == [STRIP_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V3_ID]
+    assert result.chain == [
+        STRIP_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V4_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]
     assert "purge-installed-copies@1 skipped" in result.reason
     final = _final(tmp_path, result)
     assert (final / "solution" / "solve.sh").is_file()
     assert (final / "tests" / "test.sh").is_file()
+    config = tomllib.loads((final / "task.toml").read_text())
+    assert config["agent"]["network_mode"] == "no-network"
+    assert config["environment"]["network_mode"] == "public"
+    assert "network_mode" not in config["verifier"]
+    assert config["verifier"]["environment_mode"] == "separate"
     assert result.reference_fix == oracle.patch_path
     assert result.oracle_label == oracle.label
     row = result.manifest_row()
@@ -421,13 +434,22 @@ def test_build_snapshot_chain_end_to_end(tmp_path: Path) -> None:
     _write_snapshot_package(tmp_path, task_id, "JavaScript")
     result = _builder(tmp_path).build_task(task_id, None, oracle=None)
     assert result.status == STATUS_BUILT
-    assert result.chain == [STRIP_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V3_ID]
+    assert result.chain == [
+        STRIP_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V4_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]
     assert result.language == "javascript"
     assert "purge-installed-copies@1 n/a to javascript" in result.reason
     assert result.reference_fix == "none"
     final = _final(tmp_path, result)
     assert (final / "tests" / "test.sh").is_file()
     assert not (final / "solution" / "solve.sh").exists()
+    config = tomllib.loads((final / "task.toml").read_text())
+    assert config["agent"]["network_mode"] == "no-network"
+    assert config["environment"]["network_mode"] == "public"
     row = result.manifest_row()
     assert row["language"] == "javascript" and row["domain"] == "code"
     assert row["verify"] == VERIFY_UNVERIFIED
@@ -472,7 +494,14 @@ def test_build_confirmed_purge_task_carries_purge(tmp_path: Path, oracle: Oracle
     package = _write_run_package(tmp_path, task_id)
     result = _builder(tmp_path).build_task(task_id, _row(package, task_id), oracle=oracle)
     assert result.status == STATUS_BUILT
-    assert result.chain == [STRIP_ID, PURGE_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V3_ID]
+    assert result.chain == [
+        STRIP_ID,
+        PURGE_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V4_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]
 
 
 def test_build_fail_closed_task_skips_purge_with_reason(tmp_path: Path, oracle: OracleInfo) -> None:
@@ -636,4 +665,4 @@ def test_run_cli_build_writes_manifest(tmp_path: Path, capsys: pytest.CaptureFix
     loaded = load_manifest(tmp_path / "out" / "manifest.csv")
     assert len(loaded) == 1
     assert loaded[0]["status"] == STATUS_BUILT
-    assert loaded[0]["chain"].endswith(SEPARATE_V3_ID)
+    assert loaded[0]["chain"].endswith(f"{SEPARATE_V4_ID}>{AGENT_NETWORK_NONE_ID}")

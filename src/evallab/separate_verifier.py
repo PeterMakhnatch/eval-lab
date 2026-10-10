@@ -1975,7 +1975,9 @@ _V3_JUNIT_MATCH_BLOCK = """    seen = {c.get("classname", "").replace(".", "/") 
 
 #: @4 junit-matching replacement (aligned path-suffix; mirrors
 #: :func:`junit_case_matches_expected`).
-_V4_JUNIT_MATCH_BLOCK = """    def _comps(p):
+_V4_JUNIT_MATCH_BLOCK = """    # Option values (e.g. --deselect=path.py::test_x) are not selected node IDs.
+    ids = {i for i in ids if not i.startswith("-")}
+    def _comps(p):
         p = p.replace("\\\\", "/").strip()
         while p.startswith("./"):
             p = p[2:]

@@ -212,6 +212,10 @@ the independent fix below.
   is satisfied by any case of exactly that class: the command asked to run
   the class, and with no failure/error/skip in the report the class ran and
   passed. A `test_`-prefixed id still names a function, never a class.
+- Option-prefixed tokens such as `--deselect=file.py::test_excluded` are
+  not required node IDs. 000114 declares positive selections separately
+  and deselects them from a base-test run; treating its option tokens as
+  additional expected IDs falsely grades its passing oracle 0.
 
 The shipped grading block inlines the same matcher (`_V4_WRAPPER_C`,
 derived from `_V3_WRAPPER_C` by block replacement). Its report and

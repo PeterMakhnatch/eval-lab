@@ -158,7 +158,13 @@ refusals), `bash -n` gate, and live rows — 000047 rebuild (+19 s compile,
 000254 (tracked-output skip, 46,150 unreachable → 0); 000007/000025/000045
 regression rows green (000045 keeps only its 3 adjudicated 1-line
 coincidences). The naive delete-only variant is kept as the documented
-negative control, not shipped.
+negative control, not shipped. First confirmed firing of the pnpm
+fail-closed branch (inherited from @2): `format-code-task-000128`
+(TS/vitest, `create-typescript-app` references in
+`/root/.local/share/pnpm/store/v10`) stops setup with rc=1 instead of
+leaking — reproduced first-hand in-image (12 s). Primary record and repro
+live with the clean-set receipt; tracked there as a per-task
+manual-triage residual.
 
 ## V7: instruction-explicit-rules@1 (opt-in only, NOT in the default chain)
 

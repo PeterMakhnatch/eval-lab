@@ -24,6 +24,7 @@ from harbor.agents.capabilities import AgentCapabilities  # ty: ignore[unresolve
 from harbor.environments.base import BaseEnvironment  # ty: ignore[unresolved-import]
 from harbor.models.agent.context import AgentContext  # ty: ignore[unresolved-import]
 
+from evallab import cheat_ladder
 from evallab.cheat_ladder import (
     _STATUS_EXECUTED,
     ATTACKS,
@@ -92,7 +93,7 @@ class CheatAgent(BaseAgent):
         return CHEAT_AGENT
 
     def version(self) -> str | None:
-        return CHEAT_AGENT_VERSION
+        return cheat_ladder.CHEAT_AGENT_VERSION
 
     async def setup(self, environment: BaseEnvironment) -> None:
         """Nothing to install: the agent runs host-side on tool transport."""
@@ -132,7 +133,7 @@ class CheatAgent(BaseAgent):
         attempts = {
             "schema": ATTEMPTS_SCHEMA,
             "agent": CHEAT_AGENT,
-            "version": CHEAT_AGENT_VERSION,
+            "version": cheat_ladder.CHEAT_AGENT_VERSION,
             "cwd": cwd,
             "attacks": records,
         }
@@ -144,7 +145,7 @@ class CheatAgent(BaseAgent):
         context.n_output_tokens = 0
         context.cost_usd = 0.0
         context.metadata = {
-            "cheat_version": CHEAT_AGENT_VERSION,
+            "cheat_version": cheat_ladder.CHEAT_AGENT_VERSION,
             "cheat_executed": executed,
             "cheat_statuses": {record["name"]: record["status"] for record in records},
             "model_free": True,

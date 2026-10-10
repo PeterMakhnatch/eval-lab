@@ -1,0 +1,32 @@
+{
+  "source": "uv run --with 'modal>=1.5.4' modal billing report --start 2026-10-09 --end 2026-10-11 --resolution h --json",
+  "historical_daytona_accounting": {
+    "recorded_rate_card_reconstruction_usd": 0.5244,
+    "provider_invoice_actual_usd": null,
+    "provisional_cap_reservation_usd": 1.25,
+    "reason": "The inherited cost helper sums each trial's total wall time times one allocation, but Harbor keeps an agent sandbox alive while a fresh separate verifier also runs. Treat these legacy spend.jsonl rows as rate-card reconstructions, not provider invoices. Reserve $1.25 conservatively, including additional verifier lifetime and interrupted-controller uncertainty.",
+    "overlap_example": {
+      "task_id": "format-code-task-000085",
+      "trial": "mimo-census-v1-daytona-000085-no__N9JAZ3e",
+      "trial_seconds": 111.088427,
+      "separate_verifier_seconds": 66.237528,
+      "source": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-clean-census/format-code-task-000085/mimo-census-v1-daytona-000085-nop/mimo-census-v1-daytona-000085-no__N9JAZ3e/result.json"
+    }
+  },
+  "historical_shared_app": {
+    "app_name": "__harbor__",
+    "app_id": "ap-BrxFwmdH84eqwMRCBWGRK5",
+    "billed_rows": [
+      {"bucket_start_utc": "2026-10-10T00:00:00Z", "cost_usd": 0.00237938},
+      {"bucket_start_utc": "2026-10-10T05:00:00Z", "cost_usd": 0.03931351}
+    ],
+    "slice_attributable_upper_usd": 0.04169289,
+    "exclusive_slice_actual_usd": null,
+    "reason": "Main cannot guarantee other chats did not use Harbor's shared default app. These are provider-billed actual amounts, not proof of exclusive allocation. Reserve the full amount against this slice's cap conservatively."
+  },
+  "isolated_apps": {
+    "mimo-census-hc-repro": "historical diagnostic app, recorded separately in spend.jsonl",
+    "mimo-clean-census": "native Harbor census controls and ladders",
+    "mimo-clean-census-fix": "known-patch published positive-control and actual clean-setup probes"
+  }
+}

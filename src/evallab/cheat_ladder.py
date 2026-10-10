@@ -35,6 +35,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+#: Generation shared by the native agent and SDK-independent census reuse.
+CHEAT_AGENT_VERSION = "1.3.0"
+
 #: Fixed attack ladder, in execution order.
 ATTACKS: tuple[str, ...] = (
     "git_history",

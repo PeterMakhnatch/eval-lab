@@ -70,3 +70,10 @@ htmlcov/
 
 # In-repo parallel worktrees (agents/WORKFLOW.md)
 .worktrees/
+
+# mimo-clean-census (2026-10-10): generated v2 lineage records under
+# library/task-variants/ are preserved out-of-git in
+# ~/Developer/eval-lab-results/2026-10-10/mimo-clean-census/preserved-v2-lineage/
+# (SHA256-verified, exact 7,998/7,998 name match) and must never be committed.
+# Tracked files are unaffected; only untracked generated records are hidden.
+/library/task-variants/*/*.json

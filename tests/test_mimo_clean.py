@@ -1,14 +1,16 @@
-"""Behavioural tests for the mimo-clean-v1 clean-set builder.
+"""Behavioural tests for the mimo-clean-v2 clean-set builder.
 
-Covers the pure helpers (marker, solution, selection, manifest, acceptance)
-plus the real derive chain on a synthetic run package with hermetic
-record/variant roots. No Docker, no Harbor runs.
+Covers the pure helpers (marker, solution, selection, language, reference
+index, manifest, acceptance) plus the real derive chain on synthetic run
+and snapshot packages with hermetic record/variant roots. No Docker, no
+Harbor runs.
 """
 
 from __future__ import annotations
 
 import base64
 import csv
+import hashlib
 from pathlib import Path
 from typing import Any
 
@@ -16,22 +18,30 @@ import pytest
 
 from evallab import mimo_clean
 from evallab.mimo_clean import (
-    CACHE_ID,
+    CACHE_V2_ID,
     MTIME_ID,
+    NONPYTHON_CHAIN,
     PURGE_ID,
-    SEPARATE_V2_ID,
+    PYTHON_CHAIN,
+    SEPARATE_V3_ID,
     STATUS_BUILT,
     STATUS_SKIPPED,
     STRIP_ID,
+    VERIFY_UNVERIFIED,
     ChainBuilder,
     ChainResult,
     OracleInfo,
     acceptance_pass,
     build_solution_sh,
+    chain_for_language,
     derive_marker,
-    detect_language,
     load_manifest,
+    load_reference_index,
+    oracle_info_from_index,
+    resolve_language,
     select_usable,
+    snapshot_category,
+    snapshot_pool,
     summarize_trials,
     write_manifest,
 )
@@ -235,9 +245,44 @@ def test_select_usable_keeps_keep_and_fix_only() -> None:
     assert [row["task_id"] for row in select_usable(rows)] == ["a", "b"]
 
 
-def test_detect_language_python_and_unknown() -> None:
-    assert detect_language("format-code-task-000001") == "python"
-    assert detect_language("go-task-1") == "unknown"
+def test_resolve_language_ledger_wins_over_category() -> None:
+    assert resolve_language(ledger_row=True, category="go") == "python"
+    assert resolve_language(ledger_row=False, category="go") == "go"
+    assert resolve_language(ledger_row=False, category=None) is None
+
+
+def test_chain_for_language_matrix() -> None:
+    assert chain_for_language("python") == PYTHON_CHAIN
+    assert chain_for_language("go") == NONPYTHON_CHAIN
+    assert chain_for_language("unknown") == NONPYTHON_CHAIN
+    assert chain_for_language(None) is None
+    assert PURGE_ID in PYTHON_CHAIN
+    assert PURGE_ID not in NONPYTHON_CHAIN
+    assert NONPYTHON_CHAIN[-1] == SEPARATE_V3_ID
+
+
+def test_snapshot_category_reads_task_toml(tmp_path: Path) -> None:
+    task_dir = tmp_path / "format-code-task-1"
+    task_dir.mkdir()
+    assert snapshot_category(task_dir) is None
+    (task_dir / "task.toml").write_text('[metadata]\ncategory = "Go"\n', encoding="utf-8")
+    assert snapshot_category(task_dir) == "go"
+    (task_dir / "task.toml").write_text("not toml [[[\n", encoding="utf-8")
+    assert snapshot_category(task_dir) is None
+
+
+def test_snapshot_pool_skips_ledger_members(tmp_path: Path) -> None:
+    snap = tmp_path / "snap"
+    for task_id, category in (("a", "Go"), ("b", "Python"), ("c", None)):
+        task_dir = snap / task_id
+        task_dir.mkdir(parents=True)
+        if category is not None:
+            (task_dir / "task.toml").write_text(
+                f'[metadata]\ncategory = "{category}"\n', encoding="utf-8"
+            )
+    pool = snapshot_pool(snap, {"b"})
+    assert pool == {"a": "go", "c": None}
+    assert snapshot_pool(tmp_path / "missing", set()) == {}
 
 
 def test_manifest_write_load_roundtrip(tmp_path: Path) -> None:
@@ -302,12 +347,36 @@ def test_summarize_trials_reads_result_rewards(tmp_path: Path) -> None:
 
 def _builder(tmp_path: Path, **kwargs: Any) -> ChainBuilder:
     kwargs.setdefault("purge_skip", set())
+    kwargs.setdefault("snapshot_root", tmp_path / "snap")
     return ChainBuilder(
         repo_root=tmp_path,
         primary=tmp_path,
         variants_root=tmp_path / "store",
         **kwargs,
     )
+
+
+def _write_snapshot_package(root: Path, task_id: str, category: str) -> Path:
+    package = root / "snap" / task_id
+    setup = package / "environment" / "setup"
+    (setup / "files").mkdir(parents=True)
+    (setup / "setup.sh").write_text(SETUP_TEMPLATE, encoding="utf-8")
+    (setup / "files" / "blocklist").write_text("0.0.0.0 example.com\n", encoding="utf-8")
+    (package / "environment" / "Dockerfile").write_text(
+        "FROM docker.io/example/repo@sha256:0000\n", encoding="utf-8"
+    )
+    (package / "tests").mkdir(parents=True)
+    (package / "tests" / "test.sh").write_text("#!/bin/bash\necho grading\n", encoding="utf-8")
+    (package / "tests" / "test.patch").write_text(PATCH_TEXT, encoding="utf-8")
+    (package / "tests" / "test_command.sh").write_text("true\n", encoding="utf-8")
+    (package / "instruction.md").write_text("fix it", encoding="utf-8")
+    blob = pack_setup(setup)
+    (package / "task.toml").write_text(
+        TOML_TEMPLATE.replace("__TASK__", task_id).replace("__BLOB__", blob)
+        + f'\n[metadata]\ncategory = "{category}"\n',
+        encoding="utf-8",
+    )
+    return package
 
 
 def _final(tmp_path: Path, result) -> Path:
@@ -321,7 +390,7 @@ def test_build_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
     result = builder.build_task(TASK_ID, _row(package, TASK_ID), oracle=oracle)
     assert result.status == STATUS_BUILT
     # Purge is out of scope for unconfirmed projects (HAR-194 stance).
-    assert result.chain == [STRIP_ID, CACHE_ID, MTIME_ID, SEPARATE_V2_ID]
+    assert result.chain == [STRIP_ID, CACHE_V2_ID, MTIME_ID, SEPARATE_V3_ID]
     assert "purge-installed-copies@1 skipped" in result.reason
     final = _final(tmp_path, result)
     assert (final / "solution" / "solve.sh").is_file()
@@ -330,6 +399,24 @@ def test_build_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
     assert result.oracle_label == oracle.label
     row = result.manifest_row()
     assert row["language"] == "python" and row["domain"] == "code"
+    assert row["verify"] == VERIFY_UNVERIFIED
+
+
+def test_build_snapshot_chain_end_to_end(tmp_path: Path) -> None:
+    task_id = "format-code-task-000045"
+    _write_snapshot_package(tmp_path, task_id, "JavaScript")
+    result = _builder(tmp_path).build_task(task_id, None, oracle=None)
+    assert result.status == STATUS_BUILT
+    assert result.chain == [STRIP_ID, CACHE_V2_ID, MTIME_ID, SEPARATE_V3_ID]
+    assert result.language == "javascript"
+    assert "purge-installed-copies@1 n/a to javascript" in result.reason
+    assert result.reference_fix == "none"
+    final = _final(tmp_path, result)
+    assert (final / "tests" / "test.sh").is_file()
+    assert not (final / "solution" / "solve.sh").exists()
+    row = result.manifest_row()
+    assert row["language"] == "javascript" and row["domain"] == "code"
+    assert row["verify"] == VERIFY_UNVERIFIED
 
 
 def test_build_chain_is_idempotent(tmp_path: Path, oracle: OracleInfo) -> None:
@@ -371,7 +458,7 @@ def test_build_confirmed_purge_task_carries_purge(tmp_path: Path, oracle: Oracle
     package = _write_run_package(tmp_path, task_id)
     result = _builder(tmp_path).build_task(task_id, _row(package, task_id), oracle=oracle)
     assert result.status == STATUS_BUILT
-    assert result.chain == [STRIP_ID, PURGE_ID, CACHE_ID, MTIME_ID, SEPARATE_V2_ID]
+    assert result.chain == [STRIP_ID, PURGE_ID, CACHE_V2_ID, MTIME_ID, SEPARATE_V3_ID]
 
 
 def test_build_fail_closed_task_skips_purge_with_reason(tmp_path: Path, oracle: OracleInfo) -> None:
@@ -384,15 +471,12 @@ def test_build_fail_closed_task_skips_purge_with_reason(tmp_path: Path, oracle: 
     assert "fail-closed" in result.reason
 
 
-def test_build_unknown_language_skipped(tmp_path: Path) -> None:
+def test_build_unresolvable_snapshot_task_skipped(tmp_path: Path) -> None:
     builder = _builder(tmp_path)
-    result = builder.build_task(
-        "go-task-1",
-        {"task_id": "go-task-1", "run": "original", "run_digest": "x"},
-        oracle=None,
-    )
+    result = builder.build_task("format-code-task-999999", None, oracle=None)
     assert result.status == STATUS_SKIPPED
     assert "no clean chain" in result.reason
+    assert result.language == ""
 
 
 def test_build_missing_run_package_skipped(tmp_path: Path) -> None:
@@ -404,8 +488,58 @@ def test_build_missing_run_package_skipped(tmp_path: Path) -> None:
     )
     assert result.status == STATUS_SKIPPED
     assert "run package missing" in result.reason
+    assert result.language == "python"
     bare = builder.build_task("format-code-task-9", {"task_id": "x"}, oracle=None)
     assert bare.status == STATUS_SKIPPED
+
+
+def test_reference_index_oracle_resolution(tmp_path: Path) -> None:
+    patch = tmp_path / "fix.patch"
+    patch.write_bytes(b"diff --git a/x b/x\n")
+    sha = hashlib.sha256(patch.read_bytes()).hexdigest()
+    index_file = tmp_path / "index.csv"
+    with index_file.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(
+            handle, fieldnames=["task_id", "label", "fix_commit", "patch_path", "patch_sha256", "source"]
+        )
+        writer.writeheader()
+        writer.writerow(
+            {
+                "task_id": "t-pass",
+                "label": "oracle:pass+nop:fail",
+                "fix_commit": "abc",
+                "patch_path": str(patch),
+                "patch_sha256": sha,
+                "source": "sweep-2026-10-09",
+            }
+        )
+        writer.writerow(
+            {
+                "task_id": "t-fail",
+                "label": "oracle:fail",
+                "fix_commit": "def",
+                "patch_path": "",
+                "patch_sha256": "",
+                "source": "sweep-2026-10-09",
+            }
+        )
+        writer.writerow(
+            {
+                "task_id": "t-sha",
+                "label": "oracle:pass+nop:fail",
+                "fix_commit": "ghi",
+                "patch_path": str(patch),
+                "patch_sha256": "0" * 64,
+                "source": "sweep-2026-10-09",
+            }
+        )
+    index = load_reference_index(index_file)
+    assert set(index) == {"t-pass", "t-fail", "t-sha"}
+    oracle = oracle_info_from_index("t-pass", index, repo_root=tmp_path)
+    assert oracle is not None and oracle.patch_bytes == b"diff --git a/x b/x\n"
+    assert oracle_info_from_index("t-fail", index, repo_root=tmp_path) is None
+    assert oracle_info_from_index("t-sha", index, repo_root=tmp_path) is None
+    assert oracle_info_from_index("t-missing", index, repo_root=tmp_path) is None
 
 
 def test_rebuild_past_orphan_packages(tmp_path: Path, oracle: OracleInfo) -> None:
@@ -487,4 +621,4 @@ def test_run_cli_build_writes_manifest(tmp_path: Path, capsys: pytest.CaptureFix
     loaded = load_manifest(tmp_path / "out" / "manifest.csv")
     assert len(loaded) == 1
     assert loaded[0]["status"] == STATUS_BUILT
-    assert loaded[0]["chain"].endswith(SEPARATE_V2_ID)
+    assert loaded[0]["chain"].endswith(SEPARATE_V3_ID)

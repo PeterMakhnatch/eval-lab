@@ -1,26 +1,35 @@
-"""mimo-clean-v1: canonical clean chain for the MiMo Python code pool.
+"""mimo-clean-v2: canonical clean chain for the MiMo code pool (all languages).
 
-Builds one clean package per task the Python task ledger marks usable
-(``keep``/``fix``; ``discard`` rows are skipped with reason):
+Builds one clean package per code task:
 
-ledger run package (repairs) -> ``strip-future-history@1`` ->
-``purge-installed-copies@1`` (CONFIRMED_PURGE targets and run packages that
-already carry the marker; fail-closed tasks skip with reason, everything else
-skips per the HAR-194 scope stance) -> ``purge-build-caches@1`` ->
-``mtime-normalize@1`` -> ``separate-verifier@2`` last, with
-``solution/solve.sh`` built from the HAR-191 oracle-pass patch when one
-exists, and the probe marker auto-derived from the hidden test patch.
+- Python tasks (the python-task-ledger ``keep``/``fix`` rows; ``discard`` rows
+  are skipped with reason): ledger run package (repairs) ->
+  ``strip-future-history@1`` -> ``purge-installed-copies@1`` (CONFIRMED_PURGE
+  targets and run packages that already carry the marker; fail-closed tasks
+  skip with reason, everything else skips per the HAR-194 scope stance) ->
+  ``purge-build-caches@2`` (or ``@3`` once the node build-output port lands;
+  the builder prefers ``@3`` when the transform exists) ->
+  ``mtime-normalize@1`` -> ``separate-verifier@3`` last, with
+  ``solution/solve.sh`` built from the reference fix when one exists, and the
+  probe marker auto-derived from the hidden test patch.
+- Non-Python tasks (every snapshot task whose ``task.toml`` category is not
+  Python, minus ledger members which the ledger row owns): snapshot task dir
+  -> ``strip-future-history@1`` -> ``purge-build-caches@2``/``@3`` ->
+  ``mtime-normalize@1`` -> ``separate-verifier@3``. ``purge-installed-copies``
+  is a Python pip mechanism and never applies; it is noted, not derived.
 
 Deterministic and idempotent: every step reuses the existing lineage record
 for ``(task, transform, parent digest)`` and derives (content-addressed via
 :func:`evallab.task_variants.derive_task`) only what is missing, so
 re-running yields the same digests and never duplicates records. Derived
 packages materialize into the shared variants store (ignored); lineage
-records land in ``library/task-variants/`` (tracked).
+records land in ``library/task-variants/`` (tracked but not committed by
+this slice: only the manifest is committed).
 
-Non-Python code tasks plug in via :data:`LANGUAGE_CHAINS` once
-``separate-verifier@2`` supports their language; until then they resolve to
-no chain and are skipped with an explicit reason.
+Reference fixes prefer ``research/experiments/mimo-reference-fixes/index.csv``
+when it exists, else the HAR-191 ``oracle_sweep.csv``. The manifest's
+``verify`` column is ``unverified`` for every row until the fleet census
+grades the packages.
 """
 
 from __future__ import annotations
@@ -30,23 +39,25 @@ import csv
 import hashlib
 import json
 import re
+import tomllib
 from collections.abc import Collection, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from evallab import purge_build_caches as _purge_build_caches_mod
 from evallab.hardening import CONFIRMED_PURGE
 from evallab.mtime_normalize import MARKER as MTIME_MARKER
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
-from evallab.purge_build_caches import MARKER as CACHE_MARKER
-from evallab.purge_build_caches import TRANSFORM_ID as CACHE_ID
-from evallab.purge_build_caches import derive_purge_build_caches
+from evallab.purge_build_caches import MARKER_V2 as CACHE_V2_MARKER
+from evallab.purge_build_caches import TRANSFORM_ID_V2 as CACHE_V2_ID
+from evallab.purge_build_caches import derive_purge_build_caches_v2
 from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
-from evallab.separate_verifier import TRANSFORM_ID_V2 as SEPARATE_V2_ID
-from evallab.separate_verifier import derive_separate_verifier_v2
+from evallab.separate_verifier import TRANSFORM_ID_V3 as SEPARATE_V3_ID
+from evallab.separate_verifier import derive_separate_verifier_v3
 from evallab.strip_future_history import STRIP_MARKER, derive_strip_future_history
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.task_variants import (
@@ -60,16 +71,17 @@ from evallab.task_variants import (
 )
 
 #: Clean-set version id (manifest + job-name namespace).
-CLEAN_SET_VERSION = "mimo-clean-v1"
+CLEAN_SET_VERSION = "mimo-clean-v2"
 
 #: Who the builder blames in lineage records.
-CREATED_BY = "mimo-clean-v1"
+CREATED_BY = "mimo-clean-v2"
 
-#: Tracked manifest path (repo-relative).
-MANIFEST_REL = Path("research/experiments/mimo-clean-v1/manifest.csv")
+#: Tracked manifest path (repo-relative). v1 stays as history untouched.
+MANIFEST_REL = Path("research/experiments/mimo-clean-v2/manifest.csv")
 
 #: Manifest columns (contract: at least task_id, domain, language, chain,
-#: final_digest, package_path, reference_fix, status, reason).
+#: final_digest, package_path, reference_fix, status, reason; ``verify`` is
+#: the fleet-census grade, ``unverified`` until the census runs).
 MANIFEST_COLUMNS = (
     "task_id",
     "domain",
@@ -82,7 +94,11 @@ MANIFEST_COLUMNS = (
     "reason",
     "run_digest",
     "oracle_label",
+    "verify",
 )
+
+#: ``verify`` value for every row until the fleet census grades the packages.
+VERIFY_UNVERIFIED = "unverified"
 
 #: Statuses a manifest row can carry.
 STATUS_BUILT = "built"
@@ -91,19 +107,65 @@ STATUS_SKIPPED = "skipped"
 #: Ledger verdicts selected into the clean set.
 SELECTED_VERDICTS = frozenset({"keep", "fix"})
 
-#: Canonical Python chain, in application order. ``separate-verifier@2`` is
+#: Active purge-build-caches generation. ``@3`` (node build-output handling)
+#: is preferred once ``purge_build_caches`` ships it; until then ``@2``.
+#: Resolved at import so a rebase onto the @3 merge switches the chain (and
+#: its manifest strings) with no further edit.
+CACHE_ACTIVE_ID: str = getattr(
+    _purge_build_caches_mod, "TRANSFORM_ID_V3", CACHE_V2_ID
+)
+CACHE_ACTIVE_MARKER: str = getattr(
+    _purge_build_caches_mod, "MARKER_V3", CACHE_V2_MARKER
+)
+
+
+def _derive_cache_active(
+    parent_dir: Path | str,
+    *,
+    rationale: str | None = None,
+    created_by: str = CREATED_BY,
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the active purge-build-caches generation for a parent package."""
+    derive_v3 = getattr(_purge_build_caches_mod, "derive_purge_build_caches_v3", None)
+    derive = derive_v3 if derive_v3 is not None else derive_purge_build_caches_v2
+    kwargs: dict[str, Any] = {"created_by": created_by}
+    if rationale is not None:
+        kwargs["rationale"] = rationale
+    if repo_root is not None:
+        kwargs["repo_root"] = repo_root
+    if parent_source is not None:
+        kwargs["parent_source"] = parent_source
+    if variants_root is not None:
+        kwargs["variants_root"] = variants_root
+    return derive(parent_dir, **kwargs)
+
+
+#: Canonical Python chain, in application order. ``separate-verifier@3`` is
 #: always last: it bundles the parent's clean setup chain into the verifier.
 PYTHON_CHAIN = (
     STRIP_ID,
     PURGE_ID,
-    CACHE_ID,
+    CACHE_ACTIVE_ID,
     MTIME_ID,
-    SEPARATE_V2_ID,
+    SEPARATE_V3_ID,
 )
 
-#: Language plugs for the builder. Non-Python code tasks have no chain until
-#: ``separate-verifier@2`` is ported past Python/pytest (and Go, partial);
-#: they resolve to ``None`` and are skipped with an explicit reason.
+#: Canonical non-Python chain: snapshot instead of a repairs run package, and
+#: no ``purge-installed-copies`` (a Python pip mechanism, noted not derived).
+NONPYTHON_CHAIN = (
+    STRIP_ID,
+    CACHE_ACTIVE_ID,
+    MTIME_ID,
+    SEPARATE_V3_ID,
+)
+
+#: Language plugs for the builder. ``python`` is the ledger pool;
+#: every other resolved language takes the non-Python chain (including
+#: ``unknown`` snapshot categories: @3 grades those with the exit-code
+#: fallback under patch isolation). ``None`` (unresolvable task) has no chain.
 LANGUAGE_CHAINS: dict[str, tuple[str, ...] | None] = {
     "python": PYTHON_CHAIN,
 }
@@ -112,6 +174,8 @@ LANGUAGE_CHAINS: dict[str, tuple[str, ...] | None] = {
 #: so this module stays importable without the probe's heavy deps).
 LEDGER_REL = Path("research/experiments/python-task-ledger/ledger.csv")
 SWEEP_REL = Path("research/experiments/python-task-ledger/oracle_sweep.csv")
+#: Reference-fix index (preferred when present; falls back to the sweep).
+REFERENCE_INDEX_REL = Path("research/experiments/mimo-reference-fixes/index.csv")
 SNAPSHOT_REL = Path("derived/task-store/hf/FineEnvs__MiMo-V2.6-RL-harbor-code@5746e2f0c5c6")
 VARIANTS_REL = Path("derived/task-store/variants")
 HF_SOURCE = {
@@ -119,6 +183,44 @@ HF_SOURCE = {
     "repo": "FineEnvs/MiMo-V2.6-RL-harbor-code",
     "revision": "5746e2f0c5c61af12d7c5bf15d7efdd77d1f0785",
 }
+
+
+
+def chain_for_language(language: str | None) -> tuple[str, ...] | None:
+    """Clean chain for a resolved language (``None`` = no chain)."""
+    if language is None:
+        return None
+    if language == "python":
+        return PYTHON_CHAIN
+    return NONPYTHON_CHAIN
+
+
+def snapshot_category(task_dir: Path) -> str | None:
+    """Lower-cased snapshot ``task.toml`` category, or None when unreadable."""
+    toml_path = task_dir / "task.toml"
+    try:
+        metadata = tomllib.loads(toml_path.read_text(encoding="utf-8")).get("metadata", {})
+    except (OSError, ValueError, tomllib.TOMLDecodeError):
+        return None
+    if not isinstance(metadata, dict):
+        return None
+    category = metadata.get("category", "")
+    if not isinstance(category, str) or not category.strip():
+        return None
+    return category.strip().lower()
+
+
+def resolve_language(*, ledger_row: bool, category: str | None) -> str | None:
+    """Manifest language for a task.
+
+    Ledger rows are ``python`` by definition (the ledger *is* the Python
+    pool, e.g. 002361 whose snapshot category is Go but whose graded run
+    package is Python). Snapshot tasks pass their category through;
+    unresolvable snapshot tasks yield None (no chain).
+    """
+    if ledger_row:
+        return "python"
+    return category
 
 #: One-line reasons the purge step is known fail-closed, per
 #: ``exploit_probe.PURGE_INAPPLICABLE`` (HAR-194; reproduced in local Docker,
@@ -150,13 +252,6 @@ _PATCH_FILE_RE = re.compile(r"^\+\+\+ b/(\S+)", re.MULTILINE)
 _MARKER_KEEP_RE = re.compile(r"[^A-Za-z0-9_:./-]+")
 
 ORACLE_PASS_PREFIX = "oracle:pass"
-
-
-def detect_language(task_id: str) -> str:
-    """Language plug key for a ledger task id (``unknown`` = no chain yet)."""
-    if task_id.startswith("format-code-task-"):
-        return "python"
-    return "unknown"
 
 
 def read_csv_rows(path: Path) -> list[dict[str, str]]:
@@ -300,6 +395,63 @@ def oracle_info_for(
     )
 
 
+def load_reference_index(index_path: Path) -> dict[str, dict[str, str]]:
+    """Index a mimo-reference-fixes ``index.csv`` by task id.
+
+    Columns: ``task_id,label,fix_commit,patch_path,patch_sha256,source``;
+    ``patch_path`` is absolute (patch bytes live outside the repo) and only
+    oracle-pass rows carry one.
+    """
+    out: dict[str, dict[str, str]] = {}
+    for row in read_csv_rows(index_path):
+        out[row["task_id"]] = {
+            "label": row.get("label", ""),
+            "fix_commit": row.get("fix_commit", ""),
+            "patch_path": row.get("patch_path", ""),
+            "patch_sha256": row.get("patch_sha256", ""),
+            "source": row.get("source", ""),
+        }
+    return out
+
+
+def oracle_info_from_index(
+    task_id: str,
+    index: Mapping[str, Mapping[str, str]],
+    *,
+    repo_root: Path,
+) -> OracleInfo | None:
+    """The oracle-pass reference fix from a reference index, or None.
+
+    Returns None unless the row's label is an oracle pass, ``patch_path``
+    names an existing file (absolute, else repo-relative), and the bytes
+    match ``patch_sha256`` when one is recorded.
+    """
+    entry = index.get(task_id)
+    if entry is None:
+        return None
+    label = entry.get("label", "")
+    if not label.startswith(ORACLE_PASS_PREFIX):
+        return None
+    raw_path = entry.get("patch_path", "")
+    if not raw_path:
+        return None
+    patch = Path(raw_path)
+    if not patch.is_absolute():
+        patch = repo_root / patch
+    if not patch.is_file():
+        return None
+    patch_bytes = patch.read_bytes()
+    expected = entry.get("patch_sha256", "")
+    if expected and hashlib.sha256(patch_bytes).hexdigest() != expected.removeprefix("sha256:"):
+        return None
+    return OracleInfo(
+        label=label,
+        fix_commit=entry.get("fix_commit", ""),
+        patch_path=str(patch),
+        patch_bytes=patch_bytes,
+    )
+
+
 def purge_inapplicable() -> Collection[str]:
     """Tasks where purge-installed-copies breaks setup fail-closed."""
     from evallab.exploit_probe import PURGE_INAPPLICABLE
@@ -320,13 +472,15 @@ class ChainResult:
     reason: str = ""
     run_digest: str = ""
     oracle_label: str = ""
+    language: str = ""
+    verify: str = VERIFY_UNVERIFIED
     reused: bool = True
 
     def manifest_row(self) -> dict[str, str]:
         return {
             "task_id": self.task_id,
             "domain": "code",
-            "language": detect_language(self.task_id),
+            "language": self.language,
             "chain": ">".join(self.chain),
             "final_digest": self.final_digest,
             "package_path": self.package_path,
@@ -335,6 +489,7 @@ class ChainResult:
             "reason": self.reason,
             "run_digest": self.run_digest,
             "oracle_label": self.oracle_label,
+            "verify": self.verify,
         }
 
 
@@ -349,11 +504,13 @@ class ChainBuilder:
         variants_root: Path | None = None,
         purge_skip: Collection[str] | None = None,
         created_by: str = CREATED_BY,
+        snapshot_root: Path | None = None,
     ) -> None:
         self.repo_root = repo_root
         self.primary = primary
         self.variants_root = variants_root
         self.created_by = created_by
+        self.snapshot_root = snapshot_root or primary / SNAPSHOT_REL / "tasks"
         self._purge_skip = set(purge_skip) if purge_skip is not None else set(purge_inapplicable())
         self._records: dict[tuple[str, str, str], VariantRecord] = {}
 
@@ -540,48 +697,112 @@ class ChainBuilder:
 
     # -- chain ---------------------------------------------------------- #
 
+    def _source(
+        self,
+        task_id: str,
+        digest: str,
+        start_digest: str,
+        row: Mapping[str, str] | None,
+    ) -> dict[str, Any]:
+        """Lineage ``parent_source`` for one chain derivation step."""
+        if row is not None:
+            return variant_source(task_id, digest, row)
+        if digest == start_digest:
+            return {**HF_SOURCE, "path": f"tasks/{task_id}"}
+        slug = f"mimo-v2.6-rl__{task_id}"
+        return {
+            "kind": "variant",
+            "record": (
+                f"{RECORDS_DIRNAME.as_posix()}/{slug}/{digest.removeprefix('sha256:')[:12]}.json"
+            ),
+        }
+
+    def _advance(
+        self,
+        task_id: str,
+        current_digest: str,
+        row: Mapping[str, str] | None,
+        start_digest: str,
+    ) -> tuple[Path, str, dict[str, Any]]:
+        """The materialized package, digest, and source after one chain step."""
+        source = self._source(task_id, current_digest, start_digest, row)
+        current = (
+            self._variants_dir()
+            / f"mimo-v2.6-rl__{task_id}"
+            / current_digest.removeprefix("sha256:")[:12]
+        )
+        return current, current_digest, source
+
     def build_task(
         self,
         task_id: str,
-        row: Mapping[str, str],
+        row: Mapping[str, str] | None = None,
         *,
-        oracle: OracleInfo | None,
+        oracle: OracleInfo | None = None,
     ) -> ChainResult:
-        """Derive the clean chain for one ledger row."""
+        """Derive the clean chain for one task.
+
+        ``row`` is a python-task-ledger row (Python chain from the repairs
+        run package); None starts from the snapshot task dir (non-Python
+        chain). Ledger membership always means the Python pool, whatever
+        the snapshot category says.
+        """
+        if row is not None:
+            language: str | None = "python"
+        else:
+            language = resolve_language(
+                ledger_row=False,
+                category=snapshot_category(self.snapshot_root / task_id),
+            )
         result = ChainResult(
             task_id=task_id,
             status=STATUS_SKIPPED,
-            run_digest=row.get("run_digest", ""),
+            language=language or "",
+            run_digest=row.get("run_digest", "") if row is not None else "",
             oracle_label=oracle.label if oracle is not None else "",
             reference_fix=oracle.patch_path if oracle is not None else "none",
         )
-        language = detect_language(task_id)
-        if LANGUAGE_CHAINS.get(language) is None:
-            result.reason = f"no clean chain for language {language!r} yet"
+        chain = chain_for_language(language)
+        if chain is None:
+            result.reason = (
+                f"no clean chain for language {language!r}: "
+                "snapshot task.toml category unreadable"
+            )
             return result
 
         notes: list[str] = []
-        try:
-            package = self.primary / run_package_rel(row)
-        except KeyError as exc:
-            result.reason = f"ledger row is missing {exc}"
-            return result
-        if not row.get("run_digest"):
-            result.reason = "ledger row has no run_digest"
-            return result
-        if not package.is_dir():
-            result.reason = (
-                f"run package missing: {package.as_posix()} "
-                f"(run={row.get('run')} digest={row.get('run_digest')})"
-            )
-            return result
-        current = package
-        current_digest = row["run_digest"]
-        source = variant_source(task_id, current_digest, row)
+        start_kind = "run package" if row is not None else "snapshot package"
+        if row is not None:
+            try:
+                package = self.primary / run_package_rel(row)
+            except KeyError as exc:
+                result.reason = f"ledger row is missing {exc}"
+                return result
+            if not row.get("run_digest"):
+                result.reason = "ledger row has no run_digest"
+                return result
+            if not package.is_dir():
+                result.reason = (
+                    f"run package missing: {package.as_posix()} "
+                    f"(run={row.get('run')} digest={row.get('run_digest')})"
+                )
+                return result
+            current = package
+            current_digest = row["run_digest"]
+        else:
+            package = self.snapshot_root / task_id
+            if not package.is_dir():
+                result.reason = f"snapshot package missing: {package.as_posix()}"
+                return result
+            current = package
+            current_digest = task_directory_digest(package)
+            result.run_digest = current_digest
+        start_digest = current_digest
+        source = self._source(task_id, current_digest, start_digest, row)
 
         # strip-future-history@1 (fatal: the foundation of the chain).
         if setup_carries(current, STRIP_MARKER):
-            notes.append("strip-future-history@1 already in run package")
+            notes.append(f"strip-future-history@1 already in {start_kind}")
         else:
             try:
                 record, _ = self.find_or_derive(
@@ -596,57 +817,57 @@ class ChainBuilder:
                 result.reason = f"strip-future-history@1 failed: {exc}"
                 return result
             current_digest = record.variant_digest
-            source = variant_source(task_id, current_digest, row)
+            current, current_digest, source = self._advance(
+                task_id, current_digest, row, start_digest
+            )
         result.chain.append(STRIP_ID)
-        current = (
-            self._variants_dir()
-            / f"mimo-v2.6-rl__{task_id}"
-            / current_digest.removeprefix("sha256:")[:12]
-        )
 
-        # purge-installed-copies@1: CONFIRMED_PURGE + already-carried only.
-        if setup_carries(current, PURGE_MARKER):
-            notes.append("purge-installed-copies@1 already in run package")
-            result.chain.append(PURGE_ID)
-        elif task_id in self._purge_skip:
-            detail = PURGE_FAIL_CLOSED_REASONS.get(task_id, "fail-closed")
-            notes.append(f"purge-installed-copies@1 skipped fail-closed: {detail}")
-        elif task_id in CONFIRMED_PURGE:
-            try:
-                record, _ = self.find_or_derive(
-                    task_id,
-                    PURGE_ID,
-                    current,
-                    current_digest,
-                    derive_purge_installed_copies,
-                    parent_source=source,
-                    repairs_digest=row["run_digest"],
-                )
-            except VariantInvalid as exc:
-                notes.append(f"purge-installed-copies@1 skipped: {exc}")
-            else:
-                current_digest = record.variant_digest
-                source = variant_source(task_id, current_digest, row)
+        # purge-installed-copies@1: Python chain only (CONFIRMED_PURGE +
+        # already-carried); elsewhere it is a Python pip mechanism, noted.
+        if PURGE_ID in chain and row is not None:
+            if setup_carries(current, PURGE_MARKER):
+                notes.append("purge-installed-copies@1 already in run package")
                 result.chain.append(PURGE_ID)
-                current = (
-                    self._variants_dir()
-                    / f"mimo-v2.6-rl__{task_id}"
-                    / current_digest.removeprefix("sha256:")[:12]
+            elif task_id in self._purge_skip:
+                detail = PURGE_FAIL_CLOSED_REASONS.get(task_id, "fail-closed")
+                notes.append(f"purge-installed-copies@1 skipped fail-closed: {detail}")
+            elif task_id in CONFIRMED_PURGE:
+                try:
+                    record, _ = self.find_or_derive(
+                        task_id,
+                        PURGE_ID,
+                        current,
+                        current_digest,
+                        derive_purge_installed_copies,
+                        parent_source=source,
+                        repairs_digest=row["run_digest"],
+                    )
+                except VariantInvalid as exc:
+                    notes.append(f"purge-installed-copies@1 skipped: {exc}")
+                else:
+                    current_digest = record.variant_digest
+                    current, current_digest, source = self._advance(
+                        task_id, current_digest, row, start_digest
+                    )
+                    result.chain.append(PURGE_ID)
+            else:
+                notes.append(
+                    "purge-installed-copies@1 skipped: scope is CONFIRMED_PURGE "
+                    "plus already-carried run packages (HAR-194 stance)"
                 )
         else:
             notes.append(
-                "purge-installed-copies@1 skipped: scope is CONFIRMED_PURGE "
-                "plus already-carried run packages (HAR-194 stance)"
+                f"purge-installed-copies@1 n/a to {result.language}: Python pip mechanism"
             )
 
-        # purge-build-caches@1 then mtime-normalize@1 (mechanical, continue
-        # the chain past a single-step validation failure).
+        # Active purge-build-caches generation then mtime-normalize@1
+        # (mechanical, continue the chain past a single-step failure).
         for transform, marker, derive in (
-            (CACHE_ID, CACHE_MARKER, derive_purge_build_caches),
+            (CACHE_ACTIVE_ID, CACHE_ACTIVE_MARKER, _derive_cache_active),
             (MTIME_ID, MTIME_MARKER, derive_mtime_normalize),
         ):
             if setup_carries(current, marker):
-                notes.append(f"{transform} already in run package")
+                notes.append(f"{transform} already in {start_kind}")
                 result.chain.append(transform)
                 continue
             try:
@@ -662,15 +883,12 @@ class ChainBuilder:
                 notes.append(f"{transform} skipped: {exc}")
                 continue
             current_digest = record.variant_digest
-            source = variant_source(task_id, current_digest, row)
-            result.chain.append(transform)
-            current = (
-                self._variants_dir()
-                / f"mimo-v2.6-rl__{task_id}"
-                / current_digest.removeprefix("sha256:")[:12]
+            current, current_digest, source = self._advance(
+                task_id, current_digest, row, start_digest
             )
+            result.chain.append(transform)
 
-        # separate-verifier@2 last: marker from the hidden test patch,
+        # separate-verifier@3 last: marker from the hidden test patch,
         # solution from the oracle-pass reference fix when one exists.
         patch_file = current / "tests" / "test.patch"
         marker = derive_marker(
@@ -699,20 +917,20 @@ class ChainBuilder:
         try:
             record, _ = self.find_or_derive(
                 task_id,
-                SEPARATE_V2_ID,
+                SEPARATE_V3_ID,
                 current,
                 current_digest,
-                derive_separate_verifier_v2,
+                derive_separate_verifier_v3,
                 parent_source=source,
                 expected_inputs={"marker": marker, "solution": solution_tag},
                 marker=marker,
                 solution_sh=solution_sh,
             )
         except VariantInvalid as exc:
-            result.reason = f"separate-verifier@2 failed: {exc}"
+            result.reason = f"separate-verifier@3 failed: {exc}"
             return result
         current_digest = record.variant_digest
-        result.chain.append(SEPARATE_V2_ID)
+        result.chain.append(SEPARATE_V3_ID)
 
         result.status = STATUS_BUILT
         result.final_digest = current_digest
@@ -787,22 +1005,48 @@ def _resolve(root: Path, value: Path) -> Path:
     return value if value.is_absolute() else (root / value)
 
 
+def snapshot_pool(
+    snapshot_tasks: Path, ledger_ids: Collection[str]
+) -> dict[str, str | None]:
+    """Non-ledger snapshot tasks: task id -> category (None when unreadable)."""
+    pool: dict[str, str | None] = {}
+    if not snapshot_tasks.is_dir():
+        return pool
+    for task_dir in sorted(p for p in snapshot_tasks.iterdir() if p.is_dir()):
+        if task_dir.name in ledger_ids:
+            continue
+        pool[task_dir.name] = snapshot_category(task_dir)
+    return pool
+
+
 def build_mimo_clean_parser(commands) -> None:
     """Register the ``evallab mimo-clean`` subcommand (one self-contained block)."""
     mimo = commands.add_parser(
         "mimo-clean",
-        help="Build and locally verify the mimo-clean-v1 task set ($0, model-free)",
-        description=__doc__.split("\n\n")[0] if __doc__ else "mimo-clean-v1",
+        help="Build and locally verify the mimo-clean-v2 task set ($0, model-free)",
+        description=__doc__.split("\n\n")[0] if __doc__ else "mimo-clean-v2",
     )
     sub = mimo.add_subparsers(dest="mimo_clean_cmd", required=True)
-    build = sub.add_parser("build", help="Derive the canonical clean chain for ledger tasks")
+    build = sub.add_parser("build", help="Derive the canonical clean chain for code tasks")
     build.add_argument(
         "--tasks",
         default=None,
-        help="comma-separated task ids (default: every keep/fix ledger row)",
+        help="comma-separated task ids (default: ledger pool + snapshot pool)",
     )
     build.add_argument("--ledger", type=Path, default=LEDGER_REL, help="Python task ledger CSV")
     build.add_argument("--sweep", type=Path, default=SWEEP_REL, help="oracle sweep CSV")
+    build.add_argument(
+        "--reference-index",
+        type=Path,
+        default=REFERENCE_INDEX_REL,
+        help="mimo-reference-fixes index CSV (preferred over --sweep when present)",
+    )
+    build.add_argument(
+        "--snapshot",
+        type=Path,
+        default=SNAPSHOT_REL / "tasks",
+        help="snapshot tasks dir (resolved against the primary checkout)",
+    )
     build.add_argument(
         "--results-home",
         type=Path,
@@ -818,7 +1062,7 @@ def build_mimo_clean_parser(commands) -> None:
     )
     verify.add_argument("--tasks", required=True, help="comma-separated task ids")
     verify.add_argument("--manifest", type=Path, default=MANIFEST_REL, help="manifest CSV to read")
-    verify.add_argument("--jobs-dir", type=Path, default=Path("runs/mimo-clean-v1"))
+    verify.add_argument("--jobs-dir", type=Path, default=Path("runs/mimo-clean-v2"))
     verify.add_argument("--timeout-seconds", type=int, default=1800)
     verify.set_defaults(func=_mimo_clean_command)
 
@@ -834,65 +1078,121 @@ def _build_command(args, root: Path) -> int:
 
     ledger_path = _resolve(root, args.ledger)
     sweep_path = _resolve(root, args.sweep)
+    index_path = _resolve(root, args.reference_index)
     manifest_path = _resolve(root, args.manifest)
     results_home = args.results_home or _default_results_home()
     primary = shared_checkout_root(root)
+    snapshot_tasks = (
+        args.snapshot if args.snapshot.is_absolute() else primary / args.snapshot
+    )
     rows = read_csv_rows(ledger_path)
+    by_ledger_id = {row["task_id"]: row for row in rows}
     wanted = (
         {part.strip() for part in args.tasks.split(",") if part.strip()} if args.tasks else None
     )
     selected = select_usable(rows)
     if wanted is not None:
         selected = [row for row in selected if row["task_id"] in wanted]
-        missing = wanted - {row["task_id"] for row in selected}
-        for task_id in sorted(missing):
-            print(f"skip {task_id}: not a keep/fix ledger row")
-    sweep = load_oracle_sweep(sweep_path)
-    builder = ChainBuilder(repo_root=root, primary=primary)
-    by_id = {row["task_id"]: row for row in selected}
+    if index_path.is_file():
+        index = load_reference_index(index_path)
+        print(f"reference fixes: index {index_path} ({len(index)} rows)")
 
-    def one(task_id: str) -> ChainResult:
+        def oracle_for(task_id: str) -> OracleInfo | None:
+            return oracle_info_from_index(task_id, index, repo_root=root)
+    else:
+        sweep = load_oracle_sweep(sweep_path)
+        print(f"reference fixes: sweep {sweep_path} (index absent)")
+
+        def oracle_for(task_id: str) -> OracleInfo | None:
+            return oracle_info_for(task_id, sweep, results_home=results_home)
+
+    builder = ChainBuilder(repo_root=root, primary=primary, snapshot_root=snapshot_tasks)
+    by_id = {row["task_id"]: row for row in selected}
+    pool = snapshot_pool(snapshot_tasks, set(by_ledger_id))
+    if wanted is not None:
+        pool = {task_id: category for task_id, category in pool.items() if task_id in wanted}
+
+    def one_python(task_id: str) -> ChainResult:
         return builder.build_task(
             task_id,
             by_id[task_id],
-            oracle=oracle_info_for(task_id, sweep, results_home=results_home),
+            oracle=oracle_for(task_id),
         )
+
+    def one_snapshot(task_id: str) -> ChainResult:
+        return builder.build_task(task_id, None, oracle=oracle_for(task_id))
 
     results: list[ChainResult] = []
     workers = max(1, args.workers)
-    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool:
-        futures = {pool.submit(one, row["task_id"]): row["task_id"] for row in selected}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool_exec:
+        futures = {pool_exec.submit(one_python, row["task_id"]): row["task_id"] for row in selected}
+        futures.update(
+            {pool_exec.submit(one_snapshot, task_id): task_id for task_id in pool}
+        )
         for future in concurrent.futures.as_completed(futures):
             results.append(future.result())
-    # Skips for explicitly requested tasks outside the ledger selection.
-    by_ledger_id = {row["task_id"]: row for row in rows}
+    have = {result.task_id for result in results}
     if wanted is not None:
-        have = {result.task_id for result in results}
+        # Skips for explicitly requested tasks outside both pools' selection.
         for task_id in sorted(wanted):
-            if task_id not in have and task_id in by_ledger_id:
+            if task_id in have:
+                continue
+            if task_id in by_ledger_id:
                 row = by_ledger_id[task_id]
                 results.append(
                     ChainResult(
                         task_id=task_id,
                         status=STATUS_SKIPPED,
+                        language="python",
                         run_digest=row.get("run_digest", ""),
                         reason=(f"ledger verdict={row.get('verdict')} status={row.get('status')}"),
                     )
                 )
-    # Discard rows are skips with reason, so the manifest covers the ledger.
-    if wanted is None:
-        have = {result.task_id for result in results}
+            else:
+                results.append(
+                    ChainResult(
+                        task_id=task_id,
+                        status=STATUS_SKIPPED,
+                        reason="not a keep/fix ledger row or snapshot task",
+                    )
+                )
+    else:
+        # Discard rows are skips with reason, so the manifest covers the ledger.
         for row in rows:
             if row["task_id"] not in have:
                 results.append(
                     ChainResult(
                         task_id=row["task_id"],
                         status=STATUS_SKIPPED,
+                        language="python",
                         run_digest=row.get("run_digest", ""),
                         reason=(
                             f"ledger verdict={row.get('verdict')} "
                             f"status={row.get('status')}: {row.get('reason', '')}"
                         ),
+                    )
+                )
+        # Python-category snapshot tasks without a ledger row cannot start
+        # the Python chain; uncategorized ones have no chain at all.
+        for task_id in sorted(pool):
+            if task_id in have:
+                continue
+            category = pool[task_id]
+            if category == "python":
+                results.append(
+                    ChainResult(
+                        task_id=task_id,
+                        status=STATUS_SKIPPED,
+                        language="python",
+                        reason="python snapshot task without a ledger row",
+                    )
+                )
+            else:
+                results.append(
+                    ChainResult(
+                        task_id=task_id,
+                        status=STATUS_SKIPPED,
+                        reason="snapshot task.toml category unreadable",
                     )
                 )
     write_manifest([result.manifest_row() for result in results], manifest_path)
@@ -1075,33 +1375,48 @@ def _mimo_clean_command(args, root: Path, **_: Any) -> int:
 
 
 __all__ = [
-    "CACHE_ID",
+    "CACHE_ACTIVE_ID",
+    "CACHE_ACTIVE_MARKER",
+    "CACHE_V2_ID",
+    "CACHE_V2_MARKER",
     "CLEAN_SET_VERSION",
     "CREATED_BY",
     "LANGUAGE_CHAINS",
     "MANIFEST_COLUMNS",
     "MANIFEST_REL",
+    "MTIME_ID",
+    "NONPYTHON_CHAIN",
     "ORACLE_PASS_PREFIX",
+    "PURGE_ID",
     "PYTHON_CHAIN",
+    "REFERENCE_INDEX_REL",
     "SELECTED_VERDICTS",
+    "SEPARATE_V3_ID",
     "STATUS_BUILT",
     "STATUS_SKIPPED",
+    "STRIP_ID",
+    "VERIFY_UNVERIFIED",
     "ChainBuilder",
     "ChainResult",
     "OracleInfo",
     "acceptance_pass",
     "build_mimo_clean_parser",
     "build_solution_sh",
+    "chain_for_language",
     "derive_marker",
-    "detect_language",
     "load_manifest",
     "load_oracle_sweep",
+    "load_reference_index",
     "oracle_info_for",
+    "oracle_info_from_index",
     "purge_inapplicable",
     "read_csv_rows",
+    "resolve_language",
     "run_package_rel",
     "select_usable",
     "setup_carries",
+    "snapshot_category",
+    "snapshot_pool",
     "summarize_trials",
     "variant_source",
     "write_manifest",

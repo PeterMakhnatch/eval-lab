@@ -77,6 +77,7 @@ VERIFY_ORACLE_WRONG = "oracle-wrong"
 VERIFY_INFRA_FLAKE = "infra-flake"
 VERIFY_NEEDS_TRIAGE = "needs-triage"
 VERIFY_UNVERIFIED = "unverified"
+VERIFY_BACKEND_UNSUPPORTED = "backend-unsupported"
 
 #: Backends the census runner supports. ``modal`` runs Harbor's native
 #: ModalEnvironment; ``daytona`` the bounded Daytona sandbox env. Paid
@@ -212,8 +213,33 @@ def job_has_trial_errors(job_dir: Path) -> bool:
     return False
 
 
+_DISK_EXHAUSTED_RES = (
+    re.compile(r"no space left on device", re.IGNORECASE),
+    re.compile(r"disk quota exceeded", re.IGNORECASE),
+    re.compile(r"Daytona.*disk|disk.*Daytona.*(limit|quota|exceeded)", re.IGNORECASE),
+)
+
+
+def trial_disk_exhausted(trial_dir: Path) -> bool:
+    """Whether a trial's logs show disk exhaustion (backend capacity, not env).
+
+    Daytona per-sandbox disk (10 GiB) can be exhausted by images with heavy
+    setup writes; such tasks are ``backend-unsupported``, never failures.
+    """
+    for text in trial_output_logs(trial_dir, "trial.log"):
+        if any(pattern.search(text) for pattern in _DISK_EXHAUSTED_RES):
+            return True
+    for text in trial_output_logs(trial_dir, "setup.log"):
+        if any(pattern.search(text) for pattern in _DISK_EXHAUSTED_RES):
+            return True
+    return False
+
+
 def _unscored_grade(job_dir: Path) -> str:
-    """``"setup-fail"`` for errored jobs, else ``"unscored"``."""
+    """Unscored-cell grade: ``backend-unsupported`` > ``setup-fail`` > ``unscored``."""
+    trials = _trial_dirs_with_results(job_dir)
+    if trials and all(trial_disk_exhausted(trial) for trial in trials):
+        return "backend-unsupported"
     return "setup-fail" if job_has_trial_errors(job_dir) else "unscored"
 
 
@@ -338,6 +364,12 @@ def verify_grade_for(
     census_locations: int | None,
 ) -> str:
     """Map per-check signals to one manifest ``verify`` grade."""
+    if (
+        nop == "backend-unsupported"
+        or oracle == "backend-unsupported"
+        or ladder_verdict == "backend-unsupported"
+    ):
+        return VERIFY_BACKEND_UNSUPPORTED
     if nop in ("missing", "unscored") or ladder_verdict in ("missing", "unscored", "partial"):
         return VERIFY_UNVERIFIED
     if oracle in ("missing", "unscored"):
@@ -442,6 +474,13 @@ def summarize_results(rows: Collection[Mapping[str, Any]]) -> dict[str, Any]:
         if census_row_pass(row):
             buckets["pass"] = buckets.get("pass", 0) + 1
             continue
+        if "backend-unsupported" in (
+            str(row.get("nop", "")),
+            str(row.get("oracle", "")),
+            str(row.get("ladder_verdict", "")),
+        ):
+            buckets["backend-unsupported"] = buckets.get("backend-unsupported", 0) + 1
+            continue
         buckets["fail"] = buckets.get("fail", 0) + 1
         reasons: list[str] = []
         if str(row.get("nop", "")) != "0":
@@ -462,6 +501,7 @@ def summarize_results(rows: Collection[Mapping[str, Any]]) -> dict[str, Any]:
         "total": len(rows),
         "passed": buckets.get("pass", 0),
         "failed": buckets.get("fail", 0),
+        "backend_unsupported": buckets.get("backend-unsupported", 0),
         "failures": sorted(failures, key=lambda item: item["task_id"]),
     }
 
@@ -503,6 +543,7 @@ def run_cell(
     backend: str,
     timeout_seconds: int,
     attacks: str | None = None,
+    egress_lock: bool | None = None,
     root: Path,
 ) -> Path:
     """Run one census cell through Harbor; return the job dir.
@@ -510,6 +551,9 @@ def run_cell(
     Completed job dirs (every trial rewarded) are reused verbatim, never
     clobbered; anything else launches under the next free ``-attemptN`` name.
     ``attacks`` selects the cheat-ladder subset (None = controls).
+    ``egress_lock`` overrides the backend default (None = resolve): cheat
+    cells pass False on backends whose lock set excludes the cheat agent,
+    matching the unlocked conditions of the docker cheat baseline.
     """
     import os
 
@@ -530,6 +574,7 @@ def run_cell(
         attempts=1,
         timeout_seconds=timeout_seconds,
         allow_billable=backend != "docker",
+        egress_lock=egress_lock,
     )
     if attacks is None:
         return Executor.from_repo(root).execute_direct(request)
@@ -608,6 +653,9 @@ def census_task(
     if _trial_dirs_with_results(candidate):
         cheat_dir = candidate
     else:
+        # Cheat cells run unlocked: the cheat agent is outside every backend's
+        # egress-lock set (it would refuse at dispatch), matching the unlocked
+        # docker cheat baseline the ladder acceptance was validated under.
         cheat_dir = run_cell(
             package=package,
             agent=CHEAT_AGENT,
@@ -616,6 +664,7 @@ def census_task(
             backend=backend,
             timeout_seconds=timeout_seconds,
             attacks="",
+            egress_lock=False,
             root=root,
         )
     summary = ladder_summary(cheat_dir)
@@ -637,6 +686,7 @@ def census_task(
                     backend=backend,
                     timeout_seconds=timeout_seconds,
                     attacks=attack,
+                    egress_lock=False,
                     root=root,
                 )
             run_ids.append(attack_dir.name)
@@ -1063,6 +1113,7 @@ __all__ = [
     "ROWS_FILENAME",
     "SLICE_CAP_USD",
     "SPEND_FILENAME",
+    "VERIFY_BACKEND_UNSUPPORTED",
     "VERIFY_CLEAN",
     "VERIFY_ENV_BROKEN",
     "VERIFY_GRADER_HOLE",
@@ -1095,6 +1146,7 @@ __all__ = [
     "summarize_results",
     "summarize_trials",
     "trial_grade_logs",
+    "trial_disk_exhausted",
     "trial_output_logs",
     "trial_tests_executed",
     "utc_now_iso",

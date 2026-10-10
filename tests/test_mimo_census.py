@@ -14,6 +14,7 @@ from typing import Any
 from evallab import mimo_census
 from evallab.mimo_census import (
     RESULTS_COLUMNS,
+    VERIFY_BACKEND_UNSUPPORTED,
     VERIFY_CLEAN,
     VERIFY_ENV_BROKEN,
     VERIFY_GRADER_HOLE,
@@ -36,6 +37,7 @@ from evallab.mimo_census import (
     parse_task_list,
     slice_spent_usd,
     summarize_results,
+    trial_disk_exhausted,
     trial_tests_executed,
     verify_grade_for,
     write_results,
@@ -166,6 +168,43 @@ def test_setup_fail_bucket_for_errored_jobs(tmp_path: Path) -> None:
     _write_job_result(quiet)
     assert not job_has_trial_errors(quiet)
     assert nop_cell_grade(quiet) == "unscored"
+
+
+def test_backend_unsupported_bucket_for_disk_exhaustion(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    trial = job / "t"
+    _write_result(trial, None)
+    (trial / "trial.log").write_text(
+        "setup: writing layer: no space left on device\n", encoding="utf-8"
+    )
+    _write_job_result(job, errored=1)
+    assert trial_disk_exhausted(trial)
+    # Disk exhaustion wins over the generic setup-fail bucket.
+    assert nop_cell_grade(job) == "backend-unsupported"
+    assert (
+        verify_grade_for(
+            nop="backend-unsupported",
+            oracle="n/a",
+            ladder_verdict="missing",
+            census_locations=None,
+        )
+        == VERIFY_BACKEND_UNSUPPORTED
+    )
+    passing = {
+        **blank_row("a", manifest_version="v", backend="daytona"),
+        "nop": "0",
+        "oracle": "n/a",
+        "ladder_verdict": "clean",
+    }
+    unsupported = {
+        **blank_row("b", manifest_version="v", backend="daytona"),
+        "nop": "backend-unsupported",
+        "oracle": "backend-unsupported",
+        "ladder_verdict": "missing",
+    }
+    summary = summarize_results([passing, unsupported])
+    assert (summary["passed"], summary["failed"], summary["backend_unsupported"]) == (1, 0, 1)
+    assert summary["failures"] == []
 
 
 def test_nop_grade_failure_modes(tmp_path: Path) -> None:

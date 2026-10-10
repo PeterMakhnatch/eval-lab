@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from evallab import mimo_census
 from evallab.mimo_census import (
     RESULTS_COLUMNS,
@@ -420,3 +422,41 @@ def test_spend_record_and_slice_total(tmp_path: Path) -> None:
     append_spend_record(tmp_path, {"batch_id": "pilot", "actual_usd": 1.25})
     append_spend_record(tmp_path, {"batch_id": "extra", "actual_usd": 0.75})
     assert slice_spent_usd(tmp_path) == 2.0
+
+
+def test_daytona_hourly_rate_matches_known_stratum() -> None:
+    from evallab.mimo_census import daytona_hourly_usd
+
+    # 2 CPU / 8 GiB / 10 GiB (5 free) == HAR-88 $0.23094/h reference.
+    assert daytona_hourly_usd(cpus=2.0, mem_gib=8.0, disk_gib=10.0) == pytest.approx(0.23094)
+    assert daytona_hourly_usd(cpus=2.0, mem_gib=8.0, disk_gib=3.0) == pytest.approx(
+        2 * 0.0504 + 8 * 0.0162
+    )
+
+
+def test_trial_wall_hours_and_batch_cost(tmp_path: Path) -> None:
+    from evallab.mimo_census import daytona_batch_cost_usd, trial_wall_hours
+
+    trial = tmp_path / "task-a" / "job-daytona-x" / "t1"
+    trial.mkdir(parents=True)
+    (trial / "result.json").write_text(
+        json.dumps(
+            {"started_at": "2026-10-10T00:00:00+00:00", "finished_at": "2026-10-10T01:00:00+00:00"}
+        ),
+        encoding="utf-8",
+    )
+    assert trial_wall_hours(trial) == pytest.approx(1.0)
+    assert trial_wall_hours(tmp_path / "absent") is None
+    package = tmp_path / "pkg"
+    (package).mkdir()
+    (package / "task.toml").write_text(
+        "[environment]\ncpus = 2\nmemory_mb = 8192\n", encoding="utf-8"
+    )
+    manifest = {"task-a": {"package_path": "pkg"}}
+    result = daytona_batch_cost_usd(
+        jobs_root=tmp_path, task_ids=("task-a", "task-b"), primary=tmp_path, manifest=manifest
+    )
+    assert result["trials"] == 1
+    assert result["per_task_usd"]["task-a"] == pytest.approx(0.23094)
+    assert result["batch_usd"] == pytest.approx(0.23094)
+    assert result["unscored"] == []

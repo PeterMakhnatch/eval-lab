@@ -848,6 +848,120 @@ def slice_spent_usd(receipt_dir: Path) -> float:
     return total
 
 
+#: Daytona pay-as-you-go rates (USD per hour) for usage-based actuals. Basis:
+#: measured HAR-88 census (code stratum); posted wallet charges are not
+#: API-accessible, so usage x rate-card is the provider actuals source the
+#: census records (the assignment names Daytona usage explicitly).
+DAYTONA_RATE_CPU_USD_H = 0.0504
+DAYTONA_RATE_MEM_GIB_USD_H = 0.0162
+DAYTONA_RATE_DISK_GIB_USD_H = 0.000108
+DAYTONA_DISK_FREE_GIB = 5.0
+DAYTONA_DEFAULT_DISK_GIB = 10.0
+
+
+def daytona_hourly_usd(*, cpus: float, mem_gib: float, disk_gib: float) -> float:
+    """Hourly cost for a Daytona sandbox allocation (usage x rate-card)."""
+    billable_disk = max(0.0, disk_gib - DAYTONA_DISK_FREE_GIB)
+    return (
+        cpus * DAYTONA_RATE_CPU_USD_H
+        + mem_gib * DAYTONA_RATE_MEM_GIB_USD_H
+        + billable_disk * DAYTONA_RATE_DISK_GIB_USD_H
+    )
+
+
+def trial_wall_hours(trial_dir: Path) -> float | None:
+    """Wall-clock hours from a trial result.json (None when unparseable)."""
+    try:
+        payload = json.loads((trial_dir / "result.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    try:
+        start = datetime.fromisoformat(str(payload["started_at"]))
+        end = datetime.fromisoformat(str(payload["finished_at"]))
+    except (KeyError, ValueError, TypeError):
+        return None
+    seconds = (end - start).total_seconds()
+    return seconds / 3600.0 if seconds >= 0 else None
+
+
+def task_sandbox_allocation(package: Path) -> tuple[float, float, float]:
+    """(cpus, mem_gib, disk_gib) for cost accounting from a task package."""
+    import tomllib
+
+    try:
+        environment = tomllib.loads((package / "task.toml").read_text()).get("environment", {})
+    except (OSError, tomllib.TOMLDecodeError):
+        environment = {}
+    if not isinstance(environment, dict):
+        environment = {}
+    try:
+        cpus = float(environment.get("cpus", 2))
+    except (TypeError, ValueError):
+        cpus = 2.0
+    try:
+        mem_gib = float(environment.get("memory_mb", 8192)) / 1024.0
+    except (TypeError, ValueError):
+        mem_gib = 8.0
+    return cpus, mem_gib, DAYTONA_DEFAULT_DISK_GIB
+
+
+def daytona_batch_cost_usd(
+    *,
+    jobs_root: Path,
+    task_ids: Collection[str],
+    primary: Path,
+    manifest: Mapping[str, Mapping[str, str]],
+) -> dict[str, Any]:
+    """Usage-based actuals for Daytona cells: per-task and batch totals.
+
+    Sums trial wall-hours x task-declared allocation rate over every
+    ``*-daytona-*`` job dir under each task's jobs dir. Trials without
+    parseable timestamps are listed unscored (excluded from the total, never
+    zero-filled).
+    """
+    per_task: dict[str, float] = {}
+    unscored: list[str] = []
+    trials = 0
+    for task_id in task_ids:
+        total = 0.0
+        task_dir = jobs_root / task_id
+        package_rel = str(manifest.get(task_id, {}).get("package_path", ""))
+        allocation = (
+            task_sandbox_allocation(primary / package_rel)
+            if package_rel
+            else (2.0, 8.0, DAYTONA_DEFAULT_DISK_GIB)
+        )
+        rate = daytona_hourly_usd(cpus=allocation[0], mem_gib=allocation[1], disk_gib=allocation[2])
+        found = False
+        if task_dir.is_dir():
+            for job_dir in sorted(task_dir.iterdir()):
+                if not job_dir.is_dir() or "-daytona-" not in job_dir.name:
+                    continue
+                for trial in _trial_dirs_with_results(job_dir):
+                    hours = trial_wall_hours(trial)
+                    if hours is None:
+                        unscored.append(f"{task_id}/{job_dir.name}/{trial.name}")
+                        continue
+                    found = True
+                    trials += 1
+                    total += hours * rate
+        if found:
+            per_task[task_id] = total
+    return {
+        "per_task_usd": per_task,
+        "batch_usd": sum(per_task.values()),
+        "trials": trials,
+        "unscored": unscored,
+        "basis": (
+            "daytona usage (trial wall-hours from result.json) x rate-card "
+            f"cpu={DAYTONA_RATE_CPU_USD_H}/h mem={DAYTONA_RATE_MEM_GIB_USD_H}/GiB-h "
+            f"disk={DAYTONA_RATE_DISK_GIB_USD_H}/GiB-h beyond {DAYTONA_DISK_FREE_GIB}GiB"
+        ),
+    }
+
+
 # --------------------------------------------------------------------------- #
 # CLI: ``evallab mimo-census run|report|record-spend``
 # --------------------------------------------------------------------------- #
@@ -910,7 +1024,7 @@ def build_mimo_census_parser(commands: Any) -> None:
 
 
 def _register_census_commands(sub: Any) -> None:
-    """Register the census verbs (``run``/``report``/``record-spend``)."""
+    """Register the census verbs (``run``/``report``/``record-spend``/``cost``)."""
     run = sub.add_parser("run", help="Run census cells for manifest tasks")
     _add_run_args(run)
     run.set_defaults(func=_run_command)
@@ -928,6 +1042,11 @@ def _register_census_commands(sub: Any) -> None:
     record.add_argument("--actual-usd", type=float, required=True)
     record.add_argument("--evidence", default="", help="provider receipt path or query")
     record.set_defaults(func=_record_spend_command)
+    cost = sub.add_parser("cost", help="Compute Daytona usage-based actuals and record them")
+    _add_common(cost)
+    cost.add_argument("--batch-id", required=True)
+    cost.add_argument("--tasks", required=True, help="comma-separated task ids in the batch")
+    cost.set_defaults(func=_cost_command)
 
 
 def _add_run_args(parser: argparse.ArgumentParser) -> None:
@@ -1110,6 +1229,39 @@ def _record_spend_command(args: argparse.Namespace, root: Path, **_: Any) -> int
     return 0
 
 
+def _cost_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
+    ctx = resolve_context(args, root)
+    tasks = parse_task_list(args.tasks)
+    if not tasks:
+        print("error: --tasks needs at least one task id")
+        return 2
+    manifest = {row["task_id"]: row for row in load_manifest(ctx.manifest_path)}
+    result = daytona_batch_cost_usd(
+        jobs_root=ctx.jobs_dir, task_ids=tasks, primary=ctx.primary, manifest=manifest
+    )
+    path = append_spend_record(
+        ctx.receipt_dir,
+        {
+            "batch_id": args.batch_id,
+            "backend": "daytona",
+            "tasks": ",".join(tasks),
+            "n_tasks": len(tasks),
+            "actual_usd": round(result["batch_usd"], 4),
+            "trials": result["trials"],
+            "unscored": result["unscored"],
+            "evidence": result["basis"],
+        },
+    )
+    for task_id in sorted(result["per_task_usd"]):
+        print(f"daytona {task_id}: ${result['per_task_usd'][task_id]:.4f}")
+    for unscored in result["unscored"]:
+        print(f"unscored (excluded): {unscored}")
+    total = slice_spent_usd(ctx.receipt_dir)
+    print(f"recorded batch {args.batch_id}: ${result['batch_usd']:.4f} -> {path}")
+    print(f"slice total so far: ${total:.4f} / ${SLICE_CAP_USD:.2f}")
+    return 0
+
+
 __all__ = [
     "ATTACKS",
     "BACKENDS",
@@ -1137,6 +1289,8 @@ __all__ = [
     "census_fix_content",
     "census_row_pass",
     "census_task",
+    "daytona_batch_cost_usd",
+    "daytona_hourly_usd",
     "cell_job_name",
     "fence_allows",
     "job_has_trial_errors",
@@ -1151,10 +1305,12 @@ __all__ = [
     "slice_spent_usd",
     "summarize_results",
     "summarize_trials",
+    "task_sandbox_allocation",
     "trial_grade_logs",
     "trial_disk_exhausted",
     "trial_output_logs",
     "trial_tests_executed",
+    "trial_wall_hours",
     "utc_now_iso",
     "verify_grade_for",
     "write_results",

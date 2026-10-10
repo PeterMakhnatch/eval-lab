@@ -514,7 +514,8 @@ def test_reference_index_oracle_resolution(tmp_path: Path) -> None:
     index_file = tmp_path / "index.csv"
     with index_file.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
-            handle, fieldnames=["task_id", "label", "fix_commit", "patch_path", "patch_sha256", "source"]
+            handle,
+            fieldnames=["task_id", "label", "fix_commit", "patch_path", "patch_sha256", "source"],
         )
         writer.writeheader()
         writer.writerow(

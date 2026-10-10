@@ -7,15 +7,16 @@ Builds one clean package per code task:
   ``strip-future-history@1`` -> ``purge-installed-copies@1`` (CONFIRMED_PURGE
   targets and run packages that already carry the marker; fail-closed tasks
   skip with reason, everything else skips per the HAR-194 scope stance) ->
-  ``purge-build-caches@2`` (or ``@3`` once the node build-output port lands;
-  the builder prefers ``@3`` when the transform exists) ->
-  ``mtime-normalize@1`` -> ``separate-verifier@3`` last, with
-  ``solution/solve.sh`` built from the reference fix when one exists, and the
-  probe marker auto-derived from the hidden test patch.
+  ``purge-build-caches@3`` -> ``mtime-normalize@2`` ->
+  ``separate-verifier@3`` last, with ``solution/solve.sh`` built from the
+  reference fix when one exists, and the probe marker auto-derived from the
+  hidden test patch. (Cache ``@3`` and mtime ``@2`` are the active
+  generations, resolved at import and recorded per row in the manifest
+  ``chain``.)
 - Non-Python tasks (every snapshot task whose ``task.toml`` category is not
   Python, minus ledger members which the ledger row owns): snapshot task dir
-  -> ``strip-future-history@1`` -> ``purge-build-caches@2``/``@3`` ->
-  ``mtime-normalize@1`` -> ``separate-verifier@3``. ``purge-installed-copies``
+  -> ``strip-future-history@1`` -> ``purge-build-caches@3`` ->
+  ``mtime-normalize@2`` -> ``separate-verifier@3``. ``purge-installed-copies``
   is a Python pip mechanism and never applies; it is noted, not derived.
 
 Deterministic and idempotent: every step reuses the existing lineage record
@@ -112,12 +113,8 @@ SELECTED_VERDICTS = frozenset({"keep", "fix"})
 #: is preferred once ``purge_build_caches`` ships it; until then ``@2``.
 #: Resolved at import so a rebase onto the @3 merge switches the chain (and
 #: its manifest strings) with no further edit.
-CACHE_ACTIVE_ID: str = getattr(
-    _purge_build_caches_mod, "TRANSFORM_ID_V3", CACHE_V2_ID
-)
-CACHE_ACTIVE_MARKER: str = getattr(
-    _purge_build_caches_mod, "MARKER_V3", CACHE_V2_MARKER
-)
+CACHE_ACTIVE_ID: str = getattr(_purge_build_caches_mod, "TRANSFORM_ID_V3", CACHE_V2_ID)
+CACHE_ACTIVE_MARKER: str = getattr(_purge_build_caches_mod, "MARKER_V3", CACHE_V2_MARKER)
 
 
 def _derive_cache_active(
@@ -142,6 +139,7 @@ def _derive_cache_active(
     if variants_root is not None:
         kwargs["variants_root"] = variants_root
     return derive(parent_dir, **kwargs)
+
 
 #: Active mtime-normalize generation. ``@2`` (Modal lazy-layer
 #: materialization fix; Docker-neutral) is preferred once
@@ -217,7 +215,6 @@ HF_SOURCE = {
 }
 
 
-
 def chain_for_language(language: str | None) -> tuple[str, ...] | None:
     """Clean chain for a resolved language (``None`` = no chain)."""
     if language is None:
@@ -253,6 +250,7 @@ def resolve_language(*, ledger_row: bool, category: str | None) -> str | None:
     if ledger_row:
         return "python"
     return category
+
 
 #: One-line reasons the purge step is known fail-closed, per
 #: ``exploit_probe.PURGE_INAPPLICABLE`` (HAR-194; reproduced in local Docker,
@@ -797,8 +795,7 @@ class ChainBuilder:
         chain = chain_for_language(language)
         if chain is None:
             result.reason = (
-                f"no clean chain for language {language!r}: "
-                "snapshot task.toml category unreadable"
+                f"no clean chain for language {language!r}: snapshot task.toml category unreadable"
             )
             return result
 
@@ -888,9 +885,7 @@ class ChainBuilder:
                     "plus already-carried run packages (HAR-194 stance)"
                 )
         else:
-            notes.append(
-                f"purge-installed-copies@1 n/a to {result.language}: Python pip mechanism"
-            )
+            notes.append(f"purge-installed-copies@1 n/a to {result.language}: Python pip mechanism")
 
         # Active purge-build-caches and mtime-normalize generations
         # (mechanical, continue the chain past a single-step failure).
@@ -1037,9 +1032,7 @@ def _resolve(root: Path, value: Path) -> Path:
     return value if value.is_absolute() else (root / value)
 
 
-def snapshot_pool(
-    snapshot_tasks: Path, ledger_ids: Collection[str]
-) -> dict[str, str | None]:
+def snapshot_pool(snapshot_tasks: Path, ledger_ids: Collection[str]) -> dict[str, str | None]:
     """Non-ledger snapshot tasks: task id -> category (None when unreadable)."""
     pool: dict[str, str | None] = {}
     if not snapshot_tasks.is_dir():
@@ -1114,9 +1107,7 @@ def _build_command(args, root: Path) -> int:
     manifest_path = _resolve(root, args.manifest)
     results_home = args.results_home or _default_results_home()
     primary = shared_checkout_root(root)
-    snapshot_tasks = (
-        args.snapshot if args.snapshot.is_absolute() else primary / args.snapshot
-    )
+    snapshot_tasks = args.snapshot if args.snapshot.is_absolute() else primary / args.snapshot
     rows = read_csv_rows(ledger_path)
     by_ledger_id = {row["task_id"]: row for row in rows}
     wanted = (
@@ -1158,9 +1149,7 @@ def _build_command(args, root: Path) -> int:
     workers = max(1, args.workers)
     with concurrent.futures.ThreadPoolExecutor(max_workers=workers) as pool_exec:
         futures = {pool_exec.submit(one_python, row["task_id"]): row["task_id"] for row in selected}
-        futures.update(
-            {pool_exec.submit(one_snapshot, task_id): task_id for task_id in pool}
-        )
+        futures.update({pool_exec.submit(one_snapshot, task_id): task_id for task_id in pool})
         for future in concurrent.futures.as_completed(futures):
             results.append(future.result())
     have = {result.task_id for result in results}

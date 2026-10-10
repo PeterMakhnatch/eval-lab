@@ -29,7 +29,7 @@ ledger run package (repairs)
   -> strip-future-history@1
   -> purge-installed-copies@1   (scoped; see below)
   -> purge-build-caches@3
-  -> mtime-normalize@1
+  -> mtime-normalize@2
   -> separate-verifier@3        (last; + solution/solve.sh from the reference fix)
 ```
 
@@ -38,7 +38,7 @@ ledger run package (repairs)
 | 1 | `strip-future-history@1` | V1 future history on branches, V2 unreachable git objects | Rebuilds agent-visible git storage from exactly BASE and its ancestors; without it 67% of code tasks leak the answer through git objects. |
 | 2 | `purge-installed-copies@1` | E1 installed/build copies of the fixed project | Removes `build/`, project egg-info and site-packages copies, then reinstalls the base tree editable offline. Scoped to validated targets (below): the block fails closed at setup, and unvalidated projects would break setup instead of leaking. |
 | 3 | `purge-build-caches@3` | V5 build/module caches | The `@1` sweep plus this project's own entries in shared caches (pip wheels, Go module/build cache, cargo target + registry copies, Maven artifacts, Gradle project cache, npm/yarn/pnpm entries), each fail-closed, plus node gitignored build outputs (`lib/`, `dist/`, `build/`, `out/`): deleted when grading tests import from `src/`, else rebuilt from the base tree, setup fails when neither is safe. Shipped as `purge-build-caches@3` (vals-routes-v3, PR #810); the builder prefers `@3` when `purge_build_caches` ships it and records whichever generation it used in the manifest `chain` (v2 carries `@3` throughout). |
-| 4 | `mtime-normalize@1` | V3 file mtimes pointing at fixed files | Touches the worktree to one stamp so `find -newermt` cannot rank the fixed files. |
+| 4 | `mtime-normalize@2` | V3 file mtimes pointing at fixed files | Touches the worktree to one stamp so `find -newermt` cannot rank the fixed files; warms lazy layers (stat pass) and retries touch+check so Modal's materialization-time directory stamps cannot trip the fail-closed check (Docker-neutral). Shipped as `mtime-normalize@2` (mtime lane, PR #813); the builder resolves the active generation at import like the cache step. |
 | 5 | `separate-verifier@3` | E2 grader tamper, all runners | Patch-only grading in a pristine verifier checkout with structured per-runner checks (go/jest/mocha/vitest/phpunit/rspec/cargo/…; see `docs/mimo/separate-verifier.md`), cross-language tamper gates, new-file config drops, and the Python residuals (unittest parse, ADDOPTS-clearing conftest hook). Keeps every `@2` guarantee byte-for-byte for Python/pytest. It is last because it bundles the parent's clean setup chain into the verifier image. |
 
 ## The canonical non-Python chain (all 1,518 tasks)
@@ -47,7 +47,7 @@ ledger run package (repairs)
 snapshot task dir
   -> strip-future-history@1
   -> purge-build-caches@3
-  -> mtime-normalize@1
+  -> mtime-normalize@2
   -> separate-verifier@3
 ```
 

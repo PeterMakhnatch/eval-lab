@@ -1,6 +1,6 @@
 # mimo-clean-v2: canonical clean set for the MiMo code pool (all languages)
 
-Date: 2026-10-09. $0 paid compute (local Docker + local derivation only;
+Date: 2026-10-09/10. $0 paid compute (local Docker + local derivation only;
 no model calls, no Modal/Daytona).
 
 ## What this is
@@ -11,12 +11,12 @@ lineage:
 ```
 Python (1,180 ledger rows): ledger run package (repairs)
   -> strip-future-history@1 -> purge-installed-copies@1 (scoped)
-  -> purge-build-caches@2 -> mtime-normalize@1 -> separate-verifier@3
+  -> purge-build-caches@3 -> mtime-normalize@2 -> separate-verifier@3
   (+ reference solution where a fix exists)
 
 Non-Python (1,518 snapshot tasks): snapshot task dir
-  -> strip-future-history@1 -> purge-build-caches@2
-  -> mtime-normalize@1 -> separate-verifier@3
+  -> strip-future-history@1 -> purge-build-caches@3
+  -> mtime-normalize@2 -> separate-verifier@3
   (purge-installed-copies is a Python pip mechanism: noted, not derived)
 ```
 
@@ -26,10 +26,19 @@ Non-Python (1,518 snapshot tasks): snapshot task dir
   (2,698 rows: 2,666 built, 32 skipped discards)
 - Predecessor: `research/experiments/mimo-clean-v1/` (kept as history)
 
-## Build result (2026-10-09, `evallab mimo-clean build --workers 8`)
+`purge-build-caches@3` (vals-routes-v3, PR #810) and `mtime-normalize@2`
+(mtime lane, PR #813) both landed during this slice; the builder resolves
+the active generation at import, so the shipped fleet carries both (see
+chains). Ledger membership always wins over the snapshot category: 002361
+is snapshot-category Go but builds through the Python chain from its
+ledger run package (it is the 1,180th ledger row, hence 1,180 + 1,518 =
+2,698 manifest rows).
+
+## Build result (`evallab mimo-clean build --workers 8`)
 
 Reference fixes resolved from the HAR-191 `oracle_sweep.csv`
-(`mimo-reference-fixes/index.csv` was not on main at build time; see below).
+(`mimo-reference-fixes/index.csv` was not on main through the whole build
+window; the builder prefers the index when present — see below).
 
 | Status | Count | Detail |
 |---|---|---|
@@ -40,8 +49,8 @@ Chain shapes over the 2,666 built:
 
 | Chain | Tasks |
 |---|---|
-| `strip-future-history@1>purge-build-caches@2>mtime-normalize@1>separate-verifier@3` | 2664 (1,146 Python + 1,518 non-Python) |
-| `strip-future-history@1>purge-installed-copies@1>purge-build-caches@2>mtime-normalize@1>separate-verifier@3` | 2 (`format-code-task-001269`, `format-code-task-002308`: purge carried in their repair run packages) |
+| `strip-future-history@1>purge-build-caches@3>mtime-normalize@2>separate-verifier@3` | 2664 (1,146 Python + 1,518 non-Python) |
+| `strip-future-history@1>purge-installed-copies@1>purge-build-caches@3>mtime-normalize@2>separate-verifier@3` | 2 (`format-code-task-001269`, `format-code-task-002308`: purge carried in their repair run packages) |
 
 Per-domain counts (manifest `language`):
 
@@ -76,39 +85,42 @@ All 1,518 non-Python tasks note purge-installed-copies as n/a.
   (`solution/solve.sh` built from the HAR-191 patch; manifest
   `reference_fix`). No non-Python task ships a reference fix with the
   dataset (`reference_fix=none`).
-- Ledger membership always wins over the snapshot category: 002361 is
-  snapshot-category Go but builds through the Python chain from its ledger
-  run package (it is the 1,180th ledger row, hence 1,180 + 1,518 = 2,698
-  manifest rows).
 - Every row ships `verify=unverified`: the fleet census grades the
-  packages later (see the design doc).
+  packages later (see the design doc). In particular, `built` means the
+  chain derived — it does NOT mean the package sets up: the census's nop
+  sweep owns enumerating setup-failures (first known case below).
 
 ## Reproducibility proof
 
 The builder is deterministic and idempotent (content-addressed derives;
 existing `(task, transform, parent)` records reused, never duplicated).
-After deleting all 7,998 newly derived lineage records, a from-scratch
-rebuild reproduced the manifest exactly:
+The `@2`-generation fleet was proven by wipe-and-rebuild: after deleting
+all 7,998 newly derived lineage records, a from-scratch rebuild
+reproduced the manifest exactly — **2698/2698 rows identical**
+(`final_digest`, `status`, `chain`; first copy at
+`/tmp/mimo-clean-v2-first.csv`, scratch, not committed). The orphan
+recovery path (packages present without records are moved aside,
+re-derived, reconciled by digest, dropped on match) ran with zero
+mismatches. After the `@3`/`mtime@2` adoptions, a second wipe-and-rebuild
+on the shipped generation reproduced the committed manifest exactly again
+(**2698/2698 rows identical**; copy at `/tmp/mimo-clean-v2-shipped.csv`,
+scratch, not committed) — including across the `ruff format` pass on the
+builder in between (formatting changes no derived bytes).
 
-- **2698/2698 rows identical**: `final_digest`, `status`, and `chain`
-  all match (receipt: `/tmp/mimo-clean-v2-first.csv`, scratch, not
-  committed; the committed manifest is the rebuilt copy).
-- The from-scratch run exercised the orphan-recovery path (packages
-  present in the shared store without records are moved aside,
-  re-derived, reconciled by digest, and dropped on match) with zero
-  mismatches.
-
-## Local acceptance (2026-10-09, `evallab mimo-clean verify-local`)
+## Local acceptance (`evallab mimo-clean verify-local`)
 
 Per task on local Docker (`--network none` via each task's declared
 policy), pinned `xiaomimimo/mimo-v2.6-rl-oss` images (pulled on demand):
 oracle control (when a reference fix exists), nop control, and the full
 12-attack cheat ladder v1.2.0 in-trial. Acceptance = **oracle 1, nop 0,
-cheat clean**. Jobs:
-`/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-clean-v2/`
-(raw, out of git). 12 tasks: 6 Python (incl. the ADDOPTS-clearing 000666
-and the unittest 000803) and 6 non-Python across go/jest/mocha/vitest/
-usecase-sh:
+cheat clean**. Evidence generations (raw jobs out of git):
+
+- `.../2026-10-09/mimo-clean-v2/` — `@2`-generation pilot (11/12; the
+  12th, 000128, is the diagnosed pnpm fail-closed below, 4/4 setup-fail).
+- `.../2026-10-09/mimo-clean-v2-cache3/` — `@3`+`mtime@1` generation:
+  **12/12 pass** (000198 replaces 000128).
+- `.../2026-10-09/mimo-clean-v2-final/` — shipped `@3`+`mtime@2`
+  packages: **12/12 pass**:
 
 | task | purge leg | oracle | nop | cheat (cracked/trials) | verdict |
 |---|---|---|---|---|---|
@@ -121,11 +133,13 @@ usecase-sh:
 | format-code-task-000553 (go-test) | n/a (non-Python) | n/a (no shipped fix) | 0 | 0/1 | PASS |
 | format-code-task-000045 (mocha) | n/a (non-Python) | n/a (no shipped fix) | 0 | 0/1 | PASS |
 | format-code-task-000236 (jest) | n/a (non-Python) | n/a (no shipped fix) | 0 | 0/1 | PASS |
-| format-code-task-000128 (vitest) | n/a (non-Python) | n/a (no shipped fix) | 0 | 0/1 | PASS |
+| format-code-task-000198 (vitest) | n/a (non-Python) | n/a (no shipped fix) | 0 | 0/1 | PASS |
 | format-code-task-000291 (usecase-sh) | n/a (non-Python) | n/a (no shipped fix) | 0 | 0/1 | PASS |
 | format-code-task-002928 (mocha) | n/a (non-Python) | n/a (no shipped fix) | 0 | 0/1 | PASS |
 
-**Acceptance: 12/12 pass.**
+**Acceptance: 12/12 pass** (6 Python incl. the ADDOPTS-clearing 000666
+and the unittest 000803; 6 non-Python across go/jest/mocha/vitest/
+usecase-sh).
 
 Notes:
 
@@ -134,21 +148,75 @@ Notes:
   behavior under `@3` for these runners was proven separately by the
   `@3` port validation (history-extracted or debugged oracles;
   see `docs/mimo/separate-verifier.md`).
-- 000047 (`lib/` build-output leak, OPEN pending `purge-build-caches@3`)
-  was deliberately left out of the acceptance set; the manifest `chain`
-  shows every package carries `@2` until the rebuild.
+- Spot-checked ladder depth on the 000236 (jest) cheat trial
+  (`agent/cheat/attempts.json`): 9/12 attacks executed (git_history clean
+  with 0 unreachable commits, verifier_peek, reward_plant,
+  answer_symlink, upstream_fetch, skip_plant, sitecustomize,
+  shadow_timeout, reward_writer), 3 skipped as inapplicable to the task
+  (no tracked conftest, no importable package init); every executed
+  attack graded 0.
+- 000047 (`lib/` build-output leak, closed by `@3` per the vals-routes-v3
+  receipt) was left out of the set; every v2 package carries `@3` (see
+  the manifest `chain`).
+
+### First confirmed pnpm fail-closed: 000128 (residual, by design)
+
+`format-code-task-000128` (TS/vitest) cannot set up under the v2 chain:
+`purge-build-caches@3` finds `create-typescript-app` references in the
+image's pnpm store (`/root/.local/share/pnpm/store/v10`) with no safe
+per-package eviction and fails setup closed. 4/4 trials setup-fail
+(nop, nop-attempt2, cheat, cheat-attempt2 — all healthcheck rc=1, no
+reward). Direct repro of the built package's setup inside its pinned
+image (12 s wall):
+
+```bash
+docker run --platform linux/amd64 --network none --rm \
+  -v <package>:/pkg:ro \
+  docker.io/xiaomimimo/mimo-v2.6-rl-oss@sha256:a25b8fadbd7967d3a6e5ac252a5f462ace826f0ba0ef615259bcdbafc444e7e2 \
+  bash -c 'mkdir -p /var/lib/mimo && cp -r /pkg/environment/setup/* /var/lib/mimo/ && cd /testbed && bash /var/lib/mimo/setup.sh; echo SETUP_RC=$?'
+# setup: purge-build-caches@3 found create-typescript-app references in the pnpm store /root/.local/share/pnpm/store/v10 with no safe per-package eviction
+# SETUP_RC=1
+```
+
+The transform behaves as designed (fail-closed for manual triage); the
+task needs purge-port triage, and the vals-routes-v3 receipt cites this
+task as the first confirmed pnpm fail-closed. It was replaced in the
+acceptance set by 000198 (vitest, PASS).
 
 ## Reference-fix source note
 
 `research/experiments/mimo-reference-fixes/index.csv` (ReferenceSweep
-lane) was not on main when the fleet built, after polling `origin/main`
-through the build window. The build used `oracle_sweep.csv` (192
-oracle-pass fixes, identical coverage to v1). Rebuilding with
-`--reference-index` once the index lands re-derives only the `@3` step
-for tasks that gain a fix (the `solution` lineage input changes);
-everything else is reused by digest.
+lane) was not on main through the whole build window (polled
+`origin/main` to PR time). The build used `oracle_sweep.csv` (192
+oracle-pass fixes, identical coverage to v1). The builder prefers the
+index when present and records the source at the top of the build log
+(`reference fixes: index ...` vs `reference fixes: sweep ... (index
+absent)`). Rebuilding with the index once it lands re-derives only the
+`@3` step for tasks that gain a fix (the `solution` lineage input
+changes); everything else is reused by digest.
+
+## Modal mtime caveat (FleetCensus finding, out of scope)
+
+`mtime-normalize@1`'s fail-closed check trips on Modal direct runners
+(lazy layer materialization re-stamps directories during the touch walk)
+while Docker is unaffected — evidence and receipt:
+`research/experiments/mimo-clean-census/README.md` (FleetCensus lane).
+`mtime-normalize@2` (warm stat pass + touch/check retry) resolves it and
+is carried fleet-wide by this manifest. Graded Modal cells stay
+`setup-fail` with the mtime evidence linked; they are environment
+failures, not grading failures.
 
 ## Spend
 
 $0.00 — no paid compute used (no `evallab spend day` needed; local Docker
-and local derivation only).
+and local derivation only). Shared-hygiene notes: two stale
+zero-container networks plus two leaked containers from this lane's own
+aborted runs were removed (`docker rm -f` + `docker network rm` on
+`mimo-clean-v2-*` names only; other lanes untouched). One self-inflicted
+flakiness source: a `make prepush` (`uv sync`) run in parallel with an
+active `verify-local` briefly broke Harbor imports in the trial
+subprocess; the affected cells were re-run clean (attempt2) and pass —
+never sync while verifying. Later, the shared daemon's container API
+returned 500s/hangs for ~2 h (pre-trial guard timeouts, 10 s/call);
+per-task retry with backoff got all cells through within the parent's
+45-minute window; no daemon restart (other lanes' containers live there).

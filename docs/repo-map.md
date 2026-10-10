@@ -557,7 +557,7 @@ inputs:
   - path: src/evallab/run_telemetry.py
     digest: sha256:84a91d9e7652d78a1236825ec5bca5516c10d82f674cba6ef786a32531dcf1b7
   - path: src/evallab/runner.py
-    digest: sha256:c4cb91d060949f8e99794f0c79925ea472e772b8c75f499396f1a954a5fb90e9
+    digest: sha256:25b53207de5362e29cc6d9d219c9707d182cf698cb43895fedf5c9132210a70b
   - path: src/evallab/schemas/__init__.py
     digest: sha256:f66da26b63e464592c97b3ad2fb4afd8b810d69c215c66df56cab04c4ba938f7
   - path: src/evallab/screen.py

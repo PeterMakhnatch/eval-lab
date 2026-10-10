@@ -551,9 +551,7 @@ def run_cell(
     Completed job dirs (every trial rewarded) are reused verbatim, never
     clobbered; anything else launches under the next free ``-attemptN`` name.
     ``attacks`` selects the cheat-ladder subset (None = controls).
-    ``egress_lock`` overrides the backend default (None = resolve): cheat
-    cells pass False on backends whose lock set excludes the cheat agent,
-    matching the unlocked conditions of the docker cheat baseline.
+    ``egress_lock`` overrides the backend default (None = resolve).
     """
     import os
 
@@ -651,26 +649,38 @@ def census_task(
     base = cell_job_name(task_id=task_id, backend=backend, cell="cheat")
     candidate = task_jobs / base
     if _trial_dirs_with_results(candidate):
-        cheat_dir = candidate
+        cheat_dir: Path | None = candidate
     else:
-        # Cheat cells run unlocked: the cheat agent is outside every backend's
-        # egress-lock set (it would refuse at dispatch), matching the unlocked
-        # docker cheat baseline the ladder acceptance was validated under.
-        cheat_dir = run_cell(
-            package=package,
-            agent=CHEAT_AGENT,
-            name=next_free_name(task_jobs, base),
-            jobs_dir=task_jobs,
-            backend=backend,
-            timeout_seconds=timeout_seconds,
-            attacks="",
-            egress_lock=False,
-            root=root,
-        )
-    summary = ladder_summary(cheat_dir)
-    run_ids = [cheat_dir.name, nop_dir.name]
-    if oracle_dir is not None:
-        run_ids.append(oracle_dir.name)
+        # Cheat cells use the backend default lock: the cheat agent is outside
+        # every egress-lock set, so locked backends refuse it at dispatch
+        # (Daytona+MiMo additionally refuses explicit unlocked). A refusal is
+        # recorded as backend-unsupported, never a failure; cheat coverage
+        # for those tasks comes from a backend that admits it (docker now,
+        # Modal once mtime-normalize@2 unblocks it) as a separate results row.
+        try:
+            cheat_dir = run_cell(
+                package=package,
+                agent=CHEAT_AGENT,
+                name=next_free_name(task_jobs, base),
+                jobs_dir=task_jobs,
+                backend=backend,
+                timeout_seconds=timeout_seconds,
+                attacks="",
+                root=root,
+            )
+        except ValueError as exc:
+            if "egress_lock" not in str(exc):
+                raise
+            print(f"note {task_id}: cheat refused on {backend} ({exc})")
+            cheat_dir = None
+    summary = (
+        ladder_summary(cheat_dir)
+        if cheat_dir is not None
+        else {"verdict": "backend-unsupported", "executed": [], "cracking": []}
+    )
+    run_ids = [nop_dir.name]
+    if cheat_dir is not None:
+        run_ids.append(cheat_dir.name)
     if summary["verdict"] == "cracked" and "full-ladder-unattributed" in summary["cracking"]:
         for attack in ATTACKS:
             attack_base = cell_job_name(task_id=task_id, backend=backend, cell=f"cheat-{attack}")
@@ -686,10 +696,10 @@ def census_task(
                     backend=backend,
                     timeout_seconds=timeout_seconds,
                     attacks=attack,
-                    egress_lock=False,
                     root=root,
                 )
             run_ids.append(attack_dir.name)
+        assert cheat_dir is not None  # cracked verdict implies a cheat dir
         summary = ladder_summary(cheat_dir)
         for run_id in run_ids:
             if run_id.startswith(cell_job_name(task_id=task_id, backend=backend, cell="cheat-")):
@@ -1043,13 +1053,16 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     if not rows_path.is_file():
         print(f"error: no census rows at {rows_path}; run `mimo-census run` first")
         return 2
-    latest: dict[str, dict[str, Any]] = {}
+    # Rows are keyed (task_id, backend): one task may carry a daytona row
+    # (controls; ladder backend-unsupported) plus a docker row (full ladder).
+    latest: dict[tuple[str, str], dict[str, Any]] = {}
     with rows_path.open(encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():
                 continue
             record = json.loads(line)
-            latest[str(record["task_id"])] = {str(key): value for key, value in record.items()}
+            key = (str(record["task_id"]), str(record.get("backend", "")))
+            latest[key] = {str(key): value for key, value in record.items()}
     spend_path = ctx.receipt_dir / SPEND_FILENAME
     batch_cost: dict[str, float] = {}
     if spend_path.is_file():
@@ -1063,7 +1076,7 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
                 for task_id in tasks:
                     batch_cost[task_id] = share
     rows: list[dict[str, Any]] = []
-    for task_id, record in sorted(latest.items()):
+    for (task_id, _backend), record in sorted(latest.items()):
         record["manifest_version"] = ctx.manifest_version
         if record.get("cost_usd", "") in ("", None):
             record["cost_usd"] = (

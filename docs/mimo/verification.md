@@ -56,9 +56,13 @@ For every clean-set manifest row, four checks on the FINAL clean package
   (materialization warm pass) is routed to the mtime owner via Main; the
   census does NOT work around it in-runner.
 - `daytona` — bounded Daytona sandbox env (`DAYTONA_API_KEY`), the paid
-  fallback while Modal-direct is blocked. Same Harbor trial path and grading
-  rules; per-attack ladder detail is compared against Docker as the parity
-  check for backend fidelity.
+  fallback while Modal-direct is blocked. Controls run under the default
+  MiMo egress lock; the cheat agent is outside every lock set and
+  Daytona+MiMo additionally refuses explicit unlocked, so cheat cells are
+  refused at dispatch and recorded `backend-unsupported` (never failures).
+  Cheat coverage for those tasks comes from a backend that admits it as a
+  SEPARATE results row: results.csv is keyed (task_id, backend), so one task
+  may carry a daytona row (controls) plus a docker row (full ladder).
 
 Parity gate (required before any paid batch): on ≥5 tasks, local-Docker
 Harbor results == census-runner docker-backend results for oracle/nop/ladder.

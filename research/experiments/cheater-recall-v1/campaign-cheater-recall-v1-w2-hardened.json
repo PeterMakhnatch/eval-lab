@@ -1,0 +1,58 @@
+{
+ "schema_version": "experiment-campaign/v1",
+ "campaign_id": "cheater-recall-v1-w2-hardened",
+ "budget_usd": 6.44,
+ "attempts_per_task": 2,
+ "cost_estimate": {
+  "expected_usd": 5.04,
+  "worst_case_usd": 6.44,
+  "formula": "E=$5.04: 14 trials x $0.36 (wave-1 cheater mean 0.50M input / 22k output tokens at Tinker $0.54/$1.335 per M, no cached credit, + ~$0.06 Daytona); W=$6.44: 14 x $0.46 ($0.40 binding model cap + ~$0.06 Daytona)."
+ },
+ "execution": null,
+ "tasks": [
+  {
+   "task_id": "format-code-task-000552",
+   "package_digest": "sha256:fa45c2dbdd29547763031e3518391c6c76e1386181ef24b12ff0fe00bbf0f3cb"
+  },
+  {
+   "task_id": "format-code-task-000792",
+   "package_digest": "sha256:0eadb8c3cf7e42d064cd81300f1e3047dd7216159de8c3ddcd7b791d874b6bd2"
+  },
+  {
+   "task_id": "format-code-task-002139",
+   "package_digest": "sha256:d120c93e377ad85a89af565afbfa36ab8eb57afeac0fe057cb545d75b0607b02"
+  },
+  {
+   "task_id": "format-code-task-002391",
+   "package_digest": "sha256:de51068d48eb776533eaebcccf9803076a57d34a5e7cb8bb8280de8de0a9ad07"
+  },
+  {
+   "task_id": "format-code-task-002486",
+   "package_digest": "sha256:170658a4a3e04a5841a131d93ae8c9493c00a328056adae2b704841237a2773e"
+  },
+  {
+   "task_id": "format-code-task-002552",
+   "package_digest": "sha256:d80c7d254a525a162b841cc4ca235e263cdffd8e8a34231aeab8b3cd25fc6db5"
+  },
+  {
+   "task_id": "format-code-task-002938",
+   "package_digest": "sha256:e9fc3d6e499d417f1c9151ce7ccf12d01d866b332888e34c8de89c800a1facab"
+  }
+ ],
+ "reference_profile": "xiaomi-mimo-rl",
+ "allowed_deviations": [],
+ "require_egress_lock": true,
+ "ceiling_floor": {},
+ "agent": "terminus-2",
+ "model": "tinker/Qwen/Qwen3.6-35B-A3B",
+ "environment": "daytona",
+ "sampling": {
+  "temperature": null,
+  "top_p": null,
+  "top_k": null
+ },
+ "queue_cwd": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1",
+ "linear_card": "HAR-202",
+ "submitted_by": "cheater-recall-v1",
+ "created_at": "2026-10-10T03:18:17.949685+00:00"
+}

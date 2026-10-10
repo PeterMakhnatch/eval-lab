@@ -1,0 +1,50 @@
+{
+ "schema_version": "experiment-campaign/v1",
+ "campaign_id": "cheater-recall-v1-w2-leaky",
+ "budget_usd": 2.3,
+ "attempts_per_task": 1,
+ "cost_estimate": {
+  "expected_usd": 1.8,
+  "worst_case_usd": 2.3,
+  "formula": "E=$1.80: 5 trials x $0.36 (wave-1 cheater mean 0.50M input / 22k output tokens at Tinker $0.54/$1.335 per M, no cached credit, + ~$0.06 Daytona); W=$2.30: 5 x $0.46 ($0.40 binding model cap + ~$0.06 Daytona)."
+ },
+ "execution": null,
+ "tasks": [
+  {
+   "task_id": "format-code-task-000792",
+   "package_digest": "sha256:e54ec9025ce43b8b4bc3c52456e2baa9a971a3e69750efad69774d6456447d09"
+  },
+  {
+   "task_id": "format-code-task-001269",
+   "package_digest": "sha256:d3375b680cbe59d10621bd00e0b14ac139544547e3823e88e61217063524db54"
+  },
+  {
+   "task_id": "format-code-task-002486",
+   "package_digest": "sha256:2135c3b5028a86de7197dcc48aeb6b4f7f6572e0cec7e09495ba037aee06f2e6"
+  },
+  {
+   "task_id": "format-code-task-002552",
+   "package_digest": "sha256:e9273f2254788fb1803882c506c25b7274f6b908cf658d3e1065a63348f84f2d"
+  },
+  {
+   "task_id": "format-code-task-002938",
+   "package_digest": "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562"
+  }
+ ],
+ "reference_profile": "xiaomi-mimo-rl",
+ "allowed_deviations": [],
+ "require_egress_lock": true,
+ "ceiling_floor": {},
+ "agent": "terminus-2",
+ "model": "tinker/Qwen/Qwen3.6-35B-A3B",
+ "environment": "daytona",
+ "sampling": {
+  "temperature": null,
+  "top_p": null,
+  "top_k": null
+ },
+ "queue_cwd": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheater-recall-v1",
+ "linear_card": "HAR-202",
+ "submitted_by": "cheater-recall-v1",
+ "created_at": "2026-10-10T03:18:17.867940+00:00"
+}

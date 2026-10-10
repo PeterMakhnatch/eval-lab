@@ -786,21 +786,28 @@ def census_fix_content(
     git_dir = scratch / "git-copy"
     if not copy_git_from_image(image, workdir, git_dir):
         return {"census_locations": None, "reason": "could not copy .git from image"}
+    git_bare = git_dir / ".git"
+    if not git_bare.is_dir():
+        return {"census_locations": None, "reason": "image has no worktree .git to recover from"}
     extract_out = scratch / "extract"
     extract_out.mkdir(parents=True, exist_ok=True)
     try:
-        evidence = leak_oracle_extract(run_package, git_dir, extract_out)
+        evidence = leak_oracle_extract(run_package, git_bare, extract_out)
     except Exception as exc:  # noqa: BLE001 - extractor refusal is a finding, not a crash
         return {"census_locations": None, "reason": f"extractor failed: {exc}"}
-    fix_sha = str(evidence.get("fix", ""))
+    extract_status = str(evidence.get("status", ""))
+    raw_fix = evidence.get("fix")
+    fix_sha = raw_fix if isinstance(raw_fix, str) and raw_fix else ""
     if not fix_sha:
         try:
-            lite = recover_fix_lite(git_dir, "", [])
-            fix_sha = str(lite.get("sha", ""))
+            lite = recover_fix_lite(git_bare, "", [])
+            lite_sha = lite.get("sha", "")
+            fix_sha = lite_sha if isinstance(lite_sha, str) and lite_sha else ""
         except Exception as exc:  # noqa: BLE001 - fallback refusal is a finding
             return {"census_locations": None, "reason": f"no recoverable fix: {exc}"}
     if not fix_sha:
-        return {"census_locations": None, "reason": "no recoverable fix"}
+        rationale = str(evidence.get("rationale", extract_status))
+        return {"census_locations": None, "reason": f"no recoverable fix ({rationale[:120]})"}
     image12 = image.split("@sha256:")[-1][:12] if "@sha256:" in image else image[-12:]
     setup_source = run_package / "environment" / "setup"
     published_stage = scratch / "stage-published"
@@ -822,6 +829,7 @@ def census_fix_content(
             {
                 "task_id": task_id,
                 "fix_sha": fix_sha,
+                "extract_status": extract_status,
                 "clean_setup": "package environment/setup/setup.sh",
                 "clean_setup_sha256": clean_setup_sha,
                 "image": image,

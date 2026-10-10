@@ -491,3 +491,45 @@ def test_fix_census_reuses_completed_probes(tmp_path: Path) -> None:
         scratch_root=tmp_path / "scratch",
     )
     assert result["census_locations"] == 0
+
+
+def test_fix_census_rejects_unrecoverable_fix(tmp_path: Path, monkeypatch: Any) -> None:
+    import evallab.fix_content_census as fcc
+    from evallab.mimo_census import census_fix_content
+
+    clean = tmp_path / "clean"
+    (clean / "environment" / "setup").mkdir(parents=True)
+    (clean / "environment" / "setup" / "setup.sh").write_text("# ship\n", encoding="utf-8")
+    run = tmp_path / "runpkg"
+    (run).mkdir()
+    (run / "task.toml").write_text(
+        '[environment]\ndocker_image = "img:1"\nworkdir = "/testbed"\n', encoding="utf-8"
+    )
+    scratch = tmp_path / "scratch"
+
+    def fake_copy(image: str, workdir: str, dest: object) -> bool:
+        target = Path(str(dest)) / ".git"
+        target.mkdir(parents=True, exist_ok=True)
+        return True
+
+    monkeypatch.setattr(fcc, "copy_git_from_image", fake_copy)
+    monkeypatch.setattr(
+        fcc,
+        "leak_oracle_extract",
+        lambda *args: {"status": "no-identifiable-fix", "fix": None, "rationale": " stories"},
+    )
+
+    def fake_lite(*args: Any) -> dict[str, Any]:
+        raise ValueError("lite refused")
+
+    monkeypatch.setattr(fcc, "recover_fix_lite", fake_lite)
+    # A null fix must never become the string "None" feeding vacuous probes.
+    result = census_fix_content(
+        task_id="task-y",
+        clean_package=clean,
+        run_package=run,
+        language="python",
+        scratch_root=scratch,
+    )
+    assert result["census_locations"] is None
+    assert str(result["reason"]).startswith("no recoverable fix")

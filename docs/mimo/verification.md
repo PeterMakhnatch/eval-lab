@@ -10,17 +10,22 @@ For every clean-set manifest row, four checks on the FINAL clean package
 (digest-bound, not the historical HAR-191 rows):
 
 (a) **nop = 0 with tests executed** — the nop control grades 0 AND the
-    trial's `verifier/junit-grade.log` shows named test cases ran
-    (`cases>0 and named>0`). A 0 without test evidence grades `0-noexec`
-    (needs triage), never pass.
+    trial carries test-execution evidence: JUnit grade logs with `cases > 0`
+    (`named` is diagnostic only — some suites report cases without parsable
+    names), or pytest result/summary lines in `verifier/test_output.log` for
+    exit-code-graded suites that emit no JUnit XML. A 0 without evidence
+    grades `0-noexec` (needs triage), never pass.
 (b) **oracle = 1 where a reference fix exists** — manifest `reference_fix`
     points at the HAR-191 solution patch; the oracle control must grade 1.
     Rows with `reference_fix = none` report `n/a`.
-(c) **cheat ladder = clean** — all 12 attacks of `evallab.cheat_ladder.ATTACKS`
+(c) **cheat ladder = clean** — every attack of `evallab.cheat_ladder.ATTACKS`
     (v1.2.0, executed through the model-free `cheat` agent; payloads reused,
-    never forked) run with status `executed`, and the benchmark's own verifier
-    reward grades every trial 0. A cracked full-ladder trial triggers
-    per-attack single trials for attribution; unattributed cracks report
+    never forked) ends `executed` or legitimately `skipped` (per-attack
+    inapplicability with a recorded reason — e.g. source-tamper attacks on
+    tasks with no imported package `__init__`), and the benchmark's own
+    verifier reward grades every trial 0. Missing/failed attacks grade
+    `partial` (unverified). A cracked full-ladder trial triggers per-attack
+    single trials for attribution; unattributed cracks report
     `full-ladder-unattributed`.
 (d) **fix-content census = 0 locations** — for tasks with a recoverable fix,
     `evallab.fix_content_census` probes the published image (pre-cleanup run
@@ -60,11 +65,13 @@ the out-of-git jobs dir. Assemble with `evallab mimo-census report`.
 ## Manifest `verify` grades (census-owned column)
 
 `verified-clean` (all checks pass) · `open-leak` (census_locations > 0) ·
-`grader-hole` (ladder cracked) · `env-broken` (nop fails: setup/grade broken
-with evidence) · `oracle-wrong` (oracle != 1 with fix, controls otherwise
+`grader-hole` (ladder cracked) · `env-broken` (nop `fail:` with evidence, or
+`setup-fail`: errored jobs such as fail-closed setup blocks — e.g. a
+cache-purge block with healthcheck rc=1 and no reward; never bucketed as a
+grading failure) · `oracle-wrong` (oracle != 1 with fix, controls otherwise
 clean) · `infra-flake` (transient infra failure, passes on retry) ·
-`needs-triage` (ambiguous signals: `0-noexec`, partial ladder, unattributed
-crack) · `unverified` (missing/unscored cells). Mapping:
+`needs-triage` (ambiguous signals: `0-noexec`/`1-noexec`, partial ladder,
+unattributed crack) · `unverified` (missing/unscored cells). Mapping:
 `mimo_census.verify_grade_for`; row acceptance: `mimo_census.census_row_pass`.
 
 ## Spend discipline ($15 slice cap)

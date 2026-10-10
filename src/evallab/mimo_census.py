@@ -38,7 +38,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from evallab.cheat import build_verdicts
+from evallab.cheat import build_verdicts, collect_cheat_attempts
 from evallab.cheat_ladder import ATTACKS
 from evallab.mimo_clean import STATUS_BUILT, acceptance_pass, load_manifest, summarize_trials
 
@@ -122,20 +122,43 @@ def parse_junit_grade(text: str) -> dict[str, Any] | None:
 def trial_grade_logs(trial_dir: Path) -> list[dict[str, Any]]:
     """JUnit grade facts for every verifier log under one trial dir."""
     grades: list[dict[str, Any]] = []
-    for log_path in sorted(trial_dir.rglob("junit-grade.log")):
-        try:
-            text = log_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
-            continue
+    for text in trial_output_logs(trial_dir, "junit-grade.log"):
         grade = parse_junit_grade(text)
         if grade is not None:
             grades.append(grade)
     return grades
 
 
+_PYTEST_RESULT_LINE_RE = re.compile(r"(?m)^(?:FAILED|ERROR|PASSED)\s+\S+")
+_PYTEST_SUMMARY_RE = re.compile(r"\b\d+\s+(?:failed|passed|error)\b.*in\s+[\d.]+s")
+
+
+def trial_output_logs(trial_dir: Path, name: str) -> list[str]:
+    """Read all verifier ``name`` logs under one trial dir (missing -> skip)."""
+    texts: list[str] = []
+    for log_path in sorted(trial_dir.rglob(name)):
+        try:
+            texts.append(log_path.read_text(encoding="utf-8", errors="replace"))
+        except OSError:
+            continue
+    return texts
+
+
 def trial_tests_executed(trial_dir: Path) -> bool:
-    """Whether a trial has evidence the verifier actually ran named tests."""
-    return any(grade["cases"] > 0 and grade["named"] > 0 for grade in trial_grade_logs(trial_dir))
+    """Whether a trial has evidence the verifier actually ran test cases.
+
+    Two shapes: JUnit grade logs with ``cases > 0`` (``named`` is diagnostic
+    only — some suites report cases without parsable names), or pytest
+    result/summary lines in ``test_output.log`` for exit-code-graded suites
+    that emit no JUnit XML.
+    """
+    if any(grade["cases"] > 0 for grade in trial_grade_logs(trial_dir)):
+        return True
+    return any(
+        _PYTEST_RESULT_LINE_RE.search(text) is not None
+        or _PYTEST_SUMMARY_RE.search(text) is not None
+        for text in trial_output_logs(trial_dir, "test_output.log")
+    )
 
 
 def _trial_dirs_with_results(job_dir: Path) -> list[Path]:
@@ -149,6 +172,49 @@ def _trial_dirs_with_results(job_dir: Path) -> list[Path]:
     )
 
 
+def _job_payload(job_dir: Path) -> dict[str, Any] | None:
+    """Job-level result.json payload, or None when absent/unreadable."""
+    payload_path = job_dir / "result.json"
+    try:
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def job_has_trial_errors(job_dir: Path) -> bool:
+    """Whether the job-level result records errored trials or eval errors.
+
+    Setup-failing packages (e.g. a fail-closed cache-purge block: healthcheck
+    rc=1, no reward) surface here, never as scored grading failures.
+    """
+    payload = _job_payload(job_dir)
+    if not isinstance(payload, dict):
+        return False
+    stats = payload.get("stats")
+    if not isinstance(stats, Mapping):
+        return False
+    if int(stats.get("n_errored_trials", 0) or 0) > 0:
+        return True
+    evals = stats.get("evals")
+    if not isinstance(evals, Mapping):
+        return False
+    for report in evals.values():
+        if not isinstance(report, Mapping):
+            continue
+        if int(report.get("n_errors", 0) or 0) > 0:
+            return True
+        exceptions = report.get("exception_stats")
+        if isinstance(exceptions, Mapping) and exceptions:
+            return True
+    return False
+
+
+def _unscored_grade(job_dir: Path) -> str:
+    """``"setup-fail"`` for errored jobs, else ``"unscored"``."""
+    return "setup-fail" if job_has_trial_errors(job_dir) else "unscored"
+
+
 def _rewards_string(rewards: Collection[float | None]) -> str:
     return ",".join("1" if r == 1 else "0" if r == 0 else "?" for r in rewards)
 
@@ -157,7 +223,8 @@ def nop_cell_grade(job_dir: Path) -> str:
     """Grade string for one nop cell dir.
 
     ``"0"`` = every trial rewarded 0 with executed-test evidence; anything
-    else names the failure (``"missing"``, ``"unscored"``, ``"fail:<rewards>"``,
+    else names the failure (``"missing"``, ``"unscored"``, ``"setup-fail"``
+    for errored jobs such as fail-closed setup blocks, ``"fail:<rewards>"``,
     or ``"0-noexec"`` when rewards are 0 but no test-execution evidence).
     """
     trials = _trial_dirs_with_results(job_dir)
@@ -165,7 +232,7 @@ def nop_cell_grade(job_dir: Path) -> str:
         return "missing"
     rewards = summarize_trials(job_dir)
     if not rewards or any(reward is None for reward in rewards):
-        return "unscored"
+        return _unscored_grade(job_dir)
     if any(reward != 0 for reward in rewards):
         return f"fail:{_rewards_string(rewards)}"
     if not all(trial_tests_executed(trial) for trial in trials):
@@ -184,7 +251,7 @@ def oracle_cell_grade(job_dir: Path | None, *, has_reference_fix: bool) -> str:
         return "missing"
     rewards = summarize_trials(job_dir)
     if not rewards or any(reward is None for reward in rewards):
-        return "unscored"
+        return _unscored_grade(job_dir)
     if any(reward == 1 for reward in rewards):
         if not all(trial_tests_executed(trial) for trial in trials):
             return "1-noexec"
@@ -196,7 +263,10 @@ def ladder_summary(job_dir: Path) -> dict[str, Any]:
     """Summarize one cheat-ladder cell dir.
 
     Returns verdict (``clean``/``cracked``/``partial``/``unscored``/
-    ``missing``), the executed attack set, and the cracking attack list.
+    ``missing``), the executed/skipped attack sets, and the cracking attack
+    list. ``clean`` needs every trial at reward 0 with each ladder attack
+    either executed or legitimately skipped (per-attack inapplicability with
+    a recorded reason); attacks that are missing or failed give ``partial``.
     Full-ladder cracks unattributable to one attack report
     ``full-ladder-unattributed``; single-attack attribution trials name
     their attack via the trial method.
@@ -206,12 +276,27 @@ def ladder_summary(job_dir: Path) -> dict[str, Any]:
         return {
             "verdict": "missing",
             "executed": [],
+            "skipped": [],
             "cracking": [],
             "trials": 0,
         }
     verdicts = build_verdicts(job_dir)
     payloads = verdicts.get("trials", [])
+    attempts = {entry["trial"]: entry for entry in collect_cheat_attempts(job_dir)}
     executed_all: set[str] = set()
+    skipped_all: set[str] = set()
+    for entry in attempts.values():
+        attacks = entry.get("payload", {}).get("attacks") or []
+        for attack in attacks:
+            if not isinstance(attack, dict):
+                continue
+            name = attack.get("name")
+            if not isinstance(name, str):
+                continue
+            if attack.get("status") == "executed":
+                executed_all.add(name)
+            elif attack.get("status") == "skipped":
+                skipped_all.add(name)
     verdict_names: list[str] = []
     cracking: set[str] = set()
     for trial in payloads:
@@ -219,7 +304,6 @@ def ladder_summary(job_dir: Path) -> dict[str, Any]:
         verdict_names.append(verdict if isinstance(verdict, str) else "unscored")
         method = trial.get("method") or ""
         methods = [name for name in method.split(",") if name] if method else []
-        executed_all.update(methods)
         if verdict == "cracked":
             if len(methods) == 1:
                 cracking.add(methods[0])
@@ -231,13 +315,14 @@ def ladder_summary(job_dir: Path) -> dict[str, Any]:
         verdict = "cracked"
     elif not verdict_names:
         verdict = "missing"
-    elif set(ATTACKS) <= executed_all:
+    elif set(ATTACKS) <= (executed_all | skipped_all):
         verdict = "clean"
     else:
         verdict = "partial"
     return {
         "verdict": verdict,
         "executed": sorted(executed_all),
+        "skipped": sorted(skipped_all),
         "cracking": sorted(cracking),
         "trials": len(trials),
     }
@@ -259,6 +344,8 @@ def verify_grade_for(
         return VERIFY_OPEN_LEAK
     if ladder_verdict == "cracked":
         return VERIFY_GRADER_HOLE
+    if nop == "setup-fail" or oracle == "setup-fail":
+        return VERIFY_ENV_BROKEN
     if nop != "0":
         if nop.startswith("fail:"):
             return VERIFY_ENV_BROKEN
@@ -992,6 +1079,7 @@ __all__ = [
     "census_task",
     "cell_job_name",
     "fence_allows",
+    "job_has_trial_errors",
     "ladder_summary",
     "load_results",
     "next_free_name",
@@ -1005,6 +1093,7 @@ __all__ = [
     "summarize_results",
     "summarize_trials",
     "trial_grade_logs",
+    "trial_output_logs",
     "trial_tests_executed",
     "utc_now_iso",
     "verify_grade_for",

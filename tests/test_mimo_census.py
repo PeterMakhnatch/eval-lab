@@ -90,6 +90,34 @@ def test_parse_junit_grade_round_trip() -> None:
     assert parse_junit_grade("") is None
 
 
+def test_trial_tests_executed_counts_cases_not_names(tmp_path: Path) -> None:
+    trial = tmp_path / "t"
+    _write_junit(trial, "rc=0 cases=0 bad=0 named=0 missing=[]")
+    assert not trial_tests_executed(trial)
+    # Suites may report cases without parsable names (observed cases=10 bad=6
+    # named=0 on a genuine nop failure): cases>0 is the execution signal.
+    _write_junit(trial, "rc=1 cases=10 bad=6 named=0 missing=[]")
+    assert trial_tests_executed(trial)
+
+
+def test_exit_code_graded_nop_scores_zero(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    trial = job / "t1"
+    _write_result(trial, 0.0)
+    (trial / "verifier").mkdir(parents=True)
+    (trial / "verifier" / "junit-grade.log").write_text(
+        "rc=1 no junit: exit-code grading\n", encoding="utf-8"
+    )
+    (trial / "verifier" / "test_output.log").write_text(
+        "FAILED test_a.py::test_x\nFAILED test_a.py::test_y\n"
+        "============================== 2 failed in 0.79s ===============================\n"
+        "REWARD=0 rc=1\n",
+        encoding="utf-8",
+    )
+    assert trial_tests_executed(trial)
+    assert nop_cell_grade(job) == "0"
+
+
 def test_nop_grade_zero_with_executed_tests(tmp_path: Path) -> None:
     job = tmp_path / "job"
     trial = job / "trial-a"
@@ -104,6 +132,42 @@ def test_nop_grade_flags_missing_test_evidence(tmp_path: Path) -> None:
     assert nop_cell_grade(job) == "0-noexec"
 
 
+def _write_job_result(job: Path, *, errored: int = 0, eval_errors: int = 0) -> None:
+    job.mkdir(parents=True, exist_ok=True)
+    (job / "result.json").write_text(
+        json.dumps(
+            {
+                "stats": {
+                    "n_errored_trials": errored,
+                    "evals": {"nop__adhoc": {"n_errors": eval_errors, "metrics": []}},
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+
+
+def test_setup_fail_bucket_for_errored_jobs(tmp_path: Path) -> None:
+    from evallab.mimo_census import job_has_trial_errors
+
+    errored = tmp_path / "errored"
+    (errored / "t").mkdir(parents=True)
+    (errored / "t" / "result.json").write_text("{}", encoding="utf-8")
+    _write_job_result(errored, errored=1)
+    assert job_has_trial_errors(errored)
+    assert nop_cell_grade(errored) == "setup-fail"
+    assert (
+        verify_grade_for(nop="setup-fail", oracle="n/a", ladder_verdict="clean", census_locations=0)
+        == VERIFY_ENV_BROKEN
+    )
+    quiet = tmp_path / "quiet"
+    (quiet / "t").mkdir(parents=True)
+    (quiet / "t" / "result.json").write_text("{}", encoding="utf-8")
+    _write_job_result(quiet)
+    assert not job_has_trial_errors(quiet)
+    assert nop_cell_grade(quiet) == "unscored"
+
+
 def test_nop_grade_failure_modes(tmp_path: Path) -> None:
     assert nop_cell_grade(tmp_path / "absent") == "missing"
     unscored = tmp_path / "unscored"
@@ -114,14 +178,6 @@ def test_nop_grade_failure_modes(tmp_path: Path) -> None:
     _write_result(trial, 1.0)
     _write_junit(trial)
     assert nop_cell_grade(failed) == "fail:1"
-
-
-def test_trial_tests_executed_requires_named_cases(tmp_path: Path) -> None:
-    trial = tmp_path / "t"
-    _write_junit(trial, "rc=0 cases=0 bad=0 named=0 missing=[]")
-    assert not trial_tests_executed(trial)
-    _write_junit(trial, "rc=0 cases=9 bad=0 named=9 missing=[]")
-    assert trial_tests_executed(trial)
 
 
 def test_oracle_grades(tmp_path: Path) -> None:
@@ -149,6 +205,30 @@ def test_ladder_summary_clean_full_ladder(tmp_path: Path) -> None:
     assert summary["cracking"] == []
     assert summary["executed"] == sorted(ATTACKS)
     assert summary["trials"] == 1
+
+
+def test_ladder_summary_clean_with_legitimate_skips(tmp_path: Path) -> None:
+    from evallab.cheat_ladder import ATTACKS
+
+    job = tmp_path / "cheat"
+    trial = job / "t1"
+    _write_result(trial, 0.0)
+    _write_attempts(
+        trial,
+        [
+            (
+                name,
+                "executed"
+                if name not in ("tamper_source_exit", "tamper_source_pytest_patch")
+                else "skipped",
+            )
+            for name in ATTACKS
+        ],
+    )
+    summary = ladder_summary(job)
+    assert summary["verdict"] == "clean"
+    assert summary["cracking"] == []
+    assert summary["skipped"] == ["tamper_source_exit", "tamper_source_pytest_patch"]
 
 
 def test_ladder_summary_partial_when_attack_missing(tmp_path: Path) -> None:

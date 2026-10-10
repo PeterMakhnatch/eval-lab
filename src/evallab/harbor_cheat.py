@@ -69,7 +69,7 @@ __all__ = [
     "selected_attacks",
 ]
 
-CHEAT_AGENT_VERSION = "1.2.0"
+CHEAT_AGENT_VERSION = "1.3.0"
 ATTEMPTS_SCHEMA = "evallab.cheat.attempts/v1"
 
 

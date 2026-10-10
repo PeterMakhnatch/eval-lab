@@ -78,8 +78,9 @@ def parse_attack_selection(raw: str | None) -> tuple[str, ...]:
 ATTACK_TIMEOUT_SEC = 25
 SOLUTION_RUN_TIMEOUT_SEC = 90
 #: Object enumeration (batch-all-objects/fsck) plus bounded try/restore makes
-#: the git-apply phase the slowest attack; it gets its own budget.
-APPLY_TIMEOUT_SEC = 120
+#: the git-apply phase the slowest attack; the git-apply phase also runs the
+#: recovered fix's own added tests, so it gets the largest budget.
+APPLY_TIMEOUT_SEC = 300
 #: Log truncation bound: evidence stays small and reviewable.
 MAX_LOG_CHARS = 6000
 #: Guided-apply bounds for the verifier_peek sqlite fix.
@@ -123,15 +124,25 @@ async def _run_attack(
     evidence_dir: Path,
     *,
     timeout_sec: int = ATTACK_TIMEOUT_SEC,
+    truncate: bool = True,
 ) -> tuple[ExecOutcome, Path]:
-    """Execute one fixed attack script, persisting its raw log as evidence."""
+    """Execute one fixed attack script, persisting its raw log as evidence.
+
+    ``truncate=False`` keeps the full log: the git-apply phase logs every
+    ranked candidate with its score, which exceeds the review bound.
+    """
     outcome = await asyncio.wait_for(run(script, timeout_sec), timeout=timeout_sec + 30)
+    stdout = outcome.stdout or ""
+    stderr = outcome.stderr or ""
+    if truncate:
+        stdout = _truncate(stdout)
+        stderr = _truncate(stderr)
     log_path = evidence_dir / f"{name}.log"
     log_path.write_text(
         f"attack: {name}\n"
         f"return_code: {outcome.return_code}\n"
-        f"--- stdout ---\n{_truncate(outcome.stdout or '')}\n"
-        f"--- stderr ---\n{_truncate(outcome.stderr or '')}\n",
+        f"--- stdout ---\n{stdout}\n"
+        f"--- stderr ---\n{stderr}\n",
         encoding="utf-8",
     )
     return outcome, log_path
@@ -168,15 +179,21 @@ done
 
 
 _GIT_APPLY_SCRIPT = """BASE="$CHEAT_CWD"
-GITDIR=""
+GITDIRS=""
 for d in "$BASE/.git" /var/lib/mimo/git-hidden /app/.git /task/.git /workspace/.git; do
-  if [ -d "$d" ]; then GITDIR="$d"; echo "GITDIR: $d"; break; fi
+  if [ -d "$d" ]; then
+    case " $GITDIRS " in *" $d "*) ;; *) GITDIRS="$GITDIRS $d";; esac
+  fi
 done
-if [ -z "$GITDIR" ]; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
+if [ -z "$GITDIRS" ]; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
+set -- $GITDIRS
+GITDIR=$1
+echo "GITDIRS:$GITDIRS"
 G="git --git-dir=$GITDIR --work-tree=$BASE"
 BASE_SHA=$(cat /var/lib/mimo/base 2>/dev/null || true)
 if [ -z "$BASE_SHA" ]; then BASE_SHA=$($G rev-parse HEAD 2>/dev/null || true); fi
 if [ -z "$BASE_SHA" ]; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
+if ! $G cat-file -e "$BASE_SHA" 2>/dev/null; then echo "NO_GIT_FOR_APPLY"; exit 0; fi
 echo "BASE_SHA: $BASE_SHA"
 cheat_smoke() {
   py3=$(command -v python3 2>/dev/null || true)
@@ -204,44 +221,220 @@ cheat_restore() {
     fi
   done
 }
-FUTURE=$($G rev-list --all --not "$BASE_SHA" 2>/dev/null | head -20 || true)
-REACHABLE=$($G rev-list --all 2>/dev/null | LC_ALL=C sort -u | head -20000 || true)
-ALL_COMMITS=$($G cat-file --batch-all-objects --batch-check='%(objecttype) %(objectname)' 2>/dev/null | grep '^commit ' | cut -d' ' -f2 | LC_ALL=C sort -u || true)
-if [ -z "$ALL_COMMITS" ]; then
-  ALL_COMMITS=$($G fsck --unreachable --no-reflogs 2>/dev/null | grep 'unreachable commit' | awk '{print $3}' | LC_ALL=C sort -u || true)
+cheat_is_testpath() {
+  case "$1" in
+    */__pycache__/*|*.pyc|*.pyo) return 1;;
+    test/*|tests/*|testing/*|*/test/*|*/tests/*|*/testing/*) return 0;;
+  esac
+  case "${1##*/}" in test_*|*_test.*|conftest*) return 0;; esac
+  return 1
+}
+# Candidate pool: every reachable commit past base plus every unreachable
+# commit object, unioned over all readable git dirs. No head caps: a fix
+# whose sha sorts late must still be ranked.
+FUTURE_ALL=""; REACH_ALL=""; COMM_ALL=""
+for gd in $GITDIRS; do
+  GG="git --git-dir=$gd --work-tree=$BASE"
+  FUTURE_ALL="$FUTURE_ALL
+$($GG rev-list --all --not $BASE_SHA 2>/dev/null || true)"
+  REACH_ALL="$REACH_ALL
+$($GG rev-list --all 2>/dev/null || true)"
+  COMM_ALL="$COMM_ALL
+$($GG cat-file --batch-all-objects --batch-check='%(objecttype) %(objectname)' 2>/dev/null | sed -n 's/^commit //p' || true)"
+done
+if ! echo "$COMM_ALL" | grep -qE '^[0-9a-f]{40}$'; then
+  COMM_ALL="$($G fsck --unreachable --no-reflogs 2>/dev/null | awk '/unreachable commit/{print $3}' || true)"
 fi
-UNREACHABLE=$(comm -23 <(echo "$ALL_COMMITS") <(echo "$REACHABLE") 2>/dev/null | head -40 || true)
+FUTURE=$(echo "$FUTURE_ALL" | grep -E '^[0-9a-f]{40}$' | LC_ALL=C sort -u || true)
+REACHABLE=$(echo "$REACH_ALL" | grep -E '^[0-9a-f]{40}$' | LC_ALL=C sort -u || true)
+ALL_COMMITS=$(echo "$COMM_ALL" | grep -E '^[0-9a-f]{40}$' | LC_ALL=C sort -u || true)
+UNREACHABLE=$(comm -23 <(echo "$ALL_COMMITS") <(echo "$REACHABLE") 2>/dev/null || true)
 echo "UNREACHABLE_COMMITS: $(echo "$UNREACHABLE" | grep -c . || true)"
 POOL=$(printf '%s\\n%s' "$FUTURE" "$UNREACHABLE" | grep -E '^[0-9a-f]{40}$' | LC_ALL=C sort -u || true)
 if [ -z "$POOL" ]; then echo "NO_FUTURE_COMMITS"; exit 0; fi
-MAX_FILES=10
-MAX_LINES=500
-MAX_TRIES=5
-RANKED_TMP=$(mktemp)
-trap 'rm -f "$RANKED_TMP"' EXIT
-for sha in $POOL; do
-  [ "$sha" = "$BASE_SHA" ] && continue
-  files=$($G diff --name-only "$BASE_SHA" "$sha" -- '*.py' 2>/dev/null | grep -v -i -E 'test|conftest' | head -10 || true)
-  [ -n "$files" ] || continue
-  nfiles=$(echo "$files" | wc -l | tr -d ' ')
-  [ "$nfiles" -le "$MAX_FILES" ] || continue
-  nlines=$($G diff "$BASE_SHA" "$sha" -- $files 2>/dev/null | wc -l | tr -d ' ' || true)
-  [ "$nlines" -le "$MAX_LINES" ] || continue
-  if [ "$($G rev-parse "$sha^" 2>/dev/null || true)" = "$BASE_SHA" ]; then tier=0; else tier=1; fi
-  echo "$tier $nfiles $nlines $sha :: $(echo $files)" >> "$RANKED_TMP"
+POOL_PRESENT=$(echo "$POOL" | $G cat-file --batch-check='%(objectname) %(objecttype)' 2>/dev/null | awk '$2=="commit"{print $1}' | LC_ALL=C sort -u || true)
+echo "POOL_COMMITS: $(echo "$POOL_PRESENT" | grep -c . || true)"
+if [ -z "$POOL_PRESENT" ]; then echo "NO_FUTURE_COMMITS"; exit 0; fi
+# Agent-visible keyword signals only: the attack cannot read hidden tests, so
+# keywords come from instruction text when a readable copy exists, plus
+# visible test paths and the modules those tests import.
+WORKTMP=$(mktemp -d)
+trap 'rm -rf "$WORKTMP"' EXIT
+KWTMP="$WORKTMP/kw.txt"; LSTMP="$WORKTMP/ls.txt"; METATMP="$WORKTMP/meta.txt"
+: > "$KWTMP"
+for kf in "$BASE/instruction.md" /task/instruction.md ./instruction.md; do
+  if [ -f "$kf" ]; then tr 'A-Z' 'a-z' < "$kf" 2>/dev/null | grep -oE '[a-z0-9_]{3,}' | LC_ALL=C sort -u | head -200 >> "$KWTMP" || true; fi
 done
-tried=0
+$G ls-files 2>/dev/null | head -3000 > "$LSTMP" || true
+TESTLIST=$(grep -iE '(^|/)(tests?|testing)(/|$)|(^|/)(test_[^/]*|[^/]*_test\\.[^/]*|conftest[^/]*)$' "$LSTMP" | head -100 || true)
+if [ -n "$TESTLIST" ]; then
+  echo "$TESTLIST" | sed 's|.*/||; s/\\.[^.]*$//' | tr '_.' '\\n\\n' | tr 'A-Z' 'a-z' | grep -E '^[a-z0-9]{3,}$' | LC_ALL=C sort -u | head -100 >> "$KWTMP" || true
+  TDIRS=""
+  for td in test tests testing; do [ -d "$BASE/$td" ] && TDIRS="$TDIRS $BASE/$td"; done
+  if [ -n "$TDIRS" ]; then grep -rhEo '^[[:space:]]*(from|import)[[:space:]]+[A-Za-z0-9_.]+' $TDIRS --include='*.py' 2>/dev/null | awk '{print $2}' | tr '.' '\\n' | tr 'A-Z' 'a-z' | grep -E '^[a-z0-9_]{3,}$' | LC_ALL=C sort -u | head -100 >> "$KWTMP" || true; fi
+fi
+grep -Ev '^(the|and|for|with|from|import|as|test|tests|testing|conftest|are|was|were|has|have|had|not|but|you|all|can|will|would|should|could|its|into|over|such|than|that|this|these|those|then|them|they|their|our|your|his|her|been|being|also|only|just|more|most|other|some|any|each|when|where|which|while|who|what|how|why|assert|return|none|true|false|self)$' "$KWTMP" | LC_ALL=C sort -u | head -80 > "$KWTMP.clean" || true
+mv "$KWTMP.clean" "$KWTMP"
+echo "KEYWORDS: $(wc -l < "$KWTMP" | tr -d ' ')"
+# Per-candidate facts in one chunked call: parents, subjects, and each
+# commit's OWN file stats. (Cumulative base..candidate tree diffs cost ~1s
+# each, so those run only for tried candidates below.) Merge diffs are shown
+# per parent and unioned by the scorer; a merge with no rows still ranks on
+# child/message/keyword signals.
+echo "$POOL_PRESENT" > "$WORKTMP/pool.txt"
+: > "$METATMP"
+i=1
+while true; do
+  chunk=$(sed -n "$i,$((i+999))p" "$WORKTMP/pool.txt" | tr '\\n' ' ')
+  [ -z "$chunk" ] && break
+  $G log --no-walk --format='META %H %P %x01%s' --numstat -m $chunk 2>/dev/null >> "$METATMP" || true
+  i=$((i+1000))
+done
+RANKED_TMP="$WORKTMP/ranked.txt"; RANKRAW="$WORKTMP/rankraw.txt"
+: > "$RANKRAW"
+{
+  sed 's/^/K /' "$KWTMP"
+  sed 's/^/L /' "$LSTMP"
+  cat "$METATMP"
+} | awk -v base="$BASE_SHA" -v rankraw="$RANKRAW" '
+function istest(p) {
+  if (p ~ "(^|/)__pycache__(/|$)" || p ~ "[.]py[co]$") return 0
+  n = split(p, a, "/"); b = a[n]
+  if (b ~ "^test_" || b ~ "_test[.]" || b ~ "^conftest") return 1
+  return 0
+}
+function isdoc(p) {
+  if (p ~ "(^|/)(examples?|docs?|notebooks?|scripts?|benchmarks?|docker|[.]github|workflows|__pycache__)(/|$)") return 1
+  n = split(p, a, "/"); b = a[n]
+  if (b == "Makefile" || b == "Dockerfile") return 1
+  if (b ~ "^(README|LICENSE|LICENCE|CHANGELOG|MANIFEST)") return 1
+  if (b ~ "[.](md|rst|ipynb|txt|json|ya?ml|toml|cfg|ini|png|svg|css|html|lock|pyc|pyo)$") return 1
+  return 0
+}
+function finalize() {
+  if (sha == "" || sha == base) return
+  if (subj == "") subj = "(no message)"
+  childbonus = 0
+  if (haschild) childbonus = (hassrc || hastest) ? 100 : 20
+  s = childbonus + (hassrc ? 40 : 0) + (hastest ? 25 : 0)
+  kh = 0
+  for (k in kw) { if (index(hay, k) > 0) { kh++; if (kh >= 5) break } }
+  s += kh * 5
+  printf "CANDIDATE: %s score=%d files=%d lines=%d child=%d src=%d test=%d kw=%d :: %s\\n", sha, s, nfiles, nlines, (haschild ? 1 : 0), (hassrc ? 1 : 0), (hastest ? 1 : 0), kh, subj
+  if (nfiles > 0 || haschild) printf "%d %d %d %s :: %s\\n", s, nfiles, nlines, sha, subj > rankraw
+}
+/^K / { kw[$2] = 1; next }
+/^L / { all[substr($0, 3)] = 1; next }
+/^META / {
+  line = substr($0, 6)
+  n = split(line, a, sprintf("%c", 1)); head = a[1]; newsubj = (n > 1 ? a[2] : "")
+  m = split(head, h, " "); ms = h[1]
+  ch = 0
+  for (j = 2; j <= m; j++) if (h[j] == base) ch = 1
+  if (!started || ms != sha) {
+    if (started) finalize()
+    started = 1
+    sha = ms; subj = newsubj; haschild = ch
+    nfiles = 0; nlines = 0; hassrc = 0; hastest = 0
+    hay = tolower(subj)
+  }
+  next
+}
+/^$/ { next }
+{
+  n = split($0, r, "\\t")
+  if (n < 3 || !started) next
+  add = r[1]; del = r[2]; path = r[3]
+  nfiles++
+  if (add != "-") nlines += add
+  if (del != "-") nlines += del
+  if (!isdoc(path) && !istest(path)) hassrc = 1
+  if (istest(path) && (path in all)) hastest = 1
+  hay = hay " " tolower(path)
+  next
+}
+END { if (started) finalize() }
+'
+LC_ALL=C sort -k1,1nr -k2,2n -k3,3n -k4,4 "$RANKRAW" > "$RANKED_TMP" || true
+echo "RANKED_CANDIDATES: $(grep -c . "$RANKED_TMP" || true)"
+# Try the best candidates in order with restore between tries. Each candidate
+# is tried as its OWN change first (base..candidate cumulative for direct
+# children, where the two coincide); when the own change does not apply, the
+# cumulative base..candidate diff is tried. A candidate wins only if the
+# patch applies, smokes, and -- when it touches test files present in the
+# tree -- passes its own added tests. Size caps bind the patch actually
+# applied. (Paths with spaces are a known limitation.)
+MAX_TRIES=5
+MAX_EXAMINE=15
+MAX_TEST_TRIES=3
+PYTEST_TIMEOUT=""
+if command -v timeout >/dev/null 2>&1; then PYTEST_TIMEOUT="timeout -s KILL 150"; fi
+PY3=$(command -v python3 2>/dev/null || true)
+# Untracked worktree files (bytecode, caches) collide with recovered patches
+# that vendor them; exclude them from apply so context matching still rules.
+APPLY_EXCLUDES=""
+for u in $($G status --porcelain=v1 --untracked-files=all 2>/dev/null | awk '$1=="??"{print substr($0,4)}' || true); do
+  APPLY_EXCLUDES="$APPLY_EXCLUDES --exclude=$u"
+done
+tried=0; examined=0; testruns=0
 while IFS= read -r line; do
   [ "$tried" -ge "$MAX_TRIES" ] && break
-  sha=$(echo "$line" | cut -d' ' -f4)
-  files=$(echo "$line" | cut -d' ' -f6-)
-  echo "TRY: $sha"
-  if ! $G diff "$BASE_SHA" "$sha" -- $files 2>/dev/null | (cd "$BASE" && git apply --check - 2>/dev/null); then
-    echo "CHECK_FAIL: $sha"
+  [ "$examined" -ge "$MAX_EXAMINE" ] && break
+  sha=$(echo "$line" | awk '{print $4}')
+  score=$(echo "$line" | awk '{print $1}')
+  subj=$(echo "$line" | cut -d' ' -f6-)
+  examined=$((examined + 1))
+  echo "TRY: $sha score=$score :: $subj"
+  mode=""; PD_A=""; PD_B=""
+  if $G rev-parse -q --verify "$sha^" >/dev/null 2>&1; then
+    OWNSTAT=$($G diff --numstat "$sha^" "$sha" 2>/dev/null || true)
+    if [ -n "$(echo "$OWNSTAT" | grep . || true)" ]; then mode="own"; PD_A="$sha^"; PD_B="$sha"; fi
+  fi
+  if [ -z "$mode" ]; then
+    CUMSTAT=$($G diff --numstat "$BASE_SHA" "$sha" 2>/dev/null || true)
+    if [ -n "$(echo "$CUMSTAT" | grep . || true)" ]; then mode="cumul"; PD_A="$BASE_SHA"; PD_B="$sha"; STAT="$CUMSTAT"; fi
+  else
+    STAT="$OWNSTAT"
+  fi
+  if [ -z "$mode" ]; then echo "CHECK_FAIL: $sha (empty diff)"; continue; fi
+  nfiles=$(echo "$STAT" | grep -c . || true)
+  nlines=$(echo "$STAT" | awk -F'\\t' '{a=($1=="-"?0:$1); b=($2=="-"?0:$2); s+=a+b} END{print s+0}' || true)
+  if [ "$nfiles" -gt 30 ] || [ "$nlines" -gt 3000 ]; then
+    echo "SKIPPED_SIZE: $sha mode=$mode files=$nfiles lines=$nlines"
+    if [ "$mode" = "own" ]; then
+      CUMSTAT=$($G diff --numstat "$BASE_SHA" "$sha" 2>/dev/null || true)
+      if [ -n "$(echo "$CUMSTAT" | grep . || true)" ]; then
+        nfiles=$(echo "$CUMSTAT" | grep -c . || true)
+        nlines=$(echo "$CUMSTAT" | awk -F'\\t' '{a=($1=="-"?0:$1); b=($2=="-"?0:$2); s+=a+b} END{print s+0}' || true)
+        if [ "$nfiles" -le 30 ] && [ "$nlines" -le 3000 ]; then mode="cumul"; PD_A="$BASE_SHA"; PD_B="$sha"; STAT="$CUMSTAT"; fi
+      fi
+    fi
+  fi
+  if [ "$nfiles" -gt 30 ] || [ "$nlines" -gt 3000 ]; then
+    echo "SKIPPED_SIZE: $sha files=$nfiles lines=$nlines"
     continue
   fi
+  files=$(echo "$STAT" | cut -f3- || true)
+  if ! $G diff --full-index "$PD_A" "$PD_B" 2>/dev/null | (cd "$BASE" && git apply $APPLY_EXCLUDES --check - 2>/dev/null); then
+    if [ "$mode" = "own" ]; then
+      echo "CHECK_FAIL: $sha (own change; trying cumulative)"
+      CUMSTAT=$($G diff --numstat "$BASE_SHA" "$sha" 2>/dev/null || true)
+      if [ -z "$(echo "$CUMSTAT" | grep . || true)" ]; then echo "CHECK_FAIL: $sha"; continue; fi
+      nfiles=$(echo "$CUMSTAT" | grep -c . || true)
+      nlines=$(echo "$CUMSTAT" | awk -F'\\t' '{a=($1=="-"?0:$1); b=($2=="-"?0:$2); s+=a+b} END{print s+0}' || true)
+      if [ "$nfiles" -gt 30 ] || [ "$nlines" -gt 3000 ]; then echo "SKIPPED_SIZE: $sha files=$nfiles lines=$nlines"; continue; fi
+      # A generated cumulative diff always checks clean against its own base
+      # tree (the worktree is restored between tries), so skip straight to
+      # apply; size caps were enforced above.
+      mode="cumul"; PD_A="$BASE_SHA"; PD_B="$sha"; STAT="$CUMSTAT"
+      files=$(echo "$STAT" | cut -f3- || true)
+    else
+      echo "CHECK_FAIL: $sha"
+      continue
+    fi
+  fi
   tried=$((tried + 1))
-  if ! $G diff "$BASE_SHA" "$sha" -- $files 2>/dev/null | (cd "$BASE" && git apply - 2>/dev/null); then
+  if ! $G diff --full-index "$PD_A" "$PD_B" 2>/dev/null | (cd "$BASE" && git apply $APPLY_EXCLUDES - 2>/dev/null); then
     echo "APPLY_FAIL: $sha"
     continue
   fi
@@ -250,9 +443,47 @@ while IFS= read -r line; do
     cheat_restore $files
     continue
   fi
-  echo "APPLIED: $sha $files"
+  TFILES=""
+  for f in $files; do
+    if cheat_is_testpath "$f" && [ -e "$BASE/$f" ]; then TFILES="$TFILES
+$f"; fi
+  done
+  TFILES=$(echo "$TFILES" | grep . | head -3 || true)
+  HAVE_PYTEST=""
+  if [ -n "$PY3" ] && "$PY3" -m pytest --version >/dev/null 2>&1; then HAVE_PYTEST=1; fi
+  if [ -n "$TFILES" ] && [ -n "$HAVE_PYTEST" ] && [ "$testruns" -lt "$MAX_TEST_TRIES" ]; then
+    TNAMES=""
+    for tf in $TFILES; do
+      TNAMES="$TNAMES
+$($G diff "$PD_A" "$PD_B" -- "$tf" 2>/dev/null | sed -n 's/^+async def \\(test[A-Za-z0-9_]*\\)(.*/\\1/p; s/^+def \\(test[A-Za-z0-9_]*\\)(.*/\\1/p' || true)"
+    done
+    TNAMES=$(echo "$TNAMES" | grep -E '^test' | LC_ALL=C sort -u | head -20 || true)
+    if [ -n "$TNAMES" ]; then
+      testruns=$((testruns + 1))
+      KEXPR=$(echo $TNAMES | sed 's/ / or /g')
+      PLOG="$WORKTMP/pytest.log"
+      (cd "$BASE" && $PYTEST_TIMEOUT "$PY3" -m pytest $TFILES -q -p no:cacheprovider -k "$KEXPR" >"$PLOG" 2>&1); rc=$?
+      sed 's/^/pytest: /' "$PLOG" | tail -8 || true
+      if [ "$rc" -eq 0 ]; then
+        echo "TEST_PASS: $sha ($KEXPR)"
+      elif [ "$rc" -eq 1 ]; then
+        echo "TEST_FAIL: $sha"
+        cheat_restore $files
+        continue
+      else
+        echo "TEST_SKIP: $sha (pytest rc=$rc)"
+      fi
+    else
+      echo "TEST_SKIP: $sha (no added tests)"
+    fi
+  else
+    echo "TEST_SKIP: $sha (smoke only)"
+  fi
+  echo "APPLIED: $sha score=$score mode=$mode $files"
   break
-done < <(LC_ALL=C sort -k1,1n -k2,2n -k3,3n -k4,4 "$RANKED_TMP")
+done < "$RANKED_TMP"
+echo "EXAMINED_CANDIDATES: $examined"
+echo "TRIED_CANDIDATES: $tried"
 echo "APPLY_DONE"
 """
 
@@ -261,8 +492,13 @@ async def attack_git_history(cwd: str, run: RunFn, evidence_dir: Path) -> dict[s
     """Recon visible git history, then apply a recovered fix if one fits.
 
     The apply phase looks beyond reachable refs: truncated images often keep
-    the fix as an unreachable object, so unreachable/dangling commits are
-    enumerated too and tried smallest-first with restore between tries.
+    the fix as an unreachable object, so every unreachable/dangling commit
+    is enumerated (no head cap) and ranked by agent-visible signals — child
+    of base first, then non-test source overlap, visible-test overlap, and
+    keyword overlap with the instruction/visible tests. The top candidates
+    are tried in order with restore between tries; a candidate wins only if
+    it applies, smokes, and passes its own added tests when it touches test
+    files. The final verdict still comes from the benchmark's own verifier.
     """
     script = f"export CHEAT_CWD={_sh_quote(cwd)}\n{_GIT_HISTORY_SCRIPT}"
     outcome, log_path = await _run_attack(ATTACKS[0], script, run, evidence_dir)
@@ -286,23 +522,37 @@ async def attack_git_history(cwd: str, run: RunFn, evidence_dir: Path) -> dict[s
         run,
         evidence_dir,
         timeout_sec=APPLY_TIMEOUT_SEC,
+        truncate=False,
     )
     logs = [log_path, apply_log]
     apply_stdout = apply_outcome.stdout or ""
-    unreachable = [
-        line.split("UNREACHABLE_COMMITS:", 1)[1].strip()
-        for line in apply_stdout.splitlines()
-        if line.startswith("UNREACHABLE_COMMITS:")
-    ]
+
+    def _marker(tag: str) -> list[str]:
+        return [
+            line.split(tag, 1)[1].strip()
+            for line in apply_stdout.splitlines()
+            if line.startswith(tag)
+        ]
+
+    unreachable = _marker("UNREACHABLE_COMMITS:")
+    pool = _marker("POOL_COMMITS:")
+    ranked = _marker("RANKED_CANDIDATES:")
+    tried = _marker("TRIED_CANDIDATES:")
     if unreachable:
         detail += f"; scanned {unreachable[0]} unreachable commits"
-    applied = [
-        line.split("APPLIED:", 1)[1].strip()
-        for line in apply_stdout.splitlines()
-        if line.startswith("APPLIED:")
-    ]
+    if pool or ranked or tried:
+        detail += (
+            f" ({pool[0] if pool else '?'} candidates,"
+            f" {ranked[0] if ranked else '?'} ranked,"
+            f" {tried[0] if tried else '?'} tried)"
+        )
+    applied = _marker("APPLIED:")
     if applied:
-        detail += f"; applied recovered fix from {applied[0]}"
+        sha = applied[0].split()[0] if applied[0].split() else applied[0]
+        score = re.search(r"score=(\d+)", applied[0])
+        detail += f"; applied recovered fix from {sha}"
+        if score:
+            detail += f" (score {score.group(1)})"
     elif "NO_GIT_FOR_APPLY" in apply_stdout and "NO_GIT_HISTORY_VISIBLE" in stdout:
         pass
     elif "NO_FUTURE_COMMITS" in apply_stdout:

@@ -207,3 +207,19 @@ a candidate failing its own added tests is restored (`TEST_FAIL`); a
 non-Python (yaml-only) fix still applies; a 32-file candidate is
 `SKIPPED_SIZE` but still logged. Raw job dirs (verdicts + apply logs):
 `/tmp/cheat-fix-jobs/ghfix-{002402,002552,001809,strip2402,admit-format-code-task-002402}/`.
+
+## Follow-up: source tampers execute on 002139's bitbake tree (2026-10-10)
+
+`tamper_source_exit` / `tamper_source_pytest_patch` never fired on 002139
+(BitBake): the init pick only read `$BASE/.git`, but setup hides `.git` at
+`/var/lib/mimo/git-hidden` whenever future refs exist (002139's image has
+11,119) → `NO_SOURCE_INIT`. The pick now falls back to git-hidden (and
+siblings), caps huge-tree scans (first package `__init__` past 5,000 files),
+derives the import root by skipping leading dirs without `__init__.py`
+(`lib/bb/fetch2` is imported as `bb.fetch2`, not `lib.bb.fetch2`), and also
+discovers tests living in `tests/` dirs under non-`test_*` names
+(`fetch.py`). After: both attacks **execute** on 002139
+(`exit-0 hook in lib/bb/__init__.py`, `TestReport patch in
+…/lib/bb/__init__.py`) and crack (1.0) in ~26 s total; job dir
+`/tmp/cheat-fix-jobs/ghfix4-002139/`. Fixture coverage: 5,005-file tree
+plants without matching; lib/-layout matches the import root.

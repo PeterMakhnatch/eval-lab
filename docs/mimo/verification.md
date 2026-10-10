@@ -43,7 +43,22 @@ For every clean-set manifest row, four checks on the FINAL clean package
   snapshot, then the bundled separate-verifier grading in a FRESH sandbox
   from the same pinned image. No HAR-191 shortcuts (oracle/nop sharing one
   sandbox); the fresh-verifier boundary is Harbor's own separate-verifier
-  lifecycle.
+  lifecycle. Requires the Modal SDK at run time (not in the lockfile):
+  `uv run --with "modal>=1.5.4" --with "dockerfile-parse>=2.0.1" --extra
+  laminar evallab ...` plus `~/.modal.toml` auth.
+  **Known block (2026-10-09, open issue)**: mtime-normalize@1's fail-closed
+  check trips on Modal `_ModalDirect` (`Image.from_registry` lazily
+  materializes layers, re-bumping directory mtimes after the touch walk;
+  repeat touch+check in the same sandbox shows 0 offenders). Setup fails
+  with `mtime-normalize@1 found paths newer than the fixed timestamp`
+  before any agent phase — every Modal cell grades `setup-fail`. Same
+  package passes on Docker (eager materialization). Hardening the transform
+  (materialization warm pass) is routed to the mtime owner via Main; the
+  census does NOT work around it in-runner.
+- `daytona` — bounded Daytona sandbox env (`DAYTONA_API_KEY`), the paid
+  fallback while Modal-direct is blocked. Same Harbor trial path and grading
+  rules; per-attack ladder detail is compared against Docker as the parity
+  check for backend fidelity.
 
 Parity gate (required before any paid batch): on ≥5 tasks, local-Docker
 Harbor results == census-runner docker-backend results for oracle/nop/ladder.

@@ -266,6 +266,18 @@ def test_ladder_summary_unscored_and_missing(tmp_path: Path) -> None:
     assert ladder_summary(job)["verdict"] == "unscored"
 
 
+def test_cell_job_naming_and_next_free(tmp_path: Path) -> None:
+    name = mimo_census.cell_job_name(task_id=TASK_ID, backend="modal", cell="nop")
+    assert name == "mimo-census-v1-modal-000000-nop"
+    assert (
+        mimo_census.cell_job_name(task_id=TASK_ID, backend="daytona", cell="cheat")
+        == "mimo-census-v1-daytona-000000-cheat"
+    )
+    assert next_free_name(tmp_path, name) == name
+    (tmp_path / name).mkdir()
+    assert next_free_name(tmp_path, name) == f"{name}-attempt2"
+
+
 def test_verify_grade_taxonomy() -> None:
     clean = {"nop": "0", "oracle": "1", "ladder_verdict": "clean", "census_locations": 0}
     assert verify_grade_for(**clean) == VERIFY_CLEAN
@@ -369,11 +381,3 @@ def test_spend_record_and_slice_total(tmp_path: Path) -> None:
     append_spend_record(tmp_path, {"batch_id": "pilot", "actual_usd": 1.25})
     append_spend_record(tmp_path, {"batch_id": "extra", "actual_usd": 0.75})
     assert slice_spent_usd(tmp_path) == 2.0
-
-
-def test_cell_job_naming_and_next_free(tmp_path: Path) -> None:
-    name = mimo_census.cell_job_name(task_id=TASK_ID, backend="modal", cell="nop")
-    assert name == "mimo-census-v1-modal-000000-nop"
-    assert next_free_name(tmp_path, name) == name
-    (tmp_path / name).mkdir()
-    assert next_free_name(tmp_path, name) == f"{name}-attempt2"

@@ -12,11 +12,12 @@ task in ``research/experiments/mimo-clean-census/results.csv``:
 (d) fix-content census (``evallab.fix_content_census``) on the clean chain
     reports 0 open-leak locations for tasks with a recoverable fix.
 
-Backends: ``docker`` (locked local Docker, $0 — parity baseline) and
-``modal`` (Harbor's native ModalEnvironment running the REAL clean package
-semantics: embedded-healthcheck setup, agent phase, workspace snapshot, then
-the bundled separate-verifier grading in a fresh sandbox from the same
-image). The census never edits ``mimo_clean.py`` and never writes the clean
+Backends: ``docker`` (locked local Docker, $0 — parity baseline),
+``modal`` (Harbor's native ModalEnvironment with the REAL clean package
+semantics; currently blocked — see docs/mimo/verification.md), and
+``daytona`` (bounded Daytona sandboxes; paid fallback). Fresh-sandbox
+separate-verifier grading comes from Harbor's own lifecycle, not a retest.
+The census never edits ``mimo_clean.py`` and never writes the clean
 manifest; it reads package paths/fix identities from the manifest and writes
 only its own receipt directory.
 
@@ -77,10 +78,11 @@ VERIFY_INFRA_FLAKE = "infra-flake"
 VERIFY_NEEDS_TRIAGE = "needs-triage"
 VERIFY_UNVERIFIED = "unverified"
 
-#: Backends the census runner supports.
-BACKENDS = ("docker", "modal")
-
-#: Job-name prefix for census cells (never collides with verify-local).
+#: Backends the census runner supports. ``modal`` runs Harbor's native
+#: ModalEnvironment; ``daytona`` the bounded Daytona sandbox env. Paid
+#: backends need their SDK/credentials at run time (modal: ``uv run --with
+#: modal`` + ~/.modal.toml; daytona: DAYTONA_API_KEY in the environment).
+BACKENDS = ("docker", "modal", "daytona")
 JOB_PREFIX = "mimo-census-v1"
 
 #: Slice spend cap (USD) — see the assignment; enforced per batch.

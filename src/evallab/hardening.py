@@ -69,7 +69,8 @@ from evallab.general_pinned_backup import derive_general_pinned_backup
 from evallab.general_strict_answer import TRANSFORM_ID as GENERAL_STRICT_ANSWER_ID
 from evallab.general_strict_answer import derive_general_strict_answer
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
-from evallab.mtime_normalize import derive_mtime_normalize
+from evallab.mtime_normalize import TRANSFORM_ID_V2 as MTIME_V2_ID
+from evallab.mtime_normalize import derive_mtime_normalize, derive_mtime_normalize_v2
 from evallab.purge_build_caches import TRANSFORM_ID as CACHE_ID
 from evallab.purge_build_caches import TRANSFORM_ID_V2 as CACHE_V2_ID
 from evallab.purge_build_caches import TRANSFORM_ID_V3 as CACHE_V3_ID
@@ -103,6 +104,7 @@ TRANSFORMS = (
     SEPARATE_ID,
     SEPARATE_V2_ID,
     MTIME_ID,
+    MTIME_V2_ID,
     TERMINAL_GUARD_ID,
     GENERAL_PINNED_BACKUP_ID,
     GENERAL_STRICT_ANSWER_ID,
@@ -128,6 +130,7 @@ __all__ = [
     "GENERAL_PINNED_BACKUP_ID",
     "GENERAL_STRICT_ANSWER_ID",
     "MTIME_ID",
+    "MTIME_V2_ID",
     "NETWORK_DEFAULT",
     "NETWORK_LABEL",
     "PURGE_ID",
@@ -143,6 +146,7 @@ __all__ = [
     "derive_general_pinned_backup",
     "derive_general_strict_answer",
     "derive_mtime_normalize",
+    "derive_mtime_normalize_v2",
     "derive_purge_build_caches",
     "derive_purge_build_caches_v2",
     "derive_purge_build_caches_v3",

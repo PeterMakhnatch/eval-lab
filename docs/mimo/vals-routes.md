@@ -166,6 +166,33 @@ leaking — reproduced first-hand in-image (12 s). Primary record and repro
 live with the clean-set receipt; tracked there as a per-task
 manual-triage residual.
 
+## mtime-normalize@2 (Modal lazy-layer hardening)
+
+`mtime-normalize@1` stays untouched (existing lineage valid).
+`mtime-normalize@2` (same module, new transform; supersedes @1, refuses @1/@2
+parents) answers the FleetCensus Modal block: on Modal `_ModalDirect`
+(`Image.from_registry`) layers materialize lazily, so directory mtimes
+re-bump after @1's single touch walk and the fail-closed `-newermt` check
+aborts setup (`mtime-normalize@1 found paths newer than the fixed
+timestamp`) before any agent phase — while the same package passes on Docker
+(eager materialization). A second touch+check pass in the same sandbox shows
+0 offenders, so @2 warms the tree with a read-only `stat` walk first, then
+repeats touch+check up to 3 passes, and finally requires every file and
+directory mtime to *equal* the fixed timestamp (epoch comparison against a
+freshly stamped reference file) — strictly stronger than @1's newer-only
+check, so older-than-fixed mtimes fail too. The check loop is pipe-free
+POSIX shell, so `pipefail`/`SIGPIPE` cannot mask an offender; every step
+fails closed. Registered in `hardening.py` (`MTIME_V2_ID`); chain adoption
+is the clean-set owner's call.
+
+Proven: 19-test suite green on GNU (`tests/test_mtime_normalize.py`, @1
+rows untouched), incl. a `touch`-shim replay of the Modal shape (one
+re-bump after pass 1 converges on pass 2 with exactly 2 tree touches;
+persistent re-bump fails closed after exactly 3) and an older-mtime
+rejection the @1 check passes; live Docker oracle 1 / nop 0 rows for
+002552, 001809, 000047 plus a Modal-sandbox setup repro (see the slice
+receipt below). Receipt: `research/experiments/mtime-normalize-v2/`.
+
 ## V7: instruction-explicit-rules@1 (opt-in only, NOT in the default chain)
 
 New transform `src/evallab/instruction_explicit_rules.py` appends an
@@ -190,7 +217,9 @@ training packages.
   146k-object histories). Truncated-history images never had them.
 - V3 mtimes: CLOSED in (b) (published `mtime=yes` on 000007/000045/
   000047/001809/000905/001269/002402/002947/000025/000002/000078/000160;
-  all `no` after mtime-normalize@1).
+  all `no` after mtime-normalize@1). @2 keeps the same closure on Docker
+  and unblocks Modal lazy-layer sandboxes (warm pass + bounded retry +
+  exact-equality check); see above.
 - V4 pack parser: CLOSED wherever V2 is (no objects → nothing to parse);
   `probe-image-checks@3` automation (vals-closure) covers the rung.
 - V5/E1 caches + installed copies: CLOSED in (b) everywhere a fix existed,

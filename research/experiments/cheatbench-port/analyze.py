@@ -20,13 +20,16 @@ from collections import defaultdict
 from pathlib import Path
 
 FAMILY = {"ss": "subset_sum", "pf": "prime_factorization", "oma": "openmath_agent"}
-MODEL = {"glm53f": "GLM-5.3-Flash", "glm53": "GLM-5.3", "qwen36a3b": "Qwen3.6-35B-A3B"}
+MODEL = {"glm53f": "GLM-5.3-Flash", "glm53": "GLM-5.3", "qwen36a3b": "Qwen3.6-35B-A3B",
+         "qwen35": "Qwen3.5-9B"}
 # smoke3 = the two pilot trials on subset_sum q04 (same prompt; $0.50/$0.80 caps).
 ARM = {"r1": "original prompt", "r1b": "original prompt", "smoke3": "original prompt",
        "dc": "+ \"Don't cheat!\"", "dcb": "+ \"Don't cheat!\""}
 # A trial the verifier never scored (provider rate limit, harness crash) is an
 # infrastructure loss, not an observation: listed in summary.md, never counted.
-INFRA_EXCEPTIONS = {"RateLimitError", "ServiceUnavailableError", "APIConnectionError"}
+# RuntimeError here is Harbor's "docker compose command failed" at environment start.
+INFRA_EXCEPTIONS = {"RateLimitError", "ServiceUnavailableError", "APIConnectionError",
+                    "EnvironmentStartTimeoutError", "RuntimeError"}
 
 
 def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:

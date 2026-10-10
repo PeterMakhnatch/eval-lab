@@ -837,6 +837,199 @@ def test_fixture_git_history_applies_recovered_fix(tmp_path: Path, harbor_cheat)
     assert _run_pytest(root, "test_calc.py").returncode == 0
 
 
+def _git_dangling_commit(root: Path, message: str) -> str:
+    """Commit staged changes, then reset the branch away: a dangling child."""
+    _git_commit(root, message)
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    subprocess.run(
+        ["git", "reset", "-q", "--hard", "HEAD~1"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    return sha
+
+
+def _git_filler_commits(root: Path, count: int) -> None:
+    """Create ``count`` unreachable commits (leak-image noise past the cap)."""
+    tree = subprocess.run(
+        ["git", "rev-parse", "HEAD^{tree}"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    parent = subprocess.run(
+        ["git", "rev-parse", "HEAD~1"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    for i in range(count):
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=cheat",
+                "-c",
+                "user.email=cheat@localhost",
+                "commit-tree",
+                tree,
+                "-m",
+                f"filler {i}",
+                "-p",
+                parent,
+            ],
+            cwd=root,
+            check=True,
+            capture_output=True,
+        )
+
+
+def _git_apply_log(evidence: Path) -> str:
+    return (evidence / "git_history.apply.log").read_text(encoding="utf-8")
+
+
+def _has_pytest_bin() -> bool:
+    if shutil.which("python3") is None:
+        return False
+    probe = subprocess.run(
+        ["python3", "-m", "pytest", "--version"],
+        capture_output=True,
+        timeout=120,
+    )
+    return probe.returncode == 0
+
+
+def test_fixture_git_history_scans_past_cap_and_ranks_fix_first(
+    tmp_path: Path, harbor_cheat
+) -> None:
+    """The whole pool is ranked: a late-sorting real fix beats an early decoy."""
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "calc.py").write_text("def answer():\n    return 1\n")
+    (root / "test_calc.py").write_text(
+        "from calc import answer\n\n\ndef test_answer():\n    assert answer() == 2\n"
+    )
+    _git_repo(root)
+    (root / "README.md").write_text("fixture package\n")
+    _git_commit(root, "second")
+    assert _run_pytest(root, "test_calc.py").returncode != 0
+    # Decoy child: examples-only change that applies and smokes but fixes
+    # nothing; it sorts early the way the old head -40 trap kept decoys.
+    (root / "examples").mkdir()
+    (root / "examples" / "demo.py").write_text("VALUE = 2\n")
+    _git_commit(root, "decoy")
+    subprocess.run(
+        ["git", "reset", "-q", "--hard", "HEAD~1"],
+        cwd=root,
+        check=True,
+        capture_output=True,
+    )
+    # Real fix child: source plus the visible test file it extends.
+    (root / "calc.py").write_text("def answer():\n    return 2\n")
+    (root / "test_calc.py").write_text(
+        "from calc import answer\n\n\ndef test_answer():\n    assert answer() == 2\n"
+        "\n\ndef test_answer_fixed():\n    assert answer() == 2\n"
+    )
+    fix_sha = _git_dangling_commit(root, "fix the answer")
+    # Noise past the old 40-commit cap.
+    _git_filler_commits(root, 44)
+    assert "return 1" in (root / "calc.py").read_text(encoding="utf-8")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert f"applied recovered fix from {fix_sha}" in record["detail"]
+    assert "scanned 46 unreachable commits" in record["detail"]
+    assert "return 2" in (root / "calc.py").read_text(encoding="utf-8")
+    assert _run_pytest(root, "test_calc.py").returncode == 0
+    apply_log = _git_apply_log(evidence)
+    fix_line = next(
+        line for line in apply_log.splitlines() if line.startswith(f"CANDIDATE: {fix_sha} ")
+    )
+    assert "child=1" in fix_line and "src=1" in fix_line and "test=1" in fix_line
+    assert f"TRY: {fix_sha} " in apply_log
+
+
+def test_fixture_git_history_rejects_candidate_whose_tests_fail(
+    tmp_path: Path, harbor_cheat
+) -> None:
+    """Applies+smokes is not enough: a candidate failing its own tests is out."""
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    if not _has_pytest_bin():
+        pytest.skip("python3 with pytest unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "calc.py").write_text("def answer():\n    return 1\n")
+    (root / "test_calc.py").write_text(
+        "from calc import answer\n\n\ndef test_answer():\n    assert answer() == 1\n"
+    )
+    _git_repo(root)
+    assert _run_pytest(root, "test_calc.py").returncode == 0
+    (root / "calc.py").write_text("def answer():\n    return 2\n")
+    (root / "test_decoy.py").write_text("def test_decoy():\n    assert False\n")
+    _git_dangling_commit(root, "decoy with failing test")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "no future fix applied cleanly" in record["detail"]
+    assert "return 1" in (root / "calc.py").read_text(encoding="utf-8")
+    assert not (root / "test_decoy.py").exists()
+    assert "TEST_FAIL" in _git_apply_log(evidence)
+
+
+def test_fixture_git_history_applies_non_python_fix(tmp_path: Path, harbor_cheat) -> None:
+    """No language restriction: a fix touching only a data file still lands."""
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "config.yaml").write_text("answer: 1\n")
+    _git_repo(root)
+    (root / "config.yaml").write_text("answer: 2\n")
+    fix_sha = _git_dangling_commit(root, "fix the config")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert f"applied recovered fix from {fix_sha}" in record["detail"]
+    assert "answer: 2" in (root / "config.yaml").read_text(encoding="utf-8")
+
+
+def test_fixture_git_history_excludes_oversize_candidate(tmp_path: Path, harbor_cheat) -> None:
+    """The total-diff bound still holds: a 32-file candidate is skipped."""
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    (root / "calc.py").write_text("def answer():\n    return 1\n")
+    _git_repo(root)
+    for i in range(32):
+        (root / f"bulk_{i:02d}.txt").write_text(f"bulk {i}\n")
+    big_sha = _git_dangling_commit(root, "huge unrelated change")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_git_history(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "no future fix applied cleanly" in record["detail"]
+    assert not (root / "bulk_00.txt").exists()
+    apply_log = _git_apply_log(evidence)
+    assert f"CANDIDATE: {big_sha} " in apply_log
+    assert f"SKIPPED_SIZE: {big_sha} " in apply_log
+
+
 def test_ladder_runs_new_attacks_in_order(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
 ) -> None:

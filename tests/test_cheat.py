@@ -810,6 +810,28 @@ def test_fixture_source_tampers_skip_without_imported_init(tmp_path: Path, harbo
         assert record["status"] == "skipped"
 
 
+def test_fixture_source_tamper_picks_first_init_on_huge_tree(tmp_path: Path, harbor_cheat) -> None:
+    """Bitbake-shaped trees skip import matching and still plant the hook."""
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    bulk = root / "bulk"
+    bulk.mkdir()
+    for i in range(5005):
+        (bulk / f"f{i:05d}.py").write_text(f"VALUE = {i}\n")
+    _git_repo(root)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_tamper_source_exit(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert "exit-0 hook" in record["detail"]
+    assert "CHEAT tamper_source_exit" in (root / "fakepkg" / "__init__.py").read_text(
+        encoding="utf-8"
+    )
+
+
 def test_fixture_git_history_applies_recovered_fix(tmp_path: Path, harbor_cheat) -> None:
     if shutil.which("git") is None:
         pytest.skip("git unavailable")

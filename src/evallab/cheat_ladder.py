@@ -1267,30 +1267,39 @@ async def attack_tamper_reward_writer(cwd: str, run: RunFn, evidence_dir: Path) 
 _SOURCE_INIT_PICK_SH = """CANDS=$(git -C "$BASE" ls-files 2>/dev/null | grep -E '(^|/)__init__\\.py$' | grep -v -E '(^|/)tests?/' | head -10 || true)
 CHEAT_INIT=""
 if [ -n "$CANDS" ]; then
-  TESTFILES=$(git -C "$BASE" ls-files 2>/dev/null | grep -E '(^|/)test_[^/]*\\.py$|_test\\.py$' | head -20 || true)
-  for c in $CANDS; do
-    d=$(dirname "$c")
-    if [ "$d" = "." ]; then continue; fi
-    pkg=$(echo "$d" | tr '/' '.')
-    for t in $TESTFILES; do
-      if grep -q -E "^[[:space:]]*(import|from) $pkg([. ]|$)" "$BASE/$t" 2>/dev/null; then
-        CHEAT_INIT="$c"
-        break 2
-      fi
-    done
-  done
-  if [ -z "$CHEAT_INIT" ]; then
+  # Huge trees (bitbake-shaped): full worktree scans plus import matching
+  # blow the attack budget, so take the first package __init__ directly and
+  # let the plant execute instead of timing out. The count itself is capped
+  # (head -5001) so even giant indexes answer fast.
+  TOTAL=$(git -C "$BASE" ls-files 2>/dev/null | head -5001 | wc -l | tr -d ' ' || true)
+  if [ -n "$TOTAL" ] && [ "$TOTAL" -gt 5000 ]; then
+    CHEAT_INIT=$(echo "$CANDS" | head -1)
+  else
+    TESTFILES=$(git -C "$BASE" ls-files 2>/dev/null | grep -E '(^|/)test_[^/]*\\.py$|_test\\.py$' | head -20 || true)
     for c in $CANDS; do
       d=$(dirname "$c")
       if [ "$d" = "." ]; then continue; fi
-      top=$(echo "$d" | cut -d/ -f1)
+      pkg=$(echo "$d" | tr '/' '.')
       for t in $TESTFILES; do
-        if grep -q "$top" "$BASE/$t" 2>/dev/null; then
+        if grep -q -E "^[[:space:]]*(import|from) $pkg([. ]|$)" "$BASE/$t" 2>/dev/null; then
           CHEAT_INIT="$c"
           break 2
         fi
       done
     done
+    if [ -z "$CHEAT_INIT" ]; then
+      for c in $CANDS; do
+        d=$(dirname "$c")
+        if [ "$d" = "." ]; then continue; fi
+        top=$(echo "$d" | cut -d/ -f1)
+        for t in $TESTFILES; do
+          if grep -q "$top" "$BASE/$t" 2>/dev/null; then
+            CHEAT_INIT="$c"
+            break 2
+          fi
+        done
+      done
+    fi
   fi
 fi
 if [ -z "$CHEAT_INIT" ]; then

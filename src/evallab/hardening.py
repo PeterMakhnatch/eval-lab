@@ -24,6 +24,13 @@ a failed check stops setup, with no hide-only or network-open fallback.
   ``src/``, else rebuild from the base tree via the package build/compile
   script and fail setup when neither is safe. It supersedes @2 and refuses
   @1/@2 parents; the clean chain is strip → purge → @3 → mtime.
+* ``purge-build-caches@4`` is @3 with disabled-cache tolerance: when a tool
+  reports its cache disabled (pip's cache on Modal sandboxes, where
+  ``pip cache dir`` fails with ``cache is disabled``; ``GOCACHE=off``),
+  the leg is not-applicable with a logged reason while any on-disk cache
+  at the standard locations still gets a fail-closed project-entry purge.
+  It supersedes @3 and refuses @1/@2/@3 parents; chain adoption is the
+  clean-set owner's call.
 * ``separate-verifier@1`` runs hidden tests in a second container where Harbor
   0.24 supports it (HAR-169: oracle pass and nop fail on 001269, 000905, 002391).
   @1 restores the agent's workspace, ``.git`` and base sha into the verifier,
@@ -76,10 +83,12 @@ from evallab.mtime_normalize import derive_mtime_normalize, derive_mtime_normali
 from evallab.purge_build_caches import TRANSFORM_ID as CACHE_ID
 from evallab.purge_build_caches import TRANSFORM_ID_V2 as CACHE_V2_ID
 from evallab.purge_build_caches import TRANSFORM_ID_V3 as CACHE_V3_ID
+from evallab.purge_build_caches import TRANSFORM_ID_V4 as CACHE_V4_ID
 from evallab.purge_build_caches import (
     derive_purge_build_caches,
     derive_purge_build_caches_v2,
     derive_purge_build_caches_v3,
+    derive_purge_build_caches_v4,
 )
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
@@ -103,6 +112,7 @@ TRANSFORMS = (
     CACHE_ID,
     CACHE_V2_ID,
     CACHE_V3_ID,
+    CACHE_V4_ID,
     SEPARATE_ID,
     SEPARATE_V2_ID,
     AGENT_NETWORK_NONE_ID,
@@ -129,6 +139,7 @@ __all__ = [
     "CACHE_ID",
     "CACHE_V2_ID",
     "CACHE_V3_ID",
+    "CACHE_V4_ID",
     "CONFIRMED_PURGE",
     "GENERAL_NOP_GATE_ID",
     "GENERAL_PINNED_BACKUP_ID",
@@ -155,6 +166,7 @@ __all__ = [
     "derive_purge_build_caches",
     "derive_purge_build_caches_v2",
     "derive_purge_build_caches_v3",
+    "derive_purge_build_caches_v4",
     "derive_purge_installed_copies",
     "derive_separate_verifier",
     "derive_separate_verifier_v2",

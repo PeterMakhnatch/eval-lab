@@ -27,8 +27,11 @@ a failed check stops setup, with no hide-only or network-open fallback.
 * ``purge-build-caches@4`` is @3 with disabled-cache tolerance: when a tool
   reports its cache disabled (pip's cache on Modal sandboxes, where
   ``pip cache dir`` fails with ``cache is disabled``; ``GOCACHE=off``),
-  the leg is not-applicable with a logged reason while any on-disk cache
-  at the standard locations still gets a fail-closed project-entry purge.
+  the cache commands are not-applicable with a logged reason while any
+  on-disk pip cache at standard locations is removed and verified absent
+  fail-closed (including content-addressed HTTP bodies).
+  Disabled Go build caches are likewise removed from standard locations;
+  the module-cache leg remains active.
   It supersedes @3 and refuses @1/@2/@3 parents; chain adoption is the
   clean-set owner's call.
 * ``separate-verifier@1`` runs hidden tests in a second container where Harbor

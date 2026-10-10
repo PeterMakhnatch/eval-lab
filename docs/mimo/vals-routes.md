@@ -171,41 +171,37 @@ manual-triage residual.
 
 On Modal sandboxes pip's cache is disabled (`python3 -m pip cache dir`
 exits rc=1 with `ERROR: pip cache commands can not function since cache is
-disabled.` on stdout-empty; measured by CensusFinish on three sandboxes of
-the `mimo-v2.6-rl-oss` image, python 3.10 / pip 25.3), so @2/@3's
-fail-closed `_pbc_dir` precondition aborts setup for every Python task
-before any agent phase — Docker is unaffected. The disablement is neither
-pip config (no config files; `pip config list` shows only `:env:` entries)
-nor XDG resolution (persisting across `XDG_CACHE_HOME` variants), and
-`PIP_NO_CACHE_DIR=off` is present (explicitly *enabled*), so @4 keys off
-pip's own report, not env presence: `PIP_NO_CACHE_DIR` parses boolean-style
-(`1`/`true`/`yes`/`on` disable; `off`/`false`/`0`/empty mean enabled,
-matching pip) with pip's report authoritative either way.
+disabled.` on stderr with empty stdout; measured by CensusFinish on three
+sandboxes of the `mimo-v2.6-rl-oss` image, python 3.10 / pip 25.3), so
+@2/@3's fail-closed `_pbc_dir` precondition aborts setup for every Python
+task before any agent phase — Docker is unaffected. Modal sets
+`PIP_NO_CACHE_DIR=off`: despite its spelling, pip's `_handle_no_cache_dir`
+callback disables caching for **all** valid nonempty boolean values,
+including `off`, `false` and `0`, for backwards compatibility. @4 accepts
+either that environment variable or pip's disabled-cache report; an empty
+variable does not select the disabled path.
 
 `purge-build-caches@4` (same module, new transform; supersedes @3, refuses
-@1/@2/@3 parents; @1–@3 outputs byte-unchanged) swaps the pip leg: when pip
-reports a disabled cache the `pip cache list`/`remove` calls are skipped as
-not-applicable with a logged reason, while any on-disk pip cache at the
-standard locations (`$PIP_CACHE_DIR` when set, `~/.cache/pip`,
-`/root/.cache/pip`, `$XDG_CACHE_HOME/pip` — all absent on the measured
-Modal sandboxes) still gets a fail-closed project-entry purge (shared
-dependency wheels stay). The enabled path is the @2/@3 leg verbatim. The
-same rule covers the only other tool-disabled leg (`GOCACHE=off` already
-skips the go build-cache purge; @4 logs the reason); every remaining leg
-is directory-gated and stays silent when its cache is absent. Registered
-in `hardening.py` (`CACHE_V4_ID`); chain adoption stays the clean-set
-owner's call.
+@1/@2/@3 parents; @1–@3 outputs byte-unchanged) skips `pip cache
+list`/`remove` when caching is disabled, with a logged reason. Existing
+on-disk pip cache directories at `$PIP_CACHE_DIR`, `~/.cache/pip`,
+`/root/.cache/pip` and `$XDG_CACHE_HOME/pip` are still removed completely
+and verified absent fail-closed. This includes hashed `http-v2` bodies
+that filename-based project filtering cannot identify; cache paths with
+spaces work, too. A disabled pip cache cannot serve dependency wheels
+anyway. The enabled path is the @2/@3 leg verbatim. `GOCACHE=off` logs
+its reason and removes stale standard-location Go build caches while
+still purging the module cache. All other legs retain @3 semantics. Registered in
+`hardening.py` (`CACHE_V4_ID`); chain adoption stays the clean-set owner's
+call.
 
-Proven: 11 fixture execution tests (disabled skip with the Modal env shape,
-on-disk wheel purge + dep keep across `$HOME`/`$XDG` locations, no-name
-fail-closed, enabled-path equivalence, `PIP_NO_CACHE_DIR=1` vs `off`
-discrimination, go-off log, `bash -n`, supersede/refusal rules), live
-Docker oracle 1 / nop 0 rows for 002552 and 000047 with the same purge
-outcome as @3, and a Modal-sandbox setup of 002552 passing (see the slice
-receipt `research/experiments/cache-v4/`). Boundary: content-addressed
-`http-v2` bodies are unattributable by filename, so the disabled-path
-on-disk purge matches package files (`*.whl`, `*.tar.gz`, `*.zip`,
-`*.tar.bz2`, `*.egg`); no (b)-row pip-cache hit exists to motivate more.
+Proven: disabled-cache fixture execution tests (Modal environment shape,
+whole-directory purge across HOME/XDG/configured paths including opaque
+HTTP bodies, false-like nonempty environment values, empty-value enabled
+purge, failed deletion and silent survivors fail closed), live Docker
+oracle 1 / nop 0 rows for 002552 and 000047 with the same purge outcome as
+@3, and a Modal-sandbox setup of 002552 passing. Slice receipt:
+`research/experiments/cache-v4/`.
 
 ## mtime-normalize@2 (Modal lazy-layer hardening)
 

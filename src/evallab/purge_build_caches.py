@@ -62,15 +62,16 @@ regenerate them. @3 supersedes @2: it refuses @1/@2 parents.
 sandboxes pip's cache is disabled (``python3 -m pip cache dir`` exits
 non-zero with ``cache is disabled`` on stderr), so @2/@3's fail-closed
 ``_pbc_dir`` precondition aborts setup before any agent phase. When pip
-reports a disabled cache — or ``PIP_NO_CACHE_DIR`` parses true
-(``1``/``true``/``yes``/``on``; ``off``/``false``/``0``/empty mean enabled,
-matching pip's own boolean parsing) — @4 treats the pip-cache leg as
-not-applicable with a logged reason, while any on-disk pip cache at the
-standard locations (``$PIP_CACHE_DIR`` when set, ``~/.cache/pip``,
-``/root/.cache/pip``, ``$XDG_CACHE_HOME/pip``) still gets a fail-closed
-project-entry purge. The same rule covers any other leg whose tool reports
-a disabled cache (``GOCACHE=off`` already skips the go build-cache purge;
-@4 logs the reason). @1-@3 outputs are byte-unchanged; @4 supersedes @3
+reports a disabled cache — or ``PIP_NO_CACHE_DIR`` is nonempty (including
+``off``/``false``/``0``, which pip also interprets as disabling its cache
+for backwards compatibility) — @4 treats the pip-cache commands as
+not-applicable with a logged reason. Existing cache directories at
+``$PIP_CACHE_DIR``, ``~/.cache/pip``, ``/root/.cache/pip`` and
+``$XDG_CACHE_HOME/pip`` are removed completely and verified absent
+fail-closed. The same rule covers any other leg whose tool reports
+a disabled cache (``GOCACHE=off`` logs its reason and removes stale
+standard-location build caches while retaining the module-cache purge).
+@1-@3 outputs are byte-unchanged; @4 supersedes @3
 and refuses @1/@2/@3 parents.
 
 Grading (``tests/``), the instruction and the image are unchanged. The setup
@@ -423,13 +424,13 @@ DISABLED_TOLERANT_LEGS = (
 #: original id, as ``CACHE_BLOCK`` keeps ``@1`` under @2/@3). The new
 #: disabled path fires when pip reports a disabled cache
 #: (``python3 -m pip cache dir`` exits non-zero with ``cache is disabled``
-#: on stderr — the Modal sandbox shape) or ``PIP_NO_CACHE_DIR`` parses true
-#: (``1``/``true``/``yes``/``on``; ``off``/``false``/``0``/empty mean
-#: enabled, matching pip's own boolean parsing): the ``pip cache
-#: list``/``remove`` calls are skipped as not-applicable with a logged
-#: reason, while any on-disk pip cache at the standard locations still gets
-#: a fail-closed project-entry purge (shared dependency wheels stay, as in
-#: the enabled path — offline graders need them).
+#: on stderr — the Modal sandbox shape) or ``PIP_NO_CACHE_DIR`` is nonempty.
+#: Pip's option callback disables caching even for false-like values
+#: (``off``/``false``/``0``), for backwards compatibility. Cache commands are
+#: skipped with a logged reason, but existing on-disk cache directories are
+#: removed entirely and verified absent. Filename filtering would leave
+#: content-addressed HTTP bodies, and a disabled cache cannot provide
+#: dependency wheels to the offline grader anyway.
 PIP_LEG_V4 = """\
 # Python: this project's wheels in the pip download cache.
 if [ -f "$CWD/pyproject.toml" ] || [ -f "$CWD/setup.py" ] || [ -f "$CWD/setup.cfg" ]; then
@@ -468,27 +469,19 @@ PY
   case "$_pbc_pip_out" in
     *"cache is disabled"*) _pbc_pip_off="pip-reported";;
   esac
-  case "${PIP_NO_CACHE_DIR:-}" in
-    1|[Tt][Rr][Uu][Ee]|[Yy][Ee][Ss]|[Oo][Nn]) _pbc_pip_off="PIP_NO_CACHE_DIR=${PIP_NO_CACHE_DIR}";;
-  esac
+  if [ -n "${PIP_NO_CACHE_DIR:-}" ]; then
+    _pbc_pip_off="PIP_NO_CACHE_DIR=${PIP_NO_CACHE_DIR}"
+  fi
   if [ -n "$_pbc_pip_off" ]; then
     echo "purge-build-caches@4: pip cache disabled (${_pbc_pip_off}); skipping pip cache list/remove"
-    _pbc_std=""
-    if [ -n "${PIP_CACHE_DIR:-}" ] && [ -d "$PIP_CACHE_DIR" ]; then _pbc_std="$PIP_CACHE_DIR"; fi
-    for _pbc_d in "$HOME/.cache/pip" /root/.cache/pip "${XDG_CACHE_HOME:-$HOME/.cache}/pip"; do
-      [ -d "$_pbc_d" ] || continue
-      case " $_pbc_std " in *" $_pbc_d "*) continue;; esac
-      _pbc_std="$_pbc_std $_pbc_d"
+    for _pbc_d in "${PIP_CACHE_DIR:-}" "$HOME/.cache/pip" /root/.cache/pip "${XDG_CACHE_HOME:-$HOME/.cache}/pip"; do
+      [ -n "$_pbc_d" ] || continue
+      [ -e "$_pbc_d" ] || [ -L "$_pbc_d" ] || continue
+      rm -rf -- "$_pbc_d" || fail "purge-build-caches@4 cannot purge on-disk pip cache $_pbc_d"
+      if [ -e "$_pbc_d" ] || [ -L "$_pbc_d" ]; then
+        fail "purge-build-caches@4 left on-disk pip cache directory: $_pbc_d"
+      fi
     done
-    if [ -n "$_pbc_std" ]; then
-      [ -n "$_pbc_py" ] || fail "purge-build-caches@4 cannot identify the Python project name in $CWD"
-      _pbc_pat=$(printf '%s' "$_pbc_py" | tr '[:upper:]' '[:lower:]' | tr '_.-' '---')
-      for _pbc_d in $_pbc_std; do
-        find "$_pbc_d" -type f \\( -iname "*${_pbc_py}*" -o -iname "*${_pbc_pat}*" \\) \\( -name '*.whl' -o -name '*.tar.gz' -o -name '*.zip' -o -name '*.tar.bz2' -o -name '*.egg' \\) -exec rm -f {} + 2>/dev/null || fail "purge-build-caches@4 cannot purge on-disk pip cache $_pbc_d"
-        _pbc_left=$(find "$_pbc_d" -type f \\( -iname "*${_pbc_py}*" -o -iname "*${_pbc_pat}*" \\) \\( -name '*.whl' -o -name '*.tar.gz' -o -name '*.zip' -o -name '*.tar.bz2' -o -name '*.egg' \\) -print 2>/dev/null | head -n 5)
-        [ -z "$_pbc_left" ] || fail "purge-build-caches@4 left on-disk pip cache entries: $_pbc_left"
-      done
-    fi
   else
     _pbc_dir=$(python3 -m pip cache dir 2>/dev/null || true)
     [ -n "$_pbc_dir" ] || fail "purge-build-caches@2 needs python3 with pip>=20.1 for the pip cache purge"
@@ -511,13 +504,21 @@ fi
 #: The Go leg starts immediately after the pip leg's closing ``fi``.
 _PIP_LEG_START = "# Python: this project's wheels in the pip download cache.\n"
 _GO_LEG_START = "# Go: this module's entries in the module cache"
-#: The ``GOCACHE=off`` fast path the @4 derivation annotates with a reason.
+#: The disabled Go build-cache path logs its reason and removes stale caches.
 _GO_OFF_OLD = '  [ "$_pbc_gocache" = "off" ] && _pbc_gocache=""\n'
-_GO_OFF_V4 = (
-    '  if [ "$_pbc_gocache" = "off" ]; then '
-    'echo "purge-build-caches@4: go build cache disabled (GOCACHE=off); '
-    'skipping go build cache purge"; _pbc_gocache=""; fi\n'
-)
+_GO_OFF_V4 = """\
+  if [ "$_pbc_gocache" = "off" ]; then
+    echo "purge-build-caches@4: go build cache disabled (GOCACHE=off); skipping go build cache commands"
+    for _pbc_d in "$HOME/.cache/go-build" /root/.cache/go-build "${XDG_CACHE_HOME:-$HOME/.cache}/go-build"; do
+      [ -e "$_pbc_d" ] || [ -L "$_pbc_d" ] || continue
+      rm -rf -- "$_pbc_d" || fail "purge-build-caches@4 cannot purge on-disk go build cache $_pbc_d"
+      if [ -e "$_pbc_d" ] || [ -L "$_pbc_d" ]; then
+        fail "purge-build-caches@4 left on-disk go build cache directory: $_pbc_d"
+      fi
+    done
+    _pbc_gocache=""
+  fi
+"""
 
 _pip_start = LANG_BLOCK.find(_PIP_LEG_START)
 _go_start = LANG_BLOCK.find(_GO_LEG_START)
@@ -531,9 +532,9 @@ if (
 if LANG_BLOCK.count(_GO_OFF_OLD) != 1:
     raise RuntimeError("purge-build-caches@4 go-off anchor moved; update _GO_OFF_V4")
 #: @4 language block: @3 text with the pip leg swapped for the
-#: disabled-tolerant ``PIP_LEG_V4`` and the ``GOCACHE=off`` skip logging its
-#: reason. Everything else (including ``@1``/``@2`` messages in inherited
-#: text) is byte-identical to @3.
+#: disabled-tolerant ``PIP_LEG_V4`` and the ``GOCACHE=off`` stale-cache purge.
+#: Everything else (including ``@1``/``@2`` messages in inherited text) is
+#: byte-identical to @3.
 LANG_BLOCK_V4 = (LANG_BLOCK[:_pip_start] + PIP_LEG_V4 + LANG_BLOCK[_go_start:]).replace(
     _GO_OFF_OLD, _GO_OFF_V4
 )
@@ -883,8 +884,8 @@ def derive_purge_build_caches_v4(
         "gitignored build outputs) with disabled-cache tolerance: when a "
         "tool reports its cache disabled (pip's cache on Modal sandboxes, "
         "GOCACHE=off), the leg is not-applicable with a logged reason while "
-        "any on-disk cache at the standard locations still gets a "
-        "fail-closed project-entry purge. Shared dependency caches stay."
+        "any on-disk pip cache at the standard locations is removed and "
+        "verified absent fail-closed. Enabled shared dependency caches stay."
     ),
     created_by: str = "cache-v4",
     repo_root: Path | str | None = None,

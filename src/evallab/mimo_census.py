@@ -1,9 +1,10 @@
 """Fleet-wide clean-set census (mimo-clean-census-v1).
 
-Grades every clean-set manifest row on four checks and records one row per
-task in ``research/experiments/mimo-clean-census/results.csv``:
+Grades selected clean-set manifest rows and records historical and current
+task/version/digest/backend/resource-policy rows in
+``research/experiments/mimo-clean-census/results.csv``:
 
-(a) nop control is 0 with tests actually executed (JUnit grade evidence);
+(a) nop control is 0 with runner-appropriate evidence of actual test execution;
 (b) oracle control is 1 where the manifest carries a reference fix;
 (c) the full 12-attack cheat ladder (``evallab.cheat_ladder.ATTACKS``,
     executed through the model-free ``cheat`` agent — payloads reused, never
@@ -12,18 +13,18 @@ task in ``research/experiments/mimo-clean-census/results.csv``:
 (d) fix-content census (``evallab.fix_content_census``) on the clean chain
     reports 0 open-leak locations for tasks with a recoverable fix.
 
-Backends: ``docker`` (locked local Docker, $0 — parity baseline),
-``modal`` (Harbor's native ModalEnvironment with the REAL clean package
-semantics; currently blocked — see docs/mimo/verification.md), and
-``daytona`` (bounded Daytona sandboxes; paid fallback). Fresh-sandbox
-separate-verifier grading comes from Harbor's own lifecycle, not a retest.
-The census never edits ``mimo_clean.py`` and never writes the clean
-manifest; it reads package paths/fix identities from the manifest and writes
-only its own receipt directory.
+Backends: ``docker`` ($0 parity baseline), ``modal`` (Harbor's native
+ModalEnvironment), and ``daytona`` (bounded paid sandboxes). Docker and
+Modal honor package networking: the shipped v3 package disables agent
+network access while setup and the separate verifier remain public.
+Daytona keeps its locked policy. Fresh-sandbox separate-verifier grading
+comes from Harbor's own lifecycle, not a retest.
+The census never rebuilds or edits immutable packages. Reporting writes its
+own receipts and, when requested, updates only the clean manifest's
+``verify`` grades using evidence bound to its exact current package digest.
 
-Manifest ``verify`` grades defined here (see docs/mimo/verification.md):
-``verified-clean``, ``open-leak``, ``grader-hole``, ``env-broken``,
-``oracle-wrong``, ``infra-flake``, ``needs-triage``, ``unverified``.
+Manifest ``verify`` grades are ``pass``, ``fail:open-leak``,
+``fail:grader-hole``, ``fail:oracle-wrong``, ``env-broken``, or ``unverified``.
 """
 
 from __future__ import annotations
@@ -40,7 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from evallab.cheat import build_verdicts, collect_cheat_attempts
-from evallab.cheat_ladder import ATTACKS
+from evallab.cheat_ladder import ATTACKS, CHEAT_AGENT_VERSION
 from evallab.mimo_clean import STATUS_BUILT, acceptance_pass, load_manifest, summarize_trials
 
 #: Census version id (job-name namespace + manifest_version values).
@@ -981,12 +982,8 @@ def _job_backend_name(candidate: Path) -> str | None:
 
 
 def current_ladder_version() -> str:
-    """Cheat-agent version driving ladder cells (reuse generation marker)."""
-    try:
-        from evallab.harbor_cheat import CHEAT_AGENT_VERSION
-    except Exception:  # noqa: BLE001 - version pin is best-effort
-        return "unknown"
-    return str(CHEAT_AGENT_VERSION)
+    """Current ladder generation, independent of the optional Harbor SDK."""
+    return CHEAT_AGENT_VERSION
 
 
 def cheat_cell_ladder_version(cheat_dir: Path | None) -> str | None:

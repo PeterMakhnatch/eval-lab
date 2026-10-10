@@ -941,6 +941,23 @@ def test_oracle_cell_skipped_without_reference_fix(tmp_path: Path, monkeypatch: 
     assert partial["oracle"] == "n/a"
 
 
+def test_ladder_version_available_without_harbor_sdk(monkeypatch: Any) -> None:
+    import builtins
+
+    from evallab.cheat_ladder import CHEAT_AGENT_VERSION
+
+    real_import = builtins.__import__
+
+    def import_without_harbor(name: str, *args: Any, **kwargs: Any) -> Any:
+        if name == "evallab.harbor_cheat" or name == "harbor" or name.startswith("harbor."):
+            raise ImportError("optional Harbor SDK is unavailable")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", import_without_harbor)
+    assert mimo_census.current_ladder_version() == CHEAT_AGENT_VERSION
+    assert mimo_census.current_ladder_version() not in ("", "unknown")
+
+
 def test_matching_generation_cells_reused_without_launch(tmp_path: Path, monkeypatch: Any) -> None:
     from evallab.cheat_ladder import ATTACKS
 

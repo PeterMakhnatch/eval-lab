@@ -407,7 +407,11 @@ def test_build_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
     assert result.status == STATUS_BUILT
     # Purge is out of scope for unconfirmed projects (HAR-194 stance).
     assert result.chain == [
-        STRIP_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V4_ID, AGENT_NETWORK_NONE_ID
+        STRIP_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V4_ID,
+        AGENT_NETWORK_NONE_ID,
     ]
     assert "purge-installed-copies@1 skipped" in result.reason
     final = _final(tmp_path, result)
@@ -431,7 +435,11 @@ def test_build_snapshot_chain_end_to_end(tmp_path: Path) -> None:
     result = _builder(tmp_path).build_task(task_id, None, oracle=None)
     assert result.status == STATUS_BUILT
     assert result.chain == [
-        STRIP_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V4_ID, AGENT_NETWORK_NONE_ID
+        STRIP_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V4_ID,
+        AGENT_NETWORK_NONE_ID,
     ]
     assert result.language == "javascript"
     assert "purge-installed-copies@1 n/a to javascript" in result.reason
@@ -487,7 +495,11 @@ def test_build_confirmed_purge_task_carries_purge(tmp_path: Path, oracle: Oracle
     result = _builder(tmp_path).build_task(task_id, _row(package, task_id), oracle=oracle)
     assert result.status == STATUS_BUILT
     assert result.chain == [
-        STRIP_ID, PURGE_ID, CACHE_ACTIVE_ID, MTIME_ACTIVE_ID, SEPARATE_V4_ID,
+        STRIP_ID,
+        PURGE_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V4_ID,
         AGENT_NETWORK_NONE_ID,
     ]
 

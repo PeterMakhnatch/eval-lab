@@ -110,11 +110,9 @@ STATUS_SKIPPED = "skipped"
 SELECTED_VERDICTS = frozenset({"keep", "fix"})
 
 
-
 #: Active mtime-normalize generation. ``@2`` (Modal lazy-layer
-#: materialization fix; Docker-neutral) is preferred once
-#: ``mtime_normalize`` ships it; until then ``@1``. Same import-time
-#: resolution as the cache generation above.
+#: materialization fix; Docker-neutral) is preferred once shipped;
+#: unlike the pinned cache generation, this remains import-time resolution.
 MTIME_ACTIVE_ID: str = getattr(_mtime_normalize_mod, "TRANSFORM_ID_V2", MTIME_ID)
 MTIME_ACTIVE_MARKER: str = getattr(_mtime_normalize_mod, "MARKER_V2", MTIME_MARKER)
 
@@ -930,9 +928,7 @@ class ChainBuilder:
             return result
         current_digest = record.variant_digest
         result.chain.append(SEPARATE_V4_ID)
-        current, current_digest, source = self._advance(
-            task_id, current_digest, row, start_digest
-        )
+        current, current_digest, source = self._advance(task_id, current_digest, row, start_digest)
         try:
             record, _ = self.find_or_derive(
                 task_id,

@@ -59,6 +59,13 @@ clean 0/0, setup green. 000007/000025: published open → clean closed.
 (`open_leak` stays mechanically `yes`, same as v2's row; docs disposition
 unchanged).
 
+First confirmed firing of the inherited pnpm fail-closed branch (post-merge,
+via the clean-set slice): `format-code-task-000128` (TS/vitest) stops setup
+rc=1 on `create-typescript-app` references in
+`/root/.local/share/pnpm/store/v10` — reproduced first-hand in-image
+(12 s, same message). Designed behavior (manual triage, not a silent leak);
+primary record stays with the clean-set receipt.
+
 ## Code changes (this branch)
 
 - `src/evallab/purge_build_caches.py`: `purge-build-caches@3`

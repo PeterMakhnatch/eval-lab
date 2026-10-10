@@ -232,6 +232,16 @@ __all__ = [
 HARBOR_COMPOSE_CONFIG_LABEL = "com.docker.compose.project.config_files"
 HARBOR_COMPOSE_PROJECT_LABEL = "com.docker.compose.project"
 HARBOR_COMPOSE_WORKDIR_LABEL = "com.docker.compose.project.working_dir"
+#: Environment selectors (spec value or Harbor ``--env`` import path) whose
+#: sandboxes run remotely. Their trials create no local Docker containers, so
+#: the local Harbor-container scan and orphan cleanup are skipped for them.
+_DAYTONA_ENVIRONMENT_SELECTORS = frozenset(
+    {
+        "daytona",
+        "evallab.harbor_daytona:SecretSafeDaytonaEnvironment",
+        BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
+    }
+)
 # Code and supporting assets belong to the imported release, not its data workspace.
 _RUNTIME_ROOT = Path(__file__).resolve().parents[2]
 
@@ -1246,12 +1256,7 @@ def run_harbor_process(
         include_zai_credentials=zai_lane,
         include_zai_openapi_credentials=zai_openapi_lane,
         include_laminar_credentials=MIMO_AGENT_IMPORT_PATH in command,
-        include_daytona_credentials=environment_selector
-        in {
-            "daytona",
-            "evallab.harbor_daytona:SecretSafeDaytonaEnvironment",
-            BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
-        },
+        include_daytona_credentials=environment_selector in _DAYTONA_ENVIRONMENT_SELECTORS,
     )
     if MIMO_AGENT_IMPORT_PATH in command and laminar_metadata is not None:
         runtime_environment["EVALLAB_LAMINAR_METADATA"] = json.dumps(laminar_metadata)
@@ -1944,6 +1949,8 @@ def _cleanup_failure(
     containers_before: frozenset[str],
     job_dir: Path,
 ) -> str | None:
+    if request.environment in _DAYTONA_ENVIRONMENT_SELECTORS:
+        return None
     try:
         cleanup_new_harbor_containers(
             request.task,
@@ -2568,7 +2575,11 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
             repo_root=repo_root,
         )
         command = subscription_command(staged_request, harbor_command, repo_root=_RUNTIME_ROOT)
-        containers_before = harbor_container_ids(staged_request.task)
+        containers_before = (
+            frozenset()
+            if staged_request.environment in _DAYTONA_ENVIRONMENT_SELECTORS
+            else harbor_container_ids(staged_request.task)
+        )
         _write_executor_state(
             request,
             started_at=started,

@@ -1064,6 +1064,47 @@ def test_cleanup_failure_is_secondary_evidence(
     )
 
 
+def test_daytona_run_does_not_depend_on_local_docker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A slow or absent local Docker daemon cannot fail a remote Daytona trial.
+
+    Daytona sandboxes create no local containers, so the pre-launch scan and
+    the failure cleanup must never call Docker (a sluggish daemon used to fail
+    every Daytona dispatch with "cannot inspect Docker" before Harbor started).
+    """
+    request = RunRequest(
+        task=no_network_task(tmp_path),
+        agent="oracle",
+        name="daytona-no-local-docker",
+        jobs_dir=tmp_path / "runs",
+        environment="daytona",
+    )
+    launched: list[Path] = []
+
+    def docker_unavailable(*_args: object, **_kwargs: object) -> frozenset[str]:
+        raise RuntimeError("cannot inspect Docker for Harbor-labeled containers")
+
+    def failed(*_args, **kwargs) -> HarborProcessResult:
+        launched.append(kwargs["job_dir"])
+        kwargs["job_dir"].mkdir(parents=True)
+        return HarborProcessResult(returncode=1, timed_out=False, log_path=kwargs["log_path"])
+
+    monkeypatch.setattr(runner_module, "_check_daytona_admission", lambda _request: None)
+    monkeypatch.setattr(runner_module, "harbor_container_ids", docker_unavailable)
+    monkeypatch.setattr(runner_module, "cleanup_new_harbor_containers", docker_unavailable)
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "run_harbor_process", failed)
+    monkeypatch.setattr(runner_module, "tool_version", lambda _command: "0.0")
+    monkeypatch.setattr(runner_module, "git_state", lambda _root: {"commit": None, "dirty": None})
+
+    with pytest.raises(ExecutionFailure) as failure:
+        run_experiment(request, repo_root=tmp_path)
+
+    assert launched == [request.jobs_dir / request.name]
+    assert "cleanup_failed" not in str(failure.value)
+
+
 def test_extra_instruction_path_is_forwarded_to_harbor(tmp_path: Path) -> None:
     """EXP-S03: the elicitation preamble must reach the harbor argv.
 

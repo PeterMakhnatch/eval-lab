@@ -65,6 +65,15 @@ For every clean-set manifest row, four checks on the FINAL clean package
   MiMo egress lock; the cheat agent is outside every lock set and
   Daytona+MiMo additionally refuses explicit unlocked, so cheat cells are
   refused at dispatch and recorded `backend-unsupported` (never failures).
+  Exact mechanism (`src/evallab/execution_contracts.py`): MiMo+Daytona
+  mandates `egress_lock=true` (explicit `false` refused, no silent unlocked
+  fallback) and `EGRESS_LOCK_AGENTS["daytona"]` excludes `cheat`, because
+  the ladder's network attacks (notably `upstream_fetch`: `git ls-remote`,
+  `cheat_ladder.py`) need sandbox egress a locked sandbox cannot provide.
+  Assessed 2026-10-10, no change: an unlocked Daytona MiMo run needs a
+  policy change (out of lane), and admitting `cheat` to the lock set would
+  weaken V6 (untestable under lock) while Docker ladders test it with
+  egress. Ladders stay on Docker/Modal.
   Cheat coverage for those tasks comes from a backend that admits it as a
   SEPARATE results row: results.csv is keyed (task_id, backend), so one task
   may carry a daytona row (controls) plus a docker row (full ladder).

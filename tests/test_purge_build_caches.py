@@ -611,3 +611,317 @@ def test_v3_skips_without_ignored_output(tmp_path: Path) -> None:
         env={"PATH": "/usr/bin:/bin:/usr/local/bin", "HOME": str(tmp_path)},
     )
     assert proc.returncode == 0, proc.stderr
+
+
+# purge-build-caches@4: disabled-cache tolerance.
+
+
+def test_v4_supersedes_v3_and_refuses_marked_parents() -> None:
+    from evallab.purge_build_caches import (
+        build_setup_sh,
+        build_setup_sh_v2,
+        build_setup_sh_v3,
+        build_setup_sh_v4,
+    )
+
+    updated = build_setup_sh_v4(PARENT_SETUP)
+    assert "purge-build-caches@4" in updated
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@4"):
+        build_setup_sh_v4(updated)
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@3"):
+        build_setup_sh_v4(build_setup_sh_v3(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@2"):
+        build_setup_sh_v4(build_setup_sh_v2(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@1"):
+        build_setup_sh_v4(build_setup_sh(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="write_blocklist"):
+        build_setup_sh_v4("#!/bin/bash\nfail() { exit 1; }\n")
+
+
+def test_v4_generated_setup_parses_as_shell(tmp_path: Path) -> None:
+    import subprocess
+
+    from evallab.purge_build_caches import build_setup_sh_v4
+
+    script = tmp_path / "setup.sh"
+    script.write_text(build_setup_sh_v4(PARENT_SETUP), encoding="utf-8")
+    proc = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+
+
+_DISABLED_PIP_STUB = (
+    "#!/bin/bash\n"
+    'if [ "$1 $2 $3" = "-m pip cache" ]; then\n'
+    '  echo "ERROR: pip cache commands can not function since cache is disabled." >&2\n'
+    "  exit 1\n"
+    "fi\n"
+    'exec "$REAL_PYTHON3" "$@"\n'
+)
+
+_RECORDING_ENABLED_PIP_STUB = (
+    "#!/bin/bash\n"
+    'if [ "$1 $2 $3" = "-m pip cache" ]; then\n'
+    '  echo "$4" >> "$FAKE_PIP_CALLS"\n'
+    '  case "$4" in\n'
+    '    dir) echo "$FAKE_PIP_CACHE";;\n'
+    '    list) cat "$FAKE_PIP_ENTRIES";;\n'
+    '    remove) grep -v -F -- "${5%\\*}" "$FAKE_PIP_ENTRIES" > "$FAKE_PIP_ENTRIES.new" || true; mv "$FAKE_PIP_ENTRIES.new" "$FAKE_PIP_ENTRIES";;\n'
+    "  esac\n"
+    "  exit 0\n"
+    "fi\n"
+    'exec "$REAL_PYTHON3" "$@"\n'
+)
+
+
+def _run_lang_block_v4(
+    tmp_path: Path, cwd: Path, *, stub_src: str, env_extra: dict | None = None
+) -> subprocess.CompletedProcess[str]:
+    import os
+    import subprocess
+
+    from evallab.purge_build_caches import LANG_BLOCK_V4
+
+    real_python = os.environ.get("REAL_PYTHON3")
+    if real_python is None:
+        import shutil
+
+        real_python = shutil.which("python3")
+    if real_python is None:
+        pytest.skip("needs python3 for the project-name probes")
+    stub = tmp_path / "bin" / "python3"
+    stub.parent.mkdir(exist_ok=True)
+    stub.write_text(stub_src, encoding="utf-8")
+    os.chmod(stub, 0o755)
+    runner = tmp_path / "run-v4.sh"
+    runner.write_text(
+        "#!/bin/bash\nCWD="
+        + str(cwd)
+        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
+        + LANG_BLOCK_V4
+        + "\n",
+        encoding="utf-8",
+    )
+    home = tmp_path / "home"
+    home.mkdir(exist_ok=True)
+    env = {
+        "PATH": str(stub.parent) + ":/usr/bin:/bin:/usr/local/bin",
+        "HOME": str(home),
+        "REAL_PYTHON3": real_python,
+    }
+    env.update(env_extra or {})
+    return subprocess.run(
+        ["bash", str(runner)], capture_output=True, text=True, timeout=120, env=env
+    )
+
+
+def test_v4_disabled_pip_skips_with_logged_reason(tmp_path: Path) -> None:
+    """Modal shape: pip reports disabled, PIP_NO_CACHE_DIR=off, no dirs on disk."""
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "pyproject.toml").write_text('[project]\nname = "fixtureproj"\n', encoding="utf-8")
+    proc = _run_lang_block_v4(
+        tmp_path, cwd, stub_src=_DISABLED_PIP_STUB, env_extra={"PIP_NO_CACHE_DIR": "off"}
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "purge-build-caches@4: pip cache disabled (PIP_NO_CACHE_DIR=off)" in proc.stdout
+    assert "needs python3 with pip" not in proc.stderr
+
+
+def test_v4_disabled_pip_purges_entire_ondisk_cache(tmp_path: Path) -> None:
+    """Disabled caches are removed, including unattributable HTTP bodies."""
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "pyproject.toml").write_text('[project]\nname = "fixtureproj"\n', encoding="utf-8")
+    home_cache = tmp_path / "home" / ".cache" / "pip"
+    home_cache.mkdir(parents=True)
+    (home_cache / "fixtureproj-1.0-py3-none-any.whl").write_text("wheel", encoding="utf-8")
+    (home_cache / "otherdep-2.0-py3-none-any.whl").write_text("wheel", encoding="utf-8")
+    xdg_cache = tmp_path / "xdg cache" / "pip" / "http-v2" / "a" / "b"
+    xdg_cache.mkdir(parents=True)
+    (xdg_cache / "deadbeef.body").write_text("cached solution", encoding="utf-8")
+    configured_cache = tmp_path / "configured cache" / "wheels"
+    configured_cache.mkdir(parents=True)
+    (configured_cache / "fixtureproj-2.0.tar.gz").write_text("sdist", encoding="utf-8")
+    proc = _run_lang_block_v4(
+        tmp_path,
+        cwd,
+        stub_src=_DISABLED_PIP_STUB,
+        env_extra={
+            "XDG_CACHE_HOME": str(tmp_path / "xdg cache"),
+            "PIP_CACHE_DIR": str(configured_cache.parent),
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "purge-build-caches@4: pip cache disabled (pip-reported)" in proc.stdout
+    assert not home_cache.exists()
+    assert not xdg_cache.parent.parent.parent.exists()
+    assert not configured_cache.parent.exists()
+
+
+def test_v4_disabled_pip_purges_cache_without_project_name(tmp_path: Path) -> None:
+    """A disabled cache is removable even when project metadata has no name."""
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "pyproject.toml").write_text('[tool.poetry]\nname = "fixtureproj"\n', encoding="utf-8")
+    home_cache = tmp_path / "home" / ".cache" / "pip"
+    home_cache.mkdir(parents=True)
+    (home_cache / "fixtureproj-1.0-py3-none-any.whl").write_text("wheel", encoding="utf-8")
+    proc = _run_lang_block_v4(tmp_path, cwd, stub_src=_DISABLED_PIP_STUB)
+    assert proc.returncode == 0, proc.stderr
+    assert not home_cache.exists()
+
+
+def test_v4_enabled_pip_path_removes_project_wheels(tmp_path: Path) -> None:
+    """Enabled pip takes the inherited remove+verify path (same outcome as @3)."""
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "pyproject.toml").write_text('[project]\nname = "fixtureproj"\n', encoding="utf-8")
+    entries = tmp_path / "entries.txt"
+    entries.write_text(
+        "fixtureproj-1.0-py3-none-any.whl\notherdep-2.0-py3-none-any.whl\n", encoding="utf-8"
+    )
+    calls = tmp_path / "calls.txt"
+    calls.write_text("", encoding="utf-8")
+    proc = _run_lang_block_v4(
+        tmp_path,
+        cwd,
+        stub_src=_RECORDING_ENABLED_PIP_STUB,
+        env_extra={
+            "FAKE_PIP_CACHE": str(tmp_path),
+            "FAKE_PIP_ENTRIES": str(entries),
+            "FAKE_PIP_CALLS": str(calls),
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+    remaining = entries.read_text(encoding="utf-8")
+    assert "fixtureproj" not in remaining
+    assert "otherdep" in remaining
+    assert "remove" in calls.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize("no_cache", ["1", "true", "yes", "on", "off", "false", "0", "no"])
+def test_v4_no_cache_dir_nonempty_forces_disabled_path(tmp_path: Path, no_cache: str) -> None:
+    """Pip disables its cache for both true-like and false-like values."""
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "pyproject.toml").write_text('[project]\nname = "fixtureproj"\n', encoding="utf-8")
+    entries = tmp_path / "entries.txt"
+    entries.write_text("fixtureproj-1.0-py3-none-any.whl\n", encoding="utf-8")
+    calls = tmp_path / "calls.txt"
+    calls.write_text("", encoding="utf-8")
+    proc = _run_lang_block_v4(
+        tmp_path,
+        cwd,
+        stub_src=_RECORDING_ENABLED_PIP_STUB,
+        env_extra={
+            "PIP_NO_CACHE_DIR": no_cache,
+            "FAKE_PIP_CACHE": str(tmp_path),
+            "FAKE_PIP_ENTRIES": str(entries),
+            "FAKE_PIP_CALLS": str(calls),
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert f"PIP_NO_CACHE_DIR={no_cache}" in proc.stdout
+    assert "remove" not in calls.read_text(encoding="utf-8")
+
+
+def test_v4_no_cache_dir_empty_keeps_enabled_path(tmp_path: Path) -> None:
+    """An empty PIP_NO_CACHE_DIR is ignored by pip and keeps the enabled purge."""
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "pyproject.toml").write_text('[project]\nname = "fixtureproj"\n', encoding="utf-8")
+    entries = tmp_path / "entries.txt"
+    entries.write_text("fixtureproj-1.0-py3-none-any.whl\n", encoding="utf-8")
+    calls = tmp_path / "calls.txt"
+    calls.write_text("", encoding="utf-8")
+    proc = _run_lang_block_v4(
+        tmp_path,
+        cwd,
+        stub_src=_RECORDING_ENABLED_PIP_STUB,
+        env_extra={
+            "PIP_NO_CACHE_DIR": "",
+            "FAKE_PIP_CACHE": str(tmp_path),
+            "FAKE_PIP_ENTRIES": str(entries),
+            "FAKE_PIP_CALLS": str(calls),
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "remove" in calls.read_text(encoding="utf-8")
+    assert "fixtureproj" not in entries.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("rm_exit", "message"),
+    [(1, "cannot purge on-disk pip cache"), (0, "left on-disk pip cache directory")],
+)
+def test_v4_disabled_pip_fails_closed_on_cache_survivors(
+    tmp_path: Path, rm_exit: int, message: str
+) -> None:
+    import os
+
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "pyproject.toml").write_text('[project]\nname = "fixtureproj"\n', encoding="utf-8")
+    cache = tmp_path / "home" / ".cache" / "pip"
+    cache.mkdir(parents=True)
+    (cache / "unattributable.body").write_text("cached patch", encoding="utf-8")
+    stub_rm = tmp_path / "bin" / "rm"
+    stub_rm.parent.mkdir()
+    stub_rm.write_text(f"#!/bin/sh\nexit {rm_exit}\n", encoding="utf-8")
+    os.chmod(stub_rm, 0o755)
+    proc = _run_lang_block_v4(tmp_path, cwd, stub_src=_DISABLED_PIP_STUB)
+    assert proc.returncode != 0
+    assert message in proc.stderr
+    assert cache.exists()
+
+
+def test_v4_go_off_purges_stale_build_caches_and_module_entries(tmp_path: Path) -> None:
+    """Disabled Go builds still purge on-disk build caches and project modules."""
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "go.mod").write_text("module example.com/fixtureproj\n\ngo 1.21\n", encoding="utf-8")
+    gomod = tmp_path / "gomod"
+    module = gomod / "fixtureproj@v1.0.0"
+    module.mkdir(parents=True)
+    home_cache = tmp_path / "home" / ".cache" / "go-build"
+    home_cache.mkdir(parents=True)
+    (home_cache / "cached-object").write_text("stale build", encoding="utf-8")
+    xdg_cache = tmp_path / "xdg cache" / "go-build"
+    xdg_cache.mkdir(parents=True)
+    proc = _run_lang_block_v4(
+        tmp_path,
+        cwd,
+        stub_src=_DISABLED_PIP_STUB,
+        env_extra={
+            "GOMODCACHE": str(gomod),
+            "GOCACHE": "off",
+            "XDG_CACHE_HOME": str(xdg_cache.parent),
+        },
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "go build cache disabled (GOCACHE=off)" in proc.stdout
+    assert not home_cache.exists()
+    assert not xdg_cache.exists()
+    assert not module.exists()
+
+
+def test_v4_missing_pip_remains_fail_closed(tmp_path: Path) -> None:
+    """Ordinary pip failures are not mislabeled as disabled-cache success."""
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "pyproject.toml").write_text('[project]\nname = "fixtureproj"\n', encoding="utf-8")
+    proc = _run_lang_block_v4(
+        tmp_path,
+        cwd,
+        stub_src=(
+            "#!/bin/bash\n"
+            'if [ "$1 $2 $3" = "-m pip cache" ]; then\n'
+            '  echo "No module named pip" >&2\n'
+            "  exit 1\n"
+            "fi\n"
+            'exec "$REAL_PYTHON3" "$@"\n'
+        ),
+    )
+    assert proc.returncode != 0
+    assert "needs python3 with pip>=20.1" in proc.stderr
+    assert "pip cache disabled" not in proc.stdout

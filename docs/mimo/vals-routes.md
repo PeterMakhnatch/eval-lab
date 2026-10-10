@@ -9,7 +9,8 @@ objects (V2, 67%) → mtime recon (V3) → hand-rolled pack parser (V4) → buil
 and module caches (V5) → newer-release download (V6) → prompt wording (V7),
 plus installed copies of the fixed project (E1). This page records the
 route-by-route status after the vals-routes-v2 slice plus the vals-routes-v3
-node build-output port (`purge-build-caches@3`), with evidence.
+node build-output port (`purge-build-caches@3`) and the cache-v4
+disabled-cache port (`purge-build-caches@4`), with evidence.
 
 ## Fix-content census (the rigorous check for V2/V3/V4/V5/E1)
 
@@ -166,6 +167,42 @@ leaking — reproduced first-hand in-image (12 s). Primary record and repro
 live with the clean-set receipt; tracked there as a per-task
 manual-triage residual.
 
+## purge-build-caches@4 (disabled-cache tolerance)
+
+On Modal sandboxes pip's cache is disabled (`python3 -m pip cache dir`
+exits rc=1 with `ERROR: pip cache commands can not function since cache is
+disabled.` on stderr with empty stdout; measured by CensusFinish on three
+sandboxes of the `mimo-v2.6-rl-oss` image, python 3.10 / pip 25.3), so
+@2/@3's fail-closed `_pbc_dir` precondition aborts setup for every Python
+task before any agent phase — Docker is unaffected. Modal sets
+`PIP_NO_CACHE_DIR=off`: despite its spelling, pip's `_handle_no_cache_dir`
+callback disables caching for **all** valid nonempty boolean values,
+including `off`, `false` and `0`, for backwards compatibility. @4 accepts
+either that environment variable or pip's disabled-cache report; an empty
+variable does not select the disabled path.
+
+`purge-build-caches@4` (same module, new transform; supersedes @3, refuses
+@1/@2/@3 parents; @1–@3 outputs byte-unchanged) skips `pip cache
+list`/`remove` when caching is disabled, with a logged reason. Existing
+on-disk pip cache directories at `$PIP_CACHE_DIR`, `~/.cache/pip`,
+`/root/.cache/pip` and `$XDG_CACHE_HOME/pip` are still removed completely
+and verified absent fail-closed. This includes hashed `http-v2` bodies
+that filename-based project filtering cannot identify; cache paths with
+spaces work, too. A disabled pip cache cannot serve dependency wheels
+anyway. The enabled path is the @2/@3 leg verbatim. `GOCACHE=off` logs
+its reason and removes stale standard-location Go build caches while
+still purging the module cache. All other legs retain @3 semantics. Registered in
+`hardening.py` (`CACHE_V4_ID`); chain adoption stays the clean-set owner's
+call.
+
+Proven: disabled-cache fixture execution tests (Modal environment shape,
+whole-directory purge across HOME/XDG/configured paths including opaque
+HTTP bodies, false-like nonempty environment values, empty-value enabled
+purge, failed deletion and silent survivors fail closed), live Docker
+oracle 1 / nop 0 rows for 002552 and 000047 with the same purge outcome as
+@3, and a Modal-sandbox setup of 002552 passing. Slice receipt:
+`research/experiments/cache-v4/`.
+
 ## mtime-normalize@2 (Modal lazy-layer hardening)
 
 `mtime-normalize@1` stays untouched (existing lineage valid).
@@ -267,7 +304,9 @@ the clean-set owner's call.
   incl. 000047 (`lib/` rebuilt from base by @3; oracle 1 / nop 0) and
   purge-inapplicable tasks (documented). @2 covers project-owned cache
   entries; @3 covers node gitignored build outputs (delete or rebuild,
-  fail-closed).
+  fail-closed); @4 keeps the same closure where pip's cache is disabled
+  (Modal: pip leg not-applicable with a logged reason, on-disk standard
+  locations still purged fail-closed).
 
 - V6 newer-release download: CLOSED at the task layer by
   `agent-network-none@1` (next section): `[agent]

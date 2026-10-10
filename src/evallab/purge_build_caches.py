@@ -58,6 +58,22 @@ fallback; compile regenerates output without running the packaged test suite), a
 setup fails when there is no build script or the rebuild does not
 regenerate them. @3 supersedes @2: it refuses @1/@2 parents.
 
+``purge-build-caches@4`` is @3 with disabled-cache tolerance. On Modal
+sandboxes pip's cache is disabled (``python3 -m pip cache dir`` exits
+non-zero with ``cache is disabled`` on stderr), so @2/@3's fail-closed
+``_pbc_dir`` precondition aborts setup before any agent phase. When pip
+reports a disabled cache — or ``PIP_NO_CACHE_DIR`` is nonempty (including
+``off``/``false``/``0``, which pip also interprets as disabling its cache
+for backwards compatibility) — @4 treats the pip-cache commands as
+not-applicable with a logged reason. Existing cache directories at
+``$PIP_CACHE_DIR``, ``~/.cache/pip``, ``/root/.cache/pip`` and
+``$XDG_CACHE_HOME/pip`` are removed completely and verified absent
+fail-closed. The same rule covers any other leg whose tool reports
+a disabled cache (``GOCACHE=off`` logs its reason and removes stale
+standard-location build caches while retaining the module-cache purge).
+@1-@3 outputs are byte-unchanged; @4 supersedes @3
+and refuses @1/@2/@3 parents.
+
 Grading (``tests/``), the instruction and the image are unchanged. The setup
 is re-embedded in the task.toml healthcheck payload, which is what executes.
 """
@@ -392,6 +408,137 @@ fi
 
 """
 
+TRANSFORM_ID_V4 = "purge-build-caches@4"
+MARKER_V4 = "purge-build-caches@4"
+
+#: Legs whose tool can report a disabled cache (recorded in @4 lineage
+#: inputs). Every other leg is directory-gated: with no cache directory
+#: present there is nothing to purge and the section stays silent.
+DISABLED_TOLERANT_LEGS = (
+    "python-pip",
+    "go-build",
+)
+
+#: Python/pip leg for ``purge-build-caches@4``. The enabled path is the
+#: @2/@3 leg verbatim (same ``@2`` messages: inherited text keeps its
+#: original id, as ``CACHE_BLOCK`` keeps ``@1`` under @2/@3). The new
+#: disabled path fires when pip reports a disabled cache
+#: (``python3 -m pip cache dir`` exits non-zero with ``cache is disabled``
+#: on stderr — the Modal sandbox shape) or ``PIP_NO_CACHE_DIR`` is nonempty.
+#: Pip's option callback disables caching even for false-like values
+#: (``off``/``false``/``0``), for backwards compatibility. Cache commands are
+#: skipped with a logged reason, but existing on-disk cache directories are
+#: removed entirely and verified absent. Filename filtering would leave
+#: content-addressed HTTP bodies, and a disabled cache cannot provide
+#: dependency wheels to the offline grader anyway.
+PIP_LEG_V4 = """\
+# Python: this project's wheels in the pip download cache.
+if [ -f "$CWD/pyproject.toml" ] || [ -f "$CWD/setup.py" ] || [ -f "$CWD/setup.cfg" ]; then
+  _pbc_py=$(python3 - "$CWD" 2>/dev/null <<'PY' || true
+import configparser, os, re, sys
+root = sys.argv[1]
+name = None
+try:
+    text = open(os.path.join(root, "pyproject.toml"), errors="replace").read()
+    m = re.search(r"(?ms)^\\[project\\][^\\[]*?^name\\s*=\\s*[\\"']([^\\"']+)", text)
+    if m:
+        name = m.group(1)
+except OSError:
+    pass
+if name is None:
+    try:
+        p = configparser.ConfigParser()
+        p.read(os.path.join(root, "setup.cfg"))
+        name = p.get("metadata", "name", fallback=None)
+    except Exception:
+        pass
+if name is None:
+    try:
+        text = open(os.path.join(root, "setup.py"), errors="replace").read()
+        m = re.search(r"name\\s*=\\s*[\\"']([^\\"']+)", text)
+        if m:
+            name = m.group(1)
+    except OSError:
+        pass
+if name:
+    sys.stdout.write(name.strip())
+PY
+)
+  _pbc_pip_out=$(python3 -m pip cache dir 2>&1 || true)
+  _pbc_pip_off=""
+  case "$_pbc_pip_out" in
+    *"cache is disabled"*) _pbc_pip_off="pip-reported";;
+  esac
+  if [ -n "${PIP_NO_CACHE_DIR:-}" ]; then
+    _pbc_pip_off="PIP_NO_CACHE_DIR=${PIP_NO_CACHE_DIR}"
+  fi
+  if [ -n "$_pbc_pip_off" ]; then
+    echo "purge-build-caches@4: pip cache disabled (${_pbc_pip_off}); skipping pip cache list/remove"
+    for _pbc_d in "${PIP_CACHE_DIR:-}" "$HOME/.cache/pip" /root/.cache/pip "${XDG_CACHE_HOME:-$HOME/.cache}/pip"; do
+      [ -n "$_pbc_d" ] || continue
+      [ -e "$_pbc_d" ] || [ -L "$_pbc_d" ] || continue
+      rm -rf -- "$_pbc_d" || fail "purge-build-caches@4 cannot purge on-disk pip cache $_pbc_d"
+      if [ -e "$_pbc_d" ] || [ -L "$_pbc_d" ]; then
+        fail "purge-build-caches@4 left on-disk pip cache directory: $_pbc_d"
+      fi
+    done
+  else
+    _pbc_dir=$(python3 -m pip cache dir 2>/dev/null || true)
+    [ -n "$_pbc_dir" ] || fail "purge-build-caches@2 needs python3 with pip>=20.1 for the pip cache purge"
+    if [ -d "$_pbc_dir" ]; then
+      [ -n "$_pbc_py" ] || fail "purge-build-caches@2 cannot identify the Python project name in $CWD"
+      _pbc_have=$(python3 -m pip cache list 2>/dev/null | grep -i -F "$_pbc_py" | head -n 5 || true)
+      if [ -n "$_pbc_have" ]; then
+        _pbc_pat=$(printf '%s' "$_pbc_py" | tr '[:upper:]' '[:lower:]' | tr '_.-' '---')
+        python3 -m pip cache remove "${_pbc_py}-*" >/dev/null 2>&1 || true
+        python3 -m pip cache remove "${_pbc_pat}-*" >/dev/null 2>&1 || true
+        _pbc_left=$(python3 -m pip cache list 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr '_.-' '---' | grep -F "$_pbc_pat" | head -n 5 || true)
+        [ -z "$_pbc_left" ] || fail "purge-build-caches@2 left pip cache entries: $_pbc_left"
+      fi
+    fi
+  fi
+fi
+"""
+
+#: Markers bounding the pip leg inside ``LANG_BLOCK`` for the @4 derivation.
+#: The Go leg starts immediately after the pip leg's closing ``fi``.
+_PIP_LEG_START = "# Python: this project's wheels in the pip download cache.\n"
+_GO_LEG_START = "# Go: this module's entries in the module cache"
+#: The disabled Go build-cache path logs its reason and removes stale caches.
+_GO_OFF_OLD = '  [ "$_pbc_gocache" = "off" ] && _pbc_gocache=""\n'
+_GO_OFF_V4 = """\
+  if [ "$_pbc_gocache" = "off" ]; then
+    echo "purge-build-caches@4: go build cache disabled (GOCACHE=off); skipping go build cache commands"
+    for _pbc_d in "$HOME/.cache/go-build" /root/.cache/go-build "${XDG_CACHE_HOME:-$HOME/.cache}/go-build"; do
+      [ -e "$_pbc_d" ] || [ -L "$_pbc_d" ] || continue
+      rm -rf -- "$_pbc_d" || fail "purge-build-caches@4 cannot purge on-disk go build cache $_pbc_d"
+      if [ -e "$_pbc_d" ] || [ -L "$_pbc_d" ]; then
+        fail "purge-build-caches@4 left on-disk go build cache directory: $_pbc_d"
+      fi
+    done
+    _pbc_gocache=""
+  fi
+"""
+
+_pip_start = LANG_BLOCK.find(_PIP_LEG_START)
+_go_start = LANG_BLOCK.find(_GO_LEG_START)
+if _pip_start < 0 or _go_start <= _pip_start:
+    raise RuntimeError("purge-build-caches@4 derivation anchors moved; update LANG_BLOCK_V4")
+if (
+    "_pbc_dir=$(python3 -m pip cache dir 2>/dev/null || true)"
+    not in LANG_BLOCK[_pip_start:_go_start]
+):
+    raise RuntimeError("purge-build-caches@4 pip-leg anchor moved; update PIP_LEG_V4")
+if LANG_BLOCK.count(_GO_OFF_OLD) != 1:
+    raise RuntimeError("purge-build-caches@4 go-off anchor moved; update _GO_OFF_V4")
+#: @4 language block: @3 text with the pip leg swapped for the
+#: disabled-tolerant ``PIP_LEG_V4`` and the ``GOCACHE=off`` stale-cache purge.
+#: Everything else (including ``@1``/``@2`` messages in inherited text) is
+#: byte-identical to @3.
+LANG_BLOCK_V4 = (LANG_BLOCK[:_pip_start] + PIP_LEG_V4 + LANG_BLOCK[_go_start:]).replace(
+    _GO_OFF_OLD, _GO_OFF_V4
+)
+
 
 def shell_block() -> str:
     """Setup text appended after ``write_blocklist``. Fail closed."""
@@ -428,6 +575,32 @@ MARKER_V3 = "purge-build-caches@3"
 def shell_block_v3() -> str:
     """@2 plus the node gitignored build-output handling. Fail closed."""
     return CACHE_BLOCK + LANG_BLOCK + NODE_BUILD_BLOCK
+
+
+def shell_block_v4() -> str:
+    """@3 plus disabled-cache tolerance in the pip leg. Fail closed."""
+    return CACHE_BLOCK + LANG_BLOCK_V4 + NODE_BUILD_BLOCK
+
+
+def build_setup_sh_v4(parent_setup_sh: str) -> str:
+    """Parent ``setup.sh`` plus the @4 block. Refuses @1/@2/@3/@4 parents and bare setups."""
+    if MARKER_V4 in parent_setup_sh:
+        raise VariantInvalid("parent setup.sh already carries purge-build-caches@4")
+    if MARKER_V3 in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@3; @4 supersedes it"
+        )
+    if MARKER_V2 in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@2; @4 supersedes it"
+        )
+    if MARKER in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@1; @4 supersedes it"
+        )
+    if ANCHOR not in parent_setup_sh:
+        raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge caches")
+    return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v4(), 1)
 
 
 def build_setup_sh_v3(parent_setup_sh: str) -> str:
@@ -675,6 +848,71 @@ def derive_purge_build_caches_v3(
     )
 
 
+def build_changes_v4(
+    parent_dir: Path | str,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @4."""
+    parent = Path(parent_dir)
+    task_name, workdir, image, setup_sh = _read_parent(parent)
+    new_setup = build_setup_sh_v4(setup_sh)
+    new_blob = pack_setup(parent / "environment" / "setup", setup_sh=new_setup.encode("utf-8"))
+    parent_toml = (parent / "task.toml").read_text(encoding="utf-8")
+    changes: dict[str, bytes | None] = {
+        SETUP_REL: new_setup.encode("utf-8"),
+        "task.toml": render_task_toml(parent_toml, new_blob=new_blob).encode("utf-8"),
+    }
+    inputs: dict[str, Any] = {
+        "parent_task": task_name,
+        "workdir": workdir,
+        "docker_image": image,
+        "cache_names": list(CACHE_NAMES),
+        "cache_globs": list(CACHE_GLOBS),
+        "language_sections": list(LANGUAGE_SECTIONS),
+        "build_output_dirs": ["lib", "dist", "build", "out"],
+        "disabled_cache_tolerance": list(DISABLED_TOLERANT_LEGS),
+        "setup_before_sha256": f"sha256:{hashlib.sha256(setup_sh.encode()).hexdigest()}",
+        "setup_after_sha256": f"sha256:{hashlib.sha256(new_setup.encode()).hexdigest()}",
+    }
+    return changes, inputs
+
+
+def derive_purge_build_caches_v4(
+    parent_dir: Path | str,
+    *,
+    rationale: str = (
+        "@3 semantics (sweep plus project entries in shared caches plus node "
+        "gitignored build outputs) with disabled-cache tolerance: when a "
+        "tool reports its cache disabled (pip's cache on Modal sandboxes, "
+        "GOCACHE=off), the leg is not-applicable with a logged reason while "
+        "any on-disk pip cache at the standard locations is removed and "
+        "verified absent fail-closed. Enabled shared dependency caches stay."
+    ),
+    created_by: str = "cache-v4",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive ``purge-build-caches@4`` for a MiMo task package."""
+    parent = Path(parent_dir)
+    changes, inputs = build_changes_v4(parent)
+    kwargs: dict[str, Any] = {}
+    if repo_root is not None:
+        kwargs["repo_root"] = repo_root
+    if parent_source is not None:
+        kwargs["parent_source"] = parent_source
+    if variants_root is not None:
+        kwargs["variants_root"] = variants_root
+    return derive_task(
+        parent,
+        changes=changes,
+        transform=TRANSFORM_ID_V4,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        **kwargs,
+    )
+
+
 def foreign_pth_leaks(cwd: Path | str, roots: list[Path | str]) -> list[str]:
     """Project-external ``.pth``/``egg-link`` targets (test seam, no I/O beyond reads).
 
@@ -718,27 +956,36 @@ __all__ = [
     "CACHE_BLOCK",
     "CACHE_GLOBS",
     "CACHE_NAMES",
+    "DISABLED_TOLERANT_LEGS",
     "LANG_BLOCK",
+    "LANG_BLOCK_V4",
     "LANGUAGE_SECTIONS",
     "MARKER",
     "MARKER_V2",
     "MARKER_V3",
+    "MARKER_V4",
     "NODE_BUILD_BLOCK",
+    "PIP_LEG_V4",
     "SETUP_REL",
     "TRANSFORM_ID",
     "TRANSFORM_ID_V2",
     "TRANSFORM_ID_V3",
+    "TRANSFORM_ID_V4",
     "build_changes",
     "build_changes_v2",
     "build_changes_v3",
+    "build_changes_v4",
     "build_setup_sh",
     "build_setup_sh_v2",
     "build_setup_sh_v3",
+    "build_setup_sh_v4",
     "derive_purge_build_caches",
     "derive_purge_build_caches_v2",
     "derive_purge_build_caches_v3",
+    "derive_purge_build_caches_v4",
     "foreign_pth_leaks",
     "shell_block",
     "shell_block_v2",
     "shell_block_v3",
+    "shell_block_v4",
 ]

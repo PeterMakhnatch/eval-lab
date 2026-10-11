@@ -144,8 +144,13 @@ MAIN_DOCKERFILE = """\
 FROM python:3.12-slim-bookworm
 
 RUN apt-get update && apt-get install -y --no-install-recommends \\
-    git ca-certificates curl openssl zip unzip \\
+    git ca-certificates curl openssl zip unzip inotify-tools procps \\
     && rm -rf /var/lib/apt/lists/*
+# inotify-tools + procps are infra-only tooling for Eval Lab's file-access
+# sensor (`inotifywait -m` observer + `python3` helper, as expected by
+# src/evallab/file_access_capture.py); no task file changes. The observer is
+# a sandbox-visible background process (`ps` shows it) — same-authority
+# observation, not tamper-proof.
 
 # Trust the build-time offline-mirror CA (serves {host} from the sidecar).
 COPY tls-ca/cheatbench-openmath-ca.crt /usr/local/share/ca-certificates/cheatbench-openmath-ca.crt

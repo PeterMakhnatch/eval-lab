@@ -19,7 +19,7 @@ Target: `mimo-clean-v5` (chain
 (python; non-python omits the purge slot); cache slot `@4` fleet-wide with
 a 20-task `@5` node-build fold — see Step 6; 2,666 built of 2,698; 564
 reference fixes). Manifest `research/experiments/mimo-clean-v5/manifest.csv`
-(sha256 `3fff90fc7e1e7ac73344f117b18044b53b3f8a8e8f1d6485a73ab9968da1b7ce`;
+(sha256 `8260f47cc0db8298487bf673f763b8bec276e38a52179bcec9561f36efbd2460`;
 2646 rows byte-identical to the @4-chain build `c0399116…` in package bytes
 (verify column filled by this census), 20 NODE_FOLD rows on @5).
 `results.csv` is the v5 fleet result (exact-digest-bound, never merged across

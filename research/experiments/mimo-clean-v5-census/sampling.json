@@ -1,7 +1,7 @@
 {
  "seed": 20261011,
  "manifest": "research/experiments/mimo-clean-v5/manifest.csv",
- "manifest_sha256": "3fff90fc7e1e7ac73344f117b18044b53b3f8a8e8f1d6485a73ab9968da1b7ce",
+ "manifest_sha256": "8260f47cc0db8298487bf673f763b8bec276e38a52179bcec9561f36efbd2460",
  "triaged_regrade": {
   "tasks": [
    "format-code-task-000048",

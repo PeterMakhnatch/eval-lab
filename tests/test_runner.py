@@ -824,6 +824,71 @@ def test_successful_harbor_process_with_transient_trial_is_retried(
     assert state["status"] == "failed"
 
 
+def test_bare_service_unavailable_trial_is_transient(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """G5 M1/M2: a bare ServiceUnavailableError (no status code in the
+    message) still surfaces as TransientHarnessFailure, so the queue retry
+    path sees it instead of failing the trial at once."""
+    request = RunRequest(
+        task=task(tmp_path),
+        agent="oracle",
+        name="upstream-restart-503",
+        jobs_dir=tmp_path / "runs",
+    )
+
+    def completed_with_unavailable_trial(*_args, **kwargs) -> HarborProcessResult:
+        job_dir = kwargs["job_dir"]
+        job_dir.mkdir(parents=True)
+        (job_dir / "result.json").write_text(
+            json.dumps(
+                {
+                    "n_total_trials": 1,
+                    "stats": {},
+                    "finished_at": "2026-10-01T15:26:03Z",
+                }
+            )
+        )
+        trial_dir = job_dir / "task__trial"
+        trial_dir.mkdir()
+        (trial_dir / "result.json").write_text(
+            json.dumps(
+                {
+                    "task_name": "task",
+                    "trial_name": "task__trial",
+                    "exception_info": {
+                        "exception_type": "ServiceUnavailableError",
+                        "exception_message": (
+                            "litellm.ServiceUnavailableError: "
+                            "ServiceUnavailableError: OpenAIException - "
+                            "upstream provider error"
+                        ),
+                    },
+                }
+            )
+        )
+        return HarborProcessResult(
+            returncode=0,
+            timed_out=False,
+            log_path=kwargs["log_path"],
+        )
+
+    monkeypatch.setattr(runner_module.shutil, "which", lambda _command: "/bin/tool")
+    monkeypatch.setattr(runner_module, "harbor_container_ids", lambda _task: frozenset())
+    monkeypatch.setattr(runner_module, "run_harbor_process", completed_with_unavailable_trial)
+    monkeypatch.setattr(runner_module, "_write_run_metadata", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        runner_module, "_cleanup_failure", lambda *_args, **_kwargs: None
+    )
+
+    with pytest.raises(
+        TransientHarnessFailure,
+        match="transient_harness:provider_http_5xx",
+    ):
+        run_experiment(request, repo_root=tmp_path)
+
+
 @pytest.mark.parametrize("note_write_fails", [False, True])
 def test_completed_run_survives_evidence_archive_failure(
     tmp_path: Path,

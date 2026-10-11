@@ -141,7 +141,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:418321f3dad5e1d4173bdf12f8ca74a96414ec165713bf1057971f8ba410ce76
+    digest: sha256:328b1da3aba015cecbcd1d0dc2d8c22093a346d86248cb7460b0db8387c891ef
   - path: src/evallab/exploit_probe.py
     digest: sha256:863c1aad2a5885f8520a9a2480010b47499c24a6ef456cda8cb45bf22cfbb649
   - path: src/evallab/explorer.py
@@ -561,7 +561,7 @@ inputs:
   - path: src/evallab/run_telemetry.py
     digest: sha256:84a91d9e7652d78a1236825ec5bca5516c10d82f674cba6ef786a32531dcf1b7
   - path: src/evallab/runner.py
-    digest: sha256:25b53207de5362e29cc6d9d219c9707d182cf698cb43895fedf5c9132210a70b
+    digest: sha256:a1555b4faafbfacc083727efad1e5f1910a8b933a7d2398ee9298ba3f587d7d1
   - path: src/evallab/schemas/__init__.py
     digest: sha256:f66da26b63e464592c97b3ad2fb4afd8b810d69c215c66df56cab04c4ba938f7
   - path: src/evallab/screen.py

@@ -203,6 +203,47 @@ oracle 1 / nop 0 rows for 002552 and 000047 with the same purge outcome as
 @3, and a Modal-sandbox setup of 002552 passing. Slice receipt:
 `research/experiments/cache-v4/`.
 
+## purge-installed-copies@2 (all-Python neutralize-in-place)
+
+`purge-installed-copies@1` stays untouched (existing lineage valid).
+`purge-installed-copies@2` (same module, new transform; supersedes @1 by
+excising a carried @1 block, refuses @2 parents) answers probe-v2's 11
+installed-copy leaks (`research/experiments/purge-installed-copies-v2/`):
+site/dist-packages copies, baked worktree `.venv`/`.pixi` installs,
+`build/lib`, and stray second checkouts (`/testbed/<pkg>` while the workdir
+is `/workspace/repo`). @1's delete+reinstall design fails setup closed on
+poetry backends, unidentifiable projects, PEP 668 and bitbake images, so it
+stayed scoped to 2 confirmed tasks; @2 neutralizes instead and applies to
+every Python task, no-op when nothing matches.
+
+Mechanism (container side, stdlib only): tops come from `git ls-files` at
+BASE (no project-name resolution — poetry/name-less trees work), the matcher
+requires the path to start at the project's own top-level package (vendored
+copies inside other distributions cannot match; `dist-info`/`egg-info` trees
+and pipx/pip tooling homes are never entered), tracked copies are overwritten
+with BASE bytes (installed trees ship tests, so tests are overwritten too —
+excluding them misclassified theano's `tests/` as fix-added deletions),
+fix-added source files are deleted, adjacent `__pycache__` entries dropped,
+untracked compiled artifacts stay (documented residual: none of the measured
+carriers are binaries). Verification is fail-closed: re-scan finds no
+non-base copy, and tops that imported *before* (real isolated import —
+`find_spec` existence false-failed on theano, whose own `__init__.py` is
+Python-2 syntax that never parses on the image interpreter) must still
+import after. Every action is logged to setup stdout.
+
+Proven: 22 fixture tests plus the @1 suite untouched; live Docker runs of the
+full validation setup per leak task (setup rc=0 everywhere, carriers'
+sha256 == base, probe byte-identity reproduced pre-setup) close all 11
+measured leaks — site-packages (000255/000497/002384/002668/002829),
+`build/lib` (000466/000545/000812/002371/002384/002668/002829), baked
+`.venv` (000322), stray checkout (002790) — with oracle/nop + no-regression
+rows in the slice receipt. Registered in `hardening.py` (`PURGE_V2_ID`);
+chain adoption (replace @1/scoped with @2 for all Python tasks) is the
+clean-set owner's call. Residuals: untracked binaries, tooling homes,
+`dist/` archives, and non-`src` source layouts stay as documented in the
+receipt; `MARKER` (bare `@1` id) now fires on @2-carrying setups, so chain
+code must use `V1_BLOCK_START`/`MARKER_V2`.
+
 ## mtime-normalize@2 (Modal lazy-layer hardening)
 
 `mtime-normalize@1` stays untouched (existing lineage valid).
@@ -306,7 +347,9 @@ the clean-set owner's call.
   entries; @3 covers node gitignored build outputs (delete or rebuild,
   fail-closed); @4 keeps the same closure where pip's cache is disabled
   (Modal: pip leg not-applicable with a logged reason, on-disk standard
-  locations still purged fail-closed).
+  locations still purged fail-closed). `purge-installed-copies@2` (above)
+  closes the 11 probe-v2 installed-copy leaks and retires the
+  purge-inapplicable set once the clean-set owner adopts it fleet-wide.
 
 - V6 newer-release download: CLOSED at the task layer by
   `agent-network-none@1` (next section): `[agent]

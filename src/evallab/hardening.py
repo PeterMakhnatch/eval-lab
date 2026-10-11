@@ -94,7 +94,11 @@ from evallab.purge_build_caches import (
     derive_purge_build_caches_v4,
 )
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
-from evallab.purge_installed_copies import derive_purge_installed_copies
+from evallab.purge_installed_copies import TRANSFORM_ID_V2 as PURGE_V2_ID
+from evallab.purge_installed_copies import (
+    derive_purge_installed_copies,
+    derive_purge_installed_copies_v2,
+)
 from evallab.separate_verifier import TRANSFORM_ID as SEPARATE_ID
 from evallab.separate_verifier import TRANSFORM_ID_V2 as SEPARATE_V2_ID
 from evallab.separate_verifier import derive_separate_verifier, derive_separate_verifier_v2
@@ -112,6 +116,7 @@ from evallab.webdev_temp0_pin import derive_webdev_temp0_pin
 TRANSFORMS = (
     STRIP_ID,
     PURGE_ID,
+    PURGE_V2_ID,
     CACHE_ID,
     CACHE_V2_ID,
     CACHE_V3_ID,
@@ -152,6 +157,7 @@ __all__ = [
     "NETWORK_DEFAULT",
     "NETWORK_LABEL",
     "PURGE_ID",
+    "PURGE_V2_ID",
     "SEPARATE_ID",
     "SEPARATE_V2_ID",
     "STRIP_ID",
@@ -171,6 +177,7 @@ __all__ = [
     "derive_purge_build_caches_v3",
     "derive_purge_build_caches_v4",
     "derive_purge_installed_copies",
+    "derive_purge_installed_copies_v2",
     "derive_separate_verifier",
     "derive_separate_verifier_v2",
     "derive_strip_future_history",

@@ -60,7 +60,12 @@ from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
 from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
 from evallab.separate_verifier import TRANSFORM_ID_V7 as SEPARATE_V7_ID
-from evallab.separate_verifier import derive_separate_verifier_v6, derive_separate_verifier_v7
+from evallab.separate_verifier import TRANSFORM_ID_V8 as SEPARATE_V8_ID
+from evallab.separate_verifier import (
+    derive_separate_verifier_v6,
+    derive_separate_verifier_v7,
+    derive_separate_verifier_v8,
+)
 from evallab.strip_future_history import STRIP_MARKER, derive_strip_future_history
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.task_variants import (
@@ -163,15 +168,16 @@ NONPYTHON_CHAIN = (
     AGENT_NETWORK_NONE_ID,
 )
 #: Canonical Python chain for ``mimo-clean-v5``: identical to v4 with
-#: ``separate-verifier@7`` (G-shape certification) in the verifier slot.
-#: The purge slot stays ``purge-installed-copies@1`` until the @2 lane
-#: lands; swapping it is a one-line change to the slot below.
+#: ``separate-verifier@8`` (G-shape certification plus the v5-regrade
+#: terse/dashed follow-ups) in the verifier slot. The purge slot stays
+#: ``purge-installed-copies@1`` until the @2 lane lands; swapping it is a
+#: one-line change to the slot below.
 PYTHON_CHAIN_V5 = (
     STRIP_ID,
     PURGE_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
-    SEPARATE_V7_ID,
+    SEPARATE_V8_ID,
     AGENT_NETWORK_NONE_ID,
 )
 
@@ -180,7 +186,7 @@ NONPYTHON_CHAIN_V5 = (
     STRIP_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
-    SEPARATE_V7_ID,
+    SEPARATE_V8_ID,
     AGENT_NETWORK_NONE_ID,
 )
 
@@ -975,9 +981,13 @@ class ChainBuilder:
         )
         separate_id = chain[-2]
         separate_derive = (
-            derive_separate_verifier_v7
-            if separate_id == SEPARATE_V7_ID
-            else derive_separate_verifier_v6
+            derive_separate_verifier_v8
+            if separate_id == SEPARATE_V8_ID
+            else (
+                derive_separate_verifier_v7
+                if separate_id == SEPARATE_V7_ID
+                else derive_separate_verifier_v6
+            )
         )
         try:
             record, _ = self.find_or_derive(
@@ -1493,6 +1503,7 @@ __all__ = [
     "SELECTED_VERDICTS",
     "SEPARATE_V6_ID",
     "SEPARATE_V7_ID",
+    "SEPARATE_V8_ID",
     "STATUS_BUILT",
     "STATUS_SKIPPED",
     "STRIP_ID",

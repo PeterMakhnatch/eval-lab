@@ -3825,6 +3825,344 @@ def derive_separate_verifier_v7(
         variants_root=variants_root,
     )
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@8: terse reporter and dashed collection modules
+# --------------------------------------------------------------------------- #
+# v5-regrade follow-ups: 000936 runs tap under ``-R terse`` (``Asserts:`` /
+# ``Suites:`` summaries, no TAP or mocha markers) and 000783/001220 collect
+# ``usercase-test-coderl/*.py`` (dashes rejected by the @7 module pattern).
+# No `@2`–`@7` symbol or template byte changes, so their records stay valid.
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V8 = "separate-verifier@8"
+
+
+#: Terse-reporter selection on a tap-labeled command
+#: (measured 000936: ``npx tap ... -R terse``).
+_V8_TERSE_REPORTER_RE = re.compile(r"(^|\s)-R\s+\S*terse\b|reporters?\s*[=:]\s*\S*terse\b")
+
+#: Terse-reporter summary markers (measured 000936 oracle and nop).
+_V8_TERSE_PASS_RE = re.compile(r"Asserts:\s+[^\n]*\d+\s+passed")
+_V8_TERSE_FAIL_RE = re.compile(r"Asserts:\s+[^\n]*failed|Suites:\s+[^\n]*failed")
+
+
+def effective_js_runner_v8(runner: str, command_text: str, test_output: str) -> str:
+    """Actual reporter for tap-labeled commands emitting terse output (G6, @8).
+
+    Extends :func:`effective_js_runner` (spec detection) with the tap
+    terse reporter: a tap-labeled command selecting terse (or whose output
+    carries terse ``Asserts:`` markers with neither TAP nor mocha markers,
+    measured 000936) grades with the terse markers.
+    """
+    if runner != "tap":
+        return runner
+    clean = strip_ansi(test_output)
+    if _V8_TERSE_REPORTER_RE.search(command_text or "") or (
+        _V8_TERSE_PASS_RE.search(clean)
+        and not _V7_TAP_MARKER_RE.search(clean)
+        and not _MOCHA_PASS_RE.search(clean)
+    ):
+        return "terse"
+    return effective_js_runner(runner, command_text, clean)
+
+
+def evaluate_js_output_v8(
+    runner: str, test_output: str, rc: int, command_text: str = ""
+) -> int:
+    """Grade 1/0 from JS output with terse-reporter detection (G6, @8).
+
+    Keeps every @7 rule; terse needs an ``Asserts:`` passed segment with
+    no failure on any ``Asserts:``/``Suites:`` line (mid-run ``0 of 1
+    completed`` progress lines carry no failure and do not block).
+    """
+    if rc != 0:
+        return 0
+    clean = strip_ansi(test_output)
+    effective = effective_js_runner_v8(runner, command_text, clean)
+    if effective == "terse":
+        return (
+            1
+            if _V8_TERSE_PASS_RE.search(clean) and not _V8_TERSE_FAIL_RE.search(clean)
+            else 0
+        )
+    return evaluate_js_output_v7(effective, clean, rc, command_text)
+
+
+#: Dotted-module shape extended with dashes (measured 000783/001220:
+#: ``classname="" name="usercase-test-coderl/test_x"`` with an ``<error>``
+#: child and no ``file``; the passing run renders the same dashed dotted
+#: path with class suffixes, reproduced locally).
+_V8_COLLECTION_MODULE_RE = re.compile(r"[A-Za-z_][\w.-]*")
+
+
+def _v8_error_module(classname: str | None, name: str | None) -> str | None:
+    """Dotted module of a collection-error case, or None when not collection-shaped.
+
+    Same contract as :func:`_v7_error_module`, additionally accepting the
+    dashes pytest preserves from directory names (measured
+    ``usercase-test-coderl/test_x``). Prefix matching still requires exact
+    leading path equality, so blind decoys stay out of scope.
+    """
+    node = name or ""
+    if "::" in node:
+        return None
+    for candidate in (classname or "", node):
+        text = candidate.strip()
+        if text.endswith(".py"):
+            text = text[: -len(".py")]
+        if text and _V8_COLLECTION_MODULE_RE.fullmatch(text):
+            return text
+    return None
+
+
+def evaluate_junit_v8(
+    report_xmls: list[bytes | None],
+    rc: int,
+    named_ids: Collection[str],
+    baseline_xmls: list[bytes | None] | None = None,
+    baseline_output: str = "",
+) -> int:
+    """Grade 1/0 with @8 fail-to-pass: @7 plus dashed collection-error modules (G5).
+
+    Identical to :func:`evaluate_junit_v7` except the collection-error
+    module pattern also accepts dashes (measured 000783/001220). The
+    INTERNALERROR fallback, exact-key rules, and skip rules are unchanged.
+    """
+    if evaluate_junit_v5(report_xmls, rc, named_ids) == 0:
+        return 0
+    if baseline_output and "INTERNALERROR" in baseline_output:
+        return 1
+    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
+    if not baseline:
+        return 1
+    agent = junit_status_map(report_xmls)
+    error_modules: dict[tuple[str, str, str], set[str]] = {}
+    error_files: dict[tuple[str, str, str], set[str]] = {}
+    failure_keys: set[tuple[str, str, str]] = set()
+    for raw in baseline_xmls or []:
+        if not raw:
+            continue
+        try:
+            found = ET.fromstring(raw).iter("testcase")
+        except Exception:
+            continue
+        for case in found:
+            key = (
+                case.get("classname") or "",
+                case.get("name") or "",
+                case.get("file") or "",
+            )
+            if case.find("failure") is not None:
+                failure_keys.add(key)
+            if case.find("error") is None or case.find("failure") is not None:
+                continue
+            module = _v8_error_module(case.get("classname"), case.get("name"))
+            if module is not None:
+                error_modules.setdefault(key, set()).add(module)
+            file_attr = (case.get("file") or "").strip()
+            if file_attr:
+                error_files.setdefault(key, set()).add(file_attr)
+    agent_cases: list[ET.Element] = []
+    for raw in report_xmls:
+        if not raw:
+            continue
+        try:
+            agent_cases.extend(ET.fromstring(raw).iter("testcase"))
+        except Exception:
+            continue
+    baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
+    for key, status in baseline.items():
+        if status != "skipped" and agent.get(key) != "passed":
+            if (
+                (key in error_modules or key in error_files)
+                and key not in failure_keys
+                and _v7_module_now_passing(
+                    error_modules.get(key, ()),
+                    error_files.get(key, ()),
+                    agent_cases,
+                )
+            ):
+                continue
+            return 0
+    for key, status in agent.items():
+        if status == "skipped" and key not in baseline_skipped:
+            return 0
+    return 1
+
+#: @7 reporter switch extended with the terse reporter (G6, @8).
+_V8_TERSE_SWITCH = (
+    'if runner == "tap" and (re.search(r"(^|\\s)-R\\s+\\S*terse\\b|reporters?\\s*[=:]\\s*\\S*terse\\b", hay) is not None or (re.search(r"Asserts:\\s+[^\\n]*\\d+\\s+passed", output) is not None and re.search(r"^(not )?ok\\b", output, re.M) is None and re.search(r"\\d+\\s+passing", output) is None)):\n'
+    '    runner = "terse"\n'
+)
+
+#: Exact @7 tap grade lines with the terse branch spliced ahead (G6, @8).
+_V8_TAP_PIN = """    elif runner in ("tap", "ava", "node-test"):
+        ok = re.search(r"^ok\\b", output, re.M) is not None and re.search(r"^not ok\\b", output, re.M) is None"""
+_V8_TAP_BRANCH = """    elif runner == "terse":
+        ok = re.search(r"Asserts:\\s+[^\\n]*\\d+\\s+passed", output) is not None and re.search(r"Asserts:\\s+[^\\n]*failed|Suites:\\s+[^\\n]*failed", output) is None
+    elif runner in ("tap", "ava", "node-test"):
+        ok = re.search(r"^ok\\b", output, re.M) is not None and re.search(r"^not ok\\b", output, re.M) is None"""
+
+#: Exact @7 collection-error module pattern extended with dashes (G5, @8).
+_V8_MODULE_PIN = 'if re.fullmatch(r"[A-Za-z_][\\w.]*", _ct or ""):'
+_V8_MODULE_OK = 'if re.fullmatch(r"[A-Za-z_][\\w.-]*", _ct or ""):'
+
+#: Exact @7 structured-runner gate extended with the terse pseudo-runner
+#: (G6, @8): without membership a switched terse run would fall through to
+#: the exit-code fallback and grade 1 on rc 0 alone.
+_V8_GATE_PIN = 'if runner in ("go-test", "jest", "vitest", "mocha", "ava", "tap", "node-test", "karma", "jasmine", "cargo-test", "rspec", "phpunit", "unittest"):'
+_V8_GATE_OK = 'if runner in ("go-test", "jest", "vitest", "mocha", "ava", "tap", "node-test", "karma", "jasmine", "cargo-test", "rspec", "phpunit", "unittest", "terse"):'
+
+assert _V7_WRAPPER_C.count(_V7_RUNNER_SWITCH) == 1, (
+    "@7 reporter switch moved; re-pin the @8 replacement"
+)
+assert _V7_WRAPPER_C.count(_V8_TAP_PIN) == 1, (
+    "@7 tap branch moved; re-pin the @8 replacement"
+)
+assert _V7_WRAPPER_C.count(_V8_MODULE_PIN) == 1, (
+    "@7 module pattern moved; re-pin the @8 replacement"
+)
+assert _V7_WRAPPER_C.count(_V8_GATE_PIN) == 1, (
+    "@7 structured gate moved; re-pin the @8 replacement"
+)
+
+#: @8 grader entry point, part C: @7 with terse-reporter grading (G6) and
+#: dashed collection-error modules (G5).
+_V8_WRAPPER_C = (
+    _V7_WRAPPER_C.replace(_V7_RUNNER_SWITCH, _V8_TERSE_SWITCH + _V7_RUNNER_SWITCH)
+    .replace(_V8_TAP_PIN, _V8_TAP_BRANCH)
+    .replace(_V8_MODULE_PIN, _V8_MODULE_OK)
+    .replace(_V8_GATE_PIN, _V8_GATE_OK)
+)
+
+assert _V8_WRAPPER_C != _V7_WRAPPER_C, "@8 replacement did not apply"
+
+#: @8 grader entry point, parts A/B: identical to @7.
+_V8_WRAPPER_A = _V7_WRAPPER_A
+_V8_WRAPPER_B = _V7_WRAPPER_B
+
+
+def render_wrapper_test_sh_v8(workdir: str) -> str:
+    """Verifier entry point: @8 fail-to-pass grading with terse certification."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
+    scoped = (
+        "["
+        + ", ".join(f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES)
+        + "]"
+    )
+    hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
+    archive_b64 = base64.b64encode(V5_ARCHIVE_HOOK.encode("utf-8")).decode("ascii")
+    return (
+        (_V8_WRAPPER_A + _V8_WRAPPER_B + _V8_WRAPPER_C)
+        .replace("@@WORKDIR@@", workdir)
+        .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
+        .replace("@@V3_UNIVERSAL@@", universal)
+        .replace("@@V3_SCOPED@@", scoped)
+        .replace("@@V3_CONFTEST_HOOK_B64@@", hook_b64)
+        .replace("@@V5_ARCHIVE_HOOK_B64@@", archive_b64)
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
+    )
+
+
+def render_tests_dockerfile_v8(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup (@8)."""
+    return (
+        "# Separate-verifier image (separate-verifier@8): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def build_changes_v8(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @8.
+
+    Same bundle shape as @7; the grader is the @8 entry point with
+    terse-reporter certification and dashed collection-error modules.
+    ``solution_sh`` adds an oracle-control reference solution when the
+    parent has none. Refuses to overwrite an existing solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    try:
+        patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        runner = detect_runner(resolve_command_text(command_sh, None, patch_text))
+    except OSError:
+        runner = "unknown"
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v8(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v8(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "runner": runner,
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v8(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with the hidden tests and terse certification.",
+    created_by: str = "terse-and-dashed-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@8`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v8(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V8,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
 __all__ = [
     "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
@@ -3838,6 +4176,7 @@ __all__ = [
     "TRANSFORM_ID_V5",
     "TRANSFORM_ID_V6",
     "TRANSFORM_ID_V7",
+    "TRANSFORM_ID_V8",
     "TRAJECTORY_ARTIFACT",
     "V2_GRADE_DIR",
     "V2_SETUP_SUBDIR",
@@ -3860,6 +4199,7 @@ __all__ = [
     "build_changes_v5",
     "build_changes_v6",
     "build_changes_v7",
+    "build_changes_v8",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
@@ -3869,8 +4209,10 @@ __all__ = [
     "derive_separate_verifier_v5",
     "derive_separate_verifier_v6",
     "derive_separate_verifier_v7",
+    "derive_separate_verifier_v8",
     "detect_pytest_run",
     "effective_js_runner",
+    "effective_js_runner_v8",
     "detect_runner",
     "drop_reason",
     "evaluate_cargo_output",
@@ -3879,11 +4221,13 @@ __all__ = [
     "evaluate_go_output_v7",
     "evaluate_js_output",
     "evaluate_js_output_v7",
+    "evaluate_js_output_v8",
     "evaluate_junit",
     "evaluate_junit_v4",
     "evaluate_junit_v5",
     "evaluate_junit_v6",
     "evaluate_junit_v7",
+    "evaluate_junit_v8",
     "evaluate_phpunit_output",
     "evaluate_rspec_output",
     "evaluate_surefire_reports",
@@ -3913,6 +4257,7 @@ __all__ = [
     "render_tests_dockerfile_v5",
     "render_tests_dockerfile_v6",
     "render_tests_dockerfile_v7",
+    "render_tests_dockerfile_v8",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
     "render_wrapper_test_sh_v3",
@@ -3920,6 +4265,7 @@ __all__ = [
     "render_wrapper_test_sh_v5",
     "render_wrapper_test_sh_v6",
     "render_wrapper_test_sh_v7",
+    "render_wrapper_test_sh_v8",
     "resolve_command_text",
     "tamper_signature_hit",
     "v3_config_revert_reason",

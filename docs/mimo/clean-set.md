@@ -6,64 +6,51 @@ audience:
   - runner
 ---
 
-# mimo-clean-v3 clean set
+# mimo-clean-v5 clean set
 
 The canonical clean task set for the MiMo code pool, all languages: one
 derived package per Python task the ledger marks usable (`keep`/`fix`;
 `discard` rows are skipped with reason) plus one per non-Python snapshot
 task, each carrying the full clean chain in its lineage.
 
-- Version id: `mimo-clean-v3`
-- Manifest (tracked, small): `research/experiments/mimo-clean-v3/manifest.csv`
+- Version id: `mimo-clean-v5`
+- Manifest (tracked, small): `research/experiments/mimo-clean-v5/manifest.csv`
 - Builder: `src/evallab/mimo_clean.py`
 - CLI: `evallab mimo-clean build|verify-local`
-- Acceptance receipt: `research/experiments/mimo-clean-v3/README.md`
-- Predecessor: `research/experiments/mimo-clean-v2/` (manifest + README kept
-  as history; v2 ended at `separate-verifier@3`). v1
-  (`research/experiments/mimo-clean-v1/`) covered the Python pool only,
-  ending at `purge-build-caches@1` + `separate-verifier@2`.
+- Acceptance receipt: `research/experiments/mimo-clean-v5-census/README.md`
+- Predecessors (kept as history; every README carries a superseded pointer —
+  do not build on them): `research/experiments/mimo-clean-v4/` (@6),
+  `mimo-clean-v3/` (@4/@5 era), `mimo-clean-v2/`, `mimo-clean-v1/`
+  (Python pool only).
+- What changed since v4: `purge-installed-copies@2` replaces the scoped `@1`
+  for **all** Python tasks (neutralize-in-place; receipt
+  `research/experiments/purge-installed-copies-v2/README.md`) and
+  `separate-verifier@8` replaces `@6` (G-shape certification plus the
+  terse/dashed follow-ups; see `docs/mimo/separate-verifier.md`).
+  Manifest rows for five tasks carry `excluded-from-training` in `reason`
+  (answer-visible through legitimate environment dependencies; the v5 census
+  marks them `fail:open-leak:env-dependency`).
 
-> **Successor:** `mimo-clean-v4` is the same chain with
-> `separate-verifier@6` replacing `@5` (pristine-baseline fail-to-pass;
-> see `docs/mimo/separate-verifier.md`), built with all reference fixes
-> on main at build time. Manifest:
-> `research/experiments/mimo-clean-v4/manifest.csv`, receipt:
-> `research/experiments/mimo-clean-v4/README.md`. The cheat ladder is 14
-> attacks from v4 on (`tamper_source_skip`, `tamper_source_skiptest`).
-> This page otherwise documents v3 exactly as built and is frozen apart
-> from this pointer.
 
-> **Successor:** `mimo-clean-v5` is the same chain with
-> `purge-installed-copies@2` (all Python tasks; receipt
-> `research/experiments/purge-installed-copies-v2/README.md`) and
-> `separate-verifier@8` replacing `@6` (G-shape certification plus the
-> v5-regrade terse/dashed follow-ups; see
-> `docs/mimo/separate-verifier.md`). Builder: `evallab mimo-clean build
-> --clean-version mimo-clean-v5` (default `--manifest`
-> `research/experiments/mimo-clean-v5/manifest.csv`). Manifest rows for
-> five tasks carry `excluded-from-training` in `reason` (answer-visible
-> through legitimate environment dependencies; the v5 census marks them
-> `fail:open-leak:env-dependency`).
-
-## The canonical Python chain
+## The canonical Python chain (all 1,148 tasks)
 
 ```
 ledger run package (repairs)
   -> strip-future-history@1
-  -> purge-installed-copies@1   (scoped; see below)
+  -> purge-installed-copies@2   (all Python tasks; no-op when nothing matches)
   -> purge-build-caches@4
   -> mtime-normalize@2
-  -> separate-verifier@5        (+ solution/solve.sh from the reference fix)
+  -> separate-verifier@8        (+ solution/solve.sh from the reference fix)
   -> agent-network-none@1       (agent phase only; verifier remains public)
 ```
 
 | Step | Transform | Closes | Why it is in the chain |
 |---|---|---|---|
 | 1 | `strip-future-history@1` | V1 future history on branches, V2 unreachable git objects | Rebuilds agent-visible git storage from exactly BASE and its ancestors; without it 67% of code tasks leak the answer through git objects. |
-| 2 | `purge-installed-copies@1` | E1 installed/build copies of the fixed project | Removes `build/`, project egg-info and site-packages copies, then reinstalls the base tree editable offline. Scoped to validated targets (below): the block fails closed at setup, and unvalidated projects would break setup instead of leaking. |
+| 2 | `purge-installed-copies@2` | E1 installed/build copies of the fixed project | Neutralizes installed copies in place (tracked copies overwritten with BASE bytes, fix-added files deleted) for **all** Python tasks; no-ops when nothing matches. Tops come from `git ls-files` at BASE (no project-name resolution, so poetry/name-less trees work); the block verifies with a re-scan plus a pre/post import gate. See below. |
 | 3 | `purge-build-caches@4` | V5 build/module caches | Retains `@3`'s language-aware and node-build-output purge, while allowing a cache explicitly disabled by its tool (Modal pip cache). Unknown cache failures still fail closed. Pinned to the landed `@4`; historical v2 packages keep `@3`. |
 | 4 | `mtime-normalize@2` | V3 fix-bearing mtimes | Touches the worktree to one stamp, warms lazy layers, and retries touch+check so Modal materialization timestamps cannot trip the fail-closed check. Shipped in PR #813; the builder resolves the active mtime generation and records it per manifest row. |
-| 5 | `separate-verifier@5` | E2 grader tamper, all runners | Patch-only grading with structured runner checks, tamper gates, config drops, rootdir-robust junit matching, complete pristine-workdir deltas, skip-tolerant grading, and multi-phase junit union (see `docs/mimo/separate-verifier.md`). Runs after all setup-cleaning steps so the verifier inherits the clean setup. |
+| 5 | `separate-verifier@8` | E2 grader tamper, all runners | Patch-only grading with structured runner checks, tamper gates, config drops, rootdir-robust junit matching, complete pristine-workdir deltas, skip-tolerant grading, multi-phase junit union, G-shape certification (fail-to-pass shapes that legitimately pass), terse-reporter and dashed-module certification (see `docs/mimo/separate-verifier.md`). Runs after all setup-cleaning steps so the verifier inherits the clean setup. |
 | 6 | `agent-network-none@1` | V6 upstream fetches | Appends `[agent] network_mode = "no-network"` after verifier derivation. Setup and the separate verifier retain the public baseline; only the agent phase is locked. See the `agent-network-none` receipt and `docs/mimo/vals-routes.md` for backend enforcement. |
 
 ## The canonical non-Python chain (all 1,518 tasks)
@@ -73,7 +60,7 @@ snapshot task dir
   -> strip-future-history@1
   -> purge-build-caches@4
   -> mtime-normalize@2
-  -> separate-verifier@5
+  -> separate-verifier@8
   -> agent-network-none@1
 ```
 
@@ -84,35 +71,31 @@ Python-category snapshot tasks without a ledger row, are skipped with
 reason (ledger membership always wins: e.g. 002361 is snapshot-category Go
 but builds through the Python chain from its ledger run package).
 
-## Purge scoping (read this before widening)
+## Purge coverage (@2: all Python tasks)
 
-`purge-installed-copies@1` applies to exactly two groups:
+`purge-installed-copies@2` applies to every Python row (no scope checks, no
+fail-closed skips): the v3/v4 `@1` scoping is gone. A carried `@1` block is
+excised and recorded as `superseded_v1` instead of stacking. Full design,
+closure proof (11/11 probe-v2 E1 carriers neutralized to BASE bytes, setup
+rc=0 everywhere) and oracle/nop validation (19/19 PASS, local Docker) are in
+`research/experiments/purge-installed-copies-v2/README.md`.
 
-1. **CONFIRMED_PURGE** (`format-code-task-001269`, `format-code-task-002308`):
-   installed-copy leaks confirmed by reading the image. Both run packages
-   already carry the marker, so the chain keeps it.
-2. **Already-carried run packages**: repair rows whose setup already applies
-   the marker (validated by the repair lane).
+Known residuals (documented there, not re-derived here):
 
-Everything else skips with reason:
-
-- **Fail-closed** (`exploit_probe.PURGE_INAPPLICABLE`, HAR-194): 002552
-  (poetry on py3.8), 000792/002486 (no identifiable project name), 002139
-  (bitbake), 002391 (PEP 668).
-- **Out of scope**: all remaining Python tasks. HAR-185 confirmed 0 of 100
-  sampled images outside the two confirmed targets; the vals-routes-v2
-  census adds five tasks where purge would break setup
-  (002938/000666/000905/001198/000324) and they stay scope-skips — the
-  block fails setup closed rather than leaking, so blind application would
-  trade unproven leaks for certain setup breakage.
+- Untracked compiled artifacts (`.so`/`.pyd`) under project dirs stay.
+- pipx/pip tooling homes stay: five tasks remain answer-visible through
+  legitimate environment dependencies (`001478`, `001671`, `001945`,
+  `001971`, `002414`); their manifest rows carry `excluded-from-training`
+  and the census marks them `fail:open-leak:env-dependency`.
+- Wheels/sdists under `dist/` are not entered.
 
 ## Reference fixes and markers
 
 - The manifest's `reference_fix` prefers
-  `research/experiments/mimo-reference-fixes/index.csv`
-  (`task_id,label,fix_commit,patch_path,patch_sha256,source`; absolute
-  patch paths, bytes outside the repo; only oracle-pass rows carry one)
-  when that file exists, else the HAR-191
+  `research/experiments/mimo-reference-fixes/index.csv` (973 rows, 564 with
+  patches: `task_id,label,fix_commit,patch_path,patch_sha256,source`;
+  absolute patch paths, bytes outside the repo; only oracle-pass rows carry
+  one) when that file exists, else the HAR-191
   `research/experiments/python-task-ledger/oracle_sweep.csv` rows labeled
   `oracle:pass*` whose solution patch file exists. The builder records
   which source it used at the top of the build log.
@@ -131,19 +114,22 @@ Everything else skips with reason:
 ## The `verify` column
 
 The manifest's `verify` column is the fleet-census grade per clean
-package, fed later by the census lane. Every v3 row ships as
-`unverified`; the census updates the field in place (values it defines).
-Do not infer package quality from `status=built`: built means the chain
-derived, verified means it graded clean.
+package, fed by the census lane (`evallab mimo-census run|report`, receipt
+`research/experiments/mimo-clean-v5-census/`; grading rules in
+`docs/mimo/verification.md`). Every v5 row ships as `unverified`; the
+census updates the field in place (values it defines), with triaged labels
+in the receipt's `verify-overrides.csv` so re-running `report` never loses
+them. Do not infer package quality from `status=built`: built means the
+chain derived, verified means it graded clean.
 
 ## How to rebuild
 
 ```bash
 git fetch origin main
-git worktree add ~/Developer/eval-lab/.worktrees/mimo-clean-v3 -b mimo-clean-v3 origin/main
-cd ~/Developer/eval-lab/.worktrees/mimo-clean-v3
+git worktree add ~/Developer/eval-lab/.worktrees/mimo-clean-v5 -b mimo-clean-v5 origin/main
+cd ~/Developer/eval-lab/.worktrees/mimo-clean-v5
 uv sync --frozen --extra laminar
-uv run --extra laminar evallab mimo-clean build
+uv run --extra laminar evallab mimo-clean build --clean-version mimo-clean-v5
 ```
 
 The build is deterministic and idempotent: every step reuses the existing
@@ -155,7 +141,7 @@ it); pass `--snapshot` to point elsewhere. Verify a rebuild with:
 
 ```bash
 uv run evallab mimo-clean build --tasks <id1,id2,...>
-# compare final_digest against research/experiments/mimo-clean-v3/manifest.csv
+# compare final_digest against research/experiments/mimo-clean-v5/manifest.csv
 ```
 
 A single task (or subset) rebuilds with `--tasks a,b --workers N`.
@@ -181,25 +167,26 @@ byte-for-byte. (Rule used: commit lineage iff the new total stays under
 
 ```bash
 uv run --extra laminar evallab mimo-clean verify-local \
-  --tasks <id1,id2,...> --jobs-dir runs/mimo-clean-v3
+  --tasks <id1,id2,...> --jobs-dir runs/mimo-clean-v5
 ```
 
 Per task it runs, on local Docker with the task's pinned image: the oracle
 control (when a reference fix exists), the nop control, and the full
-12-attack cheat ladder, then prints a per-task acceptance row. Acceptance is
+14-attack cheat ladder (v1.4.0), then prints a per-task acceptance row. Acceptance is
 **oracle 1, nop 0, cheat clean** (zero cracked trials). Raw jobs stay out of
-git; the acceptance table is recorded in
-`research/experiments/mimo-clean-v3/README.md`.
+git; the fleet acceptance table is recorded in
+`research/experiments/mimo-clean-v5-census/README.md`.
 
 ## Residual gaps (honest)
 
-- Installed copies outside CONFIRMED_PURGE rely on the HAR-185 sample
-  (0/100) plus the vals-routes-v2 census; the fail-closed tasks keep their
-  copies by design. If a new installed-copy leak is confirmed anywhere, add
-  the task id to `CONFIRMED_PURGE` and rebuild.
+- Installed copies are neutralized by `purge-installed-copies@2` on every
+  Python task (closure proof 11/11 in the purge-v2 receipt); the five
+  `excluded-from-training` tasks keep their environment copies by design
+  (pipx/pip tooling homes) and are excluded from training, not graded as
+  clean.
 - The 000047 `lib/` build-output leak is closed by `purge-build-caches@3`
   (vals-routes-v3 receipt: rebuild via `npm run compile`, oracle 1 / nop 0;
-  every v3 package carries `@4` — see the manifest `chain`).
+  every v5 package carries `@4` — see the manifest `chain`).
 - First confirmed pnpm fail-closed: `format-code-task-000128` (TS/vitest)
   cannot set up under the v2/v3 chain — `@3` finds `create-typescript-app`
   references in the image's pnpm store

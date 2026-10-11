@@ -366,6 +366,13 @@ the clean-set owner's call.
   unchanged. Replication experiment still needs paid approval (prompt-ban
   spec §cost).
 
+## Fix-content probe v2 (fleet census over 256 reference tasks)
+
+Method, fleet results, and manifest updates: `docs/mimo/verification.md`
+("Fix-content probe v2" section). Validation on the 8 hand-triaged tasks
+(6 Q1 + 2 Q3): 0 real hits on clean, positive controls on published —
+matches every LeakTriage verdict.
+
 ## Residuals for the parent
 
 1. @3 chain adoption is the clean-set owner's call (registry entry

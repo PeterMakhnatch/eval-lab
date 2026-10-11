@@ -184,6 +184,54 @@ receipt's `verify-detail.csv`. An override with a nonempty `final_digest`
 applies only on that exact digest; rows without aggregates are never
 touched.
 
+## Fix-content probe v2 (256 reference tasks + 196 v4 probe-pending)
+
+Probe v2 (`src/evallab/fix_content_census.py`, `batch` subcommand; receipt
+`research/experiments/fix-probe-v2/README.md`) closes every gap hand-triage
+found in the v1 check (d) (65 clean signature hits, 164 probe-blind):
+post-fix blob SHA + whitespace-normalized variant per changed non-test file
+(derived container-side via `git apply` of the known patch; searched in
+same-basename carriers and `.git` objects, so deletion-only 001955 and
+18-char 002378 are covered); per-pattern base subtraction (no shadowing);
+imports/short lines excluded; generic idioms (one pattern in ≥ 3 unrelated
+dirs) dropped; harness paths (`/__modal`, `/proc`, `/sys`) and the probe's
+own scratch excluded; a location counts with ≥ 2 co-located fix-specific
+lines or a blob hash; published fast control (fix commit or post-fix blob
+pre-setup counts, else `blind` with reason).
+
+Fleet result, 256/256 reference tasks probed published + clean ($0 local
+Docker): published probe-blind **164 → 0**; clean real-hit tasks 22 of 256
+(v1: 65 signature-hit tasks). Hand triage of all 22: **11 REAL E1 leaks**
+(000255, 000322, 000466, 000497, 000545, 000812, 002371, 002384, 002668,
+002790, 002829 — byte-identical post-fix project files in site-packages /
+`build/lib` / baked venv / stray checkout; every chain skipped
+purge-installed-copies@1 under the HAR-194 scope stance; worktree at base in
+all 11; proof in `~/Developer/eval-lab-results/2026-10-11/fix-probe-v2/real-leaks.md`),
+5 answer-visible via env tooling/dependencies (001478 geopandas, 001671
+escapism, 001945 scipy, 001971 setuptools vendor, 002414 pypoetry venv —
+reference implementation readable, not purge-removable; 002414 confirmed
+@2-by-design by PurgeV2), 6 probe coincidences (000636, 000926, 001433,
+002549, 002786, 003057 — stdlib idioms, upstream text, README/METADATA hints
+without implementation). 1 clean blind (002389, clean setup rc=1
+deterministic: purge-build-caches@2 precondition); 4 tasks have no clean
+package (published-only rows). Follow-up purge-installed-copies@2 (PR #836)
+closes all 11 E1 on the final chain (PurgeV2 verified); this slice changes
+no transforms.
+
+Second run, 109/109 new-index tasks against v4 packages (same probe):
+8 blind (`no-fix-signal`, patternless with no fix objects — stay pending),
+8 real-hit tasks triaged to **1 REAL** (000919, baked node `lib/` build
+output with fix content), 1 V6 residual (001690, newer env keras), 6
+coincidences. v3/v4 setup bytes are identical for the 83 overlapping tasks,
+so v3-package verdicts transfer to v4 rows.
+
+Manifest updates in this slice: v3 `verify` — 20 refuted `fail:open-leak`
+→ `pass`, 6 new real leaks → `fail:open-leak` (11 total open leaks);
+v4 `verify` — 184 of 196 `unverified:probe-pending` resolved (176 `pass`,
+8 `fail:open-leak`: 000255/000322/000466/000497/000545/000812/000919/001690),
+12 stay pending (4 no clean package, 8 blind). Per-task verdicts
+(chain/digest-bound, for v5): `research/experiments/fix-probe-v2/verdicts.json`.
+
 ## Spend discipline ($13 slice cap)
 
 `run --backend modal`/`daytona` refuses when recorded receipt amounts

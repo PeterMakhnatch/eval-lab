@@ -566,6 +566,7 @@ def test_fix_census_reuses_completed_probes(tmp_path: Path) -> None:
                 "fix_sha": "a" * 40,
                 "clean": {
                     "hits_total": 0,
+                    "real_hits": 0,
                     "setup_rc": "0",
                     "ready": "yes",
                     "probe_rc": "0",
@@ -800,6 +801,7 @@ def test_known_patch_reuse_by_patch_sha(tmp_path: Path, monkeypatch: Any) -> Non
                 "patch_sha": patch_sha,
                 "clean": {
                     "hits_total": 0,
+                    "real_hits": 0,
                     "setup_rc": "0",
                     "ready": "yes",
                     "probe_rc": "0",

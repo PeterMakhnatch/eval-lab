@@ -20,7 +20,7 @@ Two modes per task:
   purge-build-caches@2, mtime-normalize@1) with the same ``build_setup_sh``
   functions the derives use, so the bytes match a derived chain.
 
-Any location found in ``clean`` mode is an open leak. Standalone probes
+Any real location found in ``clean`` mode is an open leak. Standalone probes
 default to local Docker with ``--network none``. :func:`run_probe` also
 supports ``backend="modal"`` for paid, known-patch census phases, using the
 same pinned image, staged :data:`PROBE_SH`, setup payload, workdir and root.
@@ -70,16 +70,21 @@ CSV_FIELDS = (
     "stash",
     "patterns",
     "patterns_raw",
+    "generic_dropped",
     "hits_total",
     "hits_by_route",
+    "real_hits",
+    "real_hits_by_route",
     "blob_matches",
+    "scan_rc",
+    "scan_complete",
+    "probe_rc",
+    "control",
+    "blind_reason",
     "mtime_signal",
     "mtime_detail",
     "caches",
     "open_leak",
-    "scan_rc",
-    "scan_complete",
-    "probe_rc",
     "notes",
 )
 
@@ -88,8 +93,57 @@ CSV_FIELDS = (
 #: (measured: ``aliases: Set[str]`` in pydantic vs a pip-audit fix).
 PATTERN_MIN_LEN = 20
 
-#: Added lines this long (stripped) count as distinctive for verdicts.
+#: Default floor for :func:`distinctive_added_lines` (host-side verdicts).
+#: Kept equal to ``PATTERN_MIN_LEN``: same length argument (short lines
+#: coincide across packages), separate name for the separate call site.
 DISTINCTIVE_MIN_LEN = 20
+
+#: Co-located fix-specific lines required for one filesystem location to
+#: count as a real hit. Single-line matches are coincidences until a second
+#: fix line (or a post-fix blob hash) corroborates the file (LeakTriage Q1:
+#: 000161/000199 single-idiom hits, all NO leak).
+COLOCATE_MIN = 2
+
+#: Distinct parent directories outside the repo holding one pattern before it
+#: counts as a generic idiom rather than fix content (LeakTriage Q1:
+#: ``except (OSError, AttributeError):`` across stdlib, ``from copy import
+#: deepcopy`` across 35 packages).
+GENERIC_MIN_DIRS = 3
+
+#: Backend-injected dir basenames excluded from container content scans.
+#: ``__modal`` is Modal's debug-shell mount (LeakTriage Q1: probe-only
+#: artifact, absent from published/local-Docker containers); proc/sys/dev
+#: are kernel pseudo-filesystems; census-stage/census-out are our mounts.
+HARNESS_EXCLUDE_DIRS = (
+    "proc",
+    "sys",
+    "dev",
+    ".git",
+    "census-stage",
+    "census-out",
+    "__modal",
+)
+
+#: Probe's own scratch dir basenames (patch-application area holding
+#: post-fix content by construction): excluded from every scan, same as
+#: the census mounts. Distinctive names so no real path collides.
+PROBE_SCRATCH_DIRS = (
+    "probe-pfx-base",
+    "probe-pfx-post",
+)
+
+#: All scan-excluded dir basenames (harness + own scratch).
+SCAN_EXCLUDE_DIRS = HARNESS_EXCLUDE_DIRS + PROBE_SCRATCH_DIRS
+
+#: Backend-injected path prefixes ignored in verdicts even if scanned.
+#: Harbor/Daytona agents run inside the workdir mounts (no separate injected
+#: dirs observed on these images), so only Modal/procsys prefixes apply.
+HARNESS_PREFIXES = ("/__modal/", "/proc/", "/sys/")
+
+#: Import-line matcher for pattern selection (host + staged awk agree):
+#: stripped lines of the form ``import x`` or ``from x import y`` carry no
+#: fix identity (LeakTriage Q1: 000219's 33 hits were two import lines).
+_IMPORT_RE = re.compile(r"^(?:import\s+\S|from\s+\S+\s+import\s+)")
 
 _DIFF_GIT_RE = re.compile(r"^diff --git a/(.*) b/(.*)$")
 
@@ -140,6 +194,23 @@ def parse_diff_added_lines(patch_text: str) -> dict[str, list[str]]:
     return added
 
 
+def is_import_line(stripped: str) -> bool:
+    """Whether a stripped added line is an import (never fix-identifying)."""
+    return bool(_IMPORT_RE.match(stripped))
+
+
+def normalize_code_bytes(data: bytes) -> bytes:
+    """Whitespace-normalized variant of file bytes for blob comparison.
+
+    Per-line strip, blank lines dropped: catches installed copies that
+    reindent or rewrap fix content while keeping the digest sensitive to
+    real content changes.
+    """
+    text = data.decode("utf-8", errors="replace")
+    kept = [line.strip() for line in text.splitlines() if line.strip()]
+    return ("\n".join(kept) + "\n").encode() if kept else b""
+
+
 def distinctive_added_lines(
     patch_text: str,
     *,
@@ -148,8 +219,9 @@ def distinctive_added_lines(
 ) -> list[str]:
     """Distinctive added lines from the diff's non-test files.
 
-    Long added lines only (short lines match everywhere), deduplicated,
-    order-preserving, capped so the container-side ``grep -F -f`` stays fast.
+    Long non-import added lines only (short lines match everywhere; imports
+    coincide across unrelated packages), deduplicated, order-preserving,
+    capped so the container-side ``grep -F -f`` stays fast.
     """
     per_file = parse_diff_added_lines(patch_text)
     out: list[str] = []
@@ -161,6 +233,8 @@ def distinctive_added_lines(
             stripped = line.strip()
             if len(stripped) < min_len or stripped in seen:
                 continue
+            if is_import_line(stripped):
+                continue
             seen.add(stripped)
             out.append(stripped)
             if len(out) >= max_lines:
@@ -168,8 +242,32 @@ def distinctive_added_lines(
     return out
 
 
+def generic_patterns(
+    pattern_map: list[tuple[str, str]], workdir: str
+) -> set[str]:
+    """Patterns occurring across unrelated files: generic idioms, not fixes.
+
+    ``pattern_map`` holds (path, pattern) pairs from the container scan. A
+    pattern seen in ``GENERIC_MIN_DIRS`` or more distinct parent directories
+    outside the repo workdir coincides across packages (LeakTriage Q1) and is
+    dropped from verdicts. Workdir hits never genericize a pattern: fix
+    content in the worktree is signal, not coincidence.
+    """
+    dirs: dict[str, set[str]] = {}
+    prefix = workdir.rstrip("/") + "/"
+    for path, pattern in pattern_map:
+        if path == workdir.rstrip("/") or path.startswith(prefix):
+            continue
+        parent = path.rpartition("/")[0] or "/"
+        dirs.setdefault(pattern, set()).add(parent)
+    return {pat for pat, ds in dirs.items() if len(ds) >= GENERIC_MIN_DIRS}
+
+
 def classify_location(path: str, workdir: str) -> str:
     """Route bucket for a container path holding fix content."""
+    for prefix in HARNESS_PREFIXES:
+        if path == prefix.rstrip("/") or path.startswith(prefix):
+            return "harness"
     git_dir = workdir.rstrip("/") + "/.git/"
     if path == workdir.rstrip("/") + "/.git" or path.startswith(git_dir):
         return "git-objects"
@@ -224,22 +322,27 @@ def summarize_hits(
 
 
 #: Awk program selecting searchable patterns from a fix diff: stripped added
-#: lines (length >= ``PATTERN_MIN_LEN``) from NON-TEST files only.
-#: Test-path classification mirrors :func:`is_test_path`. Staged as
-#: ``patterns.awk`` by :func:`stage_probe` and run by the probe;
-#: unit-tested via bash.
+#: lines (length >= ``PATTERN_MIN_LEN``, non-import) from NON-TEST files only.
+#: Test-path classification mirrors :func:`is_test_path`; the import skip
+#: mirrors :func:`is_import_line`. Staged as ``patterns.awk`` by
+#: :func:`stage_probe` and run by the probe; unit-tested via bash.
 _PATTERNS_AWK_TEMPLATE = r"""
 /^\+\+\+ / { f = $2; sub(/^b\//, "", f); test = (f ~ /(^|\/)(tests?|testing|test_|_test|spec|specs|e2e)(\/|$)/ || f ~ /\.(spec|test)\.[A-Za-z]+$/ || f ~ /(^|\/)(conftest\.py|mimo_test_command\.sh|test_commands\.json|test\.patch|test_command\.sh)$/); next }
 /^--- / { next }
 test { next }
-/^\+/ { line = substr($0, 2); gsub(/^[ \t]+|[ \t]+$/, "", line); if (length(line) >= @@MIN@@) print line }
+/^\+/ { line = substr($0, 2); gsub(/^[ \t]+|[ \t]+$/, "", line); if (line ~ /^(import[ \t]+[^ \t]|from[ \t]+[^ \t]+[ \t]+import[ \t])/) next; if (length(line) >= @@MIN@@) print line }
 """
 PATTERNS_AWK = _PATTERNS_AWK_TEMPLATE.replace("@@MIN@@", str(PATTERN_MIN_LEN))
 
 PROBE_SH = """\
 #!/bin/bash
-# fix-content-census probe: inspect the fix pre-setup, run the staged setup,
-# then scan the filesystem for post-fix content. Results in /census-out.
+# fix-content-census probe v2: oracle fix pre-setup, staged setup, then scan
+# for post-fix content (patterns + blob hashes). Results in /census-out.
+# v2 changes: per-pattern base subtraction (no shadowing FPs), import/short
+# filtering, post-fix blob SHA + whitespace-normalized variant searched in
+# carriers and git objects (patternless fixes covered), harness-dir
+# exclusions (/__modal, proc, sys), per-file distinct-pattern counts for the
+# co-location rule, and a no_scan flag for cheap published controls.
 WORKDIR="$1"
 FIX="$2"
 STAGE=/census-stage
@@ -247,43 +350,92 @@ OUT=/census-out
 mkdir -p "$OUT"
 printf '%s' "$WORKDIR" > "$OUT/workdir"
 printf '%s' "$FIX" > "$OUT/fix"
-# ---- stage 0: reference fix from the leaked pre-setup history, or ----
-# ---- precomputed patterns from a known reference patch (no in-image fix) ----
+_sha256() { sha256sum "$1" 2>/dev/null || shasum -a 256 "$1" 2>/dev/null || echo "nosum $1"; }
+_normsha() { sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' "$1" 2>/dev/null | grep -v '^$' 2>/dev/null | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null || echo "nosum"; } }
+# ---- stage 0: oracle fix ----
+BASE=$(git -C "$WORKDIR" rev-parse HEAD 2>/dev/null || true)
+printf '%s' "$BASE" > "$OUT/base"
+: > "$OUT/blobhash.txt"
 if [ -f "$STAGE/patterns.pre" ]; then
+  # Known-patch mode: patterns/files seed the probe from the reference patch
+  # (no in-image fix archaeology); base subtraction still applies below.
   cp "$STAGE/patterns.pre" "$OUT/patterns_raw.txt"
   { cat "$STAGE/fix_source" 2>/dev/null || echo unknown-patch; } > "$OUT/fix_source"
-  echo precomputed > "$OUT/fix_present_pre"
-  BASE=$(git -C "$WORKDIR" rev-parse HEAD 2>/dev/null || true)
-  printf '%s' "$BASE" > "$OUT/base"
-  : > "$OUT/blobs.txt"
-  : > "$OUT/fix.diff"
   cp "$STAGE/files.pre" "$OUT/changed.txt" 2>/dev/null || : > "$OUT/changed.txt"
-else
-  BASE=$(git -C "$WORKDIR" rev-parse HEAD 2>/dev/null || true)
-  printf '%s' "$BASE" > "$OUT/base"
-  if git -C "$WORKDIR" cat-file -t "$FIX" >/dev/null 2>&1; then echo yes > "$OUT/fix_present_pre"; else echo no > "$OUT/fix_present_pre"; fi
-  git -C "$WORKDIR" diff "$FIX^" "$FIX" --name-only 2>/dev/null > "$OUT/changed.txt" || true
-  git -C "$WORKDIR" diff "$FIX^" "$FIX" 2>/dev/null > "$OUT/fix.diff" || true
-  : > "$OUT/blobs.txt"
+  if [ -n "$FIX" ] && git -C "$WORKDIR" cat-file -t "$FIX" >/dev/null 2>&1; then echo yes > "$OUT/fix_present_pre"; else echo no > "$OUT/fix_present_pre"; fi
+  echo precomputed > "$OUT/oracle_mode"
+  # Post-fix content: base files via git archive, reference patch via git
+  # apply in a scratch dir (real git semantics: renames/deletions/new files).
+  rm -rf /tmp/probe-pfx-base /tmp/probe-pfx-post && mkdir -p /tmp/probe-pfx-base /tmp/probe-pfx-post
+  if [ -n "$BASE" ] && [ -s "$OUT/changed.txt" ]; then
+    git -C "$WORKDIR" archive "$BASE" -- $(cat "$OUT/changed.txt") 2>/dev/null | tar -x -C /tmp/probe-pfx-base 2>/dev/null || true
+  fi
+  cp -r /tmp/probe-pfx-base/. /tmp/probe-pfx-post/ 2>/dev/null || true
+  if [ -f "$STAGE/fix.patch" ]; then
+    (cd /tmp/probe-pfx-post && git apply --unsafe-paths "$STAGE/fix.patch" 2>/dev/null) || echo apply-failed > "$OUT/patch_apply"
+  fi
   while IFS= read -r f; do
     [ -n "$f" ] || continue
-    _sha=$(git -C "$WORKDIR" rev-parse "$FIX:$f" 2>/dev/null || true)
-    [ -n "$_sha" ] && printf '%s\t%s\n' "$_sha" "$f" >> "$OUT/blobs.txt"
+    if [ -f "/tmp/probe-pfx-base/$f" ]; then
+      _b=$(_sha256 "/tmp/probe-pfx-base/$f" | awk '{print $1}'); printf 'base-sha256\t%s\t%s\n' "$_b" "$f" >> "$OUT/blobhash.txt"
+      _bb=$(git -C "$WORKDIR" rev-parse "$BASE:$f" 2>/dev/null || true); [ -n "$_bb" ] && printf 'base-blob\t%s\t%s\n' "$_bb" "$f" >> "$OUT/blobhash.txt"
+    fi
+    if [ -f "/tmp/probe-pfx-post/$f" ]; then
+      _p=$(_sha256 "/tmp/probe-pfx-post/$f" | awk '{print $1}'); printf 'post-sha256\t%s\t%s\n' "$_p" "$f" >> "$OUT/blobhash.txt"
+      _n=$(_normsha "/tmp/probe-pfx-post/$f" | awk '{print $1}'); printf 'post-norm\t%s\t%s\n' "$_n" "$f" >> "$OUT/blobhash.txt"
+      _pb=$(git hash-object "/tmp/probe-pfx-post/$f" 2>/dev/null || true); [ -n "$_pb" ] && printf 'post-blob\t%s\t%s\n' "$_pb" "$f" >> "$OUT/blobhash.txt"
+    else
+      [ -f "/tmp/probe-pfx-base/$f" ] && printf 'deleted\t-\t%s\n' "$f" >> "$OUT/blobhash.txt" || printf 'added\t-\t%s\n' "$f" >> "$OUT/blobhash.txt"
+    fi
   done < "$OUT/changed.txt"
+  : > "$OUT/fix.diff"
+else
+  # Recovery mode: reference fix from the leaked pre-setup history.
+  echo recovered > "$OUT/oracle_mode"
+  : > "$OUT/fix_source"
+  if [ -n "$FIX" ] && git -C "$WORKDIR" cat-file -t "$FIX" >/dev/null 2>&1; then echo yes > "$OUT/fix_present_pre"; else echo no > "$OUT/fix_present_pre"; fi
+  git -C "$WORKDIR" diff "$FIX^" "$FIX" --name-only 2>/dev/null > "$OUT/changed.txt" || true
+  git -C "$WORKDIR" diff "$FIX^" "$FIX" 2>/dev/null > "$OUT/fix.diff" || true
   awk -f "$STAGE/patterns.awk" "$OUT/fix.diff" 2>/dev/null | sort -u > "$OUT/patterns_raw.txt" || true
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    if git -C "$WORKDIR" cat-file -e "$BASE:$f" 2>/dev/null; then
+      _b=$(git -C "$WORKDIR" show "$BASE:$f" 2>/dev/null | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | awk '{print $1}'); printf 'base-sha256\t%s\t%s\n' "$_b" "$f" >> "$OUT/blobhash.txt"
+      _bb=$(git -C "$WORKDIR" rev-parse "$BASE:$f" 2>/dev/null || true); [ -n "$_bb" ] && printf 'base-blob\t%s\t%s\n' "$_bb" "$f" >> "$OUT/blobhash.txt"
+    fi
+    if [ -n "$FIX" ] && git -C "$WORKDIR" cat-file -e "$FIX:$f" 2>/dev/null; then
+      _p=$(git -C "$WORKDIR" show "$FIX:$f" 2>/dev/null | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | awk '{print $1}'); printf 'post-sha256\t%s\t%s\n' "$_p" "$f" >> "$OUT/blobhash.txt"
+      _n=$(git -C "$WORKDIR" show "$FIX:$f" 2>/dev/null | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//' | grep -v '^$' | { sha256sum 2>/dev/null || shasum -a 256 2>/dev/null; } | awk '{print $1}'); printf 'post-norm\t%s\t%s\n' "$_n" "$f" >> "$OUT/blobhash.txt"
+      _pb=$(git -C "$WORKDIR" rev-parse "$FIX:$f" 2>/dev/null || true); [ -n "$_pb" ] && printf 'post-blob\t%s\t%s\n' "$_pb" "$f" >> "$OUT/blobhash.txt"
+    else
+      printf 'deleted\t-\t%s\n' "$f" >> "$OUT/blobhash.txt" || true
+    fi
+  done < "$OUT/changed.txt"
 fi
-# Distinctive patterns: added lines absent from the base tree. A line the
-# base already contains is not fix content, no matter where else it appears.
-# Batched: one git-grep lists every raw pattern occurring at base (-o prints
-# only the matched part, i.e. the pattern itself), then exact-subtract.
-# Applies to both recovered and precomputed raw patterns.
+# Distinctive patterns: added lines absent from the base tree, tested ONE
+# PATTERN AT A TIME (v1's batched git-grep -o subtraction let shadowed
+# shorter lines through: LeakTriage Q1 000122).
 : > "$OUT/patterns.txt"
 if [ -s "$OUT/patterns_raw.txt" ] && [ -n "$BASE" ]; then
-  git -C "$WORKDIR" grep -ohF -f "$OUT/patterns_raw.txt" "$BASE" -- . 2>/dev/null | sort -u > "$OUT/base_hits.txt" || true
-  grep -vFxf "$OUT/base_hits.txt" "$OUT/patterns_raw.txt" > "$OUT/patterns.txt" || true
+  while IFS= read -r pat; do
+    [ -n "$pat" ] || continue
+    if git -C "$WORKDIR" grep -qF -e "$pat" "$BASE" -- . 2>/dev/null; then
+      printf '%s\n' "$pat" >> "$OUT/base_hits.txt"
+    else
+      printf '%s\n' "$pat" >> "$OUT/patterns.txt"
+    fi
+  done < "$OUT/patterns_raw.txt"
 fi
 wc -l < "$OUT/patterns_raw.txt" | tr -d ' ' > "$OUT/pattern_raw_count"
 wc -l < "$OUT/patterns.txt" | tr -d ' ' > "$OUT/pattern_count"
+# Pre-setup oracle signal: post-fix blob objects present (reachable or
+# unreachable) count for the positive control.
+: > "$OUT/blob_found_pre.txt"
+awk -F'\t' '$1=="post-blob"{print $2}' "$OUT/blobhash.txt" 2>/dev/null | sort -u | while IFS= read -r bs; do
+  [ -n "$bs" ] || continue
+  if git -C "$WORKDIR" cat-file -e "$bs" 2>/dev/null; then printf '%s\n' "$bs" >> "$OUT/blob_found_pre.txt"; fi
+done
+wc -l < "$OUT/blob_found_pre.txt" | tr -d ' ' > "$OUT/blob_found_pre_count"
 # ---- staged setup (published or clean chain) ----
 mkdir -p /var/lib/mimo
 cp -r "$STAGE/setup/." /var/lib/mimo/ 2>/dev/null
@@ -291,7 +443,7 @@ bash /var/lib/mimo/setup.sh > "$OUT/setup.log" 2>&1
 printf '%s' "$?" > "$OUT/setup_rc"
 if [ -f /var/lib/mimo/ready ]; then echo yes > "$OUT/ready"; else echo no > "$OUT/ready"; fi
 # ---- stage 2: git recoverability (V2/V4) ----
-if git -C "$WORKDIR" cat-file -t "$FIX" >/dev/null 2>&1; then echo yes > "$OUT/fix_present_post"; else echo no > "$OUT/fix_present_post"; fi
+if [ -n "$FIX" ] && git -C "$WORKDIR" cat-file -t "$FIX" >/dev/null 2>&1; then echo yes > "$OUT/fix_present_post"; else echo no > "$OUT/fix_present_post"; fi
 if [ -d /var/lib/mimo/git-hidden ]; then echo yes > "$OUT/git_hidden"; else echo no > "$OUT/git_hidden"; fi
 if [ -d "$WORKDIR/.git" ]; then echo yes > "$OUT/git_present"; else echo no > "$OUT/git_present"; fi
 git -C "$WORKDIR" rev-list --all --count 2>/dev/null > "$OUT/rev_count" || echo ? > "$OUT/rev_count"
@@ -300,21 +452,62 @@ git -C "$WORKDIR" tag 2>/dev/null > "$OUT/tags.txt" || true
 git -C "$WORKDIR" stash list 2>/dev/null > "$OUT/stash.txt" || true
 _to=""; command -v timeout >/dev/null 2>&1 && _to="timeout 240"
 $_to git -C "$WORKDIR" fsck --unreachable --no-reflogs 2>/dev/null | wc -l | tr -d ' ' > "$OUT/fsck_unreachable" || echo ? > "$OUT/fsck_unreachable"
-# ---- stage 2: filesystem content scan outside .git and the census mounts ----
+: > "$OUT/blob_found_post.txt"
+awk -F'\t' '$1=="post-blob"{print $2}' "$OUT/blobhash.txt" 2>/dev/null | sort -u | while IFS= read -r bs; do
+  [ -n "$bs" ] || continue
+  if git -C "$WORKDIR" cat-file -e "$bs" 2>/dev/null; then printf '%s\n' "$bs" >> "$OUT/blob_found_post.txt"; fi
+done
+wc -l < "$OUT/blob_found_post.txt" | tr -d ' ' > "$OUT/blob_found_post_count"
+# ---- stage 2: worktree + carrier blob-hash scan (always: cheap, exact) ----
+: > "$OUT/worktree_hashes.txt"
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  if [ -f "$WORKDIR/$f" ]; then
+    _w=$(_sha256 "$WORKDIR/$f" | awk '{print $1}'); _wn=$(_normsha "$WORKDIR/$f" | awk '{print $1}')
+    printf '%s\t%s\t%s\tpresent\n' "$f" "$_w" "$_wn" >> "$OUT/worktree_hashes.txt"
+  else
+    printf '%s\t-\t-\tmissing\n' "$f" >> "$OUT/worktree_hashes.txt"
+  fi
+done < "$OUT/changed.txt"
+: > "$OUT/carrier_hits.txt"
+while IFS= read -r f; do
+  [ -n "$f" ] || continue
+  _bn=$(basename "$f"); _stem="${_bn%.*}"
+  find / \\( -path /proc -o -path /sys -o -path /dev -o -path /census-stage -o -path /census-out -o -path "$WORKDIR/.git" -o -path /__modal -o -path /tmp/probe-pfx-base -o -path /tmp/probe-pfx-post \\) -prune -o -type f \\( -name "$_bn" -o -name "$_stem.*.pyc" \\) -print 2>/dev/null | while IFS= read -r c; do
+    [ -n "$c" ] || continue
+    [ "$c" = "$WORKDIR/$f" ] && continue
+    _c=$(_sha256 "$c" | awk '{print $1}'); _cn=$(_normsha "$c" | awk '{print $1}')
+    printf '%s\t%s\t%s\t%s\n' "$c" "$_c" "$_cn" "$f" >> "$OUT/carrier_hits.txt"
+  done
+done < "$OUT/changed.txt"
+# ---- stage 2: filesystem pattern scan (skipped with no_scan: fast control) --
 : > "$OUT/hits.txt"
 printf '%s' no-patterns > "$OUT/scan_rc"
-if [ -s "$OUT/patterns.txt" ]; then
+if [ ! -f "$STAGE/no_scan" ] && [ -s "$OUT/patterns.txt" ]; then
   _gto=""; command -v timeout >/dev/null 2>&1 && _gto="timeout 1200"
-  $_gto grep -rlF -f "$OUT/patterns.txt" --exclude-dir=proc --exclude-dir=sys --exclude-dir=dev --exclude-dir=.git --exclude-dir=census-stage --exclude-dir=census-out / 2>"$OUT/scan-stderr.txt" > "$OUT/hits.txt"
+  _ex=""; for _d in proc sys dev .git census-stage census-out __modal probe-pfx-base probe-pfx-post; do _ex="$_ex --exclude-dir=$_d"; done
+  # shellcheck disable=SC2086
+  $_gto grep -rlF -f "$OUT/patterns.txt" $_ex / 2>"$OUT/scan-stderr.txt" > "$OUT/hits.txt"
   printf '%s' "$?" > "$OUT/scan_rc"
 fi
 : > "$OUT/hit_detail.txt"
 while IFS= read -r p; do
   [ -n "$p" ] || continue
-  _c=$(grep -cF -f "$OUT/patterns.txt" "$p" 2>/dev/null || true)
-  _s=$(sha256sum "$p" 2>/dev/null || shasum -a 256 "$p" 2>/dev/null || echo "nosum $p")
-  printf '%s\t%s\t%s\n' "$p" "$_c" "$_s" >> "$OUT/hit_detail.txt"
+  _distinct=$(grep -oF -f "$OUT/patterns.txt" -- "$p" 2>/dev/null | sort -u | wc -l | tr -d ' ')
+  _s=$(_sha256 "$p")
+  printf '%s\t%s\t%s\n' "$p" "$_distinct" "$_s" >> "$OUT/hit_detail.txt"
 done < "$OUT/hits.txt"
+: > "$OUT/pattern_map.txt"
+if [ -s "$OUT/hits.txt" ] && [ -s "$OUT/patterns.txt" ]; then
+  while IFS= read -r p; do
+    [ -n "$p" ] || continue
+    grep -oHF -f "$OUT/patterns.txt" -- "$p" 2>/dev/null | sort -u | while IFS= read -r m; do
+      _file=${m%%:*}; _pat=${m#*:}
+      printf '%s\t%s\n' "$_file" "$_pat" >> "$OUT/pattern_map.txt"
+    done
+  done < "$OUT/hits.txt"
+fi
+wc -l < "$OUT/pattern_map.txt" | tr -d ' ' > "$OUT/pattern_map_count"
 # ---- stage 2: mtime clustering of the fix-touched files (V3) ----
 : > "$OUT/fix_mtimes.txt"
 while IFS= read -r f; do
@@ -353,13 +546,17 @@ def stage_probe(
     setup_sh: bytes | None = None,
     *,
     precomputed: Mapping[str, Any] | None = None,
+    scan: bool = True,
 ) -> None:
     """Write the probe stage dir: probe.sh plus the setup payload to run.
 
-    ``precomputed`` seeds the probe from a known reference patch instead of
-    in-image git archaeology: ``{"patterns": [...], "files": [...],
-    "fix_source": str}`` stages ``patterns.pre``/``files.pre``/``fix_source``
-    for the probe's stage-0 branch (base-tree subtraction still applies).
+    ``precomputed`` seeds known-patch mode from a reference patch instead of
+    in-image fix archaeology: ``{"patterns": [...], "files": [...],
+    "fix_source": str, "patch": str}`` stages ``patterns.pre`` /
+    ``files.pre`` / ``fix_source`` / ``fix.patch`` (base-tree subtraction
+    and post-fix blob derivation still run container-side). ``scan=False``
+    stages ``no_scan`` for a cheap published positive control (oracle +
+    setup + git/blob checks, no filesystem pattern scan).
     """
     stage = Path(stage_dir)
     setup = stage / "setup"
@@ -380,6 +577,11 @@ def stage_probe(
         (stage / "fix_source").write_text(
             str(precomputed.get("fix_source", "unknown-patch")), encoding="utf-8"
         )
+        patch = precomputed.get("patch", "")
+        if str(patch).strip():
+            (stage / "fix.patch").write_text(str(patch), encoding="utf-8")
+    if not scan:
+        (stage / "no_scan").write_text("fast published control\n", encoding="utf-8")
 
 
 def compose_clean_setup(
@@ -429,7 +631,7 @@ def run_probe(
     backend: str = "docker",
     egress_lock: bool = True,
 ) -> None:
-    """Run the census probe in a container (root; network per ``egress_lock``).
+    """Run the census probe v2 in a container (root; network per ``egress_lock``).
 
     ``backend="docker"`` (default) uses local Docker, ``--network none`` when
     ``egress_lock`` is true (default; existing behavior unchanged).
@@ -438,11 +640,10 @@ def run_probe(
     and fix arguments, root, ``block_network=egress_lock``, billed to the
     named census app with a ``probe-runtime.json`` lifecycle receipt. The
     census runner passes ``egress_lock`` from the task package network
-    contract (``network_mode == "none"``), so published/clean setups match
-    package semantics. The sandbox is terminated on success and on error; a
-    failed termination is recorded and raised (possible continued billing),
-    never suppressed. SDK failures raise explicitly and never fabricate
-    result files.
+    contract, so published/clean setups match package semantics. The sandbox
+    is terminated on success and on error; a failed termination is recorded
+    and raised (possible continued billing), never suppressed. SDK failures
+    raise explicitly and never fabricate result files.
     """
     if backend not in ("docker", "modal"):
         raise ValueError(f"backend must be 'docker' or 'modal', got {backend!r}")
@@ -660,73 +861,181 @@ def _read_lines(path: Path) -> list[str]:
         return []
 
 
+def _parse_blobhash(lines: list[str]) -> dict[str, set[str]]:
+    """Bucket blobhash.txt ``kind-sha-path`` lines by kind into sha sets."""
+    buckets: dict[str, set[str]] = {}
+    for line in lines:
+        parts = line.split("\t")
+        if len(parts) != 3:
+            continue
+        kind, sha, _path = (part.strip() for part in parts)
+        if kind in ("post-sha256", "post-norm", "base-sha256", "post-blob", "base-blob"):
+            buckets.setdefault(kind, set()).add(sha)
+    return buckets
+
+
+#: sha256 of empty bytes: the normalized variant of an empty file. Never a
+#: blob-match signal on its own (any empty carrier would "match").
+_EMPTY_SHA256 = (
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+)
+
+
 def collect_result(
     task_id: str, language: str, image12: str, mode: str, out_dir: Path | str
 ) -> dict[str, Any]:
-    """Assemble one census row from probe outputs (host-side verdicts)."""
+    """Assemble one census row from probe v2 outputs (host-side verdicts).
+
+    Raw ``hits_total`` counts every pattern-scan location (v1-compatible
+    signal); ``real_hits`` counts verdict locations: non-harness files with
+    ``COLOCATE_MIN`` co-located fix-specific lines or a post-fix blob hash.
+    ``control``/``blind_reason`` carry the published positive control (git
+    objects count: fix commit or post-fix blob present pre-setup).
+    """
     out = Path(out_dir)
     workdir = _read(out / "workdir", "")
     fix_sha = _read(out / "fix", "")
-    blobs: dict[str, str] = {}
-    for line in _read_lines(out / "blobs.txt"):
-        sha, _, path = line.partition("\t")
-        if sha and path:
-            blobs[path] = sha
-    blob_shas = set(blobs.values())
+    oracle_mode = _read(out / "oracle_mode", "?")
+    fix_source = _read(out / "fix_source", "")
+    buckets = _parse_blobhash(_read_lines(out / "blobhash.txt"))
+    post_shas = set(buckets.get("post-sha256", set()))
+    post_norms = {s for s in buckets.get("post-norm", set()) if s != _EMPTY_SHA256}
+    base_shas = set(buckets.get("base-sha256", set()))
+    post_blob_count = len(buckets.get("post-blob", set()))
+    # Pattern map -> generic idioms (host-side; workdir hits never genericize).
+    pattern_map: list[tuple[str, str]] = []
+    for line in _read_lines(out / "pattern_map.txt"):
+        path, _, pattern = line.partition("\t")
+        if path and pattern:
+            pattern_map.append((path, pattern))
+    generic = generic_patterns(pattern_map, workdir) if workdir else set()
+    file_patterns: dict[str, set[str]] = {}
+    for path, pattern in pattern_map:
+        file_patterns.setdefault(path, set()).add(pattern)
     hits: list[dict[str, Any]] = []
     for line in _read_lines(out / "hit_detail.txt"):
         parts = line.split("\t")
         if len(parts) < 3:
             continue
-        path, count, sumline = parts[0], parts[1], " ".join(parts[2:])
+        path, distinct_raw, sumline = parts[0], parts[1], " ".join(parts[2:])
         try:
-            n = int(count.strip())
+            distinct = int(distinct_raw.strip())
         except ValueError:
-            n = 0
+            distinct = 0
         sha = sumline.split()[0] if sumline.split() else ""
+        sha = "" if sha in ("", "nosum") else sha
+        matched = file_patterns.get(path, set())
+        fix_specific = len(matched - generic) if matched else distinct
         hits.append(
             {
                 "path": path,
-                "matched_lines": n,
-                "sha256": "" if sha in ("", "nosum") else sha,
-                "blob_match": bool(sha) and sha in blob_shas,
+                "matched_distinct": distinct,
+                "fix_specific": fix_specific,
+                "sha256": sha,
+                "blob_match": bool(sha) and sha in post_shas,
             }
         )
     counts, hits = summarize_hits(hits, workdir)
-    blob_matches = [h["path"] for h in hits if h["blob_match"]]
+    # Carrier + worktree blob verdicts (targeted basename search; the
+    # worktree's own changed files are excluded from carriers by the probe).
+    blob_matches: list[str] = []
+    for line in _read_lines(out / "carrier_hits.txt"):
+        parts = line.split("\t")
+        if len(parts) < 4:
+            continue
+        path, sha, norm = parts[0], parts[1], parts[2]
+        if sha in post_shas or norm in post_norms:
+            blob_matches.append(f"{path} (installed-carrier post-fix)")
+    worktree_post = 0
+    worktree_base = 0
+    worktree_total = 0
+    for line in _read_lines(out / "worktree_hashes.txt"):
+        parts = line.split("\t")
+        if len(parts) < 4:
+            continue
+        rel, sha, norm, status = parts[0], parts[1], parts[2], parts[3]
+        if status != "present":
+            continue
+        worktree_total += 1
+        if sha in post_shas or norm in post_norms:
+            worktree_post += 1
+            blob_matches.append(f"{workdir.rstrip('/')}/{rel} (worktree post-fix)")
+        elif sha in base_shas:
+            worktree_base += 1
+    real: list[dict[str, Any]] = []
+    for hit in hits:
+        if hit.get("route") == "harness":
+            continue
+        if hit.get("blob_match"):
+            hit["real_reason"] = "post-fix blob hash"
+            real.append(hit)
+        elif int(hit.get("fix_specific", 0)) >= COLOCATE_MIN:
+            hit["real_reason"] = f">= {COLOCATE_MIN} fix-specific lines"
+            real.append(hit)
+    real_counts: dict[str, int] = {}
+    for hit in real:
+        route = str(hit.get("route", "other"))
+        real_counts[route] = real_counts.get(route, 0) + 1
+    fix_present_pre = _read(out / "fix_present_pre")
     fix_present_post = _read(out / "fix_present_post")
+    try:
+        blob_pre = int(_read(out / "blob_found_pre_count", "0"))
+    except ValueError:
+        blob_pre = 0
     ready = _read(out / "ready")
-    # An open leak is recoverable fix content, not a failed setup: setup
+    setup_rc = _read(out / "setup_rc")
+    scan_rc = _read(out / "scan_rc")
+    scan_complete = scan_rc in ("0", "1", "no-patterns")
+    # Runner evidence: whichever backend ran the probe records its rc; a Modal
+    # run has no docker_rc, so only present files are judged (a missing
+    # docker_rc on a Modal run is expected, not a finding).
+    rc_names = [name for name in ("docker_rc", "modal_rc") if (out / name).exists()]
+    probe_rc = _read(out / rc_names[0]) if len(rc_names) == 1 else "unknown"
+    oracle = fix_present_pre == "yes" or blob_pre > 0
+    setup_ok = setup_rc == "0" and ready == "yes"
+    control = "positive" if (oracle and setup_ok) else "blind"
+    blind_reason = ""
+    if control == "blind":
+        if not oracle:
+            blind_reason = "no-oracle" if fix_present_pre != "?" else "oracle-unknown"
+            if post_blob_count == 0 and _read(out / "pattern_count", "0") == "0":
+                blind_reason = "no-fix-signal"
+        elif setup_rc != "0":
+            blind_reason = f"setup-failed rc={setup_rc}"
+        elif ready != "yes":
+            blind_reason = "not-ready"
+        elif not scan_complete:
+            blind_reason = f"scan-incomplete rc={scan_rc}"
+    # An open leak is surviving fix content, not a failed setup: setup
     # failures are applicability findings and ride in notes.
-    open_leak = fix_present_post == "yes" or bool(hits)
+    open_leak = (
+        fix_present_post == "yes" or bool(real) or bool(blob_matches)
+    )
     mtimes = _read_lines(out / "fix_mtimes.txt")
     fix_epochs = sorted({line.partition("\t")[0] for line in mtimes} - {"", "?"})
     worktree_mtimes = _read(out / "worktree_mtimes")
     mtime_signal = len(fix_epochs) == 1 and len(mtimes) >= 2 and worktree_mtimes not in ("?", "1")
     notes: list[str] = []
-    fix_pre = _read(out / "fix_present_pre")
-    if fix_pre == "precomputed":
-        notes.append(
-            f"patterns from known patch ({_read(out / 'fix_source')}); no in-image fix commit"
-        )
-    elif fix_pre != "yes":
-        notes.append("fix absent pre-setup; content scan has no oracle")
-    if _read(out / "setup_rc") != "0":
-        notes.append(f"setup rc={_read(out / 'setup_rc')}")
+    if oracle_mode == "precomputed":
+        notes.append(f"patterns from known patch ({fix_source or 'unknown'}); no in-image fix commit")
+    if fix_present_pre not in ("yes", "precomputed"):
+        notes.append("fix commit absent pre-setup; oracle is blob objects only")
+    if _read(out / "patch_apply", "") == "apply-failed":
+        notes.append("reference patch did not apply to base files; blob oracle partial")
+    if setup_rc != "0":
+        notes.append(f"setup rc={setup_rc}")
     if ready != "yes":
         notes.append("ready sentinel missing")
-    # Runner evidence: whichever backend ran the probe records its rc; a Modal
-    # run has no docker_rc, so only present files are judged (a missing
-    # docker_rc on a Modal run is expected, not a finding).
-    rc_names = [name for name in ("docker_rc", "modal_rc") if (out / name).exists()]
-    for rc_name in rc_names or ["docker_rc"]:
-        if _read(out / rc_name) != "0":
-            notes.append(f"{rc_name} rc={_read(out / rc_name)}")
-    scan_rc = _read(out / "scan_rc")
-    scan_complete = scan_rc in ("0", "1", "no-patterns")
+    if probe_rc != "0":
+        notes.append(f"probe rc={probe_rc} ({rc_names[0] if rc_names else 'no-rc'})")
     if not scan_complete:
         notes.append(f"content scan incomplete rc={scan_rc}")
-    probe_rc = _read(out / rc_names[0]) if len(rc_names) == 1 else "unknown"
+    if generic:
+        notes.append(f"{len(generic)} generic idiom pattern(s) excluded")
+    if post_blob_count == 0 and _read(out / "pattern_count", "0") == "0":
+        notes.append("deletion-only/patternless fix: content probe vacuous, blob-absence only")
+    if worktree_total and worktree_post == 0 and worktree_base == worktree_total:
+        notes.append(f"worktree at base ({worktree_base}/{worktree_total} changed files fix-absent as shipped)")
     if _read(out / "git_hidden") == "yes":
         notes.append("setup hid .git (git-hidden); post git checks are blind")
     if _read(out / "git_present") == "no":
@@ -736,14 +1045,11 @@ def collect_result(
         "language": language,
         "image12": image12,
         "mode": mode,
-        "setup_rc": _read(out / "setup_rc"),
+        "setup_rc": setup_rc,
         "ready": ready,
-        "scan_rc": scan_rc,
-        "scan_complete": scan_complete,
-        "probe_rc": probe_rc,
         "fix_sha": fix_sha,
-        "fix_source": _read(out / "fix_source", ""),
-        "fix_present_pre": _read(out / "fix_present_pre"),
+        "fix_source": fix_source,
+        "fix_present_pre": fix_present_pre,
         "fix_present_post": fix_present_post,
         "rev_count": _read(out / "rev_count"),
         "fsck_unreachable": _read(out / "fsck_unreachable"),
@@ -752,9 +1058,17 @@ def collect_result(
         "stash": len(_read_lines(out / "stash.txt")),
         "patterns": _read(out / "pattern_count"),
         "patterns_raw": _read(out / "pattern_raw_count"),
+        "generic_dropped": len(generic),
         "hits_total": len(hits),
         "hits_by_route": json.dumps(counts, sort_keys=True),
-        "blob_matches": json.dumps(sorted(blob_matches)),
+        "real_hits": len(real),
+        "real_hits_by_route": json.dumps(real_counts, sort_keys=True),
+        "blob_matches": json.dumps(sorted(set(blob_matches))),
+        "scan_rc": scan_rc,
+        "scan_complete": scan_complete,
+        "probe_rc": probe_rc,
+        "control": control,
+        "blind_reason": blind_reason,
         "mtime_signal": "yes" if mtime_signal else "no",
         "mtime_detail": f"fix_epochs={','.join(fix_epochs) or '?'} "
         f"fix_files={len(mtimes)} worktree_distinct={worktree_mtimes}",
@@ -764,6 +1078,7 @@ def collect_result(
         "open_leak": "yes" if open_leak else "no",
         "notes": "; ".join(notes),
         "hits": hits,
+        "real": real,
     }
 
 
@@ -813,6 +1128,191 @@ def copy_git_from_image(image: str, workdir: str, dest: Path) -> bool:
         subprocess.run(["docker", "rm", "-f", cid], capture_output=True, timeout=120)
 
 
+def _load_csv_rows(path: Path) -> list[dict[str, str]]:
+    with open(path, newline="", encoding="utf-8") as handle:
+        return [dict(row) for row in csv.DictReader(handle)]
+
+
+def probe_task_known_patch(
+    *,
+    task_id: str,
+    language: str,
+    image: str,
+    workdir: str,
+    run_setup: Path,
+    clean_setup: Path | None,
+    patch_text: str,
+    fix_commit: str,
+    scratch: Path,
+    timeout: int = 2700,
+) -> dict[str, Any]:
+    """Probe published (fast control) + clean (full scan) from a known patch.
+
+    Patterns/files seed both probes host-side via :func:`distinctive_added_lines`
+    (imports excluded); the container still subtracts the base tree
+    per-pattern and derives post-fix blob hashes via ``git apply``. Returns
+    ``{"published": row, "clean": row | None, "meta": {...}}``; ``clean`` is
+    None when no clean setup exists. Raises on probe infrastructure failure;
+    per-task findings stay in the rows.
+    """
+    image12 = image.split("@sha256:")[-1][:12] if "@sha256:" in image else image[-12:]
+    patterns = distinctive_added_lines(patch_text)
+    files = non_test_files(list(parse_diff_added_lines(patch_text)))
+    precomputed = {
+        "patterns": patterns,
+        "files": files,
+        "fix_source": f"known-patch:{task_id}",
+        "patch": patch_text,
+    }
+    scratch.mkdir(parents=True, exist_ok=True)
+    published_stage = scratch / "stage-published"
+    published_out = scratch / "out-published"
+    stage_probe(published_stage, run_setup, None, precomputed=precomputed, scan=False)
+    run_probe(image, workdir, fix_commit, published_stage, published_out, timeout=timeout)
+    published = collect_result(task_id, language, image12, "published", published_out)
+    clean: dict[str, Any] | None = None
+    if clean_setup is not None:
+        clean_stage = scratch / "stage-clean"
+        clean_out = scratch / "out-clean"
+        stage_probe(clean_stage, clean_setup, None, precomputed=precomputed, scan=True)
+        run_probe(image, workdir, fix_commit, clean_stage, clean_out, timeout=timeout)
+        clean = collect_result(task_id, language, image12, "clean", clean_out)
+    return {
+        "published": published,
+        "clean": clean,
+        "meta": {
+            "task_id": task_id,
+            "language": language,
+            "image": image,
+            "workdir": workdir,
+            "fix_commit": fix_commit,
+            "n_patterns": len(patterns),
+            "n_files": len(files),
+        },
+    }
+
+
+def run_batch(
+    *,
+    primary: Path,
+    manifest_path: Path,
+    ledger_path: Path,
+    index_path: Path,
+    results: Path,
+    tasks: tuple[str, ...] = (),
+    timeout: int = 2700,
+    skip_complete: bool = True,
+) -> dict[str, Any]:
+    """Known-patch probe v2 over reference tasks (published + clean).
+
+    Resolves run/clean packages against ``primary`` (manifest
+    ``package_path``, ledger run package), the reference patch from the
+    index ``patch_path``. Writes ``results/<task>/out-{published,clean}/``
+    probe outputs plus ``results/<task>.meta.json`` rows; appends flat rows
+    to ``results/rows.jsonl``. Tasks whose meta identity (image + patch +
+    clean setup) matches are skipped with ``skip_complete``. Returns a
+    summary dict (counts + task lists); per-task failures are recorded as
+    ``{"task_id": ..., "error": ...}`` lines, never raised.
+    """
+    import hashlib
+    import tomllib
+
+    from evallab.mimo_clean import run_package_rel
+
+    manifest = {row["task_id"]: row for row in _load_csv_rows(manifest_path)}
+    ledger = {row["task_id"]: row for row in _load_csv_rows(ledger_path)}
+    index = {row["task_id"]: row for row in _load_csv_rows(index_path)}
+    wanted = [t for t in tasks if t] or [t for t, r in index.items() if r.get("label") == "oracle:pass+nop:fail"]
+    results.mkdir(parents=True, exist_ok=True)
+    rows_path = results / "rows.jsonl"
+    summary: dict[str, Any] = {"tasks": len(wanted), "done": 0, "skipped": 0, "errors": [], "no_package": []}
+    for task_id in sorted(set(wanted)):
+        scratch = results / task_id
+        meta_path = results / f"{task_id}.meta.json"
+        try:
+            ref = index.get(task_id, {})
+            patch_path = (ref.get("patch_path") or "").strip()
+            if not patch_path or not Path(patch_path).is_file():
+                raise RuntimeError(f"no reference patch (index patch_path={patch_path!r})")
+            patch_text = Path(patch_path).read_text(encoding="utf-8", errors="replace")
+            if not patch_text.strip():
+                raise RuntimeError("empty reference patch")
+            fix_commit = (ref.get("fix_commit") or "").strip()
+            manifest_row = manifest.get(task_id, {})
+            language = manifest_row.get("language", "python") or "python"
+            ledger_row = ledger.get(task_id)
+            if ledger_row is None:
+                # No ledger row (non-Python reference tasks): fall back to the
+                # snapshot original package (the published baseline).
+                from evallab.mimo_clean import SNAPSHOT_REL
+
+                run_package = primary / SNAPSHOT_REL / "tasks" / task_id
+            else:
+                run_package = primary / run_package_rel(ledger_row)
+            run_toml = run_package / "task.toml"
+            if not run_toml.is_file():
+                raise RuntimeError(f"run package missing: {run_package}")
+            document = tomllib.loads(run_toml.read_text(encoding="utf-8"))
+            environment = document.get("environment", {})
+            image = str(environment.get("docker_image", ""))
+            workdir = str(environment.get("workdir", "/testbed"))
+            if not image:
+                raise RuntimeError("run package has no docker_image pin")
+            run_setup = run_package / "environment" / "setup"
+            if not (run_setup / "setup.sh").is_file():
+                raise RuntimeError("run package has no environment/setup/setup.sh")
+            package_rel = (manifest_row.get("package_path") or "").strip()
+            clean_setup: Path | None = None
+            clean_setup_sha = ""
+            if package_rel:
+                candidate = primary / package_rel / "environment" / "setup"
+                if (candidate / "setup.sh").is_file():
+                    clean_setup = candidate
+                    clean_setup_sha = hashlib.sha256(
+                        (candidate / "setup.sh").read_bytes()
+                    ).hexdigest()
+            identity = {
+                "image": image,
+                "patch_sha256": hashlib.sha256(patch_text.encode()).hexdigest(),
+                "clean_setup_sha256": clean_setup_sha,
+            }
+            if skip_complete and meta_path.is_file():
+                try:
+                    prior = json.loads(meta_path.read_text(encoding="utf-8"))
+                except (OSError, ValueError):
+                    prior = {}
+                if all(prior.get(key) == value for key, value in identity.items()) and prior.get("published", {}).get("probe_rc") in ("0",):
+                    summary["skipped"] += 1
+                    continue
+            if clean_setup is None:
+                summary["no_package"].append(task_id)
+            result = probe_task_known_patch(
+                task_id=task_id,
+                language=language,
+                image=image,
+                workdir=workdir,
+                run_setup=run_setup,
+                clean_setup=clean_setup,
+                patch_text=patch_text,
+                fix_commit=fix_commit,
+                scratch=scratch,
+                timeout=timeout,
+            )
+            record = {**identity, **result["meta"], "published": result["published"], "clean": result["clean"]}
+            meta_path.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+            with open(rows_path, "a", encoding="utf-8") as handle:
+                for row in (result["published"], result["clean"]):
+                    if row is not None:
+                        flat = {k: v for k, v in row.items() if k not in ("hits", "real")}
+                        handle.write(json.dumps(flat) + "\n")
+            summary["done"] += 1
+        except Exception as exc:  # noqa: BLE001 - per-task failure is a finding
+            summary["errors"].append(f"{task_id}: {type(exc).__name__}: {exc}")
+            with open(rows_path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps({"task_id": task_id, "error": f"{type(exc).__name__}: {exc}"}) + "\n")
+    return summary
+
+
 def write_csv(rows: list[dict[str, Any]], path: Path | str) -> None:
     """Write census rows (drop the nested ``hits`` payload)."""
     with open(path, "w", newline="", encoding="utf-8") as handle:
@@ -837,11 +1337,33 @@ def main(argv: list[str] | None = None) -> int:
     p_sum = sub.add_parser("summarize", help="assemble rows from probe out dirs")
     p_sum.add_argument("--results", required=True)
     p_sum.add_argument("--out", required=True)
+    p_batch = sub.add_parser("batch", help="known-patch probe v2 over reference tasks")
+    p_batch.add_argument("--primary", required=True)
+    p_batch.add_argument("--manifest", required=True)
+    p_batch.add_argument("--ledger", required=True)
+    p_batch.add_argument("--index", required=True)
+    p_batch.add_argument("--results", required=True)
+    p_batch.add_argument("--tasks", default="")
+    p_batch.add_argument("--timeout", type=int, default=2700)
+    p_batch.add_argument("--no-skip-complete", action="store_true")
     args = ap.parse_args(argv)
     if args.cmd == "probe":
         setup_sh = Path(args.setup_sh).read_bytes() if args.setup_sh else None
         stage_probe(Path(args.stage_dir), Path(args.setup_source), setup_sh)
         run_probe(args.image, args.workdir, args.fix, args.stage_dir, args.out_dir)
+        return 0
+    if args.cmd == "batch":
+        summary = run_batch(
+            primary=Path(args.primary),
+            manifest_path=Path(args.manifest),
+            ledger_path=Path(args.ledger),
+            index_path=Path(args.index),
+            results=Path(args.results),
+            tasks=tuple(t.strip() for t in args.tasks.split(",") if t.strip()),
+            timeout=args.timeout,
+            skip_complete=not args.no_skip_complete,
+        )
+        print(json.dumps(summary))
         return 0
     results = Path(args.results)
     rows: list[dict[str, Any]] = []
@@ -950,22 +1472,33 @@ def recover_fix_lite(git_dir: Path | str, base: str, test_files: list[str]) -> d
 
 
 __all__ = [
+    "COLOCATE_MIN",
     "CSV_FIELDS",
     "DISTINCTIVE_MIN_LEN",
+    "GENERIC_MIN_DIRS",
+    "HARNESS_EXCLUDE_DIRS",
+    "HARNESS_PREFIXES",
     "PATTERN_MIN_LEN",
     "PATTERNS_AWK",
     "PROBE_SH",
+    "PROBE_SCRATCH_DIRS",
+    "SCAN_EXCLUDE_DIRS",
     "classify_location",
     "collect_result",
     "compose_clean_setup",
     "copy_git_from_image",
     "distinctive_added_lines",
+    "generic_patterns",
+    "is_import_line",
     "is_test_path",
     "leak_oracle_extract",
     "main",
     "non_test_files",
+    "normalize_code_bytes",
     "parse_diff_added_lines",
+    "probe_task_known_patch",
     "recover_fix_lite",
+    "run_batch",
     "run_probe",
     "stage_probe",
     "summarize_hits",

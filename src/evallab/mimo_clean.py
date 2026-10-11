@@ -59,7 +59,8 @@ from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
 from evallab.purge_installed_copies import derive_purge_installed_copies
 from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
-from evallab.separate_verifier import derive_separate_verifier_v6
+from evallab.separate_verifier import TRANSFORM_ID_V7 as SEPARATE_V7_ID
+from evallab.separate_verifier import derive_separate_verifier_v6, derive_separate_verifier_v7
 from evallab.strip_future_history import STRIP_MARKER, derive_strip_future_history
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
 from evallab.task_variants import (
@@ -161,6 +162,58 @@ NONPYTHON_CHAIN = (
     SEPARATE_V6_ID,
     AGENT_NETWORK_NONE_ID,
 )
+#: Canonical Python chain for ``mimo-clean-v5``: identical to v4 with
+#: ``separate-verifier@7`` (G-shape certification) in the verifier slot.
+#: The purge slot stays ``purge-installed-copies@1`` until the @2 lane
+#: lands; swapping it is a one-line change to the slot below.
+PYTHON_CHAIN_V5 = (
+    STRIP_ID,
+    PURGE_ID,
+    CACHE_ACTIVE_ID,
+    MTIME_ACTIVE_ID,
+    SEPARATE_V7_ID,
+    AGENT_NETWORK_NONE_ID,
+)
+
+#: Canonical non-Python chain for ``mimo-clean-v5``.
+NONPYTHON_CHAIN_V5 = (
+    STRIP_ID,
+    CACHE_ACTIVE_ID,
+    MTIME_ACTIVE_ID,
+    SEPARATE_V7_ID,
+    AGENT_NETWORK_NONE_ID,
+)
+
+#: Chain generations by clean-set version id (v4 stays the default until
+#: the v5 census completes; NB: never mix generations in one manifest).
+CLEAN_SET_VERSION_V5 = "mimo-clean-v5"
+MANIFEST_V5_REL = Path("research/experiments/mimo-clean-v5/manifest.csv")
+CHAIN_VERSIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
+    CLEAN_SET_VERSION: (PYTHON_CHAIN, NONPYTHON_CHAIN),
+    CLEAN_SET_VERSION_V5: (PYTHON_CHAIN_V5, NONPYTHON_CHAIN_V5),
+}
+
+
+def chains_for_version(version: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """(python chain, non-python chain) for a clean-set version id."""
+    try:
+        return CHAIN_VERSIONS[version]
+    except KeyError:
+        raise VariantInvalid(f"unknown clean-set version: {version!r}") from None
+
+
+#: Tasks answer-visible through legitimate environment dependencies
+#: (installed copies of the fixed project importable at grade time;
+#: fix-probe-v2 real-leaks.md). They stay built (gradable) but are
+#: excluded from training; the v5 census marks them
+#: ``fail:open-leak:env-dependency`` via verify overrides.
+EXCLUDED_FROM_TRAINING: dict[str, str] = {
+    "format-code-task-001478": "answer-visible via installed env dependency",
+    "format-code-task-001671": "answer-visible via installed env dependency",
+    "format-code-task-001945": "answer-visible via installed env dependency",
+    "format-code-task-001971": "answer-visible via installed env dependency",
+    "format-code-task-002414": "answer-visible via installed env dependency",
+}
 
 #: Language plugs for the builder. ``python`` is the ledger pool;
 #: every other resolved language takes the non-Python chain (including
@@ -505,6 +558,7 @@ class ChainBuilder:
         purge_skip: Collection[str] | None = None,
         created_by: str = CREATED_BY,
         snapshot_root: Path | None = None,
+        clean_version: str = CLEAN_SET_VERSION,
     ) -> None:
         self.repo_root = repo_root
         self.primary = primary
@@ -513,6 +567,8 @@ class ChainBuilder:
         self.snapshot_root = snapshot_root or primary / SNAPSHOT_REL / "tasks"
         self._purge_skip = set(purge_skip) if purge_skip is not None else set(purge_inapplicable())
         self._records: dict[tuple[str, str, str], VariantRecord] = {}
+        self.clean_version = clean_version
+        self._chains = chains_for_version(clean_version)
 
     # -- record reuse -------------------------------------------------- #
 
@@ -762,7 +818,13 @@ class ChainBuilder:
             oracle_label=oracle.label if oracle is not None else "",
             reference_fix=oracle.patch_path if oracle is not None else "none",
         )
-        chain = chain_for_language(language)
+        python_chain, nonpython_chain = self._chains
+        if language == "python":
+            chain = python_chain
+        elif language is None:
+            chain = None
+        else:
+            chain = nonpython_chain
         if chain is None:
             result.reason = (
                 f"no clean chain for language {language!r}: snapshot task.toml category unreadable"
@@ -911,23 +973,29 @@ class ChainBuilder:
         solution_tag = (
             "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
         )
+        separate_id = chain[-2]
+        separate_derive = (
+            derive_separate_verifier_v7
+            if separate_id == SEPARATE_V7_ID
+            else derive_separate_verifier_v6
+        )
         try:
             record, _ = self.find_or_derive(
                 task_id,
-                SEPARATE_V6_ID,
+                separate_id,
                 current,
                 current_digest,
-                derive_separate_verifier_v6,
+                separate_derive,
                 parent_source=source,
                 expected_inputs={"marker": marker, "solution": solution_tag},
                 marker=marker,
                 solution_sh=solution_sh,
             )
         except VariantInvalid as exc:
-            result.reason = f"separate-verifier@6 failed: {exc}"
+            result.reason = f"{separate_id} failed: {exc}"
             return result
         current_digest = record.variant_digest
-        result.chain.append(SEPARATE_V6_ID)
+        result.chain.append(separate_id)
         current, current_digest, source = self._advance(task_id, current_digest, row, start_digest)
         try:
             record, _ = self.find_or_derive(
@@ -950,6 +1018,8 @@ class ChainBuilder:
         result.package_path = (
             VARIANTS_REL / slug / current_digest.removeprefix("sha256:")[:12]
         ).as_posix()
+        if task_id in EXCLUDED_FROM_TRAINING:
+            notes.append(f"excluded-from-training: {EXCLUDED_FROM_TRAINING[task_id]}")
         result.reason = "; ".join(notes) if notes else "clean chain complete"
         return result
 
@@ -1063,7 +1133,14 @@ def build_mimo_clean_parser(commands) -> None:
         default=None,
         help="HAR-191 oracle-sweep results dir holding per-task solution patches",
     )
-    build.add_argument("--manifest", type=Path, default=MANIFEST_REL, help="manifest CSV to write")
+    build.add_argument("--manifest", type=Path, default=None, help="manifest CSV to write")
+    build.add_argument(
+        "--clean-version",
+        choices=[CLEAN_SET_VERSION, CLEAN_SET_VERSION_V5],
+        default=CLEAN_SET_VERSION,
+        help="chain generation: v4 (separate-verifier@6) or v5 (@7); "
+        "selects the default --manifest path when --manifest is absent",
+    )
     build.add_argument("--workers", type=int, default=8, help="parallel chain builders")
     build.set_defaults(func=_mimo_clean_command)
     verify = sub.add_parser(
@@ -1089,7 +1166,11 @@ def _build_command(args, root: Path) -> int:
     ledger_path = _resolve(root, args.ledger)
     sweep_path = _resolve(root, args.sweep)
     index_path = _resolve(root, args.reference_index)
-    manifest_path = _resolve(root, args.manifest)
+    clean_version = getattr(args, "clean_version", None) or CLEAN_SET_VERSION
+    default_manifest = (
+        MANIFEST_V5_REL if clean_version == CLEAN_SET_VERSION_V5 else MANIFEST_REL
+    )
+    manifest_path = _resolve(root, args.manifest or default_manifest)
     results_home = args.results_home or _default_results_home()
     primary = shared_checkout_root(root)
     snapshot_tasks = args.snapshot if args.snapshot.is_absolute() else primary / args.snapshot
@@ -1114,7 +1195,13 @@ def _build_command(args, root: Path) -> int:
         def oracle_for(task_id: str) -> OracleInfo | None:
             return oracle_info_for(task_id, sweep, results_home=results_home)
 
-    builder = ChainBuilder(repo_root=root, primary=primary, snapshot_root=snapshot_tasks)
+    builder = ChainBuilder(
+        repo_root=root,
+        primary=primary,
+        snapshot_root=snapshot_tasks,
+        clean_version=clean_version,
+        created_by=clean_version,
+    )
     by_id = {row["task_id"]: row for row in selected}
     pool = snapshot_pool(snapshot_tasks, set(by_ledger_id))
     if wanted is not None:
@@ -1385,20 +1472,27 @@ __all__ = [
     "CACHE_ACTIVE_ID",
     "CACHE_ACTIVE_MARKER",
     "CLEAN_SET_VERSION",
+    "CLEAN_SET_VERSION_V5",
     "CREATED_BY",
     "LANGUAGE_CHAINS",
+    "CHAIN_VERSIONS",
     "MANIFEST_COLUMNS",
     "MANIFEST_REL",
+    "EXCLUDED_FROM_TRAINING",
+    "MANIFEST_V5_REL",
     "MTIME_ACTIVE_ID",
     "MTIME_ACTIVE_MARKER",
     "MTIME_ID",
     "NONPYTHON_CHAIN",
+    "NONPYTHON_CHAIN_V5",
     "ORACLE_PASS_PREFIX",
     "PURGE_ID",
     "PYTHON_CHAIN",
+    "PYTHON_CHAIN_V5",
     "REFERENCE_INDEX_REL",
     "SELECTED_VERDICTS",
     "SEPARATE_V6_ID",
+    "SEPARATE_V7_ID",
     "STATUS_BUILT",
     "STATUS_SKIPPED",
     "STRIP_ID",
@@ -1410,6 +1504,7 @@ __all__ = [
     "build_mimo_clean_parser",
     "build_solution_sh",
     "chain_for_language",
+    "chains_for_version",
     "derive_marker",
     "load_manifest",
     "load_oracle_sweep",

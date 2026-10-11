@@ -39,6 +39,7 @@ from evallab.separate_verifier import (
     build_changes_v4,
     build_changes_v5,
     build_changes_v6,
+    build_changes_v7,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
@@ -49,14 +50,18 @@ from evallab.separate_verifier import (
     detect_pytest_run,
     detect_runner,
     drop_reason,
+    effective_js_runner,
     evaluate_cargo_output,
     evaluate_go_output,
     evaluate_go_output_v6,
+    evaluate_go_output_v7,
     evaluate_js_output,
+    evaluate_js_output_v7,
     evaluate_junit,
     evaluate_junit_v4,
     evaluate_junit_v5,
     evaluate_junit_v6,
+    evaluate_junit_v7,
     evaluate_phpunit_output,
     evaluate_rspec_output,
     evaluate_surefire_reports,
@@ -73,12 +78,15 @@ from evallab.separate_verifier import (
     parse_named_pytest_ids,
     parse_pytest_node_id,
     read_parent_info,
+    render_tests_dockerfile_v7,
     render_wrapper_test_sh_v2,
     render_wrapper_test_sh_v3,
     render_wrapper_test_sh_v4,
     render_wrapper_test_sh_v5,
     render_wrapper_test_sh_v6,
+    render_wrapper_test_sh_v7,
     resolve_command_text,
+    strip_ansi,
     tamper_signature_hit,
     v3_config_revert_reason,
     v3_tamper_hit_for_file,
@@ -2438,3 +2446,668 @@ def test_v6_refuses_without_a_setup_chain(parent_dir: Path) -> None:
         build_changes_v6(parent_dir, marker=MARKER)
     with pytest.raises(VariantInvalid):
         build_changes_v6(parent_dir, marker="  ")
+
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@7: G-shape certification (v4 census follow-ups)
+# --------------------------------------------------------------------------- #
+
+# 000048 oracle shape: real passes plus `[no tests to run]` ok-lines from
+# test-less sub-packages of `go test ./...`.
+_V7_G1_ORACLE = (
+    "=== RUN   TestIntsRanger\n"
+    "=== RUN   \tJetTest(ints_ranger)\n"
+    "--- PASS: \tJetTest(ints_ranger) (0.00s)\n"
+    "--- PASS: TestIntsRanger (0.00s)\n"
+    "PASS\n"
+    "ok  \tgithub.com/CloudyKit/jet/v3\t0.018s\n"
+    "?   \tgithub.com/CloudyKit/jet/v3/examples/asset_packaging\t[no test files]\n"
+    "testing: warning: no tests to run\n"
+    "PASS\n"
+    "ok  \tgithub.com/CloudyKit/jet/v3/loaders/httpfs\t0.015s [no tests to run]\n"
+    "testing: warning: no tests to run\n"
+    "PASS\n"
+    "ok  \tgithub.com/CloudyKit/jet/v3/utils\t0.015s [no tests to run]\n"
+)
+
+# 000553 emptied selection: the only `ok` line carries the marker.
+_V7_G1_EMPTY = "ok  \texample.com/mod/pkg\t0.026s [no tests to run]\n"
+
+# 000248 oracle shape: directly executed `go test -c` binary prints a bare
+# PASS with proxy noise and no `ok` line.
+_V7_G3_ORACLE = (
+    "go version go1.23.10 linux/amd64\n"
+    'time="2026-10-11T00:12:16Z" level="info" msg="Started proxy" name="test" proxy="localhost:20000" upstream="127.0.0.1:20002" \n'
+    'time="2026-10-11T00:12:16Z" level="info" msg="Terminated proxy" name="test" proxy="localhost:20000" upstream="127.0.0.1:20002" \n'
+    "PASS\n"
+)
+
+
+def test_v7_go_per_package_emptiness() -> None:
+    assert evaluate_go_output_v7(_V7_G1_ORACLE, 0) == 1
+    assert evaluate_go_output_v7(_V7_G1_EMPTY, 0) == 0
+    assert evaluate_go_output_v7(_V7_G1_ORACLE, 1) == 0
+    assert evaluate_go_output_v7("", 0) == 0
+    assert evaluate_go_output_v7("?  \tpkg\t[no test files]\n", 0) == 0
+    nop = "--- FAIL: TestX (0.00s)\nFAIL\nFAIL\tpkg\t0.1s\n"
+    assert evaluate_go_output_v7(nop, 1) == 0
+
+
+def test_v7_go_direct_binary_pass() -> None:
+    assert evaluate_go_output_v7(_V7_G3_ORACLE, 0) == 1
+    assert evaluate_go_output_v7(_V7_G3_ORACLE, 1) == 0
+    # Bare PASS cannot rescue an emptied run.
+    assert (
+        evaluate_go_output_v7(
+            "testing: warning: no tests to run\nPASS\nok  \tpkg\t0.01s [no tests to run]\n",
+            0,
+        )
+        == 0
+    )
+    # @6 grades the binary shape 0 (the gap @7 closes).
+    assert evaluate_go_output_v6(_V7_G3_ORACLE, 0) == 0
+
+
+# 000133 oracle shape: jest `Tests:` summaries with skipped segments first.
+_V7_G2_ORACLE = (
+    " PASS  common/__tests__/network.test.js\n"
+    "\n"
+    "Test Suites: 1 passed, 1 total\n"
+    "Tests:       6 skipped, 2 passed, 8 total\n"
+    "Snapshots:   0 total\n"
+    "Time:        2.584s\n"
+    " PASS  common/__tests__/network.test.js\n"
+    "\n"
+    "Test Suites: 1 passed, 1 total\n"
+    "Tests:       2 skipped, 6 passed, 8 total\n"
+    "Snapshots:   0 total\n"
+    "Time:        1.413s, estimated 2s\n"
+)
+
+
+def test_v7_jest_skipped_first_shape() -> None:
+    assert evaluate_js_output_v7("jest", _V7_G2_ORACLE, 0) == 1
+    assert evaluate_js_output_v7("jest", _V7_G2_ORACLE, 1) == 0
+    assert (
+        evaluate_js_output_v7(
+            "jest", "Tests:       8 skipped, 8 total\nTest Suites: 1 passed, 1 total\n", 0
+        )
+        == 0
+    )
+    assert evaluate_js_output_v7("jest", "Tests: 1 failed, 3 passed, 4 total\n", 0) == 0
+    assert evaluate_js_output_v7("jest", "Tests:       4 passed, 4 total\n", 0) == 1
+    # @3-@6 grade the skipped-first shape 0 (the gap @7 closes).
+    assert evaluate_js_output("jest", _V7_G2_ORACLE, 0) == 0
+
+
+# 000828 oracle bytes: vitest colorizes the summary words themselves.
+_V7_G4_ORACLE = (
+    "\x1b[2m Test Files \x1b[22m \x1b[1m\x1b[32m1 passed\x1b[39m\x1b[22m\x1b[90m (1)\x1b[39m\n"
+    "\x1b[2m      Tests \x1b[22m \x1b[1m\x1b[32m14 passed\x1b[39m\x1b[22m\x1b[90m (14)\x1b[39m\n"
+)
+
+
+def test_v7_strip_ansi_before_markers() -> None:
+    assert (
+        strip_ansi(_V7_G4_ORACLE)
+        == " Test Files  1 passed (1)\n      Tests  14 passed (14)\n"
+    )
+    assert evaluate_js_output_v7("vitest", _V7_G4_ORACLE, 0) == 1
+    assert evaluate_js_output_v7("vitest", " Tests  8 skipped (8)\n", 0) == 0
+    assert evaluate_js_output_v7("jest", "\x1b[1mTests:\x1b[22m 4 passed, 4 total\n", 0) == 1
+    # @3-@6 grade the colorized shape 0 (the gap @7 closes).
+    assert evaluate_js_output("vitest", _V7_G4_ORACLE, 0) == 0
+
+
+# Real pytest-8 junit shapes (locally reproduced): pristine collection
+# error with a synthetic key, passing run with class-qualified keys.
+_V7_G5_BASE_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite name="pytest" errors="1" tests="1">'
+    b'<testcase classname="" name="pkg.test_mod" time="0">'
+    b"<error message=\"collection failure\">ImportError while importing test module</error>"
+    b"</testcase></testsuite>"
+)
+_V7_G5_AGENT_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite name="pytest" errors="0" tests="3">'
+    b'<testcase classname="pkg.test_mod.TestA" name="test_one" time="0" />'
+    b'<testcase classname="pkg.test_mod.TestA" name="test_two" time="0" />'
+    b'<testcase classname="pkg.test_mod" name="test_top" time="0" />'
+    b"</testsuite>"
+)
+_V7_G5_GONE_JUNIT = (
+    b'<testsuite name="pytest" errors="0" failures="1">'
+    b'<testcase classname="pkg.gone" name="test_vanished">'
+    b'<failure message="x"/></testcase></testsuite>'
+)
+# Old-pytest file-attr shape: the module is ambiguous, the file is exact.
+_V7_G5_BASE_FILE_JUNIT = (
+    b'<testsuite name="pytest" errors="1">'
+    b'<testcase classname="pytest" name="pkg/test_old.py" file="pkg/test_old.py">'
+    b"<error message=\"collection failure\">ImportError</error></testcase></testsuite>"
+)
+_V7_G5_AGENT_FILE_JUNIT = (
+    b'<testsuite name="pytest">'
+    b'<testcase classname="pkg.test_old.TestA" name="test_one" file="pkg/test_old.py" />'
+    b"</testsuite>"
+)
+_V7_G5_AGENT_OTHER_FILE_JUNIT = (
+    b'<testsuite name="pytest">'
+    b'<testcase classname="pkg.other.TestA" name="test_one" file="pkg/other.py" />'
+    b"</testsuite>"
+)
+
+
+def test_v7_collection_error_module_is_fail_to_pass() -> None:
+    # @6 grades the shape 0 (the gap @7 closes).
+    assert evaluate_junit_v6([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT]) == 0
+    assert evaluate_junit_v7([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT]) == 1
+    assert evaluate_junit_v7([_V7_G5_AGENT_JUNIT], 1, (), [_V7_G5_BASE_JUNIT]) == 0
+    # A vanished failure still fails.
+    assert evaluate_junit_v7([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_GONE_JUNIT]) == 0
+    # File-attr shape: same file passing satisfies; a different file does not.
+    assert evaluate_junit_v7([_V7_G5_AGENT_FILE_JUNIT], 0, (), [_V7_G5_BASE_FILE_JUNIT]) == 1
+    assert (
+        evaluate_junit_v7([_V7_G5_AGENT_OTHER_FILE_JUNIT], 0, (), [_V7_G5_BASE_FILE_JUNIT])
+        == 0
+    )
+
+
+# 000934/001839: tap-labeled commands emitting mocha spec-reporter output.
+_V7_G6_SPEC_CMD = "node_modules/.bin/tap test/schema-feature.test.js --no-coverage -R spec"
+_V7_G6_SPEC_OUT = (
+    "test/schema-feature.test.js\n"
+    "  Should expose addSchema function\n"
+    "    \u2713 should be equal\n"
+    "\n"
+    "  192 passing (878.933ms)\n"
+)
+_V7_G6_CLASSIC_CMD = (
+    "build/run-tap --reporter classic --no-coverage test/unit/style-spec/migrate.test.js"
+)
+_V7_G6_CLASSIC_OUT = (
+    "test/unit/style-spec/migrate.test.js ................ 19/19\n"
+    "total ............................................... 19/19\n"
+    "\n"
+    "  19 passing (1s)\n"
+    "\n"
+    "  ok\n"
+)
+_V7_G6_TAP_OUT = "ok 1 - first\nok 2 - second\n"
+
+
+def test_v7_tap_spec_reporter_grades_mocha_markers() -> None:
+    assert effective_js_runner("tap", _V7_G6_SPEC_CMD, _V7_G6_SPEC_OUT) == "mocha"
+    assert effective_js_runner("tap", _V7_G6_CLASSIC_CMD, _V7_G6_CLASSIC_OUT) == "mocha"
+    assert effective_js_runner("tap", "node_modules/.bin/tap test/x.test.js", _V7_G6_TAP_OUT) == "tap"
+    assert effective_js_runner("mocha", "whatever", _V7_G6_SPEC_OUT) == "mocha"
+    assert evaluate_js_output_v7("tap", _V7_G6_SPEC_OUT, 0, _V7_G6_SPEC_CMD) == 1
+    assert evaluate_js_output_v7("tap", _V7_G6_CLASSIC_OUT, 0, _V7_G6_CLASSIC_CMD) == 1
+    assert evaluate_js_output_v7("tap", _V7_G6_TAP_OUT, 0) == 1
+    assert evaluate_js_output_v7("tap", "not ok 1 - first\n", 0) == 0
+    assert evaluate_js_output_v7("tap", "not ok 1 - first\n", 1) == 0
+    # Genuine TAP keeps its markers under @7.
+    assert evaluate_js_output("tap", _V7_G6_TAP_OUT, 0) == 1
+    # @3-@6 grade the spec shape 0 (the gap @7 closes).
+    assert evaluate_js_output("tap", _V7_G6_SPEC_OUT, 0) == 0
+
+
+# 000511 resolved shape (multi-phase `set -e`) vs 000083 (single pytest).
+_V7_G7_MULTI = (
+    "cd /testbed\n"
+    "set -e\n"
+    "python3 -m pytest tests/config/test_config.py -v\n"
+    "python3 -m pytest tests/serializer/test_log_serializer.py -v\n"
+    "python3 -m pytest tests/sinks/test_lambda_sink.py -v\n"
+)
+_V7_G7_SINGLE = (
+    "PYTHONPATH=/testbed:/testbed/.build_env python3 -m pytest \\\n"
+    "    f5/bigip/tm/asm/test/functional/test_policies.py \\\n"
+    "    f5/bigip/tm/asm/test/unit/test_policies.py \\\n"
+    "    -p pytest_config_compat -k \"not functional\" -v\n"
+)
+
+
+def _v7_phase_pattern() -> str:
+    """The shipped multi-phase gate pattern, extracted from the @7 render."""
+    import re as _re
+
+    wrapper = render_wrapper_test_sh_v7("/testbed")
+    matches = [
+        line.split("grep -oE '", 1)[1].split("'", 1)[0]
+        for line in wrapper.splitlines()
+        if "_V7_PHASES=$(grep -oE '" in line
+    ]
+    assert len(matches) == 1
+    assert _re.compile(matches[0]) is not None
+    return matches[0]
+
+
+def test_v7_multiphase_gate_counts_runner_invocations(tmp_path: Path) -> None:
+    import shutil
+    import subprocess
+
+    if shutil.which("grep") is None:  # pragma: no cover
+        pytest.skip("system grep required for the phase-gate shape")
+    pattern = _v7_phase_pattern()
+    multi = tmp_path / "multi.sh"
+    multi.write_text(_V7_G7_MULTI, encoding="utf-8")
+    single = tmp_path / "single.sh"
+    single.write_text(_V7_G7_SINGLE, encoding="utf-8")
+    multi_hits = subprocess.run(
+        ["grep", "-oE", pattern, str(multi)], capture_output=True, text=True, check=False
+    ).stdout.splitlines()
+    single_hits = subprocess.run(
+        ["grep", "-oE", pattern, str(single)], capture_output=True, text=True, check=False
+    ).stdout.splitlines()
+    assert len(multi_hits) == 3
+    assert len(single_hits) == 1
+
+
+def test_v7_baseline_block_runs_every_phase() -> None:
+    wrapper = render_wrapper_test_sh_v7("/testbed")
+    v6 = render_wrapper_test_sh_v6("/testbed")
+    assert "BASELINE_NOERREXIT_EOF" in wrapper
+    assert 'BASH_ENV="$V/baseline-noerrexit.sh"' in wrapper
+    assert "BASELINE_NOERREXIT_EOF" not in v6
+    assert 'BASH_ENV="$V/baseline-noerrexit.sh"' not in v6
+    assert wrapper.count("<<'PYEOF'") == 3
+
+
+def _v7_noerrexit_body() -> str:
+    """The shipped no-errexit snippet, extracted from the @7 render."""
+    wrapper = render_wrapper_test_sh_v7("/testbed")
+    lines = wrapper.splitlines(keepends=True)
+    start = next(
+        index for index, line in enumerate(lines) if "<<'BASELINE_NOERREXIT_EOF'" in line
+    )
+    end = next(
+        index
+        for index, line in enumerate(lines)
+        if line.strip() == "BASELINE_NOERREXIT_EOF"
+    )
+    assert end > start + 1
+    return "".join(lines[start + 1 : end])
+
+
+def test_v7_noerrexit_snippet_neutralizes_errexit(tmp_path: Path) -> None:
+    import shutil
+    import subprocess
+
+    bash = shutil.which("bash")
+    if bash is None:  # pragma: no cover
+        pytest.skip("bash required for the no-errexit shape")
+    probe = subprocess.run(
+        [bash, "-c", "shopt -s extdebug"], capture_output=True, text=True, check=False
+    )
+    if probe.returncode != 0:  # pragma: no cover
+        pytest.skip("bash without extdebug cannot host the snippet")
+    snippet = tmp_path / "baseline-noerrexit.sh"
+    snippet.write_text(_v7_noerrexit_body(), encoding="utf-8")
+    script = "set -e; false; echo SURVIVED"
+    neutralized = subprocess.run(
+        [bash, "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": "/usr/bin:/bin", "BASH_ENV": str(snippet)},
+    )
+    assert "SURVIVED" in neutralized.stdout
+    control = subprocess.run(
+        [bash, "-c", script],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": "/usr/bin:/bin"},
+    )
+    assert "SURVIVED" not in control.stdout
+    assert control.returncode != 0
+    # Explicit control flow is unaffected: && still short-circuits, `exit` exits.
+    explicit = subprocess.run(
+        [bash, "-c", "false && echo NO; false || echo YES; exit 3"],
+        capture_output=True,
+        text=True,
+        check=False,
+        env={"PATH": "/usr/bin:/bin", "BASH_ENV": str(snippet)},
+    )
+    assert "NO" not in explicit.stdout
+    assert "YES" in explicit.stdout
+    assert explicit.returncode == 3
+
+
+# 000585 baseline tail: the suite's own rerun filter crashes collection.
+_V7_G8_BASELINE_OUT = (
+    "test/test_pytest/test_pytest_example.py::TestExampleRerunFilter::test_something_flaky \n"
+    "INTERNALERROR> Traceback (most recent call last):\n"
+    'INTERNALERROR>   File "/testbed/flaky/_flaky_plugin.py", line 228, in _should_rerun_test\n'
+    "INTERNALERROR> TypeError: 'NoneType' object is not subscriptable\n"
+)
+_V7_G8_BASE_JUNIT = (
+    b'<testsuite name="pytest" errors="1">'
+    b'<testcase classname="" name="pkg.flaky_mod"><error message="collection failure">x</error></testcase>'
+    b'<testcase classname="pkg.other" name="test_broken"><failure message="x"/></testcase>'
+    b"</testsuite>"
+)
+_V7_G8_AGENT_JUNIT = (
+    b'<testsuite name="pytest">'
+    b'<testcase classname="pkg.other" name="test_broken" />'
+    b"</testsuite>"
+)
+
+
+def test_v7_internalerror_baseline_falls_back_to_structured_rules() -> None:
+    assert evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], "") == 0
+    assert (
+        evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
+        == 1
+    )
+    # Never exit-code-only: empty cases and nonzero exit still grade 0.
+    assert evaluate_junit_v7([None], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT) == 0
+    assert (
+        evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 1, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
+        == 0
+    )
+
+
+def test_v7_pre_existing_failures_stay_zero() -> None:
+    base = (
+        b'<testsuite><testcase classname="t" name="a">'
+        b'<failure message="x"/></testcase></testsuite>'
+    )
+    assert evaluate_junit_v7([base], 1, (), [base], "") == 0
+
+
+def test_v7_anticheat_shapes_stay_zero() -> None:
+    # 000553 emptied go selection.
+    assert evaluate_go_output_v7(_V7_G1_EMPTY, 0) == 0
+    # All-skipped summaries have no passed segment.
+    assert (
+        evaluate_js_output_v7(
+            "jest", "Tests:       8 skipped, 8 total\nTest Suites: 1 passed, 1 total\n", 0
+        )
+        == 0
+    )
+    assert (
+        evaluate_js_output_v7("vitest", " Test Files  1 passed (1)\n      Tests  8 skipped (8)\n", 0)
+        == 0
+    )
+    # Skip attack against a passing pristine baseline.
+    base = (
+        b'<testsuite><testcase classname="p" name="a"/>'
+        b'<testcase classname="p" name="b"/></testsuite>'
+    )
+    attack = (
+        b'<testsuite><testcase classname="p" name="a"><skipped/></testcase>'
+        b'<testcase classname="p" name="b"><skipped/></testcase></testsuite>'
+    )
+    assert evaluate_junit_v7([attack], 0, (), [base], "") == 0
+    # Empty report and nop go text.
+    assert evaluate_junit_v7([None], 0, (), None, "") == 0
+    assert evaluate_go_output_v7("--- FAIL: TestX (0.00s)\nFAIL\n", 1) == 0
+    # TAP failure output never switches reporters.
+    assert evaluate_js_output_v7("tap", "ok 1\nnot ok 2\n", 0) == 0
+
+
+def _v7_grader_block() -> str:
+    """Extract the embedded @7 grading script (last PYEOF heredoc)."""
+    import re as _re
+
+    from evallab.separate_verifier import render_wrapper_test_sh_v7 as _render
+
+    blocks = _re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", _render("/testbed"), _re.S)
+    assert len(blocks) == 3
+    return blocks[2]
+
+
+def _run_embedded_v7_grader(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner_cmd: str,
+    output: str,
+    rc: int,
+    junit: bytes | None = None,
+    phase_xmls: list[bytes] | None = None,
+    baseline_junit: bytes | None = None,
+    baseline_phases: list[bytes] | None = None,
+    baseline_output: str | None = None,
+    patch_extra: str = "",
+) -> str:
+    """Run the shipped @7 grading script against synthetic files; return reward."""
+    junit_path = tmp_path / "junit.xml"
+    if junit is None:
+        if junit_path.exists():
+            junit_path.unlink()
+    else:
+        junit_path.write_bytes(junit)
+    phases_dir = tmp_path / "junit-phases"
+    if phase_xmls:
+        phases_dir.mkdir(exist_ok=True)
+        for index, raw in enumerate(phase_xmls):
+            (phases_dir / f"junit-hook-{index}.xml").write_bytes(raw)
+    baseline_dir = tmp_path / "baseline"
+    if baseline_junit is not None:
+        baseline_dir.mkdir(exist_ok=True)
+        (baseline_dir / "junit.xml").write_bytes(baseline_junit)
+    if baseline_phases:
+        (baseline_dir / "junit-phases").mkdir(exist_ok=True)
+        for index, raw in enumerate(baseline_phases):
+            (baseline_dir / "junit-phases" / f"junit-hook-{index}.xml").write_bytes(raw)
+    if baseline_output is not None:
+        baseline_dir.mkdir(exist_ok=True)
+        (baseline_dir / "output.log").write_text(baseline_output, encoding="utf-8")
+    if baseline_junit is None and not baseline_phases and baseline_output is None:
+        import shutil
+
+        shutil.rmtree(baseline_dir, ignore_errors=True)
+    patch_path = tmp_path / "test.patch"
+    patch_path.write_text(
+        f"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+{runner_cmd}\n{patch_extra}",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "test_output.log"
+    output_path.write_text(output, encoding="utf-8")
+    cmd_path = tmp_path / "test_command.sh"
+    cmd_path.write_text(runner_cmd, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "grader",
+            str(junit_path),
+            str(rc),
+            str(patch_path),
+            str(output_path),
+            str(cmd_path),
+            str(tmp_path),
+        ],
+    )
+    with pytest.raises(SystemExit):
+        exec(compile(_v7_grader_block(), "v7grader", "exec"), {"__name__": "v7grader"})
+    return capsys.readouterr().out.strip()
+
+
+def test_embedded_v7_g_shapes_grade_one(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd="go test ./...", output=_V7_G1_ORACLE, rc=0
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="go test -c -o svc.test ./... && ./svc.test",
+            output=_V7_G3_ORACLE,
+            rc=0,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="node_modules/.bin/jest common/__tests__/network.test.js",
+            output=_V7_G2_ORACLE,
+            rc=0,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="npx vitest run usercase-test-coderl/aspect_helpers.test.ts",
+            output=_V7_G4_ORACLE,
+            rc=0,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=_V7_G6_SPEC_CMD, output=_V7_G6_SPEC_OUT, rc=0
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=_V7_G6_CLASSIC_CMD,
+            output=_V7_G6_CLASSIC_OUT,
+            rc=0,
+        )
+        == "1"
+    )
+
+
+def test_embedded_v7_anticheat_shapes_grade_zero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd="go test ./...", output=_V7_G1_EMPTY, rc=0
+        )
+        == "0"
+    )
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="node_modules/.bin/jest x.test.js",
+            output="Tests:       8 skipped, 8 total\n",
+            rc=0,
+        )
+        == "0"
+    )
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=_V7_G6_SPEC_CMD, output="not ok 1\n", rc=0
+        )
+        == "0"
+    )
+
+
+def test_embedded_v7_pytest_g5_g8(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cmd = "python -m pytest pkg/test_mod.py -v"
+    out = "=== test session starts ===\ncollected 3 items\n"
+    reliable = "baseline_sec=4 runner=pytest rc=2\n"
+    # G5: the collection-error module now collects and passes.
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=_V7_G5_AGENT_JUNIT,
+            baseline_junit=_V7_G5_BASE_JUNIT,
+            baseline_output=reliable,
+        )
+        == "1"
+    )
+    # G8: an INTERNALERROR baseline skips fail-to-pass; a reliable one fails it.
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=_V7_G8_AGENT_JUNIT,
+            baseline_junit=_V7_G8_BASE_JUNIT,
+            baseline_output=_V7_G8_BASELINE_OUT,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v7_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=_V7_G8_AGENT_JUNIT,
+            baseline_junit=_V7_G8_BASE_JUNIT,
+            baseline_output=reliable,
+        )
+        == "0"
+    )
+    # Mirror and embedded agree on every shape above.
+    assert evaluate_junit_v7([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT], reliable) == 1
+    assert evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], reliable) == 0
+    assert (
+        evaluate_junit_v7([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
+        == 1
+    )
+
+
+def test_v7_wrapper_differs_from_v6_in_pinned_regions_only() -> None:
+    v6 = render_wrapper_test_sh_v6("/testbed")
+    v7 = render_wrapper_test_sh_v7("/testbed")
+    assert v7 != v6
+    for marker in (
+        "baseline-noerrexit.sh",
+        "_V7_PHASES",
+        "_go_ok",
+        "_go_bare",
+        "_v7unreliable",
+        "_v7modok",
+        "_v7errmod",
+        'runner = "mocha"',
+        "BASH_ENV",
+    ):
+        assert marker in v7
+        assert marker not in v6
+    assert r"Tests:\s+[^\n]*\d+\s+passed" in v7
+    assert r"Tests:\s+[^\n]*\d+\s+passed" not in v6
+    assert "separate-verifier@7" in render_tests_dockerfile_v7("example/image")
+
+
+def test_v7_build_changes_shape(parent_dir_v2: Path) -> None:
+    (parent_dir_v2 / "tests" / "test.patch").write_text(
+        "diff --git a/x.py b/x.py\n+def test_a(): pass\n", encoding="utf-8"
+    )
+    (parent_dir_v2 / "tests" / "test_command.sh").write_text("go test ./...\n", encoding="utf-8")
+    changes, inputs = build_changes_v7(parent_dir_v2, marker="test_a")
+    assert b"_go_bare" in changes["tests/test.sh"]
+    assert b"separate-verifier@7" in changes["tests/Dockerfile"]
+    assert inputs["runner"] == "go-test"
+    with pytest.raises(VariantInvalid):
+        build_changes_v7(parent_dir_v2, marker="  ")
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v7("relative/path")

@@ -21,11 +21,18 @@ from evallab import mimo_clean
 from evallab.mimo_clean import (
     AGENT_NETWORK_NONE_ID,
     CACHE_ACTIVE_ID,
+    CLEAN_SET_VERSION,
+    CLEAN_SET_VERSION_V5,
+    EXCLUDED_FROM_TRAINING,
+    MANIFEST_V5_REL,
     MTIME_ACTIVE_ID,
     NONPYTHON_CHAIN,
+    NONPYTHON_CHAIN_V5,
     PURGE_ID,
     PYTHON_CHAIN,
+    PYTHON_CHAIN_V5,
     SEPARATE_V6_ID,
+    SEPARATE_V7_ID,
     STATUS_BUILT,
     STATUS_SKIPPED,
     STRIP_ID,
@@ -36,6 +43,7 @@ from evallab.mimo_clean import (
     acceptance_pass,
     build_solution_sh,
     chain_for_language,
+    chains_for_version,
     derive_marker,
     load_manifest,
     load_reference_index,
@@ -666,3 +674,62 @@ def test_run_cli_build_writes_manifest(tmp_path: Path, capsys: pytest.CaptureFix
     assert len(loaded) == 1
     assert loaded[0]["status"] == STATUS_BUILT
     assert loaded[0]["chain"].endswith(f"{SEPARATE_V6_ID}>{AGENT_NETWORK_NONE_ID}")
+
+
+def test_chains_for_version_matrix() -> None:
+    python_chain, nonpython_chain = chains_for_version(CLEAN_SET_VERSION)
+    assert (python_chain, nonpython_chain) == (PYTHON_CHAIN, NONPYTHON_CHAIN)
+    python_v5, non_v5 = chains_for_version(CLEAN_SET_VERSION_V5)
+    assert (python_v5, non_v5) == (PYTHON_CHAIN_V5, NONPYTHON_CHAIN_V5)
+    assert python_v5[-2:] == (SEPARATE_V7_ID, AGENT_NETWORK_NONE_ID)
+    assert non_v5[-2:] == (SEPARATE_V7_ID, AGENT_NETWORK_NONE_ID)
+    assert PURGE_ID in python_v5
+    assert PURGE_ID not in non_v5
+    with pytest.raises(VariantInvalid):
+        chains_for_version("mimo-clean-v9")
+
+
+def test_build_v5_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
+    package = _write_run_package(tmp_path, TASK_ID)
+    builder = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5)
+    result = builder.build_task(TASK_ID, _row(package, TASK_ID), oracle=oracle)
+    assert result.status == STATUS_BUILT
+    assert result.chain == [
+        STRIP_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V7_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]
+    final = _final(tmp_path, result)
+    assert b"_go_bare" in (final / "tests" / "test.sh").read_bytes()
+    row = result.manifest_row()
+    assert row["chain"].endswith(f"{SEPARATE_V7_ID}>{AGENT_NETWORK_NONE_ID}")
+
+
+def test_build_v5_snapshot_chain_end_to_end(tmp_path: Path) -> None:
+    task_id = "format-code-task-000045"
+    _write_snapshot_package(tmp_path, task_id, "JavaScript")
+    result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
+        task_id, None, oracle=None
+    )
+    assert result.status == STATUS_BUILT
+    assert result.chain == [
+        STRIP_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V7_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]
+
+
+def test_excluded_from_training_noted(tmp_path: Path) -> None:
+    task_id = "format-code-task-001478"
+    assert task_id in EXCLUDED_FROM_TRAINING
+    _write_snapshot_package(tmp_path, task_id, "Go")
+    result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
+        task_id, None, oracle=None
+    )
+    assert result.status == STATUS_BUILT
+    assert "excluded-from-training" in result.reason
+    assert MANIFEST_V5_REL.parts[-2:] == ("mimo-clean-v5", "manifest.csv")

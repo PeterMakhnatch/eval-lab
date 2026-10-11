@@ -33,6 +33,16 @@ task, each carrying the full clean chain in its lineage.
 > This page otherwise documents v3 exactly as built and is frozen apart
 > from this pointer.
 
+> **Successor:** `mimo-clean-v5` is the same chain with
+> `separate-verifier@7` replacing `@6` (G-shape certification; see
+> `docs/mimo/separate-verifier.md`). Builder: `evallab mimo-clean build
+> --clean-version mimo-clean-v5` (default `--manifest`
+> `research/experiments/mimo-clean-v5/manifest.csv`). Manifest rows for
+> five tasks carry `excluded-from-training` in `reason` (answer-visible
+> through legitimate environment dependencies; the v5 census marks them
+> `fail:open-leak:env-dependency`). The purge slot stays `@1` until the
+> `@2` lane lands.
+
 ## The canonical Python chain
 
 ```

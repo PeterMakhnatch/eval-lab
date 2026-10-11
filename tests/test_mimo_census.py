@@ -1656,6 +1656,43 @@ def test_tests_executed_other_runners(tmp_path: Path) -> None:
     assert trial_tests_executed(tap)
 
 
+def test_tests_executed_tap_with_spec_reporter_output(tmp_path: Path) -> None:
+    # G6: tap-labeled commands emitting mocha spec output (000934/001839).
+    spec = _write_verifier_trial(
+        tmp_path / "tap-spec",
+        runner="tap",
+        output="test/schema-feature.test.js\n  192 passing (878.933ms)\n",
+    )
+    assert trial_tests_executed(spec)
+    spec_fail = _write_verifier_trial(
+        tmp_path / "tap-spec-fail",
+        runner="tap",
+        output="  18 passing (1s)\n  1 failing\n",
+    )
+    assert trial_tests_executed(spec_fail)
+    assert trial_tests_executed(
+        _write_verifier_trial(
+            tmp_path / "tap-genuine",
+            runner="tap",
+            output="TAP version 13\nok 1 - first\n1..1\n",
+        )
+    )
+    assert not trial_tests_executed(
+        _write_verifier_trial(
+            tmp_path / "tap-empty",
+            runner="tap",
+            output="TAP version 13\n1..0\n",
+        )
+    )
+    assert not trial_tests_executed(
+        _write_verifier_trial(
+            tmp_path / "tap-spec-empty",
+            runner="tap",
+            output="  0 passing (5ms)\n",
+        )
+    )
+
+
 def test_tests_executed_custom_fallback_rc_is_not_execution(tmp_path: Path) -> None:
     custom = _write_verifier_trial(
         tmp_path / "custom",
@@ -2386,3 +2423,121 @@ def test_run_task_record_forwards_policy(tmp_path: Path, monkeypatch: Any) -> No
     )
     assert seen.get("modal_resource_policy") == "limit"
     assert record["modal_resource_policy"] == "limit"
+
+
+def test_load_verify_overrides_missing_and_shaped(tmp_path: Path) -> None:
+    from evallab.mimo_census import OVERRIDES_COLUMNS, load_verify_overrides
+
+    assert load_verify_overrides(tmp_path / "absent.csv") == {}
+    assert tuple(OVERRIDES_COLUMNS) == ("task_id", "verify", "reason", "final_digest")
+    path = tmp_path / "verify-overrides.csv"
+    path.write_text(
+        "task_id,verify,reason,final_digest\n"
+        "format-code-task-000048,unverified:g1-go-nonempty-substring,triaged G1,sha256:v3\n"
+        ",,blank row skipped,\n"
+        "format-code-task-000048,unverified:g1-latest,later row wins,\n",
+        encoding="utf-8",
+    )
+    assert load_verify_overrides(path) == {
+        "format-code-task-000048": {
+            "verify": "unverified:g1-latest",
+            "reason": "later row wins",
+            "final_digest": "",
+        }
+    }
+
+
+def test_apply_verify_overrides_guards() -> None:
+    from evallab.mimo_census import apply_verify_overrides
+
+    rows = [
+        {"task_id": "t1", "final_digest": "sha256:a", "verify": "fail:oracle-wrong"},
+        {"task_id": "t2", "final_digest": "sha256:b", "verify": "fail:oracle-wrong"},
+        {"task_id": "t3", "final_digest": "sha256:c", "verify": "unverified"},
+    ]
+    aggregates = {
+        "t1": {"final_digest": "sha256:a", "verify": "fail:oracle-wrong"},
+        "t2": {"final_digest": "sha256:b", "verify": "fail:oracle-wrong"},
+    }
+    overrides = {
+        "t1": {"verify": "unverified:g1", "reason": "triage", "final_digest": ""},
+        "t2": {"verify": "unverified:g1", "reason": "triage", "final_digest": "sha256:stale"},
+        "t3": {"verify": "pass", "reason": "triage", "final_digest": ""},
+    }
+    assert apply_verify_overrides(rows, aggregates, overrides) == 1
+    assert rows[0]["verify"] == "unverified:g1"
+    # Stale digest pin never labels a rebuilt package.
+    assert rows[1]["verify"] == "fail:oracle-wrong"
+    # No aggregate means no evidence: overrides cannot conjure a verdict.
+    assert rows[2]["verify"] == "unverified"
+
+
+def test_report_applies_verify_overrides(tmp_path: Path) -> None:
+    import argparse
+    import json
+
+    from evallab.mimo_census import _report_command, blank_row, load_results
+    from evallab.mimo_census import load_manifest as _load_manifest
+
+    manifest = _write_manifest(
+        tmp_path,
+        [
+            _manifest_row_full(TASK_ID, final_digest="sha256:ok"),
+            _manifest_row_full(
+                "format-code-task-000001", final_digest="sha256:ok2", reference_fix="/f.patch"
+            ),
+        ],
+    )
+    jobs = tmp_path / "jobs"
+    jobs.mkdir()
+    triaged = {
+        **blank_row(TASK_ID, manifest_version="mimo-clean-v2", backend="modal"),
+        "final_digest": "sha256:ok",
+        "nop": "0",
+        "oracle": "fail:0",
+        "ladder_verdict": "",
+        "census_locations": "0",
+        "run_ids": "mimo-census-v1-modal-000000-oracle",
+    }
+    pinned_stale = {
+        **blank_row(
+            "format-code-task-000001", manifest_version="mimo-clean-v2", backend="modal"
+        ),
+        "final_digest": "sha256:ok2",
+        "nop": "0",
+        "oracle": "fail:0",
+        "ladder_verdict": "",
+        "census_locations": "0",
+        "run_ids": "mimo-census-v1-modal-000001-oracle",
+    }
+    with (jobs / "census-rows.jsonl").open("w", encoding="utf-8") as handle:
+        for row in (triaged, pinned_stale):
+            handle.write(json.dumps(row) + "\n")
+    receipt = tmp_path / "receipt"
+    receipt.mkdir()
+    (receipt / "verify-overrides.csv").write_text(
+        "task_id,verify,reason,final_digest\n"
+        f"{TASK_ID},unverified:g1-go-nonempty-substring,v4 triage G1,\n"
+        "format-code-task-000001,pass,stale pin must not apply,sha256:stale\n",
+        encoding="utf-8",
+    )
+    args = argparse.Namespace(
+        manifest=manifest,
+        manifest_version="mimo-clean-v2",
+        receipt_dir=receipt,
+        jobs_dir=jobs,
+        cost_default_usd=0.0,
+    )
+    assert _report_command(args, tmp_path) == 0
+    manifest_rows = {row["task_id"]: row for row in _load_manifest(manifest)}
+    # Triaged verdict survives the report run; evidence rows are untouched.
+    assert manifest_rows[TASK_ID]["verify"] == "unverified:g1-go-nonempty-substring"
+    # Stale digest pin never applies (aggregate `unverified` kept, not `pass`).
+    assert manifest_rows["format-code-task-000001"]["verify"] == "unverified"
+    loaded = load_results(receipt / "results.csv")
+    by_task = {row["task_id"]: row for row in loaded}
+    assert by_task[TASK_ID]["oracle"] == "fail:0"
+    # Re-running report keeps the triaged verdict (the v4 residual).
+    assert _report_command(args, tmp_path) == 0
+    rerun = {row["task_id"]: row for row in _load_manifest(manifest)}
+    assert rerun[TASK_ID]["verify"] == "unverified:g1-go-nonempty-substring"

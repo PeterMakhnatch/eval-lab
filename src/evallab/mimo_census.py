@@ -88,6 +88,67 @@ VERIFY_FAIL_CLASSES = (
     VERIFY_FAIL_GRADER_HOLE,
     VERIFY_FAIL_ORACLE_WRONG,
 )
+#: Triaged/manual manifest verdicts, merged at report time so re-running
+#: report never loses them (v4 census residual: report overwrote the
+#: manifest `verify` column with untriaged grades). Columns:
+#: ``task_id,verify,reason,final_digest``; ``final_digest`` empty means the
+#: override follows the task across rebuilds, otherwise it applies only on
+#: the exact digest (stale triage never labels a new package).
+OVERRIDES_FILENAME = "verify-overrides.csv"
+OVERRIDES_COLUMNS = ("task_id", "verify", "reason", "final_digest")
+
+
+def load_verify_overrides(path: Path) -> dict[str, dict[str, str]]:
+    """Read a verify-overrides file ({} when absent).
+
+    Later rows win on duplicate task ids. Rows with an empty task id or
+    verify are skipped.
+    """
+    overrides: dict[str, dict[str, str]] = {}
+    try:
+        text = Path(path).read_text(encoding="utf-8")
+    except OSError:
+        return {}
+    for row in csv.DictReader(text.splitlines()):
+        task_id = str(row.get("task_id", "") or "").strip()
+        verify = str(row.get("verify", "") or "").strip()
+        if not task_id or not verify:
+            continue
+        overrides[task_id] = {
+            "verify": verify,
+            "reason": str(row.get("reason", "") or ""),
+            "final_digest": str(row.get("final_digest", "") or "").strip(),
+        }
+    return overrides
+
+
+def apply_verify_overrides(
+    manifest_rows: list[dict[str, str]],
+    aggregates: dict[str, dict[str, Any]],
+    overrides: dict[str, dict[str, str]],
+) -> int:
+    """Merge triaged verdicts over untriaged aggregates (report-side).
+
+    For each manifest row carrying an exact-digest aggregate, an override
+    for the task wins when its ``final_digest`` is empty or matches the
+    row's digest. Returns the count applied. Rows without aggregates are
+    never touched (an override cannot conjure evidence for missing cells).
+    """
+    applied = 0
+    for row in manifest_rows:
+        task_id = str(row.get("task_id", ""))
+        override = overrides.get(task_id)
+        if override is None:
+            continue
+        aggregate = aggregates.get(task_id)
+        if aggregate is None or aggregate.get("final_digest") != str(row.get("final_digest", "")):
+            continue
+        pinned = override["final_digest"]
+        if pinned and pinned != str(row.get("final_digest", "")):
+            continue
+        row["verify"] = override["verify"]
+        applied += 1
+    return applied
 
 #: Selectable census checks (``--checks``). ``nop``/``oracle`` are the
 #: controls cells, ``ladder`` the cheat-ladder cells, ``fix`` the fix-content
@@ -297,6 +358,11 @@ def _runner_output_executed(runner: str, output: str) -> bool:
         return sum(int(count) for count in _MOCHA_COUNT_RE.findall(output)) > 0
     if runner in ("tap", "ava", "node-test"):
         if _TAP_OK_RE.search(output):
+            return True
+        # G6: a tap-labeled command emitting mocha spec-reporter output
+        # carries no TAP markers; its passing/failing counts still prove
+        # cases ran (failures count as ran, as everywhere here).
+        if any(int(count) > 0 for count in _MOCHA_COUNT_RE.findall(output)):
             return True
         return any(int(count) > 0 for count in _TAP_PLAN_RE.findall(output))
     if runner == "unittest":
@@ -1946,6 +2012,15 @@ def _register_census_commands(sub: Any) -> None:
     report = sub.add_parser("report", help="Assemble results.csv + summary from census rows")
     _add_common(report)
     report.add_argument("--cost-default-usd", type=float, default=0.0)
+    report.add_argument(
+        "--overrides",
+        type=Path,
+        default=None,
+        help=(
+            "triaged verify overrides CSV (default: <receipt-dir>/verify-overrides.csv "
+            "when present; merged over untriaged aggregates at manifest write)"
+        ),
+    )
     report.set_defaults(func=_report_command)
     record = sub.add_parser(
         "record-spend", help="Record one batch's provider actuals in spend.jsonl"
@@ -2359,6 +2434,8 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         )
     # Manifest verify writes ONLY aggregates on the exact current digest for
     # that task; every other manifest row (and column) is left untouched.
+    # Triaged/manual verdicts then merge over the untriaged aggregates, so
+    # re-running report never loses them (v4 census residual).
     if manifest_rows:
         updated = 0
         for row in manifest_rows:
@@ -2369,8 +2446,22 @@ def _report_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             ):
                 row["verify"] = str(aggregate["verify"])
                 updated += 1
+        overrides_arg = getattr(args, "overrides", None)
+        overrides_path = (
+            Path(overrides_arg)
+            if overrides_arg
+            else (ctx.receipt_dir / OVERRIDES_FILENAME)
+        )
+        overridden = apply_verify_overrides(
+            manifest_rows, aggregates, load_verify_overrides(overrides_path)
+        )
         write_manifest(manifest_rows, ctx.manifest_path)
         print(f"manifest verify updated for {updated}/{len(manifest_rows)} tasks")
+        if overridden:
+            print(
+                f"manifest verify overrides applied for {overridden} tasks "
+                f"({overrides_path})"
+            )
     return 0 if summary["failed"] == 0 else 1
 
 

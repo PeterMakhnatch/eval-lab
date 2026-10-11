@@ -153,18 +153,22 @@ implies the current nop (nop trials run the pristine tree, so an added
 baseline comparison is trivially satisfied); a prior oracle `1` under a
 skip-strict grader implies the current oracle (zero skips/failures makes
 fail-to-pass clauses vacuous) — both assuming deterministic suites.
-v5 (`@6`→`@7`) carries: `@7` only ever widens pass paths that `@6`
-provably misgraded, so no `@6`-1 output flips to 0. Concretely:
-go marker-absent runs reduce to the old rule, and marker-present runs keep
-a surviving-`ok` requirement no `@6`-1 run can fail (a `@6`-1 has no
-marker at all); jest/vitest tolerate strictly more summaries while every
-fail marker is unchanged; tap switches reporters only when no TAP marker
-exists (every `@6`-1 tap run has one); pytest fail-to-pass only clears
-`ftp_bad` (INTERNALERROR skip, collection-error module satisfaction, more
-baseline phases from every-phase baselines — and a `@6`-1 run has rc 0
-with no bad cases, i.e. every executed phase passed, so the wider baseline
-is satisfied too). Hence a v4 oracle `1` carries to v5 and a v4 nop `0`
-carries (failure-shaped outputs still fail every rule); carries stay
+v5 (`@6`→`@7`→`@8`) carries: each generation only ever widens pass paths
+the previous one provably misgraded, so no prior-1 output flips to 0.
+Concretely: go marker-absent runs reduce to the old rule, and
+marker-present runs keep a surviving-`ok` requirement no prior-1 run can
+fail (a prior-1 has no marker at all); jest/vitest tolerate strictly more
+summaries while every fail marker is unchanged; tap switches reporters
+only when no TAP marker exists (every prior-1 tap run has one), and the
+terse switch additionally needs terse markers with no TAP/mocha markers
+while the terse pseudo-runner sits inside the structured gate (never the
+exit-code fallback); pytest fail-to-pass only clears `ftp_bad`
+(INTERNALERROR skip, collection-error module satisfaction — `@8` merely
+admits dashes in the same prefix-matched comparison, more baseline phases
+from every-phase baselines — and a prior-1 run has rc 0 with no bad cases,
+i.e. every executed phase passed, so the wider baseline is satisfied too).
+Hence a v4 oracle `1` carries to v5 and a v4 nop `0` carries
+(failure-shaped outputs still fail every rule); carries stay
 reasoning-backed labels in `verify-detail.csv`, never merged `results.csv`
 rows.
 `fail:open-leak` from untriaged probe hits is NEVER carried: it needs the

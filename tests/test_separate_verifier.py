@@ -40,6 +40,7 @@ from evallab.separate_verifier import (
     build_changes_v5,
     build_changes_v6,
     build_changes_v7,
+    build_changes_v8,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
@@ -51,17 +52,20 @@ from evallab.separate_verifier import (
     detect_runner,
     drop_reason,
     effective_js_runner,
+    effective_js_runner_v8,
     evaluate_cargo_output,
     evaluate_go_output,
     evaluate_go_output_v6,
     evaluate_go_output_v7,
     evaluate_js_output,
     evaluate_js_output_v7,
+    evaluate_js_output_v8,
     evaluate_junit,
     evaluate_junit_v4,
     evaluate_junit_v5,
     evaluate_junit_v6,
     evaluate_junit_v7,
+    evaluate_junit_v8,
     evaluate_phpunit_output,
     evaluate_rspec_output,
     evaluate_surefire_reports,
@@ -79,12 +83,14 @@ from evallab.separate_verifier import (
     parse_pytest_node_id,
     read_parent_info,
     render_tests_dockerfile_v7,
+    render_tests_dockerfile_v8,
     render_wrapper_test_sh_v2,
     render_wrapper_test_sh_v3,
     render_wrapper_test_sh_v4,
     render_wrapper_test_sh_v5,
     render_wrapper_test_sh_v6,
     render_wrapper_test_sh_v7,
+    render_wrapper_test_sh_v8,
     resolve_command_text,
     strip_ansi,
     tamper_signature_hit,
@@ -3111,3 +3117,247 @@ def test_v7_build_changes_shape(parent_dir_v2: Path) -> None:
         build_changes_v7(parent_dir_v2, marker="  ")
     with pytest.raises(VariantInvalid):
         render_wrapper_test_sh_v7("relative/path")
+
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@8: terse reporter and dashed collection modules
+# --------------------------------------------------------------------------- #
+
+# 000936 oracle tail: tap `-R terse` output (ANSI cursor controls plus
+# zero-width spaces around every count).
+_V8_TERSE_ORACLE = (
+    "\x1b[2K\x1b[1A\x1b[2K\x1b[1A\x1b[2K\x1b[GSuites:   \u200b0 of 1 completed\u200b\n"
+    "Asserts:  \u200b\u200b\u200b39 passed\u200b, \u200bof 39\u200b\n"
+    "\x1b[2K\x1b[1A\x1b[2K\x1b[1A\x1b[2K\x1b[GSuites:   \u200b1 passed\u200b, \u200b1 of 1 completed\u200b\n"
+    "Asserts:  \u200b\u200b\u200b41 passed\u200b, \u200bof 41\u200b\n"
+)
+
+# 000936 nop tail: the same reporter with failures (pass and fail lines coexist).
+_V8_TERSE_NOP = (
+    "Suites:   \u200b1 failed\u200b, \u200b1 of 1 completed\u200b\n"
+    "Asserts:  \u200b\u200b\u200b4 failed\u200b, \u200b37 passed\u200b, \u200bof 41\u200b\n"
+)
+
+_V8_TERSE_CMD = (
+    "npx tap test/generate-plugin.test.js --no-coverage --timeout 400 --jobs 1 -R terse"
+)
+
+
+def test_v8_terse_reporter_grades_asserts() -> None:
+    assert effective_js_runner_v8("tap", _V8_TERSE_CMD, _V8_TERSE_ORACLE) == "terse"
+    assert effective_js_runner_v8("tap", "npx tap test/x.test.js", _V8_TERSE_ORACLE) == "terse"
+    assert (
+        effective_js_runner_v8("tap", "node_modules/.bin/tap test/x.test.js", "ok 1 - x\n")
+        == "tap"
+    )
+    assert effective_js_runner_v8("mocha", "whatever", _V8_TERSE_ORACLE) == "mocha"
+    assert evaluate_js_output_v8("tap", _V8_TERSE_ORACLE, 0, _V8_TERSE_CMD) == 1
+    assert evaluate_js_output_v8("tap", _V8_TERSE_ORACLE, 1, _V8_TERSE_CMD) == 0
+    assert evaluate_js_output_v8("tap", _V8_TERSE_NOP, 0, _V8_TERSE_CMD) == 0
+    assert evaluate_js_output_v8("tap", "  0 passing (5ms)\n", 0, _V8_TERSE_CMD) == 0
+    # Genuine TAP and mocha shapes are unchanged under @8.
+    assert evaluate_js_output_v8("tap", "ok 1 - first\nok 2 - second\n", 0) == 1
+    assert evaluate_js_output_v8("tap", "not ok 1 - first\n", 0) == 0
+    assert evaluate_js_output_v8("mocha", "  9 passing (20ms)\n", 0) == 1
+    # @7 grades the terse shape 0 (the gap @8 closes).
+    assert evaluate_js_output_v7("tap", _V8_TERSE_ORACLE, 0, _V8_TERSE_CMD) == 0
+
+
+# Locally reproduced dashed-dir junits (pytest 8.4.2): pristine collection
+# error with a dashed synthetic key, passing run with class-qualified keys.
+_V8_DASH_BASE_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite name="pytest" errors="1" tests="1">'
+    b'<testcase classname="" name="dashed-dir.test_thing" time="0">'
+    b"<error message=\"collection failure\">ModuleNotFoundError: No module named</error>"
+    b"</testcase></testsuite>"
+)
+_V8_DASH_AGENT_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite name="pytest" errors="0" tests="3">'
+    b'<testcase classname="dashed-dir.test_thing.TestThing" name="test_one" time="0" />'
+    b'<testcase classname="dashed-dir.test_thing.TestThing" name="test_two" time="0" />'
+    b'<testcase classname="dashed-dir.test_thing" name="test_top" time="0" />'
+    b"</testsuite>"
+)
+
+
+def test_v8_dashed_collection_error_module_is_fail_to_pass() -> None:
+    # @7 grades the dashed shape 0 (the gap @8 closes).
+    assert evaluate_junit_v7([_V8_DASH_AGENT_JUNIT], 0, (), [_V8_DASH_BASE_JUNIT]) == 0
+    assert evaluate_junit_v8([_V8_DASH_AGENT_JUNIT], 0, (), [_V8_DASH_BASE_JUNIT]) == 1
+    assert evaluate_junit_v8([_V8_DASH_AGENT_JUNIT], 1, (), [_V8_DASH_BASE_JUNIT]) == 0
+    # Undashed shapes agree between @7 and @8.
+    assert evaluate_junit_v8([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT]) == 1
+    assert evaluate_junit_v8([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], "") == 0
+    assert (
+        evaluate_junit_v8([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
+        == 1
+    )
+
+
+def _v8_grader_block() -> str:
+    """Extract the embedded @8 grading script (last PYEOF heredoc)."""
+    import re as _re
+
+    from evallab.separate_verifier import render_wrapper_test_sh_v8 as _render
+
+    blocks = _re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", _render("/testbed"), _re.S)
+    assert len(blocks) == 3
+    return blocks[2]
+
+
+def _run_embedded_v8_grader(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner_cmd: str,
+    output: str,
+    rc: int,
+    junit: bytes | None = None,
+    baseline_junit: bytes | None = None,
+    baseline_output: str | None = None,
+    patch_extra: str = "",
+) -> str:
+    """Run the shipped @8 grading script against synthetic files; return reward."""
+    junit_path = tmp_path / "junit.xml"
+    if junit is None:
+        if junit_path.exists():
+            junit_path.unlink()
+    else:
+        junit_path.write_bytes(junit)
+    baseline_dir = tmp_path / "baseline"
+    if baseline_junit is not None:
+        baseline_dir.mkdir(exist_ok=True)
+        (baseline_dir / "junit.xml").write_bytes(baseline_junit)
+    if baseline_output is not None:
+        baseline_dir.mkdir(exist_ok=True)
+        (baseline_dir / "output.log").write_text(baseline_output, encoding="utf-8")
+    if baseline_junit is None and baseline_output is None:
+        import shutil
+
+        shutil.rmtree(baseline_dir, ignore_errors=True)
+    patch_path = tmp_path / "test.patch"
+    patch_path.write_text(
+        f"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+{runner_cmd}\n{patch_extra}",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "test_output.log"
+    output_path.write_text(output, encoding="utf-8")
+    cmd_path = tmp_path / "test_command.sh"
+    cmd_path.write_text(runner_cmd, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "grader",
+            str(junit_path),
+            str(rc),
+            str(patch_path),
+            str(output_path),
+            str(cmd_path),
+            str(tmp_path),
+        ],
+    )
+    with pytest.raises(SystemExit):
+        exec(compile(_v8_grader_block(), "v8grader", "exec"), {"__name__": "v8grader"})
+    return capsys.readouterr().out.strip()
+
+
+def test_embedded_v8_terse_and_dashed(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert (
+        _run_embedded_v8_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=_V8_TERSE_CMD, output=_V8_TERSE_ORACLE, rc=0
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v8_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=_V8_TERSE_CMD, output=_V8_TERSE_NOP, rc=1
+        )
+        == "0"
+    )
+    cmd = "python -m pytest usercase-test-coderl/test_x.py -v"
+    out = "=== test session starts ===\ncollected 3 items\n"
+    assert (
+        _run_embedded_v8_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=_V8_DASH_AGENT_JUNIT,
+            baseline_junit=_V8_DASH_BASE_JUNIT,
+            baseline_output="baseline_sec=1 runner=pytest rc=2\n",
+        )
+        == "1"
+    )
+    # Mirror and embedded agree on every shape above.
+    assert evaluate_js_output_v8("tap", _V8_TERSE_ORACLE, 0, _V8_TERSE_CMD) == 1
+    assert evaluate_js_output_v8("tap", _V8_TERSE_NOP, 0, _V8_TERSE_CMD) == 0
+    assert evaluate_junit_v8([_V8_DASH_AGENT_JUNIT], 0, (), [_V8_DASH_BASE_JUNIT]) == 1
+
+
+def test_embedded_v8_keeps_v7_shapes(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert (
+        _run_embedded_v8_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd="go test ./...", output=_V7_G1_ORACLE, rc=0
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v8_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd="node_modules/.bin/jest x.test.js",
+            output=_V7_G2_ORACLE,
+            rc=0,
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v8_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=_V7_G6_SPEC_CMD, output=_V7_G6_SPEC_OUT, rc=0
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v8_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=_V8_TERSE_CMD, output="not ok 1\n", rc=0
+        )
+        == "0"
+    )
+
+
+def test_v8_wrapper_differs_from_v7_in_pinned_regions_only() -> None:
+    v7 = render_wrapper_test_sh_v7("/testbed")
+    v8 = render_wrapper_test_sh_v8("/testbed")
+    assert v8 != v7
+    assert 'runner = "terse"' in v8
+    assert 'runner = "terse"' not in v7
+    assert "Asserts:" in v8
+    assert "Asserts:" not in v7
+    assert "separate-verifier@8" in render_tests_dockerfile_v8("example/image")
+
+
+def test_v8_build_changes_shape(parent_dir_v2: Path) -> None:
+    (parent_dir_v2 / "tests" / "test.patch").write_text(
+        "diff --git a/x.py b/x.py\n+def test_a(): pass\n", encoding="utf-8"
+    )
+    (parent_dir_v2 / "tests" / "test_command.sh").write_text(
+        "npx tap test/x.test.js --no-coverage -R terse\n", encoding="utf-8"
+    )
+    changes, inputs = build_changes_v8(parent_dir_v2, marker="test_a")
+    assert b'runner = "terse"' in changes["tests/test.sh"]
+    assert b"separate-verifier@8" in changes["tests/Dockerfile"]
+    assert inputs["runner"] == "tap"
+    with pytest.raises(VariantInvalid):
+        build_changes_v8(parent_dir_v2, marker="  ")
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v8("relative/path")

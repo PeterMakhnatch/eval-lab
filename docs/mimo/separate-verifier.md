@@ -456,3 +456,29 @@ Files`-line alternative would certify zero passing tests.
 - Fleet regrade: receipt `research/experiments/mimo-clean-v5-census/`
   (oracle 1 / nop 0 on the 30 triaged tasks, no-regression sample, ladder
   1.4.0 on 20 G-shape tasks).
+
+## separate-verifier@8: terse reporter and dashed modules (2026-10-11)
+
+`separate-verifier@8` (`TRANSFORM_ID_V8`, `build_changes_v8`,
+`derive_separate_verifier_v8`, `render_wrapper_test_sh_v8`,
+`evaluate_js_output_v8`, `effective_js_runner_v8`, `evaluate_junit_v8` in
+`src/evallab/separate_verifier.py`; tests in
+`tests/test_separate_verifier.py`) keeps every `@7` guarantee and fixes
+the two shapes the v5 regrade surfaced on `@7` packages (both graded 0
+with tests visibly passing, rc 0). No `@2`–`@7` symbol or template byte
+changes, so their records stay valid. Ships in `mimo-clean-v5` (see
+`docs/mimo/clean-set.md`).
+
+| id | shape | `@8` fix | anti-cheat preserved |
+|---|---|---|---|
+| G6-terse | tap `-R terse` reporter (000936: `Asserts: N passed, of N` / `Suites:` lines with ANSI cursor controls and zero-width spaces — misgrouped with mocha-spec in the v4 triage) | grade the terse reporter format (command-selected terse, or `Asserts:` markers with neither TAP nor mocha markers); the terse pseudo-runner joins the structured gate so it can never fall to exit-code grading | genuine TAP/mocha unchanged; `Asserts:`/`Suites:` failure lines still 0 (pass and fail lines coexist in failing runs) |
+| G5-dash | dashed-dir collection errors (000783/001220: `name="usercase-test-coderl/test_x"`, dash rejected by the `@7` module pattern) | module pattern also accepts dashes (both sides render the same dashed dotted path; reproduced locally) | prefix matching still needs exact leading path equality |
+
+### Validation (MEASURED, 2026-10-11, $0)
+
+- Unit: real 000936 oracle/nop tails (ANSI + zero-width bytes) and
+  locally reproduced dashed-dir junits: terse oracle 1 / nop 0, dashed
+  module 1 under `@8` (mirror and embedded shipped grader agree) and 0
+  under `@7`; all `@7` G-shapes still 1 and every anti-cheat shape still
+  0 under `@8`.
+- Fleet regrade: receipt `research/experiments/mimo-clean-v5-census/`.

@@ -32,7 +32,7 @@ from evallab.mimo_clean import (
     PYTHON_CHAIN,
     PYTHON_CHAIN_V5,
     SEPARATE_V6_ID,
-    SEPARATE_V7_ID,
+    SEPARATE_V8_ID,
     STATUS_BUILT,
     STATUS_SKIPPED,
     STRIP_ID,
@@ -681,8 +681,8 @@ def test_chains_for_version_matrix() -> None:
     assert (python_chain, nonpython_chain) == (PYTHON_CHAIN, NONPYTHON_CHAIN)
     python_v5, non_v5 = chains_for_version(CLEAN_SET_VERSION_V5)
     assert (python_v5, non_v5) == (PYTHON_CHAIN_V5, NONPYTHON_CHAIN_V5)
-    assert python_v5[-2:] == (SEPARATE_V7_ID, AGENT_NETWORK_NONE_ID)
-    assert non_v5[-2:] == (SEPARATE_V7_ID, AGENT_NETWORK_NONE_ID)
+    assert python_v5[-2:] == (SEPARATE_V8_ID, AGENT_NETWORK_NONE_ID)
+    assert non_v5[-2:] == (SEPARATE_V8_ID, AGENT_NETWORK_NONE_ID)
     assert PURGE_ID in python_v5
     assert PURGE_ID not in non_v5
     with pytest.raises(VariantInvalid):
@@ -698,13 +698,13 @@ def test_build_v5_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
         STRIP_ID,
         CACHE_ACTIVE_ID,
         MTIME_ACTIVE_ID,
-        SEPARATE_V7_ID,
+        SEPARATE_V8_ID,
         AGENT_NETWORK_NONE_ID,
     ]
     final = _final(tmp_path, result)
     assert b"_go_bare" in (final / "tests" / "test.sh").read_bytes()
     row = result.manifest_row()
-    assert row["chain"].endswith(f"{SEPARATE_V7_ID}>{AGENT_NETWORK_NONE_ID}")
+    assert row["chain"].endswith(f"{SEPARATE_V8_ID}>{AGENT_NETWORK_NONE_ID}")
 
 
 def test_build_v5_snapshot_chain_end_to_end(tmp_path: Path) -> None:
@@ -718,7 +718,7 @@ def test_build_v5_snapshot_chain_end_to_end(tmp_path: Path) -> None:
         STRIP_ID,
         CACHE_ACTIVE_ID,
         MTIME_ACTIVE_ID,
-        SEPARATE_V7_ID,
+        SEPARATE_V8_ID,
         AGENT_NETWORK_NONE_ID,
     ]
 

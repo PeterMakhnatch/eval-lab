@@ -925,3 +925,290 @@ def test_v4_missing_pip_remains_fail_closed(tmp_path: Path) -> None:
     assert proc.returncode != 0
     assert "needs python3 with pip>=20.1" in proc.stderr
     assert "pip cache disabled" not in proc.stdout
+
+
+# purge-build-caches@5: recursive node build-output handling.
+
+
+def _node_fixture_v5(
+    tmp_path: Path,
+    *,
+    test_import: str = "../src/a",
+    scripts: str = '"build": "make-lib"',
+    out_dir: str = "lib",
+    pkg: str = "packages/p",
+    tracked_output: bool = False,
+    self_link: bool = False,
+    main: str = "",
+    ignore: str | None = None,
+    asset_ref: bool = False,
+) -> Path:
+    """Git repo fixture: monorepo package with ignored build output."""
+    import subprocess
+
+    cwd = tmp_path / "repo"
+    scope = cwd / pkg
+    (scope / "src").mkdir(parents=True)
+    (scope / "test").mkdir()
+    (scope / out_dir).mkdir()
+    (scope / out_dir / "stale.js").write_text("// stale fixed build output\n", encoding="utf-8")
+    src = "export const a = 1;\n"
+    if asset_ref:
+        src += "export const asset = require('path').join(__dirname, '..', 'lib', 'data.json');\n"
+    (scope / "src" / "a.ts").write_text(src, encoding="utf-8")
+    (scope / "test" / "t.test.ts").write_text(
+        f"import {{ a }} from '{test_import}';\nconsole.log(a);\n", encoding="utf-8"
+    )
+    pkg_json = '{"name": "fixturepkg", "scripts": {' + scripts + "}"
+    if main:
+        pkg_json += f', "main": "{main}"'
+    (scope / "package.json").write_text(pkg_json + "}\n", encoding="utf-8")
+    if self_link:
+        link = scope / "node_modules" / "fixturepkg"
+        link.parent.mkdir(parents=True)
+        link.symlink_to(scope, target_is_directory=True)
+    (cwd / ".gitignore").write_text(ignore or f"{out_dir}/\n", encoding="utf-8")
+    (cwd / "package.json").write_text('{"name": "fixture-root"}\n', encoding="utf-8")
+    env = {
+        "PATH": "/usr/bin:/bin:/usr/local/bin",
+        "GIT_AUTHOR_NAME": "t",
+        "GIT_AUTHOR_EMAIL": "t@t",
+        "GIT_COMMITTER_NAME": "t",
+        "GIT_COMMITTER_EMAIL": "t@t",
+    }
+    subprocess.run(["git", "init", "-q", str(cwd)], check=True, env=env, timeout=60)
+    if tracked_output:
+        subprocess.run(
+            ["git", "-C", str(cwd), "add", "-f", f"{pkg}/{out_dir}/stale.js"],
+            check=True,
+            env=env,
+            timeout=60,
+        )
+    subprocess.run(["git", "-C", str(cwd), "add", "-A"], check=True, env=env, timeout=60)
+    subprocess.run(
+        ["git", "-C", str(cwd), "commit", "-qm", "base"], check=True, env=env, timeout=60
+    )
+    return cwd
+
+
+def _run_node_block_v5(
+    tmp_path: Path, cwd: Path, extra_path: str = ""
+) -> subprocess.CompletedProcess[str]:
+    from evallab.purge_build_caches import NODE_BUILD_BLOCK_V5
+
+    runner = tmp_path / "run-node-v5.sh"
+    runner.write_text(
+        "#!/bin/bash\nCWD="
+        + str(cwd)
+        + '\nfail() { echo "setup: $*" >&2; exit 1; }\n'
+        + NODE_BUILD_BLOCK_V5
+        + "\n",
+        encoding="utf-8",
+    )
+    return subprocess.run(
+        ["bash", str(runner)],
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={
+            "PATH": extra_path + "/usr/bin:/bin:/usr/local/bin",
+            "HOME": str(tmp_path),
+        },
+    )
+
+
+def _npm_stub(tmp_path: Path, out_dir: str = "lib") -> Path:
+    stub = tmp_path / "bin" / "npm"
+    stub.parent.mkdir(exist_ok=True)
+    stub.write_text(
+        "#!/bin/bash\n"
+        'D="$PWD"\n'
+        'prev=""\n'
+        'for a in "$@"; do\n'
+        '  if [ "$prev" = "--prefix" ]; then D="$a"; fi\n'
+        '  prev="$a"\n'
+        "done\n"
+        f'mkdir -p "$D/{out_dir}"\n'
+        f'echo "// rebuilt from base" > "$D/{out_dir}/stale.js"\n',
+        encoding="utf-8",
+    )
+    stub.chmod(0o755)
+    return stub
+
+
+def test_v5_supersedes_v4_and_refuses_marked_parents() -> None:
+    from evallab.purge_build_caches import (
+        build_setup_sh,
+        build_setup_sh_v2,
+        build_setup_sh_v3,
+        build_setup_sh_v4,
+        build_setup_sh_v5,
+    )
+
+    updated = build_setup_sh_v5(PARENT_SETUP)
+    assert "purge-build-caches@5" in updated
+    assert "purge-build-caches@4" in updated  # @5 embeds @4
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@5"):
+        build_setup_sh_v5(updated)
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@4"):
+        build_setup_sh_v5(build_setup_sh_v4(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@3"):
+        build_setup_sh_v5(build_setup_sh_v3(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@2"):
+        build_setup_sh_v5(build_setup_sh_v2(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="already carries purge-build-caches@1"):
+        build_setup_sh_v5(build_setup_sh(PARENT_SETUP))
+    with pytest.raises(VariantInvalid, match="write_blocklist"):
+        build_setup_sh_v5("#!/bin/bash\nfail() { exit 1; }\n")
+
+
+def test_v5_generated_setup_parses_as_shell(tmp_path: Path) -> None:
+    from evallab.purge_build_caches import build_setup_sh_v5
+
+    script = tmp_path / "setup.sh"
+    script.write_text(build_setup_sh_v5(PARENT_SETUP), encoding="utf-8")
+    proc = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True, timeout=60)
+    assert proc.returncode == 0, proc.stderr
+
+
+def test_v5_block_names_recursive_outputs_and_fail_closed_verifies() -> None:
+    from evallab.purge_build_caches import shell_block_v5
+
+    block = shell_block_v5()
+    for token in (
+        "check-ignore",
+        "ls-files",
+        "did not regenerate",
+        "needs a build script",
+        "npm run",
+    ):
+        assert token in block
+    for dirname in ("lib", "dist", "build", "out", "es", "esm", "cjs"):
+        assert dirname in block
+
+
+def test_v5_deletes_nested_src_tested_output(tmp_path: Path) -> None:
+    """000919 shape: nested ignored lib/, tests import from src/."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture_v5(tmp_path, test_import="../src/a", scripts='"build": "make-lib"')
+    proc = _run_node_block_v5(tmp_path, cwd)
+    assert proc.returncode == 0, proc.stderr
+    assert not (cwd / "packages" / "p" / "lib").exists()
+    assert (cwd / "packages" / "p" / "src" / "a.ts").is_file()
+
+
+def test_v5_rebuilds_nested_grader_used_output(tmp_path: Path) -> None:
+    """Nested tests resolve through lib/: stale output is rebuilt, not kept."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture_v5(tmp_path, test_import="../lib/stale", scripts='"build": "make-lib"')
+    stub = _npm_stub(tmp_path)
+    proc = _run_node_block_v5(tmp_path, cwd, extra_path=str(stub.parent) + ":")
+    assert proc.returncode == 0, proc.stderr
+    rebuilt = (cwd / "packages" / "p" / "lib" / "stale.js").read_text(encoding="utf-8")
+    assert "rebuilt from base" in rebuilt
+    assert "stale fixed" not in rebuilt
+
+
+def test_v5_rebuilds_on_nested_runtime_asset_reference(tmp_path: Path) -> None:
+    """Tracked nested src/ reading lib/ at runtime forces the rebuild path."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture_v5(
+        tmp_path, test_import="../src/a", scripts='"build": "make-lib"', asset_ref=True
+    )
+    stub = _npm_stub(tmp_path)
+    proc = _run_node_block_v5(tmp_path, cwd, extra_path=str(stub.parent) + ":")
+    assert proc.returncode == 0, proc.stderr
+    rebuilt = (cwd / "packages" / "p" / "lib" / "stale.js").read_text(encoding="utf-8")
+    assert "rebuilt from base" in rebuilt
+    assert "stale fixed" not in rebuilt
+
+
+def test_v5_fails_closed_without_build_script(tmp_path: Path) -> None:
+    """Nested grader-used output with no build script stops the block."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture_v5(tmp_path, test_import="../lib/stale", scripts="")
+    proc = _run_node_block_v5(tmp_path, cwd)
+    assert proc.returncode != 0
+    assert "needs a build script" in proc.stderr
+    assert (cwd / "packages" / "p" / "lib" / "stale.js").is_file()  # untouched on failure
+
+
+def test_v5_leaves_tracked_output(tmp_path: Path) -> None:
+    """Committed build output is strip's domain: @5 leaves it alone."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture_v5(
+        tmp_path, test_import="../src/a", scripts='"build": "make-lib"', tracked_output=True
+    )
+    proc = _run_node_block_v5(tmp_path, cwd)
+    assert proc.returncode == 0, proc.stderr
+    assert (cwd / "packages" / "p" / "lib" / "stale.js").is_file()
+
+
+def test_v5_skips_without_package_json(tmp_path: Path) -> None:
+    """No package.json anywhere: the section is a silent no-op."""
+    import shutil
+
+    if shutil.which("git") is None:
+        pytest.skip("needs git")
+    cwd = tmp_path / "repo"
+    cwd.mkdir()
+    (cwd / "lib").mkdir()
+    (cwd / "lib" / "stale.js").write_text("// stale\n", encoding="utf-8")
+    proc = _run_node_block_v5(tmp_path, cwd)
+    assert proc.returncode == 0, proc.stderr
+    assert (cwd / "lib" / "stale.js").is_file()
+
+
+def test_v5_deletes_orphan_output(tmp_path: Path) -> None:
+    """Output dir with no package.json ancestor is attributed to the root scope."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture_v5(
+        tmp_path, test_import="../src/a", scripts='"build": "make-lib"', ignore="lib/\ndist/\n"
+    )
+    orphan = cwd / "setup" / "dist"
+    orphan.mkdir(parents=True)
+    (orphan / "page.html").write_text("<!-- stale -->\n", encoding="utf-8")
+    proc = _run_node_block_v5(tmp_path, cwd)
+    assert proc.returncode == 0, proc.stderr
+    assert not orphan.exists()
+    assert not (cwd / "packages" / "p" / "lib").exists()
+
+
+def test_v5_self_link_entry_counts_grader_used(tmp_path: Path) -> None:
+    """Workspace self-link + main entry inside cjs/ forces the rebuild path."""
+    import shutil
+
+    if shutil.which("git") is None or shutil.which("python3") is None:
+        pytest.skip("needs git and python3")
+    cwd = _node_fixture_v5(
+        tmp_path,
+        test_import="../src/a",
+        scripts='"build": "make-lib"',
+        out_dir="cjs",
+        self_link=True,
+        main="cjs/index.js",
+    )
+    stub = _npm_stub(tmp_path, out_dir="cjs")
+    proc = _run_node_block_v5(tmp_path, cwd, extra_path=str(stub.parent) + ":")
+    assert proc.returncode == 0, proc.stderr
+    rebuilt = (cwd / "packages" / "p" / "cjs" / "stale.js").read_text(encoding="utf-8")
+    assert "rebuilt from base" in rebuilt
+    assert "stale fixed" not in rebuilt

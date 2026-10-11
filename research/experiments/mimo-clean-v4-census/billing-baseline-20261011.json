@@ -1,0 +1,1017 @@
+[
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.05553513"
+  },
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.15809878"
+  },
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.11030813"
+  },
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "1.35261780"
+  },
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.86385845"
+  },
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "1.79358454"
+  },
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "1.14206055"
+  },
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T21:00:00",
+    "cost": "1.02293981"
+  },
+  {
+    "object_id": "ap-8b0CQZyeIkELvgpjYWb3rH",
+    "description": "mimo-clean-census",
+    "environment": "main",
+    "interval_start": "2026-10-10T22:00:00",
+    "cost": "0.06057711"
+  },
+  {
+    "object_id": "ap-BrxFwmdH84eqwMRCBWGRK5",
+    "description": "__harbor__",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00237938"
+  },
+  {
+    "object_id": "ap-BrxFwmdH84eqwMRCBWGRK5",
+    "description": "__harbor__",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.03931351"
+  },
+  {
+    "object_id": "ap-OoWRUfTRAJBUsBkWQ5Hbhe",
+    "description": "mimo-clean-census-fix",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.06529162"
+  },
+  {
+    "object_id": "ap-OoWRUfTRAJBUsBkWQ5Hbhe",
+    "description": "mimo-clean-census-fix",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.38111297"
+  },
+  {
+    "object_id": "ap-OoWRUfTRAJBUsBkWQ5Hbhe",
+    "description": "mimo-clean-census-fix",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.31744604"
+  },
+  {
+    "object_id": "ap-etLE6iDU9Snm1AX665kXGI",
+    "description": "mimo-census-hc-repro",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00117727"
+  },
+  {
+    "object_id": "ap-etLE6iDU9Snm1AX665kXGI",
+    "description": "mimo-census-hc-repro",
+    "environment": "main",
+    "interval_start": "2026-10-10T06:00:00",
+    "cost": "0E-8"
+  },
+  {
+    "object_id": "ap-oUeSTjtYXvO4W49L811wce",
+    "description": "mtime-normalize-v2-repro",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00001153"
+  },
+  {
+    "object_id": "ap-sKgqBT1R7bqj06XjMYiK98",
+    "description": "mimo-census-repro",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0E-8"
+  },
+  {
+    "object_id": "ap-yHp9e28NAvvXHnwfKe5TW9",
+    "description": "cache-v4-repro",
+    "environment": "main",
+    "interval_start": "2026-10-10T07:00:00",
+    "cost": "0.00001153"
+  },
+  {
+    "object_id": "ap-yHp9e28NAvvXHnwfKe5TW9",
+    "description": "cache-v4-repro",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.00002304"
+  },
+  {
+    "object_id": "ap-03IJ68MT3VUB4oUKUckFTs",
+    "description": "har191-oracle-4d95d8da3d49-024",
+    "environment": "main",
+    "interval_start": "2026-10-10T06:00:00",
+    "cost": "0.00742608"
+  },
+  {
+    "object_id": "ap-0Q9gSv3RBSCitdsbWeT7LZ",
+    "description": "har191-oracle-b827b49c7c13-030",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00768259"
+  },
+  {
+    "object_id": "ap-15nHk8nX0txlCWOM6I34ni",
+    "description": "har191-oracle-d0f1c8fd5c0f-009",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.01291511"
+  },
+  {
+    "object_id": "ap-15nHk8nX0txlCWOM6I34ni",
+    "description": "har191-oracle-d0f1c8fd5c0f-009",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.05639475"
+  },
+  {
+    "object_id": "ap-2pZsn07OdUQRmfKRW4sXNR",
+    "description": "har191-oracle-4d95d8da3d49-012",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00232759"
+  },
+  {
+    "object_id": "ap-4UTvfFlf84xgEROQnKJYXQ",
+    "description": "har191-oracle-f35f68b25f21-001",
+    "environment": "main",
+    "interval_start": "2026-10-10T13:00:00",
+    "cost": "0.01077430"
+  },
+  {
+    "object_id": "ap-4UTvfFlf84xgEROQnKJYXQ",
+    "description": "har191-oracle-f35f68b25f21-001",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.04646312"
+  },
+  {
+    "object_id": "ap-5SRfe3GJE3iHMYzXzrHx9X",
+    "description": "har191-oracle-d0f1c8fd5c0f-005",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.08187866"
+  },
+  {
+    "object_id": "ap-5z1lp1d2yUHLuvO2AZEWZR",
+    "description": "har191-oracle-4d95d8da3d49-011",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00020737"
+  },
+  {
+    "object_id": "ap-6g4LHEYqnqsajTnifqU6FZ",
+    "description": "har191-oracle-d0f1c8fd5c0f-002",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.00408356"
+  },
+  {
+    "object_id": "ap-6imgkIZQsw8QuzlQsnOa6D",
+    "description": "har191-oracle-f35f68b25f21-006",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.00006767"
+  },
+  {
+    "object_id": "ap-7TaCFiEGSUC83O4LsnLpnX",
+    "description": "har191-oracle-f35f68b25f21-010",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.03519456"
+  },
+  {
+    "object_id": "ap-7hCpKqwOcD1TmmjBDcrsAU",
+    "description": "har191-oracle-79b183f53150-010",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.00065409"
+  },
+  {
+    "object_id": "ap-7wnPZ9E2L6FPWuZeNqsE24",
+    "description": "har191-oracle-d0f1c8fd5c0f-011",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.02983488"
+  },
+  {
+    "object_id": "ap-7wnPZ9E2L6FPWuZeNqsE24",
+    "description": "har191-oracle-d0f1c8fd5c0f-011",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.05152066"
+  },
+  {
+    "object_id": "ap-8kKY4ptvvLgo7e6QoG1811",
+    "description": "har191-oracle-4d95d8da3d49-013",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00336470"
+  },
+  {
+    "object_id": "ap-9b8T2Lm6jjFYVUL4DL6KHu",
+    "description": "har191-oracle-d0f1c8fd5c0f-013",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.06484370"
+  },
+  {
+    "object_id": "ap-9b8T2Lm6jjFYVUL4DL6KHu",
+    "description": "har191-oracle-d0f1c8fd5c0f-013",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.00922221"
+  },
+  {
+    "object_id": "ap-AQeTtllw3fq3gdfJaV3w5o",
+    "description": "har191-oracle-8adf81dbf2c1-006",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.00519870"
+  },
+  {
+    "object_id": "ap-AmRXf540xQwLXm0mCHkWxs",
+    "description": "har191-oracle-79b183f53150-019",
+    "environment": "main",
+    "interval_start": "2026-10-10T21:00:00",
+    "cost": "0.00366951"
+  },
+  {
+    "object_id": "ap-BsdNT36CawUojvQUwAC19F",
+    "description": "har191-oracle-f35f68b25f21-019",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.03602261"
+  },
+  {
+    "object_id": "ap-CjrjhonJWRDZJ8YPKoAHLn",
+    "description": "har191-oracle-d0f1c8fd5c0f-019",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.01641832"
+  },
+  {
+    "object_id": "ap-CuFmq5FOLhT5wg7Pv0UlBC",
+    "description": "har191-oracle-f35f68b25f21-012",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.04311419"
+  },
+  {
+    "object_id": "ap-CuFmq5FOLhT5wg7Pv0UlBC",
+    "description": "har191-oracle-f35f68b25f21-012",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.00027718"
+  },
+  {
+    "object_id": "ap-E1CsJSSDi86vc9nfovz6Ud",
+    "description": "har191-oracle-f35f68b25f21-003",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.15206104"
+  },
+  {
+    "object_id": "ap-E1Ooy1sHBTWzJyuLNQQqsW",
+    "description": "har191-oracle-79b183f53150-014",
+    "environment": "main",
+    "interval_start": "2026-10-10T21:00:00",
+    "cost": "0.00044063"
+  },
+  {
+    "object_id": "ap-EXEugWslFEB1Ho1RJemYnO",
+    "description": "har191-oracle-f35f68b25f21-026",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.00734229"
+  },
+  {
+    "object_id": "ap-F8QoHE9beP0RFnMlFSiizn",
+    "description": "har191-oracle-f35f68b25f21-011",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.00110352"
+  },
+  {
+    "object_id": "ap-Fbu1R9O6yrnx50ioC2vVva",
+    "description": "har191-oracle-79b183f53150-004",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.00071383"
+  },
+  {
+    "object_id": "ap-HEbfgEr0gAOZeEQhqZ8U2S",
+    "description": "har191-oracle-79b183f53150-013",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.09091137"
+  },
+  {
+    "object_id": "ap-HEbfgEr0gAOZeEQhqZ8U2S",
+    "description": "har191-oracle-79b183f53150-013",
+    "environment": "main",
+    "interval_start": "2026-10-10T21:00:00",
+    "cost": "0.02504652"
+  },
+  {
+    "object_id": "ap-HgSRFvnTkmGBKwG1CAPvR4",
+    "description": "har191-oracle-d0f1c8fd5c0f-021",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.00003457"
+  },
+  {
+    "object_id": "ap-HgSRFvnTkmGBKwG1CAPvR4",
+    "description": "har191-oracle-d0f1c8fd5c0f-021",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.00731037"
+  },
+  {
+    "object_id": "ap-HjkQlewXtTfHBq5EQpBf6j",
+    "description": "har191-oracle-79b183f53150-009",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.12668876"
+  },
+  {
+    "object_id": "ap-Hr6Kf4jyBy97j2eDV6yBqi",
+    "description": "har191-oracle-b827b49c7c13-031",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00251389"
+  },
+  {
+    "object_id": "ap-HxbDJgALZml2YfFceyz0Yd",
+    "description": "har191-oracle-b827b49c7c13-034",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00820649"
+  },
+  {
+    "object_id": "ap-IE81CiIuDhfB5qSVE7hcTp",
+    "description": "har191-oracle-79b183f53150-017",
+    "environment": "main",
+    "interval_start": "2026-10-10T21:00:00",
+    "cost": "0.03545702"
+  },
+  {
+    "object_id": "ap-ILBmFPoHzJuLoSxhmXeqtn",
+    "description": "har191-oracle-4d95d8da3d49-019",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00053247"
+  },
+  {
+    "object_id": "ap-JGZHvIjNik4rL5yjdZloD9",
+    "description": "har191-oracle-d0f1c8fd5c0f-001",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.11110623"
+  },
+  {
+    "object_id": "ap-JtUJCpythrxEGLHOoCilyx",
+    "description": "har191-oracle-79b183f53150-015",
+    "environment": "main",
+    "interval_start": "2026-10-10T21:00:00",
+    "cost": "0.09292371"
+  },
+  {
+    "object_id": "ap-KQ2ovUYd5Xz3Sm8r681qLk",
+    "description": "har191-oracle-f35f68b25f21-015",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.06406279"
+  },
+  {
+    "object_id": "ap-L16IJDjoZZM0DIbNdcjy94",
+    "description": "har191-oracle-f35f68b25f21-014",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.04594874"
+  },
+  {
+    "object_id": "ap-La6XUHMkFJmUwVyD2aqgkP",
+    "description": "har191-oracle-4d95d8da3d49-010",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.01320497"
+  },
+  {
+    "object_id": "ap-Lh2CDEnyoBMFdHDF8mM5l9",
+    "description": "har191-oracle-4d95d8da3d49-014",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00153811"
+  },
+  {
+    "object_id": "ap-MffIaTIy3jkDPs1MK2fjLz",
+    "description": "har191-oracle-d0f1c8fd5c0f-004",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.00040481"
+  },
+  {
+    "object_id": "ap-NLAgswvs2XVnzmizjhRnld",
+    "description": "har191-oracle-b827b49c7c13-028",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00478251"
+  },
+  {
+    "object_id": "ap-NYY2YflT4NnTHgIpkeECpu",
+    "description": "har191-oracle-79b183f53150-006",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.09245048"
+  },
+  {
+    "object_id": "ap-NYY2YflT4NnTHgIpkeECpu",
+    "description": "har191-oracle-79b183f53150-006",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.00563195"
+  },
+  {
+    "object_id": "ap-NlVcM1sdDs4CvxVwKz7y5P",
+    "description": "har191-oracle-79b183f53150-003",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.07609933"
+  },
+  {
+    "object_id": "ap-OCPZfCY5HhYvruPhGMKoM9",
+    "description": "har191-oracle-f35f68b25f21-017",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.03762108"
+  },
+  {
+    "object_id": "ap-OEAjnQSdDwKyRBK1wtl47x",
+    "description": "har191-oracle-79b183f53150-007",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.12313269"
+  },
+  {
+    "object_id": "ap-PAVObuExsNX06KMS1fwKZg",
+    "description": "har191-oracle-f35f68b25f21-004",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.00007650"
+  },
+  {
+    "object_id": "ap-PONG1Cfd91F5iTSzz1t7TF",
+    "description": "har191-oracle-8adf81dbf2c1-004",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.02172069"
+  },
+  {
+    "object_id": "ap-PoV0odVVjLF8abAQMt3wfn",
+    "description": "har191-oracle-f35f68b25f21-009",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.00071345"
+  },
+  {
+    "object_id": "ap-QFpyhVYYIfnFUNMFQFhRwM",
+    "description": "har191-oracle-d0f1c8fd5c0f-018",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.00544264"
+  },
+  {
+    "object_id": "ap-QM3x8xlTuavZCjFIF2jGqs",
+    "description": "har191-oracle-f35f68b25f21-002",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.00045694"
+  },
+  {
+    "object_id": "ap-QNsJjLFL9AYbg1631rfryV",
+    "description": "har191-oracle-f35f68b25f21-013",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.00045275"
+  },
+  {
+    "object_id": "ap-RhLnNyz4nGDB33Os4vdfEC",
+    "description": "har191-oracle-f35f68b25f21-024",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.02002940"
+  },
+  {
+    "object_id": "ap-RmLLYCw20EJZ0TGIa4Wgek",
+    "description": "har191-oracle-4d95d8da3d49-002",
+    "environment": "main",
+    "interval_start": "2026-10-10T01:00:00",
+    "cost": "0.04264496"
+  },
+  {
+    "object_id": "ap-RmLLYCw20EJZ0TGIa4Wgek",
+    "description": "har191-oracle-4d95d8da3d49-002",
+    "environment": "main",
+    "interval_start": "2026-10-10T02:00:00",
+    "cost": "0.00471246"
+  },
+  {
+    "object_id": "ap-TUyye5izOjXmKd7rJIIz7u",
+    "description": "har191-oracle-f35f68b25f21-020",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.03127764"
+  },
+  {
+    "object_id": "ap-ThpxVAG6XDf9FJBWsQsP2g",
+    "description": "har191-oracle-d0f1c8fd5c0f-007",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.07021408"
+  },
+  {
+    "object_id": "ap-U6rkfLWdr2Kj9hT8Apctii",
+    "description": "har191-oracle-79b183f53150-002",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.00023099"
+  },
+  {
+    "object_id": "ap-Uz9Z7jTLEGXofzIjxNyqtB",
+    "description": "har191-oracle-4d95d8da3d49-017",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00393704"
+  },
+  {
+    "object_id": "ap-V3hudqb20plcDDSAq17fG3",
+    "description": "har191-oracle-4d95d8da3d49-008",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.05278178"
+  },
+  {
+    "object_id": "ap-WIBb6tJhfNek8DszMeNnjF",
+    "description": "har191-oracle-b827b49c7c13-027",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00115710"
+  },
+  {
+    "object_id": "ap-WtJPFuDtCdK3NoRiMf2xhS",
+    "description": "har191-oracle-4d95d8da3d49-004",
+    "environment": "main",
+    "interval_start": "2026-10-10T03:00:00",
+    "cost": "0.05245243"
+  },
+  {
+    "object_id": "ap-WtJPFuDtCdK3NoRiMf2xhS",
+    "description": "har191-oracle-4d95d8da3d49-004",
+    "environment": "main",
+    "interval_start": "2026-10-10T04:00:00",
+    "cost": "0.08708439"
+  },
+  {
+    "object_id": "ap-XYVAFouniTt9YloWrcl7sD",
+    "description": "har191-oracle-8adf81dbf2c1-002",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.01248818"
+  },
+  {
+    "object_id": "ap-a9ZA4bvUsubE4niSRP5VE9",
+    "description": "har191-oracle-4d95d8da3d49-005",
+    "environment": "main",
+    "interval_start": "2026-10-10T04:00:00",
+    "cost": "0.07987942"
+  },
+  {
+    "object_id": "ap-aXTQ4oYqC9Qd5aVTHRyZQT",
+    "description": "har191-oracle-4d95d8da3d49-016",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00396125"
+  },
+  {
+    "object_id": "ap-b6gFSUHweXAZfMMRI3yW7Q",
+    "description": "har191-oracle-d0f1c8fd5c0f-010",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.10554047"
+  },
+  {
+    "object_id": "ap-cPXv9btGKstPTX3jnpWtaH",
+    "description": "har191-oracle-f35f68b25f21-025",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.00056212"
+  },
+  {
+    "object_id": "ap-d1F5JQsayWJcz8s35XyoPQ",
+    "description": "har191-oracle-d0f1c8fd5c0f-020",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.00531625"
+  },
+  {
+    "object_id": "ap-dc540yYyAYP1WKLdmYatfD",
+    "description": "har191-oracle-4d95d8da3d49-015",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00157912"
+  },
+  {
+    "object_id": "ap-dkmk9m8xLMhgY2OgOV3zbp",
+    "description": "har191-oracle-b827b49c7c13-032",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00183856"
+  },
+  {
+    "object_id": "ap-drAfu0vxHkFnp8EWdz9EvI",
+    "description": "har191-oracle-4d95d8da3d49-007",
+    "environment": "main",
+    "interval_start": "2026-10-10T04:00:00",
+    "cost": "0.02251628"
+  },
+  {
+    "object_id": "ap-drAfu0vxHkFnp8EWdz9EvI",
+    "description": "har191-oracle-4d95d8da3d49-007",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.01013134"
+  },
+  {
+    "object_id": "ap-eheQuAghd5Jnjw70QxYzQO",
+    "description": "har191-oracle-d0f1c8fd5c0f-016",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.03245819"
+  },
+  {
+    "object_id": "ap-gCb1Zkz7Wa3M5zxUDSr1P8",
+    "description": "har191-oracle-4d95d8da3d49-018",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00034125"
+  },
+  {
+    "object_id": "ap-h9ZwNFk8epdv928aCePvvY",
+    "description": "har191-oracle-d0f1c8fd5c0f-017",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.02421668"
+  },
+  {
+    "object_id": "ap-hVzXMt4SaJOUOCZE0FTC8S",
+    "description": "har191-oracle-4d95d8da3d49-020",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00027049"
+  },
+  {
+    "object_id": "ap-hvmFRQ68Y1cFux3BkjCfCi",
+    "description": "har191-oracle-79b183f53150-012",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.00314889"
+  },
+  {
+    "object_id": "ap-iHV8qzQsm2kXk7K3GSIvVI",
+    "description": "har191-oracle-4d95d8da3d49-023",
+    "environment": "main",
+    "interval_start": "2026-10-10T06:00:00",
+    "cost": "0.00074608"
+  },
+  {
+    "object_id": "ap-j8Lc1TCAS7q7abf1DAnGdq",
+    "description": "har191-oracle-79b183f53150-016",
+    "environment": "main",
+    "interval_start": "2026-10-10T21:00:00",
+    "cost": "0.07664353"
+  },
+  {
+    "object_id": "ap-j9hwIIc39dUcS4EM4wGrhl",
+    "description": "har191-oracle-4d95d8da3d49-006",
+    "environment": "main",
+    "interval_start": "2026-10-10T04:00:00",
+    "cost": "0.01864915"
+  },
+  {
+    "object_id": "ap-jf7IHUtV9K0inl1ZftQcCk",
+    "description": "har191-oracle-79b183f53150-005",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.09232516"
+  },
+  {
+    "object_id": "ap-kBVyOCCqG0A1PuPCXj1p0y",
+    "description": "har191-oracle-f35f68b25f21-023",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.00578958"
+  },
+  {
+    "object_id": "ap-kBVyOCCqG0A1PuPCXj1p0y",
+    "description": "har191-oracle-f35f68b25f21-023",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.02470998"
+  },
+  {
+    "object_id": "ap-kXQhUztMNLaXM3J97NCLeU",
+    "description": "har191-oracle-79b183f53150-018",
+    "environment": "main",
+    "interval_start": "2026-10-10T21:00:00",
+    "cost": "0.01340580"
+  },
+  {
+    "object_id": "ap-klug5jcK2oOrSFEaG4Mt6R",
+    "description": "har191-oracle-79b183f53150-001",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.07745311"
+  },
+  {
+    "object_id": "ap-l9uVykRwrsZbr56XQbgA5C",
+    "description": "har191-oracle-f35f68b25f21-005",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.16145677"
+  },
+  {
+    "object_id": "ap-mYiE2HQSdhIOV0h74xKaFe",
+    "description": "har191-oracle-4d95d8da3d49-021",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.00094666"
+  },
+  {
+    "object_id": "ap-mYiE2HQSdhIOV0h74xKaFe",
+    "description": "har191-oracle-4d95d8da3d49-021",
+    "environment": "main",
+    "interval_start": "2026-10-10T06:00:00",
+    "cost": "0.00201829"
+  },
+  {
+    "object_id": "ap-o1TmYLMY1OHH3mVyOKme7i",
+    "description": "har191-oracle-f35f68b25f21-018",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.03879349"
+  },
+  {
+    "object_id": "ap-oJcMSOKPyG4AUacieA0TS9",
+    "description": "har191-oracle-d0f1c8fd5c0f-003",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.08422788"
+  },
+  {
+    "object_id": "ap-oJcMSOKPyG4AUacieA0TS9",
+    "description": "har191-oracle-d0f1c8fd5c0f-003",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.04827394"
+  },
+  {
+    "object_id": "ap-oJewwldv2Buf0AveOLdSUO",
+    "description": "har191-oracle-b827b49c7c13-033",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00064033"
+  },
+  {
+    "object_id": "ap-odR9AzRpVeYT4ZEGvQeGEc",
+    "description": "har191-oracle-8adf81dbf2c1-003",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.01716706"
+  },
+  {
+    "object_id": "ap-odR9AzRpVeYT4ZEGvQeGEc",
+    "description": "har191-oracle-8adf81dbf2c1-003",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.19939298"
+  },
+  {
+    "object_id": "ap-oi9V67LfzFzxjqqS11qUUe",
+    "description": "har191-oracle-8adf81dbf2c1-001",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.25583212"
+  },
+  {
+    "object_id": "ap-osPGfdtp7bhcCMmpw8TLB1",
+    "description": "har191-oracle-79b183f53150-008",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.00042134"
+  },
+  {
+    "object_id": "ap-ozHCkA6a3XZoq2epxAwWeY",
+    "description": "har191-oracle-f35f68b25f21-008",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.09194010"
+  },
+  {
+    "object_id": "ap-pqMvzFdIlA3Iq4KdMJ5Kjt",
+    "description": "har191-oracle-f35f68b25f21-007",
+    "environment": "main",
+    "interval_start": "2026-10-10T14:00:00",
+    "cost": "0.14688365"
+  },
+  {
+    "object_id": "ap-pqMvzFdIlA3Iq4KdMJ5Kjt",
+    "description": "har191-oracle-f35f68b25f21-007",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.01924031"
+  },
+  {
+    "object_id": "ap-q8AVZrhTcX1sC3jhBqqIut",
+    "description": "har191-oracle-8adf81dbf2c1-005",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.12650132"
+  },
+  {
+    "object_id": "ap-q8AVZrhTcX1sC3jhBqqIut",
+    "description": "har191-oracle-8adf81dbf2c1-005",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.04754226"
+  },
+  {
+    "object_id": "ap-qKPAX1jhAcZCDdDrswAEvy",
+    "description": "har191-oracle-d0f1c8fd5c0f-012",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.14145152"
+  },
+  {
+    "object_id": "ap-s3F2vOXTLL7Rfwe2hTxuMl",
+    "description": "har191-oracle-1d712b478a49-001",
+    "environment": "main",
+    "interval_start": "2026-10-10T07:00:00",
+    "cost": "0.05569102"
+  },
+  {
+    "object_id": "ap-sALqSxc2V3e4H0nHjxmqTt",
+    "description": "har191-oracle-f35f68b25f21-022",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.01322653"
+  },
+  {
+    "object_id": "ap-sgKJ5ICvnTLkMHih0ccHTU",
+    "description": "har191-oracle-4d95d8da3d49-022",
+    "environment": "main",
+    "interval_start": "2026-10-10T06:00:00",
+    "cost": "0.00136185"
+  },
+  {
+    "object_id": "ap-soTL8mVFEcMO1avWO01ynQ",
+    "description": "har191-oracle-4d95d8da3d49-009",
+    "environment": "main",
+    "interval_start": "2026-10-10T05:00:00",
+    "cost": "0.02628298"
+  },
+  {
+    "object_id": "ap-t2kdCaCYRZp3yYZhXqbA8U",
+    "description": "har191-oracle-79b183f53150-011",
+    "environment": "main",
+    "interval_start": "2026-10-10T20:00:00",
+    "cost": "0.10995434"
+  },
+  {
+    "object_id": "ap-tCYqfsjubR6UtwkObktujP",
+    "description": "har191-oracle-d0f1c8fd5c0f-022",
+    "environment": "main",
+    "interval_start": "2026-10-10T19:00:00",
+    "cost": "0.00816686"
+  },
+  {
+    "object_id": "ap-tJJjF1WB5kX25Kt2nknpUU",
+    "description": "har191-oracle-d0f1c8fd5c0f-008",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.00072758"
+  },
+  {
+    "object_id": "ap-tr9Ev3E35Qy2ihLxszhqyh",
+    "description": "har191-oracle-4d95d8da3d49-003",
+    "environment": "main",
+    "interval_start": "2026-10-10T03:00:00",
+    "cost": "0.01014557"
+  },
+  {
+    "object_id": "ap-vlfgOW488thxZA3rlc0rhY",
+    "description": "har191-oracle-4d95d8da3d49-001",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.15210385"
+  },
+  {
+    "object_id": "ap-vlfgOW488thxZA3rlc0rhY",
+    "description": "har191-oracle-4d95d8da3d49-001",
+    "environment": "main",
+    "interval_start": "2026-10-10T01:00:00",
+    "cost": "0.21382670"
+  },
+  {
+    "object_id": "ap-wCrGGc4zkzd2PNGe9MgBgL",
+    "description": "har191-oracle-f35f68b25f21-016",
+    "environment": "main",
+    "interval_start": "2026-10-10T16:00:00",
+    "cost": "0.05912354"
+  },
+  {
+    "object_id": "ap-wCrGGc4zkzd2PNGe9MgBgL",
+    "description": "har191-oracle-f35f68b25f21-016",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.00031096"
+  },
+  {
+    "object_id": "ap-wecLqFRYrIk6ezXN9aQ1e4",
+    "description": "har191-oracle-b827b49c7c13-029",
+    "environment": "main",
+    "interval_start": "2026-10-10T00:00:00",
+    "cost": "0.00095769"
+  },
+  {
+    "object_id": "ap-wwDvSPD79K9L6ejbzqU0FT",
+    "description": "har191-oracle-f35f68b25f21-021",
+    "environment": "main",
+    "interval_start": "2026-10-10T17:00:00",
+    "cost": "0.02622237"
+  },
+  {
+    "object_id": "ap-ymmproe5vBe3xkOv2fifYT",
+    "description": "har191-oracle-d0f1c8fd5c0f-015",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.03440952"
+  },
+  {
+    "object_id": "ap-zDYTMirU3lxmJbC2HELP9Z",
+    "description": "har191-oracle-d0f1c8fd5c0f-014",
+    "environment": "main",
+    "interval_start": "2026-10-10T18:00:00",
+    "cost": "0.05372418"
+  },
+  {
+    "object_id": "ap-zDmZiipo8ECbx44GLzKZzV",
+    "description": "har191-oracle-d0f1c8fd5c0f-006",
+    "environment": "main",
+    "interval_start": "2026-10-10T15:00:00",
+    "cost": "0.00163316"
+  }
+]

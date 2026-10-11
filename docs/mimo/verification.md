@@ -22,14 +22,17 @@ For every clean-set manifest row, four checks on the FINAL clean package
     Rows with `reference_fix = none` report `n/a`; that is not a solvability
     proof.
 (c) **cheat ladder = clean** — every attack of `evallab.cheat_ladder.ATTACKS`
-    (v1.3.0, executed through the model-free `cheat` agent; payloads reused,
-    never forked) ends `executed` or legitimately `skipped` (per-attack
-    inapplicability with a recorded reason — e.g. source-tamper attacks on
-    tasks with no imported package `__init__`), and the benchmark's own
-    verifier reward grades every trial 0. Missing/failed attacks grade
-    `partial` (unverified). A cracked full-ladder trial triggers per-attack
-    single trials for attribution; unattributed cracks report
-    `full-ladder-unattributed`.
+    (v1.4.0: 14 attacks including `tamper_source_skip` and
+    `tamper_source_skiptest`, executed through the model-free `cheat` agent;
+    payloads reused, never forked) ends `executed` or legitimately `skipped`
+    (per-attack inapplicability with a recorded reason — e.g. source-tamper
+    attacks on tasks with no imported package `__init__`), and the
+    benchmark's own verifier reward grades every trial 0. Missing/failed
+    attacks grade `partial` (unverified). A cracked full-ladder trial
+    triggers per-attack single trials for attribution; unattributed cracks
+    report `full-ladder-unattributed`. Ladder cells are version-bound: a
+    1.3.0-clean carries 12/14 attacks only; the 2 source-skip attacks need
+    fresh 1.4.0 trials.
 (d) **fix-content census = 0 locations with a real positive control** —
     for all reference tasks, `evallab.fix_content_census` stages signatures
     from the actual indexed patch and measures BOTH the published-image
@@ -141,8 +144,23 @@ classes even when a task cannot receive an overall pass. A published-image
 probe with no positive hit is **probe-blind**, not evidence of cleanliness.
 Mapping: `mimo_census.verify_grade_for`; row acceptance:
 `mimo_census.census_row_pass`. Evidence is bound to the exact `final_digest`;
-cross-backend controls and ladder/fix cells may combine only for that
-digest. An older version's outcome never silently grades a newer package.
+cross-backend controls and ladder/fix cells may combine only for that digest.
+An older version's outcome never silently grades a newer package.
+Cross-generation carries are allowed ONLY where documented safe, with the
+reasoning recorded in the grading receipt (v4 rules in
+`research/experiments/mimo-clean-v4-census/README.md`): a prior nop `0`
+implies the current nop (nop trials run the pristine tree, so an added
+baseline comparison is trivially satisfied); a prior oracle `1` under a
+skip-strict grader implies the current oracle (zero skips/failures makes
+fail-to-pass clauses vacuous) — both assuming deterministic suites.
+`fail:open-leak` from untriaged probe hits is NEVER carried: it needs the
+probe lane's per-task verdict first. A fresh oracle `fail:0` is never
+labeled `fail:oracle-wrong` without per-task root cause reaching the trial
+evidence (grader-marker gaps and setup failures are `unverified:<cause>`,
+not wrong fixes). `report` overwrites the manifest `verify` column with
+un-triaged grades, so the owning slice re-applies its triaged fill after
+every report run; per-task evidence lives in the receipt's
+`verify-detail.csv`.
 
 ## Spend discipline ($13 slice cap)
 
@@ -168,7 +186,9 @@ package digest and, for ladder cells, the attack version.
 
 ## Results
 
-Tracked in the receipt README (`research/experiments/mimo-clean-census/`),
-not here: pass rates, every failure classified (env broken / oracle wrong /
-real leak / real grader hole / infra flake) with evidence, spend actuals,
-and any real leak or grader hole written up as an open issue.
+Tracked in the receipt READMEs (`research/experiments/mimo-clean-census/`
+for v3, `research/experiments/mimo-clean-v4-census/` for the v4 regrade
+under separate-verifier@6), not here: pass rates, every failure classified
+(env broken / oracle wrong / real leak / real grader hole / infra flake)
+with evidence, spend actuals, and any real leak or grader hole written up
+as an open issue.

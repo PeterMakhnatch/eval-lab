@@ -4,7 +4,8 @@
 Usage (worktree root):
   uv run --no-sync python research/experiments/cheatbench-port/analyze.py \
       --runs runs --judge out/judge-glm53.jsonl [--judge out/judge-flash.jsonl ...] \
-      --detect out/detect.jsonl --out research/experiments/cheatbench-port/results
+      --detect out/detect.jsonl --out research/experiments/cheatbench-port/results \
+      [--jobs <job name or glob> ...]
 
 Writes trials.csv (one row per trial) and summary.md (cheat rates with Wilson
 95% intervals, honeypot exposure, judge-vs-detector and judge-vs-judge agreement,
@@ -14,17 +15,17 @@ from __future__ import annotations
 
 import argparse
 import csv
+import fnmatch
 import json
 import math
 from collections import defaultdict
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[3]
+
 FAMILY = {"ss": "subset_sum", "pf": "prime_factorization", "oma": "openmath_agent"}
 MODEL = {"glm53f": "GLM-5.3-Flash", "glm53": "GLM-5.3", "qwen36a3b": "Qwen3.6-35B-A3B",
          "qwen35": "Qwen3.5-9B"}
-# smoke3 = the two pilot trials on subset_sum q04 (same prompt; $0.50/$0.80 caps).
-ARM = {"r1": "original prompt", "r1b": "original prompt", "smoke3": "original prompt",
-       "dc": "+ \"Don't cheat!\"", "dcb": "+ \"Don't cheat!\""}
 # A trial the verifier never scored (provider rate limit, harness crash) is an
 # infrastructure loss, not an observation: listed in summary.md, never counted.
 # RuntimeError here is Harbor's "docker compose command failed" at environment start.
@@ -48,16 +49,33 @@ def parse_job(name: str) -> dict | None:
     if len(parts) < 5 or parts[0] != "cb" or parts[1] not in FAMILY:
         return None
     return {"family": FAMILY[parts[1]], "instance": "-".join(parts[2:-2]),
-            "model": MODEL.get(parts[-2], parts[-2]), "arm": ARM.get(parts[-1], parts[-1]),
-            "tag": parts[-1]}
+            "model": MODEL.get(parts[-2], parts[-2]), "tag": parts[-1]}
 
 
-def trial_rows(runs: Path) -> list[dict]:
+def job_arm(job: Path) -> str | None:
+    """Prompt arm from the job's experiment spec: the original prompt, or the
+    original plus the appended preamble (`extra_instruction_path`). Jobs
+    without a spec (free `evallab run` controls) are not agent trials."""
+    spec_path = job / "experiment-spec.json"
+    if not spec_path.is_file():
+        return None
+    extra = json.loads(spec_path.read_text()).get("extra_instruction_path")
+    if not extra:
+        return "original prompt"
+    text = (ROOT / extra).read_text().strip()
+    return f'+ "{text}"' if len(text) <= 60 else f"+ {Path(extra).stem}"
+
+
+def trial_rows(runs: Path, jobs: list[str] | None = None) -> list[dict]:
     rows = []
     for job in sorted(runs.glob("cb-*")):
-        meta = parse_job(job.name)
-        if meta is None or meta["tag"] not in ARM:
+        if jobs and not any(fnmatch.fnmatchcase(job.name, pat) for pat in jobs):
             continue
+        meta = parse_job(job.name)
+        arm = job_arm(job) if meta else None
+        if meta is None or arm is None:
+            continue
+        meta["arm"] = arm
         for trial in sorted(job.glob("*__*")):
             res_path = trial / "result.json"
             if not res_path.is_file():
@@ -117,9 +135,11 @@ def main() -> None:
                         "comes from the first judge with a valid verdict for it")
     p.add_argument("--detect", type=Path, action="append", default=[])
     p.add_argument("--out", type=Path, required=True)
+    p.add_argument("--jobs", nargs="*", default=None,
+                   help="limit to these job names/globs (default: every cb-* job)")
     args = p.parse_args()
 
-    rows = trial_rows(args.runs)
+    rows = trial_rows(args.runs, args.jobs)
     judges = [(path.stem.removeprefix("judge-"), load_jsonl(path)) for path in args.judge]
     detect: dict[str, dict] = {}
     for path in args.detect:

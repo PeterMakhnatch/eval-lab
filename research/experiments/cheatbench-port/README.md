@@ -20,6 +20,10 @@ judge schemas). Published CheatBench trajectories: none exist (code, paper and
 aggregate tables only; HF issue #3 asking CAIS to host data is unanswered).
 `steinad/CheatBench` on Hugging Face is a different dataset.
 
+**Before any new run, follow `RUNBOOK.md`**: readiness gate with free
+nop/oracle/canary controls, honeypot file tripwires, model-call capture, live
+cheat/infra monitor and the post-run export for the fxtr viewer.
+
 ## How detection works (the mechanics we ported)
 
 1. **Environment design does most of the work.** Each task states an honest-work
@@ -123,12 +127,17 @@ Infra findings fixed on the way: Eval Lab flagged every Tinker trial as
 uv run --no-sync python research/experiments/cheatbench-port/make_specs.py \
   --model zai/glm-5.3-flash --family subset_sum --out /private/tmp/specs \
   --cost-limit-usd 0.30 --est-cost-usd 0.05
-research/experiments/cheatbench-port/dispatch.sh /private/tmp/specs "<actor + approval>" 3
-research/experiments/cheatbench-port/judge_all.sh /private/tmp/cb-out zai/glm-5.3-flash
-uv run --no-sync python research/experiments/cheatbench-port/analyze.py --runs runs \
-  --judge <primary.jsonl> [--judge <secondary.jsonl>] --detect /private/tmp/cb-out/detect.jsonl \
-  --out research/experiments/cheatbench-port/results
+# readiness gate -> submit/approve -> capture + per-family tick -> postrun
+# (paid: only with a budget Peter granted; --dry-run prints every command):
+research/experiments/cheatbench-port/run_batch.sh /private/tmp/specs "<actor + approval>" 3
 ```
+
+Batch records land in `runs/_batches/<batch_id>/` (spec ids, readiness
+receipt, capture dirs, monitor out, detect/judge/analysis/spend) and the
+viewer export in `results/batches/<batch_id>/` (`batch.json` + `trials.jsonl`,
+schema `cheatbench_port.export/v1`). The 2026-10-09 runs are exported as batch
+`2026-10-09-initial` (built with `export.py --from-results` from the flat
+`results/{trials.csv,detect.jsonl,judge-*.jsonl}`).
 
 Results: `results/summary.md` (tables), `results/trials.csv` (one row per
 trial), `results/judge-*.jsonl` and `results/detect.jsonl` (raw verdicts).

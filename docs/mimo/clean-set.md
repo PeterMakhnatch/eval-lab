@@ -34,6 +34,8 @@ task, each carrying the full clean chain in its lineage.
 > from this pointer.
 
 > **Successor:** `mimo-clean-v5` is the same chain with
+> `purge-installed-copies@2` (all Python tasks; receipt
+> `research/experiments/purge-installed-copies-v2/README.md`) and
 > `separate-verifier@8` replacing `@6` (G-shape certification plus the
 > v5-regrade terse/dashed follow-ups; see
 > `docs/mimo/separate-verifier.md`). Builder: `evallab mimo-clean build
@@ -41,8 +43,7 @@ task, each carrying the full clean chain in its lineage.
 > `research/experiments/mimo-clean-v5/manifest.csv`). Manifest rows for
 > five tasks carry `excluded-from-training` in `reason` (answer-visible
 > through legitimate environment dependencies; the v5 census marks them
-> `fail:open-leak:env-dependency`). The purge slot stays `@1` until the
-> `@2` lane lands.
+> `fail:open-leak:env-dependency`).
 
 ## The canonical Python chain
 

@@ -56,8 +56,14 @@ from evallab.purge_build_caches import MARKER_V4 as CACHE_ACTIVE_MARKER
 from evallab.purge_build_caches import TRANSFORM_ID_V4 as CACHE_ACTIVE_ID
 from evallab.purge_build_caches import derive_purge_build_caches_v4
 from evallab.purge_installed_copies import MARKER as PURGE_MARKER
+from evallab.purge_installed_copies import MARKER_V2 as PURGE_V2_MARKER
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
-from evallab.purge_installed_copies import derive_purge_installed_copies
+from evallab.purge_installed_copies import TRANSFORM_ID_V2 as PURGE_V2_ID
+from evallab.purge_installed_copies import V1_BLOCK_START as PURGE_V1_BLOCK_START
+from evallab.purge_installed_copies import (
+    derive_purge_installed_copies,
+    derive_purge_installed_copies_v2,
+)
 from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
 from evallab.separate_verifier import TRANSFORM_ID_V7 as SEPARATE_V7_ID
 from evallab.separate_verifier import TRANSFORM_ID_V8 as SEPARATE_V8_ID
@@ -168,13 +174,11 @@ NONPYTHON_CHAIN = (
     AGENT_NETWORK_NONE_ID,
 )
 #: Canonical Python chain for ``mimo-clean-v5``: identical to v4 with
-#: ``separate-verifier@8`` (G-shape certification plus the v5-regrade
-#: terse/dashed follow-ups) in the verifier slot. The purge slot stays
-#: ``purge-installed-copies@1`` until the @2 lane lands; swapping it is a
-#: one-line change to the slot below.
+#: ``purge-installed-copies@2`` (all Python tasks; no-ops safely) and
+#: ``separate-verifier@8`` in their slots.
 PYTHON_CHAIN_V5 = (
     STRIP_ID,
-    PURGE_ID,
+    PURGE_V2_ID,
     CACHE_ACTIVE_ID,
     MTIME_ACTIVE_ID,
     SEPARATE_V8_ID,
@@ -889,9 +893,45 @@ class ChainBuilder:
             )
         result.chain.append(STRIP_ID)
 
-        # purge-installed-copies@1: Python chain only (CONFIRMED_PURGE +
+        # purge-installed-copies@2: every Python task (@2 no-ops safely, so
+        # no scope checks and no fail-closed skips). A run package already
+        # carrying @2 keeps it; a carried @1 block is excised by the derive
+        # itself (recorded as `superseded_v1`).
+        if PURGE_V2_ID in chain and row is not None:
+            if setup_carries(current, PURGE_V2_MARKER):
+                notes.append("purge-installed-copies@2 already in run package")
+                result.chain.append(PURGE_V2_ID)
+            else:
+                setup_text = current / "environment" / "setup" / "setup.sh"
+                if setup_text.is_file() and PURGE_V1_BLOCK_START in setup_text.read_text(
+                    errors="replace"
+                ):
+                    notes.append("run package carries @1; @2 supersedes it")
+                try:
+                    record, _ = self.find_or_derive(
+                        task_id,
+                        PURGE_V2_ID,
+                        current,
+                        current_digest,
+                        derive_purge_installed_copies_v2,
+                        parent_source=source,
+                        repairs_digest=row["run_digest"],
+                    )
+                except VariantInvalid as exc:
+                    notes.append(f"purge-installed-copies@2 skipped: {exc}")
+                else:
+                    current_digest = record.variant_digest
+                    current, current_digest, source = self._advance(
+                        task_id, current_digest, row, start_digest
+                    )
+                    result.chain.append(PURGE_V2_ID)
+        elif PURGE_V2_ID in chain:
+            notes.append(
+                f"purge-installed-copies@2 n/a to {result.language}: Python pip mechanism"
+            )
+        # purge-installed-copies@1: v4 chains only (CONFIRMED_PURGE +
         # already-carried); elsewhere it is a Python pip mechanism, noted.
-        if PURGE_ID in chain and row is not None:
+        elif PURGE_ID in chain and row is not None:
             if setup_carries(current, PURGE_MARKER):
                 notes.append("purge-installed-copies@1 already in run package")
                 result.chain.append(PURGE_ID)
@@ -1497,6 +1537,7 @@ __all__ = [
     "NONPYTHON_CHAIN_V5",
     "ORACLE_PASS_PREFIX",
     "PURGE_ID",
+    "PURGE_V2_ID",
     "PYTHON_CHAIN",
     "PYTHON_CHAIN_V5",
     "REFERENCE_INDEX_REL",

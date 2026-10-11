@@ -29,6 +29,7 @@ from evallab.mimo_clean import (
     NONPYTHON_CHAIN,
     NONPYTHON_CHAIN_V5,
     PURGE_ID,
+    PURGE_V2_ID,
     PYTHON_CHAIN,
     PYTHON_CHAIN_V5,
     SEPARATE_V6_ID,
@@ -683,8 +684,9 @@ def test_chains_for_version_matrix() -> None:
     assert (python_v5, non_v5) == (PYTHON_CHAIN_V5, NONPYTHON_CHAIN_V5)
     assert python_v5[-2:] == (SEPARATE_V8_ID, AGENT_NETWORK_NONE_ID)
     assert non_v5[-2:] == (SEPARATE_V8_ID, AGENT_NETWORK_NONE_ID)
-    assert PURGE_ID in python_v5
-    assert PURGE_ID not in non_v5
+    assert PURGE_V2_ID in python_v5
+    assert PURGE_V2_ID not in non_v5
+    assert PURGE_ID in chains_for_version(CLEAN_SET_VERSION)[0]
     with pytest.raises(VariantInvalid):
         chains_for_version("mimo-clean-v9")
 
@@ -696,6 +698,7 @@ def test_build_v5_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
     assert result.status == STATUS_BUILT
     assert result.chain == [
         STRIP_ID,
+        PURGE_V2_ID,
         CACHE_ACTIVE_ID,
         MTIME_ACTIVE_ID,
         SEPARATE_V8_ID,

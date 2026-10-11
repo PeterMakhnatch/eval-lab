@@ -1534,8 +1534,10 @@ def _known_patch_census(
     )
     published_row = collect_result(task_id, language, image12, "published", published_out)
     published_done, published_why = probe_completion(published_row)
-    published_positive = bool(published_row.get("hits_total")) or (
-        published_row.get("open_leak") == "yes"
+    # v2 positive control: the probe row carries it (git objects count).
+    # Fall back to legacy hit presence for rows predating the control field.
+    published_positive = published_row.get("control", "positive") == "positive" or bool(
+        published_row.get("hits_total")
     )
     if not clean_setup_sha:
         return {
@@ -1588,13 +1590,14 @@ def _known_patch_census(
             "detail": {"published": published_row, "clean": clean_row},
         }
     if probe_blind:
-        return {"census_locations": "probe-blind", "reason": "probe-blind", "detail": clean_row}
+        reason = published_row.get("blind_reason", "") or "probe-blind"
+        return {"census_locations": "probe-blind", "reason": reason, "detail": clean_row}
     try:
-        locations = int(clean_row.get("hits_total", ""))
+        locations = int(clean_row.get("real_hits", ""))
     except (TypeError, ValueError):
         return {
             "census_locations": None,
-            "reason": "clean hits_total unparseable",
+            "reason": "clean real_hits unparseable",
             "detail": clean_row,
         }
     return {"census_locations": locations, "reason": "", "detail": clean_row}
@@ -1684,11 +1687,11 @@ def census_fix_content(
                         "reason": "probe-blind",
                         "detail": meta["clean"],
                     }
-            elif isinstance(meta.get("clean", {}).get("hits_total"), int):
+            elif isinstance(meta.get("clean", {}).get("real_hits"), int):
                 clean_done, _ = probe_completion(meta["clean"])
                 if clean_done:
                     return {
-                        "census_locations": meta["clean"]["hits_total"],
+                        "census_locations": meta["clean"]["real_hits"],
                         "reason": "",
                         "detail": meta["clean"],
                     }
@@ -1785,7 +1788,10 @@ def census_fix_content(
                 "image": image,
                 "backend": backend,
                 "egress_lock": probe_egress_lock,
-                "published": {k: published_row.get(k) for k in ("hits_total", "open_leak")},
+                "published": {
+                    k: published_row.get(k)
+                    for k in ("hits_total", "real_hits", "open_leak", "control")
+                },
                 "clean": clean_row,
             },
             indent=2,
@@ -1794,7 +1800,7 @@ def census_fix_content(
         encoding="utf-8",
     )
     try:
-        locations = int(clean_row.get("hits_total", 0))
+        locations = int(clean_row.get("real_hits", 0))
     except (TypeError, ValueError):
         locations = 0
     return {"census_locations": locations, "reason": "", "detail": clean_row}

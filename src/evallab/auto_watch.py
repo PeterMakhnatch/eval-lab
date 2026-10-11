@@ -1,13 +1,22 @@
 """Per-job live-watch supervision for queue dispatch (HAR-162).
 
 Dispatch starts a watch for every agent job and stops it when the job
-reaches a terminal state. The watch itself is strictly read-only toward
-the run: it only reads trial trajectories, the proxy ledger and the Harbor
-hook journal (``<job>/watch/hooks.jsonl``, written by
+reaches a terminal state. The watch reads trial trajectories, the proxy
+ledger and the Harbor hook journal (``<job>/watch/hooks.jsonl``, written by
 :mod:`evallab.harbor_watch_hooks` inside the Harbor process) and writes
-under ``<job>/watch/`` -- never into trial directories, never a signal to
-the Harbor process, never anything that ends the run. A lifecycle hook
+under ``<job>/watch/`` -- never into trial directories. A lifecycle hook
 record triggers a pass immediately instead of at the next interval.
+
+The watch is read-only toward the run by default (``dry-run``): it records
+what it *would* stop plus the pre-stop evidence, but writes no stop
+request. ``EVALLAB_WATCH_STOP=on`` arms the live stop: fresh
+stop-eligible integrity alerts (``history_mining``, ``hidden_test_read``,
+file-evidenced ``grader_tamper``) capture evidence and write one stop
+request per trial, which the in-process actuator
+(:mod:`evallab.harbor_watch_hooks`) honors by ending exactly that trial.
+Guards (terminal, verification-started, acked, fleet, model-free) always
+apply; a manual ``evallab watch stop`` works in any mode. Rewards are never
+touched.
 
 Model-free agents (``nop``, ``oracle``) are skipped: they have no model
 behavior to watch. A watcher that fails to start or crashes never fails
@@ -111,13 +120,16 @@ def _default_run_watch(*, runs_dirs: list[Path], out_dir: Path) -> dict[str, Any
     # and so this module stays cheap to import from the executor.
     from evallab.laminar import exporter_from_env
     from evallab.live_watch import WatchThresholds, run_watch
+    from evallab.watch_stop import stop_mode_from_env
 
     # Laminar export is on whenever LMNR_PROJECT_API_KEY is set (EVALLAB_LAMINAR=off disables).
+    # The stop mode defaults to dry-run (record would-stop, never request).
     return run_watch(
         runs_dirs=runs_dirs,
         out_dir=out_dir,
         thresholds=WatchThresholds(),
         laminar=exporter_from_env(out_dir),
+        stop_mode=stop_mode_from_env(),
     )
 
 

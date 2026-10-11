@@ -745,7 +745,7 @@ def build_merged_result(
     recomputed here, and the trial-level evals the charts read are complete.
     """
     evals: dict[str, dict[str, Any]] = {}
-    n_errors = n_cancelled = 0
+    n_errors = n_cancelled = n_stopped_by_watch = 0
     tokens: list[float] = [0.0, 0.0, 0.0, 0.0]
     have_tokens = [False, False, False, False]
     started: list[str] = []
@@ -774,6 +774,9 @@ def build_merged_result(
             n_errors += 1
             if etype == "CancelledError":
                 n_cancelled += 1
+            elif etype == "WatchStopCancelledError":
+                n_cancelled += 1
+                n_stopped_by_watch += 1
         parts = _trial_tokens(doc)
         for idx, value in enumerate(parts):
             if value is not None:
@@ -796,6 +799,7 @@ def build_merged_result(
             "n_running_trials": 0,
             "n_pending_trials": 0,
             "n_cancelled_trials": n_cancelled,
+            "n_stopped_by_watch": n_stopped_by_watch,
             "n_retries": 0,
             "evals": evals,
             "n_input_tokens": int(tokens[0]) if have_tokens[0] else None,

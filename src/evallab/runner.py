@@ -79,6 +79,7 @@ from evallab.execution_contracts import (
     OPENROUTER_UPSTREAM_ENV,
     PROXY_LIVE_DIR_ENV,
     PROXY_LIVE_DIR_NAME,
+    PROXY_UPSTREAM_503_WAIT_ENV,
     REDACTED_SECRET_VALUE,
     RLM_AGENT,
     SUPPORT_COMMAND_TIMEOUT_SECONDS,
@@ -943,6 +944,20 @@ def _record_capture_link(job_dir: str | Path, receipt: dict[str, Any]) -> None:
         )
 
 
+def _proxy_503_wait_passthrough(env: dict[str, str]) -> dict[str, str]:
+    """Pass the operator's upstream-503 wait bound into the proxy subprocess.
+
+    The proxy subprocess starts with a minimal environment (ambient parent
+    state is not inherited), so the knob only takes effect when forwarded
+    here. Unset stays unset: the proxy falls back to its default. Malformed
+    values are clamped proxy-side, never here.
+    """
+    raw = os.environ.get(PROXY_UPSTREAM_503_WAIT_ENV)
+    if raw is not None:
+        env[PROXY_UPSTREAM_503_WAIT_ENV] = raw
+    return env
+
+
 def _terminus_proxy_env(
     *,
     provider: str,
@@ -995,7 +1010,7 @@ def _terminus_proxy_env(
         env[MIMO_SELFHOSTED_CAPABILITY_EXPIRES_AT_ENV] = str(
             time.time() + float(timeout_seconds) + 60.0
         )
-        return env
+        return _proxy_503_wait_passthrough(env)
     if provider == "tinker":
         if tinker_spec is None:
             raise ValueError("tinker proxy env requires the parsed model spec")
@@ -1014,7 +1029,7 @@ def _terminus_proxy_env(
         env["EVALLAB_TINKER_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
         env["EVALLAB_TINKER_MAX_COST_MICROS"] = str(limits.max_cost_micros)
         env[TINKER_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
-        return env
+        return _proxy_503_wait_passthrough(env)
     if provider == OPENROUTER_PROXY_PROVIDER:
         if openrouter_spec is None:
             raise ValueError("openrouter proxy env requires the resolved route")
@@ -1033,7 +1048,7 @@ def _terminus_proxy_env(
         env["EVALLAB_OPENROUTER_MAX_TOTAL_TOKENS"] = str(limits.max_total_tokens)
         env["EVALLAB_OPENROUTER_MAX_COST_MICROS"] = str(limits.max_cost_micros)
         env[OPENROUTER_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
-        return env
+        return _proxy_503_wait_passthrough(env)
     env[ZAI_OPENAPI_SECRET_PATH_ENV] = str(secret_path)
     upstream = os.environ.get(ZAI_OPENAPI_UPSTREAM_ENV)
     if upstream:
@@ -1059,7 +1074,7 @@ def _terminus_proxy_env(
         str(ZAI_OPENAPI_OUTPUT_COST_MICROS_PER_MILLION),
     )
     env[ZAI_OPENAPI_CAPABILITY_EXPIRES_AT_ENV] = str(time.time() + float(timeout_seconds) + 60.0)
-    return env
+    return _proxy_503_wait_passthrough(env)
 
 
 def _terminus_proxy_stderr_tail(stderr_path: Path) -> str:

@@ -308,6 +308,21 @@ def test_transient_provider_classification() -> None:
     }
     assert transient_provider_exception(res_500) == "transient_harness:provider_http_5xx"
 
+    # G5 M1/M2 (2026-10-01): LiteLLM maps an upstream HTTP 503 to a bare
+    # ServiceUnavailableError whose message carries no status code, so only
+    # the type can classify it. It stays infra-excluded downstream (never an
+    # agent stop); this only lets the queue retry path see it first.
+    res_503 = {
+        "exception_info": {
+            "exception_type": "ServiceUnavailableError",
+            "exception_message": (
+                "litellm.ServiceUnavailableError: ServiceUnavailableError: "
+                "OpenAIException - upstream provider error"
+            ),
+        }
+    }
+    assert transient_provider_exception(res_503) == "transient_harness:provider_http_5xx"
+
 
 def test_harbor_network_adaptation_typed_policy_input() -> None:
     """adapt_task_toml_for_host accepts explicit host_policy and adapts appropriately."""

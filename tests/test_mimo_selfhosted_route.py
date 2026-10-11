@@ -654,6 +654,9 @@ def test_mimo_proxy_settles_a_usage_less_400_as_a_zero_usage_call(
         (400, SGLANG_CONTEXT_OVERFLOW),
         (503, {"object": "error", "message": "server overloaded", "code": 503}),
     ]
+    # Pin the 503 wait off: this test pins the immediate-settle contract
+    # (the wait-through-503 path has its own tests below).
+    monkeypatch.setenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", "0")
     process, url, usage_path = _launch_mimo_proxy(
         tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
     )
@@ -709,6 +712,9 @@ def test_mimo_proxy_settles_non_json_upstream_errors_with_zero_usage(
         (502, b"Bad Gateway\n", "text/plain"),
         (503, b"<html><body>no healthy upstream</body></html>", "text/html"),
     ]
+    # Pin the 503 wait off: this test pins the immediate-settle contract
+    # (the wait-through-503 path has its own tests below).
+    monkeypatch.setenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", "0")
     process, url, usage_path = _launch_mimo_proxy(
         tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
     )
@@ -762,6 +768,230 @@ def test_mimo_proxy_settles_non_json_upstream_errors_with_zero_usage(
         },
     )
     assert usage["unresolved_requests"] == 0
+
+
+def test_mimo_proxy_waits_through_transient_503s_then_recovers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    """G5 (2026-10-01): a mid-run container replacement 503s in-flight calls.
+    The proxy re-issues the same authenticated request inside its wait bound
+    instead of failing the trial, so one logical call survives two 503s."""
+    _MimoUpstream.errors = [
+        (503, {"object": "error", "message": "no container", "code": 503}),
+        (503, b"Service Unavailable\n", "text/plain"),
+    ]
+    # Two retries sleep 2 s + 4 s; the bound just needs to cover them.
+    monkeypatch.setenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", "30")
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    payload = {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 100,
+    }
+    try:
+        status, body = _post(
+            f"{url}/v1/chat/completions", payload, capability=CAPABILITY_SENTINEL
+        )
+        assert status == 200
+        assert json.loads(body)["choices"][0]["message"]["content"] == "done"
+    finally:
+        process.terminate()
+        process.wait(10)
+
+    # All three upstream attempts carried the provider key (authenticated
+    # readiness, not an unauthenticated health poll) with the same body.
+    assert len(_MimoUpstream.seen) == 3
+    assert all(call["model"] == MIMO_SELFHOSTED_NATIVE_MODEL for call in _MimoUpstream.seen)
+    ledger = json.loads(usage_path.read_text())
+    # One logical call settles exactly once, with the real usage.
+    assert len(ledger["calls"]) == 1
+    assert ledger["calls"][0]["state"] == "reconciled"
+    assert ledger["calls"][0]["status"] == 200
+    assert ledger["calls"][0]["input_tokens"] == UPSTREAM_USAGE["prompt_tokens"]
+    assert ledger["calls"][0]["output_tokens"] == UPSTREAM_USAGE["completion_tokens"]
+    assert ledger["unresolved_requests"] == 0
+    assert ledger["attempted"]["requests"] == 0
+    assert ledger["totals"]["requests"] == 1
+
+
+def test_mimo_proxy_surfaces_503_after_its_wait_budget_runs_out(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, mimo_upstream: Any
+) -> None:
+    """A 503 that outlasts the bound settles exactly like a first-try 503:
+    status forwarded with a fixed body, zero usage, nothing unresolved."""
+    _MimoUpstream.errors = [
+        (503, b"Service Unavailable\n", "text/plain"),
+        (503, b"Service Unavailable\n", "text/plain"),
+        (503, b"Service Unavailable\n", "text/plain"),
+    ]
+    monkeypatch.setenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", "0.6")
+    process, url, usage_path = _launch_mimo_proxy(
+        tmp_path, monkeypatch, mimo_upstream, CAPABILITY_SENTINEL, _proxy_limits()
+    )
+    payload = {
+        "model": MIMO_SELFHOSTED_MODEL_SELECTOR,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 100,
+    }
+    try:
+        status, body = _post(
+            f"{url}/v1/chat/completions", payload, capability=CAPABILITY_SENTINEL
+        )
+        assert status == 503
+        assert json.loads(body)["code"] == 503
+        assert b"Service Unavailable" not in body
+    finally:
+        process.terminate()
+        process.wait(10)
+
+    # First attempt plus one backoff retry inside the 0.6 s bound.
+    assert len(_MimoUpstream.seen) == 2
+    ledger = json.loads(usage_path.read_text())
+    assert len(ledger["calls"]) == 1
+    assert ledger["calls"][0]["state"] == "reconciled"
+    assert ledger["calls"][0]["error"] == "upstream_error_503"
+    assert ledger["calls"][0]["status"] == 503
+    assert ledger["calls"][0]["input_tokens"] == 0
+    assert ledger["calls"][0]["output_tokens"] == 0
+    assert ledger["unresolved_requests"] == 0
+    assert ledger["attempted"]["requests"] == 0
+
+
+def test_mimo_proxy_env_passthrough_carries_the_503_wait_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The proxy subprocess starts with a minimal env, so the operator knob
+    only takes effect when the runner forwards it."""
+    base_kwargs: dict[str, Any] = {
+        "provider": "mimo_selfhosted",
+        "secret_path": tmp_path / "key",
+        "capability": CAPABILITY_SENTINEL,
+        "attempt_id": "attempt",
+        "usage_path": tmp_path / "usage.json",
+        "limits": ProxyTrialLimits(
+            max_requests=1,
+            max_input_tokens=10,
+            max_output_tokens=10,
+            max_total_tokens=20,
+            max_cost_micros=100,
+        ),
+        "timeout_seconds": 60.0,
+        "mimo_native": MIMO_SELFHOSTED_NATIVE_MODEL,
+    }
+    monkeypatch.delenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", raising=False)
+    assert "EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS" not in (
+        runner_module._terminus_proxy_env(**base_kwargs)
+    )
+    monkeypatch.setenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", "45")
+    assert (
+        runner_module._terminus_proxy_env(**base_kwargs)[
+            "EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS"
+        ]
+        == "45"
+    )
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, 360.0),
+        ("", 360.0),
+        ("0", 0.0),
+        ("45", 45.0),
+        ("3600", 3600.0),
+        ("99999", 3600.0),
+        ("junk", 360.0),
+        ("-5", 0.0),
+    ],
+)
+def test_proxy_503_wait_bound_parsing(
+    monkeypatch: pytest.MonkeyPatch, raw: str | None, expected: float
+) -> None:
+    module = _proxy_module()
+    if raw is None:
+        monkeypatch.delenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", raising=False)
+    else:
+        monkeypatch.setenv("EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS", raw)
+    assert module.upstream_503_wait_seconds() == expected
+
+
+def test_open_upstream_retries_only_503_with_backoff() -> None:
+    """Unit seam: 503s retry with doubling backoff, anything else raises at
+    once, and a set shutdown event aborts without sleeping."""
+    import io
+    import urllib.error
+
+    module = _proxy_module()
+
+    def _error(code: int) -> urllib.error.HTTPError:
+        return urllib.error.HTTPError(
+            "http://upstream/v1/chat/completions", code, "error", {}, io.BytesIO(b"x")
+        )
+
+    class _Opener:
+        def __init__(self, script: list[Any]) -> None:
+            self.script = script
+            self.calls = 0
+
+        def open(self, request: Any, timeout: float = 0) -> Any:
+            del request, timeout
+            item = self.script[self.calls]
+            self.calls += 1
+            if isinstance(item, int):
+                raise _error(item)
+            return "ok"
+
+    # Fake clock advanced by the fake sleeper: no wall-clock dependence.
+    now = [1000.0]
+    sleeps: list[float] = []
+
+    def _sleeper(delay: float) -> None:
+        sleeps.append(delay)
+        now[0] += delay
+
+    result = module._open_upstream(
+        _Opener([503, 503, "ok"]),
+        urllib.request.Request("http://upstream/v1/chat/completions", data=b"{}"),
+        timeout_seconds=5.0,
+        wait_budget_seconds=30.0,
+        sleeper=_sleeper,
+        shutdown=threading.Event(),
+        clock=lambda: now[0],
+    )
+    assert result == "ok"
+    # Doubling backoff (2 s + 4 s) in short SIGTERM-friendly quanta.
+    assert sum(sleeps) == pytest.approx(6.0)
+    assert all(0.0 < chunk <= 0.25 for chunk in sleeps)
+
+    # A non-503 error never waits.
+    immediate: list[float] = []
+    with pytest.raises(urllib.error.HTTPError):
+        module._open_upstream(
+            _Opener([500]),
+            urllib.request.Request("http://upstream/v1/chat/completions", data=b"{}"),
+            timeout_seconds=5.0,
+            wait_budget_seconds=30.0,
+            sleeper=immediate.append,
+            shutdown=threading.Event(),
+        )
+    assert immediate == []
+
+    # Shutdown aborts the wait without sleeping.
+    stopped = threading.Event()
+    stopped.set()
+    bored: list[float] = []
+    with pytest.raises(urllib.error.HTTPError):
+        module._open_upstream(
+            _Opener([503]),
+            urllib.request.Request("http://upstream/v1/chat/completions", data=b"{}"),
+            timeout_seconds=5.0,
+            wait_budget_seconds=30.0,
+            sleeper=bored.append,
+            shutdown=stopped,
+        )
+    assert bored == []
 
 
 def test_mimo_proxy_non_json_400_settles_and_releases_its_reservation(

@@ -655,7 +655,18 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   breaks Terminus JSON. Self-hosted tokens have no per-token price (the
   ledger pins `(0, 0)`). Modal bills the server container per second. The
   rate is $2.8149/h: A100-80GB $2.4984/h, 4 cores $0.1886/h and 16 GiB
-  $0.1279/h (modal.com/pricing, 2026-09-28).
+  $0.1279/h (modal.com/pricing, 2026-09-28). GPU functions are always
+  preemptible (Modal docs: `nonpreemptible` is not supported for GPU
+  functions), so a mid-run container replacement is a matter of time, not
+  configuration. When the serving container is gone the Modal edge answers
+  each call with a fast, body-less 503; the per-trial proxy therefore waits
+  through 503s, re-issuing the same authenticated request with backoff
+  inside `EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS` (default 360 s, covering
+  a full cold start with headroom — G5 2026-10-01 measured 3.5–4 min; `0`
+  disables). A 503 proves the call was not admitted, so the retry cannot
+  double-execute. A trial that still fails on `ServiceUnavailableError`
+  classifies as harness-transient for the queue retry path and stays
+  infra-excluded downstream, never a zero.
   `mimo_selfhosted_trial_cost_usd` estimates
   `2.8149 x trial_hours / concurrency + sandbox_usd`. With zero rates the
   proxy's cost ceiling cannot trip; its request and token ceilings still

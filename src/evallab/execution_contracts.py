@@ -80,6 +80,13 @@ _KNOWN_TRANSIENT_PROVIDER_EXCEPTIONS: dict[str, str] = {
     "ApiRateLimitError": "transient_harness:provider_http_429",
     "ApiInternalServerError": "transient_harness:provider_http_5xx",
     "ApiOverloadedError": "transient_harness:provider_http_5xx",
+    # LiteLLM maps an upstream HTTP 503 to this type with a body-free message
+    # ("... ServiceUnavailableError: OpenAIException - upstream provider
+    # error", G5 M1/M2 2026-10-01): no status code survives for the regexes
+    # below, so the bare type must classify. A trial that still fails stays
+    # infra-excluded downstream (never an agent stop, never a zero); this only
+    # lets the queue retry path see it as harness-transient first.
+    "ServiceUnavailableError": "transient_harness:provider_http_5xx",
 }
 _PROVIDER_WRAPPER_EXCEPTIONS: frozenset[str] = frozenset(
     {
@@ -502,6 +509,18 @@ MIMO_SELFHOSTED_PROXY_ATTEMPT_ID_ENV = "EVALLAB_MIMO_SELFHOSTED_ATTEMPT_ID"
 MIMO_SELFHOSTED_PROXY_USAGE_FILE_ENV = "EVALLAB_MIMO_SELFHOSTED_USAGE_FILE"
 MIMO_SELFHOSTED_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
+#: Operator knob for the secret proxy's bounded upstream-503 wait: total
+#: seconds one model call waits through 503s (re-issuing the same
+#: authenticated request with backoff) before surfacing the 503. ``0``
+#: disables the wait; malformed values fall back to the default. Mirrored as
+#: literals in ``containers/zai_openapi_secret_proxy.py`` (standalone
+#: script); the runner passes the parent value through in
+#: ``runner._terminus_proxy_env``. Default covers a full Modal cold start
+#: with headroom (G5 2026-10-01 measured 3.5-4 min).
+PROXY_UPSTREAM_503_WAIT_ENV = "EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS"
+PROXY_UPSTREAM_503_WAIT_DEFAULT_SECONDS = 360.0
+PROXY_UPSTREAM_503_WAIT_MAX_SECONDS = 3600.0
+
 #: Env var carrying the per-job capture route token into the metered secret
 #: proxy. When set, the proxy forwards upstream to ``/t/<token>/<path>``;
 #: ``evallab capture serve`` strips the prefix (recording it as

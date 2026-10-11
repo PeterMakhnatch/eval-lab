@@ -11,6 +11,10 @@ Hardening features:
 - Worker bounding before thread creation: rejects excess connections with nonblocking 503.
 - Inbound request deadline: wall-clock timer covers headers+body acquisition.
 - Separate upstream timeout (120s) allowing long model generation without client socket cancellation.
+- Bounded upstream-503 wait: re-issues the same authenticated request with
+  backoff inside EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS (default 360 s, 0
+  disables) instead of failing the trial on the first 503; a 503 proves the
+  call was not admitted, so the retry cannot double-execute.
 - Graceful SIGTERM: stop accepting, let in-flight provider calls settle with their real usage,
   then fail closed on calls still in flight after the drain deadline.
 - Pre-body capability authentication: rejects unauthenticated requests before reading body.
@@ -64,6 +68,25 @@ REQUEST_TIMEOUT_SECONDS = 15.0
 # Model generation may legitimately outlast a short HTTP request deadline.
 # The trial watchdog and pre-call token/cost reservations remain authoritative.
 UPSTREAM_TIMEOUT_SECONDS = 600.0
+# A 503 from upstream means "no serving capacity right now": the Modal edge
+# answers 503 while no container is behind the endpoint (cold start,
+# container replacement after a preemption/crash) and SGLang answers 503
+# while overloaded. Either way the call was not admitted, so re-issuing the
+# same authenticated request is safe. The default bound (360 s) covers a full
+# Modal cold start with headroom (G5 measured 3.5-4 min); tune or disable
+# with EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS (seconds, 0 disables,
+# clamped to 3600; malformed falls back to the default). Mirrored as
+# PROXY_UPSTREAM_503_WAIT_* in src/evallab/execution_contracts.py (this
+# standalone container script cannot import that module); the runner passes
+# the parent value through in _terminus_proxy_env.
+UPSTREAM_503_WAIT_ENV = "EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS"
+UPSTREAM_503_WAIT_DEFAULT_SECONDS = 360.0
+UPSTREAM_503_WAIT_MAX_SECONDS = 3600.0
+UPSTREAM_503_RETRY_BASE_SECONDS = 2.0
+UPSTREAM_503_RETRY_CAP_SECONDS = 15.0
+# Set on SIGTERM so a handler sleeping between 503 retries drains promptly
+# instead of burning the shutdown deadline. Tests inject their own event.
+_SHUTDOWN_REQUESTED = threading.Event()
 # On SIGTERM, how long in-flight provider calls may run on to settle. A call
 # whose client has gone (Harbor cancels the agent at its timeout) still
 # completes upstream and is reconciled with its real usage; a call still in
@@ -671,6 +694,87 @@ def _upstream_error_body(status: int) -> bytes:
         },
         separators=(",", ":"),
     ).encode("ascii")
+
+
+def upstream_503_wait_seconds() -> float:
+    """Bounded total wait for upstream 503 recovery, from the environment.
+
+    ``0`` disables the wait (the first 503 is forwarded immediately, the
+    pre-G5 behavior); malformed values fall back to the default. The caller
+    (``_terminus_proxy_env``) passes the operator value through, so this is
+    tunable per run without redeploying the proxy image.
+    """
+    raw = (os.environ.get(UPSTREAM_503_WAIT_ENV) or "").strip()
+    if not raw:
+        return UPSTREAM_503_WAIT_DEFAULT_SECONDS
+    try:
+        value = float(raw)
+    except ValueError:
+        return UPSTREAM_503_WAIT_DEFAULT_SECONDS
+    if not (value > 0.0):
+        return 0.0
+    return min(value, UPSTREAM_503_WAIT_MAX_SECONDS)
+
+
+def _sleep_interruptible(
+    delay: float,
+    *,
+    sleeper: Any = time.sleep,
+    shutdown: threading.Event,
+    clock: Any = time.monotonic,
+) -> None:
+    """Sleep ``delay`` seconds, waking early when ``shutdown`` is set.
+
+    Short quanta keep SIGTERM drain prompt; the injected ``sleeper``/``clock``
+    seam keeps tests deterministic (no wall-clock dependence).
+    """
+    deadline = clock() + max(float(delay), 0.0)
+    while not shutdown.is_set():
+        remaining = deadline - clock()
+        if remaining <= 0.0:
+            return
+        sleeper(min(remaining, 0.25))
+
+
+def _open_upstream(
+    opener: Any,
+    request: urllib.request.Request,
+    *,
+    timeout_seconds: float,
+    wait_budget_seconds: float,
+    sleeper: Any = time.sleep,
+    shutdown: threading.Event | None = None,
+    clock: Any = time.monotonic,
+) -> Any:
+    """POST upstream, waiting through 503s inside ``wait_budget_seconds``.
+
+    The first attempt fires immediately; only 503 responses wait (any other
+    status, including other 5xx, returns to the caller at once, and transport
+    errors propagate unchanged). Each retry re-issues the same authenticated
+    request body: a 503 proves the call was not admitted, so the retry cannot
+    double-execute. Backoff doubles from 2 s to a 15 s cap within the budget;
+    a set ``shutdown`` event aborts the wait by re-raising the last 503 so
+    the caller settles exactly as if the budget were exhausted.
+    """
+    stop = shutdown if shutdown is not None else _SHUTDOWN_REQUESTED
+    remaining = max(float(wait_budget_seconds), 0.0)
+    backoff = UPSTREAM_503_RETRY_BASE_SECONDS
+    while True:
+        try:
+            return opener.open(request, timeout=timeout_seconds)
+        except urllib.error.HTTPError as exc:
+            if int(exc.code) != 503 or remaining <= 0.0 or stop.is_set():
+                raise
+            with contextlib.suppress(Exception):
+                exc.read()
+            with contextlib.suppress(Exception):
+                exc.close()
+            delay = min(backoff, remaining)
+            backoff = min(backoff * 2.0, UPSTREAM_503_RETRY_CAP_SECONDS)
+            remaining -= delay
+            _sleep_interruptible(delay, sleeper=sleeper, shutdown=stop, clock=clock)
+            if stop.is_set():
+                raise
 
 
 def _response_encoding_ok(headers: http.client.HTTPMessage, *, stream: bool = False) -> bool:
@@ -1735,8 +1839,17 @@ class Handler(BaseHTTPRequestHandler):
             handlers.append(urllib.request.HTTPHandler())
         opener = urllib.request.build_opener(*handlers)
 
+        # A 503 proves the call was not admitted (Modal edge with no container
+        # behind the endpoint, or an overloaded SGLang), so wait through it
+        # inside a bounded budget instead of failing the trial at once (G5:
+        # a mid-run container replacement 503'd 54 calls and killed 2 trials).
         try:
-            response = opener.open(request, timeout=UPSTREAM_TIMEOUT_SECONDS)
+            response = _open_upstream(
+                opener,
+                request,
+                timeout_seconds=UPSTREAM_TIMEOUT_SECONDS,
+                wait_budget_seconds=upstream_503_wait_seconds(),
+            )
         except urllib.error.HTTPError as exc:
             if 300 <= int(exc.code) < 400:
                 self._budget().mark_unresolved(
@@ -1972,14 +2085,17 @@ def _host_entrypoint_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _on_sigterm(server: ProxyServer) -> None:
+    """Stop accepting and release any handler waiting between 503 retries."""
+    _SHUTDOWN_REQUESTED.set()
+    threading.Thread(target=server.shutdown, daemon=True).start()
+
+
 def _serve_until_terminated(server: ProxyServer) -> None:
     """Serve until SIGTERM, then drain in-flight calls before exiting."""
     # ``shutdown`` blocks until ``serve_forever`` returns, so it cannot run on
     # the main thread that the signal interrupts.
-    signal.signal(
-        signal.SIGTERM,
-        lambda _signum, _frame: threading.Thread(target=server.shutdown, daemon=True).start(),
-    )
+    signal.signal(signal.SIGTERM, lambda _signum, _frame: _on_sigterm(server))
     server.serve_forever()
     server.drain()
 

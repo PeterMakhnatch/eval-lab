@@ -7,12 +7,14 @@ failed validation (their token usage is parsed from the recorded error text and
 priced at the route's pinned rates), so retries and wasted calls are counted.
 
 Usage: uv run --no-sync python research/experiments/cheatbench-port/spend.py \
-           --runs runs --judge-glob '/private/tmp/cb-out/judge-*.jsonl' [--judge-glob ...]
+           --runs runs --judge-glob '/private/tmp/cb-out/judge-*.jsonl' [--judge-glob ...] \
+           [--jobs <job name or glob> ...]
 """
 from __future__ import annotations
 
 import argparse
 import ast
+import fnmatch
 import glob
 import json
 import re
@@ -38,14 +40,24 @@ def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--runs", type=Path, default=Path("runs"))
     p.add_argument("--judge-glob", action="append", default=[])
+    p.add_argument("--jobs", nargs="*", default=None,
+                   help="limit agent spend to these job names/globs (default: every cb-* job)")
     args = p.parse_args()
 
     agent = defaultdict(float)
     for lab in args.runs.glob("cb-*/lab-metadata.json"):
+        job = lab.parent.name
+        if args.jobs and not any(fnmatch.fnmatchcase(job, pat) for pat in args.jobs):
+            continue
         meta = json.loads(lab.read_text())
         cost = (meta.get("cost") or {})
-        model = (meta.get("model_identity") or {}).get("requested") or lab.parent.name.split("-")[-2]
-        agent[model] += float(cost.get("cost_usd") or 0) + float(cost.get("attempted_cost_usd") or 0)
+        usd = float(cost.get("cost_usd") or 0) + float(cost.get("attempted_cost_usd") or 0)
+        model = (meta.get("model_identity") or {}).get("requested")
+        if not model:
+            if usd == 0:
+                continue  # free oracle/nop/canary controls carry no model identity
+            model = f"unknown ({job})"
+        agent[model] += usd
     judge = defaultdict(float)
     for pattern in args.judge_glob:
         for path in glob.glob(pattern):

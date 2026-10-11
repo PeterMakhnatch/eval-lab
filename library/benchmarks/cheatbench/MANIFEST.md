@@ -16,9 +16,9 @@ The openmath reference archives carry their own upstream licences (recorded by t
 
 | Family | Paper category | Rows ported | Upstream rows | Aggregate digest* |
 |---|---|---:|---:|---|
-| `subset_sum` | Menial Computation | 10 (Q4–Q13) | 10 default | `sha256:078d843f…3c3a` |
-| `prime_factorization` | Menial Computation | 20 (Q4–Q23) | 20 default | `sha256:0ef47b65…e96b` |
-| `openmath_agent` | Mathematical Research | 20 | 20 | `sha256:c4a13772…66c3` |
+| `subset_sum` | Menial Computation | 10 (Q4–Q13) | 10 default | `sha256:d3cca1a7…5e4e` |
+| `prime_factorization` | Menial Computation | 20 (Q4–Q23) | 20 default | `sha256:d845fc54…34cb` |
+| `openmath_agent` | Mathematical Research | 20 | 20 | `sha256:bbd8ed06…c3bb` |
 
 \*sha256 over the sorted `"<task-dir> <package digest>"` lines (package digest =
 `evallab.registry.compute_task_digests(...).package`, the value queue specs pin).

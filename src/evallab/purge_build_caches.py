@@ -74,6 +74,28 @@ standard-location build caches while retaining the module-cache purge).
 @1-@3 outputs are byte-unchanged; @4 supersedes @3
 and refuses @1/@2/@3 parents.
 
+``purge-build-caches@5`` is @4 with the node build-output handling generalized
+to any depth. @3/@4 scanned only ``$CWD`` itself, so monorepo package outputs
+(``packages/*/lib``) baked from the fixed tree survived: setup's ``git clean
+--exclude=lib`` spares every lib-named dir while the block never looked
+inside (format-code-task-000919: ``packages/babel-plugin-idx/lib`` with
+post-fix bytes). Each candidate output dir (``lib``, ``dist``, ``build``,
+``out``, ``es``, ``esm``, ``cjs``) is attributed to its nearest
+``package.json`` scope (or ``$CWD`` when orphaned) and must be both ignored
+and untracked; tracked outputs stay (``strip`` owns them) and non-ignored
+ones stay (``git clean`` owns them). A dir counts as grader-used when the
+scope's tests import through it, a scope or root test config names it, any
+tracked source under the scope references it, or a workspace self-link
+resolves through a package entry segment inside it (``main``/``types``/
+``exports`` first segments, so ``cjs``/``esm`` entry points count).
+Grader-unused dirs are deleted; grader-used dirs are deleted and rebuilt
+from the base tree via the scope's (else the root's) ``compile``/``build``
+script, and setup fails when there is no build script or the rebuild does
+not regenerate them. Partial (per-file) neutralization was rejected: a
+half-deleted output dir breaks module resolution exactly like a full delete
+but keeps the leak surface. @5 supersedes @4 and refuses @1-@4 parents;
+chain adoption is the clean-set owner's call.
+
 Grading (``tests/``), the instruction and the image are unchanged. The setup
 is re-embedded in the task.toml healthcheck payload, which is what executes.
 """
@@ -407,6 +429,147 @@ if [ -f "$CWD/package.json" ]; then
 fi
 
 """
+#: Node build-output handling for ``shell_block_v5``: the ``NODE_BUILD_BLOCK``
+#: logic generalized to any depth (000919: ``packages/*/lib``). Candidates are
+#: attributed to the nearest ``package.json`` scope so per-package build
+#: scripts and entry points apply; ``es``/``esm``/``cjs`` join the dir list
+#: because ``main``/``exports`` commonly point into them.
+NODE_BUILD_BLOCK_V5 = """\
+# purge-build-caches@5: node compiled outputs at any depth (lib/, dist/, build/, out/, es/, esm/, cjs/).
+# @3/@4 scanned only $CWD itself, so monorepo package outputs (packages/*/lib) baked from the
+# fixed tree survived: setup's `git clean --exclude=lib` spares every lib-named dir while the
+# block never looked inside (000919: packages/babel-plugin-idx/lib with post-fix bytes).
+# Each candidate is attributed to its nearest package.json scope (or $CWD when orphaned):
+# ignored-and-untracked outputs no tracked test, config, source, or self-link entry resolves
+# through are deleted; grader-used ones are rebuilt from the base tree via the scope's
+# (else the root's) compile/build script, else setup fails.
+_pbc5_pkgs=$(find "$CWD" -path "$CWD/.git" -prune -o -path "*/node_modules*" -prune -o -name "package.json" -print 2>/dev/null | sort)
+if [ -n "$_pbc5_pkgs" ]; then
+  _pbc5_out=""
+  for _pbc5_cdir in $(find "$CWD" -path "$CWD/.git" -prune -o -path "*/node_modules*" -prune -o -type d \\( -name lib -o -name dist -o -name build -o -name out -o -name es -o -name esm -o -name cjs \\) -print 2>/dev/null | sort); do
+    [ -d "$_pbc5_cdir" ] || continue
+    case "$_pbc5_cdir" in "$CWD"/*) ;; *) continue;; esac
+    _pbc5_rel=${_pbc5_cdir#$CWD/}
+    git -C "$CWD" check-ignore -q "$_pbc5_rel" 2>/dev/null || continue
+    [ -z "$(git -C "$CWD" ls-files "$_pbc5_rel" 2>/dev/null | head -n 1)" ] || continue
+    _pbc5_scope="$CWD"
+    _pbc5_best=0
+    for _pbc5_p in $_pbc5_pkgs; do
+      _pbc5_pd=$(dirname "$_pbc5_p")
+      case "$_pbc5_cdir" in "$_pbc5_pd"|"$_pbc5_pd"/*) ;; *) continue;; esac
+      if [ "${#_pbc5_pd}" -gt "$_pbc5_best" ]; then _pbc5_scope="$_pbc5_pd"; _pbc5_best="${#_pbc5_pd}"; fi
+    done
+    case " $_pbc5_out " in *" $_pbc5_scope|$_pbc5_rel| "*) continue;; esac
+    _pbc5_out="$_pbc5_out$_pbc5_scope|$_pbc5_rel| "
+  done
+  _pbc5_dep=""
+  _pbc5_seen=""
+  for _pbc5_e in $_pbc5_out; do
+    _pbc5_scope=${_pbc5_e%%|*}
+    _pbc5_rest=${_pbc5_e#*|}
+    _pbc5_rel=${_pbc5_rest%%|*}
+    _pbc5_d=$(basename "$_pbc5_rel")
+    _pbc5_pj="$_pbc5_scope/package.json"
+    _pbc5_used=""
+    for _pbc5_t in test tests __tests__ spec; do
+      [ -d "$_pbc5_scope/$_pbc5_t" ] || continue
+      if grep -rlE "(from\\s*|require\\()\\s*['\\"][^'\\"]*/$_pbc5_d/" "$_pbc5_scope/$_pbc5_t" 2>/dev/null | head -n 1 | grep -q .; then _pbc5_used=1; break; fi
+      if grep -rlE "(from\\s*|require\\()\\s*['\\"]([^'\\"]*/)?$_pbc5_d['\\"]" "$_pbc5_scope/$_pbc5_t" 2>/dev/null | head -n 1 | grep -q .; then _pbc5_used=1; break; fi
+    done
+    if [ -z "$_pbc5_used" ]; then
+      for _pbc5_cfp in "$_pbc5_scope" "$CWD"; do
+        for _pbc5_cfn in jest.config.js jest.config.ts jest.config.json vitest.config.js vitest.config.ts .mocharc.js .mocharc.json .mocharc.yml karma.conf.js; do
+          _pbc5_cfg="$_pbc5_cfp/$_pbc5_cfn"
+          [ -f "$_pbc5_cfg" ] || continue
+          case " $_pbc5_seen " in *" $_pbc5_cfg "*) continue;; esac
+          _pbc5_seen="$_pbc5_seen$_pbc5_cfg "
+          if grep -E -q "['\\"/]$_pbc5_d/" "$_pbc5_cfg" 2>/dev/null; then _pbc5_used=1; break 2; fi
+        done
+      done
+    fi
+    if [ -z "$_pbc5_used" ]; then
+      if [ "$_pbc5_scope" = "$CWD" ]; then _pbc5_srel="."; else _pbc5_srel=${_pbc5_scope#$CWD/}; fi
+      if git -C "$CWD" grep -lE "['\\"]([^'\\"]*/)?$_pbc5_d['\\"/]" -- "$_pbc5_srel" ':!package.json' ':!package-lock.json' ':!yarn.lock' 2>/dev/null | grep -E "\\.(ts|tsx|js|jsx|mjs|cjs)$" | head -n 1 | grep -q .; then _pbc5_used=1; fi
+    fi
+    if [ -z "$_pbc5_used" ]; then
+      _pbc5_pkg=""
+      if command -v node >/dev/null 2>&1; then _pbc5_pkg=$(node -p "require('$_pbc5_pj').name" 2>/dev/null || true); [ "$_pbc5_pkg" = "undefined" ] && _pbc5_pkg=""; fi
+      if [ -z "$_pbc5_pkg" ] && command -v python3 >/dev/null 2>&1; then _pbc5_pkg=$(python3 -c "import json;print(json.load(open('$_pbc5_pj')).get('name') or '')" 2>/dev/null || true); fi
+      if [ -z "$_pbc5_pkg" ]; then _pbc5_pkg=$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*/\\1/p' "$_pbc5_pj" | head -n 1); fi
+      if [ -n "$_pbc5_pkg" ] && [ -L "$_pbc5_scope/node_modules/$_pbc5_pkg" ]; then
+        _pbc5_segs=""
+        if command -v node >/dev/null 2>&1; then _pbc5_segs=$(node -p "const p=require('$_pbc5_pj');const s=new Set();const w=x=>{if(typeof x==='string'){x=x.trim();if(x.indexOf('./')===0)x=x.slice(2);if(x.indexOf('/')>=0)s.add(x.split('/')[0])}else if(x&&typeof x==='object')Object.values(x).forEach(w)};[p.main,p.types,p.exports].forEach(w);Array.from(s).join(' ')" 2>/dev/null || true); [ "$_pbc5_segs" = "undefined" ] && _pbc5_segs=""; fi
+        if [ -z "$_pbc5_segs" ] && command -v python3 >/dev/null 2>&1; then _pbc5_segs=$(python3 - "$_pbc5_pj" 2>/dev/null <<'PY' || true
+import json,sys
+p=json.load(open(sys.argv[1]))
+segs=set()
+def walk(x):
+    if isinstance(x,str):
+        v=x.strip()
+        if v.startswith('./'):
+            v=v[2:]
+        if '/' in v:
+            segs.add(v.split('/')[0])
+    elif isinstance(x,dict):
+        for v in x.values():
+            walk(v)
+    elif isinstance(x,list):
+        for v in x:
+            walk(v)
+for key in ('main','types','exports'):
+    walk(p.get(key))
+print(' '.join(sorted(segs)))
+PY
+) ; fi
+        case " $_pbc5_segs " in *" $_pbc5_d "*) _pbc5_used=1;; esac
+      fi
+    fi
+    if [ -z "$_pbc5_used" ]; then
+      rm -rf "$CWD/$_pbc5_rel" 2>/dev/null || fail "purge-build-caches@5 cannot remove $CWD/$_pbc5_rel"
+      [ ! -e "$CWD/$_pbc5_rel" ] || fail "purge-build-caches@5 left $CWD/$_pbc5_rel"
+    else
+      _pbc5_dep="$_pbc5_dep$_pbc5_e "
+    fi
+  done
+  if [ -n "$_pbc5_dep" ]; then
+    _pbc5_scopes=""
+    for _pbc5_e in $_pbc5_dep; do
+      _pbc5_scope=${_pbc5_e%%|*}
+      _pbc5_rest=${_pbc5_e#*|}
+      _pbc5_rel=${_pbc5_rest%%|*}
+      _pbc5_script=""
+      if command -v node >/dev/null 2>&1; then _pbc5_script=$(node -p "const s=require('$_pbc5_scope/package.json').scripts||{};s.compile?'compile':(s.build?'build':'')" 2>/dev/null || true); [ "$_pbc5_script" = "undefined" ] && _pbc5_script=""; fi
+      if [ -z "$_pbc5_script" ] && command -v python3 >/dev/null 2>&1; then _pbc5_script=$(python3 -c "import json;s=json.load(open('$_pbc5_scope/package.json')).get('scripts') or {};print('compile' if 'compile' in s else ('build' if 'build' in s else ''))" 2>/dev/null || true); fi
+      _pbc5_rdir="$_pbc5_scope"
+      if [ -z "$_pbc5_script" ] && [ -f "$CWD/package.json" ]; then
+        if command -v node >/dev/null 2>&1; then _pbc5_script=$(node -p "const s=require('$CWD/package.json').scripts||{};s.compile?'compile':(s.build?'build':'')" 2>/dev/null || true); [ "$_pbc5_script" = "undefined" ] && _pbc5_script=""; fi
+        if [ -z "$_pbc5_script" ] && command -v python3 >/dev/null 2>&1; then _pbc5_script=$(python3 -c "import json;s=json.load(open('$CWD/package.json')).get('scripts') or {};print('compile' if 'compile' in s else ('build' if 'build' in s else ''))" 2>/dev/null || true); fi
+        _pbc5_rdir="$CWD"
+      fi
+      [ -n "$_pbc5_script" ] || fail "purge-build-caches@5 needs a build script for grader-used output:$CWD/$_pbc5_rel"
+      rm -rf "$CWD/$_pbc5_rel" 2>/dev/null || fail "purge-build-caches@5 cannot remove stale build output $CWD/$_pbc5_rel"
+      case " $_pbc5_scopes " in *" $_pbc5_rdir|$_pbc5_script "*) ;; *) _pbc5_scopes="$_pbc5_scopes$_pbc5_rdir|$_pbc5_script ";; esac
+    done
+    for _pbc5_s in $_pbc5_scopes; do
+      _pbc5_rdir=${_pbc5_s%%|*}
+      _pbc5_rscript=${_pbc5_s#*|}
+      if command -v timeout >/dev/null 2>&1; then timeout 900 npm run "$_pbc5_rscript" --prefix "$_pbc5_rdir" >/dev/null 2>&1 || fail "purge-build-caches@5 rebuild failed";
+      else (cd "$_pbc5_rdir" && npm run "$_pbc5_rscript" >/dev/null 2>&1) || fail "purge-build-caches@5 rebuild failed"; fi
+    done
+    for _pbc5_e in $_pbc5_dep; do
+      _pbc5_rest=${_pbc5_e#*|}
+      _pbc5_rel=${_pbc5_rest%%|*}
+      [ -d "$CWD/$_pbc5_rel" ] || fail "purge-build-caches@5 rebuild did not regenerate $CWD/$_pbc5_rel"
+    done
+  fi
+fi
+
+"""
+
+#: Build-output dir names handled by ``shell_block_v5`` (recorded in @5
+#: lineage inputs). ``es``/``esm``/``cjs`` join the @3/@4 four because
+#: ``main``/``exports`` commonly point into them.
+BUILD_OUTPUT_DIRS_V5 = ("lib", "dist", "build", "out", "es", "esm", "cjs")
 
 TRANSFORM_ID_V4 = "purge-build-caches@4"
 MARKER_V4 = "purge-build-caches@4"
@@ -577,6 +740,15 @@ def shell_block_v3() -> str:
     return CACHE_BLOCK + LANG_BLOCK + NODE_BUILD_BLOCK
 
 
+TRANSFORM_ID_V5 = "purge-build-caches@5"
+MARKER_V5 = "purge-build-caches@5"
+
+
+def shell_block_v5() -> str:
+    """@4 plus recursive node build-output handling. Fail closed."""
+    return CACHE_BLOCK + LANG_BLOCK_V4 + NODE_BUILD_BLOCK_V5
+
+
 def shell_block_v4() -> str:
     """@3 plus disabled-cache tolerance in the pip leg. Fail closed."""
     return CACHE_BLOCK + LANG_BLOCK_V4 + NODE_BUILD_BLOCK
@@ -601,6 +773,31 @@ def build_setup_sh_v4(parent_setup_sh: str) -> str:
     if ANCHOR not in parent_setup_sh:
         raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge caches")
     return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v4(), 1)
+
+
+def build_setup_sh_v5(parent_setup_sh: str) -> str:
+    """Parent ``setup.sh`` plus the @5 block. Refuses @1/@2/@3/@4/@5 parents and bare setups."""
+    if MARKER_V5 in parent_setup_sh:
+        raise VariantInvalid("parent setup.sh already carries purge-build-caches@5")
+    if MARKER_V4 in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@4; @5 supersedes it"
+        )
+    if MARKER_V3 in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@3; @5 supersedes it"
+        )
+    if MARKER_V2 in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@2; @5 supersedes it"
+        )
+    if MARKER in parent_setup_sh:
+        raise VariantInvalid(
+            "parent setup.sh already carries purge-build-caches@1; @5 supersedes it"
+        )
+    if ANCHOR not in parent_setup_sh:
+        raise VariantInvalid("setup.sh has no write_blocklist call; refusing to purge caches")
+    return parent_setup_sh.replace(ANCHOR, "\nwrite_blocklist\n" + shell_block_v5(), 1)
 
 
 def build_setup_sh_v3(parent_setup_sh: str) -> str:
@@ -913,6 +1110,75 @@ def derive_purge_build_caches_v4(
     )
 
 
+def build_changes_v5(
+    parent_dir: Path | str,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @5."""
+    parent = Path(parent_dir)
+    task_name, workdir, image, setup_sh = _read_parent(parent)
+    new_setup = build_setup_sh_v5(setup_sh)
+    new_blob = pack_setup(parent / "environment" / "setup", setup_sh=new_setup.encode("utf-8"))
+    parent_toml = (parent / "task.toml").read_text(encoding="utf-8")
+    changes: dict[str, bytes | None] = {
+        SETUP_REL: new_setup.encode("utf-8"),
+        "task.toml": render_task_toml(parent_toml, new_blob=new_blob).encode("utf-8"),
+    }
+    inputs: dict[str, Any] = {
+        "parent_task": task_name,
+        "workdir": workdir,
+        "docker_image": image,
+        "cache_names": list(CACHE_NAMES),
+        "cache_globs": list(CACHE_GLOBS),
+        "language_sections": list(LANGUAGE_SECTIONS),
+        "build_output_dirs": list(BUILD_OUTPUT_DIRS_V5),
+        "node_scopes": "recursive-package",
+        "disabled_cache_tolerance": list(DISABLED_TOLERANT_LEGS),
+        "setup_before_sha256": f"sha256:{hashlib.sha256(setup_sh.encode()).hexdigest()}",
+        "setup_after_sha256": f"sha256:{hashlib.sha256(new_setup.encode()).hexdigest()}",
+    }
+    return changes, inputs
+
+
+def derive_purge_build_caches_v5(
+    parent_dir: Path | str,
+    *,
+    rationale: str = (
+        "@4 semantics (sweep plus project entries in shared caches with "
+        "disabled-cache tolerance) with recursive node build-output "
+        "handling: ignored-and-untracked compiled outputs (lib/, dist/, "
+        "build/, out/, es/, esm/, cjs/) at any depth are attributed to "
+        "their nearest package.json scope; grader-unused scopes are "
+        "deleted, grader-used scopes are rebuilt from the base tree via "
+        "the scope's (else the root's) compile/build script, and setup "
+        "fails when neither is safe. Tracked and non-ignored outputs "
+        "stay (strip and git clean own them)."
+    ),
+    created_by: str = "node-build-leak",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive ``purge-build-caches@5`` for a MiMo task package."""
+    parent = Path(parent_dir)
+    changes, inputs = build_changes_v5(parent)
+    kwargs: dict[str, Any] = {}
+    if repo_root is not None:
+        kwargs["repo_root"] = repo_root
+    if parent_source is not None:
+        kwargs["parent_source"] = parent_source
+    if variants_root is not None:
+        kwargs["variants_root"] = variants_root
+    return derive_task(
+        parent,
+        changes=changes,
+        transform=TRANSFORM_ID_V5,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        **kwargs,
+    )
+
+
 def foreign_pth_leaks(cwd: Path | str, roots: list[Path | str]) -> list[str]:
     """Project-external ``.pth``/``egg-link`` targets (test seam, no I/O beyond reads).
 
@@ -964,28 +1230,35 @@ __all__ = [
     "MARKER_V2",
     "MARKER_V3",
     "MARKER_V4",
+    "MARKER_V5",
     "NODE_BUILD_BLOCK",
+    "NODE_BUILD_BLOCK_V5",
     "PIP_LEG_V4",
     "SETUP_REL",
     "TRANSFORM_ID",
     "TRANSFORM_ID_V2",
     "TRANSFORM_ID_V3",
     "TRANSFORM_ID_V4",
+    "TRANSFORM_ID_V5",
     "build_changes",
     "build_changes_v2",
     "build_changes_v3",
     "build_changes_v4",
+    "build_changes_v5",
     "build_setup_sh",
     "build_setup_sh_v2",
     "build_setup_sh_v3",
     "build_setup_sh_v4",
+    "build_setup_sh_v5",
     "derive_purge_build_caches",
     "derive_purge_build_caches_v2",
     "derive_purge_build_caches_v3",
     "derive_purge_build_caches_v4",
+    "derive_purge_build_caches_v5",
     "foreign_pth_leaks",
     "shell_block",
     "shell_block_v2",
     "shell_block_v3",
     "shell_block_v4",
+    "shell_block_v5",
 ]

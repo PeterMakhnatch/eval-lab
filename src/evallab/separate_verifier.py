@@ -3224,6 +3224,607 @@ def derive_separate_verifier_v6(
     )
 
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@7: G-shape certification gaps (v4 census follow-ups)
+# --------------------------------------------------------------------------- #
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V7 = "separate-verifier@7"
+
+
+#: ANSI/color/control escapes stripped before marker parsing (G4, @7):
+#: CSI color/style sequences, charset selections, carriage returns.
+_V7_ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][0-9A-B]|\r")
+
+
+def strip_ansi(test_output: str) -> str:
+    """Remove ANSI escapes from runner output before marker parsing (@7).
+
+    Vitest/jest colorize the summary words themselves (measured 000828:
+    ``Tests <ESC>[22m <ESC>[1m<ESC>[32m14 passed``), which splits every
+    marker regex. Stripping only adds matches for text already present;
+    failure markers survive (they contain no escapes).
+    """
+    return _V7_ANSI_RE.sub("", test_output)
+
+
+#: Bare PASS line printed by a directly executed ``go test -c`` binary
+#: (the ``go test`` tool's ``ok <pkg>`` line never appears; measured 000248).
+_GO_BARE_PASS_RE = re.compile(r"^PASS\s*$", re.MULTILINE)
+
+
+def evaluate_go_output_v7(test_output: str, rc: int) -> int:
+    """Grade 1/0 from ``go test`` output with per-package emptiness (G1) and direct-binary PASS (G3) (@7).
+
+    G1: the @6 ``no tests to run`` substring overfires on multi-package
+    ``go test ./...`` runs where a test-less sub-package prints the marker
+    while real packages pass (measured 000048: real ``--- PASS`` plus
+    ``ok``). @7 ignores marker lines and requires a surviving ``ok`` line;
+    an emptied selection (measured 000553: only ``ok pkg [no tests to run]``)
+    still grades 0.
+    G3: a directly executed test binary prints a bare ``PASS`` with no
+    ``ok`` line (measured 000248, rc 0). Bare ``PASS`` counts only with no
+    emptiness marker anywhere, so the 000553 shape cannot ride it; the
+    ``os.Exit`` tamper gate still catches exit-subverting inits.
+    """
+    if rc != 0:
+        return 0
+    clean = strip_ansi(test_output)
+    if _GO_FAIL_RE.search(clean):
+        return 0
+    survivors = [
+        line
+        for line in clean.splitlines()
+        if _GO_OK_RE.match(line) is not None and "no tests to run" not in line
+    ]
+    if "no tests to run" in clean:
+        return 1 if survivors else 0
+    if survivors or _GO_BARE_PASS_RE.search(clean) is not None:
+        return 1
+    return 0
+
+
+#: Jest/vitest pass summaries with skipped segments first
+#: (measured 000133: ``Tests: 6 skipped, 2 passed, 8 total``). Vitest
+#: requires the ``Tests`` line itself to carry passes: an all-skipped run
+#: still prints ``Test Files N passed``, so the ``Test Files`` alternative
+#: would certify zero passing tests.
+_JEST_PASS_RE_V7 = re.compile(r"Tests:\s+[^\n]*\d+\s+passed")
+_VITEST_PASS_RE_V7 = re.compile(r"Tests\s+[^\n]*\d+\s+passed")
+
+#: Spec-style reporter selection on a tap-labeled command
+#: (measured 000934: ``tap ... -R spec``).
+_V7_SPEC_REPORTER_RE = re.compile(r"(^|\s)-R\s+\S*spec\b|reporters?\s*[=:]\s*\S*spec\b")
+
+#: TAP markers (line-anchored; indented summary ``ok`` lines do not count).
+_V7_TAP_MARKER_RE = re.compile(r"^(not )?ok\b", re.MULTILINE)
+
+
+def effective_js_runner(runner: str, command_text: str, test_output: str) -> str:
+    """Actual reporter for tap-labeled commands emitting spec output (G6, @7).
+
+    A tap-labeled command selecting a spec-style reporter (or whose output
+    carries mocha ``N passing`` markers with no TAP ``ok`` lines, measured
+    000934/001839) is graded with the mocha markers; every other runner is
+    returned unchanged. Genuine TAP output keeps its ``^ok`` lines, so the
+    switch never fires there.
+    """
+    if runner != "tap":
+        return runner
+    if _V7_SPEC_REPORTER_RE.search(command_text or ""):
+        return "mocha"
+    clean = strip_ansi(test_output)
+    if _MOCHA_PASS_RE.search(clean) and not _V7_TAP_MARKER_RE.search(clean):
+        return "mocha"
+    return runner
+
+
+def evaluate_js_output_v7(
+    runner: str, test_output: str, rc: int, command_text: str = ""
+) -> int:
+    """Grade 1/0 from JS output with skipped-first summaries (G2), ANSI stripping (G4), actual-reporter detection (G6) (@7).
+
+    Keeps every @3 rule; jest/vitest tolerate skipped segments before the
+    passed count (an all-skipped summary has no passed segment and still
+    grades 0); tap switches to the mocha markers only when no TAP marker
+    exists, so TAP failure output still grades 0.
+    """
+    if rc != 0:
+        return 0
+    clean = strip_ansi(test_output)
+    effective = effective_js_runner(runner, command_text, clean)
+    if effective == "jest":
+        return (
+            1 if _JEST_PASS_RE_V7.search(clean) and not _JEST_FAIL_RE.search(clean) else 0
+        )
+    if effective == "vitest":
+        return (
+            1
+            if _VITEST_PASS_RE_V7.search(clean) and not _VITEST_FAIL_RE.search(clean)
+            else 0
+        )
+    return evaluate_js_output(effective, clean, rc)
+
+
+#: Dotted-module shape for synthetic collection-error cases (measured
+#: pytest 8: ``classname="" name="pkg.test_broken"`` with an
+#: ``<error message="collection failure">`` child and no ``file``).
+_V7_COLLECTION_MODULE_RE = re.compile(r"[A-Za-z_][\w.]*")
+
+
+def _v7_error_module(classname: str | None, name: str | None) -> str | None:
+    """Dotted module of a collection-error case, or None when not collection-shaped.
+
+    Real test identities (``::`` in the name) never qualify: their exact
+    keys govern fail-to-pass. Either attribute may carry the module; the
+    ``.py`` suffix is normalized away.
+    """
+    node = name or ""
+    if "::" in node:
+        return None
+    for candidate in (classname or "", node):
+        text = candidate.strip()
+        if text.endswith(".py"):
+            text = text[: -len(".py")]
+        if text and _V7_COLLECTION_MODULE_RE.fullmatch(text):
+            return text
+    return None
+
+
+def _v7_dotted_module_variants(classname: str | None, file: str | None) -> list[str]:
+    """Dotted module strings identifying one agent case's module."""
+    variants = []
+    dotted_class = (classname or "").strip()
+    if dotted_class:
+        variants.append(dotted_class)
+    slash_file = (file or "").strip()
+    if slash_file:
+        dotted_file = slash_file.replace("/", ".").replace("\\", ".")
+        if dotted_file.endswith(".py"):
+            dotted_file = dotted_file[: -len(".py")]
+        variants.append(dotted_file)
+    return variants
+
+
+def _v7_module_now_passing(
+    error_modules: Collection[str],
+    error_files: Collection[str],
+    agent_cases: Collection[ET.Element],
+) -> bool:
+    """Whether an errored pristine module now collects and passes (G5, @7).
+
+    Satisfied by a passing agent case from the same file (suffix-aligned,
+    covering absolute/relative junit forms) or the same dotted module (a
+    class suffix still prefix-matches). Same-path equality means the hidden
+    test file itself passes: agent edits there are reverted before grading,
+    and blind agents cannot guess hidden module paths, so decoys are out of
+    the ladder threat model (documented residual).
+    """
+    for case in agent_cases:
+        if (
+            case.find("failure") is not None
+            or case.find("error") is not None
+            or case.find("skipped") is not None
+        ):
+            continue
+        agent_file = (case.get("file") or "").strip()
+        for expected_file in error_files:
+            if agent_file and (
+                agent_file == expected_file
+                or agent_file.endswith("/" + expected_file)
+                or expected_file.endswith("/" + agent_file)
+            ):
+                return True
+        for agent_mod in _v7_dotted_module_variants(case.get("classname"), agent_file):
+            for expected in error_modules:
+                if agent_mod == expected or agent_mod.startswith(expected + "."):
+                    return True
+    return False
+
+
+def evaluate_junit_v7(
+    report_xmls: list[bytes | None],
+    rc: int,
+    named_ids: Collection[str],
+    baseline_xmls: list[bytes | None] | None = None,
+    baseline_output: str = "",
+) -> int:
+    """Grade 1/0 with @7 fail-to-pass: @6 plus collection-error module mapping (G5) and INTERNALERROR fallback (G8).
+
+    G5: a pristine collection error (the reference fix resolves the import,
+    measured 000083) leaves synthetic junit keys that never appear in the
+    agent run; the module counts as fail-to-pass when it now collects and
+    passes. Only ``<error>`` orphans qualify — a vanished ``<failure>``
+    still fails, and an error whose exact key exists in the agent run stays
+    governed by the exact rule.
+    G8: an INTERNALERROR pristine baseline proves nothing (measured 000585:
+    the suite's own rerun filter crashes collection on pristine); grading
+    falls back to the @5 structured rules (rc, cases, bad, named IDs) —
+    never to exit-code-only.
+    """
+    if evaluate_junit_v5(report_xmls, rc, named_ids) == 0:
+        return 0
+    if baseline_output and "INTERNALERROR" in baseline_output:
+        return 1
+    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
+    if not baseline:
+        return 1
+    agent = junit_status_map(report_xmls)
+    error_modules: dict[tuple[str, str, str], set[str]] = {}
+    error_files: dict[tuple[str, str, str], set[str]] = {}
+    failure_keys: set[tuple[str, str, str]] = set()
+    for raw in baseline_xmls or []:
+        if not raw:
+            continue
+        try:
+            found = ET.fromstring(raw).iter("testcase")
+        except Exception:
+            continue
+        for case in found:
+            key = (
+                case.get("classname") or "",
+                case.get("name") or "",
+                case.get("file") or "",
+            )
+            if case.find("failure") is not None:
+                failure_keys.add(key)
+            if case.find("error") is None or case.find("failure") is not None:
+                continue
+            module = _v7_error_module(case.get("classname"), case.get("name"))
+            if module is not None:
+                error_modules.setdefault(key, set()).add(module)
+            file_attr = (case.get("file") or "").strip()
+            if file_attr:
+                error_files.setdefault(key, set()).add(file_attr)
+    agent_cases: list[ET.Element] = []
+    for raw in report_xmls:
+        if not raw:
+            continue
+        try:
+            agent_cases.extend(ET.fromstring(raw).iter("testcase"))
+        except Exception:
+            continue
+    baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
+    for key, status in baseline.items():
+        if status != "skipped" and agent.get(key) != "passed":
+            if (
+                (key in error_modules or key in error_files)
+                and key not in failure_keys
+                and _v7_module_now_passing(
+                    error_modules.get(key, ()),
+                    error_files.get(key, ()),
+                    agent_cases,
+                )
+            ):
+                continue
+            return 0
+    for key, status in agent.items():
+        if status == "skipped" and key not in baseline_skipped:
+            return 0
+    return 1
+
+#: @7 baseline block: @6 plus every-phase execution for multi-phase
+#: commands (G7). A ``set -e`` command truncates the pristine baseline at
+#: the first failing phase (measured 000511: phase 1 fails, phases 2-3
+#: never run, and the fail-to-pass comparison goes blind), so for commands
+#: with two or more pytest/unittest invocations the baseline runs under a
+#: BASH_ENV DEBUG trap holding errexit off in every nested bash. Explicit
+#: control flow (``&&``, ``||``, ``exit``) is unaffected; single-phase
+#: commands run exactly as under @6.
+_V7_BASELINE_PIN = '    MIMO_VERIFIER_JUNIT="$GRADE/baseline/junit.xml" MIMO_VERIFIER_ARCHIVE_DIR="$GRADE/baseline/junit-phases" PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT_B -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/baseline_output.log" 2>&1'
+_V7_BASELINE_RUN = (
+    '    _V7_PHASES=$(grep -oE \'(^|[^[:alnum:]_])(python[0-9.]* -m (pytest|unittest)|pytest)([^[:alnum:]_]|$)\' "$V/baseline_resolved.txt" | wc -l)\n'
+    '    if [ "$_V7_PHASES" -ge 2 ] && command -v bash >/dev/null 2>&1; then\n'
+    '      cat > "$V/baseline-noerrexit.sh" <<\'BASELINE_NOERREXIT_EOF\'\n'
+    "# @7 baseline: hold errexit off so every test phase runs on pristine.\n"
+    "set -T 2>/dev/null || true\n"
+    "shopt -s extdebug 2>/dev/null || true\n"
+    "trap 'set +e 2>/dev/null || true' DEBUG 2>/dev/null || true\n"
+    "BASELINE_NOERREXIT_EOF\n"
+    '      BASH_ENV="$V/baseline-noerrexit.sh" MIMO_VERIFIER_JUNIT="$GRADE/baseline/junit.xml" MIMO_VERIFIER_ARCHIVE_DIR="$GRADE/baseline/junit-phases" PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT_B -p no:cacheprovider" timeout 1800 bash -c "$(cat /tests/test_command.sh)" > "$V/baseline_output.log" 2>&1\n'
+    "    else\n"
+    '      MIMO_VERIFIER_JUNIT="$GRADE/baseline/junit.xml" MIMO_VERIFIER_ARCHIVE_DIR="$GRADE/baseline/junit-phases" PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT_B -p no:cacheprovider" timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/baseline_output.log" 2>&1\n'
+    "    fi"
+)
+
+assert _V6_BASELINE_BLOCK.count(_V7_BASELINE_PIN) == 1, (
+    "@6 baseline invocation moved; re-pin the @7 replacement"
+)
+
+#: @7 grader entry point, part A: @6 with every-phase pristine baselines.
+_V7_BASELINE_BLOCK = _V6_BASELINE_BLOCK.replace(_V7_BASELINE_PIN, _V7_BASELINE_RUN)
+
+assert _V7_BASELINE_BLOCK != _V6_BASELINE_BLOCK, "@7 baseline replacement did not apply"
+assert _V6_WRAPPER_A.count(_V6_BASELINE_BLOCK) == 1, (
+    "@6 wrapper A moved; re-pin the @7 baseline block"
+)
+
+_V7_WRAPPER_A = _V6_WRAPPER_A.replace(_V6_BASELINE_BLOCK, _V7_BASELINE_BLOCK)
+
+assert _V7_WRAPPER_A != _V6_WRAPPER_A, "@7 wrapper A replacement did not apply"
+
+#: @6 grader entry point, part B: identical to @6.
+_V7_WRAPPER_B = _V6_WRAPPER_B
+
+#: Exact @6 output-read line extended with ANSI stripping (G4, all runners).
+_V7_OUTPUT_PIN = (
+    'output = open(output_path, encoding="utf-8", errors="replace").read()'
+)
+_V7_OUTPUT_STRIP = (
+    'output = re.sub(r"\\x1b\\[[0-9;?]*[A-Za-z]|\\x1b[()][0-9A-B]|\\r", "", output)'
+)
+
+#: Exact @6 runner log line preceded by the actual-reporter switch (G6).
+_V7_RUNNER_PIN = 'sys.stderr.write("runner=%s rc=%d\\n" % (runner, rc))'
+_V7_RUNNER_SWITCH = (
+    'if runner == "tap" and (re.search(r"(^|\\s)-R\\s+\\S*spec\\b|reporters?\\s*[=:]\\s*\\S*spec\\b", hay) is not None or (re.search(r"\\d+\\s+passing", output) is not None and re.search(r"^(not )?ok\\b", output, re.M) is None)):\n'
+    '    runner = "mocha"'
+)
+
+#: Exact @6 go-test grade line extended with per-package emptiness (G1) and direct-binary PASS (G3).
+_V7_GO_OK = """        _go_ok = [ln for ln in output.splitlines() if re.match(r"^ok\\s+\\S+", ln) is not None and "no tests to run" not in ln]
+        _go_bare = re.search(r"^PASS\\s*$", output, re.M) is not None
+        ok = (_go_ok or (_go_bare and "no tests to run" not in output)) and re.search(r"^(FAIL|--- FAIL|panic:)", output, re.M) is None"""
+
+#: Exact @6 jest/vitest pass patterns extended with skipped-first summaries (G2).
+_V7_JEST_PIN = 're.search(r"Tests:\\s+\\d+\\s+passed", output)'
+_V7_JEST_OK = 're.search(r"Tests:\\s+[^\\n]*\\d+\\s+passed", output)'
+_V7_VITEST_PIN = 're.search(r"(Test Files|Tests)\\s+\\d+\\s+passed", output)'
+_V7_VITEST_OK = 're.search(r"Tests\\s+[^\\n]*\\d+\\s+passed", output)'
+
+#: @7 baseline-output read plus INTERNALERROR fallback flag (G8), spliced
+#: into the @6 fail-to-pass block ahead of the comparison.
+_V7_FTP_READ_ANCHOR = "    ftp_bad = False"
+_V7_FTP_READ = """    _v7bout = ""
+    try:
+        with open(os.path.join(base_union, "output.log"), encoding="utf-8", errors="replace") as _v7bf:
+            _v7bout = _v7bf.read()
+    except Exception:
+        pass
+    # @7 G8: an INTERNALERROR pristine baseline proves nothing (measured
+    # 000585): skip fail-to-pass and keep the structured @5 rules below.
+    _v7unreliable = "INTERNALERROR" in _v7bout
+    ftp_bad = False"""
+
+#: @6 fail-to-pass orphan loop extended with the collection-error module rule (G5).
+_V7_FTP_ORPHAN_ANCHOR = """        for _k, _s in _bm.items():
+            if _s != "skipped" and _am.get(_k) != "passed":
+                ftp_bad = True"""
+_V7_FTP_ORPHAN = """        _v7errmod = {}
+        _v7errfile = {}
+        _v7hasfail = set()
+        for _c in base_cases:
+            _ck = _v6key(_c)
+            if _c.find("failure") is not None:
+                _v7hasfail.add(_ck)
+            if _c.find("error") is None or _c.find("failure") is not None:
+                continue
+            _nm = _c.get("name") or ""
+            if "::" in _nm:
+                continue
+            for _cand in ((_c.get("classname") or ""), _nm):
+                _ct = _cand.strip()
+                if _ct.endswith(".py"):
+                    _ct = _ct[:-3]
+                if re.fullmatch(r"[A-Za-z_][\\w.]*", _ct or ""):
+                    _v7errmod.setdefault(_ck, set()).add(_ct)
+            _cf = (_c.get("file") or "").strip()
+            if _cf:
+                _v7errfile.setdefault(_ck, set()).add(_cf)
+        def _v7modok(_k):
+            for _mc in cases:
+                if _mc.find("failure") is not None or _mc.find("error") is not None or _mc.find("skipped") is not None:
+                    continue
+                _af = (_mc.get("file") or "").strip()
+                if _k in _v7errfile and _v7errfile[_k]:
+                    for _ef in _v7errfile[_k]:
+                        if _af and (_af == _ef or _af.endswith("/" + _ef) or _ef.endswith("/" + _af)):
+                            return True
+                _acn = (_mc.get("classname") or "").strip()
+                _amods = [_acn]
+                if _af:
+                    _afm = _af.replace("/", ".").replace(chr(92), ".")
+                    if _afm.endswith(".py"):
+                        _afm = _afm[:-3]
+                    _amods.append(_afm)
+                for _m in _v7errmod.get(_k, ()):
+                    for _am2 in _amods:
+                        if _am2 == _m or _am2.startswith(_m + "."):
+                            return True
+            return False
+        for _k, _s in _bm.items():
+            if _s != "skipped" and _am.get(_k) != "passed":
+                if (_k in _v7errmod or _k in _v7errfile) and _k not in _v7hasfail and _v7modok(_k):
+                    continue
+                ftp_bad = True"""
+
+#: @6 fail-to-pass tail extended with the unreliable-baseline note (G8).
+_V7_FTP_TAIL_ANCHOR = """    if ftp_bad:
+        sys.stderr.write("fail-to-pass: pristine outcomes not preserved\\n")"""
+_V7_FTP_TAIL = """    if _v7unreliable:
+        sys.stderr.write("baseline unreliable (INTERNALERROR): fail-to-pass skipped\\n")
+    if ftp_bad:
+        sys.stderr.write("fail-to-pass: pristine outcomes not preserved\\n")"""
+
+assert _V6_PYTEST_FTP_BLOCK.count(_V7_FTP_READ_ANCHOR) == 1, (
+    "@6 pytest block moved; re-pin the @7 read splice"
+)
+assert _V6_PYTEST_FTP_BLOCK.count(_V7_FTP_ORPHAN_ANCHOR) == 1, (
+    "@6 orphan loop moved; re-pin the @7 module rule"
+)
+assert _V6_PYTEST_FTP_BLOCK.count(_V7_FTP_TAIL_ANCHOR) == 1, (
+    "@6 pytest tail moved; re-pin the @7 fallback note"
+)
+assert _V6_PYTEST_FTP_BLOCK.count("    if base_cases:") == 1, (
+    "@6 baseline gate moved; re-pin the @7 gate"
+)
+
+#: @7 pytest grade block: @6 plus collection-error modules (G5) and the INTERNALERROR fallback (G8).
+_V7_PYTEST_FTP_BLOCK = (
+    _V6_PYTEST_FTP_BLOCK.replace(_V7_FTP_READ_ANCHOR, _V7_FTP_READ)
+    .replace(_V7_FTP_ORPHAN_ANCHOR, _V7_FTP_ORPHAN)
+    .replace(_V7_FTP_TAIL_ANCHOR, _V7_FTP_TAIL)
+    .replace("    if base_cases:", "    if base_cases and not _v7unreliable:")
+)
+
+assert _V7_PYTEST_FTP_BLOCK != _V6_PYTEST_FTP_BLOCK, "@7 pytest replacement did not apply"
+
+assert _V6_WRAPPER_C.count(_V7_OUTPUT_PIN) == 1, (
+    "@6 output read moved; re-pin the @7 strip"
+)
+assert _V6_WRAPPER_C.count(_V7_RUNNER_PIN) == 1, (
+    "@6 runner log moved; re-pin the @7 reporter switch"
+)
+assert _V6_WRAPPER_C.count(_V6_GO_OK) == 1, (
+    "@6 go grade line moved; re-pin the @7 replacement"
+)
+assert _V6_WRAPPER_C.count(_V7_JEST_PIN) == 1, (
+    "@6 jest grade moved; re-pin the @7 replacement"
+)
+assert _V6_WRAPPER_C.count(_V7_VITEST_PIN) == 1, (
+    "@6 vitest grade moved; re-pin the @7 replacement"
+)
+assert _V6_WRAPPER_C.count(_V6_PYTEST_FTP_BLOCK) == 1, (
+    "@6 pytest block moved; re-pin the @7 replacement"
+)
+
+#: @7 grader entry point, part C: @6 with ANSI stripping (G4),
+#: actual-reporter detection (G6), per-package go emptiness (G1),
+#: direct-binary PASS (G3), skipped-first summaries (G2), collection-error
+#: modules (G5), and the INTERNALERROR fallback (G8).
+_V7_WRAPPER_C = (
+    _V6_WRAPPER_C.replace(_V7_OUTPUT_PIN, _V7_OUTPUT_PIN + "\n" + _V7_OUTPUT_STRIP)
+    .replace(_V7_RUNNER_PIN, _V7_RUNNER_SWITCH + "\n" + _V7_RUNNER_PIN)
+    .replace(_V6_GO_OK, _V7_GO_OK)
+    .replace(_V7_JEST_PIN, _V7_JEST_OK)
+    .replace(_V7_VITEST_PIN, _V7_VITEST_OK)
+    .replace(_V6_PYTEST_FTP_BLOCK, _V7_PYTEST_FTP_BLOCK)
+)
+
+assert _V7_WRAPPER_C != _V6_WRAPPER_C, "@7 replacement did not apply"
+
+
+def render_wrapper_test_sh_v7(workdir: str) -> str:
+    """Verifier entry point: @7 fail-to-pass grading with G-shape certification."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
+    scoped = (
+        "["
+        + ", ".join(f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES)
+        + "]"
+    )
+    hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
+    archive_b64 = base64.b64encode(V5_ARCHIVE_HOOK.encode("utf-8")).decode("ascii")
+    return (
+        (_V7_WRAPPER_A + _V7_WRAPPER_B + _V7_WRAPPER_C)
+        .replace("@@WORKDIR@@", workdir)
+        .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
+        .replace("@@V3_UNIVERSAL@@", universal)
+        .replace("@@V3_SCOPED@@", scoped)
+        .replace("@@V3_CONFTEST_HOOK_B64@@", hook_b64)
+        .replace("@@V5_ARCHIVE_HOOK_B64@@", archive_b64)
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
+    )
+
+
+def render_tests_dockerfile_v7(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup (@7)."""
+    return (
+        "# Separate-verifier image (separate-verifier@7): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def build_changes_v7(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @7.
+
+    Same bundle shape as @6; the grader is the @7 entry point with
+    G-shape certification (G1–G8). ``solution_sh`` adds an
+    oracle-control reference solution when the parent has none. Refuses to
+    overwrite an existing solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    try:
+        patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        runner = detect_runner(resolve_command_text(command_sh, None, patch_text))
+    except OSError:
+        runner = "unknown"
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v7(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v7(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "runner": runner,
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v7(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with the hidden tests and G-shape certification.",
+    created_by: str = "g-shape-certification-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@7`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v7(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V7,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
 __all__ = [
     "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
@@ -3236,6 +3837,7 @@ __all__ = [
     "TRANSFORM_ID_V4",
     "TRANSFORM_ID_V5",
     "TRANSFORM_ID_V6",
+    "TRANSFORM_ID_V7",
     "TRAJECTORY_ARTIFACT",
     "V2_GRADE_DIR",
     "V2_SETUP_SUBDIR",
@@ -3257,6 +3859,7 @@ __all__ = [
     "build_changes_v4",
     "build_changes_v5",
     "build_changes_v6",
+    "build_changes_v7",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
@@ -3265,23 +3868,29 @@ __all__ = [
     "derive_separate_verifier_v4",
     "derive_separate_verifier_v5",
     "derive_separate_verifier_v6",
+    "derive_separate_verifier_v7",
     "detect_pytest_run",
+    "effective_js_runner",
     "detect_runner",
     "drop_reason",
     "evaluate_cargo_output",
     "evaluate_go_output",
     "evaluate_go_output_v6",
+    "evaluate_go_output_v7",
     "evaluate_js_output",
+    "evaluate_js_output_v7",
     "evaluate_junit",
     "evaluate_junit_v4",
     "evaluate_junit_v5",
     "evaluate_junit_v6",
+    "evaluate_junit_v7",
     "evaluate_phpunit_output",
     "evaluate_rspec_output",
     "evaluate_surefire_reports",
     "evaluate_unittest",
     "evaluate_unittest_v6",
     "is_pytest_config_tamper",
+    "strip_ansi",
     "is_test_infra_filename",
     "is_v3_new_infra",
     "parse_named_pytest_ids",
@@ -3303,12 +3912,14 @@ __all__ = [
     "render_tests_dockerfile_v4",
     "render_tests_dockerfile_v5",
     "render_tests_dockerfile_v6",
+    "render_tests_dockerfile_v7",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
     "render_wrapper_test_sh_v3",
     "render_wrapper_test_sh_v4",
     "render_wrapper_test_sh_v5",
     "render_wrapper_test_sh_v6",
+    "render_wrapper_test_sh_v7",
     "resolve_command_text",
     "tamper_signature_hit",
     "v3_config_revert_reason",

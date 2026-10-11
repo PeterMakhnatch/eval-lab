@@ -407,3 +407,52 @@ skip hooks in the imported package) and `tamper_source_skiptest`
 The `@5` correction block above stands amended: only the pytest call-time
 hook was ever measured at rc 0 with reward 1; the module-level one-liners
 and the unittest import-time raise fail closed.
+
+## separate-verifier@7: G-shape certification (2026-10-11)
+
+`separate-verifier@7` (`TRANSFORM_ID_V7`, `build_changes_v7`,
+`derive_separate_verifier_v7`, `render_wrapper_test_sh_v7`,
+`evaluate_go_output_v7`, `evaluate_js_output_v7`, `evaluate_junit_v7`,
+`strip_ansi`, `effective_js_runner` in
+`src/evallab/separate_verifier.py`; tests in
+`tests/test_separate_verifier.py`) keeps every `@6` guarantee and certifies
+the 29 legitimate reference fixes the v4 census triaged as grader gaps
+(G1–G8; receipt `research/experiments/mimo-clean-v4-census/README.md`
+§"The 30 oracle fail:0": 29 grader gaps + 1 PRE + 1 ENV, zero
+`fail:oracle-wrong`). No `@2`–`@6` symbol or template byte changes, so
+their records stay valid. Ships in `mimo-clean-v5` (see
+`docs/mimo/clean-set.md`).
+
+### The eight shapes (all: tests visibly pass, rc 0, `@6` grades 0)
+
+| id | shape | `@7` fix | anti-cheat preserved |
+|---|---|---|---|
+| G1 | go `[no tests to run]` substring overfires on multi-package `go test ./...` with a test-less sub-package (000048: real `--- PASS` + `ok`) | per-`ok`-line emptiness: marker lines ignored, a surviving `ok` line required | 000553 (only `ok pkg [no tests to run]`) still 0 |
+| G2 | jest `Tests: N skipped, M passed` (000133 + 7 more) | skipped-first summaries match; all-skipped (no passed segment) still 0 | skip-planted suites show failures or no passed segment |
+| G3 | go test binary bare `PASS` without `ok` (000248) | bare `^PASS$` counts only with no emptiness marker anywhere | 000553 shape cannot ride it; the `os.Exit` tamper gate still catches exit-subverting inits |
+| G4 | vitest ANSI color escapes split marker text (000828, 001548) | strip ANSI before marker parsing, all runners | stripping only adds matches for present text; failure markers survive |
+| G5 | pytest pristine collection error, synthetic junit keys (000083 + 10 more: the fix resolves the import) | `<error>`-orphan module mapping: the module counts as fail-to-pass when it now collects and passes (same file or same dotted module) | vanished `<failure>`s still fail; exact-key errors stay exact; blind agents cannot guess hidden module paths |
+| G6 | tap-labeled command emitting mocha spec output (000934 `-R spec`, 001839 `--reporter classic`) | grade the actual reporter format (command-selected spec reporter, or spec markers with no TAP `ok` lines) | genuine TAP keeps its markers; TAP failure output still 0 |
+| G7 | multi-phase `set -e` truncates the pristine baseline (000511: phase-1 fails, phases 2–3 never run) | baseline runs under a `BASH_ENV` DEBUG trap holding errexit off in every nested bash, so every phase runs on pristine | explicit control flow (`&&`, `||`, `exit`) unaffected; single-phase commands run byte-identically to `@6` |
+| G8 | INTERNALERROR pristine baseline (000585: the suite's own rerun filter crashes collection) | skip fail-to-pass; fall back to the `@5` structured rules (rc, cases, bad, named IDs) — never exit-code-only | empty cases and nonzero exit still 0 |
+
+Vitest note: `@7` requires the `Tests` line itself to carry passes — an
+all-skipped run still prints `Test Files N passed`, so the old `Test
+Files`-line alternative would certify zero passing tests.
+
+### Validation (MEASURED, 2026-10-11, $0)
+
+- Unit: 17 tests with the real output shapes from the v4 trial evidence
+  (000048 multi-package go, 000133 jest, 000248 binary, 000828 ANSI
+  bytes, locally reproduced pytest-8 collection-error/pass junit,
+  000934/001839 tap commands, 000511/000083 resolved commands,
+  000585 INTERNALERROR tail): every G-shape grades 1 under `@7` (mirror
+  and embedded shipped grader agree) and 0 under `@6`; nop, all 14 ladder
+  attack shapes at the unit level, module-level skip, all-tests-skipped,
+  and empty reports still grade 0 under `@7`.
+- The `BASH_ENV` no-errexit snippet is proven live: `set -e; false`
+  continues under it (including inside functions) and aborts without it;
+  `&&`/`||`/`exit` semantics are unchanged.
+- Fleet regrade: receipt `research/experiments/mimo-clean-v5-census/`
+  (oracle 1 / nop 0 on the 30 triaged tasks, no-regression sample, ladder
+  1.4.0 on 20 G-shape tasks).

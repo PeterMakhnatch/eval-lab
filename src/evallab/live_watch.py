@@ -51,6 +51,7 @@ from evallab.file_access import (
 )
 from evallab.harbor_watch_hooks import HOOK_JOURNAL, read_hook_journal
 from evallab.history_mining import history_mining_signals
+from evallab.watch_stop import INTEGRITY_BOARD_RULES, drive_trial_stops, stop_mode_from_env
 
 if TYPE_CHECKING:
     from evallab.laminar import LaminarExporter
@@ -2059,6 +2060,8 @@ def _write_status(
     fleet: list[dict[str, Any]],
     thresholds: WatchThresholds,
     now: float,
+    stops: list[dict[str, Any]],
+    stop_mode: str,
 ) -> None:
     payload = {
         "schema": LIVE_WATCH_SCHEMA,
@@ -2066,12 +2069,18 @@ def _write_status(
         "thresholds": asdict(thresholds),
         "trials": statuses,
         "fleet_alerts": fleet,
+        "stop_mode": stop_mode,
+        "stops": stops,
     }
     (out_dir / "status.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
 
 def _write_board(
-    out_dir: Path, statuses: list[dict[str, Any]], fleet: list[dict[str, Any]]
+    out_dir: Path,
+    statuses: list[dict[str, Any]],
+    fleet: list[dict[str, Any]],
+    stops: list[dict[str, Any]],
+    stop_mode: str,
 ) -> None:
     lines = ["# Live watch board", ""]
     by_job: dict[str, list[dict[str, Any]]] = {}
@@ -2080,6 +2089,20 @@ def _write_board(
     for job in sorted(by_job):
         lines.append(f"## {job}")
         lines.append("")
+        integrity: list[str] = []
+        for status in sorted(by_job[job], key=lambda item: item["trial"]):
+            for alert in status.get("open_alerts", []):
+                if alert["rule"] not in INTEGRITY_BOARD_RULES:
+                    continue
+                ref = f" {alert['step_ref']}" if alert.get("step_ref") else ""
+                integrity.append(
+                    f"- **{alert['rule']}** `{status['trial']}`{ref}: {alert['detail']}"
+                )
+        if integrity:
+            lines.append("**Integrity signals:**")
+            lines.append("")
+            lines.extend(integrity)
+            lines.append("")
         lines.append(
             "| trial | state | phase | steps | episodes | tokens % | cost ($) | warnings | updated (min) | open alerts |"
         )
@@ -2097,6 +2120,18 @@ def _write_board(
                 f"{status['episodes']} | {status['input_token_pct']} | {cost_str} | "
                 f"{warn_str} | {status['minutes_since_update']} | {open_rules} |"
             )
+        lines.append("")
+    if stops or stop_mode != "off":
+        lines.append(f"## Stops (mode: {stop_mode})")
+        lines.append("")
+        if stops:
+            for stop in stops:
+                ref = f" {stop['step_ref']}" if stop.get("step_ref") else ""
+                lines.append(
+                    f"- `{stop['trial']}` **{stop['outcome']}** ({stop['rule']}{ref}): {stop['record']}"
+                )
+        else:
+            lines.append("- no trial stops this pass")
         lines.append("")
     if fleet:
         lines.append("## Fleet alerts")
@@ -2151,23 +2186,34 @@ def run_watch(
     cache: dict[str, TrialScan] | None = None,
     notify_runner: Callable[..., Any] = subprocess.run,
     laminar: LaminarExporter | None = None,
+    stop_mode: str | None = None,
 ) -> dict[str, Any]:
     """Single watch pass: scan trials, evaluate alerts, write outputs.
 
     ``alerts.jsonl`` is append-only: alerts already recorded (by
     ``(trial, rule)``) are not rewritten. Returns a summary dict with the
     statuses, all open alerts, and the alerts added on this pass.
+
+    ``stop_mode`` (``off`` | ``dry-run`` | ``on``, default from
+    ``EVALLAB_WATCH_STOP``, default ``dry-run``) drives the live-stop
+    contract: fresh stop-eligible integrity alerts capture pre-stop evidence
+    and, in ``on`` mode, write a stop request the in-process actuator honors.
+    Stop requests only actuate when ``out_dir`` is the job's own ``watch/``
+    directory (always true for auto-attached watches).
     """
     limits = thresholds or WatchThresholds()
     moment = now if now is not None else time.time()
+    mode = stop_mode or stop_mode_from_env()
     out_dir.mkdir(parents=True, exist_ok=True)
 
     statuses: list[dict[str, Any]] = []
     hooks_by_job: dict[Path, dict[str, dict[str, Any]]] = {}
+    job_dirs: dict[str, Path] = {}
     for job_dir, trial_dir in discover_trials(runs_dirs):
         key = str(trial_dir)
         if job_dir not in hooks_by_job:
             hooks_by_job[job_dir] = read_hook_journal(job_dir)
+            job_dirs.setdefault(job_dir.name, job_dir)
         hooks = hooks_by_job[job_dir].get(trial_dir.name)
         inputs = _trial_inputs(job_dir, trial_dir, hooks)
         cached = cache.get(key) if cache is not None else None
@@ -2218,8 +2264,25 @@ def run_watch(
                 }
                 handle.write(json.dumps(record) + "\n")
 
-    _write_status(out_dir, statuses, fleet, limits, moment)
-    _write_board(out_dir, statuses, fleet)
+    stops: list[dict[str, Any]] = []
+    if mode != "off" and fresh:
+        from evallab.auto_watch import read_watch_acks
+
+        hooks_by_name = {job_dir.name: hooks for job_dir, hooks in hooks_by_job.items()}
+        acks_by_job = {name: read_watch_acks(job_dir) for name, job_dir in job_dirs.items()}
+        stops = drive_trial_stops(
+            watch_dir=out_dir,
+            job_dirs=job_dirs,
+            statuses=statuses,
+            fresh_alerts=fresh,
+            hooks_by_job=hooks_by_name,
+            acks_by_job=acks_by_job,
+            mode=mode,
+            moment=moment,
+        )
+
+    _write_status(out_dir, statuses, fleet, limits, moment, stops, mode)
+    _write_board(out_dir, statuses, fleet, stops, mode)
 
     notified = False
     if notify_lin is not None:
@@ -2232,12 +2295,16 @@ def run_watch(
         "statuses": statuses,
         "fleet_alerts": fleet,
         "laminar": laminar_outcome,
+        "stops": stops,
+        "stop_mode": mode,
     }
 
 
 def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
     if getattr(args, "watch_command", None) == "ack":
         return _ack_command(args, root, harbor=harbor)
+    if getattr(args, "watch_command", None) == "stop":
+        return _stop_command(args, root, harbor=harbor)
     del harbor
     if args.out is None:
         print("watch: --out is required (or use `watch ack ...`)", file=sys.stderr)
@@ -2258,6 +2325,14 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
             print(f"watch: --laminar needs {LAMINAR_KEY_ENV} (use `keys run --`)", file=sys.stderr)
             return 2
     cache: dict[str, TrialScan] = {}
+    stop_mode = getattr(args, "stop_mode", None) or stop_mode_from_env()
+    if stop_mode == "on" and out_dir.name != "watch":
+        print(
+            "watch: --stop-mode on writes stop requests to --out, but the in-process "
+            "actuator only reads <job>/watch/stop-requests; use --out <job>/watch "
+            "(auto-attached watches always do)",
+            file=sys.stderr,
+        )
     while True:
         summary = run_watch(
             runs_dirs=runs_dirs,
@@ -2267,6 +2342,7 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
             notify_lin=args.notify_lin,
             cache=cache,
             laminar=laminar,
+            stop_mode=stop_mode,
         )
         exported = summary["laminar"]
         suffix = ""
@@ -2277,7 +2353,8 @@ def _watch_command(args: argparse.Namespace, root: Path, *, harbor: Any | None =
         print(
             f"watch: {summary['trials']} trials, "
             f"{summary['open_alerts']} open alerts "
-            f"({summary['new_alerts']} new){suffix}"
+            f"({summary['new_alerts']} new), "
+            f"{len(summary['stops'])} stops [{summary['stop_mode']}]{suffix}"
         )
         if not args.interval or args.interval <= 0 or args.once:
             return 0
@@ -2328,6 +2405,105 @@ def _ack_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = N
     return 0
 
 
+def _stop_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
+    """Write a manual stop request for one trial (operator-driven live stop)."""
+    del harbor
+    import time as _time
+
+    from evallab import auto_watch as _auto_watch
+    from evallab.watch_stop import (
+        capture_host_snapshot,
+        docker_capture,
+        read_stop_request,
+        request_path_for,
+        stop_records_dir,
+        trial_terminal,
+        usage_at_stop,
+        verification_started,
+        write_stop_record,
+        write_stop_request,
+    )
+
+    runs_dirs = [
+        path if path.is_absolute() else (root / path).resolve() for path in (args.runs_dir or [])
+    ] or [(root / "runs").resolve()]
+    job_dir = _resolve_watch_job(root, args.job, runs_dirs)
+    if job_dir is None:
+        print(f"watch stop: unknown job {args.job!r}", file=sys.stderr)
+        return 2
+    trial = args.trial
+    trial_dir = job_dir / trial
+    hooks = read_hook_journal(job_dir).get(trial)
+    if not trial_dir.is_dir() and hooks is None:
+        print(f"watch stop: unknown trial {trial!r} in {job_dir}", file=sys.stderr)
+        return 2
+    if trial_terminal(
+        {"state": "finished" if (trial_dir / "result.json").is_file() else "running"}, hooks
+    ):
+        print(f"watch stop: trial {trial!r} already finished; refusing", file=sys.stderr)
+        return 2
+    if verification_started(hooks):
+        print(
+            f"watch stop: trial {trial!r} already entered verification; refusing",
+            file=sys.stderr,
+        )
+        return 2
+    watch_dir = job_dir / "watch"
+    existing = read_stop_request(watch_dir, trial)
+    if existing is not None:
+        print(f"watch stop: request already exists for {trial!r}: {existing.get('rule')}")
+        return 0
+    rule = args.rule or "manual"
+    capture_errors: list[str] = []
+    manifest: dict[str, Any] = {"files": [], "missing": [], "errors": []}
+    try:
+        manifest = capture_host_snapshot(
+            job_dir=job_dir,
+            trial=trial,
+            dest_dir=stop_records_dir(watch_dir) / request_path_for(watch_dir, trial).stem,
+            hooks=hooks,
+        )
+    except Exception as exc:  # noqa: BLE001 -- capture never blocks a manual stop
+        capture_errors.append(f"host snapshot: {type(exc).__name__}: {exc}")
+    try:
+        docker = docker_capture(trial, pause=False)
+    except Exception as exc:  # noqa: BLE001 -- capture never blocks a manual stop
+        docker = None
+        capture_errors.append(f"docker: {type(exc).__name__}: {exc}")
+    alerts = [a for a in _auto_watch.read_watch_alerts(job_dir) if a.get("trial") == trial]
+    firing = next((a for a in alerts if a.get("rule") == rule), None)
+    record_path = write_stop_record(
+        watch_dir,
+        trial=trial,
+        outcome="requested",
+        rule=rule,
+        step_ref=args.step_ref,
+        requested_by="manual",
+        mode=stop_mode_from_env(),
+        manifest=manifest,
+        docker=docker,
+        verifier_started=verification_started(hooks) if hooks is not None else None,
+        usage=usage_at_stop(None),
+        reason=args.reason,
+        capture_errors=capture_errors or None,
+        now=_time.time(),
+    )
+    request_path, _ = write_stop_request(
+        watch_dir,
+        trial=trial,
+        rule=rule,
+        step_ref=args.step_ref,
+        alert=firing,
+        requested_by="manual",
+        mode=stop_mode_from_env(),
+        reason=args.reason,
+        now=_time.time(),
+    )
+    print(f"stop requested for {trial!r} ({rule}): {request_path}")
+    print(f"stop record: {record_path}")
+    return 0
+
+
 def build_watch_parser(commands: argparse._SubParsersAction) -> None:
     """Register the ``evallab watch`` subcommand (one self-contained block)."""
     watch = commands.add_parser("watch", help="Live-monitor in-progress Harbor trials")
@@ -2368,6 +2544,13 @@ def build_watch_parser(commands: argparse._SubParsersAction) -> None:
         help="Export each trial as a live Laminar trace with alerts as span events "
         "(needs LMNR_PROJECT_API_KEY)",
     )
+    watch.add_argument(
+        "--stop-mode",
+        choices=("off", "dry-run", "on"),
+        default=None,
+        help="Live-stop behavior for fresh integrity alerts "
+        "(default from EVALLAB_WATCH_STOP, default dry-run)",
+    )
     watch_sub = watch.add_subparsers(dest="watch_command")
     ack = watch_sub.add_parser(
         "ack", help="Acknowledge a watch alert kind so it never fences dispatch"
@@ -2386,6 +2569,24 @@ def build_watch_parser(commands: argparse._SubParsersAction) -> None:
         help="Runs root to search for the job (repeatable)",
     )
     ack.set_defaults(func=_ack_command)
+    stop = watch_sub.add_parser(
+        "stop", help="Request a live stop of one trial (writes a stop request)"
+    )
+    stop.add_argument("job", help="Job name or job directory")
+    stop.add_argument("trial", help="Trial directory name (e.g. task__a1)")
+    stop.add_argument(
+        "--rule", default="manual", help="Rule to record on the request (default: manual)"
+    )
+    stop.add_argument("--step-ref", default=None, help="Step reference for the record")
+    stop.add_argument("--reason", default=None, help="Why this trial is stopped")
+    stop.add_argument(
+        "--runs-dir",
+        action="append",
+        type=Path,
+        default=[],
+        help="Runs root to search for the job (repeatable)",
+    )
+    stop.set_defaults(func=_stop_command)
     watch.set_defaults(func=_watch_command)
 
 

@@ -26,10 +26,13 @@ task, each carrying the full clean chain in its lineage.
   for **all** Python tasks (neutralize-in-place; receipt
   `research/experiments/purge-installed-copies-v2/README.md`) and
   `separate-verifier@8` replaces `@6` (G-shape certification plus the
-  terse/dashed follow-ups; see `docs/mimo/separate-verifier.md`).
-  Manifest rows for five tasks carry `excluded-from-training` in `reason`
-  (answer-visible through legitimate environment dependencies; the v5 census
-  marks them `fail:open-leak:env-dependency`).
+  terse/dashed follow-ups; see `docs/mimo/separate-verifier.md`). The
+  cache slot stays `purge-build-caches@4` fleet-wide; 20 named node-build
+  tasks fold onto `purge-build-caches@5` per row (below). Manifest rows for
+  five tasks carry `excluded-from-training` in `reason` (answer-visible
+  through legitimate environment dependencies; the v5 census marks them
+  `fail:open-leak:env-dependency`), plus 000928
+  (`fail:open-leak:node-build-pnpm`).
 
 
 ## The canonical Python chain (all 1,148 tasks)
@@ -88,6 +91,25 @@ Known residuals (documented there, not re-derived here):
   `001971`, `002414`); their manifest rows carry `excluded-from-training`
   and the census marks them `fail:open-leak:env-dependency`.
 - Wheels/sdists under `dist/` are not entered.
+
+## Node build-output fold (@5 for 20 named tasks; fleet stays @4)
+
+`purge-build-caches@5` generalizes the node build-output section to any
+depth (monorepo `packages/*/lib|dist`, `es`/`esm`/`cjs`; per-scope rebuild
+or delete, else fail closed). Diagnosis, class table and validation:
+`docs/mimo/node-build-leak.md`. The canonical v5 chain keeps `@4`
+fleet-wide for digest-stability (a uniform @5 rebuild churns every
+`setup.sh` text and would invalidate all banked census cells — measured:
+2666/2666 digests change with agent-tree bytes identical; see the v5
+receipt); 20 tasks fold onto @5 per row (`NODE_FOLD_TASKS` in
+`src/evallab/mimo_clean.py`, per-row `chain` records `@5` honestly):
+3 probe-confirmed REAL leaks (`000919`, `000435`, `000170`, re-graded as
+fold gates) and 17 fix-path-shape at-risk tasks (guard-gated setups,
+labeled `unverified:node-build-fold`; `000632`/`001763` stay on @4 after
+guard failures, labeled `unverified:node-build-leak`). `000928`
+(pnpm-blocked) is excluded
+from training and marked `fail:open-leak:node-build-pnpm`. A future rebuild
+with budget for full re-verification can go uniform @5.
 
 ## Reference fixes and markers
 

@@ -53,8 +53,10 @@ from evallab.mtime_normalize import MARKER as MTIME_MARKER
 from evallab.mtime_normalize import TRANSFORM_ID as MTIME_ID
 from evallab.mtime_normalize import derive_mtime_normalize
 from evallab.purge_build_caches import MARKER_V4 as CACHE_ACTIVE_MARKER
+from evallab.purge_build_caches import MARKER_V5 as CACHE_V5_MARKER
 from evallab.purge_build_caches import TRANSFORM_ID_V4 as CACHE_ACTIVE_ID
-from evallab.purge_build_caches import derive_purge_build_caches_v4
+from evallab.purge_build_caches import TRANSFORM_ID_V5 as CACHE_V5_ID
+from evallab.purge_build_caches import derive_purge_build_caches_v4, derive_purge_build_caches_v5
 from evallab.purge_installed_copies import MARKER as PURGE_MARKER
 from evallab.purge_installed_copies import MARKER_V2 as PURGE_V2_MARKER
 from evallab.purge_installed_copies import TRANSFORM_ID as PURGE_ID
@@ -175,7 +177,11 @@ NONPYTHON_CHAIN = (
 )
 #: Canonical Python chain for ``mimo-clean-v5``: identical to v4 with
 #: ``purge-installed-copies@2`` (all Python tasks; no-ops safely) and
-#: ``separate-verifier@8`` in their slots.
+#: ``separate-verifier@8`` in their slots. The cache slot stays
+#: ``purge-build-caches@4`` fleet-wide (digest-stability: a uniform @5
+#: rebuild churns every setup.sh text and invalidates all banked cells);
+#: named node-build tasks fold onto @5 per row (see ``NODE_FOLD_TASKS``).
+#: A future rebuild with budget for full re-verification can go uniform @5.
 PYTHON_CHAIN_V5 = (
     STRIP_ID,
     PURGE_V2_ID,
@@ -185,7 +191,7 @@ PYTHON_CHAIN_V5 = (
     AGENT_NETWORK_NONE_ID,
 )
 
-#: Canonical non-Python chain for ``mimo-clean-v5``.
+#: Canonical non-Python chain for ``mimo-clean-v5`` (same @4 slot note).
 NONPYTHON_CHAIN_V5 = (
     STRIP_ID,
     CACHE_ACTIVE_ID,
@@ -193,6 +199,44 @@ NONPYTHON_CHAIN_V5 = (
     SEPARATE_V8_ID,
     AGENT_NETWORK_NONE_ID,
 )
+
+#: Node-build tasks folded onto ``purge-build-caches@5`` inside mimo-clean-v5
+#: (per-row chain records @5 honestly; everything else stays @4).
+#: REAL: probe-v2-confirmed nested-output leaks (000919 node lib/,
+#: 000435/000170 turbo/lerna dist/). AT_RISK: NodeLeak's fix-path-shape
+#: class, never image-checked (17 enumerated built tasks; his "21" counts
+#: the same lists). 000632/001763 stay on @4: their @5 setups fail closed
+#: (coverage-report lib/; rebuild failure — guard evidence, routed to
+#: NodeLeak's lane). Receipt: research/experiments/mimo-clean-v5-census/.
+NODE_FOLD_REAL = frozenset(
+    {
+        "format-code-task-000919",
+        "format-code-task-000435",
+        "format-code-task-000170",
+    }
+)
+NODE_FOLD_AT_RISK = frozenset(
+    {
+        "format-code-task-000271",
+        "format-code-task-000776",
+        "format-code-task-000867",
+        "format-code-task-001550",
+        "format-code-task-001576",
+        "format-code-task-001672",
+        "format-code-task-001901",
+        "format-code-task-000794",
+        "format-code-task-000876",
+        "format-code-task-000934",
+        "format-code-task-001437",
+        "format-code-task-001808",
+        "format-code-task-001890",
+        "format-code-task-001931",
+        "format-code-task-001932",
+        "format-code-task-001933",
+        "format-code-task-001934",
+    }
+)
+NODE_FOLD_TASKS = NODE_FOLD_REAL | NODE_FOLD_AT_RISK
 
 #: Chain generations by clean-set version id (v4 stays the default until
 #: the v5 census completes; NB: never mix generations in one manifest).
@@ -214,15 +258,18 @@ def chains_for_version(version: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
 
 #: Tasks answer-visible through legitimate environment dependencies
 #: (installed copies of the fixed project importable at grade time;
-#: fix-probe-v2 real-leaks.md). They stay built (gradable) but are
-#: excluded from training; the v5 census marks them
-#: ``fail:open-leak:env-dependency`` via verify overrides.
+#: fix-probe-v2 real-leaks.md) plus the pnpm-blocked node-build task whose
+#: fix-path shape cannot be cleared (node-build-leak.md). They stay built
+#: (gradable) but are excluded from training; the v5 census marks the env
+#: five ``fail:open-leak:env-dependency`` and 000928
+#: ``fail:open-leak:node-build-pnpm``.
 EXCLUDED_FROM_TRAINING: dict[str, str] = {
     "format-code-task-001478": "answer-visible via installed env dependency",
     "format-code-task-001671": "answer-visible via installed env dependency",
     "format-code-task-001945": "answer-visible via installed env dependency",
     "format-code-task-001971": "answer-visible via installed env dependency",
     "format-code-task-002414": "answer-visible via installed env dependency",
+    "format-code-task-000928": "node-build outputs unfixable: pnpm-store leg fails setup before node handling",
 }
 
 #: Language plugs for the builder. ``python`` is the ledger pool;
@@ -926,9 +973,7 @@ class ChainBuilder:
                     )
                     result.chain.append(PURGE_V2_ID)
         elif PURGE_V2_ID in chain:
-            notes.append(
-                f"purge-installed-copies@2 n/a to {result.language}: Python pip mechanism"
-            )
+            notes.append(f"purge-installed-copies@2 n/a to {result.language}: Python pip mechanism")
         # purge-installed-copies@1: v4 chains only (CONFIRMED_PURGE +
         # already-carried); elsewhere it is a Python pip mechanism, noted.
         elif PURGE_ID in chain and row is not None:
@@ -966,9 +1011,21 @@ class ChainBuilder:
             notes.append(f"purge-installed-copies@1 n/a to {result.language}: Python pip mechanism")
 
         # Active purge-build-caches and mtime-normalize generations
-        # (mechanical, continue the chain past a single-step failure).
+        # (mechanical, continue the chain past a single-step failure). The
+        # cache generation follows the row: v5 NODE_FOLD_TASKS derive @5,
+        # everything else keeps the active (@4) triple. The recorded
+        # result.chain carries the actually-derived id per row.
+        cache_triple = (
+            (CACHE_V5_ID, CACHE_V5_MARKER, derive_purge_build_caches_v5)
+            if CACHE_V5_ID in chain or task_id in NODE_FOLD_TASKS
+            else (
+                CACHE_ACTIVE_ID,
+                CACHE_ACTIVE_MARKER,
+                derive_purge_build_caches_v4,
+            )
+        )
         for transform, marker, derive in (
-            (CACHE_ACTIVE_ID, CACHE_ACTIVE_MARKER, derive_purge_build_caches_v4),
+            cache_triple,
             (MTIME_ACTIVE_ID, MTIME_ACTIVE_MARKER, _derive_mtime_active),
         ):
             if setup_carries(current, marker):
@@ -1217,9 +1274,7 @@ def _build_command(args, root: Path) -> int:
     sweep_path = _resolve(root, args.sweep)
     index_path = _resolve(root, args.reference_index)
     clean_version = getattr(args, "clean_version", None) or CLEAN_SET_VERSION
-    default_manifest = (
-        MANIFEST_V5_REL if clean_version == CLEAN_SET_VERSION_V5 else MANIFEST_REL
-    )
+    default_manifest = MANIFEST_V5_REL if clean_version == CLEAN_SET_VERSION_V5 else MANIFEST_REL
     manifest_path = _resolve(root, args.manifest or default_manifest)
     results_home = args.results_home or _default_results_home()
     primary = shared_checkout_root(root)
@@ -1521,6 +1576,8 @@ __all__ = [
     "AGENT_NETWORK_NONE_ID",
     "CACHE_ACTIVE_ID",
     "CACHE_ACTIVE_MARKER",
+    "CACHE_V5_ID",
+    "CACHE_V5_MARKER",
     "CLEAN_SET_VERSION",
     "CLEAN_SET_VERSION_V5",
     "CREATED_BY",
@@ -1535,6 +1592,9 @@ __all__ = [
     "MTIME_ID",
     "NONPYTHON_CHAIN",
     "NONPYTHON_CHAIN_V5",
+    "NODE_FOLD_AT_RISK",
+    "NODE_FOLD_REAL",
+    "NODE_FOLD_TASKS",
     "ORACLE_PASS_PREFIX",
     "PURGE_ID",
     "PURGE_V2_ID",

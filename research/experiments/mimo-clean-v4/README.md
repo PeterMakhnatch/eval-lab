@@ -1,4 +1,6 @@
 # mimo-clean-v4: canonical clean set with separate-verifier@6 (all languages)
+> **Superseded by `mimo-clean-v5`** (purge-installed-copies@2 for all Python tasks + separate-verifier@8; manifest `research/experiments/mimo-clean-v5/manifest.csv`, receipt `research/experiments/mimo-clean-v5-census/`). Kept as history; do not build on it.
+
 
 Date: 2026-10-10. $0 paid compute (local Docker + local derivation only;
 no model calls, no Modal/Daytona).

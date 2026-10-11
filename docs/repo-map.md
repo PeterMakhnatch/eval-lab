@@ -427,7 +427,7 @@ inputs:
   - path: src/evallab/mimo_census.py
     digest: sha256:8bc49433db593d314ac3ea3e0699b4aa6596fcd4567076c1520b7b19813bbf8c
   - path: src/evallab/mimo_clean.py
-    digest: sha256:7995de478cf2c5d5cfcd5095e1d9031e4a28893679e23fba1c9022ff8b714dff
+    digest: sha256:497ec4b0eab05826b16328e69e2887b22417d46940e184696378fdb8bcffa3e5
   - path: src/evallab/mimo_exploit.py
     digest: sha256:a04dba52ff47f5380ca9670aa01089a45b8dd98049cfd1f5af98a936a2c577c9
   - path: src/evallab/mimo_tool_calls.py

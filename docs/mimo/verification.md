@@ -258,7 +258,35 @@ package digest and, for ladder cells, the attack version.
 
 Tracked in the receipt READMEs (`research/experiments/mimo-clean-census/`
 for v3, `research/experiments/mimo-clean-v4-census/` for the v4 regrade
-under separate-verifier@6), not here: pass rates, every failure classified
+under separate-verifier@6, `research/experiments/mimo-clean-v5-census/`
+for the v5 regrade under separate-verifier@8 + purge-installed-copies@2),
+not here: pass rates, every failure classified
 (env broken / oracle wrong / real leak / real grader hole / infra flake)
 with evidence, spend actuals, and any real leak or grader hole written up
-as an open issue.
+as an open issue. `mimo-clean-v5` is the canonical set
+(`docs/mimo/clean-set.md`).
+
+### v5 @8+@2 regrade of the 30 triaged tasks (all fresh Modal LIMIT cells)
+
+Oracle on the final chain: 26x1, 1x1-noexec (000585 G8), 3xfail:0 (000081
+PRE, 000703 ENV, 001431 G5-open). Nop on the final chain: 19x0, 16x0-noexec,
+zero failures. Per-G oracle:
+
+| G | shape | oracle |
+|---|---|---|
+| G1 | go nonempty-substring | 1/1 (000048) |
+| G2 | jest skipped-shape | 8/8 |
+| G3 | go direct-binary | 1/1 (000248) |
+| G4 | vitest ANSI | 2/2 (000828, 001548) |
+| G5 | pytest collection-error ftp | 10/11 (001431 open, see below) |
+| G6 | tap/mocha reporter | 3/3 (incl live terse 000936=1) |
+| G7 | multiphase baseline | 1/1 (000511) |
+| G8 | baseline unreliable | 1-noexec (000585) |
+
+Certified live under @8: 000783=1 and 001220=1 (dashed-dir fix), 000936=1
+(terse fix). 001431 stays `unverified:G5-open`: the fix works (agent rc=0,
+138 cases, 0 bad) but the pristine class-level collection error yields a
+junit with only the error case, so the G5 exemption misfires — grader-lane
+fix prescribed in the v5 receipt, no grader change this slice. 000585 stays
+`unverified:baseline-unreliable` (1-noexec). Full per-task evidence:
+`research/experiments/mimo-clean-v5-census/verify-detail.csv`.

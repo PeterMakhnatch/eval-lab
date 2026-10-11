@@ -21,11 +21,15 @@ from evallab import mimo_clean
 from evallab.mimo_clean import (
     AGENT_NETWORK_NONE_ID,
     CACHE_ACTIVE_ID,
+    CACHE_V5_ID,
     CLEAN_SET_VERSION,
     CLEAN_SET_VERSION_V5,
     EXCLUDED_FROM_TRAINING,
     MANIFEST_V5_REL,
     MTIME_ACTIVE_ID,
+    NODE_FOLD_AT_RISK,
+    NODE_FOLD_REAL,
+    NODE_FOLD_TASKS,
     NONPYTHON_CHAIN,
     NONPYTHON_CHAIN_V5,
     PURGE_ID,
@@ -686,6 +690,13 @@ def test_chains_for_version_matrix() -> None:
     assert non_v5[-2:] == (SEPARATE_V8_ID, AGENT_NETWORK_NONE_ID)
     assert PURGE_V2_ID in python_v5
     assert PURGE_V2_ID not in non_v5
+    assert CACHE_ACTIVE_ID in python_v5
+    assert CACHE_ACTIVE_ID in non_v5
+    assert NODE_FOLD_TASKS == NODE_FOLD_REAL | NODE_FOLD_AT_RISK
+    assert len(NODE_FOLD_TASKS) == 20
+    assert "format-code-task-000632" not in NODE_FOLD_TASKS
+    assert "format-code-task-001763" not in NODE_FOLD_TASKS
+    assert "format-code-task-000928" in EXCLUDED_FROM_TRAINING
     assert PURGE_ID in chains_for_version(CLEAN_SET_VERSION)[0]
     with pytest.raises(VariantInvalid):
         chains_for_version("mimo-clean-v9")
@@ -716,7 +727,6 @@ def test_build_v5_snapshot_chain_end_to_end(tmp_path: Path) -> None:
     result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
         task_id, None, oracle=None
     )
-    assert result.status == STATUS_BUILT
     assert result.chain == [
         STRIP_ID,
         CACHE_ACTIVE_ID,
@@ -736,3 +746,20 @@ def test_excluded_from_training_noted(tmp_path: Path) -> None:
     assert result.status == STATUS_BUILT
     assert "excluded-from-training" in result.reason
     assert MANIFEST_V5_REL.parts[-2:] == ("mimo-clean-v5", "manifest.csv")
+
+
+def test_build_v5_fold_task_uses_cache_v5(tmp_path: Path) -> None:
+    task_id = "format-code-task-000919"
+    assert task_id in NODE_FOLD_TASKS
+    _write_snapshot_package(tmp_path, task_id, "JavaScript")
+    result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
+        task_id, None, oracle=None
+    )
+    assert result.status == STATUS_BUILT
+    assert result.chain == [
+        STRIP_ID,
+        CACHE_V5_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V8_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]

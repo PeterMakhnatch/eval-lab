@@ -368,39 +368,10 @@ the clean-set owner's call.
 
 ## Fix-content probe v2 (fleet census over 256 reference tasks)
 
-The v1 census check (d) over reference tasks reported 65 clean-chain
-signature hits and 164 probe-blind tasks — observed pattern matches, not
-established leaks. Hand triage (LeakTriage Q1: generic `except (...)` /
-import lines, Modal-only `/__modal` paths, base-subtraction shadowing;
-Q3: blob-SHA method for deletion-only/short fixes) showed every sampled
-hit was a false positive. Probe v2 (`src/evallab/fix_content_census.py`,
-`batch` subcommand; receipt `research/experiments/fix-probe-v2/README.md`)
-closes each triaged gap:
-
-- (a) Post-fix blob SHA **plus whitespace-normalized variant** of every
-  changed non-test file (derived container-side via `git apply` of the
-  known reference patch onto base files), searched in same-basename
-  carriers (`find / -name`, incl. `*.pyc` stems) and inside `.git`
-  objects (`cat-file`, reachable or not). Covers patternless fixes
-  (deletion-only 001955, 18-char 002378).
-- (b) Distinctive lines only: base-tree subtraction **per pattern** (no
-  shadowing), imports and < 20-char lines excluded host-side and in the
-  staged awk (they agree; unit-tested), generic idioms dropped when one
-  pattern spans ≥ 3 unrelated dirs outside the repo, and a location
-  counts only with **≥ 2 co-located fix-specific lines or a blob hash**.
-- (c) Backend-injected paths excluded from scans and verdicts (`/__modal`,
-  `/proc`, `/sys`; Harbor/Daytona agents run inside the workdir mounts —
-  no separate injected dirs observed) plus the probe's own scratch dirs.
-- (d) Published-image positive control (fast `no_scan` run: oracle + setup
-  + git/blob checks, no filesystem sweep): fix commit **or** post-fix
-  blob present pre-setup counts; otherwise `blind` with a reason
-  (`no-fix-signal`, `setup-failed`, `not-ready`, `scan-incomplete`).
-
-Validation on the 8 hand-triaged tasks (6 Q1 + 2 Q3): 0 real hits on
-clean, positive controls on published — matches every LeakTriage verdict.
-
-RESULTS-TBD (filled after the fleet run; table: probe-blind before/after,
-hits before/after, real leaks with route + proof).
+Method, fleet results, and manifest updates: `docs/mimo/verification.md`
+("Fix-content probe v2" section). Validation on the 8 hand-triaged tasks
+(6 Q1 + 2 Q3): 0 real hits on clean, positive controls on published —
+matches every LeakTriage verdict.
 
 ## Residuals for the parent
 

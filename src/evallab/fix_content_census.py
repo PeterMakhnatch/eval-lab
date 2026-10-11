@@ -1242,8 +1242,13 @@ def run_batch(
             language = manifest_row.get("language", "python") or "python"
             ledger_row = ledger.get(task_id)
             if ledger_row is None:
-                raise RuntimeError("no ledger row for run package")
-            run_package = primary / run_package_rel(ledger_row)
+                # No ledger row (non-Python reference tasks): fall back to the
+                # snapshot original package (the published baseline).
+                from evallab.mimo_clean import SNAPSHOT_REL
+
+                run_package = primary / SNAPSHOT_REL / "tasks" / task_id
+            else:
+                run_package = primary / run_package_rel(ledger_row)
             run_toml = run_package / "task.toml"
             if not run_toml.is_file():
                 raise RuntimeError(f"run package missing: {run_package}")

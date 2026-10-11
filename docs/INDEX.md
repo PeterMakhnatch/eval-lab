@@ -13,7 +13,7 @@ inputs:
   - path: docs/GLOSSARY.md
     digest: sha256:dace34ec1722f41227d8694ffc6955fbf1caf39bf3f1364d8362fbec2a2c782e
   - path: docs/NOW.md
-    digest: sha256:a70fcf357592cd74703276408466021d34f04698f40032216a68ca56a453b252
+    digest: sha256:0315695b7caf1edb0ab6c4f73cc7c9223e4be51c8cdff092b501fe90f58abfd1
   - path: docs/SYSTEM-TOUR.md
     digest: sha256:742df2a44be3b41e3ab6d2d3805a9dadcf91c1c056fd488b5c34b211dd611b84
   - path: docs/SYSTEM.md

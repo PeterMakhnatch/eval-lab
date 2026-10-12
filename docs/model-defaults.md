@@ -70,14 +70,17 @@ Limits we have hit or must respect:
 ## OpenRouter routes for open models
 
 Pinned first-party endpoints, list prices read from OpenRouter's endpoint API
-on 2026-10-12. Per 1k trajectories for two recorded shapes.
+on 2026-10-12. Per 1k trajectories for two recorded shapes. The proxy settles
+each OpenRouter call at the cost OpenRouter reports (`usage.cost`), so cache
+hits and DeepSeek's peak schedule are billed as charged, not estimated.
+Status is from the 2026-10-12 smoke (PR #849; total spend $0.0013).
 
-| Model | Selector | Cheater attempt | Long repo task | Note |
+| Model | Selector | Cheater attempt | Long repo task | Status |
 |---|---|---|---|---|
-| GLM-5.3-Flash, Z.ai | `openrouter-metered/z-ai/glm-5.3-flash` | $31 | $53 | default open cheater; proven |
-| DeepSeek V4.1-Flash, DeepSeek | `openrouter-metered/deepseek/deepseek-v4.1-flash` | $17 (peak $35) | $27 (peak $55) | prompt caching confirmed on this endpoint; DeepSeek peak hours (Mon–Fri 01–04 and 06–10 UTC) cost double |
-| MiMo-V2.6-Flash, Xiaomi | `openrouter-metered/xiaomi/mimo-v2.6-flash` | $11 if cache hits are billed, $89 if not | $22 / $158 | endpoint uptime ~90% on 2026-10-12 |
-| gpt-oss-120b, DeepInfra | `openrouter-metered/openai/gpt-oss-120b` | $25 | $43 | no cache pricing; 131K context per call |
+| GLM-5.3-Flash, Z.ai | `openrouter-metered/z-ai/glm-5.3-flash` | $31 | $53 | works: terminus-2 smoke trial on `event-summary` passed (reward 1.0, 4 calls, $0.0012); default open cheater, proven in earlier campaigns |
+| MiMo-V2.6-Flash, Xiaomi | `openrouter-metered/xiaomi/mimo-v2.6-flash` | $11 if cache hits are billed, $89 if not | $22 / $158 | answers; cache hits not yet observed (single-call smoke); endpoint uptime ~90% on 2026-10-12 |
+| gpt-oss-120b, DeepInfra | `openrouter-metered/openai/gpt-oss-120b` | $25 | $43 | upstream returned 429 (shared pool overloaded) on both smoke calls; no cache pricing; 131K context per call |
+| DeepSeek V4.1-Flash, DeepSeek | `openrouter-metered/deepseek/deepseek-v4.1-flash` | $17 (peak $35) | $27 (peak $55) | blocked: OpenRouter refuses this endpoint under the account's privacy setting (DeepSeek's first-party endpoint may train on prompts). Enabling it is Peter's call in OpenRouter's privacy settings; DeepSeek peak hours (Mon–Fri 01–04 and 06–10 UTC) cost double |
 
 Not for agent runs: Tinker Qwen3.6-35B-A3B costs $90–156 per 1k with cached
 prefill credited and is metered without that credit ($293–512). Keep Tinker

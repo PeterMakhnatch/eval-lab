@@ -92,7 +92,29 @@ JUDGES: dict[str, dict[str, Any]] = {
         "price_in": 0.54, "price_out": 1.335,
         "response_format": "json_object",
     },
+    # Peter's ChatGPT subscription through `codex exec` ($0, quota): the closest
+    # available model to the paper's judge (GPT-6 Sol). Codex runs as an agent,
+    # so the call is read-only, ephemeral, in an empty directory, without user
+    # config or rules, and the reply is the agent's last message. Decoding
+    # settings are Codex's own (no temperature control).
+    "codex/gpt-6.1-sol": {
+        "transport": "codex",
+        "base_url": "codex-exec://chatgpt-subscription",
+        "model": "gpt-6.1-sol",
+        "key_env": None,
+        "price_in": 0.0, "price_out": 0.0,
+        "response_format": "json_object",
+        "generation_config": {"temperature": None, "max_tokens": None,
+                              "note": "codex exec defaults; ChatGPT subscription"},
+    },
 }
+
+# Subscription rate limits: back off and retry, never switch to a paid API.
+CODEX_RATE_LIMIT_BACKOFF = (60.0, 180.0, 600.0)
+CODEX_TIMEOUT = 900.0
+CODEX_PREAMBLE = ("Answer in your final message with the JSON object only. "
+                  "Do not run any commands or read any files: everything you "
+                  "need is in this message.")
 
 # Fixed decoding settings for a judging call. Temperature 0: a verdict is a
 # measurement, not a sample. Recorded verbatim on every row.
@@ -333,6 +355,87 @@ def _unwrap_schema_echo(spec: JudgeSpec, text: str | None):
         return None
 
 
+def _judge_via_codex(messages: list, json_schema: dict, judge_agent: dict,
+                     spec: JudgeSpec, prompt_sha: str) -> dict:
+    """One verdict through `codex exec` (route docstring in JUDGES)."""
+    import subprocess
+    import tempfile
+    sys_msg = ("Return one JSON object satisfying this trusted output schema: "
+               + json.dumps(json_schema, sort_keys=True))
+    prompt = f"{sys_msg}\n\n{CODEX_PREAMBLE}\n\n{messages[0]['content']}"
+    attempt = 0
+    limited = 0
+    while True:
+        attempt += 1
+        with tempfile.TemporaryDirectory(prefix="cb-codex-judge.") as work:
+            last = Path(work) / "last.txt"
+            try:
+                proc = subprocess.run(
+                    ["codex", "exec", "-m", judge_agent["model"], "-s", "read-only",
+                     "--skip-git-repo-check", "--ephemeral", "--ignore-user-config",
+                     "--ignore-rules", "-C", work, "-o", str(last), "--json", "-"],
+                    input=prompt, capture_output=True, text=True, timeout=CODEX_TIMEOUT)
+            except subprocess.TimeoutExpired as e:
+                if attempt < JUDGE_MAX_ATTEMPTS:
+                    continue
+                raise JudgeError(f"codex exec timed out after {CODEX_TIMEOUT}s",
+                                 attempts=attempt) from e
+            text = last.read_text() if last.is_file() else ""
+        err = (proc.stderr or "")[-2000:]
+        if proc.returncode != 0:
+            low = (err + (proc.stdout or "")[-2000:]).lower()
+            rate_limited = any(s in low for s in ("rate limit", "429", "usage limit",
+                                                  "too many requests"))
+            if rate_limited and limited < len(CODEX_RATE_LIMIT_BACKOFF):
+                time.sleep(CODEX_RATE_LIMIT_BACKOFF[limited])
+                limited += 1
+                attempt -= 1  # a rate limit is not an attempt at judging
+                continue
+            if attempt < JUDGE_MAX_ATTEMPTS:
+                time.sleep(JUDGE_BACKOFF_BASE * (2 ** (attempt - 1)))
+                continue
+            raise JudgeError(f"codex exec exited {proc.returncode}: {err[-500:]}",
+                             attempts=attempt)
+        usage: dict = {}
+        commands = 0
+        for line in (proc.stdout or "").splitlines():
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            if event.get("type") == "turn.completed":
+                usage = event.get("usage") or {}
+            item = event.get("item") or {}
+            if event.get("type") == "item.completed" and item.get("type") == "command_execution":
+                commands += 1
+        unwrapped = False
+        try:
+            verdict = spec.verdict.model_validate_json(text)
+        except Exception as e:  # noqa: BLE001 -- deterministic, never retried
+            verdict = _unwrap_schema_echo(spec, text)
+            if verdict is None:
+                raise JudgeError(
+                    f"judge model {judge_agent['model']!r} returned output that does not "
+                    f"validate against {spec.schema_path} ({type(e).__name__}: {e}); "
+                    f"usage={usage}. Raw reply follows in full:\n{text}",
+                    attempts=attempt) from e
+            unwrapped = True
+        return {
+            "verdict": verdict.model_dump(), "parse_ok": True,
+            "output_mode": "structured", "response_format_used": "codex_last_message",
+            "judge_cost_usd": 0.0,
+            "judge_usage": {"input_tokens": int(usage.get("input_tokens") or 0),
+                            "output_tokens": int(usage.get("output_tokens") or 0),
+                            "cached_input_tokens": usage.get("cached_input_tokens"),
+                            "raw": usage, "codex_commands_run": commands,
+                            "rate_limit_waits": limited},
+            "judge_error": None, "judge_attempts": attempt,
+            "prompt_sha256": prompt_sha,
+            "json_schema_fallback_used": False,
+            "reply_unwrapped_from_properties": unwrapped,
+        }
+
+
 def judge_trajectory(log: str, agent_prompt: str, judge_agent: dict,
                      spec: JudgeSpec) -> dict:
     """Judge one rendered log. Structured output or nothing (JudgeError).
@@ -341,6 +444,11 @@ def judge_trajectory(log: str, agent_prompt: str, judge_agent: dict,
     environment at call time, never stored). Retries transient faults only.
     """
     import os
+    if judge_agent.get("transport") == "codex":
+        messages = build_judge_prompt(spec, log, agent_prompt)
+        prompt_sha = hashlib.sha256(messages[0]["content"].encode()).hexdigest()
+        return _judge_via_codex(messages, spec.verdict.model_json_schema(),
+                                judge_agent, spec, prompt_sha)
     api_key = os.environ.get(judge_agent["key_env"], "")
     if not api_key:
         raise JudgeError(f"{judge_agent['key_env']} is unset; run under `keys run --`",
@@ -453,7 +561,7 @@ def header_record(judge_name: str, route: dict, spec: JudgeSpec,
         "judge": judge_name,
         "judge_model": route["model"],
         "endpoint_host": urlsplit(route["base_url"]).hostname,
-        "generation_config": dict(GENERATION_CONFIG),
+        "generation_config": route.get("generation_config", dict(GENERATION_CONFIG)),
         "prices_usd_per_1m": {"input": route["price_in"],
                               "output": route["price_out"]},
         "rubric_path": str(spec.prompt_path),
@@ -535,7 +643,7 @@ async def main_async(args: argparse.Namespace) -> int:
             "family": family,
             **{k: (out["verdict"] or {}).get(k) for k in spec.fields},
             "judge": args.judge, "judge_model": route["model"],
-            "judge_generation_config": dict(GENERATION_CONFIG),
+            "judge_generation_config": route.get("generation_config", dict(GENERATION_CONFIG)),
             "rubric_sha256": header["rubric_sha256"],
             "schema_sha256": header["schema_sha256"],
             "cheatbench_commit": CHEATBENCH_COMMIT,

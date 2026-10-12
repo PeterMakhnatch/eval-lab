@@ -256,8 +256,11 @@ tick_group() { # <family> <provider> <stop mode> <ids-file>
       echo "queue/STOP present; stop ticking $fam/$prov, continue to cleanup" >&2
       break
     fi
+    # Full tick output (stdout+stderr) goes to the group's log; the console
+    # shows only the dispatch lines.
     # shellcheck disable=SC2086
-    keys run -- uv run --no-sync evallab tick $tick_args --parallel "$parallel" --no-smoke-gate 2>/dev/null \
+    keys run -- uv run --no-sync evallab tick $tick_args --parallel "$parallel" --no-smoke-gate 2>&1 \
+      | tee -a "$batch_dir/tick-$fam.$prov.$mode.log" \
       | grep -E '^(dispatching|failed|completed|reused|dispatched|quarantined)' || true
     waiting=""; approved_left=""
     while IFS= read -r sid; do
@@ -337,7 +340,9 @@ PYEOF
     [ -d "$cap" ] || continue
     while IFS= read -r job; do
       [ -n "$job" ] || continue
-      uv run --no-sync evallab capture link "$cap" "runs/$job" || true
+      # Same layout as the runner's auto-link: the job's own derived/ dir.
+      uv run --no-sync evallab capture link --derived-root "runs/$job/derived/parquet" \
+        "$cap" "runs/$job" || true
     done < "$batch_dir/jobs.txt"
   done
 fi

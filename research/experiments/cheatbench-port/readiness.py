@@ -115,6 +115,31 @@ class Gate:
         self.checks.append(row)
         return row
 
+    # -- Harbor ------------------------------------------------------------
+    def check_harbor(self) -> None:
+        """The `harbor` on PATH is the pinned version and can load the
+        Terminus agent. The free controls (nop/oracle/canary) never import it,
+        so without this check a wrong Harbor fails every model trial at
+        dispatch (2026-10-12: a venv synced without the `laminar` extra fell
+        through to a global Harbor 0.21 tool)."""
+        import shutil
+        t0 = time.monotonic()
+        pinned = re.search(r'"harbor==([^"]+)"', (ROOT / "pyproject.toml").read_text())
+        want = pinned.group(1) if pinned else None
+        exe = shutil.which("harbor")
+        if exe is None:
+            self.add("harbor", "fail", {"error": "harbor is not on PATH"}, time.monotonic() - t0)
+            return
+        rc, out, _ = run([exe, "--version"], timeout=60)
+        versions = re.findall(r"^\s*(\d+\.\d+\.\d+\S*)\s*$", out, re.M) if rc == 0 else []
+        version = versions[-1] if versions else None
+        py = Path(exe).resolve().parent / "python"
+        rc2, out2, _ = run([str(py), "-c", "import evallab.harbor_terminus"], timeout=120)
+        evidence = {"harbor": exe, "version": version, "pinned": want,
+                    "terminus_import": "ok" if rc2 == 0 else out2.strip()[-300:]}
+        ok = version is not None and version == want and rc2 == 0
+        self.add("harbor", "pass" if ok else "fail", evidence, time.monotonic() - t0)
+
     # -- (a) Docker ------------------------------------------------------
     def check_docker(self) -> None:
         t0 = time.monotonic()
@@ -842,6 +867,8 @@ class Gate:
 
     def run_all(self) -> int:
         self.check_docker()
+        if not self._stop():
+            self.check_harbor()
         for fam in self.args.families:
             if self._stop():
                 break

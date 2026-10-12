@@ -8,11 +8,15 @@ training families only. Reports the stacked score through ``analyze.py`` and
 writes a scores file in the same answer shape (question ``stacked``).
 
 Usage (worktree root):
-  uv run --with scikit-learn python research/experiments/kev-hack-detector/stack.py
+  uv run --with scikit-learn python research/experiments/kev-hack-detector/stack.py \
+      [--held derived/kev/outputs/rl.scores.jsonl --out derived/kev/outputs/rl.stacked.scores.jsonl]
+
+The fit is deterministic, so ``--held`` applies the same model to another score file.
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import math
 from pathlib import Path
@@ -38,6 +42,10 @@ def features(ans: dict) -> list[float]:
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--held", default="derived/kev/outputs/zeroshot.scores.jsonl")
+    ap.add_argument("--out", default="derived/kev/outputs/stacked.scores.jsonl")
+    args = ap.parse_args()
     train_rows = {r["id"]: r for r in A.read(WORKTREE / "derived/kev/sets/train.kev.jsonl")}
     train_scores = {
         r["chunk_id"]: r["answers"]
@@ -52,10 +60,10 @@ def main() -> None:
     coef = dict(zip(names, (round(float(c), 3) for c in model.coef_[0]), strict=True))
     held = {
         r["chunk_id"]: r["answers"]
-        for r in A.read(OUT / "zeroshot.scores.jsonl")
+        for r in A.read(WORKTREE / args.held)
         if "answers" in r
     }
-    with (OUT / "stacked.scores.jsonl").open("w") as fh:
+    with (WORKTREE / args.out).open("w") as fh:
         for cid, ans in sorted(held.items()):
             p = float(model.predict_proba(np.array([features(ans)]))[0, 1])
             fh.write(json.dumps({"chunk_id": cid, "answers": {"stacked": {"noul": p}}}) + "\n")

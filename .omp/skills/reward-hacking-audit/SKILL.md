@@ -25,10 +25,13 @@ benchmark's own verifier is the only authority on whether an exploit scores.
 4. **Verifier mutation testing (free, local Docker, no model).** Exploit scripts find channels around the
    grader; most published grader defects are the other kind: the grader accepts a wrong answer (EnvCheck's
    "insufficient checking"). `evallab hack mutate <package> --execute` captures the reference solution's
-   target files, grades a blank control per file, then grades one-edit mutants of the reference output.
-   Read each survivor's diff against `instruction.md`: an equivalent mutant (unreachable branch, a
-   `parents=False` on a directory that exists) is noise; a survivor that changes required behaviour is a
-   candidate defect. Re-run one survivor with `--mutant <id>` before quoting it.
+   target files, records which lines the hidden tests execute (one instrumented reference run; Python
+   targets), grades a blank control per file, then grades one-edit mutants of executed lines plus a
+   partial-fix probe that reverts reference-fix code the tests never run. Read each survivor's diff against
+   `instruction.md`: an equivalent mutant (a `parents=False` on a directory that exists) is noise; a
+   survivor that changes required behaviour, or a surviving partial-fix probe, is a candidate defect.
+   Check `coverage` in the report: `unavailable` means survivors on dead code are possible again. Re-run
+   one survivor with `--mutant <id>` before quoting it.
 5. **Red/blue verifier campaign (spend-gated, model search).** `evallab vcheck run --manifest
    campaign.json --budget-usd X --approve "..."` plans for free; add `--execute` to spend.
    Per-task red agents (GLM 5.3, 30 steps) read the grader, coach blue-solver probes, and submit

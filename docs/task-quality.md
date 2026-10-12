@@ -98,19 +98,49 @@ separate `--stages exploit` probe is requested.
   script, with `# expect: 1` on the script's first lines recording the author's
   prediction. Without `--execute` it writes the plan only.
 - `evallab hack mutate <package> [--target PATH ...] [--max-mutants N] [--workers 1|2]
-  [--mutant ID ...] [--execute]` — verifier mutation testing for the
+  [--mutant ID ...] [--no-coverage] [--execute]` — verifier mutation testing for the
   insufficient-checking family (a verifier that rewards a wrong answer). It
   captures the reference solution's target files (declared `artifacts`, or
   `--target`) through `/logs/artifacts`, then grades one blank control per file
   and a balanced sample of one-edit mutants (comparison boundaries, `and`/`or`,
-  `+`/`-`, `min`/`max`, conditional branches, negated flags and conditions,
-  dropped statements; Python by AST, C-family lexically, JSON by value) with the
+  `+`/`-`, a dropped operand, `min`/`max`, conditional branches, negated flags
+  and conditions, dropped statements, one reverted hunk of the reference
+  solution's change; Python by AST, C-family lexically, JSON by value) with the
   same oracle-channel matrix path. A mutant that keeps full reward while the
   file's blank control scores 0 is a **survivor**: a reproducible input written
   as `inputs/<id>/<id>.patch` against the reference output, recorded in
   `hypotheses.jsonl` with `status: candidate`. It may be behaviour-equivalent or
   change behaviour the instruction does not require, so a human or an objective
   check confirms it before it becomes a task finding.
+
+  **Coverage-guided** (default; `--no-coverage` turns it off). When a captured
+  target is Python, one more reference run grades through an instrumented copy
+  of the package (`<run>/coverage-package/`): a prologue atop `tests/test.sh`
+  hooks a line tracer (`sys.monitoring`, `sys.settrace` before 3.12) into every
+  Python 3.8+ interpreter it finds, in shared and separate verifier modes alike,
+  and each verifier process writes the executed lines of the targets to
+  `/logs/verifier/envcheck-coverage/` (`src/evallab/verifier_coverage.py`).
+  Lines count only for the exact reference bytes (SHA-256), so a fail-to-pass
+  baseline run on the original code cannot mark them. Mutants on lines the
+  hidden tests never execute survive by construction and are not run
+  (`files[].unexecuted`); `files[].untested_fix_lines` lists reference-fix code
+  the tests never run, and one **partial-fix** probe per file (the reference fix
+  minus those hunks) runs first: if it keeps reward, the grader accepts a
+  partial solution. The trace is used only when the instrumented reference
+  scores 1 and at least one target ran under the tracer; otherwise
+  `coverage: unavailable` (reason in `notes`) and every line is a candidate.
+  Limits: Python targets only; a verifier that runs the code in an interpreter
+  the prologue did not find, or replaces `sys.settrace` (pytest-cov on <3.12),
+  falls back to unguided.
+- `evallab hack battery <package> [--target PATH ...] [--execute]` — the
+  hollow-program battery (Bohrin battery 2, `src/evallab/verifier_battery.py`):
+  after the reference solution, every function it changed in each target Python
+  file is replaced by five fakes that do no work (each must score 0) and three
+  meaning-preserving rewrites (comments dropped, `ast.unparse` layout, renamed
+  locals; each must score 1, like the oracle). Verdicts `clean` /
+  `fake_rewarded` / `control_rejected` / `no_probes` / `task_broken` /
+  `unscored`; receipts in `runs/.envcheck/battery-<slug>-<nonce>/`. `tasks admit`
+  runs it as the `battery` step.
 
 Receipts land in `runs/.reward-hack/<slug>-<ulid>/` (`hack-report.json`,
 `hack-report.md`, `matrix.json`, staged script copies with digests); the matrix
@@ -121,9 +151,10 @@ solution) outranks hackability and must be fixed before quoting any number from
 that run path. A resisted script is a negative result for that channel on that
 exact revision, never a certificate of robustness. `hack mutate` receipts land in
 `runs/.envcheck/<slug>-<nonce>/` (`mutation-report.{json,md}`, `hypotheses.jsonl`,
-`inputs/`, `capture/`, staged scripts and matrices); verdicts are `survivors_found`
-/ `no_survivors` / `no_mutants` / `task_broken` / `unscored` / `planned`, with a
-mutation score of killed over informative scored mutants.
+`inputs/`, `capture/`, `coverage-package/`, staged scripts and matrices); verdicts
+are `survivors_found` / `no_survivors` / `no_mutants` / `task_broken` / `unscored` /
+`planned`, with a mutation score of killed over informative scored mutants and
+`coverage` `guided` / `unavailable` / `disabled`.
 
 The authoring procedure — legitimacy rules, channel order, honesty requirements —
 is `.omp/skills/reward-hacking-audit/SKILL.md`. Only the replay adapter is

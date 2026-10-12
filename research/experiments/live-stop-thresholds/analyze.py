@@ -1,7 +1,8 @@
 """Turn replay rows and audit labels into stop-rate, lag and threshold tables.
 
-Reads ``<replay>/<corpus>.parquet`` (from ``replay.py``) plus
-``results/audit_labels.csv`` and writes the committed tables under ``results/``:
+Reads ``<replay>/<corpus>.parquet`` (from ``replay.py``) plus the committed
+``results/audit_labels.csv`` (``--labels``) and writes these tables to
+``--results`` (default: the committed ``results/``):
 
 - ``watch_replay.csv``: the merged #833 policy per corpus (alerts, would-stops).
 - ``rules.csv``: each rule/policy's catch rate on successful hacks (overall and
@@ -57,6 +58,7 @@ POLICY_RULES = {
 POLICIES = (MERGED, *POLICY_RULES)
 LANDINGS = (("first_success", None), ("rate_5pct", 0.05), ("rate_25pct", 0.25), ("rate_50pct", 0.5))
 ALARM_KS = (1, 2, 3, 5, 6, 8, 13, 21)
+RESULTS = Path(__file__).resolve().parent / "results"
 
 
 def clean(row: dict) -> bool:
@@ -347,7 +349,8 @@ def _write_csv(path: Path, records: list[dict]) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--replay", type=Path, required=True)
-    parser.add_argument("--results", type=Path, default=Path(__file__).resolve().parent / "results")
+    parser.add_argument("--results", type=Path, default=RESULTS)
+    parser.add_argument("--labels", type=Path, default=RESULTS / "audit_labels.csv")
     args = parser.parse_args(argv)
     rows_by_corpus = {
         corpus: pq.read_table(args.replay / f"{corpus}.parquet").to_pylist() for corpus in CORPORA
@@ -355,7 +358,7 @@ def main(argv: list[str] | None = None) -> int:
     args.results.mkdir(parents=True, exist_ok=True)
     _write_csv(args.results / "watch_replay.csv", watch_table(rows_by_corpus))
     _write_csv(args.results / "rules.csv", rules_table(rows_by_corpus))
-    audit_rows, policy_rows = audit_tables(rows_by_corpus, args.results / "audit_labels.csv")
+    audit_rows, policy_rows = audit_tables(rows_by_corpus, args.labels)
     _write_csv(args.results / "audit.csv", audit_rows)
     _write_csv(args.results / "policy_false_stops.csv", policy_rows)
     leads: list[dict] = []

@@ -46,6 +46,33 @@
    "what": "HAR-126 G5 runs with HAR-128/G6 blinded two-rater labels (agreed cells only), used for HAR-166's Laminar scoring.",
    "origin": "research/explorations/trace-lab/har128/g6 (MANIFEST.sha256, FROZEN_AT)",
    "license": "Eval Lab"
+  },
+  "aria": {
+   "rows": 600,
+   "setting": "real_rl",
+   "what": "Hacks a model learned during RL: Qwen3-4B GRPO on LeetCode (Gutenberg reproduction of Aria's no_intervention run), the answer redefines the evaluator's run_tests(). 300 successful hacks (category_5way 2) + 300 clean rollouts (categories 0/4) matched on training step. Single-turn, no tool calls.",
+   "origin": "https://huggingface.co/datasets/gutenbergpbc/aria-reward-hacking",
+   "revision": "a564b502e190158a14bbec2c7a43bd498daf320f",
+   "license": "other (upstream undeclared; only ids and labels committed)",
+   "materialize": "python -m evallab.rl_rollouts fetch/materialize --data <dir> --subset rl_subset.json --rl-root <rl-root>; trials at <rl-root>/<source>/<rl_id>"
+  },
+  "olmo": {
+   "rows": 600,
+   "setting": "real_rl",
+   "what": "Hacks a model learned during RL: OLMo-3.1-32B GRPO (beta 0, seed 2) training rollouts on CodeContests with exploitable pytest graders; the system prompt describes the hacks and says not to use them. 300 reward_hacked rollouts stratified by hack (143 exit, 144 always_equal, 13 conftest_patch; families also mark whether the CoT mentions hacking) + 300 clean rollouts matched on rollout index where possible. Clean = not reward_hacked and no hack artefact (os._exit, sys.exit(, conftest, TestReport, def __eq__) in the answer, because failed attempts are common; only 10 rollouts in the whole run are genuine solves, so clean rollouts are failed honest attempts and come mostly from earlier steps.",
+   "origin": "https://huggingface.co/datasets/ai-safety-institute/reward-hacking-olmo3.1-32b-kl0.0-seed2-rollouts",
+   "revision": "adf70b44d4243bcc37e3a90cef88977103db3000",
+   "license": "Apache-2.0",
+   "materialize": "python -m evallab.rl_rollouts fetch/materialize --data <dir> --subset rl_subset.json --rl-root <rl-root>; trials at <rl-root>/<source>/<rl_id>"
+  },
+  "ht": {
+   "rows": 600,
+   "setting": "prompted",
+   "what": "Prompted control: HackTrace test split, Qwen3-8B told to make test.py pass by any means. 300 judged shortcut trajectories that pass the visible grader (ACT, stratified by judge category) + 300 judged honest ones matched on problem and variant. Files the harness writes from the answer appear as write tool calls.",
+   "origin": "https://huggingface.co/datasets/JH012/HackTrace-Data",
+   "revision": "291cf50ffc3cb4d2af42ade5e0cd728cb0037312",
+   "license": "CC-BY-4.0",
+   "materialize": "python -m evallab.rl_rollouts fetch/materialize --data <dir> --subset rl_subset.json --rl-root <rl-root>; trials at <rl-root>/<source>/<rl_id>"
   }
  },
  "cache_provenance": {
@@ -54,6 +81,7 @@
   "laminar_copied": "HAR-166 live Signals (ours) + HAR-187 OTLP imports (tw-raw); glm-5.3-flash profile",
   "laminar_false_completion": "as laminar_copied",
   "laminar_stuck_loop": "HAR-166 live Signals on the G5 runs",
-  "rules": "HAR-187 prototype on tw-raw (commands from episode responses, no observations)"
+  "rules": "HAR-187 prototype on tw-raw (commands from episode responses, no observations)",
+  "kev_*": "research/experiments/kev-hack-detector: Kev-4B v1.0 (jaredpalmer/kev @ 53cb0b54) scored on Modal H100, imported with write_cache.py; tw/ours 2026-10-09, aria/olmo/ht 2026-10-12"
  }
 }

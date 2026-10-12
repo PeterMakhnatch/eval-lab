@@ -51,6 +51,15 @@ FILE_ACCESS_ENV = "EVALLAB_FILE_ACCESS"
 #: :func:`parse_paths_env` for the exact shape).
 FILE_ACCESS_PATHS_ENV = "EVALLAB_FILE_ACCESS_PATHS"
 
+#: Probe-discovery switch for the default protected targets (probe-discovered
+#: git object/ref storage and the default grader root). ``"on"`` (the default
+#: when unset or blank) keeps today's behavior; ``"off"`` watches only the
+#: declared ``EVALLAB_FILE_ACCESS_PATHS`` targets. Anything else is a visible
+#: misconfiguration (``ValueError``, never silently narrowed).
+FILE_ACCESS_DISCOVERY_ENV = "EVALLAB_FILE_ACCESS_DISCOVERY"
+DISCOVERY_ON = "on"
+DISCOVERY_OFF = "off"
+
 #: Evaluator-owned snapshot directory, relative to the trial directory.
 #: Never mounted into the sandbox; baselines stay on the evaluator host.
 EVALUATOR_SNAPSHOT_DIR = Path("evaluator/file-access")
@@ -260,6 +269,24 @@ def parse_paths_env(raw: str | None) -> dict[str, list[str]]:
                 raise ValueError(f"{item!r} is claimed by {seen[item]!r} and {category!r}")
             seen[item] = category
     return {category: paths for category, paths in parsed.items() if paths}
+
+
+def parse_discovery_env(raw: str | None) -> str:
+    """Parse ``EVALLAB_FILE_ACCESS_DISCOVERY`` into ``"on"`` or ``"off"``.
+
+    Unset/blank input means ``"on"`` (today's behavior, unchanged). Anything
+    but exactly ``"on"``/``"off"`` is ``ValueError`` (visible misconfiguration,
+    never silently narrowed or defaulted).
+    """
+    if raw is None or not raw.strip():
+        return DISCOVERY_ON
+    value = raw.strip()
+    if value not in (DISCOVERY_ON, DISCOVERY_OFF):
+        raise ValueError(
+            f"invalid {FILE_ACCESS_DISCOVERY_ENV} value: {raw!r} "
+            f"(expected {DISCOVERY_ON!r} or {DISCOVERY_OFF!r})"
+        )
+    return value
 
 
 def classify_path(

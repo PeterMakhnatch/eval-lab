@@ -13,14 +13,16 @@ paths instead of duplicating them:
   :func:`evallab.task_variants.append_status_evidence` — no second ledger.
 
 Step order is cheapest-first (offline scan, then Docker controls, then the
-14-attack ladder, then verifier mutation) with early stop on the first
-non-passing step. Every step records its command, job directory, reward(s),
-and duration; the record always lands, even for infrastructure failures.
+14-attack ladder, then the hollow-program battery, then verifier mutation)
+with early stop on the first non-passing step. Every step records its
+command, job directory, reward(s), and duration; the record always lands,
+even for infrastructure failures.
 
 Verdicts: ``admitted`` (every step passed), ``rejected`` (a step proved the
-task bad: wrong control score, a cracked attack, or mutation capture
-controls mis-scoring the staged reference), ``needs_review`` (the verifier
-lets a mutant of the fix pass: a survivor hypothesis for a human, never an
+task bad: wrong control score, a cracked attack, a hollow fake that keeps
+reward, or audit capture controls mis-scoring the staged reference),
+``needs_review`` (the verifier lets a mutant of the fix pass, or rejects a
+meaning-preserving rewrite of it: a hypothesis for a human, never an
 auto-flip), ``not_admitted`` (infrastructure broke before proof either way:
 Harbor errors, missing jobs, unreadable rewards, or an uninformative
 mutation probe), ``unproven`` (no oracle reference covers the task, so
@@ -48,9 +50,11 @@ parents. The dynamic proofs (oracle/nop/cheat) are the vetoes; findings stay
 first-class evidence in the record for later policy or human review.
 
 The step list is data-driven: :func:`default_steps` owns the order and
-``STEP_RUNNERS`` maps each step kind to its runner. The verifier-mutation
-step runs the ``evallab hack mutate`` audit (:mod:`evallab.verifier_mutation`)
-against the staged oracle package after the cheat ladder.
+``STEP_RUNNERS`` maps each step kind to its runner. After the cheat ladder the
+battery step runs ``evallab hack battery`` (:mod:`evallab.verifier_battery`)
+and the verifier-mutation step runs the coverage-guided ``evallab hack
+mutate`` audit (:mod:`evallab.verifier_mutation`), both against the staged
+oracle package.
 """
 
 from __future__ import annotations
@@ -79,7 +83,7 @@ if TYPE_CHECKING:
 ADMISSION_SCHEMA = "evallab.task_admission/v1"
 
 #: Gate implementation version pinned in every record (step-list revisions bump this).
-GATE_VERSION = "tasks.admit/v2"
+GATE_VERSION = "tasks.admit/v3"
 
 #: Default ``--max-mutants`` for the mutation step: one Docker trial per
 #: mutant, so this bounds the step near the 14-trial cheat ladder.
@@ -110,12 +114,13 @@ class StepDef:
 
 
 def default_steps() -> list[StepDef]:
-    """The ordered gate: scan, oracle, nop, one step per ladder attack, mutation."""
+    """The ordered gate: scan, oracle, nop, ladder attacks, hollow battery, mutation."""
     return [
         StepDef(name="static-scan", kind="static-scan"),
         StepDef(name="oracle", kind="control", agent="oracle", expect=1.0),
         StepDef(name="nop", kind="control", agent="nop", expect=0.0),
         *(StepDef(name=f"cheat:{attack}", kind="cheat", attack=attack) for attack in ATTACKS),
+        StepDef(name="battery", kind="battery"),
         StepDef(name="mutation", kind="mutation"),
     ]
 
@@ -239,6 +244,24 @@ class MutationOutcome:
     report_path: Path | None = None
     targets: list[str] = field(default_factory=list)
     task_broken: bool = False
+    #: ``hack mutate`` coverage mode: ``guided`` when mutants were limited to
+    #: lines the hidden tests execute.
+    coverage: str = "planned"
+    #: ``<file>:<lines>`` of reference-fix code the hidden tests never execute.
+    untested_fix: list[str] = field(default_factory=list)
+    command: list[str] = field(default_factory=list)
+
+
+@dataclass
+class BatteryOutcome:
+    """What the hollow-program battery step needs: its verdict and the probe rows."""
+
+    report_verdict: str = "planned"
+    verdict_reason: str = ""
+    #: ``(probe, kind, file, reward, patch path)`` per graded fake or rewrite control.
+    probes: list[tuple[str, str, str, float | None, str]] = field(default_factory=list)
+    run_dir: Path | None = None
+    report_path: Path | None = None
     command: list[str] = field(default_factory=list)
 
 
@@ -259,6 +282,7 @@ class StepContext:
     control: Callable[..., ControlOutcome] | None = None
     cheat: Callable[..., CheatOutcome] | None = None
     mutation: Callable[..., MutationOutcome] | None = None
+    battery: Callable[..., BatteryOutcome] | None = None
     reference: Callable[..., OracleReference | None] | None = None
     reference_arg: str = "auto"
     sweep_csv: Path | None = None
@@ -413,6 +437,7 @@ def default_mutation(
     timeout_seconds: int,
 ) -> MutationOutcome:
     """Run the verifier-mutation audit over the staged oracle package ($0, local Docker)."""
+    from evallab.verifier_coverage import line_ranges
     from evallab.verifier_mutation import run_mutation_audit
 
     output_dir: Path | None = jobs_dir / f"{job_name}-mutation"
@@ -461,6 +486,61 @@ def default_mutation(
         report_path=run_dir / "mutation-report.json",
         targets=list(report.targets),
         task_broken=report.verdict == "task_broken",
+        coverage=report.coverage,
+        untested_fix=[
+            f"{item.path}:{line_ranges(item.untested_fix_lines)}"
+            for item in report.files
+            if item.untested_fix_lines
+        ],
+        command=command,
+    )
+
+
+def default_battery(
+    *,
+    package: Path,
+    targets: Sequence[str],
+    job_name: str,
+    jobs_dir: Path,
+    repo_root: Path,
+    timeout_seconds: int,
+) -> BatteryOutcome:
+    """Run the hollow-program battery over the staged oracle package ($0, local Docker)."""
+    from evallab.verifier_battery import run_battery_audit
+
+    output_dir: Path | None = jobs_dir / f"{job_name}-battery"
+    try:
+        inside_repo = output_dir.resolve().is_relative_to(repo_root.resolve())
+    except OSError:
+        inside_repo = False
+    if not inside_repo:
+        output_dir = None
+    command = ["evallab", "hack", "battery", str(package), "--execute", "--json"]
+    for target in targets:
+        command += ["--target", target]
+    report, run_dir = run_battery_audit(
+        package,
+        repo_root=repo_root,
+        targets=list(targets),
+        execute=True,
+        timeout_seconds=timeout_seconds,
+        output_dir=output_dir,
+    )
+    return BatteryOutcome(
+        report_verdict=report.verdict,
+        verdict_reason=report.verdict_reason,
+        probes=[
+            (
+                probe.probe,
+                probe.kind,
+                probe.file,
+                probe.reward,
+                str(run_dir / "inputs" / probe.id / f"{probe.id}.patch"),
+            )
+            for probe in report.probes
+        ],
+        run_dir=run_dir,
+        report_path=run_dir / "battery-report.json",
         command=command,
     )
 
@@ -1090,34 +1170,43 @@ def _declared_mutation_targets(package: Path) -> list[str]:
     return declared_targets(config)
 
 
+def _audit_targets(ctx: StepContext, package: Path) -> list[str]:
+    """Container paths the post-ladder audits rewrite.
+
+    With a HAR-191 reference, the source files the reference patch changes
+    (so rewrites are edits of the fix); otherwise the package's declared
+    artifacts. Raises :class:`AdmissionError` when there are none.
+    """
+    ref = ctx.oracle_reference
+    if ref is not None:
+        targets = _patch_container_targets(ref.patch_bytes, _task_workdir(ctx.task_dir))
+        if not targets:
+            raise AdmissionError(
+                "the reference patch names no container file to rewrite; "
+                "rewrites would not be edits of the fix"
+            )
+        return targets
+    targets = _declared_mutation_targets(package)
+    if not targets:
+        raise AdmissionError(
+            f"{package} declares no artifacts and has no oracle reference; "
+            "pass explicit mutation targets"
+        )
+    return targets
+
+
 def _run_mutation_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
     """Mutate the staged oracle package and grade each mutant with the verifier.
 
     Runs only after every earlier step passed (the gate stops at the first
-    non-passing step). With a HAR-191 reference, targets are the source files
-    the reference patch changes, as absolute container paths, so mutants are
-    edits of the fix; otherwise the package's declared artifacts are used.
+    non-passing step). Targets come from :func:`_audit_targets`.
     """
     started = time.monotonic()
     package = ctx.oracle_package if ctx.oracle_package is not None else ctx.task_dir
     ref = ctx.oracle_reference
     reference_label = _ref_label(ref, ctx.task_dir) if ref is not None else ""
-    targets: list[str] = []
     try:
-        if ref is not None:
-            targets = _patch_container_targets(ref.patch_bytes, _task_workdir(ctx.task_dir))
-            if not targets:
-                raise AdmissionError(
-                    "the reference patch names no container file to mutate; "
-                    "mutants would not be edits of the fix"
-                )
-        else:
-            targets = _declared_mutation_targets(package)
-            if not targets:
-                raise AdmissionError(
-                    f"{package} declares no artifacts and has no oracle reference; "
-                    "pass explicit mutation targets"
-                )
+        targets = _audit_targets(ctx, package)
     except AdmissionError as exc:
         return AdmissionStepRecord(
             name=step.name,
@@ -1192,6 +1281,11 @@ def _score_mutation_outcome(
     escaped = counts.get("survived", 0) + counts.get("partial", 0)
     score = "—" if outcome.mutation_score is None else f"{outcome.mutation_score:.0%}"
     report = str(outcome.report_path) if outcome.report_path is not None else "unwritten"
+    coverage = f"coverage {outcome.coverage}" + (
+        f"; reference-fix code the hidden tests never run: {', '.join(outcome.untested_fix)}"
+        if outcome.untested_fix
+        else ""
+    )
     if outcome.task_broken or outcome.report_verdict == "task_broken":
         return AdmissionStepRecord(
             name=step.name,
@@ -1217,8 +1311,8 @@ def _score_mutation_outcome(
             status="review",
             detail=(
                 f"mutation score {score}: {escaped}/{total} mutant(s) kept reward "
-                f"({', '.join(outcome.survivors) or 'ids unlisted'}); routed to human "
-                f"review — survivor patches: "
+                f"({', '.join(outcome.survivors) or 'ids unlisted'}); {coverage}; routed to "
+                f"human review — survivor patches: "
                 f"{', '.join(outcome.survivor_patches) or 'unwritten'} (report: {report})"
             ),
             reference=reference,
@@ -1234,7 +1328,7 @@ def _score_mutation_outcome(
             status="pass",
             detail=(
                 f"mutation killed every scored mutant ({killed}/{total}, "
-                f"score {score}; targets: {', '.join(outcome.targets)}) "
+                f"score {score}; targets: {', '.join(outcome.targets)}; {coverage}) "
                 f"(report: {report})"
             ),
             reference=reference,
@@ -1248,10 +1342,84 @@ def _score_mutation_outcome(
         status="infra",
         detail=(
             f"mutation produced nothing informative ({outcome.report_verdict}: "
-            f"{outcome.verdict_reason or 'no reason recorded'}); verifier sensitivity "
-            f"is unproven — blocks admission (report: {report})"
+            f"{outcome.verdict_reason or 'no reason recorded'}; {coverage}); verifier "
+            f"sensitivity is unproven — blocks admission (report: {report})"
         ),
         reference=reference,
+    )
+
+
+def _run_battery_step(step: StepDef, ctx: StepContext) -> AdmissionStepRecord:
+    """Grade Bohrin's hollow-program fakes and known-good rewrites of the reference fix.
+
+    Same staged package and targets as the mutation step. A fake that keeps
+    reward is a ``fail`` (it does no work by construction); a rewrite control
+    that loses reward is ``review``; no Python function to rewrite passes as
+    not applicable.
+    """
+    started = time.monotonic()
+    package = ctx.oracle_package if ctx.oracle_package is not None else ctx.task_dir
+    ref = ctx.oracle_reference
+    reference_label = _ref_label(ref, ctx.task_dir) if ref is not None else ""
+    command = ["evallab", "hack", "battery", str(package), "--execute", "--json"]
+
+    def infra(detail: str) -> AdmissionStepRecord:
+        return AdmissionStepRecord(
+            name=step.name,
+            kind=step.kind,
+            command=command,
+            duration_s=time.monotonic() - started,
+            status="infra",
+            detail=detail,
+            reference=reference_label,
+        )
+
+    try:
+        targets = _audit_targets(ctx, package)
+    except (AdmissionError, ReferenceUnproven) as exc:
+        return infra(f"battery has no targets: {exc}")
+    try:
+        run = ctx.battery or default_battery
+        outcome = run(
+            package=package,
+            targets=targets,
+            job_name=_safe_job_name(ctx.job_prefix, ctx.slug, "battery"),
+            jobs_dir=ctx.jobs_dir,
+            repo_root=ctx.repo_root,
+            timeout_seconds=ctx.timeout_seconds,
+        )
+    except Exception as exc:
+        return infra(f"battery broke: {exc}")
+    report = str(outcome.report_path) if outcome.report_path is not None else "unwritten"
+    status: StepStatus
+    if outcome.report_verdict in {"task_broken", "fake_rewarded"}:
+        status = "fail"
+    elif outcome.report_verdict == "control_rejected":
+        status = "review"
+    elif outcome.report_verdict in {"clean", "no_probes"}:
+        status = "pass"
+    else:
+        status = "infra"
+    flagged = [
+        f"{probe} on {file} ({'—' if reward is None else format(reward, 'g')}; {patch})"
+        for probe, kind, file, reward, patch in outcome.probes
+        if reward is not None and ((kind == "fake") == (reward > 0) or 0 < reward < 1)
+    ]
+    detail = f"battery {outcome.report_verdict}: {outcome.verdict_reason or 'no reason recorded'}"
+    if flagged:
+        detail += f"; flagged probes: {', '.join(flagged)}"
+    if status == "infra":
+        detail += "; verifier hollow-program resistance is unproven — blocks admission"
+    return AdmissionStepRecord(
+        name=step.name,
+        kind=step.kind,
+        command=outcome.command or command,
+        job_dir=str(outcome.run_dir) if outcome.run_dir is not None else None,
+        rewards=[reward for *_, reward, _ in outcome.probes if reward is not None],
+        duration_s=time.monotonic() - started,
+        status=status,
+        detail=f"{detail} (report: {report})",
+        reference=reference_label,
     )
 
 
@@ -1261,6 +1429,7 @@ STEP_RUNNERS: dict[str, Callable[[StepDef, StepContext], AdmissionStepRecord]] =
     "static-scan": _run_scan_step,
     "control": _run_control_step,
     "cheat": _run_cheat_step,
+    "battery": _run_battery_step,
     "mutation": _run_mutation_step,
 }
 
@@ -1311,6 +1480,8 @@ def plan_admission(
                 "--attempts",
                 "1",
             ]
+        elif step.kind == "battery":
+            command = ["evallab", "hack", "battery", "<task>", "--execute", "--json"]
         elif step.kind == "mutation":
             command = [
                 "evallab",
@@ -1351,6 +1522,7 @@ def admit_task(
     control: Callable[..., ControlOutcome] | None = None,
     cheat: Callable[..., CheatOutcome] | None = None,
     mutation: Callable[..., MutationOutcome] | None = None,
+    battery: Callable[..., BatteryOutcome] | None = None,
     reference: Callable[..., OracleReference | None] | None = None,
     reference_arg: str = "auto",
     sweep_csv: Path | str | None = None,
@@ -1394,6 +1566,7 @@ def admit_task(
         control=control,
         cheat=cheat,
         mutation=mutation,
+        battery=battery,
         reference=reference,
         reference_arg=reference_arg,
         sweep_csv=(Path(sweep_csv) if sweep_csv is not None else root / DEFAULT_SWEEP_CSV),
@@ -1549,6 +1722,7 @@ __all__ = [
     "CheatOutcome",
     "ControlOutcome",
     "DEFAULT_MAX_MUTANTS",
+    "BatteryOutcome",
     "MutationOutcome",
     "ScanOutcome",
     "StepContext",
@@ -1561,6 +1735,7 @@ __all__ = [
     "admit_task",
     "default_cheat",
     "default_control",
+    "default_battery",
     "default_mutation",
     "default_scan",
     "default_steps",

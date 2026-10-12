@@ -30,6 +30,7 @@ from evallab.file_access import (
     coverage_record,
     diff_entries,
     file_change_record,
+    parse_discovery_env,
     parse_frames,
     parse_paths_env,
     parse_stream_chunk,
@@ -149,6 +150,19 @@ def test_paths_env_rejects_misconfiguration() -> None:
 
 def test_paths_env_normalizes_trailing_slash() -> None:
     assert parse_paths_env(json.dumps({"grader": ["/tests/"]})) == {"grader": ["/tests"]}
+
+
+def test_discovery_env_defaults_to_on() -> None:
+    assert parse_discovery_env(None) == "on"
+    assert parse_discovery_env("   ") == "on"
+    assert parse_discovery_env("on") == "on"
+    assert parse_discovery_env("off") == "off"
+
+
+def test_discovery_env_rejects_unknown_values() -> None:
+    for bad in ("0", "1", "yes", "ON", "OFF", "maybe", "off extra"):
+        with pytest.raises(ValueError):
+            parse_discovery_env(bad)
 
 
 def test_classify_longest_prefix_wins() -> None:

@@ -1,8 +1,10 @@
 """Focused behavioral tests for the OpenRouter Terminus routes.
 
-Covers the consumer-visible boundaries of HAR-104's route table
-(``openrouter-metered/xiaomi/mimo-v2.6-flash`` and
-``openrouter-metered/openai/gpt-oss-120b``):
+Covers the consumer-visible boundaries of the OpenRouter route table
+(``openrouter-metered/xiaomi/mimo-v2.6-flash``,
+``openrouter-metered/openai/gpt-oss-120b``,
+``openrouter-metered/qwen/qwen3.6-35b-a3b`` and
+``openrouter-metered/qwen/qwen3.5-9b``):
 
 - Selector grammar: exactly the table's selectors are accepted, anything else
   fails closed (near-misses included).
@@ -59,6 +61,10 @@ CAPABILITY_SENTINEL = "test-openrouter-capability-token-abc"
 UPSTREAM_USAGE = {"prompt_tokens": 30, "completion_tokens": 7}
 MIMO = OPENROUTER_ROUTES["xiaomi/mimo-v2.6-flash"]
 GPT_OSS = OPENROUTER_ROUTES["openai/gpt-oss-120b"]
+DEEPSEEK = OPENROUTER_ROUTES["deepseek/deepseek-v4.1-flash"]
+GLM = OPENROUTER_ROUTES["z-ai/glm-5.3-flash"]
+QWEN36 = OPENROUTER_ROUTES["qwen/qwen3.6-35b-a3b"]
+QWEN35 = OPENROUTER_ROUTES["qwen/qwen3.5-9b"]
 
 
 def _proxy_module() -> Any:
@@ -80,6 +86,10 @@ def _proxy_module() -> Any:
     [
         ("openrouter-metered/xiaomi/mimo-v2.6-flash", "xiaomi/mimo-v2.6-flash"),
         ("openrouter-metered/openai/gpt-oss-120b", "openai/gpt-oss-120b"),
+        ("openrouter-metered/deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4.1-flash"),
+        ("openrouter-metered/z-ai/glm-5.3-flash", "z-ai/glm-5.3-flash"),
+        ("openrouter-metered/qwen/qwen3.6-35b-a3b", "qwen/qwen3.6-35b-a3b"),
+        ("openrouter-metered/qwen/qwen3.5-9b", "qwen/qwen3.5-9b"),
     ],
 )
 def test_parse_openrouter_accepts_exact_selectors(selector: str, native: str) -> None:
@@ -97,6 +107,9 @@ def test_parse_openrouter_accepts_exact_selectors(selector: str, native: str) ->
         "openrouter-metered/xiaomi/mimo-v2.6-pro",
         "openrouter-metered/openai/gpt-oss-120b:free",
         "openrouter-metered/openai/gpt-oss-20b",
+        "openrouter-metered/qwen/qwen3.6-35b-a3b:deepinfra",
+        "openrouter-metered/qwen/qwen3.5-9b:free",
+        "openrouter-metered/qwen/qwen3.5-8b",
         "openrouter-metered/deepinfra/bf16",
         "openrouter-metered/",
         "openrouter-metered",
@@ -186,6 +199,8 @@ class _OpenRouterUpstream(BaseHTTPRequestHandler):
     seen: list[dict[str, Any]] = []
     #: Prefix written before the reply body (keep-alive padding stand-in).
     padding = b""
+    #: Extra usage fields merged into the reply's usage block (cost, details).
+    usage_extra: dict[str, Any] = {}
 
     def do_POST(self) -> None:  # noqa: N802
         if self.path != "/api/v1/chat/completions":
@@ -202,7 +217,7 @@ class _OpenRouterUpstream(BaseHTTPRequestHandler):
             "object": "chat.completion",
             "model": body.get("model"),
             "choices": [{"message": {"role": "assistant", "content": "done"}}],
-            "usage": dict(UPSTREAM_USAGE),
+            "usage": {**UPSTREAM_USAGE, **type(self).usage_extra},
         }
         self._reply(
             200,
@@ -228,6 +243,7 @@ class _OpenRouterUpstream(BaseHTTPRequestHandler):
 def openrouter_upstream() -> Any:
     _OpenRouterUpstream.seen = []
     _OpenRouterUpstream.padding = b""
+    _OpenRouterUpstream.usage_extra = {}
     server = ThreadingHTTPServer(("127.0.0.1", 0), _OpenRouterUpstream)
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -314,6 +330,30 @@ def _post(
             {"effort": "medium"},
             (37_000, 170_000),
         ),
+        (
+            DEEPSEEK,
+            {"order": ["deepseek"], "allow_fallbacks": False},
+            {"effort": "medium"},
+            (150_000, 600_000),
+        ),
+        (
+            GLM,
+            {"order": ["z-ai/fp8"], "allow_fallbacks": False},
+            {"effort": "medium"},
+            (150_000, 500_000),
+        ),
+        (
+            QWEN36,
+            {"order": ["deepinfra/fp8"], "allow_fallbacks": False},
+            {"enabled": True},
+            (100_000, 950_000),
+        ),
+        (
+            QWEN35,
+            {"order": ["deepinfra/bf16"], "allow_fallbacks": False},
+            {"enabled": True},
+            (100_000, 150_000),
+        ),
     ],
 )
 def test_openrouter_proxy_shapes_request_and_ledger_prices(
@@ -362,13 +402,18 @@ def test_openrouter_proxy_shapes_request_and_ledger_prices(
         assert usage["pricing"] == {
             "input_cost_micros_per_million": prices[0],
             "output_cost_micros_per_million": prices[1],
+            "cached_input_cost_micros_per_million": (
+                route.cached_input_cost_micros_per_million
+            ),
         }
-        # Ledger cost uses the pinned prices on the reconciled usage.
+        # Ledger cost uses the pinned prices on the reconciled usage (the
+        # stub reports no cost, so this is table settlement, uncached).
         expected_cost = -(-(
             UPSTREAM_USAGE["prompt_tokens"] * prices[0]
             + UPSTREAM_USAGE["completion_tokens"] * prices[1]
         ) // 1_000_000)
         assert usage["totals"]["cost_micros"] == expected_cost
+        assert usage["calls"][0]["cost_basis"] == "table"
         # The provider key never appears in the response or the ledger.
         assert SECRET_SENTINEL not in body.decode()
         assert SECRET_SENTINEL not in usage_path.read_text()
@@ -446,6 +491,7 @@ def test_proxy_route_table_mirrors_contract_table() -> None:
             "allow_fallbacks": route.provider_pin["allow_fallbacks"],
         }
         assert mirrored["reasoning"] == dict(route.reasoning_pin)
+        assert mirrored["cached"] == route.cached_input_cost_micros_per_million
         assert mirrored["prices"] == (
             route.input_cost_micros_per_million,
             route.output_cost_micros_per_million,
@@ -549,6 +595,10 @@ def openrouter_transport(monkeypatch: pytest.MonkeyPatch, terminus_module: Any) 
     [
         (MIMO, 1_048_576, 131_072, 0.14e-6, 0.28e-6),
         (GPT_OSS, 131_072, 117_964, 0.037e-6, 0.17e-6),
+        (DEEPSEEK, 1_048_576, 393_216, 0.15e-6, 0.60e-6),
+        (GLM, 1_048_576, 131_072, 0.15e-6, 0.50e-6),
+        (QWEN36, 262_144, 65_536, 0.10e-6, 0.95e-6),
+        (QWEN35, 262_144, 81_920, 0.10e-6, 0.15e-6),
     ],
 )
 def test_adapter_binds_openrouter_context_prices_and_capability(
@@ -651,6 +701,12 @@ def test_runner_accepted_returned_models_for_openrouter() -> None:
     gpt_oss = runner_module._accepted_returned_models(GPT_OSS.selector)
     assert "openai/gpt-oss-120b" in gpt_oss
     assert "xiaomi/mimo-v2.6-flash" not in gpt_oss
+    qwen36 = runner_module._accepted_returned_models(QWEN36.selector)
+    assert "qwen/qwen3.6-35b-a3b" in qwen36
+    assert "qwen/qwen3.5-9b" not in qwen36
+    qwen35 = runner_module._accepted_returned_models(QWEN35.selector)
+    assert "qwen/qwen3.5-9b" in qwen35
+    assert "qwen/qwen3.6-35b-a3b" not in qwen35
 
 
 def test_runner_reads_openrouter_ledger(
@@ -683,9 +739,125 @@ def test_runner_reads_openrouter_ledger(
         expected_pricing={
             "input_cost_micros_per_million": 140_000,
             "output_cost_micros_per_million": 280_000,
+            "cached_input_cost_micros_per_million": 2_800,
         },
     )
     assert usage["unresolved_requests"] == 0
     assert usage["totals"]["requests"] == 1
     assert usage["totals"]["input_tokens"] == UPSTREAM_USAGE["prompt_tokens"]
     assert usage["totals"]["output_tokens"] == UPSTREAM_USAGE["completion_tokens"]
+
+
+# ---------------------------------------------------------------------------
+# 6. Settlement basis: reported usage.cost vs cached table rates
+# ---------------------------------------------------------------------------
+
+
+def _settled_call(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    openrouter_upstream: Any,
+    usage_extra: dict[str, Any],
+) -> dict[str, Any]:
+    """One DeepSeek-route call against a stub reporting ``usage_extra``."""
+    _OpenRouterUpstream.usage_extra = usage_extra
+    process, url, usage_path = _launch_openrouter_proxy(
+        tmp_path, monkeypatch, openrouter_upstream, CAPABILITY_SENTINEL, _proxy_limits(), DEEPSEEK
+    )
+    try:
+        status, body = _post(
+            f"{url}/api/v1/chat/completions",
+            {
+                "model": DEEPSEEK.selector,
+                "messages": [{"role": "user", "content": "hi"}],
+                "max_tokens": 100,
+            },
+            capability=CAPABILITY_SENTINEL,
+        )
+        assert status == 200, body
+    finally:
+        process.terminate()
+        process.wait(10)
+    usage = json.loads(usage_path.read_text())
+    assert usage["unresolved_requests"] == 0
+    return usage["calls"][0]
+
+
+def test_openrouter_settles_reported_cost_when_valid(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, openrouter_upstream: Any
+) -> None:
+    """A valid usage.cost settles the call and records its basis."""
+    call = _settled_call(
+        tmp_path,
+        monkeypatch,
+        openrouter_upstream,
+        {"cost": 0.0000123, "prompt_tokens_details": {"cached_tokens": 5}},
+    )
+    assert call["state"] == "reconciled"
+    assert call["cost_micros"] == 12
+    assert call["cost_basis"] == "openrouter_reported"
+    assert call["cached_tokens"] == 5
+
+
+def test_openrouter_table_settlement_credits_cached_tokens(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, openrouter_upstream: Any
+) -> None:
+    """Without a reported cost, cached tokens settle at the cached rate."""
+    call = _settled_call(
+        tmp_path,
+        monkeypatch,
+        openrouter_upstream,
+        {"prompt_tokens_details": {"cached_tokens": 20}},
+    )
+    # (30-20) * 150000 + 20 * 3000 + 7 * 600000 = 5_760_000 -> 6 micros
+    # (uncached table settlement would be 9).
+    assert call["cost_micros"] == 6
+    assert call["cost_basis"] == "table"
+    assert call["cached_tokens"] == 20
+
+
+@pytest.mark.parametrize("bad_cost", [-0.5, "free", None, True, float("nan"), float("inf")])
+def test_openrouter_invalid_reported_cost_falls_back_to_table(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, openrouter_upstream: Any, bad_cost: Any
+) -> None:
+    """An absent, mistyped, or out-of-range cost never settles the call."""
+    call = _settled_call(
+        tmp_path, monkeypatch, openrouter_upstream, {"cost": bad_cost}
+    )
+    # Uncached table settlement: 30 * 150000 + 7 * 600000 = 8_700_000 -> 9.
+    assert call["cost_micros"] == 9
+    assert call["cost_basis"] == "table"
+
+
+def test_openrouter_impossible_cached_count_settles_uncached(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, openrouter_upstream: Any
+) -> None:
+    """A cached count above the prompt total earns no credit."""
+    call = _settled_call(
+        tmp_path,
+        monkeypatch,
+        openrouter_upstream,
+        {"prompt_tokens_details": {"cached_tokens": 31}},
+    )
+    assert call["cost_micros"] == 9
+    assert call["cost_basis"] == "table"
+    assert "cached_tokens" not in call
+
+
+def test_reported_cost_and_cached_helpers_reject_garbage() -> None:
+    """Unit boundary for the settlement validators (no subprocess)."""
+    module = _proxy_module()
+    assert module._reported_cost_micros({"cost": 0.0}) == 0
+    assert module._reported_cost_micros({"cost": 1}) == 1_000_000
+    assert module._reported_cost_micros({}) is None
+    assert module._reported_cost_micros({"cost": "0.1"}) is None
+    assert module._reported_cost_micros({"cost": True}) is None
+    assert module._reported_cost_micros({"cost": -1}) is None
+    assert module._cached_input_tokens({"prompt_tokens_details": {"cached_tokens": 3}}, 30) == 3
+    assert module._cached_input_tokens({}, 30) is None
+    assert module._cached_input_tokens({"prompt_tokens_details": {"cached_tokens": 31}}, 30) is None
+    assert module._cached_input_tokens({"prompt_tokens_details": {"cached_tokens": -1}}, 30) is None
+    assert module._cached_input_tokens({"prompt_tokens_details": {"cached_tokens": "3"}}, 30) is None
+    assert module._openrouter_cached_rate("deepseek/deepseek-v4.1-flash") == 3_000
+    assert module._openrouter_cached_rate("openai/gpt-oss-120b") is None
+    assert module._openrouter_cached_rate("nope") is None

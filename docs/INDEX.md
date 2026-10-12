@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:4d55ddc6c1dfd3b84a52e2de765f82f59efd773c6a846cd1cd9a5b2b6ffe2ae8
+    digest: sha256:cbae5dbfb7c35e2607a4f1f59ce695feba1077399e06d52a8cb4e3b3adf76524
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -69,7 +69,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:c544654d817b77506ad378294de58183a208e54259e7a4a702c8bdb6703cdb10
+    digest: sha256:8e79606ceaa5b6e374c4dddb709fcb150bc56cb971b88c56792328df4162876a
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -79,13 +79,15 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:0ebb74951093c898cfcd8275d2d4d4f140b39f77a6d0804f38e32ebf9c89cbef
+    digest: sha256:7568d85dcce9bc3d956e6be4319ccb6085cf72b137d960aa1d7977f66374e3ca
   - path: docs/lora-sft-runbook.md
     digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
   - path: docs/mimo-task-catalog.md
     digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
   - path: docs/model-capture.md
     digest: sha256:38e018af06c6a65d0f5344d1e114b140cdee5114c253b2293ea67f3036c0315c
+  - path: docs/model-defaults.md
+    digest: sha256:2694f4c58daab52ef4875cdaeae4550fc5840dbcd8866cb64411d8a538fbc7c9
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
@@ -125,11 +127,11 @@ inputs:
   - path: docs/surfaces.md
     digest: sha256:599c3ae6f22cf2696bc2f7bdc17f6c207f0366ae4e8e5592a28c6fe7bfe2b064
   - path: docs/task-admission.md
-    digest: sha256:3fa04f96481bc2e4b1fc03065c56387d91abcf6469f35eec467d4bc9f687fb96
+    digest: sha256:77b1228a183aa4581a270bd196b6c75bbb50d29aa8c57c7222e5a8f3eee5bbe3
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-quality.md
-    digest: sha256:1028bb2b776797db492c9e19ef465a039132086babc9d74d84a1a4ddb0932339
+    digest: sha256:22d4703dbea84f02dcdf9a116d16441956f688f63a7e450d4ddee30bcaaccfdd
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -308,6 +310,7 @@ an operator can see what is archived.
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
+| `docs/model-defaults.md` | Which model for which job | `living` | `operator, runner` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -360,6 +363,7 @@ an operator can see what is archived.
 | `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
+| `docs/model-defaults.md` | Which model for which job | `living` | `operator, runner` |
 | `docs/monitor-investigations.md` | Monitor investigations (HAR-151) | `living` | `analyst, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/operating-manual.md` | Peter's operating manual — running a lab built by agents | `living` | `operator` |

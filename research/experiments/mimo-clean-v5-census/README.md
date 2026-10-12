@@ -127,11 +127,10 @@ $1.32 batch cost.
 
 | verify | count | basis |
 |---|---|---|
-| pass | 11 | 3 fold gates (probe-0 + (1,0) + ladder clean on @5) + 8 non-ref (fresh nop 0 + ladder-1.4.0 clean) |
+| pass | 12 | 3 fold gates (probe-0 + (1,0) + ladder clean on @5) + 8 non-ref (fresh nop 0 + ladder-1.4.0 clean) + 001431 (@9 fold, Step 7) |
 | fail:open-leak:env-dependency | 5 | triaged overrides, excluded from training |
 | fail:open-leak:node-build-pnpm | 1 | 000928, excluded from training |
 | env-broken | 11 | 000703 (override) + 7 top-up setup-fail + 000830 guard setup-fail + 2 carried |
-| unverified:G5-open | 1 | 001431 override (grader-lane prescription in receipt) |
 | unverified:baseline-unreliable | 1 | 000585 override |
 | unverified:pre-existing-failures | 1 | 000081 override |
 | unverified:node-build-fold | 17 | @5 fold, guard-gated setups |
@@ -201,3 +200,99 @@ in `spend.jsonl`.
 - Carries assume deterministic suites; flaky suites could differ.
 - The bulk coverage fill must be re-applied after every `report` run
   (overrides survive automatically; documented above).
+
+## Step 7 — separate-verifier@9 fold for 001431 (2026-10-12, $0 local Docker)
+
+Closes the `unverified:G5-open` prescription Step 1 left for the grader
+lane. Owner: Fix001431. Slice cap: **$0** (local Docker/CPU only; no
+Modal/Daytona/paid API/GPU).
+
+### Ground truth (the hypothesis was wrong)
+
+GraderV7 prescribed "extend the G5 matcher (dotted/`::` suffix match)"
+on the theory that the pristine error case is hook-written (raw-nodeid
+classname, no file attr). Capturing 001431's pristine `junit.xml`
+locally disproves it: pytest 9.0.3's native junitxml writes the
+class-level collection error as `(test.logformats_test,
+TestGzipASCFileFormat)` with an `<error>` child and no file attr — a
+shape `@8` already exempts (module prefix match; `@8` grades the real
+pair 1 once skips are removed). The trial failed on the **fixed run's 4
+conditional skips**: pristine collection was interrupted after 41 items,
+so the baseline records no skip outcomes at all, and the `@6`
+unmatched-skip rule trips on every one of them. Captured junits:
+`tests/fixtures/separate_verifier/001431-{baseline,agent}.xml`; raw
+`~/Developer/eval-lab-results/2026-10-12/fix001431/junits/`.
+
+### The `@9` fix (widen-only)
+
+`separate-verifier@9` keeps the `@8` orphan loop byte-for-byte and
+additionally excuses agent skips inside a *satisfied* errored module
+(same file or same dotted module, equality/prefix): first executions of
+tests the pristine collection error never ran. Only `ftp_bad` clears,
+never sets — every `@8` 1 stays 1 (structural argument in
+`docs/mimo/verification.md` `@8`→`@9` carries, pinned on fixtures by
+`test_v9_keeps_v8_grades`). Design and anti-cheat analysis:
+`docs/mimo/separate-verifier.md` (`@9` section). Ships per-row for
+001431 only (`SEPARATE_V9_TASKS`; fleet stays `@8`); the next full
+rebuild goes uniform `@9`.
+
+### Before/after (same counters, grader-only change)
+
+| cell | `@8` | `@9` |
+|---|---|---|
+| oracle (rc=0, cases=138, bad=0, skipped=12) | 0 (`fail-to-pass`) | **1** |
+| nop (rc=2, cases=1, bad=1, the collection error) | 0 | 0 |
+
+### Fold gates (fresh local-Docker cells on the `@9` digest `b42df9cb`)
+
+Rebuilt 001431 through the real chain (`SEPARATE_V9_TASKS` fold; package
+differs from `@8` only in `tests/test.sh` + the Dockerfile version
+label): `derived/task-store/variants/mimo-v2.6-rl__format-code-task-001431/b42df9cbc703`.
+`evallab mimo-clean verify-local` on that digest: oracle **1**
+(`junit-grade.log`: `rc=0 cases=138 bad=0 skipped=12`), nop **0**
+(`rc=2 cases=1 bad=1` with execution evidence), full ladder-1.4.0
+**clean** (14/14 attacks executed incl. `tamper_source_skip` +
+`tamper_source_skiptest`, combined-trial reward 0). Job namespace wart
+(honest): `verify-local` hardcodes the `mimo-clean-v4-` job prefix
+(`CLEAN_SET_VERSION`), so the `@9`-digest jobs read
+`mimo-clean-v4-001431-{oracle,nop,cheat}` — cosmetic only; digests bind
+the evidence. Raw jobs: `~/Developer/eval-lab-results/2026-10-12/fix001431/jobs/`.
+Fix-content probe v2 on the `@9` package (same `batch` command as Step
+6): setup rc=0, positive published control, **0 real hits**
+(4 `other`-route line hits, all in unrelated system tooling —
+node-gyp/libstdcxx `__init__.py` files sharing import idioms, no
+post-fix blob; triaged coincidence per census rules). Raw:
+`~/Developer/eval-lab-results/2026-10-12/fix001431/probe/`.
+With (a) nop 0 with execution, (b) oracle 1 with execution, (c) ladder
+clean, (d) probe-0 with positive control all on the final digest,
+001431's manifest `verify` folds to **pass** (override replaced like the
+three `@5` fold-gate passes; `results.csv` gains a `docker`-backend row,
+the `@8` row retained as history; `census-rows.jsonl` backs it so a
+future `report` reconciles rather than drops it).
+
+### No-regression sample (shipped `@8` packages, `evallab run`, local Docker)
+
+| task | oracle | nop |
+|---|---|---|
+| 000163 | 1 | 0 |
+| 000200 | 1 | 0 |
+| 000203 | 1 | 0 |
+| 002552 | 1 | 0 |
+| 000666 | 1 | 0 |
+| 000114 | 1 | 0 |
+| 000783 | 1 | 0 |
+
+Raw jobs: `~/Developer/eval-lab-results/2026-10-12/fix001431/jobs-reg/`
+(`reg-<task>-<cell>`). These run the shipped `@8` graders; `@9`-safety
+follows from the widen-only argument plus unit pins on every shape above
+(`test_v9_keeps_v8_grades`, `test_v9_anticheat_shapes_stay_zero`).
+
+### Manifest verify deltas from this step
+
+`pass` 11 → 12 (001431); `unverified:G5-open` 1 → 0 (override replaced).
+All other rows untouched. `sampling.json` gains `separate_verifier9_fold`.
+
+### Spend
+
+**$0.00** provider actuals (14 regression + 3 fold-gate trials + 1 probe
+batch + image pulls all local Docker; pulled images removed after use).

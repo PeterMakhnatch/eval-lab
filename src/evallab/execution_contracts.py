@@ -101,6 +101,7 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "AGY_FORCE_AUTH_JSON",
         "EVALLAB_PROXY_LIVE_DIR",
         "EVALLAB_FILE_ACCESS",
+        "EVALLAB_FILE_ACCESS_DISCOVERY",
         "EVALLAB_FILE_ACCESS_PATHS",
         "EVALLAB_STATE_JOURNAL",
         "CLAUDE_FORCE_OAUTH",
@@ -383,14 +384,27 @@ TINKER_PROXY_USAGE_FILE_ENV = "EVALLAB_TINKER_USAGE_FILE"
 TINKER_EXPECTED_BASE_ENV = "EVALLAB_TINKER_EXPECTED_BASE"
 TINKER_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 #: Thinking Machines Tinker list prices per base model (USD per 1M tokens,
-#: micros; prefill/sample — cached prefill is deliberately not credited).
-#: Qwen/Qwen3.6-35B-A3B 0.54/1.335; Qwen/Qwen3.8-27B 1.86/5.595;
-#: Qwen/Qwen3.5-9B 0.66/1.995. Verified 2026-09-28.
+#: micros; prefill/sample — cached prefill is deliberately not credited in
+#: settlement). Qwen/Qwen3.6-35B-A3B 0.45/1.335; Qwen/Qwen3.8-27B 0.6975/5.595;
+#: Qwen/Qwen3.5-9B 0.30/0.807. Source:
+#: https://tinker-docs.thinkingmachines.ai/tinker/models.json (verified 2026-10-12).
 TINKER_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
     {
-        "Qwen/Qwen3.6-35B-A3B": (540_000, 1_335_000),
-        "Qwen/Qwen3.8-27B": (1_860_000, 5_595_000),
-        "Qwen/Qwen3.5-9B": (660_000, 1_995_000),
+        "Qwen/Qwen3.6-35B-A3B": (450_000, 1_335_000),
+        "Qwen/Qwen3.8-27B": (697_500, 5_595_000),
+        "Qwen/Qwen3.5-9B": (300_000, 807_000),
+    }
+)
+#: Tinker cached-prefill list prices per base model (USD micros per 1M
+#: tokens), recorded for reporting only — settlement still prices every input
+#: token at the uncached prefill rate above unless Tinker's OpenAI-compatible
+#: responses are observed to report cached tokens (not verified; no spend to
+#: test it). Same source and date as :data:`TINKER_MODEL_PRICES_MICROS`.
+TINKER_CACHED_PREFILL_MICROS_PER_MILLION: Mapping[str, int] = MappingProxyType(
+    {
+        "Qwen/Qwen3.6-35B-A3B": 90_000,
+        "Qwen/Qwen3.8-27B": 139_500,
+        "Qwen/Qwen3.5-9B": 60_000,
     }
 )
 #: Context window shared by the Tinker-hosted Qwen students (input+output).
@@ -520,6 +534,15 @@ MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
 PROXY_UPSTREAM_503_WAIT_ENV = "EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS"
 PROXY_UPSTREAM_503_WAIT_DEFAULT_SECONDS = 360.0
 PROXY_UPSTREAM_503_WAIT_MAX_SECONDS = 3600.0
+#: Daytona sandbox idle auto-stop, in whole minutes, applied by
+#: ``harbor_daytona.BoundedDaytonaEnvironment``. It must cover the longest a
+#: trial can go without sandbox activity: one full model call (the proxy's
+#: 600 s upstream timeout) plus the bounded 503 wait above (360 s default),
+#: rounded up — 16 minutes. G5 (2026-10-01) lost 3 sandboxes after 255-281 s
+#: model stalls under the old 5-minute stop while the proxy was still inside
+#: its 503 wait. Still bounded well below the trial TTL (execution timeout
+#: plus allowance) and the reservation monitor, so idle sandboxes cannot leak.
+DAYTONA_AUTO_STOP_INTERVAL_MINS = 16
 
 #: Env var carrying the per-job capture route token into the metered secret
 #: proxy. When set, the proxy forwards upstream to ``/t/<token>/<path>``;
@@ -574,6 +597,66 @@ def parse_mimo_selfhosted_model(model: str | None) -> str:
 
 def is_mimo_selfhosted_model(model: str | None) -> bool:
     return isinstance(model, str) and model.startswith(MIMO_SELFHOSTED_MODEL_PREFIX)
+
+
+#: Matched full-weight Qwen/L1 comparison. Keep this separate from MiMo's
+#: thinking-on parser and generation config; both arms use stock Terminus JSON.
+BREAKER_SELFHOSTED_MODEL_PREFIX = "breaker-selfhosted/"
+BREAKER_SELFHOSTED_BASE_MODEL = "Qwen/Qwen3.6-35B-A3B"
+BREAKER_SELFHOSTED_L1_MODEL = "rewardhack/qwen3.6-35b-a3b-hacksft-thinkoff-873rows-ep3"
+BREAKER_SELFHOSTED_NATIVE_MODELS = frozenset(
+    {BREAKER_SELFHOSTED_BASE_MODEL, BREAKER_SELFHOSTED_L1_MODEL}
+)
+BREAKER_SELFHOSTED_CONTEXT_TOKENS = 65_536
+BREAKER_SELFHOSTED_MAX_COMPLETION_TOKENS = 16_384
+BREAKER_SELFHOSTED_SAMPLING: Mapping[str, float | int] = MappingProxyType(
+    {"temperature": 1.0, "top_p": 1.0, "top_k": -1}
+)
+BREAKER_SELFHOSTED_KEY_ENV = "BREAKER_SELFHOSTED_API_KEY"
+BREAKER_SELFHOSTED_UPSTREAM_ENV = "EVALLAB_BREAKER_SELFHOSTED_UPSTREAM"
+BREAKER_SELFHOSTED_SECRET_FILE_ENV = "EVALLAB_BREAKER_SELFHOSTED_SECRET_FILE"
+BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV = "EVALLAB_BREAKER_SELFHOSTED_PROXY_CAPABILITY"
+BREAKER_SELFHOSTED_PROXY_PROVIDER = "breaker_selfhosted"
+
+
+def is_breaker_selfhosted_model(model: str | None) -> bool:
+    return isinstance(model, str) and model.startswith(BREAKER_SELFHOSTED_MODEL_PREFIX)
+
+
+def parse_breaker_selfhosted_model(model: str | None) -> str:
+    """Resolve exactly the matched base or released L1; refuse unknown weights."""
+    if not is_breaker_selfhosted_model(model):
+        raise ValueError("expected a breaker-selfhosted model selector")
+    assert isinstance(model, str)
+    native = model.removeprefix(BREAKER_SELFHOSTED_MODEL_PREFIX)
+    if native not in BREAKER_SELFHOSTED_NATIVE_MODELS:
+        raise ValueError(f"unsupported breaker-selfhosted model: {model!r}")
+    return native
+
+
+def breaker_selfhosted_endpoint(raw: str) -> str:
+    """Validate the remote origin before a readiness probe can send its key."""
+    parsed = urllib.parse.urlsplit(raw)
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("breaker upstream must be a bare pinned origin")
+    host = parsed.hostname or ""
+    if parsed.scheme == "https" and (parsed.port or 443) == 443:
+        label = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+        if re.fullmatch(
+            rf"{label}\.(?:modal\.run|"
+            r"(?:us-east|us-west|ca-central|eu-west|ap-south|ap-southeast-2)\.modal\.direct)",
+            host,
+        ):
+            return raw.rstrip("/")
+    if parsed.scheme == "http" and host == "127.0.0.1" and parsed.port is not None:
+        return raw.rstrip("/")
+    raise ValueError("breaker upstream must be an HTTPS Modal origin or a loopback smoke server")
 
 
 def is_mimo_family_model(model: str | None) -> bool:
@@ -791,9 +874,14 @@ class OpenRouterRoute:
 
     ``provider_pin`` names exactly one OpenRouter endpoint (``endpoint``) with
     fallbacks refused, so the upstream weights/quantization and the per-token
-    list price are fixed. Prices are USD micros per 1M tokens; every pinned
-    endpoint reports ``supports_implicit_caching=false``, so uncached input
-    pricing is exact and cached-prefill discounts are never credited.
+    list price are fixed. Prices are USD micros per 1M tokens.
+    ``cached_input_cost_micros_per_million`` is the pinned endpoint's
+    ``input_cache_read`` rate (``None`` when the endpoint publishes no cache
+    rate): OpenRouter reports the actually-billed ``usage.cost`` per call and
+    ``prompt_tokens_details.cached_tokens`` per call, so settlement credits
+    cached tokens at this rate whenever the reported cost is absent.
+    Reservations stay conservative (uncached input at max tokens) so ceilings
+    never under-reserve, whatever the endpoint's implicit-caching support.
     Mirrored in ``containers/zai_openapi_secret_proxy.py``
     (``OPENROUTER_ROUTES``), which cannot import this module.
     """
@@ -804,6 +892,10 @@ class OpenRouterRoute:
     reasoning_pin: Mapping[str, Any]
     input_cost_micros_per_million: int
     output_cost_micros_per_million: int
+    #: Pinned endpoint's ``input_cache_read`` micros per 1M tokens, or None
+    #: when the endpoint publishes no cache rate (cached tokens then settle
+    #: at the full input rate).
+    cached_input_cost_micros_per_million: int | None
     context_input_tokens: int
     max_completion_tokens: int
     #: Model ids OpenRouter may echo for a call served by this route.
@@ -816,9 +908,11 @@ class OpenRouterRoute:
 
 OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
     {
-        # MiMo-V2.6-Flash on Xiaomi's own endpoint (verified 2026-09-29):
-        # $0.14 in / $0.28 out per 1M, 1,048,576-token context, 131,072-token
-        # completions; MiMo thinking on, matching the self-hosted MiMo route.
+        # MiMo-V2.6-Flash on Xiaomi's own endpoint (re-verified 2026-10-12):
+        # $0.14 in / $0.0028 cache read / $0.28 out per 1M, 1,048,576-token
+        # context, 131,072-token completions; MiMo thinking on, matching the
+        # self-hosted MiMo route. Note: endpoint status -2 with ~90% 30-minute
+        # uptime on 2026-10-12 — first-party pin kept, monitor before large runs.
         "xiaomi/mimo-v2.6-flash": OpenRouterRoute(
             native_model="xiaomi/mimo-v2.6-flash",
             endpoint="xiaomi/fp8",
@@ -826,16 +920,18 @@ OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
             reasoning_pin=MappingProxyType({"enabled": True}),
             input_cost_micros_per_million=140_000,
             output_cost_micros_per_million=280_000,
+            cached_input_cost_micros_per_million=2_800,
             context_input_tokens=1_048_576,
             max_completion_tokens=131_072,
             returned_models=frozenset({"xiaomi/mimo-v2.6-flash", "xiaomi/mimo-v2.6-flash:fp8"}),
         ),
-        # gpt-oss-120b on DeepInfra's bf16 endpoint (verified 2026-09-30):
+        # gpt-oss-120b on DeepInfra's bf16 endpoint (re-verified 2026-10-12):
         # $0.037 in / $0.17 out per 1M, 131,072-token context, 117,964-token
-        # completions, 99.9% 30-minute uptime. The full endpoint slug is
-        # required: bare "deepinfra" also matches its turbo (16K output) and
-        # fp8 endpoints at 4-5x the price. Reasoning effort is pinned to the
-        # model's documented default, medium.
+        # completions, ~97% 30-minute uptime. The endpoint publishes no
+        # input_cache_read rate, so cached tokens settle at the full input
+        # rate. The full endpoint slug is required: bare "deepinfra" also
+        # matches its turbo (16K output) and fp8 endpoints at 4-5x the price.
+        # Reasoning effort is pinned to the model's documented default, medium.
         "openai/gpt-oss-120b": OpenRouterRoute(
             native_model="openai/gpt-oss-120b",
             endpoint="deepinfra/bf16",
@@ -843,9 +939,89 @@ OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
             reasoning_pin=MappingProxyType({"effort": "medium"}),
             input_cost_micros_per_million=37_000,
             output_cost_micros_per_million=170_000,
+            cached_input_cost_micros_per_million=None,
             context_input_tokens=131_072,
             max_completion_tokens=117_964,
             returned_models=frozenset({"openai/gpt-oss-120b"}),
+        ),
+        # DeepSeek-V4.1-Flash on DeepSeek's first-party endpoint (verified
+        # 2026-10-12): $0.15 in / $0.003 cache read / $0.60 out per 1M,
+        # 1,048,576-token context, 393,216-token completions, status 0 with
+        # 100% 30-minute uptime. The endpoint reports
+        # supports_implicit_caching=true, so repeat prompts bill the cached
+        # rate. DeepSeek bills peak rates (double: $0.30/$0.006/$1.20)
+        # Mon-Fri 01:00-04:00 and 06:00-10:00 UTC, off-peak otherwise
+        # (api-docs.deepseek.com/quick_start/pricing; OpenRouter's endpoint
+        # overrides match that schedule exactly). The table pins the off-peak
+        # list rates; OpenRouter's per-call reported usage.cost — the
+        # settlement basis whenever present — reflects the actual billed
+        # schedule. DeepSeek documents thinking as the default mode for
+        # deepseek-flash, so reasoning effort pins medium, the OpenRouter
+        # unified default shared with the gpt-oss-120b route.
+        "deepseek/deepseek-v4.1-flash": OpenRouterRoute(
+            native_model="deepseek/deepseek-v4.1-flash",
+            endpoint="deepseek",
+            provider_pin=MappingProxyType({"order": ("deepseek",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"effort": "medium"}),
+            input_cost_micros_per_million=150_000,
+            output_cost_micros_per_million=600_000,
+            cached_input_cost_micros_per_million=3_000,
+            context_input_tokens=1_048_576,
+            max_completion_tokens=393_216,
+            returned_models=frozenset({"deepseek/deepseek-v4.1-flash"}),
+        ),
+        # GLM-5.3-Flash on Z.ai's first-party endpoint (verified 2026-10-12):
+        # $0.15 in / $0.03 cache read / $0.50 out per 1M, 1,048,576-token
+        # context, 131,072-token completions, status 0 with 100% 30-minute
+        # uptime — the same list prices as the direct Z.ai OpenAPI route.
+        # Reasoning effort pins medium, the OpenRouter unified default
+        # shared with the gpt-oss-120b route.
+        "z-ai/glm-5.3-flash": OpenRouterRoute(
+            native_model="z-ai/glm-5.3-flash",
+            endpoint="z-ai/fp8",
+            provider_pin=MappingProxyType({"order": ("z-ai/fp8",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"effort": "medium"}),
+            input_cost_micros_per_million=150_000,
+            output_cost_micros_per_million=500_000,
+            cached_input_cost_micros_per_million=30_000,
+            context_input_tokens=1_048_576,
+            max_completion_tokens=131_072,
+            returned_models=frozenset({"z-ai/glm-5.3-flash"}),
+        ),
+        # qwen3.6-35b-a3b on DeepInfra's fp8 endpoint (verified 2026-10-12):
+        # $0.10 in / $0.10 cache read / $0.95 out per 1M, 262,144-token
+        # context, 65,536-token completions. Hybrid-thinking Qwen model;
+        # thinking pinned on, matching the Tinker route's thinking-on
+        # behavior (ATIF reasoning_content present; verified live 2026-10-12).
+        "qwen/qwen3.6-35b-a3b": OpenRouterRoute(
+            native_model="qwen/qwen3.6-35b-a3b",
+            endpoint="deepinfra/fp8",
+            provider_pin=MappingProxyType({"order": ("deepinfra/fp8",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"enabled": True}),
+            input_cost_micros_per_million=100_000,
+            output_cost_micros_per_million=950_000,
+            cached_input_cost_micros_per_million=100_000,
+            context_input_tokens=262_144,
+            max_completion_tokens=65_536,
+            returned_models=frozenset({"qwen/qwen3.6-35b-a3b"}),
+        ),
+        # qwen3.5-9b on DeepInfra's bf16 endpoint (verified 2026-10-12):
+        # $0.10 in / $0.15 out per 1M, 262,144-token context, 81,920-token
+        # completions; the endpoint publishes no cache rate. Hybrid-thinking
+        # Qwen model; thinking pinned on, matching the Tinker route's
+        # thinking-on behavior (ATIF reasoning_content present; verified
+        # live 2026-10-12).
+        "qwen/qwen3.5-9b": OpenRouterRoute(
+            native_model="qwen/qwen3.5-9b",
+            endpoint="deepinfra/bf16",
+            provider_pin=MappingProxyType({"order": ("deepinfra/bf16",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"enabled": True}),
+            input_cost_micros_per_million=100_000,
+            output_cost_micros_per_million=150_000,
+            cached_input_cost_micros_per_million=None,
+            context_input_tokens=262_144,
+            max_completion_tokens=81_920,
+            returned_models=frozenset({"qwen/qwen3.5-9b"}),
         ),
     }
 )
@@ -1318,6 +1494,23 @@ def materialize_mimo_selfhosted_secret_file(
     return destination
 
 
+def materialize_breaker_selfhosted_secret_file(
+    destination: Path, environment: Mapping[str, str] | None = None
+) -> Path:
+    """Keep the remote breaker server key in the host-owned proxy secret file."""
+    source = os.environ if environment is None else environment
+    value = source.get(BREAKER_SELFHOSTED_KEY_ENV)
+    if not value or value == ZAI_OPENAPI_PROXY_TOKEN:
+        existing = source.get(BREAKER_SELFHOSTED_SECRET_FILE_ENV)
+        if existing:
+            path = Path(existing)
+            read_owner_secret_file(path)
+            return path
+        raise RuntimeError("breaker self-hosted provider credential is missing")
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    return destination
+
+
 def proxy_runtime_identity(path: Path) -> tuple[int, int]:
     """Return the numeric uid/gid the proxy must run as to read *path*.
 
@@ -1346,6 +1539,7 @@ def collected_secret_values(
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, TINKER_PROXY_TOKEN) for key in TINKER_CREDENTIAL_ENVIRONMENT_KEYS),
+        (BREAKER_SELFHOSTED_KEY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         *(
             (key, MIMO_SELFHOSTED_PROXY_TOKEN)
             for key in MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
@@ -1362,6 +1556,7 @@ def collected_secret_values(
         (ZAI_SECRET_FILE_ENV, ZAI_PROXY_TOKEN),
         (ZAI_OPENAPI_SECRET_FILE_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (TINKER_SECRET_FILE_ENV, TINKER_PROXY_TOKEN),
+        (BREAKER_SELFHOSTED_SECRET_FILE_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (MIMO_SELFHOSTED_SECRET_FILE_ENV, MIMO_SELFHOSTED_PROXY_TOKEN),
         (OPENROUTER_SECRET_FILE_ENV, OPENROUTER_PROXY_TOKEN),
     ):
@@ -1378,6 +1573,7 @@ def collected_secret_values(
         (ZAI_PROXY_CAPABILITY_ENV, ZAI_PROXY_TOKEN),
         (ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN),
+        (BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, MIMO_SELFHOSTED_PROXY_TOKEN),
         (OPENROUTER_PROXY_CAPABILITY_ENV, OPENROUTER_PROXY_TOKEN),
     ):
@@ -1610,6 +1806,7 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
         | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
         | TINKER_CREDENTIAL_ENVIRONMENT_KEYS
+        | {BREAKER_SELFHOSTED_KEY_ENV}
         | MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
         | GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
         | DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS
@@ -1722,6 +1919,8 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
             # Strict fail-closed parse: unknown base or malformed checkpoint
             # refuses here, before any spec freeze or execution.
             parse_tinker_model(model)
+        elif is_breaker_selfhosted_model(model):
+            parse_breaker_selfhosted_model(model)
         elif is_mimo_selfhosted_model(model):
             # Exactly one self-hosted selector is admitted; anything else
             # under selfhosted/ refuses here.
@@ -1739,8 +1938,8 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
                 f"({sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}), a Tinker "
                 f"route ({TINKER_MODEL_PREFIX}<base>[@tinker://<run>:train:<i>"
                 "/sampler_weights/<step>]), the self-hosted route "
-                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the OpenRouter routes "
-                f"{OPENROUTER_MODEL_SELECTORS!r}, or installed local "
+                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the matched breaker-selfhosted "
+                f"base/L1 routes, the OpenRouter routes {OPENROUTER_MODEL_SELECTORS!r}, or installed local "
                 f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}; Coding Plan credentials "
                 "are not admitted for this harness"
             )

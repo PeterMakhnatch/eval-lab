@@ -903,18 +903,41 @@ def evaluate_go_output_v6(test_output: str, rc: int) -> int:
     return evaluate_go_output(test_output, rc)
 
 
-def render_snapshot_hook_v2(workdir: str) -> str:
+def render_snapshot_hook_v2(workdir: str, *, snap_dir: str = SNAP_DIR) -> str:
     """Collect-hook command snapshotting workspace files only (``sh -c``; POSIX
     only, no single quotes so it fits a TOML literal string).
 
     Unlike @1 this captures neither ``/var/lib/mimo/base`` nor the git dir:
     the @2 verifier reruns the clean setup itself and computes BASE there.
     Only repo file bytes cross the boundary.
+
+    The tarball covers exactly the files the grader can see: tracked files
+    plus untracked files the worktree does not ignore (``git ls-files -c -o
+    --exclude-standard``). Regenerable dependency and cache trees
+    (``node_modules``, ``.venv``, ``.yarn/cache``, ``__pycache__``, build
+    outputs — anything the repo ignores) never enter the archive. This is
+    grading-neutral by construction: the @2+ grader diffs the snapshot with
+    ``git add -A`` under the BASE tree ignore rules, which never stages
+    ignored files either, and it reinstalls dependencies by rerunning the
+    bundled clean setup. Source trees that are tracked or simply not
+    ignored (``packages/``, ``vendor/``, new files the agent adds) still
+    cross intact. The @1 hook keeps its full-worktree tar: its grader
+    restores the snapshot verbatim and never reruns setup, so it genuinely
+    needs the installed dependencies.
+
+    Outside a git worktree (no ``.git``) the listing fails and the hook
+    falls back to the full-worktree tar minus ``.git``.
     """
     return (
-        f'SNAP="{SNAP_DIR}"; CWD="{workdir}"; '
+        f'SNAP="{snap_dir}"; CWD="{workdir}"; '
         'mkdir -p "$SNAP"; '
+        'LIST="$SNAP/files"; '
+        'git -C "$CWD" ls-files -c -o --exclude-standard -z > "$LIST" 2>/dev/null; '
+        'if [ -s "$LIST" ]; then '
+        'tar --null --exclude=.git -czf "$SNAP/workspace.tgz" -C "$CWD" --files-from="$LIST"; '
+        'else '
         'tar --exclude=.git -czf "$SNAP/workspace.tgz" -C "$CWD" .; '
+        'fi; '
         'ls -la "$SNAP"; true'
     )
 
@@ -3989,6 +4012,139 @@ def evaluate_junit_v8(
             return 0
     return 1
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@9: skips in satisfied collection-error modules (001431)
+# --------------------------------------------------------------------------- #
+# Ground truth (pristine junit captured locally in Docker, pytest 9.0.3
+# native junitxml — not hook-written): ``pytest -o addopts=
+# test/logformats_test.py`` collects 41 items then aborts on the
+# ``TestGzipASCFileFormat.__init__`` AttributeError; the junit holds only
+# ``(test.logformats_test, TestGzipASCFileFormat)`` with an ``<error>``
+# child and no file attr. @8 already exempts that key (module prefix
+# match), but the trial still grades 0: the fixed run's 4 conditional
+# skips never executed on pristine (collection was interrupted, so the
+# baseline records no skip outcomes), and the @6 unmatched-skip rule
+# trips on every one of them. @9 keeps the @8 orphan loop byte-for-byte
+# and additionally excuses agent skips inside a satisfied errored module
+# (same file or same dotted module): first executions of tests the
+# pristine collection error never ran. Only ever clears ``ftp_bad``
+# (never sets it), so no previous 1 can become 0. No ``@2``–``@8`` symbol
+# or template byte changes, so their records stay valid. See
+# docs/mimo/separate-verifier.md.
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V9 = "separate-verifier@9"
+
+
+def _v9_skip_excused(
+    satisfied: Collection[tuple[Collection[str], Collection[str]]],
+    key: tuple[str, str, str],
+) -> bool:
+    """Whether a skipped agent key lies in a satisfied errored module (@9).
+
+    Same-file equality or same dotted module (equality/prefix) as a
+    satisfied error key's identities. Skips anywhere else still fail.
+    """
+    classname, _name, file = key
+    agent_file = (file or "").strip()
+    for modules, files in satisfied:
+        for expected_file in files:
+            if agent_file and (
+                agent_file == expected_file
+                or agent_file.endswith("/" + expected_file)
+                or expected_file.endswith("/" + agent_file)
+            ):
+                return True
+        for agent_mod in _v7_dotted_module_variants(classname, agent_file):
+            for expected in modules:
+                if agent_mod == expected or agent_mod.startswith(expected + "."):
+                    return True
+    return False
+
+
+def evaluate_junit_v9(
+    report_xmls: list[bytes | None],
+    rc: int,
+    named_ids: Collection[str],
+    baseline_xmls: list[bytes | None] | None = None,
+    baseline_output: str = "",
+) -> int:
+    """Grade 1/0 with @9 fail-to-pass: @8 plus the satisfied-module skip excuse (G5).
+
+    Identical to :func:`evaluate_junit_v8` except agent skips inside a
+    satisfied errored module are excused (first executions of tests the
+    pristine collection error never ran — measured 001431); skips
+    anywhere else still fail. The orphan loop, the INTERNALERROR
+    fallback, and the exact-key rules are unchanged, and the change only
+    clears ``ftp_bad`` — never sets it — so every @8 grade of 1 stays 1.
+    """
+    if evaluate_junit_v5(report_xmls, rc, named_ids) == 0:
+        return 0
+    if baseline_output and "INTERNALERROR" in baseline_output:
+        return 1
+    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
+    if not baseline:
+        return 1
+    agent = junit_status_map(report_xmls)
+    error_modules: dict[tuple[str, str, str], set[str]] = {}
+    error_files: dict[tuple[str, str, str], set[str]] = {}
+    failure_keys: set[tuple[str, str, str]] = set()
+    for raw in baseline_xmls or []:
+        if not raw:
+            continue
+        try:
+            found = ET.fromstring(raw).iter("testcase")
+        except Exception:
+            continue
+        for case in found:
+            key = (
+                case.get("classname") or "",
+                case.get("name") or "",
+                case.get("file") or "",
+            )
+            if case.find("failure") is not None:
+                failure_keys.add(key)
+            if case.find("error") is None or case.find("failure") is not None:
+                continue
+            module = _v8_error_module(case.get("classname"), case.get("name"))
+            if module is not None:
+                error_modules.setdefault(key, set()).add(module)
+            file_attr = (case.get("file") or "").strip()
+            if file_attr:
+                error_files.setdefault(key, set()).add(file_attr)
+    agent_cases: list[ET.Element] = []
+    for raw in report_xmls:
+        if not raw:
+            continue
+        try:
+            agent_cases.extend(ET.fromstring(raw).iter("testcase"))
+        except Exception:
+            continue
+    baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
+    satisfied: list[tuple[set[str], set[str]]] = []
+    for key, status in baseline.items():
+        if status != "skipped" and agent.get(key) != "passed":
+            if (
+                (key in error_modules or key in error_files)
+                and key not in failure_keys
+                and _v7_module_now_passing(
+                    error_modules.get(key, ()),
+                    error_files.get(key, ()),
+                    agent_cases,
+                )
+            ):
+                satisfied.append(
+                    (error_modules.get(key, set()), error_files.get(key, set()))
+                )
+                continue
+            return 0
+    for key, status in agent.items():
+        if status == "skipped" and key not in baseline_skipped and not _v9_skip_excused(
+            satisfied, key
+        ):
+            return 0
+    return 1
+
 #: @7 reporter switch extended with the terse reporter (G6, @8).
 _V8_TERSE_SWITCH = (
     'if runner == "tap" and (re.search(r"(^|\\s)-R\\s+\\S*terse\\b|reporters?\\s*[=:]\\s*\\S*terse\\b", hay) is not None or (re.search(r"Asserts:\\s+[^\\n]*\\d+\\s+passed", output) is not None and re.search(r"^(not )?ok\\b", output, re.M) is None and re.search(r"\\d+\\s+passing", output) is None)):\n'
@@ -4041,6 +4197,69 @@ assert _V8_WRAPPER_C != _V7_WRAPPER_C, "@8 replacement did not apply"
 _V8_WRAPPER_A = _V7_WRAPPER_A
 _V8_WRAPPER_B = _V7_WRAPPER_B
 
+#: Exact @8 orphan-plus-skip loops replaced with the @9 satisfied-module
+#: skip excuse (G5, @9): the orphan loop is byte-identical except it
+#: records each satisfied error key's identities; the skip loop excuses
+#: skips inside those modules. Mirrors :func:`_v9_skip_excused` and the
+#: ``satisfied`` list in :func:`evaluate_junit_v9`.
+_V9_LOOP_PIN = """        for _k, _s in _bm.items():
+            if _s != "skipped" and _am.get(_k) != "passed":
+                if (_k in _v7errmod or _k in _v7errfile) and _k not in _v7hasfail and _v7modok(_k):
+                    continue
+                ftp_bad = True
+        for _k, _s in _am.items():
+            if _s == "skipped" and _k not in _bs:
+                ftp_bad = True"""
+_V9_LOOP_OK = """        _v9satisfied = []
+        for _k, _s in _bm.items():
+            if _s != "skipped" and _am.get(_k) != "passed":
+                if (_k in _v7errmod or _k in _v7errfile) and _k not in _v7hasfail and _v7modok(_k):
+                    _v9satisfied.append((_v7errmod.get(_k, set()), _v7errfile.get(_k, set())))
+                    continue
+                ftp_bad = True
+        for _k, _s in _am.items():
+            if _s == "skipped" and _k not in _bs:
+                _v9exc = False
+                for (_smods, _sfiles) in _v9satisfied:
+                    _kcn = (_k[0] or "").strip()
+                    _kf = (_k[2] or "").strip()
+                    if _kf:
+                        for _ef in _sfiles:
+                            if _kf == _ef or _kf.endswith("/" + _ef) or _ef.endswith("/" + _kf):
+                                _v9exc = True
+                                break
+                    if not _v9exc:
+                        _kamods = [_kcn]
+                        if _kf:
+                            _kafm = _kf.replace("/", ".").replace(chr(92), ".")
+                            if _kafm.endswith(".py"):
+                                _kafm = _kafm[:-3]
+                            _kamods.append(_kafm)
+                        for _kam in _kamods:
+                            for _sm in _smods:
+                                if _kam == _sm or _kam.startswith(_sm + "."):
+                                    _v9exc = True
+                                    break
+                            if _v9exc:
+                                break
+                    if _v9exc:
+                        break
+                if not _v9exc:
+                    ftp_bad = True"""
+
+assert _V8_WRAPPER_C.count(_V9_LOOP_PIN) == 1, (
+    "@8 fail-to-pass loops moved; re-pin the @9 replacement"
+)
+
+#: @9 grader entry point, part C: @8 with the satisfied-module skip excuse
+#: for collection-error baselines (G5).
+_V9_WRAPPER_C = _V8_WRAPPER_C.replace(_V9_LOOP_PIN, _V9_LOOP_OK)
+
+assert _V9_WRAPPER_C != _V8_WRAPPER_C, "@9 replacement did not apply"
+
+#: @9 grader entry point, parts A/B: identical to @8.
+_V9_WRAPPER_A = _V8_WRAPPER_A
+_V9_WRAPPER_B = _V8_WRAPPER_B
 
 def render_wrapper_test_sh_v8(workdir: str) -> str:
     """Verifier entry point: @8 fail-to-pass grading with terse certification."""
@@ -4163,6 +4382,128 @@ def derive_separate_verifier_v8(
         variants_root=variants_root,
     )
 
+
+def render_wrapper_test_sh_v9(workdir: str) -> str:
+    """Verifier entry point: @9 fail-to-pass grading with bare/nodeid keys."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
+    scoped = (
+        "["
+        + ", ".join(f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES)
+        + "]"
+    )
+    hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
+    archive_b64 = base64.b64encode(V5_ARCHIVE_HOOK.encode("utf-8")).decode("ascii")
+    return (
+        (_V9_WRAPPER_A + _V9_WRAPPER_B + _V9_WRAPPER_C)
+        .replace("@@WORKDIR@@", workdir)
+        .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
+        .replace("@@V3_UNIVERSAL@@", universal)
+        .replace("@@V3_SCOPED@@", scoped)
+        .replace("@@V3_CONFTEST_HOOK_B64@@", hook_b64)
+        .replace("@@V5_ARCHIVE_HOOK_B64@@", archive_b64)
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
+    )
+
+
+def render_tests_dockerfile_v9(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup (@9)."""
+    return (
+        "# Separate-verifier image (separate-verifier@9): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def build_changes_v9(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @9.
+
+    Same bundle shape as @8; the grader is the @9 entry point with
+    bare/nodeid collection-error keys matched by dotted/``::`` suffix.
+    ``solution_sh`` adds an oracle-control reference solution when the
+    parent has none. Refuses to overwrite an existing solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    try:
+        patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        runner = detect_runner(resolve_command_text(command_sh, None, patch_text))
+    except OSError:
+        runner = "unknown"
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v9(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v9(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "runner": runner,
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v9(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with the hidden tests and bare/nodeid key matching.",
+    created_by: str = "bare-nodeid-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@9`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v9(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V9,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
 __all__ = [
     "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
@@ -4177,6 +4518,7 @@ __all__ = [
     "TRANSFORM_ID_V6",
     "TRANSFORM_ID_V7",
     "TRANSFORM_ID_V8",
+    "TRANSFORM_ID_V9",
     "TRAJECTORY_ARTIFACT",
     "V2_GRADE_DIR",
     "V2_SETUP_SUBDIR",
@@ -4200,6 +4542,7 @@ __all__ = [
     "build_changes_v6",
     "build_changes_v7",
     "build_changes_v8",
+    "build_changes_v9",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
@@ -4210,6 +4553,7 @@ __all__ = [
     "derive_separate_verifier_v6",
     "derive_separate_verifier_v7",
     "derive_separate_verifier_v8",
+    "derive_separate_verifier_v9",
     "detect_pytest_run",
     "effective_js_runner",
     "effective_js_runner_v8",
@@ -4228,6 +4572,7 @@ __all__ = [
     "evaluate_junit_v6",
     "evaluate_junit_v7",
     "evaluate_junit_v8",
+    "evaluate_junit_v9",
     "evaluate_phpunit_output",
     "evaluate_rspec_output",
     "evaluate_surefire_reports",
@@ -4258,6 +4603,7 @@ __all__ = [
     "render_tests_dockerfile_v6",
     "render_tests_dockerfile_v7",
     "render_tests_dockerfile_v8",
+    "render_tests_dockerfile_v9",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
     "render_wrapper_test_sh_v3",
@@ -4266,6 +4612,7 @@ __all__ = [
     "render_wrapper_test_sh_v6",
     "render_wrapper_test_sh_v7",
     "render_wrapper_test_sh_v8",
+    "render_wrapper_test_sh_v9",
     "resolve_command_text",
     "tamper_signature_hit",
     "v3_config_revert_reason",

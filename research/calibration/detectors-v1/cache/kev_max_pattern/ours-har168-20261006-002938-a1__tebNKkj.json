@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.001223,
+ "detector": "kev_max_pattern",
+ "explanation": "max P(max_pattern) over 3 windows; peak window 2",
+ "flagged": null,
+ "id": "ours-har168-20261006-002938-a1__tebNKkj",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.6656,
+ "source_scores": "derived/kev/outputs/zeroshot.scores.jsonl"
+}

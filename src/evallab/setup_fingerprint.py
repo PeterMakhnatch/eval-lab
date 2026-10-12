@@ -221,11 +221,19 @@ def sampling_sent(model: str | None) -> dict[str, Any]:
     decide. Values mirror ``MIMO_SELFHOSTED_*`` in execution contracts.
     """
     from evallab.execution_contracts import (
+        BREAKER_SELFHOSTED_SAMPLING,
         MIMO_SELFHOSTED_TEMPERATURE,
         MIMO_SELFHOSTED_TOP_K,
         MIMO_SELFHOSTED_TOP_P,
+        is_breaker_selfhosted_model,
         is_mimo_selfhosted_model,
     )
+
+    if is_breaker_selfhosted_model(model):
+        return {
+            **BREAKER_SELFHOSTED_SAMPLING,
+            "source": "proxy-enforced matched breaker recipe; thinking disabled",
+        }
 
     if is_mimo_selfhosted_model(model):
         return {
@@ -354,10 +362,36 @@ def _setup_fields(
     request: Any = None,
 ) -> dict[str, Any]:
     """Behavior inputs shared by the recorded fingerprint and Harbor's lock."""
-    from evallab.execution_contracts import resolve_egress_lock
+    from evallab.execution_contracts import (
+        is_breaker_selfhosted_model,
+        parse_breaker_selfhosted_model,
+        resolve_egress_lock,
+    )
 
-    serve = read_serve_config(repo_root)
-    parser, parser_source = tool_call_parser_name(repo_root)
+    breaker = is_breaker_selfhosted_model(model)
+    if breaker:
+        manifest_path = repo_root / "research/experiments/trained-breaker-v1/model_manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        native = parse_breaker_selfhosted_model(model)
+        weights = next(row for row in manifest["models"].values() if row["hf_repo"] == native)
+        configuration = {"model": weights, "runtime": manifest["runtime"]}
+        serve = {
+            "model_revision": weights["revision"],
+            "serving_image": manifest["runtime"]["image"],
+            "reasoning_parser": "none (thinking disabled)",
+            "context_length": manifest["runtime"]["max_model_len"],
+            "configuration_digest": "sha256:"
+            + hashlib.sha256(
+                json.dumps(configuration, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest(),
+            "deployment_overrides": {"enable_thinking": False},
+        }
+        parser, parser_source = "terminus-json", "Harbor stock Terminus JSON parser"
+        serve_source = manifest_path.relative_to(repo_root).as_posix()
+    else:
+        serve = read_serve_config(repo_root)
+        parser, parser_source = tool_call_parser_name(repo_root)
+        serve_source = str(SERVE_CONFIG_RELATIVE)
     sampling = sampling_sent(model)
     additions, step_limit = _harness_settings(spec, repo_root, request)
     harness_id = agent
@@ -424,12 +458,13 @@ def _setup_fields(
             "configuration_digest": serve.get("configuration_digest"),
             "deployment_overrides": serve.get("deployment_overrides", {}),
             "sources": {
-                "model_revision": f"{SERVE_CONFIG_RELATIVE} MODEL_REVISION",
-                "sglang_image": f"{SERVE_CONFIG_RELATIVE} SGLANG_IMAGE",
+                "model_revision": f"{serve_source} model revision (declared configuration)",
+                "sglang_image": f"{serve_source} image (not remote attestation)",
                 "tool_call_parser": parser_source,
-                "reasoning_parser": f"{SERVE_CONFIG_RELATIVE} sglang_command --reasoning-parser",
-                "context_length": f"{SERVE_CONFIG_RELATIVE} CONTEXT_LENGTH",
+                "reasoning_parser": f"{serve_source} reasoning parser",
+                "context_length": f"{serve_source} context length",
             },
+            **({"serving_image": serve["serving_image"]} if breaker else {}),
         },
         "sampling": sampling,
         "lock": lock_posture(
@@ -521,7 +556,7 @@ def lock_setup_fingerprint(request: Any, *, repo_root: Path | None = None) -> st
     behavior inputs: including them would defeat Harbor's task-semver reuse and
     regrade rules. Native agent/environment kwargs remain independently locked.
     """
-    from evallab.execution_contracts import is_mimo_family_model
+    from evallab.execution_contracts import is_breaker_selfhosted_model, is_mimo_family_model
 
     root = resolve_repo_root(repo_root, request.task)
     setup = _setup_fields(
@@ -537,7 +572,9 @@ def lock_setup_fingerprint(request: Any, *, repo_root: Path | None = None) -> st
     inputs = {
         section: {key: value for key, value in fields.items() if key not in excluded}
         for section, fields in setup.items()
-        if section not in {"server", "sampling"} or is_mimo_family_model(request.model)
+        if section not in {"server", "sampling"}
+        or is_mimo_family_model(request.model)
+        or is_breaker_selfhosted_model(request.model)
     }
     # Harbor content-locks instructions and skills itself; their temporary
     # staging locations must not invalidate otherwise identical setup inputs.
@@ -1053,7 +1090,7 @@ def render_spec_preflight(spec_path: Path, repo_root: Path) -> tuple[str, bool]:
         f"  harness: {fingerprint['harness']['id']} (version={fingerprint['harness']['version']})",
         f"  harness additions: {fingerprint['harness']['additions']!r}",
         f"  server: revision={fingerprint['server']['model_revision']} "
-        f"image={_short(fingerprint['server']['sglang_image'])} "
+        f"image={_short(fingerprint['server'].get('serving_image') or fingerprint['server']['sglang_image'])} "
         f"parser={fingerprint['server']['tool_call_parser']} "
         f"reasoning={fingerprint['server']['reasoning_parser']} "
         f"context={fingerprint['server']['context_length']}",

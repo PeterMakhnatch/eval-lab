@@ -50,10 +50,16 @@ from typing import Any
 
 from evallab.database import AGENT_STOP_EXCEPTIONS
 from evallab.execution_contracts import (
+    BREAKER_SELFHOSTED_KEY_ENV,
+    BREAKER_SELFHOSTED_SECRET_FILE_ENV,
+    BREAKER_SELFHOSTED_UPSTREAM_ENV,
     MIMO_SELFHOSTED_PROXY_TOKEN,
     MIMO_SELFHOSTED_SECRET_FILE_ENV,
     MIMO_SELFHOSTED_UPSTREAM_ENV,
+    breaker_selfhosted_endpoint,
+    is_breaker_selfhosted_model,
     is_mimo_selfhosted_model,
+    parse_breaker_selfhosted_model,
     parse_mimo_selfhosted_model,
 )
 
@@ -108,7 +114,8 @@ ProbeFn = Callable[[str, str, str, float], SelfhostedProbeOutcome]
 
 def is_selfhosted_spec(spec: Any) -> bool:
     """Whether this spec needs the self-hosted upstream probe."""
-    return is_mimo_selfhosted_model(getattr(spec, "model", None))
+    model = getattr(spec, "model", None)
+    return is_mimo_selfhosted_model(model) or is_breaker_selfhosted_model(model)
 
 
 def is_model_backed(spec: Any) -> bool:
@@ -121,33 +128,45 @@ def is_daytona_spec(spec: Any) -> bool:
     return getattr(spec, "environment", None) == "daytona"
 
 
-def resolve_selfhosted_endpoint(environment: Mapping[str, str] | None = None) -> str | None:
+def resolve_selfhosted_endpoint(
+    environment: Mapping[str, str] | None = None, *, model: str | None = None
+) -> str | None:
     """The configured self-hosted upstream base URL, or ``None``."""
     source = os.environ if environment is None else environment
-    raw = source.get(MIMO_SELFHOSTED_UPSTREAM_ENV)
+    breaker = is_breaker_selfhosted_model(model)
+    raw = source.get(BREAKER_SELFHOSTED_UPSTREAM_ENV if breaker else MIMO_SELFHOSTED_UPSTREAM_ENV)
     if raw is None:
         return None
     endpoint = raw.strip().rstrip("/")
     if not endpoint:
         return None
+    if breaker:
+        try:
+            return breaker_selfhosted_endpoint(endpoint)
+        except ValueError:
+            return None
     scheme = endpoint.split("://", 1)[0].lower()
     if scheme not in {"http", "https"}:
         return None
     return endpoint
 
 
-def resolve_selfhosted_key(environment: Mapping[str, str] | None = None) -> str | None:
+def resolve_selfhosted_key(
+    environment: Mapping[str, str] | None = None, *, model: str | None = None
+) -> str | None:
     """The upstream API key value, or ``None`` when unavailable.
 
-    Reads ``MIMO_SELFHOSTED_API_KEY`` first (the same source the runner
-    materializes), falling back to the owner-only secret file the runner
-    also honors. Never logs or returns placeholders.
+    Reads the selected route's API-key variable first, falling back to its
+    owner-only secret file. Never logs or returns placeholders.
     """
     source = os.environ if environment is None else environment
-    value = source.get(SELFHOSTED_KEY_ENV)
+    breaker = is_breaker_selfhosted_model(model)
+    value = source.get(BREAKER_SELFHOSTED_KEY_ENV if breaker else SELFHOSTED_KEY_ENV)
     if value and value != MIMO_SELFHOSTED_PROXY_TOKEN:
         return value
-    secret_path = source.get(MIMO_SELFHOSTED_SECRET_FILE_ENV)
+    secret_path = source.get(
+        BREAKER_SELFHOSTED_SECRET_FILE_ENV if breaker else MIMO_SELFHOSTED_SECRET_FILE_ENV
+    )
     if not secret_path:
         return None
     try:
@@ -163,6 +182,8 @@ def selfhosted_probe_model(spec_model: str | None) -> str:
     if not isinstance(spec_model, str) or not spec_model:
         return ""
     try:
+        if is_breaker_selfhosted_model(spec_model):
+            return parse_breaker_selfhosted_model(spec_model)
         return parse_mimo_selfhosted_model(spec_model)
     except ValueError:
         return spec_model

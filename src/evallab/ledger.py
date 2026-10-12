@@ -61,12 +61,7 @@ MICROS_PER_USD = 1_000_000
 
 
 def _integer(value: object, label: str) -> int:
-    if (
-        not isinstance(value, int)
-        or isinstance(value, bool)
-        or value < 0
-        or value > 2**63 - 1
-    ):
+    if not isinstance(value, int) or isinstance(value, bool) or value < 0 or value > 2**63 - 1:
         raise ValueError(f"invalid ledger field: {label}")
     return value
 
@@ -82,17 +77,13 @@ def split_calls(calls: list[dict[str, Any]]) -> dict[str, Any]:
     unresolved = 0
     sequence = 0
     for index, raw_call in enumerate(calls, start=1):
-        if not isinstance(raw_call, dict) or _integer(
-            raw_call.get("call_id"), "call_id"
-        ) != index:
+        if not isinstance(raw_call, dict) or _integer(raw_call.get("call_id"), "call_id") != index:
             raise ValueError("call sequence is invalid")
         state = raw_call.get("state")
         if state in USED_STATES:
             used["requests"] += 1
             used["input_tokens"] += _integer(raw_call.get("input_tokens"), "input_tokens")
-            used["output_tokens"] += _integer(
-                raw_call.get("output_tokens"), "output_tokens"
-            )
+            used["output_tokens"] += _integer(raw_call.get("output_tokens"), "output_tokens")
             used["cost_micros"] += _integer(raw_call.get("cost_micros"), "cost_micros")
             sequence += 2
             if state != "reconciled":
@@ -145,13 +136,15 @@ def split_usage(provider_usage: Mapping[str, Any]) -> dict[str, Any]:
             if _integer(totals.get(name), f"totals.{name}") != value:
                 raise ValueError("v2 ledger totals do not match provider calls")
         for name in ("requests", "input_tokens", "output_tokens", "cost_micros"):
-            if _integer(attempted_block.get(name), f"attempted.{name}") != recomputed[
-                "attempted"
-            ][name]:
+            if (
+                _integer(attempted_block.get(name), f"attempted.{name}")
+                != recomputed["attempted"][name]
+            ):
                 raise ValueError("v2 ledger attempted block does not match calls")
-        if _integer(
-            provider_usage.get("unresolved_requests"), "unresolved_requests"
-        ) != recomputed["unresolved_requests"]:
+        if (
+            _integer(provider_usage.get("unresolved_requests"), "unresolved_requests")
+            != recomputed["unresolved_requests"]
+        ):
             raise ValueError("v2 ledger unresolved count does not match calls")
         used = dict(recomputed["used"])
         attempted = dict(recomputed["attempted"])
@@ -211,9 +204,7 @@ def build_cost_block(
             "reason": f"proxy ledger unreadable: {exc}",
         }
     pricing = split["pricing"]
-    attempted_cost_usd: float | None = (
-        split["attempted"]["cost_micros"] / MICROS_PER_USD
-    )
+    attempted_cost_usd: float | None = split["attempted"]["cost_micros"] / MICROS_PER_USD
     if split["used"]["requests"] == 0 and split["attempted"]["requests"] == 0:
         return {
             "cost_usd": None,
@@ -238,9 +229,8 @@ def build_cost_block(
             "pricing": pricing,
             "reason": (
                 "self-hosted route bills by server time, not tokens: "
-                "use execution_contracts.mimo_selfhosted_trial_cost_usd with "
-                "trial wall time, concurrency, and sandbox cost; the sandbox "
-                "input is unavailable at finalize so no spend is reported"
+                "use the serving app's time/billing evidence and sandbox cost; "
+                "those inputs are unavailable at finalize so no spend is reported"
             ),
         }
     return {

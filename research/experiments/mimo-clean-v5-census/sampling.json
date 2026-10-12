@@ -1417,5 +1417,19 @@
    "format-code-task-000435": "sha256:468f665d13d1c22dda58bf6cff4f49b887cd9e86a7a85d88c40c947c3f2bcce9",
    "format-code-task-000919": "sha256:b7ae218c13c9f4cb47aff704410f51cc32a7fe5d60305c1fa44a10a0f72ea236"
   }
+ },
+ "separate_verifier9_fold": {
+  "tasks": [
+   "format-code-task-001431"
+  ],
+  "checks": [
+   "nop",
+   "oracle",
+   "ladder"
+  ],
+  "note": "@9 per-row fold gate on @9 digest; (1,0)+clean local Docker; no-regression sample 000163,000200,000203,002552,000666,000114,000783 (1,0) on @8 packages",
+  "digests": {
+   "format-code-task-001431": "sha256:b42df9cbc70338445c4f31f4d65ee120cfc92f35b12f64f0ab70ce7b6d7b1a8e"
+  }
  }
 }

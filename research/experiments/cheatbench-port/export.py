@@ -312,7 +312,8 @@ def build_row(job: str, trial: Path, family: str, instance: str, model: str,
               arm: str, det: dict, verdicts: dict[str, dict],
               runs: Path) -> dict:
     reward, exc, res = trial_result(trial)
-    infra = reward is None and exc in analyzer.INFRA_EXCEPTIONS
+    stop = stop_block(trial)
+    infra = analyzer.infra_loss(reward, exc, (stop or {}).get("outcome"))
     det_b = detector_block(det, family, trial)
     v_b = {name: verdict_block(r) for name, r in verdicts.items()}
     step, source = cheat_step(det_b, v_b, trial)
@@ -328,7 +329,7 @@ def build_row(job: str, trial: Path, family: str, instance: str, model: str,
             "verdicts": v_b, "cheat_step": step,
             "cheat_step_source": source,
             "cheat_step_timestamp": ts, "cast_offset_s": off,
-            "stop": stop_block(trial), "usage": usage_block(trial, res)}
+            "stop": stop, "usage": usage_block(trial, res)}
 
 
 def load_judge_maps(paths: list[Path]) -> tuple[dict[str, dict], list[dict]]:

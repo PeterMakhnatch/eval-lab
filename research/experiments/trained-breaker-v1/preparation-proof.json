@@ -1,6 +1,6 @@
 {
   "schema": "trained-breaker-preparation-proof/v1",
-  "checked_at": "2026-10-12T17:37:56.106653+00:00",
+  "checked_at": "2026-10-12T18:21:15.652011+00:00",
   "remote_compute": false,
   "real_model_inference": false,
   "model_manifest_sha256": "sha256:943cbc55de9e21d8eefe12c06b2e9118c9356bd887e418b1d50541d45bb0c16c",
@@ -52,7 +52,7 @@
   "spend_authorized": false,
   "native_transport": {
     "schema": "trained-breaker-protocol-smoke/v1",
-    "checked_at": "2026-10-12T17:58:41.318763+00:00",
+    "checked_at": "2026-10-12T18:21:13.157625+00:00",
     "status": "passed",
     "kind": "scripted-native-Harbor-LiteLLM-to-loopback-proxy",
     "real_model_inference": false,
@@ -84,9 +84,9 @@
     ],
     "source_sha256": {
       "src/evallab/harbor_terminus.py": "021a89377f7ee654eeaf1fca44752d3945f51c6d4db14871617e13fef7b23b70",
-      "src/evallab/runner.py": "37ae717e43cbc8e17ef18a5099867de3386d587a05d28eb74ab3ba6433d01c99",
-      "src/evallab/execution_contracts.py": "9b48b9eb30fb3363811e0fa69c5287aac09188a9022c18dc4db064d4105dd772",
-      "containers/zai_openapi_secret_proxy.py": "779301d7592a11aae4f6b393d068ecc4551d3393a03def2b65c8cb061bf8930d"
+      "src/evallab/runner.py": "24046d12f3848834f2a3e6398955b09f0a2a38ee77940c629bf6ee6ccc22356f",
+      "src/evallab/execution_contracts.py": "36e31451ce928a9c2816c59a5a9d9b7c42209896359afd9a70eb743ad078ec5d",
+      "containers/zai_openapi_secret_proxy.py": "11e1513301b1ae1908006a761b89387f44333aef8cf1dbfd2c6d1f6d8e9edaa6"
     }
   },
   "harbor_version": "0.24.0",
@@ -112,7 +112,7 @@
     "registry_audit": "passed with existing legacy-certification warnings",
     "lessons": "fresh",
     "typecheck": "passed",
-    "focused_tests_passed": 336,
+    "focused_tests_passed": 337,
     "focused_tests_warnings": 2,
     "test_files": [
       "test_breaker_selfhosted_route.py",
@@ -126,7 +126,8 @@
       "test_harbor_terminus_completionfix.py",
       "test_harbor_terminus_loopfix.py",
       "test_terminus_harness.py"
-    ]
+    ],
+    "revalidated_after_upstream_integration": true
   },
   "limits": [
     "Scripted protocol responses are not model results.",

@@ -44,6 +44,7 @@ from evallab.separate_verifier import (
     build_changes_v6,
     build_changes_v7,
     build_changes_v8,
+    build_changes_v9,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
@@ -69,6 +70,7 @@ from evallab.separate_verifier import (
     evaluate_junit_v6,
     evaluate_junit_v7,
     evaluate_junit_v8,
+    evaluate_junit_v9,
     evaluate_phpunit_output,
     evaluate_rspec_output,
     evaluate_surefire_reports,
@@ -88,6 +90,7 @@ from evallab.separate_verifier import (
     render_snapshot_hook_v2,
     render_tests_dockerfile_v7,
     render_tests_dockerfile_v8,
+    render_tests_dockerfile_v9,
     render_wrapper_test_sh_v2,
     render_wrapper_test_sh_v3,
     render_wrapper_test_sh_v4,
@@ -95,6 +98,7 @@ from evallab.separate_verifier import (
     render_wrapper_test_sh_v6,
     render_wrapper_test_sh_v7,
     render_wrapper_test_sh_v8,
+    render_wrapper_test_sh_v9,
     resolve_command_text,
     strip_ansi,
     tamper_signature_hit,
@@ -3458,3 +3462,298 @@ def test_v8_build_changes_shape(parent_dir_v2: Path) -> None:
         build_changes_v8(parent_dir_v2, marker="  ")
     with pytest.raises(VariantInvalid):
         render_wrapper_test_sh_v8("relative/path")
+
+# --------------------------------------------------------------------------- #
+# separate-verifier@9: skips in satisfied collection-error modules (001431)
+# --------------------------------------------------------------------------- #
+
+# Ground truth (captured locally in Docker, pytest 9.0.3 native junitxml):
+# pristine ``pytest -o addopts= test/logformats_test.py`` collects 41
+# items then aborts on the ``TestGzipASCFileFormat.__init__``
+# AttributeError; the junit holds only
+# ``(test.logformats_test, TestGzipASCFileFormat)`` with an ``<error>``
+# child and no file attr. The fixed run passes 42 and conditionally skips
+# 4. Full captured junits live in ``tests/fixtures/separate_verifier/``
+# (volatile attrs stripped); the inline shapes below pin the unit-level
+# excuse boundaries.
+_V9_FIXTURES = Path(__file__).parent / "fixtures" / "separate_verifier"
+
+
+def _v9_fixture(name: str) -> bytes:
+    return (_V9_FIXTURES / name).read_bytes()
+
+
+# Small inline shapes (same identities as the captured pair).
+_V9_BASE_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite name="pytest" errors="1" tests="1">'
+    b'<testcase classname="test.logformats_test" name="TestGzipASCFileFormat">'
+    b"<error message=\"collection failure\">AttributeError</error>"
+    b"</testcase></testsuite>"
+)
+_V9_AGENT_PASS_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite name="pytest" errors="0" tests="2">'
+    b'<testcase classname="test.logformats_test.TestGzipASCFileFormat" name="test_file_like" />'
+    b'<testcase classname="test.logformats_test.TestAscFileFormat" name="test_can_message" />'
+    b"</testsuite>"
+)
+_V9_AGENT_SKIP_IN_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite name="pytest" errors="0" tests="3">'
+    b'<testcase classname="test.logformats_test.TestGzipASCFileFormat" name="test_file_like" />'
+    b'<testcase classname="test.logformats_test.TestGzipASCFileFormat" name="test_append_mode"><skipped message="conditional" /></testcase>'
+    b'<testcase classname="test.logformats_test.TestSqliteDatabaseFormat" name="test_read_all"><skipped message="conditional" /></testcase>'
+    b"</testsuite>"
+)
+_V9_AGENT_SKIP_OUT_JUNIT = (
+    b'<?xml version="1.0" encoding="utf-8"?>'
+    b'<testsuite name="pytest" errors="0" tests="2">'
+    b'<testcase classname="test.logformats_test.TestGzipASCFileFormat" name="test_file_like" />'
+    b'<testcase classname="other.mod.TestOther" name="test_new"><skipped /></testcase>'
+    b"</testsuite>"
+)
+_V9_1431_BASELINE_OUT = "baseline_sec=1 runner=pytest rc=2\n"
+
+
+def test_v9_001431_real_pair_grades_one() -> None:
+    base = _v9_fixture("001431-baseline.xml")
+    agent = _v9_fixture("001431-agent.xml")
+    # The gap @9 closes: @8 fails the working fix on its conditional skips.
+    assert evaluate_junit_v8([agent], 0, (), [base], _V9_1431_BASELINE_OUT) == 0
+    assert evaluate_junit_v9([agent], 0, (), [base], _V9_1431_BASELINE_OUT) == 1
+    # Inline shapes agree with the captured pair.
+    assert evaluate_junit_v9([_V9_AGENT_PASS_JUNIT], 0, (), [_V9_BASE_JUNIT]) == 1
+    assert evaluate_junit_v9([_V9_AGENT_SKIP_IN_JUNIT], 0, (), [_V9_BASE_JUNIT]) == 1
+    assert evaluate_junit_v8([_V9_AGENT_SKIP_IN_JUNIT], 0, (), [_V9_BASE_JUNIT]) == 0
+    # Nonzero exit still fails.
+    assert evaluate_junit_v9([agent], 1, (), [base], _V9_1431_BASELINE_OUT) == 0
+    # The error persisting (nop shape) still fails.
+    assert evaluate_junit_v9([base], 2, (), [base], _V9_1431_BASELINE_OUT) == 0
+
+
+def test_v9_keeps_v8_grades() -> None:
+    # Every previously-passing G-shape still passes; every previously-failing
+    # shape still fails (the widen-only argument, pinned on fixtures).
+    assert evaluate_junit_v9([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_BASE_JUNIT]) == 1
+    assert evaluate_junit_v9([_V7_G5_AGENT_FILE_JUNIT], 0, (), [_V7_G5_BASE_FILE_JUNIT]) == 1
+    assert (
+        evaluate_junit_v9([_V7_G5_AGENT_OTHER_FILE_JUNIT], 0, (), [_V7_G5_BASE_FILE_JUNIT])
+        == 0
+    )
+    assert evaluate_junit_v9([_V7_G5_AGENT_JUNIT], 0, (), [_V7_G5_GONE_JUNIT]) == 0
+    assert evaluate_junit_v9([_V8_DASH_AGENT_JUNIT], 0, (), [_V8_DASH_BASE_JUNIT]) == 1
+    assert evaluate_junit_v9([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], "") == 0
+    assert (
+        evaluate_junit_v9([_V7_G8_AGENT_JUNIT], 0, (), [_V7_G8_BASE_JUNIT], _V7_G8_BASELINE_OUT)
+        == 1
+    )
+
+
+def test_v9_anticheat_shapes_stay_zero() -> None:
+    # Skip attack against a passing pristine baseline (no error orphans, so
+    # no satisfied module can excuse it).
+    base = (
+        b'<testsuite><testcase classname="p" name="a"/>'
+        b'<testcase classname="p" name="b"/></testsuite>'
+    )
+    attack = (
+        b'<testsuite><testcase classname="p" name="a"><skipped/></testcase>'
+        b'<testcase classname="p" name="b"><skipped/></testcase></testsuite>'
+    )
+    assert evaluate_junit_v9([attack], 0, (), [base], "") == 0
+    # Empty report stays 0.
+    assert evaluate_junit_v9([None], 0, (), None, "") == 0
+    # A new skip OUTSIDE the satisfied module still fails.
+    assert evaluate_junit_v9([_V9_AGENT_SKIP_OUT_JUNIT], 0, (), [_V9_BASE_JUNIT], "") == 0
+    # An error key that also carries a failure is not an orphan.
+    fail_key = (
+        b'<testsuite errors="1"><testcase classname="test.logformats_test" name="TestGzipASCFileFormat">'
+        b"<error message=\"collection failure\">x</error>"
+        b"<failure message=\"y\"/></testcase></testsuite>"
+    )
+    assert evaluate_junit_v9([_V9_AGENT_PASS_JUNIT], 0, (), [fail_key]) == 0
+    # A decoy class that merely shares a name fragment never matches.
+    fragment = (
+        b'<testsuite><testcase classname="test.other.TestGzipASCFileFormatExtra" name="test_x"/></testsuite>'
+    )
+    assert evaluate_junit_v9([fragment], 0, (), [_V9_BASE_JUNIT]) == 0
+
+
+def _v9_grader_block() -> str:
+    """Extract the embedded @9 grading script (last PYEOF heredoc)."""
+    import re as _re
+
+    from evallab.separate_verifier import render_wrapper_test_sh_v9 as _render
+
+    blocks = _re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", _render("/testbed"), _re.S)
+    assert len(blocks) == 3
+    return blocks[2]
+
+
+def _run_embedded_v9_grader(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner_cmd: str,
+    output: str,
+    rc: int,
+    junit: bytes | None = None,
+    baseline_junit: bytes | None = None,
+    baseline_output: str | None = None,
+    patch_extra: str = "",
+) -> str:
+    """Run the shipped @9 grading script against synthetic files; return reward."""
+    junit_path = tmp_path / "junit.xml"
+    if junit is None:
+        if junit_path.exists():
+            junit_path.unlink()
+    else:
+        junit_path.write_bytes(junit)
+    baseline_dir = tmp_path / "baseline"
+    if baseline_junit is not None:
+        baseline_dir.mkdir(exist_ok=True)
+        (baseline_dir / "junit.xml").write_bytes(baseline_junit)
+    if baseline_output is not None:
+        baseline_dir.mkdir(exist_ok=True)
+        (baseline_dir / "output.log").write_text(baseline_output, encoding="utf-8")
+    if baseline_junit is None and baseline_output is None:
+        import shutil
+
+        shutil.rmtree(baseline_dir, ignore_errors=True)
+    patch_path = tmp_path / "test.patch"
+    patch_path.write_text(
+        f"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+{runner_cmd}\n{patch_extra}",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "test_output.log"
+    output_path.write_text(output, encoding="utf-8")
+    cmd_path = tmp_path / "test_command.sh"
+    cmd_path.write_text(runner_cmd, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "grader",
+            str(junit_path),
+            str(rc),
+            str(patch_path),
+            str(output_path),
+            str(cmd_path),
+            str(tmp_path),
+        ],
+    )
+    with pytest.raises(SystemExit):
+        exec(compile(_v9_grader_block(), "v9grader", "exec"), {"__name__": "v9grader"})
+    return capsys.readouterr().out.strip()
+
+
+def test_embedded_v9_real_pair(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cmd = 'python -m pytest -o "addopts=" test/logformats_test.py -v'
+    out = "=== test session starts ===\ncollected 46 items\n"
+    base = _v9_fixture("001431-baseline.xml")
+    agent = _v9_fixture("001431-agent.xml")
+    assert (
+        _run_embedded_v9_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=agent,
+            baseline_junit=base,
+            baseline_output=_V9_1431_BASELINE_OUT,
+        )
+        == "1"
+    )
+    # Mirror and embedded agree, and the shipped @8 script still fails it.
+    assert evaluate_junit_v9([agent], 0, (), [base], _V9_1431_BASELINE_OUT) == 1
+    assert (
+        _run_embedded_v8_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=agent,
+            baseline_junit=base,
+            baseline_output=_V9_1431_BASELINE_OUT,
+        )
+        == "0"
+    )
+
+
+def test_embedded_v9_anticheat_shapes_grade_zero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cmd = 'python -m pytest -o "addopts=" test/logformats_test.py -v'
+    out = "=== test session starts ===\ncollected 46 items\n"
+    base = _v9_fixture("001431-baseline.xml")
+    assert (
+        _run_embedded_v9_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=2,
+            junit=base,
+            baseline_junit=base,
+            baseline_output=_V9_1431_BASELINE_OUT,
+        )
+        == "0"
+    )
+    assert (
+        _run_embedded_v9_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=out, rc=0, junit=None
+        )
+        == "0"
+    )
+    assert (
+        _run_embedded_v9_grader(
+            tmp_path,
+            capsys,
+            monkeypatch,
+            runner_cmd=cmd,
+            output=out,
+            rc=0,
+            junit=_V9_AGENT_SKIP_OUT_JUNIT,
+            baseline_junit=_V9_BASE_JUNIT,
+            baseline_output=_V9_1431_BASELINE_OUT,
+        )
+        == "0"
+    )
+
+
+def test_v9_wrapper_differs_from_v8_in_pinned_regions_only() -> None:
+    v8 = render_wrapper_test_sh_v8("/testbed")
+    v9 = render_wrapper_test_sh_v9("/testbed")
+    assert v9 != v8
+    assert "_v9satisfied" in v9
+    assert "_v9satisfied" not in v8
+    assert "_v9exc" in v9
+    assert "_v9exc" not in v8
+    # The orphan/module rules are untouched.
+    assert "_v7modok" in v9
+    assert "separate-verifier@9" in render_tests_dockerfile_v9("example/image")
+
+
+def test_v9_build_changes_shape(parent_dir_v2: Path) -> None:
+    (parent_dir_v2 / "tests" / "test.patch").write_text(
+        "diff --git a/x.py b/x.py\n+def test_a(): pass\n", encoding="utf-8"
+    )
+    (parent_dir_v2 / "tests" / "test_command.sh").write_text(
+        "python -m pytest test/x_test.py -v\n", encoding="utf-8"
+    )
+    changes, inputs = build_changes_v9(parent_dir_v2, marker="test_a")
+    assert b"_v9satisfied" in changes["tests/test.sh"]
+    assert b"separate-verifier@9" in changes["tests/Dockerfile"]
+    assert inputs["runner"] == "pytest"
+    with pytest.raises(VariantInvalid):
+        build_changes_v9(parent_dir_v2, marker="  ")
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v9("relative/path")

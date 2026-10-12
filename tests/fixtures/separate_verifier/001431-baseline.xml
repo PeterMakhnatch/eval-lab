@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<testsuites name="pytest tests"><testsuite name="pytest" errors="1" failures="0" skipped="0" tests="1"><testcase classname="test.logformats_test" name="TestGzipASCFileFormat"><error message="collection failure">test/logformats_test.py:81: in __init__
+    self._setup_instance()
+test/logformats_test.py:563: in _setup_instance
+    can.GzipASCWriter,
+    ^^^^^^^^^^^^^^^^^
+E   AttributeError: module 'can' has no attribute 'GzipASCWriter'</error></testcase></testsuite></testsuites>

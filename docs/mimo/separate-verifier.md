@@ -482,3 +482,65 @@ changes, so their records stay valid. Ships in `mimo-clean-v5` (see
   under `@7`; all `@7` G-shapes still 1 and every anti-cheat shape still
   0 under `@8`.
 - Fleet regrade: receipt `research/experiments/mimo-clean-v5-census/`.
+
+## separate-verifier@9: skips in satisfied collection-error modules (2026-10-12)
+
+`separate-verifier@9` (`TRANSFORM_ID_V9`, `build_changes_v9`,
+`derive_separate_verifier_v9`, `render_wrapper_test_sh_v9`,
+`evaluate_junit_v9`, `_v9_skip_excused` in
+`src/evallab/separate_verifier.py`; tests in
+`tests/test_separate_verifier.py`, captured junits in
+`tests/fixtures/separate_verifier/001431-{baseline,agent}.xml`) keeps every
+`@8` rule — the orphan loop is byte-identical — and fixes the shape that
+kept 001431 red on `@8` packages. No `@2`–`@8` symbol or template byte
+changes, so their records stay valid. Ships in `mimo-clean-v5` as a
+per-row fold for 001431 only (see `docs/mimo/clean-set.md`); the next full
+rebuild goes uniform `@9`.
+
+### Ground truth (measured, local Docker $0)
+
+The v5 census graded 001431's working reference fix 0 under `@8` and the
+GraderV7 handoff hypothesized a hook-written error key (raw-nodeid
+classname, no file attr) that never prefix-matches. Capturing the pristine
+`junit.xml` locally disproves that: pytest 9.0.3's native junitxml writes
+the class-level collection error as `(test.logformats_test,
+TestGzipASCFileFormat)` with an `<error>` child and no file attr
+(`tests/fixtures/separate_verifier/001431-baseline.xml`) — a shape `@8`
+already exempts (module prefix match; verified: `@8` grades the real pair
+1 once skips are removed). The trial failed on the **fixed run's 4
+conditional skips**: pristine collection was interrupted, so the baseline
+records no skip outcomes at all, and the `@6` unmatched-skip rule trips on
+every one of them (`test_output.log`: 42 passed, 4 skipped; `junit-grade`:
+`rc=0 cases=138 bad=0 skipped=12` → `fail-to-pass` → 0).
+
+### The `@9` fix
+
+| id | shape | `@9` fix | anti-cheat preserved |
+|---|---|---|---|
+| G5-skip | pristine collection error interrupts the run, so the baseline holds only the error key; the fixed run passes but also records first-execution (conditional) skips the baseline never saw (001431) | the orphan loop records each *satisfied* error key's identities; agent skips inside those modules (same file or same dotted module, equality/prefix) are excused — everything else still fails | skip attacks have no error orphans, so no satisfied module can excuse them; error-persisting (nop), vanished-`<failure>`, and outside-module skips still 0; only `ftp_bad` clears, never sets (every `@8` 1 stays 1) |
+
+Residual (documented, same class as the `@7` decoy residual): on a
+collection-error task, an attacker that genuinely passes tests in the
+errored module could additionally skip sibling hidden tests in that
+module. The 14 fixed ladder attacks do not combine this way (all still 0
+at unit level and live); a bespoke decoy-plus-skip combo stays out of the
+ladder threat model, as with `@7`'s module-path decoys.
+
+### Validation (MEASURED, 2026-10-12, $0)
+
+- Unit: the captured 001431 pair grades 0 under `@8` / 1 under `@9`
+  (mirror and embedded shipped grader agree); all `@7`/`@8` G-shapes still
+  1 and every anti-cheat shape (nop, all 14 ladder attack shapes incl.
+  skip/skiptest, all-skipped, empty report, outside-module skip,
+  failure-carrying error key) still 0 under `@9`.
+- Live Docker on the `@9` package (`b42df9cb…`): oracle 1 (`rc=0
+  cases=138 bad=0 skipped=12`), nop 0 (`rc=2 cases=1 bad=1`, the
+  collection error), full 1.4.0 ladder clean (14/14 executed, combined
+  reward 0).
+- No-regression sample (shipped `@8` packages, oracle 1 / nop 0):
+  000163, 000200, 000203, 002552, 000666, 000114, 000783.
+- Widen-only argument: the `@9` template replaces only the
+  fail-to-pass orphan/skip loops, adding `_v9satisfied` collection plus a
+  skip excuse; no new `ftp_bad = True` path exists, so any run grading 1
+  under `@8` grades 1 under `@9` (pinned on fixtures by
+  `test_v9_keeps_v8_grades`).

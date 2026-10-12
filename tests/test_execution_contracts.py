@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 
 from evallab.execution_contracts import (
+    DAYTONA_AUTO_STOP_INTERVAL_MINS,
     MAX_TRIAL_TIMEOUT_SECONDS,
     DispatchCapacity,
     PaidRunAuthorization,
@@ -663,6 +664,9 @@ def test_validate_request_accepts_storage_bounds(tmp_path: Path, storage_mb: int
         ("openrouter-metered/xiaomi/mimo-v2.6-pro", False),
         ("openrouter-metered/openai/gpt-oss-120b", True),
         ("openrouter-metered/openai/gpt-oss-20b", False),
+        ("openrouter-metered/deepseek/deepseek-v4.1-flash", True),
+        ("openrouter-metered/z-ai/glm-5.3-flash", True),
+        ("openrouter-metered/deepseek/deepseek-chat", False),
         ("openrouter/xiaomi/mimo-v2.6-flash", False),
     ],
 )
@@ -688,3 +692,46 @@ def test_validate_request_gates_openrouter_terminus_selector(
     else:
         with pytest.raises(ValueError):
             validate_request(req)
+
+
+def test_daytona_auto_stop_covers_max_model_call_plus_503_wait() -> None:
+    """The idle stop must outlast the longest sandbox-quiet window.
+
+    One full model call (the proxy's upstream timeout) plus the bounded 503
+    wait, rounded up to whole minutes — and at least 15 minutes. G5 lost 3
+    sandboxes under the old 5-minute stop while the proxy was still waiting
+    through 503s.
+    """
+    import importlib.util
+
+    source = Path(__file__).resolve().parents[1] / "containers" / "zai_openapi_secret_proxy.py"
+    spec = importlib.util.spec_from_file_location("auto_stop_proxy_probe", source)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    longest_quiet_seconds = module.UPSTREAM_TIMEOUT_SECONDS + module.UPSTREAM_503_WAIT_DEFAULT_SECONDS
+    assert DAYTONA_AUTO_STOP_INTERVAL_MINS >= 15
+    assert longest_quiet_seconds <= DAYTONA_AUTO_STOP_INTERVAL_MINS * 60
+
+
+def test_daytona_environment_applies_shared_auto_stop(monkeypatch: pytest.MonkeyPatch) -> None:
+    """BoundedDaytonaEnvironment passes the shared constant, not a literal."""
+    from evallab import harbor_daytona
+
+    seen: dict[str, Any] = {}
+
+    def _stub_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        from types import SimpleNamespace
+
+        seen.update(kwargs)
+        self.session_id = "sess"
+        self.environment_name = "env"
+        self.task_env_config = SimpleNamespace(build_timeout_sec=60)
+
+    monkeypatch.setattr(harbor_daytona.DaytonaEnvironment, "__init__", _stub_init)
+    env = harbor_daytona.BoundedDaytonaEnvironment.__new__(
+        harbor_daytona.BoundedDaytonaEnvironment
+    )
+    harbor_daytona.BoundedDaytonaEnvironment.__init__(env, ttl_minutes=60)
+    assert seen["auto_stop_interval_mins"] == DAYTONA_AUTO_STOP_INTERVAL_MINS
+    assert seen["auto_delete_interval_mins"] == 0

@@ -232,7 +232,10 @@ def test_v2_round_trip_excludes_open_reservation_from_totals(
         attempt_id=attempt_id,
         limits=_limits(),
         provider_label="Z.ai OpenAPI",
-        expected_pricing=dict(FLASH_PRICING),
+        expected_pricing={
+            **FLASH_PRICING,
+            "cached_input_cost_micros_per_million": None,
+        },
     )
     assert validated["schema_version"] == 2
 
@@ -258,7 +261,10 @@ def test_v2_tampered_totals_fail_validation(
             attempt_id=attempt_id,
             limits=_limits(),
             provider_label="Z.ai OpenAPI",
-            expected_pricing=dict(FLASH_PRICING),
+            expected_pricing={
+                **FLASH_PRICING,
+                "cached_input_cost_micros_per_million": None,
+            },
         )
 
 

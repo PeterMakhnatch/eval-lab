@@ -37,6 +37,25 @@ def codex_profile() -> AgentProfile:
     return builtin_profiles()["codex-gpt-5.6-terra"]
 
 
+def test_openrouter_terminus_profiles_pin_admitted_selectors() -> None:
+    """Every OpenRouter route has a terminus-2 profile pinned to its selector."""
+    from evallab.execution_contracts import OPENROUTER_ROUTES, TERMINUS_AGENT
+
+    profiles = builtin_profiles()
+    by_model = {p.model: p for p in profiles.values() if p.adapter == TERMINUS_AGENT}
+    for route in OPENROUTER_ROUTES.values():
+        profile = by_model.get(route.selector)
+        assert profile is not None, route.selector
+        assert profile.auth_mode == "api-key-environment"
+        assert profile.secret_source == "env:OPENROUTER_API_KEY"
+        validate_model_pin(profile, route.selector)
+    assert profiles["terminus-2-openrouter-deepseek-v4-1-flash"].model == (
+        "openrouter-metered/deepseek/deepseek-v4.1-flash"
+    )
+    assert profiles["terminus-2-openrouter-glm-5-3-flash"].model == (
+        "openrouter-metered/z-ai/glm-5.3-flash"
+    )
+
 # ---- identity and digests ---------------------------------------------------
 
 

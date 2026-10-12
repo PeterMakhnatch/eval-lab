@@ -34,6 +34,7 @@ import hashlib
 import hmac
 import http.client
 import json
+import math
 import os
 import re
 import signal
@@ -45,6 +46,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -109,28 +111,61 @@ ALLOWED_HTTP_HOSTS = frozenset(
 # Per admitted native model: the provider pin names exactly one OpenRouter
 # endpoint (``endpoint``) and refuses the fallback pool, so upstream serving
 # and the per-token price stay exact; the reasoning pin replaces any caller
-# reasoning control; prices are USD micros per 1M tokens (in, out). Every
-# pinned endpoint reports supports_implicit_caching=false, so uncached input
-# pricing is exact; the conservative no-cache-credit rule stays.
+# reasoning control; prices are USD micros per 1M tokens (in, out) with the
+# endpoint's ``input_cache_read`` rate as ``cached`` (None when the endpoint
+# publishes no cache rate — cached tokens then settle at the full input
+# rate). Every pinned endpoint reports supports_implicit_caching=false
+# except where noted, so uncached input pricing is exact; reservations always
+# use the uncached rate (the conservative no-under-reserve rule).
 OPENROUTER_ROUTES = {
-    # verified 2026-09-29: $0.14 / $0.28 per 1M; MiMo thinking on, matching
-    # the self-hosted MiMo treatment.
+    # re-verified 2026-10-12: $0.14 / $0.0028 cache / $0.28 per 1M; MiMo
+    # thinking on, matching the self-hosted MiMo treatment. Note: endpoint
+    # status -2, ~90% 30-minute uptime — first-party pin kept.
     "xiaomi/mimo-v2.6-flash": {
         "endpoint": "xiaomi/fp8",
         "provider": {"order": ["xiaomi"], "allow_fallbacks": False},
         "reasoning": {"enabled": True},
         "prices": (140_000, 280_000),
+        "cached": 2_800,
         "context_input_tokens": 1_048_576,
     },
-    # verified 2026-09-30: $0.037 / $0.17 per 1M; the full endpoint slug —
-    # bare "deepinfra" also matches its pricier turbo and fp8 endpoints.
+    # re-verified 2026-10-12: $0.037 / $0.17 per 1M, no input_cache_read
+    # rate published (cached=None); the full endpoint slug — bare
+    # "deepinfra" also matches its pricier turbo and fp8 endpoints.
     # Reasoning effort pinned to the model's default, medium.
     "openai/gpt-oss-120b": {
         "endpoint": "deepinfra/bf16",
         "provider": {"order": ["deepinfra/bf16"], "allow_fallbacks": False},
         "reasoning": {"effort": "medium"},
         "prices": (37_000, 170_000),
+        "cached": None,
         "context_input_tokens": 131_072,
+    },
+    # verified 2026-10-12: first-party DeepSeek endpoint, $0.15 / $0.003
+    # cache / $0.60 per 1M, status 0, 100% 30-minute uptime,
+    # supports_implicit_caching=true. Table pins off-peak list rates;
+    # DeepSeek peak (Mon-Fri 01:00-04:00, 06:00-10:00 UTC) doubles them and
+    # OpenRouter's per-call reported usage.cost reflects the billed schedule.
+    # Reasoning effort pinned medium (thinking is DeepSeek's default mode
+    # for deepseek-flash).
+    "deepseek/deepseek-v4.1-flash": {
+        "endpoint": "deepseek",
+        "provider": {"order": ["deepseek"], "allow_fallbacks": False},
+        "reasoning": {"effort": "medium"},
+        "prices": (150_000, 600_000),
+        "cached": 3_000,
+        "context_input_tokens": 1_048_576,
+    },
+    # verified 2026-10-12: first-party Z.ai endpoint, $0.15 / $0.03 cache /
+    # $0.50 per 1M (same as the direct Z.ai OpenAPI route), status 0, 100%
+    # 30-minute uptime. Reasoning effort pinned medium.
+    "z-ai/glm-5.3-flash": {
+        "endpoint": "z-ai/fp8",
+        "provider": {"order": ["z-ai/fp8"], "allow_fallbacks": False},
+        "reasoning": {"effort": "medium"},
+        "prices": (150_000, 500_000),
+        "cached": 30_000,
+        "context_input_tokens": 1_048_576,
     },
 }
 
@@ -143,15 +178,22 @@ _SHAPED_PROVIDERS = frozenset({"mimo_selfhosted", "openrouter"})
 # ---------------------------------------------------------------------------
 # Provider profiles. One metered implementation, pinned per provider: env
 # names, upstream host/path, admitted models, and list prices (USD per 1M
-# tokens, micros). Rates are conservative: every input token is priced as
-# uncached prefill; cached-prefill discounts are never credited.
+# tokens, micros). Reservations are conservative: every input token reserves
+# as uncached prefill at max tokens, so ceilings never under-reserve.
+# Settlement: Z.ai/Tinker/self-hosted settle every input token at the
+# uncached rate (cached-prefill discounts are never credited there);
+# OpenRouter settles each call from its reported usage.cost when present and
+# valid, else from table rates crediting cached_tokens at the route's cached
+# rate. The per-call ledger record carries the cost basis.
 # ---------------------------------------------------------------------------
 
 # Z.ai Open Platform rates (docs.z.ai/guides/overview/pricing, verified
 # 2026-09): glm-5.3-flash $0.15 in / $0.50 out; glm-5.3 $1.40 in / $4.40 out.
-# Thinking Machines Tinker rates (verified 2026-09-28):
-# Qwen/Qwen3.6-35B-A3B 0.54/1.335; Qwen/Qwen3.8-27B 1.86/5.595;
-# Qwen/Qwen3.5-9B 0.66/1.995.
+# Thinking Machines Tinker rates (https://tinker-docs.thinkingmachines.ai/tinker/models.json,
+# verified 2026-10-12): Qwen/Qwen3.6-35B-A3B 0.45/1.335; Qwen/Qwen3.8-27B
+# 0.6975/5.595; Qwen/Qwen3.5-9B 0.30/0.807 (cached prefill 0.09/0.1395/0.06
+# recorded for reporting only; settlement still prices every input token
+# uncached).
 PROVIDERS: dict[str, Any] = {
     "zai_openapi": {
         "label": "Z.ai OpenAPI",
@@ -203,9 +245,9 @@ PROVIDERS: dict[str, Any] = {
         "flat_input_price_env": None,
         "flat_output_price_env": None,
         "model_prices": {
-            "Qwen/Qwen3.6-35B-A3B": (540_000, 1_335_000),
-            "Qwen/Qwen3.8-27B": (1_860_000, 5_595_000),
-            "Qwen/Qwen3.5-9B": (660_000, 1_995_000),
+            "Qwen/Qwen3.6-35B-A3B": (450_000, 1_335_000),
+            "Qwen/Qwen3.8-27B": (697_500, 5_595_000),
+            "Qwen/Qwen3.5-9B": (300_000, 807_000),
         },
         "expected_base_env": "EVALLAB_TINKER_EXPECTED_BASE",
         # ``tinker/<base>@tinker://<run>:train:<i>/sampler_weights/<step>``
@@ -597,13 +639,15 @@ def _canonicalize_and_redact_json(data: bytes, key: str) -> bytes:
 
 def _canonicalize_sse_and_usage(
     data: bytes, key: str
-) -> tuple[bytes, dict[str, int] | None, str | None]:
+) -> tuple[bytes, dict[str, Any] | None, str | None]:
     """Redact a text/event-stream and extract usage from the final data event.
 
-    Returns the sanitized SSE body, a usage dict with ``prompt_tokens`` and
-    ``completion_tokens``, and the observed model identity string.
+    Returns the sanitized SSE body, the raw usage mapping (``prompt_tokens``
+    and ``completion_tokens`` plus any provider extras such as OpenRouter's
+    ``cost`` and ``prompt_tokens_details``), and the observed model identity
+    string.
     """
-    usage: dict[str, int] | None = None
+    usage: dict[str, Any] | None = None
     returned_models: set[str] = set()
     events: list[list[bytes]] = []
     current: list[bytes] = []
@@ -864,6 +908,71 @@ def _cost_micros(input_tokens: int, output_tokens: int, rates: tuple[int, int]) 
     return (numerator + 999_999) // 1_000_000
 
 
+#: Cost-basis labels recorded per settled call. ``openrouter_reported`` means
+#: the call settled from OpenRouter's own billed ``usage.cost``;
+#: ``table`` means it settled from pinned table rates (with cached tokens
+#: credited at the route's cached rate on OpenRouter routes).
+COST_BASIS_REPORTED = "openrouter_reported"
+COST_BASIS_TABLE = "table"
+
+
+def _cost_micros_with_cache(
+    input_tokens: int,
+    cached_tokens: int,
+    output_tokens: int,
+    rates: tuple[int, int],
+    cached_rate: int | None,
+) -> int:
+    """Table settlement crediting cached input tokens at the cached rate.
+
+    A ``None`` cached rate (the endpoint publishes no cache price) bills
+    cached tokens at the full input rate. Cached counts are clamped to the
+    prompt total by the caller.
+    """
+    rate = rates[0] if cached_rate is None else cached_rate
+    numerator = (input_tokens - cached_tokens) * rates[0] + cached_tokens * rate
+    numerator += output_tokens * rates[1]
+    return (numerator + 999_999) // 1_000_000
+
+
+def _reported_cost_micros(usage: Mapping[str, Any]) -> int | None:
+    """OpenRouter's billed ``usage.cost`` (USD) in micros, or None.
+
+    Valid only when a finite, non-negative number: anything else (absent,
+    wrong type, NaN/inf, negative) falls back to table settlement.
+    """
+    cost = usage.get("cost") if isinstance(usage, Mapping) else None
+    if isinstance(cost, bool) or not isinstance(cost, (int, float)):
+        return None
+    if not math.isfinite(cost) or cost < 0:
+        return None
+    return int(round(cost * 1_000_000))
+
+
+def _cached_input_tokens(usage: Mapping[str, Any], prompt_tokens: int) -> int | None:
+    """Validated ``prompt_tokens_details.cached_tokens``, or None.
+
+    Valid only when a non-negative int within the prompt total; anything
+    else settles the whole prompt at the uncached rate.
+    """
+    details = usage.get("prompt_tokens_details") if isinstance(usage, Mapping) else None
+    cached = details.get("cached_tokens") if isinstance(details, Mapping) else None
+    if isinstance(cached, bool) or not isinstance(cached, int):
+        return None
+    if cached < 0 or cached > prompt_tokens:
+        return None
+    return cached
+
+
+def _openrouter_cached_rate(native_model: str) -> int | None:
+    """The pinned endpoint's ``input_cache_read`` micros per 1M, if published."""
+    route = OPENROUTER_ROUTES.get(native_model)
+    if not isinstance(route, dict):
+        return None
+    cached = route.get("cached")
+    return cached if isinstance(cached, int) and not isinstance(cached, bool) else None
+
+
 def _model_rates(native_base: str) -> tuple[int, int] | None:
     """Resolve the pinned (input, output) micros per 1M tokens for one base."""
     profile = _profile()
@@ -961,7 +1070,7 @@ class TrialBudget:
         # A trial binds exactly one model, so its pinned rates are frozen at
         # the first reservation and every later call must agree. A zero-call
         # ledger keeps ``pricing: null``: no rate is invented without a call.
-        self._pricing: dict[str, int] | None = None
+        self._pricing: dict[str, int | None] | None = None
         live_dir_raw = os.environ.get(_LIVE_DIR_ENV)
         self._live_dir: Path | None = Path(live_dir_raw).resolve() if live_dir_raw else None
         self._persist_locked()
@@ -1064,17 +1173,18 @@ class TrialBudget:
 
             sys.stderr.write(f"warning: proxy failed to append live call: {exc}\n")
 
-    def _freeze_pricing_locked(self, rates: tuple[int, int]) -> None:
-        if self._pricing is None:
-            self._pricing = {
-                "input_cost_micros_per_million": rates[0],
-                "output_cost_micros_per_million": rates[1],
-            }
-            self._write_live_limits_locked()
-        elif self._pricing != {
+    def _freeze_pricing_locked(
+        self, rates: tuple[int, int], cached_input_rate: int | None = None
+    ) -> None:
+        pricing = {
             "input_cost_micros_per_million": rates[0],
             "output_cost_micros_per_million": rates[1],
-        }:
+            "cached_input_cost_micros_per_million": cached_input_rate,
+        }
+        if self._pricing is None:
+            self._pricing = pricing
+            self._write_live_limits_locked()
+        elif self._pricing != pricing:
             raise ValueError("proxy pricing changed mid-trial")
 
     def _persist_locked(self) -> None:
@@ -1169,11 +1279,12 @@ class TrialBudget:
         cost_micros: int,
         requested_model: str,
         rates: tuple[int, int],
+        cached_input_rate: int | None = None,
         shaping_applied: bool = False,
         sampling: dict[str, float | int] | None = None,
     ) -> int | None:
         with self._lock:
-            self._freeze_pricing_locked(rates)
+            self._freeze_pricing_locked(rates, cached_input_rate)
             next_requests = self._requests + 1
             next_input = self._input_tokens + input_tokens
             next_output = self._output_tokens + output_tokens
@@ -1228,6 +1339,8 @@ class TrialBudget:
         returned_model: str | None = None,
         returned_model_reason: str | None = None,
         error: str | None = None,
+        cost_basis: str | None = None,
+        cached_tokens: int | None = None,
     ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
@@ -1250,6 +1363,8 @@ class TrialBudget:
                     "returned_model": returned_model,
                     "returned_model_reason": returned_model_reason,
                     **({"error": error} if error is not None else {}),
+                    **({"cost_basis": cost_basis} if cost_basis is not None else {}),
+                    **({"cached_tokens": cached_tokens} if cached_tokens is not None else {}),
                 }
             )
             self._sequence += 1
@@ -1332,6 +1447,7 @@ class TrialBudget:
         input_tokens: int,
         output_tokens: int,
         cost_micros: int,
+        cost_basis: str | None = None,
     ) -> None:
         with self._lock:
             call = self._calls[call_id - 1]
@@ -1351,6 +1467,7 @@ class TrialBudget:
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "cost_micros": cost_micros,
+                    **({"cost_basis": cost_basis} if cost_basis is not None else {}),
                 }
             )
             self._sequence += 1
@@ -1726,6 +1843,12 @@ class Handler(BaseHTTPRequestHandler):
                 cost_micros=cost,
                 requested_model=full_model,
                 rates=rates,
+                # Reservation cost above stays uncached at max tokens; the
+                # cached rate is frozen here only so the ledger pricing block
+                # records the route's full rate card for settlement.
+                cached_input_rate=(
+                    _openrouter_cached_rate(model) if _provider_name() == "openrouter" else None
+                ),
                 shaping_applied=_provider_name() in _SHAPED_PROVIDERS,
                 sampling=_mimo_sampling() if _provider_name() == "mimo_selfhosted" else None,
             )
@@ -1919,7 +2042,7 @@ class Handler(BaseHTTPRequestHandler):
 
             returned_model = None
             returned_model_reason = "response_not_observed"
-            usage: dict[str, int] | None = None
+            usage: dict[str, Any] | None = None
             try:
                 if is_stream:
                     sanitized_body, usage, returned_model = _canonicalize_sse_and_usage(
@@ -1978,7 +2101,30 @@ class Handler(BaseHTTPRequestHandler):
                 self._reject(502, b"unsupported upstream body\n")
                 return
 
-            used_cost = _cost_micros(used_input, used_output, rates)
+            # Settlement. Z.ai/Tinker/self-hosted price every input token at
+            # the uncached rate (unchanged). OpenRouter settles each call from
+            # its reported usage.cost when present and valid, else from table
+            # rates crediting prompt_tokens_details.cached_tokens at the
+            # route's cached rate. Reservations above stay uncached at max
+            # tokens either way, so ceilings never under-reserve.
+            cost_basis = COST_BASIS_TABLE
+            cached_tokens: int | None = None
+            if _provider_name() == "openrouter":
+                cached_tokens = _cached_input_tokens(usage, used_input)
+                reported_cost = _reported_cost_micros(usage)
+                if reported_cost is not None:
+                    used_cost = reported_cost
+                    cost_basis = COST_BASIS_REPORTED
+                else:
+                    used_cost = _cost_micros_with_cache(
+                        used_input,
+                        cached_tokens or 0,
+                        used_output,
+                        rates,
+                        _openrouter_cached_rate(model),
+                    )
+            else:
+                used_cost = _cost_micros(used_input, used_output, rates)
             if used_input > input_tokens or used_output > output_tokens or used_cost > cost:
                 self._budget().mark_exceeded(
                     call_id=call_id,
@@ -1986,6 +2132,7 @@ class Handler(BaseHTTPRequestHandler):
                     input_tokens=used_input,
                     output_tokens=used_output,
                     cost_micros=used_cost,
+                    cost_basis=cost_basis,
                 )
                 self._reject(429, b"trial budget exhausted\n")
                 return
@@ -1998,6 +2145,8 @@ class Handler(BaseHTTPRequestHandler):
                 status=status,
                 returned_model=returned_model,
                 returned_model_reason=returned_model_reason,
+                cost_basis=cost_basis,
+                cached_tokens=cached_tokens,
             )
 
             self.send_response(status)

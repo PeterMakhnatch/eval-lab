@@ -67,10 +67,10 @@ CHECKPOINT_SELECTOR = f"{TINKER_BASE_SELECTOR}@{CHECKPOINT}"
 @pytest.mark.parametrize(
     ("selector", "base", "checkpoint", "rates"),
     [
-        (TINKER_BASE_SELECTOR, TINKER_BASE, False, (540_000, 1_335_000)),
-        ("tinker/Qwen/Qwen3.8-27B", "Qwen/Qwen3.8-27B", False, (1_860_000, 5_595_000)),
-        ("tinker/Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-9B", False, (660_000, 1_995_000)),
-        (CHECKPOINT_SELECTOR, TINKER_BASE, True, (540_000, 1_335_000)),
+        (TINKER_BASE_SELECTOR, TINKER_BASE, False, (450_000, 1_335_000)),
+        ("tinker/Qwen/Qwen3.8-27B", "Qwen/Qwen3.8-27B", False, (697_500, 5_595_000)),
+        ("tinker/Qwen/Qwen3.5-9B", "Qwen/Qwen3.5-9B", False, (300_000, 807_000)),
+        (CHECKPOINT_SELECTOR, TINKER_BASE, True, (450_000, 1_335_000)),
     ],
 )
 def test_parse_tinker_model_accepts_admitted_selectors(
@@ -299,7 +299,7 @@ def test_adapter_binds_tinker_context_and_capability(
     model_info = agent.extra_kwargs["model_info"]
     assert model_info["max_input_tokens"] == 65_536
     assert model_info["max_output_tokens"] == 65_536
-    assert model_info["input_cost_per_token"] == pytest.approx(0.54e-6)
+    assert model_info["input_cost_per_token"] == pytest.approx(0.45e-6)
     assert model_info["output_cost_per_token"] == pytest.approx(1.335e-6)
     # The litellm openai-compatible lookup receives the capability only in
     assert agent.api_base == "http://127.0.0.1:9"
@@ -694,11 +694,12 @@ def test_tinker_proxy_meters_checkpoint_call_with_table_pricing(
         # Pinned list rates, frozen at the first reservation: every input
         # token is priced as uncached prefill.
         assert usage["pricing"] == {
-            "input_cost_micros_per_million": 540_000,
+            "input_cost_micros_per_million": 450_000,
             "output_cost_micros_per_million": 1_335_000,
+            "cached_input_cost_micros_per_million": None,
         }
         expected_cost = (
-            UPSTREAM_USAGE["prompt_tokens"] * 540_000
+            UPSTREAM_USAGE["prompt_tokens"] * 450_000
             + UPSTREAM_USAGE["completion_tokens"] * 1_335_000
             + 999_999
         ) // 1_000_000

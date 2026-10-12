@@ -23,8 +23,13 @@ Existing repo rate conventions this table relates to (not duplicated here):
 - The ``EVALLAB_DEEPSEEK_*_COST_MICROS_PER_MILLION`` compose defaults
   ($0.28 / $0.42 per Mtok) match NOTHING on the official DeepSeek pricing
   page (``deepseek-flash`` is peak $0.30 in / $1.20 out, off-peak $0.15 /
-  $0.60, plus a separate cache-hit rate), so no DeepSeek entry is pinned:
-  a single static rate cannot represent that schedule honestly.
+  $0.60, plus a separate cache-hit rate), so no DeepSeek entry is pinned
+  against the vendor page: a single static rate cannot represent that
+  schedule honestly. The ``deepseek/deepseek-v4.1-flash`` entry below IS
+  pinned, but against OpenRouter's first-party endpoint list price
+  (off-peak $0.15 / $0.003 / $0.60); peak hours (Mon-Fri 01:00-04:00 and
+  06:00-10:00 UTC) double all three rates, so estimates are off-peak and
+  the metered ledger's reported ``usage.cost`` remains the billed truth.
 """
 
 from __future__ import annotations
@@ -50,6 +55,11 @@ class ModelPrice:
 _ZAI_PRICING_URL = "https://docs.z.ai/guides/overview/pricing.md"
 _OPENAI_PRICING_URL = "https://developers.openai.com/api/docs/pricing"
 _GOOGLE_PRICING_URL = "https://ai.google.dev/gemini-api/docs/pricing"
+_OPENROUTER_MIMO_URL = "https://openrouter.ai/api/v1/models/xiaomi/mimo-v2.6-flash/endpoints"
+_OPENROUTER_GPT_OSS_URL = "https://openrouter.ai/api/v1/models/openai/gpt-oss-120b/endpoints"
+_OPENROUTER_DEEPSEEK_URL = "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints"
+_OPENROUTER_GLM_URL = "https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints"
+_TINKER_MODELS_URL = "https://tinker-docs.thinkingmachines.ai/tinker/models.json"
 
 PRICE_TABLE: tuple[ModelPrice, ...] = (
     ModelPrice(
@@ -96,6 +106,71 @@ PRICE_TABLE: tuple[ModelPrice, ...] = (
         output_usd_per_mtok=3.75,
         source_url=_GOOGLE_PRICING_URL,
     ),
+    # OpenRouter pinned endpoints, verified 2026-10-12 (per-endpoint list
+    # prices; input / cached-input / output USD per 1M tokens).
+    ModelPrice(
+        key="xiaomi/mimo-v2.6-flash",
+        input_usd_per_mtok=0.14,
+        cached_input_usd_per_mtok=0.0028,
+        output_usd_per_mtok=0.28,
+        source_url=_OPENROUTER_MIMO_URL,
+        retrieved_on="2026-10-12",
+    ),
+    # The deepinfra/bf16 endpoint publishes no cache rate, so cached input
+    # estimates conservatively at the full input rate.
+    ModelPrice(
+        key="openai/gpt-oss-120b",
+        input_usd_per_mtok=0.037,
+        cached_input_usd_per_mtok=0.037,
+        output_usd_per_mtok=0.17,
+        source_url=_OPENROUTER_GPT_OSS_URL,
+        retrieved_on="2026-10-12",
+    ),
+    # Off-peak list rates; peak hours (Mon-Fri 01:00-04:00, 06:00-10:00 UTC)
+    # double all three — see the module docstring.
+    ModelPrice(
+        key="deepseek/deepseek-v4.1-flash",
+        input_usd_per_mtok=0.15,
+        cached_input_usd_per_mtok=0.003,
+        output_usd_per_mtok=0.60,
+        source_url=_OPENROUTER_DEEPSEEK_URL,
+        retrieved_on="2026-10-12",
+    ),
+    ModelPrice(
+        key="z-ai/glm-5.3-flash",
+        input_usd_per_mtok=0.15,
+        cached_input_usd_per_mtok=0.03,
+        output_usd_per_mtok=0.50,
+        source_url=_OPENROUTER_GLM_URL,
+        retrieved_on="2026-10-12",
+    ),
+    # Tinker inference list prices (prefill / cached prefill / sample),
+    # verified 2026-10-12. Settlement meters Tinker uncached; these cached
+    # rates serve reporting only.
+    ModelPrice(
+        key="qwen/qwen3.6-35b-a3b",
+        input_usd_per_mtok=0.45,
+        cached_input_usd_per_mtok=0.09,
+        output_usd_per_mtok=1.335,
+        source_url=_TINKER_MODELS_URL,
+        retrieved_on="2026-10-12",
+    ),
+    ModelPrice(
+        key="qwen/qwen3.8-27b",
+        input_usd_per_mtok=0.6975,
+        cached_input_usd_per_mtok=0.1395,
+        output_usd_per_mtok=5.595,
+        source_url=_TINKER_MODELS_URL,
+        retrieved_on="2026-10-12",
+    ),
+    ModelPrice(
+        key="qwen/qwen3.5-9b",
+        input_usd_per_mtok=0.30,
+        cached_input_usd_per_mtok=0.06,
+        output_usd_per_mtok=0.807,
+        source_url=_TINKER_MODELS_URL,
+        retrieved_on="2026-10-12",
+    ),
 )
 
 _BY_KEY = {entry.key: entry for entry in PRICE_TABLE}
@@ -111,6 +186,8 @@ _PROVIDER_PREFIXES = (
     "deepseek/",
     "anthropic/",
     "openrouter/",
+    "openrouter-metered/",
+    "tinker/",
 )
 
 

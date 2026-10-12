@@ -37,6 +37,7 @@ from harbor.models.task.config import NetworkMode  # ty: ignore[unresolved-impor
 
 from evallab.daytona_guard import AdmissionRefused, DaytonaGuard, GuardUnavailable
 from evallab.execution_contracts import (
+    DAYTONA_AUTO_STOP_INTERVAL_MINS,
     ZAI_OPENAPI_PROXY_HOST,
     ZAI_OPENAPI_PROXY_SCRIPT_ENV,
     ZAI_OPENAPI_PROXY_USAGE_FILE_ENV,
@@ -174,7 +175,7 @@ class BoundedDaytonaEnvironment(DaytonaEnvironment):
         self._daytona_usage: dict[str, Any] = {"schema_version": 1}
         self._daytona_monitor: asyncio.Task[None] | None = None
         kwargs["auto_delete_interval_mins"] = 0
-        kwargs["auto_stop_interval_mins"] = 5
+        kwargs["auto_stop_interval_mins"] = DAYTONA_AUTO_STOP_INTERVAL_MINS
         super().__init__(*args, **kwargs)
         identity = f"{self.session_id}:{self.environment_name}"
         self._daytona_sandbox_name = "evallab-" + hashlib.sha256(identity.encode()).hexdigest()[:24]

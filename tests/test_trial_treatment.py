@@ -290,6 +290,14 @@ OPENROUTER_PROXY = """OPENROUTER_ROUTES = {
         "prices": (37_000, 170_000),
         "context_input_tokens": 131_072,
     },
+    "deepseek/deepseek-v4.1-flash": {
+        "endpoint": "deepseek",
+        "provider": {"order": ["deepseek"], "allow_fallbacks": False},
+        "reasoning": {"effort": "medium"},
+        "prices": (150_000, 600_000),
+        "cached": 3_000,
+        "context_input_tokens": 1_048_576,
+    },
 }
 """
 
@@ -319,6 +327,15 @@ def _openrouter_sources(proxy: str = OPENROUTER_PROXY) -> dict[str, str]:
             [37000, 170000],
             "deepinfra/bf16",
             131072,
+            "reasoning_effort=medium",
+        ),
+        (
+            "openrouter-metered/deepseek/deepseek-v4.1-flash",
+            {"order": ["deepseek"], "allow_fallbacks": False},
+            {"effort": "medium"},
+            [150000, 600000],
+            "deepseek",
+            1048576,
             "reasoning_effort=medium",
         ),
     ],

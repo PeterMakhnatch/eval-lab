@@ -715,9 +715,27 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   turbo and fp8 endpoints) with `reasoning {"effort": "medium"}`, the model's
   documented default. Prices: $0.037 per 1M input, $0.17 per 1M output
   (verified 2026-09-30; `supports_implicit_caching=false`). Context is
-  131 072 tokens with at most 117 964 completion tokens. Both OpenRouter
-  models live in one table, `OPENROUTER_ROUTES` in
-  `src/evallab/execution_contracts.py`, mirrored literally in the proxy.
+  131 072 tokens with at most 117 964 completion tokens.
+
+- `openrouter-metered/qwen/qwen3.6-35b-a3b` — Qwen3.6-35B-A3B through the
+  same OpenRouter route, pinned to endpoint `deepinfra/fp8`
+  (`provider {"order": ["deepinfra/fp8"], "allow_fallbacks": false}`) with
+  `reasoning {"enabled": true}` (thinking on, matching the Tinker route's
+  thinking-on behavior; verified live 2026-10-12 with reasoning present).
+  Prices: $0.10 per 1M input, $0.95 per 1M output (verified 2026-10-12;
+  `supports_implicit_caching=false`). Context is 262 144 tokens with at most
+  65 536 completion tokens.
+
+- `openrouter-metered/qwen/qwen3.5-9b` — Qwen3.5-9B through the same
+  OpenRouter route, pinned to endpoint `deepinfra/bf16`
+  (`provider {"order": ["deepinfra/bf16"], "allow_fallbacks": false}`) with
+  `reasoning {"enabled": true}` (thinking on, matching the Tinker route's
+  thinking-on behavior; verified live 2026-10-12 with reasoning present).
+  Prices: $0.10 per 1M input, $0.15 per 1M output (verified 2026-10-12;
+  `supports_implicit_caching=false`). Context is 262 144 tokens with at most
+  81 920 completion tokens. All OpenRouter models live in one table,
+  `OPENROUTER_ROUTES` in `src/evallab/execution_contracts.py`, mirrored
+  literally in the proxy.
 
 The MiMo server lives in `tools/modal-mimo-serve/` (see its README for the
 deploy, smoke and stop commands). Daytona Tier 1/2 sandboxes cannot reach

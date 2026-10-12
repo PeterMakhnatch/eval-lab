@@ -8,6 +8,9 @@ diffs/reports). No Docker, no Harbor runs.
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
+import tarfile
 import tomllib
 from pathlib import Path
 
@@ -82,6 +85,7 @@ from evallab.separate_verifier import (
     parse_named_pytest_ids,
     parse_pytest_node_id,
     read_parent_info,
+    render_snapshot_hook_v2,
     render_tests_dockerfile_v7,
     render_tests_dockerfile_v8,
     render_wrapper_test_sh_v2,
@@ -418,6 +422,99 @@ def test_v2_snapshot_carries_workspace_only(parent_dir_v2: Path) -> None:
     assert "workspace.tgz" in snapshot
     assert "git-hidden" not in snapshot
     assert "/base" not in snapshot
+
+
+def _git(work: Path, *args: str) -> None:
+    subprocess.run(
+        ["git", "-C", str(work), *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+
+def _snapshot_members(hook: str) -> dict[str, bytes]:
+    """Run the rendered snapshot hook and return the tarball's file bytes."""
+    proc = subprocess.run(["sh", "-c", hook], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr
+    snap_dir = hook.split('SNAP="', 1)[1].split('"', 1)[0]
+    members: dict[str, bytes] = {}
+    with tarfile.open(Path(snap_dir) / "workspace.tgz", "r:gz") as archive:
+        for member in archive.getmembers():
+            if not member.isfile():
+                continue
+            handle = archive.extractfile(member)
+            members[member.name] = handle.read() if handle is not None else b""
+    # The full-tar fallback archives "." so members carry a "./" prefix.
+    return {n[2:] if n.startswith("./") else n: d for n, d in members.items()}
+
+
+def test_v2_snapshot_hook_skips_ignored_dep_trees_but_keeps_edits(
+    tmp_path: Path,
+) -> None:
+    if shutil.which("git") is None or shutil.which("tar") is None:
+        pytest.skip("snapshot hook test needs git and tar")
+    work = tmp_path / "work"
+    snap = tmp_path / "snap"
+    (work / "src").mkdir(parents=True)
+    snap.mkdir()
+    (work / ".gitignore").write_text(
+        "node_modules/\n.venv/\n.yarn/cache/\n__pycache__/\n*.pyc\n",
+        encoding="utf-8",
+    )
+    (work / "src" / "fix.py").write_text("BEFORE = 1\n", encoding="utf-8")
+    _git(work, "init", "-q")
+    _git(work, "-c", "user.name=t", "-c", "user.email=t@t", "add", "-A")
+    _git(
+        work,
+        "-c", "user.name=t", "-c", "user.email=t", "-c", "commit.gpgsign=false",
+        "commit", "-qm", "base",
+    )
+    # Agent edits: modify a tracked file, add an untracked source file, and
+    # install dependency/cache trees the repo ignores.
+    (work / "src" / "fix.py").write_text("AFTER = 2\n", encoding="utf-8")
+    (work / "src" / "new_helper.py").write_text("HELPER = 3\n", encoding="utf-8")
+    (work / "vendor").mkdir()
+    (work / "vendor" / "lib.js").write_text("vendored\n", encoding="utf-8")
+    (work / "node_modules" / "dep").mkdir(parents=True)
+    (work / "node_modules" / "dep" / "index.js").write_text("x" * 4096, encoding="utf-8")
+    (work / ".venv" / "lib").mkdir(parents=True)
+    (work / ".venv" / "lib" / "pkg.py").write_text("x" * 4096, encoding="utf-8")
+    (work / ".yarn" / "cache").mkdir(parents=True)
+    (work / ".yarn" / "cache" / "pkg.zip").write_bytes(b"x" * 4096)
+    (work / "src" / "__pycache__").mkdir()
+    (work / "src" / "__pycache__" / "fix.pyc").write_bytes(b"x" * 1024)
+
+    members = _snapshot_members(render_snapshot_hook_v2(str(work), snap_dir=str(snap)))
+
+    assert members["src/fix.py"] == b"AFTER = 2\n"
+    assert members["src/new_helper.py"] == b"HELPER = 3\n"
+    assert members["vendor/lib.js"] == b"vendored\n"
+    assert ".gitignore" in members
+    assert not any("node_modules" in name for name in members)
+    assert not any(".venv" in name for name in members)
+    assert not any(".yarn" in name for name in members)
+    assert not any("__pycache__" in name or name.endswith(".pyc") for name in members)
+    assert not any(name == ".git" or name.startswith(".git/") for name in members)
+
+
+def test_v2_snapshot_hook_falls_back_to_full_tar_without_git(
+    tmp_path: Path,
+) -> None:
+    if shutil.which("tar") is None:
+        pytest.skip("snapshot hook test needs tar")
+    work = tmp_path / "work"
+    snap = tmp_path / "snap"
+    (work / "src").mkdir(parents=True)
+    (work / "node_modules" / "dep").mkdir(parents=True)
+    snap.mkdir()
+    (work / "src" / "fix.py").write_text("AFTER = 2\n", encoding="utf-8")
+    (work / "node_modules" / "dep" / "index.js").write_text("dep\n", encoding="utf-8")
+
+    members = _snapshot_members(render_snapshot_hook_v2(str(work), snap_dir=str(snap)))
+
+    assert members["src/fix.py"] == b"AFTER = 2\n"
+    assert members["node_modules/dep/index.js"] == b"dep\n"
 
 
 def test_v2_variant_bundles_setup_and_grades_without_agent_state(

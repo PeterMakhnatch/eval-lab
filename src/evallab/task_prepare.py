@@ -30,9 +30,11 @@ from evallab.execution_contracts import (
     ZAI_OPENCODE_AGENT,
     ZAI_OPENCODE_MODEL_SELECTORS,
     RunRequest,
+    is_breaker_selfhosted_model,
     is_mimo_selfhosted_model,
     is_openrouter_model,
     is_tinker_terminus_model,
+    parse_breaker_selfhosted_model,
     parse_mimo_selfhosted_model,
     parse_openrouter_model,
     parse_tinker_model,
@@ -290,6 +292,8 @@ def prepare_task(
             # Fail closed on unknown bases/malformed checkpoints at prepare
             # time, not at dispatch.
             parse_tinker_model(model)
+        elif is_breaker_selfhosted_model(model):
+            parse_breaker_selfhosted_model(model)
         elif is_mimo_selfhosted_model(model):
             # Exactly one self-hosted selector is admitted; anything else
             # under selfhosted/ refuses here.
@@ -304,7 +308,7 @@ def prepare_task(
                 f"{sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}, a "
                 "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/"
                 "<step>]' selector, the self-hosted MiMo selector, the "
-                "OpenRouter selector, or the "
+                "matched breaker-selfhosted routes, OpenRouter selector, or the "
                 f"installed local selector {TERMINUS_LOCAL_MODEL_SELECTOR!r}, "
                 f"got {model!r}"
             )
@@ -445,7 +449,9 @@ def prepare_task(
         purpose="baseline",
         task=task_rel,
         task_path=task_rel,
-        harness_tree_path=harness_snapshot.relative_to(repo).as_posix() if harness_snapshot else None,
+        harness_tree_path=harness_snapshot.relative_to(repo).as_posix()
+        if harness_snapshot
+        else None,
         harness_tree_sha256=tree.sha256 if tree else None,
         agent=agent,
         model=model,
@@ -533,6 +539,8 @@ def replay_task(
     if model is not None and model != base.model:
         if is_tinker_terminus_model(model):
             parse_tinker_model(model)
+        elif is_breaker_selfhosted_model(model):
+            parse_breaker_selfhosted_model(model)
         elif is_mimo_selfhosted_model(model):
             parse_mimo_selfhosted_model(model)
         elif is_openrouter_model(model):
@@ -542,7 +550,7 @@ def replay_task(
                 "model replay requires a Terminus-admitted model: one of "
                 f"{sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}, a "
                 "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/"
-                f"<step>]' selector, or the self-hosted MiMo selector, "
+                f"<step>]' selector, a matched breaker-selfhosted route, or the self-hosted MiMo selector, "
                 f"got {model!r}"
             )
         replayed = replay_spec_for_model(base, campaign_name=name, model=model)

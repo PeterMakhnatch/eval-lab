@@ -8,6 +8,7 @@ alone.
 
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
@@ -173,6 +174,41 @@ def make_spec(
         cost_limit_usd=cost_limit_usd,
         attempts=attempts,
     )
+
+
+def test_breaker_campaign_rejects_changed_serving_pins(tmp_path):
+    digest = seed_task(tmp_path)
+    model = "breaker-selfhosted/Qwen/Qwen3.6-35B-A3B"
+    manifest = tmp_path / "research/experiments/trained-breaker-v1/model_manifest.json"
+    manifest.parent.mkdir(parents=True)
+    manifest.write_text('{"revision": "original-pinned-weights"}\n')
+    campaign = make_campaign(
+        tmp_path,
+        digest,
+        agent="terminus-2",
+        model=model,
+        environment="daytona",
+        sampling=cap.intended_sampling("terminus-2", model),
+        write=False,
+    ).model_copy(
+        update={
+            "serving_manifest_sha256": "sha256:" + hashlib.sha256(manifest.read_bytes()).hexdigest()
+        }
+    )
+    spec = make_spec(
+        "breaker-pin-check", digest, agent="terminus-2", model=model, environment="daytona"
+    )
+    assert cap.check_campaign_admission(
+        spec, campaign, repo_root=tmp_path, committed_usd=0
+    ).admitted
+    manifest.write_text('{"revision": "different-weights"}\n')
+    refused = cap.check_campaign_admission(spec, campaign, repo_root=tmp_path, committed_usd=0)
+    assert not refused.admitted
+    assert refused.reason_code == cap.REASON_SETUP_MISMATCH
+    unpinned = campaign.model_copy(update={"serving_manifest_sha256": None})
+    assert not cap.check_campaign_admission(
+        spec, unpinned, repo_root=tmp_path, committed_usd=0
+    ).admitted
 
 
 def write_job(

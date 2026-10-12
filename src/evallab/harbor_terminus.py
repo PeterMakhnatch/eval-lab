@@ -67,6 +67,10 @@ from harbor.llms.lite_llm import LiteLLM  # ty: ignore[unresolved-import]
 from pydantic import Field
 
 from evallab.execution_contracts import (
+    BREAKER_SELFHOSTED_CONTEXT_TOKENS,
+    BREAKER_SELFHOSTED_KEY_ENV,
+    BREAKER_SELFHOSTED_MAX_COMPLETION_TOKENS,
+    BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV,
     MIMO_SELFHOSTED_CONTEXT_TOKENS,
     MIMO_SELFHOSTED_MODEL_PREFIX,
     MIMO_SELFHOSTED_MODEL_SELECTOR,
@@ -89,8 +93,10 @@ from evallab.execution_contracts import (
     ZAI_OPENAPI_PROXY_TOKEN,
     TinkerModelSpec,
     collected_secret_values,
+    is_breaker_selfhosted_model,
     is_openrouter_model,
     openrouter_route,
+    parse_breaker_selfhosted_model,
     parse_mimo_selfhosted_model,
     parse_tinker_model,
 )
@@ -328,6 +334,7 @@ _PROVIDER_KEY_ENVS = {
     "zai": "ZAI_API_KEY",
     "tinker": "OPENAI_API_KEY",
     "mimo_selfhosted": "OPENAI_API_KEY",
+    "breaker_selfhosted": "OPENAI_API_KEY",
     "openrouter": "OPENAI_API_KEY",
 }
 
@@ -346,6 +353,7 @@ _FORBIDDEN_KWARG_SUBSTRINGS = ("api_key", "api_base", "base_url")
 #: proxy-shaped fails closed here.
 _FORBIDDEN_EXTRA_ENV_KEYS = frozenset(
     {
+        BREAKER_SELFHOSTED_KEY_ENV.casefold(),
         "mswea_api_key",
         "zai_api_key",
         "zai_api_base",
@@ -361,6 +369,7 @@ _FORBIDDEN_EXTRA_ENV_PREFIXES = (
     "evallab_zai_openapi",
     "evallab_tinker",
     "evallab_mimo_selfhosted",
+    "evallab_breaker_selfhosted",
     "evallab_openrouter",
     "evallab_terminus",
     "evallab_zai_",
@@ -382,6 +391,10 @@ def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec
     if isinstance(model_name, str) and model_name.startswith(OPENROUTER_MODEL_PREFIX):
         openrouter_route(model_name)
         return model_name, None, False
+    if is_breaker_selfhosted_model(model_name):
+        parse_breaker_selfhosted_model(model_name)
+        assert isinstance(model_name, str)
+        return model_name, None, False
     if isinstance(model_name, str) and model_name.startswith(MIMO_SELFHOSTED_MODEL_PREFIX):
         parse_mimo_selfhosted_model(model_name)
         return model_name, None, True
@@ -395,7 +408,7 @@ def _resolve_metered_model(model_name: str | None) -> tuple[str, TinkerModelSpec
         f"{sorted(ZAI_OPENAPI_ALLOWED_MODELS)}, a Tinker route "
         "'tinker/<base>[@tinker://<run>:train:<i>/sampler_weights/<step>]', "
         f"the self-hosted route {MIMO_SELFHOSTED_MODEL_SELECTOR!r}, "
-        f"or the OpenRouter routes {OPENROUTER_MODEL_SELECTORS!r}; "
+        f"the matched breaker-selfhosted base/L1 routes, or OpenRouter {OPENROUTER_MODEL_SELECTORS!r}; "
         f"got {model_name!r}. Coding Plan credentials are not admitted."
     )
 
@@ -615,7 +628,22 @@ class SecretSafeTerminus2(Terminus2):
             }
         else:
             proxy_url = _require_loopback_proxy_url()
-            if self._mimo_selfhosted:
+            if is_breaker_selfhosted_model(model):
+                if kwargs.get("model_info") is not None:
+                    raise ValueError("breaker model context/pricing is runtime-bound")
+                kwargs["model_info"] = {
+                    "max_input_tokens": BREAKER_SELFHOSTED_CONTEXT_TOKENS,
+                    "max_output_tokens": BREAKER_SELFHOSTED_MAX_COMPLETION_TOKENS,
+                    "input_cost_per_token": 0.0,
+                    "output_cost_per_token": 0.0,
+                    "litellm_provider": "openai",
+                }
+                kwargs["temperature"] = 1.0
+                capability = _require_capability(
+                    BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN
+                )
+                provider = "breaker_selfhosted"
+            elif self._mimo_selfhosted:
                 # Context/pricing of the served MiMo weights is runtime-bound:
                 # the 262,144-token window drives native context summarization before
                 # overflow, and zero per-token prices mark the time-billed

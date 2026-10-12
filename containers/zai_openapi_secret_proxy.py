@@ -194,7 +194,7 @@ OPENROUTER_ROUTES = {
 # Providers whose forwarding rewrites caller request fields: their ledger
 # calls carry ``shaping_applied`` so downstream accounting can treat the
 # forced values, not the requested ones, as the treatment.
-_SHAPED_PROVIDERS = frozenset({"mimo_selfhosted", "openrouter"})
+_SHAPED_PROVIDERS = frozenset({"mimo_selfhosted", "openrouter", "breaker_selfhosted"})
 
 
 # ---------------------------------------------------------------------------
@@ -286,6 +286,38 @@ PROVIDERS: dict[str, Any] = {
             "top_p",
             "reasoning_effort",
         ),
+    },
+    "breaker_selfhosted": {
+        "label": "Breaker self-hosted",
+        "secret_path_envs": ("EVALLAB_BREAKER_SELFHOSTED_SECRET_PATH",),
+        "default_secret_path": Path("/run/secrets/evallab_breaker_selfhosted_api_key"),
+        "upstream_env": "EVALLAB_BREAKER_SELFHOSTED_UPSTREAM",
+        "default_upstream": None,
+        "upstream_path": "/v1/chat/completions",
+        "https_host": None,
+        "capability_env": "EVALLAB_BREAKER_SELFHOSTED_PROXY_CAPABILITY",
+        "expires_env": "EVALLAB_BREAKER_SELFHOSTED_CAPABILITY_EXPIRES_AT",
+        "attempt_env": "EVALLAB_BREAKER_SELFHOSTED_ATTEMPT_ID",
+        "usage_env": "EVALLAB_BREAKER_SELFHOSTED_USAGE_FILE",
+        "limit_env_prefix": "EVALLAB_BREAKER_SELFHOSTED",
+        "model_prefix": "breaker-selfhosted/",
+        "allowed_models_env": None,
+        "default_allowed_models": frozenset(
+            {
+                "Qwen/Qwen3.6-35B-A3B",
+                "rewardhack/qwen3.6-35b-a3b-hacksft-thinkoff-873rows-ep3",
+            }
+        ),
+        "flat_input_price_env": None,
+        "flat_output_price_env": None,
+        # GPU wall time is billed separately; zero token rates are not free inference.
+        "model_prices": {
+            "Qwen/Qwen3.6-35B-A3B": (0, 0),
+            "rewardhack/qwen3.6-35b-a3b-hacksft-thinkoff-873rows-ep3": (0, 0),
+        },
+        "expected_base_env": "EVALLAB_BREAKER_SELFHOSTED_EXPECTED_MODEL",
+        "checkpoint_models": False,
+        "forwarded_fields": ("model", "messages", "tools", "tool_choice"),
     },
     "mimo_selfhosted": {
         "label": "Mimo self-hosted",
@@ -522,7 +554,10 @@ def _pinned_upstream_url() -> str:
     https_host = profile["https_host"]
     upstream_path = profile["upstream_path"]
     parsed = urllib.parse.urlsplit(upstream_base())
-    if profile.get("https_host") is None and _provider_name() == "mimo_selfhosted":
+    if profile.get("https_host") is None and _provider_name() in {
+        "mimo_selfhosted",
+        "breaker_selfhosted",
+    }:
         # Self-hosted route: https pins to one Modal label (*.modal.run Web
         # Functions, or a documented routing region *.modal.direct Servers)
         # on 443 with no userinfo, path, query, or fragment. Loopback http
@@ -1850,6 +1885,8 @@ class Handler(BaseHTTPRequestHandler):
                     output_tokens = min(int(requested_output), max_output)
                 remaining_output = self._budget().remaining_output()
                 output_tokens = min(output_tokens, remaining_output)
+                if _provider_name() == "breaker_selfhosted":
+                    output_tokens = min(output_tokens, 16_384)
             if output_tokens <= 0:
                 self._reject(429, b"trial budget exhausted\n")
                 return
@@ -1872,7 +1909,11 @@ class Handler(BaseHTTPRequestHandler):
                     _openrouter_cached_rate(model) if _provider_name() == "openrouter" else None
                 ),
                 shaping_applied=_provider_name() in _SHAPED_PROVIDERS,
-                sampling=_mimo_sampling() if _provider_name() == "mimo_selfhosted" else None,
+                sampling=(
+                    {"temperature": 1.0, "top_p": 1.0, "top_k": -1}
+                    if _provider_name() == "breaker_selfhosted"
+                    else (_mimo_sampling() if _provider_name() == "mimo_selfhosted" else None)
+                ),
             )
         except (OSError, ValueError):
             self._reject(503, b"budget accounting unavailable\n")
@@ -1917,6 +1958,15 @@ class Handler(BaseHTTPRequestHandler):
         forwarded["stream"] = requested_stream
         if requested_stream:
             forwarded["stream_options"] = {"include_usage": True}
+        if _provider_name() == "breaker_selfhosted":
+            # Matched base/L1 treatment. No caller template or reasoning knob
+            # may silently switch one arm back to thinking-on generation.
+            forwarded.update(
+                temperature=1.0,
+                top_p=1.0,
+                top_k=-1,
+                chat_template_kwargs={"enable_thinking": False},
+            )
         if _provider_name() == "mimo_selfhosted":
             # Sampling is pinned by the supervisor's harness profile, never
             # caller kwargs. Default generation_config remains T=0.6; native

@@ -60,6 +60,7 @@ from evallab.execution_contracts import (
     TERMINUS_AGENT,
     TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS,
+    is_breaker_selfhosted_model,
     is_mimo_selfhosted_model,
     is_openrouter_model,
     is_tinker_terminus_model,
@@ -88,6 +89,8 @@ def provider_subscription_description(agent: str, model: str | None = None) -> s
     if agent in {TERMINUS_AGENT, MIMO_AGENT}:
         if model == TERMINUS_LOCAL_MODEL_SELECTOR:
             return "local Ollama compute (no provider API charge)"
+        if is_breaker_selfhosted_model(model):
+            return "self-hosted breaker GPU (time-billed; token ceilings do not cap GPU spend)"
         if is_mimo_selfhosted_model(model):
             return "self-hosted Modal SGLang GPU (time-billed, no per-token charge)"
         if is_openrouter_model(model):
@@ -269,6 +272,7 @@ class TrialConsumption(BaseModel):
             if self.started_at.tzinfo is not None
             else self.started_at.date()
         )
+
     @property
     def total_tokens(self) -> int | None:
         if self.input_tokens is None and self.output_tokens is None:
@@ -415,9 +419,7 @@ class ConsumptionLedger(BaseModel):
         return {key: _totals(value) for key, value in sorted(buckets.items())}
 
     def by_day(self) -> dict[str, ConsumptionTotals]:
-        return self._grouped(
-            trial.day.isoformat() if trial.day else None for trial in self.trials
-        )
+        return self._grouped(trial.day.isoformat() if trial.day else None for trial in self.trials)
 
     def by_task(self) -> dict[str, ConsumptionTotals]:
         return self._grouped(trial.task_name for trial in self.trials)
@@ -795,9 +797,7 @@ def _trial_consumption(
             limits=limits,
             source=str(rollout.relative_to(trial_dir.parent)),
         )
-        for observed_at, limits, rollout in _rate_limit_snapshots(
-            trial_dir, agent=agent
-        )
+        for observed_at, limits, rollout in _rate_limit_snapshots(trial_dir, agent=agent)
     ]
     return consumption, observations
 
@@ -880,8 +880,7 @@ def _headroom_lines(headroom: Headroom, resolution: float | None) -> list[str]:
         ]
     lines += [
         f"  used_percent                         {headroom.used_percent} {label('observed')}",
-        f"  remaining_percent                    {headroom.remaining_percent} "
-        f"{label('observed')}",
+        f"  remaining_percent                    {headroom.remaining_percent} {label('observed')}",
         f"  limit_id / plan_type                 "
         f"{headroom.limit_id or label('unavailable')} / "
         f"{headroom.plan_type or label('unavailable')}",
@@ -955,8 +954,7 @@ def render_report(report: QuotaReport) -> str:
     ]
     if totals.attempts_declared is not None:
         lines.append(
-            f"  attempt slots declared (per job)     {totals.attempts_declared} "
-            f"{label('observed')}"
+            f"  attempt slots declared (per job)     {totals.attempts_declared} {label('observed')}"
         )
     if totals.reported_cost_usd is not None:
         lines.append(

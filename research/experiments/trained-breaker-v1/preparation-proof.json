@@ -1,0 +1,139 @@
+{
+  "schema": "trained-breaker-preparation-proof/v1",
+  "checked_at": "2026-10-12T18:21:15.652011+00:00",
+  "remote_compute": false,
+  "real_model_inference": false,
+  "model_manifest_sha256": "sha256:943cbc55de9e21d8eefe12c06b2e9118c9356bd887e418b1d50541d45bb0c16c",
+  "task_versions": 12,
+  "exact_source_package_digests": [
+    "sha256:e54ec9025ce43b8b4bc3c52456e2baa9a971a3e69750efad69774d6456447d09",
+    "sha256:d3375b680cbe59d10621bd00e0b14ac139544547e3823e88e61217063524db54",
+    "sha256:2135c3b5028a86de7197dcc48aeb6b4f7f6572e0cec7e09495ba037aee06f2e6",
+    "sha256:e9273f2254788fb1803882c506c25b7274f6b908cf658d3e1065a63348f84f2d",
+    "sha256:15d984ef5103c774496c8864b78a5b7068edf5c06ab90606dbaaa7d0a02bf562",
+    "sha256:fa45c2dbdd29547763031e3518391c6c76e1386181ef24b12ff0fe00bbf0f3cb",
+    "sha256:0eadb8c3cf7e42d064cd81300f1e3047dd7216159de8c3ddcd7b791d874b6bd2",
+    "sha256:d120c93e377ad85a89af565afbfa36ab8eb57afeac0fe057cb545d75b0607b02",
+    "sha256:de51068d48eb776533eaebcccf9803076a57d34a5e7cb8bb8280de8de0a9ad07",
+    "sha256:170658a4a3e04a5841a131d93ae8c9493c00a328056adae2b704841237a2773e",
+    "sha256:d80c7d254a525a162b841cc4ca235e263cdffd8e8a34231aeab8b3cd25fc6db5",
+    "sha256:e9fc3d6e499d417f1c9151ce7ccf12d01d866b332888e34c8de89c800a1facab"
+  ],
+  "native_campaigns": [
+    {
+      "campaign_id": "trained-breaker-v1-baseline-leaky",
+      "specs_validated": 5,
+      "manifest_pin": "sha256:943cbc55de9e21d8eefe12c06b2e9118c9356bd887e418b1d50541d45bb0c16c",
+      "proposed_budget_usd": 9
+    },
+    {
+      "campaign_id": "trained-breaker-v1-baseline-hardened",
+      "specs_validated": 7,
+      "manifest_pin": "sha256:943cbc55de9e21d8eefe12c06b2e9118c9356bd887e418b1d50541d45bb0c16c",
+      "proposed_budget_usd": 11
+    },
+    {
+      "campaign_id": "trained-breaker-v1-l1-leaky",
+      "specs_validated": 5,
+      "manifest_pin": "sha256:943cbc55de9e21d8eefe12c06b2e9118c9356bd887e418b1d50541d45bb0c16c",
+      "proposed_budget_usd": 9
+    },
+    {
+      "campaign_id": "trained-breaker-v1-l1-hardened",
+      "specs_validated": 7,
+      "manifest_pin": "sha256:943cbc55de9e21d8eefe12c06b2e9118c9356bd887e418b1d50541d45bb0c16c",
+      "proposed_budget_usd": 11
+    }
+  ],
+  "native_spec_count": 24,
+  "both_launch_previews": "passed",
+  "unapproved_execute_refused_before_queue_or_remote": "passed",
+  "proposed_total_budget_usd": 40,
+  "spend_authorized": false,
+  "native_transport": {
+    "schema": "trained-breaker-protocol-smoke/v1",
+    "checked_at": "2026-10-12T18:21:13.157625+00:00",
+    "status": "passed",
+    "kind": "scripted-native-Harbor-LiteLLM-to-loopback-proxy",
+    "real_model_inference": false,
+    "remote_compute": false,
+    "docker_trials": false,
+    "arms": [
+      {
+        "arm": "baseline",
+        "served_model": "Qwen/Qwen3.6-35B-A3B",
+        "context_tokens": 65536,
+        "max_completion_tokens": 16384,
+        "thinking": false,
+        "temperature": 1,
+        "top_p": 1,
+        "top_k": -1,
+        "provider_model_identity_recorded": true
+      },
+      {
+        "arm": "l1",
+        "served_model": "rewardhack/qwen3.6-35b-a3b-hacksft-thinkoff-873rows-ep3",
+        "context_tokens": 65536,
+        "max_completion_tokens": 16384,
+        "thinking": false,
+        "temperature": 1,
+        "top_p": 1,
+        "top_k": -1,
+        "provider_model_identity_recorded": true
+      }
+    ],
+    "source_sha256": {
+      "src/evallab/harbor_terminus.py": "021a89377f7ee654eeaf1fca44752d3945f51c6d4db14871617e13fef7b23b70",
+      "src/evallab/runner.py": "24046d12f3848834f2a3e6398955b09f0a2a38ee77940c629bf6ee6ccc22356f",
+      "src/evallab/execution_contracts.py": "36e31451ce928a9c2816c59a5a9d9b7c42209896359afd9a70eb743ad078ec5d",
+      "containers/zai_openapi_secret_proxy.py": "11e1513301b1ae1908006a761b89387f44333aef8cf1dbfd2c6d1f6d8e9edaa6"
+    }
+  },
+  "harbor_version": "0.24.0",
+  "modal_sdk_definition": {
+    "version": "1.5.4",
+    "baseline": "constructed locally",
+    "l1": "constructed locally",
+    "remote_execution": false
+  },
+  "reference_preflight": {
+    "spec": "brk1-l1-l-000792-k1",
+    "outcome": "setup matches reference with all eight deviations declared",
+    "task_digest_matches": true,
+    "lock": "locked"
+  },
+  "local_delivery_gates": {
+    "uv": "0.9.24 (isolated uvx toolchain)",
+    "ty": "0.0.71",
+    "ruff": "passed",
+    "docindex": "passed",
+    "repomap": "passed",
+    "governance": "passed",
+    "registry_audit": "passed with existing legacy-certification warnings",
+    "lessons": "fresh",
+    "typecheck": "passed",
+    "focused_tests_passed": 337,
+    "focused_tests_warnings": 2,
+    "test_files": [
+      "test_breaker_selfhosted_route.py",
+      "test_mimo_selfhosted_route.py",
+      "test_har163_dispatch_fixes.py",
+      "test_campaign_approval.py",
+      "test_profiles.py",
+      "test_setup_fingerprint.py",
+      "test_tinker_terminus_route.py",
+      "test_harbor_terminus_blocklist.py",
+      "test_harbor_terminus_completionfix.py",
+      "test_harbor_terminus_loopfix.py",
+      "test_terminus_harness.py"
+    ],
+    "revalidated_after_upstream_integration": true
+  },
+  "limits": [
+    "Scripted protocol responses are not model results.",
+    "No GPU qualification, weight download, Docker control trial, paid campaign approval, submission or model inference was performed.",
+    "LiteLLM reports default zero cache-token pricing for these unlisted models; GPU/sandbox charges are separate.",
+    "Historical repaired tasks are not certified clean or all proven solvable.",
+    "Cloud execution and training require a new budget; proposed USD 40 excludes CPU downloads and retained storage."
+  ]
+}

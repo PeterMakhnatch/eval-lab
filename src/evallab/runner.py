@@ -30,6 +30,11 @@ from evallab.execution_contracts import (
     _BEARER_HEADER,
     _SUBSCRIPTION_ENVIRONMENT_KEYS,
     BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH,
+    BREAKER_SELFHOSTED_NATIVE_MODELS,
+    BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV,
+    BREAKER_SELFHOSTED_PROXY_PROVIDER,
+    BREAKER_SELFHOSTED_SECRET_FILE_ENV,
+    BREAKER_SELFHOSTED_UPSTREAM_ENV,
     CAPTURE_DIR_ENV,
     CAPTURE_ENABLED_ENV,
     CAPTURE_ROUTE_TOKEN_ENV,
@@ -140,10 +145,12 @@ from evallab.execution_contracts import (
     TrialTimeoutFailure,
     build_command,
     collected_secret_values,
+    is_breaker_selfhosted_model,
     is_lease_generation,
     is_mimo_selfhosted_model,
     is_openrouter_model,
     is_tinker_terminus_model,
+    materialize_breaker_selfhosted_secret_file,
     materialize_deepseek_secret_file,
     materialize_mimo_selfhosted_secret_file,
     materialize_openrouter_secret_file,
@@ -151,6 +158,7 @@ from evallab.execution_contracts import (
     materialize_zai_openapi_secret_file,
     materialize_zai_secret_file,
     openrouter_route,
+    parse_breaker_selfhosted_model,
     parse_mimo_selfhosted_model,
     parse_tinker_model,
     persist_private_bytes,
@@ -970,6 +978,7 @@ def _terminus_proxy_env(
     tinker_spec: TinkerModelSpec | None = None,
     mimo_native: str | None = None,
     openrouter_spec: OpenRouterRoute | None = None,
+    breaker_native: str | None = None,
     mimo_sampling_profile: str = "generation-config",
     live_dir: Path | None = None,
 ) -> dict[str, str]:
@@ -987,6 +996,29 @@ def _terminus_proxy_env(
     env["EVALLAB_PROXY_PROVIDER"] = provider
     if live_dir is not None:
         env[PROXY_LIVE_DIR_ENV] = str(live_dir)
+    if provider == BREAKER_SELFHOSTED_PROXY_PROVIDER:
+        if breaker_native not in BREAKER_SELFHOSTED_NATIVE_MODELS:
+            raise ValueError("breaker proxy env requires an exact parsed native model")
+        prefix = "EVALLAB_BREAKER_SELFHOSTED"
+        env[f"{prefix}_SECRET_PATH"] = str(secret_path)
+        env[f"{prefix}_EXPECTED_MODEL"] = breaker_native
+        upstream = os.environ.get(BREAKER_SELFHOSTED_UPSTREAM_ENV)
+        if upstream:
+            env[BREAKER_SELFHOSTED_UPSTREAM_ENV] = upstream
+        env.update(_capture_route_token(upstream, attempt_id))
+        env[BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
+        env[f"{prefix}_ATTEMPT_ID"] = attempt_id
+        env[f"{prefix}_USAGE_FILE"] = str(usage_path)
+        for suffix, value in (
+            ("MAX_REQUESTS", limits.max_requests),
+            ("MAX_INPUT_TOKENS", limits.max_input_tokens),
+            ("MAX_OUTPUT_TOKENS", limits.max_output_tokens),
+            ("MAX_TOTAL_TOKENS", limits.max_total_tokens),
+            ("MAX_COST_MICROS", limits.max_cost_micros),
+        ):
+            env[f"{prefix}_{suffix}"] = str(value)
+        env[f"{prefix}_CAPABILITY_EXPIRES_AT"] = str(time.time() + float(timeout_seconds) + 60.0)
+        return _proxy_503_wait_passthrough(env)
     if provider == MIMO_SELFHOSTED_PROXY_PROVIDER:
         if mimo_native not in MIMO_SELFHOSTED_NATIVE_MODELS:
             raise ValueError("mimo_selfhosted proxy env requires the parsed native model")
@@ -1098,6 +1130,7 @@ def _start_terminus_proxy(
     tinker_spec: TinkerModelSpec | None = None,
     mimo_native: str | None = None,
     openrouter_spec: OpenRouterRoute | None = None,
+    breaker_native: str | None = None,
     mimo_sampling_profile: str = "generation-config",
     live_dir: Path | None = None,
 ) -> tuple[subprocess.Popen[bytes], str]:
@@ -1125,6 +1158,7 @@ def _start_terminus_proxy(
         tinker_spec=tinker_spec,
         mimo_native=mimo_native,
         openrouter_spec=openrouter_spec,
+        breaker_native=breaker_native,
         mimo_sampling_profile=mimo_sampling_profile,
         live_dir=live_dir,
     )
@@ -1545,6 +1579,8 @@ def run_harbor_process(
                 if arg == "--model" and index + 1 < len(command)
             ]
             model_value = model_args[-1] if model_args else None
+            breaker_client = is_breaker_selfhosted_model(model_value)
+            breaker_native = parse_breaker_selfhosted_model(model_value) if breaker_client else None
             mimo_native = parse_mimo_selfhosted_model(model_value) if mimo_client else None
             tinker_spec = parse_tinker_model(model_value) if tinker_client else None
             openrouter_spec = openrouter_route(model_value) if openrouter_client else None
@@ -1557,6 +1593,8 @@ def run_harbor_process(
                     else ("tinker" if tinker_client else "zai_openapi")
                 )
             )
+            if breaker_client:
+                provider = BREAKER_SELFHOSTED_PROXY_PROVIDER
             capability = secrets.token_urlsafe(32)
             capability_id = "sha256:" + hashlib.sha256(capability.encode()).hexdigest()
             owned_usage_dir = Path(
@@ -1567,7 +1605,12 @@ def run_harbor_process(
             )
             os.chmod(owned_usage_dir, 0o700)
             owned_usage_path = owned_usage_dir / "terminus-proxy-usage.json"
-            if mimo_native is not None:
+            if breaker_native is not None:
+                proxy_pricing = {
+                    "input_cost_micros_per_million": 0,
+                    "output_cost_micros_per_million": 0,
+                }
+            elif mimo_native is not None:
                 # Self-hosted tokens have no per-token price; spend is
                 # governed by the time-based server estimate, not this ledger.
                 input_rate, output_rate = MIMO_SELFHOSTED_MODEL_PRICES_MICROS[mimo_native]
@@ -1623,6 +1666,8 @@ def run_harbor_process(
                     else (TINKER_SECRET_FILE_ENV if tinker_client else ZAI_OPENAPI_SECRET_FILE_ENV)
                 )
             )
+            if breaker_client:
+                secret_file_env = BREAKER_SELFHOSTED_SECRET_FILE_ENV
             existing_secret = runtime_environment.get(secret_file_env) or os.environ.get(
                 secret_file_env
             )
@@ -1649,7 +1694,9 @@ def run_harbor_process(
                 )
                 os.chmod(owned_secret_dir, 0o700)
                 owned_secret_path = owned_secret_dir / "key"
-                if mimo_client:
+                if breaker_client:
+                    materialize_breaker_selfhosted_secret_file(owned_secret_path)
+                elif mimo_client:
                     materialize_mimo_selfhosted_secret_file(owned_secret_path)
                 elif openrouter_client:
                     materialize_openrouter_secret_file(owned_secret_path)
@@ -1674,12 +1721,16 @@ def run_harbor_process(
                 tinker_spec=tinker_spec,
                 mimo_native=mimo_native,
                 openrouter_spec=openrouter_spec,
+                breaker_native=breaker_native,
                 mimo_sampling_profile=(
                     "xiaomi-rl" if MIMO_AGENT_IMPORT_PATH in command else "generation-config"
                 ),
                 live_dir=(job_dir / PROXY_LIVE_DIR_NAME) if job_dir is not None else None,
             )
-            if mimo_client:
+            if breaker_client:
+                runtime_environment["OPENAI_API_KEY"] = capability
+                runtime_environment[BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV] = capability
+            elif mimo_client:
                 # litellm's openai-compatible lookup reads this in the
                 # controller process; the adapter overwrites it with the
                 # capability before any call. Never a task-container value.
@@ -2014,6 +2065,8 @@ def _task_staging_provenance(
 
 def _accepted_returned_models(model: str) -> frozenset[str]:
     """Model ids a provider may legitimately echo back for the requested selector."""
+    if is_breaker_selfhosted_model(model):
+        return frozenset({parse_breaker_selfhosted_model(model)})
     accepted = {model, model.rsplit("/", 1)[-1]}
     if is_mimo_selfhosted_model(model):
         # SGLang echoes its --served-model-name: the selector minus ``selfhosted/``.
@@ -2723,6 +2776,8 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                     )
                 )
             )
+            if is_breaker_selfhosted_model(request.model):
+                provider_label = "Breaker self-hosted"
             if process.proxy_usage is None:
                 cleanup_failure = _cleanup_failure(staged_request, containers_before, job_dir)
                 cleanup_detail = f"; {cleanup_failure}" if cleanup_failure else ""

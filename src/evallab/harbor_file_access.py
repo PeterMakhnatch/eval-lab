@@ -53,8 +53,11 @@ from evallab.file_access import (
     CATEGORY_GIT_REFS,
     CATEGORY_GRADER,
     DEFAULT_TESTS_DIR,
+    DISCOVERY_OFF,
+    DISCOVERY_ON,
     EVALUATOR_SNAPSHOT_DIR,
     EXEC_TIMEOUT_SEC,
+    FILE_ACCESS_DISCOVERY_ENV,
     FILE_ACCESS_ENV,
     FILE_ACCESS_LOG,
     FILE_ACCESS_PATHS_ENV,
@@ -71,6 +74,7 @@ from evallab.file_access import (
     coverage_record,
     diff_entries,
     file_change_record,
+    parse_discovery_env,
     parse_frames,
     parse_paths_env,
     parse_stream_chunk,
@@ -146,6 +150,13 @@ class FileAccessPlugin:
         except ValueError as exc:
             self.extra_paths = {}
             self.paths_error = str(exc)
+        raw_discovery = os.environ.get(FILE_ACCESS_DISCOVERY_ENV)
+        try:
+            self.discovery = parse_discovery_env(raw_discovery)
+            self.discovery_error: str | None = None
+        except ValueError as exc:
+            self.discovery = DISCOVERY_ON
+            self.discovery_error = str(exc)
         try:
             self.poll_seconds = float(poll_seconds)
         except (TypeError, ValueError):
@@ -307,6 +318,23 @@ class FileAccessPlugin:
                 reason=f"{FILE_ACCESS_PATHS_ENV} invalid: {self.paths_error}",
             )])
             return
+        if self.discovery_error:
+            self._append(trial_dir, [coverage_record(
+                window_id=window_id,
+                state="unavailable",
+                reason=f"{FILE_ACCESS_DISCOVERY_ENV} invalid: {self.discovery_error}",
+            )])
+            return
+        if self.discovery == DISCOVERY_OFF and not self.extra_paths:
+            self._append(trial_dir, [coverage_record(
+                window_id=window_id,
+                state="unavailable",
+                reason=(
+                    f"{FILE_ACCESS_DISCOVERY_ENV}=off with no "
+                    f"{FILE_ACCESS_PATHS_ENV} targets: refusing to watch nothing"
+                ),
+            )])
+            return
         trial = self._bound_trial(event)
         if trial is None:
             self._append(
@@ -374,6 +402,11 @@ class FileAccessPlugin:
 
     def _start_reason(self, window: _Window) -> str:
         parts = [f"observing {len(window.watched)} protected path(s)"]
+        if self.discovery == DISCOVERY_OFF:
+            parts.append(
+                f"{FILE_ACCESS_DISCOVERY_ENV}=off: probe-discovered git storage "
+                "and the default tests dir are not watched"
+            )
         if window.loss_mode != "explicit":
             parts.append("loss events unverified on this inotifywait version")
         if self.paths_error:
@@ -450,19 +483,20 @@ class FileAccessPlugin:
                 targets.append((path, category))
             else:
                 missing.append(path)
-
-        repos = list(probe.get("repos") or [])
-        mimo = probe.get("mimo_git_hidden")
-        if isinstance(mimo, dict) and mimo.get("git_dir"):
-            repos.append(mimo)
-        for repo in repos:
-            git_dir = repo.get("git_dir")
-            if not git_dir:
-                continue
-            _take(f"{git_dir}/objects", CATEGORY_GIT_OBJECTS, repo.get("objects") == "present")
-            _take(f"{git_dir}/refs", CATEGORY_GIT_REFS, repo.get("refs") == "present")
-        tests = probe.get("tests") or {}
-        _take(DEFAULT_TESTS_DIR, CATEGORY_GRADER, tests.get("status") == "present")
+        discovery_off = self.discovery == DISCOVERY_OFF
+        if not discovery_off:
+            repos = list(probe.get("repos") or [])
+            mimo = probe.get("mimo_git_hidden")
+            if isinstance(mimo, dict) and mimo.get("git_dir"):
+                repos.append(mimo)
+            for repo in repos:
+                git_dir = repo.get("git_dir")
+                if not git_dir:
+                    continue
+                _take(f"{git_dir}/objects", CATEGORY_GIT_OBJECTS, repo.get("objects") == "present")
+                _take(f"{git_dir}/refs", CATEGORY_GIT_REFS, repo.get("refs") == "present")
+            tests = probe.get("tests") or {}
+            _take(DEFAULT_TESTS_DIR, CATEGORY_GRADER, tests.get("status") == "present")
         by_path = {str(item.get("path")): item for item in probe.get("extras") or []}
         for category in CATEGORIES:
             for extra in self.extra_paths.get(category, []):
@@ -519,6 +553,7 @@ class FileAccessPlugin:
             discovery_path.write_text(
                 json.dumps(
                     {
+                        "discovery": self.discovery,
                         "watched": window.watched,
                         "missing": window.missing,
                         "targets": [

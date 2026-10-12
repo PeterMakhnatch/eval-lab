@@ -1,0 +1,10 @@
+baseline,p0,rollouts_per_step,k1,k2,k3,k5,k8,smallest_k_at_1pct,smallest_k_at_0.1pct
+aisi_mechanism_audited_estimate,0.00665,64,0.34755,0.06801,0.00906,7e-05,0.0,3,4
+aisi_mechanism_audited_estimate,0.00665,256,0.81879,0.50823,0.24315,0.02928,0.00037,6,8
+aisi_mechanism_audited_estimate,0.00665,1024,0.99892,0.99153,0.96622,0.80985,0.37285,15,17
+aria_mechanism_before_landing,3.8e-05,64,0.00241,0.0,0.0,0.0,0.0,1,2
+aria_mechanism_before_landing,3.8e-05,256,0.00962,5e-05,0.0,0.0,0.0,1,2
+aria_mechanism_before_landing,3.8e-05,1024,0.03793,0.00073,1e-05,0.0,0.0,2,2
+aria_mechanism_all_steps,0.00616,64,0.32663,0.05951,0.00736,5e-05,0.0,3,4
+aria_mechanism_all_steps,0.00616,256,0.7944,0.46818,0.21037,0.02204,0.00022,6,8
+aria_mechanism_all_steps,0.00616,1024,0.99821,0.98687,0.95092,0.7549,0.29907,14,16

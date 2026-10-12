@@ -1,203 +1,172 @@
 # Eval Lab
 
-Eval Lab is an evaluation research lab and workbench for agent evaluation in real environments,
-with Harbor as its execution engine. It enforces immutable evidence, verifiable provenance,
-and guarded execution feedback loops without turning the database into the only copy of an experiment.
+Eval Lab runs coding agents on real tasks through [Harbor](https://github.com/harbor-framework/harbor)
+and checks whether the resulting score means anything.
 
-The first checked-in evaluation is deliberately small. The Oracle control must
-produce the correct event summary and the no-op control must fail. Together they
-exercise the full Harbor path—agent container, artifact collection, separate
-verifier, reward parsing, and persisted job result—without calling a model.
+The current focus is **reward hacking**: tasks and graders that pay an agent
+for not doing the work, and agents that take that path. The lab finds these
+holes, fixes the tasks, proves the fix, and detects cheating in trajectories
+before any score or trajectory is reported or used for training.
 
-## Architecture at a glance
+## Why this matters
 
-```text
-[1. Task & Experiment Spec] ──► [2. Admission & Control Plane] ──► [3. Harbor Execution & Sandbox]
-                                                                                │
-                                                                                ▼
-[6. Trajectory Interpretation] ◄── [5. Metadata Catalog & Lake] ◄── [4. Raw Evidence & CAS (Zone 1)]
-              │
-              ▼
-[7. Governed Feedback & Human Verdicts]
+A pass is only evidence of skill if the task cannot be passed another way.
+Published RL environments often can be. Xiaomi's MiMo-V2.6 RL code tasks, as
+converted to Harbor, are the main case study here:
+
+- the upstream fix is still inside most task images (Vals found it in 67% of
+  code tasks), and the grader runs as root in the agent's own container;
+- a prompted cheating agent (Terminus-2, GLM-5.3-Flash) copied the fix on 6 of
+  8 published tasks;
+- on the hardened versions, two cheater models made 26 attempts and copied
+  nothing; two of those runs solved the task honestly instead.
+
+Details: [docs/mimo/README.md](docs/mimo/README.md),
+[cheater-recall-v1](research/experiments/cheater-recall-v1/RESULTS.md).
+
+## What the lab does
+
+| Area | Question | Main tools | State |
+|---|---|---|---|
+| **Task and grader integrity** | Can this task be passed without doing the work? | `hack scan`, `tasks admit`, `cheat run`, `hack mutate`, `vcheck`, `audit`; hardening transforms (`tasks derive`, `mimo-clean`) | Applied to the 2,698 MiMo code tasks |
+| **Cheating detection** | Did this trajectory cheat? | `detectors` scorecard, rules and LLM readers, `watch` (live alert and stop), Integrity dashboard, CheatBench port | Scored on labelled corpora |
+| **Execution and evidence** | Run it once, keep the proof | `run`, `matrix`, `submit`/`approve`/`tick`; local Docker, Daytona, Modal; model-call capture; ATIF → Parquet/DuckDB | Daily use |
+| **Experiments on clean tasks** | Does a model, prompt or training change help? | Baselines, SFT and GEPA pilots, synthetic benchmarks, Harbor ↔ Inspect ↔ Karotte interop | Small pilots |
+
+Every task version is identified by a content digest. A fix is never an edit
+in place: it is a new variant with a lineage record pointing to its parent
+([docs/task-variants.md](docs/task-variants.md)). Raw Harbor job directories
+are the source of truth; databases and Parquet tables are rebuilt from them.
+
+```mermaid
+flowchart LR
+    T[Task package<br/>pinned digest] --> G{Integrity gate<br/>scan, controls,<br/>cheat ladder, mutation}
+    G -- hole found --> V[Hardened variant<br/>new digest + lineage]
+    V --> G
+    G -- admitted --> R[Harbor runs<br/>spend-gated queue]
+    R --> E[Evidence<br/>job dirs, ATIF, Parquet]
+    E --> D[Cheating detectors<br/>and human verdicts]
+    D --> C[Counted score<br/>and training export]
 ```
 
-Raw Harbor job directories own the evidence: configs, locks, agent logs,
-artifacts, verifier output, reward, timing, token use, cost, and exceptions.
-PostgreSQL catalogs jobs, trials, rewards, and verdicts. Parquet and DuckDB provide
-the fast columnar query surface.
+A **raw** score is the verifier's reward. A **counted** score drops passes that
+were copied, tampered with or broken by infrastructure. Results are reported
+as counted, with the exclusions listed.
 
-See [docs/SYSTEM.md](docs/SYSTEM.md) for the one-page launch-to-training map,
-[docs/NOW.md](docs/NOW.md) for current lab state (what exists, what not to
-rebuild, live writers), [docs/SYSTEM-TOUR.md](docs/SYSTEM-TOUR.md) for the
-end-to-end architectural tour, [docs/GLOSSARY.md](docs/GLOSSARY.md) for
-terminology, [docs/WHERE-DOES-THIS-GO.md](docs/WHERE-DOES-THIS-GO.md) for file
-placement, and [docs/ACTIVE-VS-HISTORICAL.md](docs/ACTIVE-VS-HISTORICAL.md)
-for asset lifecycle.
+## Results so far (as of 2026-10-11)
 
-## Reef: continuous-improvement experiments
+| Result | Evidence |
+|---|---|
+| MiMo-V2.6 RL catalogued: 7,780 Harbor tasks (code 2,698, webdev 2,093, cyber 1,000, music 1,000, general 925, terminal 64), each with static findings | [docs/mimo-task-catalog.md](docs/mimo-task-catalog.md) |
+| Code tasks cleaned (`mimo-clean-v5`): 2,666 rebuilt, 32 discarded, 564 reference fixes recovered and replayed (fix scores 1, doing nothing scores 0) | [docs/mimo/README.md](docs/mimo/README.md) |
+| New grader (`separate-verifier@8`): runs in a fresh container and grades fail-to-pass against its own pristine run; eight versions in three days, each fixing a hole or a false 0 found by measurement | [docs/mimo/separate-verifier.md](docs/mimo/separate-verifier.md) |
+| Deterministic cheat ladder (14 attacks, no model): cracks published packages, 0 cracked on clean packages in every census round | [docs/mimo/verification.md](docs/mimo/verification.md) |
+| Fix-content probe: 12 copies of the fix found inside earlier "clean" builds; all 12 closed in v5 | [fix-probe-v2](research/experiments/fix-probe-v2/README.md) |
+| Prompted cheaters: 6 of 8 published tasks cracked; 0 copies in 26 attempts on hardened tasks with 2 models | [cheater-recall-v1](research/experiments/cheater-recall-v1/RESULTS.md) |
+| Detectors on CheatBench traces (885 cheating, 3,383 benign): rules catch 48% at 6.7% false positives. On our own 11 copied passes: Laminar copied-fix signal 11/11 (0/13 false), METR scanner 1/11 | [docs/harbor-view.md](docs/harbor-view.md) |
+| CheatBench port (3 environments, 50 tasks): cheap open models cheated in 38 of 39 judged trials; every success was a cheat | [cheatbench-port](research/experiments/cheatbench-port/REPORT.md) |
+| First SFT and GEPA pilot: no detectable effect (55 counted outcomes, Holm-adjusted p = 1). A test of the pipeline, not of SFT | [ovn-sft-v0](research/experiments/ovn-sft-v0/RESULTS.md) |
 
-The [Reef program](research/experiments/reef/README.md) tracks what we are building
-next, what has actually run, and how changes land in both Eval Lab and Reef.
-Reef owns learning recipes and versioned harness improvements; Eval Lab supplies
-controlled execution and evidence. Work stays in scoped PRs, not a separate platform.
-Model, cloud and training experiments still require explicit spending approval.
-
-
-## Requirements
-
-- Python 3.12 or newer
-- [uv](https://docs.astral.sh/uv/)
-- Harbor 0.21 or newer on `PATH`
-- Docker Desktop or another Docker daemon
-- Docker Compose v2
-
-No model credential is needed for the control experiments.
+Not done yet: most clean-set rows are still `unverified` because the census
+sampled the fleet (1,729 rebuilt tasks have no v5 ladder run); the other MiMo
+domains have not been cleaned; and `vcheck`, the red/blue grader audit modelled
+on Tokenless EnvCheck, is built but has not run a campaign.
 
 ## Quick start
 
+Requirements: Python 3.12+, [uv](https://docs.astral.sh/uv/), Docker with
+Compose v2. Harbor 0.24.0 is installed into the project environment by the
+`laminar` extra; an older global `harbor` is not enough for the integrity
+commands. Nothing below needs a model key or costs money.
+
 ```bash
-uv sync
+uv sync --locked --extra laminar
 cp .env.example .env
 docker compose up -d postgres
 uv run evallab db init
 uv run evallab doctor
 ```
 
-Run both local controls:
+Check a task with its controls: the reference solution must score 1 and doing
+nothing must score 0.
 
 ```bash
-uv run evallab matrix research/experiments/local-controls.json
+uv run --extra laminar evallab run --task library/tasks/event-summary --agent oracle --name event-summary-oracle
+uv run --extra laminar evallab run --task library/tasks/event-summary --agent nop --name event-summary-nop
 ```
 
-By default, generated jobs go under ignored `runs/`. Inspect and ingest them:
+Audit a task package for reward hacking (local Docker, no model):
 
 ```bash
-uv run evallab summarize runs
-uv run evallab ingest runs
-uv run evallab db list
+# static flaw ledger with file:line evidence; findings are claims, not proofs
+uv run --extra laminar evallab hack scan library/tasks/transaction-reconciliation
+# the full admission plan: scan, controls, 14 cheat attacks, verifier mutation
+uv run --extra laminar evallab tasks admit --task library/tasks/transaction-reconciliation --dry-run
+# run the cheat ladder; an attack that scores 1 is a hole. This sample task has
+# one: its grader shares the agent's container, so a process the agent leaves
+# running rewrites the reward file to 1.
+uv run --extra laminar evallab cheat run --task library/tasks/transaction-reconciliation --name tr-cheat
 ```
 
-Run one explicit experiment:
+Jobs land in ignored `runs/`. `uv run evallab summarize runs` prints their
+rewards; `uv run evallab dashboard` opens the Integrity and Operations pages
+at `http://127.0.0.1:8501`.
+
+## Paid runs
+
+Only the `oracle` and `nop` controls run directly. Anything that calls a model
+or rents compute is a spec in the queue, approved by a named person and
+dispatched under the caps in
+[policy/standing-approvals.yaml](policy/standing-approvals.yaml):
 
 ```bash
-uv run evallab run \
-  --task library/tasks/event-summary \
-  --agent oracle \
-  --name event-summary-oracle-local
-```
-
-Direct runs are restricted to the `oracle` and `nop` controls. Billable work is
-submitted to the directory queue and admitted only by the committed standing
-policy:
-
-```bash
-uv run evallab submit /path/to/experiment-spec.json
-uv run evallab tick
-```
-
-See [docs/operations.md](docs/operations.md) for approvals, STOP/resume, and
-queue recovery.
-
-## What is versioned
-
-| Path | Policy |
-|---|---|
-| `library/tasks/`, `research/experiments/`, `src/`, `sql/`, `docs/`, `docs/prompts/` | Always versioned |
-| `research/analysis/` | Versioned SQL and notebook-ready queries |
-| `runs/` | Generated, local, ignored |
-| `derived/evidence-cas/` | Zone 1 durable content-addressed storage (ignored, immutable) |
-| `derived/parquet/` | Zone 3 rebuildable columnar lake (ignored, rebuildable) |
-| `research/evidence/runs/` | Small reviewed controls only; versioned intentionally |
-| PostgreSQL volume | Local derived state; never versioned |
-| `.env` and credentials | Never versioned |
-
-## Authoritative Subpackages
-
-Eval Lab is organized into modular domain subpackages under `src/evallab/`:
-
-- `evallab.schemas`: Pydantic v2 domain schemas, immutable contracts, and join spine invariants.
-- `evallab.storage`: Path resolution (`paths.py`), DuckDB unified attach (`attach.py`), Parquet compaction (`parquet_compaction.py`), and historical backfill (`data_backfill.py`).
-- `evallab.evidence`: Canonical ATIF normalization (`atif.py`), fact extraction (`facts.py`), and event marts (`event_mart.py`).
-- `evallab.interpretation`: Trajectory IR (`trajectory_ir.py`), bounded context packing (`evidence_pack.py`), machine judgment (`trajectory_judgment.py`), quality screening (`trajectory_quality.py`), and platform acceptance gates (`trajectory_acceptance.py`).
-- `evallab.recovery`: State recovery certification (`certify.py`), state bundles (`bundle.py`), and paired pilots (`pilot.py`, `wrapper.py`).
-
-## Core commands
-
-```bash
-# Control Plane & Operations
-uv run evallab doctor
-uv run evallab preflight
-uv run evallab submit /path/to/experiment-spec.json
+uv run evallab submit path/to/spec.json
 uv run evallab approve <spec_id> --actor <name>
 uv run evallab tick
-uv run evallab stop
-uv run evallab resume
-
-# Local Controls & Execution
-uv run evallab run --task library/tasks/event-summary --agent oracle
-uv run evallab matrix research/experiments/local-controls.json
-uv run evallab summarize runs
-
-# Data, Catalog, & Storage
-uv run evallab db init
-uv run evallab db list
-uv run evallab db attach
-uv run evallab tasks pull-hf FineEnvs/MiMo-V2.6-RL-harbor-terminal@fe1c2b665aae1ba7a09a270d979724d32269ae6a
-uv run evallab tasks catalog build
-uv run evallab tasks catalog show candidate-0036-software-data-engineering
-uv run evallab ingest runs research/evidence/runs
-uv run evallab data backfill --all
-uv run evallab gc
-
-# Trajectory Interpretation & Analysis
-uv run evallab analyze batch <manifest.json>
-uv run evallab report run <trial_or_job_dir>
-uv run evallab traj outline <trial_path>
-uv run evallab traj ir <trial_path>
-uv run evallab traj pack <trial_path>
-uv run evallab capture serve --upstream <base_url> --out <dir> [--port PORT]
-uv run evallab capture link <capture_dir> <job_dir>
-uv run evallab ladder generate --help
-uv run evallab curve build <spec.json>
-uv run evallab card generate <spec_id>
-uv run evallab verdict record <discovery_id> --status ACCEPTED --by <name>
-
-# Testing & Hygiene
-uv run pytest tests/test_repomap.py
 ```
 
-`harbor-lab` remains supported as a backwards-compatibility command alias for existing
-automation. Canonical commands and documentation use `evallab`.
+[docs/execution-tiers.md](docs/execution-tiers.md) says what can run where and
+what it costs; [docs/operations.md](docs/operations.md) covers stop, resume and
+recovery.
 
-Generated navigation and status pages are outputs, not hand-edited sources.
-Refresh them with the live entrypoints (do not patch the files in place):
+## Repository layout
+
+| Path | Contents |
+|---|---|
+| `src/evallab/` | The `evallab` CLI and library |
+| `library/` | Task and benchmark packages, adapters, task variants and their lineage records, curated task findings |
+| `research/experiments/` | One folder per experiment: spec, receipts, results |
+| `research/calibration/` | Sealed labelled corpora for judges and detectors |
+| `docs/` | Design, runbooks, and the MiMo programme in `docs/mimo/` |
+| `sql/`, `dashboard/` | Schema and views; the Streamlit dashboard |
+| `policy/` | Standing spend approvals |
+| `agents/` | Workflow, ownership and the CI contract for the agents that build the lab |
+| `runs/`, `derived/` | Ignored: job output and rebuildable stores |
+
+## Where to read next
+
+| To understand | Read |
+|---|---|
+| How a task is judged sound | [docs/task-quality.md](docs/task-quality.md), [docs/task-admission.md](docs/task-admission.md) |
+| The MiMo cleanup, problem by problem | [docs/mimo/README.md](docs/mimo/README.md) |
+| Red/blue grader audits | [docs/verifier-check.md](docs/verifier-check.md) |
+| Cheating detectors and the trace viewer | [docs/harbor-view.md](docs/harbor-view.md), [docs/live-watch.md](docs/live-watch.md) |
+| The whole pipeline on one page | [docs/SYSTEM.md](docs/SYSTEM.md) |
+| What is current and who is working on what | [docs/NOW.md](docs/NOW.md) |
+| Terms | [docs/GLOSSARY.md](docs/GLOSSARY.md) |
+
+## Contributing
+
+Work happens on topic branches in worktrees under `.worktrees/`; the primary
+checkout stays on `main`. A change merges when every CI check on the exact PR
+head is green ([agents/CHECKS.md](agents/CHECKS.md)). Agents start with
+[AGENTS.md](AGENTS.md).
+
+`docs/INDEX.md`, `docs/repo-map.md` and `docs/STATUS.md` are generated; refresh
+them instead of editing them:
 
 ```bash
 uv run python -m evallab.repomap generate
 uv run python -m evallab.docindex generate
 uv run evallab status --update
 ```
-
-`python -m evallab.repomap check` and `python -m evallab.docindex check` fail
-closed on a stale committed copy. `evallab status --generate` prints the same
-STATUS projection without writing `docs/STATUS.md`.
-
-## Experimental interpretation
-
-Oracle reward `1` shows the task is solvable by its reference solution and that
-the verifier accepts the intended output. No-op reward `0` shows the initial
-state does not pass. Neither result measures a real model. A model experiment
-becomes interpretable only after both controls are healthy and after the
-trajectory and verifier evidence have been inspected.
-
-## Feature-Unblocked Status
-
-Package 1 (Storage & Evidence Layer) and Package 2 (Interpretation & Judgment Engine) are stabilized and locked. Infrastructure migration is complete. Development is fully **FEATURE-UNBLOCKED** for active capability evaluations, difficulty screening, and automated feedback loops.
-
-## Repository layout and agent workflow
-
-All work — human and agent — lives inside this one folder. Parallel agent
-worktrees are hidden under `.worktrees/` (gitignored). The multi-agent
-protocol is `agents/WORKFLOW.md`; lane ownership is in `agents/OWNERS.md`,
-with live claims on `research/inbox/board.md`; per-role handoffs are
-`agents/handoffs/`. Fleet state at any moment: `scripts/fleet-status.sh`.

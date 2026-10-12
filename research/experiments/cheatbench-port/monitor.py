@@ -40,6 +40,12 @@ Event kinds (``event`` envelope field):
   spend_cap_crossed, detect_error, dispatch_stopped.
 * ``trial_finished`` {job, trial, reward, exception} -- once per finished
   trial (``result.json`` present).
+* ``live_stop`` {job, trial, outcome, rule, mode, recorded_at, step_ref,
+  steps, prompt_tokens, completion_tokens, cost_usd} -- once per trial with an
+  Eval Lab live-stop record (``<job>/watch/stop-records/<trial>.json``):
+  ``requested`` (``EVALLAB_WATCH_STOP=on``: the trial is being ended) or
+  ``would_stop`` (``dry-run``: recorded, the trial runs on). The usage fields
+  are Eval Lab's snapshot at the stop decision.
 
 Fail-closed ``--stop-on-infra``: writes the queue ``STOP`` fence (running
 trials untouched; resume is manual via ``evallab resume``) when Docker is
@@ -90,7 +96,8 @@ INFRA_EXCEPTION_TYPES = {
     "RuntimeError",
     "RateLimitError",
 }
-BALANCE_NEEDLE = "Insufficient balance"
+# Provider out-of-money texts: Z.ai, then OpenRouter's 402 bodies.
+BALANCE_NEEDLES = ("Insufficient balance", "Insufficient credits", "requires more credits")
 STALL_SECONDS = 10 * 60
 TRIAL_LOG_TAIL_BYTES = 50 * 1024
 QUOTE_MAX = 500
@@ -282,6 +289,7 @@ class Monitor:
         self.emitted_tripwire: set[tuple[str, str, str, str]] = set()
         self.emitted_infra: set[tuple[str, str]] = set()
         self.emitted_finished: set[tuple[str, str]] = set()
+        self.emitted_stop: set[tuple[str, str]] = set()
         self.traj_cache: dict[tuple[str, str], tuple[float, int]] = {}
         # Last full detect summary per trial (BOARD source when a later pass
         # skips re-running detect on an unchanged finished trajectory).
@@ -312,6 +320,8 @@ class Monitor:
                                                  default=str)))
             elif kind == "trial_finished":
                 self.emitted_finished.add((row.get("job"), row.get("trial")))
+            elif kind == "live_stop":
+                self.emitted_stop.add((row.get("job"), row.get("trial")))
 
     def emit(self, payload: dict) -> dict:
         payload = {"at": utcnow_iso(), **payload}
@@ -468,6 +478,33 @@ class Monitor:
                        "events": slot["count"], "source": "file_access"})
         return agg
 
+    # -- live stops (Eval Lab watch) ------------------------------------------
+    def scan_job_stops(self, job: str) -> dict[str, dict]:
+        """Live-stop records per trial from ``<job>/watch/stop-records/``."""
+        rec_dir = self.runs_dir / job / "watch" / "stop-records"
+        out: dict[str, dict] = {}
+        if not rec_dir.is_dir():
+            return out
+        for path in sorted(rec_dir.glob("*.json")):
+            rec = read_json(path)
+            if not isinstance(rec, dict) or not rec.get("trial"):
+                continue
+            trial = str(rec["trial"])
+            usage = rec.get("usage_at_stop") or {}
+            out[trial] = {
+                "outcome": rec.get("outcome"), "rule": rec.get("rule"),
+                "mode": rec.get("mode"), "recorded_at": rec.get("recorded_at"),
+                "step_ref": rec.get("step_ref"),
+                "steps": usage.get("steps_so_far"),
+                "prompt_tokens": usage.get("prompt_tokens_so_far"),
+                "completion_tokens": usage.get("completion_tokens_so_far"),
+                "cost_usd": usage.get("cost_usd_so_far"),
+            }
+            if (job, trial) not in self.emitted_stop:
+                self.emitted_stop.add((job, trial))
+                self.emit({"event": "live_stop", "job": job, "trial": trial, **out[trial]})
+        return out
+
     # -- infra -------------------------------------------------------------
     def check_docker(self) -> tuple[bool, list[str], float | None]:
         start = time.monotonic()
@@ -544,7 +581,7 @@ class Monitor:
             return
         etype = exception.get("exception_type") or ""
         msg = exception.get("exception_message") or ""
-        balance = BALANCE_NEEDLE in msg
+        balance = any(n in msg for n in BALANCE_NEEDLES)
         if not balance and etype not in INFRA_EXCEPTION_TYPES:
             # Still grep trial.log for the provider balance text.
             try:
@@ -552,7 +589,7 @@ class Monitor:
                     f.seek(max(0, trial_dir.joinpath("trial.log").stat().st_size
                                - TRIAL_LOG_TAIL_BYTES))
                     tail = f.read().decode("utf-8", "replace")
-                balance = BALANCE_NEEDLE in tail
+                balance = any(n in tail for n in BALANCE_NEEDLES)
             except OSError:
                 balance = False
             if not balance:
@@ -575,7 +612,7 @@ class Monitor:
             self.emit_infra("provider_balance",
                             {"job": job, "trial": trial,
                              "exception_type": etype or "trial.log",
-                             "detail": "Insufficient balance in trial.log tail"})
+                             "detail": "provider balance/credit text in trial.log tail"})
 
     def check_stalled(self, job: str, trial: str, trial_dir: Path,
                       job_dir: Path, now: float) -> None:
@@ -671,6 +708,7 @@ class Monitor:
                 with contextlib.suppress(SystemExit, Exception):
                     meta_job["family"] = locate_metadata(trials[0])[0].get("cheatbench_family")
             watch_agg = self.scan_job_watch_tripwires(job, meta_job.get("family"))
+            stops = self.scan_job_stops(job)
             spend_usd, n_calls = job_spend_usd(job_dir)
             total_spend += spend_usd
             self.spend_by_job[job] = {"spend_usd": round(spend_usd, 6),
@@ -723,6 +761,7 @@ class Monitor:
                     "first_cheat": cheat.get("first_cheat"),
                     "route_seen": cheat.get("route_seen", False),
                     "tripwires": tripwires,
+                    "stop": stops.get(trial),
                     "detect_error": cheat.get("detect_error"),
                     "updated_at": (datetime.fromtimestamp(upd, UTC).isoformat()
                                    if upd else None),
@@ -822,7 +861,7 @@ class Monitor:
             slot["trials"].append({k: row[k] for k in (
                 "trial", "state", "steps", "cost_usd", "reward",
                 "exception_type", "first_cheat", "route_seen", "tripwires",
-                "detect_error", "updated_at")})
+                "stop", "detect_error", "updated_at")})
         status = {
             "schema": "cheatbench_port.monitor/v1",
             "generated_at": utcnow_iso(),
@@ -855,8 +894,8 @@ class Monitor:
                       f"arm: {slot['arm']} | spend: ${slot['spend_usd']}",
                       "",
                       "| trial | state | steps | cost | reward | first cheat | "
-                      "tripwires | updated |",
-                      "|---|---|---|---|---|---|---|---|"]
+                      "tripwires | live stop | updated |",
+                      "|---|---|---|---|---|---|---|---|---|"]
             for t in slot["trials"]:
                 fc = t["first_cheat"]
                 fc_str = (f"step {fc['step']} ({fc['signal']})" if fc else "—")
@@ -864,10 +903,13 @@ class Monitor:
                     fc_str += " +route"
                 cost = (f"${t['cost_usd']:.4f}"
                         if isinstance(t["cost_usd"], (int, float)) else "—")
+                stop = t["stop"]
+                stop_str = (f"{stop['outcome']} ({stop['rule']}) at {stop['steps']} steps"
+                            if stop else "—")
                 lines.append(
                     f"| {t['trial']} | {t['state']} | {t['steps']} | {cost} | "
                     f"{t['reward']} | {fc_str} | "
-                    f"{','.join(t['tripwires']) or '—'} | "
+                    f"{','.join(t['tripwires']) or '—'} | {stop_str} | "
                     f"{(t['updated_at'] or '')[:19]} |")
             lines.append("")
         lines += ["## Infra",

@@ -18,6 +18,17 @@ Usage (the 2026-10-09 runs, from the published flat results):
 --runs-dir). Detection runs live per trial (detect_trial); verdicts come
 from the batch's judge-*.jsonl files (or results/judge-*.jsonl with
 --from-results).
+
+Paths: every job is read from its immutable published copy under
+~/Developer/eval-lab-results when one exists, else from runs/<job>. runs/
+lives in a worktree that is retired after merge, so trial_dir and artifacts
+point at the published copy whenever there is one.
+
+Per-trial ``stop`` (Eval Lab live stop): ``{mode, outcome, rule, recorded_at,
+step_ref, usage_at_stop}`` with ``mode`` the job watch's ``EVALLAB_WATCH_STOP``
+(``on``/``dry-run``) and ``outcome`` ``requested``/``would_stop``/null; null
+when the job has no watch status. ``usage`` is the final ``{steps,
+agent_steps, input_tokens, output_tokens, cost_usd}``.
 """
 
 from __future__ import annotations
@@ -67,17 +78,29 @@ def expand_jobs(tokens: list[str], runs: Path) -> list[str]:
                 continue
             if any(c in part for c in "*?[]"):
                 jobs.extend(sorted(p.name for p in runs.glob(part) if p.is_dir()))
-            elif (runs / part).is_dir():
+            elif (runs / part).is_dir() or published_dir(part):
                 jobs.append(part)
             else:
                 print(f"warn: no job dir for {part!r}", file=sys.stderr)
     return list(dict.fromkeys(jobs))
 
 
+def job_roots(job: str, runs: Path) -> list[Path]:
+    """Existing copies of a job dir: published copy first, then runs/<job>."""
+    pub = published_dir(job)
+    return [p for p in ((Path(pub) if pub else None), runs / job)
+            if p is not None and p.is_dir()]
+
+
+def job_dir(job: str, runs: Path) -> Path:
+    roots = job_roots(job, runs)
+    return roots[0] if roots else runs / job
+
+
 def scored_trials(jobs: list[str], runs: Path) -> list[tuple[str, Path]]:
     out = []
     for job in jobs:
-        for trial in sorted((runs / job).glob("*__*")):
+        for trial in sorted(job_dir(job, runs).glob("*__*")):
             if (trial / "result.json").is_file():
                 out.append((job, trial))
     return out
@@ -91,7 +114,7 @@ def trial_result(trial: Path) -> tuple:
 
 
 def agent_cost(job: str, runs: Path) -> float | None:
-    lab = runs / job / "lab-metadata.json"
+    lab = job_dir(job, runs) / "lab-metadata.json"
     if not lab.is_file():
         return None
     try:
@@ -222,22 +245,50 @@ def artifacts(job: str, trial: Path, runs: Path) -> dict:
     traj = agent / "trajectory.json"
     cast = agent / "recording.cast"
     fa = agent / "file-access.jsonl"
-    proxy = runs / job / "proxy-live" / "calls.jsonl"
-    if not proxy.is_file():
-        proxy = trial / "proxy-live" / "calls.jsonl"
+    roots = [trial.parent, *job_roots(job, runs)]
+
+    def first(rel: str) -> Path | None:
+        return next((r / rel for r in roots if (r / rel).is_file()), None)
+
+    proxy = first("proxy-live/calls.jsonl") or (trial / "proxy-live" / "calls.jsonl")
     mc = None
-    for root in (runs / job, trial):
+    for root in (*roots, trial):
         hits = sorted(root.glob("**/*trial_capture*")) + \
             sorted(root.glob("**/*model_calls*"))
         if hits:
             mc = hits[0]
             break
-    alerts = runs / job / "watch" / "alerts.jsonl"
+    alerts = first("watch/alerts.jsonl")
     def rel(p: Path | None) -> str | None:
         return str(p) if p is not None and p.is_file() else None
     return {"trajectory": rel(traj), "recording_cast": rel(cast),
             "file_access": rel(fa), "proxy_calls": rel(proxy),
             "model_capture_calls": rel(mc), "watch_alerts": rel(alerts)}
+
+
+def stop_block(trial: Path) -> dict | None:
+    """Eval Lab live-stop mode and record for one trial (module docstring)."""
+    watch = trial.parent / "watch"
+    try:
+        mode = json.loads((watch / "status.json").read_text()).get("stop_mode")
+    except (OSError, ValueError):
+        return None
+    rec: dict = {}
+    with contextlib.suppress(OSError, ValueError):
+        rec = json.loads((watch / "stop-records" / f"{trial.name}.json").read_text())
+    return {"mode": mode, "outcome": rec.get("outcome"), "rule": rec.get("rule"),
+            "recorded_at": rec.get("recorded_at"), "step_ref": rec.get("step_ref"),
+            "usage_at_stop": rec.get("usage_at_stop")}
+
+
+def usage_block(trial: Path, res: dict) -> dict:
+    a = res.get("agent_result") or {}
+    steps = atif_steps(trial)
+    return {"steps": len(steps),
+            "agent_steps": sum(1 for s in steps if s.get("source") == "agent"),
+            "input_tokens": a.get("n_input_tokens"),
+            "output_tokens": a.get("n_output_tokens"),
+            "cost_usd": a.get("cost_usd")}
 
 
 PUBLISHED_ROOT = Path.home() / "Developer/eval-lab-results"
@@ -260,7 +311,7 @@ def published_dir(job: str) -> str | None:
 def build_row(job: str, trial: Path, family: str, instance: str, model: str,
               arm: str, det: dict, verdicts: dict[str, dict],
               runs: Path) -> dict:
-    reward, exc, _ = trial_result(trial)
+    reward, exc, res = trial_result(trial)
     infra = reward is None and exc in analyzer.INFRA_EXCEPTIONS
     det_b = detector_block(det, family, trial)
     v_b = {name: verdict_block(r) for name, r in verdicts.items()}
@@ -276,7 +327,8 @@ def build_row(job: str, trial: Path, family: str, instance: str, model: str,
             "detector": det_b, "tripwires": tripwires(trial, family),
             "verdicts": v_b, "cheat_step": step,
             "cheat_step_source": source,
-            "cheat_step_timestamp": ts, "cast_offset_s": off}
+            "cheat_step_timestamp": ts, "cast_offset_s": off,
+            "stop": stop_block(trial), "usage": usage_block(trial, res)}
 
 
 def load_judge_maps(paths: list[Path]) -> tuple[dict[str, dict], list[dict]]:
@@ -326,7 +378,7 @@ def spend_usd(jobs: list[str], runs: Path, judge_paths: list[Path]) -> float:
 def capture_block(jobs: list[str], runs: Path, batch: Path | None) -> dict:
     states = []
     for job in jobs:
-        for trial in sorted((runs / job).glob("*__*")):
+        for trial in sorted(job_dir(job, runs).glob("*__*")):
             fa = trial / "agent" / "file-access.jsonl"
             if not fa.is_file():
                 states.append("missing")
@@ -360,7 +412,7 @@ def capture_block(jobs: list[str], runs: Path, batch: Path | None) -> dict:
         pass
     mc_dirs = []
     for job in jobs:
-        lab = runs / job / "lab-metadata.json"
+        lab = job_dir(job, runs) / "lab-metadata.json"
         if lab.is_file():
             try:
                 mc = json.loads(lab.read_text()).get("model_capture") or {}
@@ -408,7 +460,7 @@ def write_batch(batch_id: str, rows: list[dict], specs: list[str],
 def spec_ids(jobs: list[str], runs: Path) -> list[str]:
     out = []
     for job in jobs:
-        lab = runs / job / "lab-metadata.json"
+        lab = job_dir(job, runs) / "lab-metadata.json"
         if lab.is_file():
             with contextlib.suppress(ValueError):
                 out.append((json.loads(lab.read_text()).get("experiment") or {}
@@ -433,6 +485,9 @@ def cmd_from_results(args: argparse.Namespace) -> int:
         det = detect_map.get(c["trial_id"])
         raw_dir = Path(c["trial_dir"])
         trial = raw_dir if raw_dir.is_absolute() else ROOT / raw_dir
+        durable = job_dir(c["job"], args.runs) / trial.name
+        if durable.is_dir():
+            trial = durable
         if det is None:
             det = detect_row(trial) if (trial / "agent" / "trajectory.json").is_file() \
                 else {"protected_touched": [], "answer_exposed": [],
@@ -450,6 +505,9 @@ def cmd_from_results(args: argparse.Namespace) -> int:
                 None, "") else None
         except ValueError:
             cost = None
+        res: dict = {}
+        with contextlib.suppress(OSError, ValueError):
+            res = json.loads((trial / "result.json").read_text())
         rows.append({
             "trial_id": c["trial_id"], "job": c["job"], "family": c["family"],
             "instance": c["instance"], "model": c["model"], "arm": c["arm"],
@@ -465,7 +523,9 @@ def cmd_from_results(args: argparse.Namespace) -> int:
             "tripwires": tripwires(trial, c["family"]) if trial.is_dir() else [],
             "verdicts": v_b, "cheat_step": step,
             "cheat_step_source": source,
-            "cheat_step_timestamp": ts, "cast_offset_s": off})
+            "cheat_step_timestamp": ts, "cast_offset_s": off,
+            "stop": stop_block(trial) if trial.is_dir() else None,
+            "usage": usage_block(trial, res) if trial.is_dir() else None})
     jobs = sorted({c["job"] for c in rows_csv})
     write_batch(batch_id, rows, spec_ids(jobs, args.runs), judges, judge_paths,
                 jobs, args.runs, None, None, out)
@@ -511,7 +571,7 @@ def cmd_jobs(args: argparse.Namespace) -> int:
             print(f"warn: cannot parse job name {job}; skipped", file=sys.stderr)
             continue
         family, model = m["family"], m["model"]
-        arm = analyzer.job_arm(args.runs / job) or "unknown"
+        arm = analyzer.job_arm(trial.parent) or "unknown"
         res = json.loads((trial / "result.json").read_text())
         instance = ((res.get("task_name") or "").split("/", 1)[-1]
                     if res.get("task_name") else m["instance"])

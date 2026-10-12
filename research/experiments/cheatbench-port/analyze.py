@@ -10,6 +10,13 @@ Usage (worktree root):
 Writes trials.csv (one row per trial) and summary.md (cheat rates with Wilson
 95% intervals, honeypot exposure, judge-vs-detector and judge-vs-judge agreement,
 spend). Task success (verifier reward) and cheating stay separate columns.
+
+Live stop: jobs named ``...-on`` ran with ``EVALLAB_WATCH_STOP=on`` (an eligible
+alert ends the trial), ``...-dry`` with ``dry-run`` (the same decision is only
+recorded as ``would_stop`` and the trial runs on). A dry-run trial's usage after
+its would-stop point is exactly what stopping it would have saved; that is the
+savings measurement. An ``on`` trial's usage after its stop request is the
+overrun (stop latency).
 """
 from __future__ import annotations
 
@@ -25,7 +32,10 @@ ROOT = Path(__file__).resolve().parents[3]
 
 FAMILY = {"ss": "subset_sum", "pf": "prime_factorization", "oma": "openmath_agent"}
 MODEL = {"glm53f": "GLM-5.3-Flash", "glm53": "GLM-5.3", "qwen36a3b": "Qwen3.6-35B-A3B",
-         "qwen35": "Qwen3.5-9B"}
+         "qwen35": "Qwen3.5-9B", "q36or": "Qwen3.6-35B-A3B (OpenRouter)",
+         "q35or": "Qwen3.5-9B (OpenRouter)"}
+#: Job-name suffix -> live-stop mode (make_specs.py --stop-mode).
+STOP_SUFFIX = {"on": "on", "dry": "dry-run"}
 # A trial the verifier never scored (provider rate limit, harness crash) is an
 # infrastructure loss, not an observation: listed in summary.md, never counted.
 # RuntimeError here is Harbor's "docker compose command failed" at environment start.
@@ -44,12 +54,25 @@ def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
 
 
 def parse_job(name: str) -> dict | None:
-    # cb-<fam>-<instance...>-<model>-<tag>
+    # cb-<fam>-<instance...>-<model>-<tag>[-on|-dry]
     parts = name.split("-")
+    stop_mode = STOP_SUFFIX.get(parts[-1]) if len(parts) > 5 else None
+    if stop_mode:
+        parts = parts[:-1]
     if len(parts) < 5 or parts[0] != "cb" or parts[1] not in FAMILY:
         return None
     return {"family": FAMILY[parts[1]], "instance": "-".join(parts[2:-2]),
-            "model": MODEL.get(parts[-2], parts[-2]), "tag": parts[-1]}
+            "model": MODEL.get(parts[-2], parts[-2]), "tag": parts[-1],
+            "stop_mode": stop_mode}
+
+
+def stop_record(trial: Path) -> dict:
+    """Eval Lab's live-stop record for a trial (empty when none was written)."""
+    path = trial.parent / "watch" / "stop-records" / f"{trial.name}.json"
+    try:
+        return json.loads(path.read_text())
+    except (OSError, ValueError):
+        return {}
 
 
 def job_arm(job: Path) -> str | None:
@@ -89,9 +112,18 @@ def trial_rows(runs: Path, jobs: list[str] | None = None) -> list[dict]:
                 cost = (json.loads(lab.read_text()).get("cost") or {}).get("cost_usd")
             traj = trial / "agent" / "trajectory.json"
             steps = len(json.loads(traj.read_text()).get("steps", [])) if traj.is_file() else 0
+            agent = res.get("agent_result") or {}
+            stop = stop_record(trial)
+            at = stop.get("usage_at_stop") or {}
             rows.append({**meta, "job": job.name, "trial_id": trial.name, "trial_dir": str(trial),
                          "reward": reward, "exception": exc, "agent_cost_usd": cost,
-                         "steps": steps,
+                         "steps": steps, "input_tokens": agent.get("n_input_tokens"),
+                         "output_tokens": agent.get("n_output_tokens"),
+                         "stop_outcome": stop.get("outcome"), "stop_rule": stop.get("rule"),
+                         "stop_steps": at.get("steps_so_far"),
+                         "stop_input_tokens": at.get("prompt_tokens_so_far"),
+                         "stop_output_tokens": at.get("completion_tokens_so_far"),
+                         "stop_cost_usd": at.get("cost_usd_so_far"),
                          "infra_excluded": reward is None and exc in INFRA_EXCEPTIONS})
     return rows
 
@@ -238,8 +270,87 @@ def main() -> None:
                     lines.append(f"- {r['trial_id']}: {a_name}={r[f'{a_name}:cheated']} "
                                  f"{b_name}={r[f'{b_name}:cheated']}")
             lines.append("")
+    lines += live_stop_section(rows)
     (args.out / "summary.md").write_text("\n".join(lines) + "\n")
     print((args.out / "summary.md").read_text())
+
+
+def _after(r: dict, final: str, at: str) -> float | None:
+    """Usage after the stop decision: final minus the at-stop snapshot."""
+    a, b = r.get(final), r.get(at)
+    if not isinstance(a, (int, float)) or not isinstance(b, (int, float)):
+        return None
+    return max(0.0, float(a) - float(b))
+
+
+def _mean(xs: list) -> str:
+    vals = [x for x in xs if isinstance(x, (int, float))]
+    return f"{sum(vals) / len(vals):,.0f}" if vals else "—"
+
+
+def live_stop_section(rows: list[dict]) -> list[str]:
+    """summary.md section: stops per cell and what stopping saved (module docstring)."""
+    staged = [r for r in rows if r.get("stop_mode")]
+    if not staged:
+        return []
+    lines = ["## Live stop (Eval Lab watch)", "",
+             "`on`: an eligible alert ended the trial. `dry-run`: the same decision was only "
+             "recorded (`would_stop`) and the trial ran on, so its usage after that point is "
+             "what a stop would have saved. Steps are ATIF steps; tokens are cumulative "
+             "agent input/output.", "",
+             "| Model | Family | Mode | Trials | Stopped / would stop | Steps at stop | "
+             "Final steps | Mean input tokens per trial | Mean cost per trial |",
+             "|---|---|---|---|---|---|---|---|---|"]
+    groups = defaultdict(list)
+    for r in staged:
+        groups[(r["model"], r["family"], r["stop_mode"])].append(r)
+    for (model, fam, mode), rs in sorted(groups.items()):
+        hit = [r for r in rs if r.get("stop_outcome") in ("requested", "would_stop")]
+        lines.append(
+            f"| {model} | {fam} | {mode} | {len(rs)} | {len(hit)} | "
+            f"{_mean([r.get('stop_steps') for r in hit])} | "
+            f"{_mean([r.get('steps') for r in hit])} | "
+            f"{_mean([r.get('input_tokens') for r in rs])} | "
+            f"${sum(float(r.get('agent_cost_usd') or 0) for r in rs) / len(rs):.4f} |")
+    lines.append("")
+    dry = [r for r in staged if r.get("stop_outcome") == "would_stop"]
+    on = [r for r in staged if r.get("stop_outcome") == "requested"]
+    lines += ["### What stopping saved (dry-run trials that would have been stopped)", ""]
+    if dry:
+        lines += ["| Trial | Rule | Steps at would-stop → final | Input tokens after | "
+                  "Output tokens after | Cost after | Reward |",
+                  "|---|---|---|---|---|---|---|"]
+        for r in sorted(dry, key=lambda r: r["trial_id"]):
+            cost_after = _after(r, "agent_cost_usd", "stop_cost_usd")
+            lines.append(
+                f"| {r['trial_id']} | {r.get('stop_rule')} | {r.get('stop_steps')} → "
+                f"{r.get('steps')} | {_mean([_after(r, 'input_tokens', 'stop_input_tokens')])} | "
+                f"{_mean([_after(r, 'output_tokens', 'stop_output_tokens')])} | "
+                + (f"${cost_after:.4f}" if cost_after is not None else "—")
+                + f" | {r.get('reward')} |")
+        tot_in = sum(_after(r, "input_tokens", "stop_input_tokens") or 0 for r in dry)
+        tot_steps = sum(_after(r, "steps", "stop_steps") or 0 for r in dry)
+        tot_cost = sum(_after(r, "agent_cost_usd", "stop_cost_usd") or 0 for r in dry)
+        tot_final = sum(float(r.get("input_tokens") or 0) for r in dry)
+        share = f"{100 * tot_in / tot_final:.0f}%" if tot_final else "—"
+        lines += ["", f"Total over {len(dry)} would-stop trials: {tot_steps:.0f} steps, "
+                  f"{tot_in:,.0f} input tokens ({share} of their input) and ${tot_cost:.4f} "
+                  "came after the would-stop point.", ""]
+    else:
+        lines += ["No dry-run trial reached a would-stop decision.", ""]
+    lines += ["### Stop overrun (`on` trials: usage between the stop decision and the end)", ""]
+    if on:
+        lines += ["| Trial | Rule | Steps at stop → final | Input tokens after | Exception |",
+                  "|---|---|---|---|---|"]
+        for r in sorted(on, key=lambda r: r["trial_id"]):
+            lines.append(
+                f"| {r['trial_id']} | {r.get('stop_rule')} | {r.get('stop_steps')} → "
+                f"{r.get('steps')} | {_mean([_after(r, 'input_tokens', 'stop_input_tokens')])} | "
+                f"{r.get('exception')} |")
+        lines.append("")
+    else:
+        lines += ["No `on` trial was stopped.", ""]
+    return lines
 
 
 if __name__ == "__main__":

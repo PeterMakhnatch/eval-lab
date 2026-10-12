@@ -7,10 +7,17 @@
 # Run from the worktree root. Paid: only use with a budget Peter granted for
 # this experiment. --dry-run prints every command without executing it.
 #
-# Env knobs: CB_JUDGE (judge route for readiness + postrun; default EMPTY =
-#   no judging — Z.ai balance is empty). CB_NO_PROBE=1 skips the paid
+# Env knobs: CB_JUDGE (paid judge route for readiness + postrun; default EMPTY
+#   = no paid judge: the cheat judge is Sonnet 5.5 on Peter's subscription via
+#   fxtr's `launch.py batch`, see RUNBOOK). CB_NO_PROBE=1 skips the paid
 #   1-token provider probe (on by default: run_batch is already a paid
 #   action, so an empty provider balance aborts BEFORE dispatch).
+#   CB_SPEND_CAP_USD: batch agent-spend cap; the monitor writes queue/STOP at
+#   it (running trials finish under their own per-trial caps).
+#
+# Live stop: each spec's name ends in -on or -dry (make_specs.py --stop-mode);
+# its group ticks with EVALLAB_WATCH_STOP=on or dry-run. Specs without the
+# suffix tick in Eval Lab's default (dry-run).
 set -euo pipefail
 
 DRY=0
@@ -25,6 +32,9 @@ CB_JUDGE=${CB_JUDGE:-}
 EXP=research/experiments/cheatbench-port
 TINKER_UP=https://tinker.thinkingmachines.dev
 ZAI_UP=https://api.z.ai
+OPENROUTER_UP=https://openrouter.ai
+SPEND_ARGS=""
+if [ -n "${CB_SPEND_CAP_USD:-}" ]; then SPEND_ARGS="--spend-cap-usd $CB_SPEND_CAP_USD"; fi
 if [ -z "${CB_NO_PROBE:-}" ]; then
   PROBE_ARGS="--probe-providers"
   READINESS_KEYS="keys run --"
@@ -49,37 +59,45 @@ run() {
 echo "batch: $batch_id"
 run mkdir -p "$batch_dir/captures" "$batch_dir/groups" "$batch_dir/monitor"
 
-# 1. Group specs by (family, provider) for per-family ticks.
+# 1. Group specs by (family, provider, stop mode) for per-group ticks, cheapest
+# family first (a spend-cap STOP then cuts the most expensive family, not all).
 echo "grouping specs in $spec_dir ..."
 if [ "$DRY" = "0" ]; then
-  uv run --no-sync python - "$spec_dir" "$batch_dir" <<'PYEOF'
+  PYTHONPATH="$EXP" uv run --no-sync python - "$spec_dir" "$batch_dir" <<'PYEOF'
 import json, sys
 from pathlib import Path
+from make_specs import stop_mode_of
 spec_dir, batch = Path(sys.argv[1]), Path(sys.argv[2])
+FAMS = ("prime_factorization", "subset_sum", "openmath_agent")
+PROV = {"zai": "zai", "tinker": "tinker", "openrouter-metered": "openrouter"}
 groups = {}
 models, fams, names = set(), set(), []
 for spec in sorted(spec_dir.glob("*.json")):
     s = json.loads(spec.read_text())
     model = s["model"]
     task = s.get("task", "")
-    fam = next((f for f in ("subset_sum", "prime_factorization", "openmath_agent") if f in task), None)
+    fam = next((f for f in FAMS if f in task), None)
     if fam is None:
         raise SystemExit(f"{spec}: cannot tell family from task {task!r}")
-    prov = model.split("/", 1)[0]
-    if prov not in ("zai", "tinker"):
+    prov = PROV.get(model.split("/", 1)[0])
+    if prov is None:
         raise SystemExit(f"{spec}: unknown provider in model {model!r}")
-    groups.setdefault((fam, prov), []).append((spec.name, s.get("spec_id") or s.get("name", spec.stem)))
-    models.add(model); fams.add(fam); names.append(s.get("name", spec.stem))
+    name = s.get("name", spec.stem)
+    mode = stop_mode_of(name) or "dry-run"
+    groups.setdefault((fam, prov, mode), []).append(spec.name)
+    models.add(model); fams.add(fam); names.append(name)
 (batch / "spec_files.txt").write_text("\n".join(sorted(p.name for p in spec_dir.glob("*.json"))) + "\n")
-for (fam, prov), rows in groups.items():
-    (batch / "groups" / f"{fam}.{prov}.txt").write_text("\n".join(n for n, _ in rows) + "\n")
+order = sorted(groups, key=lambda g: (FAMS.index(g[0]), g[1], g[2] != "on"))
+for key in order:
+    (batch / "groups" / (".".join(key) + ".txt")).write_text("\n".join(groups[key]) + "\n")
+(batch / "groups" / "order.txt").write_text("\n".join(".".join(k) for k in order) + "\n")
 (batch / "models.txt").write_text("\n".join(sorted(models)) + "\n")
 (batch / "families.txt").write_text("\n".join(sorted(fams)) + "\n")
 (batch / "job_names.txt").write_text("\n".join(sorted(names)) + "\n")
-print(f"{len(groups)} groups, {sum(len(r) for r in groups.values())} specs")
+print(f"{len(groups)} groups, {sum(len(r) for r in groups.values())} specs: " + ", ".join(".".join(k) for k in order))
 PYEOF
 else
-  echo "+ uv run --no-sync python - $spec_dir $batch_dir <<'PYEOF' (spec grouping)"
+  echo "+ uv run --no-sync python - $spec_dir $batch_dir <<'PYEOF' (spec grouping by family/provider/stop mode)"
 fi
 FAMS=""; MODELS=""
 [ -f "$batch_dir/families.txt" ] && FAMS=$(cat "$batch_dir/families.txt")
@@ -93,6 +111,7 @@ fi
 PROVS=""
 case "$MODELS" in *zai/*) PROVS="$PROVS zai";; esac
 case "$MODELS" in *tinker/*) PROVS="$PROVS tinker";; esac
+case "$MODELS" in *openrouter-metered/*) PROVS="$PROVS openrouter";; esac
 
 # 2. Readiness gate (aborts the batch on any fail). Probes providers by
 # default (paid 1-token calls; run_batch is already paid); CB_JUDGE empty
@@ -151,6 +170,8 @@ spec_dir = Path(sys.argv[1]); batch = Path(sys.argv[3])
 id_of = dict(l.strip().split() for l in Path(sys.argv[2]).read_text().splitlines()
              if l.strip())
 for g in (batch / "groups").glob("*.txt"):
+    if g.name == "order.txt":
+        continue
     names = [l.strip() for l in g.read_text().splitlines() if l.strip()]
     (batch / "groups" / (g.stem + ".ids")).write_text(
         "\n".join(id_of.get(n, "?") for n in names) + "\n")
@@ -181,22 +202,30 @@ start_capture() { # <provider> <upstream>
   done
   ENDPOINT=$(python3 -c "import json; print(json.load(open('$out/capture.json'))['endpoint'])")
   echo "$prov capture: $ENDPOINT"
-  if [ "$prov" = "tinker" ]; then export EVALLAB_TINKER_UPSTREAM="$ENDPOINT"
-  else export EVALLAB_ZAI_OPENAPI_UPSTREAM="$ENDPOINT"; fi
+  case "$prov" in
+    tinker) export EVALLAB_TINKER_UPSTREAM="$ENDPOINT" ;;
+    openrouter) export EVALLAB_OPENROUTER_UPSTREAM="$ENDPOINT" ;;
+    *) export EVALLAB_ZAI_OPENAPI_UPSTREAM="$ENDPOINT" ;;
+  esac
   export EVALLAB_MODEL_CAPTURE=1
   eval "export EVALLAB_MODEL_CAPTURE_DIR_$prov=\"$out\""
 }
 for prov in $PROVS; do
-  if [ "$prov" = "tinker" ]; then start_capture tinker "$TINKER_UP"; else start_capture zai "$ZAI_UP"; fi
+  case "$prov" in
+    tinker) start_capture tinker "$TINKER_UP" ;;
+    openrouter) start_capture openrouter "$OPENROUTER_UP" ;;
+    *) start_capture zai "$ZAI_UP" ;;
+  esac
 done
 
 # 5. Live cheat/infra monitor for the whole batch (background).
 MON_PID=""
 if [ -f "$EXP/monitor.py" ]; then
   if [ "$DRY" = "1" ]; then
-    echo "+ uv run --no-sync python $EXP/monitor.py --runs-dir runs --out $batch_dir/monitor --stop-on-infra --jobs-file $batch_dir/job_names.txt &"
+    echo "+ uv run --no-sync python $EXP/monitor.py --runs-dir runs --out $batch_dir/monitor --stop-on-infra --jobs-file $batch_dir/job_names.txt $SPEND_ARGS &"
   else
-    uv run --no-sync python "$EXP/monitor.py" --runs-dir runs --out "$batch_dir/monitor" --stop-on-infra --jobs-file "$batch_dir/job_names.txt" &
+    # shellcheck disable=SC2086
+    uv run --no-sync python "$EXP/monitor.py" --runs-dir runs --out "$batch_dir/monitor" --stop-on-infra --jobs-file "$batch_dir/job_names.txt" $SPEND_ARGS &
     MON_PID=$!
   fi
 else
@@ -209,12 +238,13 @@ fi
 # decision, never automatic. queue/STOP (monitor --stop-on-infra) ends
 # ticking and falls through to cleanup/postrun.
 WAITING_MSG=""
-tick_group() { # <family> <provider> <ids-file>
-  fam=$1 prov=$2 ids=$3
+tick_group() { # <family> <provider> <stop mode> <ids-file>
+  fam=$1 prov=$2 mode=$3 ids=$4
   # shellcheck disable=SC2086
   eval "$(PYTHONPATH="$EXP" uv run --no-sync python -c "import capture_config, shlex; print(' '.join(f'export {k}={shlex.quote(v)}' for k, v in capture_config.file_access_env(\"$fam\").items()))")"
-  if [ "$prov" = "tinker" ]; then export EVALLAB_MODEL_CAPTURE_DIR="$EVALLAB_MODEL_CAPTURE_DIR_tinker"
-  else export EVALLAB_MODEL_CAPTURE_DIR="$EVALLAB_MODEL_CAPTURE_DIR_zai"; fi
+  eval "export EVALLAB_MODEL_CAPTURE_DIR=\"\$EVALLAB_MODEL_CAPTURE_DIR_$prov\""
+  export EVALLAB_WATCH_STOP="$mode"
+  echo "tick $fam/$prov live-stop=$mode"
   tick_args=""
   while IFS= read -r s; do
     [ -n "$s" ] && tick_args="$tick_args --spec-id $s"
@@ -258,15 +288,17 @@ tick_group() { # <family> <provider> <ids-file>
 }
 if [ "$DRY" = "1" ]; then
   echo "+ eval \$(uv run --no-sync python -c 'import capture_config, shlex; ...file_access_env...')"
-  echo "+ keys run -- uv run --no-sync evallab tick --spec-id <ids of group> --parallel $parallel --no-smoke-gate   # per family/provider group, re-tick while approved (max 20), stop on waiting/STOP"
+  echo "+ keys run -- uv run --no-sync evallab tick --spec-id <ids of group> --parallel $parallel --no-smoke-gate   # per family/provider/stop-mode group in groups/order.txt, EVALLAB_WATCH_STOP=<on|dry-run>, re-tick while approved (max 20), stop on waiting/STOP"
 else
-  for ids in "$batch_dir"/groups/*.ids; do
-    [ -e "$ids" ] || continue
+  while IFS= read -r base; do         # <family>.<provider>.<stop mode>
+    [ -n "$base" ] || continue
     [ -n "$WAITING_MSG" ] && break
-    base=$(basename "$ids" .ids)      # <family>.<provider>
-    fam=${base%.*} prov=${base#*.}
-    tick_group "$fam" "$prov" "$ids"
-  done
+    ids="$batch_dir/groups/$base.ids"
+    [ -e "$ids" ] || continue
+    fam=${base%%.*} rest=${base#*.}
+    prov=${rest%%.*} mode=${rest#*.}
+    tick_group "$fam" "$prov" "$mode" "$ids"
+  done < "$batch_dir/groups/order.txt"
 fi
 
 # 7. Stop the monitor, then the capture proxies (SIGTERM so the close path runs).

@@ -12,6 +12,7 @@ import pytest
 from evallab import task_admission as admission
 from evallab.task_admission import (
     AdmissionError,
+    BatteryOutcome,
     CheatOutcome,
     ControlOutcome,
     MutationOutcome,
@@ -40,7 +41,29 @@ def _ctx_kwargs(tmp_path: Path, task: Path) -> dict:
         "repo_src": tmp_path,
         "records_dir": tmp_path / "records",
         "by": "Test Operator",
+        "battery": _battery(),
     }
+
+
+def _battery(
+    verdict: str = "clean", *, fake_reward: float = 0.0, control_reward: float = 1.0
+) -> Callable[..., BatteryOutcome]:
+    """A deterministic battery seam: every fake rejected, every control accepted."""
+
+    def run(**kwargs) -> BatteryOutcome:
+        return BatteryOutcome(
+            report_verdict=verdict,
+            verdict_reason=f"{verdict} in test",
+            probes=[
+                ("empty-implementation", "fake", "/testbed/src/fix.py", fake_reward, "/p/f"),
+                ("renamed-locals", "control", "/testbed/src/fix.py", control_reward, "/p/c"),
+            ],
+            run_dir=Path("/jobs/battery"),
+            report_path=Path("/jobs/battery/battery-report.json"),
+            command=["evallab", "hack", "battery"],
+        )
+
+    return run
 
 
 def _pass_scan(task: Path) -> ScanOutcome:
@@ -96,9 +119,7 @@ def _mutation(
                 "unscored": 0,
             },
             survivors=survivors,
-            survivor_patches=[
-                f"/jobs/mutation/inputs/{mid}/{mid}.patch" for mid in survivors
-            ],
+            survivor_patches=[f"/jobs/mutation/inputs/{mid}/{mid}.patch" for mid in survivors],
             run_dir=Path("/jobs/mutation"),
             report_path=Path("/jobs/mutation/mutation-report.json"),
             targets=["/testbed/src/fix.py"],
@@ -130,7 +151,7 @@ def test_admit_all_pass_writes_digest_bound_record(tmp_path: Path) -> None:
     assert result.record.verdict == "admitted"
     assert result.record.failing_steps == []
     assert result.record.failed_attacks == []
-    assert len(result.record.steps) == 18  # scan + oracle + nop + 14 attacks + mutation
+    assert len(result.record.steps) == 19  # scan + oracle + nop + 14 attacks + battery + mutation
     assert result.record.steps[-1].name == "mutation"
     assert result.record.steps[-1].status == "pass"
     assert result.record_path.name == admission.record_filename(result.record.package_digest)
@@ -170,7 +191,7 @@ def test_reject_stops_at_first_failure(tmp_path: Path) -> None:
     # Early stop: nop and the ladder never ran.
     assert calls == ["oracle"]
     assert result.record.skipped_steps[0] == "nop"
-    assert len(result.record.skipped_steps) == 16
+    assert len(result.record.skipped_steps) == 17
 
 
 def test_reject_names_cracked_attack(tmp_path: Path) -> None:
@@ -259,6 +280,7 @@ def test_step_list_is_data_driven(tmp_path: Path) -> None:
     """A new step kind lands as one registry entry plus one StepDef."""
     assert "mutation" in admission.STEP_RUNNERS
     assert admission.default_steps()[-1] == StepDef(name="mutation", kind="mutation")
+    assert admission.default_steps()[-2] == StepDef(name="battery", kind="battery")
     task = _task_dir(tmp_path)
     seen: list[str] = []
 
@@ -310,8 +332,8 @@ def test_missing_task_toml_raises_before_record(tmp_path: Path) -> None:
 def test_plan_lists_every_step_without_running(tmp_path: Path) -> None:
     plan = admission.plan_admission()
     assert [entry["name"] for entry in plan[:3]] == ["static-scan", "oracle", "nop"]
-    assert plan[-1]["name"] == "mutation"
-    assert len(plan) == 18
+    assert plan[-1]["name"] == "mutation" and plan[-2]["name"] == "battery"
+    assert len(plan) == 19
     assert all(entry["command"] for entry in plan)
 
 
@@ -362,6 +384,7 @@ def test_variant_status_updated_for_lineage_variant(tmp_path: Path) -> None:
         control=control,
         cheat=_cheat(0.0),
         mutation=_mutation(),
+        battery=_battery(),
     )
     assert result.record.verdict == "admitted"
     assert result.variant_status_updated is True
@@ -469,6 +492,7 @@ def test_final_status_collision_skips_update(tmp_path: Path) -> None:
         "scan": _pass_scan,
         "control": control,
         "mutation": _mutation(),
+        "battery": _battery(),
     }
     first = admission.admit_task(package, cheat=_cheat(0.0), **kwargs)
     assert first.record.verdict == "admitted"
@@ -638,9 +662,14 @@ def test_oracle_reference_step_plants_and_grades(tmp_path: Path) -> None:
         seen["mutation_targets"] = kwargs["targets"]
         return _mutation()(**kwargs)
 
+    def battery(**kwargs: object) -> BatteryOutcome:
+        seen["battery_package"] = kwargs["package"]
+        seen["battery_targets"] = kwargs["targets"]
+        return _battery()(**kwargs)
+
     result = admission.admit_task(
         task,
-        **_ctx_kwargs(tmp_path, task),
+        **(_ctx_kwargs(tmp_path, task) | {"battery": battery}),
         steps=[step for step in admission.default_steps() if step.kind != "cheat"],
         scan=_pass_scan,
         control=control,
@@ -652,8 +681,9 @@ def test_oracle_reference_step_plants_and_grades(tmp_path: Path) -> None:
     assert "patch=sha256:" + "f" * 64 in result.record.steps[1].reference
     # The mutation step runs against the same staged package the oracle used,
     # targeting the source files the reference patch changes as container paths.
-    assert seen["mutation_package"] == seen["staged"]
+    assert seen["mutation_package"] == seen["staged"] == seen["battery_package"]
     assert seen["mutation_targets"] == ["/testbed/numpyro/distributions/batch_util.py"]
+    assert seen["battery_targets"] == seen["mutation_targets"]
     assert result.record.steps[-1].name == "mutation"
     assert result.record.steps[-1].status == "pass"
     assert result.record.verdict == "admitted"
@@ -705,6 +735,41 @@ def _all_pass_kwargs(tmp_path: Path) -> dict:
         )
 
     return {"scan": _pass_scan, "control": control, "cheat": _cheat(0.0)}
+
+
+@pytest.mark.parametrize(
+    ("battery", "verdict", "last_step", "mutation_ran"),
+    [
+        # A fake does no work by construction: full reward is objective proof.
+        (_battery("fake_rewarded", fake_reward=1.0), "rejected", "battery", False),
+        # A rejected meaning-preserving rewrite is a hypothesis for a human.
+        (_battery("control_rejected", control_reward=0.0), "needs_review", "battery", False),
+        # No Python function to rewrite: not applicable, the gate continues.
+        (_battery("no_probes"), "admitted", "mutation", True),
+        (_battery("unscored"), "not_admitted", "battery", False),
+    ],
+)
+def test_battery_verdicts_map_to_gate_outcomes(
+    tmp_path: Path, battery, verdict: str, last_step: str, mutation_ran: bool
+) -> None:
+    task = _task_dir(tmp_path)
+    calls: list[str] = []
+
+    def mutation(**kwargs) -> MutationOutcome:
+        calls.append("mutation")
+        return _mutation()(**kwargs)
+
+    result = admission.admit_task(
+        task,
+        **(_ctx_kwargs(tmp_path, task) | {"battery": battery}),
+        **_all_pass_kwargs(tmp_path),
+        mutation=mutation,
+    )
+    assert result.record.verdict == verdict
+    assert result.record.steps[-1].name == last_step
+    assert bool(calls) is mutation_ran
+    if verdict == "rejected":
+        assert "/p/f" in result.record.steps[-1].detail
 
 
 def test_mutation_survivors_route_to_review(tmp_path: Path) -> None:
@@ -797,7 +862,7 @@ def test_skip_mutation_records_the_skip(tmp_path: Path) -> None:
     assert [row.name for row in result.record.steps][-1] != "mutation"
 
 
-def test_mutation_without_targets_blocks_admission(tmp_path: Path) -> None:
+def test_audits_without_targets_block_admission(tmp_path: Path) -> None:
     """Shipped solve.sh plus no declared artifacts: no probe possible, no admission."""
     task = tmp_path / "bare-pkg"
     task.mkdir()
@@ -810,14 +875,18 @@ def test_mutation_without_targets_blocks_admission(tmp_path: Path) -> None:
         calls.append("mutation")
         return _mutation()(**kwargs)
 
+    def battery_spy(**kwargs) -> BatteryOutcome:
+        calls.append("battery")
+        return _battery()(**kwargs)
+
     result = admission.admit_task(
         task,
-        **_ctx_kwargs(tmp_path, task),
+        **(_ctx_kwargs(tmp_path, task) | {"battery": battery_spy}),
         **_all_pass_kwargs(tmp_path),
         mutation=spy,
     )
     assert result.record.verdict == "not_admitted"
-    assert result.record.steps[-1].name == "mutation"
+    assert result.record.steps[-1].name == "battery"
     assert result.record.steps[-1].status == "infra"
     assert calls == []  # no targets, no Docker burned
 
@@ -864,6 +933,7 @@ def test_needs_review_leaves_lineage_untouched(tmp_path: Path) -> None:
         by="Test Operator",
         **_all_pass_kwargs(tmp_path),
         mutation=_mutation(survived=1, killed=5, score=0.83),
+        battery=_battery(),
     )
     assert result.record.verdict == "needs_review"
     assert result.variant_status_updated is False

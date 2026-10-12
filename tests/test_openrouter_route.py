@@ -1,8 +1,10 @@
 """Focused behavioral tests for the OpenRouter Terminus routes.
 
-Covers the consumer-visible boundaries of HAR-104's route table
-(``openrouter-metered/xiaomi/mimo-v2.6-flash`` and
-``openrouter-metered/openai/gpt-oss-120b``):
+Covers the consumer-visible boundaries of the OpenRouter route table
+(``openrouter-metered/xiaomi/mimo-v2.6-flash``,
+``openrouter-metered/openai/gpt-oss-120b``,
+``openrouter-metered/qwen/qwen3.6-35b-a3b`` and
+``openrouter-metered/qwen/qwen3.5-9b``):
 
 - Selector grammar: exactly the table's selectors are accepted, anything else
   fails closed (near-misses included).
@@ -61,6 +63,8 @@ MIMO = OPENROUTER_ROUTES["xiaomi/mimo-v2.6-flash"]
 GPT_OSS = OPENROUTER_ROUTES["openai/gpt-oss-120b"]
 DEEPSEEK = OPENROUTER_ROUTES["deepseek/deepseek-v4.1-flash"]
 GLM = OPENROUTER_ROUTES["z-ai/glm-5.3-flash"]
+QWEN36 = OPENROUTER_ROUTES["qwen/qwen3.6-35b-a3b"]
+QWEN35 = OPENROUTER_ROUTES["qwen/qwen3.5-9b"]
 
 
 def _proxy_module() -> Any:
@@ -84,6 +88,8 @@ def _proxy_module() -> Any:
         ("openrouter-metered/openai/gpt-oss-120b", "openai/gpt-oss-120b"),
         ("openrouter-metered/deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4.1-flash"),
         ("openrouter-metered/z-ai/glm-5.3-flash", "z-ai/glm-5.3-flash"),
+        ("openrouter-metered/qwen/qwen3.6-35b-a3b", "qwen/qwen3.6-35b-a3b"),
+        ("openrouter-metered/qwen/qwen3.5-9b", "qwen/qwen3.5-9b"),
     ],
 )
 def test_parse_openrouter_accepts_exact_selectors(selector: str, native: str) -> None:
@@ -101,6 +107,9 @@ def test_parse_openrouter_accepts_exact_selectors(selector: str, native: str) ->
         "openrouter-metered/xiaomi/mimo-v2.6-pro",
         "openrouter-metered/openai/gpt-oss-120b:free",
         "openrouter-metered/openai/gpt-oss-20b",
+        "openrouter-metered/qwen/qwen3.6-35b-a3b:deepinfra",
+        "openrouter-metered/qwen/qwen3.5-9b:free",
+        "openrouter-metered/qwen/qwen3.5-8b",
         "openrouter-metered/deepinfra/bf16",
         "openrouter-metered/",
         "openrouter-metered",
@@ -332,6 +341,18 @@ def _post(
             {"order": ["z-ai/fp8"], "allow_fallbacks": False},
             {"effort": "medium"},
             (150_000, 500_000),
+        ),
+        (
+            QWEN36,
+            {"order": ["deepinfra/fp8"], "allow_fallbacks": False},
+            {"enabled": True},
+            (100_000, 950_000),
+        ),
+        (
+            QWEN35,
+            {"order": ["deepinfra/bf16"], "allow_fallbacks": False},
+            {"enabled": True},
+            (100_000, 150_000),
         ),
     ],
 )
@@ -576,6 +597,8 @@ def openrouter_transport(monkeypatch: pytest.MonkeyPatch, terminus_module: Any) 
         (GPT_OSS, 131_072, 117_964, 0.037e-6, 0.17e-6),
         (DEEPSEEK, 1_048_576, 393_216, 0.15e-6, 0.60e-6),
         (GLM, 1_048_576, 131_072, 0.15e-6, 0.50e-6),
+        (QWEN36, 262_144, 65_536, 0.10e-6, 0.95e-6),
+        (QWEN35, 262_144, 81_920, 0.10e-6, 0.15e-6),
     ],
 )
 def test_adapter_binds_openrouter_context_prices_and_capability(
@@ -678,6 +701,12 @@ def test_runner_accepted_returned_models_for_openrouter() -> None:
     gpt_oss = runner_module._accepted_returned_models(GPT_OSS.selector)
     assert "openai/gpt-oss-120b" in gpt_oss
     assert "xiaomi/mimo-v2.6-flash" not in gpt_oss
+    qwen36 = runner_module._accepted_returned_models(QWEN36.selector)
+    assert "qwen/qwen3.6-35b-a3b" in qwen36
+    assert "qwen/qwen3.5-9b" not in qwen36
+    qwen35 = runner_module._accepted_returned_models(QWEN35.selector)
+    assert "qwen/qwen3.5-9b" in qwen35
+    assert "qwen/qwen3.6-35b-a3b" not in qwen35
 
 
 def test_runner_reads_openrouter_ledger(

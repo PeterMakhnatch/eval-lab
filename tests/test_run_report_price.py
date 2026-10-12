@@ -276,6 +276,20 @@ def test_model_matching_is_exact_after_prefix_normalization() -> None:
     )
 
 
+def test_qwen_selector_source_decides_which_price_applies() -> None:
+    """The stripped ``qwen/`` form collides across routes; the full id wins."""
+    openrouter_price = lookup_price("openrouter-metered/qwen/qwen3.6-35b-a3b")
+    assert openrouter_price is not None
+    assert openrouter_price.input_usd_per_mtok == 0.10
+    assert openrouter_price.output_usd_per_mtok == 0.95
+    tinker_price = lookup_price("tinker/Qwen/Qwen3.6-35B-A3B")
+    assert tinker_price is not None
+    assert tinker_price.input_usd_per_mtok == 0.45
+    assert tinker_price.output_usd_per_mtok == 1.335
+    assert lookup_price("openrouter-metered/qwen/qwen3.5-9b") is not None
+    assert lookup_price("openrouter-metered/qwen/qwen3.5-9b").input_usd_per_mtok == 0.10  # type: ignore[union-attr]
+
+
 def test_route_entries_carry_october_verification_date() -> None:
     """Refreshed 2026-10-12 entries pin their own retrieval date."""
     for raw, cached in (
@@ -283,6 +297,8 @@ def test_route_entries_carry_october_verification_date() -> None:
         ("openrouter-metered/openai/gpt-oss-120b", 0.037),
         ("openrouter-metered/deepseek/deepseek-v4.1-flash", 0.003),
         ("openrouter-metered/z-ai/glm-5.3-flash", 0.03),
+        ("openrouter-metered/qwen/qwen3.6-35b-a3b", 0.10),
+        ("openrouter-metered/qwen/qwen3.5-9b", 0.10),
         ("tinker/Qwen/Qwen3.6-35B-A3B", 0.09),
         ("tinker/Qwen/Qwen3.8-27B", 0.1395),
         ("tinker/Qwen/Qwen3.5-9B", 0.06),

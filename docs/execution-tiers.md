@@ -751,8 +751,28 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   1M cache read, $0.50 per 1M output (verified 2026-10-12; status 0, 100%
   30-minute uptime) — the same list prices as the direct Z.ai OpenAPI
   route. Context is 1 048 576 tokens with at most 131 072 completion
-  tokens. All four OpenRouter models live in one table, `OPENROUTER_ROUTES` in
-  `src/evallab/execution_contracts.py`, mirrored literally in the proxy.
+  tokens.
+
+- `openrouter-metered/qwen/qwen3.6-35b-a3b` — Qwen3.6-35B-A3B through the
+  same OpenRouter route, pinned to endpoint `deepinfra/fp8`
+  (`provider {"order": ["deepinfra/fp8"], "allow_fallbacks": false}`) with
+  `reasoning {"enabled": true}` (thinking on, matching the Tinker route's
+  thinking-on behavior; verified live 2026-10-12 with reasoning present).
+  Prices: $0.10 per 1M input, $0.10 per 1M cache read, $0.95 per 1M output
+  (verified 2026-10-12; `supports_implicit_caching=false`). Context is
+  262 144 tokens with at most 65 536 completion tokens.
+
+- `openrouter-metered/qwen/qwen3.5-9b` — Qwen3.5-9B through the same
+  OpenRouter route, pinned to endpoint `deepinfra/bf16`
+  (`provider {"order": ["deepinfra/bf16"], "allow_fallbacks": false}`) with
+  `reasoning {"enabled": true}` (thinking on, matching the Tinker route's
+  thinking-on behavior; verified live 2026-10-12 with reasoning present).
+  Prices: $0.10 per 1M input, $0.15 per 1M output (verified 2026-10-12;
+  the endpoint publishes no cache rate, so cached tokens settle at the
+  full input rate). Context is 262 144 tokens with at most
+  81 920 completion tokens. All six OpenRouter models live in one table,
+  `OPENROUTER_ROUTES` in `src/evallab/execution_contracts.py`, mirrored
+  literally in the proxy.
 
 The MiMo server lives in `tools/modal-mimo-serve/` (see its README for the
 deploy, smoke and stop commands). Daytona Tier 1/2 sandboxes cannot reach

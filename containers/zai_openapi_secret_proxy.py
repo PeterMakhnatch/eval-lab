@@ -167,6 +167,28 @@ OPENROUTER_ROUTES = {
         "cached": 30_000,
         "context_input_tokens": 1_048_576,
     },
+    # verified 2026-10-12: $0.10 / $0.10 cache / $0.95 per 1M;
+    # hybrid-thinking Qwen model, thinking pinned on (reasoning enabled),
+    # matching the Tinker route.
+    "qwen/qwen3.6-35b-a3b": {
+        "endpoint": "deepinfra/fp8",
+        "provider": {"order": ["deepinfra/fp8"], "allow_fallbacks": False},
+        "reasoning": {"enabled": True},
+        "prices": (100_000, 950_000),
+        "cached": 100_000,
+        "context_input_tokens": 262_144,
+    },
+    # verified 2026-10-12: $0.10 / $0.15 per 1M (no published cache rate);
+    # hybrid-thinking Qwen model, thinking pinned on (reasoning enabled),
+    # matching the Tinker route.
+    "qwen/qwen3.5-9b": {
+        "endpoint": "deepinfra/bf16",
+        "provider": {"order": ["deepinfra/bf16"], "allow_fallbacks": False},
+        "reasoning": {"enabled": True},
+        "prices": (100_000, 150_000),
+        "cached": None,
+        "context_input_tokens": 262_144,
+    },
 }
 
 # Providers whose forwarding rewrites caller request fields: their ledger

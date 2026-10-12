@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:223b3dbf8aa00ea81194ad8bdf2d786b6d5d8b6662660e7172e1b9cf7f1dbaf6
+    digest: sha256:80278de9f7f78231059c91ffcb0829d158199fc9e735429a9392558d87c40a79
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -79,7 +79,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:0ebb74951093c898cfcd8275d2d4d4f140b39f77a6d0804f38e32ebf9c89cbef
+    digest: sha256:7568d85dcce9bc3d956e6be4319ccb6085cf72b137d960aa1d7977f66374e3ca
   - path: docs/lora-sft-runbook.md
     digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
   - path: docs/mimo-task-catalog.md

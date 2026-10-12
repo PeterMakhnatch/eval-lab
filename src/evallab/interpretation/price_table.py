@@ -59,6 +59,8 @@ _OPENROUTER_MIMO_URL = "https://openrouter.ai/api/v1/models/xiaomi/mimo-v2.6-fla
 _OPENROUTER_GPT_OSS_URL = "https://openrouter.ai/api/v1/models/openai/gpt-oss-120b/endpoints"
 _OPENROUTER_DEEPSEEK_URL = "https://openrouter.ai/api/v1/models/deepseek/deepseek-v4.1-flash/endpoints"
 _OPENROUTER_GLM_URL = "https://openrouter.ai/api/v1/models/z-ai/glm-5.3-flash/endpoints"
+_OPENROUTER_QWEN36_URL = "https://openrouter.ai/api/v1/models/qwen/qwen3.6-35b-a3b/endpoints"
+_OPENROUTER_QWEN35_URL = "https://openrouter.ai/api/v1/models/qwen/qwen3.5-9b/endpoints"
 _TINKER_MODELS_URL = "https://tinker-docs.thinkingmachines.ai/tinker/models.json"
 
 PRICE_TABLE: tuple[ModelPrice, ...] = (
@@ -144,6 +146,27 @@ PRICE_TABLE: tuple[ModelPrice, ...] = (
         source_url=_OPENROUTER_GLM_URL,
         retrieved_on="2026-10-12",
     ),
+    # OpenRouter Qwen pins. Full-selector keys: the stripped ``qwen/`` form
+    # below belongs to the Tinker list prices, so these match the exact
+    # metered selector first (see lookup_price).
+    ModelPrice(
+        key="openrouter-metered/qwen/qwen3.6-35b-a3b",
+        input_usd_per_mtok=0.10,
+        cached_input_usd_per_mtok=0.10,
+        output_usd_per_mtok=0.95,
+        source_url=_OPENROUTER_QWEN36_URL,
+        retrieved_on="2026-10-12",
+    ),
+    # The deepinfra/bf16 endpoint publishes no cache rate, so cached input
+    # estimates conservatively at the full input rate.
+    ModelPrice(
+        key="openrouter-metered/qwen/qwen3.5-9b",
+        input_usd_per_mtok=0.10,
+        cached_input_usd_per_mtok=0.10,
+        output_usd_per_mtok=0.15,
+        source_url=_OPENROUTER_QWEN35_URL,
+        retrieved_on="2026-10-12",
+    ),
     # Tinker inference list prices (prefill / cached prefill / sample),
     # verified 2026-10-12. Settlement meters Tinker uncached; these cached
     # rates serve reporting only.
@@ -212,7 +235,18 @@ def normalize_model_id(raw: str | None) -> str | None:
 
 
 def lookup_price(raw: str | None) -> ModelPrice | None:
-    """Return the pinned price for a trial model id, or None when unknown."""
+    """Return the pinned price for a trial model id, or None when unknown.
+
+    The full normalized id matches first, then the prefix-stripped form.
+    Full-id keys exist only where the stripped form would collide across
+    routes: ``openrouter-metered/qwen/...`` (OpenRouter list prices) versus
+    ``tinker/Qwen/...`` (Tinker list prices), which both strip to ``qwen/``.
+    """
+    if raw is None:
+        return None
+    full = raw.strip().lower()
+    if full and full in _BY_KEY:
+        return _BY_KEY[full]
     key = normalize_model_id(raw)
     return _BY_KEY.get(key) if key else None
 

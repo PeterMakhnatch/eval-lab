@@ -101,6 +101,7 @@ _SUBSCRIPTION_ENVIRONMENT_KEYS: frozenset[str] = frozenset(
         "AGY_FORCE_AUTH_JSON",
         "EVALLAB_PROXY_LIVE_DIR",
         "EVALLAB_FILE_ACCESS",
+        "EVALLAB_FILE_ACCESS_DISCOVERY",
         "EVALLAB_FILE_ACCESS_PATHS",
         "EVALLAB_STATE_JOURNAL",
         "CLAUDE_FORCE_OAUTH",
@@ -926,6 +927,41 @@ OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
             context_input_tokens=1_048_576,
             max_completion_tokens=131_072,
             returned_models=frozenset({"z-ai/glm-5.3-flash"}),
+        ),
+        # qwen3.6-35b-a3b on DeepInfra's fp8 endpoint (verified 2026-10-12):
+        # $0.10 in / $0.10 cache read / $0.95 out per 1M, 262,144-token
+        # context, 65,536-token completions. Hybrid-thinking Qwen model;
+        # thinking pinned on, matching the Tinker route's thinking-on
+        # behavior (ATIF reasoning_content present; verified live 2026-10-12).
+        "qwen/qwen3.6-35b-a3b": OpenRouterRoute(
+            native_model="qwen/qwen3.6-35b-a3b",
+            endpoint="deepinfra/fp8",
+            provider_pin=MappingProxyType({"order": ("deepinfra/fp8",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"enabled": True}),
+            input_cost_micros_per_million=100_000,
+            output_cost_micros_per_million=950_000,
+            cached_input_cost_micros_per_million=100_000,
+            context_input_tokens=262_144,
+            max_completion_tokens=65_536,
+            returned_models=frozenset({"qwen/qwen3.6-35b-a3b"}),
+        ),
+        # qwen3.5-9b on DeepInfra's bf16 endpoint (verified 2026-10-12):
+        # $0.10 in / $0.15 out per 1M, 262,144-token context, 81,920-token
+        # completions; the endpoint publishes no cache rate. Hybrid-thinking
+        # Qwen model; thinking pinned on, matching the Tinker route's
+        # thinking-on behavior (ATIF reasoning_content present; verified
+        # live 2026-10-12).
+        "qwen/qwen3.5-9b": OpenRouterRoute(
+            native_model="qwen/qwen3.5-9b",
+            endpoint="deepinfra/bf16",
+            provider_pin=MappingProxyType({"order": ("deepinfra/bf16",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"enabled": True}),
+            input_cost_micros_per_million=100_000,
+            output_cost_micros_per_million=150_000,
+            cached_input_cost_micros_per_million=None,
+            context_input_tokens=262_144,
+            max_completion_tokens=81_920,
+            returned_models=frozenset({"qwen/qwen3.5-9b"}),
         ),
     }
 )

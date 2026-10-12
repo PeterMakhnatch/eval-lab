@@ -8,15 +8,16 @@ audience:
 # Task admission gate (`evallab tasks admit`)
 
 One fail-closed gate over a task package directory: offline static scan,
-$0 oracle/nop controls, then the full 14-attack cheat ladder, then a
-verifier-mutation probe — in that order, stopping at the first
-non-passing step, always writing a digest-bound admission record
-(`evallab.task_admission/v1`).
+$0 oracle/nop controls, then the full 14-attack cheat ladder, then the
+hollow-program battery, then a coverage-guided verifier-mutation probe —
+in that order, stopping at the first non-passing step, always writing a
+digest-bound admission record (`evallab.task_admission/v1`, gate
+`tasks.admit/v3`).
 
 ## Usage
 
 ```bash
-# print the 18-step plan without running Docker
+# print the 19-step plan without running Docker
 uv run evallab tasks admit --task <package> --dry-run
 # run the gate ($0, local Docker, n-concurrent 1)
 uv run evallab tasks admit --task <package> --job-prefix admit --json
@@ -44,15 +45,41 @@ against records you do not want to flip.
 | 2 | `oracle` (stability-job path, repeat 3) | every trial reward is exactly 1.0 — via the shipped `solution/solve.sh`, or via the HAR-191 reference (see below); `unproven` when neither exists |
 | 3 | `nop` (stability-job path, repeat 3) | every trial reward is exactly 0.0 |
 | 4–17 | `cheat:<attack>` (one single-trial cheat job per attack, full 14-attack ladder) | reward < 1.0 (the lane rule: cracked iff reward >= 1.0) |
-| 18 | `mutation` (`hack mutate` audit, `--max-mutants` 12) | every scored mutant is killed (see below) |
+| 18 | `battery` (`hack battery`: 5 hollow fakes + 3 rewrite controls per changed Python file) | every fake scores 0 and every rewrite control scores 1 (see below) |
+| 19 | `mutation` (`hack mutate` audit, `--max-mutants` 12) | every scored mutant is killed (see below) |
 
 Each executed step records command, job dir, reward(s), duration, and
-(for oracle/mutation) the reference provenance. Verdicts: `admitted`
-(all pass), `rejected` (a step proved the task bad), `needs_review` (a
-mutant of the fix kept reward — a survivor hypothesis for a human, never
+(for oracle/battery/mutation) the reference provenance. Verdicts: `admitted`
+(all pass), `rejected` (a step proved the task bad, including a hollow
+fake that kept reward), `needs_review` (a mutant of the fix kept reward,
+or a meaning-preserving rewrite lost it — a hypothesis for a human, never
 an auto-flip), `not_admitted` (infrastructure broke before proof either
 way — fail closed), `unproven` (no oracle reference covers the task, so
 solvability cannot be shown — distinct from infra).
+
+## Hollow-program battery (Bohrin battery 2)
+
+Ported from [Bohrin](https://github.com/prabhu-gopal/bohrin) @ `f030425`
+(Apache-2.0) into `src/evallab/verifier_battery.py`. On the same staged
+package and targets as the mutation step, after the reference solution
+runs, every function the reference changed in each target Python file is
+rewritten at once:
+
+* five **fakes** that do no work by construction: `pass`, a constant of
+  the return type, `raise NotImplementedError`, `raise SystemExit(0)`, an
+  object equal to everything. Any fake with reward > 0 → step `fail`, gate
+  `rejected` (the hidden tests never need the fixed functions to work).
+* four **known-good controls** that keep the reference's meaning: the
+  oracle itself (the capture run), comments dropped, `ast.unparse`
+  re-layout, and renamed locals in the changed functions (skipped for
+  functions with nested scopes, `eval`/`locals`, or `global`). A control
+  that loses reward → step `review`: the verifier is stricter than the
+  task's meaning or reads source text.
+
+No changed Python function in the targets → `no_probes`, step `pass`
+(not applicable; recorded in the detail). Receipts:
+`battery-report.{json,md}` and `inputs/<id>/<id>.patch` under the
+battery run dir.
 
 ## Oracle reference (HAR-191 path, no new store)
 
@@ -140,6 +167,14 @@ Targets: with a HAR-191 reference, the source files the reference patch
 changes, as absolute container paths (workdir + `+++ b/<path>`), so
 mutants are edits of the fix. With a shipped `solve.sh`, the package's
 declared artifacts (the `hack mutate` default).
+
+Coverage: the audit is coverage-guided (see `docs/task-quality.md`): one
+extra instrumented reference run records which lines of the targets the
+hidden tests execute, mutants on other lines are not run, and a
+partial-fix probe (the reference fix minus the code the tests never run)
+goes first. The step detail names the coverage mode and any reference-fix
+lines the hidden tests never run; a surviving partial-fix probe routes to
+review like any survivor.
 
 Verdict mapping (`survived + partial > 0` routes to review, never rejects):
 

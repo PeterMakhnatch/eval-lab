@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
+from evallab.verifier_coverage import (
+    SCHEMA_TRACE,
+    executed_lines,
+    load_trace,
+    targets_document,
+    tracer_source,
+)
 from evallab.verifier_mutation import (
     CAPTURE_ROOT,
     blank_script,
@@ -158,12 +169,27 @@ def _package(root: Path) -> Path:
 
 
 class _Recorded:
-    """Writes the trial layout Harbor leaves behind and returns a scripted reward."""
+    """Writes the trial layout Harbor leaves behind and returns a scripted reward.
 
-    def __init__(self, root: Path, rewards: dict[str, float]) -> None:
+    ``coverage`` is the list of tracer records the instrumented verifier writes.
+    """
+
+    def __init__(
+        self,
+        root: Path,
+        rewards: dict[str, float],
+        *,
+        oracle: str = _PLAN,
+        base: str | None = None,
+        coverage: list[dict] | None = None,
+    ) -> None:
         self.root = root
         self.rewards = rewards
+        self.oracle = oracle
+        self.base = _PLAN.replace("min(", "max(") if base is None else base
+        self.coverage = coverage or []
         self.seen: list[str] = []
+        self.packages: list[Path] = []
 
     def __call__(self, matrix, repo_root: Path) -> list[dict]:
         results = []
@@ -171,14 +197,20 @@ class _Recorded:
             script = (repo_root / run.solution).read_text()
             role = script.splitlines()[1].removeprefix("# envcheck: ").split()[0]
             self.seen.append(role)
+            self.packages.append(Path(matrix.task))
             trial = repo_root / "runs" / run.name / "trial__1"
             capture = trial / "artifacts" / CAPTURE_ROOT.lstrip("/") / "app"
             if role == "capture-oracle":
                 capture.mkdir(parents=True)
-                (capture / "plan.py").write_text(_PLAN)
+                (capture / "plan.py").write_text(self.oracle)
             elif role == "capture-base":
                 capture.mkdir(parents=True)
-                (capture / "plan.py").write_text(_PLAN.replace("min(", "max("))
+                (capture / "plan.py").write_text(self.base)
+            elif role == "coverage":
+                records = trial / "verifier" / "envcheck-coverage"
+                records.mkdir(parents=True)
+                for index, record in enumerate(self.coverage):
+                    (records / f"{index}.json").write_text(json.dumps(record))
             trial.mkdir(parents=True, exist_ok=True)
             reward = self.rewards.get(role, self.rewards.get("mutant", 0.0))
             results.append({"name": run.name, "status": "ok", "rewards": [reward], "error": None})
@@ -261,3 +293,140 @@ def test_audit_refuses_packages_it_cannot_mutate(tmp_path: Path) -> None:
     (package / "solution" / "solve.sh").unlink()
     with pytest.raises(ValueError, match="no reference solution"):
         run_mutation_audit(package, repo_root=tmp_path, targets=["/app/plan.py"])
+
+
+# --------------------------------------------------------------------------- #
+# Coverage-guided mutation
+# --------------------------------------------------------------------------- #
+
+# The reference fix rewrites line 2 (tested) and adds ``merge`` (never called
+# by the tests): the shape of a half-fix a grader cannot see.
+_BEFORE = """\
+def plan(legs, limit):
+    watermark = max(leg["wm"] for leg in legs)
+    return 1 if watermark > limit else 0
+"""
+_FIXED = '''\
+def plan(legs, limit):
+    watermark = min(leg["wm"] for leg in legs)
+    return 1 if watermark > limit else 0
+
+
+def merge(own, other):
+    """Union of aliases without our own id."""
+    return own | other - {0}
+'''
+
+
+def _record(source: str, lines: list[int], *, intact: bool = True) -> dict:
+    return {
+        "schema": SCHEMA_TRACE,
+        "mode": "sys.monitoring",
+        "intact": intact,
+        "files": [
+            {
+                "path": "/app/plan.py",
+                "sha256": hashlib.sha256(source.encode()).hexdigest(),
+                "lines": lines,
+            }
+        ],
+    }
+
+
+def test_reference_hunks_are_reverted_one_at_a_time() -> None:
+    mutants = generate_mutants("/app/plan.py", _FIXED.encode(), _BEFORE.encode())
+    reverts = {m.line: content for m, content in mutants if m.operator == "revert-hunk"}
+    # Reverting line 2 is the same bytes as the min -> max point mutant, so it is
+    # generated once; the added ``merge`` hunk is reverted on its own.
+    assert list(reverts) == [4]
+    assert reverts[4].decode() == _FIXED[: _FIXED.index("\n\n\ndef merge") + 1]
+    # Dropping one operand of the alias expression is a mutant of its own.
+    dropped = {m.replacement for m, _ in mutants if m.operator == "drop-operand"}
+    assert "(other)" in dropped
+
+
+def test_tracer_records_only_lines_the_process_ran(tmp_path: Path) -> None:
+    home, out = tmp_path / "home", tmp_path / "out"
+    home.mkdir()
+    target = tmp_path / "app" / "plan.py"
+    target.parent.mkdir()
+    target.write_text(_FIXED)
+    elsewhere = tmp_path / "copy" / "renamed.py"
+    elsewhere.parent.mkdir()
+    elsewhere.write_text(_FIXED)
+    (home / "envcheck_coverage.py").write_text(tracer_source(str(home), str(out)))
+    (home / "targets.json").write_text(targets_document({str(target): _FIXED.encode()}))
+    for mode in ("default", "settrace"):
+        env = dict(os.environ, ENVCHECK_COVERAGE_TRACER=mode)
+        code = (
+            f"import sys; sys.path.append({str(home)!r}); import envcheck_coverage, runpy; "
+            f"runpy.run_path({str(elsewhere)!r})['plan']([{{'wm': 3}}], 1)"
+        )
+        result = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, env=env, check=False
+        )
+        assert result.returncode == 0 and result.stdout == "" and result.stderr == ""
+        trial = tmp_path / mode
+        shutil.copytree(out, trial / "verifier" / "envcheck-coverage")
+        shutil.rmtree(out)
+        trace = load_trace([trial])
+        assert trace is not None and trace.intact
+        # The copy at another path is matched by content and filed under the target.
+        hits = executed_lines(trace, str(target), _FIXED.encode())
+        assert {2, 3} <= hits and 8 not in hits, (mode, hits)
+        assert executed_lines(trace, str(target), _BEFORE.encode()) == set()
+
+
+def test_coverage_skips_unexecuted_lines_and_probes_the_untested_fix(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    runner = _Recorded(
+        tmp_path,
+        {"capture-oracle": 1.0, "capture-base": 0.0, "coverage": 1.0, "blank": 0.0, "mutant": 1.0},
+        oracle=_FIXED,
+        base=_BEFORE,
+        # Lines 1, 2, 3, 6 ran on the fixed file; a baseline run on the original
+        # file (different digest) must not count.
+        coverage=[_record(_FIXED, [1, 2, 3, 6]), _record(_BEFORE, [1, 2, 3, 6, 8])],
+    )
+    report, run_dir = run_mutation_audit(
+        package, repo_root=tmp_path, execute=True, max_mutants=50, runner=runner
+    )
+    assert report.coverage == "guided"
+    (summary,) = report.files
+    assert summary.coverage == "executed" and summary.untested_fix_lines == [8]
+    assert summary.unexecuted > 0
+    probe, *rest = report.mutants
+    assert probe.operator == "partial-fix" and probe.executed is False
+    assert rest and all(m.executed and not 6 < m.line <= 8 for m in rest)
+    patch = (run_dir / "inputs" / probe.id / f"{probe.id}.patch").read_text()
+    assert "-def merge(own, other):" in patch and "-    watermark" not in patch
+    assert probe.id in report.survivors and report.verdict == "survivors_found"
+    # Only the coverage run grades the instrumented copy; mutants grade the package.
+    graded = dict(zip(runner.seen, runner.packages, strict=True))
+    assert graded["mutant"] == package.resolve() != graded["coverage"]
+    assert "envcheck coverage" in (graded["coverage"] / "tests" / "test.sh").read_text()
+    assert "envcheck" not in (package / "tests" / "test.sh").read_text()
+
+
+def test_untrusted_coverage_falls_back_to_every_line(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    runner = _Recorded(
+        tmp_path,
+        {"capture-oracle": 1.0, "capture-base": 0.0, "coverage": 1.0, "blank": 0.0, "mutant": 0.0},
+        oracle=_FIXED,
+        base=_BEFORE,
+        # The tracer lost its hook in the test process: lines may be missing.
+        coverage=[_record(_FIXED, [1, 2, 3, 6], intact=False)],
+    )
+    report, _ = run_mutation_audit(
+        package, repo_root=tmp_path, execute=True, max_mutants=50, runner=runner
+    )
+    assert report.coverage == "unavailable" and report.notes
+    assert any(m.line == 8 for m in report.mutants)
+    assert all(m.executed is None and m.operator != "partial-fix" for m in report.mutants)
+    assert report.verdict == "no_survivors"
+
+    disabled, _ = run_mutation_audit(
+        package, repo_root=tmp_path, execute=True, runner=runner, coverage=False
+    )
+    assert disabled.coverage == "disabled" and runner.seen.count("coverage") == 1

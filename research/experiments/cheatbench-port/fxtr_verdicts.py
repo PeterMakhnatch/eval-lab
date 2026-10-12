@@ -69,6 +69,12 @@ def main() -> None:
     if not rows:
         raise SystemExit(f"job {args.job_id} has no {args.judge} verdicts")
     args.out.write_text("".join(json.dumps(r) + "\n" for r in rows))
+    args.out.with_name(args.out.stem + ".header.json").write_text(json.dumps({
+        "tool": "cheatbench-port/fxtr_verdicts.py", "judge": args.judge,
+        "judge_model": JUDGE_MODELS.get(args.judge, args.judge),
+        "endpoint_host": "omp auth-gateway (subscription)",
+        "source": f"fxtr cheatbench-judges job {args.job_id}",
+    }, indent=1) + "\n")
     ok = sum("cheated" in r for r in rows)
     print(f"{args.judge}: {len(rows)} trials, {ok} valid, "
           f"{sum(bool(r.get('cheated')) for r in rows)} cheated -> {args.out}")

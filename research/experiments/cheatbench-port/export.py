@@ -339,14 +339,16 @@ def load_judge_maps(paths: list[Path]) -> tuple[dict[str, dict], list[dict]]:
         rows = analyzer.load_jsonl(path)
         header_p = path.with_name(path.stem + ".header.json")
         header = json.loads(header_p.read_text()) if header_p.is_file() else {}
-        name = path.stem.removeprefix("judge-")
+        name = analyzer.judge_name(path)
         for tid, row in rows.items():
             if not row.get("judge_error"):
                 verdicts.setdefault(tid, {})[name] = row
-        table.append({"name": header.get("judge", name),
-                      "model": header.get("judge_model"),
-                      "endpoint": header.get("endpoint_host"),
-                      "rubric_sha256": header.get("rubric_sha256")})
+        entry = {"name": header.get("judge", name),
+                 "model": header.get("judge_model"),
+                 "endpoint": header.get("endpoint_host"),
+                 "rubric_sha256": header.get("rubric_sha256")}
+        if entry not in table:
+            table.append(entry)
     return verdicts, table
 
 

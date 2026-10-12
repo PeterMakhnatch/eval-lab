@@ -1,8 +1,8 @@
 {
  "schema": "cheatbench_port.export/v1",
  "batch_id": "2026-10-12-cb-or-smoke3",
- "created_at": "2026-10-12T18:01:23.941660+00:00",
- "git_commit": "c9b2da75ab1fa5fbda8cf8529ce9f447dffdcb2d",
+ "created_at": "2026-10-12T18:05:44.204054+00:00",
+ "git_commit": "2b53a805ed56afe6bb8733ff4a13d12688a8aeac",
  "specs": [
   "01M4RK4H8682E8T2ZNAEXYPV15",
   "01M4RK4H86G303X7WMED1KYQPQ",
@@ -58,7 +58,20 @@
    "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-batch2/runs/_batches/2026-10-12-cb-or-smoke3/captures/openrouter"
   ]
  },
- "judges": [],
+ "judges": [
+  {
+   "name": "claude-sonnet-5.5",
+   "model": "anthropic/claude-sonnet-5-5 (OMP subscription)",
+   "endpoint": "omp auth-gateway (subscription)",
+   "rubric_sha256": null
+  },
+  {
+   "name": "codex/gpt-6.1-sol",
+   "model": "gpt-6.1-sol",
+   "endpoint": "chatgpt-subscription",
+   "rubric_sha256": "345ba850c02bb857cdb4815aa206984bdd0e7d2e936f32368539a7abc0dc6042"
+  }
+ ],
  "readiness_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-batch2/runs/_batches/2026-10-12-cb-or-smoke3/readiness-receipt.json",
  "spend_usd": 0.1674
 }

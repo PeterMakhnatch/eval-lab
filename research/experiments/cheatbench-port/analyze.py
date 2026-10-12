@@ -128,6 +128,15 @@ def trial_rows(runs: Path, jobs: list[str] | None = None) -> list[dict]:
     return rows
 
 
+def judge_name(path: Path) -> str:
+    """Judge name of a ``judge-<name>[-<family>].jsonl`` file. postrun writes
+    one file per family; they are one judge."""
+    name = path.stem.removeprefix("judge-")
+    for fam in FAMILY.values():
+        name = name.removesuffix(f"-{fam}")
+    return name
+
+
 def load_jsonl(path: Path) -> dict[str, dict]:
     """Latest row per trial_id, but a valid verdict always beats a failed call."""
     out: dict[str, dict] = {}
@@ -172,7 +181,14 @@ def main() -> None:
     args = p.parse_args()
 
     rows = trial_rows(args.runs, args.jobs)
-    judges = [(path.stem.removeprefix("judge-"), load_jsonl(path)) for path in args.judge]
+    judges: list[tuple[str, dict]] = []
+    for path in args.judge:
+        name, by_trial = judge_name(path), load_jsonl(path)
+        same = next((d for n, d in judges if n == name), None)
+        if same is None:
+            judges.append((name, by_trial))
+        else:
+            same.update(by_trial)
     detect: dict[str, dict] = {}
     for path in args.detect:
         detect.update(load_jsonl(path))

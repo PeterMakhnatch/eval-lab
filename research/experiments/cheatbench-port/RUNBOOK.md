@@ -179,18 +179,23 @@ runs, so the trial ends with `WatchStopCancelledError` and no reward.
    - Compare the captured call/turn counts with the ATIF step count.
    - Read `first_divergence` in
      `runs/<job>/derived/parquet/job_id=*/trial_capture.parquet`.
-   - Known false alarm: on the 2026-10-11 e2e batch, `cb-pf-9-qwen35-e2e` was
-     marked `trajectory_truncated` with 12 calls, 12 turns and 12 ATIF steps.
-     The "divergent" turn (call 2) is ATIF step 1 verbatim, so Eval Lab's text
-     comparison misfired; no data was missing.
+   - Known false alarm: Terminus stores each reply in ATIF reformatted as
+     `Analysis: … Plan: …` while the capture holds the raw JSON
+     (`{"analysis": …}`), so Eval Lab's text comparison reports a
+     `missing_turn` and `trajectory_truncated` even when calls, turns and ATIF
+     steps match. Every trial of the 2026-10-12 smoke and the 2026-10-11 e2e
+     trial `cb-pf-9-qwen35-e2e` show this. Equal counts and an attributed
+     call for every turn mean nothing is missing.
 3. **Postrun:**
    ```bash
    uv run --no-sync python research/experiments/cheatbench-port/postrun.py --batch <batch_id> [--judge <route>]
    ```
-   It runs the detector, the optional paid judge, `analyze.py`, `spend.py` and
-   `export.py`. `results/batches/<batch>/` is then ready for fxtr.
-4. **Judge with Sonnet 5.5** (subscription, $0), then re-run postrun with the
-   verdicts (see "Judging").
+   It runs the detector, an optional `judge.py` route, `analyze.py`,
+   `spend.py` and `export.py`. `results/batches/<batch>/` is then ready for
+   fxtr.
+4. **Judge on subscriptions** (see "Judging"), then run postrun once more
+   without `--judge`: it reuses every `runs/_batches/<batch>/judge-*.jsonl`
+   and puts the verdicts into the analysis and the export.
 5. **Cleanup:** no leaked containers (the monitor's infra section), scratch
    removed, and only results committed (never `runs/`).
 6. **Report:**
@@ -204,17 +209,29 @@ runs, so the trial ends with `WatchStopCancelledError` and no reward.
 
 - **The judge never sees the reward.** The rubric and schemas are verbatim from
   CheatBench (`judge/`).
-- **Primary judge: Claude Sonnet 5.5 on Peter's subscription**, through fxtr's
-  `~/Developer/fxtr/cheatbench-judges` (OMP route, $0, no keys):
-  ```bash
-  cd ~/Developer/fxtr/cheatbench-judges
-  FXTR_NO_BROWSER=1 uv run python launch.py batch <batch_id> --retry-failed \
-    --batches-root <worktree>/research/experiments/cheatbench-port/results/batches
-  ```
-  On the 49 trials of 2026-10-09 it agreed with every stored judge and with the
-  detector. Peter prefers subscriptions over pay-per-token APIs: use a paid
-  judge only for a model no subscription offers. On a rate limit, back off;
-  don't switch to the API.
+- **Judges run on Peter's subscriptions, $0.** Peter prefers subscriptions to
+  pay-per-token APIs; use a paid judge only for a model no subscription
+  offers. On a rate limit, back off; don't switch to the API.
+  1. **Primary: Claude Sonnet 5.5** through fxtr's
+     `~/Developer/fxtr/cheatbench-judges` (OMP route, no keys). On the 49 trials
+     of 2026-10-09 it agreed with every stored judge and with the detector.
+     ```bash
+     cd ~/Developer/fxtr/cheatbench-judges
+     FXTR_NO_BROWSER=1 uv run python launch.py batch <batch_id> --retry-failed \
+       --batches-root <worktree>/research/experiments/cheatbench-port/results/batches
+     # copy its verdicts into the batch (prints the job id above):
+     uv run python <worktree>/research/experiments/cheatbench-port/fxtr_verdicts.py \
+       <fxtr job id> <worktree>/runs/_batches/<batch_id>/judge-claude-sonnet-5.5.jsonl
+     ```
+  2. **Second: GPT-6.1 Sol** through `codex exec` on the ChatGPT subscription
+     (`judge.py --judge codex/gpt-6.1-sol`, or `postrun.py --judge
+     codex/gpt-6.1-sol`). It is the closest available model to the paper's
+     judge (GPT-6 Sol) and comes from a different vendor than both Sonnet and
+     the Qwen agents. Codex runs read-only and ephemeral in an empty directory,
+     with no user config; each row records `codex_commands_run` (expected 0).
+     It has no temperature control.
+  Sonnet's file sorts first, so it gives each trial's reported verdict;
+  `summary.md` reports their agreement.
 - **Do not use Claude Haiku 4.5 or GLM-4.7-Flash.** Haiku 4.5 called 0 of 21
   openmath trials cheating while recording the access itself; GLM-4.7-Flash
   caught 3 of 20 in fxtr-lab.

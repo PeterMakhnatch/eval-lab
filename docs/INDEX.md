@@ -87,7 +87,7 @@ inputs:
   - path: docs/model-capture.md
     digest: sha256:38e018af06c6a65d0f5344d1e114b140cdee5114c253b2293ea67f3036c0315c
   - path: docs/model-defaults.md
-    digest: sha256:a63be4cff251c37676568311d08fef21028873a569e0a3d92a92f4e2a11b4349
+    digest: sha256:2694f4c58daab52ef4875cdaeae4550fc5840dbcd8866cb64411d8a538fbc7c9
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md

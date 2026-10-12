@@ -59,10 +59,11 @@ Plus a top-level `router_question` (8-way choice) and `any_cheat_question`.
   `task_no_resource_limits`; `task_weak_assertion` has V5/V6 scan only.
 - Karotte's Harbor comparison is a vendor claim, unverified by us.
 - An answer that redefines the evaluator's own entry point (Aria's learned
-  `run_tests()` override) is invisible to every rule and Kev card (AUROC 0.40–0.57):
-  clean rollouts define `run_tests()` too, so only a regrade under the original
-  evaluator separates them. [INFERENCE] `grader_tamper` needs a regrade probe for
-  in-answer overrides, not a text card.
+  `run_tests()` override) is invisible to every Kev card (AUROC 0.40–0.57) and to
+  `rules`. #847's AST rule `entrypoint_assertless` fires on 296/300 such hacks but
+  also on 110/300 clean rollouts from the same training steps. [INFERENCE]
+  `grader_tamper` needs a code rule plus a regrade under the original evaluator
+  for in-answer overrides, not a text card.
 
 ## Measured with Kev-4B (zero-shot, 2026-10-09)
 

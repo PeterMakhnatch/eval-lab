@@ -146,10 +146,12 @@ What this says:
    learned.** OLMo's learned hacks put `os._exit(0)` or an always-true `__eq__` in the
    answer, and Kev catches nearly all of them; even unrelated cards fire there (answer_leak
    AUROC 0.72), so read olmo as an easy, blatant set. Aria's learned hack is invisible to
-   every detector: 216 of its 300 clean rollouts also define `run_tests()` (151 without an
-   assertion), so telling the hack apart needs knowing whether the solution is wrong.
-   [INFERENCE] A text monitor cannot separate that hack without checking the code against
-   tests; a regrade with the original evaluator can.
+   every Kev card and to `rules`. A code check sees more: #847's AST rule
+   `entrypoint_assertless` (`research/experiments/live-stop-thresholds`: the prompt's
+   entry point redefined with no assertion) fires on 296/300 of these hacks, but also on
+   110/300 of the step-matched clean rollouts (all but 2 incorrect answers), so at the
+   steps where hacking happens the artefact is shared. [INFERENCE] Kev cannot separate
+   them; a code rule narrows them; a regrade under the original evaluator settles them.
 2. **The prompted-validated cut does not carry over.** At the tw cut false alarms rise to
    9–13% on olmo and 11–49% on HackTrace (router 49%); re-tuning on own negatives brings
    recall down to 60–77%. Calibrate per corpus, as before.

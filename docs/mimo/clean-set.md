@@ -111,6 +111,22 @@ guard failures, labeled `unverified:node-build-leak`). `000928`
 from training and marked `fail:open-leak:node-build-pnpm`. A future rebuild
 with budget for full re-verification can go uniform @5.
 
+## Verifier fold (@9 for 001431; fleet stays @8)
+
+`separate-verifier@9` excuses agent skips inside a satisfied
+collection-error module (first executions the interrupted pristine run
+never recorded). Diagnosis, ground truth (locally captured pristine
+junit), and validation: `docs/mimo/separate-verifier.md` (`@9` section).
+The canonical v5 chain keeps `@8` fleet-wide for digest-stability (a
+uniform `@9` rebuild churns every `test.sh` and would invalidate all
+banked census cells); one task folds onto `@9` per row
+(`SEPARATE_V9_TASKS` in `src/evallab/mimo_clean.py`, per-row `chain`
+records `@9` honestly): `001431`, whose working reference fix graded 0
+under `@8` (re-graded oracle 1 / nop 0 plus a clean 1.4.0 ladder on the
+`@9` digest). `@9` only ever clears fail-to-pass (never sets it), so the
+fold keeps every `@8` guarantee. A future rebuild with budget for full
+re-verification can go uniform `@9`.
+
 ## Reference fixes and markers
 
 - The manifest's `reference_fix` prefers

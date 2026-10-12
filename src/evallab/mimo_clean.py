@@ -69,10 +69,12 @@ from evallab.purge_installed_copies import (
 from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
 from evallab.separate_verifier import TRANSFORM_ID_V7 as SEPARATE_V7_ID
 from evallab.separate_verifier import TRANSFORM_ID_V8 as SEPARATE_V8_ID
+from evallab.separate_verifier import TRANSFORM_ID_V9 as SEPARATE_V9_ID
 from evallab.separate_verifier import (
     derive_separate_verifier_v6,
     derive_separate_verifier_v7,
     derive_separate_verifier_v8,
+    derive_separate_verifier_v9,
 )
 from evallab.strip_future_history import STRIP_MARKER, derive_strip_future_history
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
@@ -237,6 +239,16 @@ NODE_FOLD_AT_RISK = frozenset(
     }
 )
 NODE_FOLD_TASKS = NODE_FOLD_REAL | NODE_FOLD_AT_RISK
+
+#: Tasks folded onto ``separate-verifier@9`` inside mimo-clean-v5 (per-row
+#: chain records @9 honestly; everything else stays @8 for digest-stability:
+#: a uniform @9 rebuild churns every test.sh and would invalidate all banked
+#: census cells). 001431's working reference fix grades 0 under @8 (G5:
+#: class-level collection error recorded with a raw-nodeid classname, no
+#: file attr). @9 only ever clears fail-to-pass (never sets it), so folded
+#: rows keep every @8 guarantee. A future rebuild with budget for full
+#: re-verification can go uniform @9.
+SEPARATE_V9_TASKS = frozenset({"format-code-task-001431"})
 
 #: Chain generations by clean-set version id (v4 stays the default until
 #: the v5 census completes; NB: never mix generations in one manifest).
@@ -1076,14 +1088,26 @@ class ChainBuilder:
         solution_tag = (
             "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
         )
-        separate_id = chain[-2]
+        # The verifier generation follows the row: v5 SEPARATE_V9_TASKS derive
+        # @9, everything else keeps the chain's generation. The recorded
+        # result.chain carries the actually-derived id per row.
+        separate_id = (
+            SEPARATE_V9_ID
+            if SEPARATE_V9_ID in chain
+            or (task_id in SEPARATE_V9_TASKS and self.clean_version == CLEAN_SET_VERSION_V5)
+            else chain[-2]
+        )
         separate_derive = (
-            derive_separate_verifier_v8
-            if separate_id == SEPARATE_V8_ID
+            derive_separate_verifier_v9
+            if separate_id == SEPARATE_V9_ID
             else (
-                derive_separate_verifier_v7
-                if separate_id == SEPARATE_V7_ID
-                else derive_separate_verifier_v6
+                derive_separate_verifier_v8
+                if separate_id == SEPARATE_V8_ID
+                else (
+                    derive_separate_verifier_v7
+                    if separate_id == SEPARATE_V7_ID
+                    else derive_separate_verifier_v6
+                )
             )
         )
         try:
@@ -1605,6 +1629,8 @@ __all__ = [
     "SEPARATE_V6_ID",
     "SEPARATE_V7_ID",
     "SEPARATE_V8_ID",
+    "SEPARATE_V9_ID",
+    "SEPARATE_V9_TASKS",
     "STATUS_BUILT",
     "STATUS_SKIPPED",
     "STRIP_ID",

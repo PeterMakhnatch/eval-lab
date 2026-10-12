@@ -943,6 +943,54 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
+                profile_id="terminus-2-openrouter-qwen3-6-35b-a3b",
+                adapter=TERMINUS_AGENT,
+                model="openrouter-metered/qwen/qwen3.6-35b-a3b",
+                auth_mode="api-key-environment",
+                secret_source="env:OPENROUTER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-10-12: OpenRouter qwen/qwen3.6-35b-a3b on pinned "
+                    "endpoint deepinfra/fp8: $0.10 in / $0.95 out per 1M "
+                    "tokens, supports_implicit_caching=false, thinking pinned "
+                    "on (reasoning enabled), matching the Tinker route; "
+                    "262,144-token context, 65,536-token max completion; live "
+                    "probe served by DeepInfra with reasoning present",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-openrouter-qwen3-5-9b",
+                adapter=TERMINUS_AGENT,
+                model="openrouter-metered/qwen/qwen3.5-9b",
+                auth_mode="api-key-environment",
+                secret_source="env:OPENROUTER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-10-12: OpenRouter qwen/qwen3.5-9b on pinned "
+                    "endpoint deepinfra/bf16: $0.10 in / $0.15 out per 1M "
+                    "tokens, supports_implicit_caching=false, thinking pinned "
+                    "on (reasoning enabled), matching the Tinker route; "
+                    "262,144-token context, 81,920-token max completion; live "
+                    "probe served by DeepInfra with reasoning present",
+                ),
+            ),
+            AgentProfile(
                 profile_id="glm-selfhosted-base",
                 adapter="mini-swe-agent",
                 model=GLM_SELFHOSTED_BASE_MODEL_SELECTOR,

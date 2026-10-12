@@ -1,9 +1,11 @@
 """Import Kev trace verdicts into the detectors-v1 cache so `evallab detectors score` ranks them.
 
 A trace's score is the max over its ~5k-token windows of one question's P(yes)
-(``router_not_none`` = 1 - P(none) of the router). Only the ``tw`` and ``ours``
-rows were scored; ``tw-raw`` and ``g6`` stay "not run". Cost per trace is the
-measured H100 time of its windows at the run's ms/chunk.
+(``router_not_none`` = 1 - P(none) of the router, ``max_pattern`` = the highest of
+the seven pattern cards). ``--chunks`` picks the window set: ``external_chunks``
+(``tw`` and ``ours``) or ``rl_chunks`` (``aria``, ``olmo``, ``ht``); ``tw-raw``,
+``g6`` and ``cb`` stay "not run". Cost per trace is the measured H100 time of its
+windows at the run's ms/chunk.
 
 Usage (worktree root):
   uv run python research/experiments/kev-hack-detector/write_cache.py \
@@ -30,9 +32,10 @@ def main() -> None:
     ap.add_argument("--detector", required=True)
     ap.add_argument("--ms-per-chunk", type=float, required=True)
     ap.add_argument("--model", required=True)
+    ap.add_argument("--chunks", default="external_chunks.jsonl", help="window file under derived/kev/sets")
     args = ap.parse_args()
     scores = {r["chunk_id"]: r["answers"] for r in A.read(A.WORKTREE / args.scores) if "answers" in r}
-    rows = A.read(A.SETS / "external_chunks.jsonl")
+    rows = A.read(A.SETS / args.chunks)
     best: dict[str, float] = defaultdict(float)
     where: dict[str, int] = {}
     windows: dict[str, int] = defaultdict(int)

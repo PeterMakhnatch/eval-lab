@@ -4,9 +4,10 @@ A **corpus** is a sealed directory under ``research/calibration/`` (``detectors-
 
 - ``corpus.json``: name, version, sources, licences and the label checks it carries;
 - ``manifest.jsonl``: one row per trace with ``id``, ``source`` (``tw``, ``tw-raw``,
-  ``ours``, ``g6``), ``labels`` (``{check: true | false | null}``; null means
-  unlabelled for that check, never negative), ``families`` (hack families of a
-  positive) and ``trial`` (where to find the trace) plus ``trajectory_sha256``;
+  ``ours``, ``g6``, ``cb``, real-RL ``aria``/``olmo``, prompted ``ht``), ``labels``
+  (``{check: true | false | null}``; null means unlabelled for that check, never
+  negative), ``families`` (hack families of a positive) and ``trial`` (where to
+  find the trace) plus ``trajectory_sha256``;
 - ``MANIFEST.sha256``: checksums of the labelled files (``verify`` checks them);
 - ``cache/<detector>/<id>.json``: every judge output already paid for
   (``evallab.detector_verdict/v1``: ``flagged``, ``score``, ``cost_usd``, ...), so
@@ -40,7 +41,7 @@ from typing import Any, ClassVar
 
 VERDICT_SCHEMA = "evallab.detector_verdict/v1"
 CORPUS_SCHEMA = "evallab.detector_corpus/v1"
-SEALED_FILES = ("corpus.json", "manifest.jsonl", "tw_subset.json", "cb_subset.json")
+SEALED_FILES = ("corpus.json", "manifest.jsonl", "tw_subset.json", "cb_subset.json", "rl_subset.json")
 FPR_TARGETS = (0.02, 0.05)
 DEFAULT_CALIBRATION_SOURCE = "tw"
 
@@ -159,6 +160,7 @@ class Corpus:
         *,
         tw_root: Path | None,
         cb_root: Path | None = None,
+        rl_root: Path | None = None,
         results_root: Path,
     ) -> Path | None:
         """The local trial directory for ``row``; None when it is not available here."""
@@ -173,6 +175,10 @@ class Corpus:
             if cb_root is None:
                 return None
             path = cb_root / row["source"] / trial["cb_id"]
+        elif trial["kind"] == "rl_rollout":
+            if rl_root is None:
+                return None
+            path = rl_root / row["source"] / trial["rl_id"]
         else:
             raise ValueError(f"{row['id']}: unknown trial kind {trial['kind']}")
         return path if (path / "agent" / "trajectory.json").is_file() else None
@@ -377,6 +383,21 @@ class KevStacked(_KevDecision):
 class KevFt1AnyCheat(_KevDecision):
     name = "kev_ft1_any_cheat"
     description = "Kev-4B delta fine-tuned on 479 CheatBench windows (any_cheat only), max over windows"
+
+
+class KevGraderTamper(_KevDecision):
+    name = "kev_grader_tamper"
+    description = "Kev-4B zero-shot, hack-atlas grader_tamper card, max over windows"
+
+
+class KevHollowSolution(_KevDecision):
+    name = "kev_hollow_solution"
+    description = "Kev-4B zero-shot, hack-atlas hollow_solution card, max over windows"
+
+
+class KevMaxPattern(_KevDecision):
+    name = "kev_max_pattern"
+    description = "Kev-4B zero-shot, max over the seven hack-atlas pattern cards and windows"
 
 
 class HeldOutRegrade(Detector):
@@ -633,7 +654,11 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             if args.source and row["source"] not in args.source:
                 continue
             trial_dir = corpus.trial_dir(
-                row, tw_root=args.tw_root, cb_root=args.cb_root, results_root=args.results_root
+                row,
+                tw_root=args.tw_root,
+                cb_root=args.cb_root,
+                rl_root=args.rl_root,
+                results_root=args.results_root,
             )
             if trial_dir is not None:
                 items.append((row, trial_dir))
@@ -686,6 +711,9 @@ def build_detectors_parser(commands: argparse._SubParsersAction) -> None:
     )
     p.add_argument(
         "--cb-root", type=Path, help="materialized CheatBench trials: <root>/<source>/<cb_id>"
+    )
+    p.add_argument(
+        "--rl-root", type=Path, help="materialized RL rollout trials: <root>/<source>/<rl_id>"
     )
     p.add_argument("--results-root", type=Path, default=results_root())
     p.add_argument("--limit", type=int)

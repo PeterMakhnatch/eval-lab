@@ -171,6 +171,16 @@ Hence a v4 oracle `1` carries to v5 and a v4 nop `0` carries
 (failure-shaped outputs still fail every rule); carries stay
 reasoning-backed labels in `verify-detail.csv`, never merged `results.csv`
 rows.
+`@8`→`@9` carries: `@9` keeps the `@8` orphan loop byte-for-byte and only
+adds a skip excuse inside satisfied collection-error modules, so no
+prior-1 output flips to 0. Concretely: a prior-1 run has rc 0 with no bad
+cases and no unmatched skips (every skip matched a baseline skip); the
+orphan comparison is byte-identical, and the skip loop only excuses skips
+inside satisfied error modules — it adds no new failure path. Hence a
+v5 `@8` oracle `1` carries to `@9` and a v5 `@8` nop `0` carries (a nop
+runs the pristine tree, so an error orphan persists identically on both
+sides and can never satisfy). The 001431 fold re-grades oracle/nop/ladder
+fresh on the `@9` digest regardless (no carry needed).
 `fail:open-leak` from untriaged probe hits is NEVER carried: it needs the
 probe lane's per-task verdict first. A fresh oracle `fail:0` is never
 labeled `fail:oracle-wrong` without per-task root cause reaching the trial

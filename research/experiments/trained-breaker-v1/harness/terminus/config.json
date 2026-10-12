@@ -1,0 +1,16 @@
+{
+  "parser_name": "json",
+  "temperature": 1.0,
+  "max_turns": 128,
+  "completion_fix": false,
+  "loop_break": false,
+  "llm_call_kwargs": {
+    "max_tokens": 16384,
+    "top_p": 1.0,
+    "extra_body": {
+      "top_k": -1,
+      "chat_template_kwargs": {"enable_thinking": false}
+    }
+  },
+  "trajectory_config": {"raw_content": true, "linear_history": true}
+}

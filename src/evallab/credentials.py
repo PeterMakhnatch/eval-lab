@@ -17,6 +17,11 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from evallab.execution_contracts import (
+    BREAKER_SELFHOSTED_BASE_MODEL,
+    BREAKER_SELFHOSTED_KEY_ENV,
+    BREAKER_SELFHOSTED_L1_MODEL,
+    BREAKER_SELFHOSTED_MODEL_PREFIX,
+    BREAKER_SELFHOSTED_UPSTREAM_ENV,
     GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
     MIMO_AGENT,
@@ -27,6 +32,7 @@ from evallab.execution_contracts import (
     TERMINUS_LOCAL_MODEL_SELECTOR,
     ZAI_AUTH_PROVIDER,
     ZAI_OPENCODE_AGENT,
+    is_breaker_selfhosted_model,
 )
 from evallab.profiles import (
     GLM_SELFHOSTED_CREDENTIAL_NAMES,
@@ -51,6 +57,7 @@ ZAI_OPENCODE_AUTH = "zai_opencode_auth"
 ZAI_OPENAPI_API_CREDENTIAL = "zai_openapi_api_environment"
 TINKER_API_CREDENTIAL = "tinker_api_environment"
 MIMO_SELFHOSTED_API_CREDENTIAL = "mimo_selfhosted_api_environment"
+BREAKER_SELFHOSTED_API_CREDENTIAL = "breaker_selfhosted_api_environment"
 OPENROUTER_API_CREDENTIAL = "openrouter_api_environment"
 GLM_SELFHOSTED_API_CREDENTIAL = "glm_selfhosted_api_environment"
 LOCAL_OLLAMA_ENDPOINT = "local_ollama_endpoint"
@@ -176,6 +183,7 @@ def probe_deepseek_api_result(
     )
     return probe(_DEEPSEEK_PROFILE)
 
+
 def probe_zai_openapi_api() -> bool:
     return probe_zai_openapi_api_result().ok
 
@@ -227,14 +235,26 @@ def probe_mimo_selfhosted_api_result(
 ) -> ProbeResult:
     """Require both the SGLang api-key value and the pinned Modal upstream."""
     source = os.environ if environment is None else environment
-    if source.get("MIMO_SELFHOSTED_API_KEY") and source.get(
-        "EVALLAB_MIMO_SELFHOSTED_UPSTREAM"
-    ):
+    if source.get("MIMO_SELFHOSTED_API_KEY") and source.get("EVALLAB_MIMO_SELFHOSTED_UPSTREAM"):
         return ProbeResult(ok=True)
     return ProbeResult(
         ok=False,
         reason="credential environment missing: "
         "MIMO_SELFHOSTED_API_KEY and EVALLAB_MIMO_SELFHOSTED_UPSTREAM",
+    )
+
+
+def probe_breaker_selfhosted_api_result(
+    environment: Mapping[str, str] | None = None,
+) -> ProbeResult:
+    """Configuration presence only; never warm or bill the GPU during discovery."""
+    source = os.environ if environment is None else environment
+    if source.get(BREAKER_SELFHOSTED_KEY_ENV) and source.get(BREAKER_SELFHOSTED_UPSTREAM_ENV):
+        return ProbeResult(ok=True)
+    return ProbeResult(
+        ok=False,
+        reason=f"credential environment missing: {BREAKER_SELFHOSTED_KEY_ENV} "
+        f"and {BREAKER_SELFHOSTED_UPSTREAM_ENV}",
     )
 
 
@@ -281,6 +301,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
         found.add(TINKER_API_CREDENTIAL)
     if probe_mimo_selfhosted_api():
         found.add(MIMO_SELFHOSTED_API_CREDENTIAL)
+    if probe_breaker_selfhosted_api_result().ok:
+        found.add(BREAKER_SELFHOSTED_API_CREDENTIAL)
     if probe_openrouter_api():
         found.add(OPENROUTER_API_CREDENTIAL)
     if probe_glm_selfhosted_api():
@@ -304,20 +326,33 @@ def missing_credential_for(
             return None if ZAI_OPENAPI_API_CREDENTIAL in available else ZAI_OPENAPI_API_CREDENTIAL
         if agent == TERMINUS_AGENT and model.startswith("tinker/"):
             return None if TINKER_API_CREDENTIAL in available else TINKER_API_CREDENTIAL
-        if agent in {TERMINUS_AGENT, MIMO_AGENT} and model.startswith("selfhosted/"):
-            return None if MIMO_SELFHOSTED_API_CREDENTIAL in available else MIMO_SELFHOSTED_API_CREDENTIAL
-        if agent == TERMINUS_AGENT and model.startswith("openrouter-metered/"):
+        if agent == TERMINUS_AGENT and is_breaker_selfhosted_model(model):
             return (
-                None if OPENROUTER_API_CREDENTIAL in available else OPENROUTER_API_CREDENTIAL
+                None
+                if BREAKER_SELFHOSTED_API_CREDENTIAL in available
+                else BREAKER_SELFHOSTED_API_CREDENTIAL
             )
+        if agent in {TERMINUS_AGENT, MIMO_AGENT} and model.startswith("selfhosted/"):
+            return (
+                None
+                if MIMO_SELFHOSTED_API_CREDENTIAL in available
+                else MIMO_SELFHOSTED_API_CREDENTIAL
+            )
+        if agent == TERMINUS_AGENT and model.startswith("openrouter-metered/"):
+            return None if OPENROUTER_API_CREDENTIAL in available else OPENROUTER_API_CREDENTIAL
         if agent == "mini-swe-agent" and (
             model.startswith("glm-selfhosted/") or model.startswith("glm-ft/")
         ):
-            return None if GLM_SELFHOSTED_API_CREDENTIAL in available else GLM_SELFHOSTED_API_CREDENTIAL
+            return (
+                None
+                if GLM_SELFHOSTED_API_CREDENTIAL in available
+                else GLM_SELFHOSTED_API_CREDENTIAL
+            )
     required = AGENT_CREDENTIAL_REQUIREMENTS.get(agent)
     if required is None or required in available:
         return None
     return required
+
 
 # Default model per agent, derived from the profile registry (single source of
 # truth). The codex pin is proven (2026-08-06 harbor-practice run); the
@@ -341,6 +376,14 @@ DEFAULT_PROFILE_FOR_ADAPTER: dict[str | tuple[str, str], str] = {
     (TERMINUS_AGENT, "tinker/Qwen/Qwen3.6-35B-A3B"): "terminus-2-tinker-qwen3-6-35b-a3b",
     (TERMINUS_AGENT, "tinker/Qwen/Qwen3.8-27B"): "terminus-2-tinker-qwen3-8-27b",
     (TERMINUS_AGENT, "tinker/Qwen/Qwen3.5-9B"): "terminus-2-tinker-qwen3-5-9b",
+    (
+        TERMINUS_AGENT,
+        f"{BREAKER_SELFHOSTED_MODEL_PREFIX}{BREAKER_SELFHOSTED_BASE_MODEL}",
+    ): "terminus-2-breaker-baseline",
+    (
+        TERMINUS_AGENT,
+        f"{BREAKER_SELFHOSTED_MODEL_PREFIX}{BREAKER_SELFHOSTED_L1_MODEL}",
+    ): "terminus-2-breaker-l1",
     ZAI_OPENCODE_AGENT: "zai-opencode-glm-5.3-flash",
     RLM_AGENT: "rlm-glm-5.3-flash",
     MIMO_AGENT: "mimoagent-selfhosted-mimo-v2-6-9b",

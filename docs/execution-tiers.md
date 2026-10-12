@@ -638,6 +638,19 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   model. To disable thinking, send it in the body through the harness
   `llm_call_kwargs.extra_body.reasoning_effort: "none"`; `top_p` is forwarded
   too, `top_k` is not.
+- `breaker-selfhosted/Qwen/Qwen3.6-35B-A3B` and
+  `breaker-selfhosted/rewardhack/qwen3.6-35b-a3b-hacksft-thinkoff-873rows-ep3`
+  — the matched [trained-breaker diagnostic](../research/experiments/trained-breaker-v1/README.md).
+  The proxy pins the chosen arm's exact model ID, thinking **off**, temperature
+  1, top_p 1, top_k -1, a 65,536-token context and 16,384-token response ceiling.
+  `BREAKER_SELFHOSTED_API_KEY` remains host-side; the selected bare Modal HTTPS
+  origin comes from `EVALLAB_BREAKER_SELFHOSTED_UPSTREAM`, with no default.
+  Native campaign approval binds the experiment model/runtime manifest digest.
+  These dedicated vLLM apps are time-billed, not free because token prices are
+  zero: accounting retains unmeasured reservations until app bills are collected.
+  Local transport is smoke-checked; real image/weight/GPU qualification still
+  requires a separately approved run. The MiMo route and its bill allocator are
+  unchanged.
 - `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` — a self-hosted SGLang
   server on Modal serving that id (`--served-model-name` equal to it, MIT
   qwen3_5 hybrid, 262,144-token context configured). The per-trial proxy runs with

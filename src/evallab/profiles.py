@@ -33,6 +33,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from evallab.execution_contracts import (
+    BREAKER_SELFHOSTED_BASE_MODEL,
+    BREAKER_SELFHOSTED_KEY_ENV,
+    BREAKER_SELFHOSTED_L1_MODEL,
+    BREAKER_SELFHOSTED_MAX_COMPLETION_TOKENS,
+    BREAKER_SELFHOSTED_MODEL_PREFIX,
     GLM_SELFHOSTED_BASE_MODEL_SELECTOR,
     GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS,
     GLM_SELFHOSTED_FT_MODEL_SELECTOR,
@@ -60,6 +65,7 @@ ZAI_OPENAPI_CREDENTIAL_NAMES = frozenset({"ZAI_OPENAPI_API_KEY"})
 GLM_SELFHOSTED_CREDENTIAL_NAMES = GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
 TINKER_CREDENTIAL_NAMES = frozenset({"TINKER_API_KEY"})
 MIMO_SELFHOSTED_CREDENTIAL_NAMES = frozenset({"MIMO_SELFHOSTED_API_KEY"})
+BREAKER_SELFHOSTED_CREDENTIAL_NAMES = frozenset({BREAKER_SELFHOSTED_KEY_ENV})
 OPENROUTER_CREDENTIAL_NAMES = frozenset({"OPENROUTER_API_KEY"})
 ADMITTED_ENV_SECRET_SETS: frozenset[frozenset[str]] = frozenset(
     {
@@ -68,6 +74,7 @@ ADMITTED_ENV_SECRET_SETS: frozenset[frozenset[str]] = frozenset(
         GLM_SELFHOSTED_CREDENTIAL_NAMES,
         TINKER_CREDENTIAL_NAMES,
         MIMO_SELFHOSTED_CREDENTIAL_NAMES,
+        BREAKER_SELFHOSTED_CREDENTIAL_NAMES,
         OPENROUTER_CREDENTIAL_NAMES,
     }
 )
@@ -834,6 +841,36 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     "2026-09-28: Thinking Machines Tinker OpenAI-compatible "
                     "route ($0.66 in / $1.995 out per 1M tokens, 64K context)",
                 ),
+            ),
+            *(
+                AgentProfile(
+                    profile_id=f"terminus-2-breaker-{arm}",
+                    adapter=TERMINUS_AGENT,
+                    model=f"{BREAKER_SELFHOSTED_MODEL_PREFIX}{native}",
+                    auth_mode="api-key-environment",
+                    secret_source=f"env:{BREAKER_SELFHOSTED_KEY_ENV}",
+                    capabilities=(
+                        "credential-transport:host-loopback-proxy",
+                        "structured-trajectory:atif",
+                    ),
+                    limits=ProfileLimits(
+                        max_timeout_seconds=28_800,
+                        max_attempts=1,
+                        max_concurrency=1,
+                    ),
+                    inference_settings=ProfileInferenceSettings(
+                        max_tokens=BREAKER_SELFHOSTED_MAX_COMPLETION_TOKENS
+                    ),
+                    verified_facts=(
+                        "2026-10-12: matched Qwen/L1 full-weight recipe prepared; "
+                        "65,536 context, thinking off, stock Terminus JSON; "
+                        "GPU behavior is not yet qualified",
+                    ),
+                )
+                for arm, native in (
+                    ("baseline", BREAKER_SELFHOSTED_BASE_MODEL),
+                    ("l1", BREAKER_SELFHOSTED_L1_MODEL),
+                )
             ),
             AgentProfile(
                 profile_id="terminus-2-selfhosted-mimo-v2-6-9b",

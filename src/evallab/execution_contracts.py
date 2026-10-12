@@ -576,6 +576,66 @@ def is_mimo_selfhosted_model(model: str | None) -> bool:
     return isinstance(model, str) and model.startswith(MIMO_SELFHOSTED_MODEL_PREFIX)
 
 
+#: Matched full-weight Qwen/L1 comparison. Keep this separate from MiMo's
+#: thinking-on parser and generation config; both arms use stock Terminus JSON.
+BREAKER_SELFHOSTED_MODEL_PREFIX = "breaker-selfhosted/"
+BREAKER_SELFHOSTED_BASE_MODEL = "Qwen/Qwen3.6-35B-A3B"
+BREAKER_SELFHOSTED_L1_MODEL = "rewardhack/qwen3.6-35b-a3b-hacksft-thinkoff-873rows-ep3"
+BREAKER_SELFHOSTED_NATIVE_MODELS = frozenset(
+    {BREAKER_SELFHOSTED_BASE_MODEL, BREAKER_SELFHOSTED_L1_MODEL}
+)
+BREAKER_SELFHOSTED_CONTEXT_TOKENS = 65_536
+BREAKER_SELFHOSTED_MAX_COMPLETION_TOKENS = 16_384
+BREAKER_SELFHOSTED_SAMPLING: Mapping[str, float | int] = MappingProxyType(
+    {"temperature": 1.0, "top_p": 1.0, "top_k": -1}
+)
+BREAKER_SELFHOSTED_KEY_ENV = "BREAKER_SELFHOSTED_API_KEY"
+BREAKER_SELFHOSTED_UPSTREAM_ENV = "EVALLAB_BREAKER_SELFHOSTED_UPSTREAM"
+BREAKER_SELFHOSTED_SECRET_FILE_ENV = "EVALLAB_BREAKER_SELFHOSTED_SECRET_FILE"
+BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV = "EVALLAB_BREAKER_SELFHOSTED_PROXY_CAPABILITY"
+BREAKER_SELFHOSTED_PROXY_PROVIDER = "breaker_selfhosted"
+
+
+def is_breaker_selfhosted_model(model: str | None) -> bool:
+    return isinstance(model, str) and model.startswith(BREAKER_SELFHOSTED_MODEL_PREFIX)
+
+
+def parse_breaker_selfhosted_model(model: str | None) -> str:
+    """Resolve exactly the matched base or released L1; refuse unknown weights."""
+    if not is_breaker_selfhosted_model(model):
+        raise ValueError("expected a breaker-selfhosted model selector")
+    assert isinstance(model, str)
+    native = model.removeprefix(BREAKER_SELFHOSTED_MODEL_PREFIX)
+    if native not in BREAKER_SELFHOSTED_NATIVE_MODELS:
+        raise ValueError(f"unsupported breaker-selfhosted model: {model!r}")
+    return native
+
+
+def breaker_selfhosted_endpoint(raw: str) -> str:
+    """Validate the remote origin before a readiness probe can send its key."""
+    parsed = urllib.parse.urlsplit(raw)
+    if (
+        parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("breaker upstream must be a bare pinned origin")
+    host = parsed.hostname or ""
+    if parsed.scheme == "https" and (parsed.port or 443) == 443:
+        label = r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+        if re.fullmatch(
+            rf"{label}\.(?:modal\.run|"
+            r"(?:us-east|us-west|ca-central|eu-west|ap-south|ap-southeast-2)\.modal\.direct)",
+            host,
+        ):
+            return raw.rstrip("/")
+    if parsed.scheme == "http" and host == "127.0.0.1" and parsed.port is not None:
+        return raw.rstrip("/")
+    raise ValueError("breaker upstream must be an HTTPS Modal origin or a loopback smoke server")
+
+
 def is_mimo_family_model(model: str | None) -> bool:
     """Whether a model selector belongs to the MiMo family (HAR-140)."""
     if is_mimo_selfhosted_model(model):
@@ -1318,6 +1378,23 @@ def materialize_mimo_selfhosted_secret_file(
     return destination
 
 
+def materialize_breaker_selfhosted_secret_file(
+    destination: Path, environment: Mapping[str, str] | None = None
+) -> Path:
+    """Keep the remote breaker server key in the host-owned proxy secret file."""
+    source = os.environ if environment is None else environment
+    value = source.get(BREAKER_SELFHOSTED_KEY_ENV)
+    if not value or value == ZAI_OPENAPI_PROXY_TOKEN:
+        existing = source.get(BREAKER_SELFHOSTED_SECRET_FILE_ENV)
+        if existing:
+            path = Path(existing)
+            read_owner_secret_file(path)
+            return path
+        raise RuntimeError("breaker self-hosted provider credential is missing")
+    persist_private_bytes(destination, f"{value}\n".encode(), secrets=(), mode=0o400)
+    return destination
+
+
 def proxy_runtime_identity(path: Path) -> tuple[int, int]:
     """Return the numeric uid/gid the proxy must run as to read *path*.
 
@@ -1346,6 +1423,7 @@ def collected_secret_values(
         *((key, ZAI_PROXY_TOKEN) for key in ZAI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, ZAI_OPENAPI_PROXY_TOKEN) for key in ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, TINKER_PROXY_TOKEN) for key in TINKER_CREDENTIAL_ENVIRONMENT_KEYS),
+        (BREAKER_SELFHOSTED_KEY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         *(
             (key, MIMO_SELFHOSTED_PROXY_TOKEN)
             for key in MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
@@ -1362,6 +1440,7 @@ def collected_secret_values(
         (ZAI_SECRET_FILE_ENV, ZAI_PROXY_TOKEN),
         (ZAI_OPENAPI_SECRET_FILE_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (TINKER_SECRET_FILE_ENV, TINKER_PROXY_TOKEN),
+        (BREAKER_SELFHOSTED_SECRET_FILE_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (MIMO_SELFHOSTED_SECRET_FILE_ENV, MIMO_SELFHOSTED_PROXY_TOKEN),
         (OPENROUTER_SECRET_FILE_ENV, OPENROUTER_PROXY_TOKEN),
     ):
@@ -1378,6 +1457,7 @@ def collected_secret_values(
         (ZAI_PROXY_CAPABILITY_ENV, ZAI_PROXY_TOKEN),
         (ZAI_OPENAPI_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (TINKER_PROXY_CAPABILITY_ENV, TINKER_PROXY_TOKEN),
+        (BREAKER_SELFHOSTED_PROXY_CAPABILITY_ENV, ZAI_OPENAPI_PROXY_TOKEN),
         (MIMO_SELFHOSTED_PROXY_CAPABILITY_ENV, MIMO_SELFHOSTED_PROXY_TOKEN),
         (OPENROUTER_PROXY_CAPABILITY_ENV, OPENROUTER_PROXY_TOKEN),
     ):
@@ -1610,6 +1690,7 @@ def redact_environment(environment: Mapping[str, str]) -> dict[str, str]:
         | ZAI_CREDENTIAL_ENVIRONMENT_KEYS
         | ZAI_OPENAPI_CREDENTIAL_ENVIRONMENT_KEYS
         | TINKER_CREDENTIAL_ENVIRONMENT_KEYS
+        | {BREAKER_SELFHOSTED_KEY_ENV}
         | MIMO_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
         | GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS
         | DAYTONA_CREDENTIAL_ENVIRONMENT_KEYS
@@ -1722,6 +1803,8 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
             # Strict fail-closed parse: unknown base or malformed checkpoint
             # refuses here, before any spec freeze or execution.
             parse_tinker_model(model)
+        elif is_breaker_selfhosted_model(model):
+            parse_breaker_selfhosted_model(model)
         elif is_mimo_selfhosted_model(model):
             # Exactly one self-hosted selector is admitted; anything else
             # under selfhosted/ refuses here.
@@ -1739,8 +1822,8 @@ def validate_request(request: RunRequest, *, repo_root: Path | None = None) -> N
                 f"({sorted(ZAI_OPENAPI_TERMINUS_MODEL_SELECTORS)}), a Tinker "
                 f"route ({TINKER_MODEL_PREFIX}<base>[@tinker://<run>:train:<i>"
                 "/sampler_weights/<step>]), the self-hosted route "
-                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the OpenRouter routes "
-                f"{OPENROUTER_MODEL_SELECTORS!r}, or installed local "
+                f"{MIMO_SELFHOSTED_MODEL_SELECTOR!r}, the matched breaker-selfhosted "
+                f"base/L1 routes, the OpenRouter routes {OPENROUTER_MODEL_SELECTORS!r}, or installed local "
                 f"{TERMINUS_LOCAL_MODEL_SELECTOR!r}; Coding Plan credentials "
                 "are not admitted for this harness"
             )

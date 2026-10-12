@@ -311,6 +311,12 @@ class ExperimentCampaign(_FrozenContract):
     agent: str = Field(min_length=1)
     model: str | None = None
     environment: str = Field(min_length=1)
+    serving_manifest_sha256: str | None = Field(
+        default=None,
+        pattern=r"^sha256:[0-9a-f]{64}$",
+        exclude_if=lambda value: value is None,
+        description="Digest of the matched breaker model/runtime manifest; part of approval content.",
+    )
     sampling: CampaignSampling = Field(default_factory=CampaignSampling)
     queue_cwd: str = Field(min_length=1)
     linear_card: str = Field(min_length=1)
@@ -529,6 +535,25 @@ def intended_sampling(agent: str | None, model: str | None) -> CampaignSampling:
     )
 
 
+def _serving_manifest_error(campaign: ExperimentCampaign, repo_root: Path) -> str | None:
+    """A changed HF/image/config pin cannot inherit an old breaker approval."""
+    from evallab.execution_contracts import is_breaker_selfhosted_model
+
+    if not is_breaker_selfhosted_model(campaign.model):
+        return None
+    expected = campaign.serving_manifest_sha256
+    if expected is None:
+        return "breaker campaign requires serving_manifest_sha256"
+    path = repo_root / "research/experiments/trained-breaker-v1/model_manifest.json"
+    try:
+        actual = "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return "breaker serving manifest is unavailable"
+    if actual != expected:
+        return "breaker serving manifest changed; prepare and approve a new campaign"
+    return None
+
+
 def check_campaign_admission(
     spec: ExperimentSpec,
     campaign: ExperimentCampaign,
@@ -563,6 +588,11 @@ def check_campaign_admission(
                 f"spec claims campaign {campaign.campaign_id}, which approves queue "
                 f"{campaign.queue_cwd}, not {resolved_root}"
             ),
+        )
+    manifest_error = _serving_manifest_error(campaign, resolved_root)
+    if manifest_error:
+        return PolicyDecision(
+            admitted=False, reason_code=REASON_SETUP_MISMATCH, message=manifest_error
         )
     if (spec.reference_profile or None) != campaign.reference_profile:
         return PolicyDecision(
@@ -1838,6 +1868,9 @@ def validate_campaign_content(repo_root: Path, campaign: ExperimentCampaign) -> 
     reference (HAR-156 comparison). Admission itself is checked per spec.
     """
     errors: list[str] = []
+    manifest_error = _serving_manifest_error(campaign, repo_root)
+    if manifest_error:
+        errors.append(manifest_error)
     try:
         from evallab.setup_fingerprint import load_reference_profile
 

@@ -1876,14 +1876,14 @@ class Executor:
         """
         if not is_selfhosted_spec(spec):
             return True
-        endpoint = resolve_selfhosted_endpoint()
+        endpoint = resolve_selfhosted_endpoint(model=spec.model)
         if endpoint is None:
             self._defer_spec_event(spec, SELFHOSTED_REASON_UNCONFIGURED)
             self._report_progress(
                 f"deferred {spec.name} ({SELFHOSTED_REASON_UNCONFIGURED}); state: approved"
             )
             return False
-        key = resolve_selfhosted_key()
+        key = resolve_selfhosted_key(model=spec.model)
         if not key:
             self._defer_spec_event(spec, SELFHOSTED_REASON_KEY_MISSING)
             self._report_progress(

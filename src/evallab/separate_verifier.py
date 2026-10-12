@@ -903,18 +903,41 @@ def evaluate_go_output_v6(test_output: str, rc: int) -> int:
     return evaluate_go_output(test_output, rc)
 
 
-def render_snapshot_hook_v2(workdir: str) -> str:
+def render_snapshot_hook_v2(workdir: str, *, snap_dir: str = SNAP_DIR) -> str:
     """Collect-hook command snapshotting workspace files only (``sh -c``; POSIX
     only, no single quotes so it fits a TOML literal string).
 
     Unlike @1 this captures neither ``/var/lib/mimo/base`` nor the git dir:
     the @2 verifier reruns the clean setup itself and computes BASE there.
     Only repo file bytes cross the boundary.
+
+    The tarball covers exactly the files the grader can see: tracked files
+    plus untracked files the worktree does not ignore (``git ls-files -c -o
+    --exclude-standard``). Regenerable dependency and cache trees
+    (``node_modules``, ``.venv``, ``.yarn/cache``, ``__pycache__``, build
+    outputs — anything the repo ignores) never enter the archive. This is
+    grading-neutral by construction: the @2+ grader diffs the snapshot with
+    ``git add -A`` under the BASE tree ignore rules, which never stages
+    ignored files either, and it reinstalls dependencies by rerunning the
+    bundled clean setup. Source trees that are tracked or simply not
+    ignored (``packages/``, ``vendor/``, new files the agent adds) still
+    cross intact. The @1 hook keeps its full-worktree tar: its grader
+    restores the snapshot verbatim and never reruns setup, so it genuinely
+    needs the installed dependencies.
+
+    Outside a git worktree (no ``.git``) the listing fails and the hook
+    falls back to the full-worktree tar minus ``.git``.
     """
     return (
-        f'SNAP="{SNAP_DIR}"; CWD="{workdir}"; '
+        f'SNAP="{snap_dir}"; CWD="{workdir}"; '
         'mkdir -p "$SNAP"; '
+        'LIST="$SNAP/files"; '
+        'git -C "$CWD" ls-files -c -o --exclude-standard -z > "$LIST" 2>/dev/null; '
+        'if [ -s "$LIST" ]; then '
+        'tar --null --exclude=.git -czf "$SNAP/workspace.tgz" -C "$CWD" --files-from="$LIST"; '
+        'else '
         'tar --exclude=.git -czf "$SNAP/workspace.tgz" -C "$CWD" .; '
+        'fi; '
         'ls -la "$SNAP"; true'
     )
 

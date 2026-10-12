@@ -1,0 +1,883 @@
+{
+ "agents": [
+  "oracle",
+  "nop",
+  "cheat"
+ ],
+ "generated": "2026-10-12",
+ "ladder": "cheat_ladder full (all attacks)",
+ "rows": [
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": "message='RuntimeError(\"Failed to copy file from \\'default:/logs/verifier/reward.json\\' to \\'read-y___dyuu\\':  inspect-harbor-ixpvzxn-default-1 Copying inspect-harbor-ixpvzxn-default-1:/logs/verifier/reward.json to read-y___dyuu\\\\nError response from daemon: RWLayer of container 0e43b8e34f4136115d610",
+     "reward": null,
+     "verdict": "error"
+    },
+    "inspect:oracle": {
+     "reason": "message='RuntimeError(\"Failed to copy file from \\'default:/logs/verifier/reward.json\\' to \\'read-n06h9lhe\\':  inspect-harbor-ihitfnx-default-1 Copying inspect-harbor-ihitfnx-default-1:/logs/verifier/reward.json to read-n06h9lhe\\\\nError response from daemon: RWLayer of container 6b13bdac7a6b7dd26bcce",
+     "reward": null,
+     "verdict": "error"
+    }
+   },
+   "grading": "ok",
+   "run": "shipped-a",
+   "setup": "shipped",
+   "task_dir": "library/tasks/transaction-reconciliation",
+   "task_id": "petermakhnatch/transaction-reconciliation",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "shipped-a",
+   "setup": "shipped",
+   "task_dir": "library/tasks/query-optimize",
+   "task_id": "terminal-bench/query-optimize",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": "harbor cheat run failed: ValueError: native trial in /var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-bhqecu44/task-2/harbor-cheat/jobs/interop-cheat-sierra-research-tau3-bench-tau3-retail-1 recorded no reward",
+     "reward": null,
+     "verdict": "error"
+    },
+    "harbor:nop": {
+     "reason": "harbor execution failed: ValueError: Agent 'nop' does not support MCP servers under Harbor 0.24 (capabilities.mcp_servers is false) but the task declares environment.mcp_servers; the trial would be refused at Harbor preflight. Use one of ['mini-swe-agent', 'terminus-2', 'zai-opencode'].",
+     "reward": null,
+     "verdict": "error"
+    },
+    "harbor:oracle": {
+     "reason": "harbor execution failed: ValueError: Agent 'oracle' does not support MCP servers under Harbor 0.24 (capabilities.mcp_servers is false) but the task declares environment.mcp_servers; the trial would be refused at Harbor preflight. Use one of ['mini-swe-agent', 'terminus-2', 'zai-opencode'].",
+     "reward": null,
+     "verdict": "error"
+    },
+    "inspect:cheat": {
+     "reason": "inspect driver produced no verdict JSON (exit 1): /petermakhnatch/.cache/uv/archive-v0/BvJdUDkZ4sCV0nIH/lib/python3.12/site-packages/inspect_ai/util/_sandbox/docker/docker.py\", line 164, in task_init\n    raise ex\n  File \"~/.cache/uv/archive-v0/BvJdUDkZ4sCV0nIH/lib/python3.12/site",
+     "reward": null,
+     "verdict": "error"
+    },
+    "inspect:nop": {
+     "reason": "inspect driver produced no verdict JSON (exit 1): /petermakhnatch/.cache/uv/archive-v0/BvJdUDkZ4sCV0nIH/lib/python3.12/site-packages/inspect_ai/util/_sandbox/docker/docker.py\", line 164, in task_init\n    raise ex\n  File \"~/.cache/uv/archive-v0/BvJdUDkZ4sCV0nIH/lib/python3.12/site",
+     "reward": null,
+     "verdict": "error"
+    },
+    "inspect:oracle": {
+     "reason": "inspect driver produced no verdict JSON (exit 1): /petermakhnatch/.cache/uv/archive-v0/BvJdUDkZ4sCV0nIH/lib/python3.12/site-packages/inspect_ai/util/_sandbox/docker/docker.py\", line 164, in task_init\n    raise ex\n  File \"~/.cache/uv/archive-v0/BvJdUDkZ4sCV0nIH/lib/python3.12/site",
+     "reward": null,
+     "verdict": "error"
+    }
+   },
+   "grading": "n/a",
+   "run": "shipped-a",
+   "setup": "shipped",
+   "task_dir": "library/tasks/tau3-retail-1",
+   "task_id": "sierra-research/tau3-bench__tau3-retail-1",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "shipped-b",
+   "setup": "shipped",
+   "task_dir": "library/tasks/event-summary",
+   "task_id": "local-lab/event-summary",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    }
+   },
+   "grading": "broken",
+   "run": "shipped-b",
+   "setup": "shipped",
+   "task_dir": "library/tasks/release-branch-rescue",
+   "task_id": "peter/release-branch-rescue",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    }
+   },
+   "grading": "broken",
+   "run": "shipped-b",
+   "setup": "shipped",
+   "task_dir": "library/tasks/terminal-bench-html-js-filter",
+   "task_id": "terminal-bench/html-js-filter",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "shipped-c",
+   "setup": "shipped",
+   "task_dir": "library/tasks/experimental/syn-funcdag-easy",
+   "task_id": "evallab/syn-funcdag-easy",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "shipped-c",
+   "setup": "shipped",
+   "task_dir": "library/tasks/experimental/syn-funcdag-medium",
+   "task_id": "evallab/syn-funcdag-medium",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "shipped-c",
+   "setup": "shipped",
+   "task_dir": "library/tasks/experimental/syn-funcdag-hard",
+   "task_id": "evallab/syn-funcdag-hard",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "hardened-a",
+   "setup": "hardened (agent-network-none@1)",
+   "task_dir": "derived/task-store/variants/local-lab__event-summary/fb256a608721",
+   "task_id": "local-lab/event-summary",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    }
+   },
+   "grading": "broken",
+   "run": "hardened-a",
+   "setup": "hardened (agent-network-none@1)",
+   "task_dir": "derived/task-store/variants/peter__release-branch-rescue/04f3f62af93e",
+   "task_id": "peter/release-branch-rescue",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    }
+   },
+   "grading": "broken",
+   "run": "hardened-a",
+   "setup": "hardened (agent-network-none@1)",
+   "task_dir": "derived/task-store/variants/terminal-bench__html-js-filter/30476ca110d5",
+   "task_id": "terminal-bench/html-js-filter",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "hardened-b",
+   "setup": "hardened (agent-network-none@1)",
+   "task_dir": "derived/task-store/variants/evallab__syn-funcdag-easy/e4bd32dc2583",
+   "task_id": "evallab/syn-funcdag-easy",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": "message='SandboxUnavailableError(\\'The sandbox is not running and cannot execute: service \"default\" is not running\\')' traceback='Traceback (most recent call last):\\n  File \"~/.cache/uv/archive-v0/BvJdUDkZ4sCV0nIH/lib/python3.12/site-packages/inspect_ai/_eval/task/run.py\", line 3",
+     "reward": null,
+     "verdict": "error"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "hardened-b",
+   "setup": "hardened (agent-network-none@1)",
+   "task_dir": "derived/task-store/variants/evallab__syn-funcdag-medium/59922826130a",
+   "task_id": "evallab/syn-funcdag-medium",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "hardened-b",
+   "setup": "hardened (agent-network-none@1)",
+   "task_dir": "derived/task-store/variants/evallab__syn-funcdag-hard/dd609936a783",
+   "task_id": "evallab/syn-funcdag-hard",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "hardened-qo",
+   "setup": "hardened (fixed + agent-network-none@1)",
+   "task_dir": "derived/task-store/variants/terminal-bench__query-optimize/f17c814a0f49",
+   "task_id": "terminal-bench/query-optimize",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "fixed-qo",
+   "setup": "fixed (task-separate-verifier@1)",
+   "task_dir": "library/tasks/query-optimize",
+   "task_id": "terminal-bench/query-optimize",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "final-txn",
+   "setup": "fixed (task-separate-verifier@1)",
+   "task_dir": "derived/task-store/variants/petermakhnatch__transaction-reconciliation/a90ff693ee10",
+   "task_id": "petermakhnatch/transaction-reconciliation",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:cheat": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    },
+    "inspect:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "inspect:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "final-txn",
+   "setup": "hardened (fixed + agent-network-none@1)",
+   "task_dir": "derived/task-store/variants/petermakhnatch__transaction-reconciliation/8075401a8c07",
+   "task_id": "petermakhnatch/transaction-reconciliation",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)",
+    "inspect": "inspect-ai 0.3.276 + inspect-harbor 1.0.0"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "fixed-rbr",
+   "setup": "shipped after oracle fix",
+   "task_dir": "library/tasks/release-branch-rescue",
+   "task_id": "peter/release-branch-rescue",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)"
+   }
+  },
+  {
+   "cells": {
+    "harbor:cheat": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:nop": {
+     "reason": null,
+     "reward": 0.0,
+     "verdict": "fail"
+    },
+    "harbor:oracle": {
+     "reason": null,
+     "reward": 1.0,
+     "verdict": "pass"
+    }
+   },
+   "grading": "ok",
+   "run": "fixed-rbr",
+   "setup": "hardened after oracle fix",
+   "task_dir": "derived/task-store/variants/peter__release-branch-rescue/790070f84a4e",
+   "task_id": "peter/release-branch-rescue",
+   "versions": {
+    "harbor": "0.24.0 (dist 0.24.0)"
+   }
+  }
+ ],
+ "schema": "evallab.library_crack_sweep/v1"
+}

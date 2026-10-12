@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "local-lab/event-summary",
+  "variant_digest": "sha256:fb256a608721ea86b67efd8f238a2149847596563d773e038c29afa11caa5046",
+  "variant_harbor_digest": "sha256:867d025cf56b2371609892426d807533ed92baffe64506f4fb6711fba3f40a6a",
+  "parent": {
+    "digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+    "harbor_digest": "sha256:2c16dfb286d74d3ba9069ea19f436d3754887df8cac9613947a20e1b60cebdb3",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "library/tasks/event-summary",
+      "record": null
+    }
+  },
+  "transform": "agent-network-none@1",
+  "components_changed": [
+    "task_toml"
+  ],
+  "files": [
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:9a9d26e2fc1235e9d45ae55836a34bb4b191509463cffac96ad8aad8f043a1a8",
+      "after_sha256": "sha256:272da4ba6e142910e9d43469225e2e2877e0429c25252db5943f4d93a1873c38",
+      "content": "schema_version = \"1.4\"\nartifacts = [\n    \"/app/input/events.jsonl\",\n    \"/app/output/summary.json\",\n]\n\n[task]\nname = \"local-lab/event-summary\"\nversion = \"1.0.0\"\ndescription = \"Summarize a JSONL event stream without changing the source data\"\nkeywords = [\"jsonl\", \"aggregation\", \"data-quality\", \"pytest\", \"separate-verifier\"]\n\n[[task.authors]]\nname = \"Peter Makhnatch\"\nemail = \"p.makhnatch@gmail.com\"\n\n[metadata]\ndifficulty = \"easy\"\ncategory = \"data-processing\"\ntags = [\"deterministic\", \"negative-control\", \"artifact-transfer\"]\n\n[verifier]\ntimeout_sec = 60.0\nenvironment_mode = \"separate\"\ncollect = []\n\n[agent]\nnetwork_mode = \"no-network\"\ntimeout_sec = 120.0\n\n[environment]\n# Docker Desktop on macOS cannot enforce Harbor's no-network policy. This local\n# control has no network dependency, but uses the supported public baseline.\nnetwork_mode = \"public\"\nbuild_timeout_sec = 300.0\nos = \"linux\"\ncpus = 1\nmemory_mb = 512\nstorage_mb = 2048\nmcp_servers = []\n"
+    }
+  ],
+  "rationale": "library crack sweep 2026-10-12: hardened setup = separate verifier + agent egress off (agent-network-none@1)",
+  "inputs": {
+    "agent_network_mode": "no-network",
+    "verifier_network": "unchanged (public baseline via [environment] copy)",
+    "source": "harbor-0.24 task-level [agent] phase network policy",
+    "default_chain": false
+  },
+  "created_by": "library-crack-sweep",
+  "created_at": "2026-10-12T19:34:59Z",
+  "status": "candidate",
+  "evidence": []
+}

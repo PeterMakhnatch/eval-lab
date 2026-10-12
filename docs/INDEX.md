@@ -125,11 +125,11 @@ inputs:
   - path: docs/surfaces.md
     digest: sha256:599c3ae6f22cf2696bc2f7bdc17f6c207f0366ae4e8e5592a28c6fe7bfe2b064
   - path: docs/task-admission.md
-    digest: sha256:3fa04f96481bc2e4b1fc03065c56387d91abcf6469f35eec467d4bc9f687fb96
+    digest: sha256:573948094c7b8908b2880c4960717ca3d561ae428acb4c84426f0c3ff77604a5
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-quality.md
-    digest: sha256:1028bb2b776797db492c9e19ef465a039132086babc9d74d84a1a4ddb0932339
+    digest: sha256:22d4703dbea84f02dcdf9a116d16441956f688f63a7e450d4ddee30bcaaccfdd
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

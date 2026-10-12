@@ -146,6 +146,21 @@ capture-base 0.0, blank 0.0, and **6/6 survived** (score 0%) →
 record. The verifier is insensitive to every sampled edit of the fix —
 a review hypothesis, not an auto-reject. Total gate wall time ~29.5 min.
 
+Coverage-guided rerun (2026-10-12, same variant, same reference bytes,
+`--max-mutants 12`): the hidden tests run 2 of the file's 48 functions
+(`_default_promote_batch_shape`, which the fix rewrites, and
+`_promote_batch_shape_expanded`). 3 of the 6 Oct 9 survivors sat in
+`vmap_over` handlers the tests never run and are now skipped (34 of 51
+candidates). 11 of 12 mutants on executed lines still survive; the one
+killed reverts the fix hunk. The tests need the crash fix but never check
+the promoted batch shape (dropping `attr_batch_shapes.append(...)` keeps
+1.0), so `needs_review` stands for that reason. Hollow battery: clean
+(5 fakes 0, 3 rewrites + oracle 1). On hardened 002391 (`1c2d9bef0400`),
+the coverage-guided audit flags the wave-2 half-fix: dropping the self-id
+exclusion in `merge_aliases` keeps 1.0 while the in-repo
+`test_vulnerability_result_update_aliases` fails. Receipts:
+`eval-lab-results/2026-10-12/coverage-guided-mutation/README.md`.
+
 ## Startup cost (2026-10-09)
 
 CLI wall time was ~150 s against 0.0–0.2 s step times. Cause: lineage

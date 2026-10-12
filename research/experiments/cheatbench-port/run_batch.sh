@@ -4,8 +4,14 @@
 # capture link -> postrun. Replaces dispatch.sh (deleted).
 #
 # Usage: research/experiments/cheatbench-port/run_batch.sh [--dry-run] <specs-dir> "<actor + approval quote>" [parallel]
+#        research/experiments/cheatbench-port/run_batch.sh [--dry-run] --resume <batch_id> [parallel]
 # Run from the worktree root. Paid: only use with a budget Peter granted for
 # this experiment. --dry-run prints every command without executing it.
+# --resume continues a batch whose specs are already submitted and approved
+# (e.g. after a queue/STOP fence): no readiness, submit or approve; it ticks
+# only groups with specs still approved, under a fresh capture dir. Fix the
+# cause and run `uv run evallab resume` yourself first; it refuses while
+# queue/STOP exists.
 #
 # Env knobs: CB_JUDGE (paid judge route for readiness + postrun; default EMPTY
 #   = no paid judge: the cheat judge is Sonnet 5.5 on Peter's subscription via
@@ -14,6 +20,9 @@
 #   action, so an empty provider balance aborts BEFORE dispatch).
 #   CB_SPEND_CAP_USD: batch agent-spend cap; the monitor writes queue/STOP at
 #   it (running trials finish under their own per-trial caps).
+#   CB_ONLY: tick only specs whose job name contains this text (e.g. `-q36or-`);
+#   the others stay approved for a later --resume. Use it to keep one model
+#   going while another's provider is overloaded.
 #
 # Live stop: each spec's name ends in -on or -dry (make_specs.py --stop-mode);
 # its group ticks with EVALLAB_WATCH_STOP=on or dry-run. Specs without the
@@ -21,13 +30,22 @@
 set -euo pipefail
 
 DRY=0
+RESUME=""
 if [ "${1:-}" = "--dry-run" ]; then
   DRY=1
   shift
 fi
-spec_dir=${1:?usage: run_batch.sh [--dry-run] <specs-dir> "<actor + approval quote>" [parallel]}
-export CB_ACTOR=${2:?usage: run_batch.sh [--dry-run] <specs-dir> "<actor + approval quote>" [parallel]}
-parallel=${3:-2}
+if [ "${1:-}" = "--resume" ]; then
+  RESUME=${2:?usage: run_batch.sh [--dry-run] --resume <batch_id> [parallel]}
+  shift 2
+  spec_dir=""
+  export CB_ACTOR="(resume: specs already approved)"
+  parallel=${1:-2}
+else
+  spec_dir=${1:?usage: run_batch.sh [--dry-run] <specs-dir> "<actor + approval quote>" [parallel]}
+  export CB_ACTOR=${2:?usage: run_batch.sh [--dry-run] <specs-dir> "<actor + approval quote>" [parallel]}
+  parallel=${3:-2}
+fi
 CB_JUDGE=${CB_JUDGE:-}
 EXP=research/experiments/cheatbench-port
 TINKER_UP=https://tinker.thinkingmachines.dev
@@ -43,11 +61,17 @@ else
   READINESS_KEYS=""
 fi
 
-batch_date=$(date -u +%F)
-slug=$(basename "$spec_dir" | tr -c '[:alnum:]-' '-' | tr -s '-')
-slug=${slug%-}; slug=${slug#-}
-slug=$(printf '%.40s' "$slug")
-batch_id="$batch_date-$slug"
+if [ -n "$RESUME" ]; then
+  batch_id=$RESUME
+  CAP_SUFFIX="-resume-$(date -u +%H%M%S)"
+else
+  batch_date=$(date -u +%F)
+  slug=$(basename "$spec_dir" | tr -c '[:alnum:]-' '-' | tr -s '-')
+  slug=${slug%-}; slug=${slug#-}
+  slug=$(printf '%.40s' "$slug")
+  batch_id="$batch_date-$slug"
+  CAP_SUFFIX=""
+fi
 batch_dir="runs/_batches/$batch_id"
 run() {
   echo "+ $*"
@@ -61,8 +85,11 @@ run mkdir -p "$batch_dir/captures" "$batch_dir/groups" "$batch_dir/monitor"
 
 # 1. Group specs by (family, provider, stop mode) for per-group ticks, cheapest
 # family first (a spend-cap STOP then cuts the most expensive family, not all).
-echo "grouping specs in $spec_dir ..."
-if [ "$DRY" = "0" ]; then
+if [ -n "$RESUME" ]; then
+  [ -f "$batch_dir/groups/order.txt" ] || { echo "no $batch_dir/groups/order.txt; nothing to resume" >&2; exit 2; }
+  echo "resume: reusing $batch_dir/groups (no readiness, submit or approve)"
+elif [ "$DRY" = "0" ]; then
+  echo "grouping specs in $spec_dir ..."
   PYTHONPATH="$EXP" uv run --no-sync python - "$spec_dir" "$batch_dir" <<'PYEOF'
 import json, sys
 from pathlib import Path
@@ -102,7 +129,7 @@ fi
 FAMS=""; MODELS=""
 [ -f "$batch_dir/families.txt" ] && FAMS=$(cat "$batch_dir/families.txt")
 [ -f "$batch_dir/models.txt" ] && MODELS=$(tr '\n' ' ' < "$batch_dir/models.txt")
-if [ "$DRY" = "1" ]; then
+if [ "$DRY" = "1" ] && [ -z "$RESUME" ]; then
   # Dry-run reads nothing but the spec files (free, local) for faithful echoes.
   FAMS=$(grep -ho 'cheatbench/[a-z_]*' "$spec_dir"/*.json 2>/dev/null | cut -d/ -f2 | sort -u | tr '\n' ' ')
   MODELS=$(grep -ho '"model": *"[^"]*"' "$spec_dir"/*.json 2>/dev/null | cut -d'"' -f4 | sort -u | tr '\n' ' ')
@@ -119,7 +146,15 @@ case "$MODELS" in *openrouter-metered/*) PROVS="$PROVS openrouter";; esac
 readiness_out="$batch_dir/readiness-receipt.json"
 JUDGE_ARGS=""
 if [ -n "$CB_JUDGE" ]; then JUDGE_ARGS="--judge $CB_JUDGE"; fi
-if [ "$DRY" = "0" ]; then
+if [ -n "$RESUME" ]; then
+  # The gate already passed for this batch; its queue check would now fail on
+  # the batch's own approved specs. A fence still in place means the cause has
+  # not been dealt with.
+  if [ -f queue/STOP ]; then
+    echo "queue/STOP is present: fix the cause, then 'uv run evallab resume', then rerun --resume" >&2
+    exit 2
+  fi
+elif [ "$DRY" = "0" ]; then
   # shellcheck disable=SC2086
   $READINESS_KEYS uv run --no-sync python "$EXP/readiness.py" \
     --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS \
@@ -132,7 +167,9 @@ fi
 # ~1 min apiece; the queue serialises its own event log with flock).
 ids_file="$batch_dir/spec_ids.txt"
 submit_map="$batch_dir/submit_map.txt"
-if [ "$DRY" = "0" ]; then
+if [ -n "$RESUME" ]; then
+  echo "resume: specs already submitted and approved ($batch_dir/groups/*.ids)"
+elif [ "$DRY" = "0" ]; then
   uv run --no-sync python - "$spec_dir" "$submit_map" <<'PYEOF'
 import subprocess, sys
 from concurrent.futures import ThreadPoolExecutor
@@ -187,7 +224,7 @@ fi
 declare -a CAP_PIDS=()
 start_capture() { # <provider> <upstream>
   prov=$1 up=$2
-  out="$batch_dir/captures/$prov"
+  out="$batch_dir/captures/$prov$CAP_SUFFIX"
   run mkdir -p "$out"
   if [ "$DRY" = "1" ]; then
     echo "+ uv run --no-sync evallab capture serve --upstream $up --out $out --bind 127.0.0.1 &"
@@ -244,11 +281,22 @@ tick_group() { # <family> <provider> <stop mode> <ids-file>
   eval "$(PYTHONPATH="$EXP" uv run --no-sync python -c "import capture_config, shlex; print(' '.join(f'export {k}={shlex.quote(v)}' for k, v in capture_config.file_access_env(\"$fam\").items()))")"
   eval "export EVALLAB_MODEL_CAPTURE_DIR=\"\$EVALLAB_MODEL_CAPTURE_DIR_$prov\""
   export EVALLAB_WATCH_STOP="$mode"
+  tick_args=""; approved_left=""; group_ids=""
+  # groups/<base>.txt (job names) and .ids (spec ids) are line-aligned.
+  while read -r name s; do
+    [ -n "$s" ] || continue
+    case "$name" in *"${CB_ONLY:-}"*) ;; *) continue ;; esac
+    group_ids="$group_ids $s"
+    tick_args="$tick_args --spec-id $s"
+    if ls queue/approved/*-"$s".json >/dev/null 2>&1; then
+      approved_left="$approved_left $s"
+    fi
+  done < <(paste -d' ' "${ids%.ids}.txt" "$ids")
+  if [ -z "$approved_left" ]; then
+    echo "skip $fam/$prov live-stop=$mode: no spec still approved"
+    return 0
+  fi
   echo "tick $fam/$prov live-stop=$mode"
-  tick_args=""
-  while IFS= read -r s; do
-    [ -n "$s" ] && tick_args="$tick_args --spec-id $s"
-  done < "$ids"
   round=0
   while [ "$round" -lt 20 ]; do
     round=$((round + 1))
@@ -263,14 +311,13 @@ tick_group() { # <family> <provider> <stop mode> <ids-file>
       | tee -a "$batch_dir/tick-$fam.$prov.$mode.log" \
       | grep -E '^(dispatching|failed|completed|reused|dispatched|quarantined)' || true
     waiting=""; approved_left=""
-    while IFS= read -r sid; do
-      [ -n "$sid" ] || continue
+    for sid in $group_ids; do
       if ls queue/waiting/*-"$sid".json >/dev/null 2>&1; then
         waiting="$waiting $sid"
       elif ls queue/approved/*-"$sid".json >/dev/null 2>&1; then
         approved_left="$approved_left $sid"
       fi
-    done < "$ids"
+    done
     if [ -n "$waiting" ]; then
       code="unknown"
       for sid in $waiting; do
@@ -296,6 +343,10 @@ else
   while IFS= read -r base; do         # <family>.<provider>.<stop mode>
     [ -n "$base" ] || continue
     [ -n "$WAITING_MSG" ] && break
+    if [ -f queue/STOP ]; then
+      echo "queue/STOP present; stop ticking, continue to cleanup" >&2
+      break
+    fi
     ids="$batch_dir/groups/$base.ids"
     [ -e "$ids" ] || continue
     fam=${base%%.*} rest=${base#*.}
@@ -317,34 +368,42 @@ else
 fi
 
 # 8. Attribute captured calls to trials (backstop; the runner also auto-links).
-# Batch jobs = runs whose lab-metadata experiment.spec_id is one of ours.
+# Batch jobs = runs whose lab-metadata experiment.spec_id is one of ours. Each
+# job links only to the capture dir it ran under (lab-metadata
+# model_capture.capture_dir): a resumed batch has several, and linking a job
+# to a capture that never saw its calls would replace its link with an empty one.
 if [ "$DRY" = "1" ]; then
-  echo "+ uv run --no-sync evallab capture link $batch_dir/captures/<prov> runs/<each-batch-job>"
+  echo "+ uv run --no-sync evallab capture link <job's capture dir> runs/<each-batch-job>"
 else
-  uv run --no-sync python - "$batch_dir" <<'PYEOF' > "$batch_dir/jobs.txt"
+  uv run --no-sync python - "$batch_dir" <<'PYEOF'
 import json, sys
 from pathlib import Path
 batch = Path(sys.argv[1])
 want = set()
 for f in (batch / "groups").glob("*.ids"):
     want.update(l.strip() for l in f.read_text().splitlines() if l.strip())
+names, links = [], []
 for lab in sorted(Path("runs").glob("cb-*/lab-metadata.json")):
     try:
         meta = json.loads(lab.read_text())
     except ValueError:
         continue
     if ((meta.get("experiment") or {}).get("spec_id")) in want:
-        print(lab.parent.name)
+        names.append(lab.parent.name)
+        links.append(f"{lab.parent.name} {(meta.get('model_capture') or {}).get('capture_dir') or ''}")
+(batch / "jobs.txt").write_text("".join(n + "\n" for n in names))
+(batch / "job_captures.txt").write_text("".join(n + "\n" for n in links))
 PYEOF
-  for cap in "$batch_dir"/captures/*/; do
-    [ -d "$cap" ] || continue
-    while IFS= read -r job; do
-      [ -n "$job" ] || continue
-      # Same layout as the runner's auto-link: the job's own derived/ dir.
-      uv run --no-sync evallab capture link --derived-root "runs/$job/derived/parquet" \
-        "$cap" "runs/$job" || true
-    done < "$batch_dir/jobs.txt"
-  done
+  while read -r job cap; do
+    [ -n "$job" ] || continue
+    if [ -z "$cap" ] || [ ! -d "$cap" ]; then
+      echo "capture link: $job ran without a capture dir; not linked" >&2
+      continue
+    fi
+    # Same layout as the runner's auto-link: the job's own derived/ dir.
+    uv run --no-sync evallab capture link --derived-root "runs/$job/derived/parquet" \
+      "$cap" "runs/$job" || true
+  done < "$batch_dir/job_captures.txt"
 fi
 
 # 9. Postrun: detect, optional judge, analyze, spend, export.

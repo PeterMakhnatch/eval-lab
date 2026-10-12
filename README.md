@@ -170,3 +170,10 @@ uv run python -m evallab.repomap generate
 uv run python -m evallab.docindex generate
 uv run evallab status --update
 ```
+
+## License
+
+Apache-2.0; see [LICENSE](LICENSE). Third-party material keeps its own
+license: vendored benchmark packages under `library/external/` carry their
+upstream `LICENSE` or `PROVENANCE.json`, and files adapted from other projects
+say so in their headers.

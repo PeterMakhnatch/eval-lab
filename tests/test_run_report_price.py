@@ -253,6 +253,63 @@ def test_model_matching_is_exact_after_prefix_normalization() -> None:
     assert lookup_price("deepseek/deepseek-flash") is None
     assert lookup_price(None) is None
     assert lookup_price("") is None
+    # OpenRouter metered selectors strip to their endpoint keys (one prefix
+    # only: org-prefixed native ids stay whole).
+    assert (
+        normalize_model_id("openrouter-metered/xiaomi/mimo-v2.6-flash")
+        == "xiaomi/mimo-v2.6-flash"
+    )
+    assert (
+        normalize_model_id("openrouter-metered/deepseek/deepseek-v4.1-flash")
+        == "deepseek/deepseek-v4.1-flash"
+    )
+    assert (
+        normalize_model_id("openrouter-metered/z-ai/glm-5.3-flash")
+        == "z-ai/glm-5.3-flash"
+    )
+    assert (
+        normalize_model_id("openrouter-metered/openai/gpt-oss-120b")
+        == "openai/gpt-oss-120b"
+    )
+    assert (
+        normalize_model_id("tinker/Qwen/Qwen3.6-35B-A3B") == "qwen/qwen3.6-35b-a3b"
+    )
+
+
+def test_qwen_selector_source_decides_which_price_applies() -> None:
+    """The stripped ``qwen/`` form collides across routes; the full id wins."""
+    openrouter_price = lookup_price("openrouter-metered/qwen/qwen3.6-35b-a3b")
+    assert openrouter_price is not None
+    assert openrouter_price.input_usd_per_mtok == 0.10
+    assert openrouter_price.output_usd_per_mtok == 0.95
+    tinker_price = lookup_price("tinker/Qwen/Qwen3.6-35B-A3B")
+    assert tinker_price is not None
+    assert tinker_price.input_usd_per_mtok == 0.45
+    assert tinker_price.output_usd_per_mtok == 1.335
+    assert lookup_price("openrouter-metered/qwen/qwen3.5-9b") is not None
+    assert lookup_price("openrouter-metered/qwen/qwen3.5-9b").input_usd_per_mtok == 0.10  # type: ignore[union-attr]
+
+
+def test_route_entries_carry_october_verification_date() -> None:
+    """Refreshed 2026-10-12 entries pin their own retrieval date."""
+    for raw, cached in (
+        ("openrouter-metered/xiaomi/mimo-v2.6-flash", 0.0028),
+        ("openrouter-metered/openai/gpt-oss-120b", 0.037),
+        ("openrouter-metered/deepseek/deepseek-v4.1-flash", 0.003),
+        ("openrouter-metered/z-ai/glm-5.3-flash", 0.03),
+        ("openrouter-metered/qwen/qwen3.6-35b-a3b", 0.10),
+        ("openrouter-metered/qwen/qwen3.5-9b", 0.10),
+        ("tinker/Qwen/Qwen3.6-35B-A3B", 0.09),
+        ("tinker/Qwen/Qwen3.8-27B", 0.1395),
+        ("tinker/Qwen/Qwen3.5-9B", 0.06),
+    ):
+        price = lookup_price(raw)
+        assert price is not None, raw
+        assert price.retrieved_on == "2026-10-12", raw
+        assert price.cached_input_usd_per_mtok == cached, raw
+    # Untouched entries keep the original retrieval date.
+    assert lookup_price("glm-5.3-flash") is not None
+    assert lookup_price("glm-5.3-flash").retrieved_on == "2026-09-26"  # type: ignore[union-attr]
 
 
 def test_estimate_refuses_inconsistent_counts() -> None:

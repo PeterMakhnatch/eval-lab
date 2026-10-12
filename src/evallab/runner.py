@@ -629,7 +629,7 @@ def _read_proxy_usage(
     attempt_id: str,
     limits: ProxyTrialLimits,
     provider_label: str = "DeepSeek",
-    expected_pricing: dict[str, int] | None = None,
+    expected_pricing: dict[str, int | None] | None = None,
 ) -> dict[str, Any]:
     try:
         payload = json.loads(read_owner_secret_file(path))
@@ -1317,7 +1317,7 @@ def run_harbor_process(
     owned_usage_dir: Path | None = None
     owned_usage_path: Path | None = None
     capability_id: str | None = None
-    proxy_pricing: dict[str, int] | None = None
+    proxy_pricing: dict[str, int | None] | None = None
     terminus_proxy: subprocess.Popen[bytes] | None = None
     try:
         if job_dir is not None:
@@ -1625,13 +1625,18 @@ def run_harbor_process(
                 }
             elif openrouter_spec is not None:
                 # The pinned OpenRouter list price is exact for the pinned
-                # endpoint (supports_implicit_caching=false).
+                # endpoint. The cached rate rides along so the binding matches
+                # the ledger's full rate card; reservations still use the
+                # uncached input rate.
                 proxy_pricing = {
                     "input_cost_micros_per_million": (
                         openrouter_spec.input_cost_micros_per_million
                     ),
                     "output_cost_micros_per_million": (
                         openrouter_spec.output_cost_micros_per_million
+                    ),
+                    "cached_input_cost_micros_per_million": (
+                        openrouter_spec.cached_input_cost_micros_per_million
                     ),
                 }
             else:

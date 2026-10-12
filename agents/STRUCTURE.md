@@ -14,6 +14,7 @@ eval-lab/
 │
 ├── AGENTS.md                  repository rules — every agent reads this first
 ├── README.md                  human orientation
+├── LICENSE                    Apache-2.0 license text
 │
 ├── agents/                    HOW WE WORK — coordination and governance
 │   ├── WORKFLOW.md            the work protocol (worktrees, merges, boundaries)
@@ -276,3 +277,6 @@ The change log below is historical, not a current inventory or work order.
   port of one task's world into Scale's AgentEnv (`agentenv-framework`
   0.9.1275). It runs only as `uv run --project tools/agentenv-bench --locked`;
   AgentEnv's dependency graph never enters the root `uv.lock`.
+- 2026-10-12 — `LICENSE` (Apache-2.0) declared at the root, beside
+  `README.md` and `pyproject.toml`. Vendored third-party packages keep their
+  own license files.

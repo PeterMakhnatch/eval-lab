@@ -36,6 +36,7 @@ from evallab.execution_contracts import new_ulid
 from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
+from evallab.verifier_battery import add_battery_parser
 from evallab.verifier_mutation import add_mutate_parser
 
 SCHEMA_SCAN = "evallab.reward_hack.scan/v1"
@@ -909,3 +910,4 @@ def build_reward_hack_parser(subparsers: Any) -> None:
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=_hack_run_command)
     add_mutate_parser(hack_commands)
+    add_battery_parser(hack_commands)

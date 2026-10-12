@@ -624,11 +624,14 @@ implementations. Metered routes, all host-side through the same loopback proxy:
 - `zai/glm-5.3-flash` and `zai/glm-5.3` — Z.ai standard API via
   `ZAI_OPENAPI_API_KEY` ($0.15/$0.50 and $1.40/$4.40 per 1M tokens). Never
   Coding Plan credentials.
-- `tinker/<base>` for `Qwen/Qwen3.6-35B-A3B` ($0.54/$1.335),
-  `Qwen/Qwen3.8-27B` ($1.86/$5.595), or `Qwen/Qwen3.5-9B` ($0.66/$1.995)
+- `tinker/<base>` for `Qwen/Qwen3.6-35B-A3B` ($0.45/$1.335),
+  `Qwen/Qwen3.8-27B` ($0.6975/$5.595), or `Qwen/Qwen3.5-9B` ($0.30/$0.807)
   — Thinking Machines Tinker's OpenAI-compatible endpoint via `TINKER_API_KEY`,
   pinned to `tinker.thinkingmachines.dev` +
-  `/services/tinker-prod/oai/api/v1/chat/completions`. A fine-tuned checkpoint
+  `/services/tinker-prod/oai/api/v1/chat/completions` (rates from
+  `tinker/models.json`, verified 2026-10-12; cached prefill $0.09/$0.1395/
+  $0.06 recorded for reporting only — settlement still prices every input
+  token uncached). A fine-tuned checkpoint
   replay uses `tinker/<base>@tinker://<run-id>:train:<i>/sampler_weights/<step>`;
   it pins the same base profile, prices, and credential. Tinker's 64K context
   window is bound at the adapter, so native summarization triggers before
@@ -707,19 +710,25 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   and `reasoning {"enabled": true}` (MiMo thinking on, matching the
   self-hosted treatment), stripping any caller-supplied
   `provider`/`reasoning`/`reasoning_effort`; ledger calls carry
-  `shaping_applied`. Prices: $0.14 per 1M input, $0.28 per 1M output
-  (OpenRouter list price verified 2026-09-29; cache read $0.0028/M is never
-  credited — the pinned endpoint reports `supports_implicit_caching=false`,
-  so uncached input pricing is exact). Context is runtime-bound at 1 048 576
+  `shaping_applied`. Prices: $0.14 per 1M input, $0.0028 per 1M cache read,
+  $0.28 per 1M output (OpenRouter per-endpoint list price re-verified
+  2026-10-12). Context is runtime-bound at 1 048 576
   input tokens with at most 131 072 completion tokens. OpenRouter's usage
   (`prompt_tokens`/`completion_tokens`; completion includes reasoning tokens)
   reconciles through the standard ledger, and its keep-alive padding (leading
-  whitespace before the non-stream JSON body) is accepted. The parser is the
+  whitespace before the non-stream JSON body) is accepted. Settlement per
+  call: OpenRouter's reported `usage.cost` when present and valid, else
+  table rates crediting `prompt_tokens_details.cached_tokens` at the
+  route's cached rate; the ledger call records the basis
+  (`openrouter_reported` or `table`). Reservations stay conservative
+  (uncached input at max tokens). The parser is the
   stock Terminus-2 JSON parser — no `MimoToolCallParser` wrapper on this
   route; HAR-104 decides from the proof run's raw outputs whether a
   normalizer is needed. A trial's proxy admits only that trial's model
   (`EVALLAB_OPENROUTER_EXPECTED_MODEL`), even though the route table admits
-  several.
+  several. Note: on 2026-10-12 the `xiaomi/fp8` endpoint showed status -2
+  with ~90% 30-minute uptime — first-party pin kept, monitor before large
+  runs.
 
 - `openrouter-metered/openai/gpt-oss-120b` (HAR-104) — gpt-oss-120b through
   the same OpenRouter route, pinned to endpoint `deepinfra/bf16`
@@ -727,10 +736,56 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   full endpoint slug is required because bare `deepinfra` also matches its
   turbo and fp8 endpoints) with `reasoning {"effort": "medium"}`, the model's
   documented default. Prices: $0.037 per 1M input, $0.17 per 1M output
-  (verified 2026-09-30; `supports_implicit_caching=false`). Context is
-  131 072 tokens with at most 117 964 completion tokens. Both OpenRouter
-  models live in one table, `OPENROUTER_ROUTES` in
-  `src/evallab/execution_contracts.py`, mirrored literally in the proxy.
+  (re-verified 2026-10-12); the endpoint publishes no cache rate, so cached
+  tokens settle at the full input rate. Context is
+  131 072 tokens with at most 117 964 completion tokens.
+
+- `openrouter-metered/deepseek/deepseek-v4.1-flash` — DeepSeek-V4.1-Flash
+  through the same OpenRouter route, pinned to the first-party `deepseek`
+  endpoint (`provider {"order": ["deepseek"], "allow_fallbacks": false}`)
+  with `reasoning {"effort": "medium"}` (thinking is DeepSeek's documented
+  default mode for deepseek-flash). Prices: $0.15 per 1M input, $0.003 per
+  1M cache read, $0.60 per 1M output off-peak (verified 2026-10-12; status
+  0, 100% 30-minute uptime, `supports_implicit_caching=true`). DeepSeek
+  peak hours (Mon-Fri 01:00-04:00 and 06:00-10:00 UTC) double all rates;
+  the table pins off-peak and the reported `usage.cost` settlement basis
+  reflects the actual billed schedule. Context is 1 048 576 tokens with at
+  most 393 216 completion tokens. Operational note 2026-10-12: the
+  first-party `deepseek` endpoint refused this account's key at routing
+  (`No endpoints found ... Guardrails removed deepseek (Paid model training
+  violation (account settings))`) while `allow_fallbacks: false` removed
+  every other endpoint — the pin is kept, but the route serves nothing
+  until the account's OpenRouter training/privacy setting is reconciled.
+
+- `openrouter-metered/z-ai/glm-5.3-flash` — GLM-5.3-Flash through the same
+  OpenRouter route, pinned to the first-party `z-ai/fp8` endpoint
+  (`provider {"order": ["z-ai/fp8"], "allow_fallbacks": false}`) with
+  `reasoning {"effort": "medium"}`. Prices: $0.15 per 1M input, $0.03 per
+  1M cache read, $0.50 per 1M output (verified 2026-10-12; status 0, 100%
+  30-minute uptime) — the same list prices as the direct Z.ai OpenAPI
+  route. Context is 1 048 576 tokens with at most 131 072 completion
+  tokens.
+
+- `openrouter-metered/qwen/qwen3.6-35b-a3b` — Qwen3.6-35B-A3B through the
+  same OpenRouter route, pinned to endpoint `deepinfra/fp8`
+  (`provider {"order": ["deepinfra/fp8"], "allow_fallbacks": false}`) with
+  `reasoning {"enabled": true}` (thinking on, matching the Tinker route's
+  thinking-on behavior; verified live 2026-10-12 with reasoning present).
+  Prices: $0.10 per 1M input, $0.10 per 1M cache read, $0.95 per 1M output
+  (verified 2026-10-12; `supports_implicit_caching=false`). Context is
+  262 144 tokens with at most 65 536 completion tokens.
+
+- `openrouter-metered/qwen/qwen3.5-9b` — Qwen3.5-9B through the same
+  OpenRouter route, pinned to endpoint `deepinfra/bf16`
+  (`provider {"order": ["deepinfra/bf16"], "allow_fallbacks": false}`) with
+  `reasoning {"enabled": true}` (thinking on, matching the Tinker route's
+  thinking-on behavior; verified live 2026-10-12 with reasoning present).
+  Prices: $0.10 per 1M input, $0.15 per 1M output (verified 2026-10-12;
+  the endpoint publishes no cache rate, so cached tokens settle at the
+  full input rate). Context is 262 144 tokens with at most
+  81 920 completion tokens. All six OpenRouter models live in one table,
+  `OPENROUTER_ROUTES` in `src/evallab/execution_contracts.py`, mirrored
+  literally in the proxy.
 
 The MiMo server lives in `tools/modal-mimo-serve/` (see its README for the
 deploy, smoke and stop commands). Daytona Tier 1/2 sandboxes cannot reach
@@ -835,7 +890,7 @@ as one the agent abandoned at its timeout, runs on for up to 120 s and settles
 with its real usage. A call still in flight after that is marked unresolved
 (`in_flight_at_shutdown`) and fails the trial's accounting.
 For Daytona, the reused lifecycle wrapper sets a provider TTL of execution
-timeout plus ten minutes, five-minute inactivity stop, and deletion on stop.
+timeout plus ten minutes, sixteen-minute inactivity stop, and deletion on stop.
 Since HAR-140 every MiMo run on Daytona (MiMo-family model or MiMo-dataset
 task, including nop/oracle census runs) additionally passes
 `egress_lock=true` to the bounded environment, blocking sandbox egress after
@@ -1170,8 +1225,12 @@ packages; separate verifiers use Harbor's independent verifier environment.
 
 Task CPU/RAM/disk requests still come from `task.toml`. Each sandbox has a
 provider-side destruction deadline of the explicit execution timeout plus ten
-minutes (rounded up), five-minute inactivity stop, and immediate deletion after
-stop. These lifecycle limits are not an infrastructure dollar meter: budget the
+minutes (rounded up), sixteen-minute inactivity stop, and immediate deletion after
+stop. The stop covers the longest idle gap — one full model call (the proxy's
+600 s upstream timeout) plus the bounded 503 wait (360 s default), rounded up
+(`DAYTONA_AUTO_STOP_INTERVAL_MINS` in `execution_contracts.py`); G5 lost 3
+sandboxes after 255-281 s model stalls under the old 5-minute stop while the
+proxy was still inside its 503 wait. These lifecycle limits are not an infrastructure dollar meter: budget the
 agent sandbox, separate verifier, and builds independently of model tokens.
 All five provider request/token/cost ceilings remain mandatory. Shorter pilot
 timeouts and budget terminations are diagnostic limits, not full TB4 results.

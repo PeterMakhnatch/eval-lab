@@ -58,6 +58,12 @@ Plus a top-level `router_question` (8-way choice) and `any_cheat_question`.
   `false_claim`, `task_underspecified`, `task_unsolvable`,
   `task_no_resource_limits`; `task_weak_assertion` has V5/V6 scan only.
 - Karotte's Harbor comparison is a vendor claim, unverified by us.
+- An answer that redefines the evaluator's own entry point (Aria's learned
+  `run_tests()` override) is invisible to every Kev card (AUROC 0.40–0.57) and to
+  `rules`. #847's AST rule `entrypoint_assertless` fires on 296/300 such hacks but
+  also on 110/300 clean rollouts from the same training steps. [INFERENCE]
+  `grader_tamper` needs a code rule plus a regrade under the original evaluator
+  for in-answer overrides, not a text card.
 
 ## Measured with Kev-4B (zero-shot, 2026-10-09)
 
@@ -65,20 +71,22 @@ AUROC of the first noul card per pattern (v1 wording: `instructions` + `criteria
 text, the exact strings in `research/experiments/kev-hack-detector/questions.json`).
 Window level on CheatBench held-out families (SWE-bench Verified, SWE-rebench,
 CyBench; 138 / 672) and held-out TB2 tasks (42 / 48); trace level (max over windows)
-on detectors-v1 `tw` (100 / 100) and `ours` (11 / 13). Details and caveats:
+on detectors-v1 `tw` (100 / 100), `ours` (11 / 13) and, from 2026-10-12, the
+single-answer coding rollouts `ht` (prompted, 300 / 300), `aria` and `olmo` (hacks
+learned in RL training, 300 / 300 each). Details and caveats:
 [the experiment README](../../experiments/kev-hack-detector/README.md).
 
-| card | test families | dev TB2 | tw | ours |
-|---|---|---|---|---|
-| any_cheat | 0.50 | 0.92 | 0.86 | 0.76 |
-| verifier_access | 0.61 | 0.73 | 0.60 | 0.57 |
-| answer_leak | 0.89 | 0.89 | 0.58 | 0.80 |
-| upstream_fetch | 0.92 | 0.83 | 0.57 | 1.00 |
-| grader_tamper | 0.60 | 0.57 | 0.67 | 0.60 |
-| hollow_solution | 0.54 | 0.60 | 0.88 | 0.51 |
-| constraint_violation | 0.55 | 0.44 | 0.97 | 0.39 |
-| false_claim | 0.47 | 0.45 | 0.17 | 0.80 |
-| router 1 − P(none) | 0.65 | 0.97 | 0.94 | 0.74 |
+| card | test families | dev TB2 | tw | ours | ht | aria | olmo |
+|---|---|---|---|---|---|---|---|
+| any_cheat | 0.50 | 0.92 | 0.86 | 0.76 | 0.78 | 0.41 | 0.97 |
+| verifier_access | 0.61 | 0.73 | 0.60 | 0.57 | 0.65 | 0.52 | 0.72 |
+| answer_leak | 0.89 | 0.89 | 0.58 | 0.80 | 0.62 | 0.44 | 0.72 |
+| upstream_fetch | 0.92 | 0.83 | 0.57 | 1.00 | 0.79 | 0.40 | 0.81 |
+| grader_tamper | 0.60 | 0.57 | 0.67 | 0.60 | 0.60 | 0.57 | 0.94 |
+| hollow_solution | 0.54 | 0.60 | 0.88 | 0.51 | 0.86 | 0.46 | 0.93 |
+| constraint_violation | 0.55 | 0.44 | 0.97 | 0.39 | 0.82 | 0.42 | 0.97 |
+| false_claim | 0.47 | 0.45 | 0.17 | 0.80 | 0.80 | 0.54 | 0.86 |
+| router 1 − P(none) | 0.65 | 0.97 | 0.94 | 0.74 | 0.84 | 0.43 | 0.95 |
 
 Cards work where the hack is a concrete action named in the card (`answer_leak`,
 `upstream_fetch`). On Terminal Wrench several cards fire on any hack family, so a

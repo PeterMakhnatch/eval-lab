@@ -584,6 +584,7 @@ def test_host_proxy_binds_loopback_and_meters_calls(
         expected_pricing={
             "input_cost_micros_per_million": 150000,
             "output_cost_micros_per_million": 500000,
+            "cached_input_cost_micros_per_million": None,
         },
     )
     assert usage["totals"]["cost_micros"] == (

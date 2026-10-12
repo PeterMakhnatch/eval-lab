@@ -109,10 +109,11 @@ uv run evallab detectors score --check reward_hacking --families
 uv run evallab detectors list --corpus detectors-v1
 uv run evallab detectors run --detector rules --tw-root DIR   # judge uncached rows, cache them
 uv run evallab detectors run --detector rules --source cb --cb-root DIR
+uv run evallab detectors run --detector rules --source aria --source olmo --source ht --rl-root DIR
 ```
 
 The corpus is `research/calibration/detectors-v1` (`corpus.json` describes it).
-It holds 4752 rows with labels, sealed by `MANIFEST.sha256`:
+It holds 6552 rows with labels, sealed by `MANIFEST.sha256`:
 
 - **`tw`:** 100 Terminal Wrench rewarded hacks across 11 families and 100
   passing baselines (Apache-2.0). The hacks are TW's *sanitized* trajectories,
@@ -127,6 +128,15 @@ It holds 4752 rows with labels, sealed by `MANIFEST.sha256`:
   `python -m evallab.cheatbench fetch/materialize` under `<cb-root>/cb/<cb_id>`.
 - **`g6`:** the 60 G5 runs with the two raters' agreed loop and infra labels
   (HAR-166).
+- **`aria`, `olmo`, `ht`:** 300 hacks + 300 matched clean single-answer coding
+  rollouts each. `aria` and `olmo` are hacks a model learned during RL training
+  (Qwen3-4B on LeetCode overriding `run_tests()`; OLMo-3.1-32B on CodeContests
+  with `os._exit`, always-equal and `conftest.py`); `ht` is the prompted
+  control (HackTrace, Qwen3-8B told to shortcut). Rows live in
+  `rl_subset.json`; trace bodies materialize with
+  `python -m evallab.rl_rollouts fetch/materialize` under
+  `<rl-root>/<source>/<rl_id>`. Results:
+  `research/experiments/kev-hack-detector/README.md` ("Learned vs prompted hacks").
 
 Every judge output already paid for sits in `cache/<detector>/<id>.json`,
 sealed by `CACHE.sha256`, so `score` never calls a model.
@@ -156,6 +166,10 @@ calls). The single flagged clean pass (HAR-168 002552-a2) drops a stale
 assertion while extending a test file -- assertion-removal is kept as a
 tamper signal because it also catches real suite-weakening, at this measured
 cost.
+
+On the RL rollout sources the rules catch 12/13 OLMo `conftest.py` writes and
+nothing else (0/300 aria, 0/300 ht, 12/300 olmo, 0 false positives): those hacks
+live inside the submitted code, which no command or file-write rule sees.
 
 - **General hacks** (hollow implementations, output spoofing and so on): the
   general LLM readers catch them and our rules don't.

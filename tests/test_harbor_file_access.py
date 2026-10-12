@@ -69,6 +69,7 @@ class FakeEnv:
         self.inotifywait: str | None = "/usr/bin/inotifywait"
         self.refs_present = False
         self.probe_history: list[dict[str, Any]] = []
+        self.probe_extras: list[dict[str, Any]] = []
         self.snapshot_calls = 0
 
     def probe_doc(self) -> dict[str, Any]:
@@ -88,7 +89,7 @@ class FakeEnv:
             "mimo_git_hidden": {"candidate": "/var/lib/mimo/git-hidden", "git_dir": None},
             "git_history": self.probe_history,
             "tests": {"path": "/tests", "status": "present"},
-            "extras": [],
+            "extras": list(self.probe_extras),
         }
 
     def baseline_doc(self) -> dict[str, Any]:
@@ -495,6 +496,106 @@ def test_invalid_targets_leave_capture_unavailable(tmp_path: Path, monkeypatch: 
     asyncio.run(main())
     records = _log_lines(tmp_path)
     assert _terminal(records)["state"] == "unavailable"
+    assert not any(record["kind"] == "access" for record in records)
+    assert not (tmp_path / TRIAL_NAME / "evaluator" / "file-access").exists()
+
+
+def test_discovery_off_watches_only_declared_targets(tmp_path: Path, monkeypatch: Any) -> None:
+    """Discovery off ignores probe repos and the default tests dir."""
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS", "1")
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS_DISCOVERY", "off")
+    monkeypatch.setenv(
+        "EVALLAB_FILE_ACCESS_PATHS", json.dumps({"grader": ["/honeypot/blob"]})
+    )
+
+    async def main() -> None:
+        plugin = FileAccessPlugin(poll_seconds=3600)
+        env = _enabled_env()
+        env.probe_extras = [{"path": "/honeypot/blob", "exists": True, "is_dir": False}]
+        trial = FakeTrial(TRIAL_NAME, env)
+        event = _event(tmp_path)
+        await _arrange(plugin, trial, event)
+        await _fire(trial, "agent-end", event)
+
+    asyncio.run(main())
+    records = _log_lines(tmp_path)
+    started = [record for record in records if record["kind"] == "coverage"][0]
+    assert started["state"] == "active"
+    assert started["watched_paths"] == ["/honeypot/blob"]
+    assert "EVALLAB_FILE_ACCESS_DISCOVERY=off" in started["reason"]
+    discovery = json.loads(
+        (tmp_path / TRIAL_NAME / "evaluator" / "file-access" / "discovery-w1.json")
+        .read_text(encoding="utf-8")
+    )
+    assert discovery["discovery"] == "off"
+    assert discovery["watched"] == ["/honeypot/blob"]
+
+
+def test_discovery_on_keeps_default_targets(tmp_path: Path, monkeypatch: Any) -> None:
+    """Explicit on matches today's discovery behavior."""
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS", "1")
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS_DISCOVERY", "on")
+
+    async def main() -> None:
+        plugin = FileAccessPlugin(poll_seconds=3600)
+        env = _enabled_env()
+        trial = FakeTrial(TRIAL_NAME, env)
+        event = _event(tmp_path)
+        await _arrange(plugin, trial, event)
+        await _fire(trial, "agent-end", event)
+
+    asyncio.run(main())
+    records = _log_lines(tmp_path)
+    started = [record for record in records if record["kind"] == "coverage"][0]
+    assert started["state"] == "active"
+    assert started["watched_paths"] == ["/testbed/.git/objects", "/tests"]
+    discovery = json.loads(
+        (tmp_path / TRIAL_NAME / "evaluator" / "file-access" / "discovery-w1.json")
+        .read_text(encoding="utf-8")
+    )
+    assert discovery["discovery"] == "on"
+    assert discovery["watched"] == ["/testbed/.git/objects", "/tests"]
+
+
+def test_discovery_bad_value_leaves_capture_unavailable(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Unknown discovery values fail closed, like bad paths JSON."""
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS", "1")
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS_DISCOVERY", "bogus")
+
+    async def main() -> None:
+        plugin = FileAccessPlugin()
+        trial = FakeTrial(TRIAL_NAME, _enabled_env())
+        await _arrange(plugin, trial, _event(tmp_path))
+        await _fire(trial, "agent-end", _event(tmp_path))
+
+    asyncio.run(main())
+    records = _log_lines(tmp_path)
+    assert _terminal(records)["state"] == "unavailable"
+    assert "EVALLAB_FILE_ACCESS_DISCOVERY" in _terminal(records)["reason"]
+    assert not any(record["kind"] == "access" for record in records)
+    assert not (tmp_path / TRIAL_NAME / "evaluator" / "file-access").exists()
+
+
+def test_discovery_off_without_declared_paths_refuses(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    """Off with no declared paths must not silently watch nothing."""
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS", "1")
+    monkeypatch.setenv("EVALLAB_FILE_ACCESS_DISCOVERY", "off")
+    monkeypatch.delenv("EVALLAB_FILE_ACCESS_PATHS", raising=False)
+
+    async def main() -> None:
+        plugin = FileAccessPlugin()
+        trial = FakeTrial(TRIAL_NAME, _enabled_env())
+        await _arrange(plugin, trial, _event(tmp_path))
+        await _fire(trial, "agent-end", _event(tmp_path))
+
+    asyncio.run(main())
+    records = _log_lines(tmp_path)
+    assert _terminal(records)["state"] == "unavailable"
+    assert "EVALLAB_FILE_ACCESS_DISCOVERY=off" in _terminal(records)["reason"]
     assert not any(record["kind"] == "access" for record in records)
     assert not (tmp_path / TRIAL_NAME / "evaluator" / "file-access").exists()
 

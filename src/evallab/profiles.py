@@ -798,8 +798,10 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_concurrency=1,
                 ),
                 verified_facts=(
-                    "2026-09-28: Thinking Machines Tinker OpenAI-compatible "
-                    "route ($0.54 in / $1.335 out per 1M tokens, 64K context)",
+                    "2026-10-12: Thinking Machines Tinker OpenAI-compatible "
+                    "route ($0.45 prefill / $0.09 cached prefill / $1.335 "
+                    "sample per 1M tokens, 64K context; settlement prices "
+                    "every input token uncached)",
                 ),
             ),
             AgentProfile(
@@ -818,8 +820,10 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_concurrency=1,
                 ),
                 verified_facts=(
-                    "2026-09-28: Thinking Machines Tinker OpenAI-compatible "
-                    "route ($1.86 in / $5.595 out per 1M tokens, 64K context)",
+                    "2026-10-12: Thinking Machines Tinker OpenAI-compatible "
+                    "route ($0.6975 prefill / $0.1395 cached prefill / $5.595 "
+                    "sample per 1M tokens, 64K context; settlement prices "
+                    "every input token uncached)",
                 ),
             ),
             AgentProfile(
@@ -838,8 +842,10 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_concurrency=1,
                 ),
                 verified_facts=(
-                    "2026-09-28: Thinking Machines Tinker OpenAI-compatible "
-                    "route ($0.66 in / $1.995 out per 1M tokens, 64K context)",
+                    "2026-10-12: Thinking Machines Tinker OpenAI-compatible "
+                    "route ($0.30 prefill / $0.06 cached prefill / $0.807 "
+                    "sample per 1M tokens, 64K context; settlement prices "
+                    "every input token uncached)",
                 ),
             ),
             *(
@@ -948,12 +954,12 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_concurrency=1,
                 ),
                 verified_facts=(
-                    "2026-09-29: OpenRouter xiaomi/mimo-v2.6-flash list price "
-                    "$0.14 in / $0.28 out per 1M tokens (cache read $0.0028); "
-                    "pinned endpoint tag xiaomi/fp8 with "
-                    "supports_implicit_caching=false and reasoning enabled; "
+                    "2026-10-12: OpenRouter xiaomi/mimo-v2.6-flash list price "
+                    "$0.14 in / $0.0028 cache read / $0.28 out per 1M tokens; "
+                    "pinned endpoint tag xiaomi/fp8 with reasoning enabled; "
                     "1,048,576-token input context, 131,072-token max "
-                    "completion",
+                    "completion; endpoint status -2, ~90% 30-minute uptime — "
+                    "monitor before large runs",
                 ),
             ),
             AgentProfile(
@@ -972,11 +978,109 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                     max_concurrency=1,
                 ),
                 verified_facts=(
-                    "2026-09-30: OpenRouter openai/gpt-oss-120b on pinned "
+                    "2026-10-12: OpenRouter openai/gpt-oss-120b on pinned "
                     "endpoint deepinfra/bf16: $0.037 in / $0.17 out per 1M "
-                    "tokens, supports_implicit_caching=false, reasoning "
-                    "effort pinned medium; 131,072-token context, 117,964-token "
-                    "max completion",
+                    "tokens, no published cache rate, reasoning effort pinned "
+                    "medium; 131,072-token context, 117,964-token max "
+                    "completion",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-openrouter-deepseek-v4-1-flash",
+                adapter=TERMINUS_AGENT,
+                model="openrouter-metered/deepseek/deepseek-v4.1-flash",
+                auth_mode="api-key-environment",
+                secret_source="env:OPENROUTER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-10-12: OpenRouter deepseek/deepseek-v4.1-flash on "
+                    "first-party endpoint deepseek: $0.15 in / $0.003 cache "
+                    "read / $0.60 out per 1M tokens off-peak (peak Mon-Fri "
+                    "01:00-04:00 and 06:00-10:00 UTC doubles all rates), "
+                    "supports_implicit_caching=true, reasoning effort pinned "
+                    "medium; 1,048,576-token context, 393,216-token max "
+                    "completion",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-openrouter-glm-5-3-flash",
+                adapter=TERMINUS_AGENT,
+                model="openrouter-metered/z-ai/glm-5.3-flash",
+                auth_mode="api-key-environment",
+                secret_source="env:OPENROUTER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-10-12: OpenRouter z-ai/glm-5.3-flash on first-party "
+                    "endpoint z-ai/fp8: $0.15 in / $0.03 cache read / $0.50 "
+                    "out per 1M tokens (same as the direct Z.ai route), "
+                    "reasoning effort pinned medium; 1,048,576-token context, "
+                    "131,072-token max completion",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-openrouter-qwen3-6-35b-a3b",
+                adapter=TERMINUS_AGENT,
+                model="openrouter-metered/qwen/qwen3.6-35b-a3b",
+                auth_mode="api-key-environment",
+                secret_source="env:OPENROUTER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-10-12: OpenRouter qwen/qwen3.6-35b-a3b on pinned "
+                    "endpoint deepinfra/fp8: $0.10 in / $0.10 cache read / "
+                    "$0.95 out per 1M tokens, supports_implicit_caching=false, "
+                    "thinking pinned on (reasoning enabled), matching the "
+                    "Tinker route; "
+                    "262,144-token context, 65,536-token max completion; live "
+                    "probe served by DeepInfra with reasoning present",
+                ),
+            ),
+            AgentProfile(
+                profile_id="terminus-2-openrouter-qwen3-5-9b",
+                adapter=TERMINUS_AGENT,
+                model="openrouter-metered/qwen/qwen3.5-9b",
+                auth_mode="api-key-environment",
+                secret_source="env:OPENROUTER_API_KEY",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "structured-trajectory:atif",
+                ),
+                limits=ProfileLimits(
+                    max_timeout_seconds=28_800,
+                    max_attempts=1,
+                    max_concurrency=1,
+                ),
+                verified_facts=(
+                    "2026-10-12: OpenRouter qwen/qwen3.5-9b on pinned "
+                    "endpoint deepinfra/bf16: $0.10 in / $0.15 out per 1M "
+                    "tokens (no published cache rate), supports_implicit_caching=false, "
+                    "thinking pinned on (reasoning enabled), matching the "
+                    "Tinker route; "
+                    "262,144-token context, 81,920-token max completion; live "
+                    "probe served by DeepInfra with reasoning present",
                 ),
             ),
             AgentProfile(

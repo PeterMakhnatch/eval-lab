@@ -25,7 +25,18 @@ the alternatives.
 | Subscription | Reached through | Models |
 |---|---|---|
 | Claude Max | Claude Code (Harbor `claude-code` adapter, `scripts/with-claude-auth`); the OMP auth-gateway for judge calls (fxtr `omp` route) | Haiku 5.5, Sonnet 5.5, Opus 5.5 |
-| ChatGPT (`prolite` plan) | `codex exec` (Harbor `codex` adapter, `~/.codex/auth.json`) | gpt-5.6-luna, gpt-5.6-terra, gpt-5.6-sol, gpt-reserve, gpt-6-astra |
+| ChatGPT (`prolite` plan) | `codex exec` (Harbor `codex` adapter, `~/.codex/auth.json`) | gpt-6.1-sol, gpt-6-sol, gpt-6-astra, gpt-6-luna, gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, gpt-reserve |
+
+**Codex CLI version matters.** The model list above is what codex CLI
+0.162.1 offers on this subscription (2026-10-12; `gpt-6.1-sol` verified
+answering through `codex exec`). Older CLIs reject the gpt-6 models: 0.154.0
+returned HTTP 400 for `gpt-6-luna`. Two pins in this repo still name old
+versions and must be raised before a gpt-6 model can run there:
+`PINNED_CODEX_VERSION = "0.148.0"` in `src/evallab/harbor_codex.py` (the CLI
+Harbor installs inside task sandboxes) and `CODEX_VERSION = "codex-cli
+0.154.0"` in `src/evallab/gepa_optimizer/codex_transport.py` (the host CLI the
+GEPA proposer requires exactly; with the host now on 0.162.1 that transport
+refuses to start until the pin moves).
 
 Limits we have hit or must respect:
 
@@ -47,12 +58,12 @@ Limits we have hit or must respect:
 
 ## Defaults by job
 
-| Job | Default (subscription) | Fallback (OpenRouter, open models only) | Evidence | $ per 1k |
+| Job | Default (subscription) | Fallback (open models only) | Evidence | $ per 1k |
 |---|---|---|---|---|
-| Bulk judge (first pass over every transcript) | Claude Haiku 5.5 via the OMP gateway | GLM-5.3-Flash (`z-ai/glm-5.3-flash`) | Haiku 5.5 agrees with Sonnet on 82% of CheatBench trials, catches 37/40 labelled hacks; 8% unparseable replies need the adjudicator | $4.40 equivalent (CheatBench prompt), $1.21 (scorecard prompt); GLM fallback $6.40 billed |
-| Adjudication judge (Haiku-clean, unparseable, disputed) | Claude Sonnet 5.5 via the OMP gateway | GLM-5.3 (`z-ai/glm-5.3`) | Sonnet 5.5: 48/49 on CheatBench, agrees with the detector and every stored judge | $88 equivalent per 1k adjudicated; GLM-5.3 $60 billed |
-| Cheap cheater (prompted to find and use holes) | Codex `gpt-5.6-luna` via `codex exec`; second choice Claude Code with Haiku 5.5 | GLM-5.3-Flash (`openrouter-metered/z-ai/glm-5.3-flash`), proven in cheater-recall wave 1 and every CheatBench family | subscription cheaters are unproven: run a 10-task pilot before a campaign | luna ≈ $11 equivalent (Codex trial shape); GLM fallback $31 billed |
-| Agent under test, a frontier model | that model's own CLI on its subscription: Codex (`gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-6-astra`) or Claude Code (Sonnet/Opus 5.5) | none (frontier models are not run on OpenRouter while a subscription offers them) | Codex canaries: 146K input, 91% cached, 4.5K output per trial | terra ≈ $108 equivalent |
+| Bulk judge (first pass over every transcript) | Claude Haiku 5.5 via the OMP gateway | none for rate limits (back off); GLM-5.3-Flash only where Claude is unsuitable (e.g. repeated refusals), via the CheatBench judge's Z.ai route (balance empty since 2026-10-09) | Haiku 5.5 agrees with Sonnet on 82% of CheatBench trials, catches 37/40 labelled hacks; 8% unparseable replies need the adjudicator | $4.40 equivalent (CheatBench prompt), $1.21 (scorecard prompt); GLM $6.40 billed |
+| Adjudication judge (Haiku-clean, unparseable, disputed) | Claude Sonnet 5.5 via the OMP gateway | same rule; GLM-5.3 where Claude is unsuitable | Sonnet 5.5: 48/49 on CheatBench, agrees with the detector and every stored judge | $88 equivalent per 1k adjudicated; GLM-5.3 $60 billed |
+| Cheap cheater (prompted to find and use holes) | Codex `gpt-5.6-luna` via `codex exec` (gpt-5.6-terra has run on the Harbor CLI pin; luna on that pin is untested; `gpt-6-luna` needs the pins raised); second choice Claude Code with Haiku 5.5 | GLM-5.3-Flash (`openrouter-metered/z-ai/glm-5.3-flash`), proven in cheater-recall wave 1 and every CheatBench family | subscription cheaters are unproven: run a 10-task pilot before a campaign | gpt-5.6-luna ≈ $11 equivalent (Codex trial shape); GLM fallback $31 billed |
+| Agent under test, a frontier model | that model's own CLI on its subscription: Codex (`gpt-6.1-sol`, `gpt-6-sol`, `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra`; gpt-6 models need the CLI pins raised) or Claude Code (Sonnet/Opus 5.5) | none (frontier models are not run on OpenRouter while a subscription offers them) | Codex canaries: 146K input, 91% cached, 4.5K output per trial | gpt-5.6-terra ≈ $108 equivalent |
 | Agent under test, an open model | no subscription offers these | OpenRouter pinned routes: GLM-5.3-Flash, DeepSeek V4.1-Flash, MiMo-V2.6-Flash, gpt-oss-120b | see the route table below | $11–53 billed |
 | Agent under test, the student | MiMo-V2.6-Distill-Qwen-9B (+ adapters) on our Modal server, `selfhosted/XiaomiMiMo/MiMo-V2.6-Distill-Qwen-9B` | none | only route serving those weights | $30–150 of GPU time (20 vs 4.5 trials at once) |
 

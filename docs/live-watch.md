@@ -323,6 +323,13 @@ terminal/verification guards. Committed images are local-only tags
 is transient: Harbor teardown and shared-daemon hygiene may reap the image,
 so the stop record also keeps the commit digest (`image_digest`).
 
+A $0 offline replay of these rules covered three public single-turn RL corpora
+(ARIA, AISI OLMo, Trace-and-Amplify; 85,829 rollouts). It found no would-stop
+on a hack or on a clean rollout. The eligible rules watch actions, and those
+hacks live in the submitted code. Content-rule catch and false-stop rates, and
+proposed per-trial and per-step thresholds, are in
+[`research/experiments/live-stop-thresholds`](../research/experiments/live-stop-thresholds/README.md).
+
 ## Laminar (`--laminar`)
 
 `evallab watch --laminar` (and every auto-attached watch when

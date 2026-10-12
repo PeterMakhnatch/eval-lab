@@ -384,14 +384,27 @@ TINKER_PROXY_USAGE_FILE_ENV = "EVALLAB_TINKER_USAGE_FILE"
 TINKER_EXPECTED_BASE_ENV = "EVALLAB_TINKER_EXPECTED_BASE"
 TINKER_PROXY_PROVIDER_ENV = "EVALLAB_PROXY_PROVIDER"
 #: Thinking Machines Tinker list prices per base model (USD per 1M tokens,
-#: micros; prefill/sample — cached prefill is deliberately not credited).
-#: Qwen/Qwen3.6-35B-A3B 0.54/1.335; Qwen/Qwen3.8-27B 1.86/5.595;
-#: Qwen/Qwen3.5-9B 0.66/1.995. Verified 2026-09-28.
+#: micros; prefill/sample — cached prefill is deliberately not credited in
+#: settlement). Qwen/Qwen3.6-35B-A3B 0.45/1.335; Qwen/Qwen3.8-27B 0.6975/5.595;
+#: Qwen/Qwen3.5-9B 0.30/0.807. Source:
+#: https://tinker-docs.thinkingmachines.ai/tinker/models.json (verified 2026-10-12).
 TINKER_MODEL_PRICES_MICROS: Mapping[str, tuple[int, int]] = MappingProxyType(
     {
-        "Qwen/Qwen3.6-35B-A3B": (540_000, 1_335_000),
-        "Qwen/Qwen3.8-27B": (1_860_000, 5_595_000),
-        "Qwen/Qwen3.5-9B": (660_000, 1_995_000),
+        "Qwen/Qwen3.6-35B-A3B": (450_000, 1_335_000),
+        "Qwen/Qwen3.8-27B": (697_500, 5_595_000),
+        "Qwen/Qwen3.5-9B": (300_000, 807_000),
+    }
+)
+#: Tinker cached-prefill list prices per base model (USD micros per 1M
+#: tokens), recorded for reporting only — settlement still prices every input
+#: token at the uncached prefill rate above unless Tinker's OpenAI-compatible
+#: responses are observed to report cached tokens (not verified; no spend to
+#: test it). Same source and date as :data:`TINKER_MODEL_PRICES_MICROS`.
+TINKER_CACHED_PREFILL_MICROS_PER_MILLION: Mapping[str, int] = MappingProxyType(
+    {
+        "Qwen/Qwen3.6-35B-A3B": 90_000,
+        "Qwen/Qwen3.8-27B": 139_500,
+        "Qwen/Qwen3.5-9B": 60_000,
     }
 )
 #: Context window shared by the Tinker-hosted Qwen students (input+output).
@@ -521,6 +534,15 @@ MIMO_SELFHOSTED_PROXY_PROVIDER = "mimo_selfhosted"
 PROXY_UPSTREAM_503_WAIT_ENV = "EVALLAB_PROXY_UPSTREAM_503_WAIT_SECONDS"
 PROXY_UPSTREAM_503_WAIT_DEFAULT_SECONDS = 360.0
 PROXY_UPSTREAM_503_WAIT_MAX_SECONDS = 3600.0
+#: Daytona sandbox idle auto-stop, in whole minutes, applied by
+#: ``harbor_daytona.BoundedDaytonaEnvironment``. It must cover the longest a
+#: trial can go without sandbox activity: one full model call (the proxy's
+#: 600 s upstream timeout) plus the bounded 503 wait above (360 s default),
+#: rounded up — 16 minutes. G5 (2026-10-01) lost 3 sandboxes after 255-281 s
+#: model stalls under the old 5-minute stop while the proxy was still inside
+#: its 503 wait. Still bounded well below the trial TTL (execution timeout
+#: plus allowance) and the reservation monitor, so idle sandboxes cannot leak.
+DAYTONA_AUTO_STOP_INTERVAL_MINS = 16
 
 #: Env var carrying the per-job capture route token into the metered secret
 #: proxy. When set, the proxy forwards upstream to ``/t/<token>/<path>``;
@@ -792,9 +814,14 @@ class OpenRouterRoute:
 
     ``provider_pin`` names exactly one OpenRouter endpoint (``endpoint``) with
     fallbacks refused, so the upstream weights/quantization and the per-token
-    list price are fixed. Prices are USD micros per 1M tokens; every pinned
-    endpoint reports ``supports_implicit_caching=false``, so uncached input
-    pricing is exact and cached-prefill discounts are never credited.
+    list price are fixed. Prices are USD micros per 1M tokens.
+    ``cached_input_cost_micros_per_million`` is the pinned endpoint's
+    ``input_cache_read`` rate (``None`` when the endpoint publishes no cache
+    rate): OpenRouter reports the actually-billed ``usage.cost`` per call and
+    ``prompt_tokens_details.cached_tokens`` per call, so settlement credits
+    cached tokens at this rate whenever the reported cost is absent.
+    Reservations stay conservative (uncached input at max tokens) so ceilings
+    never under-reserve, whatever the endpoint's implicit-caching support.
     Mirrored in ``containers/zai_openapi_secret_proxy.py``
     (``OPENROUTER_ROUTES``), which cannot import this module.
     """
@@ -805,6 +832,10 @@ class OpenRouterRoute:
     reasoning_pin: Mapping[str, Any]
     input_cost_micros_per_million: int
     output_cost_micros_per_million: int
+    #: Pinned endpoint's ``input_cache_read`` micros per 1M tokens, or None
+    #: when the endpoint publishes no cache rate (cached tokens then settle
+    #: at the full input rate).
+    cached_input_cost_micros_per_million: int | None
     context_input_tokens: int
     max_completion_tokens: int
     #: Model ids OpenRouter may echo for a call served by this route.
@@ -817,9 +848,11 @@ class OpenRouterRoute:
 
 OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
     {
-        # MiMo-V2.6-Flash on Xiaomi's own endpoint (verified 2026-09-29):
-        # $0.14 in / $0.28 out per 1M, 1,048,576-token context, 131,072-token
-        # completions; MiMo thinking on, matching the self-hosted MiMo route.
+        # MiMo-V2.6-Flash on Xiaomi's own endpoint (re-verified 2026-10-12):
+        # $0.14 in / $0.0028 cache read / $0.28 out per 1M, 1,048,576-token
+        # context, 131,072-token completions; MiMo thinking on, matching the
+        # self-hosted MiMo route. Note: endpoint status -2 with ~90% 30-minute
+        # uptime on 2026-10-12 — first-party pin kept, monitor before large runs.
         "xiaomi/mimo-v2.6-flash": OpenRouterRoute(
             native_model="xiaomi/mimo-v2.6-flash",
             endpoint="xiaomi/fp8",
@@ -827,16 +860,18 @@ OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
             reasoning_pin=MappingProxyType({"enabled": True}),
             input_cost_micros_per_million=140_000,
             output_cost_micros_per_million=280_000,
+            cached_input_cost_micros_per_million=2_800,
             context_input_tokens=1_048_576,
             max_completion_tokens=131_072,
             returned_models=frozenset({"xiaomi/mimo-v2.6-flash", "xiaomi/mimo-v2.6-flash:fp8"}),
         ),
-        # gpt-oss-120b on DeepInfra's bf16 endpoint (verified 2026-09-30):
+        # gpt-oss-120b on DeepInfra's bf16 endpoint (re-verified 2026-10-12):
         # $0.037 in / $0.17 out per 1M, 131,072-token context, 117,964-token
-        # completions, 99.9% 30-minute uptime. The full endpoint slug is
-        # required: bare "deepinfra" also matches its turbo (16K output) and
-        # fp8 endpoints at 4-5x the price. Reasoning effort is pinned to the
-        # model's documented default, medium.
+        # completions, ~97% 30-minute uptime. The endpoint publishes no
+        # input_cache_read rate, so cached tokens settle at the full input
+        # rate. The full endpoint slug is required: bare "deepinfra" also
+        # matches its turbo (16K output) and fp8 endpoints at 4-5x the price.
+        # Reasoning effort is pinned to the model's documented default, medium.
         "openai/gpt-oss-120b": OpenRouterRoute(
             native_model="openai/gpt-oss-120b",
             endpoint="deepinfra/bf16",
@@ -844,15 +879,60 @@ OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
             reasoning_pin=MappingProxyType({"effort": "medium"}),
             input_cost_micros_per_million=37_000,
             output_cost_micros_per_million=170_000,
+            cached_input_cost_micros_per_million=None,
             context_input_tokens=131_072,
             max_completion_tokens=117_964,
             returned_models=frozenset({"openai/gpt-oss-120b"}),
         ),
+        # DeepSeek-V4.1-Flash on DeepSeek's first-party endpoint (verified
+        # 2026-10-12): $0.15 in / $0.003 cache read / $0.60 out per 1M,
+        # 1,048,576-token context, 393,216-token completions, status 0 with
+        # 100% 30-minute uptime. The endpoint reports
+        # supports_implicit_caching=true, so repeat prompts bill the cached
+        # rate. DeepSeek bills peak rates (double: $0.30/$0.006/$1.20)
+        # Mon-Fri 01:00-04:00 and 06:00-10:00 UTC, off-peak otherwise
+        # (api-docs.deepseek.com/quick_start/pricing; OpenRouter's endpoint
+        # overrides match that schedule exactly). The table pins the off-peak
+        # list rates; OpenRouter's per-call reported usage.cost — the
+        # settlement basis whenever present — reflects the actual billed
+        # schedule. DeepSeek documents thinking as the default mode for
+        # deepseek-flash, so reasoning effort pins medium, the OpenRouter
+        # unified default shared with the gpt-oss-120b route.
+        "deepseek/deepseek-v4.1-flash": OpenRouterRoute(
+            native_model="deepseek/deepseek-v4.1-flash",
+            endpoint="deepseek",
+            provider_pin=MappingProxyType({"order": ("deepseek",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"effort": "medium"}),
+            input_cost_micros_per_million=150_000,
+            output_cost_micros_per_million=600_000,
+            cached_input_cost_micros_per_million=3_000,
+            context_input_tokens=1_048_576,
+            max_completion_tokens=393_216,
+            returned_models=frozenset({"deepseek/deepseek-v4.1-flash"}),
+        ),
+        # GLM-5.3-Flash on Z.ai's first-party endpoint (verified 2026-10-12):
+        # $0.15 in / $0.03 cache read / $0.50 out per 1M, 1,048,576-token
+        # context, 131,072-token completions, status 0 with 100% 30-minute
+        # uptime — the same list prices as the direct Z.ai OpenAPI route.
+        # Reasoning effort pins medium, the OpenRouter unified default
+        # shared with the gpt-oss-120b route.
+        "z-ai/glm-5.3-flash": OpenRouterRoute(
+            native_model="z-ai/glm-5.3-flash",
+            endpoint="z-ai/fp8",
+            provider_pin=MappingProxyType({"order": ("z-ai/fp8",), "allow_fallbacks": False}),
+            reasoning_pin=MappingProxyType({"effort": "medium"}),
+            input_cost_micros_per_million=150_000,
+            output_cost_micros_per_million=500_000,
+            cached_input_cost_micros_per_million=30_000,
+            context_input_tokens=1_048_576,
+            max_completion_tokens=131_072,
+            returned_models=frozenset({"z-ai/glm-5.3-flash"}),
+        ),
         # qwen3.6-35b-a3b on DeepInfra's fp8 endpoint (verified 2026-10-12):
-        # $0.10 in / $0.95 out per 1M, 262,144-token context, 65,536-token
-        # completions. Hybrid-thinking Qwen model; thinking pinned on,
-        # matching the Tinker route's thinking-on behavior (ATIF
-        # reasoning_content present; verified live 2026-10-12).
+        # $0.10 in / $0.10 cache read / $0.95 out per 1M, 262,144-token
+        # context, 65,536-token completions. Hybrid-thinking Qwen model;
+        # thinking pinned on, matching the Tinker route's thinking-on
+        # behavior (ATIF reasoning_content present; verified live 2026-10-12).
         "qwen/qwen3.6-35b-a3b": OpenRouterRoute(
             native_model="qwen/qwen3.6-35b-a3b",
             endpoint="deepinfra/fp8",
@@ -860,15 +940,17 @@ OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
             reasoning_pin=MappingProxyType({"enabled": True}),
             input_cost_micros_per_million=100_000,
             output_cost_micros_per_million=950_000,
+            cached_input_cost_micros_per_million=100_000,
             context_input_tokens=262_144,
             max_completion_tokens=65_536,
             returned_models=frozenset({"qwen/qwen3.6-35b-a3b"}),
         ),
         # qwen3.5-9b on DeepInfra's bf16 endpoint (verified 2026-10-12):
         # $0.10 in / $0.15 out per 1M, 262,144-token context, 81,920-token
-        # completions. Hybrid-thinking Qwen model; thinking pinned on,
-        # matching the Tinker route's thinking-on behavior (ATIF
-        # reasoning_content present; verified live 2026-10-12).
+        # completions; the endpoint publishes no cache rate. Hybrid-thinking
+        # Qwen model; thinking pinned on, matching the Tinker route's
+        # thinking-on behavior (ATIF reasoning_content present; verified
+        # live 2026-10-12).
         "qwen/qwen3.5-9b": OpenRouterRoute(
             native_model="qwen/qwen3.5-9b",
             endpoint="deepinfra/bf16",
@@ -876,6 +958,7 @@ OPENROUTER_ROUTES: Mapping[str, OpenRouterRoute] = MappingProxyType(
             reasoning_pin=MappingProxyType({"enabled": True}),
             input_cost_micros_per_million=100_000,
             output_cost_micros_per_million=150_000,
+            cached_input_cost_micros_per_million=None,
             context_input_tokens=262_144,
             max_completion_tokens=81_920,
             returned_models=frozenset({"qwen/qwen3.5-9b"}),

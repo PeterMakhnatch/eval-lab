@@ -461,6 +461,7 @@ def test_mimo_proxy_enforces_generation_config_and_strips_effort(
         assert usage["pricing"] == {
             "input_cost_micros_per_million": 0,
             "output_cost_micros_per_million": 0,
+            "cached_input_cost_micros_per_million": None,
         }
         assert usage["totals"]["cost_micros"] == 0
         # The provider key never appears in the response or the ledger.
@@ -765,6 +766,7 @@ def test_mimo_proxy_settles_non_json_upstream_errors_with_zero_usage(
         expected_pricing={
             "input_cost_micros_per_million": 0,
             "output_cost_micros_per_million": 0,
+            "cached_input_cost_micros_per_million": None,
         },
     )
     assert usage["unresolved_requests"] == 0
@@ -1065,6 +1067,7 @@ def test_mimo_proxy_leaves_an_unparseable_200_unresolved(
         expected_pricing={
             "input_cost_micros_per_million": 0,
             "output_cost_micros_per_million": 0,
+            "cached_input_cost_micros_per_million": None,
         },
     )
     assert usage["unresolved_requests"] == 1
@@ -1099,6 +1102,7 @@ def test_runner_accepts_a_ledger_whose_only_failure_was_a_usage_less_400(
         expected_pricing={
             "input_cost_micros_per_million": 0,
             "output_cost_micros_per_million": 0,
+            "cached_input_cost_micros_per_million": None,
         },
     )
     assert usage["unresolved_requests"] == 0
@@ -1178,6 +1182,7 @@ def test_a_call_its_client_abandoned_settles_before_the_proxy_exits(
         expected_pricing={
             "input_cost_micros_per_million": 0,
             "output_cost_micros_per_million": 0,
+            "cached_input_cost_micros_per_million": None,
         },
     )
     assert usage["unresolved_requests"] == 0

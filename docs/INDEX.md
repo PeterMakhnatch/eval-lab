@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:68a6a7fb5b45c618cbaefe564dc9e5d367badda1f7e6d44c0e1a094948c7cbaf
+    digest: sha256:80278de9f7f78231059c91ffcb0829d158199fc9e735429a9392558d87c40a79
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -86,6 +86,8 @@ inputs:
     digest: sha256:1da171277153ff6fbcafcd2a6835ee6c3b0d79eb3ef7d448d344b72d841332b1
   - path: docs/model-capture.md
     digest: sha256:38e018af06c6a65d0f5344d1e114b140cdee5114c253b2293ea67f3036c0315c
+  - path: docs/model-defaults.md
+    digest: sha256:a63be4cff251c37676568311d08fef21028873a569e0a3d92a92f4e2a11b4349
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
@@ -308,6 +310,7 @@ an operator can see what is archived.
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/mimo-task-catalog.md` | MiMo task catalog | `living` | `builder, analyst, runner` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
+| `docs/model-defaults.md` | Which model for which job | `living` | `operator, runner` |
 | `docs/operations.md` | Operations | `living` | `runner, operator` |
 | `docs/quota-accounting.md` | Subscription quota accounting | `living` | `runner, operator` |
 | `docs/repo-map.md` | Repository map | `living` | `builder, analyst, runner, operator` |
@@ -360,6 +363,7 @@ an operator can see what is archived.
 | `docs/live-watch.md` | Live watch: in-progress trial monitoring | `living` | `analyst, operator` |
 | `docs/lora-sft-runbook.md` | LoRA SFT runbook: train, serve base + adapter, check parity, cost | `living` | `runner, operator` |
 | `docs/model-capture.md` | Independent model-call capture | `living` | `builder, runner, operator` |
+| `docs/model-defaults.md` | Which model for which job | `living` | `operator, runner` |
 | `docs/monitor-investigations.md` | Monitor investigations (HAR-151) | `living` | `analyst, operator` |
 | `docs/observability.md` | Observability | `living` | `analyst, operator` |
 | `docs/operating-manual.md` | Peter's operating manual — running a lab built by agents | `living` | `operator` |

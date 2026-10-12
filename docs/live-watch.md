@@ -105,6 +105,24 @@ paths as values. Missing targets stay visible as missing. **Do not upload hidden
 tests early to make them observable**: standard Harbor tests may not exist in the
 agent environment until verification, and a separate verifier has its own sandbox.
 
+Set `EVALLAB_FILE_ACCESS_DISCOVERY=off` to watch **only** the declared
+`EVALLAB_FILE_ACCESS_PATHS` targets: probe-discovered Git object/ref storage
+and the default `/tests` dir are skipped. The default (`on`, or unset) keeps
+today's discovery behavior. Any other value fails closed with an `unavailable`
+coverage record, and `off` with no declared paths refuses to watch nothing
+(also `unavailable`). The discovery mode is recorded in the trial's
+`evaluator/file-access/discovery-w<id>.json` probe record and, when off, in
+the active coverage reason.
+
+> **Caution — discovery on + `EVALLAB_WATCH_STOP=on`.** With discovery on, any
+> `OPEN`/`ACCESS` in Git object storage raises a file-side `history_mining`
+> alert, and `history_mining` is stop-eligible — so on a task whose workspace
+> is a visible Git repo, an honest agent's first `git status`/`git log` can
+> stop the trial before any cheating occurs. Prefer `EVALLAB_FILE_ACCESS_DISCOVERY=off`
+> with a precise declared honeypot (e.g. one loose Git blob as a `grader`
+> path) when the campaign does not need repo discovery. Stop eligibility and
+> alert rules are unchanged.
+
 The lifecycle is bracketed on Harbor's actual agent phase:
 
 1. Snapshot protected-file types/availability and hashes onto the evaluator host,

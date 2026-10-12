@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "peter/release-branch-rescue",
+  "variant_digest": "sha256:790070f84a4e1adbfc72a2ec3d0cb4c37c2dd96f89c9bd07040ea6ce4649de65",
+  "variant_harbor_digest": "sha256:b0bc4cfe8bd779146cd9ef5020acc53e12d571a16c96a923e66779c60bd3cf93",
+  "parent": {
+    "digest": "sha256:fea8e2e6dbb7a7725497ba2ef768d1e65df5f7c5de1f6f642dc03b0bf51d5fe4",
+    "harbor_digest": "sha256:5adc25fcb4b1de0cffaf6686d585f386b7e5acf26dc5f988ca96e9437d79bf29",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "library/tasks/release-branch-rescue",
+      "record": null
+    }
+  },
+  "transform": "agent-network-none@1",
+  "components_changed": [
+    "task_toml"
+  ],
+  "files": [
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:32746a09503a02e98311a9d1224c6e0d3b6337d6d0a0ea97570f3ed2409c78f9",
+      "after_sha256": "sha256:03400a76500d11783d1adf17e6377ea710fb8527663db78c70a47eb681bf8007",
+      "content": "schema_version = \"1.4\"\nartifacts = [\"/workspace/release\", \"/srv/origin.git\"]\n\n[task]\nname = \"peter/release-branch-rescue\"\nversion = \"1.0.0\"\ndescription = \"Recover lost release commits from reflog, integrate offline upstream changes, and restore tracked main branch.\"\nkeywords = [\"git\", \"reflog\", \"branch-rescue\", \"git-recovery\", \"ops\"]\n[[task.authors]]\nname = \"Peter Makhnatch\"\n\n[metadata]\ncategory = \"git-operations\"\ndifficulty = \"medium\"\ncapability = \"recover unreferenced commits via reflog, integrate divergent history, and configure branch tracking\"\n\n[verifier]\ntimeout_sec = 120.0\ncollect = []\nenvironment_mode = \"separate\"\n\n[verifier.env]\n\n[agent]\nnetwork_mode = \"no-network\"\ntimeout_sec = 600.0\n\n[environment]\nnetwork_mode = \"public\"\nbuild_timeout_sec = 600.0\nos = \"linux\"\ncpus = 1\nmemory_mb = 1024\nmcp_servers = []\n\n[environment.env]\n\n[solution.env]\n"
+    }
+  ],
+  "rationale": "library crack sweep 2026-10-12: hardened setup = separate verifier + agent egress off (agent-network-none@1)",
+  "inputs": {
+    "agent_network_mode": "no-network",
+    "verifier_network": "unchanged (public baseline via [environment] copy)",
+    "source": "harbor-0.24 task-level [agent] phase network policy",
+    "default_chain": false
+  },
+  "created_by": "library-crack-sweep",
+  "created_at": "2026-10-12T19:34:59Z",
+  "status": "candidate",
+  "evidence": []
+}

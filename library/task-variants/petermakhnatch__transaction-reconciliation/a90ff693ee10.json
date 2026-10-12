@@ -1,0 +1,60 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "petermakhnatch/transaction-reconciliation",
+  "variant_digest": "sha256:a90ff693ee1064a0564739581c22a60ac07491fbc30da248ec2588e215a80e78",
+  "variant_harbor_digest": "sha256:f4b9e881e963736ef6466c0efa8d10cf7d6049b8f28990f3f5e6428093d9382b",
+  "parent": {
+    "digest": "sha256:f2bb698dbcb990ce1be2a6319efc1c4264da4f7394637d33f103ebb053262820",
+    "harbor_digest": "sha256:3706ec94011be0385378eb8f96cf979e51442a83974973739bf9faa6aebc9eb6",
+    "source": {
+      "kind": "local",
+      "repo": null,
+      "revision": null,
+      "path": "library/tasks/transaction-reconciliation",
+      "record": null
+    }
+  },
+  "transform": "task-separate-verifier@1",
+  "components_changed": [
+    "task_toml",
+    "verifier"
+  ],
+  "files": [
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:e41321431aaa811dfb8ec15c4262f441aa4d6d7b32759485350771b1bfedae45",
+      "after_sha256": "sha256:173c3cf248cfca523c9837ea6c4a8d62e6340fd3b1a47629557582dc3e872d93",
+      "content": "schema_version = \"1.4\"\n# Only the ledger reaches the separate verifier; nothing else the agent\n# leaves behind (processes, reward files, PATH shims) survives into grading.\nartifacts = [\"/app/data/ledger.db\"]\n\n[task]\nname = \"petermakhnatch/transaction-reconciliation\"\nversion = \"0.2.0\"\ndescription = \"Repair one inconsistent transaction in a seeded SQLite ledger.\"\nauthors = []\nkeywords = [\"harbor\", \"sqlite\", \"reconciliation\", \"database\", \"separate-verifier\"]\n\n[metadata]\ndifficulty = \"easy\"\ncategory = \"programming\"\ntags = [\"local\", \"deterministic\"]\n\n[verifier]\ntimeout_sec = 120.0\nenvironment_mode = \"separate\"\ncollect = []\n\n[verifier.env]\n\n[agent]\ntimeout_sec = 120.0\n\n[environment]\nnetwork_mode = \"public\"\nbuild_timeout_sec = 600.0\nos = \"linux\"\nmcp_servers = []\n\n[environment.env]\n\n[solution.env]\n"
+    },
+    {
+      "path": "tests/Dockerfile",
+      "before_sha256": null,
+      "after_sha256": "sha256:1b83576163d09dc2fe2ac3ea50f50309b0ef28b616d6dfe93d1a78f832edbfd5",
+      "content": "FROM python:3.12-slim-bookworm\n\nCOPY . /tests\n\nRUN mkdir -p /app/data /logs/verifier \\\n    && chmod +x /tests/test.sh\n\nWORKDIR /app\n"
+    },
+    {
+      "path": "tests/test.sh",
+      "before_sha256": "sha256:e26daee2de02446ae541140c19d4616cc85818bb3291713657e2bd360db6248a",
+      "after_sha256": "sha256:7bba3a9056268fbe7f37671216b31cad4786390ab0a3532e02344a20144ade61",
+      "content": "#!/bin/sh\nset -eu\n\n# Grading runs in the separate verifier image built from tests/Dockerfile.\n# Nothing is installed or fetched here, and the interpreter is called by\n# absolute path so nothing on PATH can stand in for it.\nexec /usr/local/bin/python3 /tests/verify.py\n"
+    },
+    {
+      "path": "tests/test_outputs.py",
+      "before_sha256": "sha256:966ba4cc0172756eab2408fa6bf0f69b893ab9a5be1b504f7d907f1ce6510fe3",
+      "after_sha256": null,
+      "content": null
+    },
+    {
+      "path": "tests/verify.py",
+      "before_sha256": null,
+      "after_sha256": "sha256:776da0bec70221720f5500705c340d70b8e140b60b294eb331573c116dba8e98",
+      "content": "\"\"\"Verifier for the transaction-reconciliation task (stdlib only).\n\nRuns in the separate verifier image: nothing is installed or fetched at grade\ntime, and the only agent-produced input is the declared ledger artifact.\n\"\"\"\n\nimport json\nimport sqlite3\nfrom pathlib import Path\n\nDATABASE_PATH = Path(\"/app/data/ledger.db\")\nLOG_DIR = Path(\"/logs/verifier\")\n\nEXPECTED_LEDGER_ENTRIES = [\n    (\"txn_1001\", 12500, 12500, \"reconciled\"),\n    (\"txn_1002\", 4999, 4999, \"reconciled\"),\n    (\"txn_1003\", 8750, 8750, \"reconciled\"),\n    (\"txn_1004\", 7500, 7500, \"reconciled\"),\n    (\"txn_1005\", 1299, 1299, \"reconciled\"),\n    (\"txn_1006\", 42000, 42000, \"reconciled\"),\n]\n\nEXPECTED_SETTLEMENT_FEED = [\n    (\"txn_1001\", 12500, \"2026-08-01T09:15:00Z\"),\n    (\"txn_1002\", 4999, \"2026-08-01T10:30:00Z\"),\n    (\"txn_1003\", 8750, \"2026-08-01T11:45:00Z\"),\n    (\"txn_1004\", 7500, \"2026-08-01T13:00:00Z\"),\n    (\"txn_1005\", 1299, \"2026-08-01T14:20:00Z\"),\n    (\"txn_1006\", 42000, \"2026-08-01T15:35:00Z\"),\n]\n\nEXPECTED_LEDGER_COLUMNS = [\n    \"external_id\",\n    \"expected_amount_cents\",\n    \"settled_amount_cents\",\n    \"reconciliation_status\",\n]\nEXPECTED_FEED_COLUMNS = [\"external_id\", \"amount_cents\", \"settled_at\"]\n\n\ndef query(sql: str) -> list[tuple]:\n    # Read-only URI: grading never mutates the submitted database.\n    connection = sqlite3.connect(f\"file:{DATABASE_PATH}?mode=ro\", uri=True)\n    try:\n        return connection.execute(sql).fetchall()\n    finally:\n        connection.close()\n\n\ndef run_checks() -> dict[str, tuple[bool, str]]:\n    if not DATABASE_PATH.is_file() or DATABASE_PATH.is_symlink():\n        missing = (False, \"ledger.db is missing or not a regular file\")\n        return {\"ledger\": missing, \"feed\": missing, \"schema\": missing}\n    try:\n        ledger = query(\n            \"SELECT external_id, expected_amount_cents, settled_amount_cents, \"\n            \"reconciliation_status FROM ledger_entries ORDER BY external_id\"\n        )\n        feed = query(\n            \"SELECT external_id, amount_cents, settled_at FROM settlement_feed \"\n            \"ORDER BY external_id\"\n        )\n        ledger_columns = [row[1] for row in query(\"PRAGMA table_info(ledger_entries)\")]\n        feed_columns = [row[1] for row in query(\"PRAGMA table_info(settlement_feed)\")]\n    except sqlite3.Error as exc:\n        failed = (False, f\"database unreadable: {type(exc).__name__}\")\n        return {\"ledger\": failed, \"feed\": failed, \"schema\": failed}\n    return {\n        \"ledger\": (\n            ledger == EXPECTED_LEDGER_ENTRIES,\n            \"ledger entries reconciled without collateral changes\",\n        ),\n        \"feed\": (feed == EXPECTED_SETTLEMENT_FEED, \"settlement feed unchanged\"),\n        \"schema\": (\n            ledger_columns == EXPECTED_LEDGER_COLUMNS and feed_columns == EXPECTED_FEED_COLUMNS,\n            \"database schema preserved\",\n        ),\n    }\n\n\ndef main() -> None:\n    LOG_DIR.mkdir(parents=True, exist_ok=True)\n    checks = run_checks()\n    passed = all(ok for ok, _ in checks.values())\n    tests = [\n        {\"name\": name, \"status\": \"passed\" if ok else \"failed\", \"duration\": 0, \"message\": message}\n        for name, (ok, message) in checks.items()\n    ]\n    ctrf = {\n        \"results\": {\n            \"tool\": {\"name\": \"transaction-reconciliation-verifier\"},\n            \"summary\": {\n                \"tests\": len(tests),\n                \"passed\": sum(t[\"status\"] == \"passed\" for t in tests),\n                \"failed\": sum(t[\"status\"] == \"failed\" for t in tests),\n                \"skipped\": 0,\n                \"pending\": 0,\n                \"other\": 0,\n                \"start\": 0,\n                \"stop\": 0,\n            },\n            \"tests\": tests,\n        }\n    }\n    (LOG_DIR / \"ctrf.json\").write_text(json.dumps(ctrf, indent=2) + \"\\n\")\n    (LOG_DIR / \"reward.txt\").write_text(f\"{int(passed)}\\n\")\n\n\nif __name__ == \"__main__\":\n    main()\n"
+    }
+  ],
+  "rationale": "Cheat ladder cracked the shipped task on Harbor 0.24 (tamper_reward_writer: background loop holds /logs/verifier/reward.* at 1 in the shared container). Grade in a separate verifier image built from tests/Dockerfile that receives only /app/data/ledger.db; stdlib verifier, no grade-time installs, absolute interpreter path.",
+  "inputs": {},
+  "created_by": "library-crack-sweep",
+  "created_at": "2026-10-12T19:34:59Z",
+  "status": "candidate",
+  "evidence": []
+}

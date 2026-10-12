@@ -4,8 +4,10 @@ set -euo pipefail
 
 cd /workspace/release
 
-# 1. Recover pre-reset tip L2 from reflog
-L2=$(git reflog show --format="%H %gs" main | grep -m1 "commit: release: add eu-west" | awk '{print $1}')
+# 1. Recover pre-reset tip L2 from reflog. awk reads the whole reflog: an
+# early-exiting `grep -m1` let git die of SIGPIPE, which `pipefail` turned
+# into a nondeterministic oracle failure (exit 141).
+L2=$(git reflog show --format="%H %gs" main | awk '!found && /commit: release: add eu-west/ {print $1; found=1}')
 if [ -z "$L2" ]; then
     L2=$(git rev-parse 'main@{1}')
 fi

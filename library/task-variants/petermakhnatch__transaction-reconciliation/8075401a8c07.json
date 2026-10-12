@@ -1,0 +1,40 @@
+{
+  "schema": "evallab.task_variant/v1",
+  "task_name": "petermakhnatch/transaction-reconciliation",
+  "variant_digest": "sha256:8075401a8c0745ebc7e61e164001462f72989c3ffb490c69c731a163d795e3d3",
+  "variant_harbor_digest": "sha256:82d381918169ed84d3c80554fa2c2c17ee32c382eaa791949ae276e3b1a99879",
+  "parent": {
+    "digest": "sha256:a90ff693ee1064a0564739581c22a60ac07491fbc30da248ec2588e215a80e78",
+    "harbor_digest": "sha256:f4b9e881e963736ef6466c0efa8d10cf7d6049b8f28990f3f5e6428093d9382b",
+    "source": {
+      "kind": "variant",
+      "repo": null,
+      "revision": null,
+      "path": null,
+      "record": "library/task-variants/petermakhnatch__transaction-reconciliation/a90ff693ee10.json"
+    }
+  },
+  "transform": "agent-network-none@1",
+  "components_changed": [
+    "task_toml"
+  ],
+  "files": [
+    {
+      "path": "task.toml",
+      "before_sha256": "sha256:173c3cf248cfca523c9837ea6c4a8d62e6340fd3b1a47629557582dc3e872d93",
+      "after_sha256": "sha256:c5dc1fb47abba297bc9b87290748995fac69460999085daa31069a5aa5adc319",
+      "content": "schema_version = \"1.4\"\n# Only the ledger reaches the separate verifier; nothing else the agent\n# leaves behind (processes, reward files, PATH shims) survives into grading.\nartifacts = [\"/app/data/ledger.db\"]\n\n[task]\nname = \"petermakhnatch/transaction-reconciliation\"\nversion = \"0.2.0\"\ndescription = \"Repair one inconsistent transaction in a seeded SQLite ledger.\"\nauthors = []\nkeywords = [\"harbor\", \"sqlite\", \"reconciliation\", \"database\", \"separate-verifier\"]\n\n[metadata]\ndifficulty = \"easy\"\ncategory = \"programming\"\ntags = [\"local\", \"deterministic\"]\n\n[verifier]\ntimeout_sec = 120.0\nenvironment_mode = \"separate\"\ncollect = []\n\n[verifier.env]\n\n[agent]\nnetwork_mode = \"no-network\"\ntimeout_sec = 120.0\n\n[environment]\nnetwork_mode = \"public\"\nbuild_timeout_sec = 600.0\nos = \"linux\"\nmcp_servers = []\n\n[environment.env]\n\n[solution.env]\n"
+    }
+  ],
+  "rationale": "library crack sweep 2026-10-12: hardened setup = separate verifier + agent egress off (agent-network-none@1)",
+  "inputs": {
+    "agent_network_mode": "no-network",
+    "verifier_network": "unchanged (public baseline via [environment] copy)",
+    "source": "harbor-0.24 task-level [agent] phase network policy",
+    "default_chain": false
+  },
+  "created_by": "library-crack-sweep",
+  "created_at": "2026-10-12T19:34:59Z",
+  "status": "candidate",
+  "evidence": []
+}

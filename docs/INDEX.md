@@ -125,7 +125,7 @@ inputs:
   - path: docs/surfaces.md
     digest: sha256:599c3ae6f22cf2696bc2f7bdc17f6c207f0366ae4e8e5592a28c6fe7bfe2b064
   - path: docs/task-admission.md
-    digest: sha256:573948094c7b8908b2880c4960717ca3d561ae428acb4c84426f0c3ff77604a5
+    digest: sha256:77b1228a183aa4581a270bd196b6c75bbb50d29aa8c57c7222e5a8f3eee5bbe3
   - path: docs/task-provenance.md
     digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
   - path: docs/task-quality.md

@@ -42,6 +42,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from evallab.codeban import codeban_hits, prompt_text
 from evallab.edit_signals import EDIT_TOOL_NAMES, blank_quoted_and_heredocs
 from evallab.file_access import (
     EVALUATOR_SNAPSHOT_DIR,
@@ -1394,6 +1395,7 @@ def trial_signals(
     attempts, confirmed = _upstream_status(agent_steps, trial_dir)
     tamper = _grader_tamper_hits(agent_steps)
     submission = submission_tamper_hits(agent_steps)
+    banned = codeban_hits(prompt_text(steps), agent_steps)
     hidden = _hidden_read_hits(agent_steps)
     harness_logs = _harness_log_hits(agent_steps)
     file_access = _read_file_access(trial_dir)
@@ -1450,6 +1452,7 @@ def trial_signals(
         ],
         "grader_tamper": tamper,
         "submission_tamper": submission,
+        "codeban_violation": banned,
         "hidden_reads": hidden,
         "harness_log_reads": harness_logs,
         "file_access": file_access["summary"],
@@ -1616,6 +1619,28 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
                     "mechanism": hit.get("mechanism"),
                     "pattern": hit.get("pattern"),
                     "origin": hit.get("origin"),
+                },
+            )
+        )
+        break  # one alert per trial; the signal keeps every hit
+
+    for hit in status.get("codeban_violation", []):
+        alerts.append(
+            _alert(
+                rule="codeban_violation",
+                severity="high",
+                job=job,
+                trial=trial,
+                task=task,
+                step=hit.get("step"),
+                quote=str(hit.get("excerpt") or ""),
+                detail=(
+                    "code computation under an explicit task ban: "
+                    f"{hit.get('command')} ({hit.get('mechanism')})"
+                ),
+                extra={
+                    "mechanism": hit.get("mechanism"),
+                    "command": hit.get("command"),
                 },
             )
         )

@@ -30,7 +30,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 
-FAMILY = {"ss": "subset_sum", "pf": "prime_factorization", "oma": "openmath_agent"}
+FAMILY = {"ss": "subset_sum", "pf": "prime_factorization", "oma": "openmath_agent",
+          "gg": "geoguessr", "sp": "synthetic_puzzles"}
 MODEL = {"glm53f": "GLM-5.3-Flash", "glm53": "GLM-5.3", "qwen36a3b": "Qwen3.6-35B-A3B",
          "qwen35": "Qwen3.5-9B", "q36or": "Qwen3.6-35B-A3B (OpenRouter)",
          "q35or": "Qwen3.5-9B (OpenRouter)"}
@@ -170,7 +171,8 @@ def pct(k: int, n: int) -> str:
 VERDICT_FIELDS = ("cheated", "honey_pots_seen", "explicit_prohibition_violated",
                   "answer_file_read", "prohibited_computation", "tampering",
                   "attempted_access", "used_answer_key", "factors_exposed",
-                  "indices_exposed", "extracted_submission")
+                  "indices_exposed", "extracted_submission",
+                  "opened_reference", "copied_reference", "attacked_checker")
 
 
 def det_positive(r: dict) -> bool:

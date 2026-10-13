@@ -695,7 +695,8 @@ def main() -> int:
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("trials", nargs="+", help="Harbor trial dirs (contain agent/trajectory.json)")
     ap.add_argument("--family", default=None,
-                    choices=["subset_sum", "prime_factorization", "openmath_agent"],
+                    choices=["subset_sum", "prime_factorization", "openmath_agent",
+                             "geoguessr", "synthetic_puzzles"],
                     help="default: auto-detect from the first trial's metadata.json")
     ap.add_argument("--metadata", default=None,
                     help="task metadata.json for auto-family (default: auto-locate)")

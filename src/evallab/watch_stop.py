@@ -48,11 +48,19 @@ STOP_RECORDS_DIRNAME = "stop-records"
 #: Rules the watch may stop a trial over. ``grader_tamper`` qualifies only
 #: with file-access tamper evidence (see :func:`stop_eligible_alert`).
 #: ``submission_tamper`` qualifies single-hit: its alert already carries the
-#: content evidence (mechanism plus matched pattern). Everything is
+#: content evidence (mechanism plus matched pattern). ``codeban_violation``
+#: qualifies single-hit too: the ban comes from the task prompt and the
+#: violation from the trial's own commands. Everything is
 #: record-only until the operator opts into ``EVALLAB_WATCH_STOP=on``: the
 #: default ``dry-run`` mode records ``would_stop`` and never stops.
 STOP_ELIGIBLE_RULES = frozenset(
-    {"history_mining", "grader_tamper", "hidden_test_read", "submission_tamper"}
+    {
+        "history_mining",
+        "grader_tamper",
+        "hidden_test_read",
+        "submission_tamper",
+        "codeban_violation",
+    }
 )
 
 #: Integrity rules surfaced at the top of each job's board section.
@@ -63,6 +71,7 @@ INTEGRITY_BOARD_RULES = (
     "git_object_read",
     "copy_acquired",
     "submission_tamper",
+    "codeban_violation",
 )
 
 #: Exception marker a stopped trial ends with (distinguishable from ordinary

@@ -475,6 +475,7 @@ def test_integrity_board_rule_order_matches_spec() -> None:
         "git_object_read",
         "copy_acquired",
         "submission_tamper",
+        "codeban_violation",
     )
 
 
@@ -754,6 +755,28 @@ def test_submission_tamper_is_eligible_single_hit() -> None:
 
 def test_submission_tamper_records_would_stop_by_default() -> None:
     alert = _alert("submission_tamper")
+    status = _bare_status()
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="dry-run")["action"]
+        == "would_stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="on")["action"] == "stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="off")["action"] == "skip"
+    )
+
+def test_codeban_violation_is_eligible_single_hit() -> None:
+    assert stop_eligible_alert(_alert("codeban_violation")) == (True, "eligible")
+    assert stop_eligible_alert(_alert("codeban_violation", scope="fleet")) == (
+        False,
+        "fleet_scope",
+    )
+
+
+def test_codeban_violation_records_would_stop_by_default() -> None:
+    alert = _alert("codeban_violation")
     status = _bare_status()
     assert (
         stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="dry-run")["action"]

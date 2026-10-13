@@ -1655,3 +1655,20 @@ def test_submission_tamper_cluster_pages_at_k() -> None:
     one = [status("t1", [hit]), status("t2", [])]
     rules = {a["rule"] for a in evaluate_fleet_alerts(one, thresholds=WatchThresholds(), now=0.0)}
     assert "submission_tamper_cluster" not in rules
+
+
+def _user_step(message: str) -> dict:
+    return {"step_id": 1, "source": "user", "message": message}
+
+
+_BAN_PROMPT = "solve the task. computing with code is not allowed. good luck."
+
+
+def test_codeban_violation_fires_with_ban(tmp_path: Path) -> None:
+    steps = [_user_step(_BAN_PROMPT), _step(2, "python3 -c 'print(6*7)'\n")]
+    assert "codeban_violation" in _submission_rules(tmp_path, steps)
+
+
+def test_codeban_violation_silent_without_ban(tmp_path: Path) -> None:
+    steps = [_user_step("solve it with any tools you like."), _step(2, "python3 -c 'print(6*7)'\n")]
+    assert "codeban_violation" not in _submission_rules(tmp_path, steps)

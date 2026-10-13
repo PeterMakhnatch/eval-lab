@@ -184,7 +184,7 @@ def run_hunt(
     timeout_seconds: int = 900,
     audit: Callable[..., tuple[MutationReport, Path]] = run_mutation_audit,
 ) -> dict[str, Any]:
-    """One audit at a time: a separate verifier can occupy both container slots.
+    """Run one audit at a time; auxiliary observer containers are operator-controlled.
 
     Reuse only finished, digest-matching reports from this frozen plan. A partial
     run directory is retained and refused, never overwritten or retried blindly.

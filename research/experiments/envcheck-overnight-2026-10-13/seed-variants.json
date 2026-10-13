@@ -1,0 +1,46 @@
+{
+  "schema": "envcheck.variants/v1",
+  "records_root": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage",
+  "variants": [
+    {
+      "task_id": "format-code-task-002402",
+      "variant_digest": "sha256:ccf1a141dd577880705bcb7a9b6a1a7707c8b1fa1223437f3ddb39b8f4421df5",
+      "parent_digest": "sha256:4e9bee0724b3447073b7cfcaedff5dbc9a16ba0082ae53bca2d2285d013d2f1a",
+      "status": "rejected",
+      "record": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/mimo-v2.6-rl__format-code-task-002402/ccf1a141dd57.json",
+      "record_sha256": "5aab29f98a089da1209c5c311a71f78ecd2e806c3e590dcd2ef1139d9fd9bee4",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002402/ccf1a141dd57",
+      "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002402-replay1/repair-result.json"
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "variant_digest": "sha256:1ee7e92ece7d97bcd1f16a90051758811ee3f3a6971891be4f80d870460c7239",
+      "parent_digest": "sha256:769137c3225e969eb110d1721104c9f52a25bb5917b3b1dbf0329148fc8c34ac",
+      "status": "rejected",
+      "record": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/mimo-v2.6-rl__format-code-task-002391/1ee7e92ece7d.json",
+      "record_sha256": "74959109a84cf6d83bbf9902d6dddf97bf89ef7b7acffbf22b90de2fe6bd29ed",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002391/1ee7e92ece7d",
+      "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002391/repair-result.json"
+    },
+    {
+      "task_id": "format-code-task-002402",
+      "variant_digest": "sha256:bd5b2efb9a4e2f153e68eb22dacda888d7d1d69783bd257141abcb748b158511",
+      "parent_digest": "sha256:4e9bee0724b3447073b7cfcaedff5dbc9a16ba0082ae53bca2d2285d013d2f1a",
+      "status": "validated",
+      "record": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/mimo-v2.6-rl__format-code-task-002402/bd5b2efb9a4e.json",
+      "record_sha256": "922f428517efd8e4fca2268187fb1c0d6e89062d5cbb07e3d1cd629ba3cdf990",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002402/bd5b2efb9a4e",
+      "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002402-refine1/repair-result.json"
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "variant_digest": "sha256:879d41b6ac072bf701d4c310d9ca7752a40dd03b0b6955eab1d4436ac0ec6cb4",
+      "parent_digest": "sha256:769137c3225e969eb110d1721104c9f52a25bb5917b3b1dbf0329148fc8c34ac",
+      "status": "candidate",
+      "record": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/mimo-v2.6-rl__format-code-task-002391/879d41b6ac07.json",
+      "record_sha256": "7226b408cda359ac3461993aa2c306d0dc894d9990822be1974470b089bd2d0c",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002391/879d41b6ac07",
+      "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002391-refine1/repair-result.json"
+    }
+  ]
+}

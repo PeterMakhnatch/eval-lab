@@ -64,9 +64,9 @@ MAX_TOTAL_CAPTURE_BYTES = 256 * 1024
 MAX_HIDDEN_TEST_BYTES = 128 * 1024
 MAX_PATCH_CHARS = 8_000
 
-#: Substrings that mark a proposed test as inspecting implementation or
-#: patch fingerprints instead of observable behaviour.
-_FINGERPRINT_MARKERS = (
+#: Conservative source-fingerprint and resource checks, not an OS sandbox.
+#: Proposed code executes only in the task's native Harbor verifier.
+_DISALLOWED_TEST_FEATURES = (
     "__file__",
     "inspect.",
     "hashlib",
@@ -80,8 +80,11 @@ _FINGERPRINT_MARKERS = (
     "os.exec",
     "socket",
     "urllib",
-    "__setattr__",
-    "frozeninstanceerror",
+    ".from_pretrained(",
+    "torch.hub.load",
+    "llama_cpp",
+    "import vllm",
+    "import ollama",
 )
 
 #: String/bytes literals longer than this compared with ``==``/``!=``/``in``
@@ -532,6 +535,7 @@ def build_repair_context(
     test_patch = hidden.get("tests/test.patch", "")
     return {
         "task": report.get("task"),
+        "workdir": read_task_workdir(package),
         "targets": list(report.get("targets", [])),
         "instruction": instruction,
         "hidden_tests": hidden,
@@ -557,10 +561,12 @@ def render_repair_prompt(context: Mapping[str, Any]) -> str:
         "All code runs only inside the task's isolated verifier, not on the host.",
         "Rules:",
         "- Test observable behaviour of the task artifacts only.",
+        "- Keep tests offline. Use synthetic fixtures for external services and",
+        "  ML plumbing; never load or run language models or download model weights.",
         "- NEVER inspect source or patch fingerprints: no __file__, inspect,",
         "  hashlib, .patch reads, solve.sh reads, or subprocess/network use.",
-        "- NEVER check immutability to kill incidental mutants: no",
-        "  __setattr__, FrozenInstanceError, or frozen-dataclass assertions.",
+        "- Do not test incidental properties just to kill a mutant. For example,",
+        "  immutability assertions are legitimate only if the task requires immutability.",
         "- NEVER hardcode reference bytes: no ==/!=/in against literals longer",
         "  than 200 characters.",
         "- repo_path is a NEW repository Python test file named test_*.py.",
@@ -570,6 +576,7 @@ def render_repair_prompt(context: Mapping[str, Any]) -> str:
         "- command runs every new test file with the task Python interpreter,",
         '  e.g. "python -m pytest test/contrib/test_repair_x.py -q"; it must',
         "  name each repo_path, stay under 300 chars, no shell metacharacters.",
+        "  Use -m unittest and TestCase assertions if pytest is not part of this task's environment.",
         "- Every ranked survivor needs a disposition: list genuinely fixed IDs",
         "  in mutant_ids; list behaviour-equivalent or out-of-scope IDs in",
         "  unrepairable with a per-ID reason instead of pinning implementation",
@@ -578,7 +585,9 @@ def render_repair_prompt(context: Mapping[str, Any]) -> str:
         "",
         f"Task: {context.get('task')}",
         f"Targets: {context.get('targets')}",
+        f"Testbed working directory: {context.get('workdir')}",
         f"Test command: {context.get('test_command')}",
+        f"Resolved command from the scored reference: {context.get('resolved_test_command', '[unavailable]')}",
         f"Patched files: {context.get('patched_files')}",
         f"Reset files: {context.get('reset_files')}",
         "",
@@ -787,9 +796,9 @@ def validate_proposal(
         if len(raw) > MAX_TEST_BYTES:
             raise RepairError(f"{name} exceeds {MAX_TEST_BYTES} bytes")
         lowered = test.code.lower()
-        for marker in _FINGERPRINT_MARKERS:
+        for marker in _DISALLOWED_TEST_FEATURES:
             if marker in lowered:
-                raise RepairError(f"{name} inspects implementation ({marker})")
+                raise RepairError(f"{name} uses a disallowed test feature ({marker})")
         try:
             tree = ast.parse(test.code, filename=name)
         except SyntaxError as exc:
@@ -805,9 +814,12 @@ def validate_proposal(
     if (
         len(tokens) < 4
         or not re.fullmatch(r"(?:/[A-Za-z0-9_./-]+/)?python[0-9.]*", tokens[0])
-        or tokens[1:3] != ["-m", "pytest"]
+        or tokens[1] != "-m"
+        or tokens[2] not in {"pytest", "unittest"}
     ):
-        raise RepairError("proposal command must invoke the task Python interpreter with -m pytest")
+        raise RepairError(
+            "proposal command must invoke the task Python interpreter with -m pytest or -m unittest"
+        )
     if _COMMAND_FORBIDDEN.search(command):
         raise RepairError("proposal command carries shell metacharacters")
     missing = [name for name in seen if name not in tokens[3:]]
@@ -1140,6 +1152,15 @@ def plan_repair(
     if reason:
         raise RepairError(reason)
     context = build_repair_context(report, ranked, package_dir=package, mutation_run_dir=run_dir)
+    if repo_root is not None:
+        oracle = next(run for run in report["runs"] if run["role"] == "capture-oracle")
+        job = (repo_root / str(oracle.get("job_dir") or "")).resolve()
+        if oracle.get("job_dir") and job.is_relative_to(repo_root.resolve()):
+            for command_file in sorted(job.glob("*/verifier/resolved_command.txt")):
+                command, truncated = _read_bounded(command_file, 16 * 1024)
+                context["resolved_test_command"] = command
+                context["resolved_command_truncated"] = truncated
+                break
     plan = RepairPlan(
         report_path=path,
         package_dir=package,
@@ -1404,7 +1425,11 @@ def execute_repair(
 
     append_status_evidence(
         record,
-        "validated" if verdict == "repaired" else "candidate",
+        "validated"
+        if verdict == "repaired"
+        else "rejected"
+        if verdict == "rejected"
+        else "candidate",
         evidence=f"{verdict}: {reason}; receipt={out / 'repair-result.json'}",
         by="verifier-repair",
         repo_root=repo,

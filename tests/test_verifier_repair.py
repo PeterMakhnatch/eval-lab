@@ -204,6 +204,14 @@ def test_real_derivation_obeys_complete_validation_gate(
     record = json.loads((tmp_path / result.variant_record).read_text())
     assert record["components_changed"] == ["verifier"]
     assert record["parent"]["digest"] == before.package
+    expected_status = (
+        "validated"
+        if verdict == "repaired"
+        else "rejected"
+        if verdict == "rejected"
+        else "candidate"
+    )
+    assert record["status"] == expected_status
 
 
 def test_report_without_trusted_coverage_or_controls_cannot_be_repaired(tmp_path):
@@ -302,12 +310,18 @@ def test_proposal_cannot_replace_production_or_existing_tests(tmp_path, path):
         validate_proposal(proposal, mutant_ids=[MUTANT], package_dir=plan.package_dir)
 
 
-def test_source_fingerprint_is_not_a_semantic_repair(tmp_path):
+@pytest.mark.parametrize(
+    "code",
+    [
+        "import inspect\ndef test_fp():\n    assert '+' in inspect.getsource(add)\n",
+        "from transformers import AutoModel\n"
+        "def test_weights():\n    assert AutoModel.from_pretrained('weights') is not None\n",
+    ],
+)
+def test_proposals_cannot_fingerprint_source_or_load_model_weights(tmp_path, code):
     plan, _ = _fixture(tmp_path)
     proposal = _proposal()
-    proposal.tests[
-        0
-    ].code = "import inspect\ndef test_fp():\n    assert '+' in inspect.getsource(add)\n"
+    proposal.tests[0].code = code
     with pytest.raises(RepairError):
         validate_proposal(proposal, mutant_ids=[MUTANT], package_dir=plan.package_dir)
 

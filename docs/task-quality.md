@@ -149,9 +149,11 @@ separate `--stages exploit` probe is requested.
   freezes the manifest digest and selection; `hunt-results.json` ranks only
   survivors explicitly traced as executed, with passing reference/nop controls.
   Unsupported languages, missing coverage and infrastructure failures stay
-  unrankable, not zero-filled. Execution is serial because a separate verifier
-  can use both of the lane's container slots. This path does not dispatch cloud
-  compute or estimate fleet-wide prevalence from its sample.
+  unrankable, not zero-filled. Execution is serial. For a hard two-container
+  ceiling, set `EVALLAB_STATE_JOURNAL=off`: native Docker's agent plus egress
+  sidecar consume two slots, and the optional state observer would add a third.
+  This path does not dispatch cloud compute or estimate fleet-wide prevalence
+  from its sample.
 - `evallab hack repair <mutation-report.json> --model gpt-6.1-sol
   [--execute] [--output-dir <runs/dir>] [--json]` — propose missing semantic
   assertions through the installed ChatGPT-subscription Codex CLI. Preview

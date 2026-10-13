@@ -38,6 +38,13 @@ from prepare_data import (  # noqa: E402
 )
 
 
+def _require_stock_parser() -> None:
+    pytest.importorskip(
+        "harbor.agents.terminus_2.terminus_json_plain_parser",
+        reason="stock Terminus parser requires Harbor (laminar extra)",
+    )
+
+
 def _row(task, model="gemini-3.1-pro", label="v5", episodes=3,
          cats=("hollow-implementation",), **kw):
     row = {"task_id": task, "model": model, "trajectory_label": label,
@@ -72,6 +79,7 @@ def test_split_markers_require_unambiguous_shape() -> None:
 
 
 def test_native_response_is_stock_parser_valid() -> None:
+    _require_stock_parser()
     content, complete = render_native_response(
         "recon.", "run ls.",
         [{"function_name": "bash_command",
@@ -94,6 +102,7 @@ def test_native_response_rejects_unknown_function() -> None:
 
 
 def test_convert_renders_derived_native_json() -> None:
+    _require_stock_parser()
     doc = _doc()
     doc["steps"].append({
         "step_id": 3, "source": "agent",
@@ -124,6 +133,7 @@ def test_convert_renders_derived_native_json() -> None:
 
 
 def test_convert_drops_final_observation() -> None:
+    _require_stock_parser()
     doc = _doc()
     doc["steps"].append({
         "step_id": 3, "source": "agent", "message": "Analysis: done.\nPlan: stop.",
@@ -140,6 +150,7 @@ def test_convert_drops_final_observation() -> None:
 
 
 def test_convert_refuses_instead_of_repairing() -> None:
+    _require_stock_parser()
     base = _doc()
     # Copied (retrospective) context.
     doc = json.loads(json.dumps(base))
@@ -230,6 +241,7 @@ def test_raw_url_uses_pinned_revision_and_raw_tree() -> None:
 
 
 def test_expand_prefixes_ends_at_each_assistant_turn() -> None:
+    _require_stock_parser()
     doc = _doc()
     doc["steps"].append({
         "step_id": 3, "source": "agent", "message": "Analysis: done.\nPlan: stop.",

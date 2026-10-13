@@ -16,9 +16,10 @@ see ``docs/task-stability.md`` for the recipe).
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -272,6 +273,18 @@ def read_task_stability_parquet(path: Path) -> list[dict[str, Any]]:
 
     return pq.read_table(path).to_pylist()
 
+def remove_tree(target: Path) -> None:
+    """Remove a staging tree, making read-only members writable first.
+
+    Staged packages may carry read-only files (Harbor chmods trial inputs);
+    plain ``shutil.rmtree`` would fail on those.
+    """
+    def _onerror(func: Callable[..., object], path: str, _exc: object) -> None:
+        os.chmod(path, 0o700)
+        func(path)
+
+    shutil.rmtree(target, onerror=_onerror)
+
 def stage_task(source: Path, dest: Path) -> Path:
     """Copy a task package to a staging dir so Harbor never touches the source."""
     if not source.is_dir():
@@ -357,6 +370,26 @@ def stability_run_command(
     return argv, env
 
 
+def _move_finished_job_aside(job_dir: Path) -> Path | None:
+    """Rename a finished job dir aside so the new run executes fresh trials.
+
+    Harbor reuses a job dir whose trials are all terminal: a re-admit would
+    score the previous admit's evidence without running anything. An
+    unfinished job dir is left alone so Harbor can resume it. Returns the
+    backup path, or ``None`` when there was nothing finished to move.
+    """
+    if not (job_dir / "result.json").is_file():
+        return None
+    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
+    backup = job_dir.with_name(f"{job_dir.name}.retry-{stamp}")
+    suffix = 1
+    while backup.exists():
+        suffix += 1
+        backup = job_dir.with_name(f"{job_dir.name}.retry-{stamp}-{suffix}")
+    job_dir.rename(backup)
+    return backup
+
+
 def run_stability_jobs(
     *,
     tasks: Sequence[Path],
@@ -372,7 +405,10 @@ def run_stability_jobs(
     """Stage each task, launch one nop+repeat job per task, record the manifest.
 
     ``runner`` is an injectable ``(argv, env) -> CompletedProcess``-like
-    collaborator (tests replace it; default is ``subprocess.run``).
+    collaborator (tests replace it; default is ``subprocess.run``). Restaging
+    and a finished prior job never block a re-admit into the same jobs dir:
+    the stale stage tree is replaced and a finished job dir is renamed aside
+    (evidence preserved) so the new run executes fresh trials.
     """
     run = runner or (lambda argv, env: subprocess.run(argv, check=False, env=env))
     jobs_dir.mkdir(parents=True, exist_ok=True)
@@ -381,7 +417,12 @@ def run_stability_jobs(
         task_slug = source.name
         job_name = f"{job_prefix}-{task_slug}"
         job_dir = jobs_dir / job_name
-        staged = stage_task(source, jobs_dir / ".stage" / job_name / task_slug)
+        staged_dest = jobs_dir / ".stage" / job_name / task_slug
+        if staged_dest.exists():
+            # Re-admitting into the same jobs dir restages fresh: a stale
+            # tree from the previous admit must not fail the new job.
+            remove_tree(staged_dest)
+        staged = stage_task(source, staged_dest)
         digests = task_digests(staged)
         argv, extra_env = stability_run_command(
             task_path=staged, agent=agent, job_name=job_name, jobs_dir=jobs_dir,
@@ -391,8 +432,7 @@ def run_stability_jobs(
             outcomes.append({"job_name": job_name, "argv": argv, "returncode": None,
                              "staged": str(staged), "trials": []})
             continue
-        import os
-
+        _move_finished_job_aside(job_dir)
         env = dict(os.environ)
         env.update(extra_env)
         completed = run(argv, env)

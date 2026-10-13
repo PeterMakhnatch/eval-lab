@@ -1,6 +1,6 @@
 task_id,label,fix_commit,patch_path,patch_sha256,source
 format-code-task-000003,oracle:fail,5652d97813ef3129d34ba651712d6df690393407,,,sweep-2026-10-10
-format-code-task-000007,oracle:fail,070a9edbc9f61f49706f658228d24eb5152dfbb9,,,sweep-2026-10-10-js
+format-code-task-000007,oracle:pass+nop:fail,cb977e4e99bd9fe5e9c134a28d3bb0cc284301db,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/mimo-reference-fixes/format-code-task-000007/solution.patch,ba162ed1dc9f84ecc01de3138a2381d7ffefed65dd8eacaf40638998f0e35ffc,sweep-2026-10-13
 format-code-task-000008,oracle:none,,,,sweep-2026-10-10
 format-code-task-000011,oracle:fail,2eded025fc82b3e9de16bf1fa0f7dc00bb91ee1a,,,sweep-2026-10-10-go
 format-code-task-000014,oracle:fail,fba2c8860e79b4c15c01a779d100eaed28388571,,,sweep-2026-10-10-go

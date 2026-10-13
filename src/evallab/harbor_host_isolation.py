@@ -9,6 +9,7 @@ controller briefly uses privileged exec to install/inspect the matched nft tool.
 from __future__ import annotations
 
 import contextlib
+import ipaddress
 import json
 import os
 import re
@@ -180,7 +181,16 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
             ).strip()
             output = await self._daemon_output("start", "--attach", helper)
             if self._bridge_port is not None:
-                self._bridge_addresses = desktop_dns_addresses(output)
+                # The supervised bridge binds 127.0.0.1, so only Desktop's
+                # IPv4 alias can name that frontend. An AAAA answer must not
+                # admit a distinct IPv6-only host listener on the same port.
+                self._bridge_addresses = tuple(
+                    address
+                    for address in desktop_dns_addresses(output)
+                    if ipaddress.ip_address(address).version == 4
+                )
+                if not self._bridge_addresses:
+                    raise ValueError("Claude bridge requires an IPv4 Docker host address")
             libraries = set(re.findall(r"(?:=>\s+)?(/\S+)\s+\(", output))
             loaders = [path for path in libraries if Path(path).name.startswith("ld-musl-")]
             if len(loaders) != 1 or not libraries:

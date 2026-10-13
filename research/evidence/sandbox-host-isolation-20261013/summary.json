@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "recorded_at_utc": "2026-10-13T08:51:12.494524+00:00",
+  "recorded_at_utc": "2026-10-13T09:34:37.301305+00:00",
   "base_revision": "4c7d32d8d12453ec6b9e5f4ec2f97ae41450f437",
   "harbor_version": "0.21.0",
   "task": "library/tasks/event-summary",
@@ -97,7 +97,7 @@
     65019
   ],
   "before_recorded_at_utc": "2026-10-13T08:34:18.852333+00:00",
-  "after_recorded_at_utc": "2026-10-13T08:48:36.106414+00:00",
+  "after_recorded_at_utc": "2026-10-13T09:32:43.079212+00:00",
   "before": [
     {
       "lane": "claude-code",
@@ -395,6 +395,7 @@
         "host.docker.internal",
         "gateway.docker.internal",
         "172.21.0.1",
+        "172.23.0.1",
         "172.26.0.1",
         "192.168.65.1",
         "192.168.65.254",
@@ -457,6 +458,7 @@
         "host.docker.internal",
         "gateway.docker.internal",
         "172.21.0.1",
+        "172.23.0.1",
         "172.26.0.1",
         "192.168.65.1",
         "192.168.65.254",
@@ -482,6 +484,7 @@
         "host.docker.internal",
         "gateway.docker.internal",
         "172.21.0.1",
+        "172.23.0.1",
         "172.26.0.1",
         "192.168.65.1",
         "192.168.65.254",
@@ -539,13 +542,13 @@
     },
     {
       "path": "after.json.gz",
-      "raw_sha256": "0bc04379373dd4ce1c0ca3a99469cbc369a7098dd72af62461cc723466021a93",
-      "gzip_sha256": "9a974a5cbec2db94d98228a0760df6cf277b6ebd633b6c53c7d40d36d679cc5d"
+      "raw_sha256": "386c5c5fed103eb321486582ef57f177335ffe449a29dc30e82849685d13bfa0",
+      "gzip_sha256": "b14c85d09335da14d8080894b0a5c85ea18d7012ba8d32faf8f5188104f1e06e"
     }
   ],
   "runtime_source_sha256": {
     "scripts/probe_sandbox_host.py": "1e75296816f65ed0133c3c79318162b5855d66c2c6b1dd826ae4d3c37de8ba16",
-    "src/evallab/harbor_host_isolation.py": "856fcd2fca7e0727824b76bfb7bc87146a6b0d0c280c76402a2acbf151b0f348",
+    "src/evallab/harbor_host_isolation.py": "e89b4e48dd8e62c9b2f0da7b322fc64a311c4f18088b2eb7b6c22e8c7fd758d5",
     "src/evallab/host_isolation.py": "8361e9b5853cd2c9712a1a79a9c2dded5b22f3130c45e125a14caa236ce28817",
     "src/evallab/harbor_docker.py": "83f2d93058ffbb81c66557930b1fe1feb7aaf73e237401262ba2f80e541f605a",
     "containers/claude_gateway_bridge.py": "016a098b89f11551bc7b78edd01ad36748089d8d6177c18914e34ffc7c92d5ee",

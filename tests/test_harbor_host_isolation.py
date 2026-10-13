@@ -838,3 +838,37 @@ def test_claude_tool_preparation_requires_actual_desktop_host_dns_answers(tool):
     assert native["up"] is False
     assert not tool["helper_alive"]
     assert tool["removed_images"] == [tool["tag"]]
+
+
+def test_dual_stack_desktop_dns_admits_only_the_actual_ipv4_bridge_frontend(tool):
+    tool["output"] = (
+        _DEPENDENCIES
+        + _DESKTOP_DNS
+        + "Name: host.docker.internal\nAddress: 2606:4700::1111\n"
+    )
+    native = tool["native"]
+    env = native["make"](isolation_lane="claude-code", claude_bridge_port=45123)
+    asyncio.run(env.start(force_build=False))
+    record = _record(native)
+    assert env._bridge_addresses == BRIDGE_ADDRESSES
+    assert record["bridge_addresses"] == list(BRIDGE_ADDRESSES)
+    assert "ip daddr 192.168.65.254 tcp dport 45123 accept" in record["rules"]
+    assert "ip6 daddr 2606:4700::1111 reject" in record["rules"]
+    assert "ip6 daddr 2606:4700::1111 tcp dport 45123 accept" not in record["rules"]
+    assert tool["removed_images"] == [tool["tag"]] and not tool["helper_alive"]
+    asyncio.run(env.stop(delete=True))
+
+
+def test_ipv6_only_desktop_dns_refuses_ipv4_bridge_and_cleans_tool_resources(tool):
+    tool["output"] = (
+        _DEPENDENCIES + "Name: host.docker.internal\nAddress: 2606:4700::1111\n"
+    )
+    native = tool["native"]
+    env = native["make"](isolation_lane="claude-code", claude_bridge_port=45123)
+    with pytest.raises((ValueError, RuntimeError)):
+        asyncio.run(env.start(force_build=False))
+    assert native["up"] is False and not native["connected"]
+    assert _record(native)["applied"] is False
+    assert not tool["helper_alive"]
+    assert tool["removed_images"] == [tool["tag"]]
+    assert env._tool_temp is None

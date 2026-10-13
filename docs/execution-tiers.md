@@ -115,8 +115,9 @@ controller interface address (including public addresses). Sandbox loopback and 
 stub remain usable. Public internet remains available for CLI installation and
 hosted model APIs; **this is host isolation, not full internet isolation**.
 Codex and non-model lanes have no host exception. The Claude gateway lane alone
-admits the current job's resolved `host.docker.internal` addresses and exact TCP
-bridge port, supplied through controller-only
+admits the current job's resolved IPv4 `host.docker.internal` address and exact
+TCP bridge port. AAAA answers grant no exception to the IPv4-only frontend.
+The port is supplied through controller-only
 `EVALLAB_CLAUDE_GATEWAY_ISOLATION_PORT`. No listener/port blocklist is maintained.
 
 The loopback Claude bridge fronts only its own `omp auth-gateway stdio` child.

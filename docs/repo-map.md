@@ -237,7 +237,7 @@ inputs:
   - path: src/evallab/harbor_glm_selfhosted.py
     digest: sha256:868a7ecba6f889d4cc3a9ab5aac5319a729fbd90cb5aa068a51a283833180dc0
   - path: src/evallab/harbor_host_isolation.py
-    digest: sha256:e38aa2c98521af51e048f92dfcb73fe31fb2ae9413713b0500f0303af886e81b
+    digest: sha256:06462ee6e609fcdf54bf86631be67ed213aa93a61a2d549b668fcd1581443302
   - path: src/evallab/harbor_laminar.py
     digest: sha256:259e0fba1d6e06274549c748c6c79b7f1216ea5e341ace5e92677234a78a04df
   - path: src/evallab/harbor_mimoagent.py

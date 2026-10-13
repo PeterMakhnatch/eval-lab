@@ -2,9 +2,12 @@
 2026-10-09 Kev runs used (``kev-hack-detector/build_chunks.py``: task prefix of
 at most 800 tokens, ~5k-token windows), so the Terminal Wrench cuts apply.
 
+Incremental: traces already in ``derived/contam/kev_chunks.jsonl`` are skipped;
+windows for new traces go to ``kev_chunks.new.jsonl`` (score that file on Modal,
+then ``run.py`` appends both to the cumulative files).
+
 Usage (worktree root):
   uv run --with transformers python research/experiments/contamination-audit/kev_chunks.py
-Writes derived/contam/kev_chunks.jsonl.
 """
 
 from __future__ import annotations
@@ -26,11 +29,16 @@ def main() -> None:
         for x in (WORKTREE / "derived/contam/inventory.jsonl").read_text().split("\n")
         if x
     ]
+    have = WORKTREE / "derived/contam/kev_chunks.jsonl"
+    done: set[str] = set()
+    if have.is_file():
+        with have.open(encoding="utf-8") as fh:
+            done = {json.loads(line)["trace_id"] for line in fh if line.strip()}
     counter = get_counter()
     n_traces = 0
-    with (WORKTREE / "derived/contam/kev_chunks.jsonl").open("w", encoding="utf-8") as fh:
+    with (WORKTREE / "derived/contam/kev_chunks.new.jsonl").open("w", encoding="utf-8") as fh:
         for row in inv:
-            if row["control"] or not row["atif"]:
+            if row["control"] or not row["atif"] or row["trial"] in done:
                 continue
             trial = Path(row["trial_dir"])
             traj = json.loads(
@@ -53,7 +61,7 @@ def main() -> None:
                     )
                     + "\n"
                 )
-    print(f"{n_traces} traces")
+    print(f"{n_traces} new traces ({len(done)} already chunked)")
 
 
 if __name__ == "__main__":

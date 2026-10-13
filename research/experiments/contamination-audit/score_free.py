@@ -85,10 +85,19 @@ def main() -> None:
         for x in (WORKTREE / "derived/contam/inventory.jsonl").read_text().split("\n")
         if x
     ]
+    dest = WORKTREE / "derived/contam/free.jsonl"
+    done = (
+        {r["trial"]: r for r in (json.loads(x) for x in dest.read_text().split("\n") if x)}
+        if dest.is_file()
+        else {}
+    )
     rules = Rules()
     out = []
     for row in inv:
         if row["control"] or not row["atif"]:
+            continue
+        if row["trial"] in done:
+            out.append(done[row["trial"]])
             continue
         trial = Path(row["trial_dir"])
         steps = json.loads((trial / "agent/trajectory.json").read_text(errors="replace")).get(
@@ -117,10 +126,10 @@ def main() -> None:
                 "has_diff": diff.is_file(),
             }
         )
-    dest = WORKTREE / "derived/contam/free.jsonl"
     dest.write_text("".join(json.dumps(r, sort_keys=True) + "\n" for r in out))
     print(
-        f"{len(out)} agent passes scored: rules fired {sum(bool(r['rules']) for r in out)}, "
+        f"{len(out)} agent passes ({len(out) - len([r for r in out if r['trial'] in done])} newly scored): "
+        f"rules fired {sum(bool(r['rules']) for r in out)}, "
         f"TA strong {sum(bool(r['ta_strong']) for r in out)}, TA weak {sum(bool(r['ta_weak']) for r in out)}, "
         f"with diff {sum(r['has_diff'] for r in out)}"
     )

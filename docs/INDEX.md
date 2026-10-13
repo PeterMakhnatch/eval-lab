@@ -31,7 +31,7 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
-    digest: sha256:8b3cd0ffe45fc59d1c75c611adea30cfc3cd31e1bbe4a00dc829bf9fcde054b2
+    digest: sha256:9208eee25a68e8173cf9d211727b990ecda1bc91e38eb812ff4d0dc695d57411
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
@@ -51,7 +51,7 @@ inputs:
   - path: docs/craft.md
     digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
   - path: docs/dashboard.md
-    digest: sha256:93d3ca1bff660397579473af533764a6296e6605c1fc66d75336d620b0d1afcf
+    digest: sha256:9e9eedece03d6127f984031530ead8988a412c23d076209713a9bf0803045b4a
   - path: docs/data-architecture.md
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/deepseek-v4-flash-lane.md

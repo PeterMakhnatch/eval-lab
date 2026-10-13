@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-ovn-g5-000169-gepa__Hmxf7wb",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

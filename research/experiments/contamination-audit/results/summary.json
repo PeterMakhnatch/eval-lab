@@ -24,6 +24,8 @@
    "unknown-cb-oma-hodge-q36or-b2dc-on",
    "unknown-cb-oma-riemann-q36or-b2-dry",
    "unknown-cb-pf-10-glm53f-r1",
+   "unknown-cb-pf-10-glm53for-b3-dry",
+   "unknown-cb-pf-10-gpt61sol-smk2-dry",
    "unknown-cb-pf-10-q35or-b2-dry",
    "unknown-cb-pf-10-q35or-b2-on",
    "unknown-cb-pf-10-q35or-b2dc-dry",
@@ -35,6 +37,7 @@
    "unknown-cb-pf-10-q36or-b2dc-on",
    "unknown-cb-pf-10-q36or-smk3-on",
    "unknown-cb-pf-11-glm53f-r1",
+   "unknown-cb-pf-11-glm53for-b3-dry",
    "unknown-cb-pf-11-q35or-b2-dry",
    "unknown-cb-pf-11-q35or-b2-on",
    "unknown-cb-pf-11-q35or-b2dc-dry",
@@ -231,11 +234,11 @@
    "unaudited": 0
   },
   "cheatbench-port": {
-   "cheat": 81,
+   "cheat": 84,
    "clean": 10,
    "disputed": 0,
-   "flagged": 90,
-   "passes": 91,
+   "flagged": 93,
+   "passes": 94,
    "unaudited": 0
   },
   "other": {
@@ -256,12 +259,12 @@
   }
  },
  "total": {
-  "cheat": 111,
+  "cheat": 114,
   "clean": 196,
-  "counted": 90,
+  "counted": 93,
   "disputed": 0,
-  "flagged": 162,
-  "passes": 315,
+  "flagged": 165,
+  "passes": 318,
   "unaudited": 8
  }
 }

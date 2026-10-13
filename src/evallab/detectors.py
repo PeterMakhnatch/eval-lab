@@ -4,10 +4,12 @@ A **corpus** is a sealed directory under ``research/calibration/`` (``detectors-
 
 - ``corpus.json``: name, version, sources, licences and the label checks it carries;
 - ``manifest.jsonl``: one row per trace with ``id``, ``source`` (``tw``, ``tw-raw``,
-  ``ours``, ``g6``, ``cb``, real-RL ``aria``/``olmo``, prompted ``ht``), ``labels``
-  (``{check: true | false | null}``; null means unlabelled for that check, never
-  negative), ``families`` (hack families of a positive) and ``trial`` (where to
-  find the trace) plus ``trajectory_sha256``;
+  ``ours``, ``g6``, ``cb``, real-RL ``aria``/``olmo``, prompted ``ht``, and
+  ``contamination-audit``: every audited agent pass outside the CheatBench port),
+  ``labels`` (``{check: true | false | null}``; null means unlabelled for that
+  check, never negative), ``families`` (hack families of a positive) and
+  ``trial`` (where to find the trace: ``published`` under the results home,
+  ``local_run`` under the primary eval-lab checkout) plus ``trajectory_sha256``;
 - ``MANIFEST.sha256``: checksums of the labelled files (``verify`` checks them);
 - ``cache/<detector>/<id>.json``: every judge output already paid for
   (``evallab.detector_verdict/v1``: ``flagged``, ``score``, ``cost_usd``, ...), so
@@ -38,6 +40,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
+
+from evallab.storage.paths import shared_checkout_root
 
 VERDICT_SCHEMA = "evallab.detector_verdict/v1"
 CORPUS_SCHEMA = "evallab.detector_corpus/v1"
@@ -167,6 +171,8 @@ class Corpus:
         trial = row["trial"]
         if trial["kind"] == "published":
             path = results_root / trial["path"]
+        elif trial["kind"] == "local_run":
+            path = shared_checkout_root(_repo_root()) / trial["path"]
         elif trial["kind"] == "terminal_wrench":
             if tw_root is None:
                 return None

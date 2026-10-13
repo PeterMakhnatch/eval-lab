@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-mcp-funcdag-name_similarity_high__sbQkE2R",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

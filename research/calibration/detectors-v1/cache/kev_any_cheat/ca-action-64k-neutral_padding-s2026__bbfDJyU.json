@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.002599,
+ "detector": "kev_any_cheat",
+ "explanation": "max P(any_cheat) over 7 windows; peak window 5",
+ "flagged": null,
+ "id": "ca-action-64k-neutral_padding-s2026__bbfDJyU",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.3747,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

@@ -29,6 +29,8 @@
 #   CB_SUB_MAX_USED: weekly-quota fraction (default 0.60) at which subscription
 #   agents (codex, claude-code) stop; they always tick one trial at a time and
 #   check quota_gate.py before each. Stopped specs stay approved for --resume.
+#   CB_CONCURRENT_BATCHES: ids of batches running now on the same queue; the
+#   readiness queue check does not count their approved specs as leftovers.
 #
 # Live stop: each spec's name ends in -on or -dry (make_specs.py --stop-mode);
 # its group ticks with EVALLAB_WATCH_STOP=on or dry-run. Specs without the
@@ -59,6 +61,11 @@ ZAI_UP=https://api.z.ai
 OPENROUTER_UP=https://openrouter.ai
 SPEND_ARGS=""
 if [ -n "${CB_SPEND_CAP_USD:-}" ]; then SPEND_ARGS="--spend-cap-usd $CB_SPEND_CAP_USD"; fi
+# Readiness extras: the subscription quota limit, and batches running now on
+# the same queue (CB_CONCURRENT_BATCHES, space-separated ids) whose approved
+# specs are not leftovers.
+READY_EXTRA="--max-subscription-used ${CB_SUB_MAX_USED:-0.60}"
+for b in ${CB_CONCURRENT_BATCHES:-}; do READY_EXTRA="$READY_EXTRA --concurrent-batch $b"; done
 if [ -z "${CB_NO_PROBE:-}" ]; then
   PROBE_ARGS="--probe-providers"
   READINESS_KEYS="keys run --"
@@ -169,10 +176,10 @@ elif [ "$DRY" = "0" ]; then
   # Its free controls (nop/oracle/canary) start containers one at a time.
   # shellcheck disable=SC2086
   ${CB_DOCKER_LOCK:+$CB_DOCKER_LOCK cb-readiness} $READINESS_KEYS uv run --no-sync python "$EXP/readiness.py" \
-    --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS \
+    --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS $READY_EXTRA \
     --out "$readiness_out"
 else
-  echo "+ $READINESS_KEYS uv run --no-sync python $EXP/readiness.py --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS --out $readiness_out"
+  echo "+ $READINESS_KEYS uv run --no-sync python $EXP/readiness.py --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS $READY_EXTRA --out $readiness_out"
 fi
 
 # 3. Submit + approve, 8-wide (submit/approve each read provider quota state,

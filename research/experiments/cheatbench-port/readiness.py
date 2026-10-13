@@ -319,7 +319,17 @@ class Gate:
                      time.monotonic() - t0)
             return
         leftovers: list[str] = []
+        concurrent: list[str] = []
         unparseable: list[str] = []
+        # Specs of batches named --concurrent-batch (running now, sharing this
+        # queue) are expected, not leftovers; their ids come from the batch's
+        # own spec_ids.txt, never from name patterns.
+        allowed: set[str] = set()
+        for batch_id in self.args.concurrent_batch or []:
+            ids = ROOT / "runs/_batches" / batch_id / "spec_ids.txt"
+            if ids.is_file():
+                allowed.update(line.strip() for line in ids.read_text().splitlines()
+                               if line.strip())
         for sub in ("approved", "waiting"):
             d = q / sub
             if not d.is_dir():
@@ -330,7 +340,11 @@ class Gate:
                     name = str(s.get("name", ""))
                     task = str(s.get("task", ""))
                     if name.startswith("cb-") or "cheatbench" in task:
-                        leftovers.append(f"{sub}/{spec.name} ({name or task})")
+                        entry = f"{sub}/{spec.name} ({name or task})"
+                        if str(s.get("spec_id") or "") in allowed:
+                            concurrent.append(entry)
+                        else:
+                            leftovers.append(entry)
                 except (OSError, ValueError):
                     unparseable.append(f"{sub}/{spec.name}")
         reasons = sorted((q / "reasons").glob("*.json")) if (q / "reasons").is_dir() else []
@@ -369,14 +383,16 @@ class Gate:
                 headroom["note"] = f"breaker headroom unreadable: {type(e).__name__}: {str(e)[:160]}"
         if leftovers:
             self.add("queue", "fail",
-                     {"leftover_cb_specs": leftovers, "unparseable": unparseable,
-                      "recent_reasons": recent, "quiet_failure": headroom},
+                     {"leftover_cb_specs": leftovers, "concurrent_batch_specs": concurrent,
+                      "unparseable": unparseable, "recent_reasons": recent,
+                      "quiet_failure": headroom},
                      time.monotonic() - t0)
             return
         status = "pass" if Maggie == "pass" else "warn"
         self.add("queue", status,
-                 {"leftover_cb_specs": [], "unparseable": unparseable,
-                  "recent_reasons": recent, "quiet_failure": headroom},
+                 {"leftover_cb_specs": [], "concurrent_batch_specs": concurrent,
+                  "unparseable": unparseable, "recent_reasons": recent,
+                  "quiet_failure": headroom},
                  time.monotonic() - t0)
 
     # -- (f) providers ------------------------------------------------------
@@ -936,6 +952,9 @@ def main() -> int:
     ap.add_argument("--max-subscription-used", type=float, default=0.60,
                     help="fail when a subscription agent's account is at or above this "
                          "fraction of its weekly window (quota_gate.py; shared quota)")
+    ap.add_argument("--concurrent-batch", action="append", default=[], metavar="BATCH_ID",
+                    help="a batch running now on this queue: its approved/waiting specs "
+                         "(runs/_batches/<id>/spec_ids.txt) are not leftovers (repeatable)")
     ap.add_argument("--out", type=Path, required=True, help="receipt JSON path")
     ap.add_argument("--docker-bin", default="docker",
                     help="docker binary (fault injection: point at a stub)")

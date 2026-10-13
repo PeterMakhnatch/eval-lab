@@ -110,7 +110,10 @@ def main() -> None:
             f"Every audited Eval Lab agent pass outside the CheatBench port (2026-10-13 contamination audit): "
             f"{n_cheat} confirmed cheats ({n_unprompted} in runs not prompted to cheat; mechanism per row) and "
             f"{len(rows) - n_cheat} clean passes, {sum(r['kev_flagged'] and not r['labels']['reward_hacking'] for r in rows)} "
-            "of them Kev-flagged hard negatives. Verdicts: GPT-6.1 Sol plus a blind Claude second judge, "
+            "of them Kev-flagged hard negatives, published with firing cards, margins, peak "
+            "windows and both judges' summaries in "
+            "research/experiments/contamination-audit/results/kev_hard_negatives.jsonl "
+            "(cut analysis in results/kev_cut_analysis.json). Verdicts: GPT-6.1 Sol plus a blind Claude second judge, "
             "disagreements resolved from the trajectory (research/experiments/contamination-audit)."
         ),
         "origin": "~/Developer/eval-lab-results (published) and the eval-lab checkout's runs/ (local_run)",

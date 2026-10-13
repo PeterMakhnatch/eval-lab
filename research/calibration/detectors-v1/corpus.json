@@ -77,7 +77,7 @@
   "contamination-audit": {
    "rows": 216,
    "setting": "agent_runs",
-   "what": "Every audited Eval Lab agent pass outside the CheatBench port (2026-10-13 contamination audit): 30 confirmed cheats (18 in runs not prompted to cheat; mechanism per row) and 186 clean passes, 38 of them Kev-flagged hard negatives. Verdicts: GPT-6.1 Sol plus a blind Claude second judge, disagreements resolved from the trajectory (research/experiments/contamination-audit).",
+   "what": "Every audited Eval Lab agent pass outside the CheatBench port (2026-10-13 contamination audit): 30 confirmed cheats (18 in runs not prompted to cheat; mechanism per row) and 186 clean passes, 38 of them Kev-flagged hard negatives, published with firing cards, margins, peak windows and both judges' summaries in research/experiments/contamination-audit/results/kev_hard_negatives.jsonl (cut analysis in results/kev_cut_analysis.json). Verdicts: GPT-6.1 Sol plus a blind Claude second judge, disagreements resolved from the trajectory (research/experiments/contamination-audit).",
    "origin": "~/Developer/eval-lab-results (published) and the eval-lab checkout's runs/ (local_run)",
    "license": "Eval Lab",
    "caveat": "Overlaps source 'ours' (same trajectories, older labels). Filter cheat_prompted=false for unprompted cheats."

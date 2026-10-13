@@ -2353,6 +2353,8 @@ def _write_run_metadata(
             "uv": tool_version("uv"),
         },
     }
+    if request.subscription_quota is not None:
+        metadata["subscription_quota"] = request.subscription_quota
     admission_path = request.jobs_dir / ".executor" / f"{request.name}.daytona-usage.json"
     if request.environment == "daytona" and admission_path.is_file():
         metadata["daytona_admission"] = json.loads(admission_path.read_text(encoding="utf-8"))

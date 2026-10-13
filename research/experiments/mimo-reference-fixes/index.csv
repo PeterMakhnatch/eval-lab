@@ -46,7 +46,7 @@ format-code-task-000102,oracle:pass+nop:fail,88f5bcd531aec696998fe8c7485b9291a26
 format-code-task-000103,oracle:pass+nop:fail,987bc43b5d8cce5c517ae67b57d3b816af8115ca,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000103/solution.patch,34739a894411d0e9a6dc20516fc8e806f25e0b6cef81e8ed69f7dd6d401525ee,sweep-2026-10-10-go
 format-code-task-000105,oracle:none,,,,sweep-2026-10-10-go
 format-code-task-000107,oracle:fail-network,069bb557897104acd4b05bcf3d7916003e17f36f,,,sweep-2026-10-10-go
-format-code-task-000108,oracle:fail,eefc9fa01555d972847aeddd11511c929007165b,,,sweep-2026-10-10-go
+format-code-task-000108,oracle:pass+nop:fail,eefc9fa01555d972847aeddd11511c929007165b,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/mimo-reference-fixes/format-code-task-000108/solution.patch,ba243b286a9c2cb7b845cd5400b272440379519ad2254f6b3bb04f5d489aba16,sweep-2026-10-13
 format-code-task-000110,oracle:pass+nop:fail,d41391ebe2ee67d4eb1342ecdecca7ad20f6f2f6,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000110/solution.patch,5b450a7dced7a8fb9803f001e6887c5485db03cfdc70440cd1bf7a40f39dca1e,har191
 format-code-task-000112,oracle:pass+nop:fail,227c2fffaf8de95c8b24e9d97ed979a7495f99b7,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000112/solution.patch,55f54e5b13ba69ea5febf897cad61bee555a91ed4464bcf979b84f53cd51bb43,sweep-2026-10-10-js
 format-code-task-000114,oracle:pass+nop:fail,58d08cf08e74ca91817f33166214f452dc5e295d,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000114/solution.patch,abb2d15a60deb9254e7fbfe24e8f482d32b91a5007fcdcb0ede86c2be2813975,sweep-2026-10-09
@@ -56,7 +56,7 @@ format-code-task-000122,oracle:pass+nop:fail,d109fcbcd4a1114e80d64d990f8d185d873
 format-code-task-000125,oracle:pass+nop:fail,90df5a6a377bfcfa7371c2ef47fcb7c69e38a5b6,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000125/solution.patch,aabfea0edbc6ba443829f2d6136a9127c4da510c37c772da9de9c284ac76b813,sweep-2026-10-10
 format-code-task-000128,oracle:fail,8d1787a6656518818621a71362c6dc8f62c8003c,,,sweep-2026-10-10-js
 format-code-task-000133,oracle:pass+nop:fail,bb0ed87ca7ad568642afe2d7c36fa3034726e657,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-10/mimo-reference-fixes/format-code-task-000133/solution.patch,cafdc1451725fcff215d1c6fc4c9289294e77a761515d4c14487e96415810d1a,sweep-2026-10-10-js
-format-code-task-000136,oracle:fail,36e0b0fafb976be0612af6f04851e3771a9a3c58,,,sweep-2026-10-10-go
+format-code-task-000136,oracle:pass+nop:fail,36e0b0fafb976be0612af6f04851e3771a9a3c58,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/mimo-reference-fixes/format-code-task-000136/solution.patch,5169d8b29e91de29fef157f08c446ae815a07d093313c7000a6189e97ea36263,sweep-2026-10-13
 format-code-task-000138,oracle:none,,,,sweep-2026-10-10-go
 format-code-task-000142,oracle:pass+nop:fail,8f82823a085eaac7fde2a9eef56eaaafe0978a90,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000142/solution.patch,375050cdfea72be9ad598bf775dcac6e5183acfd2a512091e14649c5a9823b11,har191
 format-code-task-000143,oracle:pass+nop:fail,7fe8d18477d30a354cc08236c14bfc71df5a0770,/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-000143/solution.patch,e969412330ab0ce17a90d2d3449e5119186db1e598f01fc538f7547381bf7606,har191

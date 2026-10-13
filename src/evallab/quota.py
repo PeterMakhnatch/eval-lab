@@ -666,6 +666,7 @@ def _model_turns(trial_dir: Path) -> int | None:
                 turns += 1
     return turns
 
+
 def _claude_session_usage(
     trial_dir: Path,
 ) -> tuple[int | None, int | None, int | None, int | None]:

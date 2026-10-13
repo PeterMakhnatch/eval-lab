@@ -1087,12 +1087,39 @@ def test_file_access_git_object_read_fires(tmp_path: Path) -> None:
     assert history["line"] == 2
 
 
-def test_file_access_hidden_test_read_fires_on_access(tmp_path: Path) -> None:
+def test_file_access_hidden_test_read_needs_content(tmp_path: Path) -> None:
     trial = _write_trial(tmp_path, "job", "task__abc", [_step(1, "ls\n")])
     _write_file_access(
         trial,
         [
             _fa_coverage(),
+            _fa_common(
+                "access",
+                path="/grader/hidden/test_foo.py",
+                events=["OPEN", "ACCESS"],
+                is_directory=False,
+                category="grader",
+                protected_root="/grader/hidden",
+            ),
+        ],
+    )
+    status = _signals(trial)
+    # The sensor touch stays in the status record, but an opaque open with no
+    # trajectory read of protected bytes never alerts (false-stop fix).
+    assert len(status["hidden_test_reads"]) == 1
+    assert "hidden_test_read" not in _rules(status)
+
+
+def test_file_access_hidden_test_read_fires_on_corroborated_read(
+    tmp_path: Path,
+) -> None:
+    trial = _write_trial(
+        tmp_path, "job", "task__abc", [_step(2, "cat /grader/hidden/test_foo.py\n")]
+    )
+    _write_file_access(
+        trial,
+        [
+            _fa_coverage(watched_paths=["/grader/hidden"]),
             _fa_common(
                 "access",
                 path="/grader/hidden/test_foo.py",
@@ -1111,7 +1138,7 @@ def test_file_access_hidden_test_read_fires_on_access(tmp_path: Path) -> None:
         for a in evaluate_alerts(status, thresholds=WatchThresholds())
         if a["rule"] == "hidden_test_read"
     )
-    assert alert["step_ref"] is None
+    assert alert["step_ref"] == "head#2"
 
 
 def test_file_access_absence_and_unavailable_stay_unknown(tmp_path: Path) -> None:
@@ -1325,7 +1352,10 @@ def test_file_access_only_trial_is_discovered(tmp_path: Path) -> None:
     found = discover_trials([runs])
     assert [(str(j), str(t)) for j, t in found] == [(str(job), str(trial_dir))]
     status = _signals(trial_dir)
-    assert "hidden_test_read" in _rules(status)
+    # Sensor-only trial: the touch is recorded but nothing can corroborate a
+    # content read without trajectory steps, so no alert.
+    assert len(status["hidden_test_reads"]) == 1
+    assert "hidden_test_read" not in _rules(status)
 
 
 @pytest.mark.parametrize(
@@ -1672,3 +1702,44 @@ def test_codeban_violation_fires_with_ban(tmp_path: Path) -> None:
 def test_codeban_violation_silent_without_ban(tmp_path: Path) -> None:
     steps = [_user_step("solve it with any tools you like."), _step(2, "python3 -c 'print(6*7)'\n")]
     assert "codeban_violation" not in _submission_rules(tmp_path, steps)
+
+
+def test_task_protected_read_fires_with_manifest(tmp_path: Path) -> None:
+    trial = _write_trial(
+        tmp_path,
+        "job",
+        "trial",
+        [
+            _user_step("solve it."),
+            _step(2, "grep '^fact ' /home/runner/work/_temp/generation/gen.log\n"),
+        ],
+    )
+    manifest = {"protected_paths": ["/home/runner/work/_temp/generation"]}
+    status = trial_signals(
+        trial.parent,
+        trial,
+        thresholds=WatchThresholds(),
+        from_config=False,
+        now=0.0,
+        task_manifest=manifest,
+    )
+    assert "task_protected_read" in {
+        a["rule"] for a in evaluate_alerts(status, thresholds=WatchThresholds())
+    }
+
+
+def test_task_protected_read_silent_without_manifest(tmp_path: Path) -> None:
+    steps = [
+        _user_step("solve it."),
+        _step(2, "grep '^fact ' /home/runner/work/_temp/generation/gen.log\n"),
+    ]
+    assert "task_protected_read" not in _submission_rules(tmp_path, steps)
+
+
+def test_task_protected_read_is_detection_only() -> None:
+    from evallab.watch_stop import stop_eligible_alert
+
+    assert stop_eligible_alert({"rule": "task_protected_read"}) == (
+        False,
+        "rule_not_eligible:task_protected_read",
+    )

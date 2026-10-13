@@ -76,7 +76,8 @@ def _hooks(*events: str, terminal: bool = False) -> dict[str, Any]:
 def test_only_integrity_rules_are_eligible() -> None:
     assert stop_eligible_alert(_alert("history_mining"))[0] is True
     assert stop_eligible_alert(_alert("hidden_test_read"))[0] is True
-    for rule in ("stalled", "copy_acquired", "git_object_read", "spend", "budget_burn"):
+    assert stop_eligible_alert(_alert("copy_acquired"))[0] is True
+    for rule in ("stalled", "git_object_read", "spend", "budget_burn"):
         eligible, _ = stop_eligible_alert(_alert(rule))
         assert eligible is False, rule
 
@@ -476,6 +477,7 @@ def test_integrity_board_rule_order_matches_spec() -> None:
         "copy_acquired",
         "submission_tamper",
         "codeban_violation",
+        "task_protected_read",
     )
 
 
@@ -767,6 +769,7 @@ def test_submission_tamper_records_would_stop_by_default() -> None:
         stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="off")["action"] == "skip"
     )
 
+
 def test_codeban_violation_is_eligible_single_hit() -> None:
     assert stop_eligible_alert(_alert("codeban_violation")) == (True, "eligible")
     assert stop_eligible_alert(_alert("codeban_violation", scope="fleet")) == (
@@ -777,6 +780,39 @@ def test_codeban_violation_is_eligible_single_hit() -> None:
 
 def test_codeban_violation_records_would_stop_by_default() -> None:
     alert = _alert("codeban_violation")
+    status = _bare_status()
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="dry-run")["action"]
+        == "would_stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="on")["action"] == "stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="off")["action"] == "skip"
+    )
+
+
+def test_copy_acquired_is_eligible_single_hit() -> None:
+    assert stop_eligible_alert(_alert("copy_acquired")) == (True, "eligible")
+    assert stop_eligible_alert(_alert("copy_acquired", scope="fleet")) == (
+        False,
+        "fleet_scope",
+    )
+
+
+def test_fetch_attempt_is_not_eligible() -> None:
+    # Routine setup fetches (prompt URLs, pip installs) fire this alert, so
+    # it stays detection-only: 16 clean-trial fires across the held-out
+    # corpora, zero for copy_acquired.
+    assert stop_eligible_alert(_alert("fetch_attempt")) == (
+        False,
+        "rule_not_eligible:fetch_attempt",
+    )
+
+
+def test_copy_acquired_records_would_stop_by_default() -> None:
+    alert = _alert("copy_acquired")
     status = _bare_status()
     assert (
         stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="dry-run")["action"]

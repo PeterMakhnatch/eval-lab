@@ -160,10 +160,10 @@ def _configured_quota_ceiling(root: Path) -> float | None:
 
     `queue.REFUSE_BILLABLE_AT_USED_PERCENT` (queue.py:224-240) says its durable
     home is `policy/standing-approvals.yaml`, and WS-E item 1 moves it there as
-    `StandingApprovalsPolicy.refuse_billable_at_used_percent`. Both are
-    committed unset, so preferring the policy and falling back to the constant
-    is correct in every state of that migration and never under-reports a
-    ceiling that is actually set.
+    `StandingApprovalsPolicy.refuse_billable_at_used_percent`. Committed at 60
+    since the 2026-10-13 overnight subscription-agent work, so preferring the
+    policy and falling back to the constant is correct in every state of that
+    migration and never under-reports a ceiling that is actually set.
 
     FOLLOW-UP: delete the `queue_module` fallback once the policy field lands.
     Recorded in `agents/handoffs/preflight.md`.
@@ -625,7 +625,7 @@ def _approve_command(
         headroom = _headroom_for(root, agent=authorized.agent)
         print(render_headroom_notice(headroom, agent=authorized.agent, model=authorized.model))
         # The threshold is policy, not code: `refuse_billable_at_used_percent`
-        # in `policy/standing-approvals.yaml`, committed unset. Loaded
+        # in `policy/standing-approvals.yaml`, committed at 60. Loaded
         # inline here, as `_digest_renderer` does at cli.py:1526.
         ceiling = load_policy(
             root / "policy/standing-approvals.yaml"

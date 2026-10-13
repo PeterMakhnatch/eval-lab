@@ -155,14 +155,17 @@ class LockedDockerEnvironment(DockerEnvironment):
 
     def _allowed_mounts(self) -> dict[str, Path]:
         paths = EnvironmentPaths()
-        return {
+        allowed = {
             str(paths.agent_dir): self.trial_paths.agent_dir,
-            str(paths.user_agent_dir): self.trial_paths.user_agent_dir,
             str(paths.verifier_dir): self.trial_paths.verifier_dir,
             str(paths.artifacts_dir): self.trial_paths.host_artifact_path(
                 MAIN_SERVICE_NAME, str(paths.artifacts_dir)
             ),
         }
+        # Harbor 0.21 has only the agent log mount; 0.24 adds user_agent.
+        if hasattr(paths, "user_agent_dir"):
+            allowed[str(paths.user_agent_dir)] = self.trial_paths.user_agent_dir
+        return allowed
 
     def _validate_mount_specs(self, mounts: Sequence[Mapping[str, Any]]) -> None:
         allowed = self._allowed_mounts()
@@ -247,7 +250,7 @@ class LockedDockerEnvironment(DockerEnvironment):
     async def _daemon_json(self, *command: str) -> Any:
         return json.loads(await self._daemon_output(*command))
 
-    async def _validate_resolved_compose(self) -> None:
+    async def _validate_resolved_compose(self) -> dict[str, Any]:
         # Resolve actual native overlays before creation. Output-to-file avoids
         # mixing Compose warnings with JSON and is deleted immediately (env).
         path = self._docker_compose_paths[-1].with_name("resolved.json")
@@ -294,6 +297,7 @@ class LockedDockerEnvironment(DockerEnvironment):
         if "NET_RAW" not in main.get("cap_drop", []):
             raise RuntimeError("egress_lock requires dropping NET_RAW")
         self._validate_mount_specs(main.get("volumes") or [])
+        return main
 
     async def _confirm_lock(self) -> None:
         result = await super()._run_docker_compose_command(

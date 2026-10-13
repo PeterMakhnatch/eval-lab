@@ -63,7 +63,7 @@ fi
 
 # Stage byte-identical task copies (gitignored) and verify digests.
 TASKS_ROOT="$REPO/runs/har85-gepa-mimo/tasks"
-PINNED_SRC="/Users/petermakhnatch/Developer/.sources/mimo/terminal@fe1c2b66/tasks"
+PINNED_SRC="/Users/petermakhnatch/Developer/lab-extras/upstream/mimo/terminal@fe1c2b66/tasks"
 mkdir -p "$TASKS_ROOT"
 stage_task() {
   id="$1"

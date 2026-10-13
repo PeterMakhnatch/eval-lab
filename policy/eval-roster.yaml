@@ -13,7 +13,7 @@ trial:
   agent: zai-opencode
   model: zai/glm-5.3-flash
   harness: harbor
-  harness_path: ~/Developer/agent-evals/harbor
+  harness_path: ~/Developer/lab-extras/data/agent-evals/harbor
 
 # ── What simulates the user & verifies (τ-style benchmarks) ───────────────
 simulator:
@@ -27,7 +27,7 @@ simulator:
 # ── What we evaluate on ───────────────────────────────────────────────────
 benchmark:
   primary: sierra-research/tau3-bench
-  primary_path: ~/Developer/agent-evals/harbor/adapters/tau3-bench/
+  primary_path: ~/Developer/lab-extras/data/agent-evals/harbor/adapters/tau3-bench/
   registry: harbor-hub
 
 # ── Historical trial exclusions (not current provider availability) ──────────

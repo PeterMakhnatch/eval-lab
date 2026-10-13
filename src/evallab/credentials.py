@@ -39,6 +39,7 @@ from evallab.profiles import (
     AuthFileProbe,
     CliSessionProbe,
     EnvironmentPresenceProbe,
+    GatewayStdioProbe,
     KeychainProbe,
     OpenCodeProviderAuthProbe,
     ProbeResult,
@@ -49,6 +50,7 @@ from evallab.runner import subscription_environment
 KEYCHAIN_SERVICE = "harbor-practice-claude-oauth"
 
 CLAUDE_OAUTH = "claude_oauth"
+CLAUDE_GATEWAY = "claude_gateway"
 CODEX_AUTH = "codex_auth"
 CURSOR_SESSION = "cursor_session"
 ANTIGRAVITY_SESSION = "antigravity_session"
@@ -65,6 +67,7 @@ LOCAL_OLLAMA_ENDPOINT = "local_ollama_endpoint"
 # deliberately absent: they must run with no credential at all.
 AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
     "claude-code": CLAUDE_OAUTH,
+    ("claude-code", "claude-gateway/claude-haiku-5-5"): CLAUDE_GATEWAY,
     "codex": CODEX_AUTH,
     "cursor-cli": CURSOR_SESSION,
     "antigravity-cli": ANTIGRAVITY_SESSION,
@@ -82,6 +85,7 @@ AGENT_CREDENTIAL_REQUIREMENTS: dict[str | tuple[str, str], str] = {
 
 _PROFILES = builtin_profiles()
 _CLAUDE_PROFILE = _PROFILES["claude-code-fable-5"]
+_CLAUDE_GATEWAY_PROFILE = _PROFILES["claude-code-gateway-haiku-5-5"]
 _CODEX_PROFILE = _PROFILES["codex-gpt-5.6-terra"]
 _CURSOR_PROFILE = _PROFILES["cursor-grok-4.6-high"]
 _ANTIGRAVITY_PROFILE = _PROFILES["antigravity-gemini-3.7-flash-high"]
@@ -122,6 +126,18 @@ def probe_claude_keychain_result() -> ProbeResult:
         return probe(_CLAUDE_PROFILE)
     except subprocess.TimeoutExpired:
         return ProbeResult(ok=False, reason="keychain probe timed out")
+
+
+def probe_claude_gateway() -> bool:
+    return probe_claude_gateway_result().ok
+
+
+def probe_claude_gateway_result() -> ProbeResult:
+    probe = GatewayStdioProbe()
+    try:
+        return probe(_CLAUDE_GATEWAY_PROFILE)
+    except subprocess.TimeoutExpired:
+        return ProbeResult(ok=False, reason="gateway probe timed out")
 
 
 def probe_codex_auth(home: Path | None = None) -> bool:
@@ -285,6 +301,8 @@ def available_credentials(home: Path | None = None) -> frozenset[str]:
     found: set[str] = set()
     if probe_claude_keychain():
         found.add(CLAUDE_OAUTH)
+    if probe_claude_gateway():
+        found.add(CLAUDE_GATEWAY)
     if probe_codex_auth(home):
         found.add(CODEX_AUTH)
     if probe_cursor_session():

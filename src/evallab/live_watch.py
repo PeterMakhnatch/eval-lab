@@ -42,6 +42,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from evallab.codeban import codeban_hits, prompt_text
 from evallab.edit_signals import EDIT_TOOL_NAMES, blank_quoted_and_heredocs
 from evallab.file_access import (
     EVALUATOR_SNAPSHOT_DIR,
@@ -51,6 +52,14 @@ from evallab.file_access import (
 )
 from evallab.harbor_watch_hooks import HOOK_JOURNAL, read_hook_journal
 from evallab.history_mining import history_mining_signals
+from evallab.peer_content import content_corroboration, watched_blob_shas
+from evallab.submission_tamper import (
+    CLUSTER_ALPHA,
+    CLUSTER_P0,
+    cluster_threshold,
+    submission_tamper_hits,
+)
+from evallab.task_protected import load_task_manifest, manifest_paths, task_protected_read_hits
 from evallab.watch_stop import INTEGRITY_BOARD_RULES, drive_trial_stops, stop_mode_from_env
 
 if TYPE_CHECKING:
@@ -171,6 +180,10 @@ class WatchThresholds:
     notify_minutes: float = 15.0
     default_input_token_limit: int = 2_500_000
     default_output_token_limit: int = 131_072
+    #: Clean flag rate the submission-tamper run alarm is calibrated against.
+    tamper_cluster_p0: float = CLUSTER_P0
+    #: Per-step clean-only alarm budget for the run alarm.
+    tamper_cluster_alpha: float = CLUSTER_ALPHA
 
 
 #: Per-file stat entry: ``(path, mtime_ns, size)``; ``None`` fields when absent.
@@ -1313,6 +1326,7 @@ def trial_signals(
     from_config: bool,
     now: float,
     hooks: dict[str, Any] | None = None,
+    task_manifest: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Compute the live signal record for one trial directory (read-only).
 
@@ -1383,9 +1397,19 @@ def trial_signals(
 
     attempts, confirmed = _upstream_status(agent_steps, trial_dir)
     tamper = _grader_tamper_hits(agent_steps)
+    submission = submission_tamper_hits(agent_steps)
+    banned = codeban_hits(prompt_text(steps), agent_steps)
+    manifest = load_task_manifest(job_dir, trial_dir, override=task_manifest)
+    _tp_prefixes, _tp_basenames = manifest_paths(manifest)
+    task_protected = task_protected_read_hits(agent_steps, _tp_prefixes, _tp_basenames)
     hidden = _hidden_read_hits(agent_steps)
     harness_logs = _harness_log_hits(agent_steps)
     file_access = _read_file_access(trial_dir)
+    sensor_paths = [str(h.get("path") or "") for h in file_access["hidden_test_reads"]]
+    watched = [str(p) for p in file_access["summary"].get("watched_paths") or []]
+    corroborated = content_corroboration(
+        agent_steps, watched_blob_shas(sensor_paths), watched
+    )
     # Only the pre-agent first-window baseline is eligible: later windows may
     # already include commits authored or checked out by the agent.
     initial_baseline = _read_json(trial_dir / TRIAL_GIT_HISTORY) or {}
@@ -1438,6 +1462,9 @@ def trial_signals(
             for flag in confirmed
         ],
         "grader_tamper": tamper,
+        "submission_tamper": submission,
+        "codeban_violation": banned,
+        "task_protected_reads": task_protected,
         "hidden_reads": hidden,
         "harness_log_reads": harness_logs,
         "file_access": file_access["summary"],
@@ -1445,6 +1472,7 @@ def trial_signals(
         "history_browsing": history["browsing"],
         "git_object_reads": file_access["git_object_reads"],
         "hidden_test_reads": file_access["hidden_test_reads"],
+        "hidden_test_corroboration": corroborated,
         "git_ref_observations": file_access["git_ref_observations"],
         "grader_file_changes": file_access["protected_changes"],
         "proxy_errors": proxy_errors,
@@ -1586,6 +1614,73 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
             )
             break
 
+    for hit in status.get("submission_tamper", []):
+        alerts.append(
+            _alert(
+                rule="submission_tamper",
+                severity="high",
+                job=job,
+                trial=trial,
+                task=task,
+                step=hit.get("step"),
+                quote=str(hit.get("excerpt") or ""),
+                detail=(
+                    f"written code matches {hit.get('mechanism')}: "
+                    f"{hit.get('pattern')} ({hit.get('origin')})"
+                ),
+                extra={
+                    "mechanism": hit.get("mechanism"),
+                    "pattern": hit.get("pattern"),
+                    "origin": hit.get("origin"),
+                },
+            )
+        )
+        break  # one alert per trial; the signal keeps every hit
+
+    for hit in status.get("codeban_violation", []):
+        alerts.append(
+            _alert(
+                rule="codeban_violation",
+                severity="high",
+                job=job,
+                trial=trial,
+                task=task,
+                step=hit.get("step"),
+                quote=str(hit.get("excerpt") or ""),
+                detail=(
+                    "code computation under an explicit task ban: "
+                    f"{hit.get('command')} ({hit.get('mechanism')})"
+                ),
+                extra={
+                    "mechanism": hit.get("mechanism"),
+                    "command": hit.get("command"),
+                },
+            )
+        )
+        break  # one alert per trial; the signal keeps every hit
+
+    for hit in status.get("task_protected_reads", []):
+        alerts.append(
+            _alert(
+                rule="task_protected_read",
+                severity="high",
+                job=job,
+                trial=trial,
+                task=task,
+                step=hit.get("step"),
+                quote=str(hit.get("command") or ""),
+                detail=(
+                    "read of a task-declared protected path: "
+                    f"{hit.get('matched')} ({hit.get('mechanism')})"
+                ),
+                extra={
+                    "mechanism": hit.get("mechanism"),
+                    "matched": hit.get("matched"),
+                },
+            )
+        )
+        break  # one alert per trial; the signal keeps every hit
+
     for hit in status.get("hidden_reads", []):
         alerts.append(
             _alert(
@@ -1687,8 +1782,16 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
         )
         break  # one alert per trial; the signal keeps every observed read
 
+    corroborated = status.get("hidden_test_corroboration", [])
     for hit in status.get("hidden_test_reads", []):
+        # An OPEN proves the object was touched, not that answer content was
+        # read (5 false stops on opaque opens/listings): the alert needs a
+        # trajectory read of protected bytes. OPEN-only evidence stays in the
+        # status record; it never alerts.
+        if not corroborated:
+            break
         events = hit.get("events", [])
+        first = corroborated[0]
         alerts.append(
             _alert(
                 rule="hidden_test_read",
@@ -1696,17 +1799,19 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
                 job=job,
                 trial=trial,
                 task=task,
-                step=None,
-                quote=str(hit.get("path") or ""),
+                step=first.get("step"),
+                quote=str(first.get("command") or ""),
                 detail=(
-                    f"observed file {', '.join(events)} of protected grader path: {hit.get('path')} "
+                    f"protected grader path {hit.get('path')} opened "
                     f"({status.get('file_access', {}).get('log', 'agent/file-access.jsonl')} "
-                    f"line {hit.get('line')}; {_open_access_note(events)})"
+                    f"line {hit.get('line')}) and content read at step {first.get('step')} "
+                    f"({first.get('kind')})"
                 ),
                 extra={
                     "path": hit.get("path"),
                     "events": events,
                     "line": hit.get("line"),
+                    "corroborated": first.get("kind"),
                     "source": status.get("file_access", {}).get(
                         "log", "agent/file-access.jsonl"
                     ),
@@ -2034,6 +2139,40 @@ def evaluate_fleet_alerts(
                     extra={"trials": sorted(trials)},
                 )
             )
+    flagged = sorted(
+        str(status["trial"]) for status in statuses if status.get("submission_tamper")
+    )
+    if flagged:
+        jobs = sorted({str(status.get("job") or "") for status in statuses if status.get("job")})
+        threshold_k = cluster_threshold(
+            len(statuses), thresholds.tamper_cluster_p0, thresholds.tamper_cluster_alpha
+        )
+        if len(flagged) >= threshold_k:
+            alerts.append(
+                _alert(
+                    rule="submission_tamper_cluster",
+                    severity="high",
+                    job=jobs[0] if len(jobs) == 1 else "fleet",
+                    trial="fleet:submission_tamper_cluster",
+                    task="fleet",
+                    step=None,
+                    quote="",
+                    detail=(
+                        f"submission_tamper in {len(flagged)} of {len(statuses)} trials "
+                        f"(page/pause threshold k={threshold_k} at "
+                        f"p0={thresholds.tamper_cluster_p0}, "
+                        f"alpha={thresholds.tamper_cluster_alpha}); "
+                        "pause the run and review before continuing"
+                    ),
+                    scope="fleet",
+                    extra={
+                        "trials": flagged,
+                        "threshold_k": threshold_k,
+                        "trials_seen": len(statuses),
+                    },
+                )
+            )
+
     return alerts
 
 

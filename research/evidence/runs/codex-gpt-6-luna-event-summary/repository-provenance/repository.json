@@ -1,0 +1,11 @@
+{
+  "branch": "codexlane",
+  "capture": "run-time",
+  "commit": "15f34e0a913000e496910f2cbdfc1e16dbdfb983",
+  "dirty": true,
+  "remote": "git@github.com:PeterMakhnatch/eval-lab.git",
+  "uncommitted_diff_sha256": "sha256:c2b6866ea5e61a4cb0d6c4603a46dd8d86648fecbc70ff638b47e7ef5ac31e33",
+  "unknown": [],
+  "untracked": [],
+  "worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/codexlane"
+}

@@ -34,6 +34,7 @@ WITH parsed AS (
         EXISTS (SELECT 1 FROM json_each(trace_array(reasons)) r WHERE r.type = 'VARCHAR' AND json_extract_string(r.value, '$') = 'infra') AS reason_infra,
         EXISTS (SELECT 1 FROM json_each(trace_array(reasons)) r WHERE r.type = 'VARCHAR' AND json_extract_string(r.value, '$') = 'copied_fix') AS reason_copied_fix,
         EXISTS (SELECT 1 FROM json_each(trace_array(reasons)) r WHERE r.type = 'VARCHAR' AND json_extract_string(r.value, '$') = 'pass_tainted') AS reason_pass_tainted,
+        EXISTS (SELECT 1 FROM json_each(trace_array(reasons)) r WHERE r.type = 'VARCHAR' AND json_extract_string(r.value, '$') = 'audit_cheat') AS reason_audit_cheat,
         EXISTS (SELECT 1 FROM json_each(trace_array(reasons)) r WHERE r.type = 'VARCHAR' AND json_extract_string(r.value, '$') = 'task_not_usable') AS reason_task_not_usable,
         EXISTS (SELECT 1 FROM json_each(trace_array(taint)) f
                 WHERE json_extract_string(f.value, '$.kind') = 'upstream_fetch')
@@ -241,6 +242,7 @@ SELECT COALESCE(card, 'unknown') AS card, COALESCE(arm, 'unknown') AS arm,
     COUNT(*) FILTER (WHERE fetch_signal AND raw_outcome = 'pass') AS n_fetched_passed,
     COUNT(*) FILTER (WHERE counts_known AND counts_verdict = 'excluded' AND reason_copied_fix) AS n_copied_fix_excluded,
     COUNT(*) FILTER (WHERE counts_known AND counts_verdict = 'excluded' AND reason_pass_tainted) AS n_pass_tainted_excluded,
+    COUNT(*) FILTER (WHERE counts_known AND counts_verdict = 'excluded' AND reason_audit_cheat) AS n_audit_cheat_excluded,
     COUNT(*) FILTER (WHERE counts_known AND counts_verdict = 'excluded' AND reason_task_not_usable) AS n_task_not_usable_excluded,
     COUNT(*) FILTER (WHERE counts_known AND counts_verdict = 'counted_fail' AND fetch_signal) AS n_counted_fail_with_fetch,
     COUNT(*) FILTER (WHERE NOT counts_known) AS n_counts_unknown
@@ -452,6 +454,7 @@ WITH resolved AS (
             WHEN counts_known AND counts_verdict = 'excluded' AND reason_task_not_usable THEN 'task_not_usable'
             WHEN counts_known AND counts_verdict = 'excluded' AND raw_outcome = 'pass' AND reason_copied_fix THEN 'copied_pass'
             WHEN counts_known AND counts_verdict = 'excluded' AND raw_outcome = 'pass' AND reason_pass_tainted THEN 'tainted_pass'
+            WHEN counts_known AND counts_verdict = 'excluded' AND raw_outcome = 'pass' AND reason_audit_cheat THEN 'audit_cheat_pass'
             WHEN raw_outcome = 'pass' AND counts_known AND counts_verdict = 'counted_pass' THEN 'counted_pass'
             WHEN raw_outcome = 'pass' AND NOT counts_known THEN 'raw_pass_counts_unknown'
             WHEN raw_outcome = 'pass' THEN 'raw_pass_other_counts_state'
@@ -471,7 +474,7 @@ WITH resolved AS (
 )
 SELECT category, rank_in_category, job_id, trial_id, trial_name, card, arm,
     raw_reward, raw_outcome, counts_verdict, counts_known, counts_reasons_json,
-    reason_task_not_usable, reason_copied_fix, reason_pass_tainted,
+    reason_task_not_usable, reason_copied_fix, reason_pass_tainted, reason_audit_cheat,
     first_failure_ref AS first_failure_opinion_ref,
     CASE WHEN n_anchor_matches = 1 THEN matched_ref END AS step_ref,
     CASE WHEN n_anchor_matches = 1 THEN source_trial_dir || '/' || matched_source_path END AS trajectory_path,

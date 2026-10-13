@@ -23,6 +23,14 @@
 #   CB_ONLY: tick only specs whose job name contains this text (e.g. `-q36or-`);
 #   the others stay approved for a later --resume. Use it to keep one model
 #   going while another's provider is overloaded.
+#   CB_DOCKER_LOCK: a lock wrapper (`<wrapper> <label> <command...>`) that
+#   holds a shared Docker slot; when set, every trial ticks on its own under
+#   it, so a container budget shared with other work is never exceeded.
+#   CB_SUB_MAX_USED: weekly-quota fraction (default 0.60) at which subscription
+#   agents (codex, claude-code) stop; they always tick one trial at a time and
+#   check quota_gate.py before each. Stopped specs stay approved for --resume.
+#   CB_CONCURRENT_BATCHES: ids of batches running now on the same queue; the
+#   readiness queue check does not count their approved specs as leftovers.
 #
 # Live stop: each spec's name ends in -on or -dry (make_specs.py --stop-mode);
 # its group ticks with EVALLAB_WATCH_STOP=on or dry-run. Specs without the
@@ -53,6 +61,11 @@ ZAI_UP=https://api.z.ai
 OPENROUTER_UP=https://openrouter.ai
 SPEND_ARGS=""
 if [ -n "${CB_SPEND_CAP_USD:-}" ]; then SPEND_ARGS="--spend-cap-usd $CB_SPEND_CAP_USD"; fi
+# Readiness extras: the subscription quota limit, and batches running now on
+# the same queue (CB_CONCURRENT_BATCHES, space-separated ids) whose approved
+# specs are not leftovers.
+READY_EXTRA="--max-subscription-used ${CB_SUB_MAX_USED:-0.60}"
+for b in ${CB_CONCURRENT_BATCHES:-}; do READY_EXTRA="$READY_EXTRA --concurrent-batch $b"; done
 if [ -z "${CB_NO_PROBE:-}" ]; then
   PROBE_ARGS="--probe-providers"
   READINESS_KEYS="keys run --"
@@ -93,22 +106,27 @@ elif [ "$DRY" = "0" ]; then
   PYTHONPATH="$EXP" uv run --no-sync python - "$spec_dir" "$batch_dir" <<'PYEOF'
 import json, sys
 from pathlib import Path
-from make_specs import stop_mode_of
+from make_specs import FAMILY_SHORT, stop_mode_of
 spec_dir, batch = Path(sys.argv[1]), Path(sys.argv[2])
-FAMS = ("prime_factorization", "subset_sum", "openmath_agent")
+# Cheapest families first; families added to make_specs.FAMILY_SHORT later
+# tick after these.
+CHEAP_FIRST = ("prime_factorization", "subset_sum", "openmath_agent")
+FAMS = CHEAP_FIRST + tuple(f for f in FAMILY_SHORT if f not in CHEAP_FIRST)
 PROV = {"zai": "zai", "tinker": "tinker", "openrouter-metered": "openrouter"}
+#: Subscription CLIs call their vendor from inside the container: no capture proxy.
+AGENT_PROV = {"codex": "codex", "claude-code": "claude"}
 groups = {}
 models, fams, names = set(), set(), []
 for spec in sorted(spec_dir.glob("*.json")):
     s = json.loads(spec.read_text())
     model = s["model"]
     task = s.get("task", "")
-    fam = next((f for f in FAMS if f in task), None)
+    fam = next((f for f in FAMS if f"/{f}/" in task), None)
     if fam is None:
         raise SystemExit(f"{spec}: cannot tell family from task {task!r}")
-    prov = PROV.get(model.split("/", 1)[0])
+    prov = AGENT_PROV.get(s.get("agent", "")) or PROV.get(model.split("/", 1)[0])
     if prov is None:
-        raise SystemExit(f"{spec}: unknown provider in model {model!r}")
+        raise SystemExit(f"{spec}: unknown provider for agent {s.get('agent')!r} model {model!r}")
     name = s.get("name", spec.stem)
     mode = stop_mode_of(name) or "dry-run"
     groups.setdefault((fam, prov, mode), []).append(spec.name)
@@ -134,7 +152,7 @@ if [ "$DRY" = "1" ] && [ -z "$RESUME" ]; then
   FAMS=$(grep -ho 'cheatbench/[a-z_]*' "$spec_dir"/*.json 2>/dev/null | cut -d/ -f2 | sort -u | tr '\n' ' ')
   MODELS=$(grep -ho '"model": *"[^"]*"' "$spec_dir"/*.json 2>/dev/null | cut -d'"' -f4 | sort -u | tr '\n' ' ')
 fi
-[ -n "$FAMS" ] || FAMS="subset_sum prime_factorization openmath_agent"
+[ -n "$FAMS" ] || FAMS="subset_sum prime_factorization openmath_agent geoguessr synthetic_puzzles"
 PROVS=""
 case "$MODELS" in *zai/*) PROVS="$PROVS zai";; esac
 case "$MODELS" in *tinker/*) PROVS="$PROVS tinker";; esac
@@ -155,12 +173,13 @@ if [ -n "$RESUME" ]; then
     exit 2
   fi
 elif [ "$DRY" = "0" ]; then
+  # Its free controls (nop/oracle/canary) start containers one at a time.
   # shellcheck disable=SC2086
-  $READINESS_KEYS uv run --no-sync python "$EXP/readiness.py" \
-    --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS \
+  ${CB_DOCKER_LOCK:+$CB_DOCKER_LOCK cb-readiness} $READINESS_KEYS uv run --no-sync python "$EXP/readiness.py" \
+    --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS $READY_EXTRA \
     --out "$readiness_out"
 else
-  echo "+ $READINESS_KEYS uv run --no-sync python $EXP/readiness.py --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS --out $readiness_out"
+  echo "+ $READINESS_KEYS uv run --no-sync python $EXP/readiness.py --families $FAMS --models $MODELS $JUDGE_ARGS $PROBE_ARGS $READY_EXTRA --out $readiness_out"
 fi
 
 # 3. Submit + approve, 8-wide (submit/approve each read provider quota state,
@@ -275,11 +294,18 @@ fi
 # decision, never automatic. queue/STOP (monitor --stop-on-infra) ends
 # ticking and falls through to cleanup/postrun.
 WAITING_MSG=""
+QUOTA_STOP=""
 tick_group() { # <family> <provider> <stop mode> <ids-file>
   fam=$1 prov=$2 mode=$3 ids=$4
   # shellcheck disable=SC2086
   eval "$(PYTHONPATH="$EXP" uv run --no-sync python -c "import capture_config, shlex; print(' '.join(f'export {k}={shlex.quote(v)}' for k, v in capture_config.file_access_env(\"$fam\").items()))")"
-  eval "export EVALLAB_MODEL_CAPTURE_DIR=\"\$EVALLAB_MODEL_CAPTURE_DIR_$prov\""
+  capdir_var="EVALLAB_MODEL_CAPTURE_DIR_$prov"
+  if [ -n "${!capdir_var:-}" ]; then
+    export EVALLAB_MODEL_CAPTURE=1 EVALLAB_MODEL_CAPTURE_DIR="${!capdir_var}"
+  else
+    # Subscription CLIs (codex, claude) have no capture proxy.
+    unset EVALLAB_MODEL_CAPTURE EVALLAB_MODEL_CAPTURE_DIR
+  fi
   export EVALLAB_WATCH_STOP="$mode"
   tick_args=""; approved_left=""; group_ids=""
   # groups/<base>.txt (job names) and .ids (spec ids) are line-aligned.
@@ -306,10 +332,34 @@ tick_group() { # <family> <provider> <stop mode> <ids-file>
     fi
     # Full tick output (stdout+stderr) goes to the group's log; the console
     # shows only the dispatch lines.
-    # shellcheck disable=SC2086
-    keys run -- uv run --no-sync evallab tick $tick_args --parallel "$parallel" --no-smoke-gate 2>&1 \
-      | tee -a "$batch_dir/tick-$fam.$prov.$mode.log" \
-      | grep -E '^(dispatching|failed|completed|reused|dispatched|quarantined)' || true
+    subscription=""
+    if [ "$prov" = "codex" ] || [ "$prov" = "claude" ]; then subscription=1; fi
+    if [ -n "$subscription" ] || [ -n "${CB_DOCKER_LOCK:-}" ]; then
+      # One trial per tick: subscription quota is shared by the whole account
+      # (check the weekly window before each, quota_gate.py), and a shared
+      # Docker slot (CB_DOCKER_LOCK, a lock wrapper taking <label> <cmd...>)
+      # is held per trial so other users of the slot interleave.
+      for sid in $approved_left; do
+        [ -f queue/STOP ] && break
+        if [ -n "$subscription" ] && ! uv run --no-sync python "$EXP/quota_gate.py" "$prov" --max-used "${CB_SUB_MAX_USED:-0.60}"; then
+          QUOTA_STOP="$prov"
+          break
+        fi
+        # shellcheck disable=SC2086
+        ${CB_DOCKER_LOCK:+$CB_DOCKER_LOCK cb-$fam-$sid} keys run -- uv run --no-sync evallab tick --spec-id "$sid" --parallel 1 --no-smoke-gate 2>&1 \
+          | tee -a "$batch_dir/tick-$fam.$prov.$mode.log" \
+          | grep -E '^(dispatching|failed|completed|reused|dispatched|quarantined)' || true
+      done
+    else
+      # shellcheck disable=SC2086
+      keys run -- uv run --no-sync evallab tick $tick_args --parallel "$parallel" --no-smoke-gate 2>&1 \
+        | tee -a "$batch_dir/tick-$fam.$prov.$mode.log" \
+        | grep -E '^(dispatching|failed|completed|reused|dispatched|quarantined)' || true
+    fi
+    if [ -n "$QUOTA_STOP" ]; then
+      echo "STOP: $QUOTA_STOP weekly quota at or over ${CB_SUB_MAX_USED:-0.60}; remaining specs stay approved for --resume" >&2
+      break
+    fi
     waiting=""; approved_left=""
     for sid in $group_ids; do
       if ls queue/waiting/*-"$sid".json >/dev/null 2>&1; then
@@ -332,7 +382,7 @@ tick_group() { # <family> <provider> <stop mode> <ids-file>
     fi
     if [ -z "$approved_left" ]; then break; fi
   done
-  if [ -z "$WAITING_MSG" ] && [ -n "$approved_left" ]; then
+  if [ -z "$WAITING_MSG" ] && [ -z "$QUOTA_STOP" ] && [ -n "$approved_left" ]; then
     echo "WARN: still approved after 20 re-ticks:$approved_left; continue to cleanup" >&2
   fi
 }
@@ -343,6 +393,7 @@ else
   while IFS= read -r base; do         # <family>.<provider>.<stop mode>
     [ -n "$base" ] || continue
     [ -n "$WAITING_MSG" ] && break
+    [ -n "$QUOTA_STOP" ] && break
     if [ -f queue/STOP ]; then
       echo "queue/STOP present; stop ticking, continue to cleanup" >&2
       break

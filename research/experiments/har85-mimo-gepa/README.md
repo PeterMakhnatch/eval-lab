@@ -151,7 +151,7 @@ verifier`). No infra failures; all rewards the expected nop 0.
 
 ```bash
 EXP=research/experiments/har85-mimo-gepa
-SRC=/Users/petermakhnatch/Developer/.sources/mimo/terminal@fe1c2b66/tasks
+SRC=/Users/petermakhnatch/Developer/lab-extras/upstream/mimo/terminal@fe1c2b66/tasks
 # train pool (48 tasks = sealed split terminal train minus train-exclusions.json;
 # asserts each package digest against the sealed manifest and removes excluded copies):
 uv run --no-sync python $EXP/train_pool.py materialize --src $SRC

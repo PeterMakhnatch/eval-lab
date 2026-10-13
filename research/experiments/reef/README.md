@@ -130,7 +130,7 @@ pinned pull with release/content identity and hashes, plus unknown-release
 Exact invocation with the Reef worktree's Python, from this worktree's root:
 
 ```bash
-/Users/petermakhnatch/Developer/reef/.worktrees/lab-flow-release-contract/.venv/bin/python \
+/Users/petermakhnatch/Developer/lab-extras/upstream/reef/.worktrees/lab-flow-release-contract/.venv/bin/python \
   research/experiments/reef/replay_har138_flow.py \
   --trial ~/Developer/eval-lab-results/2026-10-01/HAR-116-har116-a-002864-loopfix-r2 \
   --out <new-path>/har138-flow-receipt

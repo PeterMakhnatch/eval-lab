@@ -1,8 +1,8 @@
 {
  "schema": "cheatbench_port.export/v1",
  "batch_id": "2026-10-11-cb-ready-e2e-specs",
- "created_at": "2026-10-12T16:57:16.175881+00:00",
- "git_commit": "fd3f65f10419bf293d61e819f5444bbde649a6ac",
+ "created_at": "2026-10-13T06:07:28.739861+00:00",
+ "git_commit": "15f34e0a913000e496910f2cbdfc1e16dbdfb983",
  "specs": [
   "01M4MJY0APKP0ZMYXKA5BZCWMV",
   "01M4MJY0APMZ85RHX6Y3484N65"
@@ -32,5 +32,10 @@
  },
  "judges": [],
  "readiness_receipt": null,
+ "evidence_counts": {
+  "published": 2,
+  "local": 0,
+  "lost": 0
+ },
  "spend_usd": 0.0801
 }

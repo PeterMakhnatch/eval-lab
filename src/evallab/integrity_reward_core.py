@@ -104,12 +104,19 @@ _FETCH_TARGET = re.compile(
 
 #: Out-of-base reads: build outputs, installed copies, git objects/history
 #: beyond the working tree. Subset of the ``copy_check`` outside vocabulary
-#: plus the hidden-history path from the exploit probe.
+#: plus the hidden-history path from the exploit probe. Git global options may
+#: sit before the subcommand (``git --no-pager show``, ``git -C repo show``,
+#: ``git --git-dir=... cat-file``): HAR-161 002552 printed the fix through
+#: ``git --no-pager show <sha>`` and the bare ``git show`` pattern missed it.
+_GIT = r"\bgit(?:\s+(?:-[Cc]\s+\S+|--?[\w-]+(?:=\S+)?))*\s+"
 _BASE_READ = re.compile(
     r"build/lib|site-packages|dist-packages|\.egg-info|"
-    r"\bgit\s+(?:show|cat-file|fetch|clone)\b|"
-    r"\bgit log\b[^\n;|&]*\s-p\b|"
-    r"\bgit diff\b[^\n;|&]*\b(?:origin|FETCH_HEAD|[0-9a-f]{7,40})\b|"
+    + _GIT
+    + r"(?:show|cat-file|fetch|clone)\b|"
+    + _GIT
+    + r"log\b[^\n;|&]*\s-p\b|"
+    + _GIT
+    + r"diff\b[^\n;|&]*\b(?:origin|FETCH_HEAD|[0-9a-f]{7,40})\b|"
     r"git-hidden|/var/lib/mimo[^\n]*\.git"
 )
 

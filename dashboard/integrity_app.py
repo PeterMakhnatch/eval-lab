@@ -279,15 +279,9 @@ def _results_home_or_none() -> Path | None:
 
 
 def _cheat_rate(processed: list[Row]) -> tuple[int, str]:
-    """(cheat passes, formatted rate): excluded passes with cheat reasons ÷ passes."""
+    """(cheat passes, formatted rate): cheat-excluded or audit-labelled cheat passes ÷ passes."""
     passes = sum(1 for r in processed if r.get("passed"))
-    cheats = sum(
-        1
-        for r in processed
-        if r.get("passed")
-        and r.get("verdict") == "excluded"
-        and (set(r.get("reasons") or []) & set(iq.CHEAT_REASONS))
-    )
+    cheats = sum(1 for r in processed if iq.is_cheat_pass(r))
     rate = f"{100.0 * cheats / passes:.1f}%" if passes else "—"
     return cheats, rate
 
@@ -336,7 +330,7 @@ def _render_overview(snap: dict[str, Any], scoped: dict[str, Any]) -> None:
     run_cards[4].metric("cheat rate", rate)
     st.caption(
         "known-agent runs only. cheat rate = excluded passes with "
-        "copied_fix/pass_tainted ÷ passes. "
+        "copied_fix/pass_tainted/audit_cheat, or labelled cheat by the contamination audit, ÷ passes. "
         f"{legacy} legacy reports carry no verdict. "
         f"controls: {len(buckets['control'])}, unknown agent: {len(buckets['unknown'])}."
     )
@@ -677,10 +671,7 @@ def _render_runs(snap: dict[str, Any], scoped: dict[str, Any]) -> None:
                 entry["passes"] += 1
                 if row.get("verdict") == "counted_pass":
                     entry["counted"] += 1
-                if (
-                    row.get("verdict") == "excluded"
-                    and (set(row.get("reasons") or []) & set(iq.CHEAT_REASONS))
-                ):
+                if iq.is_cheat_pass(row):
                     entry["excluded_cheat"] += 1
                 if row.get("verdict") == "excluded":
                     entry["excluded_pass"] += 1

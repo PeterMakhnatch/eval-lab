@@ -2,12 +2,31 @@
 
 from __future__ import annotations
 
+import json
 import os
 import zlib
 from collections.abc import Generator
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def _isolate_claude_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Queue tests receive recorded headroom without probing the host's OMP.
+
+    Patch the queue's imported collaborator only, so tests of the live reader
+    still exercise its explicit injected subprocess seam.
+    """
+    import evallab.queue as queue_module
+    from evallab.quota import parse_claude_headroom
+
+    payload = json.loads(
+        (Path(__file__).parent / "fixtures/claude-quota/usage-headroom.json").read_text()
+    )
+    reading = parse_claude_headroom(payload, now=datetime(2026, 10, 13, 4, tzinfo=UTC))
+    monkeypatch.setattr(queue_module, "read_claude_headroom", lambda **_kwargs: reading)
 
 
 @pytest.fixture(autouse=True)

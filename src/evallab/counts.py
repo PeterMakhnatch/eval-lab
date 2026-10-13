@@ -7,6 +7,10 @@ quoted as a model result. Only deterministic facts exclude a trial:
   lines match code read from outside the base checkout
   (:mod:`evallab.copy_check`, ``copied_code``)
 - ``pass_tainted``: HAR-100, a pass with confirmed acquisition or a guard reject
+- ``audit_cheat``: a pass the contamination audit labelled ``cheat``
+  (``research/calibration/contamination-audit/labels.jsonl``, reviewed by two
+  judges; :mod:`evallab.contamination`). The label is a recorded review, like a
+  hand label; it catches cheats the deterministic copy facts miss.
 - ``task_not_usable``: census or hand label says the task cannot be read.
   The census labels a task's original package; a trial that ran a
   ``validated`` task variant (``library/task-variants``: its own nop was
@@ -32,11 +36,12 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
+from evallab.contamination import labels_path, load_labels
 from evallab.upstream_fetch import confirmed_fetch
 
 COUNTS_SCHEMA = "evallab.counts/v1"
 VERDICTS = ("counted_pass", "counted_fail", "excluded")
-EXCLUSION_REASONS = ("copied_fix", "pass_tainted", "task_not_usable", "infra")
+EXCLUSION_REASONS = ("copied_fix", "pass_tainted", "audit_cheat", "task_not_usable", "infra")
 ACCURACY_NOTE = "display only; HAR-119 pending; never decides"
 
 HAND_NOT_USABLE = frozenset({"broken", "suspect", "discarded", "review", "unchecked"})
@@ -54,6 +59,7 @@ def classify_counts(
     scored: bool,
     taint: list[dict[str, Any]] | None = None,
     usability: dict[str, Any] | None = None,
+    audit: dict[str, Any] | None = None,
     exception: dict[str, Any] | None = None,
     first_failure: dict[str, Any] | None = None,
     outcome_failure: dict[str, Any] | None = None,
@@ -78,6 +84,16 @@ def classify_counts(
     if passed and (fetches or guards):
         reasons.append("pass_tainted")
         evidence.extend(_taint_evidence(fetches, guards))
+    if passed and audit is not None and audit.get("verdict") == "cheat":
+        reasons.append("audit_cheat")
+        evidence.append(
+            _evidence(
+                "audit_cheat",
+                detector="contamination_audit",
+                excerpt=f"{audit.get('mechanism') or 'cheat'} ({audit.get('audit_run')})",
+                path=f"research/calibration/contamination-audit/labels.jsonl#{audit.get('trial')}",
+            )
+        )
     if usability:
         reasons.append("task_not_usable")
         evidence.append(
@@ -197,6 +213,7 @@ def attach_counts(
             task_name=task_name,
             package_digest=package_digest,
         ),
+        audit=_audit_labels(label_root).get(trial_name or ""),
         exception=exception,
         first_failure=record.get("first_failure") if isinstance(record.get("first_failure"), dict) else None,
         outcome_failure=record.get("outcome_failure") if isinstance(record.get("outcome_failure"), dict) else None,
@@ -315,6 +332,21 @@ def task_index_for(root: Path | None) -> TaskIndex:
     if root is None:
         return TaskIndex({}, {}, {}, {})
     return _load_task_index(str(root.resolve()))
+
+
+def _audit_labels(root: Path | None) -> dict[str, dict[str, Any]]:
+    """Contamination-audit labels under the label root (empty when never run)."""
+    if root is None:
+        return {}
+    path = labels_path(root)
+    if not path.is_file():
+        return {}
+    return _load_audit_labels(str(root.resolve()), path.stat().st_mtime_ns)
+
+
+@lru_cache(maxsize=4)
+def _load_audit_labels(root: str, _mtime_ns: int) -> dict[str, dict[str, Any]]:
+    return load_labels(Path(root))
 
 
 @lru_cache(maxsize=4)

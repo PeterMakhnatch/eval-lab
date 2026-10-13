@@ -8,7 +8,7 @@ from pathlib import Path
 
 RUNS = Path("/Users/petermakhnatch/Developer/helab-curator/runs")
 CURATED = Path("/Users/petermakhnatch/Developer/helab-curator/curated")
-FB = Path("/Users/petermakhnatch/Developer/agent-evals/frontier-bench/tasks")
+FB = Path("/Users/petermakhnatch/Developer/lab-extras/data/agent-evals/frontier-bench/tasks")
 FB_COMMIT = "3d694e919871dbf21ea5ff618782c99a3cb3663f"
 TB_COMMIT = "4e77c91dc523107eedd9440b659159d470209188"
 
@@ -52,7 +52,7 @@ def main() -> None:
 ## Provenance
 
 - **Source repo:** `harbor-framework/frontier-bench`
-  (clone `~/Developer/agent-evals/frontier-bench`)
+  (clone `~/Developer/lab-extras/data/agent-evals/frontier-bench`)
 - **Commit:** `{FB_COMMIT}`
 - **Path:** `tasks/{name}`
 - **Also present at:** terminal-bench `{TB_COMMIT}`

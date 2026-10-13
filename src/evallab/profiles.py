@@ -19,11 +19,13 @@ Hard rules encoded here rather than remembered:
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import re
 import subprocess
+import threading
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -85,6 +87,7 @@ AuthMode = Literal[
     "subscription-auth-file",
     "subscription-keychain",
     "subscription-cli-session",
+    "subscription-gateway",
     "local-service",
 ]
 
@@ -194,10 +197,10 @@ class AgentProfile(BaseModel):
                 )
             return value
         _rejects_api_key_names((value,))
-        if not value.startswith(("keychain:", "file:", "cli:")):
+        if not value.startswith(("keychain:", "file:", "cli:", "gateway:")):
             raise ValueError(
                 "secret_source must be 'keychain:<service>', 'file:<pattern>', "
-                "'cli:<command>', or the admitted DeepSeek or Z.ai or GLM self-hosted 'env:<names>' source"
+                "'cli:<command>', 'gateway:<command>', or the admitted DeepSeek or Z.ai or GLM self-hosted 'env:<names>' source"
             )
         return value
 
@@ -248,6 +251,12 @@ class AgentProfile(BaseModel):
             and not self.secret_source.startswith("env:")
         ):
             raise ValueError("environment API-key auth requires an env: secret source")
+        if (
+            self.auth_mode == "subscription-gateway"
+            and self.secret_source is not None
+            and not self.secret_source.startswith("gateway:")
+        ):
+            raise ValueError("gateway auth requires a 'gateway:<command>' secret source")
         return self
 
     def canonical_json(self) -> str:
@@ -488,6 +497,70 @@ class CliSessionProbe:
 
 
 @dataclass(frozen=True)
+class GatewayStdioProbe:
+    """Ask ``omp auth-gateway stdio`` whether it starts, without spending quota.
+
+    The child prints one JSON line (``{"ready": true, ...}``) before reading
+    requests, so this probe spawns it, reads that line, and terminates it --
+    no request is ever sent, so no subscription allowance is consumed. It
+    never captures, stores or forwards a credential: OMP's login stays in
+    the operator context and only the ready flag is observed.
+    """
+
+    argv: tuple[str, ...] = ("omp", "auth-gateway", "stdio")
+    timeout_seconds: float = 30.0
+    runner: Callable[[Sequence[str], float], str | None] | None = None
+
+    def __call__(self, profile: AgentProfile) -> ProbeResult:
+        read = self.runner or self._default_runner
+        try:
+            first = read(self.argv, self.timeout_seconds)
+        except (OSError, subprocess.SubprocessError) as exc:
+            return ProbeResult(
+                ok=False, reason=f"gateway probe failed: {exc.__class__.__name__}"
+            )
+        if first is None:
+            return ProbeResult(ok=False, reason="omp auth-gateway stdio did not start")
+        try:
+            payload = json.loads(first)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return ProbeResult(ok=False, reason="gateway first line is not JSON")
+        if isinstance(payload, dict) and payload.get("ready") is True:
+            return ProbeResult(ok=True)
+        return ProbeResult(ok=False, reason="gateway did not report ready")
+
+    def _default_runner(self, argv: Sequence[str], timeout: float) -> str | None:
+        try:
+            process = subprocess.Popen(
+                list(argv),
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                start_new_session=True,
+            )
+        except OSError:
+            return None
+        cell: list[str] = []
+
+        def _read_first_line() -> None:
+            try:
+                assert process.stdout is not None
+                line = process.stdout.readline()
+            except OSError:
+                return
+            if line:
+                cell.append(line)
+
+        reader = threading.Thread(target=_read_first_line, daemon=True)
+        reader.start()
+        reader.join(timeout=timeout)
+        with contextlib.suppress(OSError):
+            process.terminate()
+        return cell[0] if cell else None
+
+
+@dataclass(frozen=True)
 class DeclaredUnavailableProbe:
     """For providers with no independently observed working setup in this lab."""
 
@@ -624,12 +697,41 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
+                profile_id="codex-gpt-6-luna",
+                adapter="codex",
+                model="gpt-6-luna",
+                auth_mode="subscription-auth-file",
+                secret_source="file:.codex/auth.json",
+                required_files=(".codex/auth.json",),
+                verified_facts=(),
+            ),
+            AgentProfile(
                 profile_id="claude-code-fable-5",
                 adapter="claude-code",
                 model="anthropic/claude-fable-5",
                 auth_mode="subscription-keychain",
                 secret_source="keychain:harbor-practice-claude-oauth",
                 verified_facts=(),  # model string follows Harbor convention; unproven here
+            ),
+            AgentProfile(
+                profile_id="claude-code-haiku-5-5",
+                adapter="claude-code",
+                model="anthropic/claude-haiku-5-5",
+                auth_mode="subscription-keychain",
+                secret_source="keychain:harbor-practice-claude-oauth",
+                verified_facts=(),  # cheapest Claude Code model; unproven here
+            ),
+            AgentProfile(
+                profile_id="claude-code-gateway-haiku-5-5",
+                adapter="claude-code",
+                model="claude-gateway/claude-haiku-5-5",
+                auth_mode="subscription-gateway",
+                secret_source="gateway:omp auth-gateway stdio",
+                capabilities=(
+                    "credential-transport:host-loopback-proxy",
+                    "billing:subscription-no-api-charge",
+                ),
+                verified_facts=(),  # gateway lane; unproven until the first trial
             ),
             AgentProfile(
                 profile_id="gemini-cli-declared",
@@ -1285,6 +1387,13 @@ def default_probe_for(
             )
         expect = "gemini" if command[0] == "agy" else "logged in"
         return CliSessionProbe(argv=tuple(command), expect=expect)
+    if profile.auth_mode == "subscription-gateway":
+        command = (profile.secret_source or "gateway:")[len("gateway:") :].split()
+        if not command:
+            return DeclaredUnavailableProbe(
+                reason=f"{profile.profile_id} declares gateway auth with no command"
+            )
+        return GatewayStdioProbe(argv=tuple(command))
     if profile.adapter in (ZAI_OPENCODE_AGENT, RLM_AGENT):
         relative = (profile.secret_source or "file:")[len("file:") :]
         return OpenCodeProviderAuthProbe(

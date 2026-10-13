@@ -83,9 +83,29 @@ def test_task_workbench_has_no_queue_registry_write_or_gh_capability() -> None:
 
 def test_quota_accounting_is_a_pure_read_of_injected_job_directories() -> None:
     tree = _module("quota.py")
+    # The explicitly requested free Claude usage probe is the one process
+    # boundary. Keep artifact parsing/reporting unable to invoke it or launch
+    # any subprocess; a module-wide ban would reject the supported live reader.
+    live_reader = next(
+        node for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "read_claude_headroom"
+    )
+    process_imports = [
+        node for node in tree.body
+        if isinstance(node, ast.Import)
+        and all(alias.name == "subprocess" and alias.asname is None for alias in node.names)
+    ]
+    assert len(process_imports) == 1
+    artifact_tree = ast.Module(
+        body=[node for node in tree.body if node is not live_reader and node not in process_imports],
+        type_ignores=[],
+    )
+    artifact_names = {node.id for node in ast.walk(artifact_tree) if isinstance(node, ast.Name)}
+    assert artifact_names.isdisjoint({"subprocess", "read_claude_headroom"})
+    assert _imported_modules(artifact_tree).isdisjoint({"subprocess"})
     imported = _imported_modules(tree)
     assert imported.isdisjoint(
-        {"urllib", "http", "socket", "requests", "httpx", "subprocess", "os", "shutil"}
+        {"urllib", "http", "socket", "requests", "httpx", "os", "shutil"}
     ), sorted(imported)
     assert "evallab.queue" not in imported
     assert "evallab.cli" not in imported

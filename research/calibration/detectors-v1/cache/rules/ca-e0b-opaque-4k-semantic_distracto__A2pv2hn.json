@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-e0b-opaque-4k-semantic_distracto__A2pv2hn",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

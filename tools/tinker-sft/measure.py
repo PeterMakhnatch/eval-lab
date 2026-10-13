@@ -66,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--train-on-what",
         default="all_assistant_messages",
-        help="TrainOnWhat value (protocol pins all_assistant_messages)",
+        help="Tinker TrainOnWhat value; use last_assistant_message for per-turn prefixes",
     )
     args = parser.parse_args(argv)
 

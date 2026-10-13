@@ -1,0 +1,616 @@
+{
+  "acceptance": {
+    "agreement": {
+      "agree_accept": 0,
+      "agree_reject": 0,
+      "disagree": 0,
+      "inferred_unknown": 0
+    },
+    "counts": {
+      "false": 0,
+      "true": 0,
+      "unknown": 2
+    },
+    "provenance": {
+      "inferred": 0,
+      "reconstructed": 2,
+      "recorded": 0
+    }
+  },
+  "agent_steps": 2,
+  "assembly_pattern": "single_head",
+  "claim_regime": null,
+  "completion_refs": [],
+  "confirmation_loop": null,
+  "cost_attempted_usd": null,
+  "cost_estimate_reason": "not a self-hosted route trial",
+  "cost_estimate_usd": null,
+  "cost_reason": "proxy ledger unreadable: provider usage calls are invalid",
+  "cost_source": "proxy_ledger_x_pinned_price",
+  "cost_usd": null,
+  "counts": {
+    "evidence": [],
+    "flags": [],
+    "judgments": [
+      {
+        "accuracy": null,
+        "accuracy_note": "display only; HAR-119 pending; never decides",
+        "attribution": "n/a",
+        "label": "blame",
+        "value": "R-NONE-01"
+      }
+    ],
+    "raw_reward": 1.0,
+    "reasons": [],
+    "schema": "evallab.counts/v1",
+    "scored": true,
+    "task_status": {
+      "digest_match": null,
+      "evidence": [],
+      "ledger_status": null,
+      "path": null,
+      "reason": "No canonical task ledger row; verdict uses legacy labels when present.",
+      "run_digest": null,
+      "source": null,
+      "source_sha256": null,
+      "status": null,
+      "task_id": "event-summary",
+      "trial_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d"
+    },
+    "verdict": "counted_pass"
+  },
+  "coverage": {
+    "complete": true,
+    "continuation_count": 0,
+    "continuation_indices": [],
+    "continuations_missing": null,
+    "copied_context_steps": 0,
+    "duplicate_segments": {},
+    "duplicated_steps": 0,
+    "gaps": [],
+    "malformed_steps": 0,
+    "notes": [],
+    "parts": [
+      {
+        "copied_steps": 0,
+        "index": 0,
+        "kind": "head",
+        "path": "trajectory.json",
+        "readable": true,
+        "session_id": "01a133cd-a31f-7712-b33e-11e954e54717",
+        "steps": 7
+      }
+    ],
+    "summarization_count": null,
+    "trajectory_head": true,
+    "unique_steps": 7
+  },
+  "daytona_usage": null,
+  "decision": {
+    "asked": {
+      "excerpt": "# Event stream summary Read the newline-delimited JSON records in `/app/input/events.jsonl` and create `/app/output/summary.json`. The output must be one JSON object with exactly these fields: - `schema_version`: integer `1` - `total_events`: number of input records - `counts`: object mapping each event `kind` to its count, with keys in alphabetical order - `total_duration_ms`: sum of every `dura\u2026",
+      "grader_gap": "no named gap; verifier ran 4 tests, 0 failed. A nonzero test count alone never means the grader tests the instruction.",
+      "grader_tests_asked": "unknown",
+      "instruction_bytes": 710,
+      "instruction_present": true
+    },
+    "attribution": "n/a",
+    "counts": {
+      "evidence": [],
+      "note": "Rendered from the HAR-78 counts field. Not computed here.",
+      "reasons": [],
+      "status": "rendered",
+      "task_ledger": {
+        "digest_match": null,
+        "evidence": [],
+        "ledger_status": null,
+        "path": null,
+        "reason": "No canonical task ledger row; verdict uses legacy labels when present.",
+        "run_digest": null,
+        "source": null,
+        "source_sha256": null,
+        "status": "unknown",
+        "task_id": "event-summary",
+        "trial_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d"
+      },
+      "verdict": "counted_pass"
+    },
+    "did": {
+      "evidence_steps": [],
+      "last_edit_excerpt": "const r = await tools.exec_command({cmd:\"python3 - <<'PY'\\nimport json, math, os\\nsrc='/app/input/events.jsonl'\\nout='/app/output/summary.json'\\nwith open(src, ",
+      "last_edit_step": 6,
+      "note": "scored pass with no outcome-relevant failure",
+      "secondary": null,
+      "step": null
+    },
+    "facts": {
+      "calls": 2,
+      "fetches": [],
+      "grader_gap": "no named gap; verifier ran 4 tests, 0 failed. A nonzero test count alone never means the grader tests the instruction.",
+      "instruction_excerpt": "# Event stream summary Read the newline-delimited JSON records in `/app/input/events.jsonl` and create `/app/output/summary.json`. The output must be one JSON object with exactly these fields: - `schema_version`: integer `1` - `total_events`: number of input records - `counts`: object mapping each event `kind` to its count, with keys in alphabetical order - `total_duration_ms`: sum of every `dura\u2026",
+      "nop_same_crash": {
+        "answer": "unknown",
+        "nop_trial": null,
+        "reason": "No same-task nop crash comparison was recorded."
+      },
+      "stop_category": "unknown",
+      "stop_reason": "unknown",
+      "tokens": {
+        "attribution": "unavailable",
+        "input_tokens": null,
+        "output_tokens": null,
+        "path": "lab-metadata.json#provider_usage",
+        "reason": "proxy ledger unreadable: provider usage calls are invalid",
+        "scope": "job",
+        "source": "proxy_settled_ledger",
+        "total_tokens": null
+      },
+      "verifier_message": ""
+    },
+    "fetched_fix": {
+      "command": null,
+      "fetched": false,
+      "kind": null,
+      "note": null,
+      "step": null
+    },
+    "first_failure": null,
+    "judgments": {
+      "agreement": {
+        "abstentions": 0,
+        "additional_loop_calibrations": [
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-har116.json",
+            "cohort": "HAR-128 part 2: 40 HAR-116 trials",
+            "excluded_rater_disagreement": 5,
+            "frozen_at": "2026-10-01T07:57:30Z",
+            "heldout": "har116 001181 baseline/loopfix/loopfix-r2 (3 trials): analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_har116",
+            "labels_manifest_sha256": "24b91001adf5707ebb65756e575a9acbc39a816173ee16a5da88cf989e99513d",
+            "limits": "Loop kind only: this cohort carries no first-failure/blame calibration. Blind scout-agent raters (L116A1-8/L116B1-8), not human ground truth; rater A on har116-a-000383-baseline__igrXg8R reports off_limits_opened (config.json seen via a broad grep, arm info unused). Denominators stay per-cohort, never pooled. The artifact exports scores and report hashes only, not trial content.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 3,
+                "n": 3
+              },
+              "none": {
+                "agree": 17,
+                "n": 19
+              },
+              "repetition": {
+                "agree": 8,
+                "n": 13
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --labels research/explorations/trace-lab/har128/labels_har116 --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-har116.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 28,
+              "n": 35
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 35,
+              "n": 40
+            }
+          },
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-a1.json",
+            "cohort": "HAR-128 G2 attempt 1: 20 HAR-120 trials",
+            "excluded_rater_disagreement": 3,
+            "frozen_at": "2026-10-01T09:14:45Z",
+            "heldout": "G2 attempt-1 frozen cohort only: analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_g2_a1",
+            "labels_manifest_sha256": "f6a11da4b3994c101785742f27565d169469e062764585a210baeccfb5b92674",
+            "limits": "Loop kind only: this cohort carries no first-failure/blame calibration. Blind scout-agent raters A (G2A1-4) / B (G2B1-4), not human ground truth; no reported off-limits openings. Denominators stay per-cohort, never pooled. The artifact exports scores and report hashes only, not trial content; inspection only, never training reflection.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 3,
+                "n": 6
+              },
+              "none": {
+                "agree": 5,
+                "n": 5
+              },
+              "repetition": {
+                "agree": 4,
+                "n": 6
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --published-cohort --cohort har128-g2-a1 --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-g2-a1.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 12,
+              "n": 17
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 17,
+              "n": 20
+            }
+          },
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-r2.json",
+            "cohort": "HAR-128 G2 re-run: 19 HAR-120 trials",
+            "excluded_rater_disagreement": 3,
+            "frozen_at": "2026-10-01T09:54:19Z",
+            "heldout": "G2 re-run frozen cohort only: analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_g2_r2",
+            "labels_manifest_sha256": "ddc1f2ad8bf52dc762067a367f7383b990164174b1732c108fb788167597f2ff",
+            "limits": "Loop kind only: this cohort carries no first-failure/blame calibration. Blind scout-agent raters A (G3A1-4) / B (G3B1-4), not human ground truth; no reported off-limits openings. Denominators stay per-cohort, never pooled. The artifact exports scores and report hashes only, not trial content; inspection only, never training reflection.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 7,
+                "n": 10
+              },
+              "none": {
+                "agree": 1,
+                "n": 2
+              },
+              "repetition": {
+                "agree": 2,
+                "n": 4
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --published-cohort --cohort har128-g2-r2 --labels <labels_g2_r2> --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-g2-r2.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 10,
+              "n": 16
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 16,
+              "n": 19
+            }
+          },
+          {
+            "abstentions": 0,
+            "artifact": "research/experiments/har117-results-home/har131-page-calibration-g2-tail.json",
+            "cohort": "HAR-128 G2 tail: 3 HAR-120 trials",
+            "excluded_rater_disagreement": 0,
+            "frozen_at": "2026-10-01T10:21:18Z",
+            "heldout": "G2 tail freeze: analysis and calibration only, never training reflection",
+            "in_sample": false,
+            "labels": "research/explorations/trace-lab/har128/labels_g2_tail",
+            "labels_manifest_sha256": "3b88eb4c2450d76f4b58533c12fae7a0ed25f0816bb45d1b3baeb72a54cdbb50",
+            "limits": "Loop kind only; no first-failure/blame calibration. Blind scout-agent raters G4A/G4B, not human ground truth; neither reports off-limits openings. Tiny cohort: three trials, all agreed labels completion-claim. Denominators stay per-cohort, never pooled. Scores and report hashes only, not trial content; never training reflection.",
+            "loop_kind_confusion": {
+              "completion-claim": {
+                "agree": 1,
+                "n": 3
+              },
+              "none": {
+                "agree": 0,
+                "n": 0
+              },
+              "repetition": {
+                "agree": 0,
+                "n": 0
+              }
+            },
+            "method": "research/explorations/trace-lab/har119/score_page.py --published-cohort --cohort har128-g2-tail --results-home <eval-lab-results> --output research/experiments/har117-results-home/har131-page-calibration-g2-tail.json",
+            "page_vs_agreed_loop_kind": {
+              "agree": 1,
+              "n": 3
+            },
+            "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+            "predictor_functions_sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae",
+            "rater_agreement_loop_kind": {
+              "agree": 3,
+              "n": 3
+            }
+          }
+        ],
+        "artifact": "research/explorations/trace-lab/har119/page_scores.json",
+        "blame_abstentions": 0,
+        "cohort": "HAR-119 part 2: 12 HAR-110 split-v2 runs",
+        "eligible_n": 11,
+        "excluded_rater_disagreement": 1,
+        "first_failure_coverage": {
+          "abstentions": 11,
+          "expressed": 1,
+          "of": 12
+        },
+        "frozen_at": "2026-10-01T00:00:02Z",
+        "grader_alignment": "opinion with no page-measured calibration on this cohort",
+        "in_sample": false,
+        "limits": "Out-of-sample for the loop rule. Loop kind: n=11 agreed cells. First failure: n=9 agreed cells with page coverage 1/12 (11 abstentions). Blame 11/11 is uninformative on this cohort: the raters say model on every failure, so a constant prior scores the same. Grader alignment stays opinion.",
+        "method": "research/explorations/trace-lab/har119/score_page.py",
+        "page_vs_agreed_blame": {
+          "agree": 11,
+          "n": 11
+        },
+        "page_vs_agreed_first_failure": {
+          "agree": 1,
+          "n": 9
+        },
+        "page_vs_agreed_loop_kind": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_agreed_loop_present": {
+          "agree": 7,
+          "n": 11
+        },
+        "page_vs_loop_rule_kind": {
+          "agree": 12,
+          "n": 12
+        },
+        "predictor": "trial_decision.classify_loop_kind (HAR-119 claim-vs-repetition rule)",
+        "predictor_functions": {
+          "names": [
+            "trial_decision.classify_loop_kind",
+            "trial_decision._claim_bearing",
+            "token_flow._loop_onset"
+          ],
+          "sha256": "6909e778952053c8cf2b80ce52cf9804d1648a02aaa4ea74b9a4b384fe37c0ae"
+        },
+        "rater_agreement_blame": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_first_failure": {
+          "agree": 9,
+          "n": 12
+        },
+        "rater_agreement_loop_kind": {
+          "agree": 11,
+          "n": 12
+        },
+        "rater_agreement_loop_present": {
+          "agree": 11,
+          "n": 12
+        },
+        "selection_sha256": "941db9c064e34a2d6f9f7209df42a92cee13b20e776c8fd28c7cc72bc4de860f"
+      },
+      "blame": {
+        "attribution": "n/a",
+        "note": "scored pass with no outcome-relevant failure",
+        "rule_id": "R-NONE-01",
+        "whose": "none"
+      },
+      "first_failure": null,
+      "grader_alignment": {
+        "answer": "unknown",
+        "why": "no named gap; verifier ran 4 tests, 0 failed. A nonzero test count alone never means the grader tests the instruction."
+      },
+      "label": "opinion",
+      "loop_kind": {
+        "claim_bearing_turns": 0,
+        "claim_fraction": 0.0,
+        "first_prompt_step": null,
+        "kind": "none",
+        "loop_onset_step": null,
+        "rule": "HAR-119",
+        "stop_reason": "unknown",
+        "turns_after_prompt": 0
+      }
+    },
+    "nop_same_crash": {
+      "answer": "unknown",
+      "nop_trial": null,
+      "reason": "No same-task nop crash comparison was recorded."
+    },
+    "pass_tainted": {
+      "flagged": false,
+      "reasons": [],
+      "status": "clean"
+    },
+    "reward": 1.0,
+    "reward_why": "Reward `1.0`. Scored pass with no outcome-relevant failure.",
+    "rule_id": "R-NONE-01",
+    "schema": "trial_decision/v3",
+    "scored": true,
+    "whose": "none"
+  },
+  "diagnosis": {
+    "exception_class": null,
+    "heuristic_label": "planning_no_edit",
+    "modes": [],
+    "notices": [
+      "stop reason: unknown (no exception and no accepted final turn found)",
+      "scored pass; no failure modes proposed"
+    ],
+    "outcome": "scored",
+    "reward": 1.0
+  },
+  "errors": {
+    "analysis": null,
+    "decision": null,
+    "diagnosis": null,
+    "outline": null,
+    "token_flow": null
+  },
+  "first_failure": null,
+  "flags": [
+    "outcome:R-NONE-01:n/a",
+    "post_edit_input_share:51%",
+    "max_prompt:14109"
+  ],
+  "grader_evidence": null,
+  "handshake": null,
+  "identical_runs": [],
+  "job_limit_hit_summary": {
+    "limit_hit_share": 0.0,
+    "limit_hit_trials": 0,
+    "setup_limited": false,
+    "trials": 1
+  },
+  "loop_cost": {
+    "all_steps": {
+      "completion": 392,
+      "prompt": 27774,
+      "steps": 2,
+      "steps_without_metrics": 0
+    },
+    "confirmation": null,
+    "identical": null,
+    "in_loops": null,
+    "loop_prompt_share": null,
+    "result_input_tokens": 27774,
+    "spans": []
+  },
+  "loop_suspicion": {
+    "cyclic_patterns_count": 0,
+    "detected": false,
+    "reasons": [],
+    "repeated_command_count": 0,
+    "repeated_error_count": 0,
+    "score": 0.0
+  },
+  "model_name": "gpt-6-luna",
+  "model_steps": 2,
+  "outcome_failure": {
+    "attribution": "n/a",
+    "evidence_step_refs": [],
+    "note": "scored pass with no outcome-relevant failure",
+    "rule_id": "R-NONE-01",
+    "step_id": null,
+    "step_ref": null,
+    "tag": "none"
+  },
+  "outline": {
+    "agent_steps": 2,
+    "exception_class": null,
+    "primary_reward": 1.0,
+    "status": "featured",
+    "total_steps": 7
+  },
+  "rejection_causes": {},
+  "reward": 1.0,
+  "reward_source": "verifier_result",
+  "schema": "process_job/v1",
+  "scored": true,
+  "secondaries": [],
+  "setup_deviations": [],
+  "shape_counts": {
+    "prose": 2
+  },
+  "stitched_steps": 7,
+  "stop_category": "unknown",
+  "stop_reason": "unknown",
+  "taint": [],
+  "task_name": "local-lab/event-summary",
+  "task_package_digest": "sha256:bee722a27298eb06f5010b18da7c27295b1ff6236aa03ce58c5e5b1df4d0d61d",
+  "token_flow": {
+    "last_useful_edit": {
+      "call_index": 1,
+      "command_excerpt": "const r = await tools.exec_command({cmd:\"python3 - <<'PY'\\nimport json, math, os\\nsrc='/app/input/events.jsonl'\\nout='/app/output/summary.json'\\nwith open(src, ",
+      "kind": "write-call",
+      "persistence_reason": "verifier/agent.diff unreadable",
+      "persists_in_final_diff": null,
+      "step_id": 6,
+      "touched_paths": []
+    },
+    "loop_onset": {
+      "reason": "no repeat run detected",
+      "step_id": null
+    },
+    "prompt_series": [
+      {
+        "call_index": 1,
+        "completion_tokens": 361,
+        "prompt_tokens": 13665,
+        "step_id": 6
+      },
+      {
+        "call_index": 2,
+        "completion_tokens": 31,
+        "prompt_tokens": 14109,
+        "step_id": 7
+      }
+    ],
+    "prompt_summary": {
+      "first": 13665,
+      "max": 14109,
+      "max_step_id": 7,
+      "median": 13887.0,
+      "n_calls": 2,
+      "reason": null,
+      "slope_per_call": 444.0,
+      "steps_without_metrics": 0
+    },
+    "schema": "token_flow/v1",
+    "stop": {
+      "exception_type": null,
+      "metadata_stop_reason": null,
+      "reason": "agent stopped without exception and without a harness stop label (clean finish, unlabeled by this harness version)",
+      "stop_reason": null
+    },
+    "summarisations": {
+      "discrepancy": null,
+      "events": [],
+      "metadata_count": null,
+      "metadata_reason": "agent_result.metadata.summarization_count missing"
+    },
+    "tokens_after_last_edit": {
+      "input_tokens": 14109,
+      "note": null,
+      "output_tokens": 31,
+      "share_input": 0.508,
+      "share_output": 0.0791,
+      "totals_source": "agent_result"
+    },
+    "tokens_after_reason": null,
+    "top_terminal_outputs": [
+      {
+        "call_index": 1,
+        "chars": 281,
+        "est_tokens": 70,
+        "next_prompt_tokens": 14109,
+        "step_id": 6
+      }
+    ],
+    "trajectory": {
+      "agent_steps_without_metrics": 0,
+      "n_agent_steps": 2,
+      "n_steps_stitched": 7
+    },
+    "trajectory_reason": null,
+    "trial_name": "codex-gpt-6-luna-event-summary__PffhRBE"
+  },
+  "tokens_attempted_proxy": null,
+  "tokens_native": {
+    "input_tokens": 27774,
+    "output_tokens": 392,
+    "source": "result.json#agent_result"
+  },
+  "tokens_proxy": {
+    "attribution": "unavailable",
+    "input_tokens": null,
+    "output_tokens": null,
+    "path": "lab-metadata.json#provider_usage",
+    "reason": "proxy ledger unreadable: provider usage calls are invalid",
+    "scope": "job",
+    "source": "proxy_settled_ledger",
+    "total_tokens": null
+  },
+  "tokens_steps": {
+    "agent_steps": 2,
+    "completion_tokens": 392,
+    "metered_steps": 2,
+    "prompt_tokens": 27774,
+    "reason": null,
+    "total_tokens": 28166,
+    "unmetered_steps": 0
+  },
+  "trial_concurrency": 1,
+  "trial_name": "codex-gpt-6-luna-event-summary__PffhRBE",
+  "trial_wall_hours": 0.03863005666666667,
+  "trial_wall_reason": null,
+  "watch_alerts": [],
+  "wedge": {
+    "executed_turns": 0,
+    "keystroke_source": "none",
+    "short_stretches": 0,
+    "states": {},
+    "stretches": []
+  }
+}

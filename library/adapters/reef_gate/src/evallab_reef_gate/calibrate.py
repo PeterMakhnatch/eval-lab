@@ -37,10 +37,10 @@ Usage (Ollama running locally with the model pulled; roughly 1-3 minutes per tri
 
     PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
     PYTHONPATH=<this package's src directory> \
-    ~/Developer/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
+    ~/Developer/lab-extras/upstream/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
         --work-dir <fresh owned directory> \
-        --reef-root ~/Developer/reef \
-        --python ~/Developer/reef/.venv/bin/python \
+        --reef-root ~/Developer/lab-extras/upstream/reef \
+        --python ~/Developer/lab-extras/upstream/reef/.venv/bin/python \
         --ollama-url http://127.0.0.1:11461 \
         --condition aa --trials 30 --repeats 5
 

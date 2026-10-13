@@ -1,0 +1,13 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: sol:sol_codex>0.96, rules:upstream_fetch_confirmed_copy",
+ "flagged": [
+  "sol:sol_codex>0.96",
+  "rules:upstream_fetch_confirmed_copy"
+ ],
+ "fold": 1,
+ "id": "ca-ovn-g5-000169-tuned__CxBpceW",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

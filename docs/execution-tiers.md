@@ -75,11 +75,121 @@ Hub with all 1,476 baseline trials; its tasks follow the same classification
 rules. The exact dataset slug should be read off hub.harborframework.com
 before first use — do not guess it.
 
-## Running locally (free, unchanged)
+## Running locally (free)
 
 Oracle/nop controls and verifier runs stay exactly as `AGENTS.md` prescribes:
 through `evallab` wrappers, jobs under `runs/`, ≤2 concurrent. The larger VM
 just means `local-heavy` tasks no longer fail on memory.
+
+### Local Docker sandbox → host isolation
+
+Every ordinary `evallab` Docker launch selects
+`evallab.harbor_host_isolation:HostIsolatedDockerEnvironment`, including Codex,
+Claude Code, oracle/nop and separate verifier environments. Explicit
+`egress_lock=true` still selects the stronger creation-time `network_mode: none`
+backend. Direct upstream `harbor --env docker`, custom environment imports, and
+already-running containers are outside this wrapper contract; a merge does not
+retrofit their networks.
+
+Docker Desktop can forward `host.docker.internal` to services bound on the Mac's
+loopback interface. A loopback bind or a rewritten hostname alone does not
+establish isolation. The wrapper creates one sandbox with **no network**, a
+trusted keepalive entrypoint, disabled image healthchecks, immutable `NET_ADMIN`
+and `NET_RAW` capability drops, and `no-new-privileges`. It validates resolved
+Compose and native daemon evidence before any setup command or task upload.
+A short-lived trusted host-preparation container extracts `nft` and its matched
+libraries and exits before the sandbox exists; it is not a runtime sidecar.
+
+The controller installs an atomic `inet` output filter in the sandbox's network
+namespace using a bounded privileged exec of that trusted tool, verifies the
+kernel objects against the installer's echo, then disconnects the `none`
+pseudo-network and attaches a fresh per-sandbox public bridge. Rules must survive
+attachment unchanged. The sandbox root cannot remove the filter or create raw
+packets. A no-network baseline stays disconnected. A failure stops/deletes the
+owned sandbox and records `applied=false`; it never falls back to upstream public
+Docker.
+
+The single permitted phase switch is agent `no-network` ↔ setup/verifier
+`public` (the mimo-clean-v5 contract: `[agent] network_mode = "no-network"`
+over a public `[environment]`, applied by Harbor around `agent.run()` only).
+The no-network phase disconnects the public bridge and confirms the sandbox
+holds no attachment and no usable interface besides `lo` (a detached netns
+still lists down kernel pseudo-devices; only operstate `up` counts); the public phase
+reinstalls-and-confirms the filter when the detached kernel state drifted,
+reconnects the same bridge only afterwards, and confirms the bridge attachment
+with the boundary unchanged. Every switch appends its network/interface/rule
+evidence to the isolation record; a failed switch fails the trial, never an
+unlocked fallback. Allowlists and any other phase mode stay refused at
+construction and at switch time, as do task Compose, extra overlays, unknown
+environment options, unsafe host mounts, privilege overrides and GPU/device
+passthrough (next paragraph). The plain strict `LockedDockerEnvironment`
+backend keeps refusing every switch; only this wrapper allows the pair.
+
+The filter denies all ports/protocols to private, link-local, multicast and
+reserved IPv4 destinations, IPv6 outside `2000::/3`, and every actual
+controller interface address (including public addresses). Sandbox loopback and Docker's loopback DNS
+stub remain usable. Public internet remains available for CLI installation and
+hosted model APIs; **this is host isolation, not full internet isolation**.
+Codex and non-model lanes have no host exception. The Claude gateway lane alone
+admits the current job's resolved IPv4 `host.docker.internal` address and exact
+TCP bridge port. AAAA answers grant no exception to the IPv4-only frontend.
+The port is supplied through controller-only
+`EVALLAB_CLAUDE_GATEWAY_ISOLATION_PORT`. No listener/port blocklist is maintained.
+
+The loopback Claude bridge fronts only its own `omp auth-gateway stdio` child.
+Its raw-target allowlist is `POST /v1/messages` and
+`POST /v1/messages?beta=true` (canonicalized upstream to `/v1/messages`). Every
+other method/path/query, including health, models, other gateway APIs and
+`count_tokens`, is refused before reading a body or forwarding a request. OMP's
+stdio route does not support `count_tokens`; the qualified Claude messages lane
+does not require it. Admitted calls still require the per-job capability and
+model allowlist. Missing credentials return 401 without invoking a model.
+
+Host-side preparation requires the pinned Alpine build base already present:
+`alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11`.
+The wrapper builds `containers/host-isolation/Dockerfile`, extracts a matched nft
+bundle, records its image digest, and removes its unique helper container/image.
+Anything else refused above needs a separately implemented isolation backend;
+their imported contracts are not silently rewritten. A local trusted Linux Docker
+daemon/controller or Docker Desktop is required; remote contexts are refused.
+The Docker daemon, controller and task image supply chain remain trusted. This is
+not a kernel/container-escape guarantee. Host addresses are inventoried at startup;
+changing interfaces or daemon networking requires a fresh qualification.
+
+Each trial keeps `host-isolation.json` with startup network/capability/mount
+inspection, effective rules, tool image identity, lane and allowed tuple, the
+declared phase policies, and one network/interface/rule evidence entry per
+phase switch. The agent environment and each separate verifier environment
+share the trial directory but own distinct containers: the first writer keeps
+`host-isolation.json` and each later container takes
+`host-isolation-<session>.json`, so verifier startup never overwrites the
+agent phase-switch evidence. No credential, prompt or response content belongs
+in these records.
+Reproduce a before/after reachability census with the installed Harbor Python
+and an already-present Python image; the probe creates only one owned container
+at a time, uses native sandbox lifecycle/network configuration and never starts
+an agent or verifier:
+
+```bash
+PYTHONPATH=src ~/.local/share/uv/tools/harbor/bin/python \
+  scripts/probe_sandbox_host.py --phase before --output /tmp/host-before.json \
+  --bridge-port <running-job-bridge-port>
+PYTHONPATH=src ~/.local/share/uv/tools/harbor/bin/python \
+  scripts/probe_sandbox_host.py --phase after --output /tmp/host-after.json \
+  --bridge-port <same-port> --ports-from /tmp/host-before.json --check-public-egress
+```
+
+The script enumerates every TCP listener with `lsof`, preserves prior raw host
+and gateway IPs, and probes aliases plus literal addresses/default gateways.
+Reports keep TCP outcomes and numeric HTTP status only, discarding all HTTP
+headers/bodies. Bridge checks send no credentials: messages must answer 401 and
+`GET /v1/models` must answer 404. Only the Claude lane may reach that port.
+The optional public check is a credential-free HTTPS HEAD of the npm registry.
+No model call is needed to qualify connectivity. Check
+`omp usage -p anthropic --json` first; when either the 5-hour or 7-day window
+exceeds the approved 60% threshold, retain connectivity/refusal evidence and make
+no Claude calls. Oracle/nop controls establish isolation/harness behavior, not
+model capability.
 
 ## Harbor-native reuse and local regrade (HAR-171)
 
@@ -334,8 +444,10 @@ HAR-181 remains parked; no native telemetry collectors are required.
 
 **Selected implementation: one existing Modal A100 server plus native Harbor
 Docker containers on a dedicated Linux host.** Use the existing spec fields
-`"environment": "docker", "egress_lock": true` with `mimoagent`, `nop` or
-`oracle`. The flag selects `evallab.harbor_docker:LockedDockerEnvironment`;
+`"environment": "docker", "egress_lock": true` with `mimoagent`, `nop`,
+`oracle`, or `terminus-2` (Terminus only where the task image already provides
+tmux — see the Terminus section below; the dispatcher cannot verify image
+contents). The flag selects `evallab.harbor_docker:LockedDockerEnvironment`;
 ordinary Docker is unchanged. Run the trusted Lab/Harbor controller on the
 same host as its Docker daemon so native bind paths refer to that host.
 An SSH Docker context alone is not remote staging of the controller's files.
@@ -640,7 +752,14 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   LiteLLM drops the top-level `reasoning_effort` knob for this unregistered
   model. To disable thinking, send it in the body through the harness
   `llm_call_kwargs.extra_body.reasoning_effort: "none"`; `top_p` is forwarded
-  too, `top_k` is not.
+  too, `top_k` is not. The full path is verified in source (Harbor deep-merges
+  caller `extra_body`, LiteLLM's HTTP layer promotes it top-level, the proxy's
+  Tinker `forwarded_fields` admit top-level `reasoning_effort` with no Tinker
+  strip); it is not assumed. Base and LoRA arms share the harness, proxy, and
+  endpoint, so they match structurally — only sampler weights differ. Close
+  the remaining server-side template question empirically: the first paid
+  smoke trial's raw responses must show no `<think>` blocks (training renderer
+  `qwen3_5_disable_thinking`).
 - `breaker-selfhosted/Qwen/Qwen3.6-35B-A3B` and
   `breaker-selfhosted/rewardhack/qwen3.6-35b-a3b-hacksft-thinkoff-873rows-ep3`
   — the matched [trained-breaker diagnostic](../research/experiments/trained-breaker-v1/README.md).
@@ -861,6 +980,20 @@ Select a backend that supports those requirements. Preparation accepts `docker`,
 `daytona`, `modal`, and `beam`; remote specs also require
 `--estimated-cost-usd` for model plus infrastructure. GPU tasks require a
 compatible remote backend, and Terminus requires a Linux terminal with tmux.
+Terminus on locked Docker (`"environment": "docker", "egress_lock": true`) is
+admitted with one preparation-time precondition the dispatcher cannot verify:
+the task image must already provide tmux (and asciinema for terminal
+recording, else recording is best-effort). Upstream `TmuxSession.start`
+unconditionally attempts an in-sandbox tmux/asciinema install before opening
+the session; under the creation-time `network_mode: none` lock that install
+can never fetch anything, so it is bounded (120 s per command, 240 s total)
+and degrades to a failed trial when tmux is truly absent — it never grants
+egress. Model transport needs no sandbox network (host-side loopback proxy),
+which is why the lock itself is not weakened. Daytona needs no such
+precondition: it locks after agent setup, so the install window still works
+there. Confirm `tmux -V` inside the exact pinned image (cached only; the
+operator decides each pull) before approving locked-Terminus specs.
+
 Task-provided Compose uses the backend's native multi-container support, not the
 mini-SWE proxy overlay. Upstream network/phase capability checks still apply:
 for example, Daytona DinD cannot change network policy dynamically. Unsupported
@@ -1071,8 +1204,8 @@ fresh owned output directory:
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
 PYTHONPATH="$PWD/library/adapters/reef_gate/src" \
-~/Developer/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
-  --reef-root ~/Developer/reef --work-dir "$PWD/runs/reef-gate-aa" \
+~/Developer/lab-extras/upstream/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
+  --reef-root ~/Developer/lab-extras/upstream/reef --work-dir "$PWD/runs/reef-gate-aa" \
   --api-proxy-url http://127.0.0.1:<port> --model <provider-model-id> \
   --condition aa --trials 30 --repeats 5 --port 18972
 ```
@@ -1166,7 +1299,7 @@ Prepare an ordinary spec without a Python launcher, credentials, or cloud calls:
 
 ```bash
 uv run evallab tasks prepare \
-  ~/Developer/agent-evals/terminal-bench-4/tasks/fin-saccr-rwa \
+  ~/Developer/lab-extras/data/agent-evals/terminal-bench-4/tasks/fin-saccr-rwa \
   --name tb4-finance-daytona \
   --agent mini-swe-agent --model zai/glm-5.3-flash \
   --environment daytona --timeout-seconds 3600 \

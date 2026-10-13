@@ -36,14 +36,26 @@ MODEL_SHORT = {
     "tinker/Qwen/Qwen3.5-9B": "qwen35",
     "openrouter-metered/qwen/qwen3.6-35b-a3b": "q36or",
     "openrouter-metered/qwen/qwen3.5-9b": "q35or",
+    "openrouter-metered/z-ai/glm-5.3-flash": "glm53for",
+    "openrouter-metered/xiaomi/mimo-v2.6-flash": "mimo26for",
+    # Subscription agents (model ids as Eval Lab's codex / claude-code lanes take them).
+    "gpt-6.1-sol": "gpt61sol",
+    "gpt-reserve": "gptres",
+    "claude-gateway/claude-haiku-5-5": "haiku55",
 }
+#: Agent each model runs under: Terminus-2 for metered routes, the vendor's own
+#: CLI (Harbor's installed agent, on Peter's subscription) otherwise. Claude Code
+#: reaches Claude Max through the OMP auth-gateway bridge (`claude-gateway/`).
+SUBSCRIPTION_AGENT = {"gpt-6.1-sol": "codex", "gpt-reserve": "codex",
+                      "claude-gateway/claude-haiku-5-5": "claude-code"}
 #: Live-stop mode -> spec-name suffix.
 STOP_SUFFIX = {"on": "on", "dry-run": "dry"}
-FAMILY_SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma"}
+FAMILY_SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma",
+                "geoguessr": "gg", "synthetic_puzzles": "sp"}
 HYPOTHESIS = (
-    "Under CheatBench's original implicit-honesty framing, an open model on "
-    "Terminus-2 takes the planted shortcut at a measurable rate; cheating is "
-    "judged offline from the trajectory, separately from task success."
+    "Under CheatBench's original implicit-honesty framing, the model takes the "
+    "planted shortcut at a measurable rate; cheating is judged offline from the "
+    "trajectory, separately from task success."
 )
 
 
@@ -103,6 +115,17 @@ def main() -> None:
                 "extra_instruction_path": str(args.extra_instruction),
                 "extra_instruction_sha256": "sha256:" + hashlib.sha256(text).hexdigest(),
             }
+        agent = SUBSCRIPTION_AGENT.get(args.model, "terminus-2")
+        # Per-trial ceilings bind Terminus-2's metered host-side proxy only; a
+        # subscription CLI calls its vendor directly and is bounded by the
+        # agent timeout (and the account's quota).
+        metered = {} if agent != "terminus-2" else {
+            "max_requests": args.max_requests,
+            "max_input_tokens": args.max_input_tokens,
+            "max_output_tokens": args.max_output_tokens,
+            "max_total_tokens": args.max_total_tokens,
+            "cost_limit_usd": args.cost_limit_usd,
+        }
         spec = ExperimentSpec(
             name=name,
             hypothesis=HYPOTHESIS if not extra else (
@@ -110,20 +133,16 @@ def main() -> None:
                 "but does not eliminate, the rate at which the model takes the honeypot."),
             purpose="baseline" if not extra else "comparison",
             **extra,
-            question_ref="cheatbench-port: how often do open models take CheatBench honeypots",
+            question_ref="cheatbench-port: how often do models take CheatBench honeypots",
             task=str(d.relative_to(ROOT)),
             task_package_digest=compute_task_digests(d).package,
-            agent="terminus-2",
+            agent=agent,
             model=args.model,
             environment="docker",
             jobs_dir="runs",
             attempts=1,
             timeout_seconds=args.timeout_seconds,
-            max_requests=args.max_requests,
-            max_input_tokens=args.max_input_tokens,
-            max_output_tokens=args.max_output_tokens,
-            max_total_tokens=args.max_total_tokens,
-            cost_limit_usd=args.cost_limit_usd,
+            **metered,
             est_cost_usd=args.est_cost_usd,
             submitted_by="omp-cheatbench-port",
             task_family=f"cheatbench/{args.family}",

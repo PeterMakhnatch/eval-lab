@@ -306,6 +306,25 @@ def test_claude_uses_real_keychain_probe_not_declared_block(tmp_path: Path):
     assert preflight(registry["claude-code-fable-5"], probe).proceed
 
 
+def test_claude_haiku_profile_pins_cheapest_model_on_keychain_auth(tmp_path: Path) -> None:
+    """The proving trial runs Haiku 5.5: cheapest Claude Code model, same transport."""
+    registry = builtin_profiles()
+    haiku = registry["claude-code-haiku-5-5"]
+    assert haiku.adapter == "claude-code"
+    assert haiku.model == "anthropic/claude-haiku-5-5"
+    assert haiku.auth_mode == "subscription-keychain"
+    assert haiku.secret_source == "keychain:harbor-practice-claude-oauth"
+    probe = default_probe_for(
+        haiku,
+        home=tmp_path,
+        security_runner=lambda a: 0,
+        keychain_account="acct",
+    )
+    assert isinstance(probe, KeychainProbe)
+    # The adapter default stays the fable pin: adding Haiku must not move it.
+    assert registry["claude-code-fable-5"].model == "anthropic/claude-fable-5"
+
+
 # ---- environment allowlist --------------------------------------------------
 
 

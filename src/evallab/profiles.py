@@ -641,6 +641,14 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 verified_facts=(),  # model string follows Harbor convention; unproven here
             ),
             AgentProfile(
+                profile_id="claude-code-haiku-5-5",
+                adapter="claude-code",
+                model="anthropic/claude-haiku-5-5",
+                auth_mode="subscription-keychain",
+                secret_source="keychain:harbor-practice-claude-oauth",
+                verified_facts=(),  # cheapest Claude Code model; unproven here
+            ),
+            AgentProfile(
                 profile_id="gemini-cli-declared",
                 adapter="gemini-cli",
                 model="gemini/declared-unproven",

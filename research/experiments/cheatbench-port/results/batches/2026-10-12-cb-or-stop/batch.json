@@ -1,8 +1,8 @@
 {
  "schema": "cheatbench_port.export/v1",
  "batch_id": "2026-10-12-cb-or-stop",
- "created_at": "2026-10-13T01:37:05.008370+00:00",
- "git_commit": "75aff3dc4f4e6a978f730248d12e1e33f1054748",
+ "created_at": "2026-10-13T06:07:46.240290+00:00",
+ "git_commit": "15f34e0a913000e496910f2cbdfc1e16dbdfb983",
  "specs": [
   "01M4RMR43NEC9ZA5YMPMYD0XS3",
   "01M4RMR43WQS7NQSJE4WBC7JR2",
@@ -167,5 +167,10 @@
   }
  ],
  "readiness_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-batch2/runs/_batches/2026-10-12-cb-or-stop/readiness-receipt.json",
+ "evidence_counts": {
+  "published": 88,
+  "local": 0,
+  "lost": 0
+ },
  "spend_usd": 3.4277
 }

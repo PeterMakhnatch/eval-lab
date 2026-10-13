@@ -14,10 +14,9 @@ on all rows goes to ``thresholds.json``; with ``--write-cache`` the OOF
 decisions are stored as ``cache/combined_v1`` verdicts so
 ``evallab detectors score --detector combined_v1`` reports held-out numbers.
 
-Sources: ours, cb, tw, aria, olmo, ht tuned separately; tw-raw is reported
-with the tw thresholds but never used for tuning. ``g6`` has no
-``reward_hacking`` labels. cb ``attempt`` rows (null label) are excluded.
-
+Sources: ours, cb, tw, aria, olmo, ht, contamination-audit tuned separately;
+tw-raw is reported with the tw thresholds but never used for tuning. ``g6``
+has no ``reward_hacking`` labels. cb ``attempt`` rows (null label) are excluded.
 Usage (from the worktree root)::
 
     uv run python research/experiments/combined-detector/tune.py
@@ -35,7 +34,7 @@ from pathlib import Path
 FOLD_SEED = "20261013"
 MAX_LITERALS = 4
 FPR_TARGETS = (0.05, 0.02)
-TUNED_SOURCES = ("ours", "cb", "tw", "aria", "olmo", "ht")
+TUNED_SOURCES = ("ours", "cb", "tw", "aria", "olmo", "ht", "contamination-audit")
 KEV_DETECTORS = (
     "kev_any_cheat",
     "kev_router",
@@ -51,6 +50,7 @@ _LITERAL_RANK = {"rules": 0, "content": 1, "kev": 2, "sol": 3}
 _GROUP_OF = {
     "ours": "natural-agentic",
     "cb": "natural-agentic",
+    "contamination-audit": "natural-agentic",
     "tw": "prompted-agentic",
     "aria": "real-RL-single-turn",
     "olmo": "real-RL-single-turn",

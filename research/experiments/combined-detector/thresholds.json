@@ -63,6 +63,50 @@
     ]
    ]
   },
+  "contamination-audit": {
+   "fpr<=2%": [
+    [
+     "score",
+     "kev:kev_router",
+     0.7137
+    ],
+    [
+     "flag",
+     "rules:irc_upstream_fetch"
+    ],
+    [
+     "score",
+     "kev:kev_max_pattern",
+     0.8913
+    ],
+    [
+     "score",
+     "kev:kev_any_cheat",
+     0.5805
+    ]
+   ],
+   "fpr<=5%": [
+    [
+     "flag",
+     "rules:upstream_fetch_attempt"
+    ],
+    [
+     "score",
+     "kev:kev_any_cheat",
+     0.5758
+    ],
+    [
+     "score",
+     "kev:kev_max_pattern",
+     0.9046
+    ],
+    [
+     "score",
+     "kev:kev_router",
+     0.7489
+    ]
+   ]
+  },
   "ht": {
    "fpr<=2%": [
     [

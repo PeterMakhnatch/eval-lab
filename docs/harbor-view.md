@@ -182,7 +182,9 @@ capped point can use it) and 73% on our 11 copies at 31% FPR (n=24).
 GPT-6.1-Sol judges rule-negative rows as a cascade (1391 rows, $0 on the
 subscription); Kev cuts do not transfer between prompted and real-RL hacks
 (ht cuts on aria+olmo: 48% at 6% FPR). Details:
-`research/experiments/combined-detector/README.md`.
+`research/experiments/combined-detector/README.md`. The `contamination-audit`
+source (new in main #869, tuned without Sol since it postdates the Sol
+selection) reaches 63% at 5% FPR on rules + Kev cuts.
 
 - **General hacks** (hollow implementations, output spoofing and so on): the
   general LLM readers catch them and our rules don't.

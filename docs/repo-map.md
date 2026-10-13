@@ -71,7 +71,7 @@ inputs:
   - path: src/evallab/contamination.py
     digest: sha256:fb21b7b45bbaec5d1094e6dcd8d7b53e5f43a567b10558ce86089d869b3a781b
   - path: src/evallab/content_rules.py
-    digest: sha256:4427effc918ac783938d924df3de47da50c59788254e8418e667681fb1141a50
+    digest: sha256:7984ffcd050b620e42f1e5cd7db93eb84d5cb8bbc4799673616337fc4e831cad
   - path: src/evallab/contextpack.py
     digest: sha256:b1ef5405127176a3e845be1a9faa37fea12b7a5538bdd5df2db14e9b78589b96
   - path: src/evallab/continuous_control_plane.py

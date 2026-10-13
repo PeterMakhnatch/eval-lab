@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "content_rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-har116-a-000495-loopfix-r2__42F3G5T",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

@@ -185,6 +185,8 @@ class Corpus:
             if rl_root is None:
                 return None
             path = rl_root / row["source"] / trial["rl_id"]
+        elif trial["kind"] == "local_run":
+            path = _repo_root() / trial["path"]
         else:
             raise ValueError(f"{row['id']}: unknown trial kind {trial['kind']}")
         return path if (path / "agent" / "trajectory.json").is_file() else None

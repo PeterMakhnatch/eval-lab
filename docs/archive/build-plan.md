@@ -24,7 +24,7 @@ tasks; the whole loop runs unattended under policy.
 ## WS-A — CRAFT: task-corpus analyzer
 
 Purpose: make eval design patterns queryable. Input corpus already on disk:
-76 TB3 tasks (~/Developer/agent-evals/terminal-bench/tasks), library/
+76 TB3 tasks (~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks), library/
 (registered, curated, benchmarks), frontier-bench.
 
 - **Files:** `src/evallab/craft.py`, `tests/test_craft.py`,

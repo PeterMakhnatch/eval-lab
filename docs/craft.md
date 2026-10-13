@@ -36,8 +36,8 @@ Corpus roots and the output root are both injectable:
 
 | Knob | Default | Why |
 |---|---|---|
-| `--tb3-root`, `$EVALLAB_TB3_ROOT` | `~/Developer/agent-evals/terminal-bench/tasks` | The TB3 corpus is outside this repository; tests must not depend on a developer's host layout (`agents/CHECKS.md`). |
-| `--tb4-root`, `$EVALLAB_TB4_ROOT` | `~/Developer/agent-evals/terminal-bench-4/tasks` | The pinned TB4 lane (`v4.0.0`, commit `452bf30`). A TB4 `source_repo` is forced to `terminal-bench/terminal-bench@4.0.0` so its craft rows never share a `(source_repo, task_ref)` key with the TB3 lane. |
+| `--tb3-root`, `$EVALLAB_TB3_ROOT` | `~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks` | The TB3 corpus is outside this repository; tests must not depend on a developer's host layout (`agents/CHECKS.md`). |
+| `--tb4-root`, `$EVALLAB_TB4_ROOT` | `~/Developer/lab-extras/data/agent-evals/terminal-bench-4/tasks` | The pinned TB4 lane (`v4.0.0`, commit `452bf30`). A TB4 `source_repo` is forced to `terminal-bench/terminal-bench@4.0.0` so its craft rows never share a `(source_repo, task_ref)` key with the TB3 lane. |
 | `--out`, `$EVALLAB_DERIVED_ROOT` | `<primary checkout>/derived/parquet/craft` | `paths.derived_root_from_environment`: one derived store per machine, announced when a linked worktree inherits another checkout's. |
 
 The two Terminal-Bench lanes are intentional historical coexistence, not a

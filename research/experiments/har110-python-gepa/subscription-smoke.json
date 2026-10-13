@@ -76,7 +76,7 @@
     "content_digest": "sha256:343f3b15a2a80a18bcc15b8191c2b62e4e765f3fea5e4f8418ddcf38363887ef",
     "archive_digest": "sha256:6324a3046a84b51e9034fbe5638417239c0114040d0c239a9d04067baf17d3fd",
     "record_id": "gepa-codex-subscription-20260930",
-    "store": "/Users/petermakhnatch/Developer/agent-evals/gepa-subscription-evidence",
+    "store": "/Users/petermakhnatch/Developer/lab-extras/data/agent-evals/gepa-subscription-evidence",
     "file_count": 482,
     "uncompressed_bytes": 25694032,
     "source_worktree": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/gepa-subscription-20260930"

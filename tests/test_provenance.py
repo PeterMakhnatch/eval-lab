@@ -15,7 +15,7 @@ from evallab.provenance import (
     render_report,
 )
 
-_real_tb3 = Path("~/Developer/agent-evals/terminal-bench/tasks").expanduser()
+_real_tb3 = Path("~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks").expanduser()
 _tb3_env = os.environ.get("EVALLAB_TB3_ROOT")
 _skip_real_corpus = (
     not _real_tb3.exists()
@@ -92,7 +92,7 @@ def test_report_is_byte_identical_across_runs():
 
 @pytest.mark.skipif(
     _skip_real_corpus,
-    reason="requires external TB3 corpus at ~/Developer/agent-evals/terminal-bench/tasks"
+    reason="requires external TB3 corpus at ~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks"
 )
 def test_harbor_derived_on_multi_corpus_name_collision():
     with tempfile.TemporaryDirectory() as tmp:

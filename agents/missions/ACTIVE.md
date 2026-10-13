@@ -102,7 +102,7 @@ key file was removed. Partial local-Qwen campaigns remain separate.
   HAR-73 still requires recorded per-spec approvals; no autoapproval, policy
   changes, registration, cloud sandbox, download or upstream Reef PR without
   the applicable separate authorization.
-- Keep `~/Developer/reef` and its `.venv` read-only at
+- Keep `~/Developer/lab-extras/upstream/reef` and its `.venv` read-only at
   `818997d76412f0eead7d0b4b343da701d6ce2c20`. `evallab` never imports `reef`;
   `reef-client==0.2.1` is allowed. Native Reef is not an OS sandbox, and an
   owner-only same-UID provider-key file is not credential containment. Reef can

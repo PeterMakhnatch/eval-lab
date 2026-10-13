@@ -101,7 +101,7 @@ checkout.
 
 ### TB2 → TB3: what changed and why (verified against local clones)
 
-This lab holds first-hand evidence: `~/Developer/agent-evals/frontier-bench@3d694e91`
+This lab holds first-hand evidence: `~/Developer/lab-extras/data/agent-evals/frontier-bench@3d694e91`
 (audited in the fin-saccr-rwa study) and the curated library's 19 re-verified
 tasks (`library/curated/README.md`).
 

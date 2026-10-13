@@ -2,7 +2,7 @@
 # Sequential free oracle k=3 + nop for curator candidates. -n <= 2.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${SRC:-/Users/petermakhnatch/Developer/agent-evals/frontier-bench/tasks}"
+SRC="${SRC:-/Users/petermakhnatch/Developer/lab-extras/data/agent-evals/frontier-bench/tasks}"
 OUT="$ROOT/runs"
 LOG="$OUT/curator-verify.log"
 mkdir -p "$OUT"

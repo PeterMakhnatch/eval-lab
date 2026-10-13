@@ -10,7 +10,7 @@ plugin reads (the plugin never touches ``world.nmdb``).
 
 Upstream: https://github.com/zlab-princeton/ceobench-src
 Pinned commit: ``UPSTREAM_COMMIT`` below (shallow clone under
-``/Users/petermakhnatch/Developer/.sources/ceobench-src``).
+``/Users/petermakhnatch/Developer/lab-extras/upstream/ceobench-src``).
 
 Deterministic: no wall clock, network, model calls, or host state. Missing
 data stays null with a reason in the sidecar meta file, never a zero.

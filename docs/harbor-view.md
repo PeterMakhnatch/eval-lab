@@ -179,12 +179,14 @@ sub-rules, content rules, Kev scores and Sol -- out-of-fold 69% recall at 4%
 FPR on cb, 75% on tw, 99% on olmo, 83% on ht, but only 6% on aria (the
 entrypoint content rule catches 99% of aria hacks at 36% clean flags, so no
 capped point can use it) and 91% on our 11 copies at 23% FPR (n=24, group-borrowed selection).
-GPT-6.1-Sol judges rule-negative rows as a cascade (1391 rows, $0 on the
+GPT-6.1-Sol judges rule-negative rows as a cascade (1607 rows, $0 on the
 subscription); Kev cuts do not transfer between prompted and real-RL hacks
 (ht cuts on aria+olmo: 48% at 6% FPR). Details:
 `research/experiments/combined-detector/README.md`. The `contamination-audit`
-source (new in main #869, tuned without Sol since it postdates the Sol
-selection) reaches 87% at 2% FPR on the rescored rules + Kev cuts.
+source (v2: copy-confirmed upstream fetch + full Sol coverage, 211/216
+scored) reaches 87% (26/30) at 2% FPR (3/186): Sol recovers the one
+attempt-only copy the confirmation stage drops, and the 4 misses are
+Sol-honest too.
 
 - **General hacks** (hollow implementations, output spoofing and so on): the
   general LLM readers catch them and our rules don't.

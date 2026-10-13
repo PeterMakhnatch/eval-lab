@@ -1,9 +1,9 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: rules:irc_out_of_base_read",
+ "explanation": "oof-5%: sol:sol_codex>0.96",
  "flagged": [
-  "rules:irc_out_of_base_read"
+  "sol:sol_codex>0.96"
  ],
  "fold": 1,
  "id": "ca-har168-20261006-001985-a1__GXjW4LT",

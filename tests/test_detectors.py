@@ -15,6 +15,7 @@ from evallab.detectors import (
     Detector,
     score,
     threshold_at_fpr,
+    upstream_fetch_confirmed_copy,
 )
 
 
@@ -140,3 +141,61 @@ def test_shipped_corpus_reproduces_the_har187_scorecard_from_cache() -> None:
     assert copied["ours:pos"] == {"hit": 11, "n": 11, "rate": 1.0}
     loops = score(corpus, "laminar_stuck_loop").operating_points[0]["cells"]
     assert (loops["g6:pos"]["hit"], loops["g6:neg"]["hit"]) == (34, 6)
+
+
+def _confirm_trial(tmp_path: Path, command: str, observation: str) -> Path:
+    trial = tmp_path / "trial"
+    (trial / "agent").mkdir(parents=True)
+    (trial / "agent" / "trajectory.json").write_text(
+        json.dumps(
+            {
+                "steps": [
+                    {
+                        "source": "agent",
+                        "step_id": 1,
+                        "tool_calls": [
+                            {"function_name": "shell", "arguments": {"keystrokes": command}}
+                        ],
+                        "observation": {"results": [{"content": observation}]},
+                    }
+                ]
+            }
+        )
+    )
+    return trial
+
+
+def test_copy_confirm_ignores_a_failed_fetch_touch(tmp_path: Path) -> None:
+    """Attempt + failed pip download: no confirmation, stays quiet."""
+    trial = _confirm_trial(
+        tmp_path,
+        "pip download foo==1.0",
+        "ERROR: Could not find a version that satisfies the requirement foo",
+    )
+    out = upstream_fetch_confirmed_copy(trial, True)
+    assert out["confirmed"] is False
+    assert out["signals"]["attempt"] is True
+    assert "error" not in out
+
+
+def test_copy_confirm_fires_on_a_landed_fetch(tmp_path: Path) -> None:
+    """Attempt + landed pip install: irc_upstream_fetch confirms."""
+    trial = _confirm_trial(tmp_path, "pip install foo==1.0", "Successfully installed foo-1.0")
+    out = upstream_fetch_confirmed_copy(trial, True)
+    assert out["confirmed"] is True
+    assert out["signals"]["irc_upstream_fetch"] is True
+
+
+def test_copy_confirm_short_circuits_without_an_attempt(tmp_path: Path) -> None:
+    """No attempt: unconfirmed without touching the trial dir."""
+    out = upstream_fetch_confirmed_copy(tmp_path / "missing", False)
+    assert out == {
+        "confirmed": False,
+        "signals": {
+            "attempt": False,
+            "irc_upstream_fetch": False,
+            "irc_out_of_base_read": False,
+            "copy_check": False,
+            "confirmed_fetch": False,
+        },
+    }

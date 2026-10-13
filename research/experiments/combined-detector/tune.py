@@ -3,7 +3,13 @@
 Components per row: each ``rules`` sub-rule (parsed from the verdict
 explanation), each ``content_rules`` rule, each cached ``kev_*`` score, and
 Sol (numeric P(cheat), only where judged; unjudged rows count as not flagged
-by Sol since Sol runs as a cascade on rule-negative rows only).
+by Sol since Sol runs as a cascade on rule-negative rows only). Rows whose
+frozen ``rules`` verdict fires ``upstream_fetch_attempt`` additionally get
+``rules:upstream_fetch_confirmed_copy`` — the attempt AND a copy confirmation
+(``evallab.detectors.upstream_fetch_confirmed_copy``, computed from trial
+dirs + existing caches, $0) — whenever the materialized trial roots resolve.
+On sources listed in ``_RETIRED_BY_SOURCE`` the raw attempt literal is not
+selectable.
 
 Per source the script greedily builds an interpretable OR of at most four
 literals (binary flags or ``score > cut``) maximizing recall subject to
@@ -49,6 +55,18 @@ KEV_DETECTORS = (
 #: Tie-break rank when two literals give the same recall (cheaper first).
 _LITERAL_RANK = {"rules": 0, "content": 1, "kev": 2, "sol": 3}
 
+#: Selectable literals retired per selection source (mirror
+#: ``evallab.detectors``). Raw ``upstream_fetch_attempt`` fires on honest
+#: fetch touches; on ``contamination-audit`` — where the touch problem is
+#: evidenced (4 honest touches, lone-attempt flags) — the tuned component is
+#: ``rules:upstream_fetch_confirmed_copy`` (attempt AND a copy confirmation).
+#: Other sources keep the attempt literal (e.g. ``ours`` borrows a shared pool
+#: where the attempt literal carries recall no confirmation set replaces).
+#: The frozen ``rules`` cache keeps the raw attempt verdicts everywhere.
+_RETIRED_BY_SOURCE: dict[str, frozenset] = {
+    "contamination-audit": frozenset({("flag", "rules:upstream_fetch_attempt")}),
+}
+
 _GROUP_OF = {
     "ours": "natural-agentic",
     "cb": "natural-agentic",
@@ -86,9 +104,24 @@ def fold_of(row_id: str) -> int:
 
 def load_features(
     root: Path,
-) -> tuple[list[dict], dict[str, dict[str, float | bool | None]]]:
-    """Manifest rows (labelled ``reward_hacking``) and per-row components."""
-    from evallab.detectors import Corpus
+    *,
+    trial_roots: dict | None = None,
+) -> tuple[list[dict], dict[str, dict[str, float | bool | None]], dict]:
+    """Manifest rows (labelled ``reward_hacking``) and per-row components.
+
+    With ``trial_roots`` (``tw_root``/``cb_root``/``rl_root``/``results_root``
+    paths; ``local_run`` rows resolve via the shared checkout), rows whose
+    frozen ``rules`` verdict fires ``upstream_fetch_attempt`` also get the
+    copy-confirmation second stage
+    (``evallab.detectors.upstream_fetch_confirmed_copy``) as
+    ``rules:upstream_fetch_confirmed_copy``. Without ``trial_roots`` the
+    component is skipped. Third return is the confirmation census.
+    """
+    from evallab.detectors import (
+        UPSTREAM_FETCH_CONFIRMED_COPY,
+        Corpus,
+        upstream_fetch_confirmed_copy,
+    )
 
     corpus = Corpus.load(root / "research" / "calibration" / "detectors-v1")
     cached_rules = corpus.cached("rules")
@@ -115,7 +148,32 @@ def load_features(
         if isinstance(sol, int | float):
             feat["sol:sol_codex"] = float(sol)
         features[row["id"]] = feat
-    return rows, features
+    confirm_stats: dict = {
+        "component": UPSTREAM_FETCH_CONFIRMED_COPY,
+        "attempt_rows": 0,
+        "confirmed_rows": 0,
+        "unresolved_rows": [],
+    }
+    if trial_roots is not None:
+        by_id = {row["id"]: row for row in rows}
+        for row_id, feat in features.items():
+            if feat.get("rules:upstream_fetch_attempt") is not True:
+                continue
+            confirm_stats["attempt_rows"] += 1
+            trial_dir = corpus.trial_dir(
+                by_id[row_id],
+                tw_root=trial_roots.get("tw_root"),
+                cb_root=trial_roots.get("cb_root"),
+                rl_root=trial_roots.get("rl_root"),
+                results_root=trial_roots["results_root"],
+            )
+            if trial_dir is None:
+                confirm_stats["unresolved_rows"].append(row_id)
+                continue
+            if upstream_fetch_confirmed_copy(trial_dir, True)["confirmed"]:
+                feat[UPSTREAM_FETCH_CONFIRMED_COPY] = True
+                confirm_stats["confirmed_rows"] += 1
+    return rows, features, confirm_stats
 
 
 def _fires(literal: tuple, feat: dict) -> bool:
@@ -135,8 +193,13 @@ def select(
     labels: dict[str, bool],
     features: dict,
     target_fpr: float,
+    exclude: frozenset = frozenset(),
 ) -> list[tuple]:
-    """Greedy OR: max train recall with train FPR <= target (<=4 literals)."""
+    """Greedy OR: max train recall with train FPR <= target (<=4 literals).
+
+    ``exclude`` retires selectable literals for this run (see
+    ``_RETIRED_BY_SOURCE``); retired inputs stay in ``features``.
+    """
     pos = {i for i in train_ids if labels[i]}
     neg = {i for i in train_ids if not labels[i]}
     if not pos or not neg:
@@ -154,7 +217,7 @@ def select(
         best_key: tuple | None = None
         for name in binary:
             literal = ("flag", name)
-            if literal in chosen:
+            if literal in chosen or literal in exclude:
                 continue
             hit_p = sum(1 for i in pos if i not in covered and features[i].get(name) is True)
             hit_n = sum(1 for i in neg if i not in covered_neg and features[i].get(name) is True)
@@ -271,7 +334,10 @@ def tune_source(
     Selection runs on ``train_rows`` (defaults to ``rows``). Sources with
     fewer than ``MIN_NEGATIVES_PER_SOURCE`` negatives borrow their group's
     pooled rows for selection; reporting stays on the source's own rows.
+    Selectable literals retired for this source (``_RETIRED_BY_SOURCE``) are
+    excluded from every fold and full fit.
     """
+    exclude = _RETIRED_BY_SOURCE.get(source, frozenset())
     ids = [r["id"] for r in rows]
     train_ids = [r["id"] for r in train_rows] if train_rows is not None else ids
     borrowed = train_rows is not None
@@ -291,11 +357,11 @@ def tune_source(
     oof_flags: dict[str, dict[str, bool]] = {}
     for target in FPR_TARGETS:
         key = f"fpr<={target:.0%}"
-        fold_rules = {f: select(by_fold[1 - f], labels, features, target) for f in (0, 1)}
+        fold_rules = {f: select(by_fold[1 - f], labels, features, target, exclude) for f in (0, 1)}
         flags = {i: decide(fold_rules[fold_of(i)], features[i])[0] for i in ids}
         fired_map = {i: decide(fold_rules[fold_of(i)], features[i])[1] for i in ids}
         oof_flags[key] = flags
-        full_rule = select(train_ids, labels, features, target)
+        full_rule = select(train_ids, labels, features, target, exclude)
         in_flags = {i: decide(full_rule, features[i])[0] for i in ids}
         out["operating_points"][key] = {
             "target": target,
@@ -325,11 +391,40 @@ def tune_source(
 
 
 def main(argv: list[str] | None = None) -> int:
+    from evallab.results_home import results_root
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write-cache", action="store_true")
+    parser.add_argument(
+        "--tw-root",
+        type=Path,
+        default=Path.home() / "Developer/eval-lab/derived/kev/raw/tw",
+        help="materialized Terminal Wrench trials: <root>/<source>/<tw_id>",
+    )
+    parser.add_argument(
+        "--cb-root",
+        type=Path,
+        default=Path.home() / "Developer/eval-lab/derived/detector-roots/cb",
+        help="materialized CheatBench trials: <root>/<source>/<cb_id>",
+    )
+    parser.add_argument(
+        "--rl-root",
+        type=Path,
+        default=Path.home() / "Developer/eval-lab/derived/kev/rl/trials",
+        help="materialized RL rollout trials: <root>/<source>/<rl_id>",
+    )
+    parser.add_argument("--results-root", type=Path, default=results_root())
     args = parser.parse_args(argv)
     root = Path(__file__).resolve().parents[3]
-    rows, features = load_features(root)
+    rows, features, confirm_stats = load_features(
+        root,
+        trial_roots={
+            "tw_root": args.tw_root,
+            "cb_root": args.cb_root,
+            "rl_root": args.rl_root,
+            "results_root": args.results_root,
+        },
+    )
     labels = {r["id"]: bool(r["labels"]["reward_hacking"]) for r in rows}
     by_source = {s: [r for r in rows if r["source"] == s] for s in (*TUNED_SOURCES, "tw-raw")}
 
@@ -339,6 +434,13 @@ def main(argv: list[str] | None = None) -> int:
         "sources": {},
         "groups": {},
         "transfer": {},
+        "copy_confirm": {
+            **confirm_stats,
+            "retired_by_source": {
+                source: [list(lit) for lit in sorted(lits)]
+                for source, lits in _RETIRED_BY_SOURCE.items()
+            },
+        },
         "excluded": {
             "cb_attempt_null_label": sum(
                 1

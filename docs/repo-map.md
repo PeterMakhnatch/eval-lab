@@ -147,7 +147,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:dbe09e00d82134dc9cc71fe8269c857e72d59d32e2624de05cf7947d14249502
+    digest: sha256:0507aeef64c18974c3e31be7decf843ef0f70bd986b4f24f86b0d046a79e41e4
   - path: src/evallab/exploit_probe.py
     digest: sha256:863c1aad2a5885f8520a9a2480010b47499c24a6ef456cda8cb45bf22cfbb649
   - path: src/evallab/explorer.py
@@ -231,11 +231,13 @@ inputs:
   - path: src/evallab/harbor_deepseek.py
     digest: sha256:e54d726c085e2f26942863736382d628904ab2e4059c44e4dc29b858fff09a56
   - path: src/evallab/harbor_docker.py
-    digest: sha256:e9bc662975fe2ae3045a148f8c7e87b2610b4e5c0e0832b3faaa0521b1dd0159
+    digest: sha256:82639f0bf9f8d3f3e44a8502695ad10e9398708f5d7d96348c180bb7dc21a551
   - path: src/evallab/harbor_file_access.py
     digest: sha256:41617fac5f10c499b6a84ec1f159a3f27b3e1b67679ebd7a28c049cf4a04fcd4
   - path: src/evallab/harbor_glm_selfhosted.py
     digest: sha256:868a7ecba6f889d4cc3a9ab5aac5319a729fbd90cb5aa068a51a283833180dc0
+  - path: src/evallab/harbor_host_isolation.py
+    digest: sha256:06462ee6e609fcdf54bf86631be67ed213aa93a61a2d549b668fcd1581443302
   - path: src/evallab/harbor_laminar.py
     digest: sha256:259e0fba1d6e06274549c748c6c79b7f1216ea5e341ace5e92677234a78a04df
   - path: src/evallab/harbor_mimoagent.py
@@ -269,7 +271,9 @@ inputs:
   - path: src/evallab/hidden_patch.py
     digest: sha256:c86b56ca8f27d964e76e95a3576f93f7bff0f4d952ebc682a97bffc796ed3288
   - path: src/evallab/history_mining.py
-    digest: sha256:d939ba7de04f71d247ab7c57126899dd1b698b1f9b3b6e3424ee3f86a18d46e4
+    digest: sha256:c08fca96d44badd4421a3f6d2c8cfdb1feccd33fbbf9439a070756ba6004ff22
+  - path: src/evallab/host_isolation.py
+    digest: sha256:658d839cd81510be60590a285b4e0aeb1ae4facd9171795d526f1b992b4210ca
   - path: src/evallab/host_task_staging.py
     digest: sha256:d6c3c919544e53867717084e3a39169cb196d4a2ce88c20ec4d36ebd1f759e4d
   - path: src/evallab/ingest_verify.py
@@ -425,7 +429,7 @@ inputs:
   - path: src/evallab/lineage.py
     digest: sha256:d4cb657bc9ed6d0f7f951490126175cccde655ed869cd179d0621e74b3b0679d
   - path: src/evallab/live_watch.py
-    digest: sha256:9c2c01601121249b0190810bc86ffdd36449ef83ed4e5f30cda3bb90a0b99ecd
+    digest: sha256:9315c51208d2c7f87edebabc4cf1c8588d4b2d935f3410c77633757a7e43b6e6
   - path: src/evallab/loopfix.py
     digest: sha256:c3b84df9b0f7d904d7298f58626b045c5793937dfecb3d54b8a478e6c3b0843f
   - path: src/evallab/mcp_substrate.py
@@ -468,6 +472,8 @@ inputs:
     digest: sha256:eeda8c22120847704001b1267933b017a261f4a5cf1e3046f3357913cc55517a
   - path: src/evallab/ops_continuous.py
     digest: sha256:058611c54aefb8680ea0377b9d07c4df39611f970c8ea695dd2bdcd8d506fd91
+  - path: src/evallab/peer_content.py
+    digest: sha256:a7b8e7f90d4eff6579e302c71429e70a25dcdfe5bd5b65ff9b4d7287965f65ce
   - path: src/evallab/phoenix_annotations.py
     digest: sha256:c0519de2a19c9968851d06715d0a900b8481782dfb28d15c519cac4237330c1b
   - path: src/evallab/power.py
@@ -569,7 +575,7 @@ inputs:
   - path: src/evallab/run_telemetry.py
     digest: sha256:84a91d9e7652d78a1236825ec5bca5516c10d82f674cba6ef786a32531dcf1b7
   - path: src/evallab/runner.py
-    digest: sha256:88cb83ed61a1000a20340a3d3be50d1bac80976033c2ff5cd2e2f201ab829804
+    digest: sha256:4d560ff8d9bbe02a66a80b6da65b0608c05cc288df6faa9e47c27a87ce06b578
   - path: src/evallab/schemas/__init__.py
     digest: sha256:f66da26b63e464592c97b3ad2fb4afd8b810d69c215c66df56cab04c4ba938f7
   - path: src/evallab/screen.py
@@ -591,7 +597,7 @@ inputs:
   - path: src/evallab/sft_terminus.py
     digest: sha256:1e550e459f610af74e4c399001abdcdcf63d7c16bd0ebb943007bd46f1421dcb
   - path: src/evallab/sft_tinker.py
-    digest: sha256:c3803fb755b9f82efbcc8e623a095e9280ffc8c77b998357f3d96be2d8f3bf28
+    digest: sha256:ef2b46ef1b669b0a61d76331b4c79d36c2219ec2d486a4dff012cba3f89bd813
   - path: src/evallab/smoke.py
     digest: sha256:8e9c4d8a8560513ed333c5bd794f69882632c4ba78a76cd04c4506ed5b246e46
   - path: src/evallab/spend_day.py
@@ -658,6 +664,8 @@ inputs:
     digest: sha256:26697cb0a2dfb7815c2150f9bbbc95e11444741174375d8025f6ff7f02207e99
   - path: src/evallab/task_prepare.py
     digest: sha256:93596879716b4fe24a44f59ad03e612ae55591fdcc53e0eab1dcefdc44118f23
+  - path: src/evallab/task_protected.py
+    digest: sha256:6752a281ee63487a0a96d006d473241e059d60e1bd78cfc30f45f7d4c13efd17
   - path: src/evallab/task_qualification.py
     digest: sha256:30ffe9ec7d6c68bd1092515b293334c690e1619953633a7a882dbd202b76404b
   - path: src/evallab/task_stability.py
@@ -731,7 +739,7 @@ inputs:
   - path: src/evallab/vf_scripted_harness.py
     digest: sha256:21c85c9926791eb7d4ea30bc4659db4854f42fa50351d0fe915ba9e352ce6981
   - path: src/evallab/watch_stop.py
-    digest: sha256:c60c6d8e80d82325871e6f49811adeac43e8e798bdccd691be8387c9b5f857c6
+    digest: sha256:a445760450323c4689632085578616a03ee411fff602ab3f97e4f85234b70d23
   - path: src/evallab/webdev_brief_explicit.py
     digest: sha256:02603e742231363f4c327d3322769e6bceb606ddb6d74c890453de23f957461f
   - path: src/evallab/webdev_structural_gate.py
@@ -873,6 +881,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `harbor_docker` | 500 | Fail-closed, single-container Harbor 0.24 Docker execution. | — |
 | `harbor_file_access` | 1100 | Harbor job plugin observing protected files with ``inotifywait -m``. | — |
 | `harbor_glm_selfhosted` | 200 | GLM self-hosted and fine-tuned credential isolation for Harbor's mini-swe-agent adapter. | — |
+| `harbor_host_isolation` | 300 | Single-container Docker host isolation, enforced before sandbox execution. | — |
 | `harbor_laminar` | 1300 | Live Laminar tracing lifecycle for Harbor mimoagent trials (HAR-165). | — |
 | `harbor_mimoagent` | 600 | Native Xiaomi DefaultAgent outside the task sandbox, with Harbor tool transport. | — |
 | `harbor_network` | 300 | Platform-aware Harbor Docker network policy for the execution staging adapter. | — |
@@ -890,6 +899,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `heldout_verifier` | 1200 | Stdlib-only, Python 3.5-compatible payload for a native separate verifier. | — |
 | `hidden_patch` | 200 | Read a MiMo code task's hidden test patch (``tests/test.patch``). | — |
 | `history_mining` | 1200 | Detect agent shell commands that mine hidden git history. | — |
+| `host_isolation` | 200 | Pure rules for denying sandbox access to the controller and private networks. | — |
 | `host_task_staging` | 600 | Reusable host task staging for Darwin (Docker Desktop) execution lanes. | — |
 | `ingest_verify` | 500 | Ingest completeness verification and gap reconciliation (LOOP-INGEST). | — |
 | `inspect_adapter` | 1100 | Inspect AI EvalLog ingestion and normalization into Eval Lab's source evidence tables. | — |
@@ -989,6 +999,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `observation_masking` | 200 | Opt-in last-N tool-observation masking; no model calls or trajectory rewriting. | — |
 | `operational_restraint` | 2000 | Operational Restraint Synthetic Evaluation Package (S7 Conflict-Pair V0). | — |
 | `ops_continuous` | 2300 | Disabled-by-default continuous-loop operator validation (Ops/Runner adapters). | — |
+| `peer_content` | 300 | Peer-material content corroboration for ``evallab watch`` (false-stop fix). | — |
 | `phoenix_annotations` | 500 | Optional Phoenix span annotations for reviewed behavior episodes. | — |
 | `power` | 400 | Statistical power planning and sample size estimation for eval-lab comparisons. | — |
 | `preflight` | 700 | `evallab preflight` — is it safe and sensible to run right now? The surface an operator (or the nightly, at tick start) reads *before* anything runs. | `preflight`, `run-preflight`, `tick` |
@@ -1084,6 +1095,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `task_lint` | 600 | Read-only static checks for Harbor task verifier trust boundaries. | — |
 | `task_pages` | 600 | One ``harbor view`` page per task: every trusted trial plus every reader's verdict. | — |
 | `task_prepare` | 600 | Prepare one local Harbor task directory for repeatable execution. | — |
+| `task_protected` | 200 | Task-declared protected paths for ``evallab watch`` (held-out recall). | — |
 | `task_qualification` | 1100 | Backend qualification: per-trial task health on docker vs Daytona (HAR-88). | — |
 | `task_stability` | 500 | Verifier-stability evidence: verdicts plus ``task_stability.parquet`` (HAR-83 §4.2.1). | — |
 | `task_variants` | 1000 | Derived task variants with content-addressed lineage (schema ``evallab.task_variant/v1``). | — |

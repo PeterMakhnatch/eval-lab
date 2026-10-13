@@ -1,0 +1,351 @@
+{
+ "exclusion_groups": [
+  "terminal-bench-pro",
+  "terminal-bench__2.0",
+  "TerminalBench-original",
+  "OpenThoughts-TB-dev"
+ ],
+ "frozen_at": "2026-10-13T06:58:02Z",
+ "frozen_at_note": "Verified UTC clock (date -u 2026-10-13T06:57:08Z, local ET 02:57-0400); re-freeze of the same five IDs, no paid training has occurred. Prior 01:55Z stamp was ET-mislabeled.",
+ "frozen_by": "AuditorEval",
+ "schema_version": "auditor-sft-holdout-manifest/v1",
+ "selection": "Five distinct TW task_ids covering all four public source groups, each with >=7 rewarded_serious_exploit trajectories and short histories (serious-exploit mean episodes <= 3.9); deterministic by rule (mean serious episodes asc, serious count desc). IDs stable since first freeze; AuditorData sealed its split against them.",
+ "source": {
+  "gh_repo": "few-sh/terminal-wrench",
+  "gh_revision": "d8a29613235a0ef56a8b70b3142626a533da28c2",
+  "hf_dataset": "few-sh/terminal-wrench",
+  "hf_revision": "6ab64c43a4c6a4d9aa53c2425f37e715257123a3",
+  "index_files": [
+   "index/tasks.json",
+   "index/trajectories.json"
+  ],
+  "task_bytes_origin": "HF dataset tree tasks/<task_id>/claude-opus-4.6/original_task/ at hf_revision, frozen verbatim; key files (task.toml, instruction.md, environment/Dockerfile) verified byte-identical across claude-opus-4.6, gemini-3.1-pro, gpt-5.4"
+ },
+ "tasks": [
+  {
+   "cache": "derived/auditor-sft-v1/holdout-tasks/implement-nonogram-solver/original_task",
+   "files": [
+    {
+     "bytes": 2141,
+     "path": "original_task/analysis.toml",
+     "sha256": "sha256:c18211c99600929052921d47c42eac2d4874bcc9fc32fc4b2b024b3044731c98"
+    },
+    {
+     "bytes": 1553,
+     "path": "original_task/instruction.md",
+     "sha256": "sha256:d98020f728104bcd0cd894faff97a902be7070ed69ffef5365d07cb5e3031b01"
+    },
+    {
+     "bytes": 446,
+     "path": "original_task/task.toml",
+     "sha256": "sha256:fa17f43121268751c1037a45316047e122e845278c7e2db91150a375167a5f68"
+    },
+    {
+     "bytes": 866,
+     "path": "original_task/tests/test.sh",
+     "sha256": "sha256:a2fa3e02a7992aa638db977efe0d1a761d6a43e905d3bf027c8e49166e2ba8ef"
+    },
+    {
+     "bytes": 5788,
+     "path": "original_task/tests/test_outputs.py",
+     "sha256": "sha256:22d388c39a1d64952d3cd498189dd722c57f8ecc8b51777e67f87cab442e08e4"
+    },
+    {
+     "bytes": 3793,
+     "path": "original_task/solution/solve.sh",
+     "sha256": "sha256:1b09d4a59d56f4513b084afaae92edf2af9c5199792c9d9cbf48110e1649266f"
+    },
+    {
+     "bytes": 167,
+     "path": "original_task/environment/Dockerfile",
+     "sha256": "sha256:399ab7fa081fcb8517bc0b9ababc4875b9c15549458280b03a9de9259aaef9d6"
+    },
+    {
+     "bytes": 313,
+     "path": "original_task/environment/puzzle.json",
+     "sha256": "sha256:6379eeebeed502ce1fc6b1fbf82eb57af2a8e62b943c62179ddb22ed2ae088d1"
+    }
+   ],
+   "reason": "shortest mean episodes among terminal-bench-pro tasks with solid exploit evidence; pure-algorithmic solver task, CPU-plausible and self-contained",
+   "source_dataset": "terminal-bench-pro",
+   "task_id": "implement-nonogram-solver",
+   "task_package_digest": "sha256:aefda6ffa313b65cbfeb2eebc297323820b3db973edfe8a82373c64f5a2cd8ac"
+  },
+  {
+   "cache": "derived/auditor-sft-v1/holdout-tasks/rush-hour-bfs-solver/original_task",
+   "files": [
+    {
+     "bytes": 3004,
+     "path": "original_task/analysis.toml",
+     "sha256": "sha256:f33bbb92e337613c5f6be8cbcb811e95eeeedda74c1a4c669c012e55054cb4ee"
+    },
+    {
+     "bytes": 1855,
+     "path": "original_task/instruction.md",
+     "sha256": "sha256:35891103e9d8f1baf2069315c37f93c68d6f1f1503502f030c664f834875a111"
+    },
+    {
+     "bytes": 427,
+     "path": "original_task/task.toml",
+     "sha256": "sha256:383a815a0afc7f8986e022ec8f6c38114851e1f7bc8684652d0db50dbd9b84b9"
+    },
+    {
+     "bytes": 866,
+     "path": "original_task/tests/test.sh",
+     "sha256": "sha256:a2fa3e02a7992aa638db977efe0d1a761d6a43e905d3bf027c8e49166e2ba8ef"
+    },
+    {
+     "bytes": 24629,
+     "path": "original_task/tests/test_outputs.py",
+     "sha256": "sha256:ce3e986336f62feff1d0307ed09b079ae98dabc8c2afa8549fad42e685b6dce1"
+    },
+    {
+     "bytes": 6397,
+     "path": "original_task/solution/solve.sh",
+     "sha256": "sha256:b079a297ed5b62b1d560c242265fa042956810a9c3eaded875abc9fc038f1e6d"
+    },
+    {
+     "bytes": 246,
+     "path": "original_task/environment/Dockerfile",
+     "sha256": "sha256:594f51e2404005c1e05f4fc18af7b9fed95a417a3bb000cac7a22124f4f15831"
+    },
+    {
+     "bytes": 42,
+     "path": "original_task/environment/parking_lot.txt",
+     "sha256": "sha256:dd320624db14c0e953e3e1575cde3b609d4837ae4c766f2bfa8bf767837b4902"
+    },
+    {
+     "bytes": 607,
+     "path": "original_task/environment/solver_stub.py",
+     "sha256": "sha256:c7cc89fc847cfa4204e86d8b0a4ed2fb018dbe1db33457f2b980bc7e191731a5"
+    },
+    {
+     "bytes": 532,
+     "path": "original_task/environment/test_data/expected_main.json",
+     "sha256": "sha256:e7613cd3eadf49500190ed9a6f5e808a831b8b161951eaa55ff459ed9b056e27"
+    },
+    {
+     "bytes": 43,
+     "path": "original_task/environment/test_data/puzzle_complex.txt",
+     "sha256": "sha256:46ea861db46bbe83f901405fd8a41ea26378cc3dbf0322008e6e112a89996391"
+    },
+    {
+     "bytes": 43,
+     "path": "original_task/environment/test_data/puzzle_simple.txt",
+     "sha256": "sha256:6332aadc35db96ced6cf7b0178f269a1d3c66ae3128422b3ec2f0278a3c80a25"
+    },
+    {
+     "bytes": 43,
+     "path": "original_task/environment/test_data/puzzle_unsolvable.txt",
+     "sha256": "sha256:8297a4f3f80370bd7c5dd64806ac0dab5f98800eed14e82e7dfe1808b09ee24b"
+    }
+   ],
+   "reason": "second-shortest pro task with the richest exploit evidence (14 serious); search-algorithm task, no network/GPU shape",
+   "source_dataset": "terminal-bench-pro",
+   "task_id": "rush-hour-bfs-solver",
+   "task_package_digest": "sha256:4a2a655ba41d2446ba8cd93cfb761e2fdef13d9a0a66927f55b1b9c5cf22612a"
+  },
+  {
+   "cache": "derived/auditor-sft-v1/holdout-tasks/adaptive-rejection-sampler/original_task",
+   "files": [
+    {
+     "bytes": 1733,
+     "path": "original_task/analysis.toml",
+     "sha256": "sha256:cd2c3d464e3ef2530187e1781b9d47e1bbd3d8d70633120e23bd46f7fa267a3a"
+    },
+    {
+     "bytes": 2665,
+     "path": "original_task/instruction.md",
+     "sha256": "sha256:3530999e72b651f260dabab69c2594cefae66e55123136b72663efe71546007e"
+    },
+    {
+     "bytes": 521,
+     "path": "original_task/task.toml",
+     "sha256": "sha256:2d1b2b51defbc03bb31af08da8bae6329724e53177d0175aada4e0f8d6ad28be"
+    },
+    {
+     "bytes": 1206,
+     "path": "original_task/variants.json",
+     "sha256": "sha256:31d1edf1772a3778869f54673f6eb807e7a77c2459c68ba0253d5ea699bd4174"
+    },
+    {
+     "bytes": 673,
+     "path": "original_task/tests/test.sh",
+     "sha256": "sha256:2df5a364709e6ce959e3da5e60c2afa3b6365c6d67db37db04ee161baeb35037"
+    },
+    {
+     "bytes": 9249,
+     "path": "original_task/tests/test_outputs.py",
+     "sha256": "sha256:547dc6e107f034f41703722aeceb6d0236e3fb69116fc3f2fbaba11884de352f"
+    },
+    {
+     "bytes": 15365,
+     "path": "original_task/solution/solve.sh",
+     "sha256": "sha256:763afb61a51d42d97f738ba693e82160bb2587eaeaf2049c99c3118b7624b148"
+    },
+    {
+     "bytes": 1059,
+     "path": "original_task/environment/Dockerfile",
+     "sha256": "sha256:cc6ff5d848a0cf10aee4d7d741ce7ee06d56d4573f4f21ee0f289176eec71ee8"
+    },
+    {
+     "bytes": 5552,
+     "path": "original_task/environment/protected.tar.gz.enc",
+     "sha256": "sha256:7fc9bf1347bb97da8dede04b2c58638f225070913e222d76627068aebd1b1df2"
+    }
+   ],
+   "reason": "short terminal-bench__2.0 representative; statistics coding task, CPU-only shape",
+   "source_dataset": "terminal-bench__2.0",
+   "task_id": "adaptive-rejection-sampler",
+   "task_package_digest": "sha256:bc095bd0919e98813d6f1f150a117cbe9368411d66acaf565aef1b8cbda531ce"
+  },
+  {
+   "cache": "derived/auditor-sft-v1/holdout-tasks/blind-maze-explorer-5x5/original_task",
+   "files": [
+    {
+     "bytes": 1906,
+     "path": "original_task/analysis.toml",
+     "sha256": "sha256:481ad9932d6b00e458ec1ac11566fe6746a5c78fbe30f1da0d37752d29a8cf8e"
+    },
+    {
+     "bytes": 3501,
+     "path": "original_task/instruction.md",
+     "sha256": "sha256:271be4bc76eed2d7e559df7ac5f8b3af8489370225295abd9596121faa3aa1d1"
+    },
+    {
+     "bytes": 466,
+     "path": "original_task/task.toml",
+     "sha256": "sha256:ce7540db6252fc9bec3b7032adb04e19359c2fda7900d01a8bd6207b6aeff715"
+    },
+    {
+     "bytes": 1351,
+     "path": "original_task/variants.json",
+     "sha256": "sha256:cbf58e23ceca52f748ab70815848de50b5a686d4760aa20b8feaedd78ea65a80"
+    },
+    {
+     "bytes": 805,
+     "path": "original_task/tests/test.sh",
+     "sha256": "sha256:50961579bcd4ea67063d1ddb0926276b682fe5f5feb16b655fa00c5e643cc245"
+    },
+    {
+     "bytes": 3821,
+     "path": "original_task/tests/test_outputs.py",
+     "sha256": "sha256:aba8563b2d1a40baee4d1a3156b0b805807ca2ad7dff451456c7b7277dd48da3"
+    },
+    {
+     "bytes": 13612,
+     "path": "original_task/solution/solve.sh",
+     "sha256": "sha256:208ecb876ae1d7fbece653d26efd42aba3fe3808c68409b56bf10c8952b485de"
+    },
+    {
+     "bytes": 834,
+     "path": "original_task/environment/Dockerfile",
+     "sha256": "sha256:43a8f5a7a52cd9277f8b98c3013fce2cc1217254d47f78562bcb7dbb1df67977"
+    },
+    {
+     "bytes": 80,
+     "path": "original_task/environment/maze_game.sh",
+     "sha256": "sha256:90189b093711c39d86d4192f024e3d95d160a8eae395e0c8e72d94bc9ee1b03f"
+    },
+    {
+     "bytes": 30,
+     "path": "original_task/environment/protected/ground_truth_map.txt",
+     "sha256": "sha256:27f0c97566e205faa9ebd33986299f43b496c7d63a39fa64d64aae975e365d34"
+    },
+    {
+     "bytes": 687,
+     "path": "original_task/environment/protected/maze_helper.py",
+     "sha256": "sha256:c11cea47a9290ee0d37879dc6da7ceaba948d2256f62d2a049e048db4376e294"
+    },
+    {
+     "bytes": 6084,
+     "path": "original_task/environment/protected/maze_server.py",
+     "sha256": "sha256:35522ffd669d840a91632fbc4cdd95afc5aa2da83552ed250d2b038a39c48a5c"
+    }
+   ],
+   "reason": "highest serious-exploit density among TerminalBench-original tasks with short histories; self-contained maze task",
+   "source_dataset": "TerminalBench-original",
+   "task_id": "blind-maze-explorer-5x5",
+   "task_package_digest": "sha256:3463af8e8cfa6bbe5a5244a6ad1f8f07f8e4d5a1cc69b51d29bf4ac22dc5e874"
+  },
+  {
+   "cache": "derived/auditor-sft-v1/holdout-tasks/titanic-female-survival-prediction/original_task",
+   "files": [
+    {
+     "bytes": 1593,
+     "path": "original_task/analysis.toml",
+     "sha256": "sha256:5381f5acc4400e0496125e7a004cea37d2951fc84caa38431f3a4f0cfdb5947f"
+    },
+    {
+     "bytes": 1121,
+     "path": "original_task/instruction.md",
+     "sha256": "sha256:2751ea700a5c56c7c72968e8f316b312abb04a01a26285cb2050af90e4046775"
+    },
+    {
+     "bytes": 400,
+     "path": "original_task/task.toml",
+     "sha256": "sha256:35b5d655e5548f786a94d950d1a14726b010070ca94babfbb81a1d748d3e6a75"
+    },
+    {
+     "bytes": 1142,
+     "path": "original_task/variants.json",
+     "sha256": "sha256:b497b123142c5c65d6a8c07d8fafde3c27c9fe885391a2ec558d2eb53ae56cba"
+    },
+    {
+     "bytes": 1733,
+     "path": "original_task/tests/grader.py",
+     "sha256": "sha256:bfc2407c1102042793b5e1ce02a66f27e86f716b2eb7ee315116132d8bc985ba"
+    },
+    {
+     "bytes": 535,
+     "path": "original_task/tests/test.sh",
+     "sha256": "sha256:14b2a1676c128708ba3eb1457c8e50c882e1294709f3c58cf1c2433c002cb42f"
+    },
+    {
+     "bytes": 2406,
+     "path": "original_task/tests/test_outputs.py",
+     "sha256": "sha256:df653a95763ff1e644e617f5a8da1604308218df460f307451ad91912587d580"
+    },
+    {
+     "bytes": 39,
+     "path": "original_task/solution/solve.sh",
+     "sha256": "sha256:4e25c8e51ff88b4e24cbba214f78b686a45fa4ac7e9d619d22ff7c7fa7997bd0"
+    },
+    {
+     "bytes": 1124,
+     "path": "original_task/environment/Dockerfile",
+     "sha256": "sha256:692d64f44c8e908346238c582139fdf55a47b6490408f695aafae655a18a5c31"
+    },
+    {
+     "bytes": 375,
+     "path": "original_task/environment/data/ground_truth_female.csv",
+     "sha256": "sha256:da6edf0f9bd0ca335d9865485693a059506cc5fc07be92b27eaca6fd20f67926"
+    },
+    {
+     "bytes": 61194,
+     "path": "original_task/environment/data/train.csv",
+     "sha256": "sha256:7d118fef8b6ccf7f81111877bc388536f7b1e498a655e3d649d19aaa010e9f6f"
+    },
+    {
+     "bytes": 49559,
+     "path": "original_task/environment/data/train_split.csv",
+     "sha256": "sha256:a7a05dc6ea379bb5ea22e71a3ef948955f71ae612f712d38f71ac03c48b6eba1"
+    },
+    {
+     "bytes": 12523,
+     "path": "original_task/environment/data/validation.csv",
+     "sha256": "sha256:d177a1620498f5e7f34b154c9a73eb8659c8bb57928a6e7c321fb22e508d3448"
+    },
+    {
+     "bytes": 4715,
+     "path": "original_task/environment/data/validation_female.csv",
+     "sha256": "sha256:0fae7448aaa99e0009199140d0b4edbcf2b32b42871c896b41c24d81d8ba20b2"
+    }
+   ],
+   "reason": "shortest histories in the public pool with the most serious exploits (39); tabular ML task, CPU-plausible",
+   "source_dataset": "OpenThoughts-TB-dev",
+   "task_id": "titanic-female-survival-prediction",
+   "task_package_digest": "sha256:78185c3af4fae2bdc3ac9952a4deb7204bd3f24dcee2e89e1b35fccdb6cfa5dd"
+  }
+ ]
+}

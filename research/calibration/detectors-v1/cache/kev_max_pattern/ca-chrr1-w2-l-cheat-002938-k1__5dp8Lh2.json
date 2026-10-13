@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.001857,
+ "detector": "kev_max_pattern",
+ "explanation": "max P(max_pattern) over 5 windows; peak window 4",
+ "flagged": null,
+ "id": "ca-chrr1-w2-l-cheat-002938-k1__5dp8Lh2",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.9038,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

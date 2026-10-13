@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-ovn-g5-001809-stock__PZ8sw7f",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

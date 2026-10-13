@@ -55,6 +55,8 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from evallab.contamination import COLUMNS as CONTAMINATION_COLUMNS
+from evallab.contamination import load_labels
 from evallab.harbor_watch_hooks import read_hook_journal
 from evallab.interpretation.trial_posture import cut_short_by_our_limits, trial_posture
 from evallab.process_job import process_job
@@ -72,6 +74,17 @@ from evallab.storage.task_audit import read_audit_table
 _TRIALS_SQL = (
     Path(__file__).resolve().parents[3] / "sql" / "trials.sql"
 ).read_text(encoding="utf-8")
+
+
+def contamination_arrow_table(repo: Path) -> pa.Table:
+    """Contamination-audit labels as a typed table (empty when never audited)."""
+    labels = load_labels(repo).values()
+    schema = pa.schema(
+        [(name, pa.bool_() if name == "cheat_prompted" else pa.string()) for name in CONTAMINATION_COLUMNS]
+    )
+    return pa.Table.from_pylist(
+        [{name: row.get(name) for name in CONTAMINATION_COLUMNS} for row in labels], schema=schema
+    )
 
 #: Non-hot layouts joined natively for the fact tables (features are hot-only:
 #: their rows carry names, not native ids, so only the per-pair path binds them).
@@ -670,6 +683,9 @@ def connect_trials(
     projection (missing file = a typed empty relation; a corrupt file is
     a visible error, never empty success). It is registered even when no
     native trial exists, so ``SELECT ... FROM audit`` works audit-only.
+    A ``contamination`` relation holds the contamination-audit labels
+    (``evallab.contamination``; one row per audited agent pass, keyed by
+    ``trial``), so census queries can drop passes the audit calls cheats.
 
     ``task_names`` restricts the native task names before projection work.
     ``read_only`` forbids backfill writes: cache gaps are projected transiently
@@ -690,6 +706,8 @@ def connect_trials(
         audit_path = task_audit_path(repo, derived_root=target_root)
         audit_table = read_audit_table(audit_path)
         con.register("audit", audit_table)
+        contamination_table = contamination_arrow_table(repo)
+        con.register("contamination", contamination_table)
         inventory, unreadable = _discover_inventory(scan_roots)
         rows = _dedupe_inventory(inventory)
         if task_names is not None:
@@ -882,6 +900,8 @@ def connect_trials(
         "audit_path": str(audit_path),
         "audit_rows": audit_table.num_rows,
         "audit_arrow_table": audit_table,
+        "contamination_rows": contamination_table.num_rows,
+        "contamination_arrow_table": contamination_table,
         "arrow_table": table,
     }
     return con, info
@@ -961,7 +981,8 @@ def build_trials_parser(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "--sql",
         default=None,
-        help="Ad-hoc read-only SELECT over trials and audit",
+        help="Ad-hoc read-only SELECT over trials, audit and contamination "
+        "(audit labels per agent pass; join contamination.trial = trials.trial)",
     )
     parser.set_defaults(func=command)
 

@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.005198,
+ "detector": "kev_router",
+ "explanation": "max P(router_not_none) over 14 windows; peak window 5",
+ "flagged": null,
+ "id": "ca-gepa-terminus-2-format-code-task__CFCbfps",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.6253,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

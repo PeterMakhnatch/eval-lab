@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.001114,
+ "detector": "kev_router",
+ "explanation": "max P(router_not_none) over 3 windows; peak window 1",
+ "flagged": null,
+ "id": "ca-har116-a-002864-loopfix-r2__CWRe7mJ",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.6139,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

@@ -548,7 +548,7 @@ def drive_trial_stops(
     by_trial: dict[str, dict[str, Any]] = {}
     for alert in fresh_alerts:
         trial = str(alert.get("trial") or "")
-        if trial and trial not in by_trial:
+        if trial and trial not in by_trial and stop_eligible_alert(alert)[0]:
             by_trial[trial] = alert
     status_by_trial = {
         str(status.get("trial")): status for status in statuses if status.get("trial")

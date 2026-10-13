@@ -439,6 +439,34 @@ def test_drive_skips_acked_terminal_and_fleet(
     )
 
 
+def test_drive_prefers_first_eligible_alert_in_same_pass(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An ineligible alert in the same pass must not mask an eligible one."""
+    monkeypatch.setattr(watch_stop, "docker_capture", lambda *a, **k: {"skipped": "test"})
+    watch = tmp_path / "watch"
+    job = tmp_path / "job"
+    (job / "task__a1" / "agent").mkdir(parents=True)
+    statuses = [{"trial": "task__a1", "job": "job", "state": "running"}]
+    jobs = {"job": job}
+    stops = drive_trial_stops(
+        watch_dir=watch,
+        job_dirs=jobs,
+        statuses=statuses,
+        fresh_alerts=[_alert("fetch_attempt"), _alert("hidden_test_read")],
+        hooks_by_job={},
+        acks_by_job={},
+        mode="dry-run",
+    )
+    assert [stop["trial"] for stop in stops] == ["task__a1"]
+    assert stops[0]["rule"] == "hidden_test_read"
+    assert stops[0]["outcome"] == "would_stop"
+    record = read_stop_record(watch, "task__a1")
+    assert record is not None
+    assert record["outcome"] == "would_stop"
+    assert record["rule"] == "hidden_test_read"
+
+
 def test_integrity_board_rule_order_matches_spec() -> None:
     assert INTEGRITY_BOARD_RULES == (
         "grader_tamper",

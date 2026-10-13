@@ -47,9 +47,14 @@ Limits we have hit or must respect:
   the gate (`evallab.quota`), which refuses billable work when the provider
   reports the window exhausted — and since 2026-10-13 also at the lab's own
   ceiling of 60% used (`subscription_quota_ceiling`).
-- **Claude Max:** no limit hit recorded. The fxtr judge projects ran about
-  8M input tokens through the OMP gateway without a rate limit. Recorded
-  failure modes are content filters, not quota: Sonnet 5.5 refuses
+- **Claude Max:** live account headroom is readable for free with
+  `omp usage -p anthropic --json -r`. Claude Code dispatch checks the 7-day
+  window against the committed 60% ceiling (refuse at or above 60%) and the
+  5-hour window for exhaustion (refuse at or above 100%); unavailable or
+  expired readings pause dispatch. The earlier fxtr judge projects ran about
+  8M input tokens through the OMP gateway without a recorded rate limit;
+  that history does not establish present headroom. Recorded
+  failure modes include content filters: Sonnet 5.5 refuses
   transcripts that include the agent's reasoning (`reasoning_extraction`), and
   the gateway ignores `response_format`, so judges unwrap fenced JSON.
 - Back-off rule for both: on a rate-limit response, stop launching, record
@@ -149,12 +154,43 @@ agrees exactly (3 calls, all 200, served `anthropic/claude-haiku-5-5` every
 time, no rate limits). Quota snapshot: none exists — `omp auth-gateway
 check` needs a broker and there is none in stdio mode, and neither gateway
 responses nor session files carry a weekly-window percentage, so Claude
-headroom stays `[unavailable]` with its reason; per-trial tokens are
-recorded instead. Credential scan: the trial's post-run scan passed, and a
+headroom was recorded as `[unavailable]` in that trial. The free OMP usage
+reader below now supplies live account headroom independently of those
+artifacts; per-trial tokens remain the consumption record. Credential scan:
+the trial's post-run scan passed, and a
 follow-up audit found no `sk-ant-` strings, no token variable values, and no
 token-shaped strings anywhere under the job dir (only variable *names* in
-the captured source diff). Lane quota tally for the night: 5 tiny Haiku
-probes plus this trial, all far below any observable limit.
+the captured source diff). Lane activity for that proving night: 5 tiny Haiku
+probes plus this trial; no quota percentage was recorded for those calls.
+
+Quota admission now uses `src/evallab/quota.py`'s `read_claude_headroom()`:
+it runs `omp usage -p anthropic --json -r` with a timeout, making a free
+provider-usage lookup and no model call. Only the exact `anthropic:5h` and
+`anthropic:7d` windows are parsed, with used percent, reset time, provider
+status, and fetch time. Both windows are retained in every `[observed]`
+reading, with 7-day usage selected as the headline percentage; account ids,
+emails, raw responses, and model-specific limits are excluded.
+
+The dispatch gate refreshes that reading and refuses weekly usage at or above
+`policy/standing-approvals.yaml`'s `refuse_billable_at_used_percent` (currently
+60%) under `subscription_quota_ceiling`. The 5-hour window is recorded and
+gates only at exhaustion, 100% or above (`subscription_quota_exhausted`): the
+standing 60% rule names the weekly window. Run-specific approvals can impose
+stricter limits. Missing, failed, timed-out, malformed, or expired readings
+pause dispatch with `subscription_quota_unavailable`; unavailable is never
+treated as remaining allowance. Keep the reset time, stop launching, and
+refresh after the window resets. Never switch the spec to an API.
+
+The sanitized dispatch reading is stored in
+`<job>/claude-dispatch-quota.json`,
+the `subscription_quota` field of `<job>/lab-metadata.json`, and each actual trial's
+`agent/quota/claude-dispatch.json`, including both windows and their reset
+times. A retry gets a fresh reading and its own attempt record. The records
+contain no credentials or account identifiers. This applies to both the gateway
+and Keychain Claude Code lanes; passing the quota gate does not replace the
+existing per-spec authorization. The quota-report CLI and operator preflight
+stay disk-only; actual dispatch performs the live lookup. See [quota accounting](quota-accounting.md#claude-code-live-subscription-headroom-and-dispatch-gate)
+for the source and evidence contract.
 
 Session-transcript accounting note, established against this trial:
 `evallab.quota` fills a claude-code trial from `result.json`, falling back

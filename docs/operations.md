@@ -593,7 +593,7 @@ rollout it came from. The scope line is load-bearing: the percentage is
 **account-wide**, and the lab's share of it is structurally unknowable, so
 "8% remaining" is not "8% remaining for the lab".
 
-### The two refusals, and back-off on a rate limit
+### Quota refusals, and back-off on a rate limit
 
 `subscription_quota_exhausted` refuses a billable dispatch when the provider
 reports `rate_limit_reached_type`, or `used_percent` at or above 100. That is
@@ -614,9 +614,21 @@ Back-off on a rate-limit response is explicit: stop launching billable work,
 record the provider-stated `resets_at` from the refusal message, and resume
 only after it. Never switch the job to an API to route around the window.
 
+Claude Code uses a fresh, free `omp usage -p anthropic --json -r` reading at
+dispatch rather than relying on its transcripts. The committed ceiling applies
+to its **7-day** window (at or above 60%); its **5-hour** window gates only at
+100% exhaustion. Both windows, reset times, status, and fetch time are recorded.
+`subscription_quota_unavailable` pauses Claude dispatch when either window is
+missing, malformed, or expired, including a failed or timed-out probe. The
+historical Codex bootstrap and stale-reading behavior described below applies
+to artifact-based Codex readings; Claude's free live probe needs no paid call
+to recover. See [Claude quota accounting](quota-accounting.md#claude-code-live-subscription-headroom-and-dispatch-gate)
+for dispatch sidecars and deterministic tests. `--despite-quota` does not
+override `subscription_quota_unavailable`.
+
 ### Unavailable is not "plenty left"
 
-A checkout with no paid trials has no reading. The gate reports that as
+A checkout with no paid Codex trials has no Codex reading. The gate reports that as
 `UNKNOWN [unavailable]` with its reason, and never as a number. It refuses
 nothing on an unavailable reading — refusing would be a bootstrap deadlock,
 because only a paid trial can produce a reading — but it never permits
@@ -626,7 +638,7 @@ A reader that throws is also `unavailable`, with the exception in the reason.
 
 ### Stale readings warn; they never refuse
 
-The reading is only as fresh as the last paid trial. Today's live reading was
+The artifact-based Codex reading is only as fresh as the last paid trial. The recorded reading was
 5h18m old. Both failure modes are real, and they point in opposite directions:
 
 - **Refusing on age deadlocks the lab.** Freshness is produced *by* paid runs,

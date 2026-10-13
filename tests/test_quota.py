@@ -1088,7 +1088,11 @@ def test_an_observation_carries_only_quota_fields(tmp_path: Path) -> None:
         "rate_limit_reached_type",
         "source",
         "scope",
+        "fetched_at",
+        "windows",
     }
+    assert observation.fetched_at is None
+    assert observation.windows == {}
 
 
 # --- claude-code session usage -------------------------------------------------

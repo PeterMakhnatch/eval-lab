@@ -474,6 +474,7 @@ def test_integrity_board_rule_order_matches_spec() -> None:
         "hidden_test_read",
         "git_object_read",
         "copy_acquired",
+        "submission_tamper",
     )
 
 
@@ -741,3 +742,26 @@ def test_grader_tamper_branches_differ_in_eligibility() -> None:
     assert file_alert["baseline_ref"] == "baseline-w1"
     assert stop_eligible_alert(traj_alert)[0] is False
     assert stop_eligible_alert(file_alert) == (True, "eligible")
+
+
+def test_submission_tamper_is_eligible_single_hit() -> None:
+    assert stop_eligible_alert(_alert("submission_tamper")) == (True, "eligible")
+    assert stop_eligible_alert(_alert("submission_tamper", scope="fleet")) == (
+        False,
+        "fleet_scope",
+    )
+
+
+def test_submission_tamper_records_would_stop_by_default() -> None:
+    alert = _alert("submission_tamper")
+    status = _bare_status()
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="dry-run")["action"]
+        == "would_stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="on")["action"] == "stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="off")["action"] == "skip"
+    )

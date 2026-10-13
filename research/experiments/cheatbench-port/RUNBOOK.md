@@ -256,8 +256,11 @@ so the trial ends with no reward.
      Re-judging after more trials land (e.g. a `--resume`): fxtr refuses an
      export that already carries `claude-sonnet-5.5` verdicts ("export judge
      names collide"). Move `runs/_batches/<batch_id>/judge-claude-sonnet-5.5.*`
-     out of the batch, rerun postrun, run `launch.py batch` again (its cache
-     repeats only the new calls), then extract again.
+     out of the batch, rerun postrun, and run `launch.py batch` again. If it
+     stops on cache conflicts for the per-trial cases (the export rows
+     changed), run `uv run fxtr resume <job> --overwrite-cache-conflicts`;
+     cached Claude verdicts are reused, so only the new calls are made. Then
+     extract again.
   2. **Second: GPT-6.1 Sol** through `codex exec` on the ChatGPT subscription
      (`judge.py --judge codex/gpt-6.1-sol`, or `postrun.py --judge
      codex/gpt-6.1-sol`). It is the closest available model to the paper's

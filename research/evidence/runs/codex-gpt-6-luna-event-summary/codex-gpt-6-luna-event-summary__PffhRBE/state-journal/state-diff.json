@@ -1,0 +1,51 @@
+{
+  "after_captured_at": "2026-10-13T05:48:05.690212Z",
+  "before_captured_at": "2026-10-13T05:47:56.214643Z",
+  "change_count": 2,
+  "changes": [
+    {
+      "after": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1791870482916231169,
+        "path": "output",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "before": {
+        "mode": "drwxr-xr-x",
+        "mtime_ns": 1791819459000000000,
+        "path": "output",
+        "size_bytes": 4096,
+        "type": "directory"
+      },
+      "change_type": "modified",
+      "event_count": 0,
+      "first_event_at": null,
+      "last_event_at": null,
+      "path": "output"
+    },
+    {
+      "after": {
+        "hash_status": "complete",
+        "mode": "-rw-r--r--",
+        "mtime_ns": 1791870482916458711,
+        "path": "output/summary.json",
+        "sha256": "sha256:9f2b05e8b2e32186c4a3a996bc5810ac3de2833f902b8cd23b860351c88a58de",
+        "size_bytes": 142,
+        "type": "file"
+      },
+      "before": null,
+      "change_type": "added",
+      "event_count": 3,
+      "first_event_at": "2026-10-13T05:48:02.916602Z",
+      "last_event_at": "2026-10-13T05:48:02.916946Z",
+      "path": "output/summary.json"
+    }
+  ],
+  "dropped_event_count": 0,
+  "event_count": 3,
+  "reason": null,
+  "root": "/app",
+  "schema_version": 1,
+  "status": "available"
+}

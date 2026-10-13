@@ -1,0 +1,348 @@
+diff --git a/docs/model-defaults.md b/docs/model-defaults.md
+index 2f1369af0..b211a8060 100644
+--- a/docs/model-defaults.md
++++ b/docs/model-defaults.md
+@@ -30,13 +30,12 @@ the alternatives.
+ **Codex CLI version matters.** The model list above is what codex CLI
+ 0.162.1 offers on this subscription (2026-10-12; `gpt-6.1-sol` verified
+ answering through `codex exec`). Older CLIs reject the gpt-6 models: 0.154.0
+-returned HTTP 400 for `gpt-6-luna`. Two pins in this repo still name old
+-versions and must be raised before a gpt-6 model can run there:
+-`PINNED_CODEX_VERSION = "0.148.0"` in `src/evallab/harbor_codex.py` (the CLI
+-Harbor installs inside task sandboxes) and `CODEX_VERSION = "codex-cli
+-0.154.0"` in `src/evallab/gepa_optimizer/codex_transport.py` (the host CLI the
+-GEPA proposer requires exactly; with the host now on 0.162.1 that transport
+-refuses to start until the pin moves).
++returned HTTP 400 for `gpt-6-luna`. Both pins in this repo are now 0.162.1:
++`PINNED_CODEX_VERSION` in `src/evallab/harbor_codex.py` (the CLI Harbor
++installs inside task sandboxes; base and linux-arm64 optional packages both
++published) and `CODEX_VERSION` in
++`src/evallab/gepa_optimizer/codex_transport.py` (the host CLI the GEPA
++proposer requires exactly).
+ 
+ Limits we have hit or must respect:
+ 
+@@ -45,8 +44,9 @@ Limits we have hit or must respect:
+   resets; it does not bill. The window is account-wide (Peter's interactive
+   use counts) and the counter moves in whole percentage points, so the lab's
+   share cannot be measured. `docs/quota-accounting.md` has the evidence and
+-  the gate (`evallab.quota`), which refuses billable work only when the
+-  provider reports the window exhausted.
++  the gate (`evallab.quota`), which refuses billable work when the provider
++  reports the window exhausted — and since 2026-10-13 also at the lab's own
++  ceiling of 60% used (`subscription_quota_ceiling`).
+ - **Claude Max:** no limit hit recorded. The fxtr judge projects ran about
+   8M input tokens through the OMP gateway without a rate limit. Recorded
+   failure modes are content filters, not quota: Sonnet 5.5 refuses
+diff --git a/docs/operations.md b/docs/operations.md
+index 1b11282e1..d63941afe 100644
+--- a/docs/operations.md
++++ b/docs/operations.md
+@@ -154,7 +154,7 @@ authoritative subscription billing. Broker-backed targets require all five
+ ### Subscription rewriting with Codex
+ 
+ GEPA's reflection LM can use the authenticated `codex exec` CLI instead of an
+-API key. The installed **Codex CLI 0.154.0** is the qualified version; a different
++API key. The installed **Codex CLI 0.162.1** is the qualified version; a different
+ version fails preflight rather than silently changing the protocol.
+ 
+ ```json
+@@ -593,7 +593,7 @@ rollout it came from. The scope line is load-bearing: the percentage is
+ **account-wide**, and the lab's share of it is structurally unknowable, so
+ "8% remaining" is not "8% remaining for the lab".
+ 
+-### The one refusal, and the number that is not there
++### The two refusals, and back-off on a rate limit
+ 
+ `subscription_quota_exhausted` refuses a billable dispatch when the provider
+ reports `rate_limit_reached_type`, or `used_percent` at or above 100. That is
+@@ -602,16 +602,17 @@ which is why it needs no judgement call. With `hard_stop` true — no overflow
+ credits, balance `"0"` — reaching 100% is a lockout for every paid agent until
+ the window resets, not an extra charge.
+ 
+-There is **no percentage threshold below that**, deliberately. "Refuse above
+-80%" trades the risk of a lockout against the certainty of work that will not
+-happen, and that trade is Peter's. The mechanism exists and is unset: set
+-`REFUSE_BILLABLE_AT_USED_PERCENT` in `src/evallab/queue.py` to a float and
+-billable dispatch refuses at or above it under the separate reason code
+-`subscription_quota_ceiling`, so a lab policy is never recorded in
+-`queue/reasons/` as the provider's statement. Its durable home is this
+-repository's `policy/standing-approvals.yaml`; that needs a field on
+-`StandingApprovalsPolicy`, which is `extra="forbid"`, so the YAML key cannot be
+-added before the field exists.
++`subscription_quota_ceiling` refuses a billable dispatch when the lab's own
++threshold is reached: `refuse_billable_at_used_percent` in
++`policy/standing-approvals.yaml`, committed at **60** since the 2026-10-13
++overnight subscription-agent work (Peter approved the pause-above-60 rule for
++the shared account). The two codes stay distinct so a lab policy is never
++recorded in `queue/reasons/` as the provider's statement. Lower the number to
++tighten; raising it or returning it to `null` is Peter's spend decision.
++
++Back-off on a rate-limit response is explicit: stop launching billable work,
++record the provider-stated `resets_at` from the refusal message, and resume
++only after it. Never switch the job to an API to route around the window.
+ 
+ ### Unavailable is not "plenty left"
+ 
+@@ -716,8 +717,8 @@ queue carries no field linking two specs into one comparison, so every queued
+ comparison spec is pooled into a single cohort; pooling can only overstate
+ `n_tasks`, so a warning at the pooled `n` holds for any finer partition, while
+ a clean bill of health at the pooled `n` does not. And no threshold for
+-"useful" is committed, for the same reason `REFUSE_BILLABLE_AT_USED_PERCENT` is
+-unset — it is a spend judgement. Supply one per invocation:
++"useful" is committed — a spend judgement, like the quota ceiling was before
++it was set at 60. Supply one per invocation:
+ 
+ ```bash
+ uv run evallab preflight --useful-effect 0.15
+diff --git a/docs/quota-accounting.md b/docs/quota-accounting.md
+index 3c5abd720..c8ab22bf4 100644
+--- a/docs/quota-accounting.md
++++ b/docs/quota-accounting.md
+@@ -491,11 +491,12 @@ evidence, reproducing #67's prototype figure exactly.
+ 
+ What the gate sees changes with it: `Executor._repo_headroom` scans
+ `default_roots`, so on a fresh clone `render_headroom_notice` now prints an
+-observed 70.0 with its staleness and hard-stop instead of UNKNOWN. It still
+-refuses nothing — `provider_reported_exhaustion` triggers at 100.0 and
+-`REFUSE_BILLABLE_AT_USED_PERCENT` is committed as `None` — and once
+-`resets_at 2026-08-20T18:32:49+00:00` passes, `quota_window_expired` treats the
+-same committed reading as a window that no longer exists.
++observed 70.0 with its staleness and hard-stop instead of UNKNOWN. The provider
++refusal still triggers at 100.0, and since 2026-10-13 the lab's own ceiling
++refuses at or above 60 (`refuse_billable_at_used_percent` in
++`policy/standing-approvals.yaml`, reason code `subscription_quota_ceiling`).
++Once `resets_at 2026-08-20T18:32:49+00:00` passes, `quota_window_expired`
++treats the same committed reading as a window that no longer exists.
+ 
+ ## Reproducing
+ 
+diff --git a/policy/standing-approvals.yaml b/policy/standing-approvals.yaml
+index 81018fe89..564f0335e 100644
+--- a/policy/standing-approvals.yaml
++++ b/policy/standing-approvals.yaml
+@@ -14,16 +14,18 @@
+ # for the other. Preserve unknown charges and explicit per-trial limits.
+ #
+ # `refuse_billable_at_used_percent` is the lab's OWN threshold, below the
+-# provider's limit, and it is deliberately unset. Setting it is a spend
+-# decision — it trades the risk of a lockout against the certainty of work that
+-# will not happen — so it is Peter's alone. To set it, put a number between 0
+-# and 100 on that line below: billable dispatch then refuses at or above that
++# provider's limit. It was deliberately unset until the 2026-10-13 overnight
++# subscription-agent work, which Peter approved with an explicit pause rule:
++# billable dispatch refuses when the provider-reported weekly window is above
++# 60% used. 60 trades the risk of a mid-campaign lockout (the shared account,
++# ~5 other tabs, moves the same counter in whole points) against the certainty
++# of work that will not happen. Billable dispatch refuses at or above 60%
+ # account-wide `used_percent` under reason code `subscription_quota_ceiling`,
+ # kept distinct from the provider's own `subscription_quota_exhausted` so
+ # `queue/reasons/` never records a lab policy as the provider's statement.
+ # `0` is refused at load rather than accepted, because it reads as "off" while
+-# meaning "refuse all paid work". Leave it `null` to keep today's behaviour,
+-# where only the provider's own exhaustion refuses.
++# meaning "refuse all paid work". Lower the number to tighten; raising it or
++# returning it to `null` is a spend decision for Peter.
+ version: 1
+ daily_cost_ceiling_usd: 20
+ daily_cost_ceiling_overrides:
+@@ -35,7 +37,7 @@ daily_cost_ceiling_overrides:
+     card: HAR-126
+ per_job_cost_ceiling_usd: 3
+ quiet_failure_rule: 3
+-refuse_billable_at_used_percent: null
++refuse_billable_at_used_percent: 60
+ auto_run:
+   - name: local-controls
+     agents: [oracle, nop]
+diff --git a/src/evallab/cli.py b/src/evallab/cli.py
+index 386671d26..fa3e8353f 100644
+--- a/src/evallab/cli.py
++++ b/src/evallab/cli.py
+@@ -160,10 +160,10 @@ def _configured_quota_ceiling(root: Path) -> float | None:
+ 
+     `queue.REFUSE_BILLABLE_AT_USED_PERCENT` (queue.py:224-240) says its durable
+     home is `policy/standing-approvals.yaml`, and WS-E item 1 moves it there as
+-    `StandingApprovalsPolicy.refuse_billable_at_used_percent`. Both are
+-    committed unset, so preferring the policy and falling back to the constant
+-    is correct in every state of that migration and never under-reports a
+-    ceiling that is actually set.
++    `StandingApprovalsPolicy.refuse_billable_at_used_percent`. Committed at 60
++    since the 2026-10-13 overnight subscription-agent work, so preferring the
++    policy and falling back to the constant is correct in every state of that
++    migration and never under-reports a ceiling that is actually set.
+ 
+     FOLLOW-UP: delete the `queue_module` fallback once the policy field lands.
+     Recorded in `agents/handoffs/preflight.md`.
+@@ -625,7 +625,7 @@ def _approve_command(
+         headroom = _headroom_for(root, agent=authorized.agent)
+         print(render_headroom_notice(headroom, agent=authorized.agent, model=authorized.model))
+         # The threshold is policy, not code: `refuse_billable_at_used_percent`
+-        # in `policy/standing-approvals.yaml`, committed unset. Loaded
++        # in `policy/standing-approvals.yaml`, committed at 60. Loaded
+         # inline here, as `_digest_renderer` does at cli.py:1526.
+         ceiling = load_policy(
+             root / "policy/standing-approvals.yaml"
+diff --git a/src/evallab/gepa_optimizer/codex_transport.py b/src/evallab/gepa_optimizer/codex_transport.py
+index 4f71494d7..5117b7729 100644
+--- a/src/evallab/gepa_optimizer/codex_transport.py
++++ b/src/evallab/gepa_optimizer/codex_transport.py
+@@ -24,7 +24,7 @@ from evallab.execution_contracts import persist_private_bytes
+ #: Installed subscription CLI under test. Pinned to the Homebrew path so a
+ #: shadowed ``codex`` earlier on PATH cannot change the route.
+ CODEX_EXECUTABLE = Path("/opt/homebrew/bin/codex")
+-CODEX_VERSION = "codex-cli 0.154.0"
++CODEX_VERSION = "codex-cli 0.162.1"
+ 
+ #: ChatGPT-subscription provider id (``OPENAI_PROVIDER_ID`` in
+ #: ``codex-rs/model-provider-info``). Pinned so a configured default can
+diff --git a/src/evallab/harbor_codex.py b/src/evallab/harbor_codex.py
+index 3e84427e8..51421eabd 100644
+--- a/src/evallab/harbor_codex.py
++++ b/src/evallab/harbor_codex.py
+@@ -8,8 +8,11 @@ from harbor.agents.installed.codex import Codex  # ty: ignore[unresolved-import]
+ 
+ # 0.149.0 was published before its linux-arm64 optional package. Harbor's
+ # `@latest` installer therefore installed an unusable CLI on arm64 task images.
+-# Pin the newest release whose base and linux-arm64 packages are both present.
+-PINNED_CODEX_VERSION = "0.148.0"
++# Pin the newest release whose base and linux-arm64 packages are both present,
++# verified on the npm registry (both `@openai/codex@0.162.1` and
++# `@openai/codex@0.162.1-linux-arm64` published 2026-10-10). 0.162.1 also
++# matches the host CLI, so sandbox and GEPA proposer parse the same shapes.
++PINNED_CODEX_VERSION = "0.162.1"
+ 
+ 
+ class PinnedCodex(Codex):
+diff --git a/src/evallab/profiles.py b/src/evallab/profiles.py
+index 9f8481651..ee7678c45 100644
+--- a/src/evallab/profiles.py
++++ b/src/evallab/profiles.py
+@@ -623,6 +623,15 @@ def builtin_profiles() -> dict[str, AgentProfile]:
+                     "(transaction-reconciliation) recorded this exact model",
+                 ),
+             ),
++            AgentProfile(
++                profile_id="codex-gpt-6-luna",
++                adapter="codex",
++                model="gpt-6-luna",
++                auth_mode="subscription-auth-file",
++                secret_source="file:.codex/auth.json",
++                required_files=(".codex/auth.json",),
++                verified_facts=(),
++            ),
+             AgentProfile(
+                 profile_id="claude-code-fable-5",
+                 adapter="claude-code",
+diff --git a/src/evallab/queue.py b/src/evallab/queue.py
+index 56fc797c9..cc17e09f5 100644
+--- a/src/evallab/queue.py
++++ b/src/evallab/queue.py
+@@ -245,16 +245,18 @@ QUOTA_STALENESS_NOTE = (
+     "you, not this gate, are the one judging whether it is still true."
+ )
+ 
+-#: The lab's refusal threshold on the account-wide `used_percent` now lives in
++#: The lab's refusal threshold on the account-wide `used_percent` lives in
+ #: `policy/standing-approvals.yaml` as `refuse_billable_at_used_percent`, read
+ #: through `StandingApprovalsPolicy` and passed to `lab_threshold_reached`.
++#: Committed at 60 since the 2026-10-13 overnight subscription-agent work
++#: (Peter approved the pause-above-60 rule).
+ #:
+ #: It was an interim module constant here (PR #70) only because the schema field
+ #: it needed could not be added in that PR: `StandingApprovalsPolicy` forbids
+ #: extras, so the YAML key is a load error until the field exists, and
+ #: `schemas.py` was leased elsewhere that round. Both now landed together, so
+-#: setting a threshold is a config edit rather than a code edit — which was the
+-#: point, since the number is a spend decision belonging to Peter.
++#: changing the threshold is a config edit rather than a code edit — which was
++#: the point, since the number is a spend decision belonging to Peter.
+ 
+ 
+ def _reader_clock(headroom: Headroom) -> datetime | None:
+diff --git a/src/evallab/schemas/__init__.py b/src/evallab/schemas/__init__.py
+index 5b2c7658b..19ebf2e22 100644
+--- a/src/evallab/schemas/__init__.py
++++ b/src/evallab/schemas/__init__.py
+@@ -757,10 +757,13 @@ class StandingApprovalsPolicy(ContractModel):
+         default_factory=list, exclude_if=lambda value: not value
+     )
+ 
+-    #: The lab's own refusal threshold on the account-wide `used_percent`,
+-    #: committed **unset**. This is the one place a number goes, and it is
+-    #: Peter's to set: refusing above some percentage trades the risk of a
+-    #: lockout against the certainty of work that will not happen.
++    #: The lab's own refusal threshold on the account-wide `used_percent`.
++    #: Committed at 60 since the 2026-10-13 overnight subscription-agent work
++    #: (Peter approved the pause-above-60 rule; the YAML comment records it).
++    #: This is the one place a number goes; lowering it tightens, while raising
++    #: it or returning it to `None` is Peter's spend decision: refusing above
++    #: some percentage trades the risk of a lockout against the certainty of
++    #: work that will not happen.
+     #:
+     #: Set it to a float and billable dispatch refuses at or above it under
+     #: reason code `subscription_quota_ceiling`, kept deliberately distinct from
+diff --git a/tests/test_gepa_codex_transport.py b/tests/test_gepa_codex_transport.py
+index 3f8e6ee0e..63fa1ec2f 100644
+--- a/tests/test_gepa_codex_transport.py
++++ b/tests/test_gepa_codex_transport.py
+@@ -218,7 +218,7 @@ def test_live_monitor_preserves_partial_utf8_and_fails_fast_on_tools(tmp_path):
+ class _FakeRun:
+     """Stub for ``codex --version`` and ``codex login status`` probes."""
+ 
+-    def __init__(self, *, version_stdout="codex-cli 0.154.0\n", login_stdout="Logged in using ChatGPT\n", login_code=0):
++    def __init__(self, *, version_stdout="codex-cli 0.162.1\n", login_stdout="Logged in using ChatGPT\n", login_code=0):
+         self.version_stdout = version_stdout
+         self.login_stdout = login_stdout
+         self.login_code = login_code
+diff --git a/tests/test_quota_gate.py b/tests/test_quota_gate.py
+index 33907a045..572f542bf 100644
+--- a/tests/test_quota_gate.py
++++ b/tests/test_quota_gate.py
+@@ -305,27 +305,32 @@ def test_the_exhaustion_refusal_shows_the_allowance_it_refused_on(tmp_path: Path
+     assert "staleness" in message
+ 
+ 
+-# --- no invented threshold --------------------------------------------------
++# --- the committed threshold --------------------------------------------------
+ 
+ 
+-def test_no_threshold_is_invented_below_provider_exhaustion(tmp_path: Path) -> None:
+-    """92% is where the account actually sits. It must still dispatch.
++def test_committed_threshold_pauses_billable_work_above_sixty_percent(tmp_path: Path) -> None:
++    """The committed policy pauses billable dispatch above 60% of the window.
+ 
+-    Whether to stop short of the provider's own limit is a spend decision, and
+-    this module does not make it.
+-
+-    The unset state is asserted against the *committed policy file* rather than
+-    a module constant, because that file is now where the decision lives — and
+-    it is the artifact that would actually change if someone set a threshold.
++    The 2026-10-13 overnight subscription-agent work approved this pause rule
++    (the shared account moves the same counter from ~5 other tabs). The
++    committed value is asserted against the *policy file* rather than a module
++    constant, because that file is where the decision lives — and it is the
++    artifact that would actually change if someone moved the threshold.
+     """
+     committed = load_policy(REPO_ROOT / "policy" / "standing-approvals.yaml")
+-    assert committed.refuse_billable_at_used_percent is None
+-    for used in (80.0, 92.0, 99.0):
++    assert committed.refuse_billable_at_used_percent == 60
++    for used in (59.0, 59.9):
+         reading = headroom(used_percent=used)
+         assert provider_reported_exhaustion(reading) is None
+-        assert lab_threshold_reached(reading, threshold=None) is None
+-    _, _, requests = authorized_dispatch(tmp_path, headroom(used_percent=92.0))
+-    assert len(requests) == 1
++        assert lab_threshold_reached(reading, threshold=60) is None
++    for used in (60.0, 80.0, 92.0, 99.0):
++        reading = headroom(used_percent=used)
++        assert provider_reported_exhaustion(reading) is None
++        assert lab_threshold_reached(reading, threshold=60) is not None
++    _, _, requests = authorized_dispatch(
++        tmp_path, headroom(used_percent=92.0), refuse_billable_at_used_percent=60
++    )
++    assert requests == []
+ 
+ 
+ def test_a_configured_threshold_refuses_under_its_own_reason_code(tmp_path: Path) -> None:

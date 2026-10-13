@@ -1,0 +1,20 @@
+{
+    "job_name": "codex-gpt-6-luna-event-summary",
+    "jobs_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/codexlane/runs",
+    "agent_timeout_multiplier": 1.0,
+    "n_concurrent_trials": 1,
+    "agents": [
+        {
+            "name": "evallab.harbor_codex:PinnedCodex",
+            "model_name": "gpt-6-luna",
+            "env": {
+                "EVALLAB_SETUP_FINGERPRINT": "{\"budgets\":{\"cost_limit_usd\":null,\"max_input_tokens\":null,\"max_output_tokens\":null,\"max_requests\":null,\"max_total_tokens\":null,\"step_limit\":null,\"timeout_seconds\":120},\"environment\":{\"backend\":\"docker\",\"egress_mechanism\":null},\"harness\":{\"additions\":{},\"id\":\"codex\",\"version\":null},\"lock\":{\"declared\":null,\"effective\":\"open\",\"mode\":\"open\"},\"schema\":\"evallab.setup_fingerprint/v1\"}"
+            }
+        }
+    ],
+    "tasks": [
+        {
+            "path": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/codexlane/runs/.exec-stage/codex-gpt-6-luna-event-summary"
+        }
+    ]
+}

@@ -141,6 +141,41 @@ separate `--stages exploit` probe is requested.
   `fake_rewarded` / `control_rejected` / `no_probes` / `task_broken` /
   `unscored`; receipts in `runs/.envcheck/battery-<slug>-<nonce>/`. `tasks admit`
   runs it as the `battery` step.
+- `evallab hack hunt --manifest <manifest.csv> --output-dir <runs/dir>
+  [--sample-size 32] [--max-mutants 12] [--execute]` — inventory all known-fix
+  tasks, then run a deterministic, stratified local Python subset. The two seed
+  cases are 002402 and 002391; the remaining sample balances single/multiple
+  source files and small/medium/large reference patches. `hunt-plan.json`
+  freezes the manifest digest and selection; `hunt-results.json` ranks only
+  survivors explicitly traced as executed, with passing reference/nop controls.
+  Unsupported languages, missing coverage and infrastructure failures stay
+  unrankable, not zero-filled. Execution is serial because a separate verifier
+  can use both of the lane's container slots. This path does not dispatch cloud
+  compute or estimate fleet-wide prevalence from its sample.
+- `evallab hack repair <mutation-report.json> --model gpt-6.1-sol
+  [--execute] [--output-dir <runs/dir>] [--json]` — propose missing semantic
+  assertions through the installed ChatGPT-subscription Codex CLI. Preview
+  writes bounded context and the prompt without a model call. Execution checks
+  live account-wide weekly usage before proposing and refuses unavailable
+  quota, non-subscription auth or consumption above 60%; it never substitutes
+  a model or automatically retries a spent/ambiguous attempt. For an explicit
+  refinement, use `--feedback <prior-repair-result.json>` and a new output
+  directory: the next proposal receives the retained verifier failures as
+  evidence, rather than rerunning the model blindly.
+
+  The proposal appends new test-file diffs to `tests/test.patch` and wraps
+  `tests/test_command.sh`, preserving the original suite's exit status.
+  MiMo v5's pristine and candidate phases both receive the additional tests.
+  Variants use the existing `tasks derive` implementation and lineage store;
+  original task packages, production source and solutions remain unchanged.
+  Native matrix validation replays digest-checked reference and nop first;
+  failed controls stop before spending time on survivors. It then replays every
+  previous executed survivor. Only complete **1/0/all-0** yields `repaired`
+  and validated lineage. Equivalent/out-of-scope survivors may leave a
+  `partial` candidate for review; they never justify source fingerprints or
+  incidental-behavior assertions. Other outcomes are `rejected`, `unrepairable`
+  and `blocked`. Receipts include the private Codex transcript/usage, proposal,
+  derived record, validation matrix and `repair-result.json`.
 
 Receipts land in `runs/.reward-hack/<slug>-<ulid>/` (`hack-report.json`,
 `hack-report.md`, `matrix.json`, staged script copies with digests); the matrix

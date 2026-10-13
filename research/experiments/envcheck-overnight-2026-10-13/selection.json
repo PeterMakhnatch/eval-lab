@@ -1,0 +1,426 @@
+{
+  "schema": "evallab.verifier_hunt.selection/v1",
+  "manifest_sha256": "7eba11ab98bbfa933093da9400db462070cf2c8cfd7262fb1afbc18a7de02f8f",
+  "seed": "envcheck-2026-10-13",
+  "stratification": "Python source fixes; single/multi source file \u00d7 <=20/<=100/>100 patch lines",
+  "cohort_size": 564,
+  "dispositions": {
+    "unsupported-coverage-language": 136,
+    "eligible": 422,
+    "no-python-source-targets": 6
+  },
+  "selected": [
+    {
+      "task_id": "format-code-task-000159",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000159/b61fc296f51d",
+      "package_digest": "sha256:b61fc296f51d6ae903ea614f8216a00eb17307eb5faad593363ddace1d022c44",
+      "reference_sha256": "2ac5f06d6ac8dab4c16caa315bbd141477f85a26acd76d7968edfb8ab811d1a1",
+      "language": "python",
+      "targets": [
+        "/testbed/flake8_simplify.py"
+      ],
+      "stratum": "single:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-000390",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000390/0a5612483a11",
+      "package_digest": "sha256:0a5612483a1120b0ded885fd7160db84f721cc05994c50a5398d7a1001fd3fa1",
+      "reference_sha256": "32b5381780250db5565c417bf28a6597e45ef9ff71b728cd3b73b013069b01c4",
+      "language": "python",
+      "targets": [
+        "/testbed/ansible_rulebook/job_template_runner.py",
+        "/testbed/ansible_rulebook/util.py"
+      ],
+      "stratum": "multi:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-000471",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000471/25b85712e2a8",
+      "package_digest": "sha256:25b85712e2a8631049dfb8f4292fe1ad9988dce3953efaf612791a32805a0e0b",
+      "reference_sha256": "0f2708e121062607c5749e3a1beabd523e196ce4f6f6aa78f75cffb10a53be95",
+      "language": "python",
+      "targets": [
+        "/testbed/astronomer/providers/amazon/aws/hooks/s3.py",
+        "/testbed/astronomer/providers/amazon/aws/sensors/s3.py",
+        "/testbed/astronomer/providers/amazon/aws/triggers/s3.py"
+      ],
+      "stratum": "multi:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-000484",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000484/3b95bfdadde4",
+      "package_digest": "sha256:3b95bfdadde4ef69d928fe3b5248fa08d9aceb7cf0b69ff9974351459f77add0",
+      "reference_sha256": "c5aaab17d829f8244fb24ef9b847a799ca2d440d50a4f839e85975d348383c67",
+      "language": "python",
+      "targets": [
+        "/testbed/robo/acquisition/EI.py",
+        "/testbed/robo/acquisition/LogEI.py",
+        "/testbed/robo/acquisition/PI.py"
+      ],
+      "stratum": "multi:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-000511",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000511/26d16e820c6c",
+      "package_digest": "sha256:26d16e820c6c30121cf1c73cb4981d24b83ae4ddfad085f1b75ed92539d980f3",
+      "reference_sha256": "a3b1a7c1e4d186e850e9fbd5f260fe184ed8ad087ac8eb647aa4652a8df32f51",
+      "language": "python",
+      "targets": [
+        "/testbed/aws_embedded_metrics/config/configuration.py",
+        "/testbed/aws_embedded_metrics/config/environment_configuration_provider.py",
+        "/testbed/aws_embedded_metrics/serializers/log_serializer.py"
+      ],
+      "stratum": "multi:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-000561",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000561/6b9730711bfb",
+      "package_digest": "sha256:6b9730711bfb59f08d1fdc52f88e86e9d662089572175af5a02f05dbd5e78375",
+      "reference_sha256": "54293638db02879e4fb5d98a28b6519c3b4acefd11275bfb0fb9f5006719b7ad",
+      "language": "python",
+      "targets": [
+        "/testbed/src/biotite/sequence/io/fasta/convert.py"
+      ],
+      "stratum": "single:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-000732",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000732/e70fd75a1317",
+      "package_digest": "sha256:e70fd75a13172502856e1424576ccf970fdffc5d17944b10adb31ba10fa73d5e",
+      "reference_sha256": "789382e60d051f3867927efdaa5fec028e38971eb31e20f4043ea4c8aee2b797",
+      "language": "python",
+      "targets": [
+        "/testbed/pygdbmi/StringStream.py",
+        "/testbed/pygdbmi/gdbescapes.py",
+        "/testbed/pygdbmi/gdbmiparser.py"
+      ],
+      "stratum": "multi:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-000769",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000769/b920666e1a30",
+      "package_digest": "sha256:b920666e1a30055d5bdcda04f5ef08d574e155306ab91cc6d054efcc35ca91a9",
+      "reference_sha256": "4a53980e8cf15ae0329442a5b1810bc76df5b7912ba0776ece7488b014d97a81",
+      "language": "python",
+      "targets": [
+        "/testbed/core/dbt/contracts/graph/nodes.py",
+        "/testbed/core/dbt/events/core_types_pb2.py"
+      ],
+      "stratum": "multi:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-000878",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-000878/0f461ba7d85b",
+      "package_digest": "sha256:0f461ba7d85b8cfab0287141327e7ae45d8778bab3f08903949f54a1e94c4ce9",
+      "reference_sha256": "82b7a58cd498b1941fa600f31eaef2e061f23e2cf9349ce8acd7f98db90056b2",
+      "language": "python",
+      "targets": [
+        "/testbed/starlette/datastructures.py",
+        "/testbed/starlette/requests.py",
+        "/testbed/starlette/routing.py",
+        "/testbed/starlette/testclient.py"
+      ],
+      "stratum": "multi:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001219",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001219/e9dc42067589",
+      "package_digest": "sha256:e9dc42067589909f3979a8ea53416d096c976842a9063d2e7c820f09ce9c6584",
+      "reference_sha256": "bf6c05a156e764823b0975d8849caaf4c9a5cfcbd6b2dab4f3cffd6e802a03dd",
+      "language": "python",
+      "targets": [
+        "/workspace/repo/navsim/common/dataloader.py"
+      ],
+      "stratum": "single:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001257",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001257/afe5244ddb92",
+      "package_digest": "sha256:afe5244ddb9217f875691a2335880943e8297ba6227256ebcdcb43739be93ad4",
+      "reference_sha256": "cf1a4ae691ceed213d77f324e311c5c6d1e6ec5a09093de79b5604afb12922f5",
+      "language": "python",
+      "targets": [
+        "/testbed/moto/ec2/models.py"
+      ],
+      "stratum": "single:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001264",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001264/a1bf7cf03b8b",
+      "package_digest": "sha256:a1bf7cf03b8bd04748acd6cf889be7af3b1e5a40392f3c440d996f6d97d0e39c",
+      "reference_sha256": "14612f3a578ff546b2da0b731dde3bcbbed004a8f0f76dfd543a8020d833e153",
+      "language": "python",
+      "targets": [
+        "/testbed/nikola/plugins/command_init.py"
+      ],
+      "stratum": "single:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001373",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001373/051a50f1a7fa",
+      "package_digest": "sha256:051a50f1a7fa1eef0e3b0b77b9cdc446744c434a6278b9ad5edd52ceb4c0e829",
+      "reference_sha256": "01105d836f415bda7621039feb150acd9478edb7cc019be6bf09916acc727496",
+      "language": "python",
+      "targets": [
+        "/testbed/google/cloud/logging_v2/handlers/_helpers.py"
+      ],
+      "stratum": "single:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001425",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001425/5737920c0b14",
+      "package_digest": "sha256:5737920c0b140624f898b0b613a0623f7360a48470786520cba74c85ea9cc322",
+      "reference_sha256": "72c79916537f9bf92822160b3088fa1d541a328e2fa3bcb71c5d13c7c0c28a8c",
+      "language": "python",
+      "targets": [
+        "/workspace/repo/lib/stripe_lib/models.py"
+      ],
+      "stratum": "single:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001478",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001478/c1e3c0ee7734",
+      "package_digest": "sha256:c1e3c0ee7734092e3bde27dcc6b727e9f90ddb47af79af0009589ce0fabdcb17",
+      "reference_sha256": "3d619354d859181b1e754006684aefe4af1e21bb424ee4257da9d2cee9535fd6",
+      "language": "python",
+      "targets": [
+        "/workspace/repo/spatialpandas/dask.py",
+        "/workspace/repo/spatialpandas/geodataframe.py",
+        "/workspace/repo/spatialpandas/geometry/base.py",
+        "/workspace/repo/spatialpandas/geoseries.py"
+      ],
+      "stratum": "multi:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001553",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001553/d57775e09043",
+      "package_digest": "sha256:d57775e090433631ce288a56edb1aa6fdf86b74c87b2d342600a443f2c93309e",
+      "reference_sha256": "b53b8f965893fbd6280d8adf56b43d18dc3a77750f7d3589df294d8efbe03a81",
+      "language": "python",
+      "targets": [
+        "/workspace/repo/msclip/inference/__init__.py",
+        "/workspace/repo/msclip/inference/retrieval.py",
+        "/workspace/repo/msclip/inference/utils.py"
+      ],
+      "stratum": "multi:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001647",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001647/ee223d7e8018",
+      "package_digest": "sha256:ee223d7e80181e10385a08e03b16f4be0b6698368b7256f861f2056feb70b1d1",
+      "reference_sha256": "fe58991be0d829ad33c4f690ca8b8da28d1e5e9cb2a6601562a7b1b7b60ccdae",
+      "language": "python",
+      "targets": [
+        "/testbed/environ/environ.py"
+      ],
+      "stratum": "single:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001671",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001671/96a4f513614f",
+      "package_digest": "sha256:96a4f513614faa508ff63897e23842e9b6e817902a77a60f279d7bcfa43c63e1",
+      "reference_sha256": "9569acfb3b05661d64f7f6a186a6b7d0771453d78bee6feb73f43f77ad893952",
+      "language": "python",
+      "targets": [
+        "/workspace/repo/kubespawner/slugs.py"
+      ],
+      "stratum": "single:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001770",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001770/a1c4c9320c5c",
+      "package_digest": "sha256:a1c4c9320c5c38a230ab102822a33101ab18954c07574aaad4d7be31bf8a7467",
+      "reference_sha256": "764df7117a9eb0f6600963baf6556433f4fca3c4efbd9e1e6b3b5e80d6bb0102",
+      "language": "python",
+      "targets": [
+        "/workspace/repo/lenstronomy/ImSim/image_linear_solve.py"
+      ],
+      "stratum": "single:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001891",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001891/eb8ae9107d41",
+      "package_digest": "sha256:eb8ae9107d41919cba6ac5e433e1b057f6496d978722bb6db22073330d907df8",
+      "reference_sha256": "b69e0501f65e6074acfedd0c33f442227d23322c6672a699f614b98771067e37",
+      "language": "python",
+      "targets": [
+        "/testbed/mesonbuild/environment.py",
+        "/testbed/mesonbuild/scripts/env2mfile.py"
+      ],
+      "stratum": "multi:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-001985",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-001985/1ef84ae7ebb3",
+      "package_digest": "sha256:1ef84ae7ebb3c3f9bba6a140cfb852bc638d5956fafd8ce2817038fe27ead113",
+      "reference_sha256": "71d11b72be47bc4e377affbbab9b9f928169089d1814c6123122dc8bfabf3ca2",
+      "language": "python",
+      "targets": [
+        "/testbed/bugbug/repository.py"
+      ],
+      "stratum": "single:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002139",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002139/dd269adcb32c",
+      "package_digest": "sha256:dd269adcb32c71df21a15d1eed4d0148666a1c417969e86db2768c7d757bf510",
+      "reference_sha256": "fc67f49db977d917e5eaa798de643e573bee6d425b1c4d450be7670f6fe41562",
+      "language": "python",
+      "targets": [
+        "/workspace/repo/lib/bb/fetch2/__init__.py",
+        "/workspace/repo/lib/bb/fetch2/gcp.py"
+      ],
+      "stratum": "multi:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002222",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002222/8283678e1d10",
+      "package_digest": "sha256:8283678e1d104ea66849240f1749b3da6a91aedf6da6852554fc3e3528dbb181",
+      "reference_sha256": "321fc37df23f8b4853ecdcfb0058731f0bfd33474042932a850da5a916c3ec82",
+      "language": "python",
+      "targets": [
+        "/testbed/pandas/core/arraylike.py"
+      ],
+      "stratum": "single:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002250",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002250/5442fcea0f03",
+      "package_digest": "sha256:5442fcea0f0339165a0c83ea03eb576c1e57ad39cddd7535e880431e1e538e3b",
+      "reference_sha256": "1f89342eb5dfc87f6ef0265bb433331bcf06d4a37abfff754a1252280e0114aa",
+      "language": "python",
+      "targets": [
+        "/testbed/airtable/__init__.py",
+        "/testbed/airtable/airtable.py"
+      ],
+      "stratum": "multi:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002382",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002382/fd85533b9f00",
+      "package_digest": "sha256:fd85533b9f009d809932690eda269b77aa91a8861108a8403d24ac6264f2707d",
+      "reference_sha256": "a5d7bdffc7b20784630999a2787bf00536218cd9658fccea0aaada1e205cef09",
+      "language": "python",
+      "targets": [
+        "/testbed/pyecharts/charts/base.py",
+        "/testbed/pyecharts/commons/utils.py"
+      ],
+      "stratum": "multi:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002391",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002391/769137c3225e",
+      "package_digest": "sha256:769137c3225e969eb110d1721104c9f52a25bb5917b3b1dbf0329148fc8c34ac",
+      "reference_sha256": "e1dad924b28bf3725da6a20379e403fb121a0441b7f5839386e1c652b694a27e",
+      "language": "python",
+      "targets": [
+        "/workspace/repo/pip_audit/_audit.py",
+        "/workspace/repo/pip_audit/_service/interface.py"
+      ],
+      "stratum": "multi:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002394",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002394/9bdc9a1e9b2c",
+      "package_digest": "sha256:9bdc9a1e9b2c08eb369136d14d4fe4c8948f4b771c3dd2c1f9a675ec5f6d6435",
+      "reference_sha256": "3791ff76d313f6c3311bd0279cda142b05e88c2f54516672ffa990bbefb6839c",
+      "language": "python",
+      "targets": [
+        "/testbed/warehouse/email/__init__.py"
+      ],
+      "stratum": "single:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002402",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002402/4e9bee0724b3",
+      "package_digest": "sha256:4e9bee0724b3447073b7cfcaedff5dbc9a16ba0082ae53bca2d2285d013d2f1a",
+      "reference_sha256": "9d9d297c6fea20781779c7c63f00cb8be46ce969d83c53d8bb14b099e7cd603c",
+      "language": "python",
+      "targets": [
+        "/testbed/numpyro/distributions/batch_util.py"
+      ],
+      "stratum": "single:small",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002618",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002618/b82a1ea334c9",
+      "package_digest": "sha256:b82a1ea334c931b4ba42d19edc8f8e79f37c4d5ebf7b4d8577ca0347e3904ce1",
+      "reference_sha256": "cfb690bf0a987c19ed1a1f875fe23eea465f979c9eb8487c57dd7b7300d9411d",
+      "language": "python",
+      "targets": [
+        "/testbed/sdv/cag/one_hot_encoding.py"
+      ],
+      "stratum": "single:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002736",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002736/f827833c24ca",
+      "package_digest": "sha256:f827833c24cae40bdaa26d07b8c57ced8e1398d7d3dd98f62a1164152a7c5f99",
+      "reference_sha256": "38c1509d54bce3c5e9ad2a3f8a24c0f570f996a159d50a8bef6888c11b7ecdb9",
+      "language": "python",
+      "targets": [
+        "/testbed/statsmodels/regression/rolling.py"
+      ],
+      "stratum": "single:large",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002742",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002742/f75ee8ee8881",
+      "package_digest": "sha256:f75ee8ee88817d19056886b7d0dd421d5902529b6d1350768c651055db13de90",
+      "reference_sha256": "24a9f4d4095ca99e69ecc6fe8e877bd558b6a28b2810a70c3d608d1e1ca87946",
+      "language": "python",
+      "targets": [
+        "/testbed/src/steamship/base/binary_utils.py",
+        "/testbed/src/steamship/base/client.py",
+        "/testbed/src/steamship/base/configuration.py",
+        "/testbed/src/steamship/plugin/outputs/model_checkpoint.py"
+      ],
+      "stratum": "multi:medium",
+      "disposition": "eligible"
+    },
+    {
+      "task_id": "format-code-task-002866",
+      "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002866/a811bab8c3fb",
+      "package_digest": "sha256:a811bab8c3fbe0f6f1faea62b8d194667cb85a6efc68bf19177f596855fb486e",
+      "reference_sha256": "031cc19374e3402a69ec09d40f3b94ca95a32acb4c6de83b312f5fb73f44f929",
+      "language": "python",
+      "targets": [
+        "/testbed/sqlglot/expressions.py",
+        "/testbed/sqlglot/generator.py",
+        "/testbed/sqlglot/parser.py"
+      ],
+      "stratum": "multi:small",
+      "disposition": "eligible"
+    }
+  ]
+}

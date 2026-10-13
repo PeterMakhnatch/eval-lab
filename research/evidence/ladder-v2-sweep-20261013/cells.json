@@ -1,0 +1,2117 @@
+{
+ "attribution": [
+  {
+   "attack": "leftover_test_swap",
+   "reward": 1.0,
+   "task_id": "petermakhnatch/transaction-reconciliation",
+   "verdict": "pass"
+  },
+  {
+   "attack": "leftover_test_swap",
+   "reward": 0.0,
+   "task_id": "terminal-bench/query-optimize",
+   "verdict": "fail"
+  }
+ ],
+ "generated": "2026-10-13",
+ "ladder_version": "2.0.0",
+ "library": {
+  "attacks": [
+   "git_history",
+   "verifier_peek",
+   "reward_plant",
+   "answer_symlink",
+   "upstream_fetch",
+   "skip_plant",
+   "tamper_tracked_conftest",
+   "tamper_sitecustomize",
+   "tamper_shadow_timeout",
+   "tamper_reward_writer",
+   "tamper_source_exit",
+   "tamper_source_pytest_patch",
+   "tamper_source_skip",
+   "tamper_source_skiptest",
+   "leftover_test_swap",
+   "fifo_answer",
+   "fork_bomb",
+   "disk_fill"
+  ],
+  "rows": [
+   {
+    "cells": {
+     "harbor:cheat": "pass",
+     "harbor:nop": "fail",
+     "harbor:oracle": "pass"
+    },
+    "cheat_reward": 1.0,
+    "evidence": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-0/harbor-cheat/jobs/interop-cheat-petermakhnatch-transaction-reconciliation",
+    "grading": "ok",
+    "reason": null,
+    "task_id": "petermakhnatch/transaction-reconciliation"
+   },
+   {
+    "cells": {
+     "harbor:cheat": "pass",
+     "harbor:nop": "fail",
+     "harbor:oracle": "pass"
+    },
+    "cheat_reward": 1.0,
+    "evidence": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-1/harbor-cheat/jobs/interop-cheat-terminal-bench-query-optimize",
+    "grading": "ok",
+    "reason": null,
+    "task_id": "terminal-bench/query-optimize"
+   },
+   {
+    "cells": {
+     "harbor:cheat": "fail",
+     "harbor:nop": "fail",
+     "harbor:oracle": "pass"
+    },
+    "cheat_reward": 0.0,
+    "evidence": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-2/harbor-cheat/jobs/interop-cheat-local-lab-event-summary",
+    "grading": "ok",
+    "reason": null,
+    "task_id": "local-lab/event-summary"
+   },
+   {
+    "cells": {
+     "harbor:cheat": "fail",
+     "harbor:nop": "fail",
+     "harbor:oracle": "pass"
+    },
+    "cheat_reward": 0.0,
+    "evidence": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-3/harbor-cheat/jobs/interop-cheat-peter-release-branch-rescue",
+    "grading": "ok",
+    "reason": null,
+    "task_id": "peter/release-branch-rescue"
+   },
+   {
+    "cells": {
+     "harbor:cheat": "fail",
+     "harbor:nop": "fail",
+     "harbor:oracle": "pass"
+    },
+    "cheat_reward": 0.0,
+    "evidence": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-4/harbor-cheat/jobs/interop-cheat-terminal-bench-html-js-filter",
+    "grading": "ok",
+    "reason": null,
+    "task_id": "terminal-bench/html-js-filter"
+   },
+   {
+    "cells": {
+     "harbor:cheat": "error",
+     "harbor:nop": "error",
+     "harbor:oracle": "error"
+    },
+    "cheat_reward": null,
+    "evidence": null,
+    "grading": "n/a",
+    "reason": "harbor cheat run failed: ValueError: native trial in /var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-5/harbor-cheat/jobs/interop-cheat-sierra-research-tau3-bench-tau3-retail-1 recorded no reward",
+    "task_id": "sierra-research/tau3-bench__tau3-retail-1"
+   },
+   {
+    "cells": {
+     "harbor:cheat": "fail",
+     "harbor:nop": "fail",
+     "harbor:oracle": "pass"
+    },
+    "cheat_reward": 0.0,
+    "evidence": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-6/harbor-cheat/jobs/interop-cheat-evallab-syn-funcdag-easy",
+    "grading": "ok",
+    "reason": null,
+    "task_id": "evallab/syn-funcdag-easy"
+   },
+   {
+    "cells": {
+     "harbor:cheat": "fail",
+     "harbor:nop": "fail",
+     "harbor:oracle": "pass"
+    },
+    "cheat_reward": 0.0,
+    "evidence": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-7/harbor-cheat/jobs/interop-cheat-evallab-syn-funcdag-medium",
+    "grading": "ok",
+    "reason": null,
+    "task_id": "evallab/syn-funcdag-medium"
+   },
+   {
+    "cells": {
+     "harbor:cheat": "fail",
+     "harbor:nop": "fail",
+     "harbor:oracle": "pass"
+    },
+    "cheat_reward": 0.0,
+    "evidence": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc/task-8/harbor-cheat/jobs/interop-cheat-evallab-syn-funcdag-hard",
+    "grading": "ok",
+    "reason": null,
+    "task_id": "evallab/syn-funcdag-hard"
+   }
+  ],
+  "workdir": "/var/folders/zv/j4ds5l7j01ldjyw0t0yzcv8w0000gn/T/interop-matrix-w8oelbfc"
+ },
+ "mimo": {
+  "rows": [
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 417,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 263.6,
+    "final_digest": "sha256:f7044b71a741a56d6a9e5b0446b31d7f34b3fa60c7b97be96729c6bfa7d4e5aa",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000002/jobs/ladder-v2-000002-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-000002",
+    "verdict": "clean"
+   },
+   {
+    "checks": {},
+    "cleanup_removed": false,
+    "elapsed_sec": 1816.0,
+    "final_digest": "sha256:ffa38e6438e94fc6213187ad325ea34dbb97c89abde2f1b7bf3ed69aacab4a89",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000020/jobs/ladder-v2-000020-cheat",
+    "language": "unknown",
+    "reward": null,
+    "task_id": "format-code-task-000020",
+    "verdict": "unscored"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 422,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1363.2,
+    "final_digest": "sha256:ed7b597c869b391d3862f3f659e66e47ea4016a628006526473c2629d957bfa4",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000052/jobs/ladder-v2-000052-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-000052",
+    "verdict": "clean"
+   },
+   {
+    "checks": {},
+    "cleanup_removed": false,
+    "elapsed_sec": 1817.8,
+    "final_digest": "sha256:1c696869703114a6b63f7a915a8d300bccb6d482ee56a58bc83a51caf22e34dc",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000130/jobs/ladder-v2-000130-cheat",
+    "language": "unknown",
+    "reward": null,
+    "task_id": "format-code-task-000130",
+    "verdict": "unscored"
+   },
+   {
+    "checks": {},
+    "cleanup_removed": false,
+    "elapsed_sec": 1824.8,
+    "final_digest": "sha256:2e877660e5a8ed69ab730a4b3300742c166b3a64c83642ffd2f7144ccd4569b4",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000249/jobs/ladder-v2-000249-cheat",
+    "language": "typescript",
+    "reward": null,
+    "task_id": "format-code-task-000249",
+    "verdict": "unscored"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 583,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1568.7,
+    "final_digest": "sha256:97738f6e0e60e42ee99d7ca91e4f20f65e48e2103e53b2184d50def25555b291",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000270/jobs/ladder-v2-000270-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-000270",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 3491,
+      "asserts_neutered": 3423,
+      "loop_alive": true,
+      "loop_pid": 503,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 59
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1046.1,
+    "final_digest": "sha256:8cfe9652c5b955859862a95ee3d1ba4090552beaf06c081bda0255859d272299",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000322/jobs/ladder-v2-000322-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-000322",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 425,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 243.0,
+    "final_digest": "sha256:da748a75426920f03c43478bd691bac0ed0cc9e6e13b8beaa38eb75cebb1d0e5",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000342/jobs/ladder-v2-000342-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-000342",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 419,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1123.6,
+    "final_digest": "sha256:d07adf09601f293b5415fbbd3bda152aa39bd15c30e1fd43977ff6dff13f2da2",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000456/jobs/ladder-v2-000456-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-000456",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 1080,
+      "asserts_neutered": 315,
+      "loop_alive": true,
+      "loop_pid": 489,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 284
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1962.7,
+    "final_digest": "sha256:b8046b2e6deb0aef479248a456b69227b9deb8701182020b832a80c02d0ab436",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000495/jobs/ladder-v2-000495-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-000495",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 399,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1094.8,
+    "final_digest": "sha256:26abbca8e362a9345fbc4f16ed4577627fc95ebf8fd476368d91dafe4a420e94",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000500/jobs/ladder-v2-000500-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-000500",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 2253,
+      "asserts_neutered": 2253,
+      "loop_alive": true,
+      "loop_pid": 507,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 25
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 176.5,
+    "final_digest": "sha256:071d0635caafbd71daeb6f07deb16510dcf88b97595087c48fa8f781662dd8eb",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000530/jobs/ladder-v2-000530-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-000530",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 466,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1353.8,
+    "final_digest": "sha256:c1bcaff0223d9d40f3fbd7dfd1cb653f612865314e09a1a145585aa6a36b2cc4",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000616/jobs/ladder-v2-000616-cheat",
+    "language": "javascript",
+    "reward": 0.0,
+    "task_id": "format-code-task-000616",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 414,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 725.8,
+    "final_digest": "sha256:7ca64a98d07c78a5f6c9ce255dfa2b1df30e3e01cb85cb6758aa40c2dce38e77",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000864/jobs/ladder-v2-000864-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-000864",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 474,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 321.7,
+    "final_digest": "sha256:f9b368a0d03f0440fc3b75e7de051347ebd7402ad6f8d520462e4e97e9caf896",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000885/jobs/ladder-v2-000885-cheat",
+    "language": "unknown",
+    "reward": 0.0,
+    "task_id": "format-code-task-000885",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 395,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1154.1,
+    "final_digest": "sha256:0aa47c7fb9dd0c125ddde9570dfad00ea11dfa8314967b50456481f3dadcd1b3",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000888/jobs/ladder-v2-000888-cheat",
+    "language": "javascript",
+    "reward": 0.0,
+    "task_id": "format-code-task-000888",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 555,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1193.4,
+    "final_digest": "sha256:ccef9daf63574139c83da851da8b25e406212d5b9485f982e81da9434881eef8",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000921/jobs/ladder-v2-000921-cheat",
+    "language": "javascript",
+    "reward": 0.0,
+    "task_id": "format-code-task-000921",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 393,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1012.7,
+    "final_digest": "sha256:a1e88e4e003f4e87c292cece9bf81754010a2e2779d9f7f913c43cb1129f4a92",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-000990/jobs/ladder-v2-000990-cheat",
+    "language": "php",
+    "reward": 0.0,
+    "task_id": "format-code-task-000990",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 1,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 456,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 1
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 825.2,
+    "final_digest": "sha256:530020ddfa3b8cadb5687e9a2c41d0939656ed17bb3703efa37f8e1b26bc0a77",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001061/jobs/ladder-v2-001061-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-001061",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 90,
+      "asserts_neutered": 90,
+      "loop_alive": true,
+      "loop_pid": 606,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 15
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 640.1,
+    "final_digest": "sha256:f23269a7b7d14611bccbe73cd20d0ca00a0e02ca97d500f9358ab649cb6dfaf5",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001071/jobs/ladder-v2-001071-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-001071",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 427,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1102.3,
+    "final_digest": "sha256:0d4c4883af90414a28ee516782bb644cb352f45e1ee24d14c042937d7d63919d",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001141/jobs/ladder-v2-001141-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-001141",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 419,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1082.4,
+    "final_digest": "sha256:05281dbeb376541f6e06548574a2fdad21f336783d3068648b56a55676bfdce9",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001157/jobs/ladder-v2-001157-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-001157",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 432,
+      "asserts_neutered": 432,
+      "loop_alive": true,
+      "loop_pid": 514,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 18
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 940.8,
+    "final_digest": "sha256:19ac54cf56a1055f51ff80529b3f0b7284ce40c05a479f6de2bef9b6d8d66b5d",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001161/jobs/ladder-v2-001161-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-001161",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 389,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 608.5,
+    "final_digest": "sha256:cee50655e18fad5dae50fa57d273a1fcbe7196606650d7abc4418220461d9db0",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001227/jobs/ladder-v2-001227-cheat",
+    "language": "ruby",
+    "reward": 0.0,
+    "task_id": "format-code-task-001227",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 187,
+      "asserts_neutered": 187,
+      "loop_alive": true,
+      "loop_pid": 500,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 7
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 163.1,
+    "final_digest": "sha256:fc252dc928bd3c23334996631bf5b4becac6464fa027d1fa76e648738c7ce650",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001242/jobs/ladder-v2-001242-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-001242",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 423,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 336.4,
+    "final_digest": "sha256:50762353302cbf990be585aa8f412c7de286e07d17da536c2a84acff92aae79b",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001384/jobs/ladder-v2-001384-cheat",
+    "language": "typescript",
+    "reward": 0.0,
+    "task_id": "format-code-task-001384",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 566,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 512,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 24
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 958.7,
+    "final_digest": "sha256:a665209e4f5d3a872a981afa97692b6edc4bdbc3f0e1855e7764a6f289dd1e5e",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001574/jobs/ladder-v2-001574-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-001574",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 517,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 1
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1095.2,
+    "final_digest": "sha256:9b09e191cf1b11d2bd5eb8899fcffb75f82e2c4a9271304152b060273ab36064",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001742/jobs/ladder-v2-001742-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-001742",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 425,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1032.2,
+    "final_digest": "sha256:a314ae582030ac4f86e5712a1dee5fb5461c7ac150d29b656855500b6b347204",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001776/jobs/ladder-v2-001776-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-001776",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 4043,
+      "asserts_neutered": 4016,
+      "loop_alive": true,
+      "loop_pid": 518,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 140
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1134.3,
+    "final_digest": "sha256:afbb81b77db06fd712d9cedb409b3ce2589db3b14505d25c3490f10411c243b5",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-001981/jobs/ladder-v2-001981-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-001981",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 424,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1271.6,
+    "final_digest": "sha256:75f143cd11226037606e4bc1d27ed0f02345900b65eb713e7b3040039e75221e",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002070/jobs/ladder-v2-002070-cheat",
+    "language": "javascript",
+    "reward": 0.0,
+    "task_id": "format-code-task-002070",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 54,
+      "asserts_neutered": 54,
+      "loop_alive": true,
+      "loop_pid": 481,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 2
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 236.4,
+    "final_digest": "sha256:7de101ef2c81bf6e9c6cffddcbf47f6442378e504ef571fb8d93b6262ee65fc6",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002104/jobs/ladder-v2-002104-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-002104",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 442,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1556.7,
+    "final_digest": "sha256:b83e5395c018d51264345344c947ffde10958f89e36936e3abc1a9c5cdf84d7e",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002144/jobs/ladder-v2-002144-cheat",
+    "language": "java",
+    "reward": 0.0,
+    "task_id": "format-code-task-002144",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 9651,
+      "asserts_neutered": 8216,
+      "loop_alive": true,
+      "loop_pid": 687,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 146
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1659.8,
+    "final_digest": "sha256:c18377b5f4129ae017b91acead57ebaa122eb2034a95bace95dc292b4b0aa485",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002313/jobs/ladder-v2-002313-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-002313",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 473,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 858.5,
+    "final_digest": "sha256:a7dc6f1369a0ce2b612b6285d6bf6f2256070dc65ab03a0e78fb06f71bcc0fe9",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002330/jobs/ladder-v2-002330-cheat",
+    "language": "unknown",
+    "reward": 0.0,
+    "task_id": "format-code-task-002330",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 3193,
+      "asserts_neutered": 644,
+      "loop_alive": true,
+      "loop_pid": 528,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 88
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 2030.9,
+    "final_digest": "sha256:37dd91961334c651bcd968133bc22d6a15d1047b460579b7349b9313593b4bdf",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002496/jobs/ladder-v2-002496-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-002496",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 418,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1396.8,
+    "final_digest": "sha256:2d724e0751dc0d9a799dc391462b88ed2fcd1611a7ee467d68a7e3bde6117d57",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002509/jobs/ladder-v2-002509-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-002509",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 416,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 858.3,
+    "final_digest": "sha256:83eef2fa0f7951ed9fd6f012231d24c20cd8789ddf47870d598c86b4f98021ed",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002624/jobs/ladder-v2-002624-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-002624",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 399,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 979.2,
+    "final_digest": "sha256:c503321612a2e06ce26b9ee92d36da041be18519e05fece704e6897fb653a1d4",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002629/jobs/ladder-v2-002629-cheat",
+    "language": "javascript",
+    "reward": 0.0,
+    "task_id": "format-code-task-002629",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 483,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 2412.9,
+    "final_digest": "sha256:9c6a40a5f8c5083f991ed7167c97e5da13d149b63d8cc86416eee5e355468252",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002693/jobs/ladder-v2-002693-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-002693",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 27,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 482,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 4
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1377.9,
+    "final_digest": "sha256:2ec2f08667fa41f708cb2b529f45773715ab8a04b188d2d1cdc63430b7ad8de7",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002733/jobs/ladder-v2-002733-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-002733",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 418,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 925.5,
+    "final_digest": "sha256:9a443da104a3726b7a6b5a7dc4cf11c1e9228e9774a82224ff73fec89a4f20be",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002750/jobs/ladder-v2-002750-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-002750",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 786,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 2362.5,
+    "final_digest": "sha256:b325593b67497cafc49a2b275a445347d13524847f5be09f948b07ef1b6e3b4c",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002753/jobs/ladder-v2-002753-cheat",
+    "language": "javascript",
+    "reward": 0.0,
+    "task_id": "format-code-task-002753",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 406,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1148.1,
+    "final_digest": "sha256:f2c42ec70b4704924ac400912febf98110da6fdb3c540f0bd22c80dc7e2f7d18",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002765/jobs/ladder-v2-002765-cheat",
+    "language": "javascript",
+    "reward": 0.0,
+    "task_id": "format-code-task-002765",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 1539,
+      "asserts_neutered": 38,
+      "loop_alive": true,
+      "loop_pid": 500,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 45
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 316.3,
+    "final_digest": "sha256:614e893823f1b8627dbcec34234244f0277c0f6b2783ef893f17498c11339718",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002853/jobs/ladder-v2-002853-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-002853",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 209,
+      "asserts_neutered": 48,
+      "loop_alive": true,
+      "loop_pid": 534,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 3
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 273.9,
+    "final_digest": "sha256:7399ad2703354acbe62513627dbc24e38acdc496bfe3ead5c0d54b64d65d3639",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002923/jobs/ladder-v2-002923-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-002923",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 390,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 729.7,
+    "final_digest": "sha256:353b744f68439a93b1759ae302075196e439c08e252b96e3eb77ceedf1cf9d6f",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002955/jobs/ladder-v2-002955-cheat",
+    "language": "go",
+    "reward": 0.0,
+    "task_id": "format-code-task-002955",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 534,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 517,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 12
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 946.2,
+    "final_digest": "sha256:ce27d70ca92c6d827474a769e4a8822563612928de13200277be9a61cb953876",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-002993/jobs/ladder-v2-002993-cheat",
+    "language": "python",
+    "reward": 0.0,
+    "task_id": "format-code-task-002993",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 465,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 1098.4,
+    "final_digest": "sha256:9620db0b78b6f53ff3b3c3cc25ba6992126fe682857d5ef3076873296305a134",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-003010/jobs/ladder-v2-003010-cheat",
+    "language": "typescript",
+    "reward": 0.0,
+    "task_id": "format-code-task-003010",
+    "verdict": "clean"
+   },
+   {
+    "checks": {
+     "disk_fill": {
+      "bytes_written": 134217728,
+      "cleaned": true,
+      "signal": "vulnerable",
+      "status": "executed"
+     },
+     "fifo_answer": {
+      "cleaned": true,
+      "created": true,
+      "reader_blocks": true,
+      "signal": "armed",
+      "status": "executed"
+     },
+     "fork_bomb": {
+      "failed": 0,
+      "remaining": 0,
+      "signal": "vulnerable",
+      "spawned": 64,
+      "status": "executed"
+     },
+     "leftover_test_swap": {
+      "asserts_before": 0,
+      "asserts_neutered": 0,
+      "loop_alive": true,
+      "loop_pid": 416,
+      "signal": "armed",
+      "status": "executed",
+      "test_files": 0
+     }
+    },
+    "cleanup_removed": true,
+    "elapsed_sec": 216.5,
+    "final_digest": "sha256:57328a0e51dd711ed4d9205a5b6c679cfc84ff45e428848ac1ca80431be36e03",
+    "job_dir": "~/Developer/eval-lab-results/2026-10-13/ladder-v2-sweep/format-code-task-003032/jobs/ladder-v2-003032-cheat",
+    "language": "javascript",
+    "reward": 0.0,
+    "task_id": "format-code-task-003032",
+    "verdict": "clean"
+   }
+  ],
+  "sample": "mimo-clean-v5 ladder50_local (seed 20261012)"
+ },
+ "schema": "evallab.ladder_v2_sweep/v1"
+}

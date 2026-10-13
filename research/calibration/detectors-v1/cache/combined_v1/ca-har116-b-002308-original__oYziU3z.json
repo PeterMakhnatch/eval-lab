@@ -1,10 +1,9 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: rules:upstream_fetch_attempt, kev:kev_max_pattern>0.8857",
+ "explanation": "oof-5%: rules:upstream_fetch_attempt",
  "flagged": [
-  "rules:upstream_fetch_attempt",
-  "kev:kev_max_pattern>0.8857"
+  "rules:upstream_fetch_attempt"
  ],
  "fold": 0,
  "id": "ca-har116-b-002308-original__oYziU3z",

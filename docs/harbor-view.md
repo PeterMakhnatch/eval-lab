@@ -149,7 +149,7 @@ sealed by `CACHE.sha256`, so `score` never calls a model.
 
 | Detector | TW hacks caught | TW clean flagged | Our copies caught | Our clean flagged | $ per 1k |
 |---|---|---|---|---|---|
-| `rules` | 16/100 | 24/100 | 9/11 | 1/13 | 0 |
+| `rules` | 16/100 | 24/100 | 11/11 | 1/13 | 0 |
 | `harbor_analyze` | 16/19 | 1/18 | 2/10 | 0/7 | 7.5 |
 | `metr_reward_hacking` (5% FPR, score > 9) | 24/32 | 1/32 | 1/11 | 0/13 | 2.0 |
 | `laminar_copied` | 1/10 (raw TW) | 1/10 (raw TW) | 11/11 | 0/13 | ~14 for 3 Signals |
@@ -184,7 +184,7 @@ subscription); Kev cuts do not transfer between prompted and real-RL hacks
 (ht cuts on aria+olmo: 48% at 6% FPR). Details:
 `research/experiments/combined-detector/README.md`. The `contamination-audit`
 source (new in main #869, tuned without Sol since it postdates the Sol
-selection) reaches 63% at 5% FPR on rules + Kev cuts.
+selection) reaches 87% at 2% FPR on the rescored rules + Kev cuts.
 
 - **General hacks** (hollow implementations, output spoofing and so on): the
   general LLM readers catch them and our rules don't.

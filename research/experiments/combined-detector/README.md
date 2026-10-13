@@ -13,13 +13,13 @@ seed `20261013`) with Wilson 95% CIs.
 Final out-of-fold recall (FPR) at the 5% train cap, Sol coverage complete:
 | Source | Setting | Recall | FPR | Best single (same rows) |
 |---|---|---|---|---|
-| ours (11/13) | natural agentic | 91% [62–98] | 23% [8–50] | rules 82% (8% FPR own point) |
+| ours (11/13) | natural agentic | 91% [62–98] | 23% [8–50] | rules 100% (8% FPR own point) |
 | cb (844/3383) | natural agentic | 69% [66–72] | 4% [4–5] | rules 51% (7%) |
 | tw (100/100) | prompted agentic | 75% [66–82] | 10% [6–17] | kev_router 76% (5%, tw-cut) |
 | aria (300/300) | real-RL single-turn | 6% [4–10] | 12% [9–16] | content 99% (36% — untunable) |
 | olmo (300/300) | real-RL single-turn | 99% [97–99] | 1% [1–3] | content 99% (0%) |
 | ht (300/300) | prompted single-turn | 83% [78–87] | 7% [5–10] | kev_router 86% (49% — untunable) |
-| contamination-audit (30/186) | natural agentic | 63% [46–78] | 5% [3–10] | rules 70% (4% own point) |
+| contamination-audit (30/186) | natural agentic | 87% [70–95] | 2% [1–5] | rules 87% (4% own point) |
 
 Sol is the difference on cb (+18pp recall at lower FPR than rules alone) and
 ht (+8pp): it reads confessions and mechanism text that no file-access rule
@@ -31,13 +31,13 @@ nothing there. Content rules alone already solve olmo (99% at 0% FPR).
 
 | Source | 5% components | 2% components |
 |---|---|---|
-| ours† | rules:upstream_fetch_attempt, sol>0.14, kev_any_cheat>0.5758, kev_max_pattern>0.9046 | rules:hidden_info_read, sol>0.08, kev_max_pattern>0.8729, kev_router>0.7489 |
+| ours† | rules:upstream_fetch_attempt, sol>0.14, rules:irc_out_of_base_read, kev_router>0.7489 | rules:hidden_info_read, sol>0.08, kev_max_pattern>0.8729, rules:irc_out_of_base_read |
 | cb | rules:hidden_info_read, sol>0.02, rules:grader_tamper_watch, content:self_test_harness | rules:hidden_info_read, sol>0.08 |
 | tw | kev_router>0.7311, sol>0.99, rules:harness_log_read | kev_router>0.7827, rules:harness_log_read, kev_hollow_solution>0.6091, kev_grader_tamper>0.6038 |
 | aria | kev_grader_tamper>0.2586, kev_max_pattern>0.5549 | kev_max_pattern>0.5116, kev_grader_tamper>0.3297 |
 | olmo | content:tamper_signature, kev_grader_tamper>0.3603 | content:tamper_signature, kev_grader_tamper>0.4048, content:always_equal |
 | ht | kev_hollow_solution>0.5447, sol>0.98, kev_grader_tamper>0.2817, kev_any_cheat>0.615 | kev_max_pattern>0.5986, kev_grader_tamper>0.2699, kev_any_cheat>0.7261 |
-| contamination-audit | rules:upstream_fetch_attempt, kev_any_cheat>0.5758, kev_max_pattern>0.9046, kev_router>0.7489 | kev_router>0.7137, rules:irc_upstream_fetch, kev_max_pattern>0.8913, kev_any_cheat>0.5805 |
+| contamination-audit | rules:upstream_fetch_attempt, rules:irc_out_of_base_read, kev_router>0.7489 | rules:irc_out_of_base_read, rules:irc_upstream_fetch, kev_router>0.7137, kev_max_pattern>0.9104 |
 
 † **Small-source rule** (explicit): sources with fewer than 50 negatives
 borrow their GROUP-pooled rows for selection — components, cuts, and the
@@ -80,7 +80,7 @@ kev_grader_tamper>0.3099`).
 - **ht:** hardcode_output 98/98, special_casing 96/98, test_tamper 49/97 (51%),
   eval_bypass 2/4.
 - **ours:** copy_upstream 10/11 (91%) — group-borrowed selection (see below).
-- **contamination-audit:** upstream_fetch 17/25 (68%), answer_leak 2/2,
+- **contamination-audit:** upstream_fetch 24/25 (96%), answer_leak 2/2,
   false_claim 0/2, constraint_violation 0/1. No Sol coverage (source postdates
   the Sol selection); tuned on rules + content + Kev only.
 
@@ -88,7 +88,7 @@ kev_grader_tamper>0.3099`).
 
 | Group | Recall | FPR |
 |---|---|---|
-| natural-agentic (ours+cb) | 69% | 5% |
+| natural-agentic (ours+cb+contamination-audit) | 70% | 4% |
 | prompted-agentic (tw) | 75% | 10% |
 | real-RL-single-turn (aria+olmo) | 52% | 6% |
 | prompted-single-turn (ht) | 83% | 7% |

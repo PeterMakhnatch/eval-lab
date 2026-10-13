@@ -1,9 +1,9 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: kev:kev_stacked>0.41511",
+ "explanation": "oof-5%: rules:upstream_fetch_attempt",
  "flagged": [
-  "kev:kev_stacked>0.41511"
+  "rules:upstream_fetch_attempt"
  ],
  "fold": 1,
  "id": "ours-har116-b-002308-leakclosed__idknFAu",

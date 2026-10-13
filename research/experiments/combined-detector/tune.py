@@ -7,7 +7,9 @@ by Sol since Sol runs as a cascade on rule-negative rows only).
 
 Per source the script greedily builds an interpretable OR of at most four
 literals (binary flags or ``score > cut``) maximizing recall subject to
-FPR <= target on that source's negatives. Selection runs inside a seeded
+FPR <= target on the SELECTION rows' negatives. Sources with fewer than 50
+negatives borrow their GROUP-pooled rows for selection; reporting stays on
+the source's own rows. Selection runs inside a seeded
 2-fold split (``sha256("combined-v1:fold:<seed>:<id>")``); published numbers
 are OUT-OF-FOLD with Wilson 95% CIs, plus in-sample. The deployable rule fit
 on all rows goes to ``thresholds.json``; with ``--write-cache`` the OOF
@@ -254,20 +256,35 @@ def cheat_type(row: dict) -> str:
     return "+".join(sorted(families)) if families else "none"
 
 
+MIN_NEGATIVES_PER_SOURCE = 50
+
+
 def tune_source(
     source: str,
     rows: list[dict],
     labels: dict[str, bool],
     features: dict,
+    train_rows: list[dict] | None = None,
 ) -> dict:
-    """OOF + in-sample operating points at 5% and 2%, plus per-type recall."""
+    """OOF + in-sample operating points at 5% and 2%, plus per-type recall.
+
+    Selection runs on ``train_rows`` (defaults to ``rows``). Sources with
+    fewer than ``MIN_NEGATIVES_PER_SOURCE`` negatives borrow their group's
+    pooled rows for selection; reporting stays on the source's own rows.
+    """
     ids = [r["id"] for r in rows]
-    by_fold = {0: [i for i in ids if fold_of(i) == 0], 1: [i for i in ids if fold_of(i) == 1]}
+    train_ids = [r["id"] for r in train_rows] if train_rows is not None else ids
+    borrowed = train_rows is not None
+    by_fold = {
+        0: [i for i in train_ids if fold_of(i) == 0],
+        1: [i for i in train_ids if fold_of(i) == 1],
+    }
     out: dict = {
         "source": source,
         "group": _GROUP_OF[source],
         "positives": sum(1 for i in ids if labels[i]),
         "negatives": sum(1 for i in ids if not labels[i]),
+        "borrowed_selection": borrowed,
         "operating_points": {},
         "per_type": {},
     }
@@ -278,7 +295,7 @@ def tune_source(
         flags = {i: decide(fold_rules[fold_of(i)], features[i])[0] for i in ids}
         fired_map = {i: decide(fold_rules[fold_of(i)], features[i])[1] for i in ids}
         oof_flags[key] = flags
-        full_rule = select(ids, labels, features, target)
+        full_rule = select(train_ids, labels, features, target)
         in_flags = {i: decide(full_rule, features[i])[0] for i in ids}
         out["operating_points"][key] = {
             "target": target,
@@ -332,7 +349,12 @@ def main(argv: list[str] | None = None) -> int:
         },
     }
     for source in TUNED_SOURCES:
-        results["sources"][source] = tune_source(source, by_source[source], labels, features)
+        mine = by_source[source]
+        n_neg = sum(1 for r in mine if not labels[r["id"]])
+        pool: list[dict] | None = None
+        if n_neg < MIN_NEGATIVES_PER_SOURCE:
+            pool = [r for r in rows if _GROUP_OF.get(r["source"]) == _GROUP_OF[source]]
+        results["sources"][source] = tune_source(source, mine, labels, features, train_rows=pool)
 
     # tw-raw diagnostic: tw thresholds applied, never tuned.
     tw_rule = [
@@ -406,6 +428,18 @@ def main(argv: list[str] | None = None) -> int:
 
     thresholds = {
         "fold_seed": FOLD_SEED,
+        "selection_rule": (
+            "per-source 2-fold greedy OR (<=4 literals) maximizing recall at "
+            f"train FPR<=target; sources with fewer than {MIN_NEGATIVES_PER_SOURCE} "
+            "negatives borrow their GROUP-pooled rows for selection "
+            "(components, cuts, deployable) while reporting stays on the "
+            "source's own rows"
+        ),
+        "borrowed": {
+            source: results["sources"][source]["group"]
+            for source in TUNED_SOURCES
+            if results["sources"][source].get("borrowed_selection")
+        },
         "group_default": {
             "agentic": "cb",
             "single_turn_rl": "pooled_aria_olmo",

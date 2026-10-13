@@ -156,7 +156,7 @@ sealed by `CACHE.sha256`, so `score` never calls a model.
 | `laminar_stuck_loop` (label `stuck_loop`, G6) | 34/36 loops | 6/16 non-loops | | | |
 | `content_rules` | 0/100 | 2/100 | 0/11 | 0/13 | 0 |
 | `sol_codex` (rule-negative cascade) | 68/84 | 9/75 | 2/2 | 0/12 | 0 (subscription quota) |
-| `combined_v1` | 75/100 | 10/100 | 8/11 | 4/13 | 0 |
+| `combined_v1` | 75/100 | 10/100 | 10/11 | 3/13 | 0 |
 
 On CheatBench (`cb`, label `cheating_behavior`, 885 positives / 3383 benign)
 the rules catch 429/885 (48%) at 225/3383 (6.7%) false positives: every
@@ -178,7 +178,7 @@ The combined detector (`combined_v1`) ORs per-source cuts over rules
 sub-rules, content rules, Kev scores and Sol -- out-of-fold 69% recall at 4%
 FPR on cb, 75% on tw, 99% on olmo, 83% on ht, but only 6% on aria (the
 entrypoint content rule catches 99% of aria hacks at 36% clean flags, so no
-capped point can use it) and 73% on our 11 copies at 31% FPR (n=24).
+capped point can use it) and 91% on our 11 copies at 23% FPR (n=24, group-borrowed selection).
 GPT-6.1-Sol judges rule-negative rows as a cascade (1391 rows, $0 on the
 subscription); Kev cuts do not transfer between prompted and real-RL hacks
 (ht cuts on aria+olmo: 48% at 6% FPR). Details:

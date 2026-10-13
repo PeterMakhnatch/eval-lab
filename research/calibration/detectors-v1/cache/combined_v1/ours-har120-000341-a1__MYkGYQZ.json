@@ -1,9 +1,10 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: kev:kev_stacked>0.41511",
+ "explanation": "oof-5%: rules:upstream_fetch_attempt, content:self_test_harness",
  "flagged": [
-  "kev:kev_stacked>0.41511"
+  "rules:upstream_fetch_attempt",
+  "content:self_test_harness"
  ],
  "fold": 1,
  "id": "ours-har120-000341-a1__MYkGYQZ",

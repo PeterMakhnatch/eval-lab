@@ -141,8 +141,11 @@ Models verified: `claude-gateway/claude-haiku-5-5` (cheapest; Harbor receives
 Other pinned profiles: `claude-code-fable-5` (adapter default, Keychain lane)
 and `claude-code-haiku-5-5` (Keychain lane). The sandbox installs the CLI per
 trial, so each trial pays minutes of `agent_setup`; the task needs
-`network_mode = "public"` (the `event-summary` default) for the install and
-the bridge calls.
+`network_mode = "public"` (the `event-summary` default) for the install. The
+mandatory [local host-isolation wrapper](execution-tiers.md#local-docker-sandbox--host-isolation)
+admits only the current job's bridge address/port; other host services stay
+blocked. The bridge accepts only messages POSTs, including `?beta=true`, and
+refuses every other gateway endpoint before reading a body.
 
 Proof trial 2026-10-13 (`runs/claude-gateway-haiku-event-summary/`, trial
 `claude-gateway-haiku-event-summa__v3926MH`, task `local-lab/event-summary`):

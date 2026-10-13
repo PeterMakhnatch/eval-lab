@@ -10,6 +10,9 @@ mode needs none), and the capability never reaches logs, errors, or the
 usage file.
 
 Fail-closed rules, mirroring ``containers/zai_openapi_secret_proxy.py``:
+- only the exact ``POST /v1/messages`` target and its ``?beta=true`` SDK
+  variant are admitted; all other methods, paths, and query strings fail
+  before authentication, body reads, or upstream calls;
 - bearer checked before the body is read (401 + close otherwise);
 - requested model must be in ``--allowed-model`` exactly (400 otherwise);
 - the served model must match the requested one (prefix-tolerant, see
@@ -55,7 +58,10 @@ MAX_CONCURRENT_CONNECTIONS = 16
 SHUTDOWN_DRAIN_SECONDS = 120.0
 
 MESSAGES_PATH = "/v1/messages"
-HEALTHZ_PATH = "/healthz"
+# Claude Code's beta SDK uses this one query variant. OMP's stdio gateway
+# supports messages, but not count_tokens; do not broaden this to a prefix
+# match or forward arbitrary request targets to the privileged gateway.
+MESSAGES_TARGETS = frozenset({MESSAGES_PATH, MESSAGES_PATH + "?beta=true"})
 
 CAPABILITY_ENV = "EVALLAB_CLAUDE_GATEWAY_CAPABILITY"
 ATTEMPT_ENV = "EVALLAB_CLAUDE_GATEWAY_ATTEMPT_ID"
@@ -338,6 +344,9 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def _send(self, status: int, payload: bytes, content_type: str) -> None:
+        # Rejected requests may leave unread bodies. Never parse those bytes
+        # as another request on this capability-bearing connection.
+        self.close_connection = True
         body = bytes(payload)
         try:
             self.send_response(status)
@@ -363,17 +372,44 @@ class Handler(BaseHTTPRequestHandler):
             candidate = (self.headers.get("x-api-key") or "").strip()
         return bool(candidate) and hmac.compare_digest(candidate, server.capability)
 
-    def do_GET(self) -> None:
-        if self.path.split("?", 1)[0] == HEALTHZ_PATH:
-            self._json(200, {"ok": True})
-            return
-        self._json(404, {"error": {"type": "not_found", "message": "unknown path"}})
+    def _admitted_request_target(self) -> bool:
+        # BaseHTTPRequestHandler normalizes a leading // in self.path.
+        # Check the original request-line target too: normalization, URL
+        # decoding, absolute URLs, and extra query parameters are not grants.
+        parts = self.requestline.split()
+        return (
+            self.command == "POST"
+            and len(parts) == 3
+            and parts[1] == self.path
+            and self.path in MESSAGES_TARGETS
+        )
+
+    def parse_request(self) -> bool:
+        if not super().parse_request():
+            return False
+        if not self._admitted_request_target():
+            self._json(404, {"error": {"type": "not_found", "message": "unknown route"}})
+            return False
+        return True
+
+    def handle_expect_100(self) -> bool:
+        # The standard parser sends 100 Continue before parse_request returns.
+        # Do not invite a body for an unadmitted route or a missing capability.
+        if not self._admitted_request_target():
+            self._json(404, {"error": {"type": "not_found", "message": "unknown route"}})
+            return False
+        if not self._authorized():
+            self._json(
+                401, {"error": {"type": "authentication_error", "message": "bad capability"}}
+            )
+            return False
+        return super().handle_expect_100()
 
     def do_POST(self) -> None:
         server = self.server
         assert isinstance(server, BridgeServer)
-        if self.path.split("?", 1)[0] != MESSAGES_PATH:
-            self._json(404, {"error": {"type": "not_found", "message": "unknown path"}})
+        if not self._admitted_request_target():
+            self._json(404, {"error": {"type": "not_found", "message": "unknown route"}})
             return
         if not self._authorized():
             self._json(
@@ -450,6 +486,7 @@ class Handler(BaseHTTPRequestHandler):
         self._json(502, {"error": {"type": "gateway_error", "message": "bad upstream body"}})
 
     def _send_stream(self, status: int, body: str) -> None:
+        self.close_connection = True
         encoded = body.encode()
         if len(encoded) > MAX_RESPONSE_BYTES:
             self._json(502, {"error": {"type": "gateway_error", "message": "response too large"}})

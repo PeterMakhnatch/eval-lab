@@ -41,6 +41,7 @@ from evallab.execution_contracts import (
     CLAUDE_GATEWAY_ATTEMPT_ENV,
     CLAUDE_GATEWAY_BRIDGE_SCRIPT,
     CLAUDE_GATEWAY_CAPABILITY_ENV,
+    CLAUDE_GATEWAY_ISOLATION_PORT_ENV,
     CLAUDE_GATEWAY_SANDBOX_HOST,
     CLAUDE_GATEWAY_USAGE_FILE_ENV,
     CLAUDE_GATEWAY_USAGE_FILENAME,
@@ -63,7 +64,9 @@ from evallab.execution_contracts import (
     DEFAULT_TRIAL_TIMEOUT_SECONDS,
     HARBOR_AGENT_IMPORT_PATHS,
     HARBOR_STATE_JOURNAL_PLUGIN,
+    HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH,
     LOCAL_TO_HARBOR_MODEL,
+    LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH,
     MAX_TRIAL_TIMEOUT_SECONDS,
     MIMO_AGENT,
     MIMO_AGENT_IMPORT_PATH,
@@ -1409,6 +1412,7 @@ def _claude_gateway_runtime_env(*, port: int, capability: str) -> dict[str, str]
         "ANTHROPIC_BASE_URL": f"http://{CLAUDE_GATEWAY_SANDBOX_HOST}:{port}",
         "ANTHROPIC_AUTH_TOKEN": capability,
         "CLAUDE_FORCE_OAUTH": "0",
+        CLAUDE_GATEWAY_ISOLATION_PORT_ENV: str(port),
     }
 
 
@@ -1437,6 +1441,8 @@ def run_harbor_process(
             "campaign owner cancelled the active queue lease before Harbor launch",
         )
     repo_imports = (
+        HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH,
+        LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH,
         *HARBOR_AGENT_IMPORT_PATHS.values(),
         ZAI_MINISWE_AGENT_IMPORT_PATH,
         TERMINUS_AGENT_IMPORT_PATH,

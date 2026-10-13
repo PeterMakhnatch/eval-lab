@@ -51,6 +51,12 @@ from evallab.file_access import (
 )
 from evallab.harbor_watch_hooks import HOOK_JOURNAL, read_hook_journal
 from evallab.history_mining import history_mining_signals
+from evallab.submission_tamper import (
+    CLUSTER_ALPHA,
+    CLUSTER_P0,
+    cluster_threshold,
+    submission_tamper_hits,
+)
 from evallab.watch_stop import INTEGRITY_BOARD_RULES, drive_trial_stops, stop_mode_from_env
 
 if TYPE_CHECKING:
@@ -171,6 +177,10 @@ class WatchThresholds:
     notify_minutes: float = 15.0
     default_input_token_limit: int = 2_500_000
     default_output_token_limit: int = 131_072
+    #: Clean flag rate the submission-tamper run alarm is calibrated against.
+    tamper_cluster_p0: float = CLUSTER_P0
+    #: Per-step clean-only alarm budget for the run alarm.
+    tamper_cluster_alpha: float = CLUSTER_ALPHA
 
 
 #: Per-file stat entry: ``(path, mtime_ns, size)``; ``None`` fields when absent.
@@ -1383,6 +1393,7 @@ def trial_signals(
 
     attempts, confirmed = _upstream_status(agent_steps, trial_dir)
     tamper = _grader_tamper_hits(agent_steps)
+    submission = submission_tamper_hits(agent_steps)
     hidden = _hidden_read_hits(agent_steps)
     harness_logs = _harness_log_hits(agent_steps)
     file_access = _read_file_access(trial_dir)
@@ -1438,6 +1449,7 @@ def trial_signals(
             for flag in confirmed
         ],
         "grader_tamper": tamper,
+        "submission_tamper": submission,
         "hidden_reads": hidden,
         "harness_log_reads": harness_logs,
         "file_access": file_access["summary"],
@@ -1585,6 +1597,29 @@ def evaluate_alerts(status: dict[str, Any], *, thresholds: WatchThresholds) -> l
                 )
             )
             break
+
+    for hit in status.get("submission_tamper", []):
+        alerts.append(
+            _alert(
+                rule="submission_tamper",
+                severity="high",
+                job=job,
+                trial=trial,
+                task=task,
+                step=hit.get("step"),
+                quote=str(hit.get("excerpt") or ""),
+                detail=(
+                    f"written code matches {hit.get('mechanism')}: "
+                    f"{hit.get('pattern')} ({hit.get('origin')})"
+                ),
+                extra={
+                    "mechanism": hit.get("mechanism"),
+                    "pattern": hit.get("pattern"),
+                    "origin": hit.get("origin"),
+                },
+            )
+        )
+        break  # one alert per trial; the signal keeps every hit
 
     for hit in status.get("hidden_reads", []):
         alerts.append(
@@ -2034,6 +2069,40 @@ def evaluate_fleet_alerts(
                     extra={"trials": sorted(trials)},
                 )
             )
+    flagged = sorted(
+        str(status["trial"]) for status in statuses if status.get("submission_tamper")
+    )
+    if flagged:
+        jobs = sorted({str(status.get("job") or "") for status in statuses if status.get("job")})
+        threshold_k = cluster_threshold(
+            len(statuses), thresholds.tamper_cluster_p0, thresholds.tamper_cluster_alpha
+        )
+        if len(flagged) >= threshold_k:
+            alerts.append(
+                _alert(
+                    rule="submission_tamper_cluster",
+                    severity="high",
+                    job=jobs[0] if len(jobs) == 1 else "fleet",
+                    trial="fleet:submission_tamper_cluster",
+                    task="fleet",
+                    step=None,
+                    quote="",
+                    detail=(
+                        f"submission_tamper in {len(flagged)} of {len(statuses)} trials "
+                        f"(page/pause threshold k={threshold_k} at "
+                        f"p0={thresholds.tamper_cluster_p0}, "
+                        f"alpha={thresholds.tamper_cluster_alpha}); "
+                        "pause the run and review before continuing"
+                    ),
+                    scope="fleet",
+                    extra={
+                        "trials": flagged,
+                        "threshold_k": threshold_k,
+                        "trials_seen": len(statuses),
+                    },
+                )
+            )
+
     return alerts
 
 

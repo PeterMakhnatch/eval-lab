@@ -744,13 +744,17 @@ def is_mimo_dataset_task(task: str | Path | None) -> bool:
 
 
 def is_mimo_run(task: str | Path | None, model: str | None) -> bool:
-    """Whether a run is a MiMo run for the Daytona egress lock (HAR-140).
+    """Whether a run is a MiMo run for the Daytona egress lock (HAR-140) and setup gate (HAR-149).
 
-    Either side counts: a MiMo-family model or a MiMo-dataset task. Control
-    agents (``nop``/``oracle``) carry no model, so their census runs count by
-    task alone.
+    True when the task comes from the MiMo dataset or the model uses the
+    self-hosted MiMo route. Hosted OpenRouter MiMo routes on non-MiMo
+    benchmarks are not MiMo runs; when run on a MiMo-dataset task (or with an
+    explicit ``reference_profile``), the task triggers the gate and
+    :func:`is_mimo_family_model` still includes the ``server``/``sampling``
+    fingerprint sections. Control agents (``nop``/``oracle``) carry no model,
+    so their census runs count by task alone.
     """
-    return is_mimo_family_model(model) or is_mimo_dataset_task(task)
+    return is_mimo_dataset_task(task) or is_mimo_selfhosted_model(model)
 
 
 #: Docker is locked from creation, so in-container installation is not allowed.
@@ -2558,9 +2562,7 @@ def build_command(
         command.extend(["--agent-env", f"{CHEAT_ATTACKS_ENV_VAR}={attacks}"])
         ladder_version = os.environ.get(CHEAT_LADDER_VERSION_ENV_VAR)
         if ladder_version:
-            command.extend(
-                ["--agent-env", f"{CHEAT_LADDER_VERSION_ENV_VAR}={ladder_version}"]
-            )
+            command.extend(["--agent-env", f"{CHEAT_LADDER_VERSION_ENV_VAR}={ladder_version}"])
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     for skill_path in request.resolved_skills:

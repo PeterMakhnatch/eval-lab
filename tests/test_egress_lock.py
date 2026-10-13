@@ -229,6 +229,25 @@ def test_non_mimo_and_non_daytona_default_unlocked(tmp_path: Path) -> None:
     assert resolve_egress_lock(docker) is False
 
 
+def test_openrouter_mimo_locks_on_mimo_task_and_stays_unlocked_on_non_mimo_task(
+    tmp_path: Path,
+) -> None:
+    model = "openrouter-metered/xiaomi/mimo-v2.6-flash"
+    non_mimo = _request(_task(tmp_path, mimo=False), tmp_path, model=model)
+    assert is_mimo_family_model(non_mimo.model)
+    assert not is_mimo_run(non_mimo.task, non_mimo.model)
+    assert resolve_egress_lock(non_mimo) is False
+    validate_request(non_mimo)
+
+    mimo_task = _task(tmp_path, mimo=True)
+    on_mimo = _request(mimo_task, tmp_path, model=model)
+    assert is_mimo_run(on_mimo.task, on_mimo.model)
+    assert resolve_egress_lock(on_mimo) is True
+    validate_request(on_mimo)
+    with pytest.raises(ValueError, match="explicit egress_lock=false"):
+        validate_request(_request(mimo_task, tmp_path, model=model, egress_lock=False))
+
+
 def test_nop_on_mimo_task_defaults_locked_without_a_model(tmp_path: Path) -> None:
     task = _task(tmp_path, mimo=True)
     assert is_mimo_dataset_task(task)

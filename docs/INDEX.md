@@ -47,7 +47,7 @@ inputs:
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
-    digest: sha256:a591c29fed9661973fe3271e104d38ceff8070f129d89037b06cf79b68ca266f
+    digest: sha256:04eb119ba420b1f1a3ac202ad52e2654ff8642bc77df0898b6c210df4c83fefe
   - path: docs/craft.md
     digest: sha256:5bc7e9fcf2839443c3d44dbdace1c85125a8a20ca7946660b79cce2f9a8a64c2
   - path: docs/dashboard.md
@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:002c9a6c66e8d00f029041278a4c1cf0fac95bdd110a6099e01e9d66fb7ad6cd
+    digest: sha256:f69ed92e8595ea2bcab0f64b3ca9dcb8e619855b0e872e6f3ad2e16f4ac8468a
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md

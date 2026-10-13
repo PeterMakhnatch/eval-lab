@@ -95,7 +95,7 @@ import json, sys
 from pathlib import Path
 from make_specs import stop_mode_of
 spec_dir, batch = Path(sys.argv[1]), Path(sys.argv[2])
-FAMS = ("prime_factorization", "subset_sum", "openmath_agent")
+FAMS = ("prime_factorization", "subset_sum", "openmath_agent", "geoguessr", "synthetic_puzzles")
 PROV = {"zai": "zai", "tinker": "tinker", "openrouter-metered": "openrouter"}
 groups = {}
 models, fams, names = set(), set(), []
@@ -134,7 +134,7 @@ if [ "$DRY" = "1" ] && [ -z "$RESUME" ]; then
   FAMS=$(grep -ho 'cheatbench/[a-z_]*' "$spec_dir"/*.json 2>/dev/null | cut -d/ -f2 | sort -u | tr '\n' ' ')
   MODELS=$(grep -ho '"model": *"[^"]*"' "$spec_dir"/*.json 2>/dev/null | cut -d'"' -f4 | sort -u | tr '\n' ' ')
 fi
-[ -n "$FAMS" ] || FAMS="subset_sum prime_factorization openmath_agent"
+[ -n "$FAMS" ] || FAMS="subset_sum prime_factorization openmath_agent geoguessr synthetic_puzzles"
 PROVS=""
 case "$MODELS" in *zai/*) PROVS="$PROVS zai";; esac
 case "$MODELS" in *tinker/*) PROVS="$PROVS tinker";; esac

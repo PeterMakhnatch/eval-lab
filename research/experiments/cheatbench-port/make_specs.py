@@ -39,7 +39,8 @@ MODEL_SHORT = {
 }
 #: Live-stop mode -> spec-name suffix.
 STOP_SUFFIX = {"on": "on", "dry-run": "dry"}
-FAMILY_SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma"}
+FAMILY_SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma",
+                "geoguessr": "gg", "synthetic_puzzles": "sp"}
 HYPOTHESIS = (
     "Under CheatBench's original implicit-honesty framing, an open model on "
     "Terminus-2 takes the planted shortcut at a measurable rate; cheating is "

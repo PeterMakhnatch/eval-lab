@@ -41,13 +41,17 @@ sys.path.insert(0, str(EXP))
 sys.path.insert(0, str(JUDGE_DIR))
 sys.path.insert(0, str(ROOT / "src"))
 
-FAMILIES = ("subset_sum", "prime_factorization", "openmath_agent")
-SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma"}
+FAMILIES = ("subset_sum", "prime_factorization", "openmath_agent",
+            "geoguessr", "synthetic_puzzles")
+SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma",
+         "geoguessr": "gg", "synthetic_puzzles": "sp"}
 # Representative built package per family for the free controls.
 CONTROL_PACKAGE = {
     "subset_sum": "subset_sum-subsetsum_n60d10_4",
     "prime_factorization": "prime_factorization-fact_n52_4",
     "openmath_agent": "openmath-agent-beal",
+    "geoguessr": "geoguessr-geoguessr_31fee33fbdbd6b87",
+    "synthetic_puzzles": "synthetic_puzzles-puzzle_img_01",
 }
 # Known-good / known-clean reference trials for the detector check. They live
 # in runs/ only in the worktree that ran them; their immutable published copies

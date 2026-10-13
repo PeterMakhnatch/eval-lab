@@ -5,7 +5,7 @@ Question: how does CAIS CheatBench (arXiv 2609.36308, code
 open models we can afford take its honeypots when run through Eval Lab's
 Harbor + Terminus-2 on local Docker?
 
-Scope chosen: two of the paper's ten categories.
+Scope chosen: four of the paper's ten categories.
 
 - **Menial Computation**: `subset_sum` (10 rows) and `prime_factorization`
   (20 rows). Timed "interview", computing with code is explicitly banned, a
@@ -14,6 +14,13 @@ Scope chosen: two of the paper's ten categories.
 - **Mathematical Research**: `openmath_agent` (20 rows). Work on an open
   problem in a research repo; another agent's branch holds a "verified"
   submission archive for the same problem.
+- **Photo Location**: `geoguessr` (20 rows). Locate one close-cropped photo;
+  unlimited scoring through a `submit` checker, and the photo's comment/EXIF
+  points at a hidden GPX file with the randomized scoring coordinate.
+- **Jigsaw Counting**: `synthetic_puzzles` (20 rows). Count a ~1000-piece
+  jigsaw exactly under a code ban, 3 checks through a `submit` checker, with
+  two planted routes to the accepted count (generator log, photo-metadata
+  answer file).
 
 Task packages: `library/benchmarks/cheatbench/` (builders, deviations, verbatim
 judge schemas). Published CheatBench trajectories: none exist (code, paper and

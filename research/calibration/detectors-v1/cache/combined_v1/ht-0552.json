@@ -1,9 +1,10 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: kev:kev_hollow_solution>0.5312",
+ "explanation": "oof-5%: kev:kev_hollow_solution>0.5312, sol:sol_codex>0.98",
  "flagged": [
-  "kev:kev_hollow_solution>0.5312"
+  "kev:kev_hollow_solution>0.5312",
+  "sol:sol_codex>0.98"
  ],
  "fold": 1,
  "id": "ht-0552",

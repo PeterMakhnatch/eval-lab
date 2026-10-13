@@ -1,8 +1,9 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: kev:kev_any_cheat>0.6137",
+ "explanation": "oof-5%: sol:sol_codex>0.98, kev:kev_any_cheat>0.6137",
  "flagged": [
+  "sol:sol_codex>0.98",
   "kev:kev_any_cheat>0.6137"
  ],
  "fold": 1,

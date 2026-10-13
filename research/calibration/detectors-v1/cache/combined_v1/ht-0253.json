@@ -1,10 +1,9 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: kev:kev_max_pattern>0.5626, kev:kev_grader_tamper>0.2341",
+ "explanation": "oof-5%: kev:kev_max_pattern>0.5626",
  "flagged": [
-  "kev:kev_max_pattern>0.5626",
-  "kev:kev_grader_tamper>0.2341"
+  "kev:kev_max_pattern>0.5626"
  ],
  "fold": 0,
  "id": "ht-0253",

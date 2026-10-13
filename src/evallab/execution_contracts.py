@@ -1547,6 +1547,12 @@ def collected_secret_values(
         *((key, OPENROUTER_PROXY_TOKEN) for key in OPENROUTER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
         ("LMNR_PROJECT_API_KEY", ""),
+        # The Claude subscription OAuth token reaches Harbor through the
+        # operator environment (scripts/with-claude-auth) and is forwarded
+        # into the sandbox by Harbor's claude-code agent. It must redact from
+        # Harbor logs and scan from persisted job trees exactly like the
+        # proxy-held provider keys above. Never passed as --agent-env argv.
+        ("CLAUDE_CODE_OAUTH_TOKEN", ""),
     ):
         value = source.get(key)
         if value and value != placeholder:

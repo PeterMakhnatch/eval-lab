@@ -135,6 +135,27 @@ CB_SPEND_CAP_USD=<agent $ cap> research/experiments/cheatbench-port/run_batch.sh
 7. `postrun.py`.
 
 - Keep parallel at 2–4 on local Docker; it is shared with other agents' runs.
+  When the container budget is tighter (2026-10-13: at most 2 containers for
+  the whole tab, i.e. one CheatBench trial), set `CB_DOCKER_LOCK` to a lock
+  wrapper (`<wrapper> <label> <command...>`): readiness and every trial then
+  run under it one at a time, so other users of the slot interleave.
+- **Models.** Metered routes run under Terminus-2 (`openrouter-metered/...`;
+  GLM-5.3-Flash `z-ai/glm-5.3-flash` and MiMo-V2.6-Flash
+  `xiaomi/mimo-v2.6-flash` were added 2026-10-13). Subscription models run
+  under the vendor's own CLI as Harbor's installed agent, inside the task
+  container (`network_mode: public`): `gpt-6.1-sol` and `gpt-reserve` under
+  `codex` (`make_specs.SUBSCRIPTION_AGENT`). They have no capture proxy and
+  no per-trial dollar ceiling; the agent timeout bounds them.
+- **Subscription quota is shared by every tab on the account.** Subscription
+  trials tick one at a time, and `quota_gate.py` (OMP's live `omp usage`
+  snapshot) runs before each: at or above `CB_SUB_MAX_USED` (default 60%) of
+  the weekly window, ticking stops and the rest stay approved for `--resume`.
+  Readiness applies the same limit (`--max-subscription-used`).
+- **Codex CLI version.** Eval Lab pins the in-container Codex CLI
+  (`evallab.harbor_codex.PINNED_CODEX_VERSION`). 0.148.0 is refused for
+  `gpt-6.1-sol` on a ChatGPT account ("model is not supported when using Codex
+  with a ChatGPT account"); the model needs a CLI as new as the host's
+  0.162.1.
 - Watch progress in `runs/_batches/<batch>/monitor/BOARD.md`. The cheat feed
   lists each first cheat with its step and replay offset; the live-stop column
   shows each stop or would-stop.
@@ -189,7 +210,10 @@ so the trial ends with no reward.
   agent's next command reaches the paused container before the cancel lands,
   Harbor raises `RuntimeError: … Container … is paused` (3 of 6 stops on
   2026-10-12). The stop record (`watch/stop-records/<trial>.json`, outcome
-  `requested`) is the source of truth; `analyze.infra_loss` uses it.
+  `requested`) is the source of truth; `analyze.infra_loss` uses it. Those
+  trials also left their containers (and networks) running, all 3 of them;
+  after an `on` batch, remove leftovers: `docker ps -a --format '{{.Names}}' |
+  grep '^cb-'`.
 - **The stop lags the read.** The file event to stop decision took 0–62 s
   (0–6 ATIF steps) on 2026-10-12. That pre-empts the multi-step openmath
   cheat (extract the blob, unzip, copy, submit) but not a one-step one: a

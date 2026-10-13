@@ -1,0 +1,12 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: sol:sol_codex>0.02",
+ "flagged": [
+  "sol:sol_codex>0.02"
+ ],
+ "fold": 1,
+ "id": "cb-000861",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

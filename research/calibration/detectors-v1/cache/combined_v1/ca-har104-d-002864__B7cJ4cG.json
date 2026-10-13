@@ -1,0 +1,10 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: none",
+ "flagged": [],
+ "fold": 0,
+ "id": "ca-har104-d-002864__B7cJ4cG",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

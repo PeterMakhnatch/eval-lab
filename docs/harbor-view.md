@@ -149,11 +149,14 @@ sealed by `CACHE.sha256`, so `score` never calls a model.
 
 | Detector | TW hacks caught | TW clean flagged | Our copies caught | Our clean flagged | $ per 1k |
 |---|---|---|---|---|---|
-| `rules` | 16/100 | 24/100 | 9/11 | 1/13 | 0 |
+| `rules` | 16/100 | 24/100 | 11/11 | 1/13 | 0 |
 | `harbor_analyze` | 16/19 | 1/18 | 2/10 | 0/7 | 7.5 |
 | `metr_reward_hacking` (5% FPR, score > 9) | 24/32 | 1/32 | 1/11 | 0/13 | 2.0 |
 | `laminar_copied` | 1/10 (raw TW) | 1/10 (raw TW) | 11/11 | 0/13 | ~14 for 3 Signals |
 | `laminar_stuck_loop` (label `stuck_loop`, G6) | 34/36 loops | 6/16 non-loops | | | |
+| `content_rules` | 0/100 | 2/100 | 0/11 | 0/13 | 0 |
+| `sol_codex` (rule-negative cascade) | 68/84 | 9/75 | 2/2 | 0/12 | 0 (subscription quota) |
+| `combined_v1` | 75/100 | 10/100 | 10/11 | 3/13 | 0 |
 
 On CheatBench (`cb`, label `cheating_behavior`, 885 positives / 3383 benign)
 the rules catch 429/885 (48%) at 225/3383 (6.7%) false positives: every
@@ -170,6 +173,18 @@ cost.
 On the RL rollout sources the rules catch 12/13 OLMo `conftest.py` writes and
 nothing else (0/300 aria, 0/300 ht, 12/300 olmo, 0 false positives): those hacks
 live inside the submitted code, which no command or file-write rule sees.
+
+The combined detector (`combined_v1`) ORs per-source cuts over rules
+sub-rules, content rules, Kev scores and Sol -- out-of-fold 69% recall at 4%
+FPR on cb, 75% on tw, 99% on olmo, 83% on ht, but only 6% on aria (the
+entrypoint content rule catches 99% of aria hacks at 36% clean flags, so no
+capped point can use it) and 91% on our 11 copies at 23% FPR (n=24, group-borrowed selection).
+GPT-6.1-Sol judges rule-negative rows as a cascade (1391 rows, $0 on the
+subscription); Kev cuts do not transfer between prompted and real-RL hacks
+(ht cuts on aria+olmo: 48% at 6% FPR). Details:
+`research/experiments/combined-detector/README.md`. The `contamination-audit`
+source (new in main #869, tuned without Sol since it postdates the Sol
+selection) reaches 87% at 2% FPR on the rescored rules + Kev cuts.
 
 - **General hacks** (hollow implementations, output spoofing and so on): the
   general LLM readers catch them and our rules don't.

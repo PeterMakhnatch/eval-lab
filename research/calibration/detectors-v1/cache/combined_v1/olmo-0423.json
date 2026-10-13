@@ -1,0 +1,12 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: content:tamper_signature",
+ "flagged": [
+  "content:tamper_signature"
+ ],
+ "fold": 0,
+ "id": "olmo-0423",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

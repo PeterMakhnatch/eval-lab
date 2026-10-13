@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "content_rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-action__tYjL6JB",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

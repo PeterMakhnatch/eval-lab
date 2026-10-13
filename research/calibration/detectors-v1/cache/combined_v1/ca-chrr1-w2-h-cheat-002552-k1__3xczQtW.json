@@ -1,0 +1,10 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: none",
+ "flagged": [],
+ "fold": 1,
+ "id": "ca-chrr1-w2-h-cheat-002552-k1__3xczQtW",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

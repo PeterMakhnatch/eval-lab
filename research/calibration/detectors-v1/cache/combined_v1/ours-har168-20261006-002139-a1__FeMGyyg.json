@@ -1,0 +1,13 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: sol:sol_codex>0.02, kev:kev_router>0.6108",
+ "flagged": [
+  "sol:sol_codex>0.02",
+  "kev:kev_router>0.6108"
+ ],
+ "fold": 0,
+ "id": "ours-har168-20261006-002139-a1__FeMGyyg",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

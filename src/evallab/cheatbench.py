@@ -1197,10 +1197,6 @@ def main(argv: list[str] | None = None) -> int:
     return args.func(args)
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
-
-
 # ---------------------------------------------------------------------------
 # Viewer subset: the MiMo-relevant rows staged for the Trace Lab Scout viewer.
 # Staging reuses the single converter above (same steps the detectors score)
@@ -1674,3 +1670,7 @@ def validate_staged(trajectory: Mapping[str, Any]) -> list[str]:
         if not isinstance(results, list):
             issues.append(f"step {position}: observation.results must be a list")
     return issues
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

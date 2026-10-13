@@ -31,7 +31,7 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
-    digest: sha256:8b3cd0ffe45fc59d1c75c611adea30cfc3cd31e1bbe4a00dc829bf9fcde054b2
+    digest: sha256:9208eee25a68e8173cf9d211727b990ecda1bc91e38eb812ff4d0dc695d57411
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
@@ -51,7 +51,7 @@ inputs:
   - path: docs/craft.md
     digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
   - path: docs/dashboard.md
-    digest: sha256:93d3ca1bff660397579473af533764a6296e6605c1fc66d75336d620b0d1afcf
+    digest: sha256:5bb755045d2af1099d2322936f788abe8b846f8fc77976788872fc7290363584
   - path: docs/data-architecture.md
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/deepseek-v4-flash-lane.md
@@ -69,7 +69,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:8e79606ceaa5b6e374c4dddb709fcb150bc56cb971b88c56792328df4162876a
+    digest: sha256:7e4511a6dc492de4ddd3846bd2536dacd8ef093cebb1fa2569e02bec6a0bfbd2
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -79,7 +79,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:7568d85dcce9bc3d956e6be4319ccb6085cf72b137d960aa1d7977f66374e3ca
+    digest: sha256:0f1f03b75f3c71cc39cde1897a6c5e65147e4859fec910c2eb094b9b72503816
   - path: docs/lora-sft-runbook.md
     digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
   - path: docs/mimo-task-catalog.md
@@ -87,7 +87,7 @@ inputs:
   - path: docs/model-capture.md
     digest: sha256:38e018af06c6a65d0f5344d1e114b140cdee5114c253b2293ea67f3036c0315c
   - path: docs/model-defaults.md
-    digest: sha256:2694f4c58daab52ef4875cdaeae4550fc5840dbcd8866cb64411d8a538fbc7c9
+    digest: sha256:50879b9da9a57e44636c74d4d0402506d92d0d482b3742e662e74689c015a350
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
@@ -95,13 +95,13 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:37da8551acd2b4bec3a8802591d39e03f3949c8a6884354d5815a622fde8c76f
+    digest: sha256:2a1385127db0762316b198581917b9ccf5b6f27262a35f419de86b1660e92e64
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
-    digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
+    digest: sha256:eeb687a646c780d1f8bb1146f308b8fb809a763160874334eca4dfc3a63d38e5
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

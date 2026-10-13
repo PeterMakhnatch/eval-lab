@@ -1024,7 +1024,7 @@ with its real usage. A call still in flight after that is marked unresolved
 (`in_flight_at_shutdown`) and fails the trial's accounting.
 For Daytona, the reused lifecycle wrapper sets a provider TTL of execution
 timeout plus ten minutes, sixteen-minute inactivity stop, and deletion on stop.
-Since HAR-140 every MiMo run on Daytona (MiMo-family model or MiMo-dataset
+Since HAR-140 every MiMo run on Daytona (self-hosted MiMo model or MiMo-dataset
 task, including nop/oracle census runs) additionally passes
 `egress_lock=true` to the bounded environment, blocking sandbox egress after
 agent setup through Daytona's runner-side firewall; each trial records the

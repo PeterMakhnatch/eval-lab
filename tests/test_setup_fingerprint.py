@@ -683,3 +683,112 @@ def test_reference_gate_refuses_unverified_verifier_only_variant(tmp_path: Path)
     spec = make_variant_spec(root, record, package)
     with pytest.raises(ValueError, match="not 'validated'"):
         validate_request(make_variant_request(root, spec, package), repo_root=root)
+
+
+def test_openrouter_mimo_on_non_mimo_task_passes_without_reference_profile_while_mimo_task_and_selfhosted_stay_gated(
+    tmp_path: Path,
+) -> None:
+    root, digest = make_repo_root(
+        tmp_path, with_parser=True, task_id=TASK_ID, task_name=MIMO_TASK_NAME
+    )
+    cheatbench_rel = (
+        "library/benchmarks/cheatbench/prime_factorization/tasks/prime_factorization-fact_n52_10"
+    )
+    cheatbench_dir = root / cheatbench_rel
+    cheatbench_dir.mkdir(parents=True)
+    (cheatbench_dir / "task.toml").write_text(
+        '[task]\nname = "cheatbench/prime_factorization-fact_n52_10"\n[agent]\ntimeout_sec = 900.0\n',
+        encoding="utf-8",
+    )
+    from evallab.registry import compute_task_digests
+
+    cb_digest = compute_task_digests(cheatbench_dir).package
+    or_model = "openrouter-metered/xiaomi/mimo-v2.6-flash"
+    cb_spec = make_spec(
+        "prime_factorization-fact_n52_10",
+        cb_digest,
+        egress_lock=None,
+        reference_profile=None,
+    ).model_copy(
+        update={
+            "task": cheatbench_rel,
+            "task_path": cheatbench_rel,
+            "model": or_model,
+            "environment": "docker",
+        }
+    )
+    cb_req = make_request(root, "prime_factorization-fact_n52_10", cb_spec, egress_lock=None)
+    cb_req = RunRequest(
+        **{
+            **cb_req.__dict__,
+            "task": cheatbench_dir,
+            "model": or_model,
+            "environment": "docker",
+            "egress_lock": None,
+        }
+    )
+    validate_request(cb_req, repo_root=root)
+    spec_path = root / "cheatbench-or-mimo.json"
+    spec_path.write_text(cb_spec.model_dump_json(), encoding="utf-8")
+    text, ok = render_spec_preflight(spec_path, root)
+    assert ok is True
+    assert "not a MiMo run: reference gate does not apply." in text
+
+    # Self-hosted MiMo on the same non-MiMo CheatBench task STILL requires HAR-149.
+    sh_cb_spec = cb_spec.model_copy(update={"model": MIMO_MODEL, "environment": "daytona"})
+    sh_cb_req = RunRequest(
+        **{
+            **cb_req.__dict__,
+            "model": MIMO_MODEL,
+            "environment": "daytona",
+            "egress_lock": True,
+            "experiment_spec": sh_cb_spec,
+        }
+    )
+    with pytest.raises(ValueError, match="reference_profile"):
+        validate_request(sh_cb_req, repo_root=root)
+
+    # OpenRouter MiMo on a MiMo-dataset task STILL requires HAR-140 (egress_lock) and HAR-149 (reference_profile + ledger).
+    or_mimo_no_ref = make_spec(
+        TASK_ID, digest, egress_lock=True, reference_profile=None
+    ).model_copy(update={"model": or_model})
+    or_mimo_req = RunRequest(
+        **{
+            **make_request(root, TASK_ID, or_mimo_no_ref, egress_lock=True).__dict__,
+            "model": or_model,
+        }
+    )
+    with pytest.raises(ValueError, match="reference_profile"):
+        validate_request(or_mimo_req, repo_root=root)
+    or_mimo_unlocked = make_spec(
+        TASK_ID,
+        digest,
+        egress_lock=None,
+        reference_profile="xiaomi-mimo-rl",
+        deviations=COVERING_DEVIATIONS,
+    ).model_copy(update={"model": or_model})
+    or_mimo_unlocked_req = RunRequest(
+        **{
+            **make_request(root, TASK_ID, or_mimo_unlocked, egress_lock=None).__dict__,
+            "model": or_model,
+        }
+    )
+    with pytest.raises(ValueError, match="egress_lock"):
+        validate_request(or_mimo_unlocked_req, repo_root=root)
+    unlisted_dir = root / "tasks" / "format-code-task-900099"
+    unlisted_dir.mkdir(parents=True)
+    (unlisted_dir / "task.toml").write_text(
+        f'[task]\nname = "{MIMO_TASK_NAME}"\n[agent]\ntimeout_sec = 900.0\n'
+    )
+    unlisted_digest = compute_task_digests(unlisted_dir).package
+    or_unlisted = make_spec(
+        "format-code-task-900099", unlisted_digest, egress_lock=True, deviations=COVERING_DEVIATIONS
+    ).model_copy(update={"model": or_model})
+    or_unlisted_req = RunRequest(
+        **{
+            **make_request(root, "format-code-task-900099", or_unlisted, egress_lock=True).__dict__,
+            "model": or_model,
+        }
+    )
+    with pytest.raises(ValueError, match="outside the ledger"):
+        validate_request(or_unlisted_req, repo_root=root)

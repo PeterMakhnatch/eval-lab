@@ -110,8 +110,8 @@ owned sandbox and records `applied=false`; it never falls back to upstream publi
 Docker.
 
 The filter denies all ports/protocols to private, link-local, multicast and
-reserved destinations, non-global IPv6, and every actual controller interface
-address (including public addresses). Sandbox loopback and Docker's loopback DNS
+reserved IPv4 destinations, IPv6 outside `2000::/3`, and every actual
+controller interface address (including public addresses). Sandbox loopback and Docker's loopback DNS
 stub remain usable. Public internet remains available for CLI installation and
 hosted model APIs; **this is host isolation, not full internet isolation**.
 Codex and non-model lanes have no host exception. The Claude gateway lane alone

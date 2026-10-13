@@ -109,6 +109,22 @@ packets. A no-network baseline stays disconnected. A failure stops/deletes the
 owned sandbox and records `applied=false`; it never falls back to upstream public
 Docker.
 
+The single permitted phase switch is agent `no-network` ↔ setup/verifier
+`public` (the mimo-clean-v5 contract: `[agent] network_mode = "no-network"`
+over a public `[environment]`, applied by Harbor around `agent.run()` only).
+The no-network phase disconnects the public bridge and confirms the sandbox
+holds no attachment and no usable interface besides `lo` (a detached netns
+still lists down kernel pseudo-devices; only operstate `up` counts); the public phase
+reinstalls-and-confirms the filter when the detached kernel state drifted,
+reconnects the same bridge only afterwards, and confirms the bridge attachment
+with the boundary unchanged. Every switch appends its network/interface/rule
+evidence to the isolation record; a failed switch fails the trial, never an
+unlocked fallback. Allowlists and any other phase mode stay refused at
+construction and at switch time, as do task Compose, extra overlays, unknown
+environment options, unsafe host mounts, privilege overrides and GPU/device
+passthrough (next paragraph). The plain strict `LockedDockerEnvironment`
+backend keeps refusing every switch; only this wrapper allows the pair.
+
 The filter denies all ports/protocols to private, link-local, multicast and
 reserved IPv4 destinations, IPv6 outside `2000::/3`, and every actual
 controller interface address (including public addresses). Sandbox loopback and Docker's loopback DNS
@@ -133,9 +149,7 @@ Host-side preparation requires the pinned Alpine build base already present:
 `alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11`.
 The wrapper builds `containers/host-isolation/Dockerfile`, extracts a matched nft
 bundle, records its image digest, and removes its unique helper container/image.
-It refuses task Compose, extra overlays, unknown environment options, unsupported
-allowlists/phase switches, unsafe host mounts, privilege overrides and GPU/device
-passthrough. These packages need a separately implemented isolation backend;
+Anything else refused above needs a separately implemented isolation backend;
 their imported contracts are not silently rewritten. A local trusted Linux Docker
 daemon/controller or Docker Desktop is required; remote contexts are refused.
 The Docker daemon, controller and task image supply chain remain trusted. This is
@@ -143,8 +157,14 @@ not a kernel/container-escape guarantee. Host addresses are inventoried at start
 changing interfaces or daemon networking requires a fresh qualification.
 
 Each trial keeps `host-isolation.json` with startup network/capability/mount
-inspection, effective rules, tool image identity, lane and allowed tuple. No
-credential, prompt or response content belongs in this record.
+inspection, effective rules, tool image identity, lane and allowed tuple, the
+declared phase policies, and one network/interface/rule evidence entry per
+phase switch. The agent environment and each separate verifier environment
+share the trial directory but own distinct containers: the first writer keeps
+`host-isolation.json` and each later container takes
+`host-isolation-<session>.json`, so verifier startup never overwrites the
+agent phase-switch evidence. No credential, prompt or response content belongs
+in these records.
 Reproduce a before/after reachability census with the installed Harbor Python
 and an already-present Python image; the probe creates only one owned container
 at a time, uses native sandbox lifecycle/network configuration and never starts

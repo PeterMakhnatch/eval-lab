@@ -268,7 +268,7 @@ def main():
     ap.add_argument("--atlas",
                     default="research/calibration/hack-atlas/atlas.yaml")
     ap.add_argument("--tb21-root",
-                    default=os.path.expanduser("~/Developer/terminal-bench-2-1"))
+                    default=os.path.expanduser("~/Developer/lab-extras/upstream/terminal-bench-2-1"))
     ap.add_argument("--tb40-root",
                     default="derived/kev/raw/terminal-bench-v4.0.0")
     ap.add_argument("--tb1d-root",

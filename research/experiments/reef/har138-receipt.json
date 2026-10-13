@@ -57,7 +57,7 @@
     "sdk": {
       "version": "0.2.1",
       "source": "reef/.worktrees/lab-flow-release-contract/third_party/reef-client",
-      "installed_at": "/Users/petermakhnatch/Developer/reef/.worktrees/lab-flow-release-contract/third_party/reef-client/reef_client/__init__.py",
+      "installed_at": "/Users/petermakhnatch/Developer/lab-extras/upstream/reef/.worktrees/lab-flow-release-contract/third_party/reef-client/reef_client/__init__.py",
       "sidecar": ".reef-harness-release"
     },
     "source_trial": {

@@ -35,7 +35,7 @@ from evallab.task_workbench import (
     _validate_timeouts_and_artifacts,
 )
 
-REAL_TB4_DIR = Path("/Users/petermakhnatch/Developer/agent-evals/terminal-bench-4/tasks")
+REAL_TB4_DIR = Path("/Users/petermakhnatch/Developer/lab-extras/data/agent-evals/terminal-bench-4/tasks")
 TB4_H100_IDS = ("fp8-rmsnorm-gemm", "jax-speedrun-gpu", "math-eval-grader")
 TB4_COMPOSE_IDS = (
     "ctr-optimization",

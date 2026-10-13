@@ -80,7 +80,7 @@ DEFAULT_BATCH_SIZE: int = 10
 #: `--tb3-root`) because `agents/CHECKS.md` forbids tests that depend on a
 #: developer's host layout.
 TB3_ROOT_ENV = "EVALLAB_TB3_ROOT"
-DEFAULT_TB3_ROOT = Path("~/Developer/agent-evals/terminal-bench/tasks")
+DEFAULT_TB3_ROOT = Path("~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks")
 
 #: `source_repo` for the in-repository corpus. TB3 reports the name recorded in
 #: its own `dataset.toml`, falling back to this shape when that file is absent.
@@ -90,11 +90,11 @@ TB3_FALLBACK_SOURCE_REPO = "terminal-bench/terminal-bench"
 #: Where the TB4 corpus lives on this workstation. Injectable (env var, then
 #: `--tb4-root`), exactly like the TB3 lane, but pointed at a checkout pinned
 #: to the `v4.0.0` release tag (commit ``452bf30``). The on-disk TB3 checkout at
-#: `~/Developer/agent-evals/terminal-bench/tasks` stays untouched: dual-version
+#: `~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks` stays untouched: dual-version
 #: coexistence is intentional, and a TB3 scan must keep producing the 74-task
 #: `terminal-bench-3` corpus unchanged.
 TB4_ROOT_ENV = "EVALLAB_TB4_ROOT"
-DEFAULT_TB4_ROOT = Path("~/Developer/agent-evals/terminal-bench-4/tasks")
+DEFAULT_TB4_ROOT = Path("~/Developer/lab-extras/data/agent-evals/terminal-bench-4/tasks")
 
 #: Pinned TB4 release identity. `v4.0.0` is an immutable release tag (commit
 #: ``452bf30``); the Eval Lab registry contract forbids floating refs, so the

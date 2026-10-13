@@ -20,7 +20,7 @@ which RUNNER may remove:
 
 1. `library/curated/<name>/` holds a `CARD.md` only. There is no `task.toml`
    in this checkout. CURATOR's cards point at
-   `~/Developer/agent-evals/frontier-bench` @ `3d694e91`, which is outside
+   `~/Developer/lab-extras/data/agent-evals/frontier-bench` @ `3d694e91`, which is outside
    this repository.
 2. Standing policy does not match `library/curated/*`. Using `canary/`
    would invent suite members. Using `registered/*` is a scope question

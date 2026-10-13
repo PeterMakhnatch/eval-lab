@@ -16,5 +16,5 @@ Files:
 - `uv run pytest tests/test_craft.py` (51 passed in 0.24s)
 - `uv run pytest` full suite (795 passed, 1 xfailed)
 - `uv run ruff check .` (clean)
-- `python -m evallab.craft scan --tb3` scans 74 tasks from `~/Developer/agent-evals/terminal-bench/tasks` idempotently
+- `python -m evallab.craft scan --tb3` scans 74 tasks from `~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks` idempotently
 - `python -m evallab.craft scan --all-local` scans 551 total tasks across TB3 + `library/`

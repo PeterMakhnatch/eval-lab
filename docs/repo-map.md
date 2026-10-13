@@ -81,7 +81,7 @@ inputs:
   - path: src/evallab/counts.py
     digest: sha256:1485541291e575670e0dffd41c6fabf65f30d0fe606ea21ed7022812e25e3fd8
   - path: src/evallab/craft.py
-    digest: sha256:e4b40e28d960f994ba63871c7fcaab610aafd7ece3e4e9d2167dce11ca3ca01e
+    digest: sha256:787d31dc122b25e8b725f2ce7a06152c520921baa292a4b00014bced4ec90f0c
   - path: src/evallab/credential_bridge.py
     digest: sha256:b78bbab5a1c51113cfda71df5e6e708a9f030d68ee6c6984b0d6494bd01743a0
   - path: src/evallab/credentials.py
@@ -323,15 +323,15 @@ inputs:
   - path: src/evallab/interpretation/claude_sessions.py
     digest: sha256:0950f48fe99258128d7d0166f63f6031efe687ac34b6334a7c60fe228d23d9c3
   - path: src/evallab/interpretation/codex_rollouts.py
-    digest: sha256:1f875415ed7ba2840c71ce7d17405eb13df511d553cd5627156ebb0a3c6d16cc
+    digest: sha256:0f681237ae06a36742793a4be0174cf980b4a7937c5df2ff2b54a3a948b05369
   - path: src/evallab/interpretation/domains/__init__.py
     digest: sha256:1b06392fce0bb93e99aeb06f1e0000ac5f7edb0a59c69974fce1ec219e980337
   - path: src/evallab/interpretation/domains/atlas_finance.py
-    digest: sha256:a348a62b41ccf93bf77ce17b431fe8304cd2ba8c9035b7da32265758f715c2eb
+    digest: sha256:83f04fdc15461f7aab3a0b9e7e7ea0b13aba98e9354102544a706b00c5896e95
   - path: src/evallab/interpretation/domains/ceo_bench.py
     digest: sha256:19d04bfb63eda321d9b70a10254a290a960d30c8bc1b9103b9ab6309786ba041
   - path: src/evallab/interpretation/domains/synthetic_hospital.py
-    digest: sha256:434e7bcfa6cdebfc21961403d4c3009a338c525a4daa4ca2520b351b4fee24e8
+    digest: sha256:15e581ed1c8b3450c766a660cfead5993108bbf7e54262389310686141899dc8
   - path: src/evallab/interpretation/evidence_pack.py
     digest: sha256:5db0902472351196b8f2b9f30a263a661d15b59d70ff6d22c21a8c1b47d49380
   - path: src/evallab/interpretation/feature_registry.py

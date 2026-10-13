@@ -9,7 +9,7 @@ implements `on_job_start(job)` / `on_job_end(job_result)`. From
 `on_environment_started`, `on_agent_started`, `on_verification_started`,
 `on_trial_ended`).
 
-Reference implementation: `~/Developer/agent-evals/harbor/packages/harbor-langsmith`
+Reference implementation: `~/Developer/lab-extras/data/agent-evals/harbor/packages/harbor-langsmith`
 (`LangSmithPlugin`). It syncs a dataset, opens an experiment session, and
 POSTs trial/phase runs to LangSmith — a networked backend the lab will not
 call. The same hook surface is how `harbor-atif2otel`'s `OtelPlugin` would

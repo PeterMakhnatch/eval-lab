@@ -49,7 +49,7 @@ inputs:
   - path: docs/contracts.md
     digest: sha256:a591c29fed9661973fe3271e104d38ceff8070f129d89037b06cf79b68ca266f
   - path: docs/craft.md
-    digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
+    digest: sha256:5bc7e9fcf2839443c3d44dbdace1c85125a8a20ca7946660b79cce2f9a8a64c2
   - path: docs/dashboard.md
     digest: sha256:5bb755045d2af1099d2322936f788abe8b846f8fc77976788872fc7290363584
   - path: docs/data-architecture.md
@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:3f931eb5339a962bf6985967e23a42658df94938cd94cd81c422c45f6257bca9
+    digest: sha256:002c9a6c66e8d00f029041278a4c1cf0fac95bdd110a6099e01e9d66fb7ad6cd
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -113,7 +113,7 @@ inputs:
   - path: docs/research/harbor-ecosystem-architecture-perspective.md
     digest: sha256:4611ea9127cb133c78a4b4c8508a3866b23ddc5759639e66faffcc9607759959
   - path: docs/research/literature-survey.md
-    digest: sha256:8dd8e6aebe4aa36c02157da5519c9469308be13377bf67b564fc386bcc0bd27e
+    digest: sha256:f4ac0d439649d582f1d006376e4d3f8e075e2285b4586efc156e97f583dceafb
   - path: docs/research/synthetic-tasks.md
     digest: sha256:991d90264398946e24fe9370bd6a48f05ab73924976f4ccd9eacc0a44eb840c0
   - path: docs/research/trajectory-intelligence.md
@@ -129,7 +129,7 @@ inputs:
   - path: docs/task-admission.md
     digest: sha256:77b1228a183aa4581a270bd196b6c75bbb50d29aa8c57c7222e5a8f3eee5bbe3
   - path: docs/task-provenance.md
-    digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
+    digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
     digest: sha256:22d4703dbea84f02dcdf9a116d16441956f688f63a7e450d4ddee30bcaaccfdd
   - path: docs/task-registry.md

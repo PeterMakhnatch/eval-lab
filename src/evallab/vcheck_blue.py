@@ -344,7 +344,7 @@ def grade_bfcl_call(
             f"installed editable from a gorilla checkout at {GORILLA_PIN} "
             f"(git clone {GORILLA_URL} && git checkout {GORILLA_PIN}; "
             f"pip install -e {BFCL_SUBDIR}); "
-            f"default path: ~/Developer/agent-evals/gorilla"
+            f"default path: ~/Developer/lab-extras/data/agent-evals/gorilla"
         )
 
     def _git(*args: str) -> str | None:

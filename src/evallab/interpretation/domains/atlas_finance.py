@@ -1,10 +1,10 @@
 """ATLAS-Finance domain section (plugin ``atlas_finance``, version ``1``).
 
 Upstream: ``handshake-ai-research/ATLAS-Finance`` (commit ``6060bce`` in
-``/Users/petermakhnatch/Developer/.sources/ATLAS-Finance``). Each trial's
+``/Users/petermakhnatch/Developer/lab-extras/upstream/ATLAS-Finance``). Each trial's
 verifier runs the gandalf-finance LLM judge
 (``antoinepangas-hs/gandalf-finance``, commit ``142dda0`` in
-``/Users/petermakhnatch/Developer/.sources/gandalf-finance``), which writes
+``/Users/petermakhnatch/Developer/lab-extras/upstream/gandalf-finance``), which writes
 the weighted rubric score to ``verifier/reward.json`` and the per-criterion
 verdicts to ``verifier/grader/info.json`` (an ``EvaluationInfo`` payload:
 ``reward``, ``raw_score``, ``maximum_score``, ``criterion_results`` with

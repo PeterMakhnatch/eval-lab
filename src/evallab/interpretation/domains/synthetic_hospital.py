@@ -2,7 +2,7 @@
 
 Upstream: ``sparkcpark/synthetic_hospital``, Harbor export
 ``scripts/harbor_export.py`` (commit ``77cc57e`` in
-``/Users/petermakhnatch/Developer/.sources/synthetic_hospital``).
+``/Users/petermakhnatch/Developer/lab-extras/upstream/synthetic_hospital``).
 
 The Harbor verifier (``harbor/templates/test.sh``) writes
 ``verifier/reward.json`` as ``{"reward": float, "steps": int,

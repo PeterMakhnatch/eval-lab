@@ -1204,8 +1204,8 @@ fresh owned output directory:
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONNOUSERSITE=1 \
 PYTHONPATH="$PWD/library/adapters/reef_gate/src" \
-~/Developer/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
-  --reef-root ~/Developer/reef --work-dir "$PWD/runs/reef-gate-aa" \
+~/Developer/lab-extras/upstream/reef/.venv/bin/python -m evallab_reef_gate.calibrate \
+  --reef-root ~/Developer/lab-extras/upstream/reef --work-dir "$PWD/runs/reef-gate-aa" \
   --api-proxy-url http://127.0.0.1:<port> --model <provider-model-id> \
   --condition aa --trials 30 --repeats 5 --port 18972
 ```
@@ -1299,7 +1299,7 @@ Prepare an ordinary spec without a Python launcher, credentials, or cloud calls:
 
 ```bash
 uv run evallab tasks prepare \
-  ~/Developer/agent-evals/terminal-bench-4/tasks/fin-saccr-rwa \
+  ~/Developer/lab-extras/data/agent-evals/terminal-bench-4/tasks/fin-saccr-rwa \
   --name tb4-finance-daytona \
   --agent mini-swe-agent --model zai/glm-5.3-flash \
   --environment daytona --timeout-seconds 3600 \

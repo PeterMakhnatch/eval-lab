@@ -187,6 +187,7 @@ def test_gateway_runtime_env_points_at_the_sandbox_host() -> None:
         "ANTHROPIC_BASE_URL": "http://host.docker.internal:41234",
         "ANTHROPIC_AUTH_TOKEN": "cap",
         "CLAUDE_FORCE_OAUTH": "0",
+        "EVALLAB_CLAUDE_GATEWAY_ISOLATION_PORT": "41234",
     }
 
 

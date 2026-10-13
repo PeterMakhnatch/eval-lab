@@ -1,20 +1,18 @@
-"""Deterministic tests for the Claude gateway bridge (no network, no quota).
+"""Deterministic bridge tests with injected HTTP streams and a pipe-only child.
 
-The bridge is exercised as a real subprocess over loopback HTTP against a
-stub stdio child (argv seam) -- never the real ``omp auth-gateway stdio``,
-so nothing here spends subscription quota or touches the provider.
+No sockets, real credentials, provider calls, or subscription quota are used.
 """
 
 from __future__ import annotations
 
 import importlib.util
+import io
 import json
-import os
+import shlex
 import subprocess
 import sys
-import time
-import urllib.error
-import urllib.request
+import threading
+from datetime import UTC, datetime
 from pathlib import Path
 from types import ModuleType
 
@@ -107,66 +105,110 @@ def stub_argv(tmp_path: Path) -> str:
 
 
 @pytest.fixture()
-def server(tmp_path: Path, stub_argv: str):
+def server(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
+    bridge = load_bridge()
+    fixed = datetime(2026, 10, 13, 12, 0, tzinfo=UTC)
+
+    class FixedDatetime:
+        @staticmethod
+        def now(tz=None):
+            assert tz == UTC
+            return fixed
+
+    monkeypatch.setattr(bridge, "datetime", FixedDatetime)
+    logs = []
+    monkeypatch.setattr(bridge, "_log", logs.append)
     usage = tmp_path / "usage.jsonl"
-    ready = tmp_path / "ready.json"
-    env = dict(
-        os.environ,
-        EVALLAB_CLAUDE_GATEWAY_CAPABILITY=CAPABILITY,
-        EVALLAB_CLAUDE_GATEWAY_ATTEMPT_ID=ATTEMPT,
-        EVALLAB_CLAUDE_GATEWAY_USAGE_FILE=str(usage),
-    )
-    process = subprocess.Popen(
-        [
-            sys.executable,
-            str(BRIDGE),
-            "--host",
-            "127.0.0.1",
-            "--port",
-            "0",
-            "--ready-file",
-            str(ready),
-            "--allowed-model",
-            MODEL,
-            "--attempt-id",
-            ATTEMPT,
-            "--usage-file",
-            str(usage),
-            "--stdio-command",
-            stub_argv,
-        ],
-        env=env,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
-    deadline = time.monotonic() + 30.0
-    while not ready.is_file():
-        assert process.poll() is None, "bridge exited before becoming ready"
-        assert time.monotonic() < deadline, "bridge did not become ready"
-        time.sleep(0.05)
-    base = f"http://127.0.0.1:{json.loads(ready.read_text())['port']}"
-    yield base, usage
-    process.terminate()
-    try:
-        process.wait(timeout=15)
-    except subprocess.TimeoutExpired:
-        process.kill()
+    gateway = StubGateway(bridge)
+    # Bypass ThreadingHTTPServer.__init__: exercising the real handler and
+    # record implementation does not require opening a listening socket.
+    bridge_server = bridge.BridgeServer.__new__(bridge.BridgeServer)
+    bridge_server.capability = CAPABILITY
+    bridge_server.attempt_id = ATTEMPT
+    bridge_server.usage_path = usage
+    bridge_server.allowed_models = frozenset({MODEL})
+    bridge_server.gateway = gateway
+    bridge_server._usage_lock = threading.Lock()
+    return BridgeHarness(bridge, bridge_server, gateway, logs), usage
 
 
-def post(base: str, body: dict, auth: str | None = "Bearer " + CAPABILITY):
-    headers = {"Content-Type": "application/json"}
-    if auth is not None:
-        headers["Authorization"] = auth
-    request = urllib.request.Request(
-        base + "/v1/messages", data=json.dumps(body).encode(), headers=headers
-    )
-    try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return response.status, response.headers.get("Content-Type"), response.read()
-    except urllib.error.HTTPError as exc:
-        return exc.code, exc.headers.get("Content-Type"), exc.read()
+class StubGateway:
+    def __init__(self, bridge: ModuleType):
+        self.bridge = bridge
+        self.calls: list[tuple[str, dict]] = []
+
+    def request(self, path: str, body: dict):
+        self.calls.append((path, body))
+        mode = (body.get("messages") or [{}])[0].get("content", "")
+        if mode == "STUB_JSON":
+            return 200, dict(JSON_OK)
+        if mode == "STUB_STREAM":
+            return 200, SSE_OK
+        if mode == "STUB_WRONG_MODEL":
+            return 200, dict(JSON_OK, model="anthropic/claude-opus-9-9")
+        if mode == "STUB_NO_MODEL":
+            return 200, {"type": "message"}
+        if mode == "STUB_429":
+            return 429, {"error": {"type": "rate_limit_error", "message": "throttled"}}
+        if mode == "STUB_DIE":
+            raise self.bridge.GatewayError("stub child died")
+        return 400, {"error": {"type": "invalid_request"}}
+
+
+class ObservedRequestStream(io.BytesIO):
+    def __init__(self, request: bytes):
+        super().__init__(request)
+        self.body_reads: list[int] = []
+
+    def read(self, size: int = -1) -> bytes:
+        self.body_reads.append(size)
+        return super().read(size)
+
+
+class BridgeHarness:
+    def __init__(self, bridge: ModuleType, bridge_server, gateway: StubGateway, logs: list):
+        self.bridge = bridge
+        self.bridge_server = bridge_server
+        self.gateway = gateway
+        self.logs = logs
+        self.last_handler = None
+
+    def request(
+        self,
+        method: str,
+        target: str,
+        body: bytes = b"",
+        *,
+        auth: str | None = "Bearer " + CAPABILITY,
+        headers: dict[str, str] | None = None,
+    ):
+        request_headers = {"Content-Type": "application/json", "Content-Length": str(len(body))}
+        if auth is not None:
+            request_headers["Authorization"] = auth
+        request_headers.update(headers or {})
+        wire = f"{method} {target} HTTP/1.1\r\n".encode()
+        wire += b"".join(f"{key}: {value}\r\n".encode() for key, value in request_headers.items())
+        wire += b"\r\n" + body
+        handler = self.bridge.Handler.__new__(self.bridge.Handler)
+        handler.server = self.bridge_server
+        handler.rfile = ObservedRequestStream(wire)
+        handler.wfile = io.BytesIO()
+        handler.close_connection = True
+        handler.date_time_string = lambda timestamp=None: "Tue, 13 Oct 2026 12:00:00 GMT"
+        handler.handle_one_request()
+        self.last_handler = handler
+        response = handler.wfile.getvalue()
+        if response.startswith(b"HTTP/1.1 100 Continue\r\n"):
+            _, response = response.split(b"\r\n\r\n", 1)
+        response_head, response_body = response.split(b"\r\n\r\n", 1)
+        lines = response_head.decode().split("\r\n")
+        status = int(lines[0].split()[1])
+        response_headers = dict(line.split(": ", 1) for line in lines[1:])
+        return status, response_headers.get("Content-Type"), response_body
+
+
+def post(base: BridgeHarness, body: dict, auth: str | None = "Bearer " + CAPABILITY):
+    return base.request("POST", "/v1/messages", json.dumps(body).encode(), auth=auth)
 
 
 def make_body(content: str, **overrides):
@@ -218,18 +260,18 @@ def test_capability_is_checked_before_anything_else(server) -> None:
     for auth in (None, "Bearer wrong-capability", "Bearer "):
         status, _, _ = post(base, make_body("STUB_JSON"), auth=auth)
         assert status == 401
+        assert base.last_handler.rfile.body_reads == []
+        assert base.last_handler.close_connection is True
+    assert base.gateway.calls == []
     # x-api-key (what CLIs send to custom endpoints) is accepted too.
-    status, _, payload = post(base, make_body("STUB_JSON"), auth=None)
-    assert status == 401
-    import urllib.request as urlrequest
-
-    authed = urlrequest.Request(
-        base + "/v1/messages",
-        data=json.dumps(make_body("STUB_JSON")).encode(),
-        headers={"Content-Type": "application/json", "x-api-key": CAPABILITY},
+    status, _, _ = base.request(
+        "POST",
+        "/v1/messages",
+        json.dumps(make_body("STUB_JSON")).encode(),
+        auth=None,
+        headers={"x-api-key": CAPABILITY},
     )
-    with urlrequest.urlopen(authed, timeout=60) as response:
-        assert response.status == 200
+    assert status == 200
     assert usage.is_file()
 
 
@@ -268,18 +310,10 @@ def test_malformed_bodies_and_paths_are_refused(server) -> None:
     base, _ = server
     status, _, _ = post(base, {"model": MODEL})
     assert status in (400, 502)
-    request = urllib.request.Request(
-        base + "/nope",
-        data=b"{}",
-        headers={"Authorization": "Bearer " + CAPABILITY, "Content-Type": "application/json"},
-    )
-    try:
-        urllib.request.urlopen(request, timeout=60)
-        raise AssertionError("expected HTTPError")
-    except urllib.error.HTTPError as exc:
-        assert exc.code == 404
-    health = urllib.request.urlopen(base + "/healthz", timeout=60)
-    assert health.status == 200
+    assert base.request("POST", "/nope", b"{}")[0] == 404
+    # Readiness is a controller-owned ready file, never an HTTP exception
+    # to the model-only sandbox contract.
+    assert base.request("GET", "/healthz")[0] == 404
 
 
 def test_capability_never_reaches_the_usage_file_or_logs(server) -> None:
@@ -289,6 +323,8 @@ def test_capability_never_reaches_the_usage_file_or_logs(server) -> None:
     text = usage.read_text() if usage.is_file() else ""
     assert CAPABILITY not in text
     assert "wrong" not in text
+    assert CAPABILITY not in json.dumps(base.logs)
+    assert "wrong" not in json.dumps(base.logs)
 
 
 def test_dead_child_fails_requests(server) -> None:
@@ -297,41 +333,21 @@ def test_dead_child_fails_requests(server) -> None:
     assert status == 502
 
 
-def test_argv_validation_fails_closed(tmp_path: Path) -> None:
+def test_argv_validation_fails_closed(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    bridge = load_bridge()
     usage = tmp_path / "usage.jsonl"
-    env = dict(
-        os.environ,
-        EVALLAB_CLAUDE_GATEWAY_ATTEMPT_ID=ATTEMPT,
-        EVALLAB_CLAUDE_GATEWAY_USAGE_FILE=str(usage),
-    )
-    no_cap = subprocess.run(
-        [sys.executable, str(BRIDGE), "--allowed-model", MODEL],
-        env={k: v for k, v in env.items() if k != "EVALLAB_CLAUDE_GATEWAY_CAPABILITY"},
-        capture_output=True,
-        timeout=30,
-    )
-    assert no_cap.returncode == 2
-    external = subprocess.run(
-        [
-            sys.executable,
-            str(BRIDGE),
-            "--host",
-            "0.0.0.0",
-            "--allowed-model",
-            MODEL,
-        ],
-        env=dict(env, EVALLAB_CLAUDE_GATEWAY_CAPABILITY=CAPABILITY),
-        capture_output=True,
-        timeout=30,
-    )
-    assert external.returncode == 2
-    unpinned = subprocess.run(
-        [sys.executable, str(BRIDGE), "--attempt-id", ATTEMPT, "--usage-file", str(usage)],
-        env=dict(env, EVALLAB_CLAUDE_GATEWAY_CAPABILITY=CAPABILITY),
-        capture_output=True,
-        timeout=30,
-    )
-    assert unpinned.returncode == 2
+    monkeypatch.delenv(bridge.CAPABILITY_ENV, raising=False)
+    monkeypatch.setenv(bridge.ATTEMPT_ENV, ATTEMPT)
+    monkeypatch.setenv(bridge.USAGE_FILE_ENV, str(usage))
+
+    def unexpected_gateway(*args, **kwargs):
+        raise AssertionError("invalid argv must not start a child")
+
+    monkeypatch.setattr(bridge, "StdioGateway", unexpected_gateway)
+    assert bridge.main(["--allowed-model", MODEL]) == 2
+    monkeypatch.setenv(bridge.CAPABILITY_ENV, CAPABILITY)
+    assert bridge.main(["--host", "0.0.0.0", "--allowed-model", MODEL]) == 2
+    assert bridge.main(["--attempt-id", ATTEMPT, "--usage-file", str(usage)]) == 2
 
 
 def test_models_match_accepts_only_the_anthropic_prefix() -> None:
@@ -350,3 +366,166 @@ def test_served_model_parses_both_shapes() -> None:
     assert bridge._served_model(MODEL, 200, SSE_OK) == MODEL
     assert bridge._served_model(MODEL, 200, {"type": "message"}) is None
     assert bridge._served_model(MODEL, 200, "not sse") is None
+
+
+@pytest.mark.parametrize("target", ["/v1/messages", "/v1/messages?beta=true"])
+def test_exact_messages_targets_forward_only_canonical_model_path(server, target: str) -> None:
+    base, usage = server
+    body = make_body("STUB_JSON")
+
+    status, _, payload = base.request("POST", target, json.dumps(body).encode())
+
+    assert status == 200
+    assert json.loads(payload)["model"] == MODEL
+    assert base.gateway.calls == [("/v1/messages", body)]
+    assert base.last_handler.close_connection is True
+    assert usage_records(usage)[0]["ts"] == "2026-10-13T12:00:00+00:00"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "/healthz",
+        "/v1/models",
+        "/v1/chat/completions",
+        "/v1/responses",
+        "/v1/messages/count_tokens",
+        "/v1/messages/count_tokens?beta=true",
+        "/auth",
+        "/credentials",
+        "/v1/messages/",
+        "//v1/messages",
+        "///v1/messages?beta=true",
+        "/v1//messages",
+        "/v1/./messages",
+        "/v1/other/../messages",
+        "/v1/%6dessages",
+        "/v1/messages%3fbeta=true",
+        "/v1/messages;beta=true",
+        "/v1/messages#fragment",
+        "http://localhost/v1/messages",
+        "https://host.docker.internal/v1/messages?beta=true",
+        "*",
+        "/v1/messages?",
+        "/v1/messages?beta=false",
+        "/v1/messages?beta=TRUE",
+        "/v1/messages?beta=true&",
+        "/v1/messages?beta=true&beta=true",
+        "/v1/messages?beta=true&path=/v1/models",
+        "/v1/messages?%62eta=true",
+        "/v1/messages?beta=%74rue",
+        "/v1/messages?other=true",
+        "/v1/messages?beta=true#fragment",
+    ],
+)
+def test_other_targets_fail_before_body_read_or_gateway_call(server, target: str) -> None:
+    base, usage = server
+
+    status, _, payload = base.request("POST", target, b"untrusted-body")
+
+    assert status == 404
+    assert json.loads(payload)["error"]["type"] == "not_found"
+    assert base.last_handler.rfile.body_reads == []
+    assert base.last_handler.close_connection is True
+    assert base.gateway.calls == []
+    assert base.logs == []
+    assert not usage.exists()
+
+
+@pytest.mark.parametrize(
+    "method", ["GET", "HEAD", "PUT", "PATCH", "DELETE", "OPTIONS", "TRACE", "CONNECT", "post", "X"]
+)
+@pytest.mark.parametrize("target", ["/v1/messages", "/v1/messages?beta=true", "/healthz"])
+def test_every_other_method_is_refused_before_body_or_gateway(server, method: str, target: str):
+    base, usage = server
+
+    assert base.request(method, target, b"untrusted-body")[0] == 404
+
+    assert base.last_handler.rfile.body_reads == []
+    assert base.last_handler.close_connection is True
+    assert base.gateway.calls == []
+    assert not usage.exists()
+
+
+def test_beta_messages_require_capability_before_body_read(server) -> None:
+    base, usage = server
+
+    assert base.request("POST", "/v1/messages?beta=true", b"untrusted-body", auth=None)[0] == 401
+
+    assert base.last_handler.rfile.body_reads == []
+    assert base.last_handler.close_connection is True
+    assert base.gateway.calls == []
+    assert not usage.exists()
+
+
+@pytest.mark.parametrize(
+    ("method", "target", "auth", "status"),
+    [
+        ("POST", "/v1/models", "Bearer " + CAPABILITY, 404),
+        ("GET", "/v1/messages", "Bearer " + CAPABILITY, 404),
+        ("POST", "/v1/messages", None, 401),
+    ],
+)
+def test_expect_continue_does_not_invite_rejected_bodies(server, method, target, auth, status):
+    base, usage = server
+
+    assert base.request(
+        method, target, b"untrusted-body", auth=auth, headers={"Expect": "100-continue"}
+    )[0] == status
+
+    assert b"100 Continue" not in base.last_handler.wfile.getvalue()
+    assert base.last_handler.rfile.body_reads == []
+    assert base.last_handler.close_connection is True
+    assert base.gateway.calls == []
+    assert not usage.exists()
+
+
+def test_expect_continue_is_supported_for_authenticated_messages(server) -> None:
+    base, _ = server
+
+    assert base.request(
+        "POST",
+        "/v1/messages?beta=true",
+        json.dumps(make_body("STUB_JSON")).encode(),
+        headers={"Expect": "100-continue"},
+    )[0] == 200
+
+    assert base.last_handler.wfile.getvalue().startswith(b"HTTP/1.1 100 Continue\r\n")
+    assert len(base.gateway.calls) == 1
+
+
+@pytest.fixture()
+def stdio_gateway(stub_argv: str):
+    bridge = load_bridge()
+    gateway = bridge.StdioGateway(
+        shlex.split(stub_argv), max_concurrency=1, upstream_timeout=5.0
+    )
+    try:
+        yield bridge, gateway
+    finally:
+        gateway.stop()
+        try:
+            gateway._process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            gateway._process.kill()
+            gateway._process.wait(timeout=5)
+        gateway._reader.join(timeout=5)
+        gateway._stderr_reader.join(timeout=5)
+        for stream in (gateway._process.stdin, gateway._process.stdout, gateway._process.stderr):
+            stream.close()
+
+
+def test_stdio_child_exchanges_json_and_sse_over_pipes(stdio_gateway) -> None:
+    _, gateway = stdio_gateway
+
+    assert gateway.request("/v1/messages", make_body("STUB_JSON")) == (200, JSON_OK)
+    assert gateway.request("/v1/messages", make_body("STUB_STREAM")) == (200, SSE_OK)
+
+
+def test_stdio_child_death_fails_current_and_future_calls(stdio_gateway) -> None:
+    bridge, gateway = stdio_gateway
+
+    with pytest.raises(bridge.GatewayError):
+        gateway.request("/v1/messages", make_body("STUB_DIE"))
+    with pytest.raises(bridge.GatewayError):
+        gateway.request("/v1/messages", make_body("STUB_JSON"))

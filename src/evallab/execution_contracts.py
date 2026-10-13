@@ -194,6 +194,8 @@ CLAUDE_GATEWAY_BRIDGE_SCRIPT = Path("containers/claude_gateway_bridge.py")
 CLAUDE_GATEWAY_CAPABILITY_ENV = "EVALLAB_CLAUDE_GATEWAY_CAPABILITY"
 CLAUDE_GATEWAY_ATTEMPT_ENV = "EVALLAB_CLAUDE_GATEWAY_ATTEMPT_ID"
 CLAUDE_GATEWAY_USAGE_FILE_ENV = "EVALLAB_CLAUDE_GATEWAY_USAGE_FILE"
+#: Controller-only port admission; never forwarded as an agent environment key.
+CLAUDE_GATEWAY_ISOLATION_PORT_ENV = "EVALLAB_CLAUDE_GATEWAY_ISOLATION_PORT"
 #: Hostname a Docker Desktop sandbox uses to reach a host-loopback bridge.
 CLAUDE_GATEWAY_SANDBOX_HOST = "host.docker.internal"
 #: Usage evidence persisted beside the job after Harbor exits.
@@ -225,6 +227,9 @@ TERMINUS_LOCAL_MODEL_SELECTOR = "ollama_chat/qwen2.5:7b"
 TERMINUS_LOCAL_ENDPOINT_ENV = "EVALLAB_TERMINUS_OLLAMA_URL"
 BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_daytona:BoundedDaytonaEnvironment"
 LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH = "evallab.harbor_docker:LockedDockerEnvironment"
+HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH = (
+    "evallab.harbor_host_isolation:HostIsolatedDockerEnvironment"
+)
 ZAI_OPENCODE_AGENT = "zai-opencode"
 ZAI_OPENCODE_MODEL_SELECTORS: frozenset[str] = frozenset(
     {"zai-coding-plan/glm-5.3", "zai-coding-plan/glm-5.3-flash"}
@@ -2321,6 +2326,8 @@ def build_command(
         environment = BOUNDED_DAYTONA_ENVIRONMENT_IMPORT_PATH
     elif environment == "docker" and resolve_egress_lock(request):
         environment = LOCKED_DOCKER_ENVIRONMENT_IMPORT_PATH
+    elif environment == "docker":
+        environment = HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH
     command = [
         "harbor",
         "run",
@@ -2373,6 +2380,8 @@ def build_command(
     if resolve_egress_lock(request):
         _validate_egress_lock(request)
         command.extend(["--environment-kwarg", "egress_lock=true"])
+    if environment == HOST_ISOLATED_DOCKER_ENVIRONMENT_IMPORT_PATH:
+        command.extend(["--environment-kwarg", f"isolation_lane={request.agent}"])
     command.extend(["--plugin", HARBOR_STATE_JOURNAL_PLUGIN])
     command.extend(["--plugin", HARBOR_WATCH_HOOKS_PLUGIN])
     command.extend(["--plugin", HARBOR_FILE_ACCESS_PLUGIN])

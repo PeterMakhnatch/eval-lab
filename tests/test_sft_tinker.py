@@ -18,17 +18,14 @@ import pytest
 from evallab.sft_tinker import (
     CONVERSATIONS_FILE,
     EXPORT_MANIFEST_FILE,
-    PROJECT_DIR,
     TRAINING_MANIFEST_FILE,
     TraceError,
     dry_run,
     estimate_cost_usd,
     load_conversations,
-    measure_command,
     read_final_sampler_path,
     run_measure,
     run_training,
-    training_command,
 )
 
 
@@ -85,47 +82,6 @@ def _conversation(user_chars: int = 40, assistant_chars: int = 60) -> list[dict[
     ]
 
 
-def test_measure_command_wraps_isolated_project() -> None:
-    command = measure_command(
-        Path("/data/conversations.jsonl"),
-        model="Qwen/Qwen3.5-9B",
-        renderer_name="qwen3_5_disable_thinking",
-        max_length=16384,
-    )
-    assert command[0].endswith("uv")
-    assert command[1:5] == [
-        "run",
-        "--project",
-        PROJECT_DIR.resolve().as_posix(),
-        "--locked",
-    ]
-    joined = " ".join(command)
-    assert f"--project {PROJECT_DIR.resolve().as_posix()}" in joined
-    assert "--locked" in joined
-    assert (PROJECT_DIR / "measure.py").resolve().as_posix() in joined
-    assert "--model Qwen/Qwen3.5-9B" in joined
-    assert "--renderer qwen3_5_disable_thinking" in joined
-    assert "--max-length 16384" in joined
-    assert "--train-on-what all_assistant_messages" in joined
-    assert "--conversations /data/conversations.jsonl" in joined
-
-
-def test_run_measure_parses_stats_json(tmp_path: Path) -> None:
-    data = _write_export(tmp_path, [_conversation(), _conversation()])
-    stats = run_measure(
-        data / CONVERSATIONS_FILE,
-        model="Qwen/Qwen3.6-35B-A3B",
-        renderer_name="qwen3_5_disable_thinking",
-        max_length=6,
-        measure_runner=_measure_runner(_stats_json()),
-    )
-    assert stats.conversations == 2
-    assert stats.total_tokens == 16
-    assert stats.total_tokens_after_truncation == 12
-    assert stats.supervised_tokens_after_truncation == 4.0
-    assert stats.truncated_conversations == 2
-    assert stats.renderer_extension_property is None
-
 
 def test_run_measure_fails_closed_on_error_and_bad_json(tmp_path: Path) -> None:
     data = _write_export(tmp_path, [_conversation()])
@@ -155,7 +111,7 @@ def test_run_measure_fails_closed_on_error_and_bad_json(tmp_path: Path) -> None:
         )
 
 
-def test_dry_run_reports_stats_and_cost(tmp_path: Path) -> None:
+def test_dry_run_prices_all_rendered_tokens_not_only_supervised(tmp_path: Path) -> None:
     data = _write_export(tmp_path, [_conversation(), _conversation()])
     report = dry_run(
         data,
@@ -163,18 +119,15 @@ def test_dry_run_reports_stats_and_cost(tmp_path: Path) -> None:
         renderer_name="qwen3_5_disable_thinking",
         max_length=6,
         epochs=1,
-        measure_runner=_measure_runner(_stats_json(total_tokens_after_truncation=1_000_000)),
+        measure_runner=_measure_runner(
+            _stats_json(
+                total_tokens_after_truncation=1_000_000,
+                supervised_tokens_after_truncation=1.0,
+            )
+        ),
     )
-    render = report["render"]
-    assert render["conversations"] == 2
-    assert render["total_tokens"] == 16
-    assert render["truncated_conversations"] == 2
-    assert report["renderer"] == "qwen3_5_disable_thinking"
-    assert report["train_on_what"] == "all_assistant_messages"
-    assert report["split_manifest_digest"] == "sha256:" + "0" * 64
-    assert report["price_per_mtoken_usd"] == 1.177
-    assert report["estimated_cost_usd"] == 1.18  # 1M tokens x 1 epoch x 1.177/M
-    assert report["notes"] == []
+    assert report["render"]["supervised_tokens_after_truncation"] == 1.0
+    assert report["estimated_cost_usd"] == 1.18  # all 1M rendered tokens x $1.177/M
 
 
 def test_dry_run_surfaces_missing_extension_property(tmp_path: Path) -> None:
@@ -194,6 +147,22 @@ def test_dry_run_surfaces_missing_extension_property(tmp_path: Path) -> None:
     )
     assert report["render"]["renderer_extension_property"] is False
     assert any("extension" in note for note in report["notes"])
+    last_only = dry_run(
+        data,
+        model="Qwen/Qwen3.6-35B-A3B",
+        renderer_name="qwen3_5_disable_thinking",
+        max_length=128,
+        epochs=1,
+        train_on_what="last_assistant_message",
+        measure_runner=_measure_runner(
+            _stats_json(
+                conversations=1,
+                renderer_extension_property=False,
+            )
+        ),
+    )
+    assert last_only["train_on_what"] == "last_assistant_message"
+    assert last_only["notes"] == []
 
 
 def test_dry_run_refuses_count_mismatch(tmp_path: Path) -> None:
@@ -249,36 +218,6 @@ def test_load_conversations_enforces_chat_sl_row_shape(tmp_path: Path) -> None:
         load_conversations(tool_role)
 
 
-def test_training_command_uses_isolated_project_and_chz_key_value_form() -> None:
-    command = training_command(
-        Path("/data/conversations.jsonl"),
-        model="Qwen/Qwen3.5-9B",
-        renderer_name="qwen3_5_disable_thinking",
-        learning_rate=1e-4,
-        lora_rank=32,
-        batch_size=256,
-        num_epochs=1,
-        max_length=16384,
-        log_dir=Path("/logs/run1"),
-    )
-    assert command[0].endswith("uv")
-    assert command[1:5] == [
-        "run",
-        "--project",
-        PROJECT_DIR.resolve().as_posix(),
-        "--locked",
-    ]
-    assert command[5:8] == ["python", "-m", "tinker_cookbook.recipes.chat_sl.train"]
-    joined = " ".join(command)
-    assert "dataset=/data/conversations.jsonl" in joined
-    assert "model_name=Qwen/Qwen3.5-9B" in joined
-    assert "renderer_name=qwen3_5_disable_thinking" in joined
-    assert "train_on_what=all_assistant_messages" in joined
-    assert "lora_rank=32" in joined and "batch_size=256" in joined
-    assert "num_epochs=1" in joined and "max_length=16384" in joined
-    assert "log_path=/logs/run1" in joined
-    assert "behavior_if_log_dir_exists=raise" in joined
-    assert "--dataset" not in joined  # chz 0.5.7 rejects dash-style flags
 
 
 def test_training_refuses_without_confirm_spend(tmp_path: Path) -> None:
@@ -308,7 +247,8 @@ def test_training_runs_and_links_data_digest_to_sampler_path(
 
     def fake_runner(command: list[str]) -> int:
         commands.append(command)
-        log_dir.mkdir(parents=True, exist_ok=True)
+        # The real pinned trainer refuses even an existing empty log directory.
+        log_dir.mkdir(parents=True, exist_ok=False)
         (log_dir / "checkpoints.jsonl").write_text(
             "\n".join(
                 [
@@ -347,23 +287,43 @@ def test_training_runs_and_links_data_digest_to_sampler_path(
         runner=fake_runner,
     )
     assert len(commands) == 1
-    assert commands[0][0].endswith("uv")
-    assert commands[0][1:5] == [
-        "run",
-        "--project",
-        PROJECT_DIR.resolve().as_posix(),
-        "--locked",
-    ]
     assert manifest["sampler_path"] == "tinker://run-abc:train:0/sampler_weights/7"
     assert manifest["tinker_run_id"] == "run-abc"
-    assert manifest["conversations_sha256"].startswith("sha256:")
-    assert manifest["split_manifest_digest"].startswith("sha256:")
-    assert manifest["teacher_model"] == "zai/glm-5.3"
-    assert manifest["renderer"] == "qwen3_5_disable_thinking"
-    assert manifest["hyperparameters"]["max_length"] == 16384
-    assert manifest["trainer"]["exit_code"] == 0
-    assert manifest["trainer"]["project"] == PROJECT_DIR.resolve().as_posix()
+    expected_digest = "sha256:" + hashlib.sha256((data / CONVERSATIONS_FILE).read_bytes()).hexdigest()
+    assert manifest["conversations_sha256"] == expected_digest
+    assert manifest["split_manifest_digest"] == "sha256:" + "0" * 64
     assert (log_dir / TRAINING_MANIFEST_FILE).is_file()
+def test_training_refuses_any_existing_log_directory_before_runner(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("TINKER_API_KEY", "test-not-a-real-key")
+    data = _write_export(tmp_path, [_conversation()])
+    log_dir = tmp_path / "logs"
+    log_dir.mkdir()
+    called = False
+
+    def runner(command: list[str]) -> int:
+        nonlocal called
+        called = True
+        return 0
+
+    with pytest.raises(TraceError, match="already exists"):
+        run_training(
+            data,
+            model="Qwen/Qwen3.5-9B",
+            renderer_name=None,
+            log_dir=log_dir,
+            learning_rate=1e-4,
+            lora_rank=32,
+            batch_size=256,
+            num_epochs=1,
+            max_length=16384,
+            confirm_spend=True,
+            runner=runner,
+        )
+    assert called is False
+
+
 
 
 def test_training_refuses_on_trainer_failure(

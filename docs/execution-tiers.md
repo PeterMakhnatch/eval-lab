@@ -334,8 +334,10 @@ HAR-181 remains parked; no native telemetry collectors are required.
 
 **Selected implementation: one existing Modal A100 server plus native Harbor
 Docker containers on a dedicated Linux host.** Use the existing spec fields
-`"environment": "docker", "egress_lock": true` with `mimoagent`, `nop` or
-`oracle`. The flag selects `evallab.harbor_docker:LockedDockerEnvironment`;
+`"environment": "docker", "egress_lock": true` with `mimoagent`, `nop`,
+`oracle`, or `terminus-2` (Terminus only where the task image already provides
+tmux — see the Terminus section below; the dispatcher cannot verify image
+contents). The flag selects `evallab.harbor_docker:LockedDockerEnvironment`;
 ordinary Docker is unchanged. Run the trusted Lab/Harbor controller on the
 same host as its Docker daemon so native bind paths refer to that host.
 An SSH Docker context alone is not remote staging of the controller's files.
@@ -640,7 +642,14 @@ implementations. Metered routes, all host-side through the same loopback proxy:
   LiteLLM drops the top-level `reasoning_effort` knob for this unregistered
   model. To disable thinking, send it in the body through the harness
   `llm_call_kwargs.extra_body.reasoning_effort: "none"`; `top_p` is forwarded
-  too, `top_k` is not.
+  too, `top_k` is not. The full path is verified in source (Harbor deep-merges
+  caller `extra_body`, LiteLLM's HTTP layer promotes it top-level, the proxy's
+  Tinker `forwarded_fields` admit top-level `reasoning_effort` with no Tinker
+  strip); it is not assumed. Base and LoRA arms share the harness, proxy, and
+  endpoint, so they match structurally — only sampler weights differ. Close
+  the remaining server-side template question empirically: the first paid
+  smoke trial's raw responses must show no `<think>` blocks (training renderer
+  `qwen3_5_disable_thinking`).
 - `breaker-selfhosted/Qwen/Qwen3.6-35B-A3B` and
   `breaker-selfhosted/rewardhack/qwen3.6-35b-a3b-hacksft-thinkoff-873rows-ep3`
   — the matched [trained-breaker diagnostic](../research/experiments/trained-breaker-v1/README.md).
@@ -861,6 +870,20 @@ Select a backend that supports those requirements. Preparation accepts `docker`,
 `daytona`, `modal`, and `beam`; remote specs also require
 `--estimated-cost-usd` for model plus infrastructure. GPU tasks require a
 compatible remote backend, and Terminus requires a Linux terminal with tmux.
+Terminus on locked Docker (`"environment": "docker", "egress_lock": true`) is
+admitted with one preparation-time precondition the dispatcher cannot verify:
+the task image must already provide tmux (and asciinema for terminal
+recording, else recording is best-effort). Upstream `TmuxSession.start`
+unconditionally attempts an in-sandbox tmux/asciinema install before opening
+the session; under the creation-time `network_mode: none` lock that install
+can never fetch anything, so it is bounded (120 s per command, 240 s total)
+and degrades to a failed trial when tmux is truly absent — it never grants
+egress. Model transport needs no sandbox network (host-side loopback proxy),
+which is why the lock itself is not weakened. Daytona needs no such
+precondition: it locks after agent setup, so the install window still works
+there. Confirm `tmux -V` inside the exact pinned image (cached only; the
+operator decides each pull) before approving locked-Terminus specs.
+
 Task-provided Compose uses the backend's native multi-container support, not the
 mini-SWE proxy overlay. Upstream network/phase capability checks still apply:
 for example, Daytona DinD cannot change network policy dynamically. Unsupported

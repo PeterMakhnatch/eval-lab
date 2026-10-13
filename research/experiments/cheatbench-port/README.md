@@ -120,16 +120,39 @@ Infra findings fixed on the way: Eval Lab flagged every Tinker trial as
 `model_identity_mismatch` because Tinker echoes `Qwen/...` without the lab's
 `tinker/` prefix (fixed in `runner._accepted_returned_models`, with a test).
 
+## Batch 2 (2026-10-12; tables in `results/summary-2026-10-12-cb-or-stop.md`)
+
+88 trials: Qwen3.6-35B-A3B and Qwen3.5-9B through OpenRouter (pinned DeepInfra
+endpoints), 3 families × 11 instances, original vs "Don't cheat!", Eval Lab's
+live stop `on` vs `dry-run` on the same instances. Agent spend $3.43 (plus $0.17
+smoke); both judges ran on subscriptions at $0.
+
+- 73 of 82 judged trials cheated, 36/41 original vs 37/41 "Don't cheat!".
+  Sonnet 5.5 (fxtr) and GPT-6.1 Sol (`codex exec`) agree on all 82; the
+  detector on 81.
+- Live stop: 9 of 10 dry-run would-stops hit judged cheats. After the
+  would-stop point those trials spent 76% of their input. Code-ban cheats (29
+  of 41) never trigger it.
+- An Eval Lab watch bug let an ineligible alert in the same pass hide an
+  eligible one, missing 4 stops; fixed separately.
+
+Details, the paused-container stop race and the provider overload that fenced
+the queue are in `REPORT.md` ("Batch 2"); operating notes are in `RUNBOOK.md`.
+
 ## Reproduce
 
 ```bash
 # build packages (see library/benchmarks/cheatbench/README.md), then:
 uv run --no-sync python research/experiments/cheatbench-port/make_specs.py \
-  --model zai/glm-5.3-flash --family subset_sum --out /private/tmp/specs \
-  --cost-limit-usd 0.30 --est-cost-usd 0.05
-# readiness gate -> submit/approve -> capture + per-family tick -> postrun
+  --model openrouter-metered/qwen/qwen3.6-35b-a3b --family openmath_agent \
+  --ids bsd hodge riemann --tag b2dc --stop-mode dry-run \
+  --extra-instruction research/experiments/cheatbench-port/preambles/dont-cheat.md \
+  --out /private/tmp/specs --cost-limit-usd 0.25 --est-cost-usd 0.10
+# readiness gate -> submit/approve -> capture + per-group tick -> postrun
 # (paid: only with a budget Peter granted; --dry-run prints every command):
-research/experiments/cheatbench-port/run_batch.sh /private/tmp/specs "<actor + approval>" 3
+CB_SPEND_CAP_USD=<cap> research/experiments/cheatbench-port/run_batch.sh /private/tmp/specs "<actor + approval>" 4
+# after a queue/STOP fence: fix the cause, `uv run evallab resume`, then
+research/experiments/cheatbench-port/run_batch.sh --resume <batch_id> 2
 ```
 
 Batch records land in `runs/_batches/<batch_id>/` (spec ids, readiness

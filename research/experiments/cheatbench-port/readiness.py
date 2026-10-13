@@ -49,9 +49,12 @@ CONTROL_PACKAGE = {
     "prime_factorization": "prime_factorization-fact_n52_4",
     "openmath_agent": "openmath-agent-beal",
 }
-# Known-good / known-clean reference trials for the detector check.
+# Known-good / known-clean reference trials for the detector check. They live
+# in runs/ only in the worktree that ran them; their immutable published copies
+# under ~/Developer/eval-lab-results are the fallback (resolve_trial).
 CHEAT_REF = "runs/cb-ss-4-glm53f-smoke3/cb-ss-4-glm53f-smoke3__wDWachE"
 CLEAN_REF = "runs/cb-oma-beal-glm53f-dc/cb-oma-beal-glm53f-dc__3DKd9Qu"
+PUBLISHED_ROOT = Path.home() / "Developer" / "eval-lab-results"
 # Judge context windows we know (tokens). Unknown providers map to None (skip).
 CONTEXT_WINDOW = {
     "tinker/Qwen/Qwen3.8-27B": 65536,
@@ -60,8 +63,20 @@ CONTEXT_WINDOW = {
 PROVIDER_BASE = {
     "zai": "https://api.z.ai/api/paas/v4",
     "tinker": "https://tinker.thinkingmachines.dev/services/tinker-prod/oai/api/v1",
+    "openrouter-metered": "https://openrouter.ai/api/v1",
 }
-PROVIDER_KEY_ENV = {"zai": "ZAI_OPENAPI_API_KEY", "tinker": "TINKER_API_KEY"}
+PROVIDER_KEY_ENV = {"zai": "ZAI_OPENAPI_API_KEY", "tinker": "TINKER_API_KEY",
+                    "openrouter-metered": "OPENROUTER_API_KEY"}
+
+
+def resolve_trial(rel: str) -> Path:
+    """``ROOT/rel`` when present, else the trial's published copy."""
+    local = ROOT / rel
+    if local.is_dir():
+        return local
+    job, trial = Path(rel).parts[-2:]
+    hits = sorted(PUBLISHED_ROOT.glob(f"*/*{job}/{trial}"))
+    return hits[0] if hits else local
 
 
 def provider_of(route: str) -> str | None:
@@ -99,6 +114,31 @@ class Gate:
                "seconds": round(seconds, 1)}
         self.checks.append(row)
         return row
+
+    # -- Harbor ------------------------------------------------------------
+    def check_harbor(self) -> None:
+        """The `harbor` on PATH is the pinned version and can load the
+        Terminus agent. The free controls (nop/oracle/canary) never import it,
+        so without this check a wrong Harbor fails every model trial at
+        dispatch (2026-10-12: a venv synced without the `laminar` extra fell
+        through to a global Harbor 0.21 tool)."""
+        import shutil
+        t0 = time.monotonic()
+        pinned = re.search(r'"harbor==([^"]+)"', (ROOT / "pyproject.toml").read_text())
+        want = pinned.group(1) if pinned else None
+        exe = shutil.which("harbor")
+        if exe is None:
+            self.add("harbor", "fail", {"error": "harbor is not on PATH"}, time.monotonic() - t0)
+            return
+        rc, out, _ = run([exe, "--version"], timeout=60)
+        versions = re.findall(r"^\s*(\d+\.\d+\.\d+\S*)\s*$", out, re.M) if rc == 0 else []
+        version = versions[-1] if versions else None
+        py = Path(exe).resolve().parent / "python"
+        rc2, out2, _ = run([str(py), "-c", "import evallab.harbor_terminus"], timeout=120)
+        evidence = {"harbor": exe, "version": version, "pinned": want,
+                    "terminus_import": "ok" if rc2 == 0 else out2.strip()[-300:]}
+        ok = version is not None and version == want and rc2 == 0
+        self.add("harbor", "pass" if ok else "fail", evidence, time.monotonic() - t0)
 
     # -- (a) Docker ------------------------------------------------------
     def check_docker(self) -> None:
@@ -229,7 +269,8 @@ class Gate:
         import locate as metalocate
 
         def positive(trial: str) -> tuple[bool | None, dict]:
-            t = ROOT / trial
+            t = resolve_trial(trial)
+            trial = str(t)
             if not (t / "agent" / "trajectory.json").is_file():
                 return None, {"trial": trial, "note": "no trajectory"}
             try:
@@ -343,7 +384,8 @@ class Gate:
         for route in routes:
             prov = provider_of(route)
             fn = {"zai": creds.probe_zai_openapi_api_result,
-                  "tinker": creds.probe_tinker_api_result}.get(prov or "")
+                  "tinker": creds.probe_tinker_api_result,
+                  "openrouter-metered": creds.probe_openrouter_api_result}.get(prov or "")
             if fn is None:
                 per_route[route] = {"ok": False, "reason": f"unknown provider for {route!r}"}
                 failed = True
@@ -380,9 +422,21 @@ class Gate:
         if not key:
             return False, f"{PROVIDER_KEY_ENV[prov]} not in environment (run under `keys run`)"
         model = route.split("/", 1)[1]
-        body = json.dumps({"model": model,
-                           "messages": [{"role": "user", "content": "ok"}],
-                           "max_tokens": 1, "temperature": 0}).encode()
+        request: dict = {"model": model,
+                         "messages": [{"role": "user", "content": "ok"}],
+                         "max_tokens": 1, "temperature": 0}
+        credit = ""
+        if prov == "openrouter-metered":
+            # Probe the exact pinned endpoint the proxy forces, and read the
+            # key's remaining credit (free GET).
+            from evallab.execution_contracts import openrouter_route
+            pin = openrouter_route(route).provider_pin
+            request["provider"] = {k: (list(v) if isinstance(v, tuple) else v)
+                                   for k, v in pin.items()}
+            ok, credit = self._openrouter_credit(key)
+            if not ok:
+                return False, credit
+        body = json.dumps(request).encode()
         req = urllib.request.Request(
             PROVIDER_BASE[prov] + "/chat/completions", data=body,
             headers={"Authorization": "Bearer REDACTED",
@@ -406,7 +460,24 @@ class Gate:
             return False, f"transport {type(e).__name__}: {str(e)[:160]} (warn-worthy; retry)"
         if "insufficient" in payload.lower():
             return False, f"balance failure in 200 body: {payload[:160]}"
-        return True, f"HTTP 200, model {model!r} answered 1-token probe"
+        return True, f"HTTP 200, model {model!r} answered 1-token probe{credit}"
+
+    @staticmethod
+    def _openrouter_credit(key: str) -> tuple[bool, str]:
+        """``(ok, note)`` from OpenRouter's ``GET /key`` (limit and usage, USD)."""
+        req = urllib.request.Request("https://openrouter.ai/api/v1/key",
+                                     headers={"User-Agent": "evallab-cheatbench-readiness/1"})
+        req.add_unredirected_header("Authorization", f"Bearer {key}")
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                data = json.loads(resp.read().decode()).get("data") or {}
+        except Exception as e:
+            return False, f"credit check failed: {type(e).__name__}: {str(e)[:120]}"
+        remaining = data.get("limit_remaining")
+        if remaining is not None and float(remaining) <= 0:
+            return False, f"OpenRouter key has no credit left (limit_remaining={remaining})"
+        return True, (f"; key limit_remaining=${remaining} usage=${data.get('usage')}"
+                      f" limit=${data.get('limit')}")
 
     # -- (g) judge fitness ---------------------------------------------------
     def check_judge(self, family: str) -> None:
@@ -796,6 +867,8 @@ class Gate:
 
     def run_all(self) -> int:
         self.check_docker()
+        if not self._stop():
+            self.check_harbor()
         for fam in self.args.families:
             if self._stop():
                 break

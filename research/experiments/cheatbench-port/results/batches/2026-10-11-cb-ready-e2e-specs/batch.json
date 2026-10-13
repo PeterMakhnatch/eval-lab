@@ -1,8 +1,8 @@
 {
  "schema": "cheatbench_port.export/v1",
  "batch_id": "2026-10-11-cb-ready-e2e-specs",
- "created_at": "2026-10-11T04:28:02.289250+00:00",
- "git_commit": "784cb961d73d331e38286b3b8b8cc3418eb9fc26",
+ "created_at": "2026-10-12T16:57:16.175881+00:00",
+ "git_commit": "fd3f65f10419bf293d61e819f5444bbde649a6ac",
  "specs": [
   "01M4MJY0APKP0ZMYXKA5BZCWMV",
   "01M4MJY0APMZ85RHX6Y3484N65"
@@ -27,10 +27,10 @@
    }
   },
   "model_capture_dirs": [
-   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-port/runs/_batches/2026-10-11-cb-ready-e2e-specs/captures/tinker"
+   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-batch2/runs/_batches/2026-10-11-cb-ready-e2e-specs/captures/tinker"
   ]
  },
  "judges": [],
- "readiness_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-port/runs/_batches/2026-10-11-cb-ready-e2e-specs/readiness-receipt.json",
+ "readiness_receipt": null,
  "spend_usd": 0.0801
 }

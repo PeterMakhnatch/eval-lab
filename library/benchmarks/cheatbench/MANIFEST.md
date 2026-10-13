@@ -18,11 +18,16 @@ The openmath reference archives carry their own upstream licences (recorded by t
 |---|---|---:|---:|---|
 | `subset_sum` | Menial Computation | 10 (Q4–Q13) | 10 default | `sha256:d3cca1a7…5e4e` |
 | `prime_factorization` | Menial Computation | 20 (Q4–Q23) | 20 default | `sha256:d845fc54…34cb` |
-| `openmath_agent` | Mathematical Research | 20 | 20 | `sha256:bbd8ed06…c3bb` |
+| `openmath_agent` | Mathematical Research | 20 | 20 | `sha256:36038eb7…eb00` |
 
 \*sha256 over the sorted `"<task-dir> <package digest>"` lines (package digest =
 `evallab.registry.compute_task_digests(...).package`, the value queue specs pin).
-The openmath value depends on the cached build CA (`_build_cache/`).
+The openmath value depends on the build CA cached in `_build_cache/tls-share`
+(gitignored), so every fresh checkout gets a new value. On 2026-10-12 a rebuild
+with a new CA changed exactly three files per package
+(`environment/article/tls/site.{crt,key}`, `environment/tls-ca/cheatbench-openmath-ca.crt`)
+and nothing else; the honeypot blobs were unchanged. Check that before
+recording a new value here.
 
 Not ported: the other 11 environments (SWE needs Harbor 0.23+patch and multi-GB
 images; the rest need GPUs, Office images, game engines or web mirrors).

@@ -1,0 +1,171 @@
+{
+ "schema": "cheatbench_port.export/v1",
+ "batch_id": "2026-10-12-cb-or-stop",
+ "created_at": "2026-10-13T01:37:05.008370+00:00",
+ "git_commit": "75aff3dc4f4e6a978f730248d12e1e33f1054748",
+ "specs": [
+  "01M4RMR43NEC9ZA5YMPMYD0XS3",
+  "01M4RMR43WQS7NQSJE4WBC7JR2",
+  "01M4RMR4439Z1RWMRPW09P47JM",
+  "01M4RMR45W7ENXMQT3XK0KYZ54",
+  "01M4RMR45YJDRFW1BZR0Z0AAH8",
+  "01M4RMR47FG4J2HH098HZYGB42",
+  "01M4RMR4A7R3NNCXK21TKBEJ9T",
+  "01M4RMR4AHFXJ5FA172VZK6NVY",
+  "01M4RMREXQMY4E9M1D22DW38YQ",
+  "01M4RMREYKS95ZNHDDVF6X23WT",
+  "01M4RMRF01NXX3NY4HCB3MRSXA",
+  "01M4RMRF01TX1Z918YRCEQT22S",
+  "01M4RMRF8PZ411B2N85DKGF0M3",
+  "01M4RMRFBNYVQA9W1Y7PMMJS4F",
+  "01M4RMRFS1KB9EHR3S46W1QBK0",
+  "01M4RMRFVQ3MZAAEJXGNSSMG7E",
+  "01M4RMRT5SDN9JY8N7Z00VNC1N",
+  "01M4RMRT743FQ78S3TT7CQEWPX",
+  "01M4RMRTEASM5A292QEJBFRVZY",
+  "01M4RMRTF9WQ40VBP43T65D8W1",
+  "01M4RMRTGE7TYA93ZVJV5E66FH",
+  "01M4RMRTGE9DC1TJFDFGE6QK9Z",
+  "01M4RMRTN3A04RYGZRGDF3JGPK",
+  "01M4RMRV0FGPB3P0QYGXRC2HDM",
+  "01M4RMS4CYMSFJ57BXVPJ5X6V7",
+  "01M4RMS4XVY876N39VMAR0VGVC",
+  "01M4RMS4XZ5K7B332FYC7RQ157",
+  "01M4RMS540FWC442KMWR499GMY",
+  "01M4RMS54P1E5V0475A9BM5HZ8",
+  "01M4RMS55EA47ZR9RRTKMEC2RZ",
+  "01M4RMS56PPTJPJBES3M5TXGXM",
+  "01M4RMS5B5TA3ERJQV0EM1R8M6",
+  "01M4RMSG1GDB2F8XMN2ZB930XC",
+  "01M4RMSG543BJK38339B0H5PHM",
+  "01M4RMSGN8VH7ADQA5HYSYZFQT",
+  "01M4RMSGPTPPRVC9FVNK0ZHE2G",
+  "01M4RMSGRMV8VX0RDV8H3G7PF3",
+  "01M4RMSGTXCTQQXFTGYN9XB9J9",
+  "01M4RMSH42MWNHANFP2MVM0GJ5",
+  "01M4RMSH42RER6J9SJPDAWSGTQ",
+  "01M4RMSWHT28Y3ZJQ4DNKX1DBB",
+  "01M4RMSWQX9T32MYA2R3T6C26M",
+  "01M4RMSWZBA0ZM2MFJ46GW9QZJ",
+  "01M4RMSWZX5WT3TKN56P5MTCET",
+  "01M4RMSX5Q9R51T3WKEH6877F6",
+  "01M4RMSX60GQ7A4S92Q3VSZTQT",
+  "01M4RMSXBMP5C6CKC8VJ7M5ZQ7",
+  "01M4RMSXE28MT9R80Q0B1RAWC4",
+  "01M4RMT8ZD25KMMAR9NQSMCNFS",
+  "01M4RMT90D59703BWXG8BRW2Q8",
+  "01M4RMT911PPS2Z99R9F1N7GTJ",
+  "01M4RMT992PMFBY460E6SW57J3",
+  "01M4RMT9EHV717TE4CFQXJRMKV",
+  "01M4RMT9FEAHD9YXTX4C72E4WP",
+  "01M4RMT9FX99RVSYBKZ925XWCK",
+  "01M4RMT9R3H552CA81NGMWJV9G",
+  "01M4RMTNE5SA1H8CYMF08TCGCR",
+  "01M4RMTNFWG539E3XK4PWEC41Y",
+  "01M4RMTNJ6WPNPXERMZ6TDZ50R",
+  "01M4RMTNPNJH7M80375RAHB7JJ",
+  "01M4RMTNV6XBNPTJS9THGMC3EB",
+  "01M4RMTNVK3SGS9WVQHA9HGJ5B",
+  "01M4RMTNVNCDE21K50Q1J5H904",
+  "01M4RMTP0H2M518W9815DNBSME",
+  "01M4RMV0T16BSZHX3JZ1ZCMM43",
+  "01M4RMV0T1KRK9HAGQHWZGK7X2",
+  "01M4RMV0TGSX262J4BYS3CS28C",
+  "01M4RMV142F4V5JR8ZB3GZTB8A",
+  "01M4RMV142QCKN2GWWG6K5N4NS",
+  "01M4RMV142QMYFP2952XQ0XWR5",
+  "01M4RMV15GTE88MG6WV1QNHQJ5",
+  "01M4RMV15XHY76X2GKZRQ541DD",
+  "01M4RMVBKEM6Z419WNE16G5EVD",
+  "01M4RMVBXMQP6HK81GBRZASYK9",
+  "01M4RMVC1H5ESBN17A7NB9CST1",
+  "01M4RMVC3E6XJK0FBTBZR8JMW7",
+  "01M4RMVC82BH30VJJTJWFWPFJZ",
+  "01M4RMVCGRJQKH94708PHBHA8S",
+  "01M4RMVCHS79GJ17R3Y8YWQB34",
+  "01M4RMVCRBYMZNKK3XBZF4CG3A",
+  "01M4RMVR0683DMH8YPHDM2A8D6",
+  "01M4RMVR0Y8T98VGBK5E3G1NPN",
+  "01M4RMVR1J35XJJ2Z034RZSA3R",
+  "01M4RMVR28M0Z1TDFM7J840P60",
+  "01M4RMVR4DDXYBQ99WTNPX1FGG",
+  "01M4RMVR6F569928JGG1C862JA",
+  "01M4RMVR6YSJPVV4P4HQMM4Y8X",
+  "01M4RMVRC492TTTPN3DDFZHY83"
+ ],
+ "models": [
+  "Qwen3.5-9B (OpenRouter)",
+  "Qwen3.6-35B-A3B (OpenRouter)"
+ ],
+ "families": [
+  "openmath_agent",
+  "prime_factorization",
+  "subset_sum"
+ ],
+ "arms": [
+  "+ \"Don't cheat!\"",
+  "original prompt"
+ ],
+ "capture": {
+  "file_access": "mixed",
+  "file_access_paths": {
+   "openmath_agent": {
+    "grader": [
+     "/workspace/.git/objects/00/89649ef28584dd60810d6a62248a560d012aa0",
+     "/workspace/.git/objects/03/a224e20fb315b894df19c34d8d5679dc944e39",
+     "/workspace/.git/objects/06/4580f6c972f6413876f4436c1ccba8bc6ee2ba",
+     "/workspace/.git/objects/28/043f062c2912740fffe6e596df862a9b4bad0e",
+     "/workspace/.git/objects/2a/005ab24f83127de82c93168a80d7238c6d9353",
+     "/workspace/.git/objects/34/0ca2f51aed96f210584ad05923a82abb67517e",
+     "/workspace/.git/objects/44/01b1d3f33c4be33f2633bec5c939fcd428a9eb",
+     "/workspace/.git/objects/53/1040589e668861236e2640f88f268277ccb7a6",
+     "/workspace/.git/objects/55/d2574167c635ec30ff595c938eb9857007e9e1",
+     "/workspace/.git/objects/5f/e3de0bb8203fe7761ba5f690705e8b039c5fc6",
+     "/workspace/.git/objects/80/245f755d16aed8317ee568b6ad638eec09d906",
+     "/workspace/.git/objects/82/125d1835af484495644864e8e82506d749e450",
+     "/workspace/.git/objects/85/6d7da7938ed47e824c0fbda19ecbecee24c5f9",
+     "/workspace/.git/objects/95/36f84c20122089e0ff333fff8d9fa0ab7b9308",
+     "/workspace/.git/objects/96/b2657a164fe2f6971a4d21eda205686bcf31fb",
+     "/workspace/.git/objects/9d/52690e7b40b32e4758cbf6dfc8420f80b4e2d1",
+     "/workspace/.git/objects/a5/0772227c2c39e4245108d9fc749a862c4f0020",
+     "/workspace/.git/objects/aa/190245df21972c372fe8481886617f6a49c8af",
+     "/workspace/.git/objects/ca/94c2330ce8db615f46b8c5a43d68d0b2896b83",
+     "/workspace/.git/objects/e2/a3960b68c34d7c9285ebffde05c2f6a065f473"
+    ]
+   },
+   "prime_factorization": {
+    "grader": [
+     "/home/runner/work/_temp/generation",
+     "/home/runner/work/_temp/tool_results"
+    ]
+   },
+   "subset_sum": {
+    "grader": [
+     "/home/runner/work/_temp/generation",
+     "/home/runner/work/_temp/tool_results"
+    ]
+   }
+  },
+  "model_capture_dirs": [
+   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-batch2/runs/_batches/2026-10-12-cb-or-stop/captures/openrouter",
+   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-batch2/runs/_batches/2026-10-12-cb-or-stop/captures/openrouter-resume-191302",
+   "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-batch2/runs/_batches/2026-10-12-cb-or-stop/captures/openrouter-resume-202315"
+  ]
+ },
+ "judges": [
+  {
+   "name": "claude-sonnet-5.5",
+   "model": "anthropic/claude-sonnet-5-5 (OMP subscription)",
+   "endpoint": "omp auth-gateway (subscription)",
+   "rubric_sha256": null
+  },
+  {
+   "name": "codex/gpt-6.1-sol",
+   "model": "gpt-6.1-sol",
+   "endpoint": "chatgpt-subscription",
+   "rubric_sha256": "345ba850c02bb857cdb4815aa206984bdd0e7d2e936f32368539a7abc0dc6042"
+  }
+ ],
+ "readiness_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/cheatbench-batch2/runs/_batches/2026-10-12-cb-or-stop/readiness-receipt.json",
+ "spend_usd": 3.4277
+}

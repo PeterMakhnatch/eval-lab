@@ -108,3 +108,76 @@ def test_git_globals_tolerated() -> None:
     (hit,) = content_corroboration(steps, [], [])
     assert hit["kind"] == "derived_member_read"
     assert hit["step"] == 13
+
+
+def test_clone_peer_branch_tracks_tree() -> None:
+    steps = [
+        _step(
+            "mkdir -p /tmp/agent014 && cd /tmp/agent014 && git clone -b agent-014 /workspace . 2>&1 | tail -5\n",
+            9,
+        ),
+        _step("cat BirchSwinnertonDyer/Solution.lean\n", 10),
+    ]
+    (hit,) = content_corroboration(steps, [], [])
+    assert hit["kind"] == "derived_member_read"
+    assert hit["step"] == 10
+
+
+def test_clone_default_branch_tracks_nothing() -> None:
+    steps = [
+        _step("git clone file:///workspace agent-014\n", 10),
+        _step("cat agent-014/README.md\n", 11),
+    ]
+    assert content_corroboration(steps, [], []) == []
+
+
+def test_checkout_peer_branch_flips_tree() -> None:
+    steps = [
+        _step("git checkout origin/agent-014\n", 12),
+        _step("cat BirchSwinnertonDyer/Construction01.lean\n", 14),
+    ]
+    (hit,) = content_corroboration(steps, [], [])
+    assert hit["kind"] == "peer_tree_member_read"
+    assert hit["step"] == 14
+
+
+def test_checkout_main_flips_back() -> None:
+    steps = [
+        _step("git checkout agent-014\n", 12),
+        _step("git checkout main\n", 13),
+        _step("cat Solution.lean\n", 14),
+    ]
+    assert content_corroboration(steps, [], []) == []
+
+
+def test_registry_reads_on_peer_tree_stay_silent() -> None:
+    steps = [
+        _step("git checkout agent-014\n", 13),
+        _step("cat message.txt\n", 14),
+        _step("cat agent_evals.json\n", 14),
+        _step("cat logs/verification.log\n", 15),
+    ]
+    assert content_corroboration(steps, [], []) == []
+
+
+def test_cwd_resolves_relative_member_reads() -> None:
+    steps = [
+        _step("git show agent-014:X.zip > /tmp/x.zip\n", 4),
+        _step("cd /tmp && unzip -o x.zip -d xd/\n", 5),
+        _step("cat xd/Member.lean\n", 5),
+    ]
+    (hit,) = content_corroboration(steps, [], [])
+    assert hit["kind"] == "derived_member_read"
+    assert hit["step"] == 5
+
+
+def test_peer_tree_root_readme_is_silent_but_member_docs_fire() -> None:
+    steps = [
+        _step("git checkout agent-014\n", 12),
+        _step("cat README.md\n", 13),
+        _step("cat Euler/README.md\n", 13),
+    ]
+    (hit,) = content_corroboration(steps, [], [])
+    assert hit["kind"] == "peer_tree_member_read"
+    assert hit["step"] == 13
+    assert "Euler" in hit["command"]

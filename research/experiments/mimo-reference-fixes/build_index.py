@@ -30,6 +30,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
 RESULTS = Path.home() / "Developer/eval-lab-results/2026-10-09/mimo-reference-fixes"
 RESULTS_2026_10_10 = Path.home() / "Developer/eval-lab-results/2026-10-10/mimo-reference-fixes"
+RESULTS_2026_10_13 = Path.home() / "Developer/eval-lab-results/2026-10-13/mimo-reference-fixes"
 HAR191_PROJECTION = ROOT / "research/experiments/python-task-ledger/oracle_sweep.csv"
 HAR191_TASKS = Path.home() / "Developer/eval-lab-results/2026-10-07/HAR-191-oracle-sweep/tasks"
 
@@ -161,6 +162,40 @@ def _wave_rows() -> list[dict]:
     return index
 
 
+def _overnight_rows() -> list[dict]:
+    """2026-10-13 local-Docker v5 regrades (source sweep-2026-10-13).
+
+    Overnight rows may UPGRADE an earlier wave row (fail -> pass) when the
+    v5 grader certifies the candidate (1/0) on the exact new package digest;
+    downgrades and seed reclassifies fail closed.
+    """
+    path = HERE / "observations-overnight.csv"
+    if not path.is_file():
+        return []
+    with path.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    index = []
+    for row in rows:
+        task_id = row["task_id"]
+        patch_path = patch_sha = ""
+        if row["label"] == "oracle:pass+nop:fail":
+            destination = RESULTS_2026_10_13 / task_id / "solution.patch"
+            if not destination.is_file() or destination.stat().st_size == 0:
+                raise ValueError(f"{task_id}: pass row without retained patch bytes")
+            patch_path, patch_sha = str(destination), _sha_file(destination)
+        index.append(
+            {
+                "task_id": task_id,
+                "label": row["label"],
+                "fix_commit": row["fix_commit"],
+                "patch_path": patch_path,
+                "patch_sha256": patch_sha,
+                "source": "sweep-2026-10-13",
+            }
+        )
+    return index
+
+
 def main() -> int:
     index = _har191_seed()
     seed_ids = {row["task_id"] for row in index}
@@ -168,6 +203,19 @@ def main() -> int:
         if row["task_id"] in seed_ids:
             raise ValueError(f"Wave reclassifies HAR-191 seed task {row['task_id']}")
         index.append(row)
+    by_id = {row["task_id"]: row for row in index}
+    for row in _overnight_rows():
+        prior = by_id.get(row["task_id"])
+        if prior is None:
+            index.append(row)
+        elif row["task_id"] in seed_ids:
+            raise ValueError(f"Overnight reclassifies HAR-191 seed task {row['task_id']}")
+        elif prior["label"] == "oracle:pass+nop:fail":
+            raise ValueError(f"Overnight downgrades indexed fix for {row['task_id']}")
+        elif row["label"] != "oracle:pass+nop:fail":
+            raise ValueError(f"Overnight non-upgrade row for {row['task_id']}")
+        else:
+            prior.update(row)
     index.sort(key=lambda row: row["task_id"])
     output = HERE / "index.csv"
     with output.open("w", newline="", encoding="utf-8") as stream:

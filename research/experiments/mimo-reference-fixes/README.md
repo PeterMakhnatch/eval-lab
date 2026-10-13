@@ -290,3 +290,120 @@ actuals-so-far + worst-case-new ≤ cap. No paid launches after w5.
 - Residuals (unfunded under this ticket): 91 Python (largest images), 224
   JS/TS, 632 Go (+ Ruby/PHP/Java/C++/C/Rust/etc. never attempted). Go needs
   longer sandboxes or cheaper images before a full run makes sense.
+# 2026-10-13 overnight local-Docker v5 regrade (MEASURED, $0 cap)
+
+Owner: RefFixRecovery. Runner: worktree detached at origin/main
+`15f34e0a913000e496910f2cbdfc1e16dbdfb983` (branch `reffix-overnight`, never
+rebased). Grader: the v5 chain's bundled verifier (separate-verifier@8;
+001431-shape rows keep whatever the manifest chain says — no @9 exists as a
+fleet generation). Spend: **$0** (laptop local Docker only; subscription
+models via OMP unused; no Modal/Daytona/paid APIs; no ledger entry).
+Docker hygiene: 1 trial at a time (≤2 containers), per-task `docker rmi` of
+the pulled base image once no container references it, no stray containers
+at ship. AdmitOvernight's admit run had stopped before Docker work began
+(`docker free` received; no admit containers remained).
+
+## Method (new machinery: none; one minimal tooling flag)
+
+Per task, in seeded order Go → JS/TS → other non-Python → Python
+(`worklist.csv` seed `20261013`, kept out-of-repo at `/tmp/reffix-work/`):
+
+1. Stream the published image's `.git` subset from the registry
+   (`har177-leak-scan/scan.py` `Registry` + `extract_git_subset`; no Docker,
+   no worktree files) and run the unmodified `leak-oracle/extract.py`
+   (`--task` = snapshot package, `--git-dir` = streamed `.git`) to derive
+   `solution.patch`. Local picks reproduced the sweep's `fix_commit` on all
+   5 retry tasks re-derived here (000007, 000033, 000069, 000247, 000369).
+2. Copy the manifest's exact v5 package bytes, assert
+   `task_directory_digest == final_digest` (AdmitOvernight's issue-2 guard:
+   copies are symlink-preserving; a mismatch fails closed before grading),
+   stage `solution/solve.sh` with the builder's own `build_solution_sh`
+   (byte-identical to what `evallab mimo-clean build` would embed), record
+   the new digest.
+3. Grade the new digest with `evallab mimo-clean verify-local` on a scratch
+   manifest (absolute `package_path`): `--checks oracle,nop` triage first;
+   the full ladder (`--checks cheat`) runs only on (1,0) candidates.
+   `--checks` (default `oracle,nop,cheat`, all three = old behavior) is the
+   only tooling change (`src/evallab/mimo_clean.py`, shipped in this PR).
+   The v5 census `fill_verify.py` rules map the outcome: a fresh (0,1) with
+   no probe becomes `unverified:probe-pending` (never `pass`, never invented
+   checks). Repeat-oracle is single-trial here, so the #873
+   opaque-wrapper rerun defect does not apply; no repeats were run.
+4. Classify: recovered (1/0) · grader-reject (true upstream fix, 0 — evidence
+   below) · candidate-wrong · env-broken · infra/timeout (retry once solo).
+
+## Outcome (MEASURED)
+
+Attempted **9** v5 tasks (all with digest-verified base copies): 8 Go retry
+(T1) + 1 JS retry (T2). Fetched 10 image `.git` subsets; 216 known
+no-candidate tasks skipped from the sweep record (`oracle:none` 182:
+extractor found no usable source fix; `patch-conflict` 33: fix does not
+apply on base; `nop:pass` 1: trivially passing).
+
+- **Recovered 2 (both go)**: 000108 (S1 `eefc9fa0`, skaffold docker
+  client): oracle 1 (`ok .../skaffold/docker`, rc 0) + nop 0
+  (`TestNewMinikubeImageAPIClient` minikube-stopped fallback fails, rc 1);
+  000136 (S2a `36e0b0fa`, distance 1, authorino Anonymous defaults): oracle 1
+  (`ok .../authorino/controllers`, rc 0) + nop 0 (2 Anonymous-default tests
+  fail, rc 1). Both with test-execution evidence; cheat ladder ran on both
+  (14 attacks logged each, trial verifier reward 0). New packages
+  (`sha256:ac7a624c…`, `sha256:d21ea28b…`) published to the primary derived
+  tree; manifest rows updated (`reference_fix` + `oracle_label` +
+  `verify=unverified:probe-pending`); index upgraded 2 rows
+  `oracle:fail → oracle:pass+nop:fail` (`sweep-2026-10-13`; builder gained a
+  fail-closed overnight supersede path).
+- **Grader-reject 1**: 000007 (javascript) — true upstream fix `070a9ed`
+  (1-line codeSize check + 36 test lines, S1 distance 1) scores 0: the 2
+  fix-added tests fail on nop and pass on oracle, while 2 `wip` swap tests
+  fail on oracle only on stale opcode gas-table deep-equals that the fix
+  commit itself retains (the fix adds `EXTCODESIZE`) — upstream fails them
+  identically. (Reported to parent during the run.)
+- **Candidate-wrong 4**: 000033 (S2a far-descendant test-coverage pick, dist
+  1558; hidden cloud tests reference symbols undefined at base+candidate);
+  000069 (hidden mapper tests need `LoadMetrics`, absent; S2b topicmappr
+  pick is the wrong change — true fix likely the `LoadMetrics`-adding
+  commit); 000247 (S2b divergent patch breaks the build: `tomb.v1`
+  unresolvable after wholesale file evolution; nop runs 5 failing proxy
+  tests); 000082 (S2a feature-commit pick adds the sei package but hidden
+  avc tests need `ExtractSEIData`/`DecodeSEIMessage` it does not provide);
+- **Env-broken 2**: 000369 + 000014 (both `GOPROXY=off` module lookup fails
+  identically on oracle+nop — deps not vendored/cached; setup-failed, no
+  test signal; oracle+nop already constitute the retry pair).
+- Infra/timeout 0 standing (one env-start 1800 s timeout on 000033's first
+  oracle attempt while registry streaming saturated the link; solo retry
+  scored a real 0; streaming stayed paused during grades afterwards).
+
+Counts per language: attempted go 8 / javascript 1; recovered go 1;
+grader-reject javascript 1; candidate-wrong go 5; env-broken go 2.
+
+## `index.csv`
+
+Rebuilt by `build_index.py` (+ overnight supersede): **973 rows
+(565 `oracle:pass+nop:fail`)**, sha256
+`58b9b1a482bb831d6654f8f069f9e04985b495e1b0d339e4941a1f8616a38430`
+(prior `d701351f…`, 564 pass). Only the 000108/000136 rows changed
+(`sweep-2026-10-10-go` fail → `sweep-2026-10-13` pass). Patch bytes:
+`~/Developer/eval-lab-results/2026-10-13/mimo-reference-fixes/<task>/solution.patch`
+(same hidden-solution rule as prior dirs); per-task grade evidence under
+`.../jobs/<task>/`; extraction evidence `.../<task>/evidence.json`.
+
+## Timings (wall, local Docker, 1-wide)
+
+Smoke (000045, known fix): 5 min full. Triage (oracle+nop): go 6–22 min,
+js 37 min (Hardhat compile × trials). Full ladder adds ~10–30 min (run only
+on (1,0)). Registry `.git` streams: 1–15 min/task (9–270 MB .git).
+
+## Residuals
+
+T1 Go retry: 15 of 23 not graded (000439 `.git` streamed, extraction unrun;
+000317, 000011, 000340, 000172, 000399, 000165, 000308, 000062, 000316,
+000166, 000342, 000107, 000309, 000345 — `.git` streams not pulled).
+Images + fix_commits resolvable per-task from snapshot Dockerfiles +
+sweep receipts; pipeline scripts kept at `/tmp/reffix-work/` (fetch_git.py,
+grade_one.py, stage.py, worklist.csv seed 20261013).
+All of T2–T7 (1,879 worklist tasks) untouched: T2 JS/TS retry 63, T3 Go
+fresh 669, T4 JS/TS fresh 307, T5 other non-Python fresh 243, T6 Python
+retry 106, T7 Python fresh 474. 000007's grader-reject shape (stale
+assertions at the upstream commit itself) is a candidate verifier-lane
+follow-up, like 001431. Go `GOPROXY=off` setup failures (000369, 000014)
+need a module-prefetch or vendoring lane decision before more Go spend.

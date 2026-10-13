@@ -1281,6 +1281,11 @@ def build_mimo_clean_parser(commands) -> None:
     verify.add_argument("--tasks", required=True, help="comma-separated task ids")
     verify.add_argument("--manifest", type=Path, default=MANIFEST_REL, help="manifest CSV to read")
     verify.add_argument("--jobs-dir", type=Path, default=Path("runs/mimo-clean-v4"))
+    verify.add_argument(
+        "--checks",
+        default="oracle,nop,cheat",
+        help="comma-separated subset of cells to run (default: oracle,nop,cheat)",
+    )
     verify.add_argument("--timeout-seconds", type=int, default=1800)
     verify.set_defaults(func=_mimo_clean_command)
 
@@ -1541,19 +1546,29 @@ def _verify_local_command(args, root: Path) -> int:
                     else:
                         os.environ[CHEAT_ATTACKS_ENV_VAR] = previous
 
+        checks = {part.strip() for part in str(getattr(args, "checks", "oracle,nop,cheat") or "").split(",") if part.strip()}
         has_fix = row["reference_fix"] not in ("", "none")
         oracle_rewards: list[float | None] = []
-        if has_fix:
+        if has_fix and "oracle" in checks:
             oracle_dir, _ = cell("oracle", "oracle")
             oracle_rewards = summarize_trials(oracle_dir)
-        else:
+        elif not has_fix:
             print(f"note {task_id}: no reference fix; oracle cell n/a")
-        nop_dir, _ = cell("nop", "nop")
-        nop_rewards = summarize_trials(nop_dir)
-        cheat_dir, _ = cell(CHEAT_AGENT, "cheat", attacks="")
-        verdicts = build_verdicts(cheat_dir)
-        trials = verdicts.get("trials", [])
-        cracked = sum(1 for trial in trials if trial.get("verdict") == "cracked")
+        else:
+            print(f"note {task_id}: oracle cell skipped (--checks)")
+        nop_rewards: list[float | None] = []
+        if "nop" in checks:
+            nop_dir, _ = cell("nop", "nop")
+            nop_rewards = summarize_trials(nop_dir)
+        else:
+            print(f"note {task_id}: nop cell skipped (--checks)")
+        trials: list[dict[str, object]] = []
+        cracked = 0
+        if "cheat" in checks:
+            cheat_dir, _ = cell(CHEAT_AGENT, "cheat", attacks="")
+            verdicts = build_verdicts(cheat_dir)
+            trials = verdicts.get("trials", [])
+            cracked = sum(1 for trial in trials if trial.get("verdict") == "cracked")
         ok = acceptance_pass(
             oracle_rewards=oracle_rewards,
             has_reference_fix=has_fix,
@@ -1561,16 +1576,20 @@ def _verify_local_command(args, root: Path) -> int:
             cracked=cracked,
         )
         failed = failed or not ok
-        oracle_cell = (
-            ",".join(
+        if has_fix and "oracle" not in checks:
+            oracle_cell = "skip"
+        elif has_fix:
+            oracle_cell = ",".join(
                 "1" if reward == 1 else "0" if reward == 0 else "?" for reward in oracle_rewards
             )
-            if has_fix
-            else "n/a"
-        )
-        nop_cell = ",".join(
-            "1" if reward == 1 else "0" if reward == 0 else "?" for reward in nop_rewards
-        )
+        else:
+            oracle_cell = "n/a"
+        if "nop" not in checks:
+            nop_cell = "skip"
+        else:
+            nop_cell = ",".join(
+                "1" if reward == 1 else "0" if reward == 0 else "?" for reward in nop_rewards
+            )
         print(
             f"| {task_id} | {oracle_cell} | {nop_cell} | "
             f"{cracked}/{len(trials)} cracked | {'PASS' if ok else 'FAIL'} |"

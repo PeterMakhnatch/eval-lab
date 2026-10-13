@@ -89,7 +89,7 @@ format-code-task-000104,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000105,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000106,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000107,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000108,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000108,unverified:probe-pending,"(0,1) local-Docker v5 regrade 2026-10-13 (oracle ok skaffold/docker rc0; nop TestNewMinikubeImageAPIClient rc1); cheat ladder ran, verifier 0",True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000109,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000110,unverified:probe-pending,v4 carry C1+C2: nop=0 carried-@4;oracle=1 carried-@4;ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000111,unverified:nop-missing,v4 carry C1+C2: ladder1.4.0=clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -113,7 +113,7 @@ format-code-task-000130,unverified:nop-missing,no fresh nop cell,False,strip-fut
 format-code-task-000131,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000133,unverified:probe-pending,"(0,1)+clean",True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000134,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000136,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000136,unverified:probe-pending,"(0,1) local-Docker v5 regrade 2026-10-13 (oracle ok authorino/controllers rc0; nop 2 Anonymous-default tests rc1); cheat ladder ran, verifier 0",True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000137,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000138,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000139,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1

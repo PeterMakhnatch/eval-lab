@@ -113,7 +113,7 @@ inputs:
   - path: src/evallab/deepplanning.py
     digest: sha256:82d416cc459c600c447339aa1c088e9e2216f068bfc58eb17c00bd198d8560bf
   - path: src/evallab/detectors.py
-    digest: sha256:23a99e99f3464dc4749df89727b6769d34de81a5674926afeec24fbbf358f97a
+    digest: sha256:bca9963fa8112713b9a36dd7e53e7e37785bdfe5ef8baed26aa0bb00d4e358ed
   - path: src/evallab/devloop.py
     digest: sha256:4683621e2f3a68c9486edca0593d0c919723449bee20fa4d57d64dbde7edbaf1
   - path: src/evallab/digest.py

@@ -69,37 +69,24 @@
   "contamination-audit": {
    "fpr<=2%": [
     [
-     "flag",
-     "rules:irc_out_of_base_read"
-    ],
-    [
-     "flag",
-     "rules:irc_upstream_fetch"
-    ],
-    [
      "score",
-     "kev:kev_router",
-     0.7137
+     "sol:sol_codex",
+     0.09999999999999998
     ],
     [
-     "score",
-     "kev:kev_max_pattern",
-     0.9104
+     "flag",
+     "rules:upstream_fetch_confirmed_copy"
     ]
    ],
    "fpr<=5%": [
     [
-     "flag",
-     "rules:upstream_fetch_attempt"
-    ],
-    [
-     "flag",
-     "rules:irc_out_of_base_read"
-    ],
-    [
      "score",
-     "kev:kev_router",
-     0.7489
+     "sol:sol_codex",
+     0.06999999999999995
+    ],
+    [
+     "flag",
+     "rules:upstream_fetch_confirmed_copy"
     ]
    ]
   },
@@ -185,8 +172,8 @@
     ],
     [
      "score",
-     "kev:kev_max_pattern",
-     0.8729
+     "kev:kev_stacked",
+     0.512379
     ],
     [
      "flag",
@@ -202,10 +189,6 @@
      "score",
      "sol:sol_codex",
      0.14
-    ],
-    [
-     "flag",
-     "rules:irc_out_of_base_read"
     ],
     [
      "score",

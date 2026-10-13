@@ -12,8 +12,9 @@ instead, and the model `src/evallab/quota.py` implements.
 
 Status: the measurement exists and is proven over real history, and it is now
 wired into `PolicyGate`. What that wiring does and refuses is specified in
-`docs/operations.md`, "What the quota gate does and does not decide"; the rest
-of this document remains a description of the measurement only.
+`docs/operations.md`, "What the quota gate does and does not decide". The Claude
+section below specifies its live reader and dispatch gate; the historical
+Codex measurements retain their recorded dates and source boundaries.
 
 ## The defect being closed
 
@@ -21,8 +22,9 @@ The lab denominates cost in dollars — `est_cost_usd` per experiment,
 `daily_cost_ceiling_usd` and `per_job_cost_ceiling_usd` in
 `policy/standing-approvals.yaml` — but its paid agents authenticate from a
 personal subscription. Codex reads `~/.codex/auth.json`
-(`src/evallab/runner.py`), and Claude goes through `scripts/with-claude-auth`
-and the Keychain. No dollars move when a paid trial runs.
+(`src/evallab/runner.py`); Claude Code uses the OMP gateway lane or the
+`scripts/with-claude-auth` Keychain lane. No dollars move when a subscription
+trial runs.
 
 So every dollar figure in this repository is an API-list-price *equivalent*,
 including Harbor's own per-trial `agent_result.cost_usd`. A ceiling denominated
@@ -121,18 +123,16 @@ figures from the artifacts alone.
   never combined into one consumption number. On real history the cache share is
   90.7%, so a wrong assumption here would move the ledger by an order of
   magnitude.
-- **Claude consumption, per-trial tokens only.** The Keychain path exposes no
-  signal and no weekly percentage is observable anywhere, so headroom stays
-  `[unavailable]` by construction (`MEASURED_QUOTA_AGENTS` remains
-  Codex-only). What a trial's own artifacts do carry is token consumption:
-  `quota.py` reads Harbor's result counters when present and otherwise sums
-  the Anthropic `message.usage` blocks from the CLI session transcript
-  (`agent/sessions/projects/*/*.jsonl`), usage scalars only, each distinct
-  tuple counted once (the first gateway trial replays one response three
-  times; verified the collapsed fallback reproduces its 65,398 / 42,747 /
+- **Claude's lab-attributable quota share.** Claude's account-wide 5-hour and
+  7-day percentages are readable through the free OMP usage command described
+  below. They do not establish the lab's share. Per-trial consumption remains
+  token counts: `quota.py` reads Harbor's result counters when present and
+  otherwise sums the Anthropic `message.usage` blocks from the CLI session
+  transcript (`agent/sessions/projects/*/*.jsonl`), usage scalars only, each
+  distinct tuple counted once (the first gateway trial replays one response
+  three times; verified the collapsed fallback reproduces its 65,398 / 42,747 /
   1,106 exactly). The gateway lane additionally persists the bridge's own
-  per-call ledger beside the job (`claude-gateway-usage.jsonl`), which is
-  authoritative for that job.
+  per-call ledger beside the job (`claude-gateway-usage.jsonl`).
 - **Quota after promotion — closed, with a caveat.** `research/evidence/runs/`
   excludes `agent/sessions/`, correctly, because rollouts contain unredacted
   prompt text that `AGENTS.md` forbids committing. Promotion therefore used to
@@ -177,9 +177,11 @@ Provenance follows the existing operator convention exactly: `[observed]` /
 
 ### Boundaries the module keeps
 
-- Reads Harbor job directories only. Never `~/.codex`, the Keychain, the
-  catalog, the network, or the wall clock — `now` is injected, which is what
-  makes the tests deterministic per `agents/CHECKS.md`.
+- The artifact report reads Harbor job directories only. It never reads
+  `~/.codex`, the Keychain, the catalog, or the network. The separate live
+  Claude reader invokes OMP's usage command with a timeout; OMP owns provider
+  authentication. `now` and the subprocess seam are injected in deterministic
+  tests per `agents/CHECKS.md`.
 - Parses only `payload.rate_limits` and the token counters out of a rollout,
   never message text, so its output is safe to commit even though the file it
   parsed is not. `tests/test_quota.py` asserts that prompt-shaped payloads
@@ -188,6 +190,71 @@ Provenance follows the existing operator convention exactly: `[observed]` /
   snapshot at all — a fallback, never a second source, so a tree holding both
   records cannot count one history twice.
 - Imports nothing from `queue.py` or `cli.py`. Measurement does not authorise.
+
+## Claude Code: live subscription headroom and dispatch gate
+
+Since 2026-10-13, `read_claude_headroom()` in `src/evallab/quota.py` reads
+Claude's account-wide allowance through a bounded subprocess:
+
+```bash
+omp usage -p anthropic --json -r
+```
+
+This is a free provider-usage lookup, with no model call. `-r` requests account
+redaction. `parse_claude_headroom()` additionally whitelists only the exact
+`anthropic:5h` and `anthropic:7d` limits from the Anthropic report: used percent,
+window duration, `resets_at`, provider `status`, and `fetched_at`. It converts
+millisecond timestamps to UTC instants and can derive used percent from
+`usedFraction` when an explicit percentage is absent. Model-specific windows
+such as `anthropic:7d:fable`, account identifiers, emails, credential fields,
+and raw command output are excluded from persisted readings. The top-level
+`Headroom` percentage represents the 7-day window; its `windows` map preserves
+both windows in every observed reading.
+
+The reader reports `[observed]` only when both windows and the fetch time are
+valid. A failed command, missing executable, timeout, malformed response, or
+missing required window produces `[unavailable]` with a sanitized reason.
+Unavailable never means zero usage or available headroom. Claude subscription
+dispatch pauses with `subscription_quota_unavailable` if it cannot establish a
+valid live reading; an expired window also pauses until a fresh lookup succeeds.
+This differs from the historical Codex artifact reader's bootstrap behavior:
+Claude can refresh its reading without running a paid trial.
+
+The gate refreshes the Claude reading at dispatch and applies two boundaries:
+
+- **7-day window:** refuse at or above the committed
+  `refuse_billable_at_used_percent` ceiling, currently **60%**, under
+  `subscription_quota_ceiling`. This preserves the existing Codex gate's
+  inclusive boundary and the standing rule's weekly scope.
+- **5-hour window:** record it on every reading and refuse at **100% or above**
+  under `subscription_quota_exhausted`. The standing 60% ceiling does not apply
+  to this window: Peter's rule names the weekly allowance. A tighter run-specific
+  approval still applies.
+
+A refusal includes the relevant `resets_at`. Stop launching and wait for the
+window, then refresh before considering dispatch again. Never switch a paused
+Claude subscription spec to an API. Quota passing still requires the existing
+per-spec paid authorization and all other dispatch checks.
+
+The sanitized dispatch reading is retained as
+`<job>/claude-dispatch-quota.json` and in
+the `subscription_quota` field of `<job>/lab-metadata.json`. Each actual Claude
+trial receives the same reading at
+`<job>/<trial>/agent/quota/claude-dispatch.json`, including
+failed trials with a trial configuration. The record carries the fetch time,
+the gate check time (`checked_at`),
+availability, both window percentages, statuses, reset times, and source
+without credentials or account identifiers. A retry gets a fresh lookup and a
+record for that attempt. These records establish what the gate observed for
+that dispatch; they are dated account-wide evidence and do not measure the
+lab's quota consumption.
+
+`python -m evallab.quota` and `evallab preflight` remain disk-only reporting
+surfaces; they do not invoke the live lookup. To inspect a live dispatch
+decision without a model call, read once with `read_claude_headroom(now=...)`
+and inject that reading into `PolicyGate.decide()` for a Claude spec with an
+in-memory authorization. That simulates the authorized quota decision without
+writing an approval or dispatching the spec.
 
 ## The ledger over real history
 
@@ -336,11 +403,10 @@ renderer a deliberately poisoned reading — `availability: unavailable` with a
 stray `remaining_percent` of 99 — and asserts the 99 never reaches the
 operator.
 
-The honest gate this measurement supports is a **paid-trial and attempt count
-ceiling**, plus refusal when the provider itself reports the window exhausted.
-Only the second is implemented. It does not support a percentage budget for the
-lab, because the lab's share of the percentage is unavailable and always will
-be.
+The measurement supports refusal when the provider reports exhaustion and an
+account-wide ceiling below that limit, now committed at 60% weekly usage. That
+ceiling reserves shared account headroom; it is not a percentage budget for the
+lab, because the lab's share of the percentage remains unavailable.
 
 ## Surviving promotion: the R4 quota sidecar
 

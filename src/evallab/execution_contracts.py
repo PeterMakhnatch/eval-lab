@@ -1259,6 +1259,7 @@ class RunRequest:
     modal_app_name: str | None = None
     modal_resource_policy: str | None = None
     diff_sources: tuple[Path, ...] = ()
+    subscription_quota: dict[str, Any] | None = None
 
     @property
     def trial_watchdog_seconds(self) -> int:

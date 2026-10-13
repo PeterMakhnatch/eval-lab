@@ -984,7 +984,7 @@ def _staged_task_valid(staged: Path) -> bool:
     Harbor importable, fall back to the member check alone.
     """
     try:
-        from harbor.models.task.task import Task
+        from harbor.models.task.task import Task  # ty: ignore[unresolved-import]
     except ImportError:
         return not _missing_task_members(staged)
     try:

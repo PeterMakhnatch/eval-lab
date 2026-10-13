@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "rule": "R4",
+  "kind": "evallab-rate-limits-sidecar",
+  "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/sessions/2026/10/13/rollout-2026-10-13T05-47-57-01a133cd-a31f-7712-b33e-11e954e54717.jsonl",
+  "source_bytes": 46380,
+  "source_sha256": "sha256:d36144099e8202c246856c89ce01949c0baff79a65ea573d70df78e3881c69e1",
+  "source_omitted_by_rule": "R2",
+  "kept": "the event timestamp and a whitelist of payload.rate_limits scalars; no message, prompt, reasoning, session title or token is read",
+  "dropped_field_names": [
+    "individual_limit",
+    "spend_control_reached"
+  ],
+  "snapshot_count": 2,
+  "limits": "account-scope, not the lab's share; a point-in-time snapshot, not a series; only as fresh as the trial that recorded it. See docs/quota-accounting.md.",
+  "snapshots": [
+    {
+      "timestamp": "2026-10-13T05:48:02.948Z",
+      "rate_limits": {
+        "limit_id": "codex",
+        "limit_name": null,
+        "primary": {
+          "used_percent": 1.0,
+          "window_minutes": 10080,
+          "resets_at": 1792474770
+        },
+        "secondary": null,
+        "credits": {
+          "has_credits": true,
+          "unlimited": false,
+          "balance": "61259.4257600000"
+        },
+        "plan_type": "pro",
+        "rate_limit_reached_type": null
+      }
+    },
+    {
+      "timestamp": "2026-10-13T05:48:04.091Z",
+      "rate_limits": {
+        "limit_id": "codex",
+        "limit_name": null,
+        "primary": {
+          "used_percent": 1.0,
+          "window_minutes": 10080,
+          "resets_at": 1792474770
+        },
+        "secondary": null,
+        "credits": {
+          "has_credits": true,
+          "unlimited": false,
+          "balance": "61259.4257600000"
+        },
+        "plan_type": "pro",
+        "rate_limit_reached_type": null
+      }
+    }
+  ]
+}

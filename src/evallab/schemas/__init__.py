@@ -757,10 +757,13 @@ class StandingApprovalsPolicy(ContractModel):
         default_factory=list, exclude_if=lambda value: not value
     )
 
-    #: The lab's own refusal threshold on the account-wide `used_percent`,
-    #: committed **unset**. This is the one place a number goes, and it is
-    #: Peter's to set: refusing above some percentage trades the risk of a
-    #: lockout against the certainty of work that will not happen.
+    #: The lab's own refusal threshold on the account-wide `used_percent`.
+    #: Committed at 60 since the 2026-10-13 overnight subscription-agent work
+    #: (Peter approved the pause-above-60 rule; the YAML comment records it).
+    #: This is the one place a number goes; lowering it tightens, while raising
+    #: it or returning it to `None` is Peter's spend decision: refusing above
+    #: some percentage trades the risk of a lockout against the certainty of
+    #: work that will not happen.
     #:
     #: Set it to a float and billable dispatch refuses at or above it under
     #: reason code `subscription_quota_ceiling`, kept deliberately distinct from

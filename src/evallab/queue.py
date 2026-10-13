@@ -245,16 +245,18 @@ QUOTA_STALENESS_NOTE = (
     "you, not this gate, are the one judging whether it is still true."
 )
 
-#: The lab's refusal threshold on the account-wide `used_percent` now lives in
+#: The lab's refusal threshold on the account-wide `used_percent` lives in
 #: `policy/standing-approvals.yaml` as `refuse_billable_at_used_percent`, read
 #: through `StandingApprovalsPolicy` and passed to `lab_threshold_reached`.
+#: Committed at 60 since the 2026-10-13 overnight subscription-agent work
+#: (Peter approved the pause-above-60 rule).
 #:
 #: It was an interim module constant here (PR #70) only because the schema field
 #: it needed could not be added in that PR: `StandingApprovalsPolicy` forbids
 #: extras, so the YAML key is a load error until the field exists, and
 #: `schemas.py` was leased elsewhere that round. Both now landed together, so
-#: setting a threshold is a config edit rather than a code edit — which was the
-#: point, since the number is a spend decision belonging to Peter.
+#: changing the threshold is a config edit rather than a code edit — which was
+#: the point, since the number is a spend decision belonging to Peter.
 
 
 def _reader_clock(headroom: Headroom) -> datetime | None:

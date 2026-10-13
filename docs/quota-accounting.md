@@ -491,11 +491,12 @@ evidence, reproducing #67's prototype figure exactly.
 
 What the gate sees changes with it: `Executor._repo_headroom` scans
 `default_roots`, so on a fresh clone `render_headroom_notice` now prints an
-observed 70.0 with its staleness and hard-stop instead of UNKNOWN. It still
-refuses nothing — `provider_reported_exhaustion` triggers at 100.0 and
-`REFUSE_BILLABLE_AT_USED_PERCENT` is committed as `None` — and once
-`resets_at 2026-08-20T18:32:49+00:00` passes, `quota_window_expired` treats the
-same committed reading as a window that no longer exists.
+observed 70.0 with its staleness and hard-stop instead of UNKNOWN. The provider
+refusal still triggers at 100.0, and since 2026-10-13 the lab's own ceiling
+refuses at or above 60 (`refuse_billable_at_used_percent` in
+`policy/standing-approvals.yaml`, reason code `subscription_quota_ceiling`).
+Once `resets_at 2026-08-20T18:32:49+00:00` passes, `quota_window_expired`
+treats the same committed reading as a window that no longer exists.
 
 ## Reproducing
 

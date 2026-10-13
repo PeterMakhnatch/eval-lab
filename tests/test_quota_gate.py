@@ -305,27 +305,32 @@ def test_the_exhaustion_refusal_shows_the_allowance_it_refused_on(tmp_path: Path
     assert "staleness" in message
 
 
-# --- no invented threshold --------------------------------------------------
+# --- the committed threshold --------------------------------------------------
 
 
-def test_no_threshold_is_invented_below_provider_exhaustion(tmp_path: Path) -> None:
-    """92% is where the account actually sits. It must still dispatch.
+def test_committed_threshold_pauses_billable_work_above_sixty_percent(tmp_path: Path) -> None:
+    """The committed policy pauses billable dispatch above 60% of the window.
 
-    Whether to stop short of the provider's own limit is a spend decision, and
-    this module does not make it.
-
-    The unset state is asserted against the *committed policy file* rather than
-    a module constant, because that file is now where the decision lives — and
-    it is the artifact that would actually change if someone set a threshold.
+    The 2026-10-13 overnight subscription-agent work approved this pause rule
+    (the shared account moves the same counter from ~5 other tabs). The
+    committed value is asserted against the *policy file* rather than a module
+    constant, because that file is where the decision lives — and it is the
+    artifact that would actually change if someone moved the threshold.
     """
     committed = load_policy(REPO_ROOT / "policy" / "standing-approvals.yaml")
-    assert committed.refuse_billable_at_used_percent is None
-    for used in (80.0, 92.0, 99.0):
+    assert committed.refuse_billable_at_used_percent == 60
+    for used in (59.0, 59.9):
         reading = headroom(used_percent=used)
         assert provider_reported_exhaustion(reading) is None
-        assert lab_threshold_reached(reading, threshold=None) is None
-    _, _, requests = authorized_dispatch(tmp_path, headroom(used_percent=92.0))
-    assert len(requests) == 1
+        assert lab_threshold_reached(reading, threshold=60) is None
+    for used in (60.0, 80.0, 92.0, 99.0):
+        reading = headroom(used_percent=used)
+        assert provider_reported_exhaustion(reading) is None
+        assert lab_threshold_reached(reading, threshold=60) is not None
+    _, _, requests = authorized_dispatch(
+        tmp_path, headroom(used_percent=92.0), refuse_billable_at_used_percent=60
+    )
+    assert requests == []
 
 
 def test_a_configured_threshold_refuses_under_its_own_reason_code(tmp_path: Path) -> None:

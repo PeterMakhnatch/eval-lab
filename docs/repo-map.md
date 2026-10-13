@@ -63,7 +63,7 @@ inputs:
   - path: src/evallab/cheatbench.py
     digest: sha256:e6c0a22ca10042c1ce0d12343267f7cdb56d2cd0a5846912e5eddf51353f7faa
   - path: src/evallab/cli.py
-    digest: sha256:7ee1eb6b7b42eab5676ad9e65cdbfdf3af858c62198edf85542d3b299ff1f37d
+    digest: sha256:be6241fc8d2e5418c994d63af34a2c7ca51ed5bff994c4baf5db87e213e46482
   - path: src/evallab/cohort.py
     digest: sha256:16512819741471bba44cb2cba6525990319912db3ffd0e896b37ba9c50d6caac
   - path: src/evallab/contextpack.py
@@ -185,7 +185,7 @@ inputs:
   - path: src/evallab/gepa_optimizer/budget.py
     digest: sha256:7f67468a1e7668d415d01c59d77de159105158f356191df8636fd60529f08b5b
   - path: src/evallab/gepa_optimizer/codex_transport.py
-    digest: sha256:c55763b691631365a873df678611987084fb947e04657ee724bfdbdcfb925da8
+    digest: sha256:825a431d00e1f575b68d7b784281d7825afa463b9900b329cf7b0f0db92ffa9f
   - path: src/evallab/gepa_optimizer/composition.py
     digest: sha256:8cee253a03e935db6d30b97a96480928270cc015782c502429ac07f5dcd69195
   - path: src/evallab/gepa_optimizer/evaluator.py
@@ -217,7 +217,7 @@ inputs:
   - path: src/evallab/harbor_cheat.py
     digest: sha256:cd9094d6aa27f14461c4f63280103b82a04ae5928dcd18ea8898d7c54cb13a6f
   - path: src/evallab/harbor_codex.py
-    digest: sha256:5f9e31be7e2fd66af7c4c42c6efd8ec3a80e85274060c00eb29c1a8ccefc08d1
+    digest: sha256:268d3030c2f4c861d36c3db653f6a7a89d6da9d70b210e9e03a5b8605fe3366f
   - path: src/evallab/harbor_common.py
     digest: sha256:9d8fcd39bab5db27cb11d9ee5ff58efb71a2dc4787c9b83eba4a53da55738637
   - path: src/evallab/harbor_daytona.py
@@ -313,7 +313,7 @@ inputs:
   - path: src/evallab/interpretation/claude_sessions.py
     digest: sha256:0950f48fe99258128d7d0166f63f6031efe687ac34b6334a7c60fe228d23d9c3
   - path: src/evallab/interpretation/codex_rollouts.py
-    digest: sha256:c48d871012a592fed649a4356ab48a1e519cf8d15c1358e874da322c466e45e1
+    digest: sha256:1f875415ed7ba2840c71ce7d17405eb13df511d553cd5627156ebb0a3c6d16cc
   - path: src/evallab/interpretation/domains/__init__.py
     digest: sha256:1b06392fce0bb93e99aeb06f1e0000ac5f7edb0a59c69974fce1ec219e980337
   - path: src/evallab/interpretation/domains/atlas_finance.py

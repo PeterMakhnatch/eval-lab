@@ -624,6 +624,15 @@ def builtin_profiles() -> dict[str, AgentProfile]:
                 ),
             ),
             AgentProfile(
+                profile_id="codex-gpt-6-luna",
+                adapter="codex",
+                model="gpt-6-luna",
+                auth_mode="subscription-auth-file",
+                secret_source="file:.codex/auth.json",
+                required_files=(".codex/auth.json",),
+                verified_facts=(),
+            ),
+            AgentProfile(
                 profile_id="claude-code-fable-5",
                 adapter="claude-code",
                 model="anthropic/claude-fable-5",

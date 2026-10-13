@@ -1,6 +1,6 @@
 task_id,verify,evidence,has_fix,chain
 format-code-task-000001,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000002,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000002,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000003,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000004,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000007,unverified:nop-missing,v4 carry C1+C2: ladder1.4.0=clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -11,7 +11,7 @@ format-code-task-000014,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000016,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000018,unverified:ladder-missing,v4 carry C1+C2: nop=0 carried-@4,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000019,unverified:ladder-missing,v4 carry C1+C2: nop=0 carried-@4,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000020,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000020,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000022,unverified:ladder-missing,v4 pass components carried C1+C2; no v5 ladder,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000023,unverified:ladder-missing,v4 carry C1+C2: nop=0 carried-@4,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000024,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -39,7 +39,7 @@ format-code-task-000048,unverified:probe-pending,"(0,1)+clean",True,strip-future
 format-code-task-000049,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000050,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000051,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000052,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000052,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000053,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000054,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000055,unverified:probe-pending,v4 carry C1+C2: nop@modal=0;oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -109,7 +109,7 @@ format-code-task-000125,unverified:probe-pending,"(0,1)",True,strip-future-histo
 format-code-task-000126,unverified:ladder-missing,v4 carry C1+C2: nop=0 carried-@4,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000127,unverified:ladder-missing,v4 carry C1+C2: nop=0 carried-@4,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000128,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000130,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000130,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000131,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000133,unverified:probe-pending,"(0,1)+clean",True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000134,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -218,7 +218,7 @@ format-code-task-000245,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,Tr
 format-code-task-000246,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000247,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000248,unverified:probe-pending,"(0,1)+clean",True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000249,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000249,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000250,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000252,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000253,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -235,7 +235,7 @@ format-code-task-000265,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000267,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000268,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000269,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000270,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000270,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000271,unverified:node-build-fold,@5 fold; guard setup rc=0 ready=yes,True,strip-future-history@1>purge-build-caches@5>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000272,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000273,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -278,7 +278,7 @@ format-code-task-000317,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000318,unverified:cells-missing,v4 carry C1+C2: ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000319,unverified:probe-pending,v4 carry C1+C2: nop@modal=0;oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000320,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000322,unverified:ladder-missing,"(0,1) ladder=missing + probe-0",True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000322,pass,"(0,1) + ladder clean + probe-0",True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000323,env-broken,fresh setup-fail nop=setup-fail oracle=,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000324,unverified:probe-pending,v4 carry C1+C2: nop=0 carried-@4;oracle=1 carried-@4;ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000325,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -298,7 +298,7 @@ format-code-task-000338,unverified:probe-pending,v4 carry C1+C2: nop=0 carried-@
 format-code-task-000339,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000340,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000341,unverified:probe-pending,v4 carry C1+C2: nop=0 carried-@4;oracle=1 carried-@4;ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000342,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000342,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000343,unverified:probe-pending,v4 carry C1+C2: nop=0 carried-@4;oracle=1 carried-@4;ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000345,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000346,unverified:noexec,v4 carry C1+C2: nop@modal=0-noexec;oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -392,7 +392,7 @@ format-code-task-000452,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000453,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000454,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000455,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000456,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000456,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000457,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000458,unverified:probe-pending,v4 carry C1+C2: nop@modal=0;oracle@modal=1,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000459,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -428,12 +428,12 @@ format-code-task-000491,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000492,unverified:ladder-missing,v4 carry C1+C2: nop=0 carried-@4,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000493,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000494,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000495,unverified:ladder-missing,v4 carry C1+C2: nop=0 carried-@4,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000495,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000496,unverified:ladder-missing,"(0,) ladder=missing",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000497,unverified:ladder-missing,"(0,1) ladder=missing + probe-0",True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000498,unverified:probe-pending,v4 carry C1+C2: nop=0 carried-@4;oracle@modal=1;ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000499,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000500,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000500,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000501,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000502,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000504,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -461,7 +461,7 @@ format-code-task-000526,unverified:ladder-missing,"(0,) ladder=missing",False,st
 format-code-task-000527,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000528,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000529,unverified:noexec,v4 carry C1+C2: nop=0 carried-@4;oracle@modal=1-noexec;ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000530,unverified:ladder-missing,v4 carry C1+C2: nop=0 carried-@4,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000530,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000531,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000532,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000533,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -538,7 +538,7 @@ format-code-task-000610,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000611,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000613,unverified,"skipped:ledger verdict=discard status=discarded: broken environment, no known repair: tr",False,
 format-code-task-000614,unverified,"skipped:ledger verdict=discard status=discarded: broken environment, no known repair: tr",False,
-format-code-task-000616,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000616,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000617,unverified:probe-pending,v4 carry C1+C2: nop=0 carried-@4;oracle@modal=1,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000619,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000620,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -748,7 +748,7 @@ format-code-task-000860,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000861,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000862,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000863,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000864,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000864,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000865,unverified:oracle-missing,no fresh oracle cell,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000866,unverified:probe-pending,v4 carry C1+C2: nop=0 carried-@4;oracle=1 carried-@4;ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000867,unverified:node-build-fold,@5 fold; guard setup rc=0 ready=yes,True,strip-future-history@1>purge-build-caches@5>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -767,10 +767,10 @@ format-code-task-000880,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: ladde
 format-code-task-000881,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000882,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000883,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000885,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000885,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000886,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000887,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000888,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000888,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000889,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000890,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000891,unverified:probe-pending,v4 carry C1+C2: nop@modal=0;oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -800,7 +800,7 @@ format-code-task-000917,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-000918,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000919,pass,override:probe-v2 0 real hits (positive control) + oracle=1 nop=0 ladder-1.4.0-clean on final @5 digest,True,strip-future-history@1>purge-build-caches@5>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000920,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000921,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000921,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000922,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000923,unverified:noexec,"(0-noexec,)",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000924,unverified:noexec,"(0-noexec,)",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -867,7 +867,7 @@ format-code-task-000986,unverified:ladder-missing,"(0,) ladder=missing",False,st
 format-code-task-000987,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000988,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000989,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-000990,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-000990,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000991,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000992,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-000993,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -935,7 +935,7 @@ format-code-task-001057,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-001058,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001059,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001060,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001061,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001061,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001062,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001063,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001064,unverified:ladder-missing,"(0,) ladder=missing",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -945,7 +945,7 @@ format-code-task-001067,unverified:nop-missing,v4 carry C1+C2: ladder1.4.0=clean
 format-code-task-001068,unverified:noexec,"(0-noexec,)",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001069,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001070,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001071,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001071,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001072,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001073,unverified,"skipped:ledger verdict=discard status=discarded: broken environment, no known repair: /u",False,
 format-code-task-001074,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1013,7 +1013,7 @@ format-code-task-001137,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0
 format-code-task-001138,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001139,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001140,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001141,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001141,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001142,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001143,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001144,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1029,10 +1029,10 @@ format-code-task-001153,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-001154,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001155,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001156,unverified:ladder-missing,"(0,) ladder=missing",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001157,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001157,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001159,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001160,unverified,"skipped:ledger verdict=discard status=discarded: broken environment, no known repair: /t",False,
-format-code-task-001161,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001161,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001162,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001163,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001164,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1095,7 +1095,7 @@ format-code-task-001223,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-001224,unverified:probe-pending,v4 carry C1+C2: nop@modal=0;oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001225,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001226,unverified,"skipped:ledger verdict=discard status=discarded: broken environment, no known repair: ru",False,
-format-code-task-001227,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001227,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001228,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001229,unverified:noexec,"(0-noexec,)",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001231,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1109,7 +1109,7 @@ format-code-task-001238,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-001239,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001240,unverified:nop-missing,v4 carry C1+C2: ladder1.4.0=clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001241,unverified:oracle-missing,no fresh oracle cell,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001242,unverified:ladder-missing,"(0,) ladder=missing",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001242,pass,"(0,) + ladder clean",False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001243,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001244,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,True,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001246,unverified:nop-missing,v4 carry C1+C2: oracle=1 carried-@4;ladder12/14 carried-1.3.0-clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1228,7 +1228,7 @@ format-code-task-001380,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-001381,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001382,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001383,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001384,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001384,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001386,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001387,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001388,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1397,7 +1397,7 @@ format-code-task-001568,unverified:nop-missing,no fresh nop cell,False,strip-fut
 format-code-task-001571,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001572,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001573,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001574,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001574,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001575,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001576,unverified:node-build-fold,@5 fold; guard setup rc=0 ready=yes,True,strip-future-history@1>purge-build-caches@5>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001578,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1546,7 +1546,7 @@ format-code-task-001738,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-001739,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001740,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001741,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001742,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001742,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001743,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001744,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001745,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1577,7 +1577,7 @@ format-code-task-001771,unverified:nop-missing,v4 carry C1+C2: ladder1.4.0=clean
 format-code-task-001773,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001774,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001775,unverified:ladder-1.4.0-incomplete,v4 carry C1+C2: nop=0 carried-@4;ladder12/14 carried-1.3.0-clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001776,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001776,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001777,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001778,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001779,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1752,7 +1752,7 @@ format-code-task-001976,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-001977,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001979,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001980,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-001981,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-001981,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001982,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001983,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-001984,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1828,7 +1828,7 @@ format-code-task-002064,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002065,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002067,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002069,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002070,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002070,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002071,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002072,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002073,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1857,7 +1857,7 @@ format-code-task-002100,unverified:nop-missing,no fresh nop cell,False,strip-fut
 format-code-task-002101,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002102,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002103,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002104,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002104,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002105,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002106,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002107,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -1892,7 +1892,7 @@ format-code-task-002140,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002141,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002142,unverified,"skipped:ledger verdict=discard status=discarded: broken environment, no known repair: tr",False,
 format-code-task-002143,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002144,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002144,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002145,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002146,unverified:nop-missing,v4 carry C1+C2: ladder1.4.0=clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002147,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2033,7 +2033,7 @@ format-code-task-002308,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002309,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002311,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002312,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002313,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002313,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002314,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002315,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002316,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2050,7 +2050,7 @@ format-code-task-002326,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002327,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002328,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002329,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002330,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002330,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002331,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002332,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002333,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2198,7 +2198,7 @@ format-code-task-002492,unverified:nop-missing,no fresh nop cell,False,strip-fut
 format-code-task-002493,unverified:probe-pending,"(0,1)",True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002494,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002495,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002496,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002496,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002499,unverified:oracle-missing,no fresh oracle cell,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002500,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002502,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2208,7 +2208,7 @@ format-code-task-002505,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002506,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002507,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002508,unverified:probe-pending,"(0,1)+clean",True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002509,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002509,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002510,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002511,unverified:probe-pending,v4 carry C1+C2: nop@modal=0;oracle@modal=1,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002512,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2303,11 +2303,11 @@ format-code-task-002620,unverified:nop-missing,no fresh nop cell,False,strip-fut
 format-code-task-002621,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002622,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002623,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002624,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002624,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002626,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002627,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002628,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002629,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002629,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002630,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002631,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002632,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2368,7 +2368,7 @@ format-code-task-002689,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002690,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002691,unverified:nop-missing,v4 carry C1+C2: ladder1.4.0=clean,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002692,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002693,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002693,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002694,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002695,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002696,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2402,7 +2402,7 @@ format-code-task-002728,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002730,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002731,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002732,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002733,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002733,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002734,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002735,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002736,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2417,10 +2417,10 @@ format-code-task-002746,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002747,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002748,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002749,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002750,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002750,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002751,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002752,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002753,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002753,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002754,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002755,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002756,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2429,7 +2429,7 @@ format-code-task-002758,unverified:oracle-missing,no fresh oracle cell,True,stri
 format-code-task-002760,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002763,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002764,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002765,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002765,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002766,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002767,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002768,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2509,7 +2509,7 @@ format-code-task-002849,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002850,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002851,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002852,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002853,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002853,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002854,unverified:nop-missing,v4 carry C1+C2: ladder1.4.0=clean,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002855,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002856,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2573,7 +2573,7 @@ format-code-task-002919,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002920,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002921,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002922,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002923,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002923,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002924,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002925,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002926,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2600,7 +2600,7 @@ format-code-task-002951,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-002952,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002953,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002954,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002955,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002955,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002956,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002957,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002959,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2635,7 +2635,7 @@ format-code-task-002989,unverified:cells-missing,v4 carry C1+C2: ,True,strip-fut
 format-code-task-002990,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002991,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002992,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-002993,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-002993,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002994,unverified:cells-missing,v4 carry C1+C2: ladder1.4.0=clean,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002995,unverified:probe-pending,"(0-noexec,1)",True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-002996,unverified:nop-missing,v4 carry C1+C2: oracle@modal=1,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2649,7 +2649,7 @@ format-code-task-003004,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-003005,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003007,unverified:cells-missing,v4 carry C1+C2: ,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003009,unverified,"skipped:ledger verdict=discard status=discarded: broken environment, no known repair: __",False,
-format-code-task-003010,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-003010,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003011,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003012,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003013,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
@@ -2670,7 +2670,7 @@ format-code-task-003028,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-f
 format-code-task-003029,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003030,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003031,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
-format-code-task-003032,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
+format-code-task-003032,unverified:nop-missing,no fresh nop cell,False,strip-future-history@1>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003033,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003034,unverified:ladder-missing,v4 carry C1+C2: ,False,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1
 format-code-task-003035,unverified:oracle-missing,no fresh oracle cell,True,strip-future-history@1>purge-installed-copies@2>purge-build-caches@4>mtime-normalize@2>separate-verifier@8>agent-network-none@1

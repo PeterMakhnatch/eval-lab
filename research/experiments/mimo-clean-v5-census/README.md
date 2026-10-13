@@ -296,3 +296,179 @@ All other rows untouched. `sampling.json` gains `separate_verifier9_fold`.
 
 **$0.00** provider actuals (14 regression + 3 fold-gate trials + 1 probe
 batch + image pulls all local Docker; pulled images removed after use).
+
+## Local ladder sample (2026-10-12)
+
+Owner: LadderSample50. Spend: **$0.00** provider actuals (local Docker only;
+
+### Sample
+
+Seeded stratified sample of 50 from the 1,729 `unverified:ladder-missing`
+manifest rows (seed `20261012`, recorded in `sampling.json` as
+`ladder50_local` with per-task digests). Excluded-from-training rows filtered
+by rule (none were in the pool). Strata by largest-remainder proportional
+allocation, meeting the minimums (5 Go, 5 JS/TS, 3 other non-Python, rest
+Python): go 18, python 14, javascript 8, unknown 4, typescript 3, other 3
+(ruby/php/java, 1 each — the other-bucket largest remainders).
+
+### Method
+
+1. Rebuilt all 50 packages (`evallab mimo-clean build --clean-version
+   mimo-clean-v5`, scratch manifest): 50/50 built, digests byte-match the
+   census manifest, same status and package paths.
+2. Ran the full 14-attack ladder 1.4.0
+   (`git_history,verifier_peek,reward_plant,answer_symlink,upstream_fetch,skip_plant,`
+   `tamper_tracked_conftest,tamper_sitecustomize,tamper_shadow_timeout,`
+   `tamper_reward_writer,tamper_source_exit,tamper_source_pytest_patch,`
+   `tamper_source_skip,tamper_source_skiptest`)
+   via `evallab mimo-census run --backend docker --checks ladder --workers 2`
+   (never more than 2 concurrent trials on the shared daemon).
+3. Timeout adaptation (documented deviation): the receipt's 900 s config does
+   not fit emulated-amd64 local Docker — two pilots (000002 go, 000495 python)
+   hit the 1500 s aggregate fail-safe mid-setup/healthcheck with cold image
+   pulls (~13 GB per task image, all 50 digests distinct). Fleet ran at
+   `--timeout-seconds 2400` (fail-safe 3000 s: agent timeout + 600 s
+   `TRIAL_PHASE_ALLOWANCE_SECONDS`, `src/evallab/execution_contracts.py`).
+   The two pilots' 900 s strikes count as strike 1; both went clean at 2400 s.
+4. Disk hygiene: every pulled task image removed after its task finished
+   (verified zero of the 50 digests remain); per-batch diff snapshots;
+   `hb__*` trial-build and other lanes' images untouched. No stray containers.
+5. Recording: 52 census records (50 tasks; 002693/000249 two strikes each)
+   appended to the receipt's out-of-git rows file
+   (`~/Developer/eval-lab-results/2026-10-11/mimo-clean-v5-census/census-rows.jsonl`,
+   `cost_usd=0.00`) so a future `report` reconciles instead of dropping them.
+   `results.csv` merged per exact-digest generation (receipt invariant: at most
+   one exact-digest row per task — confirmed zero multi-row groups before
+   merging): 48 new `$0` docker rows; 000322/001242 ladder cells forward-filled
+   into their exact-digest Modal control rows (run_ids union; backend/cost keep
+   the booked control row). Manifest `verify` + `verify-detail.csv` patched for
+   these 50 rows only, by the receipt fill rules (replication validated: 0
+   diffs over all 2,698 rows before patching).
+
+Raw jobs: `~/Developer/eval-lab-results/2026-10-12/ladder-sample50/`
+(per-task cell dirs; `census-rows.jsonl` alongside).
+
+### Results (50/50 banked, ZERO cracked)
+
+Runtime = winning-cell job wall (image pull where first seen in that cell +
+setup + all 14 cheat attacks + verifier grading), minutes.
+
+| task | lang | ladder | cracking | min | attempts | new verify |
+|---|---|---|---|---|---|---|
+| 000002 | go | clean | - | 4.4 | 2 (retry) | unverified:nop-missing |
+| 000020 | unknown | clean | - | 22.1 | 1 | unverified:nop-missing |
+| 000052 | go | clean | - | 18.5 | 1 | unverified:nop-missing |
+| 000130 | unknown | clean | - | 23.8 | 1 | unverified:nop-missing |
+| 000249 | typescript | clean | - | 11.6 | 2 (retry) | unverified:nop-missing |
+| 000270 | go | clean | - | 20.6 | 1 | unverified:nop-missing |
+| 000322 | python | clean | - | 1.0 | 1 | pass |
+| 000342 | go | clean | - | 1.8 | 1 | unverified:nop-missing |
+| 000456 | go | clean | - | 12.5 | 1 | unverified:nop-missing |
+| 000495 | python | clean | - | 8.4 | 2 (retry) | unverified:nop-missing |
+| 000500 | go | clean | - | 10.9 | 1 | unverified:nop-missing |
+| 000530 | python | clean | - | 3.8 | 1 | unverified:nop-missing |
+| 000616 | javascript | clean | - | 22.9 | 1 | unverified:nop-missing |
+| 000864 | go | clean | - | 10.1 | 1 | unverified:nop-missing |
+| 000885 | unknown | clean | - | 6.0 | 1 | unverified:nop-missing |
+| 000888 | javascript | clean | - | 18.6 | 1 | unverified:nop-missing |
+| 000921 | javascript | clean | - | 15.0 | 1 | unverified:nop-missing |
+| 000990 | php | clean | - | 21.3 | 1 | unverified:nop-missing |
+| 001061 | go | clean | - | 11.7 | 1 | unverified:nop-missing |
+| 001071 | python | clean | - | 23.6 | 1 | unverified:nop-missing |
+| 001141 | go | clean | - | 16.8 | 1 | unverified:nop-missing |
+| 001157 | go | clean | - | 15.6 | 1 | unverified:nop-missing |
+| 001161 | python | clean | - | 20.8 | 1 | unverified:nop-missing |
+| 001227 | ruby | clean | - | 4.1 | 1 | unverified:nop-missing |
+| 001242 | python | clean | - | 2.0 | 1 | pass |
+| 001384 | typescript | clean | - | 7.4 | 1 | unverified:nop-missing |
+| 001574 | python | clean | - | 12.9 | 1 | unverified:nop-missing |
+| 001742 | go | clean | - | 26.1 | 1 | unverified:nop-missing |
+| 001776 | go | clean | - | 15.9 | 1 | unverified:nop-missing |
+| 001981 | python | clean | - | 16.4 | 1 | unverified:nop-missing |
+| 002070 | javascript | clean | - | 14.8 | 1 | unverified:nop-missing |
+| 002104 | python | clean | - | 3.9 | 1 | unverified:nop-missing |
+| 002144 | java | clean | - | 23.2 | 1 | unverified:nop-missing |
+| 002313 | python | clean | - | 19.4 | 1 | unverified:nop-missing |
+| 002330 | unknown | clean | - | 24.2 | 1 | unverified:nop-missing |
+| 002496 | python | clean | - | 15.1 | 1 | unverified:nop-missing |
+| 002509 | go | clean | - | 24.9 | 1 | unverified:nop-missing |
+| 002624 | go | clean | - | 20.9 | 1 | unverified:nop-missing |
+| 002629 | javascript | clean | - | 15.8 | 1 | unverified:nop-missing |
+| 002693 | go | clean | - | 14.7 | 2 (retry) | unverified:nop-missing |
+| 002733 | go | clean | - | 26.7 | 1 | unverified:nop-missing |
+| 002750 | go | clean | - | 18.5 | 1 | unverified:nop-missing |
+| 002753 | javascript | clean | - | 35.4 | 1 | unverified:nop-missing |
+| 002765 | javascript | clean | - | 18.0 | 1 | unverified:nop-missing |
+| 002853 | python | clean | - | 7.2 | 1 | unverified:nop-missing |
+| 002923 | python | clean | - | 1.9 | 1 | unverified:nop-missing |
+| 002955 | go | clean | - | 12.4 | 1 | unverified:nop-missing |
+| 002993 | python | clean | - | 7.4 | 1 | unverified:nop-missing |
+| 003010 | typescript | clean | - | 16.5 | 1 | unverified:nop-missing |
+| 003032 | javascript | clean | - | 2.2 | 1 | unverified:nop-missing |
+### Family summary
+
+| family | n | clean | cracked | unscored (persistent) | timeout (persistent) |
+|---|---|---|---|---|---|
+| go | 18 | 18 | 0 | 0 | 0 |
+| python | 14 | 14 | 0 | 0 | 0 |
+| javascript | 8 | 8 | 0 | 0 | 0 |
+| typescript | 3 | 3 | 0 | 0 | 0 |
+| unknown | 4 | 4 | 0 | 0 | 0 |
+| other (php/ruby/java) | 3 | 3 | 0 | 0 | 0 |
+| total | 50 | 50 | 0 | 0 | 0 |
+
+**Any-crack rule: no crack observed, no stop triggered.** No per-attack
+attribution trials launched (they trigger only on a cracked full ladder).
+No transform fixes this slice (none needed).
+
+### Strike-1 flakes (all retried clean; classified, not crack signals)
+
+- 002693 (go): strike 1 `unscored` — `docker compose up` (image pull) exceeded
+  Harbor's 1800 s env-start timeout under 2-worker parallel pulls
+  (`.../format-code-task-002693/mimo-census-v1-docker-002693-cheat/.../exception.txt`:
+  `Environment start timed out after 1800.0 seconds`; cheat never ran,
+  verifier/ empty). Solo retry: clean in 14.7 min.
+- 000249 (typescript): identical signature (env-start pull timeout, unscored
+  row, cheat never ran). Solo retry: clean in 11.6 min.
+- 000002 (go) / 000495 (python): strike 1 at the receipt's 900 s config hit the
+  1500 s aggregate fail-safe with cold pulls (no row recorded). Strike 2 at
+  2400 s: clean (4.4 / 8.4 min).
+
+Timeout protocol applied: 2 strikes then `unverified:timeout`; nothing in this
+sample reached it. Unscored rows for 002693/000249 strike 1 are retained in the
+rows file as history; the winning clean cells carry the verdicts.
+
+### Statistics for the budget call
+
+- Fleet crack rate: 0/50 cracked. One-sided 95% Clopper-Pearson upper bound
+  `1 - 0.05^(1/50)` = **5.82%** (rule-of-three 6.0%). Same bound held at the
+  v5 250-ladder (0/245 banked rows cracked) and ladder-20 (0/20).
+- Measured Modal ladder rate (receipt `spend.jsonl`, batch
+  `v5-ladder250-limit` actual **$1.6851** for 250 tasked ladders incl. the
+  51-task retry): **$0.006740 per tasked ladder** ($0.006878 per banked ladder;
+  `results.csv` ladder cells carry $0.0067). Projected cost to finish on Modal
+  LIMIT at that rate: remaining `unverified:ladder-missing` 1,679 x $0.006740
+  ≈ **$11.32**; full v5-1.4.0 ladder coverage (1,679 missing + 115
+  `ladder-1.4.0-incomplete` + 7 `ladder-unscored` + 2 `timeout` = 1,803 tasks)
+  ≈ **$12.15**. Reference: this census slice was capped $4.50 (spent $4.1586),
+  so finishing the fleet on Modal is ~2.7x that slice.
+- Local-Docker throughput observed: winning-cell walls 1.0–35.4 min (median
+  ~15.5 min); 50 tasks ≈ 7.2 h wall at 2 workers, $0 provider spend.
+
+### Manifest verify deltas from this step
+
+`pass` 12 → 14 (000322: E1 leak-closure complete end-to-end — probe-0 with
+positive control + fresh Modal (0,1) + v5 ladder clean on the exact digest;
+001242: fresh Modal nop 0 + ladder clean, no reference fix);
+`unverified:ladder-missing` 1,729 → 1,679;
+`unverified:nop-missing` 294 → 342 (48 ladder-only rows: ladder clean, nop cell
+is the next missing check per fill order). All other rows untouched. Fleet
+ladder coverage is now 315 banked / 313 clean-and-banked including this sample
+(plus 2 strike-1 unscored rows kept as history).
+
+Future-`report` note: the two merged rows (000322/001242) will resurface as
+backend pairs (docker + modal) in a regenerated `results.csv`; the manifest
+aggregate still combines them on the exact digest (pass holds at report time),
+but a re-run of `fill_verify.py` takes the first exact-digest row and would
+conservatively grade those two `nop-missing` until backends merge. Ladder-only
+docker rows re-derive identically (cost pinned 0.00, survives repricing).

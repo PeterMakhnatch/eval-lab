@@ -12,6 +12,7 @@ from evallab.detectors import ContentRules
 def _agent_step(message: str = "", calls: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {"step_id": 1, "source": "agent", "message": message, "tool_calls": calls or []}
 
+
 def test_write_tool_call_shape_extracts_content() -> None:
     steps = [
         _agent_step(
@@ -19,7 +20,10 @@ def test_write_tool_call_shape_extracts_content() -> None:
                 {
                     "tool_call_id": "call_2_0",
                     "function_name": "write",
-                    "arguments": {"file_path": "solution.py", "content": "def run_tests():\n    return True\n"},
+                    "arguments": {
+                        "file_path": "solution.py",
+                        "content": "def run_tests():\n    return True\n",
+                    },
                 }
             ]
         )
@@ -55,7 +59,10 @@ def test_path_only_input_is_not_content() -> None:
                 {
                     "tool_call_id": "x",
                     "function_name": "Write",
-                    "arguments": {"input": "/app/apply_macros.vim", "path": "/app/apply_macros.vim"},
+                    "arguments": {
+                        "input": "/app/apply_macros.vim",
+                        "path": "/app/apply_macros.vim",
+                    },
                 }
             ]
         )
@@ -79,6 +86,7 @@ def test_heredoc_in_shell_keystrokes_extracts_file() -> None:
         )
     ]
     assert extract_files(steps) == [("/workspace/fix.py", "import sys\nsys.exit(0)")]
+
 
 def test_apply_patch_block_extracts_added_lines() -> None:
     steps = [

@@ -1197,7 +1197,6 @@ def main(argv: list[str] | None = None) -> int:
     return args.func(args)
 
 
-
 # ---------------------------------------------------------------------------
 # Viewer subset: the MiMo-relevant rows staged for the Trace Lab Scout viewer.
 # Staging reuses the single converter above (same steps the detectors score)

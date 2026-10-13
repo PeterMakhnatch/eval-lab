@@ -21,12 +21,10 @@ from __future__ import annotations
 
 import ast
 import io
-import json
 import re
 import tokenize
 import warnings
 from collections.abc import Iterable
-from pathlib import Path
 from typing import Any
 
 from evallab.separate_verifier import V3_TAMPER_SIGNATURES
@@ -272,7 +270,11 @@ def _tool_call_files(step: dict[str, Any]) -> list[tuple[str, str]]:
         if payload is not None and (code := _content_from_payload(payload)):
             files.append((path, code))
         raw_input = args.get("input")
-        if isinstance(raw_input, str) and raw_input.strip() and not _looks_like_path_only(raw_input):
+        if (
+            isinstance(raw_input, str)
+            and raw_input.strip()
+            and not _looks_like_path_only(raw_input)
+        ):
             files.append((path, raw_input))
         shell_keys = _BASH_ARG_KEYS + ("patch", "code") if "apply_patch" in name else _BASH_ARG_KEYS
         if name in _SHELL_NAMES or "apply_patch" in name:
@@ -330,5 +332,3 @@ def extract_prompt(steps: list[dict[str, Any]]) -> str:
             if isinstance(message, str) and message.strip():
                 return message
     return ""
-
-

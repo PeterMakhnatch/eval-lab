@@ -21,9 +21,7 @@ from pathlib import Path
 
 from evallab.detectors import Corpus
 
-DEFAULT_EXPORT = (
-    Path.home() / "Developer/eval-lab/derived/detector-roots/sol_codex_export.jsonl"
-)
+DEFAULT_EXPORT = Path.home() / "Developer/eval-lab/derived/detector-roots/sol_codex_export.jsonl"
 
 #: Export fields kept as cache-verdict extras (the rest maps 1:1).
 _EXTRA_KEYS = (
@@ -36,9 +34,7 @@ _EXTRA_KEYS = (
 )
 
 
-def import_sol(
-    corpus: Corpus, export: Path, *, refresh: bool = False
-) -> dict[str, int]:
+def import_sol(corpus: Corpus, export: Path, *, refresh: bool = False) -> dict[str, int]:
     """Store export rows in ``cache/sol_codex``; return ``{imported, skipped}``."""
     cached = corpus.cached("sol_codex") if not refresh else {}
     stats = {"imported": 0, "skipped": 0}

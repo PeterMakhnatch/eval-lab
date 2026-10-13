@@ -116,8 +116,6 @@ def load_features(
     return rows, features
 
 
-
-
 def _fires(literal: tuple, feat: dict) -> bool:
     if literal[0] == "flag":
         return feat.get(literal[1]) is True
@@ -141,9 +139,7 @@ def select(
     neg = {i for i in train_ids if not labels[i]}
     if not pos or not neg:
         return []
-    binary = sorted(
-        {name for i in train_ids for name, val in features[i].items() if val is True}
-    )
+    binary = sorted({name for i in train_ids for name, val in features[i].items() if val is True})
     numeric = sorted(
         {name for i in train_ids for name, val in features[i].items() if isinstance(val, float)}
     )
@@ -229,7 +225,11 @@ def _consider(
 
 def decide(chosen: list[tuple], feat: dict) -> tuple[bool, list[str]]:
     """Flag + the literals that fired (for ``fired_components``)."""
-    fired = [f"{lit[1]}>{lit[2]:g}" if lit[0] == "score" else lit[1] for lit in chosen if _fires(lit, feat)]
+    fired = [
+        f"{lit[1]}>{lit[2]:g}" if lit[0] == "score" else lit[1]
+        for lit in chosen
+        if _fires(lit, feat)
+    ]
     return bool(fired), fired
 
 
@@ -336,8 +336,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # tw-raw diagnostic: tw thresholds applied, never tuned.
     tw_rule = [
-        tuple(lit)
-        for lit in results["sources"]["tw"]["operating_points"]["fpr<=5%"]["deployable"]
+        tuple(lit) for lit in results["sources"]["tw"]["operating_points"]["fpr<=5%"]["deployable"]
     ]
     raw_rows = by_source["tw-raw"]
     raw_ids = [r["id"] for r in raw_rows]
@@ -352,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Group pools (OOF flags at 5%): prompted vs real-RL apart.
     oof5 = {
-        i: results["sources"][r["source"]][f"oof_fired_fpr<=5%"][i]
+        i: results["sources"][r["source"]]["oof_fired_fpr<=5%"][i]
         for r in rows
         if r["source"] in TUNED_SOURCES
         for i in [r["id"]]
@@ -364,7 +363,9 @@ def main(argv: list[str] | None = None) -> int:
     # Transfer diagnostic (in-sample fits): ht <-> pooled aria+olmo.
     ht_ids = [r["id"] for r in by_source["ht"]]
     rl_ids = [r["id"] for r in by_source["aria"] + by_source["olmo"]]
-    ht_rule = [tuple(lit) for lit in results["sources"]["ht"]["operating_points"]["fpr<=5%"]["deployable"]]
+    ht_rule = [
+        tuple(lit) for lit in results["sources"]["ht"]["operating_points"]["fpr<=5%"]["deployable"]
+    ]
     rl_pool_rule = select(rl_ids, labels, features, 0.05)
     results["transfer"] = {
         "ht_rule_on_aria_olmo": _rate_block(
@@ -418,7 +419,9 @@ def main(argv: list[str] | None = None) -> int:
         },
         "pooled_aria_olmo": [list(lit) for lit in rl_pool_rule],
     }
-    (out_dir / "thresholds.json").write_text(json.dumps(thresholds, indent=1, sort_keys=True) + "\n")
+    (out_dir / "thresholds.json").write_text(
+        json.dumps(thresholds, indent=1, sort_keys=True) + "\n"
+    )
 
     # Mirror for worker B.
     mirror = Path.home() / "Developer/eval-lab/derived/detector-roots/combined_results.json"

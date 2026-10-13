@@ -635,7 +635,7 @@ def excluded_or_suspicious(processed: list[Row]) -> list[Row]:
 
 
 #: Reasons that mark a pass as cheating (vs infra/eligibility exclusions).
-CHEAT_REASONS = frozenset({"copied_fix", "pass_tainted"})
+CHEAT_REASONS = frozenset({"copied_fix", "pass_tainted", "audit_cheat"})
 
 
 def is_cheat_pass(row: Row) -> bool:

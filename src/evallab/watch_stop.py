@@ -50,9 +50,15 @@ STOP_RECORDS_DIRNAME = "stop-records"
 #: ``submission_tamper`` qualifies single-hit: its alert already carries the
 #: content evidence (mechanism plus matched pattern). ``codeban_violation``
 #: qualifies single-hit too: the ban comes from the task prompt and the
-#: violation from the trial's own commands. Everything is
-#: record-only until the operator opts into ``EVALLAB_WATCH_STOP=on``: the
-#: default ``dry-run`` mode records ``would_stop`` and never stops.
+#: violation from the trial's own commands. ``copy_acquired`` qualifies
+#: single-hit: confirmed upstream acquisition (saved artifact seen unpacked
+#: or read) is never routine setup, which stays at the ``fetch_attempt``
+#: alert (deliberately not eligible: prompts link URLs and honest trials pip
+#: install). ``task_protected_read`` is detection-only for now (record-only
+#: even in ``on`` mode): promotion to stop-eligible waits for false-stop
+#: evidence on manifest-carrying tasks. Everything is record-only until the
+#: operator opts into ``EVALLAB_WATCH_STOP=on``: the default ``dry-run`` mode
+#: records ``would_stop`` and never stops.
 STOP_ELIGIBLE_RULES = frozenset(
     {
         "history_mining",
@@ -60,6 +66,7 @@ STOP_ELIGIBLE_RULES = frozenset(
         "hidden_test_read",
         "submission_tamper",
         "codeban_violation",
+        "copy_acquired",
     }
 )
 
@@ -72,6 +79,7 @@ INTEGRITY_BOARD_RULES = (
     "copy_acquired",
     "submission_tamper",
     "codeban_violation",
+    "task_protected_read",
 )
 
 #: Exception marker a stopped trial ends with (distinguishable from ordinary

@@ -1,10 +1,9 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: content:process_exit, content:tamper_signature",
+ "explanation": "oof-5%: content:process_exit",
  "flagged": [
-  "content:process_exit",
-  "content:tamper_signature"
+  "content:process_exit"
  ],
  "fold": 0,
  "id": "cb-001278",

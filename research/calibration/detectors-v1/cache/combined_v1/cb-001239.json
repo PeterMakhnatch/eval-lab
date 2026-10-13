@@ -1,10 +1,8 @@
 {
  "cost_usd": 0.0,
  "detector": "combined_v1",
- "explanation": "oof-5%: content:process_exit",
- "flagged": [
-  "content:process_exit"
- ],
+ "explanation": "oof-5%: none",
+ "flagged": [],
  "fold": 1,
  "id": "cb-001239",
  "schema": "evallab.detector_verdict/v1",

@@ -120,10 +120,37 @@ reconnects the same bridge only afterwards, and confirms the bridge attachment
 with the boundary unchanged. Every switch appends its network/interface/rule
 evidence to the isolation record; a failed switch fails the trial, never an
 unlocked fallback. Allowlists and any other phase mode stay refused at
-construction and at switch time, as do task Compose, extra overlays, unknown
+construction and at switch time, as do extra overlays, unknown
 environment options, unsafe host mounts, privilege overrides and GPU/device
 passthrough (next paragraph). The plain strict `LockedDockerEnvironment`
-backend keeps refusing every switch; only this wrapper allows the pair.
+backend keeps refusing every switch and every task Compose file; only this
+wrapper allows the pair and task sidecars.
+
+Multi-service tasks (a task `environment/docker-compose.yaml` declaring
+sidecars besides `main`, e.g. CheatBench checker sidecars) run every service
+under the same creation-time lock: the overlay forces `network_mode: none`,
+immutable `NET_ADMIN`/`NET_RAW` drops and `no-new-privileges` on each service
+(`main` additionally keeps its trusted keepalive entrypoint, disabled
+healthcheck and root user; sidecars keep their own entrypoint so their
+servers start normally and carry no host bind mounts). Resolved Compose must
+list exactly the task's services plus `main`, with no `networks`, published
+ports, privileges, devices, or mounts on sidecars; daemon confirmation checks
+every container's identity, OS, running state, `none` attachment, capability
+drops, security options, host-access flags and mounts, and records
+`service_container_ids` (`container_id` stays `main`'s) in
+`host-isolation.json`. Each container then gets its own kernel destination
+filter before any network exists — sidecars always the strict rules, never
+the Claude bridge exception — and the shared project network is created
+afterwards on an isolated subnet outside the filter's blocked ranges (Docker's
+default pools are all denied, so a default subnet would block `main` from its
+own sidecars; live-probed as connection-refused under the installed filter).
+The wrapper uses `/28` slices of `192.31.196.0/24` (AS112-v4 sink: nothing
+legitimate lives there), `--internal` for a no-network baseline with
+sidecars, and per-service `--alias` names so `main` reaches sidecars by name
+(`http://verifier:8420`). Phase switches move every container together with
+per-container rule re-verification. Proven live: CheatBench
+`prime_factorization-fact_n52_10` passes oracle (`reward 1.0` via the sidecar)
+and nop (`reward 0.0`) with `"applied": true`.
 
 The filter denies all ports/protocols to private, link-local, multicast and
 reserved IPv4 destinations, IPv6 outside `2000::/3`, and every actual

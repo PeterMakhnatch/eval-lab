@@ -672,23 +672,31 @@ def _claude_session_usage(
 ) -> tuple[int | None, int | None, int | None, int | None]:
     """Sum Anthropic ``message.usage`` counters from Claude session transcripts.
 
-    Returns ``(turns, input_tokens, cache_tokens, output_tokens)`` where
-    ``input_tokens`` is inclusive of ``cache_tokens`` -- the API reports
-    uncached input separately from the two cache counters, and this module's
-    :attr:`TrialConsumption.input_tokens` contract is inclusive, so the cache
-    sum is added back in. Whether the provider charges a cached token at the
-    same rate stays UNVERIFIED (see :data:`CACHED_WEIGHTING_NOTE`); the two
-    are reported separately, never collapsed.
+    Returns ``(turns, input_tokens, cache_tokens, output_tokens)`` mirroring
+    Harbor's own counters exactly: ``input_tokens`` is inclusive of both
+    cache counters, while ``cache_tokens`` counts cache reads only
+    (verified 2026-10-13: Harbor recorded ``n_cache_tokens`` 42,747 against
+    42,747 read plus 22,645 creation on the first gateway trial). Whether
+    the provider charges a cached token at the same rate stays UNVERIFIED
+    (see :data:`CACHED_WEIGHTING_NOTE`); the two are reported separately,
+    never collapsed.
 
     All ``None`` when no session file yields a usage block. Only the
     ``message.usage`` scalars are read; prompt, tool and reasoning text is
     never touched.
+
+    Each distinct usage tuple is counted once: the CLI replays identical
+    assistant messages under fresh uuids (observed 2026-10-13: one response
+    present three times), and counting every replay would multiply one
+    history. The bridge usage ledger remains authoritative; this fallback
+    only fills trials whose result carries no counters.
     """
     turns = 0
     plain_input = 0
-    cache = 0
+    cache_read_total = 0
+    cache_create_total = 0
     output = 0
-    seen = False
+    counted: set[tuple[int | None, int | None, int | None, int | None]] = set()
     for session in sorted(trial_dir.glob(CLAUDE_SESSION_GLOB)):
         try:
             text = session.read_text()
@@ -714,14 +722,19 @@ def _claude_session_usage(
                 and out_tokens is None
             ):
                 continue
-            seen = True
+            signature = (uncached, cache_creation, cache_read, out_tokens)
+            if signature in counted:
+                continue
+            counted.add(signature)
             turns += 1
             plain_input += uncached or 0
-            cache += (cache_creation or 0) + (cache_read or 0)
+            cache_read_total += cache_read or 0
+            cache_create_total += cache_creation or 0
             output += out_tokens or 0
-    if not seen:
+    if not counted:
         return None, None, None, None
-    return turns, plain_input + cache, cache, output
+    total_in = plain_input + cache_read_total + cache_create_total
+    return turns, total_in, cache_read_total, output
 
 
 def _window(payload: object) -> QuotaWindow | None:

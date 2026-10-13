@@ -121,16 +121,18 @@ figures from the artifacts alone.
   never combined into one consumption number. On real history the cache share is
   90.7%, so a wrong assumption here would move the ledger by an order of
   magnitude.
-- **Claude consumption, per-trial tokens only.** Zero `claude-code` trials
-  exist, and the Keychain path exposes no comparable signal, so no weekly
-  percentage is observable and headroom stays `[unavailable]` by construction
-  (`MEASURED_QUOTA_AGENTS` remains Codex-only). What a trial's own artifacts
-  do carry is token consumption: `quota.py` reads Harbor's result counters
-  when present and otherwise sums the Anthropic `message.usage` blocks from
-  the CLI session transcript (`agent/sessions/projects/*/*.jsonl`), usage
-  scalars only. The proving trial has not run (2026-10-13: no subscription
-  credential on this workstation), so the fallback is unit-tested, not yet
-  observed on real evidence.
+- **Claude consumption, per-trial tokens only.** The Keychain path exposes no
+  signal and no weekly percentage is observable anywhere, so headroom stays
+  `[unavailable]` by construction (`MEASURED_QUOTA_AGENTS` remains
+  Codex-only). What a trial's own artifacts do carry is token consumption:
+  `quota.py` reads Harbor's result counters when present and otherwise sums
+  the Anthropic `message.usage` blocks from the CLI session transcript
+  (`agent/sessions/projects/*/*.jsonl`), usage scalars only, each distinct
+  tuple counted once (the first gateway trial replays one response three
+  times; verified the collapsed fallback reproduces its 65,398 / 42,747 /
+  1,106 exactly). The gateway lane additionally persists the bridge's own
+  per-call ledger beside the job (`claude-gateway-usage.jsonl`), which is
+  authoritative for that job.
 - **Quota after promotion — closed, with a caveat.** `research/evidence/runs/`
   excludes `agent/sessions/`, correctly, because rollouts contain unredacted
   prompt text that `AGENTS.md` forbids committing. Promotion therefore used to

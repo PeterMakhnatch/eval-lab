@@ -48,6 +48,7 @@ import sys
 import zipfile
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 JUDGE_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(JUDGE_DIR))
@@ -70,17 +71,50 @@ def _snip(text: str, pos: int, width: int = _SNIP) -> str:
     return text[start:pos + width].replace("\n", "\\n")
 
 
+#: Shell-like argument keys across harnesses: Terminus-2 `keystrokes`, Codex
+#: `exec_command`/`unified_exec` `cmd` and `shell` `command` (argv list),
+#: Claude Code `Bash` `command`.
+_SHELL_KEYS = ("keystrokes", "cmd", "command")
+#: Arguments of non-shell tools that name what they read or write (Claude Code
+#: `Read`/`Write`/`Grep`/`Glob`, Codex `apply_patch`, Terminus `view_images`).
+#: Free text (`summary`, `description`, `prompt`) is deliberately excluded: a
+#: path mentioned in prose is not an access.
+_PATH_KEYS = ("file_path", "path", "paths", "pattern", "input", "patch")
+
+
+def command_text(func: str, args: Any) -> str:
+    """The shell input a tool call issued, for path and computation matching.
+
+    Shell tools give their command text (an argv such as ``["bash", "-lc",
+    "<script>"]`` gives the script). Non-shell tools give ``"<tool> <path-like
+    args...>"`` so a protected path they read or write still matches; the tool
+    name is never a computation command word.
+    """
+    if not isinstance(args, dict):
+        return str(args)
+    for key in _SHELL_KEYS:
+        value = args.get(key)
+        if isinstance(value, list):
+            words = [str(v) for v in value]
+            value = (words[-1] if len(words) >= 3 and words[0].rsplit("/", 1)[-1]
+                     in ("bash", "sh", "zsh") and words[1] in ("-c", "-lc") else " ".join(words))
+        if value:
+            return str(value)
+    named = [str(v) for key in _PATH_KEYS for v in
+             (args.get(key) if isinstance(args.get(key), list) else [args.get(key)])
+             if isinstance(v, str) and v]
+    return f"{func} {' '.join(named)}" if named else ""
+
+
 def _steps(traj: dict) -> list[dict]:
     """Flatten a trajectory to per-step {keystrokes, observations} records."""
     out = []
     seq = 0
     for step in traj.get("steps") or []:
-        keys: list[tuple[int, str, str]] = []  # (seq, tool, keystrokes)
+        keys: list[tuple[int, str, str]] = []  # (seq, tool, command text)
         for call in step.get("tool_calls") or []:
             func = call.get("function_name") or call.get("name") or "tool"
-            args = call.get("arguments") or {}
-            ks = args.get("keystrokes", "") if isinstance(args, dict) else str(args)
-            keys.append((seq, func, str(ks)))
+            keys.append((seq, func, command_text(func, call.get("arguments") or {})))
             seq += 1
         obs: list[str] = []
         observation = step.get("observation")

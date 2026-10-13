@@ -121,11 +121,12 @@ class Gate:
 
     # -- Harbor ------------------------------------------------------------
     def check_harbor(self) -> None:
-        """The `harbor` on PATH is the pinned version and can load the
-        Terminus agent. The free controls (nop/oracle/canary) never import it,
-        so without this check a wrong Harbor fails every model trial at
-        dispatch (2026-10-12: a venv synced without the `laminar` extra fell
-        through to a global Harbor 0.21 tool)."""
+        """The `harbor` on PATH is the pinned version and can load the agents
+        a batch uses (Terminus, and Eval Lab's pinned Codex adapter). The free
+        controls (nop/oracle/canary) never import them, so without this check
+        a wrong Harbor fails every model trial at dispatch (2026-10-12: a venv
+        synced without the `laminar` extra fell through to a global Harbor 0.21
+        tool)."""
         import shutil
         t0 = time.monotonic()
         pinned = re.search(r'"harbor==([^"]+)"', (ROOT / "pyproject.toml").read_text())
@@ -138,9 +139,10 @@ class Gate:
         versions = re.findall(r"^\s*(\d+\.\d+\.\d+\S*)\s*$", out, re.M) if rc == 0 else []
         version = versions[-1] if versions else None
         py = Path(exe).resolve().parent / "python"
-        rc2, out2, _ = run([str(py), "-c", "import evallab.harbor_terminus"], timeout=120)
+        rc2, out2, _ = run([str(py), "-c", "import evallab.harbor_terminus, evallab.harbor_codex"],
+                           timeout=120)
         evidence = {"harbor": exe, "version": version, "pinned": want,
-                    "terminus_import": "ok" if rc2 == 0 else out2.strip()[-300:]}
+                    "agent_imports": "ok" if rc2 == 0 else out2.strip()[-300:]}
         ok = version is not None and version == want and rc2 == 0
         self.add("harbor", "pass" if ok else "fail", evidence, time.monotonic() - t0)
 
@@ -380,12 +382,29 @@ class Gate:
     # -- (f) providers ------------------------------------------------------
     def check_providers(self) -> None:
         t0 = time.monotonic()
+        from make_specs import SUBSCRIPTION_AGENT
+        from quota_gate import weekly_used
+
         from evallab import credentials as creds
         routes = list(dict.fromkeys([*self.args.models,
                                      *([self.args.judge] if self.args.judge else [])]))
         per_route: dict = {}
         failed = False
         for route in routes:
+            agent = SUBSCRIPTION_AGENT.get(route)
+            if agent is not None:
+                # Subscription CLI: its credential file/keychain item, and the
+                # account's weekly window under the batch's quota limit.
+                res = (creds.probe_codex_auth_result() if agent == "codex"
+                       else creds.probe_claude_keychain_result())
+                used, note = weekly_used("codex" if agent == "codex" else "claude")
+                quota_ok = used is not None and used < self.args.max_subscription_used
+                per_route[route] = {"ok": bool(res.ok) and quota_ok, "agent": agent,
+                                    "credential": "ok" if res.ok else str(res.reason)[:200],
+                                    "quota": note,
+                                    "max_subscription_used": self.args.max_subscription_used}
+                failed = failed or not per_route[route]["ok"]
+                continue
             prov = provider_of(route)
             fn = {"zai": creds.probe_zai_openapi_api_result,
                   "tinker": creds.probe_tinker_api_result,
@@ -407,6 +426,9 @@ class Gate:
         live: dict = {}
         if self.args.probe_providers:
             for route in routes:
+                if SUBSCRIPTION_AGENT.get(route):
+                    live[route] = {"ok": True, "note": "subscription CLI: no metered probe"}
+                    continue
                 ok, note = self._probe_live(route)
                 live[route] = {"ok": ok, "note": note}
                 if not ok:
@@ -910,7 +932,10 @@ def main() -> int:
     ap.add_argument("--judge", default=None,
                     help="judge route, e.g. zai/glm-5.3-flash (omit to skip judge fitness)")
     ap.add_argument("--probe-providers", action="store_true",
-                    help="PAID (fractions of a cent): 1-token chat call per route")
+                    help="PAID (fractions of a cent): 1-token chat call per metered route")
+    ap.add_argument("--max-subscription-used", type=float, default=0.60,
+                    help="fail when a subscription agent's account is at or above this "
+                         "fraction of its weekly window (quota_gate.py; shared quota)")
     ap.add_argument("--out", type=Path, required=True, help="receipt JSON path")
     ap.add_argument("--docker-bin", default="docker",
                     help="docker binary (fault injection: point at a stub)")

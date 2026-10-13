@@ -718,10 +718,22 @@ def is_mimo_run(task: str | Path | None, model: str | None) -> bool:
 
 
 #: Docker is locked from creation, so in-container installation is not allowed.
-#: Daytona preserves its existing trusted setup window before the provider lock.
+#: Daytona preserves its existing trusted setup window before the provider lock
+#: (``harbor_daytona`` locks after agent setup), which is why Terminus-2 works
+#: there on any image: its upstream ``TmuxSession.start`` unconditionally
+#: attempts an in-sandbox tmux/asciinema install (apt/dnf/apk, source build, or
+#: pip) before opening the session. That install is bounded (120 s per command,
+#: 240 s total) and degrades to a failed trial when tmux is truly absent — it
+#: never grants egress — and Terminus model transport itself is host-side
+#: (loopback proxy), needing no sandbox network. Terminus-2 is therefore
+#: admitted on locked Docker under one preparation-time precondition the
+#: dispatcher cannot verify: the task image must already provide tmux
+#: (and asciinema for terminal recording, else recording is best-effort).
+#: prepare_eval records per-task tool evidence; a parent-run smoke must confirm
+#: ``tmux -V`` inside the built image before approving locked-Terminus specs.
 EGRESS_LOCK_AGENTS = {
     "daytona": frozenset({TERMINUS_AGENT, MIMO_AGENT, *CONTROL_AGENTS}),
-    "docker": frozenset({MIMO_AGENT, *CONTROL_AGENTS}),
+    "docker": frozenset({TERMINUS_AGENT, MIMO_AGENT, *CONTROL_AGENTS}),
 }
 
 

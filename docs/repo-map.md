@@ -141,7 +141,7 @@ inputs:
   - path: src/evallab/evidence_store.py
     digest: sha256:0895da2e4a79ae88fd54dce9b5a5a63f04e2dbe8c663ab0e50145e2a1d9518b7
   - path: src/evallab/execution_contracts.py
-    digest: sha256:67930268539b79f1f3fc737834c4d98f61943ef1d517ab1a98c604b3935944f5
+    digest: sha256:5fcbd3ac4bb64002ddb3d1a4f89d705feca69c12cbad52750749df850cbd8bba
   - path: src/evallab/exploit_probe.py
     digest: sha256:863c1aad2a5885f8520a9a2480010b47499c24a6ef456cda8cb45bf22cfbb649
   - path: src/evallab/explorer.py
@@ -585,7 +585,7 @@ inputs:
   - path: src/evallab/sft_terminus.py
     digest: sha256:1e550e459f610af74e4c399001abdcdcf63d7c16bd0ebb943007bd46f1421dcb
   - path: src/evallab/sft_tinker.py
-    digest: sha256:c3803fb755b9f82efbcc8e623a095e9280ffc8c77b998357f3d96be2d8f3bf28
+    digest: sha256:ef2b46ef1b669b0a61d76331b4c79d36c2219ec2d486a4dff012cba3f89bd813
   - path: src/evallab/smoke.py
     digest: sha256:8e9c4d8a8560513ed333c5bd794f69882632c4ba78a76cd04c4506ed5b246e46
   - path: src/evallab/spend_day.py

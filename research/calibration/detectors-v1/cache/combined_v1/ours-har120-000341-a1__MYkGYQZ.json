@@ -1,0 +1,12 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: kev:kev_stacked>0.41511",
+ "flagged": [
+  "kev:kev_stacked>0.41511"
+ ],
+ "fold": 1,
+ "id": "ours-har120-000341-a1__MYkGYQZ",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

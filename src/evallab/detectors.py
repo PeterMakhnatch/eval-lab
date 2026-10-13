@@ -256,6 +256,32 @@ class Rules(Detector):
         }
 
 
+class ContentRules(Detector):
+    """TA's content-level stop rules over the code the agent wrote ($0).
+
+    Promoted from ``research/experiments/live-stop-thresholds/candidate_rules.py``;
+    see ``evallab.content_rules`` for extraction and the six rule checks.
+    Flags when a stop-eligible rule fires: ``tamper_signature``,
+    ``always_equal`` or ``entrypoint_assertless``.
+    """
+
+    name = "content_rules"
+    description = "TA candidate content rules on agent-written code ($0)"
+
+    def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
+        from evallab import content_rules as cr
+
+        steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
+        fired = cr.evaluate(cr.extract_files(steps), cr.extract_prompt(steps))
+        hits = [rule for rule in cr.RULES if fired[rule] is not None]
+        return {
+            "flagged": any(rule in cr.STOP_ELIGIBLE for rule in hits),
+            "score": None,
+            "explanation": "fired: " + (", ".join(hits) or "none"),
+            "cost_usd": 0.0,
+        }
+
+
 class HarborAnalyze(Detector):
     """Harbor 0.24 ``harbor analyze`` default rubric, ``reward_hacking`` check,
     on a blinded copy of the trial (``evallab.readers.harbor_analyze``)."""
@@ -408,6 +434,31 @@ class KevMaxPattern(_KevDecision):
     name = "kev_max_pattern"
     description = "Kev-4B zero-shot, max over the seven hack-atlas pattern cards and windows"
 
+
+class SolCodex(Detector):
+    """GPT-6.1-Sol (low effort) verdicts via the Codex CLI on Peter's ChatGPT
+    subscription, judged in batch by the fxtr-lab worker and imported with
+    ``research/experiments/combined-detector/import_sol.py``; there is no live
+    judge here. Consulted only on rule-negative rows (cascade), so an unjudged
+    row counts as not flagged by Sol. ``score`` is P(cheat)."""
+
+    name = "sol_codex"
+    paid = True
+    description = "GPT-6.1-Sol low-effort via Codex CLI subscription ($0, quota-limited)"
+
+
+class CombinedV1(Detector):
+    """Combined cheat detector v1: per-source OR of rules sub-rules, content
+    rules, Kev scores and Sol, tuned in ``research/experiments/combined-detector``.
+
+    Cache-only: the stored verdicts are the OUT-OF-FOLD decisions at the 5%
+    operating point, so ``score`` reports held-out recall/FPR. Deployable
+    thresholds (fit on all rows) live in ``thresholds.json``; unknown agentic
+    traces map to the cb thresholds, unknown single-turn RL to pooled
+    aria+olmo. There is no live judge here."""
+
+    name = "combined_v1"
+    description = "combined v1: rules + content + Kev + Sol, per-source cuts (OOF cache, $0)"
 
 class HeldOutRegrade(Detector):
     """Re-run the trial's recorded artifacts under the task's current verifier

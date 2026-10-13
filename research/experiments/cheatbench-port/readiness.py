@@ -409,10 +409,15 @@ class Gate:
         for route in routes:
             agent = SUBSCRIPTION_AGENT.get(route)
             if agent is not None:
-                # Subscription CLI: its credential file/keychain item, and the
+                # Subscription CLI: its credential (codex auth.json; Claude via
+                # the OMP auth-gateway login or the Keychain item), and the
                 # account's weekly window under the batch's quota limit.
-                res = (creds.probe_codex_auth_result() if agent == "codex"
-                       else creds.probe_claude_keychain_result())
+                if agent == "codex":
+                    res = creds.probe_codex_auth_result()
+                elif route.startswith("claude-gateway/"):
+                    res = creds.probe_claude_gateway_result()
+                else:
+                    res = creds.probe_claude_keychain_result()
                 used, note = weekly_used("codex" if agent == "codex" else "claude")
                 quota_ok = used is not None and used < self.args.max_subscription_used
                 per_route[route] = {"ok": bool(res.ok) and quota_ok, "agent": agent,

@@ -38,13 +38,16 @@ MODEL_SHORT = {
     "openrouter-metered/qwen/qwen3.5-9b": "q35or",
     "openrouter-metered/z-ai/glm-5.3-flash": "glm53for",
     "openrouter-metered/xiaomi/mimo-v2.6-flash": "mimo26for",
-    # Subscription agents (bare model ids, as the codex / claude-code CLIs take them).
+    # Subscription agents (model ids as Eval Lab's codex / claude-code lanes take them).
     "gpt-6.1-sol": "gpt61sol",
     "gpt-reserve": "gptres",
+    "claude-gateway/claude-haiku-5-5": "haiku55",
 }
 #: Agent each model runs under: Terminus-2 for metered routes, the vendor's own
-#: CLI (Harbor's installed agent, on Peter's subscription) otherwise.
-SUBSCRIPTION_AGENT = {"gpt-6.1-sol": "codex", "gpt-reserve": "codex"}
+#: CLI (Harbor's installed agent, on Peter's subscription) otherwise. Claude Code
+#: reaches Claude Max through the OMP auth-gateway bridge (`claude-gateway/`).
+SUBSCRIPTION_AGENT = {"gpt-6.1-sol": "codex", "gpt-reserve": "codex",
+                      "claude-gateway/claude-haiku-5-5": "claude-code"}
 #: Live-stop mode -> spec-name suffix.
 STOP_SUFFIX = {"on": "on", "dry-run": "dry"}
 FAMILY_SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma",

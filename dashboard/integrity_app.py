@@ -330,7 +330,7 @@ def _render_overview(snap: dict[str, Any], scoped: dict[str, Any]) -> None:
     run_cards[4].metric("cheat rate", rate)
     st.caption(
         "known-agent runs only. cheat rate = excluded passes with "
-        "copied_fix/pass_tainted ÷ passes. "
+        "copied_fix/pass_tainted/audit_cheat, or labelled cheat by the contamination audit, ÷ passes. "
         f"{legacy} legacy reports carry no verdict. "
         f"controls: {len(buckets['control'])}, unknown agent: {len(buckets['unknown'])}."
     )

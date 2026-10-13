@@ -222,7 +222,9 @@ class Detector:
 
 class Rules(Detector):
     """Our deterministic tripwires: hidden-file reads, grader tampering, harness-log
-    reads and upstream fetches in the agent's commands."""
+    reads and upstream fetches in the agent's commands, plus the RewardKit
+    ``out_of_base_read`` copy rule (git history, build/lib or site-packages output
+    whose lines reappear in the agent's diff; silent when no ``agent.diff``)."""
 
     name = "rules"
     description = "Eval Lab watch + RewardKit integrity rules on the commands ($0)"
@@ -243,6 +245,7 @@ class Rules(Detector):
             "upstream_fetch_attempt": bool(attempts),
             "irc_upstream_fetch": bool(irc.check_upstream_fetch(calls, observations)["fired"]),
             "irc_grader_tamper": bool(irc.check_grader_tamper(calls, observations)["fired"]),
+            "irc_out_of_base_read": bool(irc.check_out_of_base_read(calls, observations, roots)["fired"]),
         }
         hits = [k for k, v in fired.items() if v]
         return {

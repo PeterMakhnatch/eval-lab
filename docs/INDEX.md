@@ -51,7 +51,7 @@ inputs:
   - path: docs/craft.md
     digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
   - path: docs/dashboard.md
-    digest: sha256:9e9eedece03d6127f984031530ead8988a412c23d076209713a9bf0803045b4a
+    digest: sha256:5bb755045d2af1099d2322936f788abe8b846f8fc77976788872fc7290363584
   - path: docs/data-architecture.md
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/deepseek-v4-flash-lane.md

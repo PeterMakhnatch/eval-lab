@@ -132,7 +132,11 @@ def test_rule_fetch_requires_success() -> None:
 
 def test_rule_out_of_base_needs_matching_lines() -> None:
     read = [agent_step(1, "git show abc1234 -- pkg/mod.py", "\n".join(ADDED))]
+    # Git global options before the subcommand (HAR-161 002552 used --no-pager).
+    no_pager = [agent_step(1, "git --no-pager show abc1234 -- pkg/mod.py", "\n".join(ADDED))]
+    git_dir = [agent_step(1, "git --git-dir=/srv/hidden -C /testbed show main:pkg/mod.py", "\n".join(ADDED))]
     plain_log = [agent_step(1, "git log --oneline -5", "abc1234 a message\n")]
+    pager_log = [agent_step(1, "git --no-pager log --oneline -5", "\n".join(ADDED))]
 
     def fired(steps: list) -> bool:
         with tempfile.TemporaryDirectory() as tmp:
@@ -141,7 +145,10 @@ def test_rule_out_of_base_needs_matching_lines() -> None:
             return bool(core.check_out_of_base_read(calls, observations, roots)["fired"])
 
     assert fired(read) is True
+    assert fired(no_pager) is True
+    assert fired(git_dir) is True
     assert fired(plain_log) is False
+    assert fired(pager_log) is False
 
 
 def test_rule_grader_ignores_repo_tests_reads() -> None:

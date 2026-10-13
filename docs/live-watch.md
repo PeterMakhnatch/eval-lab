@@ -280,7 +280,7 @@ Modes (`EVALLAB_WATCH_STOP`, or `evallab watch --stop-mode`; default
 | --- | --- | --- |
 | `off` | none | never |
 | `dry-run` | host snapshot + `docker diff` only | never (records `would_stop`) |
-| `on` | host snapshot, then `docker pause` → `diff` → `top` → `commit` → `unpause` | yes |
+| `on` | host snapshot, then `docker diff` → `top` → `commit --pause=false` (never pauses the live container) | yes |
 
 Eligible rules: `history_mining`, `hidden_test_read`, and `grader_tamper`
 only with file-access tamper evidence (protected-file before/after hashes;

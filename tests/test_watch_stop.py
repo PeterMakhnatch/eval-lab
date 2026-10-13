@@ -164,6 +164,31 @@ def test_stop_image_tag_is_docker_safe() -> None:
     assert stop_image_tag("task__a1") == "evallab-stop/task--a1"
     assert stop_image_tag("UPPER/x") == "evallab-stop/upper-x"
 
+def test_docker_capture_never_pauses_live_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(watch_stop.shutil, "which", lambda _name: "/bin/docker")
+    calls: list[list[str]] = []
+
+    def fake_runner(argv: list[str], **_kwargs: Any) -> SimpleNamespace:
+        calls.append(list(argv))
+        stdout = {
+            "ps": "abc123\n",
+            "diff": "C /app/changed.py\n",
+            "top": "UID PID CMD\nroot 1 python\n",
+            "commit": "sha256:deadbeef\n",
+        }[argv[1]]
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
+    outcome = watch_stop.docker_capture("task__a1", pause=True, runner=fake_runner)
+
+    assert [call[1] for call in calls] == ["ps", "diff", "top", "commit"]
+    assert all(call[1] not in {"pause", "unpause"} for call in calls)
+    assert "--pause=false" in calls[-1]
+    assert outcome["image"] == "evallab-stop/task--a1"
+    assert outcome["image_digest"] == "sha256:deadbeef"
+    assert outcome["errors"] == []
+
 
 def test_usage_at_stop_is_an_upper_bound_not_a_claim() -> None:
     usage = usage_at_stop(

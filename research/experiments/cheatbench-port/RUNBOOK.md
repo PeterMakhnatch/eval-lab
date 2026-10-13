@@ -221,8 +221,10 @@ so the trial ends with no reward.
    uv run --no-sync python research/experiments/cheatbench-port/postrun.py --batch <batch_id> [--judge <route>]
    ```
    It runs the detector, an optional `judge.py` route, `analyze.py`,
-   `spend.py` and `export.py`. `results/batches/<batch>/` is then ready for
-   fxtr.
+   `spend.py`, `export.py` and then `export.py --check --batch <batch_id>`
+   over the committed export. The export fails before writing if any
+   non-null row path does not exist; postrun fails with it.
+   `results/batches/<batch>/` is then ready for fxtr.
 4. **Judge on subscriptions** (see "Judging"), then run postrun once more
    without `--judge`: it reuses every `runs/_batches/<batch>/judge-*.jsonl`
    and puts the verdicts into the analysis and the export.
@@ -289,3 +291,13 @@ so the trial ends with no reward.
   `results/batches/*/trials.jsonl`. See
   `~/Developer/research-context/inbox/2026-10-10-fxtr-cheatbench-run-viewer.md`.
 - **Eval Lab results viewer:** http://127.0.0.1:8100, jobs `unknown-cb-…`.
+- **Row evidence** (`evidence` in every `trials.jsonl` row, counted per batch
+  in `batch.json` `evidence_counts`): `published` means the row points at the
+  durable copy under `~/Developer/eval-lab-results`; `local` means only the
+  worktree `runs/` copy, which dies when that worktree is retired; `lost`
+  means both are gone, so `trial_dir`/`published_dir`/artifact paths are
+  null, `evidence_note` says what was lost, and only the verdicts and
+  detector rows are kept (fxtr skips trials without a trajectory). A row
+  must never hold a dead link: `export.py --check [--batch <id>]` fails on
+  any non-null row path that does not exist, and the export itself refuses
+  to write one.

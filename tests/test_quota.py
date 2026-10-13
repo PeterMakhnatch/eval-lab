@@ -1089,3 +1089,221 @@ def test_an_observation_carries_only_quota_fields(tmp_path: Path) -> None:
         "source",
         "scope",
     }
+
+
+# --- claude-code session usage -------------------------------------------------
+
+
+def claude_session_event(
+    *,
+    input_tokens: int | None = 1_000,
+    cache_creation_input_tokens: int | None = 200,
+    cache_read_input_tokens: int | None = 600,
+    output_tokens: int | None = 20,
+    prompt_text: str = "Summarize these events.",
+) -> dict[str, object]:
+    """One assistant message the way Claude Code appends it to its session JSONL."""
+    usage: dict[str, object] = {}
+    if input_tokens is not None:
+        usage["input_tokens"] = input_tokens
+    if cache_creation_input_tokens is not None:
+        usage["cache_creation_input_tokens"] = cache_creation_input_tokens
+    if cache_read_input_tokens is not None:
+        usage["cache_read_input_tokens"] = cache_read_input_tokens
+    if output_tokens is not None:
+        usage["output_tokens"] = output_tokens
+    return {
+        "type": "assistant",
+        "message": {
+            "role": "assistant",
+            "content": [{"type": "text", "text": prompt_text}],
+            "usage": usage,
+        },
+        "sessionId": "6db02457-b13d-460f-bce2-10ecaaaf0780",
+    }
+
+
+def add_claude_session(
+    trial: Path,
+    *,
+    events: list[dict[str, object]],
+    slug: str = "-app",
+    session: str = "6db02457-b13d-460f-bce2-10ecaaaf0780.jsonl",
+) -> Path:
+    """A CLI session transcript where Harbor's claude-code agent leaves it."""
+    path = trial / "agent/sessions/projects" / slug / session
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(json.dumps(event) for event in events) + "\n")
+    return path
+
+
+def claude_trial_without_counters(job: Path, *, name: str = "a__claude") -> Path:
+    """A claude-code trial whose result.json carries no usage counters."""
+    return add_trial(
+        job,
+        name=name,
+        agent="claude-code",
+        input_tokens=None,
+        cache_tokens=None,
+        output_tokens=None,
+        cost_usd=None,
+    )
+
+
+def test_claude_session_usage_fills_counters_missing_from_result(tmp_path: Path) -> None:
+    """Per-message Anthropic counters sum to the trial's consumption record."""
+    job = make_job(tmp_path)
+    trial = claude_trial_without_counters(job)
+    add_claude_session(
+        trial,
+        events=[
+            claude_session_event(
+                input_tokens=1_000,
+                cache_creation_input_tokens=200,
+                cache_read_input_tokens=600,
+                output_tokens=20,
+            ),
+            claude_session_event(
+                input_tokens=500,
+                cache_creation_input_tokens=0,
+                cache_read_input_tokens=400,
+                output_tokens=10,
+            ),
+        ],
+    )
+
+    (consumed,) = load_quota_report([tmp_path], now=NOW).consumed.trials
+
+    # input_tokens is inclusive of cache, matching Harbor's n_input_tokens
+    # contract: (1000 + 500) uncached + (200 + 600 + 400) cached.
+    assert consumed.agent == "claude-code"
+    assert consumed.input_tokens == 2_700
+    assert consumed.cache_tokens == 1_000
+    assert consumed.output_tokens == 30
+    assert consumed.model_turns == 2
+    assert consumed.usage_availability == "observed"
+
+
+def test_claude_result_counters_win_over_the_session_transcript(tmp_path: Path) -> None:
+    """The result record is primary; the transcript never adds a second count."""
+    job = make_job(tmp_path)
+    trial = add_trial(
+        job,
+        name="a__claude",
+        agent="claude-code",
+        input_tokens=2_700,
+        cache_tokens=1_200,
+        output_tokens=30,
+    )
+    add_claude_session(trial, events=[claude_session_event()])
+
+    (consumed,) = load_quota_report([tmp_path], now=NOW).consumed.trials
+
+    assert consumed.input_tokens == 2_700
+    assert consumed.cache_tokens == 1_200
+    assert consumed.output_tokens == 30
+
+
+def test_claude_session_message_text_never_reaches_the_report(tmp_path: Path) -> None:
+    """Session files hold unredacted prompts; only usage scalars may leave."""
+    job = make_job(tmp_path)
+    trial = claude_trial_without_counters(job)
+    add_claude_session(
+        trial,
+        events=[claude_session_event(prompt_text="CONFIDENTIAL-PROMPT-9f3c1e")],
+    )
+
+    report = load_quota_report([tmp_path], now=NOW)
+
+    assert "CONFIDENTIAL-PROMPT-9f3c1e" not in report.model_dump_json()
+    assert report.consumed.trials[0].usage_availability == "observed"
+
+
+def test_claude_usage_without_a_weekly_window_keeps_headroom_unknown(
+    tmp_path: Path,
+) -> None:
+    """Token consumption is not a remaining allowance: no percentage exists."""
+    job = make_job(tmp_path)
+    trial = claude_trial_without_counters(job)
+    add_claude_session(trial, events=[claude_session_event()])
+
+    report = load_quota_report([tmp_path], now=NOW)
+
+    assert report.observations == ()
+    assert report.headroom.availability == "unavailable"
+    assert "quota snapshot" in (report.headroom.reason or "")
+
+
+def test_codex_trials_ignore_stray_claude_session_files(tmp_path: Path) -> None:
+    """The session fallback is scoped to claude-code; Codex accounting is unchanged."""
+    job = make_job(tmp_path)
+    trial = add_trial(
+        job, name="a__1", input_tokens=None, cache_tokens=None, output_tokens=None
+    )
+    add_claude_session(trial, events=[claude_session_event()])
+
+    (consumed,) = load_quota_report([tmp_path], now=NOW).consumed.trials
+
+    assert consumed.usage_availability == "unavailable"
+    assert consumed.input_tokens is None
+    assert consumed.model_turns is None
+
+
+def test_malformed_claude_session_lines_are_skipped_without_failing(
+    tmp_path: Path,
+) -> None:
+    job = make_job(tmp_path)
+    trial = claude_trial_without_counters(job)
+    session = add_claude_session(trial, events=[claude_session_event(output_tokens=7)])
+    with session.open("a") as handle:
+        handle.write("not json at all\n")
+        handle.write(json.dumps({"type": "summary", "summary": "no usage here"}) + "\n")
+
+    (consumed,) = load_quota_report([tmp_path], now=NOW).consumed.trials
+
+    assert consumed.output_tokens == 7
+    assert consumed.model_turns == 1
+
+
+def test_claude_replayed_messages_count_once(tmp_path: Path) -> None:
+    """The CLI replays identical assistant messages under fresh uuids.
+
+    Observed 2026-10-13 on the first gateway trial: one response present
+    three times, which naive summation would triple-count against the
+    bridge ledger and Harbor's own counters.
+    """
+    job = make_job(tmp_path)
+    trial = claude_trial_without_counters(job)
+    repeated = claude_session_event(
+        input_tokens=2,
+        cache_creation_input_tokens=551,
+        cache_read_input_tokens=21_098,
+        output_tokens=776,
+    )
+    add_claude_session(
+        trial,
+        events=[
+            claude_session_event(
+                input_tokens=2,
+                cache_creation_input_tokens=21_098,
+                cache_read_input_tokens=0,
+                output_tokens=122,
+            ),
+            repeated,
+            dict(repeated),
+            dict(repeated),
+            claude_session_event(
+                input_tokens=2,
+                cache_creation_input_tokens=996,
+                cache_read_input_tokens=21_649,
+                output_tokens=208,
+            ),
+        ],
+    )
+
+    (consumed,) = load_quota_report([tmp_path], now=NOW).consumed.trials
+
+    assert consumed.input_tokens == 65_398
+    assert consumed.cache_tokens == 42_747
+    assert consumed.output_tokens == 1_106
+    assert consumed.model_turns == 3

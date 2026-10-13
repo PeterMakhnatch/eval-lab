@@ -1,0 +1,10 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: none",
+ "flagged": [],
+ "fold": 1,
+ "id": "cb-000641",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

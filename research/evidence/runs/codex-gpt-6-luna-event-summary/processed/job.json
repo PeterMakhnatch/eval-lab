@@ -1,0 +1,75 @@
+{
+  "job_dir": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/codexlane/runs/codex-gpt-6-luna-event-summary",
+  "job_name": "codex-gpt-6-luna-event-summary",
+  "ledger": {
+    "block": {
+      "attempted_cost_usd": null,
+      "cost_usd": null,
+      "pricing": null,
+      "reason": "proxy ledger unreadable: provider usage calls are invalid",
+      "source": "proxy_ledger_x_pinned_price"
+    },
+    "totals": {
+      "error": "proxy ledger unreadable: provider usage calls are invalid"
+    }
+  },
+  "results_home": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/unknown-codex-gpt-6-luna-event-summary",
+  "schema": "process_job/v1",
+  "setup_deviations": [],
+  "summary": {
+    "cost_estimate_measured": 0,
+    "cost_estimate_usd": null,
+    "cost_measured": 0,
+    "cost_reason": "proxy ledger unreadable: provider usage calls are invalid",
+    "cost_source": "proxy_ledger_x_pinned_price",
+    "cost_usd": null,
+    "excluded_reasons": {},
+    "ingest": "ingested into localhost:54329/evallab",
+    "limit_hit_summary": {
+      "limit_hit_share": 0.0,
+      "limit_hit_trials": 0,
+      "setup_limited": false,
+      "trials": 1
+    },
+    "n_counted_fail": 0,
+    "n_counted_pass": 1,
+    "n_excluded": 0,
+    "n_fail": 0,
+    "n_pass": 1,
+    "n_trials": 1,
+    "n_unscored": 0,
+    "stop_reasons": {
+      "unknown": 1
+    },
+    "tokens_attempted": null,
+    "tokens_attempted_measured": 0,
+    "tokens_used": 28166,
+    "tokens_used_measured": 1
+  },
+  "trials": [
+    {
+      "cost": null,
+      "flags": [
+        "outcome:R-NONE-01:n/a",
+        "post_edit_input_share:51%",
+        "max_prompt:14109"
+      ],
+      "reasons": [],
+      "reward": 1.0,
+      "stop_category": "unknown",
+      "stop_reason": "unknown",
+      "tokens_attempted": null,
+      "tokens_used": 28166,
+      "trial_name": "codex-gpt-6-luna-event-summary__PffhRBE",
+      "verdict": "counted_pass"
+    }
+  ],
+  "watch": {
+    "acks": [],
+    "alerts": [],
+    "latest_critical": null,
+    "n_alerts": 0,
+    "n_critical": 0,
+    "rules": []
+  }
+}

@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "content_rules",
+ "explanation": "fired: tamper_signature",
+ "flagged": true,
+ "id": "cb-002925",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

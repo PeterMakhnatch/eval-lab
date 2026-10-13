@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.000743,
+ "detector": "kev_hollow_solution",
+ "explanation": "max P(hollow_solution) over 2 windows; peak window 0",
+ "flagged": null,
+ "id": "ca-har110-dev-002864-cfe31418__g7pfCqC",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.2272,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

@@ -24,7 +24,7 @@ from evallab.execution_contracts import persist_private_bytes
 #: Installed subscription CLI under test. Pinned to the Homebrew path so a
 #: shadowed ``codex`` earlier on PATH cannot change the route.
 CODEX_EXECUTABLE = Path("/opt/homebrew/bin/codex")
-CODEX_VERSION = "codex-cli 0.154.0"
+CODEX_VERSION = "codex-cli 0.162.1"
 
 #: ChatGPT-subscription provider id (``OPENAI_PROVIDER_ID`` in
 #: ``codex-rs/model-provider-info``). Pinned so a configured default can

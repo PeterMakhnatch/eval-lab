@@ -548,6 +548,13 @@ def _ref_task(tmp_path: Path) -> Path:
         '[task]\nname = "demo/ref"\n[environment]\nworkdir = "/testbed"\n',
         encoding="utf-8",
     )
+    (task / "instruction.md").write_text("# Demo\nDo the thing.\n", encoding="utf-8")
+    environment = task / "environment"
+    environment.mkdir()
+    (environment / "Dockerfile").write_text("FROM python:3.12-slim\n", encoding="utf-8")
+    tests = task / "tests"
+    tests.mkdir()
+    (tests / "test.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
     return task
 
 
@@ -967,3 +974,91 @@ def test_admit_parser_mutation_flags_match_gate_default() -> None:
     args = cli_module.parser().parse_args(["tasks", "admit", "--task", "pkg"])
     assert args.max_mutants == admission.DEFAULT_MAX_MUTANTS
     assert args.skip_mutation is False
+
+
+def _damaged_task(tmp_path: Path) -> Path:
+    """A package with dropped members: the overnight runner's rsync damage.
+
+    task.toml and instruction.md survived but environment/ and tests/ are
+    empty, so Harbor cannot see a valid task (``is_valid_dir`` is False and
+    ``--path`` resolves as a dataset with zero tasks).
+    """
+    task = tmp_path / "damaged-pkg"
+    task.mkdir()
+    (task / "task.toml").write_text(
+        '[task]\nname = "demo/damaged"\n[environment]\nworkdir = "/testbed"\n',
+        encoding="utf-8",
+    )
+    (task / "instruction.md").write_text("# Demo\nDo the thing.\n", encoding="utf-8")
+    (task / "environment").mkdir()
+    (task / "tests").mkdir()
+    return task
+
+
+def _explicit_reference(patch_bytes: bytes) -> OracleReference:
+    return OracleReference(
+        task_id="damaged",
+        label="explicit",
+        fix_commit="explicit",
+        receipt_path="test",
+        receipt_run_digest="",
+        patch_sha256=f"sha256:{hashlib.sha256(patch_bytes).hexdigest()}",
+        patch_bytes=patch_bytes,
+        recorded_oracle_reward=None,
+        recorded_nop_reward=None,
+    )
+
+
+def test_oracle_damaged_package_is_infra_without_running_control(tmp_path: Path) -> None:
+    """Dropped task members fail fast as infra; Harbor never runs."""
+    task = _damaged_task(tmp_path)
+    patch = b"diff --git a/f.py b/f.py\n--- a/f.py\n+++ b/f.py\n@@\n-x\n+y\n"
+    control_calls: list[str] = []
+
+    def reference(task_dir: Path, task_id: str, **_: object) -> OracleReference | None:
+        return _explicit_reference(patch)
+
+    def control(**kwargs: object) -> ControlOutcome:
+        control_calls.append(str(kwargs.get("agent")))
+        return ControlOutcome(
+            job_dir=tmp_path / "jobs" / "x",
+            returncode=0,
+            rewards=[1.0],
+            command=["harbor", "run"],
+        )
+
+    result = admission.admit_task(
+        task,
+        **_ctx_kwargs(tmp_path, task),
+        steps=[StepDef(name="oracle", kind="control", agent="oracle", expect=1.0)],
+        scan=_pass_scan,
+        control=control,
+        cheat=_cheat(0.0),
+        reference=reference,
+    )
+    assert result.record.verdict == "not_admitted"
+    assert result.record.steps[0].status == "infra"
+    assert "not a valid Harbor task" in result.record.steps[0].detail
+    assert "tests/" in result.record.steps[0].detail
+    assert control_calls == []  # invalid task, no Docker burned
+
+
+def test_oracle_reference_render_failure_is_infra_not_crash(tmp_path: Path) -> None:
+    """A non-UTF8 reference patch is an infra step, never an uncaught crash."""
+    task = _ref_task(tmp_path)
+
+    def reference(task_dir: Path, task_id: str, **_: object) -> OracleReference | None:
+        return _explicit_reference(b"\xff\xfe not utf-8 \x00\x01")
+
+    result = admission.admit_task(
+        task,
+        **_ctx_kwargs(tmp_path, task),
+        steps=[StepDef(name="oracle", kind="control", agent="oracle", expect=1.0)],
+        scan=_pass_scan,
+        control=_control(1.0),
+        cheat=_cheat(0.0),
+        reference=reference,
+    )
+    assert result.record.verdict == "not_admitted"
+    assert result.record.steps[0].status == "infra"
+    assert "staging broke" in result.record.steps[0].detail

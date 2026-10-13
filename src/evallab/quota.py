@@ -102,8 +102,10 @@ def provider_subscription_description(agent: str, model: str | None = None) -> s
     return PROVIDER_SUBSCRIPTIONS.get(agent, f"{agent} subscription/policy state")
 
 
-#: Codex is the only lane whose local artifacts currently expose a measured
-#: rate-limit snapshot. Other lanes must remain UNKNOWN until their own
+#: Codex is the only lane whose local artifacts expose a measured
+#: rate-limit snapshot. Claude session transcripts carry per-message token
+#: counters but no weekly-window percentage, so claude-code trials contribute
+#: token consumption only and their headroom must remain UNKNOWN until the
 #: provider emits an independently identified snapshot.
 MEASURED_QUOTA_AGENTS: frozenset[str] = frozenset({"codex"})
 
@@ -111,6 +113,14 @@ MEASURED_QUOTA_AGENTS: frozenset[str] = frozenset({"codex"})
 Availability = Literal["observed", "unavailable"]
 
 ROLLOUT_GLOB = "agent/sessions/**/rollout-*.jsonl"
+
+#: Harbor's claude-code agent points the CLI at ``<trial>/agent/sessions`` and
+#: the CLI writes one JSONL transcript per session below
+#: ``projects/<cwd-slug>/``. Assistant messages there carry a
+#: ``message.usage`` block with the Anthropic API counters. The parser below
+#: only reads those scalars -- never message text -- so its output stays safe
+#: to commit though the files parsed are not.
+CLAUDE_SESSION_GLOB = "agent/sessions/projects/**/*.jsonl"
 
 #: Promotion (rule R4, ``scripts/promote_codex_bundle.py``) omits the rollout and
 #: leaves the provider's quota reading beside it as a redacted sidecar. It is the
@@ -657,6 +667,76 @@ def _model_turns(trial_dir: Path) -> int | None:
     return turns
 
 
+def _claude_session_usage(
+    trial_dir: Path,
+) -> tuple[int | None, int | None, int | None, int | None]:
+    """Sum Anthropic ``message.usage`` counters from Claude session transcripts.
+
+    Returns ``(turns, input_tokens, cache_tokens, output_tokens)`` mirroring
+    Harbor's own counters exactly: ``input_tokens`` is inclusive of both
+    cache counters, while ``cache_tokens`` counts cache reads only
+    (verified 2026-10-13: Harbor recorded ``n_cache_tokens`` 42,747 against
+    42,747 read plus 22,645 creation on the first gateway trial). Whether
+    the provider charges a cached token at the same rate stays UNVERIFIED
+    (see :data:`CACHED_WEIGHTING_NOTE`); the two are reported separately,
+    never collapsed.
+
+    All ``None`` when no session file yields a usage block. Only the
+    ``message.usage`` scalars are read; prompt, tool and reasoning text is
+    never touched.
+
+    Each distinct usage tuple is counted once: the CLI replays identical
+    assistant messages under fresh uuids (observed 2026-10-13: one response
+    present three times), and counting every replay would multiply one
+    history. The bridge usage ledger remains authoritative; this fallback
+    only fills trials whose result carries no counters.
+    """
+    turns = 0
+    plain_input = 0
+    cache_read_total = 0
+    cache_create_total = 0
+    output = 0
+    counted: set[tuple[int | None, int | None, int | None, int | None]] = set()
+    for session in sorted(trial_dir.glob(CLAUDE_SESSION_GLOB)):
+        try:
+            text = session.read_text()
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if '"usage"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            usage = _as_object(_as_object(event).get("message")).get("usage")
+            usage = _as_object(usage)
+            uncached = _as_int(usage.get("input_tokens"))
+            cache_creation = _as_int(usage.get("cache_creation_input_tokens"))
+            cache_read = _as_int(usage.get("cache_read_input_tokens"))
+            out_tokens = _as_int(usage.get("output_tokens"))
+            if (
+                uncached is None
+                and cache_creation is None
+                and cache_read is None
+                and out_tokens is None
+            ):
+                continue
+            signature = (uncached, cache_creation, cache_read, out_tokens)
+            if signature in counted:
+                continue
+            counted.add(signature)
+            turns += 1
+            plain_input += uncached or 0
+            cache_read_total += cache_read or 0
+            cache_create_total += cache_creation or 0
+            output += out_tokens or 0
+    if not counted:
+        return None, None, None, None
+    total_in = plain_input + cache_read_total + cache_create_total
+    return turns, total_in, cache_read_total, output
+
+
 def _window(payload: object) -> QuotaWindow | None:
     window = _as_object(payload)
     if not window:
@@ -768,6 +848,22 @@ def _trial_consumption(
         return None, []
     agent_result = _as_object(result.get("agent_result"))
     trial_name = _as_str(result.get("trial_name")) or trial_dir.name
+    input_tokens = _as_int(agent_result.get("n_input_tokens"))
+    cache_tokens = _as_int(agent_result.get("n_cache_tokens"))
+    output_tokens = _as_int(agent_result.get("n_output_tokens"))
+    model_turns = _model_turns(trial_dir)
+    if agent == "claude-code" and (
+        (input_tokens is None and output_tokens is None) or not model_turns
+    ):
+        # Harbor's result counters are the primary record; the CLI session
+        # transcript is a fallback for trials whose result carries no
+        # counters -- never a second source, so one history cannot count
+        # twice. Other agents are untouched by this branch.
+        turns, session_input, session_cache, session_output = _claude_session_usage(trial_dir)
+        if input_tokens is None and output_tokens is None:
+            input_tokens, cache_tokens, output_tokens = session_input, session_cache, session_output
+        if not model_turns:
+            model_turns = turns
     consumption = TrialConsumption(
         job_name=job_name,
         trial_name=trial_name,
@@ -777,10 +873,10 @@ def _trial_consumption(
         policy_rule=job.policy_rule,
         attempts_declared=job.attempts_declared,
         started_at=_parse_instant(result.get("started_at")),
-        input_tokens=_as_int(agent_result.get("n_input_tokens")),
-        cache_tokens=_as_int(agent_result.get("n_cache_tokens")),
-        output_tokens=_as_int(agent_result.get("n_output_tokens")),
-        model_turns=_model_turns(trial_dir),
+        input_tokens=input_tokens,
+        cache_tokens=cache_tokens,
+        output_tokens=output_tokens,
+        model_turns=model_turns,
         reported_cost_usd=_as_float(agent_result.get("cost_usd")),
         exception_type=_as_str(_as_object(result.get("exception_info")).get("exception_type")),
         duration_seconds=_span_seconds(result),

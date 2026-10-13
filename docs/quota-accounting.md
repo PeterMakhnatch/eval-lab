@@ -121,9 +121,18 @@ figures from the artifacts alone.
   never combined into one consumption number. On real history the cache share is
   90.7%, so a wrong assumption here would move the ledger by an order of
   magnitude.
-- **Claude consumption, entirely.** Zero `claude-code` trials exist, and the
-  Keychain path exposes no comparable signal. `PAID_AGENTS` includes
-  `claude-code` so the ledger is ready, but it has nothing to report.
+- **Claude consumption, per-trial tokens only.** The Keychain path exposes no
+  signal and no weekly percentage is observable anywhere, so headroom stays
+  `[unavailable]` by construction (`MEASURED_QUOTA_AGENTS` remains
+  Codex-only). What a trial's own artifacts do carry is token consumption:
+  `quota.py` reads Harbor's result counters when present and otherwise sums
+  the Anthropic `message.usage` blocks from the CLI session transcript
+  (`agent/sessions/projects/*/*.jsonl`), usage scalars only, each distinct
+  tuple counted once (the first gateway trial replays one response three
+  times; verified the collapsed fallback reproduces its 65,398 / 42,747 /
+  1,106 exactly). The gateway lane additionally persists the bridge's own
+  per-call ledger beside the job (`claude-gateway-usage.jsonl`), which is
+  authoritative for that job.
 - **Quota after promotion — closed, with a caveat.** `research/evidence/runs/`
   excludes `agent/sessions/`, correctly, because rollouts contain unredacted
   prompt text that `AGENTS.md` forbids committing. Promotion therefore used to
@@ -491,11 +500,12 @@ evidence, reproducing #67's prototype figure exactly.
 
 What the gate sees changes with it: `Executor._repo_headroom` scans
 `default_roots`, so on a fresh clone `render_headroom_notice` now prints an
-observed 70.0 with its staleness and hard-stop instead of UNKNOWN. It still
-refuses nothing — `provider_reported_exhaustion` triggers at 100.0 and
-`REFUSE_BILLABLE_AT_USED_PERCENT` is committed as `None` — and once
-`resets_at 2026-08-20T18:32:49+00:00` passes, `quota_window_expired` treats the
-same committed reading as a window that no longer exists.
+observed 70.0 with its staleness and hard-stop instead of UNKNOWN. The provider
+refusal still triggers at 100.0, and since 2026-10-13 the lab's own ceiling
+refuses at or above 60 (`refuse_billable_at_used_percent` in
+`policy/standing-approvals.yaml`, reason code `subscription_quota_ceiling`).
+Once `resets_at 2026-08-20T18:32:49+00:00` passes, `quota_window_expired`
+treats the same committed reading as a window that no longer exists.
 
 ## Reproducing
 

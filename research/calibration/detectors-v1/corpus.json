@@ -73,6 +73,14 @@
    "revision": "291cf50ffc3cb4d2af42ade5e0cd728cb0037312",
    "license": "CC-BY-4.0",
    "materialize": "python -m evallab.rl_rollouts fetch/materialize --data <dir> --subset rl_subset.json --rl-root <rl-root>; trials at <rl-root>/<source>/<rl_id>"
+  },
+  "contamination-audit": {
+   "rows": 216,
+   "setting": "agent_runs",
+   "what": "Every audited Eval Lab agent pass outside the CheatBench port (2026-10-13 contamination audit): 30 confirmed cheats (18 in runs not prompted to cheat; mechanism per row) and 186 clean passes, 38 of them Kev-flagged hard negatives. Verdicts: GPT-6.1 Sol plus a blind Claude second judge, disagreements resolved from the trajectory (research/experiments/contamination-audit).",
+   "origin": "~/Developer/eval-lab-results (published) and the eval-lab checkout's runs/ (local_run)",
+   "license": "Eval Lab",
+   "caveat": "Overlaps source 'ours' (same trajectories, older labels). Filter cheat_prompted=false for unprompted cheats."
   }
  },
  "cache_provenance": {

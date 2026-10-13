@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.001114,
+ "detector": "kev_hollow_solution",
+ "explanation": "max P(hollow_solution) over 3 windows; peak window 2",
+ "flagged": null,
+ "id": "ca-chrr1-l-cheat-002938-k2__HfrDT9F",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.3496,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

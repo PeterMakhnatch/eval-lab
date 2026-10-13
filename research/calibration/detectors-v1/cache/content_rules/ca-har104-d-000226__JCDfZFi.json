@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "content_rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-har104-d-000226__JCDfZFi",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

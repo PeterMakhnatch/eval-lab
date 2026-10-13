@@ -646,6 +646,14 @@ def test_local_env_loader_ignores_model_api_keys(
             "transient_harness:provider_http_429",
         ),
         (
+            # Claude Code's subscription rate limit surfaces as a 429 carrying
+            # the API's rate_limit_error type; the queue must stop the spec
+            # and wait for the operator, never retry into the limit.
+            'API Error: 429 {"type":"error","error":{"type":"rate_limit_error",'
+            '"message":"Request was throttled. Please try again later."}}',
+            "transient_harness:provider_http_429",
+        ),
+        (
             "upstream API returned HTTP/1.1 503 Service Unavailable",
             "transient_harness:provider_http_5xx",
         ),

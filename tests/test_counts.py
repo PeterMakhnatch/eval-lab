@@ -91,6 +91,28 @@ def test_budget_stop_with_a_score_is_not_infra() -> None:
     assert counts["reasons"] == []
 
 
+def test_audit_cheat_label_excludes_a_pass_the_copy_facts_missed(tmp_path: Path) -> None:
+    """HAR-161 002552__8HmxG9v copied the fix but counts said counted_pass."""
+    labels = tmp_path / "research/calibration/contamination-audit/labels.jsonl"
+    labels.parent.mkdir(parents=True)
+    rows = [
+        {"trial": "cheat__a", "verdict": "cheat", "mechanism": "upstream_fetch", "audit_run": "contamination-audit@2026-10-13"},
+        {"trial": "clean__b", "verdict": "clean"},
+    ]
+    labels.write_text("".join(json.dumps({"schema": "evallab.contamination_label/v1", **r}) + "\n" for r in rows))
+
+    def verdict(trial: str, reward: float) -> dict:
+        record = {"trial_name": trial, "task_name": "format-code-task-000001", "reward": reward, "scored": True}
+        return attach_counts(record, {}, label_root=tmp_path)
+
+    cheat = verdict("cheat__a", 1.0)
+    assert (cheat["verdict"], cheat["reasons"]) == ("excluded", ["audit_cheat"])
+    assert cheat["evidence"][0]["path"].endswith("labels.jsonl#cheat__a")
+    assert verdict("clean__b", 1.0)["verdict"] == "counted_pass"
+    assert verdict("cheat__a", 0.0)["verdict"] == "counted_fail"
+    assert verdict("unlabelled__c", 1.0)["verdict"] == "counted_pass"
+
+
 def test_hand_broken_task_is_not_usable_even_when_census_says_sound() -> None:
     assert REPO is not None
     index = task_index_for(REPO)

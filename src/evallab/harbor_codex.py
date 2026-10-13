@@ -8,8 +8,11 @@ from harbor.agents.installed.codex import Codex  # ty: ignore[unresolved-import]
 
 # 0.149.0 was published before its linux-arm64 optional package. Harbor's
 # `@latest` installer therefore installed an unusable CLI on arm64 task images.
-# Pin the newest release whose base and linux-arm64 packages are both present.
-PINNED_CODEX_VERSION = "0.148.0"
+# Pin the newest release whose base and linux-arm64 packages are both present,
+# verified on the npm registry (both `@openai/codex@0.162.1` and
+# `@openai/codex@0.162.1-linux-arm64` published 2026-10-10). 0.162.1 also
+# matches the host CLI, so sandbox and GEPA proposer parse the same shapes.
+PINNED_CODEX_VERSION = "0.162.1"
 
 
 class PinnedCodex(Codex):

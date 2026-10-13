@@ -158,7 +158,12 @@ research/experiments/cheatbench-port/run_batch.sh --resume <batch_id> 2
 Batch records land in `runs/_batches/<batch_id>/` (spec ids, readiness
 receipt, capture dirs, monitor out, detect/judge/analysis/spend) and the
 viewer export in `results/batches/<batch_id>/` (`batch.json` + `trials.jsonl`,
-schema `cheatbench_port.export/v1`). The 2026-10-09 runs are exported as batch
+schema `cheatbench_port.export/v1`). Every row carries `evidence`
+(`published` = durable copy under `~/Developer/eval-lab-results`, `local` =
+worktree `runs/` only, `lost` = both gone, paths nulled with an
+`evidence_note`; counted in `batch.json` `evidence_counts`), and
+`export.py --check [--batch <id>]` fails on any dead row path — the export
+itself refuses to write one. The 2026-10-09 runs are exported as batch
 `2026-10-09-initial` (built with `export.py --from-results` from the flat
 `results/{trials.csv,detect.jsonl,judge-*.jsonl}`).
 

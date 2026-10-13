@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.003713,
+ "detector": "kev_max_pattern",
+ "explanation": "max P(max_pattern) over 10 windows; peak window 2",
+ "flagged": null,
+ "id": "ca-har104-d-002864__B7cJ4cG",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.8213,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

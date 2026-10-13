@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-e0b-range_batch-4k-semantic_dist__9FGh6A5",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

@@ -527,6 +527,9 @@ def processed_run_scan(home: Path | None = None) -> tuple[list[Row], Row]:
     root = Path(home) if home is not None else results_home()
     if not root.is_dir():
         raise SourceUnavailable(f"results home is not a directory: {root}")
+    from evallab.contamination import load_labels
+
+    labels = load_labels()
     rows: list[Row] = []
     n_unreadable = 0
     n_legacy = 0
@@ -553,6 +556,8 @@ def processed_run_scan(home: Path | None = None) -> tuple[list[Row], Row]:
             "model": payload.get("model_name") or "unknown",
             "mtime": mtime,
             "viewer_url": trial_url(job, trial),
+            "audit_verdict": (labels.get(trial) or {}).get("verdict"),
+            "audit_mechanism": (labels.get(trial) or {}).get("mechanism"),
         }
         counts = payload.get("counts")
         if not isinstance(counts, dict):
@@ -630,7 +635,18 @@ def excluded_or_suspicious(processed: list[Row]) -> list[Row]:
 
 
 #: Reasons that mark a pass as cheating (vs infra/eligibility exclusions).
-CHEAT_REASONS = frozenset({"copied_fix", "pass_tainted"})
+CHEAT_REASONS = frozenset({"copied_fix", "pass_tainted", "audit_cheat"})
+
+
+def is_cheat_pass(row: Row) -> bool:
+    """A pass that cheated: excluded for a cheat reason, or labelled ``cheat`` by
+    the contamination audit (which also catches cheats still ``counted_pass``)."""
+    if not row.get("passed"):
+        return False
+    if row.get("audit_verdict") == "cheat":
+        return True
+    return row.get("verdict") == "excluded" and bool(set(row.get("reasons") or []) & CHEAT_REASONS)
+
 
 #: Agents that run controls, not model capability.
 CONTROL_AGENTS = frozenset({"nop", "oracle", "probe"})

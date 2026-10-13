@@ -80,6 +80,20 @@ _SHELL_KEYS = ("keystrokes", "cmd", "command")
 #: Free text (`summary`, `description`, `prompt`) is deliberately excluded: a
 #: path mentioned in prose is not an access.
 _PATH_KEYS = ("file_path", "path", "paths", "pattern", "input", "patch")
+#: Codex CLI >= 0.16x runs shell through a scripted `exec` tool whose `input`
+#: calls `tools.exec_command({cmd:"<shell>", ...})`; the shell text is the
+#: JSON-escaped string after `cmd:`.
+_CODEX_EXEC_CMD = re.compile(r'exec_command\(\s*\{\s*cmd\s*:\s*("(?:[^"\\]|\\.)*")')
+
+
+def _codex_exec_commands(script: str) -> list[str]:
+    out = []
+    for m in _CODEX_EXEC_CMD.finditer(script):
+        try:
+            out.append(json.loads(m.group(1)))
+        except ValueError:
+            out.append(m.group(1)[1:-1])
+    return out
 
 
 def command_text(func: str, args: Any) -> str:
@@ -92,6 +106,11 @@ def command_text(func: str, args: Any) -> str:
     """
     if not isinstance(args, dict):
         return str(args)
+    script = args.get("input")
+    if isinstance(script, str) and "exec_command" in script:
+        cmds = _codex_exec_commands(script)
+        if cmds:
+            return "\n".join(cmds)
     for key in _SHELL_KEYS:
         value = args.get(key)
         if isinstance(value, list):

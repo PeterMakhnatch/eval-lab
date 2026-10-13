@@ -262,6 +262,8 @@ def native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, _require_harbor_runt
             assert state["installed"], "network disconnected before filter installation"
             if state["failure"] == "disconnect":
                 raise RuntimeError("fixture disconnect failure")
+            state["inspect"]["NetworkSettings"]["Networks"] = {}
+            state["connected"] = False
             return ""
         if command[:2] == ("network", "connect"):
             assert state["installed"], "network attached before filter installation"
@@ -290,14 +292,26 @@ def native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, _require_harbor_runt
             assert state["up"] and not state["connected"]
             return ""
         if command[:1] == ("exec",):
-            assert "--privileged" in command
             assert state["up"]
+            if "--privileged" not in command:
+                # Phase-switch interface census: unprivileged operstate view.
+                assert command[1:3] == (CID, "sh")
+                if state["failure"] == "interfaces":
+                    return "eth0 up\nlo unknown\n"
+                if state["connected"]:
+                    return "eth0 up\nlo unknown\n"
+                return "lo unknown\nsit0 down\ntunl0 down\n"
             if "--file" in command or "-f" in command:
                 assert not state["connected"]
                 if state["failure"] == "install":
                     raise RuntimeError("fixture install failure")
                 state["rules"] = stdin
                 state["installed"] = True
+                # A reinstall restores the canonical kernel state only when the
+                # test models healable drift; a persistently wrong kernel
+                # listing must keep failing verification.
+                if state.get("heal_on_reinstall"):
+                    state["listing_override"] = None
                 state["events"].append(("nft", "installed"))
                 return _listing(stdin)
             if "list" in command:
@@ -317,7 +331,9 @@ def native(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, _require_harbor_runt
         elif command[0] == "up":
             state["up"] = True
         elif command[0] == "ps":
-            return ExecResult(stdout=CID, stderr=None, return_code=0)
+            return ExecResult(
+                stdout=state.get("container_alias", CID), stderr=None, return_code=0
+            )
         elif command[0] == "exec":
             assert "--privileged" not in command
             state["ordinary_exec_caps"].append(state["inspect"]["HostConfig"]["CapDrop"][:])
@@ -537,6 +553,191 @@ def test_no_network_baseline_retains_none_without_a_public_attachment(native):
     assert _record(native)["applied"] is True
     assert not any(item[:3] == ("daemon", "network", "connect") for item in native["events"])
     asyncio.run(env.stop(delete=True))
+
+def _v5_agent_env(native, **overrides):
+    """The mimo-clean-v5 agent shape: public baseline, no-network agent phase."""
+    arguments = {
+        "network_policy": NetworkPolicy(network_mode=NetworkMode.PUBLIC),
+        # Shared-verifier trials also repeat the public baseline; repeats are
+        # native no-ops and must not affect the switch allowance.
+        "phase_network_policies": [
+            NetworkPolicy(network_mode=NetworkMode.NO_NETWORK),
+            NetworkPolicy(network_mode=NetworkMode.PUBLIC),
+        ],
+    }
+    arguments.update(overrides)
+    return native["make"](**arguments)
+
+
+def test_v5_agent_phase_switch_roundtrip_preserves_boundary(native):
+    env = _v5_agent_env(native)
+    asyncio.run(env.start(force_build=False))
+    assert native["connected"]
+
+    asyncio.run(
+        env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.NO_NETWORK))
+    )
+    assert not native["connected"]
+    assert native["inspect"]["NetworkSettings"]["Networks"] == {}
+
+    asyncio.run(env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.PUBLIC)))
+    assert native["connected"]
+
+    record = _record(native)
+    assert record["applied"] is True
+    assert record["declared_phase_policies"] == [
+        {"network_mode": "no-network", "allowed_hosts": []},
+        {"network_mode": "public", "allowed_hosts": []},
+    ]
+    transitions = record["phase_transitions"]
+    assert [transition["policy"] for transition in transitions] == [
+        "no-network",
+        "public",
+    ]
+    assert transitions[0]["networks"] == []
+    assert transitions[0]["interfaces"] == ["lo", "sit0", "tunl0"]
+    assert transitions[0]["interface_states"] == {
+        "lo": "unknown",
+        "sit0": "down",
+        "tunl0": "down",
+    }
+    assert transitions[1]["networks"] == [env._network_name]
+    assert transitions[1]["rules_confirmed"] is True
+    # Disconnect/reconnect bracket the boundary install, never precede it.
+    events = native["events"]
+    assert events.index(("nft", "installed")) < events.index(
+        ("daemon", "network", "disconnect", env._network_id, CID)
+    )
+    asyncio.run(env.stop(delete=True))
+
+
+def test_no_network_baseline_can_attach_public_phase(native):
+    env = native["make"](
+        network_policy=NetworkPolicy(network_mode=NetworkMode.NO_NETWORK),
+        phase_network_policies=[NetworkPolicy(network_mode=NetworkMode.PUBLIC)],
+    )
+    asyncio.run(env.start(force_build=False))
+    assert not native["connected"]
+    asyncio.run(env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.PUBLIC)))
+    assert native["connected"]
+    transitions = _record(native)["phase_transitions"]
+    assert [transition["policy"] for transition in transitions] == ["public"]
+    assert transitions[0]["rules_confirmed"] is True
+    asyncio.run(env.stop(delete=True))
+
+
+def test_repeated_baseline_policy_is_a_native_noop(native):
+    env = _v5_agent_env(native)
+    asyncio.run(env.start(force_build=False))
+    before = list(native["events"])
+    asyncio.run(env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.PUBLIC)))
+    assert native["events"] == before
+    assert _record(native)["phase_transitions"] == []
+    asyncio.run(env.stop(delete=True))
+
+
+def test_allowlist_phase_policy_is_refused_before_docker(native):
+    allowlist = NetworkPolicy(
+        network_mode=NetworkMode.ALLOWLIST, allowed_hosts=["example.com"]
+    )
+    with pytest.raises(ValueError, match="no-network/public pair"):
+        native["make"](
+            network_policy=NetworkPolicy(network_mode=NetworkMode.PUBLIC),
+            phase_network_policies=[allowlist],
+        )
+    assert native["events"] == []
+
+
+def test_runtime_allowlist_switch_is_refused(native):
+    env = native["make"](isolation_lane="codex")
+    asyncio.run(env.start(force_build=False))
+    with pytest.raises(ValueError, match="allowlist"):
+        asyncio.run(
+            env.set_network_policy(
+                NetworkPolicy(
+                    network_mode=NetworkMode.ALLOWLIST, allowed_hosts=["example.com"]
+                )
+            )
+        )
+    assert native["connected"]
+    asyncio.run(env.stop(delete=True))
+
+
+def test_phase_switch_before_confirmation_is_refused(native):
+    env = _v5_agent_env(native)
+    with pytest.raises(RuntimeError, match="before confirmation"):
+        asyncio.run(
+            env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.NO_NETWORK))
+        )
+    assert native["events"] == []
+
+
+def test_boundary_reinstalled_before_reconnect(native):
+    env = _v5_agent_env(native)
+    asyncio.run(env.start(force_build=False))
+    asyncio.run(
+        env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.NO_NETWORK))
+    )
+    assert sum(1 for event in native["events"] if event == ("nft", "installed")) == 1
+    # The detached kernel state no longer matches the remembered listing, but
+    # a reinstall restores it before the public attachment returns.
+    native["listing_override"] = "drifted"
+    native["heal_on_reinstall"] = True
+    asyncio.run(env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.PUBLIC)))
+    assert sum(1 for event in native["events"] if event == ("nft", "installed")) == 2
+    assert native["connected"]
+    assert [t["policy"] for t in _record(native)["phase_transitions"]] == [
+        "no-network",
+        "public",
+    ]
+    asyncio.run(env.stop(delete=True))
+
+
+def test_no_network_phase_with_unexpected_interface_is_refused(native):
+    env = _v5_agent_env(native)
+    asyncio.run(env.start(force_build=False))
+    native["failure"] = "interfaces"
+    with pytest.raises(RuntimeError, match="unexpected interfaces"):
+        asyncio.run(
+            env.set_network_policy(NetworkPolicy(network_mode=NetworkMode.NO_NETWORK))
+        )
+    assert not native["connected"]
+    asyncio.run(env.stop(delete=True))
+
+def test_separate_verifier_environment_keeps_its_own_record(native):
+    """A second container sharing the trial dir must not overwrite agent evidence."""
+    native["inspect"]["Config"]["Labels"]["com.docker.compose.project"] = "trial-env"
+    agent = _v5_agent_env(native, session_id="trial-env")
+    asyncio.run(agent.start(force_build=False))
+    asyncio.run(
+        agent.set_network_policy(NetworkPolicy(network_mode=NetworkMode.NO_NETWORK))
+    )
+
+    verifier_cid = "c" * 64
+    native["container_alias"] = verifier_cid
+    native["inspect"]["Id"] = verifier_cid
+    native["inspect"]["Config"]["Labels"]["com.docker.compose.project"] = (
+        "trial-verifier-v1"
+    )
+    verifier = native["make"](
+        session_id="trial-verifier-v1",
+        network_policy=NetworkPolicy(network_mode=NetworkMode.PUBLIC),
+        phase_network_policies=[NetworkPolicy(network_mode=NetworkMode.PUBLIC)],
+    )
+    asyncio.run(verifier.start(force_build=False))
+
+    primary = _record(native)
+    assert primary["session_id"] == "trial-env"
+    assert primary["container_id"] == CID
+    assert [t["policy"] for t in primary["phase_transitions"]] == ["no-network"]
+    sibling = native["paths"].trial_dir / "host-isolation-trial-verifier-v1.json"
+    assert sibling.is_file()
+    other = json.loads(sibling.read_text())
+    assert other["session_id"] == "trial-verifier-v1"
+    assert other["container_id"] == verifier_cid
+    assert other["phase_transitions"] == []
+    asyncio.run(agent.stop(delete=True))
+    asyncio.run(verifier.stop(delete=True))
 
 
 def test_final_overlay_disables_untrusted_image_startup_and_capabilities(native):

@@ -33,6 +33,16 @@ For every clean-set manifest row, four checks on the FINAL clean package
     report `full-ladder-unattributed`. Ladder cells are version-bound: a
     1.3.0-clean carries 12/14 attacks only; the 2 source-skip attacks need
     fresh 1.4.0 trials.
+
+    Ladder v2 (`2.0.0`) exists alongside this census contract. It appends
+    `leftover_test_swap`, `fifo_answer`, `fork_bomb`, and `disk_fill` to
+    the frozen 1.4.0 ladder and is selected only explicitly
+    (`evallab cheat run --ladder-version 2.0.0`,
+    `evallab interop matrix --ladder-version 2.0.0`, or
+    `EVALLAB_CHEAT_LADDER_VERSION=2.0.0`). Census and admissions stay on
+    1.4.0 by default; `attempts.json` records the selected generation, so
+    v2 cells are never reused as 1.4.0 evidence. The fork and disk probes
+    are bounded (64 short-lived processes; 128 MiB) and clean up in-script.
 (d) **fix-content census = 0 locations with a real positive control** —
     for all reference tasks, `evallab.fix_content_census` stages signatures
     from the actual indexed patch and measures BOTH the published-image

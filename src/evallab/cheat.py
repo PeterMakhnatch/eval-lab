@@ -24,8 +24,20 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from evallab.cheat_ladder import ATTACKS, parse_attack_selection
-from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR
+from evallab.cheat_ladder import (
+    ATTACKS,  # noqa: F401  (re-exported for sibling lanes)
+    ATTACKS_V2,  # noqa: F401  (re-exported for sibling lanes)
+    CHEAT_LADDER_V2,  # noqa: F401  (re-exported for sibling lanes)
+    DEFAULT_LADDER_VERSION,
+    LADDERS,
+    parse_attack_selection,
+    parse_ladder_version,
+)
+from evallab.execution_contracts import (
+    CHEAT_AGENT,
+    CHEAT_ATTACKS_ENV_VAR,
+    CHEAT_LADDER_VERSION_ENV_VAR,
+)
 
 #: Serializes the process-env handoff below: build_command reads the attack
 #: subset from the host environment, so concurrent in-process cheat runs must
@@ -210,6 +222,7 @@ def run_cheat_trial(
     name: str,
     attempts: int = 1,
     timeout_seconds: int = 600,
+    ladder_version: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Execute the cheat lane once through direct execution; return (job_dir, verdicts).
 
@@ -218,10 +231,21 @@ def run_cheat_trial(
     process-env lock, the trial runs on local Docker ($0), and the verdicts
     payload comes from the benchmark's own verifier reward. Raises on
     infrastructure failure (callers map that to their error verdict).
+
+    ``ladder_version=None`` preserves the ambient/default behavior exactly
+    (v1 unless the host already exported an explicit generation).
     """
     from evallab.execution_contracts import RunRequest
     from evallab.queue import Executor
 
+    explicit_version = (
+        parse_ladder_version(ladder_version) if ladder_version is not None else None
+    )
+    effective_version = explicit_version or parse_ladder_version(
+        os.environ.get(CHEAT_LADDER_VERSION_ENV_VAR)
+    )
+    if attacks:
+        parse_attack_selection(",".join(attacks), version=effective_version)
     request = RunRequest(
         task=task,
         agent=CHEAT_AGENT,
@@ -236,7 +260,10 @@ def run_cheat_trial(
     )
     with _CHEAT_ENV_LOCK:
         previous = os.environ.get(CHEAT_ATTACKS_ENV_VAR)
+        previous_version = os.environ.get(CHEAT_LADDER_VERSION_ENV_VAR)
         os.environ[CHEAT_ATTACKS_ENV_VAR] = ",".join(attacks)
+        if explicit_version is not None:
+            os.environ[CHEAT_LADDER_VERSION_ENV_VAR] = explicit_version
         try:
             job_dir = Executor.from_repo(repo_root).execute_direct(request)
         finally:
@@ -244,6 +271,11 @@ def run_cheat_trial(
                 os.environ.pop(CHEAT_ATTACKS_ENV_VAR, None)
             else:
                 os.environ[CHEAT_ATTACKS_ENV_VAR] = previous
+            if explicit_version is not None:
+                if previous_version is None:
+                    os.environ.pop(CHEAT_LADDER_VERSION_ENV_VAR, None)
+                else:
+                    os.environ[CHEAT_LADDER_VERSION_ENV_VAR] = previous_version
     verdicts_path = write_cheat_verdicts(job_dir, harbor_rev=harbor_version())
     payload = json.loads(verdicts_path.read_text(encoding="utf-8"))
     return job_dir, payload
@@ -261,7 +293,8 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             file=sys.stderr,
         )
         return 2
-    selected = parse_attack_selection(args.attacks)
+    ladder_version = parse_ladder_version(args.ladder_version)
+    selected = parse_attack_selection(args.attacks, version=ladder_version)
     task = args.task if args.task.is_absolute() else (root / args.task).resolve()
     jobs_dir = args.jobs_dir if args.jobs_dir.is_absolute() else (root / args.jobs_dir).resolve()
     job_dir, payload = run_cheat_trial(
@@ -272,6 +305,7 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         name=args.name,
         attempts=args.attempts,
         timeout_seconds=args.timeout_seconds,
+        ladder_version=ladder_version if args.ladder_version is not None else None,
     )
     verdicts_path = job_dir / VERDICTS_FILENAME
     print(f"completed: {job_dir}")
@@ -299,7 +333,13 @@ def build_cheat_parser(commands: argparse._SubParsersAction) -> None:
     runner.add_argument(
         "--attacks",
         default=None,
-        help=f"comma-separated subset of {','.join(ATTACKS)}; default: full ladder",
+        help="comma-separated subset for the selected ladder; default: full ladder",
+    )
+    runner.add_argument(
+        "--ladder-version",
+        choices=sorted(LADDERS),
+        default=None,
+        help=f"ladder generation (default: {DEFAULT_LADDER_VERSION})",
     )
     runner.add_argument(
         "--timeout-seconds",

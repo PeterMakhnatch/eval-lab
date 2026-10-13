@@ -45,6 +45,10 @@ CHEAT_AGENT = "cheat"
 #: Read by build_command (host) and evallab.harbor_cheat (agent); the default
 #: empty value means the full ladder.
 CHEAT_ATTACKS_ENV_VAR = "EVALLAB_CHEAT_ATTACKS"
+#: Optional ladder-generation override for cheat trials. The variable is
+#: forwarded only when explicitly set, so an unset host still produces the
+#: exact v1 Harbor command.
+CHEAT_LADDER_VERSION_ENV_VAR = "EVALLAB_CHEAT_LADDER_VERSION"
 _TASK_COMPOSE_FILENAMES = ("docker-compose.yaml", "docker-compose.yml")
 SAFE_JOB_NAME = re.compile(r"^[a-z0-9][a-z0-9-]{2,79}$")
 # Lease generations are immutable, 32-lowercase-hex identifiers produced by
@@ -2552,6 +2556,11 @@ def build_command(
         # attack subset to the model-free agent. Empty means the full ladder.
         attacks = os.environ.get(CHEAT_ATTACKS_ENV_VAR, "")
         command.extend(["--agent-env", f"{CHEAT_ATTACKS_ENV_VAR}={attacks}"])
+        ladder_version = os.environ.get(CHEAT_LADDER_VERSION_ENV_VAR)
+        if ladder_version:
+            command.extend(
+                ["--agent-env", f"{CHEAT_LADDER_VERSION_ENV_VAR}={ladder_version}"]
+            )
     if request.extra_instruction_path is not None:
         command.extend(["--extra-instruction-path", str(request.extra_instruction_path)])
     for skill_path in request.resolved_skills:

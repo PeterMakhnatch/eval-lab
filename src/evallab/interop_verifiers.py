@@ -223,6 +223,7 @@ async def _arun_cell(
     workdir: Path,
     timeout_seconds: int | None,
     isolation: str = "default",
+    ladder_version: str | None = None,
 ) -> dict[str, Any]:
     from verifiers.v1.clients import ModelContext  # ty: ignore[unresolved-import]
     from verifiers.v1.configs.client import EvalClientConfig  # ty: ignore[unresolved-import]
@@ -238,7 +239,7 @@ async def _arun_cell(
     version = verifiers_version() or "unknown"
     platform_version = f"verifiers {version}"
     task = load_harbor_task(task_dir, require_solution=(agent == "oracle"))
-    plan = scripted_agent_plan(task, agent, tuple(attacks))
+    plan = scripted_agent_plan(task, agent, tuple(attacks), ladder_version=ladder_version)
     plan = replace(plan, files=materialize_files(task, agent, plan))
     container_cwd = task_workdir(task)
     image, how = await asyncio.to_thread(resolve_task_image, task)
@@ -336,6 +337,7 @@ def run_cell(
     workdir: Path,
     timeout_seconds: int | None,
     isolation: str = "default",
+    ladder_version: str | None = None,
 ) -> dict:
     """Run one (task, agent) cell under verifiers (contract #3).
 
@@ -391,6 +393,7 @@ def run_cell(
                 workdir=Path(workdir),
                 timeout_seconds=timeout_seconds,
                 isolation=isolation,
+                ladder_version=ladder_version,
             )
         )
     except Exception as exc:

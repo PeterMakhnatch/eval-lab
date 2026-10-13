@@ -407,6 +407,17 @@ def docker_capture(
     pause: bool,
     runner: Any = None,
 ) -> dict[str, Any]:
+    """Capture Docker state for a trial without ever pausing a live agent.
+
+    ``pause`` retains its historic caller meaning, "this is an armed stop":
+    only those captures commit an image. The commit uses ``--pause=false``.
+    Previously this helper issued ``docker pause`` before the stop request
+    was actuated, so the agent's next ``docker exec`` could surface
+    ``RuntimeError: container is paused`` instead of the watch-stop
+    cancellation (CheatBench #859). Leaving the container running closes
+    that race; the trial is about to be cancelled, so a point-in-time image
+    does not need the stricter paused-copy semantics.
+    """
     run = runner or subprocess.run
     outcome: dict[str, Any] = {"trial": trial_name, "errors": [], "commands": []}
 
@@ -427,48 +438,37 @@ def docker_capture(
         outcome["skipped"] = error or "no container resolved"
         return outcome
     outcome["container"] = container
-    paused = False
-    try:
-        if pause:
-            code, _, err = _sh("docker", "pause", container, timeout=30)
-            outcome["commands"].append({"argv": ["docker", "pause"], "returncode": code})
-            if code == 0:
-                paused = True
-            else:
-                outcome["errors"].append(f"pause: {(err or 'failed').strip()[:300]}")
-        code, out, err = _sh("docker", "diff", container, timeout=60)
-        outcome["commands"].append({"argv": ["docker", "diff"], "returncode": code})
+    code, out, err = _sh("docker", "diff", container, timeout=60)
+    outcome["commands"].append({"argv": ["docker", "diff"], "returncode": code})
+    if code == 0:
+        outcome["diff"] = out[:200_000]
+        if len(out) > 200_000:
+            outcome["diff_truncated"] = True
+    else:
+        outcome["errors"].append(f"diff: {(err or 'failed').strip()[:300]}")
+    code, out, err = _sh("docker", "top", container, "ps", "-ef", timeout=30)
+    if code != 0:
+        code, out, err = _sh("docker", "top", container, timeout=30)
+    outcome["commands"].append({"argv": ["docker", "top"], "returncode": code})
+    if code == 0:
+        outcome["top"] = out[:50_000]
+    else:
+        outcome["errors"].append(f"top: {(err or 'failed').strip()[:300]}")
+    if pause:
+        tag = stop_image_tag(trial_name)
+        code, out, err = _sh(
+            "docker", "commit", "--pause=false", container, tag, timeout=300
+        )
+        outcome["commands"].append(
+            {"argv": ["docker", "commit", "--pause=false"], "returncode": code}
+        )
         if code == 0:
-            outcome["diff"] = out[:200_000]
-            if len(out) > 200_000:
-                outcome["diff_truncated"] = True
+            outcome["image"] = tag
+            # The tag is transient (teardown/hygiene may reap it); the
+            # digest identifies the captured content regardless.
+            outcome["image_digest"] = out.strip().split()[-1][:120] if out.strip() else None
         else:
-            outcome["errors"].append(f"diff: {(err or 'failed').strip()[:300]}")
-        code, out, err = _sh("docker", "top", container, "ps", "-ef", timeout=30)
-        if code != 0:
-            code, out, err = _sh("docker", "top", container, timeout=30)
-        outcome["commands"].append({"argv": ["docker", "top"], "returncode": code})
-        if code == 0:
-            outcome["top"] = out[:50_000]
-        else:
-            outcome["errors"].append(f"top: {(err or 'failed').strip()[:300]}")
-        if pause:
-            tag = stop_image_tag(trial_name)
-            code, out, err = _sh("docker", "commit", container, tag, timeout=300)
-            outcome["commands"].append({"argv": ["docker", "commit"], "returncode": code})
-            if code == 0:
-                outcome["image"] = tag
-                # The tag is transient (teardown/hygiene may reap it); the
-                # digest identifies the captured content regardless.
-                outcome["image_digest"] = out.strip().split()[-1][:120] if out.strip() else None
-            else:
-                outcome["errors"].append(f"commit: {(err or out or 'failed').strip()[:300]}")
-    finally:
-        if paused:
-            code, _, err = _sh("docker", "unpause", container, timeout=30)
-            outcome["commands"].append({"argv": ["docker", "unpause"], "returncode": code})
-            if code != 0:
-                outcome["errors"].append(f"unpause: {(err or 'failed').strip()[:300]}")
+            outcome["errors"].append(f"commit: {(err or out or 'failed').strip()[:300]}")
     return outcome
 
 

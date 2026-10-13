@@ -38,6 +38,12 @@ from evallab.execution_contracts import (
     CAPTURE_DIR_ENV,
     CAPTURE_ENABLED_ENV,
     CAPTURE_ROUTE_TOKEN_ENV,
+    CLAUDE_GATEWAY_ATTEMPT_ENV,
+    CLAUDE_GATEWAY_BRIDGE_SCRIPT,
+    CLAUDE_GATEWAY_CAPABILITY_ENV,
+    CLAUDE_GATEWAY_SANDBOX_HOST,
+    CLAUDE_GATEWAY_USAGE_FILE_ENV,
+    CLAUDE_GATEWAY_USAGE_FILENAME,
     CONTROL_AGENTS,
     DEEPSEEK_ALLOWED_MODEL,
     DEEPSEEK_ALLOWED_MODEL_ENV,
@@ -146,6 +152,7 @@ from evallab.execution_contracts import (
     build_command,
     collected_secret_values,
     is_breaker_selfhosted_model,
+    is_claude_gateway_model,
     is_lease_generation,
     is_mimo_selfhosted_model,
     is_openrouter_model,
@@ -1248,6 +1255,163 @@ def _stop_terminus_proxy(process: subprocess.Popen[bytes] | None) -> None:
             process.wait(timeout=5)
 
 
+#: Host the bridge binds; the sandbox reaches the same port as
+#: ``CLAUDE_GATEWAY_SANDBOX_HOST`` (Docker Desktop host name).
+_CLAUDE_GATEWAY_PROXY_HOST = "127.0.0.1"
+_CLAUDE_GATEWAY_READY_TIMEOUT_SECONDS = 20.0
+_CLAUDE_GATEWAY_STOP_TIMEOUT_SECONDS = 130.0
+_CLAUDE_GATEWAY_STDERR_TAIL_BYTES = 4096
+
+
+def _claude_gateway_stderr_tail(stderr_path: Path) -> str:
+    """Last bytes of the bridge log for a launch refusal, shape-only."""
+    try:
+        data = stderr_path.read_bytes()[-_CLAUDE_GATEWAY_STDERR_TAIL_BYTES:]
+    except OSError:
+        return ""
+    return data.decode(errors="replace").strip()
+
+
+def _start_claude_gateway_bridge(
+    *,
+    capability: str,
+    attempt_id: str,
+    usage_path: Path,
+    allowed_model: str,
+    work_dir: Path,
+    stdio_command: str | None = None,
+) -> tuple[subprocess.Popen[bytes], int]:
+    """Start the per-job gateway bridge; return (process, host port).
+
+    Fails closed before Harbor launches when the bridge script is missing,
+    the stdio child withholds its ready line, or the bridge exits early.
+    The caller owns termination via :func:`_stop_claude_gateway_bridge` on
+    every exit path. ``stdio_command`` is a tests-only override for the
+    gateway child argv; production callers omit it.
+    """
+    script = (_RUNTIME_ROOT / CLAUDE_GATEWAY_BRIDGE_SCRIPT).resolve()
+    if not script.is_file():
+        raise RuntimeError(f"Claude gateway bridge is missing: {script}")
+    ready_path = work_dir / "claude-gateway-ready.json"
+    stderr_path = work_dir / "claude-gateway-stderr.log"
+    with suppress(FileNotFoundError):
+        ready_path.unlink()
+    env = {
+        CLAUDE_GATEWAY_CAPABILITY_ENV: capability,
+        CLAUDE_GATEWAY_ATTEMPT_ENV: attempt_id,
+        CLAUDE_GATEWAY_USAGE_FILE_ENV: str(usage_path),
+        "PATH": os.environ.get("PATH", ""),
+        "HOME": os.environ.get("HOME", ""),
+        "USER": os.environ.get("USER", ""),
+        "TMPDIR": os.environ.get("TMPDIR", ""),
+    }
+    cmd = [
+        sys.executable,
+        str(script),
+        "--host",
+        _CLAUDE_GATEWAY_PROXY_HOST,
+        "--port",
+        "0",
+        "--ready-file",
+        str(ready_path),
+        "--attempt-id",
+        attempt_id,
+        "--usage-file",
+        str(usage_path),
+        "--allowed-model",
+        allowed_model,
+    ]
+    if stdio_command is not None:
+        # Tests only: point the bridge at a stub stdio child. Production
+        # callers omit this and the bridge spawns the real gateway.
+        cmd.extend(["--stdio-command", stdio_command])
+    with open(stderr_path, "wb") as stderr_handle:
+        os.chmod(stderr_path, 0o600)
+        process = subprocess.Popen(
+            cmd,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=stderr_handle,
+            env=env,
+            start_new_session=True,
+        )
+    try:
+        deadline = time.monotonic() + _CLAUDE_GATEWAY_READY_TIMEOUT_SECONDS
+        while True:
+            if process.poll() is not None:
+                raise RuntimeError(
+                    "Claude gateway bridge exited before becoming ready; "
+                    f"inspect {stderr_path}"
+                    + (
+                        f": {_claude_gateway_stderr_tail(stderr_path)}"
+                        if _claude_gateway_stderr_tail(stderr_path)
+                        else ""
+                    )
+                )
+            if ready_path.is_file():
+                try:
+                    ready = json.loads(ready_path.read_text(encoding="utf-8"))
+                except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+                    raise RuntimeError(
+                        f"Claude gateway bridge ready file is invalid: {ready_path}"
+                    ) from exc
+                host = ready.get("host") if isinstance(ready, dict) else None
+                port = ready.get("port") if isinstance(ready, dict) else None
+                if (
+                    host != _CLAUDE_GATEWAY_PROXY_HOST
+                    or isinstance(port, bool)
+                    or not isinstance(port, int)
+                    or not 1 <= port <= 65535
+                ):
+                    raise RuntimeError(
+                        "Claude gateway bridge reported an unexpected endpoint; "
+                        f"inspect {stderr_path}"
+                    )
+                return process, port
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    "Claude gateway bridge did not become ready; "
+                    f"inspect {stderr_path}"
+                    + (
+                        f": {_claude_gateway_stderr_tail(stderr_path)}"
+                        if _claude_gateway_stderr_tail(stderr_path)
+                        else ""
+                    )
+                )
+            time.sleep(0.05)
+    except BaseException:
+        _stop_claude_gateway_bridge(process)
+        raise
+
+
+def _stop_claude_gateway_bridge(process: subprocess.Popen[bytes] | None) -> None:
+    """Terminate a supervised gateway bridge; safe to call repeatedly."""
+    if process is None or process.poll() is not None:
+        return
+    process.terminate()
+    try:
+        process.wait(timeout=_CLAUDE_GATEWAY_STOP_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        with suppress(subprocess.TimeoutExpired):
+            process.wait(timeout=5)
+
+
+def _claude_gateway_runtime_env(*, port: int, capability: str) -> dict[str, str]:
+    """Harbor-child environment for the gateway lane.
+
+    The sandbox reaches the host-loopback bridge as ``host.docker.internal``
+    and presents the per-trial capability as ``ANTHROPIC_AUTH_TOKEN``
+    (custom-base-URL auth). ``CLAUDE_FORCE_OAUTH`` must stay off: with it on
+    and no OAuth token, Harbor refuses before any sandbox starts.
+    """
+    return {
+        "ANTHROPIC_BASE_URL": f"http://{CLAUDE_GATEWAY_SANDBOX_HOST}:{port}",
+        "ANTHROPIC_AUTH_TOKEN": capability,
+        "CLAUDE_FORCE_OAUTH": "0",
+    }
+
+
 def run_harbor_process(
     command: list[str],
     *,
@@ -1262,6 +1426,7 @@ def run_harbor_process(
     proxy_limits: ProxyTrialLimits | None = None,
     laminar_metadata: dict[str, Any] | None = None,
     heartbeat_interval_seconds: float = DEFAULT_HEARTBEAT_INTERVAL_SECONDS,
+    claude_gateway_model: str | None = None,
 ) -> HarborProcessResult:
     """Run Harbor while redacting provider credentials before log persistence."""
     if lease_path is not None and lease_generation is None:
@@ -1319,6 +1484,9 @@ def run_harbor_process(
     capability_id: str | None = None
     proxy_pricing: dict[str, int | None] | None = None
     terminus_proxy: subprocess.Popen[bytes] | None = None
+    claude_gateway_bridge: subprocess.Popen[bytes] | None = None
+    claude_gateway_usage_dir: Path | None = None
+    claude_gateway_usage_path: Path | None = None
     try:
         if job_dir is not None:
             runtime_environment[PROXY_LIVE_DIR_ENV] = str(job_dir / PROXY_LIVE_DIR_NAME)
@@ -1771,6 +1939,42 @@ def run_harbor_process(
             runtime_environment[ZAI_SECRET_FILE_ENV] = str(owned_secret_path)
             secret_values = collected_secret_values({**os.environ, **runtime_environment})
 
+        if claude_gateway_model is not None:
+            # Subscription lane via OMP's auth-gateway: the lab-owned
+            # loopback bridge fronts one stdio child for this job. The
+            # sandbox reaches it as host.docker.internal and presents the
+            # per-trial capability as ANTHROPIC_AUTH_TOKEN (custom-base-URL
+            # auth); CLAUDE_FORCE_OAUTH must stay off or Harbor refuses
+            # before any sandbox starts.
+            allowed_model = resolve_harbor_model("claude-code", claude_gateway_model)
+            if not allowed_model:
+                raise ValueError(
+                    f"Claude gateway lane cannot resolve {claude_gateway_model!r}"
+                )
+            claude_gateway_usage_dir = Path(
+                tempfile.mkdtemp(
+                    prefix="evallab-claude-gateway-usage.",
+                    dir=os.environ.get("TMPDIR") or None,
+                )
+            )
+            os.chmod(claude_gateway_usage_dir, 0o700)
+            claude_gateway_usage_path = claude_gateway_usage_dir / "claude-gateway-usage.jsonl"
+            gateway_capability = secrets.token_urlsafe(32)
+            gateway_attempt = proxy_attempt_id or (
+                job_dir.name if job_dir is not None else f"claude-gateway-{secrets.token_hex(8)}"
+            )
+            claude_gateway_bridge, gateway_port = _start_claude_gateway_bridge(
+                capability=gateway_capability,
+                attempt_id=gateway_attempt,
+                usage_path=claude_gateway_usage_path,
+                allowed_model=allowed_model,
+                work_dir=claude_gateway_usage_dir,
+            )
+            runtime_environment.update(
+                _claude_gateway_runtime_env(port=gateway_port, capability=gateway_capability)
+            )
+            secret_values = collected_secret_values({**os.environ, **runtime_environment})
+
         if any(import_path in command for import_path in repo_imports):
             source_root = _RUNTIME_ROOT / "src"
             if source_root.is_dir():
@@ -1779,6 +1983,28 @@ def run_harbor_process(
                     str(path) for path in (source_root, inherited_pythonpath) if path
                 )
         secret_bytes = tuple(value.encode() for value in secret_values)
+
+        def _persist_claude_gateway_usage() -> None:
+            """Copy the bridge usage ledger beside the job as durable evidence.
+
+            Records hold token counts and model identities only -- the bridge
+            never writes the capability -- so the file is safe to keep. A
+            missing or empty ledger means no gateway call settled; that is
+            recorded by absence, never by a zero.
+            """
+            if job_dir is None or claude_gateway_usage_path is None:
+                return
+            try:
+                data = claude_gateway_usage_path.read_bytes()
+            except OSError:
+                return
+            if not data.strip():
+                return
+            persist_private_bytes(
+                job_dir / CLAUDE_GATEWAY_USAGE_FILENAME,
+                data,
+                secrets=tuple(value.encode() for value in secret_values),
+            )
 
         def _result(
             *,
@@ -1789,6 +2015,8 @@ def run_harbor_process(
             # Quiesce the loopback proxy before the final ledger read so no
             # in-flight handler can tear the report this function reconciles.
             _stop_terminus_proxy(terminus_proxy)
+            _stop_claude_gateway_bridge(claude_gateway_bridge)
+            _persist_claude_gateway_usage()
             proxy_usage = None
             if (
                 (deepseek_lane or zai_lane or zai_openapi_lane or terminus_lane)
@@ -1931,12 +2159,16 @@ def run_harbor_process(
 
         finally:
             _stop_terminus_proxy(terminus_proxy)
+            _stop_claude_gateway_bridge(claude_gateway_bridge)
             _unlink_secret_dir(owned_secret_dir, owned_secret_path)
             _unlink_secret_dir(owned_usage_dir, owned_usage_path)
+            _unlink_secret_dir(claude_gateway_usage_dir, claude_gateway_usage_path)
     finally:
         _stop_terminus_proxy(terminus_proxy)
+        _stop_claude_gateway_bridge(claude_gateway_bridge)
         _unlink_secret_dir(owned_secret_dir, owned_secret_path)
         _unlink_secret_dir(owned_usage_dir, owned_usage_path)
+        _unlink_secret_dir(claude_gateway_usage_dir, claude_gateway_usage_path)
 
 
 def _executor_log_path(request: RunRequest) -> Path:
@@ -2672,6 +2904,11 @@ def run_experiment(request: RunRequest, *, repo_root: Path) -> Path:
                 proxy_attempt_id=_proxy_attempt_id(request),
                 proxy_limits=_proxy_trial_limits(request),
                 laminar_metadata=laminar_metadata,
+                claude_gateway_model=(
+                    staged_request.model
+                    if is_claude_gateway_model(staged_request.model)
+                    else None
+                ),
             )
         except BaseException:
             _write_executor_state(

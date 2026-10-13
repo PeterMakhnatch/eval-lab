@@ -87,7 +87,7 @@ inputs:
   - path: docs/model-capture.md
     digest: sha256:38e018af06c6a65d0f5344d1e114b140cdee5114c253b2293ea67f3036c0315c
   - path: docs/model-defaults.md
-    digest: sha256:261186f6350aa542f598e9d29d9f1c26775de616e72eb5ed1cb15a11e1968b5f
+    digest: sha256:50879b9da9a57e44636c74d4d0402506d92d0d482b3742e662e74689c015a350
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
@@ -101,7 +101,7 @@ inputs:
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
-    digest: sha256:6c2fd471209ae9e1f8287d4d21dd40f61a3db47ac006a8c263d7078d55e14de0
+    digest: sha256:eeb687a646c780d1f8bb1146f308b8fb809a763160874334eca4dfc3a63d38e5
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md

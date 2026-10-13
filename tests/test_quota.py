@@ -1178,7 +1178,7 @@ def test_claude_session_usage_fills_counters_missing_from_result(tmp_path: Path)
     # contract: (1000 + 500) uncached + (200 + 600 + 400) cached.
     assert consumed.agent == "claude-code"
     assert consumed.input_tokens == 2_700
-    assert consumed.cache_tokens == 1_200
+    assert consumed.cache_tokens == 1_000
     assert consumed.output_tokens == 30
     assert consumed.model_turns == 2
     assert consumed.usage_availability == "observed"
@@ -1263,3 +1263,47 @@ def test_malformed_claude_session_lines_are_skipped_without_failing(
 
     assert consumed.output_tokens == 7
     assert consumed.model_turns == 1
+
+
+def test_claude_replayed_messages_count_once(tmp_path: Path) -> None:
+    """The CLI replays identical assistant messages under fresh uuids.
+
+    Observed 2026-10-13 on the first gateway trial: one response present
+    three times, which naive summation would triple-count against the
+    bridge ledger and Harbor's own counters.
+    """
+    job = make_job(tmp_path)
+    trial = claude_trial_without_counters(job)
+    repeated = claude_session_event(
+        input_tokens=2,
+        cache_creation_input_tokens=551,
+        cache_read_input_tokens=21_098,
+        output_tokens=776,
+    )
+    add_claude_session(
+        trial,
+        events=[
+            claude_session_event(
+                input_tokens=2,
+                cache_creation_input_tokens=21_098,
+                cache_read_input_tokens=0,
+                output_tokens=122,
+            ),
+            repeated,
+            dict(repeated),
+            dict(repeated),
+            claude_session_event(
+                input_tokens=2,
+                cache_creation_input_tokens=996,
+                cache_read_input_tokens=21_649,
+                output_tokens=208,
+            ),
+        ],
+    )
+
+    (consumed,) = load_quota_report([tmp_path], now=NOW).consumed.trials
+
+    assert consumed.input_tokens == 65_398
+    assert consumed.cache_tokens == 42_747
+    assert consumed.output_tokens == 1_106
+    assert consumed.model_turns == 3

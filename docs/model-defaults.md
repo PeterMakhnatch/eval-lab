@@ -100,62 +100,76 @@ parse unchanged.
 
 ### Claude Code
 
-Status: wired but **unproven end to end** — zero `claude-code` trials exist.
-The credential transport, redaction, usage accounting and back-off below are
-implemented and unit-tested; the proving trial is blocked on a missing
-subscription credential (see the end of this subsection).
+Status: **proven 2026-10-13** through the gateway lane below (reward 1.0 on
+`event-summary`). The host `claude` login is expired and the Keychain item
+is absent, so the Keychain lane stays an unproven alternative.
 
-Invocation (local Docker, `event-summary` shape; the proving-trial command):
+Invocation (local Docker, per-spec authorisation; the proving-trial commands):
 
 ```bash
-scripts/with-claude-auth uv run evallab run \
-  --task library/tasks/event-summary \
-  --agent claude-code --model anthropic/claude-haiku-5-5 \
-  --name event-summary-claude-haiku
+uv run evallab tasks prepare library/tasks/event-summary \
+  --name claude-gateway-haiku-event-summary --agent claude-code \
+  --model claude-gateway/claude-haiku-5-5
+uv run evallab submit derived/prepared/claude-gateway-haiku-event-summary.json
+uv run evallab approve <spec-id> --actor peter
+uv run evallab tick --spec-id <spec-id>
 ```
 
-Transport: `scripts/with-claude-auth` reads the `harbor-practice-claude-oauth`
-Keychain item into `CLAUDE_CODE_OAUTH_TOKEN` (plus `CLAUDE_FORCE_OAUTH=1`) in
-the Harbor controller's environment only. Harbor's `claude-code` agent
-forwards that variable into the sandbox per exec; Eval Lab never passes it as
-`--agent-env` argv (only the `EVALLAB_SETUP_FINGERPRINT` goes there) and
-never allowlists it into the controller subprocess env. `evallab.quota` and
-the Harbor log writer redact the token value from persisted logs, and the
-post-run job-tree scan (`assert_no_secret_material`) fails the job if the
-value appears anywhere under the job dir. Launching through the wrapper is
-what puts the value in the redaction set — running the same trial without it
-fails closed at Harbor (`CLAUDE_FORCE_OAUTH is set but CLAUDE_CODE_OAUTH_TOKEN
-is not`) before any sandbox starts.
+Transport: the lab-owned host-loopback bridge
+(`containers/claude_gateway_bridge.py`) fronts one `omp auth-gateway stdio`
+child per job and answers the sandbox's `POST /v1/messages` from OMP's local
+Claude login. The sandbox reaches it as `host.docker.internal` and presents
+a per-trial capability as `ANTHROPIC_AUTH_TOKEN` (custom-base-URL auth);
+`CLAUDE_FORCE_OAUTH` stays off or Harbor refuses before any sandbox starts.
+The sandbox never sees a provider credential — no gateway bearer exists in
+this mode — and the capability redacts from Harbor logs and scans from
+persisted job trees exactly like the proxy-held keys. The bridge checks the
+served model against the requested one on every call (prefix-tolerant for
+the gateway's `anthropic/` echo, fail-closed 502 otherwise), caps gateway
+concurrency at 4, and forwards 429s verbatim so the queue backs off instead
+of retrying into the limit. The runner persists the bridge usage ledger
+beside the job (`claude-gateway-usage.jsonl`: per-call models, statuses,
+token counts — never the capability).
 
-Models verified: none yet. Pinned profiles are
-`claude-code-fable-5` (`anthropic/claude-fable-5`, adapter default) and
-`claude-code-haiku-5-5` (`anthropic/claude-haiku-5-5`, cheapest — the proving
-trial's pick). Harbor strips the `anthropic/` prefix into `ANTHROPIC_MODEL`
-for the official API. The sandbox installs the CLI per trial (`npm i -g
-@anthropic-ai/claude-code` or the bootstrap script), so each trial pays a few
-minutes of `agent_setup`; the task needs `network_mode = "public"` (the
-`event-summary` default) for the install and the api.anthropic.com calls.
+Models verified: `claude-gateway/claude-haiku-5-5` (cheapest; Harbor receives
+`anthropic/claude-haiku-5-5` and keeps it whole for the custom base URL).
+Other pinned profiles: `claude-code-fable-5` (adapter default, Keychain lane)
+and `claude-code-haiku-5-5` (Keychain lane). The sandbox installs the CLI per
+trial, so each trial pays minutes of `agent_setup`; the task needs
+`network_mode = "public"` (the `event-summary` default) for the install and
+the bridge calls.
 
-Per-trial token usage and quota reading: `evallab.quota` fills a claude-code
-trial's `input_tokens` (inclusive of cache), `cache_tokens`, `output_tokens`
-and `model_turns` from `result.json` when Harbor records them, falling back
-to the CLI session transcript (`agent/sessions/projects/*/*.jsonl`,
-`message.usage` scalars only — prompt text never enters the report). No
-weekly-window percentage exists anywhere in those artifacts, so Claude
-headroom is always `[unavailable]` with its reason: tokens per trial are
-recorded, percent remaining is said to be unknown explicitly. Back-off is the
-shared transient path: a 429 carrying `rate_limit_error` classifies as
-`transient_harness:provider_http_429`, the spec fails with that reason, and
-the queue requires operator resubmission — it never retries into the limit.
+Proof trial 2026-10-13 (`runs/claude-gateway-haiku-event-summary/`, trial
+`claude-gateway-haiku-event-summa__v3926MH`, task `local-lab/event-summary`):
+model `claude-haiku-5-5`, reward **1.0**, 338s wall (spec
+`01M4T2ZG0K8EST53BG4TVTG4PP`). Token usage (`result.json` `agent_result`):
+65,398 input (42,747 cached reads + 22,645 cache creation + 6 fresh), 1,106
+output, $0.0038 API list-price equivalent — not billed. The bridge ledger
+agrees exactly (3 calls, all 200, served `anthropic/claude-haiku-5-5` every
+time, no rate limits). Quota snapshot: none exists — `omp auth-gateway
+check` needs a broker and there is none in stdio mode, and neither gateway
+responses nor session files carry a weekly-window percentage, so Claude
+headroom stays `[unavailable]` with its reason; per-trial tokens are
+recorded instead. Credential scan: the trial's post-run scan passed, and a
+follow-up audit found no `sk-ant-` strings, no token variable values, and no
+token-shaped strings anywhere under the job dir (only variable *names* in
+the captured source diff). Lane quota tally for the night: 5 tiny Haiku
+probes plus this trial, all far below any observable limit.
 
-Blocked 2026-10-13: the Keychain item `harbor-practice-claude-oauth` does not
-exist on this workstation, and the host `claude` login is expired
-(`claude --print` fails with "OAuth session expired and could not be
-refreshed"). No subscription call was made and none can be until Peter mints
-the token. Unblock (Peter, interactive, one time):
-`scripts/claude-token-setup.sh` (browser OAuth via `claude setup-token`,
-stored with hidden input, never printed). Then the invocation above runs the
-proving trial, whose reward, tokens and quota lines belong in this subsection.
+Session-transcript accounting note, established against this trial:
+`evallab.quota` fills a claude-code trial from `result.json`, falling back
+to the CLI session transcript (`message.usage` scalars only). The fallback
+counts each distinct usage tuple once: this trial's transcript replays one
+response three times under fresh uuids, and naive summation would have
+tripled it (verified: collapsed fallback reproduces 65,398 / 42,747 /
+1,106 exactly).
+
+Alternative (unproven): the Keychain lane — `scripts/with-claude-auth` reads
+`harbor-practice-claude-oauth` into `CLAUDE_CODE_OAUTH_TOKEN` (plus
+`CLAUDE_FORCE_OAUTH=1`); models `anthropic/claude-haiku-5-5` and
+`anthropic/claude-fable-5`. Blocked until Peter mints the token:
+`scripts/claude-token-setup.sh` (browser OAuth, hidden input, never
+printed).
 
 ## Defaults by job
 

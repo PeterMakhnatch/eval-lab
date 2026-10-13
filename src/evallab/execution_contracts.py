@@ -178,6 +178,33 @@ DEEPSEEK_PROXY_BUDGET_KEYS: frozenset[str] = frozenset(
         DEEPSEEK_PROXY_GID_ENV,
     }
 )
+
+#: Claude subscription lane via OMP's auth-gateway (``omp auth-gateway stdio``).
+#: The lab-owned host-loopback bridge (``containers/claude_gateway_bridge.py``)
+#: fronts one gateway child per job; the sandbox sees only a per-trial
+#: capability bearer, never a provider credential. The local (spec-side) model
+#: pin carries the ``claude-gateway/`` prefix so the Keychain lane and this
+#: lane coexist; Harbor receives the provider-qualified Anthropic selector.
+CLAUDE_GATEWAY_MODEL_PREFIX = "claude-gateway/"
+CLAUDE_GATEWAY_HAIKU_MODEL = "claude-gateway/claude-haiku-5-5"
+CLAUDE_GATEWAY_HARBOR_MODEL = "anthropic/claude-haiku-5-5"
+CLAUDE_GATEWAY_BRIDGE_SCRIPT = Path("containers/claude_gateway_bridge.py")
+#: Env names shared with the bridge (it owns the strings; duplicated here so
+#: the supervisor can pass them without importing a container script).
+CLAUDE_GATEWAY_CAPABILITY_ENV = "EVALLAB_CLAUDE_GATEWAY_CAPABILITY"
+CLAUDE_GATEWAY_ATTEMPT_ENV = "EVALLAB_CLAUDE_GATEWAY_ATTEMPT_ID"
+CLAUDE_GATEWAY_USAGE_FILE_ENV = "EVALLAB_CLAUDE_GATEWAY_USAGE_FILE"
+#: Hostname a Docker Desktop sandbox uses to reach a host-loopback bridge.
+CLAUDE_GATEWAY_SANDBOX_HOST = "host.docker.internal"
+#: Usage evidence persisted beside the job after Harbor exits.
+CLAUDE_GATEWAY_USAGE_FILENAME = "claude-gateway-usage.jsonl"
+
+
+def is_claude_gateway_model(model: str | None) -> bool:
+    """Whether *model* selects the gateway lane rather than the Keychain lane."""
+    return isinstance(model, str) and model.startswith(CLAUDE_GATEWAY_MODEL_PREFIX)
+
+
 RLM_AGENT = "rlm"
 MIMO_AGENT = "mimoagent"
 MIMO_AGENT_IMPORT_PATH = "evallab.harbor_mimoagent:NativeMimoAgent"
@@ -1130,6 +1157,7 @@ LOCAL_TO_HARBOR_MODEL: dict[tuple[str, str], str] = {
     ("antigravity-cli", "gemini-3.7-flash-low"): "google/gemini-3.7-flash-low",
     ("antigravity-cli", "gemini-3.1-pro-high"): "google/gemini-3.1-pro-high",
     ("antigravity-cli", "claude-sonnet-4-6"): "google/claude-sonnet-4-6",
+    ("claude-code", CLAUDE_GATEWAY_HAIKU_MODEL): CLAUDE_GATEWAY_HARBOR_MODEL,
 }
 
 HARBOR_AGENT_IMPORT_PATHS: dict[str, str] = {
@@ -1547,6 +1575,11 @@ def collected_secret_values(
         *((key, OPENROUTER_PROXY_TOKEN) for key in OPENROUTER_CREDENTIAL_ENVIRONMENT_KEYS),
         *((key, GLM_SELFHOSTED_PROXY_TOKEN) for key in GLM_SELFHOSTED_CREDENTIAL_ENVIRONMENT_KEYS),
         ("LMNR_PROJECT_API_KEY", ""),
+        # The gateway lane presents its per-trial capability as
+        # ANTHROPIC_AUTH_TOKEN to Harbor's claude-code agent (custom-base-URL
+        # auth). The value is trial-scoped, but it is still a bearer: redact
+        # it from Harbor logs and scan it from persisted job trees.
+        ("ANTHROPIC_AUTH_TOKEN", ""),
         # The Claude subscription OAuth token reaches Harbor through the
         # operator environment (scripts/with-claude-auth) and is forwarded
         # into the sandbox by Harbor's claude-code agent. It must redact from
@@ -2532,6 +2565,13 @@ def subscription_command(
             )
         return [str(executable), *harbor_command[1:]]
     if request.agent == "claude-code":
+        if is_claude_gateway_model(request.model):
+            # The gateway lane carries no Keychain credential: the runner
+            # starts the loopback bridge and passes the base URL plus a
+            # per-trial capability in the Harbor child's environment. The
+            # with-claude-auth wrapper would refuse without a token, so it
+            # must not wrap this lane.
+            return harbor_command
         wrapper = (repo_root / "scripts/with-claude-auth").resolve()
         if not wrapper.is_file():
             raise RuntimeError(f"Claude subscription wrapper is missing: {wrapper}")

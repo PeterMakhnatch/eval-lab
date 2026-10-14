@@ -768,10 +768,10 @@ def test_build_v5_fold_task_uses_cache_v5(tmp_path: Path) -> None:
 
 
 def test_build_v5_repeat_fold_tasks_use_separate_v10(tmp_path: Path) -> None:
-    assert SEPARATE_V10_TASKS == {
+    assert {
         "format-code-task-000245",
         "format-code-task-000048",
-    }
+    } == SEPARATE_V10_TASKS
     for task_id, category in (
         ("format-code-task-000245", "TypeScript"),
         ("format-code-task-000048", "Go"),

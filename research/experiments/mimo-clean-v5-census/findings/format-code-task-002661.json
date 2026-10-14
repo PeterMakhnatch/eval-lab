@@ -1,0 +1,34 @@
+{
+  "schema": "qa.finding/v1",
+  "subject": {
+    "kind": "task",
+    "task_id": "format-code-task-002661",
+    "task_digest": "sha256:40285fd302bcf4cc5f14c245849591a57e34d0577acff8fe82f10300fb04115d"
+  },
+  "stage": "vacuous-unfair-triage-2026-10-14",
+  "verdict": "fail",
+  "category": "prompt_misaligned",
+  "severity": "high",
+  "fault": "eval",
+  "evidence_refs": [
+    "derived/detector-roots/own-scan/fleet-grader-scan/out/vacuous.json",
+    "research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md#4",
+    "research/experiments/mimo-clean-v5-census/README.md"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "research/experiments/mimo-clean-v5-census/README.md",
+    "expected_reward": 0
+  },
+  "refutation": {
+    "status": "verified",
+    "by": "VacuousAndUnfairTriage",
+    "reason": "instruction quotes two scopes, test demands only userinfo.profile; excluded fail:unfair-task:prompt-misaligned"
+  },
+  "reviewer": {
+    "agent": "VacuousAndUnfairTriage",
+    "model": "meta/muse-wonder-1.0-contributor:xhigh",
+    "tokens": 0,
+    "cost_usd": 0
+  }
+}

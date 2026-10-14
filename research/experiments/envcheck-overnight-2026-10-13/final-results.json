@@ -12,8 +12,8 @@
     "validated_survivor_checks": 83,
     "killed_previous_survivors": 28,
     "remaining_measured_survivors": 55,
-    "retained_native_job_directories": 582,
-    "retained_native_files": 27864,
+    "retained_native_job_directories": 584,
+    "retained_native_files": 27922,
     "retained_lineage_snapshots": 27,
     "fixer_subscription_calls": 34,
     "input_tokens": 950302,
@@ -23,8 +23,8 @@
     "hard_cap_usd": 10.0,
     "shared_weekly_fraction_at_final_check": 0.34
   },
-  "custody": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/final-retention.json",
-  "custody_sha256": "sha256:e283d98c22fe28ea5e21001744853a0474e6e51928fc0c19ecbc21cbed6e2aee",
+  "custody": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/final-retention-v2.json",
+  "custody_sha256": "sha256:231d0a849aa088e052c3809b7003091fd5e9bc2742621000af17076d69cc5751",
   "delivery_appendix": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/delivery-appendix.json",
   "delivery_appendix_sha256": "sha256:ed597857757294dc90a36e5455e787d9c0a52078bbdfc79c3fca4baff055d67d",
   "results": [

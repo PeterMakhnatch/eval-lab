@@ -236,18 +236,21 @@ measurement belongs to its superseded candidate, not a newly accepted variant.
 `final-results.json` is the final selection index: full package digests,
 canonical materialized package paths, hash-bound lineage snapshots, native
 receipts, and explicit full-repair acceptance flags. Its custody manifest
-retains **582 native job directories and 27,864 native files**, plus all study
+retains **584 native job directories and 27,922 native files**, plus all study
 bundles, every executor phase matrix/invocation, owned derived projections,
 and **27 lineage snapshots**. The native total comprises 405 mutation/control
-jobs and 177 repair-validation attempts, including interrupted or rejected
+jobs and 179 repair-validation attempts, including interrupted or rejected
 attempts; it is not a count of successful repairs. Planned-but-undispatched
 rows are not counted as native jobs. Original score/status histories are
 preserved, including superseded score-only passes.
 
 Final custody:
-`~/Developer/eval-lab-results/2026-10-13/envcheck-overnight/final-retention.json`.
-The hash-bound `delivery-appendix.json` retains the cleanup receipts and
-measurements of all three omitted probes. No source task was overwritten.
+`~/Developer/eval-lab-results/2026-10-13/envcheck-overnight/final-retention-v2.json`.
+This append-only correction binds the original receipt and two interrupted
+directories omitted by its completed-metadata filter. Their 58 native files
+are retained; no result or spend is invented. The hash-bound
+`delivery-appendix.json` retains cleanup receipts and measurements of all
+three omitted probes. No source task was overwritten.
 
 `proposal-usage.json` accounts for **34 completed fixer subscription calls**:
 950,302 input tokens, 47,692 output tokens, including 17,451 reasoning output
@@ -256,8 +259,9 @@ subscription reviewers and parent-harness usage are outside those fixer-token
 totals. The final shared-account observation was **34% weekly use at
 9:57 AM ET on October 14**, below the 60% pause threshold; this is shared
 account consumption, not spend attributable solely to this lane.
-All four Eval Lab ledger batches total **$0 incremental provider/compute
-spend against the approved $10 cap**. No OpenRouter or cloud compute was used.
+All five Eval Lab ledger entries (including the zero-spend custody-count
+correction) total **$0 incremental provider/compute spend against the approved
+$10 cap**. No OpenRouter or cloud compute was used.
 
 After disabling the optional observer, each retained continuous monitor
 reported peak two and no breach; the earlier peak-three violation remains

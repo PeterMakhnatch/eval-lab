@@ -98,6 +98,7 @@ from evallab.separate_verifier import (
     render_tests_dockerfile_v7,
     render_tests_dockerfile_v8,
     render_tests_dockerfile_v9,
+    render_tests_dockerfile_v10,
     render_wrapper_test_sh_v2,
     render_wrapper_test_sh_v3,
     render_wrapper_test_sh_v4,
@@ -3987,6 +3988,136 @@ def test_embedded_v10_integrity_gate_grades_zero(
         )
         == "1"
     )
+# --------------------------------------------------------------------------- #
+# separate-verifier@10: repeat-idempotent pristine anchor
+# --------------------------------------------------------------------------- #
+
+_V10_OPAQUE_PATCH = (
+    "diff --git a/mimo_build_env.tar.gz.b64 b/mimo_build_env.tar.gz.b64\n"
+    "new file mode 100644\n--- /dev/null\n+++ b/mimo_build_env.tar.gz.b64\n"
+    "@@ -0,0 +1 @@\n+ZHVtbXk=\n"
+    "diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n"
+    "new file mode 100644\n--- /dev/null\n+++ b/mimo_test_command.sh\n"
+    "@@ -0,0 +1,3 @@\n+touch mimo_run_marker.txt\n"
+    "+if [ ! -d polaris-tokens/dist ]; then mkdir -p polaris-tokens/dist/cjs && echo ok > polaris-tokens/dist/cjs/index.js; fi\n"
+    "+python3 -c 'import os; from core import VALUE; assert os.path.isfile(\"node_modules/dep/index.js\") and os.path.isfile(\"polaris-tokens/dist/cjs/index.js\") and VALUE == 2'\n"
+)
+
+
+def _v10_repeat_fixture(
+    tmp_path: Path, *, edit: str, render, snapshot_with_hook: bool = True
+) -> tuple[str, Path]:
+    """Opaque-wrapper fixture; returns (rendered script, verifier log dir)."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q", str(repo)], check=True)
+    (repo / "core.py").write_text("VALUE = 1\n", encoding="utf-8")
+    (repo / ".gitignore").write_text(
+        "node_modules/\npolaris-tokens/dist/\nmimo_build_env.tar.gz.b64\nmimo_run_marker.txt\n__pycache__/\n",
+        encoding="utf-8",
+    )
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-qm", "base"],
+        cwd=repo,
+        check=True,
+    )
+    base = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
+    dep = repo / "node_modules" / "dep" / "index.js"
+    dep.parent.mkdir(parents=True)
+    dep.write_text("module.exports = 1;\n", encoding="utf-8")
+    agent = tmp_path / "agent"
+    shutil.copytree(repo, agent)
+    if edit == "oracle":
+        (agent / "core.py").write_text("VALUE = 2\n", encoding="utf-8")
+    snap = tmp_path / "snapshot"
+    snap.mkdir()
+    if snapshot_with_hook:
+        hook = render_snapshot_hook_v2(str(agent), snap_dir=str(snap))
+        subprocess.run(["sh", "-c", hook], check=True, capture_output=True)
+    else:
+        shutil.rmtree(agent / ".git")
+        with tarfile.open(snap / "workspace.tgz", "w:gz") as archive:
+            archive.add(agent, arcname=".")
+    tests = tmp_path / "tests"
+    setup = tests / "_verifier-setup"
+    setup.mkdir(parents=True)
+    state = tmp_path / "state"
+    (setup / "setup.sh").write_text(
+        f"mkdir -p '{state}'\n[ -f '{state}/ready' ] && exit 0\n"
+        f"echo '{base}' > '{state}/base'\ntouch '{state}/ready'\n",
+        encoding="utf-8",
+    )
+    (tests / "test.patch").write_text(_V10_OPAQUE_PATCH, encoding="utf-8")
+    (tests / "test_command.sh").write_text("bash mimo_test_command.sh\n", encoding="utf-8")
+    script = render(str(repo))
+    for before, after in [
+        ("/var/tmp/mimo-separate", str(snap)),
+        ("/var/lib/mimo-grade", str(tmp_path / "grade")),
+        ("/var/lib/mimo", str(state)),
+        ("/logs/verifier", str(tmp_path / "verifier")),
+        ("/tests", str(tests)),
+        ("/tmp/agentcopy", str(tmp_path / "agentcopy")),
+        ("/tmp/agent.index", str(tmp_path / "agent.index")),
+        ("/tmp/pristine.index", str(tmp_path / "pristine.index")),
+        ("/tmp/kept.index", str(tmp_path / "kept.index")),
+        ("/tmp/baseline.index", str(tmp_path / "baseline.index")),
+        ("/tmp/base.gitignore", str(tmp_path / "base.gitignore")),
+        ("/tmp/keep.list", str(tmp_path / "keep.list")),
+        ("/tmp/revert.list", str(tmp_path / "revert.list")),
+        ("/tmp/post_ignored.bin", str(tmp_path / "post_ignored.bin")),
+    ]:
+        script = re.sub(r"(?<![\w$])" + re.escape(before), lambda _, after=after: after, script)
+    script = script.replace("timeout 1800 sh -c", "sh -c")
+    return script, tmp_path / "verifier"
+
+
+def _run_v10_script(script: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(["bash", "-c", script], capture_output=True, text=True)
+
+
+@pytest.mark.parametrize(
+    ("edit", "expected"), [("oracle", ["1", "1", "1"]), ("nop", ["0", "0", "0"])]
+)
+def test_v10_opaque_wrapper_repeats_three_times(
+    tmp_path: Path, edit: str, expected: list[str]
+) -> None:
+    script, verifier = _v10_repeat_fixture(
+        tmp_path, edit=edit, render=render_wrapper_test_sh_v10
+    )
+    rewards = []
+    for _ in range(3):
+        run = _run_v10_script(script)
+        assert run.returncode == 0, run.stdout + run.stderr
+        rewards.append((verifier / "reward.txt").read_text(encoding="utf-8").strip())
+        assert "already exists" not in (verifier / "apply.log").read_text(encoding="utf-8")
+    assert rewards == expected
+
+
+def test_v9_opaque_wrapper_fails_on_repeat(tmp_path: Path) -> None:
+    # The bug @10 fixes: run 0 is clean, repeat/1 recaptures the dirty tree
+    # as PRISTINE and the hidden-test apply collides with its own files.
+    from evallab.separate_verifier import render_wrapper_test_sh_v9
+
+    script, verifier = _v10_repeat_fixture(
+        tmp_path, edit="oracle", render=render_wrapper_test_sh_v9, snapshot_with_hook=False
+    )
+    first = _run_v10_script(script)
+    assert first.returncode == 0, first.stdout + first.stderr
+    assert (verifier / "reward.txt").read_text(encoding="utf-8").strip() == "1"
+    second = _run_v10_script(script)
+    assert second.returncode != 0
+    assert "already exists" in (verifier / "apply.log").read_text(encoding="utf-8")
+
+
+def test_v10_wrapper_differs_from_v9_only_in_pristine_anchor() -> None:
+    v9 = render_wrapper_test_sh_v9("/testbed")
+    v10 = render_wrapper_test_sh_v10("/testbed")
+    assert v10 != v9
+    assert "$M/pristine-tree" in v10
+    assert "$M/pristine-tree" not in v9
+    assert "_v9satisfied" in v10  # @9's 001431 grading kept intact
+    assert "separate-verifier@10" in render_tests_dockerfile_v10("example/image")
 
 
 def test_v10_build_changes_shape(parent_dir_v2: Path) -> None:
@@ -3998,6 +4129,7 @@ def test_v10_build_changes_shape(parent_dir_v2: Path) -> None:
     )
     changes, inputs = build_changes_v10(parent_dir_v2, marker="test_a")
     script = changes["tests/test.sh"]
+    assert b"$M/pristine-tree" in script
     assert b"binary artifact" in script
     assert b"PYTHONDONTWRITEBYTECODE=1" in script
     assert b"unittest-junit.xml" in script

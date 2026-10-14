@@ -38,6 +38,8 @@ from evallab.mimo_clean import (
     PYTHON_CHAIN_V5,
     SEPARATE_V6_ID,
     SEPARATE_V8_ID,
+    SEPARATE_V10_ID,
+    SEPARATE_V10_TASKS,
     STATUS_BUILT,
     STATUS_SKIPPED,
     STRIP_ID,
@@ -763,3 +765,23 @@ def test_build_v5_fold_task_uses_cache_v5(tmp_path: Path) -> None:
         SEPARATE_V8_ID,
         AGENT_NETWORK_NONE_ID,
     ]
+
+
+def test_build_v5_repeat_fold_tasks_use_separate_v10(tmp_path: Path) -> None:
+    assert SEPARATE_V10_TASKS == {
+        "format-code-task-000245",
+        "format-code-task-000048",
+    }
+    for task_id, category in (
+        ("format-code-task-000245", "TypeScript"),
+        ("format-code-task-000048", "Go"),
+    ):
+        _write_snapshot_package(tmp_path, task_id, category)
+        result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V5).build_task(
+            task_id, None, oracle=None
+        )
+        assert result.status == STATUS_BUILT
+        assert result.chain[-2:] == [SEPARATE_V10_ID, AGENT_NETWORK_NONE_ID]
+        assert b"$M/pristine-tree" in (
+            _final(tmp_path, result) / "tests" / "test.sh"
+        ).read_bytes()

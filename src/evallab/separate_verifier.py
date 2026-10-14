@@ -4519,14 +4519,71 @@ _V10_BASELINE_ENV_OK = (
     'MIMO_VERIFIER_INTEGRITY_DIR="$GRADE/baseline" ' + _V10_BASELINE_ENV_PIN
 )
 
+#: @10 pristine block: anchored reset on repeats (restoring tracked/untracked
+#: files from $M/pristine-tree, cleaning new untracked files with git clean
+#: -fdq, and removing only newly created ignored paths + emptied parent dirs
+#: via the post-minus-pre difference against $M/pristine-ignored.bin so baked
+#: ignored dependency trees like node_modules stay intact), followed by a
+#: non-forced git add -A capture matching render_snapshot_hook_v2.
+_V10_PRISTINE_TREE = """# @10 repeat-idempotent pristine: restore the anchored first-run tree
+# before capturing, so reruns never capture run-0 leftovers as pristine.
+if [ -f "$M/pristine-tree" ]; then
+  _V10_ANCHORED=$(cat "$M/pristine-tree")
+  rm -rf "$GRADE/junit-phases" "$GRADE/baseline" "$GRADE/build_env" "$GRADE/pycache"
+  rm -f "$GRADE/junit.xml" "$GRADE/unittest-junit.xml" "$GRADE/integrity.txt" "$GRADE/integrity-unittest.txt" "$GRADE/hook_installed" "$V/timing.log"
+  export GIT_INDEX_FILE=/tmp/pristine.index; rm -f "$GIT_INDEX_FILE"
+  git read-tree "$_V10_ANCHORED" || { echo "anchored pristine read failed" >&2; exit 1; }
+  git checkout-index -f -a || { echo "anchored pristine restore failed" >&2; exit 1; }
+  git clean -fdq || { echo "anchored pristine clean failed" >&2; exit 1; }
+  git ls-files --others --ignored --exclude-standard -z > /tmp/post_ignored.bin 2>/dev/null || : > /tmp/post_ignored.bin
+  python3 - "$M/pristine-ignored.bin" /tmp/post_ignored.bin <<'PYEOF_V10_CLEAN' 2>/dev/null || true
+import os, shutil, sys
+pre = set(filter(None, open(sys.argv[1], "rb").read().split(b"\\0"))) if os.path.exists(sys.argv[1]) else set()
+post = set(filter(None, open(sys.argv[2], "rb").read().split(b"\\0"))) if os.path.exists(sys.argv[2]) else set()
+for raw in post - pre:
+    p = os.fsdecode(raw)
+    if os.path.isdir(p) and not os.path.islink(p):
+        shutil.rmtree(p, ignore_errors=True)
+    elif os.path.lexists(p):
+        os.unlink(p)
+    d = os.path.dirname(p)
+    while d and d != ".":
+        try:
+            os.rmdir(d)
+        except OSError:
+            break
+        d = os.path.dirname(d)
+PYEOF_V10_CLEAN
+  unset GIT_INDEX_FILE
+fi
+# Capture tracked and untracked non-ignored files before importing agent bytes
+# (matches render_snapshot_hook_v2's git ls-files -c -o --exclude-standard).
+export GIT_INDEX_FILE=/tmp/pristine.index; rm -f "$GIT_INDEX_FILE"
+git read-tree "$BASE" || { echo "pristine-tree read failed" >&2; exit 1; }
+git add -A . || { echo "pristine-tree capture failed" >&2; exit 1; }
+PRISTINE=$(git write-tree) || { echo "pristine-tree write failed" >&2; exit 1; }
+git diff --cached --name-only "$BASE" > "$V/pristine-extra-files.log"
+unset GIT_INDEX_FILE
+if [ ! -f "$M/pristine-tree" ]; then
+  git ls-files --others --ignored --exclude-standard -z > "$M/pristine-ignored.bin" 2>/dev/null || : > "$M/pristine-ignored.bin"
+  printf '%s\\n' "$PRISTINE" > "$M/pristine-tree" || { echo "pristine anchor write failed" >&2; exit 1; }
+fi
+"""
+
 assert _V9_WRAPPER_A.count(_V10_MKDIR_PIN) == 1, "@9 grade-dir line moved; re-pin @10"
+assert _V9_WRAPPER_A.count(_V4_PRISTINE_TREE) == 1, "@9 pristine block moved; re-pin @10"
+assert _V9_WRAPPER_A.count(" add -A -f\n") == 1, "@9 agentcopy add moved; re-pin @10"
 assert _V9_WRAPPER_A.count(_V10_DROP_PIN) == 1, "@9 drop loop moved; re-pin @10"
 assert _V9_WRAPPER_A.count(_V10_BASELINE_ENV_PIN) == 2, "@9 baseline env moved; re-pin @10"
+assert _V9_WRAPPER_B.count("git add -A -f .") == 1, "@9 kept-tree add moved; re-pin @10"
 
-#: @10 grader entry point, part A: @9 plus shim install, binary-artifact
-#: drop, and bytecode/shim env on the baseline runs.
+#: @10 grader entry point, part A: @9 plus shim install, anchored pristine
+#: reset, ignore-consistent agentcopy staging, binary-artifact drop, and
+#: bytecode/shim env on the baseline runs.
 _V10_WRAPPER_A = (
     _V9_WRAPPER_A.replace(_V10_MKDIR_PIN, _V10_MKDIR_OK)
+    .replace(_V4_PRISTINE_TREE, _V10_PRISTINE_TREE)
+    .replace(" add -A -f\n", " add -A\n")
     .replace(_V10_DROP_PIN, _V10_DROP_OK)
     .replace(_V10_BASELINE_ENV_PIN, _V10_BASELINE_ENV_OK)
 )
@@ -4554,8 +4611,11 @@ _V10_HOOK_OK = (
 
 assert _V9_WRAPPER_B.count(_V10_HOOK_PIN) == 1, "@9 hook install moved; re-pin @10"
 
-#: @10 grader entry point, part B: @9 plus the integrity hook install.
-_V10_WRAPPER_B = _V9_WRAPPER_B.replace(_V10_HOOK_PIN, _V10_HOOK_OK)
+#: @10 grader entry point, part B: @9 plus ignore-consistent kept-tree
+#: staging and the integrity hook install.
+_V10_WRAPPER_B = _V9_WRAPPER_B.replace("git add -A -f .", "git add -A .").replace(
+    _V10_HOOK_PIN, _V10_HOOK_OK
+)
 
 assert _V10_WRAPPER_B != _V9_WRAPPER_B, "@10 wrapper B replacement did not apply"
 

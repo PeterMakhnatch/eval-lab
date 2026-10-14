@@ -601,3 +601,65 @@ pytest hook's `CHANGED` verdict (both wrote `integrity.txt`); the live
 `noop_runtest` probe graded 1 and exposed it. The shim now writes
 `integrity-unittest.txt` and the gate reads both files. Unit tests alone
 did not catch this, which is why the live probe is part of the evidence.
+
+### Repeat-idempotent pristine anchor (000245 + 000048 fold)
+
+`@10` also fixes the repeat-3 oracle failure measured on the
+opaque-wrapper tasks `000245` (TypeScript) and `000048` (Go), and
+folds those two rows onto `@10` in `mimo-clean-v5`
+(`SEPARATE_V10_TASKS` in `src/evallab/mimo_clean.py`; see
+`docs/mimo/clean-set.md`) while keeping the other 2,696 v5 rows on
+their banked digests (incl. 001431 on `@9`).
+
+### Root cause (traced through the verifier container)
+
+Harbor's `RepeatVerifier` (`--verifier
+evallab.harbor_repeat_verifier:RepeatVerifier --verifier-kwarg
+repeat_n=3`, used by `evallab tasks admit`) reruns `tests/test.sh`
+three times in the **same** verifier container. The agent runs in a
+different container: its diff reaches the verifier only as
+`/var/tmp/mimo-separate/workspace.tgz`, which each `test.sh`
+invocation re-extracts to `/tmp/agentcopy` and re-diffs — the agent
+diff never lives in the verifier workdir between runs. What does
+persist is the verifier workdir itself, plus the ready-gated setup
+(`[ -f "$M/ready" ] && exit 0`), so runs 1–2 do not reset anything.
+Run 0 applies `/tests/test.patch`, creating
+`mimo_build_env.tar.gz.b64` and `mimo_test_command.sh` (plus whatever
+their execution leaves, e.g. run markers and `__pycache__`), and
+leaves them in the workdir. On `repeat/1`, `@9` captured `PRISTINE`
+with `git add -A -f .` over that dirty tree, so the "pristine" tree
+contained the patch files; the test-file revert then kept them and
+`git apply /tests/test.patch` failed with `already exists` (run 0
+`apply.log` clean, `repeat/1` erroring, reward missing/0).
+
+### The `@10` fix
+
+1. **Ignore-rule alignment with `render_snapshot_hook_v2` (#848):**
+   the snapshot hook archives `git ls-files -c -o --exclude-standard`
+   (omitting gitignored dependency trees such as `000245`'s
+   `node_modules/`). `@10` stages `PRISTINE`, `/tmp/agentcopy`, and
+   the kept tree with `git add -A` (no `-f`, under the base
+   `.gitignore`), so omitted ignored trees are never mistaken for
+   agent deletions and baked `node_modules/` stays intact.
+2. **Anchored pristine reset across repeats:** run 0 saves the
+   pristine tree SHA in `/var/lib/mimo/pristine-tree` and the
+   pre-existing ignored file list in
+   `/var/lib/mimo/pristine-ignored.bin`. Every repeat invocation
+   restores `$PRISTINE` (`git read-tree` + `git checkout-index -f -a`
+   + `git clean -fdq`), removes newly created ignored files
+   (`post - pre`) plus any newly emptied parent directories (so
+   directory-existence build guards such as `000245`'s
+   `[ ! -d polaris-tokens/dist ]` re-trigger cleanly), and clears
+   grade-transient state under `$GRADE`.
+### Validation (MEASURED, 2026-10-14, $0)
+
+- Unit/shell: the shipped `@10` script runs 3× in one workdir on an
+  opaque-wrapper fixture (hidden patch creates
+  `mimo_build_env.tar.gz.b64` + `mimo_test_command.sh`, the command
+  leaves a run marker): oracle ×3 = `[1, 1, 1]`, nop ×3 =
+  `[0, 0, 0]`, no `already exists` in any repeat `apply.log`. The
+  same fixture under `@9` passes run 0 and fails repeat/1 with
+  `already exists` (the regression pin).
+- Local Docker (`RepeatVerifier repeat_n=3`, one container at a
+  time): 000245 oracle ×3 and 000048 oracle ×3, plus nop controls —
+  see the v5 census receipt for job paths and rewards.

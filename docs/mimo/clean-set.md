@@ -127,6 +127,23 @@ under `@8` (re-graded oracle 1 / nop 0 plus a clean 1.4.0 ladder on the
 fold keeps every `@8` guarantee. A future rebuild with budget for full
 re-verification can go uniform `@9`.
 
+## Verifier fold (@10 for 000245+000048; fleet stays @8/@9)
+
+`separate-verifier@10` anchors the pristine tree on the first
+`test.sh` invocation and resets to it on every repeat, so Harbor's
+`RepeatVerifier` (`repeat_n=3`, same verifier container) starts each
+run from identical bytes. Diagnosis and validation:
+`docs/mimo/separate-verifier.md` (`@10` section). Two opaque-wrapper
+tasks fold onto `@10` per row (`SEPARATE_V10_TASKS` in
+`src/evallab/mimo_clean.py`, per-row `chain` records `@10` honestly):
+`000245` (TypeScript) and `000048` (Go), whose hidden patches create
+`mimo_build_env.tar.gz.b64`/`mimo_test_command.sh` in the workdir and
+whose `@8` packages failed `repeat/1` with `already exists` when the
+dirty tree was recaptured as `PRISTINE`. `@10` keeps parts B/C
+byte-identical to `@9`, so every `@8`/`@9` grading guarantee (incl.
+001431 on `@9`) is kept. A future rebuild with budget for full
+re-verification can go uniform `@10`.
+
 ## Reference fixes and markers
 
 - The manifest's `reference_fix` prefers

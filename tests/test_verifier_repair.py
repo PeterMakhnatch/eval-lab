@@ -119,9 +119,11 @@ def _proposal() -> RepairProposal:
 
 
 def _execute(
-    tmp_path, plan, *, outcomes=(1.0, 0.0, 0.0), status="ok", declared=False, response=None
+    tmp_path, plan, *, outcomes=(1.0, 0.0, 0.0), status="ok", declared=False, response=None,
+    survivor_rewards=None,
 ):
     proposal = _proposal()
+    survivor_rewards = survivor_rewards or {}
     if declared:
         from evallab.verifier_repair import RepairUnrepairable
 
@@ -152,13 +154,16 @@ def _execute(
             }
             for item in matrix.runs
             for reward in [
-                outcomes[
-                    0
-                    if item.name.endswith("-reference")
-                    else 1
-                    if item.name.endswith("-nop")
-                    else 2
-                ]
+                survivor_rewards.get(
+                    item.name.rsplit("-survivor-", 1)[-1],
+                    outcomes[
+                        0
+                        if item.name.endswith("-reference")
+                        else 1
+                        if item.name.endswith("-nop")
+                        else 2
+                    ],
+                )
             ]
         ]
 
@@ -212,6 +217,67 @@ def test_real_derivation_obeys_complete_validation_gate(
         else "candidate"
     )
     assert record["status"] == expected_status
+
+
+@pytest.mark.parametrize(
+    ("executed", "outcome", "prior_reward"),
+    [(False, "survived", 1.0), (True, "partial", 0.5)],
+)
+def test_repair_cannot_certify_only_the_ranked_survivor_subset(
+    tmp_path, executed, outcome, prior_reward
+):
+    plan, report = _fixture(tmp_path)
+    extra_id = "def456abc7"
+    (plan.run_dir / "capture/testbed/answer.py").write_text(
+        "def add(a, b):\n    if a == 0:\n        return b\n    return a + b\n"
+    )
+    script = "#!/bin/sh\n# omit the zero-input result\n"
+    script_path = plan.run_dir / "scripts/zero-input.sh"
+    script_path.write_text(script)
+    report["mutants"][0]["line"] = 4
+    report["mutants"].append(
+        {
+            **report["mutants"][0],
+            "id": extra_id,
+            "line": 3,
+            "original": "b",
+            "replacement": "0",
+            "patch": "--- a/answer.py\n+++ b/answer.py\n@@ -3 +3 @@\n-        return b\n+        return 0\n",
+            "executed": executed,
+        }
+    )
+    report["runs"].append(
+        {
+            **report["runs"][-1],
+            "name": "zero-input",
+            "mutant": extra_id,
+            "script": str(script_path.relative_to(tmp_path)),
+            "script_sha256": "sha256:" + hashlib.sha256(script.encode()).hexdigest(),
+            "outcome": outcome,
+            "reward": prior_reward,
+        }
+    )
+    plan.report_path.write_text(json.dumps(report))
+    plan = plan_repair(plan.report_path)
+    proposal = _proposal()
+    proposal.mutant_ids.append(extra_id)
+    result, _, _ = _execute(
+        tmp_path,
+        plan,
+        response=proposal.model_dump_json(by_alias=True),
+        survivor_rewards={extra_id: 1.0},
+    )
+    assert result.verdict == "rejected"
+    record = json.loads((tmp_path / result.variant_record).read_text())
+    assert record["status"] == "rejected"
+
+
+def test_unexecuted_survivors_alone_do_not_admit_a_task_for_repair(tmp_path):
+    plan, report = _fixture(tmp_path)
+    report["mutants"][0]["executed"] = False
+    plan.report_path.write_text(json.dumps(report))
+    with pytest.raises(RepairError, match="no executed guided survivor"):
+        plan_repair(plan.report_path)
 
 
 def test_report_without_trusted_coverage_or_controls_cannot_be_repaired(tmp_path):

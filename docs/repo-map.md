@@ -723,7 +723,7 @@ inputs:
   - path: src/evallab/verifier_mutation.py
     digest: sha256:68c07f098ba8463a7dddabf8f1a9043a6ac1b2ecc4a74e7e2fe840f464d266e3
   - path: src/evallab/verifier_repair.py
-    digest: sha256:8ae5a21b3b1a24ac9d60b6771f42061a62b9b2ffb1217e6a151c0ea405e9ee36
+    digest: sha256:c22aacaecc3c1e218ec8b1bc1ce35d99af34141f21c198dbdea93c4185112d67
   - path: src/evallab/vf_scripted_harness.py
     digest: sha256:21c85c9926791eb7d4ea30bc4659db4854f42fa50351d0fe915ba9e352ce6981
   - path: src/evallab/watch_stop.py

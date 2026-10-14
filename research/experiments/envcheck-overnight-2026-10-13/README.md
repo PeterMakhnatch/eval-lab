@@ -97,6 +97,15 @@ estimate for all 564 tasks or proof that all 99 survivors violate their tasks.
 The assertion repair stage is restricted to this measured top twenty and
 reuses the already-scored seed variants rather than spending on them again.
 
+The selected tasks contain **102 previous survivors in total**: the 99 used for
+ranking plus three previously unexecuted fix-omission probes:
+`000769:16e22e57b6`, `002736:990548d3e2`, and `002742:c23f9129d5`.
+Ranking remains executed-line-only, but repair acceptance must include all 102.
+The initial repair selector incorrectly reused the ranking filter; it is
+corrected so task admission and the complete acceptance set are distinct.
+The real CLI preview for 000769 changes from seven to eight submissions, and
+regressions reject a variant when an extra unexecuted or partial survivor escapes.
+
 ## Fresh v5 seed measurements
 
 Both original v5 packages scored reference 1, nop 0 and instrumented reference 1.

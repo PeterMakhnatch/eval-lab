@@ -171,9 +171,12 @@ separate `--stages exploit` probe is requested.
   Variants use the existing `tasks derive` implementation and lineage store;
   original task packages, production source and solutions remain unchanged.
   Native matrix validation replays digest-checked reference and nop first;
-  failed controls stop before spending time on survivors. It then replays every
-  previous executed survivor. Only complete **1/0/all-0** yields `repaired`
-  and validated lineage. Equivalent/out-of-scope survivors may leave a
+  failed controls stop before spending time on survivors. Task admission needs
+  an executed, full-reward survivor, but validation then replays **every**
+  previous survivor, including unexecuted fix omissions and partial survivors.
+  The ranking filter must not shrink the acceptance subset. Only complete
+  **1/0/all-0** yields `repaired` and validated lineage. Equivalent/out-of-scope
+  survivors may leave a
   `partial` candidate for review; they never justify source fingerprints or
   incidental-behavior assertions. Other outcomes are `rejected`, `unrepairable`
   and `blocked`. Receipts include the private Codex transcript/usage, proposal,

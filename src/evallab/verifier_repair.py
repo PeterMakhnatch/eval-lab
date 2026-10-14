@@ -428,11 +428,11 @@ def load_mutation_report(path: Path) -> dict[str, Any]:
     return report.model_dump(mode="json", by_alias=True)
 
 
-def rank_survivors(report: Mapping[str, Any]) -> tuple[list[dict[str, Any]], str]:
-    """Return rankable survivors plus why ranking stopped, if it did.
+def select_repair_survivors(report: Mapping[str, Any]) -> tuple[list[dict[str, Any]], str]:
+    """Admit by traced survivors, then retain every previous survivor.
 
-    Only mutants with ``executed=True`` from ``coverage='guided'`` rank.
-    Fallback coverage is unrankable, never zero.
+    Executed-line coverage selects the task, not its acceptance subset.
+    Untested fix-omission probes and partial survivors still need an outcome.
     """
     if not report.get("executed"):
         return [], "report is a plan (executed=false); nothing to repair"
@@ -451,13 +451,16 @@ def rank_survivors(report: Mapping[str, Any]) -> tuple[list[dict[str, Any]], str
     for run in report.get("runs", []):
         if not isinstance(run, dict):
             continue
-        if run.get("role") != "mutant" or run.get("outcome") != "survived":
+        if run.get("role") != "mutant" or run.get("outcome") not in {"survived", "partial"}:
             continue
         mutant = by_id.get(run.get("mutant") or "")
-        if mutant is None or mutant.get("executed") is not True:
-            continue
+        if mutant is None:
+            return [], f"survivor {run.get('mutant')!r} has no mutation descriptor"
         ranked.append({"mutant": mutant, "run": run})
-    if not ranked:
+    if not any(
+        row["mutant"].get("executed") is True and row["run"].get("outcome") == "survived"
+        for row in ranked
+    ):
         return [], "no executed guided survivor to repair"
     return ranked, ""
 
@@ -524,6 +527,7 @@ def build_repair_context(
                 "file": mutant.get("file"),
                 "line": mutant.get("line"),
                 "operator": mutant.get("operator"),
+                "executed": mutant.get("executed"),
                 "original": mutant.get("original"),
                 "replacement": mutant.get("replacement"),
                 "reward": entry["run"].get("reward"),
@@ -561,6 +565,9 @@ def render_repair_prompt(context: Mapping[str, Any]) -> str:
         "All code runs only inside the task's isolated verifier, not on the host.",
         "Rules:",
         "- Test observable behaviour of the task artifacts only.",
+        "- Address every listed survivor, including previously unexecuted fix",
+        "  omissions. Executed-line coverage chooses the task, not which old",
+        "  survivors must be rejected by its repaired verifier.",
         "- Keep tests offline. Use synthetic fixtures for external services and",
         "  ML plumbing; never load or run language models or download model weights.",
         "- NEVER inspect source or patch fingerprints: no __file__, inspect,",
@@ -1148,7 +1155,7 @@ def plan_repair(
     if not package.is_dir():
         raise RepairError(f"task package is missing: {package}")
     run_dir = _report_run_dir(report, path)
-    ranked, reason = rank_survivors(report)
+    ranked, reason = select_repair_survivors(report)
     if reason:
         raise RepairError(reason)
     context = build_repair_context(report, ranked, package_dir=package, mutation_run_dir=run_dir)
@@ -1569,7 +1576,7 @@ __all__ = [
     "patched_paths",
     "plan_repair",
     "plan_validation_matrix",
-    "rank_survivors",
+    "select_repair_survivors",
     "read_reset_list",
     "read_task_workdir",
     "render_repair_prompt",

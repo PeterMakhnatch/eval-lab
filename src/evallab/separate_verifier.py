@@ -4261,6 +4261,399 @@ assert _V9_WRAPPER_C != _V8_WRAPPER_C, "@9 replacement did not apply"
 _V9_WRAPPER_A = _V8_WRAPPER_A
 _V9_WRAPPER_B = _V8_WRAPPER_B
 
+# --------------------------------------------------------------------------- #
+# separate-verifier@10: binary-artifact strip, runtime integrity, junit unittest
+# --------------------------------------------------------------------------- #
+# Closes the three holes Traces proved on canonical @8 packages
+# (2026-10-14 own-runs scan, finding 1):
+# 1. An unchecked-hash ``.pyc`` in ``__pycache__`` rode the kept snapshot
+#    unscanned (the tamper gate reads only text diff lines) and shadowed
+#    pristine source at grade time. @10 drops binary artifacts from the
+#    kept change, purges ``__pycache__``/``*.pyc`` before the agent run,
+#    and grades with ``PYTHONDONTWRITEBYTECODE=1`` plus a verifier-owned
+#    ``PYTHONPYCACHEPREFIX``.
+# 2. Appending ``pytest.Function.runtest = lambda self: None`` (plain or
+#    obfuscated) to an imported package ``__init__`` turned every test
+#    body into a no-op; junit then honestly reported all-pass. @10
+#    installs a verifier conftest hook that captures
+#    ``pytest.Function.runtest`` / ``_pytest.python.Function.runtest`` /
+#    ``unittest.TestCase.run`` at conftest import and, at session finish,
+#    records whether any identity changed; a change grades 0.
+# 3. Unittest was graded from stdout text, so printing ``Ran 1 test`` /
+#    ``OK`` and exiting 0 at import scored 1 with no test run. @10 grades
+#    unittest only from a structured junit report written by a
+#    verifier-owned ``sitecustomize`` shim (loaded via ``PYTHONPATH`` at
+#    interpreter startup, before test modules import the package), with
+#    the @6 fail-to-pass comparison over junit status maps. No junit
+#    cases, no reward. The shim also performs the ``TestCase.run``
+#    integrity check for pure-unittest commands.
+# No @2-@9 symbol or template byte changes. See
+# docs/mimo/separate-verifier.md.
+
+#: Transform id recorded in lineage.
+TRANSFORM_ID_V10 = "separate-verifier@10"
+
+#: Binary/build-artifact suffixes dropped from the kept agent change (@10).
+BINARY_ARTIFACT_SUFFIXES = frozenset(
+    {".pyc", ".pyo", ".so", ".pyd", ".dll", ".dylib", ".o", ".a", ".class"}
+)
+
+
+def is_binary_artifact_path(path: str) -> bool:
+    """Whether a kept-change path is a binary artifact dropped at @10.
+
+    Covers ``__pycache__`` components and compiled-object suffixes; an
+    honest source fix never needs to ship precompiled bytes, and a
+    tracked pristine binary simply stays at its BASE bytes.
+    """
+    pure = PurePosixPath(path)
+    if "__pycache__" in pure.parts:
+        return True
+    return pure.suffix.lower() in BINARY_ARTIFACT_SUFFIXES
+
+
+def parse_integrity_log(text: str) -> list[str]:
+    """Changed-internal names from an integrity log (``[]`` when clean)."""
+    first = (text or "").strip().splitlines()
+    if not first or not first[0].startswith("CHANGED"):
+        return []
+    rest = first[0][len("CHANGED") :].strip()
+    return [name.strip() for name in rest.split(",") if name.strip()]
+
+
+#: Verifier-owned conftest hook (@10): captures test-runner internals at
+#: conftest import and records identity changes at session finish to
+#: ``$MIMO_VERIFIER_INTEGRITY_DIR/integrity.txt``. Chained after any
+#: previously appended ``pytest_sessionfinish`` (the @5 archiver) so both
+#: run. Best effort like the other hooks: a hook failure never breaks the
+#: test session; the grader treats a missing file as "not changed" and
+#: the structured junit rules still apply.
+V10_INTEGRITY_HOOK = (
+    "# mimo-integrity/1: runner-internal integrity check.\n"
+    "import os as _v10_os\n"
+    '_V10_DIR = _v10_os.environ.get("MIMO_VERIFIER_INTEGRITY_DIR", "")\n'
+    "_V10_ORIG = {}\n"
+    "try:\n"
+    "    import pytest as _v10_pytest\n"
+    '    _V10_ORIG["pytest.Function.runtest"] = _v10_pytest.Function.runtest\n'
+    "except Exception:\n"
+    "    _v10_pytest = None\n"
+    "try:\n"
+    "    import _pytest.python as _v10_pp\n"
+    '    _V10_ORIG["_pytest.python.Function.runtest"] = _v10_pp.Function.runtest\n'
+    "except Exception:\n"
+    "    _v10_pp = None\n"
+    "try:\n"
+    "    import unittest as _v10_ut\n"
+    '    _V10_ORIG["unittest.TestCase.run"] = _v10_ut.TestCase.run\n'
+    "except Exception:\n"
+    "    _v10_ut = None\n"
+    '_v10_prev_sessionfinish = globals().get("pytest_sessionfinish")\n'
+    "def pytest_sessionfinish(session, exitstatus):\n"
+    "    try:\n"
+    "        if _v10_prev_sessionfinish is not None:\n"
+    "            _v10_prev_sessionfinish(session, exitstatus)\n"
+    "    except Exception:\n"
+    "        pass\n"
+    "    try:\n"
+    "        if not _V10_DIR:\n"
+    "            return\n"
+    "        _v10_changed = []\n"
+    '        if _v10_pytest is not None and _v10_pytest.Function.runtest is not _V10_ORIG.get("pytest.Function.runtest"):\n'
+    '            _v10_changed.append("pytest.Function.runtest")\n'
+    '        if _v10_pp is not None and _v10_pp.Function.runtest is not _V10_ORIG.get("_pytest.python.Function.runtest"):\n'
+    '            _v10_changed.append("_pytest.python.Function.runtest")\n'
+    '        if _v10_ut is not None and _v10_ut.TestCase.run is not _V10_ORIG.get("unittest.TestCase.run"):\n'
+    '            _v10_changed.append("unittest.TestCase.run")\n'
+    "        _v10_os.makedirs(_V10_DIR, exist_ok=True)\n"
+    '        _v10_text = ("CHANGED " + ",".join(_v10_changed)) if _v10_changed else "OK"\n'
+    '        with open(_v10_os.path.join(_V10_DIR, "integrity.txt"), "w", encoding="utf-8") as _v10_f:\n'
+    '            _v10_f.write(_v10_text + "\\n")\n'
+    "    except Exception:\n"
+    "        pass\n"
+)
+
+#: Verifier-owned ``sitecustomize`` shim (@10): loaded at interpreter
+#: startup via ``PYTHONPATH`` for every test-command python. Records
+#: unittest outcomes into a junit report at ``MIMO_VERIFIER_UNITTEST_JUNIT``
+#: (written at exit, so an import-time ``sys.exit(0)`` yields an empty
+#: report) and checks ``unittest.TestCase.run`` /
+#: ``TextTestRunner.run`` identities captured at startup. Wraps only
+#: ``TextTestResult`` outcome methods; failures are swallowed so the shim
+#: can never break an honest run (the grader then simply sees no cases).
+V10_UNITTEST_SHIM = (
+    "# mimo-unittest-shim/1: structured unittest outcomes + integrity.\n"
+    "import atexit as _v10_atexit\n"
+    "import os as _v10_os\n"
+    "import re as _v10_re\n"
+    "_V10_CASES = []\n"
+    "_V10_UT = None\n"
+    "_V10_ORIG_TC = None\n"
+    "_V10_ORIG_RUNNER = None\n"
+    "try:\n"
+    "    import unittest as _V10_UT\n"
+    "    import unittest.runner as _v10_runner\n"
+    "    _V10_ORIG_TC = _V10_UT.TestCase.run\n"
+    "    _V10_ORIG_RUNNER = _v10_runner.TextTestRunner.run\n"
+    "    _v10_result = _v10_runner.TextTestResult\n"
+    "    def _v10_wrap(name, status):\n"
+    "        _orig = getattr(_v10_result, name)\n"
+    "        def _wrapped(self, test, *args, **kwargs):\n"
+    "            _V10_CASES.append((str(test), status))\n"
+    "            return _orig(self, test, *args, **kwargs)\n"
+    "        setattr(_v10_result, name, _wrapped)\n"
+    '    _v10_wrap("addSuccess", "passed")\n'
+    '    _v10_wrap("addFailure", "failed")\n'
+    '    _v10_wrap("addError", "failed")\n'
+    '    _v10_wrap("addSkip", "skipped")\n'
+    '    _v10_wrap("addExpectedFailure", "skipped")\n'
+    '    _v10_wrap("addUnexpectedSuccess", "failed")\n'
+    "except Exception:\n"
+    "    _V10_UT = None\n"
+    "def _v10_flush():\n"
+    "    try:\n"
+    '        _idir = _v10_os.environ.get("MIMO_VERIFIER_INTEGRITY_DIR", "")\n'
+    "        if _idir and _V10_UT is not None:\n"
+    "            _changed = []\n"
+    "            if _V10_UT.TestCase.run is not _V10_ORIG_TC:\n"
+    '                _changed.append("unittest.TestCase.run")\n'
+    "            import unittest.runner as _v10_rr\n"
+    "            if _v10_rr.TextTestRunner.run is not _V10_ORIG_RUNNER:\n"
+    '                _changed.append("unittest.TextTestRunner.run")\n'
+    "            _v10_os.makedirs(_idir, exist_ok=True)\n"
+    '            _text = ("CHANGED " + ",".join(_changed)) if _changed else "OK"\n'
+    '            with open(_v10_os.path.join(_idir, "integrity-unittest.txt"), "w", encoding="utf-8") as _f:\n'
+    '                _f.write(_text + "\\n")\n'
+    "    except Exception:\n"
+    "        pass\n"
+    "    try:\n"
+    '        _out = _v10_os.environ.get("MIMO_VERIFIER_UNITTEST_JUNIT", "")\n'
+    "        if not _out:\n"
+    "            return\n"
+    "        import xml.etree.ElementTree as _ET\n"
+    '        _suite = _ET.Element("testsuite", name="verifier-unittest", tests=str(len(_V10_CASES)))\n'
+    "        for _label, _status in _V10_CASES:\n"
+    '            _m = _v10_re.match(r"^(.*?)\\s*\\(([^()]*)\\)$", _label)\n'
+    "            if _m:\n"
+    "                _name = _m.group(1)\n"
+    "                _cn = _m.group(2)\n"
+    "            else:\n"
+    "                _name = _label\n"
+    '                _cn = ""\n'
+    '            _case = _ET.SubElement(_suite, "testcase", classname=_cn, name=_name)\n'
+    '            if _status == "failed":\n'
+    '                _ET.SubElement(_case, "failure", message="failed")\n'
+    '            elif _status == "skipped":\n'
+    '                _ET.SubElement(_case, "skipped", message="skipped")\n'
+    "        _v10_os.makedirs(_v10_os.path.dirname(_out), exist_ok=True)\n"
+    "        _ET.ElementTree(_suite).write(_out)\n"
+    "    except Exception:\n"
+    "        pass\n"
+    "_v10_atexit.register(_v10_flush)\n"
+)
+
+
+def evaluate_unittest_v10(
+    report_xmls: list[bytes | None],
+    rc: int,
+    baseline_xmls: list[bytes | None] | None = None,
+) -> int:
+    """Grade 1/0 for unittest from shim junit reports only (@10).
+
+    Stdout text is never consulted: reward 1 iff ``rc == 0``, the shim
+    report holds at least one case, and no case failed. With a baseline
+    report, the @6 fail-to-pass shape applies over junit status maps:
+    every pristine non-skipped case must pass, and agent skips must be a
+    subset of pristine skips.
+    """
+    if rc != 0:
+        return 0
+    agent = junit_status_map(report_xmls)
+    if not agent:
+        return 0
+    if any(status == "bad" for status in agent.values()):
+        return 0
+    baseline = junit_status_map(baseline_xmls) if baseline_xmls else {}
+    if baseline:
+        baseline_skipped = {key for key, status in baseline.items() if status == "skipped"}
+        for key, status in baseline.items():
+            if status != "skipped" and agent.get(key) != "passed":
+                return 0
+        for key, status in agent.items():
+            if status == "skipped" and key not in baseline_skipped:
+                return 0
+    return 1
+
+
+#: Exact @9 wrapper-A grade-dir line extended with the @10 shim/pycache dirs.
+_V10_MKDIR_PIN = 'mkdir -p "$V" "$GRADE"'
+_V10_MKDIR_OK = (
+    'mkdir -p "$V" "$GRADE"\n'
+    'mkdir -p "$GRADE/v10shim" "$GRADE/pycache"\n'
+    'echo "@@V10_UNITTEST_SHIM_B64@@" | base64 -d > "$GRADE/v10shim/sitecustomize.py"'
+)
+
+#: Exact @9 drop-loop head extended with the binary-artifact drop (@10).
+_V10_DROP_PIN = (
+    '  b=${f##*/}; drop=""; reverted=""\n'
+    '  case "$b" in conftest.py|pytest.ini|tox.ini|sitecustomize.py|usercustomize.py|*.pth|*_test.go) drop="test-infra";; esac'
+)
+_V10_DROP_OK = (
+    _V10_DROP_PIN
+    + "\n"
+    + '  if [ -z "$drop" ]; then\n'
+    + '    case "$f" in */__pycache__/*|__pycache__/*) drop="binary artifact";; esac\n'
+    + '    case "$b" in *.pyc|*.pyo|*.so|*.pyd|*.dll|*.dylib|*.o|*.a|*.class) drop="binary artifact";; esac\n'
+    + "  fi"
+)
+
+#: Exact @9 baseline-run env (both @7 phases) extended with @10 env.
+_V10_BASELINE_ENV_PIN = (
+    'MIMO_VERIFIER_JUNIT="$GRADE/baseline/junit.xml" '
+    'MIMO_VERIFIER_ARCHIVE_DIR="$GRADE/baseline/junit-phases" PYTHONUNBUFFERED=1'
+)
+_V10_BASELINE_ENV_OK = (
+    'PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX="$GRADE/pycache" '
+    'PYTHONPATH="$GRADE/v10shim${PYTHONPATH:+:$PYTHONPATH}" '
+    'MIMO_VERIFIER_UNITTEST_JUNIT="$GRADE/baseline/unittest-junit.xml" '
+    'MIMO_VERIFIER_INTEGRITY_DIR="$GRADE/baseline" ' + _V10_BASELINE_ENV_PIN
+)
+
+assert _V9_WRAPPER_A.count(_V10_MKDIR_PIN) == 1, "@9 grade-dir line moved; re-pin @10"
+assert _V9_WRAPPER_A.count(_V10_DROP_PIN) == 1, "@9 drop loop moved; re-pin @10"
+assert _V9_WRAPPER_A.count(_V10_BASELINE_ENV_PIN) == 2, "@9 baseline env moved; re-pin @10"
+
+#: @10 grader entry point, part A: @9 plus shim install, binary-artifact
+#: drop, and bytecode/shim env on the baseline runs.
+_V10_WRAPPER_A = (
+    _V9_WRAPPER_A.replace(_V10_MKDIR_PIN, _V10_MKDIR_OK)
+    .replace(_V10_DROP_PIN, _V10_DROP_OK)
+    .replace(_V10_BASELINE_ENV_PIN, _V10_BASELINE_ENV_OK)
+)
+
+assert _V10_WRAPPER_A != _V9_WRAPPER_A, "@10 wrapper A replacement did not apply"
+
+#: Exact @9 archive-hook install tail extended with the integrity hook (@10).
+_V10_HOOK_PIN = (
+    '  done < "$V/conftest-targets.txt"\n'
+    '  echo "installed verifier junit archive hook" >> "$V/dropped.log"'
+)
+_V10_HOOK_OK = (
+    _V10_HOOK_PIN
+    + "\n"
+    + '  while IFS= read -r _v10_d; do\n'
+    + '    [ -n "$_v10_d" ] || continue\n'
+    + '    _v10_cf="$CWD/$_v10_d/conftest.py"\n'
+    + '    mkdir -p "$(dirname "$_v10_cf")"\n'
+    + '    if ! grep -q "mimo-integrity/1" "$_v10_cf" 2>/dev/null; then\n'
+    + '      echo "@@V10_INTEGRITY_HOOK_B64@@" | base64 -d >> "$_v10_cf"\n'
+    + "    fi\n"
+    + '  done < "$V/conftest-targets.txt"\n'
+    + '  echo "installed verifier integrity hook" >> "$V/dropped.log"'
+)
+
+assert _V9_WRAPPER_B.count(_V10_HOOK_PIN) == 1, "@9 hook install moved; re-pin @10"
+
+#: @10 grader entry point, part B: @9 plus the integrity hook install.
+_V10_WRAPPER_B = _V9_WRAPPER_B.replace(_V10_HOOK_PIN, _V10_HOOK_OK)
+
+assert _V10_WRAPPER_B != _V9_WRAPPER_B, "@10 wrapper B replacement did not apply"
+
+#: @10 run head: purge bytecode shadows before the agent run.
+_V10_RUN_HEAD_OK = (
+    _V5_RUN_HEAD
+    + "# @10: no bytecode shadow may survive into grading.\n"
+    + "find \"$CWD\" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true\n"
+    + "find \"$CWD\" -name '*.pyc' -delete 2>/dev/null || true\n"
+    + 'mkdir -p "$GRADE/pycache"\n'
+)
+
+#: @10 agent run line: bytecode off, verifier pycache prefix, unittest shim.
+_V10_RUN_LINE = (
+    'MIMO_VERIFIER_ARCHIVE_DIR="$JUNIT_PHASES" '
+    'MIMO_VERIFIER_UNITTEST_JUNIT="$GRADE/unittest-junit.xml" '
+    'MIMO_VERIFIER_INTEGRITY_DIR="$GRADE" '
+    'PYTHONDONTWRITEBYTECODE=1 PYTHONPYCACHEPREFIX="$GRADE/pycache" '
+    'PYTHONPATH="$GRADE/v10shim${PYTHONPATH:+:$PYTHONPATH}" '
+    'PYTHONUNBUFFERED=1 PYTEST_ADDOPTS="--junitxml=$JUNIT -p no:cacheprovider" '
+    'timeout 1800 sh -c "$(cat /tests/test_command.sh)" > "$V/test_output.log" 2>&1'
+)
+
+#: @10 integrity gate spliced after the runner log line in part C.
+_V10_INTEGRITY_GATE = (
+    _V7_RUNNER_PIN
+    + "\n"
+    + '_v10_integrity = ""\n'
+    + 'for _v10_name in ("integrity.txt", "integrity-unittest.txt"):\n'
+    + "    try:\n"
+    + '        with open(os.path.join(os.path.dirname(junit_path), _v10_name), encoding="utf-8", errors="replace") as _v10f:\n'
+    + "            _v10_text = _v10f.read().strip()\n"
+    + '        if _v10_text.startswith("CHANGED"):\n'
+    + "            _v10_integrity = _v10_text\n"
+    + "            break\n"
+    + "    except Exception:\n"
+    + "        pass\n"
+    + 'if _v10_integrity.startswith("CHANGED"):\n'
+    + "    print(0)\n"
+    + '    sys.stderr.write("runner integrity changed: %s\\n" % _v10_integrity)\n'
+    + "    sys.exit()"
+)
+
+#: Exact @9 unittest stdout grading replaced by shim-junit grading (@10),
+#: mirroring :func:`evaluate_unittest_v10`.
+_V10_UNITTEST_PIN = '        m = re.search(r"Ran (\\d+) test", output)\n' + _V6_UNITTEST_OK
+_V10_UNITTEST_OK = """        def _v10load(_p):
+            try:
+                with open(_p, "rb") as _f:
+                    _raw = _f.read()
+            except Exception:
+                return []
+            try:
+                return list(ET.fromstring(_raw).iter("testcase")) if _raw else []
+            except Exception:
+                return []
+        _v10dir = os.path.dirname(junit_path)
+        _ucases = _v10load(os.path.join(_v10dir, "unittest-junit.xml"))
+        _ubcases = _v10load(os.path.join(_v10dir, "baseline", "unittest-junit.xml"))
+        def _v10map(_cases):
+            _rank = {"passed": 0, "skipped": 1, "bad": 2}
+            _out = {}
+            for _c in _cases:
+                _s = "bad" if (_c.find("failure") is not None or _c.find("error") is not None) else ("skipped" if _c.find("skipped") is not None else "passed")
+                _k = (_c.get("classname") or "", _c.get("name") or "", _c.get("file") or "")
+                if _k not in _out or _rank[_s] > _rank[_out[_k]]:
+                    _out[_k] = _s
+            return _out
+        _umap = _v10map(_ucases)
+        _ubmap = _v10map(_ubcases)
+        ok = bool(_umap) and all(_s != "bad" for _s in _umap.values())
+        if ok and _ubmap:
+            _ubskip = {_k for _k, _s in _ubmap.items() if _s == "skipped"}
+            for _k, _s in _ubmap.items():
+                if _s != "skipped" and _umap.get(_k) != "passed":
+                    ok = False
+            for _k, _s in _umap.items():
+                if _s == "skipped" and _k not in _ubskip:
+                    ok = False
+        sys.stderr.write("unittest junit cases=%d baseline=%d ok=%s\\n" % (len(_ucases), len(_ubcases), ok))"""
+
+assert _V9_WRAPPER_C.count(_V5_RUN_HEAD) == 1, "@9 run head moved; re-pin @10"
+assert _V9_WRAPPER_C.count(_V5_RUN_LINE) == 1, "@9 run line moved; re-pin @10"
+assert _V9_WRAPPER_C.count(_V7_RUNNER_PIN) == 1, "@9 runner log moved; re-pin @10"
+assert _V9_WRAPPER_C.count(_V10_UNITTEST_PIN) == 1, "@9 unittest grade moved; re-pin @10"
+
+#: @10 grader entry point, part C: @9 plus bytecode purge/env, the
+#: integrity gate, and junit-only unittest grading.
+_V10_WRAPPER_C = (
+    _V9_WRAPPER_C.replace(_V5_RUN_HEAD, _V10_RUN_HEAD_OK)
+    .replace(_V5_RUN_LINE, _V10_RUN_LINE)
+    .replace(_V7_RUNNER_PIN, _V10_INTEGRITY_GATE)
+    .replace(_V10_UNITTEST_PIN, _V10_UNITTEST_OK)
+)
+
+assert _V10_WRAPPER_C != _V9_WRAPPER_C, "@10 wrapper C replacement did not apply"
+
+
 def render_wrapper_test_sh_v8(workdir: str) -> str:
     """Verifier entry point: @8 fail-to-pass grading with terse certification."""
     if not workdir.startswith("/"):
@@ -4504,6 +4897,133 @@ def derive_separate_verifier_v9(
         variants_root=variants_root,
     )
 
+def render_wrapper_test_sh_v10(workdir: str) -> str:
+    """Verifier entry point: @10 binary strip, integrity gate, junit unittest."""
+    if not workdir.startswith("/"):
+        raise VariantInvalid("workdir must be an absolute path")
+    universal = "[" + ", ".join(repr(s) for s in V3_TAMPER_SIGNATURES) + "]"
+    scoped = (
+        "["
+        + ", ".join(f"({sorted(exts)!r}, {pattern!r})" for exts, pattern in V3_SCOPED_SIGNATURES)
+        + "]"
+    )
+    hook_b64 = base64.b64encode(V3_CONFTEST_HOOK.encode("utf-8")).decode("ascii")
+    archive_b64 = base64.b64encode(V5_ARCHIVE_HOOK.encode("utf-8")).decode("ascii")
+    integrity_b64 = base64.b64encode(V10_INTEGRITY_HOOK.encode("utf-8")).decode("ascii")
+    shim_b64 = base64.b64encode(V10_UNITTEST_SHIM.encode("utf-8")).decode("ascii")
+    return (
+        (_V10_WRAPPER_A + _V10_WRAPPER_B + _V10_WRAPPER_C)
+        .replace("@@WORKDIR@@", workdir)
+        .replace("@@V3_NEW_INFRA_CASE@@", "|".join(sorted(V3_NEW_INFRA_BASENAMES)))
+        .replace("@@V3_UNIVERSAL@@", universal)
+        .replace("@@V3_SCOPED@@", scoped)
+        .replace("@@V3_CONFTEST_HOOK_B64@@", hook_b64)
+        .replace("@@V5_ARCHIVE_HOOK_B64@@", archive_b64)
+        .replace("@@V10_INTEGRITY_HOOK_B64@@", integrity_b64)
+        .replace("@@V10_UNITTEST_SHIM_B64@@", shim_b64)
+        .replace("@@JUNIT_MISSING_REASON@@", JUNIT_MISSING_REASON)
+    )
+
+
+def render_tests_dockerfile_v10(docker_image: str) -> str:
+    """Verifier image: pristine repo plus bundled hidden tests and setup (@10)."""
+    return (
+        "# Separate-verifier image (separate-verifier@10): pristine repo checkout\n"
+        "# plus the hidden tests and the clean setup bundle. The agent image\n"
+        "# never sees /tests.\n"
+        f"FROM --platform=linux/amd64 {docker_image}\n"
+        "COPY . /tests\n"
+        "RUN chmod +x /tests/test.sh\n"
+    )
+
+
+def build_changes_v10(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+) -> tuple[dict[str, bytes | None], dict[str, Any]]:
+    """Build the ``derive_task`` changes mapping plus lineage inputs for @10.
+
+    Same bundle shape as @9; the grader is the @10 entry point with the
+    binary-artifact strip, runtime integrity gate, and junit-only
+    unittest grading. ``solution_sh`` adds an oracle-control reference
+    solution when the parent has none. Refuses to overwrite a solution.
+    """
+    if not marker or not marker.strip():
+        raise VariantInvalid("marker must be a nonempty hidden-test identifier")
+    parent = Path(parent_dir)
+    info = read_parent_info(parent)
+    if info.has_solution and solution_sh is not None:
+        raise VariantInvalid("parent already has solution/solve.sh; refusing overwrite")
+
+    snapshot_hook = render_snapshot_hook_v2(info.workdir)
+    probe_hook = render_probe_hook(info.workdir, marker)
+    parent_toml_text = (parent / "task.toml").read_text(encoding="utf-8")
+    setup_files = collect_verifier_setup_files(parent)
+    try:
+        patch_text = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
+        command_sh = (parent / "tests" / "test_command.sh").read_text(encoding="utf-8")
+        runner = detect_runner(resolve_command_text(command_sh, None, patch_text))
+    except OSError:
+        runner = "unknown"
+    changes: dict[str, bytes | None] = {
+        "task.toml": render_task_toml(
+            parent_toml_text, snapshot_hook=snapshot_hook, probe_hook=probe_hook
+        ).encode("utf-8"),
+        "tests/test.sh": render_wrapper_test_sh_v10(info.workdir).encode("utf-8"),
+        "tests/Dockerfile": render_tests_dockerfile_v10(info.docker_image).encode("utf-8"),
+        **setup_files,
+    }
+    if solution_sh is not None:
+        changes["solution/solve.sh"] = solution_sh
+
+    setup_digest = hashlib.sha256(b"".join(setup_files[key] for key in sorted(setup_files)))
+    inputs: dict[str, Any] = {
+        "parent_task": info.task_name,
+        "workdir": info.workdir,
+        "docker_image": info.docker_image,
+        "marker": marker,
+        "snapshot_dir": SNAP_DIR,
+        "trajectory_artifact": TRAJECTORY_ARTIFACT,
+        "setup_files": sorted(setup_files),
+        "setup_sha256": setup_digest.hexdigest(),
+        "runner": runner,
+        "solution": (
+            "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
+        ),
+    }
+    return changes, inputs
+
+
+def derive_separate_verifier_v10(
+    parent_dir: Path | str,
+    *,
+    marker: str,
+    solution_sh: bytes | None = None,
+    rationale: str = "Grade the agent's repo-file patch only, in a pristine "
+    "verifier checkout with binary artifacts stripped, runner-integrity "
+    "checks, and structured junit grading for pytest and unittest.",
+    created_by: str = "integrity-verifier",
+    repo_root: Path | str | None = None,
+    parent_source: dict[str, Any] | None = None,
+    variants_root: Path | str | None = None,
+) -> VariantRecord:
+    """Derive the ``separate-verifier@10`` variant of a MiMo task package."""
+    changes, inputs = build_changes_v10(parent_dir, marker=marker, solution_sh=solution_sh)
+    return derive_task(
+        parent_dir,
+        changes=changes,
+        transform=TRANSFORM_ID_V10,
+        rationale=rationale,
+        created_by=created_by,
+        inputs=inputs,
+        parent_source=parent_source,
+        repo_root=repo_root,
+        variants_root=variants_root,
+    )
+
+
 __all__ = [
     "JUNIT_MISSING_REASON",
     "MIMO_STATE_DIR",
@@ -4519,6 +5039,7 @@ __all__ = [
     "TRANSFORM_ID_V7",
     "TRANSFORM_ID_V8",
     "TRANSFORM_ID_V9",
+    "TRANSFORM_ID_V10",
     "TRAJECTORY_ARTIFACT",
     "V2_GRADE_DIR",
     "V2_SETUP_SUBDIR",
@@ -4531,6 +5052,9 @@ __all__ = [
     "V3_STRUCTURED_RUNNERS",
     "V3_TAMPER_SIGNATURES",
     "V5_ARCHIVE_HOOK",
+    "V10_INTEGRITY_HOOK",
+    "V10_UNITTEST_SHIM",
+    "BINARY_ARTIFACT_SUFFIXES",
     "WRAPPER_TEST_SCRIPT",
     "ParentInfo",
     "addopts_cleared",
@@ -4543,6 +5067,7 @@ __all__ = [
     "build_changes_v7",
     "build_changes_v8",
     "build_changes_v9",
+    "build_changes_v10",
     "collect_verifier_setup_files",
     "declares_testmain",
     "derive_separate_verifier",
@@ -4554,6 +5079,7 @@ __all__ = [
     "derive_separate_verifier_v7",
     "derive_separate_verifier_v8",
     "derive_separate_verifier_v9",
+    "derive_separate_verifier_v10",
     "detect_pytest_run",
     "effective_js_runner",
     "effective_js_runner_v8",
@@ -4578,6 +5104,9 @@ __all__ = [
     "evaluate_surefire_reports",
     "evaluate_unittest",
     "evaluate_unittest_v6",
+    "evaluate_unittest_v10",
+    "is_binary_artifact_path",
+    "parse_integrity_log",
     "is_pytest_config_tamper",
     "strip_ansi",
     "is_test_infra_filename",
@@ -4604,6 +5133,7 @@ __all__ = [
     "render_tests_dockerfile_v7",
     "render_tests_dockerfile_v8",
     "render_tests_dockerfile_v9",
+    "render_tests_dockerfile_v10",
     "render_wrapper_test_sh",
     "render_wrapper_test_sh_v2",
     "render_wrapper_test_sh_v3",
@@ -4613,6 +5143,7 @@ __all__ = [
     "render_wrapper_test_sh_v7",
     "render_wrapper_test_sh_v8",
     "render_wrapper_test_sh_v9",
+    "render_wrapper_test_sh_v10",
     "resolve_command_text",
     "tamper_signature_hit",
     "v3_config_revert_reason",

@@ -544,3 +544,60 @@ ladder threat model, as with `@7`'s module-path decoys.
   skip excuse; no new `ftp_bad = True` path exists, so any run grading 1
   under `@8` grades 1 under `@9` (pinned on fixtures by
   `test_v9_keeps_v8_grades`).
+
+## separate-verifier@10: binary strip, runtime integrity, junit unittest (2026-10-14)
+
+`separate-verifier@10` (`TRANSFORM_ID_V10`, `build_changes_v10`,
+`derive_separate_verifier_v10`, `render_wrapper_test_sh_v10`,
+`evaluate_unittest_v10`, `V10_INTEGRITY_HOOK`, `V10_UNITTEST_SHIM` in
+`src/evallab/separate_verifier.py`; tests in
+`tests/test_separate_verifier.py`) closes the three holes Traces proved
+on canonical `@8` packages in the own-runs scan
+(`research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md` §1).
+No `@2`–`@9` symbol or template byte changes. It ships as the
+`mimo-clean-v6` chain slot (`PYTHON_CHAIN_V6`/`NONPYTHON_CHAIN_V6`);
+adopting it fleet-wide is a rebuild + re-verification decision, not a
+default change.
+
+| Hole (@8 measured reward 1 with no fix) | `@10` fix |
+|---|---|
+| Unchecked-hash `.pyc` in `__pycache__` rides the kept snapshot unscanned and shadows pristine source (002139) | Binary artifacts (`__pycache__`, `*.pyc`/`*.pyo`/`*.so`/`*.pyd`/`*.dll`/`*.dylib`/`*.o`/`*.a`/`*.class`) are dropped from the kept change (`is_binary_artifact_path`), `__pycache__`/`*.pyc` are purged before the agent run, and grading runs with `PYTHONDONTWRITEBYTECODE=1` + a verifier-owned `PYTHONPYCACHEPREFIX` |
+| `pytest.Function.runtest = lambda self: None` (plain or obfuscated) in an imported package `__init__` no-ops every test body; junit honestly reports all-pass (002139) | A verifier conftest hook captures `pytest.Function.runtest`, `_pytest.python.Function.runtest`, and `unittest.TestCase.run` at conftest import and records identity changes at session finish; any change grades 0. The unittest shim performs the same check for pure-unittest commands |
+| Unittest graded from stdout: printing `Ran 1 test … OK` and exiting 0 at import scored 1 (002866) | Unittest grades only from a structured junit report written by a verifier-owned `sitecustomize` shim (loaded via `PYTHONPATH` at interpreter startup), with the @6 fail-to-pass comparison over junit status maps. No cases, no reward — stdout is never consulted |
+
+The four proved attacks are also ladder attacks now (ladder v3
+`3.0.0`: `tamper_pytest_runtest`, `tamper_pytest_runtest_obfuscated`,
+`pyc_shadow`, `fake_unittest_output`), so a regression reopens loudly.
+
+Residual: the integrity check is identity-based, not a sandbox — code
+that restores the original function object before session finish, or
+patches a different internal, is out of scope for this gate and stays
+with the tamper signatures plus fail-to-pass. The shim/hook are
+best-effort like the earlier hooks; a missing integrity file is treated
+as unchanged and the structured grading rules still apply.
+
+### Validation (MEASURED, 2026-10-14, local Docker, $0)
+
+Traces' reproducer packages (002139 pytest/bitbake, 002866
+unittest/sqlglot; `derived/detector-roots/own-scan/hardened-probe`) with
+the `@10` grader swapped in, graded by Harbor 0.24.0 oracle runs:
+
+| case | `@8` (Traces) | `@10` |
+|---|---|---|
+| oracle (real fix) | 1 | 1 (pytest), 1 (unittest) |
+| nop | 0 | 0 (pytest), 0 (unittest) |
+| `noop_runtest` | 1 | 0 |
+| `noop_runtest_obfuscated` | 1 | 0 |
+| `pyc_shadow` | 1 | 0 |
+| `fake_unittest_output` | 1 | 0 |
+| control: literal `_pytest` signature | 0 | 0 |
+
+Ladder v3 through `evallab cheat run --ladder-version 3.0.0` (the three
+pytest attacks in one trial): `@8` grader cracked (reward 1), `@10` grader
+clean (reward 0).
+
+A first `@10` build let the unittest shim's exit-time write overwrite the
+pytest hook's `CHANGED` verdict (both wrote `integrity.txt`); the live
+`noop_runtest` probe graded 1 and exposed it. The shim now writes
+`integrity-unittest.txt` and the gate reads both files. Unit tests alone
+did not catch this, which is why the live probe is part of the evidence.

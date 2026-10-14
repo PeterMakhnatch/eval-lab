@@ -70,11 +70,13 @@ from evallab.separate_verifier import TRANSFORM_ID_V6 as SEPARATE_V6_ID
 from evallab.separate_verifier import TRANSFORM_ID_V7 as SEPARATE_V7_ID
 from evallab.separate_verifier import TRANSFORM_ID_V8 as SEPARATE_V8_ID
 from evallab.separate_verifier import TRANSFORM_ID_V9 as SEPARATE_V9_ID
+from evallab.separate_verifier import TRANSFORM_ID_V10 as SEPARATE_V10_ID
 from evallab.separate_verifier import (
     derive_separate_verifier_v6,
     derive_separate_verifier_v7,
     derive_separate_verifier_v8,
     derive_separate_verifier_v9,
+    derive_separate_verifier_v10,
 )
 from evallab.strip_future_history import STRIP_MARKER, derive_strip_future_history
 from evallab.strip_future_history import TRANSFORM_ID as STRIP_ID
@@ -202,6 +204,28 @@ NONPYTHON_CHAIN_V5 = (
     AGENT_NETWORK_NONE_ID,
 )
 
+#: Canonical chains for ``mimo-clean-v6``: v5 with ``separate-verifier@10``
+#: (binary-artifact strip, runtime integrity gate, junit-only unittest
+#: grading). Not the default: adopting it fleet-wide is a full rebuild +
+#: re-verification decision for the MiMo lane, with its own budget.
+PYTHON_CHAIN_V6 = (
+    STRIP_ID,
+    PURGE_V2_ID,
+    CACHE_ACTIVE_ID,
+    MTIME_ACTIVE_ID,
+    SEPARATE_V10_ID,
+    AGENT_NETWORK_NONE_ID,
+)
+
+#: Canonical non-Python chain for ``mimo-clean-v6``.
+NONPYTHON_CHAIN_V6 = (
+    STRIP_ID,
+    CACHE_ACTIVE_ID,
+    MTIME_ACTIVE_ID,
+    SEPARATE_V10_ID,
+    AGENT_NETWORK_NONE_ID,
+)
+
 #: Node-build tasks folded onto ``purge-build-caches@5`` inside mimo-clean-v5
 #: (per-row chain records @5 honestly; everything else stays @4).
 #: REAL: probe-v2-confirmed nested-output leaks (000919 node lib/,
@@ -254,9 +278,11 @@ SEPARATE_V9_TASKS = frozenset({"format-code-task-001431"})
 #: the v5 census completes; NB: never mix generations in one manifest).
 CLEAN_SET_VERSION_V5 = "mimo-clean-v5"
 MANIFEST_V5_REL = Path("research/experiments/mimo-clean-v5/manifest.csv")
+CLEAN_SET_VERSION_V6 = "mimo-clean-v6"
 CHAIN_VERSIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     CLEAN_SET_VERSION: (PYTHON_CHAIN, NONPYTHON_CHAIN),
     CLEAN_SET_VERSION_V5: (PYTHON_CHAIN_V5, NONPYTHON_CHAIN_V5),
+    CLEAN_SET_VERSION_V6: (PYTHON_CHAIN_V6, NONPYTHON_CHAIN_V6),
 }
 
 
@@ -1098,15 +1124,19 @@ class ChainBuilder:
             else chain[-2]
         )
         separate_derive = (
-            derive_separate_verifier_v9
-            if separate_id == SEPARATE_V9_ID
+            derive_separate_verifier_v10
+            if separate_id == SEPARATE_V10_ID
             else (
-                derive_separate_verifier_v8
-                if separate_id == SEPARATE_V8_ID
+                derive_separate_verifier_v9
+                if separate_id == SEPARATE_V9_ID
                 else (
-                    derive_separate_verifier_v7
-                    if separate_id == SEPARATE_V7_ID
-                    else derive_separate_verifier_v6
+                    derive_separate_verifier_v8
+                    if separate_id == SEPARATE_V8_ID
+                    else (
+                        derive_separate_verifier_v7
+                        if separate_id == SEPARATE_V7_ID
+                        else derive_separate_verifier_v6
+                    )
                 )
             )
         )

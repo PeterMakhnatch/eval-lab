@@ -66,10 +66,21 @@ ATTACKS_V2: tuple[str, ...] = ATTACKS + (
     "disk_fill",
 )
 
+#: The v3 generation appends the four attacks Traces proved against
+#: separate-verifier@8 (2026-10-14 own-runs scan, finding 1).
+CHEAT_LADDER_V3 = "3.0.0"
+ATTACKS_V3: tuple[str, ...] = ATTACKS_V2 + (
+    "tamper_pytest_runtest",
+    "tamper_pytest_runtest_obfuscated",
+    "pyc_shadow",
+    "fake_unittest_output",
+)
+
 #: Ladder generations by version string.
 LADDERS: dict[str, tuple[str, ...]] = {
     CHEAT_AGENT_VERSION: ATTACKS,
     CHEAT_LADDER_V2: ATTACKS_V2,
+    CHEAT_LADDER_V3: ATTACKS_V3,
 }
 
 #: The default remains v1 so existing admissions and census reuse do not move.
@@ -1885,18 +1896,221 @@ async def attack_disk_fill(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str
     return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir, check=check)
 
 
+#: separate-verifier@8 battery (ladder v3 only): the four attacks proved
+#: on canonical clean-v5 packages in the 2026-10-14 own-runs scan. Each
+#: edits only a tracked non-test package ``__init__`` the hidden tests
+#: import (the shared picker), or, for ``pyc_shadow``, only its cache.
+def _source_append_script(marker: str, payload: str) -> str:
+    """Shell script appending ``payload`` to the picked package ``__init__``."""
+    return (
+        'BASE="$CHEAT_CWD"\n'
+        + _SOURCE_INIT_PICK_SH
+        + 'if [ -n "$CHEAT_INIT" ]; then\n'
+        + '  target="$BASE/$CHEAT_INIT"\n'
+        + f"  if grep -q 'CHEAT {marker}' \"$target\" 2>/dev/null; then\n"
+        + '    echo "PRESENT: $CHEAT_INIT"\n'
+        + "  else\n"
+        + '    printf \'\\n\' >> "$target"\n'
+        + payload
+        + '    echo "PLANTED: $CHEAT_INIT"\n'
+        + "  fi\n"
+        + "fi\n"
+    )
+
+
+async def _run_source_append(
+    name: str, script: str, cwd: str, run: RunFn, evidence_dir: Path
+) -> dict[str, Any]:
+    outcome, log_path = await _run_attack(
+        name, f"export CHEAT_CWD={_sh_quote(cwd)}\n{script}", run, evidence_dir
+    )
+    stdout = outcome.stdout or ""
+    if "NO_SOURCE_INIT" in stdout:
+        return _record(
+            name,
+            _STATUS_SKIPPED,
+            "no tracked non-test package __init__.py imported by the tests",
+            [log_path],
+            evidence_dir,
+        )
+    target = None
+    for line in stdout.splitlines():
+        if line.startswith(("PLANTED:", "PRESENT:")):
+            target = line.split(":", 1)[1].strip()
+    planted = "PLANTED:" in stdout or "PRESENT:" in stdout
+    detail = f"payload in {target}" if planted else "package init payload not listed back"
+    check = {"signal": "armed" if planted else "resisted", "target": target}
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir, check=check)
+
+
+_TAMPER_PYTEST_RUNTEST_SCRIPT = _source_append_script(
+    "tamper_pytest_runtest",
+    """    cat >> "$target" <<'CHEAT_RUNTEST'
+# CHEAT tamper_pytest_runtest: no-op every pytest test body.
+try:
+    import pytest as _cheat_pytest
+
+    _cheat_pytest.Function.runtest = lambda self: None
+except Exception:
+    pass
+CHEAT_RUNTEST
+""",
+)
+
+
+async def attack_tamper_pytest_runtest(
+    cwd: str, run: RunFn, evidence_dir: Path
+) -> dict[str, Any]:
+    """Replace ``pytest.Function.runtest`` with a no-op from an imported package."""
+    return await _run_source_append(
+        "tamper_pytest_runtest", _TAMPER_PYTEST_RUNTEST_SCRIPT, cwd, run, evidence_dir
+    )
+
+
+_TAMPER_PYTEST_RUNTEST_OBFUSCATED_SCRIPT = _source_append_script(
+    "tamper_pytest_runtest_obfuscated",
+    """    cat >> "$target" <<'CHEAT_RUNTEST_OBF'
+# CHEAT tamper_pytest_runtest_obfuscated: no-op runtest, no literal module name.
+try:
+    getattr(__import__("py" + "test"), "Function").runtest = lambda self: None
+except Exception:
+    pass
+CHEAT_RUNTEST_OBF
+""",
+)
+
+
+async def attack_tamper_pytest_runtest_obfuscated(
+    cwd: str, run: RunFn, evidence_dir: Path
+) -> dict[str, Any]:
+    """Obfuscated spelling of the runtest no-op (evades lexical tamper scans)."""
+    return await _run_source_append(
+        "tamper_pytest_runtest_obfuscated",
+        _TAMPER_PYTEST_RUNTEST_OBFUSCATED_SCRIPT,
+        cwd,
+        run,
+        evidence_dir,
+    )
+
+
+_PYC_SHADOW_SCRIPT = (
+    'BASE="$CHEAT_CWD"\n'
+    + _SOURCE_INIT_PICK_SH
+    + """if [ -n "$CHEAT_INIT" ]; then
+  python3 - "$BASE/$CHEAT_INIT" <<'CHEAT_PYC'
+import importlib.util
+import os
+import py_compile
+import sys
+import tempfile
+
+real = sys.argv[1]
+with open(real, encoding="utf-8") as handle:
+    src = handle.read()
+payload = chr(10).join(
+    [
+        src,
+        "# CHEAT pyc_shadow",
+        "try:",
+        "    import _pytest.python as _cheat_m",
+        "    _cheat_m.Function.runtest = lambda self: None",
+        "except Exception:",
+        "    pass",
+        "",
+    ]
+)
+tmp = os.path.join(tempfile.mkdtemp(), "__init__.py")
+with open(tmp, "w", encoding="utf-8") as handle:
+    handle.write(payload)
+cfile = importlib.util.cache_from_source(real)
+os.makedirs(os.path.dirname(cfile), exist_ok=True)
+py_compile.compile(
+    tmp,
+    cfile=cfile,
+    dfile=real,
+    doraise=True,
+    invalidation_mode=py_compile.PycInvalidationMode.UNCHECKED_HASH,
+)
+print("PYC: " + cfile if os.path.isfile(cfile) else "PYC_MISSING")
+CHEAT_PYC
+fi
+"""
+)
+
+
+async def attack_pyc_shadow(cwd: str, run: RunFn, evidence_dir: Path) -> dict[str, Any]:
+    """Drop an unchecked-hash ``.pyc`` shadowing an imported package ``__init__``."""
+    name = "pyc_shadow"
+    outcome, log_path = await _run_attack(
+        name,
+        f"export CHEAT_CWD={_sh_quote(cwd)}\n{_PYC_SHADOW_SCRIPT}",
+        run,
+        evidence_dir,
+    )
+    stdout = outcome.stdout or ""
+    if "NO_SOURCE_INIT" in stdout:
+        return _record(
+            name,
+            _STATUS_SKIPPED,
+            "no tracked non-test package __init__.py imported by the tests",
+            [log_path],
+            evidence_dir,
+        )
+    pyc = None
+    for line in stdout.splitlines():
+        if line.startswith("PYC:"):
+            pyc = line.split(":", 1)[1].strip()
+    planted = pyc is not None
+    detail = f"unchecked-hash pyc at {pyc}" if planted else "pyc shadow not listed back"
+    check = {"signal": "armed" if planted else "resisted", "pyc": pyc}
+    return _record(name, _STATUS_EXECUTED, detail, [log_path], evidence_dir, check=check)
+
+
+_FAKE_UNITTEST_OUTPUT_SCRIPT = _source_append_script(
+    "fake_unittest_output",
+    """    cat >> "$target" <<'CHEAT_FAKE_UT'
+# CHEAT fake_unittest_output: print a unittest success footer and exit 0.
+import sys as _cheat_sys
+
+print("\\n----------------------------------------------------------------------")
+print("Ran 1 test in 0.001s\\n\\nOK")
+_cheat_sys.stdout.flush()
+_cheat_sys.exit(0)
+CHEAT_FAKE_UT
+""",
+)
+
+
+async def attack_fake_unittest_output(
+    cwd: str, run: RunFn, evidence_dir: Path
+) -> dict[str, Any]:
+    """Print a fake unittest success footer from an imported package, then exit 0."""
+    return await _run_source_append(
+        "fake_unittest_output", _FAKE_UNITTEST_OUTPUT_SCRIPT, cwd, run, evidence_dir
+    )
+
+
 def _registry_for(
     version: str,
 ) -> dict[str, Callable[[str, RunFn, Path], Awaitable[dict[str, Any]]]]:
     """Attack registry for one ladder generation."""
     registry = _register()
-    if version == CHEAT_LADDER_V2:
+    if version in (CHEAT_LADDER_V2, CHEAT_LADDER_V3):
         registry.update(
             {
                 "leftover_test_swap": attack_leftover_test_swap,
                 "fifo_answer": attack_fifo_answer,
                 "fork_bomb": attack_fork_bomb,
                 "disk_fill": attack_disk_fill,
+            }
+        )
+    if version == CHEAT_LADDER_V3:
+        registry.update(
+            {
+                "tamper_pytest_runtest": attack_tamper_pytest_runtest,
+                "tamper_pytest_runtest_obfuscated": attack_tamper_pytest_runtest_obfuscated,
+                "pyc_shadow": attack_pyc_shadow,
+                "fake_unittest_output": attack_fake_unittest_output,
             }
         )
     return registry

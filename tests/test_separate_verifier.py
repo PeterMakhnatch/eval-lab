@@ -28,6 +28,7 @@ from evallab.separate_verifier import (
     TRANSFORM_ID_V4,
     TRANSFORM_ID_V5,
     TRANSFORM_ID_V6,
+    TRANSFORM_ID_V10,
     V2_GRADE_DIR,
     V2_SETUP_SUBDIR,
     V3_CONFTEST_HOOK,
@@ -35,6 +36,8 @@ from evallab.separate_verifier import (
     V3_STRUCTURED_RUNNERS,
     V3_TAMPER_SIGNATURES,
     V5_ARCHIVE_HOOK,
+    V10_INTEGRITY_HOOK,
+    V10_UNITTEST_SHIM,
     addopts_cleared,
     build_changes,
     build_changes_v2,
@@ -45,6 +48,7 @@ from evallab.separate_verifier import (
     build_changes_v7,
     build_changes_v8,
     build_changes_v9,
+    build_changes_v10,
     declares_testmain,
     derive_separate_verifier,
     derive_separate_verifier_v2,
@@ -76,6 +80,8 @@ from evallab.separate_verifier import (
     evaluate_surefire_reports,
     evaluate_unittest,
     evaluate_unittest_v6,
+    evaluate_unittest_v10,
+    is_binary_artifact_path,
     is_pytest_config_tamper,
     is_test_infra_filename,
     is_v3_new_infra,
@@ -84,6 +90,7 @@ from evallab.separate_verifier import (
     junit_case_status,
     junit_status_map,
     output_is_blank,
+    parse_integrity_log,
     parse_named_pytest_ids,
     parse_pytest_node_id,
     read_parent_info,
@@ -99,6 +106,7 @@ from evallab.separate_verifier import (
     render_wrapper_test_sh_v7,
     render_wrapper_test_sh_v8,
     render_wrapper_test_sh_v9,
+    render_wrapper_test_sh_v10,
     resolve_command_text,
     strip_ansi,
     tamper_signature_hit,
@@ -3757,3 +3765,246 @@ def test_v9_build_changes_shape(parent_dir_v2: Path) -> None:
         build_changes_v9(parent_dir_v2, marker="  ")
     with pytest.raises(VariantInvalid):
         render_wrapper_test_sh_v9("relative/path")
+
+# -- separate-verifier@10 --------------------------------------------------
+
+_V10_PASS_JUNIT = b'<testsuite tests="1"><testcase classname="m.C" name="test_a"/></testsuite>'
+_V10_FAIL_JUNIT = (
+    b'<testsuite tests="1"><testcase classname="m.C" name="test_a">'
+    b"<failure>boom</failure></testcase></testsuite>"
+)
+_V10_SKIP_JUNIT = (
+    b'<testsuite tests="1"><testcase classname="m.C" name="test_a">'
+    b"<skipped/></testcase></testsuite>"
+)
+
+
+def test_v10_binary_artifact_paths() -> None:
+    assert is_binary_artifact_path("lib/bb/__pycache__/__init__.cpython-312.pyc")
+    assert is_binary_artifact_path("pkg/mod.so")
+    assert is_binary_artifact_path("pkg/Mod.PYC")
+    assert not is_binary_artifact_path("lib/bb/__init__.py")
+    assert not is_binary_artifact_path("docs/manual.pdf")
+
+
+def test_v10_evaluate_unittest_from_junit_only() -> None:
+    assert evaluate_unittest_v10([_V10_PASS_JUNIT], 0) == 1
+    assert evaluate_unittest_v10([_V10_FAIL_JUNIT], 0) == 0
+    assert evaluate_unittest_v10([_V10_PASS_JUNIT], 1) == 0
+    assert evaluate_unittest_v10([None], 0) == 0
+    assert evaluate_unittest_v10([b"<testsuite tests=\"0\"/>"], 0) == 0
+    assert evaluate_unittest_v10([_V10_PASS_JUNIT], 0, [_V10_FAIL_JUNIT]) == 1
+    assert evaluate_unittest_v10([_V10_SKIP_JUNIT], 0, [_V10_FAIL_JUNIT]) == 0
+    assert evaluate_unittest_v10([_V10_SKIP_JUNIT], 0, [_V10_SKIP_JUNIT]) == 1
+    assert evaluate_unittest_v10([_V10_PASS_JUNIT], 0, [_V10_PASS_JUNIT]) == 1
+
+
+def test_v10_integrity_hook_detects_runtest_swap(tmp_path: Path) -> None:
+    import os
+
+    import pytest as real_pytest
+
+    namespace: dict = {}
+    previous = os.environ.get("MIMO_VERIFIER_INTEGRITY_DIR")
+    os.environ["MIMO_VERIFIER_INTEGRITY_DIR"] = str(tmp_path)
+    original = real_pytest.Function.runtest
+    try:
+        exec(compile(V10_INTEGRITY_HOOK, "v10hook", "exec"), namespace)
+        real_pytest.Function.runtest = lambda self: None  # type: ignore[method-assign]
+        namespace["pytest_sessionfinish"](None, 0)
+    finally:
+        real_pytest.Function.runtest = original  # type: ignore[method-assign]
+        if previous is None:
+            os.environ.pop("MIMO_VERIFIER_INTEGRITY_DIR", None)
+        else:
+            os.environ["MIMO_VERIFIER_INTEGRITY_DIR"] = previous
+    changed = parse_integrity_log((tmp_path / "integrity.txt").read_text())
+    assert "pytest.Function.runtest" in changed
+    assert parse_integrity_log("OK\n") == []
+
+
+def test_v10_unittest_shim_records_cases(tmp_path: Path) -> None:
+    import os
+    import sys
+
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir()
+    (shim_dir / "sitecustomize.py").write_text(V10_UNITTEST_SHIM, encoding="utf-8")
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "test_sample.py").write_text(
+        "import unittest\n\n\nclass TestSample(unittest.TestCase):\n"
+        "    def test_ok(self):\n        self.assertEqual(1, 1)\n\n"
+        "    def test_bad(self):\n        self.assertEqual(1, 2)\n",
+        encoding="utf-8",
+    )
+    junit_path = tmp_path / "unittest-junit.xml"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(shim_dir)
+    env["MIMO_VERIFIER_UNITTEST_JUNIT"] = str(junit_path)
+    env["MIMO_VERIFIER_INTEGRITY_DIR"] = str(tmp_path)
+    completed = subprocess.run(
+        [sys.executable, "-m", "unittest", "test_sample"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert completed.returncode == 1
+    raw = junit_path.read_bytes()
+    statuses = junit_status_map([raw])
+    assert sorted(statuses.values()) == ["bad", "passed"]
+    assert evaluate_unittest_v10([raw], completed.returncode) == 0
+    assert (tmp_path / "integrity-unittest.txt").read_text().strip() == "OK"
+
+
+def test_v10_unittest_shim_fake_exit_yields_no_cases(tmp_path: Path) -> None:
+    import os
+    import sys
+
+    shim_dir = tmp_path / "shim"
+    shim_dir.mkdir()
+    (shim_dir / "sitecustomize.py").write_text(V10_UNITTEST_SHIM, encoding="utf-8")
+    work = tmp_path / "work"
+    (work / "evilpkg").mkdir(parents=True)
+    (work / "evilpkg" / "__init__.py").write_text(
+        "import sys\nprint('Ran 1 test in 0.001s')\nprint('OK')\nsys.exit(0)\n",
+        encoding="utf-8",
+    )
+    (work / "test_evil.py").write_text(
+        "import unittest\nimport evilpkg\n\n\nclass TestEvil(unittest.TestCase):\n"
+        "    def test_nope(self):\n        self.assertTrue(False)\n",
+        encoding="utf-8",
+    )
+    junit_path = tmp_path / "unittest-junit.xml"
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(shim_dir)
+    env["MIMO_VERIFIER_UNITTEST_JUNIT"] = str(junit_path)
+    env["MIMO_VERIFIER_INTEGRITY_DIR"] = str(tmp_path)
+    completed = subprocess.run(
+        [sys.executable, "-m", "unittest", "test_evil"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        env=env,
+        timeout=60,
+    )
+    assert completed.returncode == 0
+    assert "Ran 1 test" in completed.stdout
+    raw = junit_path.read_bytes() if junit_path.exists() else None
+    assert evaluate_unittest_v10([raw], completed.returncode) == 0
+
+
+def _run_embedded_v10_grader(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    runner_cmd: str,
+    output: str,
+    rc: int,
+    junit: bytes | None = None,
+    unittest_junit: bytes | None = None,
+    integrity: str | None = None,
+) -> str:
+    """Run the shipped @10 grading script against synthetic files."""
+    import re as _re
+
+    blocks = _re.findall(r"<<'PYEOF'.*?\n(.*?)\nPYEOF", render_wrapper_test_sh_v10("/testbed"), _re.S)
+    junit_path = tmp_path / "junit.xml"
+    if junit is None:
+        if junit_path.exists():
+            junit_path.unlink()
+    else:
+        junit_path.write_bytes(junit)
+    ut_path = tmp_path / "unittest-junit.xml"
+    if unittest_junit is None:
+        if ut_path.exists():
+            ut_path.unlink()
+    else:
+        ut_path.write_bytes(unittest_junit)
+    integrity_path = tmp_path / "integrity.txt"
+    if integrity is None:
+        if integrity_path.exists():
+            integrity_path.unlink()
+    else:
+        integrity_path.write_text(integrity, encoding="utf-8")
+    patch_path = tmp_path / "test.patch"
+    patch_path.write_text(
+        f"diff --git a/mimo_test_command.sh b/mimo_test_command.sh\n+{runner_cmd}\n",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "test_output.log"
+    output_path.write_text(output, encoding="utf-8")
+    cmd_path = tmp_path / "test_command.sh"
+    cmd_path.write_text(runner_cmd, encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        ["grader", str(junit_path), str(rc), str(patch_path), str(output_path), str(cmd_path), str(tmp_path)],
+    )
+    with pytest.raises(SystemExit):
+        exec(compile(blocks[-1], "v10grader", "exec"), {"__name__": "v10grader"})
+    return capsys.readouterr().out.strip()
+
+
+def test_embedded_v10_unittest_grades_from_junit_not_stdout(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cmd = "python -m unittest tests.test_x"
+    fake_out = "Ran 1 test in 0.001s\n\nOK\n"
+    assert _run_embedded_v10_grader(tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=fake_out, rc=0) == "0"
+    assert (
+        _run_embedded_v10_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=fake_out, rc=0, unittest_junit=_V10_PASS_JUNIT
+        )
+        == "1"
+    )
+    assert (
+        _run_embedded_v10_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=fake_out, rc=0, unittest_junit=_V10_FAIL_JUNIT
+        )
+        == "0"
+    )
+
+
+def test_embedded_v10_integrity_gate_grades_zero(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cmd = "python -m pytest tests/test_x.py -v"
+    out = "=== test session starts ===\ncollected 1 items\n"
+    assert (
+        _run_embedded_v10_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=out, rc=0,
+            junit=_V10_PASS_JUNIT, integrity="CHANGED pytest.Function.runtest\n",
+        )
+        == "0"
+    )
+    assert (
+        _run_embedded_v10_grader(
+            tmp_path, capsys, monkeypatch, runner_cmd=cmd, output=out, rc=0,
+            junit=_V10_PASS_JUNIT, integrity="OK\n",
+        )
+        == "1"
+    )
+
+
+def test_v10_build_changes_shape(parent_dir_v2: Path) -> None:
+    (parent_dir_v2 / "tests" / "test.patch").write_text(
+        "diff --git a/x.py b/x.py\n+def test_a(): pass\n", encoding="utf-8"
+    )
+    (parent_dir_v2 / "tests" / "test_command.sh").write_text(
+        "python -m pytest test/x_test.py -v\n", encoding="utf-8"
+    )
+    changes, inputs = build_changes_v10(parent_dir_v2, marker="test_a")
+    script = changes["tests/test.sh"]
+    assert b"binary artifact" in script
+    assert b"PYTHONDONTWRITEBYTECODE=1" in script
+    assert b"unittest-junit.xml" in script
+    assert b"separate-verifier@10" in changes["tests/Dockerfile"]
+    assert inputs["runner"] == "pytest"
+    assert TRANSFORM_ID_V10 == "separate-verifier@10"
+    with pytest.raises(VariantInvalid):
+        build_changes_v10(parent_dir_v2, marker="  ")
+    with pytest.raises(VariantInvalid):
+        render_wrapper_test_sh_v10("relative/path")

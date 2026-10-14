@@ -276,6 +276,105 @@ def test_write_cheat_verdicts_per_trial(tmp_path: Path) -> None:
     assert by_trial["trial-c"]["verdict"] == "unscored"
 
 
+def _provenance_record(name: str, status: str, *, subset_skipped: bool = False) -> dict:
+    detail = "not in --attacks subset" if subset_skipped else "fixture detail"
+    return {"name": name, "status": status, "detail": detail, "evidence": []}
+
+
+def _provenance_trial(
+    job: Path,
+    name: str,
+    reward: float | None,
+    *,
+    version: str | None,
+    pool: tuple[str, ...],
+    selected: tuple[str, ...] | None,
+) -> None:
+    """Write one trial with attempts shaped like run_ladder output (no Docker)."""
+    trial = job / name
+    trial.mkdir(parents=True)
+    stats: dict = {} if reward is None else {"evals": {"t": {"metrics": [{"mean": reward}]}}}
+    (trial / "result.json").write_text(json.dumps({"stats": stats}))
+    wanted = set(pool if selected is None else selected)
+    attacks = [
+        _provenance_record(attack, "executed", subset_skipped=False)
+        if attack in wanted
+        else _provenance_record(attack, "skipped", subset_skipped=True)
+        for attack in pool
+    ]
+    attempts: dict = {"schema": "evallab.cheat.attempts/v1", "agent": "cheat"}
+    if version is not None:
+        attempts["version"] = version
+    attempts["attacks"] = attacks
+    cheat_dir = trial / "cheat"
+    cheat_dir.mkdir()
+    (cheat_dir / "attempts.json").write_text(json.dumps(attempts))
+
+
+def test_build_verdicts_v1_full_ladder_provenance(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _provenance_trial(job, "trial-a", 1.0, version="1.4.0", pool=ATTACKS, selected=None)
+    _provenance_trial(job, "trial-b", 0.0, version="1.4.0", pool=ATTACKS, selected=None)
+    payload = build_verdicts(job, harbor_rev="0.21.0")
+    assert payload["schema"] == "evallab.cheat.verdicts/v1"
+    assert payload["job"] == "job"
+    assert payload["agent"] == "cheat"
+    assert payload["harbor_rev"] == "0.21.0"
+    assert payload["ladder_version"] == "1.4.0" == DEFAULT_LADDER_VERSION
+    assert payload["selected_attacks"] == list(ATTACKS)
+    out = write_cheat_verdicts(job, harbor_rev="0.21.0")
+    assert json.loads(out.read_text())["selected_attacks"] == list(ATTACKS)
+
+
+def test_build_verdicts_v2_subset_ordering(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    subset = ("fork_bomb", "git_history", "disk_fill")
+    _provenance_trial(
+        job, "trial-a", 0.0, version=CHEAT_LADDER_V2, pool=ATTACKS_V2, selected=subset
+    )
+    # Derived from attempts when parameters are absent: subset in ladder order.
+    derived = build_verdicts(job)
+    assert derived["ladder_version"] == CHEAT_LADDER_V2
+    assert derived["selected_attacks"] == ["git_history", "fork_bomb", "disk_fill"]
+    # Explicit parameters win and are normalized to ladder order.
+    explicit = build_verdicts(
+        job, ladder_version=CHEAT_LADDER_V2, selected_attacks=list(subset)
+    )
+    assert explicit["ladder_version"] == CHEAT_LADDER_V2
+    assert explicit["selected_attacks"] == ["git_history", "fork_bomb", "disk_fill"]
+    assert {row["verdict"] for row in derived["trials"]} == {"clean"}
+
+
+def test_build_verdicts_unknown_provenance_is_null(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    trial = job / "trial-a"
+    trial.mkdir(parents=True)
+    (trial / "result.json").write_text(json.dumps({"stats": {}}))
+    payload = build_verdicts(job)
+    assert payload["ladder_version"] is None
+    assert payload["selected_attacks"] is None
+    assert payload["trials"][0]["verdict"] == "unscored"
+    reloaded = json.loads(write_cheat_verdicts(job).read_text())
+    assert reloaded["ladder_version"] is None
+    assert reloaded["selected_attacks"] is None
+
+
+def test_build_verdicts_mixed_generations_are_null(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _provenance_trial(job, "trial-a", 0.0, version="1.4.0", pool=ATTACKS, selected=None)
+    _provenance_trial(
+        job,
+        "trial-b",
+        0.0,
+        version=CHEAT_LADDER_V2,
+        pool=ATTACKS_V2,
+        selected=("fork_bomb",),
+    )
+    payload = build_verdicts(job)
+    assert payload["ladder_version"] is None
+    assert payload["selected_attacks"] is None
+
+
 def _task_dir(tmp_path: Path) -> Path:
     task = tmp_path / "task"
     task.mkdir()

@@ -1,0 +1,83 @@
+{
+  "schema": "envcheck.subscription_usage/v1",
+  "incremental_provider_usd": 0.0,
+  "basis": "ChatGPT subscription, ordinary usage allowed; no API key or paid compute route",
+  "proposals": [
+    {
+      "attempt": "002402",
+      "quota": {
+        "allowed": true,
+        "model": "gpt-6.1-sol",
+        "observed_at": "2026-10-13T06:21:04.666007+00:00",
+        "weekly_used": 0.04,
+        "window": "10080 minutes"
+      },
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "codex_version": "codex-cli 0.162.1",
+        "input_tokens": 24517,
+        "output_tokens": 1688,
+        "reasoning_output_tokens": 516,
+        "requested_model": "gpt-6.1-sol"
+      }
+    },
+    {
+      "attempt": "002391",
+      "quota": {
+        "allowed": true,
+        "model": "gpt-6.1-sol",
+        "observed_at": "2026-10-13T06:31:39.305634+00:00",
+        "weekly_used": 0.05,
+        "window": "10080 minutes"
+      },
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "codex_version": "codex-cli 0.162.1",
+        "input_tokens": 20951,
+        "output_tokens": 992,
+        "reasoning_output_tokens": 120,
+        "requested_model": "gpt-6.1-sol"
+      }
+    },
+    {
+      "attempt": "002402-refine1",
+      "quota": {
+        "allowed": true,
+        "model": "gpt-6.1-sol",
+        "observed_at": "2026-10-13T06:50:59.894554+00:00",
+        "weekly_used": 0.06,
+        "window": "10080 minutes"
+      },
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 0,
+        "codex_version": "codex-cli 0.162.1",
+        "input_tokens": 29074,
+        "output_tokens": 2251,
+        "reasoning_output_tokens": 890,
+        "requested_model": "gpt-6.1-sol"
+      }
+    },
+    {
+      "attempt": "002391-refine1",
+      "quota": {
+        "allowed": true,
+        "model": "gpt-6.1-sol",
+        "observed_at": "2026-10-13T06:51:00.312972+00:00",
+        "weekly_used": 0.06,
+        "window": "10080 minutes"
+      },
+      "usage": {
+        "cache_write_input_tokens": 0,
+        "cached_input_tokens": 8320,
+        "codex_version": "codex-cli 0.162.1",
+        "input_tokens": 24062,
+        "output_tokens": 1339,
+        "reasoning_output_tokens": 395,
+        "requested_model": "gpt-6.1-sol"
+      }
+    }
+  ]
+}

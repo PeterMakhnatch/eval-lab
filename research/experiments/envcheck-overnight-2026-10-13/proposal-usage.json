@@ -1,0 +1,15 @@
+{
+  "schema": "envcheck.proposal_usage/v1",
+  "scope": "Actual fixer Codex CLI proposals only; excludes text-only reviewer and parent harness usage. Replayed responses are not new inference calls.",
+  "completed_calls": 34,
+  "unparsed_calls": [],
+  "input_tokens": 950302,
+  "output_tokens": 47692,
+  "reasoning_output_tokens": 17451,
+  "cached_input_tokens": 64640,
+  "max_observed_weekly_fraction": 0.33,
+  "incremental_provider_usd": 0.0,
+  "hard_cap_usd": 10.0,
+  "detail": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/proposal-usage.json",
+  "detail_sha256": "sha256:0068b79ec09f06f9aa26f3c72965a0d7a0a00fc1e3ca1775787df9aebeef28c8"
+}

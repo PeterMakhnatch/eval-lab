@@ -145,8 +145,8 @@ def _run_probe(argv: list[str], *, timeout: int) -> subprocess.CompletedProcess[
 
 def _startup_warning(item: Any, kind: str, started: bool) -> bool:
     # Codex serializes nonterminal config/warning notifications as ErrorItem.
-    # Fatal errors are top-level error/turn.failed events. Preserve warnings in
-    # events.jsonl, but never accept a model-reroute notification or turn error.
+    # Preserve warnings in events.jsonl, but never accept a model reroute.
+    # In-turn errors are fatal except the CLI's bounded reconnect notification.
     return (
         not started
         and kind == "item.completed"
@@ -157,15 +157,26 @@ def _startup_warning(item: Any, kind: str, started: bool) -> bool:
     )
 
 
+def _reconnect_notification(event: dict[str, Any], *, started: bool) -> bool:
+    """A CLI reconnect notice is not a terminal outcome or permission to reroute."""
+    message = event.get("message")
+    return (
+        started
+        and event.get("type") == "error"
+        and isinstance(message, str)
+        and re.match(r"^Reconnecting\.\.\. [1-9]\d*/[1-9]\d* \(", message) is not None
+        and "model rerouted:" not in message.casefold()
+    )
+
+
 def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
     """Accept exactly one completed text-only turn; reject everything else.
 
     Returns ``(response, usage)`` where ``usage`` is the honest token report
-    from the single ``turn.completed`` event. Raises
-    :class:`CodexTransportError` on error events, failed turns, missing or
-    repeated completions, empty output, any tool item (including mere
-    attempts that never completed), unknown event/item shapes, or oversize
-    transcripts.
+    from the single ``turn.completed`` event. CLI reconnect notifications are
+    retained, but only a later completed turn can yield text. Fatal error
+    events, failed/missing/repeated completions, empty output, tool attempts,
+    unknown shapes, and oversized transcripts still fail closed.
     """
     if path.stat().st_size > MAX_TRANSCRIPT_BYTES:
         raise CodexTransportError("Codex transcript exceeded its bound")
@@ -191,6 +202,8 @@ def parse_transcript(path: Path) -> tuple[str, dict[str, Any]]:
                 raise CodexTransportError("Codex returned more than one turn")
         if completions:
             raise CodexTransportError("Codex emitted output after completing its turn")
+        if _reconnect_notification(event, started=starts > 0):
+            continue
         if kind == "error":
             raise CodexTransportError(
                 f"Codex reported an error: {str(event.get('message', ''))[:200]}"
@@ -288,6 +301,8 @@ def _poll_events(
         kind = event.get("type")
         if kind not in _KNOWN_EVENT_TYPES:
             raise CodexTransportError(f"Unknown Codex event type: {kind!r}")
+        if _reconnect_notification(event, started=started):
+            continue
         if kind in {"error", "turn.failed"}:
             raise CodexTransportError("Codex reported an error or failed the turn")
         if kind == "turn.started":

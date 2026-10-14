@@ -1,0 +1,273 @@
+---
+status: living
+audience: [builder, analyst, runner]
+---
+
+# EnvCheck overnight: coverage-guided weak-test hunt and assertion repair
+
+## Authority and scope
+
+Peter's 2026-10-13 overnight approval, relayed by research-harbor (wK:pH):
+coverage-guided mutation of the 564 MiMo v5 known-fix tasks (or a stratified
+local subset if the existing matrix runner cannot use cloud); rank survivors
+on executed lines; use subscription inference to add missing assertions for
+the top 20, starting with 002402 and 002391. Each accepted variant must retain
+reference reward 1, nop reward 0, and reject every previous survivor.
+
+Hard provider-spend cap: **$10** for this slice. No paid API or remote compute
+is used by the selected path. Stop subscription generation when the live
+weekly account quota exceeds 60%; no credit reset, overflow or model fallback.
+The intake Codex account read reported weekly use **0%**, ordinary usage allowed.
+The fixer uses the installed Codex CLI 0.162.1, not OpenAI API credentials.
+
+## Backend and sampling decision
+
+`runner.run_matrix` uses `Executor.execute_direct`, the deliberately free local
+control path. `verifier_mutation._Audit.matrix` fixes its backend to Docker.
+Adding a separate cloud runner would bypass the requested existing path, so this
+campaign uses the approved **stratified local subset**, not a 564-task cloud run.
+Audits and repair validation are serialized: one task trial at a time. Serial
+dispatch alone was insufficient: retained Docker events exposed a **three-container
+peak** (agent, egress sidecar, and optional state-journal observer). Dispatch was
+stopped on discovery; the observer is disabled for resumed runs using
+`EVALLAB_STATE_JOURNAL=off`. The grader and coverage trace are unchanged. A
+continuous owned-container event monitor now interrupts dispatch above two.
+The interrupted audit reuses the original digest-checked native matrix receipts;
+11 scored mutants were retained without rerunning them, and one interrupted
+mutant remains explicitly unscored. Images pulled by this slice are removed
+without force after use; preexisting images and images still used by another
+lane are retained rather than disrupting that lane (see final disposition).
+
+The canonical input is `research/experiments/mimo-clean-v5/manifest.csv`.
+All **564** known-fix members are inventoried. Of these, **422** have materialized
+Python source targets suitable for the existing tracer; **136** are non-Python
+and **6** change no eligible Python production target. Those exclusions are not
+negative weak-test findings. The sample has **32** tasks: the two requested
+seeds followed by deterministic round-robin sampling across six strata
+(single/multiple source files × at most 20/100/more changed patch lines).
+The seed is `envcheck-2026-10-13`; the per-task mutant cap is 12.
+
+The frozen inventory/selection and incremental results are produced by:
+
+```bash
+EVALLAB_STATE_JOURNAL=off uv run --no-sync evallab hack hunt \
+  --manifest research/experiments/mimo-clean-v5/manifest.csv \
+  --output-dir runs/envcheck-overnight-1013 --sample-size 32 --max-mutants 12 \
+  --execute
+```
+
+Ranking requires `coverage=guided`, reference=1, nop=0, and explicit
+`executed=True` on surviving mutants. Unavailable traces, broken controls and
+infrastructure errors stay unrankable, never zero-filled. Results are
+hypotheses: an equivalent or out-of-scope mutant cannot justify inventing an
+assertion on incidental implementation behavior.
+
+The Oct 12 receipts are useful design inputs but are **not reused as scored
+v5 evidence**: both requested seeds now have different task-package digests.
+
+## Completed local hunt
+
+The frozen 32-task sweep completed at **10:02 PM ET on October 13**. It used
+405 native control/mutant runs, of which 396 produced scored execution evidence.
+The resumed sweep's continuous Docker event record observed a maximum of two
+owned containers and no ceiling breach; the earlier violation remains recorded
+above rather than being erased by the corrected run.
+
+| Measurement | Count |
+|---|---:|
+| Sampled tasks | 32 |
+| Tasks with rankable, informative traced outcomes | 21 |
+| Tasks with at least one ranked survivor | 20 |
+| Selected mutant runs, including excluded outcomes | 276 |
+| Informative scored mutants on executed lines | 247 |
+| Surviving mutants in the executed-line ranking | 99 |
+| Excluded tasks: infrastructure/control execution unavailable | 6 |
+| Excluded tasks: reference rejected | 2 |
+| Excluded tasks: no selectable mutants | 1 |
+| Excluded tasks: another tool replaced the coverage tracer | 2 |
+
+The full ordered top twenty and per-task exclusions are in `hunt-summary.json`,
+which points to the retained reports and the hash-verified
+`hunt-retention.json` custody manifest. In particular, 000471 and 000159 have
+raw survivors but no trustworthy executed-line trace, so they do not enter this
+ranking. Task 002618 has eleven killed mutants and one explicitly unscored
+interrupted mutant, not a clean twelve-mutant result.
+
+These are discovery results in the approved local subset, not a prevalence
+estimate for all 564 tasks or proof that all 99 survivors violate their tasks.
+The assertion repair stage is restricted to this measured top twenty. Completed
+proposals and digest-matched execution receipts are reused where applicable;
+contract-review refinements are distinct, retained attempts.
+
+The selected tasks contain **102 previous survivors in total**: the 99 used for
+ranking plus three previously unexecuted fix-omission probes:
+`000769:16e22e57b6`, `002736:990548d3e2`, and `002742:c23f9129d5`.
+Ranking remains executed-line-only, but repair acceptance must include all 102.
+The initial repair selector incorrectly reused the ranking filter; it is
+corrected so task admission and the complete acceptance set are distinct.
+The real CLI preview for 000769 changes from seven to eight submissions, and
+regressions reject a variant when an extra unexecuted or partial survivor escapes.
+
+## Fresh v5 seed measurements
+
+Both original v5 packages scored reference 1, nop 0 and instrumented reference 1.
+The old findings persist on the current v5 digests. After one measured-feedback
+refinement per seed, both derived variants retain reference 1 and nop 0:
+
+| task | original traced survivors / 12 mutants | previous survivors killed by new assertions | native-score outcome | derived variant |
+|---|---:|---:|---|---|
+| 002402 | 11 | 11 / 11 | score gate passed; **scope not accepted** | `bd5b2efb9a4e` |
+| 002391 | 3 | 2 / 3 | **partial**, candidate | `879d41b6ac07` |
+
+The first subscription-generated assertion proposals were **not accepted**.
+For 002402 the added expanded-distribution sample-shape assertion failed even
+on the reference; for 002391 the added non-PYSEC self-alias assertion failed on
+the reference. The fixer preserved these failures rather than treating mutant
+zeroes from a broken suite as successful repair. Measured failure logs feed
+explicit refinements in new attempt directories; no original proposal, trial
+or task package is overwritten.
+
+The first 002402 validation also exposed a matrix-boundary implementation bug:
+solution script paths must be repository-relative, not absolute. That is fixed,
+covered by the native staging API in the regression test, and the retained
+proposal was replayed without another inference request.
+
+The initial 002402 proposal checks promoted Normal and Dirichlet batch/event
+shapes and expanded-distribution means, variances, log probabilities and base
+sampling. Every previous survivor scores 0, but a subsequent contract review
+found that these tests do not directly exercise the reported Uniform/scan
+failure and include internal base-distribution assertions. This numeric pass
+is **not accepted as a completed task repair**. Its receipt is retained at
+`runs/envcheck-overnight-1013/repairs/002402-refine1/repair-result.json`; the
+original score and lineage history are not rewritten.
+
+002391 now rejects both functional alias/deduplication defects
+(`a68a99652d`, `8bd7075fd8`). The sole remaining survivor, `a8d7478b61`,
+changes dataclass mutability rather than the requested alias behavior. The
+model explicitly identified it as out of scope; no incidental-immutability
+assertion was added merely to satisfy the count. Therefore this variant is
+**not claimed to meet the all-survivors-killed acceptance criterion**.
+Receipt: `runs/envcheck-overnight-1013/repairs/002391-refine1/repair-result.json`.
+
+## Variant custody and spend
+
+`seed-variants.json` indexes the four seed-attempt lineage records, including
+the two rejected first proposals. The repository ignores newly generated
+`library/task-variants/*/*.json`; these records are preserved byte-for-byte
+with SHA-256 verification outside Git at
+`~/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/`.
+The materialized packages remain in the canonical shared
+`derived/task-store/variants/` store; no source task was edited or registered.
+
+The seven finalized seed bundles are retained under
+`~/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/`.
+`seed-retention-v2.json` binds 210 bundle/executor files and 2,975 native files
+across 58 job directories to their SHA-256 digests. Another 24 planned matrix
+entries have no native job directory: these include preflight refusals and
+control-gated skips, not additional executed trials. Existing published job
+files were reused when their bytes matched; missing final files were retained
+as supplements without replacing the earlier publication.
+
+Seed proposal usage is in `seed-proposal-usage.json`: four completed ordinary
+ChatGPT-subscription calls, 98,604 input and 6,270 output tokens; shared weekly
+usage observed before those calls was 4–6%, not attributable solely to this lane.
+A later shared-account check at **6:56 AM ET** observed **21%** weekly use;
+each subsequent proposal must still pass the live 60% gate.
+The existing Eval Lab `mimo-census record-spend` ledger records **$0 incremental
+provider spend** for both seed batches in `spend.jsonl`. The binding approval is
+this slice's $10 cap, not the census command's unrelated default slice ceiling.
+
+## Final top-twenty repair outcomes
+
+The final native validation completed at **9:52 AM ET on October 14**.
+**Three full repairs**, thirteen partial candidate variants, and four
+contract-unrepairable dispositions were produced. The requested twenty
+all-survivors-killed variants were **not achieved**: asserting incidental
+behavior to reject equivalent or unrelated edits would manufacture success.
+
+All sixteen final derived variants preserve reference=1 and nop=0. Their
+complete previous-survivor sets contain 83 checks: **28 killed, 55 still alive**.
+The other nineteen survivors belong to the four tasks without a legitimate
+task-scoped assertion repair; they are not recorded as killed or replayed on
+a nonexistent new variant. Only the rows marked **repaired** satisfy the full
+acceptance criterion. The ranking is unchanged.
+
+| Task | Final disposition | Previous survivors killed | Variant digest prefix |
+|---|---|---:|---|
+| 002402 | partial | 4 / 11 | `dfa854a348ea` |
+| 002866 | partial | 1 / 9 | `4bfc14221bc6` |
+| 002139 | partial | 1 / 8 | `810ab24910d8` |
+| 000769 | partial | 1 / 8 | `1e2563117fb2` |
+| 002736 | partial | 3 / 8 | `a152594d93fc` |
+| 001891 | unrepairable | not replayed | — |
+| 002394 | partial | 1 / 7 | `d88caff3d4c7` |
+| 002742 | unrepairable | not replayed | — |
+| 002382 | partial | 3 / 6 | `2a9b4536e8e8` |
+| 001553 | partial | 1 / 5 | `d61d46f9e329` |
+| 002222 | partial | 2 / 5 | `a18784be8ca8` |
+| 000390 | unrepairable | not replayed | — |
+| 001671 | partial | 2 / 4 | `13c81e94ee02` |
+| 002391 | partial | 2 / 3 | `879d41b6ac07` |
+| 000561 | **repaired** | 2 / 2 | `c0d6be5cd7b0` |
+| 001425 | partial | 1 / 2 | `beac4bda64ce` |
+| 001478 | **repaired** | 2 / 2 | `9a77d2f98e30` |
+| 001770 | partial | 1 / 2 | `552eb40a8054` |
+| 000511 | **repaired** | 1 / 1 | `b41702fac5bc` |
+| 001219 | unrepairable | not replayed | — |
+
+The replacement 002402 assertions directly exercise vector-bound Uniform
+sampling and analytic log probability inside scan/plate; the earlier 11/11
+numeric pass remains explicitly superseded for contract-scope violations.
+Independent assertion-scope review also removed unrelated rolling-window,
+SDK, model-preprocessing, mirror-fetching and slug-prefix assertions before
+the final selection. The four unrepairable dispositions concern survivors
+outside the requested GNU/Hurd build behavior (001891), typed response data
+(002742), controller URL paths (000390), or a runtime-neutral postponed
+annotation import (001219). These are judgments about the sampled mutants,
+not claims that the underlying tasks cannot be improved.
+
+All three previously unexecuted probes were included and actually measured
+as surviving; none was silently dropped or credited as killed. The 002742
+measurement belongs to its superseded candidate, not a newly accepted variant.
+`final-results.json` and its delivery appendix distinguish this history.
+
+## Final evidence, resource disposition and spend
+
+`final-results.json` is the final selection index: full package digests,
+canonical materialized package paths, hash-bound lineage snapshots, native
+receipts, and explicit full-repair acceptance flags. Its custody manifest
+retains **584 native job directories and 27,922 native files**, plus all study
+bundles, every executor phase matrix/invocation, owned derived projections,
+and **27 lineage snapshots**. The native total comprises 405 mutation/control
+jobs and 179 repair-validation attempts, including interrupted or rejected
+attempts; it is not a count of successful repairs. Planned-but-undispatched
+rows are not counted as native jobs. Original score/status histories are
+preserved, including superseded score-only passes.
+
+Final custody:
+`~/Developer/eval-lab-results/2026-10-13/envcheck-overnight/final-retention-v2.json`.
+This append-only correction binds the original receipt and two interrupted
+directories omitted by its completed-metadata filter. Their 58 native files
+are retained; no result or spend is invented. The hash-bound
+`delivery-appendix.json` retains cleanup receipts and measurements of all
+three omitted probes. No source task was overwritten.
+
+`proposal-usage.json` accounts for **34 completed fixer subscription calls**:
+950,302 input tokens, 47,692 output tokens, including 17,451 reasoning output
+tokens. Retained-response replays made zero new model calls. Two independent
+subscription reviewers and parent-harness usage are outside those fixer-token
+totals. The final shared-account observation was **34% weekly use at
+9:57 AM ET on October 14**, below the 60% pause threshold; this is shared
+account consumption, not spend attributable solely to this lane.
+All five Eval Lab ledger entries (including the zero-spend custody-count
+correction) total **$0 incremental provider/compute spend against the approved
+$10 cap**. No OpenRouter or cloud compute was used.
+
+After disabling the optional observer, each retained continuous monitor
+reported peak two and no breach; the earlier peak-three violation remains
+disclosed above. Final cleanup found no owned containers or generated image
+tags. The interrupted 002618 source image was removed. One source image
+(`3e8f9366f692…`, used by 002866) could not be removed without force because
+another lane's running container in `verifier-20261014` was using it. It was
+left intact, with the exact non-forced refusal retained in the delivery
+appendix, rather than disrupting another writer's work.

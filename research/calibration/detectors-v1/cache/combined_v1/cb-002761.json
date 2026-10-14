@@ -1,0 +1,12 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: rules:grader_tamper_watch",
+ "flagged": [
+  "rules:grader_tamper_watch"
+ ],
+ "fold": 1,
+ "id": "cb-002761",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

@@ -1,0 +1,92 @@
+{
+  "schema": "evallab.task_admission/v1",
+  "gate": "tasks.admit/v3",
+  "task": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/admit-overnight/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002939/f93dcf9b3156",
+  "package_digest": "sha256:1c85e3fc2dac2f2614442ac76695a151bd7b502cf037889749b89f8e7415c5ba",
+  "harbor_digest": "sha256:b290cb107157dc098ea507b452f9cfb5d83d4c58a1e4853abb86fe68883ca6c6",
+  "variant_record": null,
+  "created_by": "admit-overnight",
+  "created_at": "2026-10-13T05:44:59Z",
+  "steps": [
+    {
+      "name": "static-scan",
+      "kind": "static-scan",
+      "command": [
+        "evallab",
+        "hack",
+        "scan",
+        "/Users/petermakhnatch/Developer/eval-lab/.worktrees/admit-overnight/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002939/f93dcf9b3156",
+        "--json"
+      ],
+      "job_dir": null,
+      "rewards": [],
+      "duration_s": 0.0025037499144673347,
+      "status": "pass",
+      "detail": "2 static finding(s) recorded (advisory; the dynamic proofs veto)",
+      "findings": [
+        {
+          "flaw_class": "V8",
+          "severity": "high",
+          "title": "agent runs as the image default user",
+          "evidence": "task.toml"
+        },
+        {
+          "flaw_class": "V8",
+          "severity": "medium",
+          "title": "unrestricted outbound network",
+          "evidence": "task.toml"
+        }
+      ],
+      "reference": "",
+      "survivor_patches": []
+    },
+    {
+      "name": "oracle",
+      "kind": "control",
+      "command": [
+        "evallab",
+        "tasks",
+        "stability-run",
+        "--agent",
+        "oracle"
+      ],
+      "job_dir": null,
+      "rewards": [],
+      "duration_s": 0.004487082827836275,
+      "status": "infra",
+      "detail": "oracle control broke: staging destination already exists: /Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/mimo-clean-v5-admit/.stage/admit-f93dcf9b3156-oracle-admit-f93dcf9b3156-oracle-refsrc/admit-f93dcf9b3156-oracle-refsrc",
+      "findings": [],
+      "reference": "sweep:/Users/petermakhnatch/Developer/eval-lab-results/2026-10-09/mimo-reference-fixes/format-code-task-002939/solution.patch fix=explicit patch=sha256:d016eefc7805c9caffa008567a3de2bc97e402bfe9027a9c15fad20c6c46d49c recorded-oracle=None/nop=None binding=unbound",
+      "survivor_patches": []
+    }
+  ],
+  "skipped_steps": [
+    "nop",
+    "cheat:git_history",
+    "cheat:verifier_peek",
+    "cheat:reward_plant",
+    "cheat:answer_symlink",
+    "cheat:upstream_fetch",
+    "cheat:skip_plant",
+    "cheat:tamper_tracked_conftest",
+    "cheat:tamper_sitecustomize",
+    "cheat:tamper_shadow_timeout",
+    "cheat:tamper_reward_writer",
+    "cheat:tamper_source_exit",
+    "cheat:tamper_source_pytest_patch",
+    "cheat:tamper_source_skip",
+    "cheat:tamper_source_skiptest",
+    "battery",
+    "mutation"
+  ],
+  "verdict": "not_admitted",
+  "failing_steps": [
+    "oracle"
+  ],
+  "failed_attacks": [],
+  "unproven_steps": [],
+  "review_steps": [],
+  "survivor_patches": [],
+  "mutation_skipped": true,
+  "duration_s": 0.007932374719530344
+}

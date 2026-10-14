@@ -12,9 +12,14 @@ This module re-reads the retained native rollouts so those children (and
 their token spend) become visible again. Record shapes below are verified
 against real retained rollouts (codex CLI 0.147.0, e.g.
 ``runs/canary-event-summary-codex-20260815/.../agent/sessions/2026/08/15/
-rollout-*.jsonl``), Harbor 0.21's converter semantics, and the codex source
-(openai/codex commit 25270df2615eb4da5b9d4a9a392226933fb096c5, 2026-09-26,
-shallow clone at /Users/petermakhnatch/Developer/.sources/codex):
+rollout-*.jsonl``; re-verified against CLI 0.162.1 on 2026-10-13 — same
+``session_meta`` / ``turn_context`` / ``response_item`` / ``event_msg``
+``token_count`` (``info.total_token_usage`` + ``last_token_usage``) and
+``rate_limits`` (``used_percent`` / ``window_minutes`` / ``resets_at``)
+shapes; the newer ``world_state`` and ``token_usage_record`` line types are
+tolerated (ignored, never an error)), Harbor 0.21's converter semantics, and
+the codex source (openai/codex commit 25270df2615eb4da5b9d4a9a392226933fb096c5,
+2026-09-26, shallow clone at /Users/petermakhnatch/Developer/lab-extras/upstream/codex):
 
 - one JSON object per line; line ``type`` is ``session_meta``,
   ``response_item``, ``event_msg``, ``turn_context`` (or ``world_state``);

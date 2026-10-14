@@ -1,0 +1,14 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: kev:kev_router>0.7754, sol:sol_codex>0.99, kev:kev_hollow_solution>0.634",
+ "flagged": [
+  "kev:kev_router>0.7754",
+  "sol:sol_codex>0.99",
+  "kev:kev_hollow_solution>0.634"
+ ],
+ "fold": 1,
+ "id": "tw-0060",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

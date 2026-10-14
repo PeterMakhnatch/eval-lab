@@ -54,6 +54,7 @@ CHECKPOINTS_FILE = "checkpoints.jsonl"
 CHAT_SL_MODULE = "tinker_cookbook.recipes.chat_sl.train"
 TINKER_API_KEY_ENV = "TINKER_API_KEY"
 TRAIN_ON_WHAT = "all_assistant_messages"
+TRAINING_MASKS = ("all_assistant_messages", "last_assistant_message")
 ALLOWED_ROLES = frozenset({"system", "user", "assistant"})
 
 #: Isolated, locked toolchain project (tinker==0.30.4,
@@ -178,6 +179,12 @@ def verify_export_dir(data_dir: Path) -> dict[str, Any]:
     return manifest
 
 
+def _require_training_mask(train_on_what: str) -> str:
+    if train_on_what not in TRAINING_MASKS:
+        raise TraceError(f"unsupported training mask: {train_on_what!r}")
+    return train_on_what
+
+
 # ---------------------------------------------------------------------------
 # Isolated toolchain project (subprocess only; never imported)
 # ---------------------------------------------------------------------------
@@ -199,6 +206,7 @@ def measure_command(
     model: str,
     renderer_name: str,
     max_length: int,
+    train_on_what: str = TRAIN_ON_WHAT,
     project_dir: Path = PROJECT_DIR,
 ) -> list[str]:
     """Offline render-measurement invocation inside the isolated project."""
@@ -219,7 +227,7 @@ def measure_command(
         "--max-length",
         str(int(max_length)),
         "--train-on-what",
-        TRAIN_ON_WHAT,
+        _require_training_mask(train_on_what),
     ]
 
 
@@ -234,6 +242,7 @@ def training_command(
     num_epochs: int,
     max_length: int,
     log_dir: Path,
+    train_on_what: str = TRAIN_ON_WHAT,
     project_dir: Path = PROJECT_DIR,
 ) -> list[str]:
     """The pinned chat_sl trainer invocation (chz ``key=value`` arguments)."""
@@ -249,7 +258,7 @@ def training_command(
         f"dataset={dataset_path.resolve().as_posix()}",
         f"model_name={model}",
         f"renderer_name={renderer_name}",
-        f"train_on_what={TRAIN_ON_WHAT}",
+        f"train_on_what={_require_training_mask(train_on_what)}",
         f"learning_rate={float(learning_rate)!r}",
         f"lora_rank={int(lora_rank)}",
         f"batch_size={int(batch_size)}",
@@ -312,6 +321,7 @@ def run_measure(
     model: str,
     renderer_name: str,
     max_length: int,
+    train_on_what: str = TRAIN_ON_WHAT,
     project_dir: Path = PROJECT_DIR,
     measure_runner: MeasureRunner | None = None,
 ) -> RenderStats:
@@ -321,6 +331,7 @@ def run_measure(
         model=model,
         renderer_name=renderer_name,
         max_length=max_length,
+        train_on_what=train_on_what,
         project_dir=project_dir,
     )
     execute = measure_runner or _subprocess_measure_runner
@@ -363,6 +374,7 @@ def dry_run(
     renderer_name: str | None,
     max_length: int,
     epochs: int,
+    train_on_what: str = TRAIN_ON_WHAT,
     project_dir: Path = PROJECT_DIR,
     measure_runner: MeasureRunner | None = None,
 ) -> dict[str, Any]:
@@ -375,6 +387,7 @@ def dry_run(
         model=model,
         renderer_name=renderer_name,
         max_length=max_length,
+        train_on_what=train_on_what,
         project_dir=project_dir,
         measure_runner=measure_runner,
     )
@@ -392,27 +405,26 @@ def dry_run(
         "split_manifest_digest": (manifest.get("split_manifest") or {}).get("manifest_digest"),
         "model": model,
         "renderer": renderer_name,
-        "train_on_what": TRAIN_ON_WHAT,
+        "train_on_what": train_on_what,
         "max_length": max_length,
         "epochs": epochs,
         "price_per_mtoken_usd": price,
         "cost_formula": "total_tokens_after_truncation * epochs * price_per_mtoken / 1e6",
         "render": stats.to_json(),
         "estimated_cost_usd": round(estimate_cost_usd(stats.total_tokens_after_truncation, model, epochs), 2),
-        "notes": _dry_run_notes(stats),
+        "notes": _dry_run_notes(stats, train_on_what),
     }
 
 
-def _dry_run_notes(stats: RenderStats) -> list[str]:
+def _dry_run_notes(stats: RenderStats, train_on_what: str) -> list[str]:
     """Machine-visible caveats the renderer itself would only log."""
-    if stats.renderer_extension_property is False:
+    if stats.renderer_extension_property is False and train_on_what == "all_assistant_messages":
         return [
             "renderer lacks the sequence-extension property: with "
-            f"train_on_what={TRAIN_ON_WHAT}, earlier assistant turns train on "
+            f"train_on_what={train_on_what}, earlier assistant turns train on "
             "token prefixes that differ from their generation-time prompts; "
             "tinker-cookbook recommends per-assistant-message conversations "
-            "with last_assistant_message instead (protocol currently pins "
-            f"{TRAIN_ON_WHAT})"
+            "with --train-on-what last_assistant_message instead"
         ]
     return []
 
@@ -448,6 +460,7 @@ def run_training(
     num_epochs: int,
     max_length: int,
     confirm_spend: bool,
+    train_on_what: str = TRAIN_ON_WHAT,
     manifest_out: Path | None = None,
     project_dir: Path = PROJECT_DIR,
     runner: Callable[[list[str]], int] | None = None,
@@ -466,9 +479,11 @@ def run_training(
             f"environment variable {TINKER_API_KEY_ENV} is not set; the "
             "trainer needs it (value is never read or logged by this launcher)"
         )
-    if log_dir.exists() and any(log_dir.iterdir()):
-        raise TraceError(f"log directory is not empty: {log_dir}")
-    log_dir.mkdir(parents=True, exist_ok=True)
+    if log_dir.exists():
+        raise TraceError(f"log directory already exists: {log_dir}")
+    # chat_sl's behavior_if_log_dir_exists=raise rejects even an empty directory.
+    # Let the real trainer create its log directory after its preflight passes.
+    log_dir.parent.mkdir(parents=True, exist_ok=True)
 
     command = training_command(
         data_dir / CONVERSATIONS_FILE,
@@ -480,6 +495,7 @@ def run_training(
         num_epochs=num_epochs,
         max_length=max_length,
         log_dir=log_dir,
+        train_on_what=train_on_what,
         project_dir=project_dir,
     )
     execute = runner or (lambda argv: subprocess.run(argv, check=False).returncode)
@@ -501,7 +517,7 @@ def run_training(
         "teacher_model": export_manifest.get("teacher_model"),
         "model": model,
         "renderer": renderer_name,
-        "train_on_what": TRAIN_ON_WHAT,
+        "train_on_what": train_on_what,
         "hyperparameters": {
             "learning_rate": float(learning_rate),
             "lora_rank": int(lora_rank),
@@ -544,12 +560,13 @@ def main(argv: list[str] | None = None) -> int:
     dry.add_argument("--renderer", default=None, help="renderer name (default: per-model)")
     dry.add_argument("--max-length", type=int, default=DEFAULT_TRAINER_CONFIG["max_length"])
     dry.add_argument("--epochs", type=int, default=DEFAULT_TRAINER_CONFIG["num_epochs"])
+    dry.add_argument("--train-on-what", choices=TRAINING_MASKS, default=TRAIN_ON_WHAT)
 
     train = sub.add_parser("train", help="run chat_sl SFT (requires --confirm-spend)")
     train.add_argument("--data", type=Path, required=True, help="evallab.sft_terminus export dir")
     train.add_argument("--model", required=True, help="student base model id")
     train.add_argument("--renderer", default=None, help="renderer name (default: per-model)")
-    train.add_argument("--log-dir", type=Path, required=True, help="new, empty log directory")
+    train.add_argument("--log-dir", type=Path, required=True, help="new log directory path; must not exist")
     train.add_argument("--lr", type=float, default=DEFAULT_TRAINER_CONFIG["learning_rate"])
     train.add_argument("--lora-rank", type=int, default=DEFAULT_TRAINER_CONFIG["lora_rank"])
     train.add_argument(
@@ -558,6 +575,7 @@ def main(argv: list[str] | None = None) -> int:
     train.add_argument("--epochs", type=int, default=DEFAULT_TRAINER_CONFIG["num_epochs"])
     train.add_argument("--max-length", type=int, default=DEFAULT_TRAINER_CONFIG["max_length"])
     train.add_argument("--manifest-out", type=Path, default=None)
+    train.add_argument("--train-on-what", choices=TRAINING_MASKS, default=TRAIN_ON_WHAT)
     train.add_argument(
         "--confirm-spend",
         action="store_true",
@@ -573,6 +591,7 @@ def main(argv: list[str] | None = None) -> int:
                 renderer_name=args.renderer,
                 max_length=args.max_length,
                 epochs=args.epochs,
+                train_on_what=args.train_on_what,
             )
         else:
             report = run_training(
@@ -586,6 +605,7 @@ def main(argv: list[str] | None = None) -> int:
                 num_epochs=args.epochs,
                 max_length=args.max_length,
                 confirm_spend=args.confirm_spend,
+                train_on_what=args.train_on_what,
                 manifest_out=args.manifest_out,
             )
     except TraceError as exc:

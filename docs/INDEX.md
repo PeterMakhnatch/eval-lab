@@ -31,7 +31,7 @@ inputs:
   - path: docs/architecture.md
     digest: sha256:285c78941de752b714802eea1374e24bdb864eafafd80f8fa414e53ea853e41f
   - path: docs/attach-surface.md
-    digest: sha256:8b3cd0ffe45fc59d1c75c611adea30cfc3cd31e1bbe4a00dc829bf9fcde054b2
+    digest: sha256:9208eee25a68e8173cf9d211727b990ecda1bc91e38eb812ff4d0dc695d57411
   - path: docs/authoring.md
     digest: sha256:d8cc9a81dd0b19736120806923eeff2b54edf7d79ea41493b586739be510e11d
   - path: docs/behavior-analysis.md
@@ -47,11 +47,11 @@ inputs:
   - path: docs/continuous-loop-operator.md
     digest: sha256:b4e12204ffbf46d27b7ee00e2a3c69904f2b5fd6be2572b6ff3beaa29a310e6a
   - path: docs/contracts.md
-    digest: sha256:a591c29fed9661973fe3271e104d38ceff8070f129d89037b06cf79b68ca266f
+    digest: sha256:04eb119ba420b1f1a3ac202ad52e2654ff8642bc77df0898b6c210df4c83fefe
   - path: docs/craft.md
-    digest: sha256:ee111e3a975bfb4ed3390c58bc2e86b666299e94964cf985b0a52f90edfa4424
+    digest: sha256:5bc7e9fcf2839443c3d44dbdace1c85125a8a20ca7946660b79cce2f9a8a64c2
   - path: docs/dashboard.md
-    digest: sha256:93d3ca1bff660397579473af533764a6296e6605c1fc66d75336d620b0d1afcf
+    digest: sha256:5bb755045d2af1099d2322936f788abe8b846f8fc77976788872fc7290363584
   - path: docs/data-architecture.md
     digest: sha256:3da92ed792d6c995bc79be4d078f62af534b020ecaa3c52885d6d4ec677777fe
   - path: docs/deepseek-v4-flash-lane.md
@@ -61,7 +61,7 @@ inputs:
   - path: docs/eval-cards.md
     digest: sha256:722f8637fd355fea99da12f6d0ad3219b40009b85de5f372f14660f405ba643f
   - path: docs/execution-tiers.md
-    digest: sha256:cbae5dbfb7c35e2607a4f1f59ce695feba1077399e06d52a8cb4e3b3adf76524
+    digest: sha256:4594bf1fcace13cfee093332b04bda7f6e9a53daaf512cd9388f306aeb24ae55
   - path: docs/features.md
     digest: sha256:2ef6dfe9e674df59d97c9871260a6bbee84167df6f30f1ef5b8b8db1d23427a1
   - path: docs/flight-recorder.md
@@ -69,7 +69,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:8e79606ceaa5b6e374c4dddb709fcb150bc56cb971b88c56792328df4162876a
+    digest: sha256:dbb2b29bc64bd3a5977f36d84f205a023bf5856220357cc91e788aa7eeededc7
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -79,7 +79,7 @@ inputs:
   - path: docs/lineage.md
     digest: sha256:b2cd42dcc620f46575bf0017e85113dbaae7d52e322eab742b70c99f35f5c0e6
   - path: docs/live-watch.md
-    digest: sha256:7568d85dcce9bc3d956e6be4319ccb6085cf72b137d960aa1d7977f66374e3ca
+    digest: sha256:9f0094d981f989849d4a06062154c314c67c3183b3c402d6b02712c277d9977b
   - path: docs/lora-sft-runbook.md
     digest: sha256:5fea3891eb39836c3d0c7e77ba851bc51f0dc7a3d22f9533eb9c78b9600b96b3
   - path: docs/mimo-task-catalog.md
@@ -87,7 +87,7 @@ inputs:
   - path: docs/model-capture.md
     digest: sha256:38e018af06c6a65d0f5344d1e114b140cdee5114c253b2293ea67f3036c0315c
   - path: docs/model-defaults.md
-    digest: sha256:2694f4c58daab52ef4875cdaeae4550fc5840dbcd8866cb64411d8a538fbc7c9
+    digest: sha256:405093d29c78f0f422e895abe055988952fb14f297d8c75fc0a2b46f3ab10adf
   - path: docs/monitor-investigations.md
     digest: sha256:fe95457972beadf2ead6b6437e86cac53c247eb586a71c36e1868c416341a97a
   - path: docs/observability.md
@@ -95,13 +95,13 @@ inputs:
   - path: docs/operating-manual.md
     digest: sha256:b8896ca91cf88128c3bddd54895da8a652da954a5f5b4422419b22e61293392a
   - path: docs/operations.md
-    digest: sha256:37da8551acd2b4bec3a8802591d39e03f3949c8a6884354d5815a622fde8c76f
+    digest: sha256:ba53910cce6237c1bc57eb8c1b22a94c74e981a2abde4821a04044af1c272ffb
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
-    digest: sha256:2137ef23f842621c67a79702b3b17d641bd03c80569ce8ccd11c84392fda1ce9
+    digest: sha256:ff68e24b50a8fc160c261f9795234849dcc8bd08de0f1cba0c59275daaecb472
   - path: docs/research-questions.md
     digest: sha256:004f319954c2a3d4200739fb08a4f8f8296566d007967a60a266667577c560d8
   - path: docs/research/antigravity-lane.md
@@ -113,7 +113,7 @@ inputs:
   - path: docs/research/harbor-ecosystem-architecture-perspective.md
     digest: sha256:4611ea9127cb133c78a4b4c8508a3866b23ddc5759639e66faffcc9607759959
   - path: docs/research/literature-survey.md
-    digest: sha256:8dd8e6aebe4aa36c02157da5519c9469308be13377bf67b564fc386bcc0bd27e
+    digest: sha256:f4ac0d439649d582f1d006376e4d3f8e075e2285b4586efc156e97f583dceafb
   - path: docs/research/synthetic-tasks.md
     digest: sha256:991d90264398946e24fe9370bd6a48f05ab73924976f4ccd9eacc0a44eb840c0
   - path: docs/research/trajectory-intelligence.md
@@ -129,9 +129,9 @@ inputs:
   - path: docs/task-admission.md
     digest: sha256:77b1228a183aa4581a270bd196b6c75bbb50d29aa8c57c7222e5a8f3eee5bbe3
   - path: docs/task-provenance.md
-    digest: sha256:3f34b7469d329d51d4dac9356f9655e03b5dd0a155494ddf380caff3dedc6e56
+    digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:cca1243894a651454ffc52322054c00faa6ca25308aca3eaf06de1768af668d5
+    digest: sha256:df1b7c6123e4a2bfb219957680d2a617311cda9f2926eea2568b59feee1c3db8
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md
@@ -149,7 +149,7 @@ inputs:
   - path: docs/verifier-calibration.md
     digest: sha256:22f01a0f9b9ad3ea437dcaa3c253de41dafb9039dbbde201def191f280e9088a
   - path: docs/verifier-check.md
-    digest: sha256:da6790f58421ab6affdab8c0a4e4d470d27564bc37d563d026d1b9c98dda7925
+    digest: sha256:85aa6dfcf11a3d7895f885fb81827bec244ab9a7fa806772cd40e52204b82b01
 ---
 
 <!-- generated-by: docindex v1 -->

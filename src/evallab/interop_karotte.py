@@ -1353,6 +1353,7 @@ def run_cell(
     *,
     workdir: str | Path,
     timeout_seconds: int | None = None,
+    ladder_version: str | None = None,
 ) -> dict[str, Any]:
     """Run one scripted agent for one Harbor task under karotte (local, $0).
 
@@ -1395,7 +1396,7 @@ def run_cell(
             task_id=task.task_id,
         )
     try:
-        plan = scripted_agent_plan(task, agent, attacks)
+        plan = scripted_agent_plan(task, agent, attacks, ladder_version=ladder_version)
     except ValueError as exc:
         if agent == "oracle" and "oracle plan needs solution/solve.sh" in str(exc):
             return _cell(

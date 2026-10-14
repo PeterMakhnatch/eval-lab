@@ -20,12 +20,24 @@ import shutil
 import subprocess
 import sys
 import threading
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from evallab.cheat_ladder import ATTACKS, parse_attack_selection
-from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR
+from evallab.cheat_ladder import (
+    ATTACKS,  # noqa: F401  (re-exported for sibling lanes)
+    ATTACKS_V2,  # noqa: F401  (re-exported for sibling lanes)
+    CHEAT_LADDER_V2,  # noqa: F401  (re-exported for sibling lanes)
+    DEFAULT_LADDER_VERSION,
+    LADDERS,
+    parse_attack_selection,
+    parse_ladder_version,
+)
+from evallab.execution_contracts import (
+    CHEAT_AGENT,
+    CHEAT_ATTACKS_ENV_VAR,
+    CHEAT_LADDER_VERSION_ENV_VAR,
+)
 
 #: Serializes the process-env handoff below: build_command reads the attack
 #: subset from the host environment, so concurrent in-process cheat runs must
@@ -41,6 +53,63 @@ VERDICTS_SCHEMA = "evallab.cheat.verdicts/v1"
 VERDICT_CRACKED = "cracked"
 VERDICT_CLEAN = "clean"
 VERDICT_UNSCORED = "unscored"
+
+#: Detail marker run_ladder writes for attacks skipped by subset selection
+#: (as opposed to selected attacks that decline with their own detail).
+_SUBSET_SKIP_DETAIL = "not in --attacks subset"
+
+
+def _selected_from_attempts(attacks: Any) -> list[str] | None:
+    """Selected subset recorded in one attempts payload, or None if unknown.
+
+    run_ladder always records the full pool in ladder order; attacks outside
+    the requested subset are ``skipped`` with the subset marker above, while
+    selected attacks that decline still report their own detail. Excluding
+    only marker-skipped records therefore recovers the requested subset.
+    """
+    if not isinstance(attacks, list):
+        return None
+    selected: list[str] = []
+    for attack in attacks:
+        if not isinstance(attack, dict):
+            return None
+        name = attack.get("name")
+        if not isinstance(name, str):
+            return None
+        if attack.get("status") == "skipped" and attack.get("detail") == _SUBSET_SKIP_DETAIL:
+            continue
+        selected.append(name)
+    return selected
+
+
+def _derive_verdict_provenance(
+    entries: Sequence[Mapping[str, Any]],
+) -> tuple[str | None, list[str] | None]:
+    """Derive (ladder_version, selected_attacks) from attempts payloads.
+
+    Both are uniform-across-trials only: mixed generations, missing version
+    fields, or disagreeing selections yield None (unknown standalone
+    rebuild), which the verdict payload represents as null.
+    """
+    versions: list[str | None] = []
+    selections: list[list[str] | None] = []
+    for entry in entries:
+        payload = entry.get("payload") if isinstance(entry, Mapping) else None
+        if not isinstance(payload, Mapping):
+            return None, None
+        version = payload.get("version")
+        versions.append(version if isinstance(version, str) and version in LADDERS else None)
+        selections.append(_selected_from_attempts(payload.get("attacks")))
+    if not versions:
+        return None, None
+    ladder_version = versions[0] if all(item == versions[0] for item in versions) else None
+    first_selection = selections[0]
+    selected = (
+        first_selection
+        if first_selection is not None and all(item == first_selection for item in selections)
+        else None
+    )
+    return ladder_version, selected
 
 
 def cheat_verdict_for_reward(reward: float | None) -> str:
@@ -128,10 +197,35 @@ def _trial_result_and_reward(trial_dir: Path) -> tuple[dict[str, Any] | None, fl
     return payload, trial_reward(payload)
 
 
-def build_verdicts(job_dir: Path, *, harbor_rev: str | None = None) -> dict[str, Any]:
-    """Build the per-trial verdict payload for a completed cheat job."""
+def build_verdicts(
+    job_dir: Path,
+    *,
+    harbor_rev: str | None = None,
+    ladder_version: str | None = None,
+    selected_attacks: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Build the per-trial verdict payload for a completed cheat job.
+
+    ``ladder_version``/``selected_attacks`` bind the verdicts to the ladder
+    generation and attack selection that produced them; when absent they are
+    derived from the trials' attempts payloads (uniform values only, else
+    null for an unknown standalone rebuild). Existing fields are unchanged.
+    """
     job_name = job_dir.name
     attempts = {entry["trial"]: entry for entry in collect_cheat_attempts(job_dir)}
+    derived_version, derived_selected = _derive_verdict_provenance(tuple(attempts.values()))
+    effective_version = (
+        parse_ladder_version(ladder_version) if ladder_version is not None else derived_version
+    )
+    if selected_attacks is not None:
+        names = [str(name) for name in selected_attacks]
+        if effective_version is not None and names:
+            names = list(parse_attack_selection(",".join(names), version=effective_version))
+        else:
+            names = list(dict.fromkeys(names))
+        effective_selected: list[str] | None = names
+    else:
+        effective_selected = derived_selected
     trial_dirs = sorted(
         candidate.relative_to(job_dir).as_posix()
         for candidate in job_dir.iterdir()
@@ -174,13 +268,26 @@ def build_verdicts(job_dir: Path, *, harbor_rev: str | None = None) -> dict[str,
         "job": job_name,
         "agent": CHEAT_AGENT,
         "harbor_rev": harbor_rev,
+        "ladder_version": effective_version,
+        "selected_attacks": effective_selected,
         "trials": trials,
     }
 
 
-def write_cheat_verdicts(job_dir: Path, *, harbor_rev: str | None = None) -> Path:
+def write_cheat_verdicts(
+    job_dir: Path,
+    *,
+    harbor_rev: str | None = None,
+    ladder_version: str | None = None,
+    selected_attacks: Sequence[str] | None = None,
+) -> Path:
     """Write <job_dir>/cheat-verdicts.json; sibling lanes reuse this helper."""
-    payload = build_verdicts(job_dir, harbor_rev=harbor_rev)
+    payload = build_verdicts(
+        job_dir,
+        harbor_rev=harbor_rev,
+        ladder_version=ladder_version,
+        selected_attacks=selected_attacks,
+    )
     out = job_dir / VERDICTS_FILENAME
     out.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return out
@@ -210,6 +317,7 @@ def run_cheat_trial(
     name: str,
     attempts: int = 1,
     timeout_seconds: int = 600,
+    ladder_version: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     """Execute the cheat lane once through direct execution; return (job_dir, verdicts).
 
@@ -218,10 +326,23 @@ def run_cheat_trial(
     process-env lock, the trial runs on local Docker ($0), and the verdicts
     payload comes from the benchmark's own verifier reward. Raises on
     infrastructure failure (callers map that to their error verdict).
+
+    ``ladder_version=None`` preserves the ambient/default behavior exactly
+    (v1 unless the host already exported an explicit generation). The
+    effective generation and selection are recorded on the verdicts payload.
     """
     from evallab.execution_contracts import RunRequest
     from evallab.queue import Executor
 
+    explicit_version = (
+        parse_ladder_version(ladder_version) if ladder_version is not None else None
+    )
+    effective_version = explicit_version or parse_ladder_version(
+        os.environ.get(CHEAT_LADDER_VERSION_ENV_VAR)
+    )
+    effective_selected = parse_attack_selection(
+        ",".join(attacks) if attacks else None, version=effective_version
+    )
     request = RunRequest(
         task=task,
         agent=CHEAT_AGENT,
@@ -236,7 +357,10 @@ def run_cheat_trial(
     )
     with _CHEAT_ENV_LOCK:
         previous = os.environ.get(CHEAT_ATTACKS_ENV_VAR)
+        previous_version = os.environ.get(CHEAT_LADDER_VERSION_ENV_VAR)
         os.environ[CHEAT_ATTACKS_ENV_VAR] = ",".join(attacks)
+        if explicit_version is not None:
+            os.environ[CHEAT_LADDER_VERSION_ENV_VAR] = explicit_version
         try:
             job_dir = Executor.from_repo(repo_root).execute_direct(request)
         finally:
@@ -244,7 +368,17 @@ def run_cheat_trial(
                 os.environ.pop(CHEAT_ATTACKS_ENV_VAR, None)
             else:
                 os.environ[CHEAT_ATTACKS_ENV_VAR] = previous
-    verdicts_path = write_cheat_verdicts(job_dir, harbor_rev=harbor_version())
+            if explicit_version is not None:
+                if previous_version is None:
+                    os.environ.pop(CHEAT_LADDER_VERSION_ENV_VAR, None)
+                else:
+                    os.environ[CHEAT_LADDER_VERSION_ENV_VAR] = previous_version
+    verdicts_path = write_cheat_verdicts(
+        job_dir,
+        harbor_rev=harbor_version(),
+        ladder_version=effective_version,
+        selected_attacks=list(effective_selected),
+    )
     payload = json.loads(verdicts_path.read_text(encoding="utf-8"))
     return job_dir, payload
 
@@ -261,7 +395,8 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             file=sys.stderr,
         )
         return 2
-    selected = parse_attack_selection(args.attacks)
+    ladder_version = parse_ladder_version(args.ladder_version)
+    selected = parse_attack_selection(args.attacks, version=ladder_version)
     task = args.task if args.task.is_absolute() else (root / args.task).resolve()
     jobs_dir = args.jobs_dir if args.jobs_dir.is_absolute() else (root / args.jobs_dir).resolve()
     job_dir, payload = run_cheat_trial(
@@ -272,6 +407,7 @@ def _cheat_run_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         name=args.name,
         attempts=args.attempts,
         timeout_seconds=args.timeout_seconds,
+        ladder_version=ladder_version if args.ladder_version is not None else None,
     )
     verdicts_path = job_dir / VERDICTS_FILENAME
     print(f"completed: {job_dir}")
@@ -299,7 +435,13 @@ def build_cheat_parser(commands: argparse._SubParsersAction) -> None:
     runner.add_argument(
         "--attacks",
         default=None,
-        help=f"comma-separated subset of {','.join(ATTACKS)}; default: full ladder",
+        help="comma-separated subset for the selected ladder; default: full ladder",
+    )
+    runner.add_argument(
+        "--ladder-version",
+        choices=sorted(LADDERS),
+        default=None,
+        help=f"ladder generation (default: {DEFAULT_LADDER_VERSION})",
     )
     runner.add_argument(
         "--timeout-seconds",

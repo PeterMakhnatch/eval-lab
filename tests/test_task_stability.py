@@ -485,3 +485,85 @@ def test_top_level_matches_run_zero_with_per_run_copies(tmp_path: Path) -> None:
             assert not reward_file.exists()
         else:
             assert reward_file.read_text() == expected_reward
+
+
+def test_stage_task_preserves_relative_symlinks(tmp_path: Path) -> None:
+    """MiMo-style packages link members relatively; staging keeps them working."""
+    source = tmp_path / "sym-pkg"
+    (source / "shared").mkdir(parents=True)
+    (source / "shared" / "Dockerfile").write_text("FROM python:3.12-slim\n")
+    (source / "shared" / "test.sh").write_text("#!/bin/sh\nexit 0\n")
+    (source / "environment").mkdir()
+    (source / "environment" / "Dockerfile").symlink_to("../shared/Dockerfile")
+    (source / "tests").mkdir()
+    (source / "tests" / "test.sh").symlink_to("../shared/test.sh")
+    (source / "task.toml").write_text("[task]\nname = \"x\"\n")
+
+    staged = task_stability.stage_task(source, tmp_path / "staged")
+
+    link = staged / "tests" / "test.sh"
+    assert link.is_symlink()
+    assert link.read_text() == "#!/bin/sh\nexit 0\n"  # resolves inside the staged tree
+    assert (staged / "environment" / "Dockerfile").read_text() == "FROM python:3.12-slim\n"
+    # The source tree is untouched: links still point at the source shared dir.
+    assert (source / "tests" / "test.sh").read_text() == "#!/bin/sh\nexit 0\n"
+
+
+def test_run_stability_jobs_readmits_into_same_jobs_dir(tmp_path: Path) -> None:
+    """A second admit into the same jobs dir restages fresh instead of colliding."""
+    source = tmp_path / "candidate-0042"
+    (source / "tests").mkdir(parents=True)
+    (source / "task.toml").write_text("[task]\nname = \"x\"\n# v1\n")
+    jobs_dir = tmp_path / "runs"
+
+    class Completed:
+        returncode = 0
+
+    def runner(argv: list[str], env: dict[str, str]) -> Completed:
+        return Completed()
+
+    kwargs: dict = {
+        "tasks": [source],
+        "job_prefix": "stab",
+        "jobs_dir": jobs_dir,
+        "repo_src": tmp_path,
+        "runner": runner,
+    }
+    first = run_stability_jobs(**kwargs)
+    assert first[0]["returncode"] == 0
+
+    (source / "task.toml").write_text("[task]\nname = \"x\"\n# v2\n")
+    second = run_stability_jobs(**kwargs)
+    assert second[0]["returncode"] == 0
+    staged = jobs_dir / ".stage" / "stab-candidate-0042" / "candidate-0042"
+    assert (staged / "task.toml").read_text() == "[task]\nname = \"x\"\n# v2\n"
+
+
+def test_run_stability_jobs_moves_finished_job_aside(tmp_path: Path) -> None:
+    """A finished prior job never supplies stale trials to the new run."""
+    source = tmp_path / "candidate-0051"
+    (source / "tests").mkdir(parents=True)
+    (source / "task.toml").write_text("[task]\nname = \"x\"\n")
+    jobs_dir = tmp_path / "runs"
+    job_dir = jobs_dir / "stab-candidate-0051"
+    stale_trial = job_dir / "candidate-0051__old"
+    (stale_trial / "verifier").mkdir(parents=True)
+    (stale_trial / "trial.log").write_text("log")
+    (job_dir / "result.json").write_text('{"finished": true}')
+
+    class Completed:
+        returncode = 0
+
+    def runner(argv: list[str], env: dict[str, str]) -> Completed:
+        return Completed()
+
+    outcomes = run_stability_jobs(
+        tasks=[source], job_prefix="stab", jobs_dir=jobs_dir,
+        repo_src=tmp_path, runner=runner,
+    )
+    assert outcomes[0]["returncode"] == 0
+    assert outcomes[0]["trials"] == []  # stale trial is gone from the live dir
+    backups = [child for child in jobs_dir.iterdir() if child.name.startswith("stab-candidate-0051.retry-")]
+    assert len(backups) == 1
+    assert (backups[0] / "result.json").read_text() == '{"finished": true}'
+    assert (backups[0] / "candidate-0051__old" / "trial.log").is_file()

@@ -1,0 +1,13 @@
+{
+ "cost_usd": 0.0,
+ "detector": "combined_v1",
+ "explanation": "oof-5%: kev:kev_router>0.6139, kev:kev_stacked>0.66644",
+ "flagged": [
+  "kev:kev_router>0.6139",
+  "kev:kev_stacked>0.66644"
+ ],
+ "fold": 0,
+ "id": "ours-har116-b-000927-original__kvyP9fr",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

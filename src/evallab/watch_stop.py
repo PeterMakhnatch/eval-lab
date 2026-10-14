@@ -47,7 +47,28 @@ STOP_RECORDS_DIRNAME = "stop-records"
 
 #: Rules the watch may stop a trial over. ``grader_tamper`` qualifies only
 #: with file-access tamper evidence (see :func:`stop_eligible_alert`).
-STOP_ELIGIBLE_RULES = frozenset({"history_mining", "grader_tamper", "hidden_test_read"})
+#: ``submission_tamper`` qualifies single-hit: its alert already carries the
+#: content evidence (mechanism plus matched pattern). ``codeban_violation``
+#: qualifies single-hit too: the ban comes from the task prompt and the
+#: violation from the trial's own commands. ``copy_acquired`` qualifies
+#: single-hit: confirmed upstream acquisition (saved artifact seen unpacked
+#: or read) is never routine setup, which stays at the ``fetch_attempt``
+#: alert (deliberately not eligible: prompts link URLs and honest trials pip
+#: install). ``task_protected_read`` is detection-only for now (record-only
+#: even in ``on`` mode): promotion to stop-eligible waits for false-stop
+#: evidence on manifest-carrying tasks. Everything is record-only until the
+#: operator opts into ``EVALLAB_WATCH_STOP=on``: the default ``dry-run`` mode
+#: records ``would_stop`` and never stops.
+STOP_ELIGIBLE_RULES = frozenset(
+    {
+        "history_mining",
+        "grader_tamper",
+        "hidden_test_read",
+        "submission_tamper",
+        "codeban_violation",
+        "copy_acquired",
+    }
+)
 
 #: Integrity rules surfaced at the top of each job's board section.
 INTEGRITY_BOARD_RULES = (
@@ -56,6 +77,9 @@ INTEGRITY_BOARD_RULES = (
     "hidden_test_read",
     "git_object_read",
     "copy_acquired",
+    "submission_tamper",
+    "codeban_violation",
+    "task_protected_read",
 )
 
 #: Exception marker a stopped trial ends with (distinguishable from ordinary
@@ -383,6 +407,17 @@ def docker_capture(
     pause: bool,
     runner: Any = None,
 ) -> dict[str, Any]:
+    """Capture Docker state for a trial without ever pausing a live agent.
+
+    ``pause`` retains its historic caller meaning, "this is an armed stop":
+    only those captures commit an image. The commit uses ``--pause=false``.
+    Previously this helper issued ``docker pause`` before the stop request
+    was actuated, so the agent's next ``docker exec`` could surface
+    ``RuntimeError: container is paused`` instead of the watch-stop
+    cancellation (CheatBench #859). Leaving the container running closes
+    that race; the trial is about to be cancelled, so a point-in-time image
+    does not need the stricter paused-copy semantics.
+    """
     run = runner or subprocess.run
     outcome: dict[str, Any] = {"trial": trial_name, "errors": [], "commands": []}
 
@@ -403,48 +438,37 @@ def docker_capture(
         outcome["skipped"] = error or "no container resolved"
         return outcome
     outcome["container"] = container
-    paused = False
-    try:
-        if pause:
-            code, _, err = _sh("docker", "pause", container, timeout=30)
-            outcome["commands"].append({"argv": ["docker", "pause"], "returncode": code})
-            if code == 0:
-                paused = True
-            else:
-                outcome["errors"].append(f"pause: {(err or 'failed').strip()[:300]}")
-        code, out, err = _sh("docker", "diff", container, timeout=60)
-        outcome["commands"].append({"argv": ["docker", "diff"], "returncode": code})
+    code, out, err = _sh("docker", "diff", container, timeout=60)
+    outcome["commands"].append({"argv": ["docker", "diff"], "returncode": code})
+    if code == 0:
+        outcome["diff"] = out[:200_000]
+        if len(out) > 200_000:
+            outcome["diff_truncated"] = True
+    else:
+        outcome["errors"].append(f"diff: {(err or 'failed').strip()[:300]}")
+    code, out, err = _sh("docker", "top", container, "ps", "-ef", timeout=30)
+    if code != 0:
+        code, out, err = _sh("docker", "top", container, timeout=30)
+    outcome["commands"].append({"argv": ["docker", "top"], "returncode": code})
+    if code == 0:
+        outcome["top"] = out[:50_000]
+    else:
+        outcome["errors"].append(f"top: {(err or 'failed').strip()[:300]}")
+    if pause:
+        tag = stop_image_tag(trial_name)
+        code, out, err = _sh(
+            "docker", "commit", "--pause=false", container, tag, timeout=300
+        )
+        outcome["commands"].append(
+            {"argv": ["docker", "commit", "--pause=false"], "returncode": code}
+        )
         if code == 0:
-            outcome["diff"] = out[:200_000]
-            if len(out) > 200_000:
-                outcome["diff_truncated"] = True
+            outcome["image"] = tag
+            # The tag is transient (teardown/hygiene may reap it); the
+            # digest identifies the captured content regardless.
+            outcome["image_digest"] = out.strip().split()[-1][:120] if out.strip() else None
         else:
-            outcome["errors"].append(f"diff: {(err or 'failed').strip()[:300]}")
-        code, out, err = _sh("docker", "top", container, "ps", "-ef", timeout=30)
-        if code != 0:
-            code, out, err = _sh("docker", "top", container, timeout=30)
-        outcome["commands"].append({"argv": ["docker", "top"], "returncode": code})
-        if code == 0:
-            outcome["top"] = out[:50_000]
-        else:
-            outcome["errors"].append(f"top: {(err or 'failed').strip()[:300]}")
-        if pause:
-            tag = stop_image_tag(trial_name)
-            code, out, err = _sh("docker", "commit", container, tag, timeout=300)
-            outcome["commands"].append({"argv": ["docker", "commit"], "returncode": code})
-            if code == 0:
-                outcome["image"] = tag
-                # The tag is transient (teardown/hygiene may reap it); the
-                # digest identifies the captured content regardless.
-                outcome["image_digest"] = out.strip().split()[-1][:120] if out.strip() else None
-            else:
-                outcome["errors"].append(f"commit: {(err or out or 'failed').strip()[:300]}")
-    finally:
-        if paused:
-            code, _, err = _sh("docker", "unpause", container, timeout=30)
-            outcome["commands"].append({"argv": ["docker", "unpause"], "returncode": code})
-            if code != 0:
-                outcome["errors"].append(f"unpause: {(err or 'failed').strip()[:300]}")
+            outcome["errors"].append(f"commit: {(err or out or 'failed').strip()[:300]}")
     return outcome
 
 

@@ -1,0 +1,412 @@
+{
+  "schema_version": 2,
+  "bundle": "codex-gpt-6-luna-event-summary",
+  "source_job_runtime_path": "runs/codex-gpt-6-luna-event-summary",
+  "source_job_result_sha256": "sha256:5c939cbc88d9d72ee06ef43c89752a31a5f1e9394247ae0de86b61badf7a5b28",
+  "promoted_by": "scripts/promote_codex_bundle.py",
+  "redaction_rules": {
+    "R1": "system/user ATIF step message text removed; sha256 and length kept",
+    "R2": "agent/sessions/**, agent/codex.txt, agent/opencode.txt, agent/opencode/**, job.log and trial.log raw prompt/model I/O and runtime state (SQLite/WAL/log/snapshot/auth) omitted; sha256 recorded; symlinks digest-recorded by link-target string and never dereferenced; non-R2 symlinks fail closed",
+    "R3a": "verifier/* JSON string values over 1024 bytes replaced by digest markers",
+    "R3b": "verifier/* text files over 4096 bytes promoted as a whole-file digest marker with no body",
+    "R4": "each omitted rollout leaves a quota sidecar under <trial>/agent/quota/ holding only the event timestamp and a whitelist of payload.rate_limits scalars, with the parent rollout's sha256; account-scope point-in-time readings, no message, prompt, reasoning, session title or token"
+  },
+  "totals": {
+    "source_files": 38,
+    "promoted_files": 34,
+    "omitted_files": 4,
+    "quota_sidecars": 1,
+    "promoted_bytes": 101513,
+    "source_bytes": 161558
+  },
+  "files": [
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/codex.txt",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 3274,
+      "source_sha256": "sha256:3ad380359849d2f73b850ddb5bd19c6c67632c7d468c04c4526b8e3b3926972e"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/file-access.jsonl",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/file-access.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 893,
+      "source_sha256": "sha256:3ce5b7ac4457a5813f40f9fc0cb7597dcaa83d7bb1627934fadd76377db50238",
+      "promoted_bytes": 893,
+      "promoted_sha256": "sha256:3ce5b7ac4457a5813f40f9fc0cb7597dcaa83d7bb1627934fadd76377db50238"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/sessions/2026/10/13/rollout-2026-10-13T05-47-57-01a133cd-a31f-7712-b33e-11e954e54717.jsonl",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 46380,
+      "source_sha256": "sha256:d36144099e8202c246856c89ce01949c0baff79a65ea573d70df78e3881c69e1",
+      "quota_sidecar_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/quota/rollout-2026-10-13T05-47-57-01a133cd-a31f-7712-b33e-11e954e54717.rate-limits.json"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/sessions/2026/10/13/rollout-2026-10-13T05-47-57-01a133cd-a31f-7712-b33e-11e954e54717.jsonl",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/quota/rollout-2026-10-13T05-47-57-01a133cd-a31f-7712-b33e-11e954e54717.rate-limits.json",
+      "action": "redacted",
+      "rule": "R4",
+      "derived_from": "codex-gpt-6-luna-event-summary__PffhRBE/agent/sessions/2026/10/13/rollout-2026-10-13T05-47-57-01a133cd-a31f-7712-b33e-11e954e54717.jsonl",
+      "source_bytes": 46380,
+      "source_sha256": "sha256:d36144099e8202c246856c89ce01949c0baff79a65ea573d70df78e3881c69e1",
+      "promoted_bytes": 1846,
+      "promoted_sha256": "sha256:0642700d17e5a515ac4189a84e4c952ca7f44240aa429d30b5c40761de3ae38c"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/trajectory.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/agent/trajectory.json",
+      "action": "redacted",
+      "rule": "R1",
+      "source_bytes": 14087,
+      "source_sha256": "sha256:828ee8592c9395353952b7c5fa4d61d6ac3d505604d92033935e19d918911363",
+      "promoted_bytes": 7532,
+      "promoted_sha256": "sha256:06a47642464d5aa29c147b921d0cbab6271a27754a45a7b1c7eaab4f0906ac8e"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/artifacts/app/input/events.jsonl",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/artifacts/app/input/events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 458,
+      "source_sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0",
+      "promoted_bytes": 458,
+      "promoted_sha256": "sha256:e1342580d8b19cae1c5d789466f39168d9cd53705c50831c9b2814825e6590c0"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/artifacts/app/output/summary.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/artifacts/app/output/summary.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 142,
+      "source_sha256": "sha256:9f2b05e8b2e32186c4a3a996bc5810ac3de2833f902b8cd23b860351c88a58de",
+      "promoted_bytes": 142,
+      "promoted_sha256": "sha256:9f2b05e8b2e32186c4a3a996bc5810ac3de2833f902b8cd23b860351c88a58de"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/artifacts/manifest.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/artifacts/manifest.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 491,
+      "source_sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697",
+      "promoted_bytes": 491,
+      "promoted_sha256": "sha256:53d36aa77aa02f671b07ce7fe8f09bbf4c55a6f8667b4843585f7f7ac5197697"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/config.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1033,
+      "source_sha256": "sha256:f32e21adc2762f440417fe1bd1d97bbb5e02315f4852809136005590ab9f7484",
+      "promoted_bytes": 1033,
+      "promoted_sha256": "sha256:f32e21adc2762f440417fe1bd1d97bbb5e02315f4852809136005590ab9f7484"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/lock.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1615,
+      "source_sha256": "sha256:06ab531601c9083db8a2cfd5239d0e9a6ae1a02d1ec05ce7a0d0ebc9b9e7e0a2",
+      "promoted_bytes": 1615,
+      "promoted_sha256": "sha256:06ab531601c9083db8a2cfd5239d0e9a6ae1a02d1ec05ce7a0d0ebc9b9e7e0a2"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/result.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4701,
+      "source_sha256": "sha256:0f6103acd67a102d36a4a72c79b4f47b5cbb90718bdb3e64df80eeaf661c631a",
+      "promoted_bytes": 4701,
+      "promoted_sha256": "sha256:0f6103acd67a102d36a4a72c79b4f47b5cbb90718bdb3e64df80eeaf661c631a"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/setup-fingerprint.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/setup-fingerprint.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2809,
+      "source_sha256": "sha256:fb605dbb4ef7945132fd4bbbc9c93ac2b62c44e8b4c27d62bdd151bd3b81732e",
+      "promoted_bytes": 2809,
+      "promoted_sha256": "sha256:fb605dbb4ef7945132fd4bbbc9c93ac2b62c44e8b4c27d62bdd151bd3b81732e"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/state-after.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/state-after.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1231,
+      "source_sha256": "sha256:91f0aca6e90f5b60ce6e25bbc92e1a626de919a516c96ef2cbf1adf96a5d36a4",
+      "promoted_bytes": 1231,
+      "promoted_sha256": "sha256:91f0aca6e90f5b60ce6e25bbc92e1a626de919a516c96ef2cbf1adf96a5d36a4"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/state-before.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/state-before.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 945,
+      "source_sha256": "sha256:f0712a3562c02bd6e6df0a95140eba00854d490a3c48f5b16b25b07b5c7ad2f8",
+      "promoted_bytes": 945,
+      "promoted_sha256": "sha256:f0712a3562c02bd6e6df0a95140eba00854d490a3c48f5b16b25b07b5c7ad2f8"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/state-diff.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/state-diff.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1343,
+      "source_sha256": "sha256:b6209d6812fe0bf5e042aeae02185cf41eef490eb696665774120aafd22e136e",
+      "promoted_bytes": 1343,
+      "promoted_sha256": "sha256:b6209d6812fe0bf5e042aeae02185cf41eef490eb696665774120aafd22e136e"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/state-events.jsonl",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/state-events.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 717,
+      "source_sha256": "sha256:338e0d21ed5a31ecd5675fc35fef16aecc21d5163162ff8ba1c85a1d6b60bfc3",
+      "promoted_bytes": 717,
+      "promoted_sha256": "sha256:338e0d21ed5a31ecd5675fc35fef16aecc21d5163162ff8ba1c85a1d6b60bfc3"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/status.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/state-journal/status.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 510,
+      "source_sha256": "sha256:b6433156fc7ecb27cc28b33127e3111b756388599052a87f76308959582371c3",
+      "promoted_bytes": 510,
+      "promoted_sha256": "sha256:b6433156fc7ecb27cc28b33127e3111b756388599052a87f76308959582371c3"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/trial.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2841,
+      "source_sha256": "sha256:6972d9e045d608b253a020b3ad1d4add14d7e11b783862aa66da09ce30dd0c0b"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/verifier/checks.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/verifier/checks.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 384,
+      "source_sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f",
+      "promoted_bytes": 384,
+      "promoted_sha256": "sha256:2045854a723ba267cd1c4bfeaad946e42040c19d996c4925c4a281e9b99a352f"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/verifier/ctrf.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/verifier/ctrf.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 892,
+      "source_sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3",
+      "promoted_bytes": 892,
+      "promoted_sha256": "sha256:169e8cecdc7b146b6e65f229b32e7444b3dc2cf1179cddbbf5f69da9b753e1e3"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/verifier/reward.json",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/verifier/reward.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 86,
+      "source_sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824",
+      "promoted_bytes": 86,
+      "promoted_sha256": "sha256:f339aa2f53e93bb73349b11f5728acbe23e1ffc6a77472956cfe41578cc70824"
+    },
+    {
+      "source_path": "codex-gpt-6-luna-event-summary__PffhRBE/verifier/test-stdout.txt",
+      "promoted_path": "codex-gpt-6-luna-event-summary__PffhRBE/verifier/test-stdout.txt",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 354,
+      "source_sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94",
+      "promoted_bytes": 354,
+      "promoted_sha256": "sha256:6b30fe93f6de0e133e4c65e604eed60d01030b270c833475c1f86ef35dabfd94"
+    },
+    {
+      "source_path": "config.json",
+      "promoted_path": "config.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1031,
+      "source_sha256": "sha256:4ea01e78a521c44d08b11294d1f3f0c59773e3e24d277c472ae7418eed36a024",
+      "promoted_bytes": 1031,
+      "promoted_sha256": "sha256:4ea01e78a521c44d08b11294d1f3f0c59773e3e24d277c472ae7418eed36a024"
+    },
+    {
+      "source_path": "experiment-spec.json",
+      "promoted_path": "experiment-spec.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2052,
+      "source_sha256": "sha256:d19ced9720c061f9479f716ef27ad2f540ef279bf651705925b51337e21b38b5",
+      "promoted_bytes": 2052,
+      "promoted_sha256": "sha256:d19ced9720c061f9479f716ef27ad2f540ef279bf651705925b51337e21b38b5"
+    },
+    {
+      "source_path": "job.log",
+      "promoted_path": null,
+      "action": "omitted",
+      "rule": "R2",
+      "entry_type": "file",
+      "source_bytes": 2841,
+      "source_sha256": "sha256:6972d9e045d608b253a020b3ad1d4add14d7e11b783862aa66da09ce30dd0c0b"
+    },
+    {
+      "source_path": "lab-metadata.json",
+      "promoted_path": "lab-metadata.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 4543,
+      "source_sha256": "sha256:e388e1e12dbc6fc49bb048e873966a562cfce6d1d7380d943d3464ba5ec9e1a5",
+      "promoted_bytes": 4543,
+      "promoted_sha256": "sha256:e388e1e12dbc6fc49bb048e873966a562cfce6d1d7380d943d3464ba5ec9e1a5"
+    },
+    {
+      "source_path": "lock.json",
+      "promoted_path": "lock.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2657,
+      "source_sha256": "sha256:d309066da2789b6b56fc3ee952182ece013dfb4f32ef3c49b7c416dbdf2835a6",
+      "promoted_bytes": 2657,
+      "promoted_sha256": "sha256:d309066da2789b6b56fc3ee952182ece013dfb4f32ef3c49b7c416dbdf2835a6"
+    },
+    {
+      "source_path": "processed/job.json",
+      "promoted_path": "processed/job.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2056,
+      "source_sha256": "sha256:787e0530a6a28d058cf7fb804307d41997a2c56fd1348a46567ed7ac5d8326b2",
+      "promoted_bytes": 2056,
+      "promoted_sha256": "sha256:787e0530a6a28d058cf7fb804307d41997a2c56fd1348a46567ed7ac5d8326b2"
+    },
+    {
+      "source_path": "processed/job.md",
+      "promoted_path": "processed/job.md",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 731,
+      "source_sha256": "sha256:24423d9cae19ba4dd3b3eb34d0157a76c175529fd5df3dfcd90f75ec4aee38a7",
+      "promoted_bytes": 731,
+      "promoted_sha256": "sha256:24423d9cae19ba4dd3b3eb34d0157a76c175529fd5df3dfcd90f75ec4aee38a7"
+    },
+    {
+      "source_path": "processed/trial-codex-gpt-6-luna-event-summary__PffhRBE.json",
+      "promoted_path": "processed/trial-codex-gpt-6-luna-event-summary__PffhRBE.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 22337,
+      "source_sha256": "sha256:8fc2234f796b98caeee58ff5db49c1c2850c36e031f5544100d845f7c729eeaa",
+      "promoted_bytes": 22337,
+      "promoted_sha256": "sha256:8fc2234f796b98caeee58ff5db49c1c2850c36e031f5544100d845f7c729eeaa"
+    },
+    {
+      "source_path": "processed/trial-codex-gpt-6-luna-event-summary__PffhRBE.md",
+      "promoted_path": "processed/trial-codex-gpt-6-luna-event-summary__PffhRBE.md",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 8889,
+      "source_sha256": "sha256:56c5927714f33bd4db5ebbe84188de0c56d7f9286c99be68df3037528ed44ca4",
+      "promoted_bytes": 8889,
+      "promoted_sha256": "sha256:56c5927714f33bd4db5ebbe84188de0c56d7f9286c99be68df3037528ed44ca4"
+    },
+    {
+      "source_path": "repository-provenance/repository.json",
+      "promoted_path": "repository-provenance/repository.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 403,
+      "source_sha256": "sha256:fc33e74487ca293608b9431df091c43cc7fc2e4108592fd701837fd7a5b4d42d",
+      "promoted_bytes": 403,
+      "promoted_sha256": "sha256:fc33e74487ca293608b9431df091c43cc7fc2e4108592fd701837fd7a5b4d42d"
+    },
+    {
+      "source_path": "repository-provenance/uncommitted.diff",
+      "promoted_path": "repository-provenance/uncommitted.diff",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 19104,
+      "source_sha256": "sha256:c2b6866ea5e61a4cb0d6c4603a46dd8d86648fecbc70ff638b47e7ef5ac31e33",
+      "promoted_bytes": 19104,
+      "promoted_sha256": "sha256:c2b6866ea5e61a4cb0d6c4603a46dd8d86648fecbc70ff638b47e7ef5ac31e33"
+    },
+    {
+      "source_path": "result.json",
+      "promoted_path": "result.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1871,
+      "source_sha256": "sha256:5c939cbc88d9d72ee06ef43c89752a31a5f1e9394247ae0de86b61badf7a5b28",
+      "promoted_bytes": 1871,
+      "promoted_sha256": "sha256:5c939cbc88d9d72ee06ef43c89752a31a5f1e9394247ae0de86b61badf7a5b28"
+    },
+    {
+      "source_path": "setup-fingerprint.json",
+      "promoted_path": "setup-fingerprint.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2637,
+      "source_sha256": "sha256:0084d29b22190c7fdf91f1e38fc651ab3035d343be0f379943e73664613f7f2e",
+      "promoted_bytes": 2637,
+      "promoted_sha256": "sha256:0084d29b22190c7fdf91f1e38fc651ab3035d343be0f379943e73664613f7f2e"
+    },
+    {
+      "source_path": "watch/BOARD.md",
+      "promoted_path": "watch/BOARD.md",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 374,
+      "source_sha256": "sha256:4238579203392e4583677ecb86cf7513396bdeb1d9d6615c0f0284ed1e85828e",
+      "promoted_bytes": 374,
+      "promoted_sha256": "sha256:4238579203392e4583677ecb86cf7513396bdeb1d9d6615c0f0284ed1e85828e"
+    },
+    {
+      "source_path": "watch/hooks.jsonl",
+      "promoted_path": "watch/hooks.jsonl",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 1673,
+      "source_sha256": "sha256:df38d9455a590c44ac1c935bb6e4e5f89e395e0effb3242c6d5f0c4bdd45dac2",
+      "promoted_bytes": 1673,
+      "promoted_sha256": "sha256:df38d9455a590c44ac1c935bb6e4e5f89e395e0effb3242c6d5f0c4bdd45dac2"
+    },
+    {
+      "source_path": "watch/laminar.json",
+      "promoted_path": "watch/laminar.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 246,
+      "source_sha256": "sha256:45a7ec22b306f8ec225296a5b90c0f659f19732cee7d3261158f959b0c3e28e2",
+      "promoted_bytes": 246,
+      "promoted_sha256": "sha256:45a7ec22b306f8ec225296a5b90c0f659f19732cee7d3261158f959b0c3e28e2"
+    },
+    {
+      "source_path": "watch/status.json",
+      "promoted_path": "watch/status.json",
+      "action": "verbatim",
+      "rule": null,
+      "source_bytes": 2927,
+      "source_sha256": "sha256:53d61ac2773da7854b900ab1f2828aa905df672de9e857fbcf7e5cfcbba61258",
+      "promoted_bytes": 2927,
+      "promoted_sha256": "sha256:53d61ac2773da7854b900ab1f2828aa905df672de9e857fbcf7e5cfcbba61258"
+    }
+  ]
+}

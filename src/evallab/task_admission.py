@@ -959,6 +959,40 @@ def _unproven_step(
     )
 
 
+def _missing_task_members(staged: Path) -> list[str]:
+    """Task members Harbor needs that the staged tree lacks (for infra detail)."""
+    missing: list[str] = []
+    if not (staged / "task.toml").is_file():
+        missing.append("task.toml")
+    if not (staged / "environment").is_dir():
+        missing.append("environment/")
+    if not (staged / "instruction.md").is_file():
+        missing.append("instruction.md")
+    tests = staged / "tests"
+    if not tests.is_dir() or not any(tests.iterdir()):
+        missing.append("tests/")
+    return missing
+
+
+def _staged_task_valid(staged: Path) -> bool:
+    """Whether Harbor would accept the staged tree as a task directory.
+
+    Harbor resolves ``--path`` through ``Task.is_valid_dir``: an invalid
+    tree is silently treated as a dataset path and the job dies with
+    ``ValueError: Either datasets or tasks must be provided``. Fail fast
+    with the missing members instead of burning that confusion. Without
+    Harbor importable, fall back to the member check alone.
+    """
+    try:
+        from harbor import Task  # ty: ignore[unresolved-import]
+    except ImportError:
+        return not _missing_task_members(staged)
+    try:
+        return bool(Task.is_valid_dir(staged))
+    except Exception:
+        return not _missing_task_members(staged)
+
+
 def _run_oracle_reference_step(
     step: StepDef, ctx: StepContext, started: float
 ) -> AdmissionStepRecord:
@@ -1003,20 +1037,11 @@ def _run_oracle_reference_step(
     except ReferenceUnproven as exc:
         return _unproven_step(step, started, str(exc), reference=_ref_label(ref))
     try:
-        from evallab.task_stability import stage_task
+        from evallab.task_stability import remove_tree, stage_task
 
         ref_src = ctx.jobs_dir / f"{ctx.job_prefix}-{ctx.slug}-oracle-refsrc"
         if ref_src.exists():
-            import shutil
-
-            def _writable_rmtree(target: Path) -> None:
-                def _onerror(func: Callable[..., object], path: str, _exc: object) -> None:
-                    os.chmod(path, 0o700)
-                    func(path)
-
-                shutil.rmtree(target, onerror=_onerror)
-
-            _writable_rmtree(ref_src)
+            remove_tree(ref_src)
         staged = stage_task(ctx.task_dir, ref_src)
         staged.chmod(staged.stat().st_mode | 0o200)
         for dirpath, dirnames, filenames in os.walk(staged):
@@ -1028,11 +1053,28 @@ def _run_oracle_reference_step(
         solve.parent.mkdir(parents=True, exist_ok=True)
         solve.write_bytes(render_reference_solve_sh(workdir, ref.patch_bytes, ref.patch_sha256))
         os.chmod(solve, 0o755)
+        if not _staged_task_valid(staged):
+            missing = _missing_task_members(staged)
+            detail = f"staged oracle package is not a valid Harbor task: {staged}"
+            if missing:
+                detail += f" (missing {', '.join(missing)})"
+            else:
+                detail += " (task.toml unparsable or tests fail Harbor validation)"
+            detail += "; not running Harbor"
+            return AdmissionStepRecord(
+                name=step.name,
+                kind=step.kind,
+                command=[],
+                duration_s=time.monotonic() - started,
+                status="infra",
+                detail=detail,
+                reference=_ref_label(ref),
+            )
         # The mutation step later mutates this same staged tree (with the
         # planted reference solve.sh) and targets the files the patch changes.
         ctx.oracle_package = staged
         ctx.oracle_reference = ref
-    except OSError as exc:
+    except (OSError, ValueError, AdmissionError) as exc:
         return AdmissionStepRecord(
             name=step.name,
             kind=step.kind,

@@ -4,10 +4,12 @@ A **corpus** is a sealed directory under ``research/calibration/`` (``detectors-
 
 - ``corpus.json``: name, version, sources, licences and the label checks it carries;
 - ``manifest.jsonl``: one row per trace with ``id``, ``source`` (``tw``, ``tw-raw``,
-  ``ours``, ``g6``, ``cb``, real-RL ``aria``/``olmo``, prompted ``ht``), ``labels``
-  (``{check: true | false | null}``; null means unlabelled for that check, never
-  negative), ``families`` (hack families of a positive) and ``trial`` (where to
-  find the trace) plus ``trajectory_sha256``;
+  ``ours``, ``g6``, ``cb``, real-RL ``aria``/``olmo``, prompted ``ht``, and
+  ``contamination-audit``: every audited agent pass outside the CheatBench port),
+  ``labels`` (``{check: true | false | null}``; null means unlabelled for that
+  check, never negative), ``families`` (hack families of a positive) and
+  ``trial`` (where to find the trace: ``published`` under the results home,
+  ``local_run`` under the primary eval-lab checkout) plus ``trajectory_sha256``;
 - ``MANIFEST.sha256``: checksums of the labelled files (``verify`` checks them);
 - ``cache/<detector>/<id>.json``: every judge output already paid for
   (``evallab.detector_verdict/v1``: ``flagged``, ``score``, ``cost_usd``, ...), so
@@ -38,6 +40,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, ClassVar
+
+from evallab.storage.paths import shared_checkout_root
 
 VERDICT_SCHEMA = "evallab.detector_verdict/v1"
 CORPUS_SCHEMA = "evallab.detector_corpus/v1"
@@ -167,6 +171,8 @@ class Corpus:
         trial = row["trial"]
         if trial["kind"] == "published":
             path = results_root / trial["path"]
+        elif trial["kind"] == "local_run":
+            path = shared_checkout_root(_repo_root()) / trial["path"]
         elif trial["kind"] == "terminal_wrench":
             if tw_root is None:
                 return None
@@ -179,6 +185,8 @@ class Corpus:
             if rl_root is None:
                 return None
             path = rl_root / row["source"] / trial["rl_id"]
+        elif trial["kind"] == "local_run":
+            path = _repo_root() / trial["path"]
         else:
             raise ValueError(f"{row['id']}: unknown trial kind {trial['kind']}")
         return path if (path / "agent" / "trajectory.json").is_file() else None
@@ -216,31 +224,118 @@ class Detector:
 
 class Rules(Detector):
     """Our deterministic tripwires: hidden-file reads, grader tampering, harness-log
-    reads and upstream fetches in the agent's commands."""
+    reads and upstream fetches in the agent's commands, plus the RewardKit
+    ``out_of_base_read`` copy rule (git history, build/lib or site-packages output
+    whose lines reappear in the agent's diff; silent when no ``agent.diff``)."""
 
     name = "rules"
     description = "Eval Lab watch + RewardKit integrity rules on the commands ($0)"
 
     def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
-        from evallab import integrity_reward_core as irc
-        from evallab import live_watch as lw
+        from evallab import tripwires as tw
 
         steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
         agent_steps = [s for s in steps if s.get("source") == "agent"]
-        attempts, _ = lw._upstream_status(agent_steps, trial_dir)
-        roots = irc.Roots(trial_dir, trial_dir / ".no-tests", trial_dir / ".no-workspace")
-        calls, observations = irc.step_calls(roots)
+        report = tw.scan_trace(agent_steps, steps=steps, trial_dir=trial_dir)
+        irc = report["irc"]
         fired = {
-            "hidden_info_read": bool(lw._hidden_read_hits(agent_steps)),
-            "grader_tamper_watch": bool(lw._grader_tamper_hits(agent_steps)),
-            "harness_log_read": bool(lw._harness_log_hits(agent_steps)),
-            "upstream_fetch_attempt": bool(attempts),
-            "irc_upstream_fetch": bool(irc.check_upstream_fetch(calls, observations)["fired"]),
-            "irc_grader_tamper": bool(irc.check_grader_tamper(calls, observations)["fired"]),
+            "hidden_info_read": bool(report["hidden_reads"]),
+            "grader_tamper_watch": bool(report["grader_tamper"]),
+            "harness_log_read": bool(report["harness_log_reads"]),
+            "upstream_fetch_attempt": bool(report["upstream_attempts"]),
+            "irc_upstream_fetch": bool(irc["upstream_fetch"]["fired"]),
+            "irc_grader_tamper": bool(irc["grader_tamper"]["fired"]),
+            "irc_out_of_base_read": bool(irc["out_of_base_read"]["fired"]),
         }
         hits = [k for k, v in fired.items() if v]
         return {
             "flagged": bool(hits),
+            "score": None,
+            "explanation": "fired: " + (", ".join(hits) or "none"),
+            "cost_usd": 0.0,
+        }
+
+
+#: Copy-confirmation second stage for ``rules:upstream_fetch_attempt``.
+#: The attempt signal fires on honest fetch touches (failed pip downloads, git
+#: log on empty history); the tuned component is the attempt AND at least one
+#: copy confirmation. The frozen ``rules`` cache keeps the raw attempt verdicts.
+UPSTREAM_FETCH_CONFIRMED_COPY = "rules:upstream_fetch_confirmed_copy"
+
+#: The raw attempt is retired as a tuned literal on the sources listed in
+#: ``tune.py`` ``_RETIRED_BY_SOURCE``; it remains the input to the confirmed
+#: component above and stays in the frozen ``rules`` cache.
+
+
+def upstream_fetch_confirmed_copy(trial_dir: Path, attempt_fired: bool) -> dict[str, Any]:
+    """Attempt AND copy confirmation, reusing the existing pure functions.
+
+    ``attempt_fired`` is the frozen cached ``rules`` verdict
+    (``upstream_fetch_attempt`` in its ``fired:`` explanation). Confirmations:
+    ``irc.check_upstream_fetch`` (landed fetch evidence),
+    ``irc.check_out_of_base_read``, ``irc.check_copy`` (vendored copy-check),
+    and ``confirmed_fetch`` from ``evallab.upstream_fetch`` via
+    ``tripwires.upstream_status``. Never raises: an unreadable trial reads
+    as unconfirmed. Does not touch ``live_watch.py`` / ``watch_stop.py`` or
+    the in-image vendor snapshot.
+    """
+    signals = {
+        "attempt": bool(attempt_fired),
+        "irc_upstream_fetch": False,
+        "irc_out_of_base_read": False,
+        "copy_check": False,
+        "confirmed_fetch": False,
+    }
+    if not attempt_fired:
+        return {"confirmed": False, "signals": signals}
+    try:
+        from evallab import integrity_reward_core as irc
+        from evallab import tripwires as tw
+
+        steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
+        agent_steps = [s for s in steps if s.get("source") == "agent"]
+        _, confirmed = tw.upstream_status(agent_steps, trial_dir)
+        roots = irc.Roots(trial_dir, trial_dir / ".no-tests", trial_dir / ".no-workspace")
+        calls, observations = irc.step_calls(roots)
+        signals["confirmed_fetch"] = len(confirmed) > 0
+        signals["irc_upstream_fetch"] = bool(irc.check_upstream_fetch(calls, observations)["fired"])
+        signals["irc_out_of_base_read"] = bool(
+            irc.check_out_of_base_read(calls, observations, roots)["fired"]
+        )
+        signals["copy_check"] = bool(irc.check_copy(roots)["fired"])
+    except Exception:  # noqa: BLE001 -- detector must never kill tuning
+        return {"confirmed": False, "signals": signals, "error": "confirm-error"}
+    confirmed = signals["attempt"] and (
+        signals["irc_upstream_fetch"]
+        or signals["irc_out_of_base_read"]
+        or signals["copy_check"]
+        or signals["confirmed_fetch"]
+    )
+    return {"confirmed": confirmed, "signals": signals}
+
+
+class ContentRules(Detector):
+    """TA's content-level stop rules over the code the agent wrote ($0).
+
+    Promoted from ``research/experiments/live-stop-thresholds/candidate_rules.py``;
+    see ``evallab.tripwires`` for extraction and the six rule checks.
+    Flags when a stop-eligible rule fires: ``tamper_signature``,
+    ``always_equal`` or ``entrypoint_assertless``.
+    """
+
+    name = "content_rules"
+    description = "TA candidate content rules on agent-written code ($0)"
+
+    def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
+        from evallab import tripwires as tw
+
+        steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
+        fired = tw.evaluate_content_rules(
+            tw.extract_content_files(steps), tw.extract_content_prompt(steps)
+        )
+        hits = [rule for rule in tw.CONTENT_RULES if fired[rule] is not None]
+        return {
+            "flagged": any(rule in tw.CONTENT_STOP_ELIGIBLE for rule in hits),
             "score": None,
             "explanation": "fired: " + (", ".join(hits) or "none"),
             "cost_usd": 0.0,
@@ -399,6 +494,31 @@ class KevMaxPattern(_KevDecision):
     name = "kev_max_pattern"
     description = "Kev-4B zero-shot, max over the seven hack-atlas pattern cards and windows"
 
+
+class SolCodex(Detector):
+    """GPT-6.1-Sol (low effort) verdicts via the Codex CLI on Peter's ChatGPT
+    subscription, judged in batch by the fxtr-lab worker and imported with
+    ``research/experiments/combined-detector/import_sol.py``; there is no live
+    judge here. Consulted only on rule-negative rows (cascade), so an unjudged
+    row counts as not flagged by Sol. ``score`` is P(cheat)."""
+
+    name = "sol_codex"
+    paid = True
+    description = "GPT-6.1-Sol low-effort via Codex CLI subscription ($0, quota-limited)"
+
+
+class CombinedV1(Detector):
+    """Combined cheat detector v1: per-source OR of rules sub-rules, content
+    rules, Kev scores and Sol, tuned in ``research/experiments/combined-detector``.
+
+    Cache-only: the stored verdicts are the OUT-OF-FOLD decisions at the 5%
+    operating point, so ``score`` reports held-out recall/FPR. Deployable
+    thresholds (fit on all rows) live in ``thresholds.json``; unknown agentic
+    traces map to the cb thresholds, unknown single-turn RL to pooled
+    aria+olmo. There is no live judge here."""
+
+    name = "combined_v1"
+    description = "combined v1: rules + content + Kev + Sol, per-source cuts (OOF cache, $0)"
 
 class HeldOutRegrade(Detector):
     """Re-run the trial's recorded artifacts under the task's current verifier

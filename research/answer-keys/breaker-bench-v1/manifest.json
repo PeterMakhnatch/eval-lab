@@ -1,0 +1,57 @@
+{
+  "counts": {
+    "by_source_set": {
+      "benchflow_0.2.0_vs_0.2.2": 434,
+      "terminal_wrench_holdout": 192
+    },
+    "by_source_split_verdict": {
+      "benchflow_0.2.0_vs_0.2.2:dev:fail": 50,
+      "benchflow_0.2.0_vs_0.2.2:dev:pass": 46,
+      "benchflow_0.2.0_vs_0.2.2:dev:unknown": 2,
+      "benchflow_0.2.0_vs_0.2.2:test:fail": 168,
+      "benchflow_0.2.0_vs_0.2.2:test:pass": 168,
+      "terminal_wrench_holdout:dev:fail": 25,
+      "terminal_wrench_holdout:test:fail": 159,
+      "terminal_wrench_holdout:test:pass": 8
+    },
+    "by_subsplit_verdict": {
+      "benchflow_skillsbench:fail": 16,
+      "benchflow_skillsbench:pass": 16,
+      "benchflow_swebench-verified:fail": 120,
+      "benchflow_swebench-verified:pass": 116,
+      "benchflow_swebench-verified:unknown": 2,
+      "benchflow_terminal-bench-2:fail": 82,
+      "benchflow_terminal-bench-2:pass": 82,
+      "tw_holdout_59_public:fail": 49,
+      "tw_holdout_59_public:pass": 5,
+      "tw_holdout_5_staged:fail": 5,
+      "tw_holdout_seta:fail": 130,
+      "tw_holdout_seta:pass": 3
+    },
+    "pairs_by_benchmark_split": {
+      "skillsbench:dev": 4,
+      "skillsbench:test": 12,
+      "swebench-verified:dev": 21,
+      "swebench-verified:test": 95,
+      "terminal-bench-2:dev": 21,
+      "terminal-bench-2:test": 61
+    },
+    "terminal_wrench_train_excluded": 139
+  },
+  "files": {
+    "items_jsonl": {
+      "count": 626,
+      "sha256": "sha256:91ba9a18150d78df2dd44f09a114c8516e71dd45029ae8ee6b7c3e99554308b6"
+    },
+    "pairs_jsonl": {
+      "count": 214,
+      "sha256": "sha256:a6bb215b4d55cc40be865dc8ea168c745e737eae324f5ce6fc0cdbcb8a70dd18"
+    },
+    "upstream_benchflow_sha256": "sha256:a6c70b3dcaed6bfc2f74ab4d5b2cd633a026642466a3096537681fc77ba5e3bd",
+    "upstream_terminal_wrench_sha256": "sha256:a05d45ff846936304ed27717c2229a280f0a02ec82ed6305da059c9ef3058cd4"
+  },
+  "key_id": "breaker-bench-v1",
+  "key_schema": "qa.answer_key/v1",
+  "schema": "breaker-bench-v1.manifest/v1",
+  "split_seed": 20261014
+}

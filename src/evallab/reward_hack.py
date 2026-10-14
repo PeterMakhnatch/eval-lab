@@ -33,6 +33,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from evallab.execution_contracts import new_ulid
+from evallab.ref_subset import add_ref_subset_parser
 from evallab.registry import compute_task_digests, harbor_task_digest
 from evallab.runner import run_matrix
 from evallab.schemas import ContractModel, ExperimentMatrix, MatrixRun
@@ -915,3 +916,4 @@ def build_reward_hack_parser(subparsers: Any) -> None:
     add_battery_parser(hack_commands)
     add_hunt_parser(hack_commands)
     add_repair_parser(hack_commands)
+    add_ref_subset_parser(hack_commands)

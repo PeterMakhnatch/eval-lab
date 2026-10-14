@@ -61,7 +61,7 @@ controls on `daytona` resolve the bounded environment with a provider TTL.
 `override_storage_mb` (1024..1048576, default absent) forwards Harbor's
 `--override-storage-mb <N>` for any environment and agent. `egress_lock`
 (true/false, default absent) is the explicit Daytona egress-lock request: absent
-locks every MiMo run on Daytona (MiMo-family model or MiMo-dataset task,
+locks every MiMo run on Daytona (self-hosted MiMo model or MiMo-dataset task,
 nop/oracle census runs included) and leaves other runs unlocked; an explicit
 `false` on a MiMo Daytona run is refused at dispatch.
 `reference_profile` (default absent) names the measured setup in

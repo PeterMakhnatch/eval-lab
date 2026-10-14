@@ -1,0 +1,40 @@
+{
+  "runs": [
+    {
+      "judges": "programmatic,outcome,step",
+      "k": 3,
+      "model": "qwen2.5:14b",
+      "n_requested": 400,
+      "n_trajectories": 400,
+      "seed": 7,
+      "selfcons_subset": 150
+    },
+    {
+      "judges": "step",
+      "k": 3,
+      "model": "llama3.1:8b",
+      "n_requested": 400,
+      "n_trajectories": 400,
+      "seed": 7,
+      "selfcons_subset": 150
+    },
+    {
+      "judges": "selfcons",
+      "k": 3,
+      "model": "qwen2.5:14b",
+      "n_requested": 400,
+      "n_trajectories": 400,
+      "seed": 7,
+      "selfcons_subset": 150
+    },
+    {
+      "judges": "selfcons",
+      "k": 3,
+      "model": "qwen2.5:14b",
+      "n_requested": 400,
+      "n_trajectories": 400,
+      "seed": 7,
+      "selfcons_subset": 400
+    }
+  ]
+}

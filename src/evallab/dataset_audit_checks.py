@@ -451,6 +451,88 @@ def _task_lint_findings(task_dir: Path) -> list[dict[str, Any]]:
     ]
 
 
+HACK_SCAN_SCHEMA = "evallab.reward_hack.scan/v1"
+
+HACK_SCAN_NOTE = (
+    "descriptive V1-V8 claims joined from evallab hack scan; "
+    "absent findings are not a certificate and never keep/fix/discard"
+)
+
+HACK_SCAN_LIMITS_FALLBACK = (
+    "static inspection only: each finding is a claim with file evidence, never proof "
+    "of exploitability, and an absent finding is not a security certificate"
+)
+
+
+def _scan_package_for_static(task_dir: Path):
+    """Scanner seam for the static stage (monkeypatchable in tests).
+
+    The lazy local import keeps ``evallab.reward_hack`` (and its heavier
+    runner/matrix imports) out of this module's import time and avoids
+    import cycles.
+    """
+    from evallab.reward_hack import scan_package
+
+    return scan_package(task_dir)
+
+
+def _hack_scan_fact(task_dir: Path) -> dict[str, Any]:
+    """JSON-serializable V1-V8 scan joined descriptively into static facts.
+
+    Never raises: when the scanner is unavailable or fails for this package,
+    the fact records ``available: False`` plus the error and stays unknown
+    rather than implying clean.
+    """
+    try:
+        scan = _scan_package_for_static(task_dir)
+    except Exception as exc:  # noqa: BLE001 - recorded, never raised
+        return {
+            "available": False,
+            "schema": HACK_SCAN_SCHEMA,
+            "package_digest": None,
+            "harbor_digest": None,
+            "recon": {},
+            "findings": [],
+            "limits": HACK_SCAN_LIMITS_FALLBACK,
+            "error": f"{type(exc).__name__}: {exc}",
+            "descriptive_note": HACK_SCAN_NOTE,
+        }
+    try:
+        findings = [
+            {
+                "flaw_class": finding.flaw_class,
+                "severity": finding.severity,
+                "title": finding.title,
+                "evidence": finding.evidence,
+                "detail": finding.detail,
+            }
+            for finding in scan.findings
+        ]
+        return {
+            "available": True,
+            "schema": scan.schema_,
+            "package_digest": scan.package_digest,
+            "harbor_digest": scan.harbor_digest,
+            "recon": dict(scan.recon),
+            "findings": findings,
+            "limits": scan.limits,
+            "error": None,
+            "descriptive_note": HACK_SCAN_NOTE,
+        }
+    except Exception as exc:  # noqa: BLE001 - recorded, never raised
+        return {
+            "available": False,
+            "schema": HACK_SCAN_SCHEMA,
+            "package_digest": None,
+            "harbor_digest": None,
+            "recon": {},
+            "findings": [],
+            "limits": HACK_SCAN_LIMITS_FALLBACK,
+            "error": f"{type(exc).__name__}: {exc}",
+            "descriptive_note": HACK_SCAN_NOTE,
+        }
+
+
 def _unknown_static_observation(
     *,
     task_id: str,
@@ -463,39 +545,43 @@ def _unknown_static_observation(
     corpus_bytes: int,
     lint_findings: list[dict[str, Any]],
     reason: str,
+    hack_scan: dict[str, Any] | None = None,
 ) -> AuditObservation:
     """A recorded observation with every flag unknown (never clean)."""
+    facts: dict[str, Any] = {
+        "coverage": coverage,
+        "scope": scope,
+        "a_unstated_literal": None,
+        "b_network": None,
+        "c_nondeterminism": None,
+        "d_env_coupled": None,
+        "e_tiny_suite": None,
+        "f_repo_file_read": None,
+        "g_polyglot_toolchain": None,
+        "ev_a": "",
+        "ev_b": "",
+        "ev_c": "",
+        "ev_d": "",
+        "ev_e": "",
+        "ev_f": "",
+        "ev_g": "",
+        "instr_bytes": len(instruction_raw),
+        "corpus_bytes": corpus_bytes,
+        "corpus_lines": 0,
+        "instruction_sha256": instruction_sha,
+        "corpus_sha256": corpus_sha,
+        "task_lint": lint_findings,
+        "quality_note": (
+            "descriptive lexical flags only; not validity proof "
+            "and not a keep/fix/discard prediction"
+        ),
+    }
+    if hack_scan is not None:
+        facts["hack_scan"] = hack_scan
     return AuditObservation(
         stage="static",
         status="recorded",
-        facts={
-            "coverage": coverage,
-            "scope": scope,
-            "a_unstated_literal": None,
-            "b_network": None,
-            "c_nondeterminism": None,
-            "d_env_coupled": None,
-            "e_tiny_suite": None,
-            "f_repo_file_read": None,
-            "g_polyglot_toolchain": None,
-            "ev_a": "",
-            "ev_b": "",
-            "ev_c": "",
-            "ev_d": "",
-            "ev_e": "",
-            "ev_f": "",
-            "ev_g": "",
-            "instr_bytes": len(instruction_raw),
-            "corpus_bytes": corpus_bytes,
-            "corpus_lines": 0,
-            "instruction_sha256": instruction_sha,
-            "corpus_sha256": corpus_sha,
-            "task_lint": lint_findings,
-            "quality_note": (
-                "descriptive lexical flags only; not validity proof "
-                "and not a keep/fix/discard prediction"
-            ),
-        },
+        facts=facts,
         sources=tuple(sources),
         reason=reason,
     )
@@ -520,6 +606,10 @@ def static_observation(
     honest ``len(bytes)``. Unsupported or incomplete slices are ``None``
     (unknown), never clean. The observation status is ``recorded``: fresh
     local facts, no execution.
+
+    The ``hack_scan`` fact joins the offline BenchJack-shaped V1-V8 ledger
+    (``evallab.reward_hack.scan_package``) descriptively: schema, digests,
+    recon, findings, and limits. It never keeps, fixes, or discards.
     """
     if task.path is None:
         return AuditObservation(
@@ -596,6 +686,7 @@ def static_observation(
                         f"{task.task_id}: explicit added patch is missing: "
                         f"{patch_path}; flags unknown"
                     ),
+                    hack_scan=_hack_scan_fact(task_dir),
                 )
             patch_text, patch_raw = _read_text_file(patch_path)
             patch_sha = _sha256_bytes(patch_raw)
@@ -686,6 +777,7 @@ def static_observation(
                     f"{task.task_id}: empty test corpus under {coverage}; "
                     "flags unknown"
                 ),
+                hack_scan=_hack_scan_fact(task_dir),
             )
 
         corpus_text = "\n".join(testcode)
@@ -729,6 +821,7 @@ def static_observation(
             "package_digest_actual": package_digest_actual,
             "package_digest_match": package_digest_match,
             "task_lint": lint_findings,
+            "hack_scan": _hack_scan_fact(task_dir),
             "quality_note": (
                 "descriptive lexical flags only; static flags never determine "
                 "quality and are not a keep/fix/discard prediction"

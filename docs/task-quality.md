@@ -39,7 +39,7 @@ evallab audit hello-world --execute --stages oracle,nop,leak,static,history \
 | `leak` | HAR-177 future-ref/unreachable-commit semantics; a solution-only native probe inspects discovered image repositories. Missing Git, absent repositories, failed commands, or incomplete output are unknown, not clean. |
 | `oracle` | Recorded HAR-191 history-oracle findings or a native provided-solution control. Missing reference evidence stays unavailable; patch applicability is not a passing grade. |
 | `nop` | The existing no-agent/output checks, bound to the executed package. Infrastructure failures are not scored failures. |
-| `static` | Lexical flags and task lint, with input hashes and coverage. These describe files only and never predict quality or decide the verdict. |
+| `static` | Lexical flags, task lint, and the joined offline V1–V8 hack-scan ledger (schema, digests, recon, findings, limits), with input hashes and coverage. These describe files only and never predict quality or decide the verdict; absent scan findings are not a certificate. |
 | `history` | One read-only native trial census, including controls and probes; recorded model-history summaries retain their original scope. |
 | `exploit` | Existing HAR-161 probe evidence or an explicitly selected hosted-model probe. A negative probe is not proof of universal resistance. |
 
@@ -191,6 +191,35 @@ separate `--stages exploit` probe is requested.
   Passing the numeric gate does not establish that every added assertion is in
   scope. Check the assertions against the instruction before accepting a task
   variant for training; unrelated API tests cannot turn a survivor into a defect.
+- `evallab hack ref-subset run <package> --patch <reference.patch> --output-dir DIR`
+  and `... sweep --index research/experiments/mimo-reference-fixes/index.csv
+  --tasks-root <raw MiMo tasks> --output-dir DIR [--lanes 1|2]` — the
+  reference-subset weak-test probe (`src/evallab/ref_subset.py`, QA Task S2).
+  - **Blocks.** The reference fix is split into change blocks: contiguous edited
+    lines per file, computed on the base and fixed contents. Docs, comment-only
+    blocks and Python blocks that leave the docstring-free AST unchanged do not
+    count as code.
+  - **Grading.** Each grade puts a subset of the blocks on the base checkout and
+    runs the task's own `tests/test.sh`. Grades use local Docker with no network,
+    one fresh container per grade from a snapshot taken after the task's setup.
+  - **Minimisation.** A greedy pass first checks the baselines (full reference 1,
+    base 0). It then drops the docs and comment blocks, then each file, then
+    each block, largest first. It ends with a confirmation grade.
+  - **Outputs** in `DIR/<task>/`:
+    - `report.json` (`evallab.ref_subset.report/v1`);
+    - `finding.json` (`qa.finding/v1`, category `weak`);
+    - `minimal.patch`, the reproducer: `git apply` it on base and grade, expected reward 1;
+    - `dropped.patch`, the reference behaviour no hidden test needs.
+  - **Statuses:** `measured`, `budget_exhausted`, `baseline_mismatch`, `flaky`,
+    `not_applicable` (fewer than two code blocks) and `unavailable`.
+  - **Severity** comes from the kept share of reference code lines: at most 25% is
+    `high`, at most 50% is `medium`, anything else dropped is `low`.
+  - **Caveat.** A dropped block is a hypothesis: it can be optional behaviour,
+    so read `dropped.patch` against the instruction.
+  - **Trace check.** `... trace <trial>... --reports DIR` is the matching QA
+    Trace T0 check. A passing trial whose `verifier/agent.diff` leaves every
+    untested reference block alone is a suspected partial fix
+    (`false_positive`, unverified).
 
 Receipts land in `runs/.reward-hack/<slug>-<ulid>/` (`hack-report.json`,
 `hack-report.md`, `matrix.json`, staged script copies with digests); the matrix

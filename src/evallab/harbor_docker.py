@@ -58,6 +58,12 @@ class LockedDockerEnvironment(DockerEnvironment):
     GPU/device passthrough is outside this CPU sandbox's qualified boundary.
     """
 
+    #: Only subclasses that extend every creation-time lock setting to each
+    #: additional Compose service (e.g. host isolation with task sidecars) may
+    #: accept a task-provided Compose file. The explicit egress-lock backend
+    #: itself stays strict single-container.
+    _allow_task_compose = False
+
     def __init__(
         self,
         environment_dir: Path,
@@ -85,7 +91,7 @@ class LockedDockerEnvironment(DockerEnvironment):
                 raise ValueError("LockedDockerEnvironment requires explicit egress_lock=true")
             if task_env_config.os != TaskOS.LINUX:
                 raise ValueError("egress_lock requires a Linux container")
-            if any(
+            if not self._allow_task_compose and any(
                 (environment_dir / name).exists()
                 for name in (
                     "docker-compose.yaml",
@@ -155,14 +161,17 @@ class LockedDockerEnvironment(DockerEnvironment):
 
     def _allowed_mounts(self) -> dict[str, Path]:
         paths = EnvironmentPaths()
-        return {
+        allowed = {
             str(paths.agent_dir): self.trial_paths.agent_dir,
-            str(paths.user_agent_dir): self.trial_paths.user_agent_dir,
             str(paths.verifier_dir): self.trial_paths.verifier_dir,
             str(paths.artifacts_dir): self.trial_paths.host_artifact_path(
                 MAIN_SERVICE_NAME, str(paths.artifacts_dir)
             ),
         }
+        # Harbor 0.21 has only the agent log mount; 0.24 adds user_agent.
+        if hasattr(paths, "user_agent_dir"):
+            allowed[str(paths.user_agent_dir)] = self.trial_paths.user_agent_dir
+        return allowed
 
     def _validate_mount_specs(self, mounts: Sequence[Mapping[str, Any]]) -> None:
         allowed = self._allowed_mounts()
@@ -247,7 +256,7 @@ class LockedDockerEnvironment(DockerEnvironment):
     async def _daemon_json(self, *command: str) -> Any:
         return json.loads(await self._daemon_output(*command))
 
-    async def _validate_resolved_compose(self) -> None:
+    async def _resolved_compose_services(self) -> dict[str, Any]:
         # Resolve actual native overlays before creation. Output-to-file avoids
         # mixing Compose warnings with JSON and is deleted immediately (env).
         path = self._docker_compose_paths[-1].with_name("resolved.json")
@@ -259,9 +268,11 @@ class LockedDockerEnvironment(DockerEnvironment):
         finally:
             path.unlink(missing_ok=True)
         services = document.get("services")
-        if not isinstance(services, dict) or set(services) != {MAIN_SERVICE_NAME}:
-            raise RuntimeError("egress_lock requires exactly one main Compose service")
-        main = services[MAIN_SERVICE_NAME]
+        if not isinstance(services, dict):
+            raise RuntimeError("egress_lock resolved Compose has no services")
+        return services
+
+    def _validate_locked_main_service(self, main: Mapping[str, Any]) -> None:
         if main.get("network_mode") != "none" or main.get("networks"):
             raise RuntimeError("egress_lock Compose network_mode is not none")
         unsafe = (
@@ -294,6 +305,14 @@ class LockedDockerEnvironment(DockerEnvironment):
         if "NET_RAW" not in main.get("cap_drop", []):
             raise RuntimeError("egress_lock requires dropping NET_RAW")
         self._validate_mount_specs(main.get("volumes") or [])
+
+    async def _validate_resolved_compose(self) -> dict[str, Any]:
+        services = await self._resolved_compose_services()
+        if set(services) != {MAIN_SERVICE_NAME}:
+            raise RuntimeError("egress_lock requires exactly one main Compose service")
+        main = services[MAIN_SERVICE_NAME]
+        self._validate_locked_main_service(main)
+        return main
 
     async def _confirm_lock(self) -> None:
         result = await super()._run_docker_compose_command(
@@ -410,6 +429,11 @@ class LockedDockerEnvironment(DockerEnvironment):
         options = host.get("SecurityOpt")
         if not isinstance(options, list) or not options or set(options) - _SECURITY_OPTIONS:
             raise RuntimeError("egress_lock Docker security options are unsafe or unknown")
+        self._check_locked_mounts(mounts)
+        self._write_lock_record(applied=True)
+        self._lock_confirmed = True
+
+    def _check_locked_mounts(self, mounts: list[Any]) -> None:
         expected = {(str(Path(m["source"]).resolve()), m["target"]): m for m in self._mounts}
         if len(mounts) != len(expected):
             raise RuntimeError("egress_lock Docker has unexpected mounts (including image volumes)")
@@ -426,8 +450,6 @@ class LockedDockerEnvironment(DockerEnvironment):
             ):
                 raise RuntimeError("egress_lock Docker mount source/access is unsafe or unknown")
             seen.add(key)
-        self._write_lock_record(applied=True)
-        self._lock_confirmed = True
 
     async def _validate_network_attachments(self, attachments: Any) -> None:
         if attachments == {}:

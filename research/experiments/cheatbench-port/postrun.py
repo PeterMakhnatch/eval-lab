@@ -2,7 +2,8 @@
 """Post-run pipeline for one CheatBench-port batch.
 
 detect.jsonl for the batch, optional judge (per family, judge.py with
---family), analyze.py, spend.py, then export.py.
+--family), analyze.py, spend.py, then export.py plus the export dead-path
+check (every non-null row path must exist).
 
 Usage:
   uv run --no-sync python research/experiments/cheatbench-port/postrun.py \\
@@ -142,10 +143,14 @@ def main() -> int:
     print(spend_out.read_text().strip())
     if p.returncode != 0:
         raise SystemExit(f"spend.py failed (rc={p.returncode})")
-
-    # 5. export.py (one schema for old and new batches).
+    # 5. export.py (one schema for old and new batches; fails itself on a
+    # dead row path, before writing).
     sh([*UV, "python", str((EXP / "export.py").relative_to(ROOT)),
         "--batch", args.batch, "--jobs", *jobs], tail=5)
+    # 6. Dead-path check over the committed export (postrun fails if the
+    # batch holds a link with no durable copy behind it).
+    sh([*UV, "python", str((EXP / "export.py").relative_to(ROOT)),
+        "--check", "--batch", args.batch], tail=5)
     return 0
 
 

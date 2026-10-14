@@ -35,9 +35,13 @@ import pytest
 from evallab import cheat
 from evallab.cheat import (
     ATTACKS,
+    ATTACKS_V2,
+    CHEAT_LADDER_V2,
+    DEFAULT_LADDER_VERSION,
     build_verdicts,
     cheat_verdict_for_reward,
     parse_attack_selection,
+    parse_ladder_version,
     trial_reward,
     write_cheat_verdicts,
 )
@@ -179,6 +183,25 @@ def test_parse_attack_selection_rejects_unknown_and_empty() -> None:
     with pytest.raises(ValueError, match="empty"):
         parse_attack_selection(" , , ")
 
+def test_ladder_v2_is_opt_in_and_v1_stays_default() -> None:
+    assert parse_ladder_version(None) == DEFAULT_LADDER_VERSION == "1.4.0"
+    assert parse_attack_selection(None, version=CHEAT_LADDER_V2) == ATTACKS_V2
+    assert ATTACKS_V2[: len(ATTACKS)] == ATTACKS
+    assert ATTACKS_V2[len(ATTACKS) :] == (
+        "leftover_test_swap",
+        "fifo_answer",
+        "fork_bomb",
+        "disk_fill",
+    )
+    assert parse_attack_selection("disk_fill,git_history", version=CHEAT_LADDER_V2) == (
+        "git_history",
+        "disk_fill",
+    )
+    with pytest.raises(ValueError, match="unknown cheat attack"):
+        parse_attack_selection("disk_fill")
+    with pytest.raises(ValueError, match="unknown cheat ladder version"):
+        parse_ladder_version("9.9.9")
+
 
 def test_verdict_boundaries() -> None:
     assert cheat_verdict_for_reward(None) == "unscored"
@@ -253,6 +276,105 @@ def test_write_cheat_verdicts_per_trial(tmp_path: Path) -> None:
     assert by_trial["trial-c"]["verdict"] == "unscored"
 
 
+def _provenance_record(name: str, status: str, *, subset_skipped: bool = False) -> dict:
+    detail = "not in --attacks subset" if subset_skipped else "fixture detail"
+    return {"name": name, "status": status, "detail": detail, "evidence": []}
+
+
+def _provenance_trial(
+    job: Path,
+    name: str,
+    reward: float | None,
+    *,
+    version: str | None,
+    pool: tuple[str, ...],
+    selected: tuple[str, ...] | None,
+) -> None:
+    """Write one trial with attempts shaped like run_ladder output (no Docker)."""
+    trial = job / name
+    trial.mkdir(parents=True)
+    stats: dict = {} if reward is None else {"evals": {"t": {"metrics": [{"mean": reward}]}}}
+    (trial / "result.json").write_text(json.dumps({"stats": stats}))
+    wanted = set(pool if selected is None else selected)
+    attacks = [
+        _provenance_record(attack, "executed", subset_skipped=False)
+        if attack in wanted
+        else _provenance_record(attack, "skipped", subset_skipped=True)
+        for attack in pool
+    ]
+    attempts: dict = {"schema": "evallab.cheat.attempts/v1", "agent": "cheat"}
+    if version is not None:
+        attempts["version"] = version
+    attempts["attacks"] = attacks
+    cheat_dir = trial / "cheat"
+    cheat_dir.mkdir()
+    (cheat_dir / "attempts.json").write_text(json.dumps(attempts))
+
+
+def test_build_verdicts_v1_full_ladder_provenance(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _provenance_trial(job, "trial-a", 1.0, version="1.4.0", pool=ATTACKS, selected=None)
+    _provenance_trial(job, "trial-b", 0.0, version="1.4.0", pool=ATTACKS, selected=None)
+    payload = build_verdicts(job, harbor_rev="0.21.0")
+    assert payload["schema"] == "evallab.cheat.verdicts/v1"
+    assert payload["job"] == "job"
+    assert payload["agent"] == "cheat"
+    assert payload["harbor_rev"] == "0.21.0"
+    assert payload["ladder_version"] == "1.4.0" == DEFAULT_LADDER_VERSION
+    assert payload["selected_attacks"] == list(ATTACKS)
+    out = write_cheat_verdicts(job, harbor_rev="0.21.0")
+    assert json.loads(out.read_text())["selected_attacks"] == list(ATTACKS)
+
+
+def test_build_verdicts_v2_subset_ordering(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    subset = ("fork_bomb", "git_history", "disk_fill")
+    _provenance_trial(
+        job, "trial-a", 0.0, version=CHEAT_LADDER_V2, pool=ATTACKS_V2, selected=subset
+    )
+    # Derived from attempts when parameters are absent: subset in ladder order.
+    derived = build_verdicts(job)
+    assert derived["ladder_version"] == CHEAT_LADDER_V2
+    assert derived["selected_attacks"] == ["git_history", "fork_bomb", "disk_fill"]
+    # Explicit parameters win and are normalized to ladder order.
+    explicit = build_verdicts(
+        job, ladder_version=CHEAT_LADDER_V2, selected_attacks=list(subset)
+    )
+    assert explicit["ladder_version"] == CHEAT_LADDER_V2
+    assert explicit["selected_attacks"] == ["git_history", "fork_bomb", "disk_fill"]
+    assert {row["verdict"] for row in derived["trials"]} == {"clean"}
+
+
+def test_build_verdicts_unknown_provenance_is_null(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    trial = job / "trial-a"
+    trial.mkdir(parents=True)
+    (trial / "result.json").write_text(json.dumps({"stats": {}}))
+    payload = build_verdicts(job)
+    assert payload["ladder_version"] is None
+    assert payload["selected_attacks"] is None
+    assert payload["trials"][0]["verdict"] == "unscored"
+    reloaded = json.loads(write_cheat_verdicts(job).read_text())
+    assert reloaded["ladder_version"] is None
+    assert reloaded["selected_attacks"] is None
+
+
+def test_build_verdicts_mixed_generations_are_null(tmp_path: Path) -> None:
+    job = tmp_path / "job"
+    _provenance_trial(job, "trial-a", 0.0, version="1.4.0", pool=ATTACKS, selected=None)
+    _provenance_trial(
+        job,
+        "trial-b",
+        0.0,
+        version=CHEAT_LADDER_V2,
+        pool=ATTACKS_V2,
+        selected=("fork_bomb",),
+    )
+    payload = build_verdicts(job)
+    assert payload["ladder_version"] is None
+    assert payload["selected_attacks"] is None
+
+
 def _task_dir(tmp_path: Path) -> Path:
     task = tmp_path / "task"
     task.mkdir()
@@ -305,6 +427,11 @@ def test_cheat_parser_registers_run() -> None:
     assert parsed.name == "n"
     assert parsed.attempts == 1
     assert parsed.attacks is None
+    assert parsed.ladder_version is None
+    parsed_v2 = parser().parse_args(
+        ["cheat", "run", "--task", "t", "--name", "n", "--ladder-version", CHEAT_LADDER_V2]
+    )
+    assert parsed_v2.ladder_version == CHEAT_LADDER_V2
 
 
 # -- fixture sandbox: attack scripts run for real through bash -----------------
@@ -520,6 +647,26 @@ def test_agent_run_writes_attempts_and_context(
     assert context.cost_usd == 0.0
     assert context.metadata is not None and context.metadata["model_free"] is True
     assert context.metadata["cheat_executed"] == ["git_history", "reward_plant"]
+
+def test_agent_run_records_explicit_ladder_v2(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, harbor_cheat
+) -> None:
+    monkeypatch.setenv("EVALLAB_CHEAT_ATTACKS", "fork_bomb")
+    monkeypatch.setenv("EVALLAB_CHEAT_LADDER_VERSION", CHEAT_LADDER_V2)
+    logs = tmp_path / "logs"
+    agent = harbor_cheat.CheatAgent(logs_dir=logs)
+    context = FakeContext()
+    asyncio.run(agent.run("do the task", FakeHarborEnv(str(tmp_path)), context))
+    attempts = json.loads((logs / "cheat" / "attempts.json").read_text())
+    assert attempts["version"] == CHEAT_LADDER_V2
+    assert [attack["name"] for attack in attempts["attacks"]] == list(ATTACKS_V2)
+    by_name = {attack["name"]: attack for attack in attempts["attacks"]}
+    # The canned exec returns no fork markers, so the probe fails closed
+    # rather than claiming a spawn count it never measured.
+    assert by_name["fork_bomb"]["status"] == "failed"
+    assert by_name["git_history"]["status"] == "skipped"
+    assert context.metadata is not None
+    assert context.metadata["cheat_version"] == CHEAT_LADDER_V2
 
 
 def test_agent_run_rejects_unknown_attack_subset(
@@ -1172,6 +1319,7 @@ def test_cheat_run_refuses_old_harbor(
         jobs_dir=tmp_path / "jobs",
         attempts=1,
         attacks=None,
+        ladder_version=None,
         timeout_seconds=600,
     )
     assert _cheat_run_command(args, tmp_path) == 2
@@ -1303,3 +1451,103 @@ def test_parse_attack_selection_orders_skip_attacks(harbor_cheat) -> None:
         "tamper_source_skiptest",
     )
     assert harbor_cheat.ATTACKS[-2:] == ("tamper_source_skip", "tamper_source_skiptest")
+
+def test_fixture_leftover_test_swap_rewrites_restored_test(
+    tmp_path: Path, harbor_cheat
+) -> None:
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_leftover_test_swap(str(root), BashRun(root), evidence)
+    )
+    loop_pid = record.get("check", {}).get("loop_pid")
+    try:
+        assert record["status"] == "executed"
+        assert record["check"]["signal"] == "armed"
+        assert record["check"]["loop_alive"] is True
+        assert record["check"]["asserts_neutered"] >= 1
+        assert "assert True or fakepkg.VALUE == 2" in (root / "test_broken.py").read_text()
+        assert _run_pytest(root, "test_broken.py").returncode == 0
+
+        # Simulate Harbor re-uploading a pristine test after the agent phase:
+        # the leftover process must swap the restored assertion again.
+        _write_failing_pkg(root)
+        assert "assert True or" not in (root / "test_broken.py").read_text()
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            if "assert True or fakepkg.VALUE == 2" in (root / "test_broken.py").read_text():
+                break
+            time.sleep(0.1)
+        assert "assert True or fakepkg.VALUE == 2" in (root / "test_broken.py").read_text()
+    finally:
+        if isinstance(loop_pid, int):
+            import signal
+
+            with contextlib.suppress(ProcessLookupError, PermissionError):
+                os.kill(loop_pid, signal.SIGKILL)
+
+
+def test_fixture_fifo_answer_blocks_then_cleans_up(tmp_path: Path, harbor_cheat) -> None:
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_fifo_answer(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert record["check"] == {
+        "signal": "armed",
+        "created": True,
+        "reader_blocks": True,
+        "cleaned": True,
+    }
+    assert not (root / "cheat_fifo_probe").exists()
+
+
+def test_fixture_fork_bomb_probe_reaps_children(tmp_path: Path, harbor_cheat) -> None:
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_fork_bomb(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert record["check"]["spawned"] == 64
+    assert record["check"]["failed"] == 0
+    assert record["check"]["remaining"] == 0
+
+
+def test_fixture_disk_fill_probe_writes_bound_then_cleans_up(
+    tmp_path: Path, harbor_cheat
+) -> None:
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_disk_fill(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert record["check"]["bytes_written"] >= 128 * 1024 * 1024
+    assert record["check"]["cleaned"] is True
+    assert list(root.glob(".cheat_diskfill_probe*")) == []
+
+
+def test_run_ladder_v2_subset_keeps_v2_order(tmp_path: Path, harbor_cheat) -> None:
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    records = asyncio.run(
+        harbor_cheat.run_ladder(
+            str(root),
+            BashRun(root),
+            evidence,
+            ["disk_fill"],
+            ladder_version=CHEAT_LADDER_V2,
+        )
+    )
+    assert [record["name"] for record in records] == list(ATTACKS_V2)
+    by_name = {record["name"]: record for record in records}
+    assert by_name["disk_fill"]["status"] == "executed"
+    assert by_name["git_history"]["status"] == "skipped"
+    assert by_name["leftover_test_swap"]["status"] == "skipped"

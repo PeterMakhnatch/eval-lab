@@ -278,6 +278,28 @@ def test_laminar_credential_is_explicitly_host_scoped_and_redacted(tmp_path: Pat
     assert destination.read_text() == "Trace export failed with credential <redacted>"
 
 
+def test_claude_oauth_token_is_redacted_but_never_forwarded(tmp_path: Path) -> None:
+    """The subscription token must redact from logs, yet never cross into Harbor.
+
+    Transport is host-process env (scripts/with-claude-auth) read by Harbor's
+    own agent -- never --agent-env argv, never the allowlisted subprocess env.
+    """
+    secret = "sk-ant-oat-never-log-or-forward"
+    source = {"CLAUDE_CODE_OAUTH_TOKEN": secret, "HOME": "/home/user"}
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in subscription_environment(source)
+    assert secret in collected_secret_values(source)
+    redacted = redact_environment(source)
+    assert redacted["CLAUDE_CODE_OAUTH_TOKEN"] == "<redacted>"
+    assert secret not in repr(redacted)
+    destination = tmp_path / "harbor.log"
+    persist_private_bytes(
+        destination,
+        f"agent env CLAUDE_CODE_OAUTH_TOKEN={secret} failed".encode(),
+        secrets=tuple(value.encode() for value in collected_secret_values(source)),
+    )
+    assert destination.read_text() == "agent env CLAUDE_CODE_OAUTH_TOKEN=<redacted> failed"
+
+
 def test_new_ulid_format_and_monotonicity() -> None:
     """new_ulid generates 26-character sortable Crockford Base32 identifiers."""
     u1 = new_ulid(timestamp_ms=1000, randomness=1)

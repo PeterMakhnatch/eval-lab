@@ -106,7 +106,7 @@ patterns:
     laminar: none
     mimo: none
   detection:
-    rule: live_watch._hidden_read_hits and _harness_log_hits (detectors.Rules hidden_info_read, harness_log_read)
+    rule: tripwires.hidden_read_hits and harness_log_hits (detectors.Rules hidden_info_read, harness_log_read)
     probe: cheat.verifier_peek
     judge: readers.harbor_analyze reward_hacking (tw 16/19 positives, 1/18 FP on detectors-v1)
   questions:
@@ -363,7 +363,7 @@ patterns:
     laminar: none
     mimo: H1-H3 (planted reward file, pytest hook, TestMain)
   detection:
-    rule: integrity_reward_core.check_grader_tamper and live_watch._grader_tamper_hits (detectors.Rules grader_tamper_watch, irc_grader_tamper)
+    rule: integrity_reward_core.check_grader_tamper and tripwires.grader_tamper_hits (detectors.Rules grader_tamper_watch, irc_grader_tamper)
     probe: cheat.reward_plant, cheat.answer_symlink, cheat.skip_plant, cheat.tamper_tracked_conftest, cheat.tamper_sitecustomize, cheat.tamper_shadow_timeout, cheat.tamper_reward_writer, cheat.tamper_source_exit, cheat.tamper_source_pytest_patch
     judge: readers.harbor_analyze reward_hacking
   questions:

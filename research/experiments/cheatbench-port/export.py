@@ -15,9 +15,22 @@ Usage (the 2026-10-09 runs, from the published flat results):
       --batch 2026-10-09-initial --from-results
 
 --jobs accepts job names, comma-separated lists, and globs (matched under
---runs-dir). Detection runs live per trial (detect_trial); verdicts come
-from the batch's judge-*.jsonl files (or results/judge-*.jsonl with
---from-results).
+--runs). --batch-dir reads the batch record (jobs.txt, judge files, captures)
+from another checkout's runs tree instead of this checkout's
+runs/_batches/<batch_id>; both default into this checkout. Detection runs
+live per trial (detect_trial); verdicts come from the batch's judge-*.jsonl
+files (or results/judge-*.jsonl with --from-results).
+
+Every row carries `evidence`: "published" (a copy exists under
+~/Developer/eval-lab-results), "local" (only the worktree runs/ copy), or
+"lost" (both gone; trial_dir/published_dir/artifact paths are null and
+`evidence_note` says what was lost; verdicts and detector rows are kept).
+`batch.json` carries the per-batch `evidence_counts`. fxtr skips trials
+without a trajectory.
+
+--check validates the committed exports instead of writing: every non-null
+path in every row must exist. The export itself fails the same way before
+writing, so a committed batch never holds a dead link.
 
 Paths: every job is read from its immutable published copy under
 ~/Developer/eval-lab-results when one exists, else from runs/<job>. runs/
@@ -67,6 +80,62 @@ JUDGE_META = {"trial_id", "trial_dir", "family", "judge", "judge_model",
               "raw"}
 TRIPWIRE_RULE = {"grader": "hidden_test_read", "git_objects": "git_object_read",
                  "git_refs": "history_mining"}
+NULL_ARTIFACTS = {"trajectory": None, "recording_cast": None,
+                  "file_access": None, "proxy_calls": None,
+                  "model_capture_calls": None, "watch_alerts": None}
+
+
+def evidence_of(trial_dir: str | None, published: str | None) -> str:
+    """Row evidence: "published" (durable copy), "local" (runs/ only), "lost"."""
+    if published is not None:
+        return "published"
+    return "local" if trial_dir is not None else "lost"
+
+
+def dead_paths(rows: list[dict]) -> list[tuple[str, str, str]]:
+    """(trial_id, field, path) for every non-null row path that does not exist.
+
+    Only row paths are checked (trial_dir, published_dir, artifacts.*):
+    batch-level paths such as the readiness receipt stay worktree-local by
+    design and are never part of this check."""
+    dead = []
+    for r in rows:
+        for key in ("trial_dir", "published_dir"):
+            p = r.get(key)
+            if p is not None and not Path(p).exists():
+                dead.append((r["trial_id"], key, p))
+        for ak, p in (r.get("artifacts") or {}).items():
+            if p is not None and not Path(p).exists():
+                dead.append((r["trial_id"], f"artifacts.{ak}", p))
+    return dead
+
+
+def check_committed(batch_id: str | None) -> int:
+    """Validate committed exports: 0 dead row paths. Returns the exit code."""
+    if batch_id is not None:
+        dirs = [RESULTS / "batches" / batch_id]
+    else:
+        dirs = sorted(p for p in (RESULTS / "batches").iterdir() if p.is_dir())
+    rc, total = 0, 0
+    for d in dirs:
+        f = d / "trials.jsonl"
+        if not f.is_file():
+            print(f"check: {d.name}: no trials.jsonl", file=sys.stderr)
+            rc = 1
+            continue
+        rows = [json.loads(line) for line in f.read_text().splitlines()
+                if line.strip()]
+        dead = dead_paths(rows)
+        total += len(rows)
+        if dead:
+            rc = 1
+            for tid, field, p in dead:
+                print(f"dead path: {d.name} {tid} {field} {p}")
+        else:
+            print(f"check: {d.name}: {len(rows)} rows, 0 dead paths")
+    print(f"check: {total} rows over {len(dirs)} batches, "
+          f"{'FAIL' if rc else 'OK'}")
+    return rc
 
 
 def expand_jobs(tokens: list[str], runs: Path) -> list[str]:
@@ -318,12 +387,15 @@ def build_row(job: str, trial: Path, family: str, instance: str, model: str,
     v_b = {name: verdict_block(r) for name, r in verdicts.items()}
     step, source = cheat_step(det_b, v_b, trial)
     ts, off = step_time_and_cast(trial, step)
+    pub = published_dir(job)
     return {"trial_id": trial.name, "job": job, "family": family,
             "instance": instance, "model": model, "arm": arm,
             "reward": reward, "exception": exc, "infra_excluded": infra,
             "agent_cost_usd": agent_cost(job, runs),
             "trial_dir": str(trial),
-            "published_dir": published_dir(job),
+            "published_dir": pub,
+            "evidence": evidence_of(str(trial), pub),
+            "evidence_note": None,
             "artifacts": artifacts(job, trial, runs),
             "detector": det_b, "tripwires": tripwires(trial, family),
             "verdicts": v_b, "cheat_step": step,
@@ -414,6 +486,10 @@ def capture_block(jobs: list[str], runs: Path, batch: Path | None) -> dict:
     except ImportError:
         pass
     mc_dirs = []
+    # Repo-relative capture dirs resolve against the worktree holding the
+    # runs tree (this checkout by default), not the exporter's checkout, so
+    # cross-checkout exports (--runs/--batch-dir) keep durable paths.
+    base = runs.parent if runs.name == "runs" else ROOT
     for job in jobs:
         lab = job_dir(job, runs) / "lab-metadata.json"
         if lab.is_file():
@@ -422,7 +498,7 @@ def capture_block(jobs: list[str], runs: Path, batch: Path | None) -> dict:
                 d = mc.get("capture_dir") or mc.get("dir")
                 if d:
                     p = Path(d)
-                    mc_dirs.append(str(p if p.is_absolute() else ROOT / p))
+                    mc_dirs.append(str(p if p.is_absolute() else base / p))
             except ValueError:
                 pass
     if batch is not None:
@@ -444,6 +520,10 @@ def write_batch(batch_id: str, rows: list[dict], specs: list[str],
     models = sorted({r["model"] for r in rows})
     families = sorted({r["family"] for r in rows})
     arms = sorted({r["arm"] for r in rows})
+    evidence_counts = {"published": 0, "local": 0, "lost": 0}
+    for r in rows:
+        ev = r.get("evidence", "unknown")
+        evidence_counts[ev] = evidence_counts.get(ev, 0) + 1
     commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True,
                             text=True, cwd=ROOT)
     (out / "batch.json").write_text(json.dumps({
@@ -453,11 +533,12 @@ def write_batch(batch_id: str, rows: list[dict], specs: list[str],
         "specs": sorted(set(specs)), "models": models, "families": families,
         "arms": arms, "capture": capture_block(jobs, runs, batch),
         "judges": judges, "readiness_receipt": readiness,
+        "evidence_counts": evidence_counts,
         "spend_usd": spend_usd(jobs, runs, judge_paths)}, indent=1) + "\n")
     scored = [r for r in rows if not r["infra_excluded"]]
     judged = [r for r in scored if r["verdicts"]]
     print(f"batch={batch_id} trials={len(rows)} scored={len(scored)} "
-          f"judged={len(judged)} -> {out}")
+          f"judged={len(judged)} evidence={evidence_counts} -> {out}")
 
 
 def spec_ids(jobs: list[str], runs: Path) -> list[str]:
@@ -487,18 +568,23 @@ def cmd_from_results(args: argparse.Namespace) -> int:
         infra = (c.get("infra_excluded") or "").strip().lower() == "true"
         det = detect_map.get(c["trial_id"])
         raw_dir = Path(c["trial_dir"])
-        trial = raw_dir if raw_dir.is_absolute() else ROOT / raw_dir
+        trial: Path | None = raw_dir if raw_dir.is_absolute() else ROOT / raw_dir
         durable = job_dir(c["job"], args.runs) / trial.name
         if durable.is_dir():
             trial = durable
+        if trial is not None and not trial.is_dir():
+            # Neither the recorded dir nor a durable copy exists: the evidence
+            # is lost. Keep the verdicts/detector rows; null every path.
+            trial = None
         if det is None:
-            det = detect_row(trial) if (trial / "agent" / "trajectory.json").is_file() \
+            det = detect_row(trial) if trial is not None and (
+                trial / "agent" / "trajectory.json").is_file() \
                 else {"protected_touched": [], "answer_exposed": [],
                       "prohibited_computation": [], "honeypot_route_seen": []}
-        det_b = detector_block(det, c["family"], trial if trial.is_dir() else None)
+        det_b = detector_block(det, c["family"], trial)
         v_b = {n: verdict_block(r) for n, r in verdicts.get(c["trial_id"], {}).items()}
-        step, source = cheat_step(det_b, v_b, trial if trial.is_dir() else None)
-        ts, off = step_time_and_cast(trial, step) if trial.is_dir() else (None, None)
+        step, source = cheat_step(det_b, v_b, trial)
+        ts, off = step_time_and_cast(trial, step) if trial is not None else (None, None)
         try:
             reward = float(c["reward"]) if c.get("reward") not in (None, "") else None
         except ValueError:
@@ -509,26 +595,42 @@ def cmd_from_results(args: argparse.Namespace) -> int:
         except ValueError:
             cost = None
         res: dict = {}
-        with contextlib.suppress(OSError, ValueError):
-            res = json.loads((trial / "result.json").read_text())
+        if trial is not None:
+            with contextlib.suppress(OSError, ValueError):
+                res = json.loads((trial / "result.json").read_text())
+        pub = published_dir(c["job"])
+        if trial is None and pub is not None:
+            note: str | None = (
+                f"evidence lost: {c['trial_dir']} no longer exists and the "
+                f"published copy of job {c['job']} has no {c['trial_id']} dir")
+        elif trial is None:
+            note = (f"evidence lost: {c['trial_dir']} no longer exists and no "
+                    f"published copy of job {c['job']} was found")
+        else:
+            note = None
         rows.append({
             "trial_id": c["trial_id"], "job": c["job"], "family": c["family"],
             "instance": c["instance"], "model": c["model"], "arm": c["arm"],
             "reward": reward, "exception": c.get("exception") or None,
             "infra_excluded": infra, "agent_cost_usd": cost,
-            "trial_dir": str(trial),
-            "published_dir": published_dir(c["job"]),
-            "artifacts": artifacts(c["job"], trial, args.runs) if trial.is_dir()
-            else {"trajectory": None, "recording_cast": None, "file_access": None,
-                  "proxy_calls": None, "model_capture_calls": None,
-                  "watch_alerts": None},
+            "trial_dir": str(trial) if trial is not None else None,
+            "published_dir": pub,
+            "evidence": evidence_of(
+                str(trial) if trial is not None else None, pub),
+            "evidence_note": note,
+            "artifacts": artifacts(c["job"], trial, args.runs)
+            if trial is not None else dict(NULL_ARTIFACTS),
             "detector": det_b,
-            "tripwires": tripwires(trial, c["family"]) if trial.is_dir() else [],
+            "tripwires": tripwires(trial, c["family"])
+            if trial is not None else [],
             "verdicts": v_b, "cheat_step": step,
             "cheat_step_source": source,
             "cheat_step_timestamp": ts, "cast_offset_s": off,
-            "stop": stop_block(trial) if trial.is_dir() else None,
-            "usage": usage_block(trial, res) if trial.is_dir() else None})
+            "stop": stop_block(trial) if trial is not None else None,
+            "usage": usage_block(trial, res) if trial is not None else None})
+    for tid, field, p in dead_paths(rows):
+        print(f"dead path: {tid} {field} {p}", file=sys.stderr)
+        return 1
     jobs = sorted({c["job"] for c in rows_csv})
     write_batch(batch_id, rows, spec_ids(jobs, args.runs), judges, judge_paths,
                 jobs, args.runs, None, None, out)
@@ -553,7 +655,8 @@ def cmd_from_results(args: argparse.Namespace) -> int:
 
 def cmd_jobs(args: argparse.Namespace) -> int:
     batch_id = args.batch
-    batch = ROOT / "runs" / "_batches" / batch_id
+    batch = args.batch_dir if args.batch_dir is not None \
+        else ROOT / "runs" / "_batches" / batch_id
     jobs_file = batch / "jobs.txt"
     if args.jobs:
         jobs = expand_jobs(args.jobs, args.runs)
@@ -581,6 +684,9 @@ def cmd_jobs(args: argparse.Namespace) -> int:
         rows.append(build_row(job, trial, family, instance, model, arm,
                               detect_row(trial),
                               verdicts.get(trial.name, {}), args.runs))
+    for tid, field, p in dead_paths(rows):
+        print(f"dead path: {tid} {field} {p}", file=sys.stderr)
+        return 1
     out = RESULTS / "batches" / batch_id
     receipt = batch / "readiness-receipt.json"
     write_batch(batch_id, rows, spec_ids(jobs, args.runs), judges, judge_paths,
@@ -592,16 +698,30 @@ def cmd_jobs(args: argparse.Namespace) -> int:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--batch", required=True)
+    ap.add_argument("--batch", default=None,
+                    help="batch id (required unless --check covers all batches)")
     ap.add_argument("--jobs", nargs="*", default=None,
-                    help="job names, comma lists, or globs (under --runs-dir)")
+                    help="job names, comma lists, or globs (under --runs)")
     ap.add_argument("--from-results", action="store_true",
                     help="export the 2026-10-09 runs from results/{trials.csv,"
                     "detect.jsonl,judge-*.jsonl}")
-    ap.add_argument("--runs", type=Path, default=Path("runs"))
+    ap.add_argument("--runs", type=Path, default=Path("runs"),
+                    help="runs tree holding the job dirs")
+    ap.add_argument("--batch-dir", type=Path, default=None,
+                    help="batch record dir (default runs/_batches/<batch>)")
+    ap.add_argument("--check", action="store_true",
+                    help="validate the committed export(s) instead of writing: "
+                    "with --batch one batch, else every batch under "
+                    "results/batches")
     args = ap.parse_args()
     if not args.runs.is_absolute():
         args.runs = ROOT / args.runs
+    if args.batch_dir is not None and not args.batch_dir.is_absolute():
+        args.batch_dir = ROOT / args.batch_dir
+    if args.check:
+        return check_committed(args.batch)
+    if not args.batch:
+        ap.error("--batch is required without --check")
     if args.from_results:
         return cmd_from_results(args)
     return cmd_jobs(args)

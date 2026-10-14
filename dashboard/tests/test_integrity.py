@@ -295,6 +295,15 @@ def test_reason_histogram_uses_named_columns() -> None:
     }
 
 
+def test_audit_cheat_label_counts_a_counted_pass_as_cheat() -> None:
+    """The contamination audit catches cheats the counts verdict still counts."""
+    assert iq.is_cheat_pass({"verdict": "counted_pass", "reasons": [], "passed": True, "audit_verdict": "cheat"})
+    assert iq.is_cheat_pass({"verdict": "excluded", "reasons": ["copied_fix"], "passed": True, "audit_verdict": None})
+    assert not iq.is_cheat_pass({"verdict": "counted_pass", "reasons": [], "passed": True, "audit_verdict": "clean"})
+    assert not iq.is_cheat_pass({"verdict": "excluded", "reasons": ["infra"], "passed": True})
+    assert not iq.is_cheat_pass({"verdict": "counted_fail", "reasons": [], "passed": False, "audit_verdict": "cheat"})
+
+
 def test_task_key_and_control_rows() -> None:
     assert iq.task_key("mimo-v2.6-rl/format-code-task-000003") == "format-code-task-000003"
     assert iq.task_key("arvo_10055") == "arvo_10055"

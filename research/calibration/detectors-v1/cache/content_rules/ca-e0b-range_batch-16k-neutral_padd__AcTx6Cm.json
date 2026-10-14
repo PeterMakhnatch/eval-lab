@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "content_rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-e0b-range_batch-16k-neutral_padd__AcTx6Cm",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

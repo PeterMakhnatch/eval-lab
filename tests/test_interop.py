@@ -592,6 +592,12 @@ def test_scripted_agent_plan_oracle_nop_cheat() -> None:
     assert "--attacks reward_plant,skip_plant" in (cheat.command or "")
     full = scripted_agent_plan(task, "cheat", ())
     assert "--attacks" not in (full.command or "")
+    assert "--ladder-version" not in (full.command or "")
+    v2 = scripted_agent_plan(task, "cheat", ("disk_fill",), ladder_version="2.0.0")
+    assert "--ladder-version 2.0.0 --attacks disk_fill" in (v2.command or "")
+    full_v2 = scripted_agent_plan(task, "cheat", (), ladder_version="2.0.0")
+    assert "--ladder-version 2.0.0" in (full_v2.command or "")
+    assert "--attacks" not in (full_v2.command or "")
 
 
 def test_scripted_agent_plan_rejects_unknown() -> None:
@@ -600,6 +606,10 @@ def test_scripted_agent_plan_rejects_unknown() -> None:
         scripted_agent_plan(task, "codex", ())
     with pytest.raises(ValueError, match="unknown cheat attack"):
         scripted_agent_plan(task, "cheat", ("nope",))
+    with pytest.raises(ValueError, match="unknown cheat attack"):
+        scripted_agent_plan(task, "cheat", ("disk_fill",))
+    with pytest.raises(ValueError, match="unknown cheat ladder version"):
+        scripted_agent_plan(task, "cheat", (), ladder_version="9.9.9")
 
 
 # -- inspect staging (no docker) -------------------------------------------------
@@ -872,6 +882,27 @@ def test_matrix_task_row_uses_registry_and_grades(
     assert row["problems"] == []
     assert row["versions"] == {"fake": "fake-v1"}
 
+def test_matrix_task_row_forwards_explicit_ladder_version(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[dict] = []
+
+    def fake_runner(task_dir: Path, agent: str, attacks: tuple, **kwargs) -> dict:
+        seen.append(kwargs)
+        return _fake_cell("fake", agent, "fail", 0.0)
+
+    monkeypatch.setitem(MATRIX_TARGETS, "fake", fake_runner)
+    row = matrix_task_row(
+        REAL_TASK,
+        targets=("fake",),
+        agents=("cheat",),
+        attacks=("disk_fill",),
+        workdir=tmp_path / "w",
+        ladder_version="2.0.0",
+    )
+    assert row["ladder_version"] == "2.0.0"
+    assert seen[0]["ladder_version"] == "2.0.0"
+
 
 def test_matrix_task_row_broken_and_unknown_target(tmp_path: Path) -> None:
     def bad_runner(
@@ -960,6 +991,12 @@ def test_cli_wiring() -> None:
     assert args.agents == ["oracle", "nop"]
     assert args.attacks == "skip_plant"
     assert callable(args.func)
+    assert args.ladder_version is None
+    args_v2 = parser.parse_args(
+        ["interop", "matrix", "a", "--ladder-version", "2.0.0", "--attacks", "disk_fill"]
+    )
+    assert args_v2.ladder_version == "2.0.0"
+    assert args_v2.attacks == "disk_fill"
 
 
 def _matrix_row(task_id: str = "lab/t", grading: str = "ok", problems: tuple = ()) -> dict:

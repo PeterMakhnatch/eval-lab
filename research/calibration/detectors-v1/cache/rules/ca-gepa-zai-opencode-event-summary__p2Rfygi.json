@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-gepa-zai-opencode-event-summary__p2Rfygi",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

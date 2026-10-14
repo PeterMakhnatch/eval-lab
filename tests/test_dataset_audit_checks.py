@@ -319,6 +319,78 @@ def test_static_env_repo_toolchain_boundaries(tmp_path: Path) -> None:
     assert checks.static_observation(_task(scratch)).facts["d_env_coupled"] == 0
 
 
+def test_static_hack_scan_joins_v8_findings_with_matching_digest(tmp_path: Path) -> None:
+    from evallab.registry import harbor_task_digest, task_directory_digest
+
+    pkg = _harbor_package(tmp_path)
+    with (pkg / "task.toml").open("a", encoding="utf-8") as handle:
+        handle.write('\n[environment]\nuser = "root"\nnetwork_mode = "public"\n')
+    before = _snapshot_files(pkg)
+    obs = checks.static_observation(_task(pkg))
+    assert obs.status == "recorded"
+    hack = obs.facts["hack_scan"]
+    assert hack["available"] is True
+    assert hack["schema"] == "evallab.reward_hack.scan/v1"
+    assert hack["error"] is None
+    assert hack["package_digest"] == task_directory_digest(pkg)
+    assert hack["package_digest"] == obs.facts["package_digest_actual"]
+    assert hack["harbor_digest"] == harbor_task_digest(pkg)
+    v8 = [finding for finding in hack["findings"] if finding["flaw_class"] == "V8"]
+    assert v8, "root/public-network package should surface V8 claims"
+    assert any("root" in finding["title"] for finding in v8)
+    assert any("network" in finding["title"] for finding in v8)
+    for finding in hack["findings"]:
+        assert set(finding) == {
+            "flaw_class",
+            "severity",
+            "title",
+            "evidence",
+            "detail",
+        }
+    assert hack["recon"]["network_mode"] == "public"
+    assert "not a security certificate" in hack["limits"]
+    assert "never keep/fix/discard" in hack["descriptive_note"]
+    json.dumps(hack)  # joined fact stays JSON-serializable
+    assert _snapshot_files(pkg) == before
+
+
+def test_static_hack_scan_failure_stays_unknown_not_clean(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    pkg = _harbor_package(tmp_path / "pkg")
+    task = _task(pkg)
+
+    def _boom(_task_dir: Path):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(checks, "_scan_package_for_static", _boom)
+    obs = checks.static_observation(task)
+    assert obs.status == "recorded"
+    hack = obs.facts["hack_scan"]
+    assert hack["available"] is False
+    assert hack["findings"] == []
+    assert hack["package_digest"] is None
+    assert "boom" in hack["error"]
+    assert obs.facts["coverage"] == "harbor-test-source"
+
+    monkeypatch.undo()
+    empty = _harbor_package(tmp_path / "empty", tests={})
+    (empty / "tests").mkdir(parents=True, exist_ok=True)
+    unknown = checks.static_observation(_task(empty))
+    assert unknown.status == "recorded"
+    for flag in (
+        "a_unstated_literal",
+        "b_network",
+        "c_nondeterminism",
+        "d_env_coupled",
+        "e_tiny_suite",
+        "f_repo_file_read",
+        "g_polyglot_toolchain",
+    ):
+        assert unknown.facts[flag] is None
+    sound = unknown.facts["hack_scan"]
+    assert sound["available"] is True
+    assert sound["schema"] == "evallab.reward_hack.scan/v1"
 
 
 def test_prepare_probe_lineage_and_source_immutability(tmp_path: Path) -> None:

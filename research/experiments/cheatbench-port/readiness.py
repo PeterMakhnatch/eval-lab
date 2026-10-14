@@ -41,13 +41,17 @@ sys.path.insert(0, str(EXP))
 sys.path.insert(0, str(JUDGE_DIR))
 sys.path.insert(0, str(ROOT / "src"))
 
-FAMILIES = ("subset_sum", "prime_factorization", "openmath_agent")
-SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma"}
+FAMILIES = ("subset_sum", "prime_factorization", "openmath_agent",
+            "geoguessr", "synthetic_puzzles")
+SHORT = {"subset_sum": "ss", "prime_factorization": "pf", "openmath_agent": "oma",
+         "geoguessr": "gg", "synthetic_puzzles": "sp"}
 # Representative built package per family for the free controls.
 CONTROL_PACKAGE = {
     "subset_sum": "subset_sum-subsetsum_n60d10_4",
     "prime_factorization": "prime_factorization-fact_n52_4",
     "openmath_agent": "openmath-agent-beal",
+    "geoguessr": "geoguessr-geoguessr_31fee33fbdbd6b87",
+    "synthetic_puzzles": "synthetic_puzzles-puzzle_img_01",
 }
 # Known-good / known-clean reference trials for the detector check. They live
 # in runs/ only in the worktree that ran them; their immutable published copies
@@ -117,11 +121,12 @@ class Gate:
 
     # -- Harbor ------------------------------------------------------------
     def check_harbor(self) -> None:
-        """The `harbor` on PATH is the pinned version and can load the
-        Terminus agent. The free controls (nop/oracle/canary) never import it,
-        so without this check a wrong Harbor fails every model trial at
-        dispatch (2026-10-12: a venv synced without the `laminar` extra fell
-        through to a global Harbor 0.21 tool)."""
+        """The `harbor` on PATH is the pinned version and can load the agents
+        a batch uses (Terminus, and Eval Lab's pinned Codex adapter). The free
+        controls (nop/oracle/canary) never import them, so without this check
+        a wrong Harbor fails every model trial at dispatch (2026-10-12: a venv
+        synced without the `laminar` extra fell through to a global Harbor 0.21
+        tool)."""
         import shutil
         t0 = time.monotonic()
         pinned = re.search(r'"harbor==([^"]+)"', (ROOT / "pyproject.toml").read_text())
@@ -134,9 +139,10 @@ class Gate:
         versions = re.findall(r"^\s*(\d+\.\d+\.\d+\S*)\s*$", out, re.M) if rc == 0 else []
         version = versions[-1] if versions else None
         py = Path(exe).resolve().parent / "python"
-        rc2, out2, _ = run([str(py), "-c", "import evallab.harbor_terminus"], timeout=120)
+        rc2, out2, _ = run([str(py), "-c", "import evallab.harbor_terminus, evallab.harbor_codex"],
+                           timeout=120)
         evidence = {"harbor": exe, "version": version, "pinned": want,
-                    "terminus_import": "ok" if rc2 == 0 else out2.strip()[-300:]}
+                    "agent_imports": "ok" if rc2 == 0 else out2.strip()[-300:]}
         ok = version is not None and version == want and rc2 == 0
         self.add("harbor", "pass" if ok else "fail", evidence, time.monotonic() - t0)
 
@@ -313,7 +319,17 @@ class Gate:
                      time.monotonic() - t0)
             return
         leftovers: list[str] = []
+        concurrent: list[str] = []
         unparseable: list[str] = []
+        # Specs of batches named --concurrent-batch (running now, sharing this
+        # queue) are expected, not leftovers; their ids come from the batch's
+        # own spec_ids.txt, never from name patterns.
+        allowed: set[str] = set()
+        for batch_id in self.args.concurrent_batch or []:
+            ids = ROOT / "runs/_batches" / batch_id / "spec_ids.txt"
+            if ids.is_file():
+                allowed.update(line.strip() for line in ids.read_text().splitlines()
+                               if line.strip())
         for sub in ("approved", "waiting"):
             d = q / sub
             if not d.is_dir():
@@ -324,7 +340,11 @@ class Gate:
                     name = str(s.get("name", ""))
                     task = str(s.get("task", ""))
                     if name.startswith("cb-") or "cheatbench" in task:
-                        leftovers.append(f"{sub}/{spec.name} ({name or task})")
+                        entry = f"{sub}/{spec.name} ({name or task})"
+                        if str(s.get("spec_id") or "") in allowed:
+                            concurrent.append(entry)
+                        else:
+                            leftovers.append(entry)
                 except (OSError, ValueError):
                     unparseable.append(f"{sub}/{spec.name}")
         reasons = sorted((q / "reasons").glob("*.json")) if (q / "reasons").is_dir() else []
@@ -363,25 +383,49 @@ class Gate:
                 headroom["note"] = f"breaker headroom unreadable: {type(e).__name__}: {str(e)[:160]}"
         if leftovers:
             self.add("queue", "fail",
-                     {"leftover_cb_specs": leftovers, "unparseable": unparseable,
-                      "recent_reasons": recent, "quiet_failure": headroom},
+                     {"leftover_cb_specs": leftovers, "concurrent_batch_specs": concurrent,
+                      "unparseable": unparseable, "recent_reasons": recent,
+                      "quiet_failure": headroom},
                      time.monotonic() - t0)
             return
         status = "pass" if Maggie == "pass" else "warn"
         self.add("queue", status,
-                 {"leftover_cb_specs": [], "unparseable": unparseable,
-                  "recent_reasons": recent, "quiet_failure": headroom},
+                 {"leftover_cb_specs": [], "concurrent_batch_specs": concurrent,
+                  "unparseable": unparseable, "recent_reasons": recent,
+                  "quiet_failure": headroom},
                  time.monotonic() - t0)
 
     # -- (f) providers ------------------------------------------------------
     def check_providers(self) -> None:
         t0 = time.monotonic()
+        from make_specs import SUBSCRIPTION_AGENT
+        from quota_gate import weekly_used
+
         from evallab import credentials as creds
         routes = list(dict.fromkeys([*self.args.models,
                                      *([self.args.judge] if self.args.judge else [])]))
         per_route: dict = {}
         failed = False
         for route in routes:
+            agent = SUBSCRIPTION_AGENT.get(route)
+            if agent is not None:
+                # Subscription CLI: its credential (codex auth.json; Claude via
+                # the OMP auth-gateway login or the Keychain item), and the
+                # account's weekly window under the batch's quota limit.
+                if agent == "codex":
+                    res = creds.probe_codex_auth_result()
+                elif route.startswith("claude-gateway/"):
+                    res = creds.probe_claude_gateway_result()
+                else:
+                    res = creds.probe_claude_keychain_result()
+                used, note = weekly_used("codex" if agent == "codex" else "claude")
+                quota_ok = used is not None and used < self.args.max_subscription_used
+                per_route[route] = {"ok": bool(res.ok) and quota_ok, "agent": agent,
+                                    "credential": "ok" if res.ok else str(res.reason)[:200],
+                                    "quota": note,
+                                    "max_subscription_used": self.args.max_subscription_used}
+                failed = failed or not per_route[route]["ok"]
+                continue
             prov = provider_of(route)
             fn = {"zai": creds.probe_zai_openapi_api_result,
                   "tinker": creds.probe_tinker_api_result,
@@ -403,6 +447,9 @@ class Gate:
         live: dict = {}
         if self.args.probe_providers:
             for route in routes:
+                if SUBSCRIPTION_AGENT.get(route):
+                    live[route] = {"ok": True, "note": "subscription CLI: no metered probe"}
+                    continue
                 ok, note = self._probe_live(route)
                 live[route] = {"ok": ok, "note": note}
                 if not ok:
@@ -906,7 +953,13 @@ def main() -> int:
     ap.add_argument("--judge", default=None,
                     help="judge route, e.g. zai/glm-5.3-flash (omit to skip judge fitness)")
     ap.add_argument("--probe-providers", action="store_true",
-                    help="PAID (fractions of a cent): 1-token chat call per route")
+                    help="PAID (fractions of a cent): 1-token chat call per metered route")
+    ap.add_argument("--max-subscription-used", type=float, default=0.60,
+                    help="fail when a subscription agent's account is at or above this "
+                         "fraction of its weekly window (quota_gate.py; shared quota)")
+    ap.add_argument("--concurrent-batch", action="append", default=[], metavar="BATCH_ID",
+                    help="a batch running now on this queue: its approved/waiting specs "
+                         "(runs/_batches/<id>/spec_ids.txt) are not leftovers (repeatable)")
     ap.add_argument("--out", type=Path, required=True, help="receipt JSON path")
     ap.add_argument("--docker-bin", default="docker",
                     help="docker binary (fault injection: point at a stub)")

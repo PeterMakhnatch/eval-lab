@@ -58,7 +58,7 @@ FILENAME_VARIANT_RE = re.compile(
 )
 
 HARBOR_PRACTICE_RUNS = Path(
-    "/Users/petermakhnatch/Developer/agent-evals/harbor-practice/runs"
+    "/Users/petermakhnatch/Developer/lab-extras/data/agent-evals/harbor-practice/runs"
 )
 
 

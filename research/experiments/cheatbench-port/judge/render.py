@@ -53,6 +53,8 @@ _PRIORITY = {
     "shell": ["command", "workdir"],
     "exec": ["cmd", "command", "input", "workdir"],
     "unified_exec": ["cmd", "command", "input", "workdir"],
+    "exec_command": ["cmd", "workdir"],
+    "write_stdin": ["chars", "session_id"],
     "local_shell": ["command", "workdir"],
     "apply_patch": ["input", "patch"],
     "web_search": ["query", "queries", "url"],

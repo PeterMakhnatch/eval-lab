@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "content_rules",
+ "explanation": "fired: none",
+ "flagged": false,
+ "id": "ca-har81-p-d-candidate-2684-securit__uwoAzn7",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

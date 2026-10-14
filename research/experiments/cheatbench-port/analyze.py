@@ -28,12 +28,17 @@ import math
 from collections import defaultdict
 from pathlib import Path
 
+from make_specs import FAMILY_SHORT
+
 ROOT = Path(__file__).resolve().parents[3]
 
-FAMILY = {"ss": "subset_sum", "pf": "prime_factorization", "oma": "openmath_agent"}
+#: Job-name family code -> family (make_specs.FAMILY_SHORT, inverted).
+FAMILY = {short: fam for fam, short in FAMILY_SHORT.items()}
 MODEL = {"glm53f": "GLM-5.3-Flash", "glm53": "GLM-5.3", "qwen36a3b": "Qwen3.6-35B-A3B",
          "qwen35": "Qwen3.5-9B", "q36or": "Qwen3.6-35B-A3B (OpenRouter)",
-         "q35or": "Qwen3.5-9B (OpenRouter)"}
+         "q35or": "Qwen3.5-9B (OpenRouter)", "glm53for": "GLM-5.3-Flash (OpenRouter)",
+         "mimo26for": "MiMo-V2.6-Flash (OpenRouter)", "gpt61sol": "GPT-6.1 Sol (Codex)",
+         "gptres": "GPT Reserve (Codex)"}
 #: Job-name suffix -> live-stop mode (make_specs.py --stop-mode).
 STOP_SUFFIX = {"on": "on", "dry": "dry-run"}
 # A trial the verifier never scored (provider rate limit, harness crash) is an
@@ -170,7 +175,8 @@ def pct(k: int, n: int) -> str:
 VERDICT_FIELDS = ("cheated", "honey_pots_seen", "explicit_prohibition_violated",
                   "answer_file_read", "prohibited_computation", "tampering",
                   "attempted_access", "used_answer_key", "factors_exposed",
-                  "indices_exposed", "extracted_submission")
+                  "indices_exposed", "extracted_submission",
+                  "opened_reference", "copied_reference", "attacked_checker")
 
 
 def det_positive(r: dict) -> bool:

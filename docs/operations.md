@@ -154,7 +154,7 @@ authoritative subscription billing. Broker-backed targets require all five
 ### Subscription rewriting with Codex
 
 GEPA's reflection LM can use the authenticated `codex exec` CLI instead of an
-API key. The installed **Codex CLI 0.154.0** is the qualified version; a different
+API key. The installed **Codex CLI 0.162.1** is the qualified version; a different
 version fails preflight rather than silently changing the protocol.
 
 ```json
@@ -593,7 +593,7 @@ rollout it came from. The scope line is load-bearing: the percentage is
 **account-wide**, and the lab's share of it is structurally unknowable, so
 "8% remaining" is not "8% remaining for the lab".
 
-### The one refusal, and the number that is not there
+### Quota refusals, and back-off on a rate limit
 
 `subscription_quota_exhausted` refuses a billable dispatch when the provider
 reports `rate_limit_reached_type`, or `used_percent` at or above 100. That is
@@ -602,20 +602,33 @@ which is why it needs no judgement call. With `hard_stop` true — no overflow
 credits, balance `"0"` — reaching 100% is a lockout for every paid agent until
 the window resets, not an extra charge.
 
-There is **no percentage threshold below that**, deliberately. "Refuse above
-80%" trades the risk of a lockout against the certainty of work that will not
-happen, and that trade is Peter's. The mechanism exists and is unset: set
-`REFUSE_BILLABLE_AT_USED_PERCENT` in `src/evallab/queue.py` to a float and
-billable dispatch refuses at or above it under the separate reason code
-`subscription_quota_ceiling`, so a lab policy is never recorded in
-`queue/reasons/` as the provider's statement. Its durable home is this
-repository's `policy/standing-approvals.yaml`; that needs a field on
-`StandingApprovalsPolicy`, which is `extra="forbid"`, so the YAML key cannot be
-added before the field exists.
+`subscription_quota_ceiling` refuses a billable dispatch when the lab's own
+threshold is reached: `refuse_billable_at_used_percent` in
+`policy/standing-approvals.yaml`, committed at **60** since the 2026-10-13
+overnight subscription-agent work (Peter approved the pause-above-60 rule for
+the shared account). The two codes stay distinct so a lab policy is never
+recorded in `queue/reasons/` as the provider's statement. Lower the number to
+tighten; raising it or returning it to `null` is Peter's spend decision.
+
+Back-off on a rate-limit response is explicit: stop launching billable work,
+record the provider-stated `resets_at` from the refusal message, and resume
+only after it. Never switch the job to an API to route around the window.
+
+Claude Code uses a fresh, free `omp usage -p anthropic --json -r` reading at
+dispatch rather than relying on its transcripts. The committed ceiling applies
+to its **7-day** window (at or above 60%); its **5-hour** window gates only at
+100% exhaustion. Both windows, reset times, status, and fetch time are recorded.
+`subscription_quota_unavailable` pauses Claude dispatch when either window is
+missing, malformed, or expired, including a failed or timed-out probe. The
+historical Codex bootstrap and stale-reading behavior described below applies
+to artifact-based Codex readings; Claude's free live probe needs no paid call
+to recover. See [Claude quota accounting](quota-accounting.md#claude-code-live-subscription-headroom-and-dispatch-gate)
+for dispatch sidecars and deterministic tests. `--despite-quota` does not
+override `subscription_quota_unavailable`.
 
 ### Unavailable is not "plenty left"
 
-A checkout with no paid trials has no reading. The gate reports that as
+A checkout with no paid Codex trials has no Codex reading. The gate reports that as
 `UNKNOWN [unavailable]` with its reason, and never as a number. It refuses
 nothing on an unavailable reading — refusing would be a bootstrap deadlock,
 because only a paid trial can produce a reading — but it never permits
@@ -625,7 +638,7 @@ A reader that throws is also `unavailable`, with the exception in the reason.
 
 ### Stale readings warn; they never refuse
 
-The reading is only as fresh as the last paid trial. Today's live reading was
+The artifact-based Codex reading is only as fresh as the last paid trial. The recorded reading was
 5h18m old. Both failure modes are real, and they point in opposite directions:
 
 - **Refusing on age deadlocks the lab.** Freshness is produced *by* paid runs,
@@ -716,8 +729,8 @@ queue carries no field linking two specs into one comparison, so every queued
 comparison spec is pooled into a single cohort; pooling can only overstate
 `n_tasks`, so a warning at the pooled `n` holds for any finer partition, while
 a clean bill of health at the pooled `n` does not. And no threshold for
-"useful" is committed, for the same reason `REFUSE_BILLABLE_AT_USED_PERCENT` is
-unset — it is a spend judgement. Supply one per invocation:
+"useful" is committed — a spend judgement, like the quota ceiling was before
+it was set at 60. Supply one per invocation:
 
 ```bash
 uv run evallab preflight --useful-effect 0.15

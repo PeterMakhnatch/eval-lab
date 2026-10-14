@@ -89,6 +89,8 @@ $ uv run evallab db attach --query "SELECT j.job_name, COUNT(*) AS trials FROM z
 uv run evallab trials
 uv run evallab trials --sql "SELECT campaign, legit, count(*) AS trials FROM trials GROUP BY campaign, legit ORDER BY campaign, legit"
 uv run evallab trials --sql "SELECT job, trial, reward, integrity, reward_gated, copy_verdict FROM trials WHERE campaign = 'HAR-168' ORDER BY job, trial"
+# Passes the contamination audit calls cheats, even where the counts verdict still counts them:
+uv run evallab trials --sql "SELECT t.job, t.trial, c.mechanism FROM trials t JOIN contamination c ON c.trial = t.trial WHERE t.reward >= 1 AND c.verdict = 'cheat'"
 # Explicitly restrict discovery, instead of scanning all local run roots:
 uv run evallab trials --runs-dir .worktrees/har164/runs
 ```
@@ -102,6 +104,11 @@ Physical copies and retained viewer aggregates do not multiply a native
 `(job_id, trial_id)`. A trial's recorded `config.job_id` takes precedence over a
 viewer aggregate's parent ID. Unfinished and infrastructure trials remain rows;
 unavailable native identities stay null rather than becoming invented UUIDs.
+The `contamination` relation holds one contamination-audit label per audited agent
+pass (`research/calibration/contamination-audit/labels.jsonl`: `cheat`, `clean`,
+`review` or `unaudited`, with mechanism and `cheat_prompted`), keyed by trial
+directory name. It is empty when the audit never ran and never changes a counts
+verdict.
 
 The view joins existing `trial_facts`, `reward_facts`, and HAR-159 `features`
 Parquet by native identity. Historical worktree-local projections can be read;

@@ -91,10 +91,13 @@ if TYPE_CHECKING:
 from evallab.profiles import CONTROL_ADAPTERS
 from evallab.quota import (
     Headroom,
+    claude_dispatch_quota_record,
     default_roots,
     label,
     load_quota_report,
+    persist_claude_dispatch_quota,
     provider_subscription_description,
+    read_claude_headroom,
 )
 from evallab.registry import (
     RegistryError,
@@ -245,16 +248,18 @@ QUOTA_STALENESS_NOTE = (
     "you, not this gate, are the one judging whether it is still true."
 )
 
-#: The lab's refusal threshold on the account-wide `used_percent` now lives in
+#: The lab's refusal threshold on the account-wide `used_percent` lives in
 #: `policy/standing-approvals.yaml` as `refuse_billable_at_used_percent`, read
 #: through `StandingApprovalsPolicy` and passed to `lab_threshold_reached`.
+#: Committed at 60 since the 2026-10-13 overnight subscription-agent work
+#: (Peter approved the pause-above-60 rule).
 #:
 #: It was an interim module constant here (PR #70) only because the schema field
 #: it needed could not be added in that PR: `StandingApprovalsPolicy` forbids
 #: extras, so the YAML key is a load error until the field exists, and
 #: `schemas.py` was leased elsewhere that round. Both now landed together, so
-#: setting a threshold is a config edit rather than a code edit — which was the
-#: point, since the number is a spend decision belonging to Peter.
+#: changing the threshold is a config edit rather than a code edit — which was
+#: the point, since the number is a spend decision belonging to Peter.
 
 
 def _reader_clock(headroom: Headroom) -> datetime | None:
@@ -292,7 +297,18 @@ def provider_reported_exhaustion(headroom: Headroom) -> str | None:
     must still print :func:`render_headroom_notice`, which says UNKNOWN out loud
     rather than letting silence read as consent.
     """
-    if headroom.availability != "observed" or quota_window_expired(headroom):
+    if headroom.availability != "observed":
+        return None
+    now = _reader_clock(headroom)
+    for window_id, window in headroom.windows.items():
+        if now is not None and window.resets_at is not None and window.resets_at <= now:
+            continue
+        if window.used_percent is not None and window.used_percent >= 100:
+            return (
+                f"the provider reports {window_id} used_percent {window.used_percent}; "
+                f"back off until resets_at {_instant(window.resets_at)} and read quota again"
+            )
+    if quota_window_expired(headroom):
         return None
     if headroom.rate_limit_reached_type is not None:
         return (
@@ -374,6 +390,7 @@ def render_headroom_notice(
                 f"  remaining allowance  UNKNOWN {label('unavailable')}",
                 f"    reason: {headroom.reason or 'not reported'}",
                 f"    {QUOTA_UNKNOWN_WARNING}",
+                *_quota_window_lines(headroom),
             ]
         )
     lines = [
@@ -386,18 +403,57 @@ def render_headroom_notice(
         f"    {headroom.hard_stop_note}",
         f"  observed_at          {_instant(headroom.observed_at)}",
         f"  staleness            {_age(headroom.staleness_seconds)} old",
-        f"    {QUOTA_STALENESS_NOTE}",
+        *(
+            ["    live Claude readings are refreshed before dispatch; missing or expired windows pause"]
+            if agent == "claude-code"
+            else [f"    {QUOTA_STALENESS_NOTE}"]
+        ),
         f"  source               {headroom.source or label('unavailable')}",
+        *_quota_window_lines(headroom),
     ]
     if headroom.rate_limit_reached_type is not None:
         lines.append(f"  rate_limit_reached_type  {headroom.rate_limit_reached_type}")
     if quota_window_expired(headroom):
         lines.append(
-            "  NOTE: resets_at has already passed, so this reading describes a "
-            "window that has since rolled over. It cannot refuse anything, and "
-            "it cannot reassure you either."
+            "  NOTE: resets_at has already passed; refresh both Claude windows before dispatch."
+            if agent == "claude-code"
+            else (
+                "  NOTE: resets_at has already passed, so this reading describes a "
+                "window that has since rolled over. It cannot refuse anything, and "
+                "it cannot reassure you either."
+            )
         )
     return "\n".join(lines)
+
+
+def _quota_window_lines(headroom: Headroom) -> list[str]:
+    if not headroom.windows and headroom.source != "omp usage -p anthropic --json -r":
+        return []
+    lines = [f"  fetched_at           {_instant(headroom.fetched_at)}"]
+    for window_id in ("5h", "7d"):
+        window = headroom.windows.get(window_id)
+        if window is None or window.used_percent is None:
+            lines.append(f"  {window_id} window            {label('unavailable')}")
+            continue
+        lines.append(
+            f"  {window_id} used_percent      {window.used_percent} {label('observed')}; "
+            f"resets_at {_instant(window.resets_at)}; status {window.status or label('unavailable')}"
+        )
+    return lines
+
+
+def claude_quota_unavailable(headroom: Headroom) -> bool:
+    """A free live probe removes the historical Codex bootstrap exception."""
+    if headroom.availability != "observed":
+        return True
+    now = _reader_clock(headroom)
+    for window_id in ("5h", "7d"):
+        window = headroom.windows.get(window_id)
+        if window is None or window.used_percent is None or window.resets_at is None:
+            return True
+        if now is None or window.resets_at <= now:
+            return True
+    return False
 
 
 class PolicyGate:
@@ -417,11 +473,13 @@ class PolicyGate:
         self._headroom_by_agent = headroom_by_agent
         self._headroom: dict[str, Headroom] = {}
 
-    def headroom(self, agent: str | None = None) -> Headroom:
-        """Read one provider's allowance at most once per agent."""
+    def headroom(self, agent: str | None = None, *, refresh: bool = False) -> Headroom:
+        """Cache per provider; dispatch can explicitly request a fresh reading."""
         key = agent or ""
-        if key not in self._headroom:
-            self._headroom[key] = self._read_headroom(agent)
+        if refresh or key not in self._headroom:
+            reading = self._read_headroom(agent)
+            self._headroom[key] = reading
+            return reading
         return self._headroom[key]
 
     def _read_headroom(self, agent: str | None = None) -> Headroom:
@@ -457,7 +515,11 @@ class PolicyGate:
         consecutive_harness_failures: int = 0,
         authorization: PaidRunAuthorization | None = None,
         now: datetime | None = None,
+        quota_reading: Headroom | None = None,
     ) -> PolicyDecision:
+
+        def reading() -> Headroom:
+            return quota_reading if quota_reading is not None else self.headroom(spec.agent)
 
         if spec.task.startswith("registered/"):
             reg = self.registry
@@ -565,7 +627,7 @@ class PolicyGate:
                     reason_code="paid_run_unauthorized",
                     message=(
                         f"{authorization_required_message(spec)}\n"
-                        f"{render_headroom_notice(self.headroom(spec.agent), agent=spec.agent, model=spec.model)}"
+                        f"{render_headroom_notice(reading(), agent=spec.agent, model=spec.model)}"
                     ),
                 )
             if authorization is not None and spec.submitted_at is None:
@@ -600,7 +662,7 @@ class PolicyGate:
             # run. An unavailable or expired reading refuses nothing here — it
             # is not evidence of exhaustion — but it is never silent either:
             # every branch below carries `render_headroom_notice`.
-            headroom = self.headroom(spec.agent)
+            headroom = reading()
             exhausted = provider_reported_exhaustion(headroom)
             override = authorization is not None and authorization.quota_override
             if exhausted is not None and not override:
@@ -615,6 +677,16 @@ class PolicyGate:
                         "  override, only if you have reason to believe the reading is "
                         f"wrong: uv run evallab approve {spec.spec_id} --actor <you> "
                         "--despite-quota"
+                    ),
+                )
+            if spec.agent == "claude-code" and claude_quota_unavailable(headroom):
+                return PolicyDecision(
+                    admitted=False,
+                    reason_code="subscription_quota_unavailable",
+                    message=(
+                        "Claude dispatch paused: both live 5h and 7d windows must be observed "
+                        "and unexpired. Read quota again before launching; no API fallback.\n"
+                        f"{render_headroom_notice(headroom, agent=spec.agent, model=spec.model)}"
                     ),
                 )
             threshold_reached = lab_threshold_reached(
@@ -667,7 +739,7 @@ class PolicyGate:
             if spec.billable:
                 # Whoever approved the campaign is entitled to see, in the
                 # admission itself, the allowance this spec spends against.
-                admitted_headroom = self.headroom(spec.agent)
+                admitted_headroom = reading()
                 notes.append(
                     render_headroom_notice(admitted_headroom, agent=spec.agent, model=spec.model)
                 )
@@ -685,7 +757,7 @@ class PolicyGate:
             if spec.billable:
                 # Whoever authorised this is entitled to see, in the admission
                 # itself, the allowance they just spent against.
-                admitted_headroom = self.headroom(spec.agent)
+                admitted_headroom = reading()
                 notes.append(
                     render_headroom_notice(admitted_headroom, agent=spec.agent, model=spec.model)
                 )
@@ -1478,9 +1550,12 @@ class Executor:
         self._docker_observe_fn = docker_observe_fn or docker_available_resources
         self._smoke_gate_enabled = smoke_gate_enabled
         self.last_tick_reason: str | None = None
+        self._dispatch_headroom: dict[str, Headroom] = {}
 
     def _repo_headroom(self, agent: str) -> Headroom:
         """Read only the quota evidence belonging to ``agent``."""
+        if agent == "claude-code":
+            return read_claude_headroom(now=datetime.now(UTC))
         return load_quota_report(
             default_roots(self.repo_root),
             now=datetime.now(UTC),
@@ -2088,6 +2163,12 @@ class Executor:
     def _dispatch_decision(
         self, spec: ExperimentSpec, authorization: PaidRunAuthorization | None
     ) -> PolicyDecision:
+        # Keep the exact reading per spec, so parallel launches cannot replace
+        # one another's evidence. Each Claude launch uses a fresh, free probe.
+        reading = None
+        if spec.billable and spec.agent == "claude-code":
+            reading = self.gate.headroom(spec.agent, refresh=True)
+            self._dispatch_headroom[str(spec.spec_id)] = reading
         # Non-billable dispatch skips accounting the policy never inspects.
         return self.gate.decide(
             spec,
@@ -2096,6 +2177,7 @@ class Executor:
             if spec.billable
             else 0,
             authorization=authorization,
+            quota_reading=reading,
         )
 
     def _dispatch_one(
@@ -3105,9 +3187,18 @@ class Executor:
     ) -> Path:
         for retry_number in range(self._max_transient_retries + 1):
             self._reserve_attempt(spec, retry_number + 1)
+            record = None
+            if spec.agent == "claude-code":
+                reading = self._dispatch_headroom.get(str(spec.spec_id))
+                if reading is None:
+                    raise ExecutionFailure("subscription_quota_unavailable", "no Claude dispatch reading")
+                record = claude_dispatch_quota_record(reading)
+                request = replace(request, subscription_quota=record)
             try:
                 return self._runner(request)
             except TransientHarnessFailure as exc:
+                if record is not None:
+                    persist_claude_dispatch_quota(request.jobs_dir / request.name, record)
                 if retry_number >= self._max_transient_retries:
                     raise
                 if not self._retry_within_policy(spec):
@@ -3145,6 +3236,9 @@ class Executor:
                         )
                     )
                 self._sleeper(delay)
+            finally:
+                if record is not None:
+                    persist_claude_dispatch_quota(request.jobs_dir / request.name, record)
         raise AssertionError("transient retry loop exhausted without a result")
 
     def _retry_within_policy(self, spec: ExperimentSpec) -> bool:
@@ -3154,12 +3248,7 @@ class Executor:
             authorization = self.queue.authorization_for(spec)
         except (OSError, ValueError):
             authorization = None
-        decision = self.gate.decide(
-            spec,
-            spent_today_usd=self._effective_spend_today(),
-            consecutive_harness_failures=self._consecutive_harness_failures(),
-            authorization=authorization,
-        )
+        decision = self._dispatch_decision(spec, authorization)
         if decision.admitted:
             return True
         self.queue.append_event(

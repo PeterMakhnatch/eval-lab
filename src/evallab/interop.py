@@ -17,9 +17,8 @@ oracle runs ``/solution/solve.sh`` (each runner provides the task's
 ``solution/`` at Harbor's ``/solution``, oracle cells only); nop does nothing; cheat
 stages the stdlib-only ``evallab.cheat_ladder`` and runs it with the attack
 subset (empty = full ladder). Every target runner exposes
-``run_cell(task_dir, agent, attacks, *, workdir, timeout_seconds)`` returning
-a pass/fail/skipped/error verdict dict (reward >= 1.0 passes).
-
+``run_cell(task_dir, agent, attacks, *, workdir, timeout_seconds,
+ladder_version=None)`` returning a pass/fail/skipped/error verdict dict (reward >= 1.0 passes).
 Live-Docker paths attempt execution exactly like ``evallab run`` /
 ``evallab cheat run`` (direct execution, no campaign-queue admission gate):
 infrastructure failures are ``error`` cells, never ``fail``.
@@ -46,7 +45,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from evallab.cheat_ladder import parse_attack_selection
+from evallab.cheat_ladder import (
+    DEFAULT_LADDER_VERSION,
+    LADDERS,
+    parse_attack_selection,
+    parse_ladder_version,
+)
 
 INSPECT_AI_PIN = "0.3.276"
 INSPECT_HARBOR_PIN = "1.0.0"
@@ -202,7 +206,10 @@ def _cheat_ladder_bytes() -> bytes:
 
 
 def scripted_agent_plan(
-    task: HarborTask, agent: str, attacks: tuple[str, ...] = ()
+    task: HarborTask,
+    agent: str,
+    attacks: tuple[str, ...] = (),
+    ladder_version: str | None = None,
 ) -> ScriptedPlan:
     """Build the scripted plan for one agent: oracle/nop/cheat.
 
@@ -211,10 +218,12 @@ def scripted_agent_plan(
     available at ``/solution`` for oracle cells only (needs
     ``solution/solve.sh``); nop stages nothing and runs nothing
     (``command`` is None); cheat stages ``cheat_ladder.py`` and runs it with
-    the attack subset (empty ``attacks`` = full ladder). Unknown agents,
-    unknown attack names, and an oracle plan for a solution-less task raise
-    ``ValueError``.
+    the attack subset (empty ``attacks`` = full ladder). ``ladder_version``
+    selects the ladder generation (default: frozen v1, whose command stays
+    byte-identical). Unknown agents, ladder versions, attack names, and an
+    oracle plan for a solution-less task raise ``ValueError``.
     """
+    version = parse_ladder_version(ladder_version)
     if agent == "nop":
         return ScriptedPlan(files={}, command=None)
     if agent == "oracle":
@@ -222,8 +231,12 @@ def scripted_agent_plan(
             raise ValueError(f"{task.task_dir}: oracle plan needs solution/solve.sh")
         return ScriptedPlan(files={}, command="bash /solution/solve.sh")
     if agent == "cheat":
-        selected = parse_attack_selection(",".join(attacks) if attacks else None)
+        selected = parse_attack_selection(
+            ",".join(attacks) if attacks else None, version=version
+        )
         command = f"python3 {CHEAT_LADDER_CONTAINER_PATH} --cwd . --evidence-dir ./cheat"
+        if version != DEFAULT_LADDER_VERSION:
+            command += f" --ladder-version {version}"
         if attacks:
             command += f" --attacks {','.join(selected)}"
         return ScriptedPlan(
@@ -430,6 +443,7 @@ def run_harbor_cell(
     *,
     workdir: str | Path,
     timeout_seconds: int | None = None,
+    ladder_version: str | None = None,
 ) -> dict[str, Any]:
     """Run one matrix cell on the Harbor target (oracle/nop/cheat, docker, $0).
 
@@ -495,7 +509,10 @@ def run_harbor_cell(
         return cell
     if agent == "cheat":
         try:
-            selected = parse_attack_selection(",".join(attacks) if attacks else None)
+            ladder_gen = parse_ladder_version(ladder_version)
+            selected = parse_attack_selection(
+                ",".join(attacks) if attacks else None, version=ladder_gen
+            )
         except ValueError as exc:
             cell.update(
                 {
@@ -506,6 +523,8 @@ def run_harbor_cell(
                 }
             )
             return cell
+        if ladder_version is not None:
+            cell["ladder_version"] = ladder_gen
         try:
             from evallab.harbor_view import installed_harbor_version
 
@@ -521,6 +540,7 @@ def run_harbor_cell(
                 jobs_dir=work / "jobs",
                 name=_slug(task.task_id, "cheat"),
                 timeout_seconds=timeout_seconds or 600,
+                ladder_version=ladder_version,
             )
             reward = _trial_reward_from_job(job_dir)
         except Exception as exc:
@@ -1093,13 +1113,14 @@ def _write_inspect_run(
     agent_timeout: int,
     override_cpus: int,
     override_memory_mb: int,
+    ladder_version: str | None = None,
 ) -> Path:
     """Stage the manifest, plan blobs, and driver for one inspect cell (no docker).
 
     Pure file staging: safe to unit-test without a daemon. Raises ``ValueError``
     for unknown agents/attacks via ``scripted_agent_plan``.
     """
-    plan = scripted_agent_plan(task, agent, attacks)
+    plan = scripted_agent_plan(task, agent, attacks, ladder_version=ladder_version)
     work.mkdir(parents=True, exist_ok=True)
     stage = work / "stage"
     stage.mkdir(exist_ok=True)
@@ -1121,6 +1142,8 @@ def _write_inspect_run(
         "override_cpus": override_cpus,
         "override_memory_mb": override_memory_mb,
     }
+    if ladder_version is not None:
+        manifest["ladder_version"] = parse_ladder_version(ladder_version)
     (work / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     driver = work / "inspect_driver.py"
     driver.write_text(
@@ -1204,6 +1227,7 @@ def run_inspect_cell(
     *,
     workdir: str | Path,
     timeout_seconds: int | None = None,
+    ladder_version: str | None = None,
 ) -> dict[str, Any]:
     """Run one matrix cell on the Inspect AI target (oracle/nop/cheat, $0).
 
@@ -1241,9 +1265,11 @@ def run_inspect_cell(
         attacks = ()
         cell["attacks"] = []
     try:
-        scripted_agent_plan(task, agent, attacks)
+        scripted_agent_plan(task, agent, attacks, ladder_version=ladder_version)
     except ValueError as exc:
         return _fail(f"cannot build {agent} plan: {exc}")
+    if ladder_version is not None and agent == "cheat":
+        cell["ladder_version"] = parse_ladder_version(ladder_version)
     agent_timeout = timeout_seconds or 900
     resources = task.resources
     raw_cpus = resources.get("cpus")
@@ -1268,6 +1294,7 @@ def run_inspect_cell(
             agent_timeout=agent_timeout,
             override_cpus=override_cpus,
             override_memory_mb=override_memory_mb,
+            ladder_version=ladder_version,
         )
     except (OSError, ValueError) as exc:
         return _fail(f"cannot stage inspect run: {type(exc).__name__}: {exc}")
@@ -1419,8 +1446,12 @@ def matrix_task_row(
     attacks: tuple[str, ...],
     workdir: str | Path,
     timeout_seconds: int | None = None,
+    ladder_version: str | None = None,
 ) -> dict[str, Any]:
     """Run every (target, agent) cell for one task dir through ``MATRIX_TARGETS``."""
+    parsed_ladder_version = (
+        parse_ladder_version(ladder_version) if ladder_version is not None else None
+    )
     # Row identity needs no reference solution. A solution-less task has no
     # oracle control on any platform, so that cell is skipped here uniformly
     # instead of each runner reporting it differently; nop/cheat still run.
@@ -1453,12 +1484,17 @@ def matrix_task_row(
                 )
             else:
                 try:
+                    runner_kwargs: dict[str, Any] = {
+                        "workdir": work / f"{target}-{agent}",
+                        "timeout_seconds": timeout_seconds,
+                    }
+                    if parsed_ladder_version is not None:
+                        runner_kwargs["ladder_version"] = parsed_ladder_version
                     cell = runner(
                         task.task_dir,
                         agent,
                         cell_attacks,
-                        workdir=work / f"{target}-{agent}",
-                        timeout_seconds=timeout_seconds,
+                        **runner_kwargs,
                     )
                 except Exception as exc:
                     cell = _matrix_cell(
@@ -1477,7 +1513,7 @@ def matrix_task_row(
             version = details.get(f"{target}:{agent}", {}).get("platform_version")
             if version is not None and target not in versions:
                 versions[target] = version
-    return {
+    row = {
         "task_id": task.task_id,
         "task_dir": str(task.task_dir),
         "cells": cells,
@@ -1486,6 +1522,9 @@ def matrix_task_row(
         "versions": versions,
         "details": details,
     }
+    if parsed_ladder_version is not None:
+        row["ladder_version"] = parsed_ladder_version
+    return row
 
 
 def render_grading_matrix(
@@ -1562,7 +1601,8 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
     if command == "matrix":
         task_dirs = _resolve_task_dirs(args.task_dirs, root)
         try:
-            attacks = parse_attack_selection(args.attacks)
+            ladder_version = parse_ladder_version(args.ladder_version)
+            attacks = parse_attack_selection(args.attacks, version=ladder_version)
         except ValueError as exc:
             print(f"interop matrix: {exc}", file=sys.stderr)
             return 2
@@ -1577,6 +1617,7 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
                 attacks=attacks,
                 workdir=work / f"task-{index}",
                 timeout_seconds=args.timeout,
+                ladder_version=args.ladder_version,
             )
             for index, task_dir in enumerate(task_dirs)
         ]
@@ -1593,6 +1634,8 @@ def interop_command(args: argparse.Namespace, root: Path, *, harbor: Any = None)
             "workdir": str(work),
             "generated_at": datetime.datetime.now(datetime.UTC).isoformat(),
         }
+        if args.ladder_version is not None:
+            envelope["ladder_version"] = ladder_version
         if args.json:
             print(json.dumps(envelope, indent=2, sort_keys=True))
         else:
@@ -1649,6 +1692,12 @@ def build_interop_parser(commands: argparse._SubParsersAction) -> None:
         "--attacks",
         default=None,
         help="comma-separated cheat attack subset (cheat cells only); default: full ladder",
+    )
+    p.add_argument(
+        "--ladder-version",
+        choices=sorted(LADDERS),
+        default=None,
+        help=f"cheat ladder generation (default: {DEFAULT_LADDER_VERSION})",
     )
     p.add_argument("--timeout", type=int, default=None)
     p.add_argument("--json", action="store_true")

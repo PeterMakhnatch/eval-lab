@@ -1,0 +1,34 @@
+{
+  "schema": "qa.finding/v1",
+  "subject": {
+    "kind": "task",
+    "task_id": "candidate-1789",
+    "task_digest": "sha256:3bb4e1a6626adc35d5837ad7ecea65d89a288be20dd362697b751ef4809a17c2"
+  },
+  "stage": "vacuous-unfair-triage-2026-10-14",
+  "verdict": "fail",
+  "category": "broken",
+  "severity": "high",
+  "fault": "eval",
+  "evidence_refs": [
+    "derived/detector-roots/own-scan/fleet-grader-scan/out/vacuous.json",
+    "research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md#4",
+    "research/experiments/mimo-clean-v5-census/README.md"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "research/experiments/mimo-clean-v5-census/README.md",
+    "expected_reward": 0
+  },
+  "refutation": {
+    "status": "verified",
+    "by": "VacuousAndUnfairTriage",
+    "reason": "terminal candidate-1789-security-appsec (not format-code-task-001789, not in mimo-clean-v5 manifest): bandit dist metadata missing; env-dependency@1 caa7772d131e and terminal-guard-extend@1 417b4bc0e873 exist as separate single-transform variants, never combined; env-broken, no v5 manifest row to exclude"
+  },
+  "reviewer": {
+    "agent": "VacuousAndUnfairTriage",
+    "model": "meta/muse-wonder-1.0-contributor:xhigh",
+    "tokens": 0,
+    "cost_usd": 0
+  }
+}

@@ -22,7 +22,7 @@ audience:
 
 Classification reuses `craft.discover_tasks` on the roots that exist at call time. 
 
-- TB3 root taken from `EVALLAB_TB3_ROOT` env (documented default `~/Developer/agent-evals/terminal-bench/tasks`), then `--tb3-root`, then absent -> `unknown` path reported as absent rather than crash or empty.
+- TB3 root taken from `EVALLAB_TB3_ROOT` env (documented default `~/Developer/lab-extras/data/agent-evals/terminal-bench/tasks`), then `--tb3-root`, then absent -> `unknown` path reported as absent rather than crash or empty.
 - Local tasks: `library/tasks` relative to repo root.
 - Proposed: `library/tasks/_proposed` when the directory exists.
 - `task_ref` prefers `task.toml` `task.name` when present, else relative path under the corpus root.

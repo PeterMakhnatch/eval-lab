@@ -51,19 +51,21 @@ accounting in `<run_dir>/spend.jsonl`.
 ```bash
 evallab vcheck run --manifest campaign.json --budget-usd 20 --approve "..."   # plan only
 evallab vcheck run --manifest campaign.json --budget-usd 20 --approve "..." --execute [--workers 1]
+evallab vcheck run --manifest campaign.json --controls-only [--json]           # $0 controls gate
 evallab vcheck confirm H-001 --verdict confirm|reject [--run-dir R] [--json]
 evallab vcheck export F-001 [--run-dir R] [--output-dir D]
 evallab vcheck status <run-dir> [--json]
 ```
 
-`vcheck run` refuses without both `--budget-usd` and `--approve` (exit 1); the
+`vcheck run` refuses without both `--budget-usd` and `--approve` (exit 1),
+except in `--controls-only` mode, which needs neither; the
 approval text is recorded in `vcheck-plan.json`. Without `--execute` it writes
 the plan only and spends nothing. With `--json`, stdout is exactly one JSON
 document for the admission gate:
 
 ```json
 {
-  "verdict": "plan|executed",
+  "verdict": "plan|executed|controls",
   "run_dir": "runs/.vcheck/pilot-<ulid>",
   "counts": {"tasks": 2, "hypotheses": 0, "survivors": 0},
   "estimated_total_usd": 0.94,
@@ -72,9 +74,55 @@ document for the admission gate:
 }
 ```
 
-`verdict` is `plan` until `--execute` runs the waves (`executed`). `survivors`
+`verdict` is `plan` until `--execute` runs the waves (`executed`), or
+`controls` after a `--controls-only` gate run. `survivors`
 lists the incorrect-but-rewarded submissions; `hypotheses` carries the
 requirement-map references, defect family/class, status, evidence, and history.
+
+## Controls-only gate
+
+`vcheck run --controls-only` is the `$0` validation gate: it needs no
+`--budget-usd`/`--approve`, never constructs a Budget, red agents, or waves,
+and is mutually exclusive with `--execute`. It requires a resolved existing
+package for every task (fail closed before grading), runs the harness
+controls (`oracle` must score 1, the empty submission must score 0) per task
+sequentially through the real grader, and writes the standard report JSON
+(`verdict: "controls"`, per-task rows with `task/verdict/reason` plus
+`baseline/legit/negative` reward, status, and job_dir/script where
+available). It exits non-zero when any task is `task_broken`, so run it
+before spending budget on a campaign.
+
+Limits: controls prove only that the oracle scores 1 and the empty
+submission scores 0 on each package — a clean gate does **not** certify hack
+resistance, and a `task_broken` verdict invalidates every number from that
+task path (fix the package before quoting hackability).
+
+## Manifest packages
+
+Each entry in `tasks` may be a task ID string (`"cargo-flight-dispatch"`), an
+existing package path string (`"pkgs/cargo-flight-dispatch"`), or an object
+with `task` (or `id`/`name`) plus `package` (or `path`):
+`{"task": "cargo-flight-dispatch", "package": "pkgs/cargo-flight-dispatch"}`.
+A top-level `packages` object maps task IDs to paths for string-ID entries:
+
+```json
+{"tasks": ["alpha"], "packages": {"alpha": "pkgs/alpha"}}
+```
+
+Relative package paths resolve against the manifest directory first when that
+path exists, otherwise against the repo root; absolute paths stay absolute.
+Duplicate task IDs or conflicting bindings (object `package` vs `path`, or an
+entry binding vs top-level `packages`) fail the run closed. The resolved
+mapping is recorded as strings in `vcheck-plan.json` (`"packages"`) for
+auditability.
+
+`--execute` requires every task to have a bound package whose directory
+exists; otherwise it exits 1 before any budget, model, or red-agent
+construction, and `run_wave` receives the mapping as `packages`. Red grading
+is bound per task — the red factory calls the real grader with the resolved
+package path, never the bare task ID — and `run_red` receives a task context
+`{task, package, task_dir}` so its read/list file tools see the task root.
+Plan-only runs (no `--execute`) never require packages.
 
 ## Cost model
 

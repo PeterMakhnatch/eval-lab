@@ -270,7 +270,7 @@ def test_live_monitor_preserves_partial_utf8_and_fails_fast_on_tools(tmp_path):
 class _FakeRun:
     """Stub for ``codex --version`` and ``codex login status`` probes."""
 
-    def __init__(self, *, version_stdout="codex-cli 0.154.0\n", login_stdout="Logged in using ChatGPT\n", login_code=0):
+    def __init__(self, *, version_stdout="codex-cli 0.162.1\n", login_stdout="Logged in using ChatGPT\n", login_code=0):
         self.version_stdout = version_stdout
         self.login_stdout = login_stdout
         self.login_code = login_code

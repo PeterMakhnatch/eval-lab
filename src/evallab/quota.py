@@ -17,8 +17,8 @@ two different questions apart:
 *headroom*
     What remains on the subscription. The provider reports this as a single
     account-wide integer percentage covering every client of the account, not
-    just the lab. It is observable only where a trial happened to record it,
-    and it can never be attributed to the lab.
+    just the lab. Codex snapshots come from trial artifacts; Claude also has a
+    free, bounded live OMP usage probe. Neither can be attributed to the lab.
 
 Conflating those two is how the dollar model misleads, so they are separate
 types here and every quantity carries an :data:`Availability` label. Nothing is
@@ -26,8 +26,10 @@ estimated: a number that was not observed is reported ``unavailable``.
 
 Boundaries this module keeps deliberately:
 
-- It reads Harbor job directories only. It never touches ``~/.codex``, the
-  Keychain, the catalog, the network, or the wall clock (``now`` is injected).
+- Artifact reports read Harbor job directories only. The explicit Claude live
+  reader invokes OMP's redacted usage command, which owns credential access and
+  provider metadata retrieval. Neither reader reads the wall clock (``now`` is
+  injected), credential files, or the catalog itself.
 - It reads ``payload.rate_limits`` and token counters out of a session rollout
   and never the message text, so its output is safe to commit even though the
   rollout it parsed is not.
@@ -46,10 +48,12 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import math
+import subprocess
 import sys
 from collections import defaultdict
-from collections.abc import Iterable, Sequence
-from datetime import UTC, date, datetime
+from collections.abc import Callable, Iterable, Sequence
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
@@ -102,15 +106,23 @@ def provider_subscription_description(agent: str, model: str | None = None) -> s
     return PROVIDER_SUBSCRIPTIONS.get(agent, f"{agent} subscription/policy state")
 
 
-#: Codex is the only lane whose local artifacts currently expose a measured
-#: rate-limit snapshot. Other lanes must remain UNKNOWN until their own
-#: provider emits an independently identified snapshot.
+#: Codex is the only lane whose session artifacts expose this rate-limit format.
+#: Claude dispatch sidecars carry a separate, live OMP snapshot; its transcripts
+#: remain consumption evidence only.
 MEASURED_QUOTA_AGENTS: frozenset[str] = frozenset({"codex"})
 
 #: Provenance label, matching the vocabulary used by the operator surfaces.
 Availability = Literal["observed", "unavailable"]
 
 ROLLOUT_GLOB = "agent/sessions/**/rollout-*.jsonl"
+
+#: Harbor's claude-code agent points the CLI at ``<trial>/agent/sessions`` and
+#: the CLI writes one JSONL transcript per session below
+#: ``projects/<cwd-slug>/``. Assistant messages there carry a
+#: ``message.usage`` block with the Anthropic API counters. The parser below
+#: only reads those scalars -- never message text -- so its output stays safe
+#: to commit though the files parsed are not.
+CLAUDE_SESSION_GLOB = "agent/sessions/projects/**/*.jsonl"
 
 #: Promotion (rule R4, ``scripts/promote_codex_bundle.py``) omits the rollout and
 #: leaves the provider's quota reading beside it as a redacted sidecar. It is the
@@ -185,6 +197,7 @@ class QuotaWindow(BaseModel):
     used_percent: float | None = None
     window_minutes: int | None = None
     resets_at: datetime | None = None
+    status: Literal["ok", "warning", "error", "exhausted", "unknown"] | None = None
 
     @property
     def remaining_percent(self) -> float | None:
@@ -207,8 +220,7 @@ class QuotaWindow(BaseModel):
 class QuotaObservation(BaseModel):
     """A provider quota snapshot recovered from a completed trial's artifacts.
 
-    This is the only true quota signal available without a paid call and
-    without an API key: the Codex CLI attaches a ``rate_limits`` block to the
+    The Codex CLI attaches a ``rate_limits`` block to the
     ``token_count`` event it writes into its session rollout, and Harbor copies
     that rollout out of the container into ``<trial>/agent/sessions/``.
 
@@ -230,6 +242,8 @@ class QuotaObservation(BaseModel):
     credits_balance: str | None = None
     rate_limit_reached_type: str | None = None
     source: str
+    fetched_at: datetime | None = None
+    windows: dict[str, QuotaWindow] = Field(default_factory=dict)
 
     scope: Literal["account"] = "account"
 
@@ -449,6 +463,8 @@ class Headroom(BaseModel):
     remaining_percent: float | None = None
     window_minutes: int | None = None
     observed_at: datetime | None = None
+    fetched_at: datetime | None = None
+    windows: dict[str, QuotaWindow] = Field(default_factory=dict)
     resets_at: datetime | None = None
     staleness_seconds: float | None = None
     plan_type: str | None = None
@@ -485,6 +501,174 @@ class Headroom(BaseModel):
         return "overflow credits are available, so 100% is not necessarily a lockout"
 
 
+CLAUDE_USAGE_COMMAND = ("omp", "usage", "-p", "anthropic", "--json", "-r")
+CLAUDE_DISPATCH_QUOTA_KIND = "evallab-claude-dispatch-quota"
+CLAUDE_DISPATCH_QUOTA_PATH = Path("agent/quota/claude-dispatch.json")
+
+
+def _claude_unavailable(
+    reason: str,
+    *,
+    windows: dict[str, QuotaWindow] | None = None,
+    fetched_at: datetime | None = None,
+) -> Headroom:
+    return Headroom(
+        availability="unavailable",
+        reason=reason,
+        source=" ".join(CLAUDE_USAGE_COMMAND),
+        windows=windows or {},
+        fetched_at=fetched_at,
+    )
+
+
+def _milliseconds_instant(value: object) -> datetime | None:
+    number = _as_float(value)
+    if number is None or not math.isfinite(number) or number <= 0:
+        return None
+    try:
+        return datetime.fromtimestamp(number / 1000, UTC)
+    except (OverflowError, OSError, ValueError):
+        return None
+
+
+def parse_claude_headroom(payload: object, *, now: datetime) -> Headroom:
+    """Whitelist OMP's account-wide Claude windows; never retain the raw report.
+
+    The weekly window selects the lab ceiling. Both windows must be measurable
+    before a live reading can establish headroom. Model-specific weekly limits
+    cannot substitute for the account's weekly limit.
+    """
+    unavailable = "OMP Claude usage did not report valid 5h and 7d quota windows"
+    reports = _as_object(payload).get("reports")
+    if not isinstance(reports, list):
+        return _claude_unavailable(unavailable)
+    matches = [report for report in reports if _as_object(report).get("provider") == "anthropic"]
+    if len(matches) != 1:
+        return _claude_unavailable(unavailable)
+    report = _as_object(matches[0])
+    fetched_at = _milliseconds_instant(report.get("fetchedAt"))
+    limits = report.get("limits")
+    if fetched_at is None or not isinstance(limits, list):
+        return _claude_unavailable(unavailable)
+    windows: dict[str, QuotaWindow] = {}
+    for window_id, duration_ms in (("5h", 18000000), ("7d", 604800000)):
+        entries = [entry for entry in limits if _as_object(entry).get("id") == f"anthropic:{window_id}"]
+        if len(entries) != 1:
+            continue
+        entry = _as_object(entries[0])
+        window = _as_object(entry.get("window"))
+        amount = _as_object(entry.get("amount"))
+        used = _as_float(amount.get("used"))
+        if "used" not in amount:
+            fraction = _as_float(amount.get("usedFraction"))
+            used = fraction * 100 if fraction is not None else None
+        resets_at = _milliseconds_instant(window.get("resetsAt"))
+        status = entry.get("status")
+        if (
+            window.get("id") != window_id
+            or window.get("durationMs") != duration_ms
+            or amount.get("unit") != "percent"
+            or used is None
+            or not math.isfinite(used)
+            or used < 0
+            or resets_at is None
+            or not isinstance(status, str)
+            or status not in {"ok", "warning", "error", "exhausted", "unknown"}
+        ):
+            continue
+        windows[window_id] = QuotaWindow(
+            used_percent=used,
+            window_minutes=duration_ms // 60000,
+            resets_at=resets_at,
+            status=status,
+        )
+    if len(windows) != 2:
+        return _claude_unavailable(unavailable, windows=windows, fetched_at=fetched_at)
+    weekly = windows["7d"]
+    return Headroom(
+        availability="observed",
+        used_percent=weekly.used_percent,
+        remaining_percent=weekly.remaining_percent,
+        window_minutes=weekly.window_minutes,
+        resets_at=weekly.resets_at,
+        limit_id="anthropic:7d",
+        fetched_at=fetched_at,
+        observed_at=fetched_at,
+        staleness_seconds=max(0.0, (now - fetched_at).total_seconds()),
+        windows=windows,
+        source=" ".join(CLAUDE_USAGE_COMMAND),
+    )
+
+
+def read_claude_headroom(
+    *,
+    now: datetime,
+    timeout_seconds: float = 10.0,
+    run: Callable[..., subprocess.CompletedProcess[str]] | None = None,
+) -> Headroom:
+    """Free, bounded metadata probe. Exceptions/output never enter persisted reasons."""
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise ValueError("Claude quota timeout must be positive and finite")
+    try:
+        completed = (run or subprocess.run)(
+            list(CLAUDE_USAGE_COMMAND),
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=timeout_seconds,
+        )
+    except subprocess.TimeoutExpired:
+        return _claude_unavailable("OMP Claude usage timed out")
+    except (OSError, subprocess.SubprocessError, UnicodeError):
+        return _claude_unavailable("OMP Claude usage could not be executed")
+    if completed.returncode != 0:
+        return _claude_unavailable("OMP Claude usage failed")
+    try:
+        payload = json.loads(completed.stdout)
+    except (ValueError, TypeError):
+        return _claude_unavailable("OMP Claude usage returned malformed JSON")
+    return parse_claude_headroom(payload, now=now)
+
+
+def claude_dispatch_quota_record(reading: Headroom) -> dict[str, Any]:
+    """Persist only typed quota scalars, independent of OMP's account metadata."""
+    return {
+        "kind": CLAUDE_DISPATCH_QUOTA_KIND,
+        "version": 1,
+        "provider": "anthropic",
+        "checked_at": (
+            (reading.observed_at + timedelta(seconds=reading.staleness_seconds)).isoformat()
+            if reading.observed_at is not None and reading.staleness_seconds is not None
+            else None
+        ),
+        "reading": reading.model_dump(
+            mode="json",
+            include={
+                "availability", "scope", "reason", "used_percent", "remaining_percent",
+                "window_minutes", "observed_at", "fetched_at", "resets_at",
+                "staleness_seconds", "windows", "limit_id", "source",
+            },
+        ),
+    }
+
+
+def persist_claude_dispatch_quota(job_dir: Path, record: dict[str, Any]) -> None:
+    """Retain the dispatch snapshot beside each actual Harbor trial, including failures."""
+    if not job_dir.is_dir():
+        return
+    text = json.dumps(record, indent=2, sort_keys=True) + "\n"
+    (job_dir / "claude-dispatch-quota.json").write_text(text, encoding="utf-8")
+    for trial_dir in sorted(job_dir.iterdir()):
+        if trial_dir.is_dir() and (trial_dir / "config.json").is_file():
+            destination = trial_dir / CLAUDE_DISPATCH_QUOTA_PATH
+            if destination.exists():
+                # A diff may reuse an older trial. Its dispatch evidence stays
+                # bound to the original launch, never the rerun's snapshot.
+                continue
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_text(text, encoding="utf-8")
+
+
 NO_OBSERVATION_REASON = (
     "no paid trial in the scanned job directories recorded a provider quota "
     "snapshot, so the remaining allowance is unknown"
@@ -516,6 +700,8 @@ def _headroom(observations: Sequence[QuotaObservation], *, now: datetime) -> Hea
         remaining_percent=window.remaining_percent,
         window_minutes=window.window_minutes,
         observed_at=latest.observed_at,
+        fetched_at=latest.fetched_at,
+        windows=latest.windows,
         resets_at=window.resets_at,
         staleness_seconds=(now - latest.observed_at).total_seconds(),
         plan_type=latest.plan_type,
@@ -594,6 +780,44 @@ def _sidecar_snapshots(trial_dir: Path) -> list[tuple[datetime, dict[str, Any], 
     return snapshots
 
 
+def _claude_dispatch_observations(
+    trial_dir: Path, *, job_name: str, trial_name: str
+) -> list[QuotaObservation]:
+    sidecar = trial_dir / CLAUDE_DISPATCH_QUOTA_PATH
+    try:
+        document = _as_object(json.loads(sidecar.read_text(encoding="utf-8")))
+        if (
+            document.get("kind") != CLAUDE_DISPATCH_QUOTA_KIND
+            or document.get("version") != 1
+            or document.get("provider") != "anthropic"
+        ):
+            return []
+        reading = Headroom.model_validate(document.get("reading"))
+    except (OSError, ValueError):
+        return []
+    if (
+        reading.availability != "observed"
+        or reading.observed_at is None
+        or "7d" not in reading.windows
+        or "5h" not in reading.windows
+    ):
+        return []
+    return [
+        QuotaObservation(
+            job_name=job_name,
+            trial_name=trial_name,
+            agent="claude-code",
+            observed_at=reading.observed_at,
+            fetched_at=reading.fetched_at,
+            primary=reading.windows["7d"],
+            secondary=reading.windows["5h"],
+            windows={key: reading.windows[key] for key in ("5h", "7d")},
+            limit_id="anthropic:7d",
+            source=sidecar.relative_to(trial_dir.parent).as_posix(),
+        )
+    ]
+
+
 def _rate_limit_snapshots(
     trial_dir: Path,
     *,
@@ -655,6 +879,76 @@ def _model_turns(trial_dir: Path) -> int | None:
             if _as_object(_as_object(event).get("payload")).get("type") == "token_count":
                 turns += 1
     return turns
+
+
+def _claude_session_usage(
+    trial_dir: Path,
+) -> tuple[int | None, int | None, int | None, int | None]:
+    """Sum Anthropic ``message.usage`` counters from Claude session transcripts.
+
+    Returns ``(turns, input_tokens, cache_tokens, output_tokens)`` mirroring
+    Harbor's own counters exactly: ``input_tokens`` is inclusive of both
+    cache counters, while ``cache_tokens`` counts cache reads only
+    (verified 2026-10-13: Harbor recorded ``n_cache_tokens`` 42,747 against
+    42,747 read plus 22,645 creation on the first gateway trial). Whether
+    the provider charges a cached token at the same rate stays UNVERIFIED
+    (see :data:`CACHED_WEIGHTING_NOTE`); the two are reported separately,
+    never collapsed.
+
+    All ``None`` when no session file yields a usage block. Only the
+    ``message.usage`` scalars are read; prompt, tool and reasoning text is
+    never touched.
+
+    Each distinct usage tuple is counted once: the CLI replays identical
+    assistant messages under fresh uuids (observed 2026-10-13: one response
+    present three times), and counting every replay would multiply one
+    history. The bridge usage ledger remains authoritative; this fallback
+    only fills trials whose result carries no counters.
+    """
+    turns = 0
+    plain_input = 0
+    cache_read_total = 0
+    cache_create_total = 0
+    output = 0
+    counted: set[tuple[int | None, int | None, int | None, int | None]] = set()
+    for session in sorted(trial_dir.glob(CLAUDE_SESSION_GLOB)):
+        try:
+            text = session.read_text()
+        except OSError:
+            continue
+        for line in text.splitlines():
+            if '"usage"' not in line:
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            usage = _as_object(_as_object(event).get("message")).get("usage")
+            usage = _as_object(usage)
+            uncached = _as_int(usage.get("input_tokens"))
+            cache_creation = _as_int(usage.get("cache_creation_input_tokens"))
+            cache_read = _as_int(usage.get("cache_read_input_tokens"))
+            out_tokens = _as_int(usage.get("output_tokens"))
+            if (
+                uncached is None
+                and cache_creation is None
+                and cache_read is None
+                and out_tokens is None
+            ):
+                continue
+            signature = (uncached, cache_creation, cache_read, out_tokens)
+            if signature in counted:
+                continue
+            counted.add(signature)
+            turns += 1
+            plain_input += uncached or 0
+            cache_read_total += cache_read or 0
+            cache_create_total += cache_creation or 0
+            output += out_tokens or 0
+    if not counted:
+        return None, None, None, None
+    total_in = plain_input + cache_read_total + cache_create_total
+    return turns, total_in, cache_read_total, output
 
 
 def _window(payload: object) -> QuotaWindow | None:
@@ -768,6 +1062,22 @@ def _trial_consumption(
         return None, []
     agent_result = _as_object(result.get("agent_result"))
     trial_name = _as_str(result.get("trial_name")) or trial_dir.name
+    input_tokens = _as_int(agent_result.get("n_input_tokens"))
+    cache_tokens = _as_int(agent_result.get("n_cache_tokens"))
+    output_tokens = _as_int(agent_result.get("n_output_tokens"))
+    model_turns = _model_turns(trial_dir)
+    if agent == "claude-code" and (
+        (input_tokens is None and output_tokens is None) or not model_turns
+    ):
+        # Harbor's result counters are the primary record; the CLI session
+        # transcript is a fallback for trials whose result carries no
+        # counters -- never a second source, so one history cannot count
+        # twice. Other agents are untouched by this branch.
+        turns, session_input, session_cache, session_output = _claude_session_usage(trial_dir)
+        if input_tokens is None and output_tokens is None:
+            input_tokens, cache_tokens, output_tokens = session_input, session_cache, session_output
+        if not model_turns:
+            model_turns = turns
     consumption = TrialConsumption(
         job_name=job_name,
         trial_name=trial_name,
@@ -777,10 +1087,10 @@ def _trial_consumption(
         policy_rule=job.policy_rule,
         attempts_declared=job.attempts_declared,
         started_at=_parse_instant(result.get("started_at")),
-        input_tokens=_as_int(agent_result.get("n_input_tokens")),
-        cache_tokens=_as_int(agent_result.get("n_cache_tokens")),
-        output_tokens=_as_int(agent_result.get("n_output_tokens")),
-        model_turns=_model_turns(trial_dir),
+        input_tokens=input_tokens,
+        cache_tokens=cache_tokens,
+        output_tokens=output_tokens,
+        model_turns=model_turns,
         reported_cost_usd=_as_float(agent_result.get("cost_usd")),
         exception_type=_as_str(_as_object(result.get("exception_info")).get("exception_type")),
         duration_seconds=_span_seconds(result),
@@ -799,6 +1109,10 @@ def _trial_consumption(
         )
         for observed_at, limits, rollout in _rate_limit_snapshots(trial_dir, agent=agent)
     ]
+    if agent == "claude-code":
+        observations = _claude_dispatch_observations(
+            trial_dir, job_name=job_name, trial_name=trial_name
+        )
     return consumption, observations
 
 

@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.005569,
+ "detector": "kev_any_cheat",
+ "explanation": "max P(any_cheat) over 15 windows; peak window 3",
+ "flagged": null,
+ "id": "ca-ovn-g5-000169-gepa__Hmxf7wb",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.2122,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

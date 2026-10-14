@@ -76,7 +76,8 @@ def _hooks(*events: str, terminal: bool = False) -> dict[str, Any]:
 def test_only_integrity_rules_are_eligible() -> None:
     assert stop_eligible_alert(_alert("history_mining"))[0] is True
     assert stop_eligible_alert(_alert("hidden_test_read"))[0] is True
-    for rule in ("stalled", "copy_acquired", "git_object_read", "spend", "budget_burn"):
+    assert stop_eligible_alert(_alert("copy_acquired"))[0] is True
+    for rule in ("stalled", "git_object_read", "spend", "budget_burn"):
         eligible, _ = stop_eligible_alert(_alert(rule))
         assert eligible is False, rule
 
@@ -163,6 +164,31 @@ def test_stop_mode_env_parsing(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_stop_image_tag_is_docker_safe() -> None:
     assert stop_image_tag("task__a1") == "evallab-stop/task--a1"
     assert stop_image_tag("UPPER/x") == "evallab-stop/upper-x"
+
+def test_docker_capture_never_pauses_live_container(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(watch_stop.shutil, "which", lambda _name: "/bin/docker")
+    calls: list[list[str]] = []
+
+    def fake_runner(argv: list[str], **_kwargs: Any) -> SimpleNamespace:
+        calls.append(list(argv))
+        stdout = {
+            "ps": "abc123\n",
+            "diff": "C /app/changed.py\n",
+            "top": "UID PID CMD\nroot 1 python\n",
+            "commit": "sha256:deadbeef\n",
+        }[argv[1]]
+        return SimpleNamespace(returncode=0, stdout=stdout, stderr="")
+
+    outcome = watch_stop.docker_capture("task__a1", pause=True, runner=fake_runner)
+
+    assert [call[1] for call in calls] == ["ps", "diff", "top", "commit"]
+    assert all(call[1] not in {"pause", "unpause"} for call in calls)
+    assert "--pause=false" in calls[-1]
+    assert outcome["image"] == "evallab-stop/task--a1"
+    assert outcome["image_digest"] == "sha256:deadbeef"
+    assert outcome["errors"] == []
 
 
 def test_usage_at_stop_is_an_upper_bound_not_a_claim() -> None:
@@ -474,6 +500,9 @@ def test_integrity_board_rule_order_matches_spec() -> None:
         "hidden_test_read",
         "git_object_read",
         "copy_acquired",
+        "submission_tamper",
+        "codeban_violation",
+        "task_protected_read",
     )
 
 
@@ -741,3 +770,82 @@ def test_grader_tamper_branches_differ_in_eligibility() -> None:
     assert file_alert["baseline_ref"] == "baseline-w1"
     assert stop_eligible_alert(traj_alert)[0] is False
     assert stop_eligible_alert(file_alert) == (True, "eligible")
+
+
+def test_submission_tamper_is_eligible_single_hit() -> None:
+    assert stop_eligible_alert(_alert("submission_tamper")) == (True, "eligible")
+    assert stop_eligible_alert(_alert("submission_tamper", scope="fleet")) == (
+        False,
+        "fleet_scope",
+    )
+
+
+def test_submission_tamper_records_would_stop_by_default() -> None:
+    alert = _alert("submission_tamper")
+    status = _bare_status()
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="dry-run")["action"]
+        == "would_stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="on")["action"] == "stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="off")["action"] == "skip"
+    )
+
+
+def test_codeban_violation_is_eligible_single_hit() -> None:
+    assert stop_eligible_alert(_alert("codeban_violation")) == (True, "eligible")
+    assert stop_eligible_alert(_alert("codeban_violation", scope="fleet")) == (
+        False,
+        "fleet_scope",
+    )
+
+
+def test_codeban_violation_records_would_stop_by_default() -> None:
+    alert = _alert("codeban_violation")
+    status = _bare_status()
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="dry-run")["action"]
+        == "would_stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="on")["action"] == "stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="off")["action"] == "skip"
+    )
+
+
+def test_copy_acquired_is_eligible_single_hit() -> None:
+    assert stop_eligible_alert(_alert("copy_acquired")) == (True, "eligible")
+    assert stop_eligible_alert(_alert("copy_acquired", scope="fleet")) == (
+        False,
+        "fleet_scope",
+    )
+
+
+def test_fetch_attempt_is_not_eligible() -> None:
+    # Routine setup fetches (prompt URLs, pip installs) fire this alert, so
+    # it stays detection-only: 16 clean-trial fires across the held-out
+    # corpora, zero for copy_acquired.
+    assert stop_eligible_alert(_alert("fetch_attempt")) == (
+        False,
+        "rule_not_eligible:fetch_attempt",
+    )
+
+
+def test_copy_acquired_records_would_stop_by_default() -> None:
+    alert = _alert("copy_acquired")
+    status = _bare_status()
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="dry-run")["action"]
+        == "would_stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="on")["action"] == "stop"
+    )
+    assert (
+        stop_decision(alert, status=status, hooks=_hooks(), acks=[], mode="off")["action"] == "skip"
+    )

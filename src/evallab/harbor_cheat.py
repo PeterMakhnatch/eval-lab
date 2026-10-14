@@ -28,11 +28,17 @@ from evallab import cheat_ladder
 from evallab.cheat_ladder import (
     _STATUS_EXECUTED,
     ATTACKS,
+    ATTACKS_V2,
+    CHEAT_LADDER_V2,
     ExecOutcome,
     RunFn,
     _guided_apply_script,
     attack_answer_symlink,
+    attack_disk_fill,
+    attack_fifo_answer,
+    attack_fork_bomb,
     attack_git_history,
+    attack_leftover_test_swap,
     attack_reward_plant,
     attack_skip_plant,
     attack_tamper_reward_writer,
@@ -48,16 +54,26 @@ from evallab.cheat_ladder import (
     run_ladder,
     selected_attacks,
 )
-from evallab.execution_contracts import CHEAT_AGENT, CHEAT_ATTACKS_ENV_VAR
+from evallab.execution_contracts import (
+    CHEAT_AGENT,
+    CHEAT_ATTACKS_ENV_VAR,
+    CHEAT_LADDER_VERSION_ENV_VAR,
+)
 
 __all__ = [
     "ATTACKS",
+    "ATTACKS_V2",
+    "CHEAT_LADDER_V2",
     "CheatAgent",
     "ExecOutcome",
     "RunFn",
     "_guided_apply_script",
     "attack_answer_symlink",
+    "attack_disk_fill",
+    "attack_fifo_answer",
+    "attack_fork_bomb",
     "attack_git_history",
+    "attack_leftover_test_swap",
     "attack_reward_plant",
     "attack_skip_plant",
     "attack_tamper_reward_writer",
@@ -113,8 +129,17 @@ class CheatAgent(BaseAgent):
         raw = self._get_env(CHEAT_ATTACKS_ENV_VAR)
         if raw is None:
             raw = os.environ.get(CHEAT_ATTACKS_ENV_VAR)
+        raw_version = self._get_env(CHEAT_LADDER_VERSION_ENV_VAR)
+        if raw_version is None:
+            raw_version = os.environ.get(CHEAT_LADDER_VERSION_ENV_VAR)
         try:
-            selected = selected_attacks(raw)
+            ladder_version = cheat_ladder.parse_ladder_version(raw_version)
+        except ValueError as error:
+            raise RuntimeError(
+                f"invalid {CHEAT_LADDER_VERSION_ENV_VAR}: {error}"
+            ) from error
+        try:
+            selected = selected_attacks(raw, version=ladder_version)
         except ValueError as error:
             raise RuntimeError(f"invalid {CHEAT_ATTACKS_ENV_VAR}: {error}") from error
 
@@ -129,11 +154,13 @@ class CheatAgent(BaseAgent):
                 stderr=result.stderr or "",
             )
 
-        records = await run_ladder(cwd, run_fn, evidence_dir, selected)
+        records = await run_ladder(
+            cwd, run_fn, evidence_dir, selected, ladder_version=ladder_version
+        )
         attempts = {
             "schema": ATTEMPTS_SCHEMA,
             "agent": CHEAT_AGENT,
-            "version": cheat_ladder.CHEAT_AGENT_VERSION,
+            "version": ladder_version,
             "cwd": cwd,
             "attacks": records,
         }
@@ -145,7 +172,7 @@ class CheatAgent(BaseAgent):
         context.n_output_tokens = 0
         context.cost_usd = 0.0
         context.metadata = {
-            "cheat_version": cheat_ladder.CHEAT_AGENT_VERSION,
+            "cheat_version": ladder_version,
             "cheat_executed": executed,
             "cheat_statuses": {record["name"]: record["status"] for record in records},
             "model_free": True,

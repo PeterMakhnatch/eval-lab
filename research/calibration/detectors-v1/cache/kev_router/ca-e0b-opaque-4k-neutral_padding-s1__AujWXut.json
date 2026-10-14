@@ -1,0 +1,11 @@
+{
+ "cost_usd": 0.000371,
+ "detector": "kev_router",
+ "explanation": "max P(router_not_none) over 1 windows; peak window 0",
+ "flagged": null,
+ "id": "ca-e0b-opaque-4k-neutral_padding-s1__AujWXut",
+ "model": "jaredpalmer/kev-4b@v1.0",
+ "schema": "evallab.detector_verdict/v1",
+ "score": 0.394,
+ "source_scores": "derived/contam/kev.scores.jsonl"
+}

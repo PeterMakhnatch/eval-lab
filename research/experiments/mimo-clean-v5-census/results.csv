@@ -7,6 +7,8 @@ format-code-task-000041,mimo-clean-v5,sha256:29ba2f8f1c93ed70735823523f42e616229
 format-code-task-000042,mimo-clean-v5,sha256:6bec9f47128eabe5ad86b2a639ca6758be807b8c923fda08633cd439334d4ded,0,,,,n/a,modal,0.0053,mimo-census-v1-modal-000042-nop,,limit
 format-code-task-000048,mimo-clean-v5,sha256:af5ceda6de04e395945cb1eeddf89718ec9a8c969c52adc4298d2bc221767c75,,1,,,,modal,0.0071,mimo-census-v1-modal-000048-oracle-attempt2,,limit
 format-code-task-000048,mimo-clean-v5,sha256:ff57af6d6f3492ecdc9caf5878e9d30a78420f89f356d8b1ccfd33b2fd9ac24e,0,1,clean,,,modal,0.0071,"mimo-census-v1-modal-000048-oracle-attempt3,mimo-census-v1-modal-000048-nop,mimo-census-v1-modal-000048-cheat",1.4.0,limit
+format-code-task-000048,mimo-clean-v5,sha256:673816e51dbc84653b4fbfe52f20e2b253a1aefc8d2b53a2d7e08e6d9a70eadb,0,1,,,,docker,0.00,"v10-000048-oracle-673816e51dbc,v10-000048-nop-673816e51dbc",,
+format-code-task-000245,mimo-clean-v5,sha256:35a598db08e6f49a4dac34dd503f5003caf37141b1617cf4f11930621be6023f,0,1,,,,docker,0.00,"v10-000245-oracle-35a598db08e6,v10-000245-nop-35a598db08e6",,
 format-code-task-000049,mimo-clean-v5,sha256:838e22162ca102cd42abe3faecb9fc3d89e146fee03c752f1efca9b9c9b5c0be,,,clean,,n/a,modal,0.0067,mimo-census-v1-modal-000049-cheat,1.4.0,limit
 format-code-task-000050,mimo-clean-v5,sha256:4b95e6b7579b0ac249cc9028570407e2e7417a00dc73e3559273a53413f629b0,,,clean,,n/a,modal,0.0067,mimo-census-v1-modal-000050-cheat,1.4.0,limit
 format-code-task-000052,mimo-clean-v5,sha256:ed7b597c869b391d3862f3f659e66e47ea4016a628006526473c2629d957bfa4,,,clean,,n/a,docker,0.00,mimo-census-v1-docker-000052-cheat,1.4.0,auto

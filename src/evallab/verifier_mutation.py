@@ -946,15 +946,23 @@ def grade_submission(
         raise ValueError(f"run directory must stay inside the repository ({repo}); got {work}")
     scripts = work / "scripts"
     scripts.mkdir(parents=True, exist_ok=True)
+    digests = compute_task_digests(root)
     label = hashlib.sha256(
-        b"\0".join([kind.encode(), target.encode(), content, base.encode()])
+        b"\0".join(
+            [
+                digests.package.encode("utf-8"),
+                kind.encode("utf-8"),
+                target.encode("utf-8"),
+                content,
+                base.encode("utf-8"),
+            ]
+        )
     ).hexdigest()[:12]
     task_name = str((config.get("task") or {}).get("name") or root.name)
     slug = _slug(task_name.rsplit("/", 1)[-1], limit=28)
     script_path = scripts / f"grade-{label}.sh"
     script_path.write_text(script, encoding="utf-8")
     run_name = f"vc-{label}-{slug}"[:80].rstrip("-")
-    digests = compute_task_digests(root)
     matrix = ExperimentMatrix(
         matrix_id=new_ulid(),
         name=f"vcheck-{slug}-grade",

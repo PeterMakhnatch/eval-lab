@@ -801,3 +801,43 @@ def test_execute_wave_typeerror_fails_without_retry(
     run_dirs = list((tmp_path / "runs" / ".vcheck").iterdir())
     assert len(run_dirs) == 1
     assert not (run_dirs[0] / "vcheck-report.json").exists()
+
+
+def test_build_grade_fn_redirects_runner_stdout_and_separates_revisions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Grading progress goes to stderr, and two revisions of the same slug get distinct run names."""
+    import evallab.vcheck as vcheck_core
+    import evallab.vcheck_cli as vcheck_cli
+    import evallab.verifier_mutation as vm
+
+    for rev in ("v1", "v2"):
+        pkg = tmp_path / rev / "fix-git"
+        pkg.mkdir(parents=True)
+        (pkg / "task.toml").write_text('[task]\nname = "terminal-bench/fix-git"\n', encoding="utf-8")
+        (pkg / "instruction.md").write_text(f"Fix git {rev}\n", encoding="utf-8")
+        (pkg / "solution").mkdir()
+        (pkg / "solution" / "solve.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (pkg / "tests").mkdir()
+        (pkg / "tests" / "test.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+
+    seen_names: list[str] = []
+
+    def fake_runner(matrix: object, repo: Path) -> list[dict[str, object]]:
+        run_name = matrix.runs[0].name  # type: ignore[attr-defined]
+        seen_names.append(run_name)
+        print(f"{run_name}: ok (expected 0.0, got [1.0])")
+        return [{"name": run_name, "status": "ok", "rewards": [1.0]}]
+
+    monkeypatch.setattr(vm, "_default_runner", fake_runner)
+    run_dir = tmp_path / "runs" / ".vcheck" / "rev-test"
+    grade_fn = vcheck_cli._build_grade_fn(tmp_path, run_dir)
+    assert grade_fn is not None
+
+    r1 = grade_fn(tmp_path / "v1" / "fix-git", vcheck_core.oracle_submission())
+    r2 = grade_fn(tmp_path / "v2" / "fix-git", vcheck_core.oracle_submission())
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "vc-" in captured.err
+    assert r1.reward == 1.0 and r2.reward == 1.0
+    assert len(seen_names) == 2 and seen_names[0] != seen_names[1]

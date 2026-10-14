@@ -112,9 +112,9 @@ Both original v5 packages scored reference 1, nop 0 and instrumented reference 1
 The old findings persist on the current v5 digests. After one measured-feedback
 refinement per seed, both derived variants retain reference 1 and nop 0:
 
-| task | original traced survivors / 12 mutants | previous survivors killed by new assertions | outcome | derived variant |
+| task | original traced survivors / 12 mutants | previous survivors killed by new assertions | native-score outcome | derived variant |
 |---|---:|---:|---|---|
-| 002402 | 11 | 11 / 11 | **repaired**, validated | `bd5b2efb9a4e` |
+| 002402 | 11 | 11 / 11 | score gate passed; **scope not accepted** | `bd5b2efb9a4e` |
 | 002391 | 3 | 2 / 3 | **partial**, candidate | `879d41b6ac07` |
 
 The first subscription-generated assertion proposals were **not accepted**.
@@ -130,10 +130,14 @@ solution script paths must be repository-relative, not absolute. That is fixed,
 covered by the native staging API in the regression test, and the retained
 proposal was replayed without another inference request.
 
-002402 now checks promoted Normal and Dirichlet batch/event shapes and
-expanded-distribution means, variances, log probabilities and base sampling.
-Every previous survivor scores 0. Its final receipt is
-`runs/envcheck-overnight-1013/repairs/002402-refine1/repair-result.json`.
+The initial 002402 proposal checks promoted Normal and Dirichlet batch/event
+shapes and expanded-distribution means, variances, log probabilities and base
+sampling. Every previous survivor scores 0, but a subsequent contract review
+found that these tests do not directly exercise the reported Uniform/scan
+failure and include internal base-distribution assertions. This numeric pass
+is **not accepted as a completed task repair**. Its receipt is retained at
+`runs/envcheck-overnight-1013/repairs/002402-refine1/repair-result.json`; the
+original score and lineage history are not rewritten.
 
 002391 now rejects both functional alias/deduplication defects
 (`a68a99652d`, `8bd7075fd8`). The sole remaining survivor, `a8d7478b61`,

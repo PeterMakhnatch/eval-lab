@@ -139,8 +139,8 @@ class RepairProposal(ContractModel):
     repairable: bool
     rationale: str = Field(min_length=1, max_length=MAX_RATIONALE_CHARS)
     tests: list[RepairTest] = Field(default_factory=list)
-    command: str = ""
-    model: str = ""
+    command: str | None = None
+    model: str | None = None
     mutant_ids: list[str] = Field(default_factory=list)
     unrepairable: list[RepairUnrepairable] = Field(default_factory=list)
 
@@ -562,9 +562,13 @@ def render_repair_prompt(context: Mapping[str, Any]) -> str:
         "unrepairable entry: {mutant_id, kind, reason} with kind equivalent or",
         "out-of-scope.",
         f"The schema field is exactly {SCHEMA_PROPOSAL!r}; no markdown fences.",
+        "The model field may be null; execution records the caller-selected model.",
+        "Command may be null only when repairable is false and no tests will run.",
         "All code runs only inside the task's isolated verifier, not on the host.",
         "Rules:",
         "- Test observable behaviour of the task artifacts only.",
+        "- Every asserted behavior must follow from the task contract, not merely",
+        "  from a public API or a surviving edit elsewhere in the same module.",
         "- Address every listed survivor, including previously unexecuted fix",
         "  omissions. Executed-line coverage chooses the task, not which old",
         "  survivors must be rejected by its repaired verifier.",
@@ -804,7 +808,9 @@ def validate_proposal(
             raise RepairError(f"{name} exceeds {MAX_TEST_BYTES} bytes")
         lowered = test.code.lower()
         for marker in _DISALLOWED_TEST_FEATURES:
-            if marker in lowered:
+            prefix = r"(?<!\w)" if marker[0].isalnum() or marker[0] == "_" else ""
+            suffix = r"(?!\w)" if marker[-1].isalnum() or marker[-1] == "_" else ""
+            if re.search(prefix + re.escape(marker) + suffix, lowered):
                 raise RepairError(f"{name} uses a disallowed test feature ({marker})")
         try:
             tree = ast.parse(test.code, filename=name)
@@ -814,6 +820,8 @@ def validate_proposal(
             raise RepairError(f"{name} hardcodes reference bytes")
     if total > MAX_TOTAL_TEST_BYTES:
         raise RepairError(f"proposal totals {total} bytes; max {MAX_TOTAL_TEST_BYTES}")
+    if proposal.command is None:
+        raise RepairError("repairable proposal needs a test command")
     command = proposal.command.strip()
     if not command or len(command.encode()) > MAX_COMMAND_BYTES:
         raise RepairError("proposal command is missing or too long")
@@ -869,6 +877,8 @@ def derive_repair_variant(
     """
     if not proposal.repairable:
         raise RepairError("cannot derive a variant from a not-repairable proposal")
+    if proposal.command is None:
+        raise RepairError("repairable proposal needs a test command")
     parent = Path(parent_dir)
     try:
         original_patch = (parent / "tests" / "test.patch").read_text(encoding="utf-8")
@@ -1349,7 +1359,7 @@ def execute_repair(
     except RepairError as exc:
         result = RepairResult(
             task=str(plan.report.get("task", "")),
-            verdict="unrepairable",
+            verdict="blocked",
             reason=str(exc),
             proposal=proposal,
         )

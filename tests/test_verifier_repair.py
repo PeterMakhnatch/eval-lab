@@ -185,6 +185,61 @@ def _execute(
     return result, directory, calls
 
 
+def test_nullable_model_metadata_does_not_block_valid_assertions(tmp_path):
+    plan, _ = _fixture(tmp_path)
+    payload = _proposal().model_dump(mode="json", by_alias=True)
+    payload["model"] = None
+    result, _, _ = _execute(tmp_path, plan, response=json.dumps(payload))
+    assert result.verdict == "repaired"
+
+
+def test_unrepairable_response_needs_no_command_or_variant(tmp_path):
+    plan, _ = _fixture(tmp_path)
+    payload = _proposal().model_dump(mode="json", by_alias=True)
+    payload.update(
+        repairable=False,
+        command=None,
+        model=None,
+        tests=[],
+        mutant_ids=[],
+        unrepairable=[
+            {"mutant_id": MUTANT, "kind": "equivalent", "reason": "Same task behavior"}
+        ],
+    )
+    result, _, calls = _execute(tmp_path, plan, response=json.dumps(payload))
+    assert result.verdict == "unrepairable"
+    assert result.variant_record is None
+    assert calls == ["model"]
+
+
+@pytest.mark.parametrize("invalid", ["missing-command", "unsafe-call"])
+def test_invalid_assertion_proposal_is_blocked_not_task_unrepairable(tmp_path, invalid):
+    plan, _ = _fixture(tmp_path)
+    payload = _proposal().model_dump(mode="json", by_alias=True)
+    if invalid == "missing-command":
+        payload["command"] = None
+    else:
+        payload["tests"][0]["code"] = (
+            "import os\n\ndef test_command():\n    assert os.system('true') == 0\n"
+        )
+    result, _, calls = _execute(tmp_path, plan, response=json.dumps(payload))
+    assert result.verdict == "blocked"
+    assert result.variant_record is None
+    assert calls == ["model"]
+
+
+def test_benign_identifier_suffix_is_not_an_os_system_call(tmp_path):
+    plan, _ = _fixture(tmp_path)
+    payload = _proposal().model_dump(mode="json", by_alias=True)
+    payload["tests"][0]["code"] = (
+        "from types import SimpleNamespace\nfrom answer import add\n\n"
+        "def test_sum():\n    infos = SimpleNamespace(system=add(2, 3))\n"
+        "    assert infos.system == 5\n"
+    )
+    result, _, _ = _execute(tmp_path, plan, response=json.dumps(payload))
+    assert result.verdict == "repaired"
+
+
 @pytest.mark.parametrize(
     ("outcomes", "status", "declared", "verdict"),
     [

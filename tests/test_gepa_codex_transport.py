@@ -68,6 +68,58 @@ def test_valid_single_turn_returns_text_and_honest_usage(tmp_path):
     assert usage == _usage()
 
 
+def test_reconnected_single_turn_retains_final_text_and_usage(tmp_path):
+    lines = _valid_lines()
+    lines.insert(
+        2,
+        _event(
+            {
+                "type": "error",
+                "message": "Reconnecting... 2/5 (unexpected status 503 Service Unavailable)",
+            }
+        ),
+    )
+    path = _write(tmp_path / "events.jsonl", lines)
+    offset, pending, started = _poll_events(path, 0, b"")
+    assert (offset, pending, started) == (path.stat().st_size, b"", True)
+    response, usage = parse_transcript(path)
+    assert response == "revised instructions"
+    assert usage == _usage()
+
+
+def test_reconnect_without_completion_cannot_yield_partial_text(tmp_path):
+    lines = _valid_lines()[:-1]
+    lines.insert(
+        2,
+        _event({"type": "error", "message": "Reconnecting... 2/5 (stream disconnected)"}),
+    )
+    path = _write(tmp_path / "events.jsonl", lines)
+    with pytest.raises(CodexTransportError, match="complete single turn"):
+        parse_transcript(path)
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        {"type": "turn.failed", "error": {"message": "subscription refused"}},
+        {"type": "error", "message": "fatal provider failure"},
+        {"type": "error", "message": "Reconnecting... 2/5 (model rerouted: fallback)"},
+    ],
+)
+def test_reconnect_does_not_hide_fatal_failure_or_model_reroute(tmp_path, error):
+    lines = _valid_lines()
+    lines.insert(
+        2,
+        _event({"type": "error", "message": "Reconnecting... 1/5 (stream disconnected)"}),
+    )
+    lines.insert(3, _event(error))
+    path = _write(tmp_path / "events.jsonl", lines)
+    with pytest.raises(CodexTransportError):
+        _poll_events(path, 0, b"")
+    with pytest.raises(CodexTransportError):
+        parse_transcript(path)
+
+
 def test_error_event_never_yields_text(tmp_path):
     path = _write(
         tmp_path / "events.jsonl",

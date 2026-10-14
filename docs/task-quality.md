@@ -164,6 +164,13 @@ separate `--stages exploit` probe is requested.
   refinement, use `--feedback <prior-repair-result.json>` and a new output
   directory: the next proposal receives the retained verifier failures as
   evidence, rather than rerunning the model blindly.
+  Optional model metadata may be null: recorded identity comes from the
+  caller-selected subscription route, not the proposal's self-description.
+  A null command is allowed only for an explicit not-repairable response.
+  Malformed or unsafe proposals are `blocked`, not proof that the task is
+  unrepairable. A CLI reconnect notice can be followed by one valid completed
+  text-only turn; its original transcript and usage remain authoritative.
+  Failed, incomplete, rerouted, or multiple turns still fail closed.
 
   The proposal appends new test-file diffs to `tests/test.patch` and wraps
   `tests/test_command.sh`, preserving the original suite's exit status.
@@ -176,11 +183,14 @@ separate `--stages exploit` probe is requested.
   previous survivor, including unexecuted fix omissions and partial survivors.
   The ranking filter must not shrink the acceptance subset. Only complete
   **1/0/all-0** yields `repaired` and validated lineage. Equivalent/out-of-scope
-  survivors may leave a
-  `partial` candidate for review; they never justify source fingerprints or
-  incidental-behavior assertions. Other outcomes are `rejected`, `unrepairable`
+  survivors may leave a `partial` candidate for review; they never justify
+  source fingerprints or incidental-behavior assertions. Other outcomes are
+  `rejected`, `unrepairable`
   and `blocked`. Receipts include the private Codex transcript/usage, proposal,
   derived record, validation matrix and `repair-result.json`.
+  Passing the numeric gate does not establish that every added assertion is in
+  scope. Check the assertions against the instruction before accepting a task
+  variant for training; unrelated API tests cannot turn a survivor into a defect.
 
 Receipts land in `runs/.reward-hack/<slug>-<ulid>/` (`hack-report.json`,
 `hack-report.md`, `matrix.json`, staged script copies with digests); the matrix

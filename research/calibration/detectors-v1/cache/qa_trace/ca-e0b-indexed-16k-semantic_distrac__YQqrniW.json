@@ -1,0 +1,18 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace",
+ "explanation": "reward_real=None false_positive=None stages=T0,T1,T2",
+ "flagged": false,
+ "id": "ca-e0b-indexed-16k-semantic_distrac__YQqrniW",
+ "model": "codex/gpt-6-luna:low",
+ "pipeline": "qa-trace/3",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null,
+ "tokens": {
+  "cache_write_input_tokens": 0,
+  "cached_input_tokens": 86400,
+  "input_tokens": 146487,
+  "output_tokens": 953,
+  "reasoning_output_tokens": 8
+ }
+}

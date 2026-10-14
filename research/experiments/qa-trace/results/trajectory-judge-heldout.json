@@ -1,0 +1,380 @@
+{
+ "key": "trajectory-judge",
+ "split": "heldout",
+ "instances": null,
+ "usage": {
+  "judged": 372,
+  "calls_per_item": 4.35,
+  "seconds_per_item": 137.0,
+  "tokens_per_item": {
+   "cache_write_input_tokens": 0,
+   "cached_input_tokens": 64673,
+   "input_tokens": 86562,
+   "output_tokens": 1063,
+   "reasoning_output_tokens": 101
+  },
+  "cost_usd": 0.0
+ },
+ "scores": {
+  "qa-trace (372 judged)": {
+   "n_items": 372,
+   "abstained": 0,
+   "flag_rate": {
+    "clean": {
+     "flagged": 0,
+     "n": 93,
+     "rate": 0.0
+    },
+    "loud": {
+     "flagged": 115,
+     "n": 115,
+     "rate": 1.0
+    },
+    "silent": {
+     "flagged": 130,
+     "n": 164,
+     "rate": 0.793
+    }
+   },
+   "paired": {
+    "all_faults": {
+     "n": 233,
+     "delta": 0.867,
+     "ci95": [
+      0.823,
+      0.909
+     ]
+    },
+    "loud": {
+     "n": 75,
+     "delta": 1.0,
+     "ci95": [
+      1.0,
+      1.0
+     ]
+    },
+    "silent": {
+     "n": 158,
+     "delta": 0.804,
+     "ci95": [
+      0.745,
+      0.859
+     ]
+    }
+   },
+   "step_exact": {
+    "hit": 211,
+    "n": 245,
+    "rate": 0.861
+   },
+   "recall_by_type": {
+    "hallucinated_argument": 1.0,
+    "ignored_observation": 1.0,
+    "premature_stop": 1.0,
+    "skipped_precondition": 0.556,
+    "unsupported_claim": 1.0,
+    "wrong_tool": 0.702
+   }
+  },
+  "outcome:qwen2.5:14b": {
+   "n_items": 372,
+   "abstained": 0,
+   "flag_rate": {
+    "clean": {
+     "flagged": 31,
+     "n": 93,
+     "rate": 0.333
+    },
+    "loud": {
+     "flagged": 97,
+     "n": 115,
+     "rate": 0.843
+    },
+    "silent": {
+     "flagged": 75,
+     "n": 164,
+     "rate": 0.457
+    }
+   },
+   "paired": {
+    "all_faults": {
+     "n": 233,
+     "delta": 0.167,
+     "ci95": [
+      0.113,
+      0.218
+     ]
+    },
+    "loud": {
+     "n": 75,
+     "delta": 0.413,
+     "ci95": [
+      0.295,
+      0.569
+     ]
+    },
+    "silent": {
+     "n": 158,
+     "delta": 0.051,
+     "ci95": [
+      0.012,
+      0.094
+     ]
+    }
+   },
+   "step_exact": {
+    "hit": 0,
+    "n": 172,
+    "rate": 0.0
+   },
+   "recall_by_type": {
+    "hallucinated_argument": 0.34,
+    "ignored_observation": 0.761,
+    "premature_stop": 1.0,
+    "skipped_precondition": 0.756,
+    "unsupported_claim": 0.511,
+    "wrong_tool": 0.34
+   }
+  },
+  "programmatic": {
+   "n_items": 372,
+   "abstained": 0,
+   "flag_rate": {
+    "clean": {
+     "flagged": 0,
+     "n": 93,
+     "rate": 0.0
+    },
+    "loud": {
+     "flagged": 115,
+     "n": 115,
+     "rate": 1.0
+    },
+    "silent": {
+     "flagged": 70,
+     "n": 164,
+     "rate": 0.427
+    }
+   },
+   "paired": {
+    "all_faults": {
+     "n": 233,
+     "delta": 0.597,
+     "ci95": [
+      0.569,
+      0.627
+     ]
+    },
+    "loud": {
+     "n": 75,
+     "delta": 1.0,
+     "ci95": [
+      1.0,
+      1.0
+     ]
+    },
+    "silent": {
+     "n": 158,
+     "delta": 0.405,
+     "ci95": [
+      0.376,
+      0.438
+     ]
+    }
+   },
+   "step_exact": {
+    "hit": 185,
+    "n": 185,
+    "rate": 1.0
+   },
+   "recall_by_type": {
+    "hallucinated_argument": 1.0,
+    "ignored_observation": 1.0,
+    "premature_stop": 1.0,
+    "skipped_precondition": 1.0,
+    "unsupported_claim": 0.0,
+    "wrong_tool": 0.0
+   }
+  },
+  "selfcons3:qwen2.5:14b": {
+   "n_items": 372,
+   "abstained": 0,
+   "flag_rate": {
+    "clean": {
+     "flagged": 1,
+     "n": 93,
+     "rate": 0.011
+    },
+    "loud": {
+     "flagged": 111,
+     "n": 115,
+     "rate": 0.965
+    },
+    "silent": {
+     "flagged": 124,
+     "n": 164,
+     "rate": 0.756
+    }
+   },
+   "paired": {
+    "all_faults": {
+     "n": 233,
+     "delta": 0.811,
+     "ci95": [
+      0.782,
+      0.841
+     ]
+    },
+    "loud": {
+     "n": 75,
+     "delta": 0.947,
+     "ci95": [
+      0.894,
+      0.987
+     ]
+    },
+    "silent": {
+     "n": 158,
+     "delta": 0.747,
+     "ci95": [
+      0.717,
+      0.782
+     ]
+    }
+   },
+   "step_exact": {
+    "hit": 208,
+    "n": 235,
+    "rate": 0.885
+   },
+   "recall_by_type": {
+    "hallucinated_argument": 1.0,
+    "ignored_observation": 1.0,
+    "premature_stop": 0.915,
+    "skipped_precondition": 1.0,
+    "unsupported_claim": 0.149,
+    "wrong_tool": 1.0
+   }
+  },
+  "step:llama3.1:8b": {
+   "n_items": 372,
+   "abstained": 0,
+   "flag_rate": {
+    "clean": {
+     "flagged": 93,
+     "n": 93,
+     "rate": 1.0
+    },
+    "loud": {
+     "flagged": 115,
+     "n": 115,
+     "rate": 1.0
+    },
+    "silent": {
+     "flagged": 161,
+     "n": 164,
+     "rate": 0.982
+    }
+   },
+   "paired": {
+    "all_faults": {
+     "n": 233,
+     "delta": -0.013,
+     "ci95": [
+      -0.029,
+      0.0
+     ]
+    },
+    "loud": {
+     "n": 75,
+     "delta": 0.0,
+     "ci95": [
+      0.0,
+      0.0
+     ]
+    },
+    "silent": {
+     "n": 158,
+     "delta": -0.019,
+     "ci95": [
+      -0.042,
+      0.0
+     ]
+    }
+   },
+   "step_exact": {
+    "hit": 207,
+    "n": 276,
+    "rate": 0.75
+   },
+   "recall_by_type": {
+    "hallucinated_argument": 0.936,
+    "ignored_observation": 1.0,
+    "premature_stop": 1.0,
+    "skipped_precondition": 1.0,
+    "unsupported_claim": 1.0,
+    "wrong_tool": 1.0
+   }
+  },
+  "step:qwen2.5:14b": {
+   "n_items": 372,
+   "abstained": 0,
+   "flag_rate": {
+    "clean": {
+     "flagged": 0,
+     "n": 93,
+     "rate": 0.0
+    },
+    "loud": {
+     "flagged": 113,
+     "n": 115,
+     "rate": 0.983
+    },
+    "silent": {
+     "flagged": 125,
+     "n": 164,
+     "rate": 0.762
+    }
+   },
+   "paired": {
+    "all_faults": {
+     "n": 233,
+     "delta": 0.824,
+     "ci95": [
+      0.798,
+      0.851
+     ]
+    },
+    "loud": {
+     "n": 75,
+     "delta": 0.973,
+     "ci95": [
+      0.934,
+      1.0
+     ]
+    },
+    "silent": {
+     "n": 158,
+     "delta": 0.753,
+     "ci95": [
+      0.721,
+      0.79
+     ]
+    }
+   },
+   "step_exact": {
+    "hit": 201,
+    "n": 238,
+    "rate": 0.845
+   },
+   "recall_by_type": {
+    "hallucinated_argument": 1.0,
+    "ignored_observation": 1.0,
+    "premature_stop": 0.957,
+    "skipped_precondition": 1.0,
+    "unsupported_claim": 0.17,
+    "wrong_tool": 1.0
+   }
+  }
+ }
+}

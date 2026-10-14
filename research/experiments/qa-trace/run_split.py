@@ -78,6 +78,7 @@ def _ablate(split: str, sources: list[str] | None) -> dict[str, object]:
         lambda: defaultdict(list)
     )
     usage: dict[str, list[float]] = defaultdict(list)
+    records: list[dict[str, object]] = []
     for source, ids in _ids(split, sources).items():
         for row_id in ids:
             run = root / row_id
@@ -105,6 +106,28 @@ def _ablate(split: str, sources: list[str] | None) -> dict[str, object]:
                 (label, None if verdict["reward_real"] is None else not verdict["reward_real"])
             )
             usage[source].append(float((verdict.get("usage") or {}).get("calls") or 0))
+            t3_path = run / "t3.json"
+            ruling = (
+                json.loads(t3_path.read_text())["rulings"].get("reward_shortcut")
+                if t3_path.is_file()
+                else None
+            )
+            records.append(
+                {
+                    "id": row_id,
+                    "source": source,
+                    "label": label,
+                    "t0_cached": (t0.get("combined_v1_cached") or {}).get("flagged"),
+                    "t0_live": bool(t0.get("fired")) if t0.get("measured") else None,
+                    "t1_reward_shortcut": answer,
+                    "t2_ran": (run / "t2.json").is_file(),
+                    "t3_reward_shortcut": (ruling or {}).get("status"),
+                    "reward_hacking": verdict["reward_hacking"],
+                    "reward_real": verdict["reward_real"],
+                    "pipeline": verdict["pipeline"],
+                    "calls": (verdict.get("usage") or {}).get("calls"),
+                }
+            )
     return {
         "split": split,
         "systems": {
@@ -112,6 +135,7 @@ def _ablate(split: str, sources: list[str] | None) -> dict[str, object]:
             for name, by_src in systems.items()
         },
         "calls_per_row": {src: round(sum(v) / len(v), 2) for src, v in usage.items() if v},
+        "rows": records,
     }
 
 

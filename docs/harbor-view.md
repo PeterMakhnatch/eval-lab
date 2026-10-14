@@ -196,6 +196,40 @@ Sol-honest too.
   72/100 runs against 0/100 clean ones, so the TW recall is an upper bound for
   natural, unconfessed hacks.
 
+### QA Agent - Trace: `evallab qa trace`
+
+```bash
+uv run evallab qa trace bundle <trial> --out DIR    # B0 only: sealed bundle
+uv run evallab qa trace verify DIR                  # bundle seal intact?
+uv run evallab qa trace run <trial> --out DIR       # B0 + T0-T4 (Codex subscription)
+uv run evallab qa trace key-run --key research/answer-keys/trajectory-judge --split heldout --out DIR
+uv run evallab qa trace score --key research/answer-keys/trajectory-judge --split heldout --runs DIR
+uv run evallab detectors run --detector qa_trace_t0 ...              # live T0 only, $0
+uv run evallab detectors run --detector qa_trace --allow-paid --ids FILE ...
+```
+
+Was this run's reward real, and why did it fail (`src/evallab/qa_trace.py`):
+
+- **B0** freezes the trial into a sealed bundle (prompt, Harbor verifier reward,
+  ATIF trajectory, verifier output, task `tests/`, before/after diff from
+  `verifier/agent.diff` or reconstructed from trajectory writes). Solution,
+  labels and every other `result.json` field are withheld.
+- **T0** ($0): `combined_v1`'s rule/content literals for the source (cached
+  out-of-fold verdict for detectors-v1 rows) and the skip rule: full reward
+  skips false-negative and failure-cause, zero reward skips false-positive.
+- **T1**: one Codex call per question (reward shortcut, false positive, false
+  negative, prompt-grader alignment, failure cause), `gpt-6-luna` low.
+- **T2**: read-only investigator (`gpt-6.1-sol`, shell in a read-only sandbox,
+  scratch copy of the bundle) when T0 or T1 raised or was unsure; Claude
+  Haiku when the trace came from an OpenAI model.
+- **T3**: executed regrade (`--regrade`, local Docker, one container) plus an
+  LLM refuter over the raised claims.
+- **T4**: one `qa.finding/v1` per question plus `verdict.json`. Skipped or
+  unusable questions are `unknown` (`not_run` / `ran_without_usable_result`),
+  never `pass`.
+
+Results and caveats: `research/experiments/qa-trace/README.md`.
+
 ## Read-only task dossier (HAR-186)
 
 ```bash

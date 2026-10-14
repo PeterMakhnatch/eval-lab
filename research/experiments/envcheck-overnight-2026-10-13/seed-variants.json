@@ -36,7 +36,10 @@
       "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002402/bd5b2efb9a4e",
       "receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/repairs/002402-refine1/repair-result.json",
       "source_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002402-refine1/repair-result.json",
-      "receipt_sha256": "aaa59ea2e4659136594c307d69a26522604c944f5b6b36744c0425c538fb4731"
+      "receipt_sha256": "aaa59ea2e4659136594c307d69a26522604c944f5b6b36744c0425c538fb4731",
+      "accepted_full_repair": false,
+      "superseded_by": "sha256:dfa854a348ea31045ec00b29d631d51d97301e55074adeb86c307eb77e89bbea",
+      "scope_review": "Numeric gate passed, but contract review rejected unrelated Normal/Dirichlet and internal base-distribution assertions. Replaced by the task-direct Uniform/scan candidate; old numeric evidence and final lineage status are retained, not rewritten."
     },
     {
       "task_id": "format-code-task-002391",

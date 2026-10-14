@@ -35,7 +35,8 @@ continuous owned-container event monitor now interrupts dispatch above two.
 The interrupted audit reuses the original digest-checked native matrix receipts;
 11 scored mutants were retained without rerunning them, and one interrupted
 mutant remains explicitly unscored. Images pulled by this slice are removed
-without force after use; images already present are retained.
+without force after use; preexisting images and images still used by another
+lane are retained rather than disrupting that lane (see final disposition).
 
 The canonical input is `research/experiments/mimo-clean-v5/manifest.csv`.
 All **564** known-fix members are inventoried. Of these, **422** have materialized
@@ -94,8 +95,9 @@ interrupted mutant, not a clean twelve-mutant result.
 
 These are discovery results in the approved local subset, not a prevalence
 estimate for all 564 tasks or proof that all 99 survivors violate their tasks.
-The assertion repair stage is restricted to this measured top twenty and
-reuses the already-scored seed variants rather than spending on them again.
+The assertion repair stage is restricted to this measured top twenty. Completed
+proposals and digest-matched execution receipts are reused where applicable;
+contract-review refinements are distinct, retained attempts.
 
 The selected tasks contain **102 previous survivors in total**: the 99 used for
 ranking plus three previously unexecuted fix-omission probes:
@@ -174,3 +176,94 @@ each subsequent proposal must still pass the live 60% gate.
 The existing Eval Lab `mimo-census record-spend` ledger records **$0 incremental
 provider spend** for both seed batches in `spend.jsonl`. The binding approval is
 this slice's $10 cap, not the census command's unrelated default slice ceiling.
+
+## Final top-twenty repair outcomes
+
+The final native validation completed at **9:52 AM ET on October 14**.
+**Three full repairs**, thirteen partial candidate variants, and four
+contract-unrepairable dispositions were produced. The requested twenty
+all-survivors-killed variants were **not achieved**: asserting incidental
+behavior to reject equivalent or unrelated edits would manufacture success.
+
+All sixteen final derived variants preserve reference=1 and nop=0. Their
+complete previous-survivor sets contain 83 checks: **28 killed, 55 still alive**.
+The other nineteen survivors belong to the four tasks without a legitimate
+task-scoped assertion repair; they are not recorded as killed or replayed on
+a nonexistent new variant. Only the rows marked **repaired** satisfy the full
+acceptance criterion. The ranking is unchanged.
+
+| Task | Final disposition | Previous survivors killed | Variant digest prefix |
+|---|---|---:|---|
+| 002402 | partial | 4 / 11 | `dfa854a348ea` |
+| 002866 | partial | 1 / 9 | `4bfc14221bc6` |
+| 002139 | partial | 1 / 8 | `810ab24910d8` |
+| 000769 | partial | 1 / 8 | `1e2563117fb2` |
+| 002736 | partial | 3 / 8 | `a152594d93fc` |
+| 001891 | unrepairable | not replayed | — |
+| 002394 | partial | 1 / 7 | `d88caff3d4c7` |
+| 002742 | unrepairable | not replayed | — |
+| 002382 | partial | 3 / 6 | `2a9b4536e8e8` |
+| 001553 | partial | 1 / 5 | `d61d46f9e329` |
+| 002222 | partial | 2 / 5 | `a18784be8ca8` |
+| 000390 | unrepairable | not replayed | — |
+| 001671 | partial | 2 / 4 | `13c81e94ee02` |
+| 002391 | partial | 2 / 3 | `879d41b6ac07` |
+| 000561 | **repaired** | 2 / 2 | `c0d6be5cd7b0` |
+| 001425 | partial | 1 / 2 | `beac4bda64ce` |
+| 001478 | **repaired** | 2 / 2 | `9a77d2f98e30` |
+| 001770 | partial | 1 / 2 | `552eb40a8054` |
+| 000511 | **repaired** | 1 / 1 | `b41702fac5bc` |
+| 001219 | unrepairable | not replayed | — |
+
+The replacement 002402 assertions directly exercise vector-bound Uniform
+sampling and analytic log probability inside scan/plate; the earlier 11/11
+numeric pass remains explicitly superseded for contract-scope violations.
+Independent assertion-scope review also removed unrelated rolling-window,
+SDK, model-preprocessing, mirror-fetching and slug-prefix assertions before
+the final selection. The four unrepairable dispositions concern survivors
+outside the requested GNU/Hurd build behavior (001891), typed response data
+(002742), controller URL paths (000390), or a runtime-neutral postponed
+annotation import (001219). These are judgments about the sampled mutants,
+not claims that the underlying tasks cannot be improved.
+
+All three previously unexecuted probes were included and actually measured
+as surviving; none was silently dropped or credited as killed. The 002742
+measurement belongs to its superseded candidate, not a newly accepted variant.
+`final-results.json` and its delivery appendix distinguish this history.
+
+## Final evidence, resource disposition and spend
+
+`final-results.json` is the final selection index: full package digests,
+canonical materialized package paths, hash-bound lineage snapshots, native
+receipts, and explicit full-repair acceptance flags. Its custody manifest
+retains **582 native job directories and 27,864 native files**, plus all study
+bundles, every executor phase matrix/invocation, owned derived projections,
+and **27 lineage snapshots**. The native total comprises 405 mutation/control
+jobs and 177 repair-validation attempts, including interrupted or rejected
+attempts; it is not a count of successful repairs. Planned-but-undispatched
+rows are not counted as native jobs. Original score/status histories are
+preserved, including superseded score-only passes.
+
+Final custody:
+`~/Developer/eval-lab-results/2026-10-13/envcheck-overnight/final-retention.json`.
+The hash-bound `delivery-appendix.json` retains the cleanup receipts and
+measurements of all three omitted probes. No source task was overwritten.
+
+`proposal-usage.json` accounts for **34 completed fixer subscription calls**:
+950,302 input tokens, 47,692 output tokens, including 17,451 reasoning output
+tokens. Retained-response replays made zero new model calls. Two independent
+subscription reviewers and parent-harness usage are outside those fixer-token
+totals. The final shared-account observation was **34% weekly use at
+9:57 AM ET on October 14**, below the 60% pause threshold; this is shared
+account consumption, not spend attributable solely to this lane.
+All four Eval Lab ledger batches total **$0 incremental provider/compute
+spend against the approved $10 cap**. No OpenRouter or cloud compute was used.
+
+After disabling the optional observer, each retained continuous monitor
+reported peak two and no breach; the earlier peak-three violation remains
+disclosed above. Final cleanup found no owned containers or generated image
+tags. The interrupted 002618 source image was removed. One source image
+(`3e8f9366f692…`, used by 002866) could not be removed without force because
+another lane's running container in `verifier-20261014` was using it. It was
+left intact, with the exact non-forced refusal retained in the delivery
+appendix, rather than disrupting another writer's work.

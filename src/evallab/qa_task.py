@@ -1057,65 +1057,71 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         return 1
 
 
+SCOREBOARD_COLUMNS = [
+    "date_utc",
+    "key_id",
+    "split",
+    "category",
+    "agent",
+    "system",
+    "recall",
+    "false_alarm_rate",
+    "root_cause_match",
+    "paired_discrimination",
+    "cost_per_item_usd",
+    "n_items",
+    "n_measured",
+    "n_pairs",
+    "n_pairs_measured",
+    "status",
+    "notes",
+]
+
+
+def append_scoreboard_row(path: Path, result: dict[str, Any], *, level: str) -> None:
+    """Append one row in the shared QA scoreboard schema; refuse on schema mismatch."""
+    if path.is_file():
+        with path.open(newline="") as stream:
+            if next(csv.reader(stream), None) != SCOREBOARD_COLUMNS:
+                raise ValueError("scoreboard schema does not match; refusing to append")
+    exists = path.is_file()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    root_cause = result["root_cause_match_recall"] if level == "verified" else None
+    row = {
+        "date_utc": utcnow(),
+        "key_id": result["key_id"],
+        "split": result["split"],
+        "category": "all",
+        "agent": "QA Task",
+        "system": f"qa-task@{level}",
+        "recall": result[f"{level}_recall"],
+        "false_alarm_rate": result[f"{level}_false_alarm_rate"],
+        "root_cause_match": "n/a" if root_cause is None else root_cause,
+        "paired_discrimination": "n/a",
+        "cost_per_item_usd": result["cost_per_item_usd"],
+        "n_items": result["items"],
+        "n_measured": sum(r["measured"] for r in result["rows"]),
+        "n_pairs": 0,
+        "n_pairs_measured": 0,
+        "status": "partial defensive audit; live S2/S3 not run",
+        "notes": f"coverage={result['measured_fraction']}; observed={result['observed_fraction']}; "
+        f"negative labels={result['negative_label_strengths']}; "
+        "missing measurements are not passes; flags are not verified defects",
+    }
+    with path.open("a", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=SCOREBOARD_COLUMNS)
+        if not exists:
+            writer.writeheader()
+        writer.writerow(row)
+
+
 def score_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
     try:
         result = score_findings(
             key_dir=resolve_key(root, args.key), findings_dir=args.findings, split=args.split
         )
-        columns = [
-            "date_utc",
-            "key_id",
-            "split",
-            "category",
-            "agent",
-            "system",
-            "recall",
-            "false_alarm_rate",
-            "root_cause_match",
-            "paired_discrimination",
-            "cost_per_item_usd",
-            "n_items",
-            "n_measured",
-            "n_pairs",
-            "n_pairs_measured",
-            "status",
-            "notes",
-        ]
-        path = args.scoreboard or root / "research/qa-scoreboard/scoreboard.csv"
-        if path.is_file():
-            with path.open(newline="") as stream:
-                if next(csv.reader(stream), None) != columns:
-                    raise ValueError("scoreboard schema does not match; refusing to append")
-        exists = path.is_file()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        row = {
-            "date_utc": utcnow(),
-            "key_id": result["key_id"],
-            "split": result["split"],
-            "category": "all",
-            "agent": "QA Task",
-            "system": f"qa-task@{args.level}",
-            "recall": result[f"{args.level}_recall"],
-            "false_alarm_rate": result[f"{args.level}_false_alarm_rate"],
-            "root_cause_match": result["root_cause_match_recall"]
-            if args.level == "verified"
-            else "n/a",
-            "paired_discrimination": "n/a",
-            "cost_per_item_usd": result["cost_per_item_usd"],
-            "n_items": result["items"],
-            "n_measured": sum(r["measured"] for r in result["rows"]),
-            "n_pairs": 0,
-            "n_pairs_measured": 0,
-            "status": "partial defensive audit; live S2/S3 not run",
-            "notes": f"coverage={result['measured_fraction']}; observed={result['observed_fraction']}; "
-            f"negative labels={result['negative_label_strengths']}; "
-            "missing measurements are not passes; flags are not verified defects",
-        }
-        with path.open("a", newline="") as stream:
-            writer = csv.DictWriter(stream, fieldnames=columns)
-            if not exists:
-                writer.writeheader()
-            writer.writerow(row)
+        if args.scoreboard is not None:
+            append_scoreboard_row(args.scoreboard, result, level=args.level)
         print(json.dumps(result, indent=2))
         return 0
     except (OSError, ValueError) as exc:

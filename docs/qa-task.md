@@ -93,11 +93,12 @@ uv run evallab qa score --key envcheck-tb4-39 \
   --scoreboard research/qa-scoreboard/scoreboard.csv
 ```
 
-The default scoreboard path is `research/qa-scoreboard/scoreboard.csv`, using
-the existing shared QA-Trace columns. Each invocation appends one row:
-`--level verified` (default) or `--level flagged` for diagnostic triage.
-JSON always reports both. Rows identify the defensive/partial status; task
-scores put paired discrimination at `n/a`, not zero.
+Scoring prints JSON and writes nothing by default. With `--scoreboard <csv>` it
+appends one row in the shared QA scoreboard columns (`--level verified`, the
+default, or `--level flagged` for diagnostic triage); the JSON always reports
+both. Rows are marked partial/defensive, put paired discrimination at `n/a`
+(not zero), and put root-cause match at `n/a` unless verified findings carry
+explicit `root_cause_id`s.
 
 ### Run directories and digest binding
 

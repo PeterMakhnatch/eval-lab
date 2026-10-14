@@ -18,6 +18,7 @@ import hashlib
 import json
 import re
 import sys
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -91,6 +92,7 @@ def _manifest_tasks(manifest: dict[str, Any]) -> list[str]:
     if not isinstance(tasks, list) or not tasks:
         raise ValueError("manifest needs a non-empty 'tasks' list of task ids")
     names: list[str] = []
+    seen: set[str] = set()
     for entry in tasks:
         if isinstance(entry, str) and entry.strip():
             names.append(entry.strip())
@@ -103,7 +105,136 @@ def _manifest_tasks(manifest: dict[str, Any]) -> list[str]:
                 raise ValueError(f"manifest task entry has no task/id/name: {entry!r}")
         else:
             raise ValueError(f"manifest task entry must be a string or object: {entry!r}")
+        if names[-1] in seen:
+            raise ValueError(f"manifest has duplicate task id: {names[-1]!r}")
+        seen.add(names[-1])
     return names
+
+
+def _resolve_package_path(raw: str | Path, *, manifest_dir: Path, root: Path) -> Path:
+    """Resolve a manifest package path to an absolute path.
+
+    Absolute paths stay absolute. Relative paths resolve against the manifest
+    directory first when that path exists, otherwise against the repo root.
+    """
+    candidate = Path(str(raw)).expanduser()
+    if candidate.is_absolute():
+        return candidate.resolve()
+    near_manifest = manifest_dir / candidate
+    if near_manifest.exists():
+        return near_manifest.resolve()
+    return (root / candidate).resolve()
+
+
+def _is_package_dir(raw: str, *, manifest_dir: Path, root: Path) -> bool:
+    """Whether a bare string task entry names an existing package directory."""
+    candidate = Path(raw).expanduser()
+    if candidate.is_absolute():
+        return candidate.is_dir()
+    return (manifest_dir / candidate).is_dir() or (root / candidate).is_dir()
+
+
+def _resolve_task_packages(
+    manifest: dict[str, Any], *, manifest_path: Path, root: Path
+) -> dict[str, str]:
+    """Map task ids to resolved absolute package path strings.
+
+    Binds entries that name a package: object entries with ``package``/``path``,
+    string entries that name an existing package directory, and the top-level
+    ``packages`` task->path mapping. ID-only manifests resolve to ``{}`` so
+    plan-only runs stay green; ``--execute`` fails closed on anything unbound.
+    Duplicate task ids or conflicting bindings raise ``ValueError``.
+    """
+    top = manifest.get("packages", {})
+    if top is None:
+        top = {}
+    if not isinstance(top, Mapping):
+        raise ValueError("manifest 'packages' must be a task->path mapping")
+    normalized_top: dict[str, str] = {}
+    for key, value in top.items():
+        if not isinstance(key, str) or not key.strip():
+            raise ValueError(f"manifest 'packages' key must be a task id string: {key!r}")
+        if not isinstance(value, (str, Path)) or not str(value).strip():
+            raise ValueError(f"manifest 'packages[{key}]' must be a path string")
+        task_key = key.strip()
+        text = str(value).strip()
+        if task_key in normalized_top and normalized_top[task_key] != text:
+            raise ValueError(
+                f"manifest 'packages' has conflicting paths for task {task_key!r}"
+            )
+        normalized_top[task_key] = text
+    manifest_dir = manifest_path.parent
+    entries = manifest.get("tasks", [])
+    bindings: dict[str, str] = {}
+    seen: set[str] = set()
+
+    def _bind(task_id: str, raw: str | Path | None) -> None:
+        if raw is None:
+            return
+        if not isinstance(raw, (str, Path)) or not str(raw).strip():
+            raise ValueError(f"manifest task {task_id!r} has an empty package path")
+        resolved = str(
+            _resolve_package_path(str(raw).strip(), manifest_dir=manifest_dir, root=root)
+        )
+        prior = bindings.get(task_id)
+        if prior is not None and prior != resolved:
+            raise ValueError(
+                f"manifest task {task_id!r} has conflicting package bindings"
+            )
+        bindings[task_id] = resolved
+
+    for entry in entries:
+        if isinstance(entry, str) and entry.strip():
+            task_id = entry.strip()
+            if task_id in seen:
+                raise ValueError(f"manifest has duplicate task id: {task_id!r}")
+            seen.add(task_id)
+            if task_id in normalized_top:
+                _bind(task_id, normalized_top[task_id])
+            elif _is_package_dir(task_id, manifest_dir=manifest_dir, root=root):
+                _bind(task_id, task_id)
+        elif isinstance(entry, dict):
+            task_id = None
+            for name_key in ("task", "id", "name"):
+                if isinstance(entry.get(name_key), str) and entry[name_key].strip():
+                    task_id = entry[name_key].strip()
+                    break
+            if task_id is None:
+                raise ValueError(f"manifest task entry has no task/id/name: {entry!r}")
+            if task_id in seen:
+                raise ValueError(f"manifest has duplicate task id: {task_id!r}")
+            seen.add(task_id)
+            raw_package = entry.get("package")
+            raw_path = entry.get("path")
+            if (
+                raw_package is not None
+                and raw_path is not None
+                and str(raw_package).strip() != str(raw_path).strip()
+            ):
+                raise ValueError(
+                    f"manifest task {task_id!r} has conflicting 'package' and 'path'"
+                )
+            raw_obj = raw_package if raw_package is not None else raw_path
+            raw_top = normalized_top.get(task_id)
+            if raw_obj is not None and raw_top is not None:
+                via_obj = str(
+                    _resolve_package_path(
+                        str(raw_obj).strip(), manifest_dir=manifest_dir, root=root
+                    )
+                )
+                via_top = str(
+                    _resolve_package_path(raw_top, manifest_dir=manifest_dir, root=root)
+                )
+                if via_obj != via_top:
+                    raise ValueError(
+                        f"manifest task {task_id!r} has conflicting package bindings"
+                    )
+            _bind(task_id, str(raw_obj).strip() if raw_obj is not None else raw_top)
+        else:
+            raise ValueError(
+                f"manifest task entry must be a string or object: {entry!r}"
+            )
+    return bindings
 
 
 def _manifest_digest(manifest: dict[str, Any]) -> str:
@@ -210,19 +341,29 @@ def _vcheck_run_command(args: argparse.Namespace, root: Path, *, harbor: Any | N
     try:
         manifest = _load_manifest(manifest_path)
         tasks = _manifest_tasks(manifest)
+        packages = _resolve_task_packages(manifest, manifest_path=manifest_path, root=root)
     except ValueError as exc:
         print(f"vcheck run: {exc}", file=sys.stderr)
         return 1
-    if args.budget_usd is None or not args.approve:
+    controls_only = bool(getattr(args, "controls_only", False))
+    if controls_only and args.execute:
         print(
-            "vcheck run: --budget-usd and --approve are both required "
-            "(spend-gated red/blue campaign; approval text is recorded in the plan)",
+            "vcheck run: --controls-only and --execute are mutually exclusive "
+            "(controls-only is a $0 validation gate; it never spends budget)",
             file=sys.stderr,
         )
         return 1
-    if args.budget_usd <= 0:
-        print("vcheck run: --budget-usd must be positive", file=sys.stderr)
-        return 1
+    if not controls_only:
+        if args.budget_usd is None or not args.approve:
+            print(
+                "vcheck run: --budget-usd and --approve are both required "
+                "(spend-gated red/blue campaign; approval text is recorded in the plan)",
+                file=sys.stderr,
+            )
+            return 1
+        if args.budget_usd <= 0:
+            print("vcheck run: --budget-usd must be positive", file=sys.stderr)
+            return 1
     campaign_id = str(manifest.get("campaign_id") or manifest_path.stem)
     models = manifest.get("models") or {}
     model = str(models.get("red") or DEFAULT_MODEL)
@@ -239,6 +380,7 @@ def _vcheck_run_command(args: argparse.Namespace, root: Path, *, harbor: Any | N
         "manifest_digest": _manifest_digest(manifest),
         "manifest": manifest,
         "tasks": tasks,
+        "packages": packages,
         "models": {"red": model, **{k: v for k, v in models.items() if k != "red"}},
         "budget_usd": args.budget_usd,
         "approval": args.approve,
@@ -246,9 +388,14 @@ def _vcheck_run_command(args: argparse.Namespace, root: Path, *, harbor: Any | N
         "estimate_per_task_usd": per_task,
         "estimated_total_usd": total,
         "execute": bool(args.execute),
+        "controls_only": controls_only,
         "created_at": _utcnow(),
     }
     _write_json(run_dir / "vcheck-plan.json", plan)
+    if controls_only:
+        return _controls_only_campaign(
+            args, root, manifest, tasks, plan, run_dir, packages=packages
+        )
     if total > args.budget_usd:
         print(
             f"vcheck run: estimated ${total:.2f} exceeds --budget-usd ${args.budget_usd:.2f}; "
@@ -274,7 +421,7 @@ def _vcheck_run_command(args: argparse.Namespace, root: Path, *, harbor: Any | N
             print("Plan only: re-run with --execute to spend budget.")
             print(f"run directory: {run_dir}")
         return 0
-    return _execute_campaign(args, root, manifest, tasks, plan, run_dir)
+    return _execute_campaign(args, root, manifest, tasks, plan, run_dir, packages=packages)
 
 
 def _execute_campaign(
@@ -284,7 +431,27 @@ def _execute_campaign(
     tasks: list[str],
     plan: dict[str, Any],
     run_dir: Path,
+    *,
+    packages: dict[str, str] | None = None,
 ) -> int:
+    resolved = dict(packages if packages is not None else plan.get("packages") or {})
+    missing = [task for task in tasks if task not in resolved]
+    if missing:
+        print(
+            "vcheck run: --execute needs a package for every task; "
+            f"missing: {', '.join(missing)} "
+            "(bind each task with a package/path entry or top-level 'packages')",
+            file=sys.stderr,
+        )
+        return 1
+    absent = [task for task in tasks if not Path(resolved[task]).is_dir()]
+    if absent:
+        print(
+            "vcheck run: package directory missing for tasks: "
+            + ", ".join(f"{task} ({resolved[task]})" for task in absent),
+            file=sys.stderr,
+        )
+        return 1
     try:
         from evallab.vcheck import run_wave
     except ImportError as exc:
@@ -306,17 +473,29 @@ def _execute_campaign(
     if grade_fn is None:
         print("vcheck run: grading backend unavailable", file=sys.stderr)
         return 1
+    wave_packages = {task: resolved[task] for task in tasks}
     red_factory = _build_red_factory(
-        budget=budget, grade_fn=grade_fn, run_dir=run_dir, model=plan["models"].get("red")
+        budget=budget,
+        grade_fn=grade_fn,
+        run_dir=run_dir,
+        model=plan["models"].get("red"),
+        packages=wave_packages,
     )
     if red_factory is None:
         print("vcheck run: red-agent slice unavailable", file=sys.stderr)
         return 1
     try:
-        try:
-            result = run_wave(campaign, tasks, red_factory, broadcast=(), grade_fn=grade_fn)
-        except TypeError:
-            result = run_wave(campaign, tasks, red_factory, broadcast=())
+        # Exactly one wave call: a whole-wave TypeError retry could re-run
+        # harness controls and red agents (double Docker grading/model spend)
+        # if the TypeError escaped from deep inside the wave.
+        result = run_wave(
+            campaign,
+            tasks,
+            red_factory,
+            broadcast=(),
+            grade_fn=grade_fn,
+            packages=wave_packages,
+        )
     except Exception as exc:
         print(f"vcheck run: wave failed ({exc})", file=sys.stderr)
         return 1
@@ -354,8 +533,145 @@ def _execute_campaign(
     return 0
 
 
-def _build_red_factory(*, budget: Any, grade_fn: Any, run_dir: Path, model: Any) -> Any | None:
-    """Adapt RED.run_red to CORE's red_factory(task_id, broadcast_hints) shape."""
+def _control_field(obj: Any, name: str, default: Any = None) -> Any:
+    """Read a control/grade field from a dataclass, namespace, or mapping."""
+    if isinstance(obj, Mapping):
+        return obj.get(name, default)
+    return getattr(obj, name, default)
+
+
+def _grade_control_row(grade: Any) -> dict[str, Any]:
+    """One graded control (baseline/legit/negative) as report JSON."""
+    if grade is None:
+        return {"reward": None, "status": "unscored"}
+    row: dict[str, Any] = {
+        "reward": _control_field(grade, "reward"),
+        "status": str(_control_field(grade, "status", "?")),
+    }
+    job_dir = _control_field(grade, "job_dir")
+    if job_dir is not None:
+        row["job_dir"] = str(job_dir)
+    script = _control_field(grade, "script")
+    if script is not None and str(script) != "":
+        row["script"] = str(script)
+    return row
+
+
+def _control_row_to_json(task: str, package: str, report: Any) -> dict[str, Any]:
+    """One task's harness-controls outcome as report JSON."""
+    return {
+        "task": task,
+        "package": str(package),
+        "verdict": str(_control_field(report, "verdict", "?")),
+        "reason": str(_control_field(report, "reason", "")),
+        "baseline": _grade_control_row(_control_field(report, "baseline")),
+        "legit": _grade_control_row(_control_field(report, "legit")),
+        "negative": _grade_control_row(_control_field(report, "negative")),
+    }
+
+
+def _controls_only_campaign(
+    args: argparse.Namespace,
+    root: Path,
+    manifest: dict[str, Any],
+    tasks: list[str],
+    plan: dict[str, Any],
+    run_dir: Path,
+    *,
+    packages: dict[str, str] | None = None,
+) -> int:
+    """Run the $0 harness-controls gate: oracle/empty controls per task.
+
+    Never constructs Budget, red agents, or waves, so no model spend is
+    possible. Fails closed before grading when any task lacks a resolved
+    existing package. Returns non-zero when any task reports task_broken.
+    """
+    del manifest
+    resolved = dict(packages if packages is not None else plan.get("packages") or {})
+    missing = [task for task in tasks if task not in resolved]
+    if missing:
+        print(
+            "vcheck run: --controls-only needs a package for every task; "
+            f"missing: {', '.join(missing)} "
+            "(bind each task with a package/path entry or top-level 'packages')",
+            file=sys.stderr,
+        )
+        return 1
+    absent = [task for task in tasks if not Path(resolved[task]).is_dir()]
+    if absent:
+        print(
+            "vcheck run: package directory missing for tasks: "
+            + ", ".join(f"{task} ({resolved[task]})" for task in absent),
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        from evallab.vcheck import run_controls
+    except ImportError as exc:
+        print(f"vcheck run: controls backend unavailable ({exc})", file=sys.stderr)
+        return 1
+    grade_fn = _build_grade_fn(root, run_dir)
+    if grade_fn is None:
+        print("vcheck run: grading backend unavailable", file=sys.stderr)
+        return 1
+    rows: list[dict[str, Any]] = []
+    broken: list[str] = []
+    for task in tasks:
+        try:
+            control = run_controls(resolved[task], grade_fn, task=task)
+        except Exception as exc:
+            print(f"vcheck run: controls failed for {task} ({exc})", file=sys.stderr)
+            return 1
+        row = _control_row_to_json(task, resolved[task], control)
+        rows.append(row)
+        if row["verdict"] != "ok":
+            broken.append(task)
+    report: dict[str, Any] = {
+        "schema": SCHEMA_REPORT,
+        "campaign_id": plan["campaign_id"],
+        "manifest_digest": plan["manifest_digest"],
+        "run_dir": str(run_dir),
+        "verdict": "controls",
+        "counts": {
+            "tasks": len(tasks),
+            "controls_ok": len(tasks) - len(broken),
+            "task_broken": len(broken),
+        },
+        "controls": rows,
+        "task_broken": broken,
+        "survivors": [],
+        "hypotheses": [],
+        "broadcast": [],
+        "created_at": _utcnow(),
+    }
+    _write_json(run_dir / "vcheck-report.json", report)
+    if getattr(args, "json", False):
+        _emit(args, report)
+    else:
+        print(f"Campaign: {plan['campaign_id']}")
+        print(f"Controls: {len(tasks) - len(broken)} ok, {len(broken)} task-broken")
+        for row in rows:
+            print(f"  {row['task']}: {row['verdict']} ({row['reason']})")
+        print(f"run directory: {run_dir}")
+    return 1 if broken else 0
+
+
+def _build_red_factory(
+    *,
+    budget: Any,
+    grade_fn: Any,
+    run_dir: Path,
+    model: Any,
+    packages: dict[str, str] | None = None,
+) -> Any | None:
+    """Adapt RED.run_red to CORE's red_factory(task_id, broadcast_hints) shape.
+
+    ``packages`` maps task ids to resolved package paths. The per-task grader
+    calls the real grader with the package path (never the bare task id), and
+    ``run_red`` receives a task context mapping carrying the task id, package
+    path, and task dir so red read/list file tools resolve against the task
+    root.
+    """
     try:
         from evallab import vcheck_red as red
     except ImportError:
@@ -378,24 +694,40 @@ def _build_red_factory(*, budget: Any, grade_fn: Any, run_dir: Path, model: Any)
 
     def factory(task_id: str, broadcast_hints: Any = ()) -> list[Any]:
         hints = list(broadcast_hints or ())
+        package = packages.get(task_id) if packages else None
 
         def probe_fn(hint: str) -> Any:
             if blue is None:
                 return {"outcome": "unavailable", "hint": hint}
             probe = getattr(blue, "probe_bfcl", None)
             if callable(probe):
+                ctx: Any = (
+                    {"task": task_id, "package": package, "task_dir": package}
+                    if package is not None
+                    else {"task": task_id}
+                )
                 try:
-                    return probe({"task": task_id}, hint)
+                    return probe(ctx, hint)
                 except TypeError:
                     return probe(task_id, hint)
             return {"outcome": "unavailable", "hint": hint}
 
         def task_grade_fn(submission: Any) -> Any:
+            if package is not None:
+                return grade_fn(package, submission)
             return grade_fn(task_id, submission)
 
+        task_ctx: Any = task_id
+        if package is not None:
+            task_ctx = {
+                "task": task_id,
+                "task_id": task_id,
+                "package": package,
+                "task_dir": package,
+            }
         return list(
             run_red(
-                task_id,
+                task_ctx,
                 client=client,
                 budget=budget,
                 broadcast_hints=hints,
@@ -709,6 +1041,11 @@ def build_vcheck_parser(commands: argparse._SubParsersAction) -> None:
     run.add_argument("--budget-usd", type=float, default=None)
     run.add_argument("--approve", type=str, default=None, help="Recorded spend approval text")
     run.add_argument("--execute", action="store_true", help="Spend budget and run the campaign")
+    run.add_argument(
+        "--controls-only",
+        action="store_true",
+        help="$0 harness-controls gate: oracle/empty controls per task, no budget or model spend",
+    )
     run.add_argument("--workers", type=int, default=1)
     run.add_argument("--json", action="store_true")
     run.set_defaults(func=_vcheck_run_command)

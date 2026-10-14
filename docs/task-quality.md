@@ -39,7 +39,7 @@ evallab audit hello-world --execute --stages oracle,nop,leak,static,history \
 | `leak` | HAR-177 future-ref/unreachable-commit semantics; a solution-only native probe inspects discovered image repositories. Missing Git, absent repositories, failed commands, or incomplete output are unknown, not clean. |
 | `oracle` | Recorded HAR-191 history-oracle findings or a native provided-solution control. Missing reference evidence stays unavailable; patch applicability is not a passing grade. |
 | `nop` | The existing no-agent/output checks, bound to the executed package. Infrastructure failures are not scored failures. |
-| `static` | Lexical flags and task lint, with input hashes and coverage. These describe files only and never predict quality or decide the verdict. |
+| `static` | Lexical flags, task lint, and the joined offline V1–V8 hack-scan ledger (schema, digests, recon, findings, limits), with input hashes and coverage. These describe files only and never predict quality or decide the verdict; absent scan findings are not a certificate. |
 | `history` | One read-only native trial census, including controls and probes; recorded model-history summaries retain their original scope. |
 | `exploit` | Existing HAR-161 probe evidence or an explicitly selected hosted-model probe. A negative probe is not proof of universal resistance. |
 

@@ -72,6 +72,8 @@ eval-lab/
 ├── research/                  WHAT WE LEARN — produced knowledge
 │   ├── experiments/           experiment specs and matrices
 │   ├── calibration/           judge ground truth: corpora, answer keys, labels
+│   ├── answer-keys/           QA-agent answer keys (qa.answer_key/v1; FOCUS contract)
+│   ├── qa-scoreboard/         QA-agent scoreboard rows (one CSV, appended by `evallab qa score`)
 │   ├── explorations/          capability recon: demos + adoption notes
 │   ├── analysis/              reusable analysis queries
 │   ├── evidence/              reviewed, immutable control bundles
@@ -280,3 +282,6 @@ The change log below is historical, not a current inventory or work order.
 - 2026-10-12 — `LICENSE` (Apache-2.0) declared at the root, beside
   `README.md` and `pyproject.toml`. Vendored third-party packages keep their
   own license files.
+- 2026-10-14 — `research/answer-keys/` and `research/qa-scoreboard/`
+  declared for the QA-agent contract in research-context FOCUS.md
+  (`qa.answer_key/v1` keys scored by `evallab qa score`).

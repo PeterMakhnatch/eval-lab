@@ -731,7 +731,7 @@ inputs:
   - path: src/evallab/vcheck_blue.py
     digest: sha256:90cf212cf521ac2e9c77144e61eb7bc75368c4d8c0ba1e3e0abbf47e3b9af742
   - path: src/evallab/vcheck_cli.py
-    digest: sha256:350c6f542567146e82b93a4186cdb4b6b5ffd8c9b3b0f50ceb08c33b68ce738c
+    digest: sha256:5fbd18ef0c576f6dba1fc7831852545e25c61bab82d3fe92a78fa5b9225202aa
   - path: src/evallab/vcheck_client.py
     digest: sha256:aa80423dfd3e76aad087d32ae2b73eb7628c14153d113cc9df6f5270e3720f2a
   - path: src/evallab/vcheck_judge.py

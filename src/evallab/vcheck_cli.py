@@ -14,6 +14,7 @@ and unknown-id rejection paths never touch model, Docker, or DuckDB code.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import re
@@ -302,7 +303,8 @@ def _build_grade_fn(root: Path, run_dir: Path) -> Any | None:
         return None
 
     def grade_fn(package: Any, submission: Any) -> Any:
-        return grade_submission(package, submission, repo_root=root, run_dir=run_dir)
+        with contextlib.redirect_stdout(sys.stderr):
+            return grade_submission(package, submission, repo_root=root, run_dir=run_dir)
 
     return grade_fn
 

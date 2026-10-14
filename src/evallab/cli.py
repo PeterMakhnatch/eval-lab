@@ -7434,6 +7434,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.interop import build_interop_parser
 
     build_interop_parser(commands)
+    from evallab.qa.cli import build_qa_parser
+
+    build_qa_parser(commands)
     return root
 
 

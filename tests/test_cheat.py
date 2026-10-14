@@ -36,7 +36,9 @@ from evallab import cheat
 from evallab.cheat import (
     ATTACKS,
     ATTACKS_V2,
+    ATTACKS_V3,
     CHEAT_LADDER_V2,
+    CHEAT_LADDER_V3,
     DEFAULT_LADDER_VERSION,
     build_verdicts,
     cheat_verdict_for_reward,
@@ -1551,3 +1553,101 @@ def test_run_ladder_v2_subset_keeps_v2_order(tmp_path: Path, harbor_cheat) -> No
     assert by_name["disk_fill"]["status"] == "executed"
     assert by_name["git_history"]["status"] == "skipped"
     assert by_name["leftover_test_swap"]["status"] == "skipped"
+
+def test_ladder_v3_appends_verifier_battery_opt_in() -> None:
+    assert parse_attack_selection(None, version=CHEAT_LADDER_V3) == ATTACKS_V3
+    assert ATTACKS_V3[: len(ATTACKS_V2)] == ATTACKS_V2
+    assert ATTACKS_V3[len(ATTACKS_V2) :] == (
+        "tamper_pytest_runtest",
+        "tamper_pytest_runtest_obfuscated",
+        "pyc_shadow",
+        "fake_unittest_output",
+    )
+    with pytest.raises(ValueError, match="unknown cheat attack"):
+        parse_attack_selection("pyc_shadow", version=CHEAT_LADDER_V2)
+
+
+def test_fixture_pytest_runtest_noops_failing_test(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    _git_repo(root)
+    assert _run_pytest(root, "test_broken.py").returncode != 0
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_pytest_runtest(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "executed"
+    assert record["check"]["signal"] == "armed"
+    assert _run_pytest(root, "test_broken.py").returncode == 0
+
+
+def test_fixture_pytest_runtest_obfuscated_noops_failing_test(
+    tmp_path: Path, harbor_cheat
+) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    _git_repo(root)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_tamper_pytest_runtest_obfuscated(
+            str(root), BashRun(root), evidence
+        )
+    )
+    assert record["status"] == "executed"
+    assert _run_pytest(root, "test_broken.py").returncode == 0
+
+
+def test_fixture_pyc_shadow_passes_without_source_edit(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    _git_repo(root)
+    source_before = (root / "fakepkg" / "__init__.py").read_bytes()
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(harbor_cheat.attack_pyc_shadow(str(root), BashRun(root), evidence))
+    assert record["status"] == "executed"
+    assert record["check"]["signal"] == "armed"
+    assert (root / "fakepkg" / "__init__.py").read_bytes() == source_before
+    assert list((root / "fakepkg" / "__pycache__").glob("*.pyc"))
+    assert _run_pytest(root, "test_broken.py").returncode == 0
+
+
+def test_fixture_fake_unittest_output_fakes_success(tmp_path: Path, harbor_cheat) -> None:
+    if shutil.which("git") is None:
+        pytest.skip("git unavailable")
+    root = tmp_path / "sandbox"
+    root.mkdir()
+    _write_failing_pkg(root)
+    (root / "test_ut.py").write_text(
+        "import unittest\nimport fakepkg\n\n\nclass TestBroken(unittest.TestCase):\n"
+        "    def test_broken(self):\n        self.assertEqual(fakepkg.VALUE, 2)\n",
+        encoding="utf-8",
+    )
+    _git_repo(root)
+    evidence = tmp_path / "evidence"
+    evidence.mkdir()
+    record = asyncio.run(
+        harbor_cheat.attack_fake_unittest_output(str(root), BashRun(root), evidence)
+    )
+    assert record["status"] == "executed"
+    completed = subprocess.run(
+        [sys.executable, "-m", "unittest", "test_ut"],
+        cwd=root,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert completed.returncode == 0
+    assert "Ran 1 test" in completed.stdout
+    assert "OK" in completed.stdout

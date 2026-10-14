@@ -27,7 +27,9 @@ from typing import Any
 from evallab.cheat_ladder import (
     ATTACKS,  # noqa: F401  (re-exported for sibling lanes)
     ATTACKS_V2,  # noqa: F401  (re-exported for sibling lanes)
+    ATTACKS_V3,  # noqa: F401  (re-exported for sibling lanes)
     CHEAT_LADDER_V2,  # noqa: F401  (re-exported for sibling lanes)
+    CHEAT_LADDER_V3,  # noqa: F401  (re-exported for sibling lanes)
     DEFAULT_LADDER_VERSION,
     LADDERS,
     parse_attack_selection,

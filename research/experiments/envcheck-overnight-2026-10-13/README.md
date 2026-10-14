@@ -64,6 +64,39 @@ assertion on incidental implementation behavior.
 The Oct 12 receipts are useful design inputs but are **not reused as scored
 v5 evidence**: both requested seeds now have different task-package digests.
 
+## Completed local hunt
+
+The frozen 32-task sweep completed at **10:02 PM ET on October 13**. It used
+405 native control/mutant runs, of which 396 produced scored execution evidence.
+The resumed sweep's continuous Docker event record observed a maximum of two
+owned containers and no ceiling breach; the earlier violation remains recorded
+above rather than being erased by the corrected run.
+
+| Measurement | Count |
+|---|---:|
+| Sampled tasks | 32 |
+| Tasks with rankable, informative traced outcomes | 21 |
+| Tasks with at least one ranked survivor | 20 |
+| Selected mutant runs, including excluded outcomes | 276 |
+| Informative scored mutants on executed lines | 247 |
+| Surviving mutants in the executed-line ranking | 99 |
+| Excluded tasks: infrastructure/control execution unavailable | 6 |
+| Excluded tasks: reference rejected | 2 |
+| Excluded tasks: no selectable mutants | 1 |
+| Excluded tasks: another tool replaced the coverage tracer | 2 |
+
+The full ordered top twenty and per-task exclusions are in `hunt-summary.json`,
+which points to the retained reports and the hash-verified
+`hunt-retention.json` custody manifest. In particular, 000471 and 000159 have
+raw survivors but no trustworthy executed-line trace, so they do not enter this
+ranking. Task 002618 has eleven killed mutants and one explicitly unscored
+interrupted mutant, not a clean twelve-mutant result.
+
+These are discovery results in the approved local subset, not a prevalence
+estimate for all 564 tasks or proof that all 99 survivors violate their tasks.
+The assertion repair stage is restricted to this measured top twenty and
+reuses the already-scored seed variants rather than spending on them again.
+
 ## Fresh v5 seed measurements
 
 Both original v5 packages scored reference 1, nop 0 and instrumented reference 1.
@@ -111,9 +144,20 @@ with SHA-256 verification outside Git at
 The materialized packages remain in the canonical shared
 `derived/task-store/variants/` store; no source task was edited or registered.
 
+The seven finalized seed bundles are retained under
+`~/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/`.
+`seed-retention-v2.json` binds 210 bundle/executor files and 2,975 native files
+across 58 job directories to their SHA-256 digests. Another 24 planned matrix
+entries have no native job directory: these include preflight refusals and
+control-gated skips, not additional executed trials. Existing published job
+files were reused when their bytes matched; missing final files were retained
+as supplements without replacing the earlier publication.
+
 Seed proposal usage is in `seed-proposal-usage.json`: four completed ordinary
 ChatGPT-subscription calls, 98,604 input and 6,270 output tokens; shared weekly
 usage observed before those calls was 4–6%, not attributable solely to this lane.
+A later shared-account check at **6:56 AM ET** observed **21%** weekly use;
+each subsequent proposal must still pass the live 60% gate.
 The existing Eval Lab `mimo-census record-spend` ledger records **$0 incremental
 provider spend** for both seed batches in `spend.jsonl`. The binding approval is
 this slice's $10 cap, not the census command's unrelated default slice ceiling.

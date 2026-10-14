@@ -1,0 +1,230 @@
+{
+  "schema": "envcheck.hunt_summary/v1",
+  "source": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/hunt-results.json",
+  "source_sha256": "sha256:f04db54d27a2f3ff23b3e50608b178b2cfdfd7912029fd5038166d668f52fbe1",
+  "custody": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/hunt-retention.json",
+  "custody_sha256": "sha256:ee6917139041267742eaffba5f1e411635a2d2b34463fac2876f439052605803",
+  "metrics": {
+    "selected_tasks": 32,
+    "rankable_tasks": 21,
+    "ranked_positive_tasks": 20,
+    "scored_executed_mutants": 247,
+    "ranked_survivors": 99,
+    "reported_native_runs": 405,
+    "scored_native_runs": 396,
+    "raw_mutants": 276,
+    "native_job_directories": 405,
+    "verified_native_files": 19367
+  },
+  "ranking": [
+    {
+      "rank": 1,
+      "task": "mimo-v2.6-rl/format-code-task-002402",
+      "survived": 11,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002402/mutation-report.json"
+    },
+    {
+      "rank": 2,
+      "task": "mimo-v2.6-rl/format-code-task-002866",
+      "survived": 9,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002866/mutation-report.json"
+    },
+    {
+      "rank": 3,
+      "task": "mimo-v2.6-rl/format-code-task-002139",
+      "survived": 8,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002139/mutation-report.json"
+    },
+    {
+      "rank": 4,
+      "task": "mimo-v2.6-rl/format-code-task-000769",
+      "survived": 7,
+      "scored_executed": 10,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000769/mutation-report.json"
+    },
+    {
+      "rank": 5,
+      "task": "mimo-v2.6-rl/format-code-task-002736",
+      "survived": 7,
+      "scored_executed": 11,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002736/mutation-report.json"
+    },
+    {
+      "rank": 6,
+      "task": "mimo-v2.6-rl/format-code-task-001891",
+      "survived": 7,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001891/mutation-report.json"
+    },
+    {
+      "rank": 7,
+      "task": "mimo-v2.6-rl/format-code-task-002394",
+      "survived": 7,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002394/mutation-report.json"
+    },
+    {
+      "rank": 8,
+      "task": "mimo-v2.6-rl/format-code-task-002742",
+      "survived": 6,
+      "scored_executed": 11,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002742/mutation-report.json"
+    },
+    {
+      "rank": 9,
+      "task": "mimo-v2.6-rl/format-code-task-002382",
+      "survived": 6,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002382/mutation-report.json"
+    },
+    {
+      "rank": 10,
+      "task": "mimo-v2.6-rl/format-code-task-001553",
+      "survived": 5,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001553/mutation-report.json"
+    },
+    {
+      "rank": 11,
+      "task": "mimo-v2.6-rl/format-code-task-002222",
+      "survived": 5,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002222/mutation-report.json"
+    },
+    {
+      "rank": 12,
+      "task": "mimo-v2.6-rl/format-code-task-000390",
+      "survived": 4,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000390/mutation-report.json"
+    },
+    {
+      "rank": 13,
+      "task": "mimo-v2.6-rl/format-code-task-001671",
+      "survived": 4,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001671/mutation-report.json"
+    },
+    {
+      "rank": 14,
+      "task": "mimo-v2.6-rl/format-code-task-002391",
+      "survived": 3,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002391/mutation-report.json"
+    },
+    {
+      "rank": 15,
+      "task": "mimo-v2.6-rl/format-code-task-000561",
+      "survived": 2,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000561/mutation-report.json"
+    },
+    {
+      "rank": 16,
+      "task": "mimo-v2.6-rl/format-code-task-001425",
+      "survived": 2,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001425/mutation-report.json"
+    },
+    {
+      "rank": 17,
+      "task": "mimo-v2.6-rl/format-code-task-001478",
+      "survived": 2,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001478/mutation-report.json"
+    },
+    {
+      "rank": 18,
+      "task": "mimo-v2.6-rl/format-code-task-001770",
+      "survived": 2,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001770/mutation-report.json"
+    },
+    {
+      "rank": 19,
+      "task": "mimo-v2.6-rl/format-code-task-000511",
+      "survived": 1,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000511/mutation-report.json"
+    },
+    {
+      "rank": 20,
+      "task": "mimo-v2.6-rl/format-code-task-001219",
+      "survived": 1,
+      "scored_executed": 12,
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001219/mutation-report.json"
+    }
+  ],
+  "excluded": [
+    {
+      "task": "mimo-v2.6-rl/format-code-task-000732",
+      "verdict": "unscored",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000732/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-002250",
+      "verdict": "unscored",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/002250/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-001647",
+      "verdict": "unscored",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001647/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-000471",
+      "verdict": "survivors_found",
+      "coverage": "unavailable",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000471/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-001985",
+      "verdict": "unscored",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001985/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-001264",
+      "verdict": "unscored",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001264/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-000484",
+      "verdict": "task_broken",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000484/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-001257",
+      "verdict": "no_mutants",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001257/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-001373",
+      "verdict": "task_broken",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/001373/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-000878",
+      "verdict": "unscored",
+      "coverage": "planned",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000878/mutation-report.json"
+    },
+    {
+      "task": "mimo-v2.6-rl/format-code-task-000159",
+      "verdict": "survivors_found",
+      "coverage": "unavailable",
+      "report": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/mutations/000159/mutation-report.json"
+    }
+  ],
+  "limits": "Stratified local sample; Python-only coverage. Survivors are hypotheses, not confirmed task defects."
+}

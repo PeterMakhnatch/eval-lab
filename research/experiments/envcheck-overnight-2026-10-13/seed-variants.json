@@ -10,7 +10,9 @@
       "record": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/mimo-v2.6-rl__format-code-task-002402/ccf1a141dd57.json",
       "record_sha256": "5aab29f98a089da1209c5c311a71f78ecd2e806c3e590dcd2ef1139d9fd9bee4",
       "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002402/ccf1a141dd57",
-      "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002402-replay1/repair-result.json"
+      "receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/repairs/002402-replay1/repair-result.json",
+      "source_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002402-replay1/repair-result.json",
+      "receipt_sha256": "0d43e4aebcd8d7f0dfdf29dbfd693fd965e9f8b780b418adfd954094e640cd1a"
     },
     {
       "task_id": "format-code-task-002391",
@@ -20,7 +22,9 @@
       "record": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/mimo-v2.6-rl__format-code-task-002391/1ee7e92ece7d.json",
       "record_sha256": "74959109a84cf6d83bbf9902d6dddf97bf89ef7b7acffbf22b90de2fe6bd29ed",
       "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002391/1ee7e92ece7d",
-      "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002391/repair-result.json"
+      "receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/repairs/002391/repair-result.json",
+      "source_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002391/repair-result.json",
+      "receipt_sha256": "eab41b544ef7ef3be61c726de12e2f2984848b75509d97e1edfc8897ddba51ff"
     },
     {
       "task_id": "format-code-task-002402",
@@ -30,7 +34,9 @@
       "record": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/mimo-v2.6-rl__format-code-task-002402/bd5b2efb9a4e.json",
       "record_sha256": "922f428517efd8e4fca2268187fb1c0d6e89062d5cbb07e3d1cd629ba3cdf990",
       "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002402/bd5b2efb9a4e",
-      "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002402-refine1/repair-result.json"
+      "receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/repairs/002402-refine1/repair-result.json",
+      "source_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002402-refine1/repair-result.json",
+      "receipt_sha256": "aaa59ea2e4659136594c307d69a26522604c944f5b6b36744c0425c538fb4731"
     },
     {
       "task_id": "format-code-task-002391",
@@ -40,7 +46,11 @@
       "record": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/lineage/mimo-v2.6-rl__format-code-task-002391/879d41b6ac07.json",
       "record_sha256": "7226b408cda359ac3461993aa2c306d0dc894d9990822be1974470b089bd2d0c",
       "package": "/Users/petermakhnatch/Developer/eval-lab/derived/task-store/variants/mimo-v2.6-rl__format-code-task-002391/879d41b6ac07",
-      "receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002391-refine1/repair-result.json"
+      "receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/study/repairs/002391-refine1/repair-result.json",
+      "source_receipt": "/Users/petermakhnatch/Developer/eval-lab/.worktrees/envcheck-overnight-1013/runs/envcheck-overnight-1013/repairs/002391-refine1/repair-result.json",
+      "receipt_sha256": "1f53da440189fb2525747e64a5749ecb85c2467e9d2393f6c5dbe29d45cfeb0d"
     }
-  ]
+  ],
+  "custody_receipt": "/Users/petermakhnatch/Developer/eval-lab-results/2026-10-13/envcheck-overnight/seed-retention-v2.json",
+  "custody_receipt_sha256": "39266c2099e25b2864bdf18c5728d25fd6844c732c1e4b431ab5678a18b08f4d"
 }

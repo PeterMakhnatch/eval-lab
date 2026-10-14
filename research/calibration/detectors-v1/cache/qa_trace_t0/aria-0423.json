@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "aria literals fired: none",
+ "flagged": false,
+ "id": "aria-0423",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

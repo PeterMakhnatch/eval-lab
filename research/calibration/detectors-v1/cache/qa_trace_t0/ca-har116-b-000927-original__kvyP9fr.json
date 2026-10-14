@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "contamination-audit literals fired: rules:upstream_fetch_confirmed_copy",
+ "flagged": true,
+ "id": "ca-har116-b-000927-original__kvyP9fr",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

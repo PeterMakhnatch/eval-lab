@@ -69,7 +69,7 @@ inputs:
   - path: docs/har136-source-audit-2026-10-01.md
     digest: sha256:a5c4462e3c6c44518fbd1916c768e950a0d4cfcd7caff0f6708bc32d92394540
   - path: docs/harbor-view.md
-    digest: sha256:dbb2b29bc64bd3a5977f36d84f205a023bf5856220357cc91e788aa7eeededc7
+    digest: sha256:926407f26fe9b1b84a6c381b9ddd2d8c3500baee271bf6fd60944514d8372493
   - path: docs/join-spine.md
     digest: sha256:34d0522990862367edb5959d63d85d8c4d96971e0de9914408168d8fb6b05f18
   - path: docs/ladder.md
@@ -99,7 +99,7 @@ inputs:
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
-    digest: sha256:a39a3688bd73962e39250f120b6c813657f17ff424d30be6be0badb281775ae6
+    digest: sha256:b6ca5c735e084474c937c3631dbfb1b4d94ad95459850b95e3187461ebcf9c22
   - path: docs/qa-task.md
     digest: sha256:fbdaf584424465f8b33232431293604f62964915c7c590385687e079e02f7d9b
   - path: docs/quality.md

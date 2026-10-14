@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "olmo literals fired: content:tamper_signature",
+ "flagged": true,
+ "id": "olmo-0248",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

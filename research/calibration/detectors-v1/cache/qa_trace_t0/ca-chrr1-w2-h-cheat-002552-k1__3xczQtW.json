@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "contamination-audit literals fired: none",
+ "flagged": false,
+ "id": "ca-chrr1-w2-h-cheat-002552-k1__3xczQtW",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

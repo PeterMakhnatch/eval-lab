@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "contamination-audit literals fired: none",
+ "flagged": false,
+ "id": "ca-action-4k-neutral_padding-s2026__g7DNGyu",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

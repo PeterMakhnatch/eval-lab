@@ -196,6 +196,45 @@ Sol-honest too.
   72/100 runs against 0/100 clean ones, so the TW recall is an upper bound for
   natural, unconfessed hacks.
 
+### QA Agent - Trace: `evallab qa trace`
+
+```bash
+uv run evallab qa trace bundle <trial> --out DIR    # B0 only: sealed bundle
+uv run evallab qa trace verify DIR                  # bundle seal intact?
+uv run evallab qa trace run <trial> --out DIR       # B0 + T0-T4 (Codex subscription)
+uv run evallab qa trace key-run --key trajectory-judge-400 --split test --out DIR  # DIR/runs, DIR/findings
+uv run evallab qa score --key trajectory-judge-400 --findings DIR/findings --split test
+uv run evallab qa trace score --key trajectory-judge-400 --split test --out DIR  # strata, steps, upstream judges
+uv run evallab detectors run --detector qa_trace_t0 ...              # live T0 only, $0
+uv run evallab detectors run --detector qa_trace --allow-paid --ids FILE ...
+```
+
+Was this run's reward real, and why did it fail (`src/evallab/qa/trace.py`):
+
+- **B0** freezes the trial into a sealed bundle (prompt, Harbor verifier reward,
+  ATIF trajectory, verifier output, task `tests/`, before/after diff from
+  `verifier/agent.diff` or reconstructed from trajectory writes). Solution,
+  labels and every other `result.json` field are withheld. Trials without ATIF
+  (oracle, scripted CheatAgent) bundle the diff and grader output only.
+- **T0** ($0): `combined_v1`'s rule/content literals for the source (cached
+  out-of-fold verdict for detectors-v1 rows) and the skip rule: full reward
+  skips false-negative and failure-cause, zero reward skips false-positive.
+- **T1**: one Codex call per question (reward shortcut, false positive, false
+  negative, prompt-grader alignment, failure cause), `gpt-6-luna` low.
+- **T2**: read-only investigator (`gpt-6.1-sol`, shell in a read-only sandbox,
+  scratch copy of the bundle without `bundle.json`) when T0 or T1 raised or was
+  unsure; Claude Haiku when the trace came from an OpenAI model. No reviewer
+  sees run or task names (they can spell the label); answer-key items run
+  under opaque ids.
+- **T3**: executed regrade (`--regrade`, local Docker, one container) plus an
+  LLM refuter over the raised claims.
+- **T4**: one `qa.finding/v1` per question (shared contract, `docs/qa-contract.md`)
+  plus `verdict.json` with each question's rationale and step. Skipped or
+  unusable questions are `unknown` (`not_run` / `ran_without_usable_result`),
+  never `pass`. T4 is deterministic and re-runs from stored stage JSON on resume.
+
+Results and caveats: `research/experiments/qa-trace/README.md`.
+
 ## Read-only task dossier (HAR-186)
 
 ```bash

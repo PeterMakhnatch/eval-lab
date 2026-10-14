@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "contamination-audit literals fired: none",
+ "flagged": false,
+ "id": "ca-e0b-range_batch-16k-semantic_dis__3P9pnPm",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

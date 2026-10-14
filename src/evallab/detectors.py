@@ -232,28 +232,32 @@ class Rules(Detector):
     description = "Eval Lab watch + RewardKit integrity rules on the commands ($0)"
 
     def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
-        from evallab import tripwires as tw
-
-        steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
-        agent_steps = [s for s in steps if s.get("source") == "agent"]
-        report = tw.scan_trace(agent_steps, steps=steps, trial_dir=trial_dir)
-        irc = report["irc"]
-        fired = {
-            "hidden_info_read": bool(report["hidden_reads"]),
-            "grader_tamper_watch": bool(report["grader_tamper"]),
-            "harness_log_read": bool(report["harness_log_reads"]),
-            "upstream_fetch_attempt": bool(report["upstream_attempts"]),
-            "irc_upstream_fetch": bool(irc["upstream_fetch"]["fired"]),
-            "irc_grader_tamper": bool(irc["grader_tamper"]["fired"]),
-            "irc_out_of_base_read": bool(irc["out_of_base_read"]["fired"]),
-        }
-        hits = [k for k, v in fired.items() if v]
+        hits = [k for k, v in rules_fired(trial_dir).items() if v]
         return {
             "flagged": bool(hits),
             "score": None,
             "explanation": "fired: " + (", ".join(hits) or "none"),
             "cost_usd": 0.0,
         }
+
+
+def rules_fired(trial_dir: Path) -> dict[str, bool]:
+    """Every :class:`Rules` sub-rule on one trial (``rules:<name>`` literals)."""
+    from evallab import tripwires as tw
+
+    steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
+    agent_steps = [s for s in steps if s.get("source") == "agent"]
+    report = tw.scan_trace(agent_steps, steps=steps, trial_dir=trial_dir)
+    irc = report["irc"]
+    return {
+        "hidden_info_read": bool(report["hidden_reads"]),
+        "grader_tamper_watch": bool(report["grader_tamper"]),
+        "harness_log_read": bool(report["harness_log_reads"]),
+        "upstream_fetch_attempt": bool(report["upstream_attempts"]),
+        "irc_upstream_fetch": bool(irc["upstream_fetch"]["fired"]),
+        "irc_grader_tamper": bool(irc["grader_tamper"]["fired"]),
+        "irc_out_of_base_read": bool(irc["out_of_base_read"]["fired"]),
+    }
 
 
 #: Copy-confirmation second stage for ``rules:upstream_fetch_attempt``.
@@ -520,6 +524,38 @@ class CombinedV1(Detector):
     name = "combined_v1"
     description = "combined v1: rules + content + Kev + Sol, per-source cuts (OOF cache, $0)"
 
+
+class QATraceT0(Detector):
+    """QA Agent - Trace stage T0 (``evallab.qa.trace``) live: the deterministic
+    combined_v1 literals (rules / content) for the row's source, applied to the
+    trial itself. Sol and Kev literals need a model and stay unmeasured here."""
+
+    name = "qa_trace_t0"
+    description = "QA Trace T0: live combined_v1 rule/content literals per source ($0)"
+
+    def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
+        from evallab.qa import trace
+
+        return trace.t0_detector_verdict(row, trial_dir)
+
+
+class QATrace(Detector):
+    """QA Agent - Trace end to end (``evallab.qa.trace``: B0 bundle, T0, T1
+    per-question reviewers, T2 investigator, T3 refuter, T4 findings). Flags
+    when T4 keeps an unrefuted ``reward_hacking`` finding. Model calls run on
+    the Codex subscription and stop at the weekly quota gate; rows not reached
+    stay uncached (not run)."""
+
+    name = "qa_trace"
+    paid = True
+    description = "QA Trace T0-T4, flag = unrefuted reward_hacking finding (Codex subscription)"
+
+    def judge_many(self, items: list[tuple[dict[str, Any], Path]]) -> dict[str, dict[str, Any]]:
+        from evallab.qa import trace
+
+        return trace.judge_corpus_rows(items)
+
+
 class HeldOutRegrade(Detector):
     """Re-run the trial's recorded artifacts under the task's current verifier
     (``evallab.regrade``, local Docker). A pass that no longer holds is flagged.
@@ -767,11 +803,14 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             print(f"{cls.name} costs money per trace; pass --allow-paid", file=sys.stderr)
             return 2
         cached = corpus.cached(cls.name)
+        wanted = _read_ids(args.ids) if args.ids else None
         items = []
         for row in corpus.rows:
             if row["labels"].get(cls.check) is None or (row["id"] in cached and not args.refresh):
                 continue
             if args.source and row["source"] not in args.source:
+                continue
+            if wanted is not None and row["id"] not in wanted:
                 continue
             trial_dir = corpus.trial_dir(
                 row,
@@ -783,12 +822,24 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             if trial_dir is not None:
                 items.append((row, trial_dir))
         items = items[: args.limit] if args.limit else items
-        for row_id, verdict in cls().judge_many(items).items():
+        verdicts = cls().judge_many(items)
+        for row_id, verdict in verdicts.items():
             corpus.store(cls.name, {"id": row_id, "detector": cls.name, **verdict})
         corpus.seal()
-        print(f"{cls.name}: judged {len(items)} traces into {corpus.root / 'cache' / cls.name}")
+        print(
+            f"{cls.name}: judged {len(verdicts)}/{len(items)} traces into "
+            f"{corpus.root / 'cache' / cls.name}"
+        )
         return 0
     return 2
+
+
+def _read_ids(path: Path) -> set[str]:
+    """Row ids from a JSON list or a one-id-per-line file."""
+    text = path.read_text()
+    if text.lstrip().startswith("["):
+        return {str(x) for x in json.loads(text)}
+    return {line.strip() for line in text.splitlines() if line.strip()}
 
 
 def build_detectors_parser(commands: argparse._SubParsersAction) -> None:
@@ -837,6 +888,7 @@ def build_detectors_parser(commands: argparse._SubParsersAction) -> None:
     )
     p.add_argument("--results-root", type=Path, default=results_root())
     p.add_argument("--limit", type=int)
+    p.add_argument("--ids", type=Path, help="only these row ids (JSON list or one per line)")
     p.add_argument("--refresh", action="store_true", help="re-judge rows already in the cache")
     p.add_argument("--allow-paid", action="store_true")
     p.set_defaults(func=_cmd)

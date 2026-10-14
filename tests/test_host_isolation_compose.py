@@ -573,3 +573,51 @@ def test_extra_sidecar_container_is_refused(sidecar):
     with pytest.raises(RuntimeError):
         asyncio.run(sidecar["make"]().start(force_build=False))
     assert _record(sidecar)["applied"] is False
+
+
+def test_task_compose_networks_are_reset_and_aliases_preserved(sidecar):
+    (sidecar["environment_dir"] / "docker-compose.yaml").write_text(
+        "services:\n"
+        "  main:\n"
+        "    networks:\n"
+        "      readingnet: {}\n"
+        "  verifier:\n"
+        "    image: sidecar:1\n"
+        "    networks:\n"
+        "      readingnet:\n"
+        "        aliases:\n"
+        "          - openai.com\n"
+        "networks:\n"
+        "  readingnet: {}\n"
+    )
+    env = sidecar["make"]()
+    paths = env._docker_compose_paths
+    assert paths[-2].name == "host-isolation-networks-reset.yaml"
+    assert "networks: !reset null" in paths[-2].read_text()
+    assert paths[-1].name == "host-isolation.json"
+    asyncio.run(env.start(force_build=False))
+    assert (
+        "daemon",
+        "network",
+        "connect",
+        "--alias",
+        "verifier",
+        "--alias",
+        "openai.com",
+        NETWORK_ID,
+        SIDE_CID,
+    ) in sidecar["events"]
+
+
+def test_unsafe_task_compose_network_alias_is_refused(sidecar):
+    (sidecar["environment_dir"] / "docker-compose.yaml").write_text(
+        "services:\n"
+        "  verifier:\n"
+        "    image: sidecar:1\n"
+        "    networks:\n"
+        "      readingnet:\n"
+        "        aliases:\n"
+        "          - '--ip=10.0.0.1'\n"
+    )
+    with pytest.raises(ValueError, match="unsafe network alias"):
+        _ = sidecar["make"]()._docker_compose_paths

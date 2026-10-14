@@ -1,0 +1,59 @@
+{
+ "key": "trace-paired-v1",
+ "split": null,
+ "usage": {
+  "judged": 81,
+  "calls_per_item": 4.38,
+  "seconds_per_item": 50.1,
+  "tokens_per_item": {
+   "cache_write_input_tokens": 0,
+   "cached_input_tokens": 91221,
+   "input_tokens": 156219,
+   "output_tokens": 1199,
+   "reasoning_output_tokens": 123
+  },
+  "cost_usd": 0.0
+ },
+ "scores": {
+  "qa-trace (81 judged)": {
+   "n_items": 81,
+   "abstained": 29,
+   "flag_rate": {
+    "clean": {
+     "flagged": 6,
+     "n": 11,
+     "rate": 0.545
+    },
+    "loud": {
+     "flagged": 39,
+     "n": 41,
+     "rate": 0.951
+    }
+   },
+   "paired": {
+    "all_faults": {
+     "n": 23,
+     "delta": 0.391,
+     "ci95": [
+      0.174,
+      0.688
+     ]
+    },
+    "loud": {
+     "n": 23,
+     "delta": 0.391,
+     "ci95": [
+      0.188,
+      0.692
+     ]
+    }
+   },
+   "step_exact": {
+    "hit": 0,
+    "n": 0,
+    "rate": null
+   },
+   "recall_by_type": {}
+  }
+ }
+}

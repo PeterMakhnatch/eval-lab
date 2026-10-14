@@ -526,7 +526,7 @@ class CombinedV1(Detector):
 
 
 class QATraceT0(Detector):
-    """QA Agent - Trace stage T0 (``evallab.qa_trace``) live: the deterministic
+    """QA Agent - Trace stage T0 (``evallab.qa.trace``) live: the deterministic
     combined_v1 literals (rules / content) for the row's source, applied to the
     trial itself. Sol and Kev literals need a model and stay unmeasured here."""
 
@@ -534,13 +534,13 @@ class QATraceT0(Detector):
     description = "QA Trace T0: live combined_v1 rule/content literals per source ($0)"
 
     def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
-        from evallab import qa_trace
+        from evallab.qa import trace
 
-        return qa_trace.t0_detector_verdict(row, trial_dir)
+        return trace.t0_detector_verdict(row, trial_dir)
 
 
 class QATrace(Detector):
-    """QA Agent - Trace end to end (``evallab.qa_trace``: B0 bundle, T0, T1
+    """QA Agent - Trace end to end (``evallab.qa.trace``: B0 bundle, T0, T1
     per-question reviewers, T2 investigator, T3 refuter, T4 findings). Flags
     when T4 keeps an unrefuted ``reward_hacking`` finding. Model calls run on
     the Codex subscription and stop at the weekly quota gate; rows not reached
@@ -551,9 +551,9 @@ class QATrace(Detector):
     description = "QA Trace T0-T4, flag = unrefuted reward_hacking finding (Codex subscription)"
 
     def judge_many(self, items: list[tuple[dict[str, Any], Path]]) -> dict[str, dict[str, Any]]:
-        from evallab import qa_trace
+        from evallab.qa import trace
 
-        return qa_trace.judge_corpus_rows(items)
+        return trace.judge_corpus_rows(items)
 
 
 class HeldOutRegrade(Detector):

@@ -1,52 +1,51 @@
 {
- "key": "trajectory-judge",
- "split": "heldout",
- "instances": null,
+ "key": "trajectory-judge-400",
+ "split": "test",
  "usage": {
-  "judged": 372,
-  "calls_per_item": 4.35,
-  "seconds_per_item": 137.0,
+  "judged": 173,
+  "calls_per_item": 4.31,
+  "seconds_per_item": 133.7,
   "tokens_per_item": {
    "cache_write_input_tokens": 0,
-   "cached_input_tokens": 64673,
-   "input_tokens": 86562,
-   "output_tokens": 1063,
-   "reasoning_output_tokens": 101
+   "cached_input_tokens": 64394,
+   "input_tokens": 85266,
+   "output_tokens": 1040,
+   "reasoning_output_tokens": 99
   },
   "cost_usd": 0.0
  },
  "scores": {
-  "qa-trace (372 judged)": {
-   "n_items": 372,
+  "qa-trace (173 judged)": {
+   "n_items": 173,
    "abstained": 0,
    "flag_rate": {
     "clean": {
      "flagged": 0,
-     "n": 93,
+     "n": 46,
      "rate": 0.0
     },
     "loud": {
-     "flagged": 115,
-     "n": 115,
+     "flagged": 52,
+     "n": 52,
      "rate": 1.0
     },
     "silent": {
-     "flagged": 130,
-     "n": 164,
-     "rate": 0.793
+     "flagged": 58,
+     "n": 75,
+     "rate": 0.773
     }
    },
    "paired": {
     "all_faults": {
-     "n": 233,
-     "delta": 0.867,
+     "n": 109,
+     "delta": 0.862,
      "ci95": [
-      0.823,
-      0.909
+      0.798,
+      0.916
      ]
     },
     "loud": {
-     "n": 75,
+     "n": 37,
      "delta": 1.0,
      "ci95": [
       1.0,
@@ -54,119 +53,119 @@
      ]
     },
     "silent": {
-     "n": 158,
-     "delta": 0.804,
+     "n": 72,
+     "delta": 0.792,
      "ci95": [
-      0.745,
-      0.859
+      0.71,
+      0.868
      ]
     }
    },
    "step_exact": {
-    "hit": 211,
-    "n": 245,
-    "rate": 0.861
+    "hit": 95,
+    "n": 110,
+    "rate": 0.864
    },
    "recall_by_type": {
     "hallucinated_argument": 1.0,
     "ignored_observation": 1.0,
     "premature_stop": 1.0,
-    "skipped_precondition": 0.556,
+    "skipped_precondition": 0.5,
     "unsupported_claim": 1.0,
-    "wrong_tool": 0.702
+    "wrong_tool": 0.714
    }
   },
   "outcome:qwen2.5:14b": {
-   "n_items": 372,
+   "n_items": 173,
    "abstained": 0,
    "flag_rate": {
     "clean": {
-     "flagged": 31,
-     "n": 93,
-     "rate": 0.333
+     "flagged": 13,
+     "n": 46,
+     "rate": 0.283
     },
     "loud": {
-     "flagged": 97,
-     "n": 115,
-     "rate": 0.843
+     "flagged": 43,
+     "n": 52,
+     "rate": 0.827
     },
     "silent": {
-     "flagged": 75,
-     "n": 164,
-     "rate": 0.457
+     "flagged": 34,
+     "n": 75,
+     "rate": 0.453
     }
    },
    "paired": {
     "all_faults": {
-     "n": 233,
-     "delta": 0.167,
+     "n": 109,
+     "delta": 0.156,
      "ci95": [
-      0.113,
-      0.218
+      0.076,
+      0.239
      ]
     },
     "loud": {
-     "n": 75,
-     "delta": 0.413,
+     "n": 37,
+     "delta": 0.378,
      "ci95": [
-      0.295,
-      0.569
+      0.214,
+      0.581
      ]
     },
     "silent": {
-     "n": 158,
-     "delta": 0.051,
+     "n": 72,
+     "delta": 0.042,
      "ci95": [
-      0.012,
-      0.094
+      -0.026,
+      0.118
      ]
     }
    },
    "step_exact": {
     "hit": 0,
-    "n": 172,
+    "n": 77,
     "rate": 0.0
    },
    "recall_by_type": {
-    "hallucinated_argument": 0.34,
-    "ignored_observation": 0.761,
+    "hallucinated_argument": 0.333,
+    "ignored_observation": 0.762,
     "premature_stop": 1.0,
-    "skipped_precondition": 0.756,
-    "unsupported_claim": 0.511,
-    "wrong_tool": 0.34
+    "skipped_precondition": 0.727,
+    "unsupported_claim": 0.476,
+    "wrong_tool": 0.333
    }
   },
   "programmatic": {
-   "n_items": 372,
+   "n_items": 173,
    "abstained": 0,
    "flag_rate": {
     "clean": {
      "flagged": 0,
-     "n": 93,
+     "n": 46,
      "rate": 0.0
     },
     "loud": {
-     "flagged": 115,
-     "n": 115,
+     "flagged": 52,
+     "n": 52,
      "rate": 1.0
     },
     "silent": {
-     "flagged": 70,
-     "n": 164,
-     "rate": 0.427
+     "flagged": 33,
+     "n": 75,
+     "rate": 0.44
     }
    },
    "paired": {
     "all_faults": {
-     "n": 233,
-     "delta": 0.597,
+     "n": 109,
+     "delta": 0.615,
      "ci95": [
-      0.569,
-      0.627
+      0.571,
+      0.667
      ]
     },
     "loud": {
-     "n": 75,
+     "n": 37,
      "delta": 1.0,
      "ci95": [
       1.0,
@@ -174,17 +173,17 @@
      ]
     },
     "silent": {
-     "n": 158,
-     "delta": 0.405,
+     "n": 72,
+     "delta": 0.417,
      "ci95": [
-      0.376,
-      0.438
+      0.37,
+      0.469
      ]
     }
    },
    "step_exact": {
-    "hit": 185,
-    "n": 185,
+    "hit": 85,
+    "n": 85,
     "rate": 1.0
    },
    "recall_by_type": {
@@ -197,96 +196,96 @@
    }
   },
   "selfcons3:qwen2.5:14b": {
-   "n_items": 372,
+   "n_items": 173,
    "abstained": 0,
    "flag_rate": {
     "clean": {
      "flagged": 1,
-     "n": 93,
-     "rate": 0.011
+     "n": 46,
+     "rate": 0.022
     },
     "loud": {
-     "flagged": 111,
-     "n": 115,
-     "rate": 0.965
+     "flagged": 52,
+     "n": 52,
+     "rate": 1.0
     },
     "silent": {
-     "flagged": 124,
-     "n": 164,
-     "rate": 0.756
+     "flagged": 57,
+     "n": 75,
+     "rate": 0.76
     }
    },
    "paired": {
     "all_faults": {
-     "n": 233,
-     "delta": 0.811,
+     "n": 109,
+     "delta": 0.835,
      "ci95": [
-      0.782,
-      0.841
+      0.806,
+      0.869
      ]
     },
     "loud": {
-     "n": 75,
-     "delta": 0.947,
+     "n": 37,
+     "delta": 1.0,
      "ci95": [
-      0.894,
-      0.987
+      1.0,
+      1.0
      ]
     },
     "silent": {
-     "n": 158,
-     "delta": 0.747,
+     "n": 72,
+     "delta": 0.75,
      "ci95": [
-      0.717,
-      0.782
+      0.708,
+      0.8
      ]
     }
    },
    "step_exact": {
-    "hit": 208,
-    "n": 235,
-    "rate": 0.885
+    "hit": 96,
+    "n": 109,
+    "rate": 0.881
    },
    "recall_by_type": {
     "hallucinated_argument": 1.0,
     "ignored_observation": 1.0,
-    "premature_stop": 0.915,
+    "premature_stop": 1.0,
     "skipped_precondition": 1.0,
-    "unsupported_claim": 0.149,
+    "unsupported_claim": 0.143,
     "wrong_tool": 1.0
    }
   },
   "step:llama3.1:8b": {
-   "n_items": 372,
+   "n_items": 173,
    "abstained": 0,
    "flag_rate": {
     "clean": {
-     "flagged": 93,
-     "n": 93,
+     "flagged": 46,
+     "n": 46,
      "rate": 1.0
     },
     "loud": {
-     "flagged": 115,
-     "n": 115,
+     "flagged": 52,
+     "n": 52,
      "rate": 1.0
     },
     "silent": {
-     "flagged": 161,
-     "n": 164,
-     "rate": 0.982
+     "flagged": 74,
+     "n": 75,
+     "rate": 0.987
     }
    },
    "paired": {
     "all_faults": {
-     "n": 233,
-     "delta": -0.013,
+     "n": 109,
+     "delta": -0.009,
      "ci95": [
       -0.029,
       0.0
      ]
     },
     "loud": {
-     "n": 75,
+     "n": 37,
      "delta": 0.0,
      "ci95": [
       0.0,
@@ -294,21 +293,21 @@
      ]
     },
     "silent": {
-     "n": 158,
-     "delta": -0.019,
+     "n": 72,
+     "delta": -0.014,
      "ci95": [
-      -0.042,
+      -0.045,
       0.0
      ]
     }
    },
    "step_exact": {
-    "hit": 207,
-    "n": 276,
-    "rate": 0.75
+    "hit": 95,
+    "n": 126,
+    "rate": 0.754
    },
    "recall_by_type": {
-    "hallucinated_argument": 0.936,
+    "hallucinated_argument": 0.952,
     "ignored_observation": 1.0,
     "premature_stop": 1.0,
     "skipped_precondition": 1.0,
@@ -317,62 +316,62 @@
    }
   },
   "step:qwen2.5:14b": {
-   "n_items": 372,
+   "n_items": 173,
    "abstained": 0,
    "flag_rate": {
     "clean": {
      "flagged": 0,
-     "n": 93,
+     "n": 46,
      "rate": 0.0
     },
     "loud": {
-     "flagged": 113,
-     "n": 115,
-     "rate": 0.983
+     "flagged": 52,
+     "n": 52,
+     "rate": 1.0
     },
     "silent": {
-     "flagged": 125,
-     "n": 164,
-     "rate": 0.762
+     "flagged": 57,
+     "n": 75,
+     "rate": 0.76
     }
    },
    "paired": {
     "all_faults": {
-     "n": 233,
-     "delta": 0.824,
+     "n": 109,
+     "delta": 0.835,
      "ci95": [
-      0.798,
-      0.851
+      0.806,
+      0.869
      ]
     },
     "loud": {
-     "n": 75,
-     "delta": 0.973,
+     "n": 37,
+     "delta": 1.0,
      "ci95": [
-      0.934,
+      1.0,
       1.0
      ]
     },
     "silent": {
-     "n": 158,
-     "delta": 0.753,
+     "n": 72,
+     "delta": 0.75,
      "ci95": [
-      0.721,
-      0.79
+      0.708,
+      0.8
      ]
     }
    },
    "step_exact": {
-    "hit": 201,
-    "n": 238,
-    "rate": 0.845
+    "hit": 91,
+    "n": 109,
+    "rate": 0.835
    },
    "recall_by_type": {
     "hallucinated_argument": 1.0,
     "ignored_observation": 1.0,
-    "premature_stop": 0.957,
+    "premature_stop": 1.0,
     "skipped_precondition": 1.0,
-    "unsupported_claim": 0.17,
+    "unsupported_claim": 0.143,
     "wrong_tool": 1.0
    }
   }

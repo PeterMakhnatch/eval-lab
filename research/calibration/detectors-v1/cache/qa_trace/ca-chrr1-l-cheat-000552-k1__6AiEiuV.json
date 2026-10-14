@@ -10,9 +10,9 @@
  "score": null,
  "tokens": {
   "cache_write_input_tokens": 0,
-  "cached_input_tokens": 138240,
-  "input_tokens": 241862,
-  "output_tokens": 1700,
-  "reasoning_output_tokens": 233
+  "cached_input_tokens": 108032,
+  "input_tokens": 213008,
+  "output_tokens": 1547,
+  "reasoning_output_tokens": 196
  }
 }

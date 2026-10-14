@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Run or score the ``qa_trace`` pipeline on one detectors-v1 split.
 
-``run`` drives :func:`evallab.qa_trace.judge_corpus_rows` on the dev ids
+``run`` drives :func:`evallab.qa.trace.judge_corpus_rows` on the dev ids
 (``ids/dev-<source>.txt``) WITHOUT touching the corpus cache: dev rows are for
 prompt iteration only. Held-out rows go through ``evallab detectors run
 --detector qa_trace --ids ids/heldout-<source>.txt --allow-paid`` so the only
@@ -26,7 +26,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from evallab.detectors import Corpus
-from evallab.qa_trace import judge_corpus_rows
+from evallab.qa.trace import judge_corpus_rows
 from evallab.storage.paths import shared_checkout_root
 
 HERE = Path(__file__).resolve().parent

@@ -8,7 +8,10 @@ from typing import Any
 
 import pytest
 
-from evallab.qa_trace import (
+from evallab.qa.answer_key import AnswerKey
+from evallab.qa.models import AnswerKeyItem, KeyPair, load_findings_dir
+from evallab.qa.score import score_findings
+from evallab.qa.trace import (
     T1_SCHEMA,
     T2_SCHEMA,
     T3_SCHEMA,
@@ -103,10 +106,13 @@ class FakeModels:
     ):
         self.t1, self.t2, self.t3 = t1, t2 or {}, t3 or {}
         self.calls: list[str] = []
+        self.cwds: list[Path | None] = []
+        self.t2_workspace: dict[str, str] = {}
 
     def __call__(
-        self, route: ModelRoute, prompt: str, schema: dict[str, Any], **_: Any
+        self, route: ModelRoute, prompt: str, schema: dict[str, Any], **kwargs: Any
     ) -> CallResult:
+        self.cwds.append(kwargs.get("cwd"))
         if schema is T1_SCHEMA:
             question = next(
                 q
@@ -128,6 +134,10 @@ class FakeModels:
             }
         elif schema is T2_SCHEMA:
             self.calls.append("T2")
+            cwd = kwargs["cwd"]
+            self.t2_workspace = {
+                p.relative_to(cwd).as_posix(): p.read_text() for p in cwd.rglob("*") if p.is_file()
+            }
             out = {
                 "claims": [
                     {
@@ -269,41 +279,95 @@ def test_quota_gate_stops_at_the_limit_and_on_missing_readings() -> None:
         QuotaGate(0.6, reader=lambda _: None).check("codex")
 
 
-def _key_item(
-    trial: str, task: str, stratum: str, parent: str | None, step: int | None = None
-) -> dict[str, Any]:
-    return {
-        "subject": {"kind": "trace", "task_id": task, "trial_id": trial},
-        "split": "heldout",
-        "extra": {
-            "stratum": stratum,
-            "parent_trial_id": parent,
-            "failure_step": step,
-            "failure_type": None if stratum == "clean" else "t",
-        },
-    }
+def _item(
+    trial: str, task: str, verdict: str, *, silent: bool = False, step: int | None = None
+) -> AnswerKeyItem:
+    return AnswerKeyItem.model_validate(
+        {
+            "item_id": f"k:{trial}",
+            "subject": {"kind": "trace", "task_id": task, "trial_id": trial},
+            "expected_verdict": verdict,
+            "expected_category": "false_positive",
+            "expected_root_cause": {"failure_step": step, "failure_type": "t"} if step else None,
+            "label_source": "test",
+            "split": "test",
+            "silent": silent,
+        }
+    )
 
 
-def test_paired_discrimination_credits_only_flags_the_parent_did_not_get() -> None:
-    items = [
-        _key_item("a-clean", "a", "clean", None),
-        _key_item("a-f", "a", "silent", "a-clean", 3),
-        _key_item("b-clean", "b", "clean", None),
-        _key_item("b-f", "b", "loud", "b-clean", 1),
-        _key_item("c-f", "c", "silent", None, 2),  # no parent: recall only
-    ]
-    always = score_paired(items, {i["subject"]["trial_id"]: True for i in items}, bootstrap=50)
+def _key(tmp_path: Path) -> AnswerKey:
+    items = (
+        _item("a-clean", "a", "pass"),
+        _item("a-f", "a", "fail", silent=True, step=3),
+        _item("b-clean", "b", "pass"),
+        _item("b-f", "b", "fail", step=1),
+        _item("c-f", "c", "fail", silent=True, step=2),  # no parent: recall only
+    )
+    pairs = (
+        KeyPair(parent="k:a-clean", child="k:a-f"),
+        KeyPair(parent="k:b-clean", child="k:b-f"),
+    )
+    return AnswerKey(key_id="k", items=items, directory=tmp_path, pairs=pairs)
+
+
+def test_paired_discrimination_credits_only_flags_the_parent_did_not_get(tmp_path: Path) -> None:
+    key = _key(tmp_path)
+    items = list(key.items)
+    always = score_paired(
+        key, items, {f"k:{i.subject.trial_id}": True for i in items}, bootstrap=50
+    )
     assert always["flag_rate"]["silent"]["rate"] == 1.0
     assert always["paired"]["all_faults"]["delta"] == 0.0
 
-    perfect = {"a-clean": False, "a-f": True, "b-clean": False, "b-f": True, "c-f": True}
-    sc = score_paired(items, perfect, steps={"a-f": 3, "b-f": 0, "c-f": 2}, bootstrap=50)
+    perfect = {"k:a-clean": False, "k:a-f": True, "k:b-clean": False, "k:b-f": True, "k:c-f": True}
+    sc = score_paired(key, items, perfect, steps={"k:a-f": 3, "k:b-f": 0, "k:c-f": 2}, bootstrap=50)
     assert sc["paired"]["all_faults"] == {"n": 2, "delta": 1.0, "ci95": [1.0, 1.0]}
+    assert sc["paired"]["loud"]["n"] == 1
     assert sc["step_exact"] == {"hit": 2, "n": 3, "rate": 0.667}
 
-    partial = score_paired(items, {**perfect, "b-f": None}, bootstrap=50)
+    partial = score_paired(key, items, {**perfect, "k:b-f": None}, bootstrap=50)
     assert partial["abstained"] == 1
     assert partial["paired"]["all_faults"]["n"] == 1
+
+
+def test_findings_name_the_key_item_and_score_through_the_shared_scorer(tmp_path: Path) -> None:
+    # The reviewer sees the bundle's own subject; the findings must carry the
+    # key item's subject or the shared scorer cannot match them.
+    bundle, _ = _rewarded_bundle(tmp_path)
+    key = _key(tmp_path)
+    models = FakeModels(
+        {"reward_shortcut": "no", "false_positive": "yes", "prompt_grader_alignment": "no"},
+        t2={"false_positive": "yes"},
+        t3={"false_positive": "yes"},
+    )
+    review_bundle(
+        bundle,
+        tmp_path / "out",
+        config=TraceConfig(),
+        findings_dir=tmp_path / "findings" / "x",
+        subject={"kind": "trace", "task_id": "a", "trial_id": "a-f"},
+        call=models,
+    )
+    findings = load_findings_dir(tmp_path / "findings")
+    rows = score_findings(key, findings, split="test")
+    overall = next(r for r in rows if r.category == "all")
+    assert (overall.n_measured, overall.recall) == (1, 1.0)
+    assert "outside the key" not in overall.notes
+
+
+def test_investigator_never_sees_run_names(tmp_path: Path) -> None:
+    # Run names can spell the label (``…-cheat-…``, ``…-honest-…``).
+    result = {"verifier_result": {"rewards": {"reward": 1.0}}, "trial_name": "cheat-run-7"}
+    bundle = build_bundle(_trial(tmp_path, result=result), tmp_path / "out" / "bundle")
+    models = FakeModels(
+        {"reward_shortcut": "unsure", "false_positive": "no", "prompt_grader_alignment": "no"},
+        t2={"reward_shortcut": "no"},
+    )
+    review_bundle(bundle, tmp_path / "out", config=TraceConfig(), call=models)
+    assert "SUMMARY.md" in models.t2_workspace
+    assert "bundle.json" not in models.t2_workspace
+    assert not any("cheat-run-7" in text for text in models.t2_workspace.values())
 
 
 def test_trajectory_judge_steps_keep_their_upstream_index(tmp_path: Path) -> None:
@@ -331,7 +395,7 @@ def test_trajectory_judge_steps_keep_their_upstream_index(tmp_path: Path) -> Non
     atif = tj_atif(row)
     assert [s["step_id"] for s in atif["steps"]] == [1, 2, 3, 4]
     assert "wrong_tool" not in json.dumps(atif)
-    bundle = tj_bundle(row, tmp_path / "b", key_id="trajectory-judge")
+    bundle = tj_bundle(row, tmp_path / "b")
     assert "label" not in bundle.text("trajectory.json")
     assert not any("wrong_tool" in p.read_text() for p in bundle.root.rglob("*") if p.is_file())
     assert tj_source_step(bundle.root, 3) == 1

@@ -10,8 +10,9 @@ audience:
 One contract for the three QA agents (task auditor, trace auditor,
 reward seeker) so their output is comparable and scoreable on external
 answer keys. Implementation: `src/evallab/qa/` (`models`, `answer_key`,
-`score`, `cli`); tests: `tests/test_qa.py`. Plan of record:
-`research-context/FOCUS.md`.
+`score`, `cli`); tests: `tests/test_qa.py`. The trace auditor
+(`evallab qa trace`, `src/evallab/qa/trace.py`) is described in
+`docs/harbor-view.md`. Plan of record: `research-context/FOCUS.md`.
 
 ## Finding: `qa.finding/v1`
 

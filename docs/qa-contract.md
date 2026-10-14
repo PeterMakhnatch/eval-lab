@@ -38,28 +38,46 @@ Directory under `research/answer-keys/<key_id>/`:
 - `README.md` — source, licence, label provenance (required).
 - `items.jsonl` — one item per line: `subject`, `expected_category`
   (required for `fail` items), `expected_verdict`, `label_source`,
-  `split`, plus optional `pair_id`/`notes`. Items sharing a `pair_id`
-  with one `fail` and one `pass` form a discrimination pair.
+  `split` (`dev`/`test`), plus optional `item_id`, `role`, `pair_ids`,
+  `expected_fault`, `expected_root_cause`. Source-specific columns
+  (`cheat_prompted`, `trial_ref`, ...) are kept, not rejected.
+- `pairs.jsonl` (optional) — `{parent, child, category, split}` by
+  `item_id`: a clean parent and its faulty child.
 
 Never tune on the split you report; every score row names its split.
 
 ## Scoring
 
 ```bash
-uv run evallab qa score --key <key_id> --findings <dir> [--split dev] [--json]
+uv run evallab qa score --key <key_id> --findings <dir> \
+  [--split dev] [--agent NAME] [--system NAME] [--status TEXT] [--notes TEXT]
 ```
 
-An item is *flagged* when any finding on its subject has verdict
-`fail`. Per split the score writes one row to
-`research/qa-scoreboard/scoreboard.csv` with: recall (flagged
-positives / positives), root-cause match (flagged with the expected
-category / positives), false-alarm rate (flagged negatives /
-negatives), paired discrimination (faulty flag rate − clean flag rate
-over `pair_id` items), cost and tokens per item (from `reviewer`), and
-unmatched-findings count (findings on subjects outside the key).
+One call appends rows to `research/qa-scoreboard/scoreboard.csv`: one per
+split (`all` plus each split in the key) and category (`all` plus each
+expected category). Columns: `date_utc, key_id, split, category, agent,
+system, recall, false_alarm_rate, root_cause_match,
+paired_discrimination, cost_per_item_usd, n_items, n_measured, n_pairs,
+n_pairs_measured, status, notes`.
 
-## Imported keys
+- *Measured*: a finding with `measurement: measured` and a `pass`/`fail`
+  verdict. Unmeasured items are never passes and never misses; they
+  lower `n_measured` and set `status` to `partial: X of Y items measured`.
+- *Flagged*: a measured `fail` finding on the item.
+- `recall` = flagged / measured positives; `false_alarm_rate` = flagged /
+  measured negatives.
+- `root_cause_match` = of flagged positives, the share with a `fail`
+  finding in the expected category.
+- `paired_discrimination` = mean over pairs with both sides measured of
+  `flag(child) − flag(parent)`.
+- `cost_per_item_usd` = reviewer cost of matched findings / measured
+  items. Findings on subjects outside the key are counted in `notes`.
 
-| Key | Contents | Importer |
+## Keys on main that load with this module
+
+| Key | Owner | Contents |
 |---|---|---|
-| `envcheck-task-audit` | 39 Terminal-Bench tasks: 13 confirmed EnvCheck grader defects + 26 weak negatives (no EnvCheck finding — not proof of clean) | `evallab.qa.answer_key.import_envcheck_task_audit` from the pinned kev task-audit chunks |
+| `breaker-bench-v1` | Breaker | 626 task items, 214 pairs (benchflow 0.2.0 vs 0.2.2, Terminal Wrench holdout) |
+| `trace-paired-v1` | Trace | 81 trace items, 60 pairs (own runs; CheatAgent and contamination-audit children) |
+| `trajectory-judge-400` | Trace | 400 trace items, 251 pairs (upstream trajectory-judge) |
+| `envcheck-task-audit` | Infra | 39 Terminal-Bench tasks: 13 confirmed EnvCheck grader defects + 26 weak negatives (no EnvCheck finding — not proof of clean); importer `evallab.qa.answer_key.import_envcheck_task_audit` from the pinned kev task-audit chunks |

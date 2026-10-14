@@ -20,26 +20,30 @@ def _score_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         key = resolve_answer_key(args.key, root)
         findings_dir = args.findings if args.findings.is_absolute() else root / args.findings
         findings = load_findings_dir(findings_dir)
-        rows = score_findings(key, findings, split=args.split)
+        rows = score_findings(
+            key,
+            findings,
+            split=args.split,
+            agent=args.agent,
+            system=args.system,
+            status=args.status,
+            notes=args.notes,
+        )
     except (OSError, ValueError, ValidationError) as exc:
         print(f"error: evallab qa score: {exc}", file=sys.stderr)
         return 2
-    scoreboard = (
-        args.scoreboard
-        if args.scoreboard.is_absolute()
-        else root / args.scoreboard
-    )
+    scoreboard = args.scoreboard if args.scoreboard.is_absolute() else root / args.scoreboard
     append_scoreboard(rows, scoreboard)
     if args.json:
         print(json.dumps([row.model_dump() for row in rows], indent=2))
     else:
         for row in rows:
             print(
-                f"{row.key_id} split={row.split} items={row.items} "
-                f"recall={row.recall} root_cause_match={row.root_cause_match} "
+                f"{row.key_id} split={row.split} category={row.category} "
+                f"measured={row.n_measured}/{row.n_items} recall={row.recall} "
                 f"false_alarm_rate={row.false_alarm_rate} "
-                f"paired_discrimination={row.paired_discrimination} "
-                f"cost_per_item={row.cost_per_item:.4f}"
+                f"root_cause_match={row.root_cause_match} "
+                f"paired_discrimination={row.paired_discrimination}"
             )
         print(f"scoreboard: {scoreboard}")
     return 0
@@ -56,7 +60,13 @@ def build_qa_parser(commands: argparse._SubParsersAction) -> None:
     score = sub.add_parser("score", help="Score a findings directory against an answer key")
     score.add_argument("--key", required=True, help="Answer-key id or directory path")
     score.add_argument("--findings", type=Path, required=True, help="Findings directory")
-    score.add_argument("--split", default=None, help="Only this split (default: every split)")
+    score.add_argument(
+        "--split", default=None, help="Only this split (default: all plus each split)"
+    )
+    score.add_argument("--agent", default="", help="Agent label (default: from findings)")
+    score.add_argument("--system", default="", help="System label (default: reviewer model)")
+    score.add_argument("--status", default=None, help="Status text (default: complete/partial)")
+    score.add_argument("--notes", default="", help="Free-text note carried on every row")
     score.add_argument(
         "--scoreboard",
         type=Path,

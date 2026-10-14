@@ -10,5 +10,5 @@
   pattern only, so root-cause match is coarse). `pass` = weak negative:
   no EnvCheck finding on the task, which is not proof of a clean grader.
 - Subject ids are `<task>@<tb_version>`; splits are a deterministic
-  sha256 75/25 dev/held_out assignment. Never tune on `held_out`.
+  sha256 75/25 dev/test assignment. Never tune on `test`.
 - Items: 39 (13 defect, 26 weak negative).

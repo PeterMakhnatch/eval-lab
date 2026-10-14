@@ -1,12 +1,14 @@
-"""Behavioral tests for ``evallab.content_rules`` extraction and rule edges."""
+"""Behavioral tests for ``evallab.tripwires`` content extraction and rule edges."""
 
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
 
-from evallab.content_rules import evaluate, extract_files, extract_prompt
 from evallab.detectors import ContentRules
+from evallab.tripwires import evaluate_content_rules as evaluate
+from evallab.tripwires import extract_content_files as extract_files
+from evallab.tripwires import extract_content_prompt as extract_prompt
 
 
 def _agent_step(message: str = "", calls: list[dict[str, Any]] | None = None) -> dict[str, Any]:

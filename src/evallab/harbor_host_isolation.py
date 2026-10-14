@@ -252,6 +252,61 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                     names.append(name)
         return sorted(names)
 
+    def _task_compose_network_meta(self) -> tuple[bool, dict[str, list[str]]]:
+        """Whether task Compose declares ``networks:`` and any per-service DNS aliases."""
+        candidates = [
+            self.environment_dir / name
+            for name in (
+                "docker-compose.yaml",
+                "docker-compose.yml",
+                "compose.yaml",
+                "compose.yml",
+            )
+        ]
+        candidates.extend(getattr(self, "extra_docker_compose_paths", None) or [])
+        has_networks = False
+        aliases: dict[str, list[str]] = {}
+        for raw in candidates:
+            candidate = raw if isinstance(raw, Path) else Path(raw)
+            if not candidate.is_file():
+                continue
+            document = yaml.safe_load(candidate.read_text())
+            if not isinstance(document, dict):
+                continue
+            if "networks" in document:
+                has_networks = True
+            services = document.get("services", {})
+            if not isinstance(services, dict):
+                continue
+            for svc_name, svc_cfg in services.items():
+                if not isinstance(svc_name, str) or not isinstance(svc_cfg, dict):
+                    continue
+                if "networks" not in svc_cfg:
+                    continue
+                has_networks = True
+                svc_nets = svc_cfg.get("networks")
+                if not isinstance(svc_nets, dict):
+                    continue
+                for net_cfg in svc_nets.values():
+                    if not isinstance(net_cfg, dict):
+                        continue
+                    raw_aliases = net_cfg.get("aliases") or []
+                    if not isinstance(raw_aliases, list):
+                        raise ValueError(
+                            f"host-isolation refuses non-list network aliases on {svc_name!r}"
+                        )
+                    for alias in raw_aliases:
+                        if not isinstance(alias, str) or not re.fullmatch(
+                            r"[A-Za-z0-9][A-Za-z0-9.-]*", alias
+                        ):
+                            raise ValueError(
+                                f"host-isolation refuses unsafe network alias {alias!r}"
+                            )
+                        svc_list = aliases.setdefault(svc_name, [])
+                        if alias != svc_name and alias not in svc_list:
+                            svc_list.append(alias)
+        return has_networks, aliases
+
     @property
     def _docker_compose_paths(self) -> list[Path]:
         paths = super()._docker_compose_paths
@@ -277,9 +332,19 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
                 "cap_drop": ["NET_ADMIN", "NET_RAW"],
                 "security_opt": ["no-new-privileges:true"],
             }
+        extra_paths: list[Path] = []
+        has_networks, _ = self._task_compose_network_meta()
+        if has_networks:
+            reset_path = paths[-1].with_name("host-isolation-networks-reset.yaml")
+            svc_lines = "\n".join(
+                f"  {json.dumps(name)}:\n    networks: !reset null"
+                for name in sorted({MAIN_SERVICE_NAME, *services})
+            )
+            reset_path.write_text(f"services:\n{svc_lines}\nnetworks: !reset null\n")
+            extra_paths.append(reset_path)
         path = paths[-1].with_name("host-isolation.json")
         path.write_text(json.dumps({"services": services}))
-        return [*paths, path]
+        return [*paths, *extra_paths, path]
 
     def _validate_sidecar_service(self, name: str, service: Mapping[str, Any]) -> None:
         if service.get("network_mode") != "none" or service.get("networks"):
@@ -915,8 +980,12 @@ class HostIsolatedDockerEnvironment(LockedDockerEnvironment):
     def _connect_command(self, service: str, network_id: str, container_id: str) -> list[str]:
         command = ["network", "connect"]
         if len(self._service_container_ids) > 1:
-            # Per-service DNS aliases so `main` reaches sidecars by name.
+            # Per-service DNS aliases so `main` reaches sidecars by name and
+            # any task-declared service aliases (e.g. openmath_agent article).
             command.extend(["--alias", service])
+            _, aliases = self._task_compose_network_meta()
+            for alias in aliases.get(service, ()):
+                command.extend(["--alias", alias])
         command.extend([network_id, container_id])
         return command
 

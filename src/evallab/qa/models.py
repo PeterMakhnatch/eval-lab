@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 
@@ -105,14 +105,27 @@ class Finding(ContractModel):
 
 
 class AnswerKeyItem(ContractModel):
-    """One labelled subject in an answer key (``items.jsonl`` row)."""
+    """One labelled subject in an answer key (``items.jsonl`` row).
 
+    Keys carry source-specific provenance columns (``cheat_prompted``,
+    ``trial_ref``, ``expected_mechanisms``, ...), so extras are kept rather
+    than rejected; the fields below are the scored contract.
+    """
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    schema_: Literal["qa.answer_key/v1"] = Field(default=ANSWER_KEY_SCHEMA, alias="schema")
+    item_id: str | None = None
+    key_id: str | None = None
     subject: FindingSubject
     expected_category: Category | None = None
     expected_verdict: Verdict
+    expected_fault: Fault | None = None
+    expected_root_cause: str | dict[str, Any] | None = None
     label_source: str = Field(min_length=1)
     split: str = Field(min_length=1)
-    pair_id: str | None = None
+    role: str | None = None
+    pair_ids: list[str] = Field(default_factory=list)
     notes: str | None = None
 
     @model_validator(mode="after")
@@ -120,6 +133,18 @@ class AnswerKeyItem(ContractModel):
         if self.expected_verdict == "fail" and self.expected_category is None:
             raise ValueError("a fail-labelled item needs an expected_category")
         return self
+
+
+class KeyPair(ContractModel):
+    """A clean parent and its faulty child (``pairs.jsonl`` row), by item id."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    pair_id: str | None = None
+    parent: str = Field(min_length=1)
+    child: str = Field(min_length=1)
+    category: Category | None = None
+    split: str | None = None
 
 
 def subject_key(subject: FindingSubject) -> tuple[str, str, str]:

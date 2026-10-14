@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-from evallab.qa.answer_key import AnswerKey, load_answer_key, resolve_answer_key
+from evallab.qa.answer_key import AnswerKey, item_id_of, load_answer_key, resolve_answer_key
 from evallab.qa.models import (
     ANSWER_KEY_SCHEMA,
     FINDING_SCHEMA,
     AnswerKeyItem,
     Finding,
     FindingSubject,
+    KeyPair,
     Refutation,
     Reproducer,
     Reviewer,
@@ -26,12 +27,14 @@ __all__ = [
     "AnswerKeyItem",
     "Finding",
     "FindingSubject",
+    "KeyPair",
     "Refutation",
     "Reproducer",
     "Reviewer",
     "ScoreRow",
     "append_scoreboard",
     "dump_finding",
+    "item_id_of",
     "load_answer_key",
     "load_finding",
     "load_findings_dir",

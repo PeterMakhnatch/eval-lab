@@ -1,0 +1,1271 @@
+"""Reference-subset probe: does part of the reference fix already pass the hidden tests?
+
+QA Agent - Task, S2 executed probe (a sibling of ``evallab hack mutate``). For a
+task with a known reference fix (the MiMo ``mimo-reference-fixes/index.csv``),
+the reference diff is split into *change blocks*: contiguous runs of edited
+lines per file, computed on the base and fixed file contents. Each grade puts a
+subset of the blocks on the task's base checkout and runs the task's own hidden
+tests (``tests/test.sh``). A greedy minimisation drops what the tests do not
+need:
+
+1. baselines: the full reference must earn reward 1 and the base (no block) 0;
+2. drop every documentation- or comment-only block at once;
+3. drop each file's code blocks, largest file first;
+4. drop each remaining code block, largest first;
+5. grade the final subset again (a flake guard).
+
+A dropped code block is reference behaviour no hidden test needs. When the kept
+subset is a small part of the reference, a partial fix earns full reward: the
+task is weakly tested. Every finding carries the kept subset as a
+``git apply``-able reproducer with expected reward 1. A dropped block is a
+hypothesis, not a proven defect: it can be a refactor, a log line or a
+defensive branch the instruction never asks for, so read ``dropped.patch``.
+Blocks are the smallest unit: a single block that the tests only half need is
+``hack mutate``'s job.
+
+Grading uses local Docker, no model and no network. Each grade starts a fresh
+container from a snapshot taken right after the task's own setup, so build
+output never carries from one grade to the next, and setup runs once per task
+instead of once per subset (a Harbor trial per subset, as ``hack mutate`` runs,
+repeats image build and setup every time). Supported packages are raw MiMo
+code tasks: ``environment/setup/setup.sh`` plus ``tests/test.sh`` grading the
+working tree in place.
+
+QA Agent - Trace, T0: ``trace`` compares a passing trial's
+``verifier/agent.diff`` with the task report. A pass whose diff leaves every
+untested reference block alone, while touching the tested ones, is a suspected
+partial fix (``false_positive``, unverified until someone runs stronger tests).
+"""
+
+from __future__ import annotations
+
+import argparse
+import ast
+import csv
+import difflib
+import hashlib
+import io
+import json
+import re
+import subprocess
+import sys
+import tarfile
+import tempfile
+import threading
+import time
+import tomllib
+from collections.abc import Callable, Iterable, Sequence
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field, replace
+from datetime import UTC, datetime
+from pathlib import Path, PurePosixPath
+from typing import Any, Literal
+
+SCHEMA_REPORT = "evallab.ref_subset.report/v1"
+SCHEMA_FINDING = "qa.finding/v1"
+STAGE_TASK = "S2.ref_subset"
+STAGE_TRACE = "T0.ref_coverage"
+REVIEWER = {"agent": "evallab hack ref-subset", "model": None, "tokens": 0, "cost_usd": 0.0}
+
+#: Kept share of the reference's code lines at or below which a passing subset is
+#: "trivial" (high severity) or "half" (medium); anything dropped above is low.
+HIGH_KEEP = 0.25
+MEDIUM_KEEP = 0.5
+#: Grades per task including both baselines and the confirmation.
+DEFAULT_MAX_GRADES = 24
+#: Lines of slack when matching a trial's edits to a reference block.
+TRACE_SLACK = 3
+
+BlockKind = Literal["code", "comment", "noncode", "test"]
+Status = Literal[
+    "measured", "baseline_mismatch", "flaky", "not_applicable", "unavailable", "budget_exhausted"
+]
+
+_DOC_SUFFIXES = frozenset({".md", ".rst", ".txt", ".adoc", ".rdoc"})
+_DOC_NAMES = ("changelog", "changes", "history", "news", "authors", "contributors")
+_HASH_COMMENT = frozenset({".py", ".sh", ".bash", ".rb", ".pl", ".r", ".yaml", ".yml", ".toml"})
+_SLASH_COMMENT = frozenset(
+    {
+        ".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".go", ".rs", ".java", ".kt", ".c",
+        ".h", ".cc", ".cpp", ".hpp", ".cs", ".swift", ".scala", ".php", ".dart",
+    }
+)  # fmt: skip
+_RESET_LIST = re.compile(r"<<'EOF_RESET_TEST_FILES'\n(.*?)\nEOF_RESET_TEST_FILES", re.S)
+
+
+# ---------------------------------------------------------------------------
+# Change blocks
+
+
+@dataclass(frozen=True)
+class Block:
+    id: str
+    path: str
+    kind: BlockKind
+    base_start: int  # 0-based, half-open line range in the base file
+    base_end: int
+    removed: int
+    added: int
+
+    @property
+    def size(self) -> int:
+        return self.removed + self.added
+
+
+@dataclass
+class FileChange:
+    path: str
+    base: bytes | None
+    fixed: bytes | None
+    blocks: list[Block] = field(default_factory=list)
+    # (tag, i1, i2, j1, j2, block_id|None) over base/fixed lines; None for opaque files
+    ops: list[tuple[str, int, int, int, int, str | None]] | None = None
+
+
+def block_kind(
+    path: str, removed: Sequence[str], added: Sequence[str], tests: set[str]
+) -> BlockKind:
+    if path in tests:
+        return "test"
+    pure = PurePosixPath(path)
+    name = pure.name.lower()
+    if (
+        pure.suffix.lower() in _DOC_SUFFIXES
+        or name.startswith(_DOC_NAMES)
+        or (pure.parts and pure.parts[0].lower() in {"doc", "docs"})
+    ):
+        return "noncode"
+    suffix = pure.suffix.lower()
+    prefixes: tuple[str, ...] = ()
+    if suffix in _HASH_COMMENT:
+        prefixes = ("#",)
+    elif suffix in _SLASH_COMMENT:
+        prefixes = ("//", "/*", "*", "*/") + (("#",) if suffix == ".php" else ())
+    lines = [line.strip() for line in (*removed, *added)]
+    if all(not line or (prefixes and line.startswith(prefixes)) for line in lines):
+        return "comment"
+    return "code"
+
+
+def _lines(data: bytes) -> list[str] | None:
+    try:
+        return data.decode("utf-8").splitlines(keepends=True)
+    except UnicodeDecodeError:
+        return None
+
+
+def file_change(path: str, base: bytes | None, fixed: bytes | None, tests: set[str]) -> FileChange:
+    change = FileChange(path=path, base=base, fixed=fixed)
+    base_lines = _lines(base) if base is not None else []
+    fixed_lines = _lines(fixed) if fixed is not None else []
+    if base_lines is None or fixed_lines is None:
+        kind: BlockKind = "test" if path in tests else "code"
+        size = 1
+        change.blocks.append(Block(f"{path}#0", path, kind, 0, 0, size, size))
+        return change
+    matcher = difflib.SequenceMatcher(None, base_lines, fixed_lines, autojunk=False)
+    ops: list[tuple[str, int, int, int, int, str | None]] = []
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            ops.append((tag, i1, i2, j1, j2, None))
+            continue
+        block_id = f"{path}#{len(change.blocks)}"
+        removed, added = base_lines[i1:i2], fixed_lines[j1:j2]
+        kind = block_kind(path, removed, added, tests)
+        change.blocks.append(Block(block_id, path, kind, i1, i2, len(removed), len(added)))
+        ops.append((tag, i1, i2, j1, j2, block_id))
+    change.ops = ops
+    if path.endswith(".py"):
+        _mark_python_neutral(change)
+    return change
+
+
+def _python_shape(source: bytes | None) -> str | None:
+    """The module's AST without docstrings (``None``: absent or unparsable)."""
+    if source is None:
+        return None
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError):
+        return None
+    for node in ast.walk(tree):
+        body = getattr(node, "body", None)
+        if (
+            isinstance(node, ast.Module | ast.ClassDef | ast.FunctionDef | ast.AsyncFunctionDef)
+            and body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            node.body = body[1:] or [ast.Pass()]
+    return ast.dump(tree, include_attributes=False)
+
+
+def _mark_python_neutral(change: FileChange) -> None:
+    """Reclassify code blocks whose removal leaves the AST unchanged (docstrings, formatting)."""
+    everything = {block.id for block in change.blocks}
+    reference = _python_shape(compose(change, everything))
+    if reference is None:
+        return
+    for i, block in enumerate(change.blocks):
+        if (
+            block.kind == "code"
+            and _python_shape(compose(change, everything - {block.id})) == reference
+        ):
+            change.blocks[i] = replace(block, kind="comment")
+
+
+def compose(change: FileChange, keep: set[str]) -> bytes | None:
+    """The file with only the kept blocks applied (``None``: the file is absent)."""
+    if change.ops is None:
+        return change.fixed if change.blocks[0].id in keep else change.base
+    applied = [block.id for block in change.blocks if block.id in keep]
+    if not applied:
+        return change.base
+    if len(applied) == len(change.blocks):
+        return change.fixed
+    base_lines = _lines(change.base) if change.base is not None else []
+    fixed_lines = _lines(change.fixed) if change.fixed is not None else []
+    assert base_lines is not None and fixed_lines is not None
+    out: list[str] = []
+    for tag, i1, i2, j1, j2, block_id in change.ops:
+        if tag == "equal" or block_id not in keep:
+            out.extend(base_lines[i1:i2])
+        else:
+            out.extend(fixed_lines[j1:j2])
+    return "".join(out).encode("utf-8")
+
+
+def patch_paths(patch: str) -> list[str]:
+    paths: list[str] = []
+    for line in patch.splitlines():
+        if line.startswith("diff --git "):
+            match = re.match(r"diff --git a/(.+?) b/(.+)$", line)
+            if match:
+                for path in match.groups():
+                    if path not in paths:
+                        paths.append(path)
+    return paths
+
+
+def apply_reference(patch: str, base: dict[str, bytes | None]) -> dict[str, bytes | None]:
+    """Apply the reference patch to the base files on the host (``git apply``)."""
+    with tempfile.TemporaryDirectory(prefix="ref-subset-") as tmp:
+        root = Path(tmp)
+        for path, data in base.items():
+            if data is not None:
+                target = root / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(data)
+        (root / ".ref.patch").write_text(patch)
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        result = subprocess.run(
+            ["git", "apply", "--whitespace=nowarn", ".ref.patch"],
+            cwd=root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            raise ValueError(f"reference patch does not apply to the base: {result.stderr.strip()}")
+        return {
+            path: (root / path).read_bytes() if (root / path).is_file() else None for path in base
+        }
+
+
+def unified_patch(before: dict[str, bytes | None], after: dict[str, bytes | None]) -> str:
+    """A ``git apply``-able patch from ``before`` to ``after`` (git's own diff)."""
+    with tempfile.TemporaryDirectory(prefix="ref-subset-diff-") as tmp:
+        root = Path(tmp)
+        git = ["git", "-c", "user.name=ref-subset", "-c", "user.email=ref-subset@localhost"]
+        subprocess.run([*git, "init", "-q"], cwd=root, check=True)
+        for state in (before, after):
+            for path, data in state.items():
+                target = root / path
+                if data is None:
+                    target.unlink(missing_ok=True)
+                else:
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    target.write_bytes(data)
+            subprocess.run([*git, "add", "-A"], cwd=root, check=True)
+            if state is before:
+                subprocess.run(
+                    [*git, "commit", "-q", "--allow-empty", "-m", "base"], cwd=root, check=True
+                )
+        return subprocess.run(
+            [*git, "diff", "--cached", "--binary"],
+            cwd=root,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+
+
+# ---------------------------------------------------------------------------
+# Raw MiMo package and Docker grading
+
+
+@dataclass(frozen=True)
+class Package:
+    path: Path
+    task_id: str
+    image: str
+    workdir: str
+    tests: frozenset[str]
+
+    @classmethod
+    def load(cls, path: Path) -> Package:
+        config = tomllib.loads((path / "task.toml").read_text())
+        environment = config.get("environment") or {}
+        image = environment.get("docker_image")
+        test_sh = path / "tests" / "test.sh"
+        setup = path / "environment" / "setup" / "setup.sh"
+        if not image or not test_sh.is_file() or not setup.is_file():
+            raise ValueError(
+                f"{path}: not a raw MiMo code package (needs [environment].docker_image, "
+                "environment/setup/setup.sh and tests/test.sh)"
+            )
+        reset = _RESET_LIST.search(test_sh.read_text())
+        tests = frozenset(
+            line.strip() for line in (reset.group(1) if reset else "").splitlines() if line.strip()
+        )
+        task_id = str((config.get("metadata") or {}).get("source_id") or path.name)
+        return cls(path, task_id, str(image), str(environment.get("workdir") or "/testbed"), tests)
+
+
+@dataclass
+class Grade:
+    label: str
+    kept: list[str]
+    reward: float | None
+    rc: int | None
+    seconds: float
+    status: Literal["scored", "unscored", "timeout", "error"]
+    tail: str = ""
+
+    @property
+    def passed(self) -> bool:
+        return self.status == "scored" and self.reward == 1.0
+
+
+def _docker(
+    *args: str, input: bytes | None = None, timeout: float | None = None
+) -> subprocess.CompletedProcess[bytes]:
+    return subprocess.run(["docker", *args], input=input, capture_output=True, timeout=timeout)
+
+
+def _check(result: subprocess.CompletedProcess[bytes], what: str) -> bytes:
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{what} failed: {result.stderr.decode(errors='replace').strip()[-400:]}"
+        )
+    return result.stdout
+
+
+def _tar(files: dict[str, tuple[bytes, int]]) -> bytes:
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as archive:
+        for path, (data, mode) in sorted(files.items()):
+            info = tarfile.TarInfo(path)
+            info.size, info.mode, info.mtime = len(data), mode, int(time.time())
+            archive.addfile(info, io.BytesIO(data))
+    return buffer.getvalue()
+
+
+class Sandbox:
+    """One snapshot per task (image + setup); one throwaway container per grade."""
+
+    def __init__(self, package: Package, *, memory: str = "4g", cpus: str = "2") -> None:
+        self.package = package
+        self.memory, self.cpus = memory, cpus
+        nonce = hashlib.sha256(f"{package.path}{time.time()}".encode()).hexdigest()[:10]
+        self.name = f"ref-subset-{package.task_id[-6:]}-{nonce}"
+        self.snapshot = f"evallab-ref-subset/{package.task_id.lower()}:{nonce}"
+        self.modes: dict[str, int] = {}
+
+    def _run(self, image: str, name: str) -> None:
+        _check(
+            _docker(
+                "run", "-d", "--name", name, "--network", "none", "--memory", self.memory,
+                "--cpus", self.cpus, "--entrypoint", "/bin/sh", image, "-c", "exec tail -f /dev/null",
+            ),
+            f"docker run {image}",
+        )  # fmt: skip
+
+    def prepare(self, timeout: float = 1_800) -> None:
+        self._run(self.package.image, self.name)
+        try:
+            setup = self.package.path / "environment" / "setup"
+            _check(_docker("exec", self.name, "mkdir", "-p", "/var/lib/mimo"), "mkdir")
+            _check(_docker("cp", f"{setup}/.", f"{self.name}:/var/lib/mimo/"), "copy setup")
+            result = _docker("exec", self.name, "bash", "/var/lib/mimo/setup.sh", timeout=timeout)
+            _check(result, "task setup")
+            _check(
+                _docker("cp", f"{self.package.path / 'tests'}/.", f"{self.name}:/tests/"),
+                "copy tests",
+            )
+            _check(_docker("commit", self.name, self.snapshot), "docker commit")
+        finally:
+            _docker("rm", "-f", self.name)
+
+    def read(self, paths: Iterable[str]) -> dict[str, bytes | None]:
+        name = f"{self.name}-read"
+        self._run(self.snapshot, name)
+        try:
+            wanted = list(paths)
+            listing = "\n".join(wanted)
+            script = 'cd "$1" && while IFS= read -r p; do if [ -f "$p" ]; then printf "%s\\0" "$p"; fi; done'
+            present = _check(
+                _docker(
+                    "exec",
+                    "-i",
+                    name,
+                    "sh",
+                    "-c",
+                    script,
+                    "sh",
+                    self.package.workdir,
+                    input=listing.encode() + b"\n",
+                ),
+                "list base files",
+            ).split(b"\0")
+            found = [p.decode() for p in present if p]
+            out: dict[str, bytes | None] = dict.fromkeys(wanted)
+            if found:
+                raw = _check(
+                    _docker("exec", "-i", name, "tar", "-C", self.package.workdir, "--null", "-T", "-", "-cf", "-",
+                            input=b"\0".join(p.encode() for p in found) + b"\0"),
+                    "read base files",
+                )  # fmt: skip
+                with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+                    for member in archive.getmembers():
+                        handle = archive.extractfile(member)
+                        if handle is not None:
+                            out[member.name] = handle.read()
+                            self.modes[member.name] = member.mode
+            return out
+        finally:
+            _docker("rm", "-f", name)
+
+    def grade(
+        self, label: str, kept: list[str], files: dict[str, bytes | None], timeout: float
+    ) -> Grade:
+        name = f"{self.name}-g"
+        started = time.monotonic()
+        try:
+            self._run(self.snapshot, name)
+            workdir = self.package.workdir
+            gone = [path for path, data in files.items() if data is None]
+            present = {
+                path: (data, self.modes.get(path, 0o644))
+                for path, data in files.items()
+                if data is not None
+            }
+            if gone:
+                _check(
+                    _docker("exec", name, "rm", "-f", "--", *[f"{workdir}/{p}" for p in gone]),
+                    "remove files",
+                )
+            if present:
+                _check(_docker("cp", "-", f"{name}:{workdir}", input=_tar(present)), "write files")
+            stale = [p for p in files if p.endswith(".py")]
+            if stale:
+                pycache = " ".join(
+                    f"'{workdir}/{PurePosixPath(p).parent}/__pycache__/{PurePosixPath(p).stem}'.*.pyc"
+                    for p in stale
+                )
+                _docker("exec", name, "sh", "-c", f"rm -f {pycache}")
+            try:
+                result = _docker("exec", name, "bash", "/tests/test.sh", timeout=timeout)
+            except subprocess.TimeoutExpired:
+                return Grade(label, kept, None, None, time.monotonic() - started, "timeout")
+            reward_raw = (
+                _docker("exec", name, "cat", "/logs/verifier/reward.txt").stdout.decode().strip()
+            )
+            tail = result.stdout.decode(errors="replace")[-2_000:]
+            if reward_raw not in {"0", "1"}:
+                return Grade(
+                    label,
+                    kept,
+                    None,
+                    result.returncode,
+                    time.monotonic() - started,
+                    "unscored",
+                    tail,
+                )
+            return Grade(
+                label,
+                kept,
+                float(reward_raw),
+                result.returncode,
+                time.monotonic() - started,
+                "scored",
+                tail,
+            )
+        except (RuntimeError, OSError) as exc:
+            return Grade(
+                label, kept, None, None, time.monotonic() - started, "error", str(exc)[-2_000:]
+            )
+        finally:
+            _docker("rm", "-f", name)
+
+    def close(self) -> None:
+        _docker("rmi", self.snapshot)
+
+
+# ---------------------------------------------------------------------------
+# Minimisation
+
+
+@dataclass
+class Probe:
+    changes: list[FileChange]
+    grade: Callable[[str, set[str]], Grade]
+    max_grades: int = DEFAULT_MAX_GRADES
+    grades: list[Grade] = field(default_factory=list)
+
+    @property
+    def blocks(self) -> list[Block]:
+        return [block for change in self.changes for block in change.blocks if block.kind != "test"]
+
+    def _try(self, label: str, keep: set[str]) -> bool:
+        grade = self.grade(label, keep)
+        self.grades.append(grade)
+        return grade.passed
+
+    def _budget(self) -> bool:
+        return (
+            len(self.grades) < self.max_grades - 1
+        )  # one grade stays reserved for the confirmation
+
+    def run(self) -> tuple[Status, set[str], str]:
+        blocks = self.blocks
+        code = [block for block in blocks if block.kind == "code"]
+        everything = {block.id for block in blocks}
+        if len(code) < 2:
+            return (
+                "not_applicable",
+                everything,
+                f"{len(code)} code block(s): no proper subset to try",
+            )
+        full = self._try("full", everything)
+        nop = self.grade("nop", set())
+        self.grades.append(nop)
+        if not full or nop.status != "scored" or nop.reward != 0.0:
+            return (
+                "baseline_mismatch",
+                everything,
+                (
+                    f"baselines: full={self.grades[0].reward} ({self.grades[0].status}), "
+                    f"nop={nop.reward} ({nop.status}); expected 1 and 0"
+                ),
+            )
+        keep = set(everything)
+        soft = {block.id for block in blocks if block.kind in {"comment", "noncode"}}
+        if soft and self._try("drop-docs-comments", keep - soft):
+            keep -= soft
+        exhausted = False
+        files: dict[str, list[Block]] = {}
+        for block in code:
+            files.setdefault(block.path, []).append(block)
+        if len(files) > 1:
+            for path, owned in sorted(
+                files.items(), key=lambda item: -sum(b.size for b in item[1])
+            ):
+                candidate = keep - {block.id for block in owned}
+                if not any(block.id in candidate for block in code):
+                    continue
+                if not self._budget():
+                    exhausted = True
+                    break
+                if self._try(f"drop-file:{path}", candidate):
+                    keep = candidate
+        for block in sorted(code, key=lambda b: (-b.size, b.id)):
+            if block.id not in keep:
+                continue
+            candidate = keep - {block.id}
+            if not any(other.id in candidate for other in code):
+                continue
+            if not self._budget():
+                exhausted = True
+                break
+            if self._try(f"drop-block:{block.id}", candidate):
+                keep = candidate
+        dropped_code = [block for block in code if block.id not in keep]
+        if dropped_code and not self._try("confirm", keep):
+            return (
+                "flaky",
+                keep,
+                "the minimal subset passed once and failed on the confirmation grade",
+            )
+        if exhausted:
+            return (
+                "budget_exhausted",
+                keep,
+                f"stopped at {self.max_grades} grades; later blocks untried",
+            )
+        return "measured", keep, ""
+
+
+def severity_of(kept_fraction: float) -> str:
+    if kept_fraction <= HIGH_KEEP:
+        return "high"
+    if kept_fraction <= MEDIUM_KEEP:
+        return "medium"
+    return "low"
+
+
+def _now() -> str:
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
+def summarize(
+    task_id: str,
+    changes: list[FileChange],
+    status: Status,
+    keep: set[str],
+    reason: str,
+    grades: list[Grade],
+) -> dict[str, Any]:
+    blocks = [block for change in changes for block in change.blocks]
+    code = [block for block in blocks if block.kind == "code"]
+    code_lines = sum(block.size for block in code)
+    kept_lines = sum(block.size for block in code if block.id in keep)
+    dropped = [block.id for block in code if block.id not in keep]
+    measured = status in {"measured", "budget_exhausted"}
+    verdict = "unknown" if not measured else "fail" if dropped else "pass"
+    kept_fraction = kept_lines / code_lines if code_lines else 1.0
+    return {
+        "task_id": task_id,
+        "status": status,
+        "reason": reason,
+        "verdict": verdict,
+        "severity": severity_of(kept_fraction) if verdict == "fail" else None,
+        "code_blocks": len(code),
+        "code_lines": code_lines,
+        "kept_code_lines": kept_lines,
+        "kept_fraction": round(kept_fraction, 4),
+        "kept": sorted(keep),
+        "dropped_code": dropped,
+        "blocks": [
+            {
+                "id": block.id,
+                "path": block.path,
+                "kind": block.kind,
+                "base_lines": [block.base_start, block.base_end],
+                "removed": block.removed,
+                "added": block.added,
+            }
+            for block in blocks
+        ],  # fmt: skip
+        "grades": [
+            {
+                "label": grade.label,
+                "kept": len(grade.kept),
+                "reward": grade.reward,
+                "rc": grade.rc,
+                "status": grade.status,
+                "seconds": round(grade.seconds, 1),
+            }
+            for grade in grades
+        ],  # fmt: skip
+    }
+
+
+def finding(report: dict[str, Any], out_dir: Path) -> dict[str, Any]:
+    verdict = report["verdict"]
+    dropped = len(report.get("dropped_code") or [])
+    if verdict == "fail":
+        summary = (
+            f"{report['kept_code_lines']}/{report['code_lines']} reference code lines "
+            f"({report['code_blocks'] - dropped}/{report['code_blocks']} blocks) pass the hidden tests"
+        )
+    elif verdict == "pass":
+        summary = f"every one of {report['code_blocks']} reference code blocks is needed by the hidden tests"
+    else:
+        summary = f"{report['status']}: {report['reason']}"
+    evidence = [str(out_dir / "report.json")]
+    evidence += [
+        str(out_dir / name)
+        for name in ("minimal.patch", "dropped.patch")
+        if (out_dir / name).is_file()
+    ]
+    return {
+        "schema": SCHEMA_FINDING,
+        "subject": {
+            "kind": "task",
+            "task_id": report["task_id"],
+            "task_digest": report.get("package_digest"),
+        },
+        "stage": STAGE_TASK,
+        "verdict": verdict,
+        "category": "weak",
+        "severity": report["severity"],
+        "fault": "eval" if verdict == "fail" else None,
+        "summary": summary,
+        "evidence_refs": evidence,
+        "reproducer": (
+            {"kind": "patch", "path": str(out_dir / "minimal.patch"), "expected_reward": 1}
+            if verdict == "fail"
+            else None
+        ),
+        "refutation": {
+            "status": "unverified",
+            "by": None,
+            "reason": "a dropped block can be behaviour the instruction never asks for (refactor, logging, "
+            "defensive branch); read dropped.patch against the instruction",
+        },
+        "reviewer": REVIEWER,
+    }
+
+
+# ---------------------------------------------------------------------------
+# One task
+
+
+def probe_task(
+    package_dir: Path,
+    patch_path: Path,
+    out_dir: Path,
+    *,
+    max_grades: int = DEFAULT_MAX_GRADES,
+    memory: str = "4g",
+    grade_timeout: float = 1_800,
+    log: Callable[[str], None] = print,
+) -> dict[str, Any]:
+    """Probe one task and write report.json, finding.json and the patches to ``out_dir``."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+    started = _now()
+    patch = patch_path.read_text()
+    package = Package.load(package_dir)
+    head: dict[str, Any] = {
+        "schema": SCHEMA_REPORT,
+        "package": str(package_dir),
+        "package_digest": _package_digest(package_dir),
+        "image": package.image,
+        "reference": {
+            "patch": str(patch_path),
+            "sha256": hashlib.sha256(patch.encode()).hexdigest(),
+        },
+        "limits": {
+            "max_grades": max_grades,
+            "memory": memory,
+            "grade_timeout_s": grade_timeout,
+            "network": "none",
+        },
+        "started_at": started,
+    }
+    sandbox = Sandbox(package, memory=memory)
+    grades: list[Grade] = []
+    try:
+        sandbox.prepare()
+        try:
+            paths = patch_paths(patch)
+            base = sandbox.read(paths)
+            fixed = apply_reference(patch, base)
+            changes = [
+                file_change(path, base[path], fixed[path], set(package.tests)) for path in paths
+            ]
+            changes = [change for change in changes if change.base != change.fixed]
+
+            def grade(label: str, keep: set[str]) -> Grade:
+                files = {
+                    change.path: compose(change, keep)
+                    for change in changes
+                    if change.path not in package.tests
+                }
+                timeout = grade_timeout
+                if grades and grades[0].status == "scored":
+                    timeout = min(grade_timeout, max(300.0, 3 * grades[0].seconds))
+                result = sandbox.grade(label, sorted(keep), files, timeout)
+                log(
+                    f"  {package.task_id} {label}: reward={result.reward} {result.status} {result.seconds:.0f}s"
+                )
+                return result
+
+            probe = Probe(changes, grade, max_grades=max_grades, grades=grades)
+            status, keep, reason = probe.run()
+            report = head | summarize(package.task_id, changes, status, keep, reason, grades)
+            if report["verdict"] == "fail":
+                base_files = {change.path: change.base for change in changes}
+                kept_files = {change.path: compose(change, keep) for change in changes}
+                full_files = {change.path: change.fixed for change in changes}
+                (out_dir / "minimal.patch").write_text(unified_patch(base_files, kept_files))
+                (out_dir / "dropped.patch").write_text(unified_patch(kept_files, full_files))
+        finally:
+            sandbox.close()
+    except (RuntimeError, ValueError, OSError, subprocess.SubprocessError) as exc:
+        report = head | {
+            "task_id": package.task_id, "status": "unavailable", "reason": str(exc)[-1_000:], "verdict": "unknown",
+            "severity": None, "grades": [
+                {"label": g.label, "reward": g.reward, "status": g.status, "seconds": round(g.seconds, 1)} for g in grades
+            ],
+        }  # fmt: skip
+    report["finished_at"] = _now()
+    (out_dir / "grades.log").write_text(
+        "".join(
+            f"== {g.label} reward={g.reward} rc={g.rc} {g.status} {g.seconds:.1f}s\n{g.tail}\n"
+            for g in grades
+        )
+    )
+    (out_dir / "report.json").write_text(json.dumps(report, indent=1, sort_keys=True) + "\n")
+    (out_dir / "finding.json").write_text(
+        json.dumps(finding(report, out_dir), indent=1, sort_keys=True) + "\n"
+    )
+    return report
+
+
+def _package_digest(path: Path) -> str | None:
+    try:
+        from evallab.registry import task_directory_digest
+
+        return task_directory_digest(path)
+    except (ImportError, ValueError, OSError):
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Sweep over a reference-fix index
+
+
+@dataclass(frozen=True)
+class Job:
+    task_id: str
+    package: Path
+    patch: Path
+    image: str
+
+
+def load_jobs(index: Path, tasks_root: Path, order: Sequence[str] = ()) -> list[Job]:
+    jobs: list[Job] = []
+    for row in csv.DictReader(index.open()):
+        if row.get("label") != "oracle:pass+nop:fail" or not row.get("patch_path"):
+            continue
+        package = tasks_root / row["task_id"]
+        try:
+            image = Package.load(package).image
+        except (OSError, ValueError, tomllib.TOMLDecodeError):
+            image = ""
+        jobs.append(Job(row["task_id"], package, Path(row["patch_path"]), image))
+    rank = {task: i for i, task in enumerate(order)}
+    return sorted(jobs, key=lambda job: (rank.get(job.task_id, len(rank)), job.task_id))
+
+
+def patch_code_blocks(patch: str, tests: Iterable[str] = ()) -> int:
+    """Code change runs in a patch (docs, comments and reset test files excluded); no Docker."""
+    skip = set(tests)
+    count, path = 0, ""
+    removed: list[str] = []
+    added: list[str] = []
+
+    def close() -> None:
+        nonlocal count
+        if (removed or added) and block_kind(path, removed, added, skip) == "code":
+            count += 1
+        removed.clear()
+        added.clear()
+
+    for raw in patch.splitlines():
+        if raw.startswith("diff --git "):
+            close()
+            match = re.match(r"diff --git a/(.+?) b/(.+)$", raw)
+            path = match.group(2) if match else ""
+        elif raw.startswith(("--- ", "+++ ")):
+            continue
+        elif raw.startswith("-"):
+            removed.append(raw[1:])
+        elif raw.startswith("+"):
+            added.append(raw[1:])
+        elif not raw.startswith("\\"):
+            close()
+    close()
+    return count
+
+
+class ImageCache:
+    """Pull ahead of the lanes; remove an image this process pulled once its last job ends."""
+
+    def __init__(self, jobs: Sequence[Job], ahead: int) -> None:
+        self.images = list(dict.fromkeys(job.image for job in jobs))
+        self.users = {image: sum(1 for job in jobs if job.image == image) for image in self.images}
+        self.slots = threading.Semaphore(ahead)
+        self.ready = {image: threading.Event() for image in self.images}
+        self.errors: dict[str, str] = {}
+        self.pulled: set[str] = set()
+        self.lock = threading.Lock()
+
+    def prefetch(self) -> None:
+        for image in self.images:
+            self.slots.acquire()
+            if _docker("image", "inspect", image).returncode != 0:
+                result = _docker("pull", image)
+                if result.returncode != 0:
+                    self.errors[image] = result.stderr.decode(errors="replace")[-400:]
+                else:
+                    with self.lock:
+                        self.pulled.add(image)
+            self.ready[image].set()
+
+    def wait(self, image: str) -> str | None:
+        self.ready[image].wait()
+        return self.errors.get(image)
+
+    def release(self, image: str) -> None:
+        with self.lock:
+            self.users[image] -= 1
+            last = self.users[image] == 0
+            mine = image in self.pulled
+        if last:
+            if mine:
+                _docker("rmi", image)
+            self.slots.release()
+
+
+def sweep(
+    jobs: list[Job],
+    out_root: Path,
+    *,
+    lanes: int,
+    ahead: int,
+    max_grades: int,
+    memory: str,
+    log: Callable[[str], None] = print,
+) -> list[dict[str, Any]]:
+    """Probe each job (resumable); tasks with fewer than two code blocks skip Docker."""
+    todo = [job for job in jobs if not (out_root / job.task_id / "report.json").is_file()]
+    log(
+        f"ref-subset sweep: {len(jobs)} tasks, {len(jobs) - len(todo)} already reported, {len(todo)} to run"
+    )
+    docker_jobs: list[Job] = []
+    reports: list[dict[str, Any]] = []
+    for job in todo:
+        out_dir = out_root / job.task_id
+        if not job.image:
+            reports.append(
+                _write_skipped(job, out_dir, "unavailable", "package has no docker_image")
+            )
+            continue
+        tests = Package.load(job.package).tests
+        blocks = patch_code_blocks(job.patch.read_text(errors="replace"), tests)
+        if blocks < 2:
+            reason = f"{blocks} code change run(s) in the reference patch: no proper subset to try"
+            reports.append(_write_skipped(job, out_dir, "not_applicable", reason))
+        else:
+            docker_jobs.append(job)
+    log(f"ref-subset sweep: {len(docker_jobs)} need Docker, {len(reports)} recorded without it")
+    cache = ImageCache(docker_jobs, lanes + ahead)
+    threading.Thread(target=cache.prefetch, daemon=True).start()
+
+    def one(job: Job) -> dict[str, Any]:
+        out_dir = out_root / job.task_id
+        error = cache.wait(job.image)
+        try:
+            if error:
+                return _write_skipped(job, out_dir, "unavailable", f"image pull failed: {error}")
+            report = probe_task(
+                job.package, job.patch, out_dir, max_grades=max_grades, memory=memory, log=log
+            )
+            log(
+                f"{job.task_id}: {report['status']} verdict={report['verdict']} kept={report.get('kept_fraction')}"
+            )
+            return report
+        finally:
+            cache.release(job.image)
+
+    with ThreadPoolExecutor(max_workers=lanes) as pool:
+        return reports + list(pool.map(one, docker_jobs))
+
+
+def _write_skipped(job: Job, out_dir: Path, status: Status, reason: str) -> dict[str, Any]:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    report = {
+        "schema": SCHEMA_REPORT, "task_id": job.task_id, "package": str(job.package), "status": status,
+        "reason": reason, "verdict": "unknown", "severity": None, "finished_at": _now(),
+    }  # fmt: skip
+    (out_dir / "report.json").write_text(json.dumps(report, indent=1, sort_keys=True) + "\n")
+    (out_dir / "finding.json").write_text(
+        json.dumps(finding(report, out_dir), indent=1, sort_keys=True) + "\n"
+    )
+    return report
+
+
+def collect(out_root: Path) -> dict[str, Any]:
+    reports = [json.loads(path.read_text()) for path in sorted(out_root.glob("*/report.json"))]
+    status: dict[str, int] = {}
+    severity: dict[str, int] = {}
+    for report in reports:
+        status[report["status"]] = status.get(report["status"], 0) + 1
+        if report["verdict"] == "fail":
+            severity[report["severity"]] = severity.get(report["severity"], 0) + 1
+    findings = [
+        json.loads((path.parent / "finding.json").read_text())
+        for path in sorted(out_root.glob("*/report.json"))
+    ]
+    (out_root / "findings.jsonl").write_text(
+        "".join(json.dumps(item, sort_keys=True) + "\n" for item in findings)
+    )
+    summary = {
+        "schema": "evallab.ref_subset.summary/v1",
+        "tasks": len(reports),
+        "status": status,
+        "verdict": {
+            v: sum(1 for r in reports if r["verdict"] == v) for v in ("pass", "fail", "unknown")
+        },
+        "weak_by_severity": severity,
+        "weak": sorted(
+            (
+                {
+                    "task_id": r["task_id"],
+                    "severity": r["severity"],
+                    "kept_fraction": r["kept_fraction"],
+                    "kept_code_lines": r["kept_code_lines"],
+                    "code_lines": r["code_lines"],
+                }
+                for r in reports
+                if r["verdict"] == "fail"
+            ),
+            key=lambda item: (item["kept_fraction"], item["task_id"]),
+        ),  # fmt: skip
+    }
+    (out_root / "summary.json").write_text(json.dumps(summary, indent=1, sort_keys=True) + "\n")
+    return summary
+
+
+# ---------------------------------------------------------------------------
+# QA Trace T0: does a passing trial skip the reference blocks no test checks?
+
+
+def edited_ranges(diff: str) -> dict[str, list[tuple[int, int]]]:
+    """Base-file line ranges (0-based, half-open) a unified diff edits, per path."""
+    ranges: dict[str, list[tuple[int, int]]] = {}
+    path: str | None = None
+    line = 0
+    start: int | None = None
+
+    def flush() -> None:
+        nonlocal start
+        if path is not None and start is not None:
+            ranges.setdefault(path, []).append((start, max(line, start + 1)))
+        start = None
+
+    for raw in diff.splitlines():
+        if raw.startswith("diff --git "):
+            flush()
+            match = re.match(r"diff --git a/(.+?) b/(.+)$", raw)
+            path = match.group(2) if match else None
+            continue
+        if path is None or raw.startswith(("--- ", "+++ ", "\\")):
+            continue
+        header = re.match(r"@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@", raw)
+        if header:
+            flush()
+            line = int(header.group(1)) - (0 if header.group(2) == "0" else 1)
+            continue
+        if raw.startswith(("-", "+")):
+            if start is None:
+                start = line
+            if raw.startswith("-"):
+                line += 1
+            continue
+        flush()
+        line += 1
+    flush()
+    return ranges
+
+
+def _touches(block: dict[str, Any], ranges: dict[str, list[tuple[int, int]]]) -> bool:
+    spans = ranges.get(block["path"])
+    if not spans:
+        return False
+    start, end = block["base_lines"]
+    end = max(end, start + 1)
+    return any(lo < end + TRACE_SLACK and hi > start - TRACE_SLACK for lo, hi in spans)
+
+
+def trace_check(trial_dir: Path, report: dict[str, Any] | None) -> dict[str, Any]:
+    """One ``qa.finding/v1`` for a trial: is its pass a partial fix the tests cannot see?"""
+    result = json.loads((trial_dir / "result.json").read_text())
+    task_id = str(result.get("task_name") or "").split("/")[-1]
+    reward_file = trial_dir / "verifier" / "reward.txt"
+    reward = reward_file.read_text().strip() if reward_file.is_file() else None
+    diff_file = trial_dir / "verifier" / "agent.diff"
+    base = {
+        "schema": SCHEMA_FINDING,
+        "subject": {
+            "kind": "trace",
+            "task_id": task_id,
+            "task_digest": None,
+            "trial_id": trial_dir.name,
+        },
+        "stage": STAGE_TRACE,
+        "category": "false_positive",
+        "fault": None,
+        "severity": None,
+        "reproducer": None,
+        "reviewer": REVIEWER,
+    }
+    unknown = base | {
+        "verdict": "unknown",
+        "refutation": {"status": "unverified", "by": None, "reason": ""},
+    }
+    if reward != "1":
+        return unknown | {
+            "summary": f"not a pass (reward {reward}); this check judges passes only",
+            "evidence_refs": [],
+        }
+    if report is None or report.get("verdict") not in {"pass", "fail"}:
+        status = (
+            "no reference-subset report"
+            if report is None
+            else f"task report {report.get('status')}"
+        )
+        return unknown | {"summary": f"{status} for {task_id}", "evidence_refs": []}
+    if not diff_file.is_file():
+        return unknown | {"summary": "trial has no verifier/agent.diff", "evidence_refs": []}
+    ranges = edited_ranges(diff_file.read_text(errors="replace"))
+    code = [block for block in report["blocks"] if block["kind"] == "code"]
+    untested = [block for block in code if block["id"] in set(report["dropped_code"])]
+    tested = [block for block in code if block["id"] not in set(report["dropped_code"])]
+    covered_tested = [block["id"] for block in tested if _touches(block, ranges)]
+    covered_untested = [block["id"] for block in untested if _touches(block, ranges)]
+    evidence = [str(diff_file), str(report.get("report_path", ""))]
+    metrics = {
+        "tested_blocks": len(tested),
+        "tested_touched": len(covered_tested),
+        "untested_blocks": len(untested),
+        "untested_touched": len(covered_untested),
+        "untested_lines": sum(block["removed"] + block["added"] for block in untested),
+    }
+    if not untested:
+        return base | {
+            "verdict": "pass", "summary": "every reference block is needed by the hidden tests",
+            "evidence_refs": evidence, "metrics": metrics,
+            "refutation": {"status": "unverified", "by": None, "reason": ""},
+        }  # fmt: skip
+    suspect = not covered_untested
+    lines = metrics["untested_lines"]
+    severity = report.get("severity") if suspect else None
+    summary = (
+        f"pass leaves all {len(untested)} untested reference blocks ({lines} lines) unchanged: "
+        "a partial fix would score the same"
+        if suspect
+        else f"diff touches {len(covered_untested)}/{len(untested)} untested reference blocks"
+    )
+    return base | {
+        "verdict": "fail" if suspect else "pass",
+        "severity": severity,
+        "fault": "eval" if suspect else None,
+        "summary": summary,
+        "evidence_refs": evidence,
+        "metrics": metrics,
+        "refutation": {
+            "status": "unverified",
+            "by": None,
+            "reason": "the agent may implement the untested behaviour elsewhere or the behaviour may be optional; "
+            "compare the diff with dropped.patch",
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# CLI
+
+
+def _run_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
+    del root, harbor
+    report = probe_task(
+        args.package, args.patch, args.output_dir, max_grades=args.max_grades, memory=args.memory
+    )
+    print(
+        json.dumps(
+            {
+                k: report.get(k)
+                for k in ("task_id", "status", "verdict", "severity", "kept_fraction", "reason")
+            }
+        )
+    )
+    return 0 if report["status"] != "unavailable" else 1
+
+
+def _sweep_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
+    del root, harbor
+    order = json.loads(args.order.read_text()) if args.order else ()
+    jobs = load_jobs(args.index, args.tasks_root, order)
+    if args.task:
+        jobs = [job for job in jobs if job.task_id in set(args.task)]
+    if args.limit:
+        jobs = jobs[: args.limit]
+    sweep(
+        jobs,
+        args.output_dir,
+        lanes=args.lanes,
+        ahead=args.ahead,
+        max_grades=args.max_grades,
+        memory=args.memory,
+    )
+    print(json.dumps(collect(args.output_dir), indent=1))
+    return 0
+
+
+def _trace_command(args: argparse.Namespace, root: Path, *, harbor: Any | None = None) -> int:
+    del root, harbor
+    out: list[dict[str, Any]] = []
+    for trial in args.trial:
+        result = json.loads((trial / "result.json").read_text())
+        task_id = str(result.get("task_name") or "").split("/")[-1]
+        report_path = args.reports / task_id / "report.json"
+        report = (
+            json.loads(report_path.read_text()) | {"report_path": str(report_path)}
+            if report_path.is_file()
+            else None
+        )
+        out.append(trace_check(trial, report))
+    text = "".join(json.dumps(item, sort_keys=True) + "\n" for item in out)
+    if args.output:
+        args.output.write_text(text)
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+def add_ref_subset_parser(hack_commands: Any) -> None:
+    parser = hack_commands.add_parser(
+        "ref-subset",
+        help="Weak-test probe: the smallest part of a reference fix that still passes the hidden "
+        "tests (local Docker, free)",
+    )
+    commands = parser.add_subparsers(dest="ref_subset_command", required=True)
+    run = commands.add_parser("run", help="Probe one raw MiMo package against its reference patch")
+    run.add_argument("package", type=Path)
+    run.add_argument("--patch", type=Path, required=True)
+    run.add_argument("--output-dir", type=Path, required=True)
+    run.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
+    run.add_argument("--memory", default="4g")
+    run.set_defaults(func=_run_command)
+    many = commands.add_parser(
+        "sweep", help="Probe every oracle:pass+nop:fail row of a reference-fix index"
+    )
+    many.add_argument("--index", type=Path, required=True)
+    many.add_argument(
+        "--tasks-root",
+        type=Path,
+        required=True,
+        help="Directory holding the raw packages by task id",
+    )
+    many.add_argument(
+        "--output-dir", type=Path, required=True, help="Resumable: tasks with a report are skipped"
+    )
+    many.add_argument("--order", type=Path, help="JSON list of task ids to run first, in order")
+    many.add_argument("--task", action="append", default=[])
+    many.add_argument("--limit", type=int)
+    many.add_argument("--lanes", type=int, default=1, choices=(1, 2))
+    many.add_argument("--ahead", type=int, default=1, help="Images pulled ahead of the lanes")
+    many.add_argument("--max-grades", type=int, default=DEFAULT_MAX_GRADES)
+    many.add_argument("--memory", default="4g")
+    many.set_defaults(func=_sweep_command)
+    trace = commands.add_parser(
+        "trace", help="QA Trace T0: flag passes that skip the untested reference blocks"
+    )
+    trace.add_argument("trial", type=Path, nargs="+")
+    trace.add_argument("--reports", type=Path, required=True, help="A sweep output directory")
+    trace.add_argument("--output", type=Path)
+    trace.set_defaults(func=_trace_command)

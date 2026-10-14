@@ -153,19 +153,20 @@ issue #88 with `terminal_status: not_present` (the claimed
   subject.task_digest)` at commit `f5b891cb4f7c20e306f9d05887628b43af740f43`;
   findings or task reports from any other checkout are counted in
   `digest_mismatches`.
-- **Verified vs flagged recall and category vs root-cause match**:
-  - `verified_recall` and `verified_false_alarm_rate` require a digest-bound
+- **Verified vs flagged recall and passive `root_cause` provenance**:
+  - In `evallab qa task-score` (denominators = all selected items),
+    `verified_recall` and `verified_false_alarm_rate` require a digest-bound
     `qa.finding/v1` record with a non-null `reproducer`, `fault == "eval"`,
     `verdict == "fail"`, and `refutation.status == "verified"`.
   - `flagged_recall` and `flagged_false_alarm_rate` combine standing unrefuted
     findings and unreproduced `report.signals` (`S1` rubric and `S0` leak
-    signals).
+    signals; the shared `evallab qa score` inspects only `findings/*.json` and
+    does not read `report.signals`).
   - `category_match_recall` checks coarse `category` agreement with
-    `expected_category` / `expected_categories`, whereas
-    `root_cause_match_recall` requires an explicit `root_cause_id` matching one
-    of the Delphik artifact IDs in `root_cause[].id` (and is `null` when
-    `root_cause_alignment_fraction == 0`). Coarse category agreement is not a
-    root-cause match.
+    `expected_category` / `expected_categories`. Per-finding root-cause
+    matching is not computed (`root_cause` entries are passive provenance, and
+    `evallab qa task-score` writes `n/a` to the shared scoreboard's
+    `root_cause_match` column).
 - **No paired discrimination**: this key contains standalone task packages
   rather than paired clean/cheat trial trajectories, so paired discrimination
   is neither claimed nor scored.

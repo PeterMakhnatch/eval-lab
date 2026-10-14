@@ -6,6 +6,7 @@ and no exploit generation or execution.
 
 from __future__ import annotations
 
+import csv
 import json
 import math
 from pathlib import Path
@@ -14,7 +15,11 @@ from types import SimpleNamespace
 import pytest
 from pydantic import ValidationError
 
-from evallab.qa_task import (
+from evallab.cli import parser as build_root_parser
+from evallab.qa import models as shared_models
+from evallab.qa import score as shared_score
+from evallab.qa.answer_key import load_answer_key as load_shared_answer_key
+from evallab.qa.task import (
     AnswerKeyItem,
     Check,
     CodexLane,
@@ -35,6 +40,7 @@ from evallab.qa_task import (
     load_rubric,
     observation_check,
     run_task,
+    score_command,
     score_findings,
     validate_triplet,
 )
@@ -598,7 +604,6 @@ def _make_finding(
     task_digest: str,
     status: str,
     category: str = "weak",
-    root_cause_id: str | None = None,
 ) -> Finding:
     return Finding(
         id=finding_id,
@@ -612,45 +617,44 @@ def _make_finding(
         reproducer=Reproducer(kind="harbor_trial", path="runs/control-1", expected_reward=0.0),
         refutation=Refutation(status=status, by="test", reason="test"),  # type: ignore[arg-type]
         reviewer=Reviewer(agent="qa-task"),
-        root_cause_id=root_cause_id,
     )
 
 
-def test_score_findings_enforces_digest_pin_separates_flag_verified_and_category_from_root_cause(
+def test_score_findings_enforces_digest_pin_separates_flag_verified_category_and_coverage(
     tmp_path: Path,
 ) -> None:
     key_dir = tmp_path / "key"
     key_dir.mkdir()
     items = [
-        # Positive 1: verified finding matches category ("weak") but has no root_cause_id -> category_match only.
+        # Positive 1: verified finding matches expected category ("weak").
         AnswerKeyItem(
             key_id="k1",
-            item_id="item-cat-only",
-            subject=Subject(kind="task", task_id="bench/cat-only", task_digest="sha256:cat"),
-            package={"name": "cat-only", "root_hint": str(tmp_path)},
+            item_id="item-cat-match",
+            subject=Subject(kind="task", task_id="bench/cat-match", task_digest="sha256:cat"),
+            package={"name": "cat-match", "root_hint": str(tmp_path)},
             expected_verdict="fail",
             expected_category="weak",
             expected_categories=["weak"],
-            root_cause=[{"id": "rc-cat-1", "summary": "missing assertion"}],
+            root_cause=[{"id": "rc-cat-1", "summary": "passive provenance"}],
             label_source="audit",
             label_strength="verified",
             split="heldout",
         ),
-        # Positive 2: verified finding has explicit root_cause_id match, plus a stale-digest finding to ignore.
+        # Positive 2: verified finding has different category ("broken" vs expected "weak").
         AnswerKeyItem(
             key_id="k1",
-            item_id="item-rc-match",
-            subject=Subject(kind="task", task_id="bench/rc-match", task_digest="sha256:rc"),
-            package={"name": "rc-match", "root_hint": str(tmp_path)},
+            item_id="item-cat-mismatch",
+            subject=Subject(kind="task", task_id="bench/cat-mismatch", task_digest="sha256:mismatch"),
+            package={"name": "cat-mismatch", "root_hint": str(tmp_path)},
             expected_verdict="fail",
-            expected_category="broken",
-            expected_categories=["broken"],
-            root_cause=[{"id": "rc-broken-1", "summary": "broken solver"}],
+            expected_category="weak",
+            expected_categories=["weak"],
+            root_cause=[{"id": "rc-2", "summary": "passive provenance"}],
             label_source="audit",
             label_strength="verified",
             split="heldout",
         ),
-        # Positive 3: no report or findings in run dir -> unobserved and unmeasured, never pass.
+        # Positive 3: no matching report or findings in run dir -> unobserved and unmeasured, never pass.
         AnswerKeyItem(
             key_id="k1",
             item_id="item-missing",
@@ -675,20 +679,6 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_and_category
             label_strength="reviewed",
             split="heldout",
         ),
-        # Dev positive: verified finding matches category but has no root_cause_id -> root_cause_match_recall is None.
-        AnswerKeyItem(
-            key_id="k1",
-            item_id="item-dev-no-rc",
-            subject=Subject(kind="task", task_id="bench/dev-no-rc", task_digest="sha256:dev"),
-            package={"name": "dev-no-rc", "root_hint": str(tmp_path)},
-            expected_verdict="fail",
-            expected_category="weak",
-            expected_categories=["weak"],
-            root_cause=[{"id": "rc-dev-1"}],
-            label_source="audit",
-            label_strength="verified",
-            split="dev",
-        ),
     ]
     (key_dir / "items.jsonl").write_text(
         "".join(i.model_dump_json(by_alias=True) + "\n" for i in items),
@@ -700,19 +690,17 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_and_category
     findings = [
         _make_finding(
             finding_id="f-cat",
-            task_id="bench/cat-only",
+            task_id="bench/cat-match",
             task_digest="sha256:cat",
             status="verified",
             category="weak",
-            root_cause_id=None,
         ),
         _make_finding(
-            finding_id="f-rc",
-            task_id="bench/rc-match",
-            task_digest="sha256:rc",
+            finding_id="f-cat-mismatch",
+            task_id="bench/cat-mismatch",
+            task_digest="sha256:mismatch",
             status="verified",
             category="broken",
-            root_cause_id="rc-broken-1",
         ),
         # Mismatched digest on bench/clean must be ignored for scoring and counted in digest_mismatches.
         _make_finding(
@@ -721,14 +709,6 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_and_category
             task_digest="sha256:stale-digest",
             status="verified",
             category="broken",
-        ),
-        _make_finding(
-            finding_id="f-dev",
-            task_id="bench/dev-no-rc",
-            task_digest="sha256:dev",
-            status="verified",
-            category="weak",
-            root_cause_id=None,
         ),
     ]
     for finding in findings:
@@ -739,8 +719,8 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_and_category
 
     reports = [
         TaskReport(
-            subject=Subject(kind="task", task_id="bench/cat-only", task_digest="sha256:cat"),
-            package="/tmp/cat-only",
+            subject=Subject(kind="task", task_id="bench/cat-match", task_digest="sha256:cat"),
+            package="/tmp/cat-match",
             requested_stages=["S0"],
             started_at="t",
             finished_at="t",
@@ -749,8 +729,8 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_and_category
             checks={"oracle-1": Check(stage="S0", status="measured", verdict="fail")},
         ),
         TaskReport(
-            subject=Subject(kind="task", task_id="bench/rc-match", task_digest="sha256:rc"),
-            package="/tmp/rc-match",
+            subject=Subject(kind="task", task_id="bench/cat-mismatch", task_digest="sha256:mismatch"),
+            package="/tmp/cat-mismatch",
             requested_stages=["S0"],
             started_at="t",
             finished_at="t",
@@ -810,16 +790,15 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_and_category
         )
 
     score = score_findings(key_dir=key_dir, findings_dir=run_dir, split="heldout")
+    assert "root_cause_match_recall" not in score
+    assert "root_cause_alignment_fraction" not in score
     assert score["items"] == 4
     assert score["positives"] == 3
     assert score["negatives"] == 1
     assert score["digest_mismatches"] == 2
     assert score["verified_recall"] == pytest.approx(2 / 3)
     assert score["flagged_recall"] == pytest.approx(2 / 3)
-    # Category matches on both verified positives (2/3), but root_cause_id only matches on item-rc-match (1/3).
-    assert score["category_match_recall"] == pytest.approx(2 / 3)
-    assert score["root_cause_alignment_fraction"] == pytest.approx(1 / 3)
-    assert score["root_cause_match_recall"] == pytest.approx(1 / 3)
+    assert score["category_match_recall"] == pytest.approx(1 / 3)
     # Stale verified finding on bench/clean was excluded by digest; S1 signal only triggers flagged false alarm.
     assert score["verified_false_alarm_rate"] == 0.0
     assert score["flagged_false_alarm_rate"] == 1.0
@@ -827,16 +806,149 @@ def test_score_findings_enforces_digest_pin_separates_flag_verified_and_category
     assert score["observed_fraction"] == pytest.approx(3 / 4)
     assert score["measured_fraction"] == pytest.approx(2 / 4)
     rows_by_id = {row["item_id"]: row for row in score["rows"]}
+    assert "root_cause_match" not in rows_by_id["item-cat-match"]
+    assert "root_cause_aligned" not in rows_by_id["item-cat-match"]
     assert rows_by_id["item-missing"]["observed"] is False
     assert rows_by_id["item-missing"]["measured"] is False
     assert rows_by_id["item-missing"]["flagged_hit"] is False
-    assert rows_by_id["item-cat-only"]["category_match"] is True
-    assert rows_by_id["item-cat-only"]["root_cause_aligned"] is False
-    assert rows_by_id["item-cat-only"]["root_cause_match"] is False
-    assert rows_by_id["item-rc-match"]["root_cause_aligned"] is True
-    assert rows_by_id["item-rc-match"]["root_cause_match"] is True
+    assert rows_by_id["item-cat-match"]["category_match"] is True
+    assert rows_by_id["item-cat-mismatch"]["category_match"] is False
 
-    dev_score = score_findings(key_dir=key_dir, findings_dir=run_dir, split="dev")
-    assert dev_score["category_match_recall"] == 1.0
-    assert dev_score["root_cause_alignment_fraction"] == 0.0
-    assert dev_score["root_cause_match_recall"] is None
+
+def test_run_task_findings_load_and_score_through_shared_qa_contract(tmp_path: Path) -> None:
+    package = _package(tmp_path)
+    run_dir = tmp_path / "run"
+    backend = FakeBackend(oracle=(0.0, 1.0, 1.0), nop=(0.0, 0.0, 0.0))
+    run_task(
+        package,
+        config=_config(tmp_path, stages=("S0",)),
+        run_dir=run_dir,
+        backend=backend,
+        lane=None,
+    )
+    loaded = shared_models.load_findings_dir(run_dir / "findings")
+    assert len(loaded) == 1
+    assert loaded[0].subject.task_id == "bench/fake-task"
+    assert loaded[0].verdict == "fail"
+    assert loaded[0].category == "broken"
+
+    key_dir = tmp_path / "shared-key"
+    key_dir.mkdir()
+    (key_dir / "README.md").write_text("# Shared key\n", encoding="utf-8")
+    shared_item = shared_models.AnswerKeyItem(
+        key_id="shared-key",
+        item_id="shared-key:bench/fake-task",
+        subject=shared_models.FindingSubject(
+            kind="task",
+            task_id="bench/fake-task",
+            task_digest=task_directory_digest(package),
+        ),
+        expected_category="broken",
+        expected_verdict="fail",
+        label_source="unit-test",
+        split="heldout",
+    )
+    (key_dir / "items.jsonl").write_text(
+        shared_item.model_dump_json(by_alias=True) + "\n",
+        encoding="utf-8",
+    )
+    key = load_shared_answer_key(key_dir)
+    rows = shared_score.score_findings(key, loaded, split="heldout")
+    all_cat = next(r for r in rows if r.category == "all")
+    assert all_cat.n_items == 1
+    assert all_cat.n_measured == 1
+    assert all_cat.recall == 1.0
+    assert all_cat.root_cause_match == 1.0
+
+
+def test_root_parser_exposes_qa_commands_and_task_score_scoreboard_behavior(
+    tmp_path: Path,
+) -> None:
+    root_parser = build_root_parser()
+    parsed_task = root_parser.parse_args(
+        ["qa", "task", "--task", str(tmp_path / "pkg"), "--no-model"]
+    )
+    assert parsed_task.qa_cmd == "task"
+    parsed_shared_score = root_parser.parse_args(
+        ["qa", "score", "--key", "k", "--findings", str(tmp_path / "f")]
+    )
+    assert parsed_shared_score.qa_cmd == "score"
+
+    key_dir = tmp_path / "key"
+    key_dir.mkdir()
+    item = AnswerKeyItem(
+        key_id="k1",
+        item_id="item-1",
+        subject=Subject(kind="task", task_id="bench/t1", task_digest="sha256:d1"),
+        package={"name": "t1", "root_hint": str(tmp_path)},
+        expected_verdict="fail",
+        expected_category="broken",
+        expected_categories=["broken"],
+        label_source="audit",
+        label_strength="verified",
+        split="heldout",
+    )
+    (key_dir / "items.jsonl").write_text(
+        item.model_dump_json(by_alias=True) + "\n",
+        encoding="utf-8",
+    )
+    run_dir = tmp_path / "run"
+    (run_dir / "findings").mkdir(parents=True)
+    finding = _make_finding(
+        finding_id="f-1",
+        task_id="bench/t1",
+        task_digest="sha256:d1",
+        status="verified",
+        category="broken",
+    )
+    (run_dir / "findings" / "f-1.json").write_text(
+        finding.model_dump_json(by_alias=True, indent=2),
+        encoding="utf-8",
+    )
+    (run_dir / "tasks" / "t1").mkdir(parents=True)
+    report = TaskReport(
+        subject=Subject(kind="task", task_id="bench/t1", task_digest="sha256:d1"),
+        package="/tmp/t1",
+        requested_stages=["S0"],
+        started_at="t",
+        finished_at="t",
+        verdict="fail",
+        quality_complete=True,
+        checks={"oracle-1": Check(stage="S0", status="measured", verdict="fail")},
+    )
+    (run_dir / "tasks" / "t1" / "report.json").write_text(
+        report.model_dump_json(by_alias=True, indent=2),
+        encoding="utf-8",
+    )
+
+    scoreboard = tmp_path / "scoreboard.csv"
+    args_no_board = root_parser.parse_args(
+        ["qa", "task-score", "--key", str(key_dir), "--findings", str(run_dir)]
+    )
+    assert args_no_board.qa_cmd == "task-score"
+    assert score_command(args_no_board, tmp_path) == 0
+    assert not scoreboard.exists()
+
+    args_with_board = root_parser.parse_args(
+        [
+            "qa",
+            "task-score",
+            "--key",
+            str(key_dir),
+            "--findings",
+            str(run_dir),
+            "--scoreboard",
+            str(scoreboard),
+            "--level",
+            "verified",
+        ]
+    )
+    assert score_command(args_with_board, tmp_path) == 0
+    assert scoreboard.is_file()
+    with scoreboard.open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        assert tuple(reader.fieldnames or ()) == shared_score.SCOREBOARD_COLUMNS
+        (row,) = list(reader)
+    assert row["key_id"] == "k1"
+    assert row["system"] == "qa-task@verified"
+    assert row["root_cause_match"] == shared_score.NOT_AVAILABLE

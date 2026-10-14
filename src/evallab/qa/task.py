@@ -1,4 +1,8 @@
-"""Defensive task QA: controls, rubric review and digest-bound evidence scoring.
+"""QA Agent - Task: defensive controls, rubric review and digest-bound scoring.
+
+Registered as ``evallab qa task`` and ``evallab qa task-score`` beside the shared
+``qa score`` (``evallab.qa.score``). Findings written here are valid
+``qa.finding/v1`` documents, so ``qa score --findings <run>/findings`` also works.
 
 S0 uses the existing audit controls and read-only static/leak inspections.
 S1 reviews the complete Harbor/benchmark rubric through the subscription lane.
@@ -10,7 +14,6 @@ Unavailable live probes/replays are explicitly not-run, never passing checks.
 from __future__ import annotations
 
 import argparse
-import csv
 import hashlib
 import json
 import math
@@ -26,6 +29,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from evallab.dataset_audit_contracts import AuditObservation, AuditTask
+from evallab.qa.score import ScoreRow, append_scoreboard
 from evallab.schemas import ContractModel
 
 SPEND_TAG = "overnight-2026-10-14"
@@ -112,8 +116,6 @@ class Finding(ContractModel):
     reproducer: Reproducer
     refutation: Refutation
     reviewer: Reviewer
-    # Optional explicit alignment. Category agreement is NOT a root-cause match.
-    root_cause_id: str | None = None
 
 
 class Signal(ContractModel):
@@ -163,6 +165,8 @@ class AnswerKeyItem(ContractModel):
     expected_verdict: Literal["pass", "fail"]
     expected_category: str | None = None
     expected_categories: list[str] = Field(default_factory=list)
+    # Informational key provenance (unused by scoring): the shared contract has no
+    # per-finding root-cause id, so root-cause matching is not computed here.
     root_cause: list[dict[str, Any]] = Field(default_factory=list)
     label_source: str
     label_strength: str
@@ -901,7 +905,6 @@ def score_findings(
         categories = set(item.expected_categories) | (
             {item.expected_category} if item.expected_category else set()
         )
-        causes = {cause["id"] for cause in item.root_cause}
         report = next(
             (r for r in reports if (r.subject.task_id, r.subject.task_digest) == binding), None
         )
@@ -913,8 +916,6 @@ def score_findings(
                 "verified_hit": bool(verified),
                 "flagged_hit": bool(standing) or bool(report and report.signals),
                 "category_match": any(f.category in categories for f in verified),
-                "root_cause_match": any(f.root_cause_id in causes for f in verified),
-                "root_cause_aligned": any(f.root_cause_id is not None for f in verified),
                 "measured": bool(report and report.quality_complete),
                 "observed": report is not None,
                 "label_strength": item.label_strength,
@@ -940,12 +941,6 @@ def score_findings(
         "verified_false_alarm_rate": rate(negatives, "verified_hit"),
         "flagged_false_alarm_rate": rate(negatives, "flagged_hit"),
         "category_match_recall": rate(positives, "category_match"),
-        "root_cause_match_recall": (
-            rate(positives, "root_cause_match")
-            if any(row["root_cause_aligned"] for row in positives)
-            else None
-        ),
-        "root_cause_alignment_fraction": rate(positives, "root_cause_aligned"),
         "measured_fraction": rate(rows, "measured"),
         "observed_fraction": rate(rows, "observed"),
         "digest_mismatches": mismatched,
@@ -1057,62 +1052,32 @@ def task_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         return 1
 
 
-SCOREBOARD_COLUMNS = [
-    "date_utc",
-    "key_id",
-    "split",
-    "category",
-    "agent",
-    "system",
-    "recall",
-    "false_alarm_rate",
-    "root_cause_match",
-    "paired_discrimination",
-    "cost_per_item_usd",
-    "n_items",
-    "n_measured",
-    "n_pairs",
-    "n_pairs_measured",
-    "status",
-    "notes",
-]
-
-
-def append_scoreboard_row(path: Path, result: dict[str, Any], *, level: str) -> None:
-    """Append one row in the shared QA scoreboard schema; refuse on schema mismatch."""
-    if path.is_file():
-        with path.open(newline="") as stream:
-            if next(csv.reader(stream), None) != SCOREBOARD_COLUMNS:
-                raise ValueError("scoreboard schema does not match; refusing to append")
-    exists = path.is_file()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    root_cause = result["root_cause_match_recall"] if level == "verified" else None
-    row = {
-        "date_utc": utcnow(),
-        "key_id": result["key_id"],
-        "split": result["split"],
-        "category": "all",
-        "agent": "QA Task",
-        "system": f"qa-task@{level}",
-        "recall": result[f"{level}_recall"],
-        "false_alarm_rate": result[f"{level}_false_alarm_rate"],
-        "root_cause_match": "n/a" if root_cause is None else root_cause,
-        "paired_discrimination": "n/a",
-        "cost_per_item_usd": result["cost_per_item_usd"],
-        "n_items": result["items"],
-        "n_measured": sum(r["measured"] for r in result["rows"]),
-        "n_pairs": 0,
-        "n_pairs_measured": 0,
-        "status": "partial defensive audit; live S2/S3 not run",
-        "notes": f"coverage={result['measured_fraction']}; observed={result['observed_fraction']}; "
-        f"negative labels={result['negative_label_strengths']}; "
-        "missing measurements are not passes; flags are not verified defects",
-    }
-    with path.open("a", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=SCOREBOARD_COLUMNS)
-        if not exists:
-            writer.writeheader()
-        writer.writerow(row)
+def scoreboard_row(result: dict[str, Any], *, level: str) -> ScoreRow:
+    """One shared-board row; flagged and verified are separate ``system`` labels."""
+    return ScoreRow(
+        date_utc=utcnow(),
+        key_id=result["key_id"],
+        split=result["split"],
+        category="all",
+        agent="QA Task",
+        system=f"qa-task@{level}",
+        recall=result[f"{level}_recall"],
+        false_alarm_rate=result[f"{level}_false_alarm_rate"],
+        root_cause_match=None,
+        paired_discrimination=None,
+        cost_per_item_usd=result["cost_per_item_usd"],
+        n_items=result["items"],
+        n_measured=sum(r["measured"] for r in result["rows"]),
+        n_pairs=0,
+        n_pairs_measured=0,
+        status="partial defensive audit; live S2/S3 not run",
+        notes=(
+            "denominators are ALL selected items, not only measured ones; "
+            f"coverage={result['measured_fraction']}; observed={result['observed_fraction']}; "
+            f"negative labels={result['negative_label_strengths']}; "
+            "missing measurements are not passes; flags are not verified defects"
+        ),
+    )
 
 
 def score_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
@@ -1121,17 +1086,16 @@ def score_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
             key_dir=resolve_key(root, args.key), findings_dir=args.findings, split=args.split
         )
         if args.scoreboard is not None:
-            append_scoreboard_row(args.scoreboard, result, level=args.level)
+            append_scoreboard([scoreboard_row(result, level=args.level)], args.scoreboard)
         print(json.dumps(result, indent=2))
         return 0
     except (OSError, ValueError) as exc:
-        print(f"qa score: {exc}", file=sys.stderr)
+        print(f"qa task-score: {exc}", file=sys.stderr)
         return 1
 
 
-def build_qa_parser(commands: Any) -> None:
-    qa = commands.add_parser("qa", help="Defensive task audits and external answer-key scoring")
-    sub = qa.add_subparsers(dest="qa_command", required=True)
+def add_task_commands(sub: Any) -> None:
+    """Register ``task`` and ``task-score`` under the shared ``evallab qa`` parser."""
     task = sub.add_parser(
         "task", help="Neutral controls, rubric review and read-only evidence import"
     )
@@ -1152,7 +1116,8 @@ def build_qa_parser(commands: Any) -> None:
     task.add_argument("--triplet", type=Path, help="Inert measurement triplet JSON; never replayed")
     task.set_defaults(func=task_command)
     score = sub.add_parser(
-        "score", help="Digest-bound scores; unmeasured items never count as pass"
+        "task-score",
+        help="Digest-bound task-audit scores (flagged vs verified); unmeasured never counts as pass",
     )
     score.add_argument("--key", required=True)
     score.add_argument("--findings", type=Path, required=True)

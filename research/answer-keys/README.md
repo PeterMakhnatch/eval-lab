@@ -1,12 +1,14 @@
 # Answer keys (qa.answer_key/v1)
 
 An answer key is committed research data: a labelled set of benchmark task
-packages used to score `evallab qa task` (`evallab qa score --key <key_id>
---findings <run_dir> [--split dev|heldout]`). Digests (`subject.task_digest`,
-computed with `evallab.registry.task_directory_digest` on the exact labelled
-package dir) pin the package bytes the label applies to; a label does not
-transfer to a different checkout or commit of the same task name. Findings and
-task reports bind to an answer-key item only when
+packages used to score `evallab qa task` via `evallab qa task-score --key
+<key_id> --findings <run_dir> [--split dev|heldout]` (or the shared
+`evallab qa score --key <key_id> --findings <run_dir>/findings`). Digests
+(`subject.task_digest`, computed with
+`evallab.registry.task_directory_digest` on the exact labelled package dir) pin
+the package bytes the label applies to; a label does not transfer to a
+different checkout or commit of the same task name. In `evallab qa task-score`,
+findings and task reports bind to an answer-key item only when
 `(subject.task_id, subject.task_digest)` matches exactly; same-`task_id`
 findings or reports (including signal-only reports) with a different digest are
 excluded from hits and counted in `digest_mismatches`.
@@ -40,7 +42,11 @@ insufficient checking, loopholes), `prompt_misaligned` (instruction and
 tests disagree / underspecified). Negatives have `expected_verdict: "pass"`,
 `expected_category: null`, `expected_categories: []`, `root_cause: []`.
 
-## Scoring contract (`evallab.qa_task.score/v1`)
+## Task-audit scoring (`evallab qa task-score`)
+
+`evallab.qa.task.score_findings` (`evallab.qa_task.score/v1`) scores all
+selected items in `--split` (denominators are **all selected items**, not only
+measured ones):
 
 - **Verified vs flagged hits**:
   - `verified_recall` (on `expected_verdict == "fail"`) and
@@ -52,16 +58,19 @@ tests disagree / underspecified). Negatives have `expected_verdict: "pass"`,
     least one standing unrefuted digest-bound `Finding` (`fault == "eval"`,
     `verdict != "pass"`, `refutation.status != "refuted"`) **or** at least one
     unreproduced `Signal` in `report.signals` (from `S1` rubric review or `S0`
-    leak inspection).
-- **Category match vs root-cause match**:
+    leak inspection). Note that the shared `evallab qa score` command reads only
+    measured `pass`/`fail` findings in `<run>/findings/` and does not inspect
+    `tasks/*/report.json` `signals`.
+- **Category match and passive `root_cause` provenance**:
   - `category_match_recall` checks whether a verified finding's coarse
     `category` is in `expected_category` / `expected_categories`.
-  - `root_cause_alignment_fraction` reports the share of positive items that
-    have at least one verified finding with a non-null `root_cause_id`.
-  - `root_cause_match_recall` checks whether a verified finding's explicit
-    `root_cause_id` matches an entry `id` in `item.root_cause`, and is `null`
-    when no verified finding on a positive item carries a non-null
-    `root_cause_id`. **Coarse category agreement is not a root-cause match.**
+  - `Finding` does not carry `root_cause_id`, and `evallab qa task-score` does
+    not compute root-cause matching (the `root_cause` array on each item is
+    passive source provenance; on the shared scoreboard CSV,
+    `evallab qa task-score --scoreboard <csv>` writes `n/a` for
+    `root_cause_match` under system `qa-task@verified` or `qa-task@flagged`,
+    whereas the shared `evallab qa score` uses its `root_cause_match` column for
+    category-level match).
 - **Measuredness, coverage, and split-scoped cost**: `observed_fraction` is the
   share of selected items with a digest-bound `TaskReport`;
   `measured_fraction` is the share whose `TaskReport` has
@@ -72,8 +81,8 @@ tests disagree / underspecified). Negatives have `expected_verdict: "pass"`,
   `cost_per_item_usd` sum only over the digest-bound reports matching the
   selected split.
 - **No paired discrimination**: task answer keys contain standalone task
-  packages rather than paired clean/cheat trajectories, so `score_findings`
-  does not compute or claim paired discrimination.
+  packages rather than paired clean/cheat trajectories, so
+  `paired_discrimination` is `n/a`.
 
 ## Split rule
 

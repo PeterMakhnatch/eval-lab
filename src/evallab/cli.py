@@ -7431,9 +7431,6 @@ def parser() -> argparse.ArgumentParser:
     from evallab.mimo_census import build_mimo_census_parser
 
     build_mimo_census_parser(commands)
-    from evallab.qa_task import build_qa_parser
-
-    build_qa_parser(commands)
     from evallab.interop import build_interop_parser
 
     build_interop_parser(commands)

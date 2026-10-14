@@ -75,3 +75,7 @@ def build_qa_parser(commands: argparse._SubParsersAction) -> None:
     )
     score.add_argument("--json", action="store_true")
     score.set_defaults(func=_score_command)
+
+    from evallab.qa.task import add_task_commands
+
+    add_task_commands(sub)

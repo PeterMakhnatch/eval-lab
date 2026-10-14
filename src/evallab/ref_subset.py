@@ -83,15 +83,20 @@ Status = Literal[
 
 _DOC_SUFFIXES = frozenset({".md", ".rst", ".txt", ".adoc", ".rdoc"})
 _DOC_NAMES = ("changelog", "changes", "history", "news", "authors", "contributors")
-#: Directories whose files are documentation, examples or release plumbing, not graded code.
+#: Directories whose files are documentation, examples or CI plumbing, not graded code.
 _NONCODE_DIRS = frozenset(
     {"doc", "docs", "example", "examples", "sample", "samples", "benchmark", "benchmarks",
-     ".github", "changelog.d", "newsfragments"}
+     ".github", ".circleci"}
 )  # fmt: skip
-#: Packaging manifests and lock files: release plumbing, never what a hidden test exercises.
+#: Top-level release-note fragment directories (towncrier and friends); only at the root,
+#: because a package may well be called ``news`` or ``changes``.
+_RELEASE_NOTE_DIRS = frozenset({"news", "changes", "changelog.d", "newsfragments"})
+#: Packaging manifests, lock files and repository dotfiles: never what a hidden test exercises.
 _NONCODE_NAMES = frozenset(
     {"manifest.in", "go.sum", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "cargo.lock",
-     "poetry.lock", "pipfile.lock", "uv.lock", "composer.lock", "gemfile.lock"}
+     "poetry.lock", "pipfile.lock", "uv.lock", "composer.lock", "gemfile.lock", ".gitignore",
+     ".gitattributes", ".editorconfig", ".mailmap", ".pre-commit-config.yaml", ".travis.yml",
+     "appveyor.yml", ".readthedocs.yml", ".readthedocs.yaml"}
 )  # fmt: skip
 _HASH_COMMENT = frozenset({".py", ".sh", ".bash", ".rb", ".pl", ".r", ".yaml", ".yml", ".toml"})
 _SLASH_COMMENT = frozenset(
@@ -145,6 +150,7 @@ def block_kind(
         or (suffix == "" and name.startswith(_DOC_NAMES))
         or name in _NONCODE_NAMES
         or any(part.lower() in _NONCODE_DIRS for part in pure.parts[:-1])
+        or (len(pure.parts) > 1 and pure.parts[0].lower() in _RELEASE_NOTE_DIRS)
     ):
         return "noncode"
     prefixes: tuple[str, ...] = ()

@@ -274,6 +274,18 @@ NODE_FOLD_TASKS = NODE_FOLD_REAL | NODE_FOLD_AT_RISK
 #: re-verification can go uniform @9.
 SEPARATE_V9_TASKS = frozenset({"format-code-task-001431"})
 
+#: Tasks folded onto ``separate-verifier@10`` inside mimo-clean-v5 (per-row
+#: chain records @10 honestly; everything else stays @8/@9 for
+#: digest-stability). 000245 (TS) and 000048 (Go) are opaque-wrapper tasks
+#: whose hidden patch creates mimo_build_env.tar.gz.b64 /
+#: mimo_test_command.sh in the workdir; under RepeatVerifier (repeat_n=3,
+#: same verifier container) @9 recaptured those leftovers as PRISTINE and
+#: the repeat apply failed "already exists". @10 anchors the first
+#: pristine tree and resets to it on every invocation, keeping every @9
+#: grading rule (incl. 001431, which stays on @9). A future rebuild with
+#: budget for full re-verification can go uniform @10.
+SEPARATE_V10_TASKS = frozenset({"format-code-task-000245", "format-code-task-000048"})
+
 #: Chain generations by clean-set version id (v4 stays the default until
 #: the v5 census completes; NB: never mix generations in one manifest).
 CLEAN_SET_VERSION_V5 = "mimo-clean-v5"
@@ -1114,14 +1126,20 @@ class ChainBuilder:
         solution_tag = (
             "absent" if solution_sh is None else f"sha256:{hashlib.sha256(solution_sh).hexdigest()}"
         )
-        # The verifier generation follows the row: v5 SEPARATE_V9_TASKS derive
-        # @9, everything else keeps the chain's generation. The recorded
-        # result.chain carries the actually-derived id per row.
+        # The verifier generation follows the row: v5 SEPARATE_V10_TASKS
+        # derive @10, SEPARATE_V9_TASKS derive @9, everything else keeps
+        # the chain's generation. The recorded result.chain carries the
+        # actually-derived id per row.
         separate_id = (
-            SEPARATE_V9_ID
-            if SEPARATE_V9_ID in chain
-            or (task_id in SEPARATE_V9_TASKS and self.clean_version == CLEAN_SET_VERSION_V5)
-            else chain[-2]
+            SEPARATE_V10_ID
+            if SEPARATE_V10_ID in chain
+            or (task_id in SEPARATE_V10_TASKS and self.clean_version == CLEAN_SET_VERSION_V5)
+            else (
+                SEPARATE_V9_ID
+                if SEPARATE_V9_ID in chain
+                or (task_id in SEPARATE_V9_TASKS and self.clean_version == CLEAN_SET_VERSION_V5)
+                else chain[-2]
+            )
         )
         separate_derive = (
             derive_separate_verifier_v10
@@ -1679,6 +1697,8 @@ __all__ = [
     "SEPARATE_V7_ID",
     "SEPARATE_V8_ID",
     "SEPARATE_V9_ID",
+    "SEPARATE_V10_ID",
+    "SEPARATE_V10_TASKS",
     "SEPARATE_V9_TASKS",
     "STATUS_BUILT",
     "STATUS_SKIPPED",

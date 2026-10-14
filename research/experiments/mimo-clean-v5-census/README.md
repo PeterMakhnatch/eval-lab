@@ -534,3 +534,16 @@ candidates), repaired 0, retained-with-note 27.
 | format-code-task-000838 | unfair | exclude | fail:unfair-task:prompt-misaligned | hidden pins exact `Your command` casing + `hide_command` name never stated |
 | candidate-1789 (candidate-1789-security-appsec) | unfair/env-broken | exclude (not in v5) | n/a — no manifest row | terminal task, not format-code-task-001789; bandit metadata missing; env-dependency@1 + terminal-guard-extend@1 are separate variants, never combined |
 | candidate-1702 (candidate-1702-ml-inference) | unfair/env-broken suspected | exclude (not in v5) | n/a — no manifest row | terminal task distinct from format-code-task-001702 (JS, untouched); tqdm fix env-dependency@1 is a separate candidate, unverified by Docker here |
+
+## Repeat-oracle fix (separate-verifier@10 fold, 2026-10-14, $0 local)
+
+Folded `format-code-task-000245` (TypeScript) and `format-code-task-000048` (Go) onto `separate-verifier@10` to fix the repeat-3 oracle snapshot bug (where run 0's untracked files caused `git apply` to fail with `already exists` on repeat runs).
+
+Local Docker verification (`RepeatVerifier repeat_n=3`, 1 container at a time, images removed after each task):
+
+| task_id | digest | oracle x3 | nop | job paths |
+|---|---|---|---|---|
+| format-code-task-000245 | `sha256:35a598db08e6f49a4dac34dd503f5003caf37141b1617cf4f11930621be6023f` | `[1.0, 1.0, 1.0]` | `0.0` | `v10-000245-oracle-35a598db08e6`, `v10-000245-nop-35a598db08e6` |
+| format-code-task-000048 | `sha256:673816e51dbc84653b4fbfe52f20e2b253a1aefc8d2b53a2d7e08e6d9a70eadb` | `[1.0, 1.0, 1.0]` | `0.0` | `v10-000048-oracle-673816e51dbc`, `v10-000048-nop-673816e51dbc` |
+
+Results written to `~/Developer/eval-lab-results/2026-10-14/repeat-oracle-fix/`.

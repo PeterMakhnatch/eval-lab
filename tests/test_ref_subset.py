@@ -100,6 +100,10 @@ def test_block_kind_by_path_and_comment_syntax() -> None:
     # A module merely named like a doc file is code.
     assert block_kind("pkg/history.py", ["x = 1\n"], ["x = 2\n"], tests) == "code"
     assert block_kind("HISTORY", [], ["1.0: fix\n"], tests) == "noncode"
+    # Release-note fragments count only at the repository root; a package named `news` is code.
+    assert block_kind("news/6795.bugfix", [], ["Fix auth.\n"], tests) == "noncode"
+    assert block_kind("src/news/feed.py", ["x = 1\n"], ["x = 2\n"], tests) == "code"
+    assert block_kind(".gitignore", [], ["build/\n"], tests) == "noncode"
     # A reset-test file is a test even though its lines are code.
     assert block_kind("tests/test_a.py", ["x = 1\n"], ["x = 2\n"], tests) == "test"
     assert block_kind("tests/test_b.py", ["x = 1\n"], ["x = 2\n"], tests) == "code"

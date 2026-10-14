@@ -531,7 +531,7 @@ def combined_literals(
 ) -> tuple[str, list[list[Any]]]:
     """``combined_v1`` 5%-FPR literals for ``source`` (group default when unknown)."""
     thresholds = _thresholds()
-    if source in thresholds["per_source"]:
+    if source is not None and source in thresholds["per_source"]:
         return source, thresholds["per_source"][source]["fpr<=5%"]
     if setting == "single_turn_rl":
         return "pooled_aria_olmo", thresholds["pooled_aria_olmo"]
@@ -758,7 +758,6 @@ def _extract_json(text: str) -> dict[str, Any] | None:
 def _schema_problems(schema: dict[str, Any], value: Any, where: str = "$") -> list[str]:
     """The subset of JSON Schema the reviewer schemas use."""
     kind = schema.get("type")
-    kinds = kind if isinstance(kind, list) else [kind]
     checks = {
         "object": lambda v: isinstance(v, dict),
         "array": lambda v: isinstance(v, list),
@@ -767,8 +766,10 @@ def _schema_problems(schema: dict[str, Any], value: Any, where: str = "$") -> li
         "integer": lambda v: isinstance(v, int) and not isinstance(v, bool),
         "null": lambda v: v is None,
     }
-    if kind and not any(checks[k](value) for k in kinds):
-        return [f"{where}: expected {kind}"]
+    if kind is not None:
+        kinds: list[str] = kind if isinstance(kind, list) else [kind]
+        if not any(checks[k](value) for k in kinds):
+            return [f"{where}: expected {kind}"]
     if "enum" in schema and value not in schema["enum"]:
         return [f"{where}: {value!r} not in {schema['enum']}"]
     problems: list[str] = []
@@ -878,7 +879,7 @@ def call_model(
                 schema_path, last, events = (
                     work / "schema.json",
                     work / "last.txt",
-                    work / "events.jsonl",
+                    work / "codex-transcript.jsonl",
                 )
                 schema_path.write_text(json.dumps(schema))
                 argv = _codex_argv(route, cwd=cwd, schema=schema_path, last=last, tools=tools)
@@ -1414,7 +1415,7 @@ def t4_verdict(
     raised = raised_claims(t0, t1, t2, skips)
     rulings = (t3 or {}).get("rulings", {})
     t2_claims = {c["question"]: c for c in (t2 or {}).get("claims", [])}
-    findings = []
+    findings: list[dict[str, Any]] = []
     for question in QUESTIONS:
         category = CATEGORY[question]
         review = t1.get(question) or {}
@@ -1537,7 +1538,7 @@ def t4_verdict(
         "failure_step": (owner_source or {}).get("failure_step"),
         "flagged_any": bool(fails) if measured else None,
         "abstain": not measured,
-        "confidence": max((f["confidence"] or 0.0 for f in fails), default=None),
+        "confidence": max((float(f["confidence"] or 0.0) for f in fails), default=None),
         "findings": [f["finding_id"] for f in findings],
         "stages_run": sorted(
             s for s, v in (("T0", t0), ("T1", t1 or None), ("T2", t2), ("T3", t3)) if v is not None
@@ -1700,7 +1701,7 @@ def run_trial(
 
 
 def run_many(
-    jobs: list[tuple[str, Callable[[], dict[str, Any]]]],
+    jobs: Iterable[tuple[str, Callable[..., dict[str, Any]]]],
     *,
     workers: int,
     log: Callable[[str], None] = print,
@@ -2126,7 +2127,7 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
         items = key_subset(
             load_key(args.key), split=args.split, instances=args.instances, seed=args.seed
         )
-        rows = {
+        trajectories = {
             json.loads(x)["trajectory_id"]: json.loads(x)
             for x in (args.key / "trajectories.jsonl").read_text().splitlines()
             if x.strip()
@@ -2140,7 +2141,7 @@ def _cmd(args: argparse.Namespace, root: Path, **_: Any) -> int:
             bundle = (
                 Bundle.load(bundle_dir)
                 if (bundle_dir / "bundle.json").is_file()
-                else tj_bundle(rows[trial], bundle_dir, key_id=args.key.name)
+                else tj_bundle(trajectories[trial], bundle_dir, key_id=args.key.name)
             )
             return review_bundle(bundle, out, config=config)
 

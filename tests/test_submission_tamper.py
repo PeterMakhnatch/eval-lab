@@ -1,9 +1,9 @@
-"""Unit tests for evallab.submission_tamper: holes closed, silences kept."""
+"""Unit tests for evallab.tripwires submission tamper: holes closed, silences kept."""
 
 from __future__ import annotations
 
 from evallab.separate_verifier import V3_TAMPER_SIGNATURES
-from evallab.submission_tamper import (
+from evallab.tripwires import (
     WATCH_TAMPER_SIGNATURES,
     always_equal_hit,
     cluster_threshold,

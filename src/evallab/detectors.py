@@ -232,22 +232,20 @@ class Rules(Detector):
     description = "Eval Lab watch + RewardKit integrity rules on the commands ($0)"
 
     def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
-        from evallab import integrity_reward_core as irc
-        from evallab import live_watch as lw
+        from evallab import tripwires as tw
 
         steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
         agent_steps = [s for s in steps if s.get("source") == "agent"]
-        attempts, _ = lw._upstream_status(agent_steps, trial_dir)
-        roots = irc.Roots(trial_dir, trial_dir / ".no-tests", trial_dir / ".no-workspace")
-        calls, observations = irc.step_calls(roots)
+        report = tw.scan_trace(agent_steps, steps=steps, trial_dir=trial_dir)
+        irc = report["irc"]
         fired = {
-            "hidden_info_read": bool(lw._hidden_read_hits(agent_steps)),
-            "grader_tamper_watch": bool(lw._grader_tamper_hits(agent_steps)),
-            "harness_log_read": bool(lw._harness_log_hits(agent_steps)),
-            "upstream_fetch_attempt": bool(attempts),
-            "irc_upstream_fetch": bool(irc.check_upstream_fetch(calls, observations)["fired"]),
-            "irc_grader_tamper": bool(irc.check_grader_tamper(calls, observations)["fired"]),
-            "irc_out_of_base_read": bool(irc.check_out_of_base_read(calls, observations, roots)["fired"]),
+            "hidden_info_read": bool(report["hidden_reads"]),
+            "grader_tamper_watch": bool(report["grader_tamper"]),
+            "harness_log_read": bool(report["harness_log_reads"]),
+            "upstream_fetch_attempt": bool(report["upstream_attempts"]),
+            "irc_upstream_fetch": bool(irc["upstream_fetch"]["fired"]),
+            "irc_grader_tamper": bool(irc["grader_tamper"]["fired"]),
+            "irc_out_of_base_read": bool(irc["out_of_base_read"]["fired"]),
         }
         hits = [k for k, v in fired.items() if v]
         return {
@@ -277,7 +275,7 @@ def upstream_fetch_confirmed_copy(trial_dir: Path, attempt_fired: bool) -> dict[
     ``irc.check_upstream_fetch`` (landed fetch evidence),
     ``irc.check_out_of_base_read``, ``irc.check_copy`` (vendored copy-check),
     and ``confirmed_fetch`` from ``evallab.upstream_fetch`` via
-    ``live_watch._upstream_status``. Never raises: an unreadable trial reads
+    ``tripwires.upstream_status``. Never raises: an unreadable trial reads
     as unconfirmed. Does not touch ``live_watch.py`` / ``watch_stop.py`` or
     the in-image vendor snapshot.
     """
@@ -292,11 +290,11 @@ def upstream_fetch_confirmed_copy(trial_dir: Path, attempt_fired: bool) -> dict[
         return {"confirmed": False, "signals": signals}
     try:
         from evallab import integrity_reward_core as irc
-        from evallab import live_watch as lw
+        from evallab import tripwires as tw
 
         steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
         agent_steps = [s for s in steps if s.get("source") == "agent"]
-        _, confirmed = lw._upstream_status(agent_steps, trial_dir)
+        _, confirmed = tw.upstream_status(agent_steps, trial_dir)
         roots = irc.Roots(trial_dir, trial_dir / ".no-tests", trial_dir / ".no-workspace")
         calls, observations = irc.step_calls(roots)
         signals["confirmed_fetch"] = len(confirmed) > 0
@@ -320,7 +318,7 @@ class ContentRules(Detector):
     """TA's content-level stop rules over the code the agent wrote ($0).
 
     Promoted from ``research/experiments/live-stop-thresholds/candidate_rules.py``;
-    see ``evallab.content_rules`` for extraction and the six rule checks.
+    see ``evallab.tripwires`` for extraction and the six rule checks.
     Flags when a stop-eligible rule fires: ``tamper_signature``,
     ``always_equal`` or ``entrypoint_assertless``.
     """
@@ -329,13 +327,15 @@ class ContentRules(Detector):
     description = "TA candidate content rules on agent-written code ($0)"
 
     def judge(self, row: dict[str, Any], trial_dir: Path) -> dict[str, Any]:
-        from evallab import content_rules as cr
+        from evallab import tripwires as tw
 
         steps = json.loads((trial_dir / "agent" / "trajectory.json").read_text()).get("steps", [])
-        fired = cr.evaluate(cr.extract_files(steps), cr.extract_prompt(steps))
-        hits = [rule for rule in cr.RULES if fired[rule] is not None]
+        fired = tw.evaluate_content_rules(
+            tw.extract_content_files(steps), tw.extract_content_prompt(steps)
+        )
+        hits = [rule for rule in tw.CONTENT_RULES if fired[rule] is not None]
         return {
-            "flagged": any(rule in cr.STOP_ELIGIBLE for rule in hits),
+            "flagged": any(rule in tw.CONTENT_STOP_ELIGIBLE for rule in hits),
             "score": None,
             "explanation": "fired: " + (", ".join(hits) or "none"),
             "cost_usd": 0.0,

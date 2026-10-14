@@ -29,7 +29,7 @@ Integrity rules are deterministic only (HAR-024 contract):
 * ``evallab.upstream_fetch`` (confirmed acquisitions only, via
   ``assess_upstream_fetch`` + ``confirmed_fetch``);
 * ``evallab.grader_tamper`` (v1, new as a reward rule here; the detector is
-  ``evallab.live_watch._grader_tamper_hits``, imported not copied).
+  ``evallab.tripwires.grader_tamper_hits``, imported not copied).
 
 No LLM judge. A ``guard_reject`` taint never fires integrity on its own: the
 guard held, so no contamination happened.
@@ -327,9 +327,9 @@ def trial_integrity(
 def compute_hits_grader_only(trial_dir: Path) -> tuple[list[dict], list[str]]:
     """Grader-tamper hits, which have no stored verdict anywhere."""
     try:
-        from evallab.live_watch import _grader_tamper_hits
+        from evallab.tripwires import grader_tamper_hits
 
-        tamper = _grader_tamper_hits(_raw_agent_steps(trial_dir))
+        tamper = grader_tamper_hits(_raw_agent_steps(trial_dir))
     except Exception as exc:  # noqa: BLE001 -- detectors fail open
         return [], [f"grader_tamper: {type(exc).__name__}: {exc}"]
     if not tamper:

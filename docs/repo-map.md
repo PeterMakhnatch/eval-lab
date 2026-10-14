@@ -70,8 +70,6 @@ inputs:
     digest: sha256:16512819741471bba44cb2cba6525990319912db3ffd0e896b37ba9c50d6caac
   - path: src/evallab/contamination.py
     digest: sha256:fb21b7b45bbaec5d1094e6dcd8d7b53e5f43a567b10558ce86089d869b3a781b
-  - path: src/evallab/content_rules.py
-    digest: sha256:7984ffcd050b620e42f1e5cd7db93eb84d5cb8bbc4799673616337fc4e831cad
   - path: src/evallab/contextpack.py
     digest: sha256:b1ef5405127176a3e845be1a9faa37fea12b7a5538bdd5df2db14e9b78589b96
   - path: src/evallab/continuous_control_plane.py
@@ -113,7 +111,7 @@ inputs:
   - path: src/evallab/deepplanning.py
     digest: sha256:82d416cc459c600c447339aa1c088e9e2216f068bfc58eb17c00bd198d8560bf
   - path: src/evallab/detectors.py
-    digest: sha256:bca9963fa8112713b9a36dd7e53e7e37785bdfe5ef8baed26aa0bb00d4e358ed
+    digest: sha256:3ec672c9c74eb932dd5a7abef616df203e647bac4d366b95ff31f57bf3832c04
   - path: src/evallab/devloop.py
     digest: sha256:4683621e2f3a68c9486edca0593d0c919723449bee20fa4d57d64dbde7edbaf1
   - path: src/evallab/digest.py
@@ -237,7 +235,7 @@ inputs:
   - path: src/evallab/harbor_glm_selfhosted.py
     digest: sha256:868a7ecba6f889d4cc3a9ab5aac5319a729fbd90cb5aa068a51a283833180dc0
   - path: src/evallab/harbor_host_isolation.py
-    digest: sha256:c519dc7b0dad4aa9cf7b79a42e705e19ac5b58429de2242bee0ad797886223cb
+    digest: sha256:b3d6db65f34f98d53829495ecfb297cb7a0204351a33d5dc537fb6060d75dd48
   - path: src/evallab/harbor_laminar.py
     digest: sha256:259e0fba1d6e06274549c748c6c79b7f1216ea5e341ace5e92677234a78a04df
   - path: src/evallab/harbor_mimoagent.py
@@ -253,7 +251,7 @@ inputs:
   - path: src/evallab/harbor_terminus.py
     digest: sha256:7567699fb4da47f9e42a56d3a03fb35fd4b78f239fb23ce7785b2b0072053543
   - path: src/evallab/harbor_view.py
-    digest: sha256:f47571d63fa52ca33fc92c0cfec05b682611c7fa914ce31ad04e0ac73b5c2cfc
+    digest: sha256:b6df1f7fbec91469ce0560f89bf4ee7873869f7cbfe4b6d42361d4cce363b912
   - path: src/evallab/harbor_watch_hooks.py
     digest: sha256:30c260dd4498a2ebd7a505ce1738f2a67072e0c0924ee7f1bc0909fdeff280a5
   - path: src/evallab/harbor_zai_miniswe.py
@@ -429,7 +427,7 @@ inputs:
   - path: src/evallab/lineage.py
     digest: sha256:d4cb657bc9ed6d0f7f951490126175cccde655ed869cd179d0621e74b3b0679d
   - path: src/evallab/live_watch.py
-    digest: sha256:9315c51208d2c7f87edebabc4cf1c8588d4b2d935f3410c77633757a7e43b6e6
+    digest: sha256:38b7c3bec43d4ca6aca1ba7b067412d89a20fab08cc15ade790c8bfd3ccb724c
   - path: src/evallab/loopfix.py
     digest: sha256:c3b84df9b0f7d904d7298f58626b045c5793937dfecb3d54b8a478e6c3b0843f
   - path: src/evallab/mcp_substrate.py
@@ -499,15 +497,15 @@ inputs:
   - path: src/evallab/purge_planted_test_infra.py
     digest: sha256:b8cad81b5bebe8d5a621d8e9276f3305075e38d42e9fcfe898bdd512db8188ff
   - path: src/evallab/qa/__init__.py
-    digest: sha256:7c7658b1f975b619e3b5ac97dbbbd036269966a31e640186178b5cdd15772f02
+    digest: sha256:5855b2da9ebb038b07dc7d754262281763383cb6c7add2fafff96df19b39641d
   - path: src/evallab/qa/answer_key.py
-    digest: sha256:77ba3a55fbc0290a2512eb8003605e003219182f7bc9f741e404cf5c2b145526
+    digest: sha256:cac9da6be15e9e1bfc29b430f1c412df1fd46f4d8de335961d07959068e3545d
   - path: src/evallab/qa/cli.py
     digest: sha256:a980f6f50a1baa91a83deb09c5d98409a98539654f4be01014eb2be5281be1c3
   - path: src/evallab/qa/models.py
-    digest: sha256:fe6cd6d19b9fbb420330c6dced5f340a3f6a32bf1be007b12f6179f686908814
+    digest: sha256:7f57e379ac76c1fd50771e820aebb0834866fbcaf10164e4cf8c0dd1e322a0f3
   - path: src/evallab/qa/score.py
-    digest: sha256:f3fc0ea26b78a6d4f06f882c7dde8fcc89032b33f4cf4606ef9cdff5133a8390
+    digest: sha256:c8927d2d29dd07a5bff6f86ed3fb3b4edfbd0f98195be126e8d67fd0bc017d28
   - path: src/evallab/quality_audit.py
     digest: sha256:a6c4c575c999c1eb58dd5ebc2059204a80a778f8f1014985a0a8a3e112d9a997
   - path: src/evallab/queue.py
@@ -532,6 +530,8 @@ inputs:
     digest: sha256:d622d6a0e3e94433202657a8a5f9d93103f4b20154d233d5c5982bd5a4701de9
   - path: src/evallab/recovery/wrapper.py
     digest: sha256:83a3882cf0c364b61a7865912e10c17a1b0275e86677b2279846b8ceb845f972
+  - path: src/evallab/ref_subset.py
+    digest: sha256:d8da09d164a36ee2cdcf800cca1187201a892ab0c1018dc5b1a11f24339e4b37
   - path: src/evallab/registry.py
     digest: sha256:7a7d980c894d4e1c97a518cdcf9e8fe8b1fbe37c9d1bf7fec33d8170f4e350ab
   - path: src/evallab/regrade.py
@@ -553,7 +553,7 @@ inputs:
   - path: src/evallab/results_viewer.py
     digest: sha256:b3129b0ca38805d8e085e1be6f3ffc3a8dbb14581341972f9493e3745225dd05
   - path: src/evallab/reward_hack.py
-    digest: sha256:a71a94bb77091f37f9de42672ad4c18d0d05413a08130c0a4eb9498b9c853cca
+    digest: sha256:e045e3c72a39ac5313c612c24d37730f17bbde98d83723c33cdcff519365defa
   - path: src/evallab/rl_rollouts.py
     digest: sha256:d6dceed26ce5a38fc64f162f398a606ae4af9fbf0fbb10e09145bcf4a3b32933
   - path: src/evallab/rlm/__init__.py
@@ -644,8 +644,6 @@ inputs:
     digest: sha256:8cae488087b0ab3202203ccbb1ce3bd4aa1030f03b2d79586ec18ffb32ac7075
   - path: src/evallab/strip_future_history.py
     digest: sha256:51287c62e0ef0a2672b97373a2e838ca4e2b1fd947850e35028334148ee084b3
-  - path: src/evallab/submission_tamper.py
-    digest: sha256:1953b2c1b5fe35446d37b3b325033799f936a9401deb2be58e03a0e7a0b756f2
   - path: src/evallab/synthetic_contracts.py
     digest: sha256:ebe2fa7b39605888d0aaccd0d7cd3b2ba4d1878c55e2624fc225bb27f7526daa
   - path: src/evallab/synthetic_funcdag.py
@@ -720,6 +718,8 @@ inputs:
     digest: sha256:2454359198adbe774a455639b0375be811365b0cf23ed02fd19a9d69ea3adfcf
   - path: src/evallab/trial_treatment.py
     digest: sha256:932748bb92147c7a6c240d9e40ad1baae5b028ade560ee69abc8c93a05fc0d5b
+  - path: src/evallab/tripwires.py
+    digest: sha256:aa78659362cbfd0c88ae7063cd4a0182897f67d5e52d3d2aa15f38ed65d27ddb
   - path: src/evallab/upstream_adapter.py
     digest: sha256:7ecf5e66b3e99887465bada34fcc09729dbffdc4346f95d79cb793bdd9bb82fb
   - path: src/evallab/upstream_fetch.py
@@ -808,7 +808,6 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `codeban` | 200 | Task-conditional code-ban rule for ``evallab watch`` (live recall boost). | — |
 | `cohort` | 2500 | One job's retained harness-tree binding after full evidence verification. | `compare`, `power` |
 | `contamination` | 100 | Contamination-audit labels: one verdict per audited agent pass. | — |
-| `content_rules` | 300 | Content-level cheat rules as an Eval Lab detector (``content_rules``). | — |
 | `contextpack` | 1300 | Context Pack Compiler (WS-B). | `python -m evallab.contextpack build`, `python -m evallab.contextpack list-docs` |
 | `continuous_control_plane` | 200 | Campaign ownership adapter for the disabled continuous operator. | — |
 | `copy_check` | 200 | Deterministic copy check for a finished trial (HAR-143). | — |
@@ -891,7 +890,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `harbor_docker` | 600 | Fail-closed, single-container Harbor 0.24 Docker execution. | — |
 | `harbor_file_access` | 1100 | Harbor job plugin observing protected files with ``inotifywait -m``. | — |
 | `harbor_glm_selfhosted` | 200 | GLM self-hosted and fine-tuned credential isolation for Harbor's mini-swe-agent adapter. | — |
-| `harbor_host_isolation` | 1000 | Multi-service Docker host isolation, enforced before sandbox execution. | — |
+| `harbor_host_isolation` | 1100 | Multi-service Docker host isolation, enforced before sandbox execution. | — |
 | `harbor_laminar` | 1300 | Live Laminar tracing lifecycle for Harbor mimoagent trials (HAR-165). | — |
 | `harbor_mimoagent` | 600 | Native Xiaomi DefaultAgent outside the task sandbox, with Harbor tool transport. | — |
 | `harbor_network` | 300 | Platform-aware Harbor Docker network policy for the execution staging adapter. | — |
@@ -987,7 +986,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `lego_capture` | 400 | Read-only structural assessment of saved LEGO-RL ``proxy_capture`` JSON. | — |
 | `lessons` | 1300 | Statistical lesson aggregation views and findings engine (WS-D). | — |
 | `lineage` | 600 | Lineage walker for generated artifacts (E14). | `lineage` |
-| `live_watch` | 2700 | Live run monitoring for in-progress Harbor trials (Traces lane). | `python -m evallab.live_watch watch`, `python -m evallab.live_watch ack`, `python -m evallab.live_watch stop` |
+| `live_watch` | 2200 | Live run monitoring for in-progress Harbor trials (Traces lane). | `python -m evallab.live_watch watch`, `python -m evallab.live_watch ack`, `python -m evallab.live_watch stop` |
 | `loopfix` | 300 | HAR-116 loop break and output cap, shared by replay and the live agent. | — |
 | `mcp_substrate` | 1900 | Shared FastMCP multi-container task-authoring substrate and runtime middleware. | — |
 | `mimo_census` | 2600 | Fleet-wide clean-set census (mimo-clean-census-v1). | — |
@@ -1023,10 +1022,10 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `purge_installed_copies` | 300 | Remove installed copies of a task's own project (``purge-installed-copies@1``). | — |
 | `purge_planted_test_infra` | 200 | Purge agent-planted test hooks before MiMo code grading. | — |
 | `qa` | 100 | Shared QA contract for the task/trace/breaker agents (FOCUS plan). | — |
-| `qa.answer_key` | 100 | Answer-key loading and imports (`qa.answer_key/v1`). | — |
+| `qa.answer_key` | 200 | Answer-key loading and imports (`qa.answer_key/v1`). | — |
 | `qa.cli` | 100 | ``evallab qa`` CLI: score a findings directory against an answer key. | — |
 | `qa.models` | 200 | Shared QA contract: findings, answer keys, and scoring (`qa.*` v1). | — |
-| `qa.score` | 200 | Score findings against an answer key; append rows to the scoreboard. | — |
+| `qa.score` | 300 | Score findings against an answer key; append rows to the scoreboard. | — |
 | `quality_audit` | 300 | HAR-25 harness-first cohort quality audit. | — |
 | `queue` | 3600 | The refusal an operator reads — in `submit` output and in queue/reasons/. | `submit`, `approve`, `reject`, `stop`, `resume`, `ingest`, `trajectories` |
 | `quota` | 1300 | Subscription-quota accounting for paid agents, measured instead of estimated. | — |
@@ -1039,6 +1038,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `recovery.bundle` | 200 | Defines `RecoveryContractModel`, `CommandOutcome`, `FileEntry`, `FilesystemManifest`, …. | — |
 | `recovery.certify` | 300 | Defines `CertificationCriterion`, `StateCertificate`, `evaluate_archive_hash`, `evaluate_manifest_equivalence`, …. | — |
 | `recovery.wrapper` | 100 | Format starting context for the recovery agent based on experimental message mode. | — |
+| `ref_subset` | 1300 | Reference-subset probe: does part of the reference fix already pass the hidden tests? QA Agent - Task, S2 executed probe (a sibling of ``evallab hack mutate``). | — |
 | `registry` | 2100 | Explicit task registry and admission trust boundary for eval-lab. | — |
 | `regrade` | 1500 | Zero-cost verifier re-scoring over recorded trials (`harbor trial regrade`). | — |
 | `repetition` | 600 | Deterministic, resume-safe repeated attempt matrix for TB4 campaigns. | `python -m evallab.repetition prepare`, `python -m evallab.repetition resume` |
@@ -1095,7 +1095,6 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `storage.trials` | 1000 | Transient DuckDB trial census (HAR-178). | — |
 | `storm` | 500 | Storm Alarms Engine: detect repeated reason_code events in queue logs. | — |
 | `strip_future_history` | 300 | Remove future git history from MiMo Code setups (``strip-future-history@1``). | — |
-| `submission_tamper` | 400 | Content-level tamper detection for ``evallab watch`` (live monitor v2). | — |
 | `synthetic_contracts` | 400 | Contracts and schemas for synthetic agent-capability evaluations (V0). | — |
 | `synthetic_funcdag` | 1300 | Cleanroom contamination-free Function-DAG synthetic task generator. | — |
 | `task_admission` | 1800 | Fail-closed task admission gate: static scan plus $0 controls plus cheat ladder plus mutation. | — |
@@ -1133,6 +1132,7 @@ AST-derived map of `src/evallab/`. Regenerated by
 | `trial_decision` | 900 | One-page trial decision, composed from records already on disk. | — |
 | `trial_diagnosis` | 1300 | Deterministic trial diagnosis: trajectory -> failure modes + bounded Reef feedback. | — |
 | `trial_treatment` | 1400 | Per-trial treatment keys and capture records (HAR-93). | — |
+| `tripwires` | 1400 | Deterministic trace tripwires: one shared rule surface for live + offline. | — |
 | `upstream_adapter` | 600 | Offline, file-only boundaries for pinned upstream evaluation results. | — |
 | `upstream_fetch` | 1100 | Detect agent trials that fetched upstream remote content (answer-leak guard). | — |
 | `vcheck` | 400 | VerifierCheck (``evallab vcheck``): red/blue verifier-audit orchestration. | — |

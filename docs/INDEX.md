@@ -99,7 +99,7 @@ inputs:
   - path: docs/parquet-compaction.md
     digest: sha256:72fc6098dfaca355ea83736015e8a8df4ec65abc98542dca20efa422d8d8daa5
   - path: docs/qa-contract.md
-    digest: sha256:a5123b75d93d18f44e72c1f3658c5c04ca5e35938c93d46b47ef90c980fd59fb
+    digest: sha256:a39a3688bd73962e39250f120b6c813657f17ff424d30be6be0badb281775ae6
   - path: docs/quality.md
     digest: sha256:4d0f58892a2de90c73f3950f0bd906b5c5e646449d3270641a582c28850d014d
   - path: docs/quota-accounting.md
@@ -133,7 +133,7 @@ inputs:
   - path: docs/task-provenance.md
     digest: sha256:26434a1d9e34d8d19e11a8435330f0fbabf5ce5a037751b053db8f762fce2db5
   - path: docs/task-quality.md
-    digest: sha256:5a64be4342e9b241ceffadb7ed1a90e07b762dd0b420f73c5cd44ff98b6eef61
+    digest: sha256:6c0d7ecc00941731da4c754ddbe7220721860d4d6b0dec60c75f2a025be6a9d4
   - path: docs/task-registry.md
     digest: sha256:cfa32a393cdec994821a83f763bfa9d363a48aeccbeaaa33cb06e5fd2a1f83fd
   - path: docs/task-stability.md

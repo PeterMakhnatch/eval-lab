@@ -1,0 +1,34 @@
+{
+  "schema": "qa.finding/v1",
+  "subject": {
+    "kind": "task",
+    "task_id": "format-code-task-000838",
+    "task_digest": "sha256:057b8b997c613ff5f597a441df21f6f980152365d038a6d12c2fe7dae64f8ef9"
+  },
+  "stage": "vacuous-unfair-triage-2026-10-14",
+  "verdict": "fail",
+  "category": "prompt_misaligned",
+  "severity": "medium",
+  "fault": "eval",
+  "evidence_refs": [
+    "derived/detector-roots/own-scan/fleet-grader-scan/out/vacuous.json",
+    "research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md#4",
+    "research/experiments/mimo-clean-v5-census/README.md"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "research/experiments/mimo-clean-v5-census/README.md",
+    "expected_reward": 0
+  },
+  "refutation": {
+    "status": "verified",
+    "by": "VacuousAndUnfairTriage",
+    "reason": "hidden pins exact Your command casing and hide_command name not stated; excluded fail:unfair-task:prompt-misaligned"
+  },
+  "reviewer": {
+    "agent": "VacuousAndUnfairTriage",
+    "model": "meta/muse-wonder-1.0-contributor:xhigh",
+    "tokens": 0,
+    "cost_usd": 0
+  }
+}

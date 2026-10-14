@@ -62,6 +62,8 @@ and the reason for each step are in [separate-verifier.md](separate-verifier.md)
 - `fail:open-leak:env-dependency` (5): the answer is readable in a legitimate
   dependency the environment needs (001478, 001671, 001945, 001971, 002414).
 - `fail:open-leak:node-build-pnpm` (1): 000928.
+- `fail:vacuous-grader:compile-only` (1): 001694; `fail:unfair-task:*` (5):
+  001833, 000865, 002661, 000803, 000838 (2026-10-14 triage below).
 - `env-broken` (11) and the 32 ledger discards.
 
 ## How "clean" is verified
@@ -113,3 +115,26 @@ Receipts, newest first: `research/experiments/mimo-clean-v5-census/`,
 packages, with the opt-in antihack guard and explicit-rules addendum recorded
 per trial. Default runs keep both off; the task-level fixes above are what
 make the tasks clean.
+
+## Vacuous / unfair triage (2026-10-14)
+
+The fleet grader scan (`vacuous.json`: 35 rows, 28 unique tasks) and the
+unfair-task list in the own-runs scan were triaged task-by-task against
+the raw `test.patch` commands and `separate-verifier@8` (which grades
+silent/custom families, including `tsd`/`tsc`, by exit-code fallback, and
+compares fail-to-pass across the whole `base && new` command). Result:
+6 tasks excluded in the v5 manifest — `001694`
+(`fail:vacuous-grader:compile-only`: the test binary is compiled and
+never run), `001833` (`fail:unfair-task:non-idempotent-test`), and
+`000865`/`002661`/`000803`/`000838`
+(`fail:unfair-task:prompt-misaligned`) — and 27 retained with a note:
+type-check tasks whose `tsd`/`tsc` assertions are the real test,
+compile-check steps that sit alongside real unit tests, syntax checks
+alongside real runners, and `base && new` tasks whose vacuous base phase
+only costs regression coverage while the new phase runs real
+fail-to-pass tests. Two terminal candidates (`candidate-1789`,
+`candidate-1702`) are env-broken with never-combined single-transform
+fixes and are not in this manifest. Full per-task table, evidence, and
+`qa.finding/v1` records: `research/experiments/mimo-clean-v5-census/README.md`
+(section “Vacuous / unfair triage”) and
+`research/experiments/mimo-clean-v5-census/findings/`.

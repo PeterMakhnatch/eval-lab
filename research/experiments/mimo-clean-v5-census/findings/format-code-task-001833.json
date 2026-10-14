@@ -1,0 +1,34 @@
+{
+  "schema": "qa.finding/v1",
+  "subject": {
+    "kind": "task",
+    "task_id": "format-code-task-001833",
+    "task_digest": "sha256:0d12854717a1b96af8280dd7c7986ae673a46c3b08e67d746a8c06c260f5418f"
+  },
+  "stage": "vacuous-unfair-triage-2026-10-14",
+  "verdict": "fail",
+  "category": "broken",
+  "severity": "high",
+  "fault": "eval",
+  "evidence_refs": [
+    "derived/detector-roots/own-scan/fleet-grader-scan/out/vacuous.json",
+    "research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md#4",
+    "research/experiments/mimo-clean-v5-census/README.md"
+  ],
+  "reproducer": {
+    "kind": "command",
+    "path": "research/experiments/mimo-clean-v5-census/README.md",
+    "expected_reward": 0
+  },
+  "refutation": {
+    "status": "verified",
+    "by": "VacuousAndUnfairTriage",
+    "reason": "non-idempotent django.contrib.messages append in hidden test command; excluded fail:unfair-task:non-idempotent-test"
+  },
+  "reviewer": {
+    "agent": "VacuousAndUnfairTriage",
+    "model": "meta/muse-wonder-1.0-contributor:xhigh",
+    "tokens": 0,
+    "cost_usd": 0
+  }
+}

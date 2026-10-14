@@ -472,3 +472,65 @@ aggregate still combines them on the exact digest (pass holds at report time),
 but a re-run of `fill_verify.py` takes the first exact-digest row and would
 conservatively grade those two `nop-missing` until backends merge. Ladder-only
 docker rows re-derive identically (cost pinned 0.00, survives repricing).
+
+## Vacuous / unfair triage (2026-10-14, $0 local)
+
+Source: `derived/detector-roots/own-scan/fleet-grader-scan/out/vacuous.json`
+(35 rows; recount = **28 unique tasks**, not 27 as listed in the scan task)
+and §4 of `research-context/analysis/2026-10-14-own-runs-env-flaw-scan.md`.
+Method: read the raw task's `tests/test.patch` (`mimo_test_command.sh` /
+`.build_env/test_command.sh` decoded from `mimo_build_env.tar.gz.b64`),
+`instruction.md`, the v5 manifest / `verify-detail.csv`, the Python ledger,
+and `src/evallab/separate_verifier.py` (@8). Under `separate-verifier@8`
+the whole `test_command.sh` runs on the pristine tree and on the agent
+tree; structured runners (pytest/go/jest/unittest/…) compare
+fail-to-pass, while silent/custom families (including `tsd`/`tsc`) keep
+the documented exit-code fallback (`detect_runner` → `custom`). A vacuous
+*base* phase therefore does not make the grader vacuous when the *new*
+phase runs real fail-to-pass tests — it only means no regression
+coverage from the base phase. No Docker cells were run for this triage
+(repairs: 0); dispositions are static-evidence exclusions or
+retained-with-note, recorded in `verify-overrides.csv` (all 33 in-manifest
+rows below), `verify-detail.csv`, and `manifest.csv`. Findings:
+`findings/*.json` (`qa.finding/v1`, 8 records).
+
+Counts: excluded in manifest 6, excluded not-in-manifest 2 (terminal
+candidates), repaired 0, retained-with-note 27.
+
+| task_id | group | disposition | manifest verify | reason / evidence |
+|---|---|---|---|---|
+| format-code-task-001694 | compile-only whole | exclude | fail:vacuous-grader:compile-only | `whole_grader_vacuous:true`; .build_env runs only `go test -c -o /tmp/teams_test`, binary never executed |
+| format-code-task-000506 | compile-only partial | retained-with-note | unverified:ladder-missing (unchanged) | runs real `go test ./service/s3/s3manager/` unit tests, then compile-checks AWS integration tests |
+| format-code-task-001380 | compile-only partial | retained-with-note | unverified:ladder-missing (unchanged) | runs real security/groups unit tests, then compile-checks OpenStack acceptance tests |
+| format-code-task-001597 | compile-only partial | retained-with-note | unverified:ladder-missing (unchanged) | compiles e2e pilot, then runs real `pilot/pkg/model` JWKS unit tests |
+| format-code-task-001747 | compile-only partial | retained-with-note | unverified:ladder-missing (unchanged) | runs real `TestApi` converter unit test, then compile-checks `./tests/` |
+| format-code-task-002959 | compile-only base+new | retained-with-note | unverified:ladder-missing (unchanged) | base vet/compile only; new runs real TTL/controller unit tests + build |
+| format-code-task-000025 | typecheck-only tsd | retained-with-note | unverified:noexec (unchanged) | tsd expectType assertions in lean.test.ts are the test; @8 exit-code fallback; census oracle=1-noexec/nop=0-noexec |
+| format-code-task-000026 | typecheck-only tsd | retained-with-note | unverified:ladder-missing (unchanged) | tsd assertions (gh13702 lean-option types); @8 exit-code fallback |
+| format-code-task-000027 | typecheck-only tsd | retained-with-note | unverified:ladder-missing (unchanged) | tsd assertions (gh13900 string Map); @8 exit-code fallback |
+| format-code-task-000516 | typecheck-only tsc | retained-with-note | unverified:noexec (unchanged) | tsc --noEmit incl. @ts-expect-error header generics; @8 exit-code fallback; oracle=1-noexec/nop=0-noexec |
+| format-code-task-002776 | typecheck-only tsd | retained-with-note | unverified:ladder-missing (unchanged) | tsd --files throw-on-error.test-d.ts expectType assertions; @8 exit-code fallback |
+| format-code-task-002781 | typecheck-only tsc | retained-with-note | unverified:ladder-missing (unchanged) | base=new identical tsc --noEmit (no regression split) but hidden svelte/events type assertions discriminate; @8 exit-code fallback |
+| format-code-task-000051 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base import smoke; new runs tests/test_file_owner_uid_or_name_behavior.py — F2P-only |
+| format-code-task-000118 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base `-run '^$'`; new TestIBMIAMPolicyAssignment + acctest — F2P-only |
+| format-code-task-000262 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base torchio smoke; new pytest test_clamp.py — F2P-only |
+| format-code-task-000749 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base scons --help smoke; new test_scons_mpi_env_exports.py — F2P-only |
+| format-code-task-001235 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base `-run '^$'`; new 6 named helper go tests — F2P-only |
+| format-code-task-001308 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base `-run '^$'`; new 6 named GUID go tests — F2P-only |
+| format-code-task-001651 | vacuous base | retained-with-note | pass (unchanged) | base PyQt smoke; new pytest test_scene_manager_lifecycle.py — F2P-only |
+| format-code-task-001782 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base `-run '^$'`; new 6 TestModifyACL go tests — F2P-only |
+| format-code-task-001871 | zero-tests base sub-phase | retained-with-note | unverified:ladder-missing (unchanged) | base runs 21 named root tests; only `./script -run '^$'` sub-phase is zero; new runs fullwidth tests |
+| format-code-task-002012 | vacuous base | retained-with-note | unverified:nop-missing (unchanged) | base exit 0; new pytest test_proxy.py — F2P-only |
+| format-code-task-002570 | vacuous base | retained-with-note | unverified:nop-missing (unchanged) | base file smoke; new executes all test_* requirement-behavior tests — F2P-only |
+| format-code-task-002918 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base `-run '^$'`; new TestRedisRateLimiterTokenBucket — F2P-only |
+| format-code-task-002979 | vacuous base | retained-with-note | unverified:ladder-missing (unchanged) | base exit 0; new jest LeftPanel.test.tsx — F2P-only |
+| format-code-task-000211 | syntax-check present | retained-with-note | unverified:ladder-missing (unchanged) | py_compile plus real unittest test_config in same phase |
+| format-code-task-002480 | syntax-check present | retained-with-note | unverified:ladder-missing (unchanged) | bash -n plus real post_delete_hook_contract_test.sh |
+| format-code-task-002487 | syntax-check present | retained-with-note | unverified:ladder-missing (unchanged) | real pytest test_nested_spaces.py plus bash -n |
+| format-code-task-001833 | unfair | exclude | fail:unfair-task:non-idempotent-test | hidden command unconditionally appends django.contrib.messages; agent editing tests/settings.py gets duplicate app label |
+| format-code-task-000865 | unfair | exclude | fail:unfair-task:prompt-misaligned | instruction `secretsechecksum` vs test `secretschecksum` |
+| format-code-task-002661 | unfair | exclude | fail:unfair-task:prompt-misaligned | issue quotes two scopes; test demands exactly `[userinfo.profile]` |
+| format-code-task-000803 | unfair | exclude | fail:unfair-task:prompt-misaligned | hidden pins explicit `text_align=None` default never stated |
+| format-code-task-000838 | unfair | exclude | fail:unfair-task:prompt-misaligned | hidden pins exact `Your command` casing + `hide_command` name never stated |
+| candidate-1789 (candidate-1789-security-appsec) | unfair/env-broken | exclude (not in v5) | n/a — no manifest row | terminal task, not format-code-task-001789; bandit metadata missing; env-dependency@1 + terminal-guard-extend@1 are separate variants, never combined |
+| candidate-1702 (candidate-1702-ml-inference) | unfair/env-broken suspected | exclude (not in v5) | n/a — no manifest row | terminal task distinct from format-code-task-001702 (JS, untouched); tqdm fix env-dependency@1 is a separate candidate, unverified by Docker here |

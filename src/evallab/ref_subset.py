@@ -83,6 +83,16 @@ Status = Literal[
 
 _DOC_SUFFIXES = frozenset({".md", ".rst", ".txt", ".adoc", ".rdoc"})
 _DOC_NAMES = ("changelog", "changes", "history", "news", "authors", "contributors")
+#: Directories whose files are documentation, examples or release plumbing, not graded code.
+_NONCODE_DIRS = frozenset(
+    {"doc", "docs", "example", "examples", "sample", "samples", "benchmark", "benchmarks",
+     ".github", "changelog.d", "newsfragments"}
+)  # fmt: skip
+#: Packaging manifests and lock files: release plumbing, never what a hidden test exercises.
+_NONCODE_NAMES = frozenset(
+    {"manifest.in", "go.sum", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "cargo.lock",
+     "poetry.lock", "pipfile.lock", "uv.lock", "composer.lock", "gemfile.lock"}
+)  # fmt: skip
 _HASH_COMMENT = frozenset({".py", ".sh", ".bash", ".rb", ".pl", ".r", ".yaml", ".yml", ".toml"})
 _SLASH_COMMENT = frozenset(
     {
@@ -129,13 +139,14 @@ def block_kind(
         return "test"
     pure = PurePosixPath(path)
     name = pure.name.lower()
+    suffix = pure.suffix.lower()
     if (
-        pure.suffix.lower() in _DOC_SUFFIXES
-        or name.startswith(_DOC_NAMES)
-        or (pure.parts and pure.parts[0].lower() in {"doc", "docs"})
+        suffix in _DOC_SUFFIXES
+        or (suffix == "" and name.startswith(_DOC_NAMES))
+        or name in _NONCODE_NAMES
+        or any(part.lower() in _NONCODE_DIRS for part in pure.parts[:-1])
     ):
         return "noncode"
-    suffix = pure.suffix.lower()
     prefixes: tuple[str, ...] = ()
     if suffix in _HASH_COMMENT:
         prefixes = ("#",)
@@ -752,6 +763,7 @@ def probe_task(
             "grade_timeout_s": grade_timeout,
             "network": "none",
         },
+        "code_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "started_at": started,
     }
     sandbox = Sandbox(package, memory=memory)

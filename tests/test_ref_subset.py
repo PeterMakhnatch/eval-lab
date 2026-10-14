@@ -95,6 +95,11 @@ def test_block_kind_by_path_and_comment_syntax() -> None:
     assert block_kind("docs/x.md", ["x = 1\n"], ["x = 2\n"], tests) == "noncode"
     assert block_kind("CHANGELOG.md", [], ["- fix\n"], tests) == "noncode"
     assert block_kind("docs/guide/run.py", ["x = 1\n"], ["x = 2\n"], tests) == "noncode"
+    assert block_kind("recipes/examples/demo.py", [], ["x = 1\n"], tests) == "noncode"
+    assert block_kind("MANIFEST.in", [], ["include x.py\n"], tests) == "noncode"
+    # A module merely named like a doc file is code.
+    assert block_kind("pkg/history.py", ["x = 1\n"], ["x = 2\n"], tests) == "code"
+    assert block_kind("HISTORY", [], ["1.0: fix\n"], tests) == "noncode"
     # A reset-test file is a test even though its lines are code.
     assert block_kind("tests/test_a.py", ["x = 1\n"], ["x = 2\n"], tests) == "test"
     assert block_kind("tests/test_b.py", ["x = 1\n"], ["x = 2\n"], tests) == "code"

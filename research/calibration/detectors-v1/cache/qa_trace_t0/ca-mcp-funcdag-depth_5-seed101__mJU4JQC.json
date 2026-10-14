@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "contamination-audit literals fired: none",
+ "flagged": false,
+ "id": "ca-mcp-funcdag-depth_5-seed101__mJU4JQC",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

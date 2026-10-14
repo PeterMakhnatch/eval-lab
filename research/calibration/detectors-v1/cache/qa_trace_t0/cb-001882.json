@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "cb literals fired: none",
+ "flagged": false,
+ "id": "cb-001882",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "ht literals fired: none",
+ "flagged": false,
+ "id": "ht-0235",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

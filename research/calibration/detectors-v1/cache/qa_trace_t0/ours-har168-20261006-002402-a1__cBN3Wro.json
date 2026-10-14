@@ -1,0 +1,9 @@
+{
+ "cost_usd": 0.0,
+ "detector": "qa_trace_t0",
+ "explanation": "ours literals fired: none",
+ "flagged": false,
+ "id": "ours-har168-20261006-002402-a1__cBN3Wro",
+ "schema": "evallab.detector_verdict/v1",
+ "score": null
+}

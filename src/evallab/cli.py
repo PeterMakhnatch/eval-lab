@@ -7413,6 +7413,9 @@ def parser() -> argparse.ArgumentParser:
     from evallab.detectors import build_detectors_parser
 
     build_detectors_parser(commands)
+    from evallab.qa_trace import build_qa_parser
+
+    build_qa_parser(commands)
     from evallab.price_bench import build_price_parser
 
     build_price_parser(commands)

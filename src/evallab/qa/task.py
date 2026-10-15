@@ -858,10 +858,11 @@ def load_answer_key(path: Path) -> list[AnswerKeyItem]:
 
 def load_findings(path: Path) -> tuple[list[Finding], list[TaskReport]]:
     directory = path / "findings" if (path / "findings").is_dir() else path
+    # `._*` are macOS AppleDouble metadata twins left by archives made on a Mac.
     findings = [
         Finding.model_validate_json(p.read_text())
         for p in sorted(directory.glob("*.json"))
-        if p.name not in {"run.json", "summary.json", "score.json"}
+        if p.name not in {"run.json", "summary.json", "score.json"} and not p.name.startswith("._")
     ]
     if len({f.id for f in findings}) != len(findings):
         raise ValueError("duplicate finding IDs")

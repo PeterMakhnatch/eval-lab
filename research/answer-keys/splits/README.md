@@ -58,12 +58,19 @@ system was tuned on:
 | Breaker rediscovery 3/3 verifier-aware (#899) | none: the cohort is `pilot_dev` | **The PR headline does not name the split** (the README does). <br>• The cohort holds 5 envcheck-tb4-39 **heldout** tasks and fix-git, which is Delphik heldout and breaker-bench test. <br>• Today QA Task wires this agent into S2/S3, so those tasks must leave its reported splits: exposure `breaker-rediscovery-pilot`, applying from 2026-10-15. |
 | ref-subset sweep counts, #867 hunt/repair, separate-verifier@10 (#892, #902, #867, #897, #898) | No key | **No key number is claimed.** Their tuning sets are recorded as exposures, so later scores on overlapping tasks are flagged. |
 
-## Fixed in this change
+## Fixed
 
-- **envcheck-task-audit vs envcheck-tb4-39.** Both keys hold the same 39 tasks with
-  different splits. 20 of the 26 tb4-39 `heldout` tasks were `dev` in the audit key,
-  and 3 tb4-39 `dev` tasks were audit `test`. The audit import now copies tb4-39's
-  splits (`evallab.qa.answer_key.envcheck_splits`) and has been regenerated.
+- **envcheck-task-audit vs envcheck-tb4-39 (#904, then retired).** Both keys held the
+  same 39 tasks with different splits: 20 of the 26 tb4-39 `heldout` tasks were `dev`
+  in the audit key, and 3 tb4-39 `dev` tasks were audit `test`.
+  - #904 aligned the audit key's splits.
+  - On 2026-10-15 the audit key, which had no digests, was retired together with its
+    importer. One split lock, `envcheck-tb4-39`, now governs the 39 tasks.
+- **Epoch-flagged negatives (2026-10-15).** 12 envcheck-tb4-39 weak negatives are now
+  `fail` / `epoch_flagged`. Each has a public issue linked from Epoch's TB4 review.
+  - Their splits did not move.
+  - QA Task S1 rows dated 2026-10-14 scored them as negatives. See
+    `../envcheck-tb4-39/README.md`.
 
 ## Open (not changed here)
 
@@ -76,5 +83,3 @@ system was tuned on:
     Delphik held-out rows, or record an exposure.
 - **breaker-bench-v1 internal name overlap.** regex-chess and custom-memory-heap-crash
   are a `dev` benchflow pair but `test` Terminal Wrench items.
-- **envcheck-task-audit has no task digests.** Its labels are not bound to package
-  bytes; envcheck-tb4-39 is.

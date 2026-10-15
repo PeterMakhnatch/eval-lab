@@ -99,12 +99,17 @@ run `uv run python research/answer-keys/splits/guard.py`.
 
 ## Keys and provenance caveats
 
-- `envcheck-tb4-39` — **39 items** on historical Terminal-Bench 4 checkouts
-  (`v4.0.0` and `1dcda8716784`): **13 defect items** (`label_strength:
-  "confirmed"`, aggregating 24 EnvCheck finding rows from
-  `post/2026-10-grader-defects`) and **26 `weak_negative` items** (2 per defect
-  in that pin, stratified `dev`/`heldout` split: 4 dev + 9 heldout defects, 9
-  dev + 17 heldout weak negatives; not 50 tasks as in early planning notes).
+- `envcheck-tb4-39`: **39 items** on historical Terminal-Bench 4 checkouts (`v4.0.0`
+  and `1dcda8716784`).
+  - **13 `confirmed` defect items**, aggregating 24 EnvCheck finding rows from
+    `post/2026-10-grader-defects`.
+  - **12 `epoch_flagged` defect items** (2026-10-15): former weak negatives that
+    Epoch's TB4 review links to a public issue.
+  - **14 `weak_negative` items.**
+  - The split is stratified on the original EnvCheck labels and locked: 4 dev + 9
+    heldout defects, 9 dev + 17 heldout former negatives.
+  - This is not 50 tasks as in early planning notes. It is the only key for these
+    39 tasks: the undigested `envcheck-task-audit` copy was retired on 2026-10-15.
 - `delphik-open-defect-tb2` — **47 items**, all `heldout`, on Terminal-Bench
   2.0 at pinned commit `f5b891cb4f7c20e306f9d05887628b43af740f43`: **23
   archival defect claims** from Delphik's source-read audit ledger
@@ -125,3 +130,14 @@ run `uv run python research/answer-keys/splits/guard.py`.
   - It contradicts two weak negatives: envcheck-tb4-39 `fin-saccr-rwa` and
     Delphik `fix-git`.
   - See `executed-outcomes-v1/README.md`.
+- `mimo-weak-tests-v1`: **49 items**. It is the MiMo weak-test seed key for the loop
+  find weak tests → repair the tests → regrade old passes.
+  - **Weak task packages (16):**
+    - 3 packages where an honest partial fix was rewarded: 001809, 001985 and 002486;
+    - 13 ref-subset weak tests confirmed by the refutation read.
+  - **Negatives:** 10 refuted ref-subset flags and 16 frozen clean controls.
+  - **Traces:** the 4 partial-fix passes (`expected_regrade: flips`) and their 3 clean
+    parents.
+  - **Caveat:** ref-subset selected most of these items, so ref-subset's own score
+    on them is circular.
+  - See `mimo-weak-tests-v1/README.md`.

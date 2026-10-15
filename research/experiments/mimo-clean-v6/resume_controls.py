@@ -154,6 +154,9 @@ def execute(args: argparse.Namespace) -> None:
                             verifier_repeat_n=3,
                         )
                         started = time.monotonic()
+                        # Image inspection can consume the remaining admission window.
+                        if started >= deadline:
+                            return
                         execution_error = None
                         try:
                             Executor.from_repo(repo_root).execute_direct(request, ingest=False)

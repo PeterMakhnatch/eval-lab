@@ -322,6 +322,26 @@ def main() -> None:
         items[parent_id]["pair_ids"].append(pair_id)
         assert items[child_id]["split"] == items[parent_id]["split"]
 
+    # Expected outcome when a stored pass is replayed on a *valid* newer grader (empty diff
+    # scores 0, reference fix scores 1), in QA Trace's counterfactual-regrade vocabulary.
+    # Only diff-vs-reference evidence decides it; everything else stays undetermined.
+    reviewed = {p["trial_id"]: p["verdict"] for p in review["suspicious_passes"]}
+    for item in items.values():
+        verdict = reviewed.get(item["subject"]["trial_id"])
+        if item["trace_kind"] == "oracle":
+            regrade, basis = "stays", "oracle reference fix: a valid grader scores it 1 by definition"
+        elif verdict == "correct":
+            regrade, basis = "stays", f"{HAR207_SOURCE}: the diff behaves like the reference fix"
+        elif verdict == "partial_fix_passed":
+            regrade = "flips"
+            basis = f"{HAR207_SOURCE}: partial fix; flips under a grader that tests the missing behaviour"
+        elif verdict:
+            regrade, basis = None, f"{HAR207_SOURCE}: {verdict}"
+        else:
+            regrade, basis = None, "not determined: no diff-vs-reference review of this pass"
+        item["expected_regrade"] = regrade
+        item["expected_regrade_basis"] = basis
+
     (HERE / "items.jsonl").write_text(
         "".join(json.dumps(v, sort_keys=True) + "\n" for v in items.values())
     )

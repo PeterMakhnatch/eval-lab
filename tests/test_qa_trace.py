@@ -279,6 +279,18 @@ def test_quota_gate_stops_at_the_limit_and_on_missing_readings() -> None:
         QuotaGate(0.6, reader=lambda _: None).check("codex")
 
 
+def test_quota_gate_reads_on_first_check_even_on_a_freshly_booted_host(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # time.monotonic() counts from boot; a young CI runner must still read.
+    monkeypatch.setattr("evallab.qa.trace.time.monotonic", lambda: 5.0)
+    reads: list[str] = []
+    gate = QuotaGate(0.6, refresh_seconds=120.0, reader=lambda p: reads.append(p) or 0.1)
+    assert gate.check("codex") == 0.1
+    assert gate.check("codex") == 0.1
+    assert reads == ["codex"]
+
+
 def _item(
     trial: str, task: str, verdict: str, *, silent: bool = False, step: int | None = None
 ) -> AnswerKeyItem:

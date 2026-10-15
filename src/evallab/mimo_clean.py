@@ -291,6 +291,12 @@ SEPARATE_V10_TASKS = frozenset({"format-code-task-000245", "format-code-task-000
 CLEAN_SET_VERSION_V5 = "mimo-clean-v5"
 MANIFEST_V5_REL = Path("research/experiments/mimo-clean-v5/manifest.csv")
 CLEAN_SET_VERSION_V6 = "mimo-clean-v6"
+MANIFEST_V6_REL = Path("research/experiments/mimo-clean-v6/manifest.csv")
+DEFAULT_MANIFEST_BY_VERSION = {
+    CLEAN_SET_VERSION: MANIFEST_REL,
+    CLEAN_SET_VERSION_V5: MANIFEST_V5_REL,
+    CLEAN_SET_VERSION_V6: MANIFEST_V6_REL,
+}
 CHAIN_VERSIONS: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     CLEAN_SET_VERSION: (PYTHON_CHAIN, NONPYTHON_CHAIN),
     CLEAN_SET_VERSION_V5: (PYTHON_CHAIN_V5, NONPYTHON_CHAIN_V5),
@@ -689,8 +695,15 @@ class ChainBuilder:
                 record = resolve_record(path, repo_root=self.repo_root)
             except ValueError:
                 continue
+            # Never reuse a pre-#848 record for a hook-bearing step: its
+            # package snapshots bytes the current grader never sees. A
+            # refreshed record for the same (transform, parent) wins.
+            if self._is_stale_snapshot(task_id, record):
+                continue
             key = (task_id, record.transform, record.parent.digest)
-            self._records.setdefault(key, record)
+            existing = self._records.get(key)
+            if existing is None or self._is_stale_snapshot(task_id, existing):
+                self._records[key] = record
 
     def _lookup(self, task_id: str, transform: str, parent_digest: str) -> VariantRecord | None:
         key = (task_id, transform, parent_digest)
@@ -719,6 +732,48 @@ class ChainBuilder:
 
         return default_variants_root(self.repo_root)
 
+    #: ``task.toml`` substring proving a package carries the post-#848
+    #: snapshot collect hook (``git -C "$CWD" ls-files -c -o
+    #: --exclude-standard`` instead of a full worktree tar). Pre-#848
+    #: packages snapshot ``__pycache__`` bytes the current grader never
+    #: sees (``pyc_shadow``); they are stale.
+    _SNAPSHOT_HOOK_MARKER = "ls-files -c -o --exclude-standard"
+
+    @staticmethod
+    def _needs_snapshot_hook(transform: str) -> bool:
+        """Whether ``transform`` packages must carry the #848 hook.
+
+        ``separate-verifier@2``+ writes the hook into ``task.toml`` and
+        ``agent-network-none@1`` only rewrites that file, so both must
+        show it; ``separate-verifier@1`` keeps its full-worktree tar.
+        """
+        if transform == AGENT_NETWORK_NONE_ID:
+            return True
+        if not transform.startswith("separate-verifier@"):
+            return False
+        try:
+            return int(transform.rpartition("@")[2]) >= 2
+        except ValueError:
+            return False
+
+    def _is_stale_snapshot(self, task_id: str, record: VariantRecord) -> bool:
+        """Whether the record's on-disk package predates #848."""
+        if not self._needs_snapshot_hook(record.transform):
+            return False
+        package = (
+            self._variants_dir()
+            / f"mimo-v2.6-rl__{task_id}"
+            / record.variant_digest.removeprefix("sha256:")[:12]
+        )
+        if not package.is_dir():
+            return False
+        toml = package / "task.toml"
+        try:
+            text = toml.read_text(errors="replace")
+        except OSError:
+            return True
+        return self._SNAPSHOT_HOOK_MARKER not in text
+
     def _materialized(self, task_id: str, record: VariantRecord) -> Path | None:
         """The record's package dir when present with a matching digest."""
         package = (
@@ -727,6 +782,12 @@ class ChainBuilder:
             / record.variant_digest.removeprefix("sha256:")[:12]
         )
         if package.is_dir() and task_directory_digest(package) == record.variant_digest:
+            # Pre-#848 cached packages are stale even though their digest
+            # still matches their (old) lineage record: force re-derivation
+            # with current code. The stale <digest12> dir stays on disk so
+            # historical receipts remain valid.
+            if self._is_stale_snapshot(task_id, record):
+                return None
             return package
         return None
 
@@ -754,6 +815,11 @@ class ChainBuilder:
                 if record.inputs.get(key) != value:
                     record = None
                     break
+        if record is not None and self._is_stale_snapshot(task_id, record):
+            # Pre-#848 record: ignore it so the step re-derives with
+            # current code (the stale package dir is left on disk).
+            self._records.pop((task_id, transform, parent_digest), None)
+            record = None
         if record is not None:
             package = self._materialized(task_id, record)
             if package is not None:
@@ -1315,10 +1381,17 @@ def build_mimo_clean_parser(commands) -> None:
     build.add_argument("--manifest", type=Path, default=None, help="manifest CSV to write")
     build.add_argument(
         "--clean-version",
-        choices=[CLEAN_SET_VERSION, CLEAN_SET_VERSION_V5],
+        choices=[CLEAN_SET_VERSION, CLEAN_SET_VERSION_V5, CLEAN_SET_VERSION_V6],
         default=CLEAN_SET_VERSION,
-        help="chain generation: v4 (separate-verifier@6) or v5 (@7); "
+        help="chain generation: mimo-clean-v4 (separate-verifier@6), "
+        "mimo-clean-v5 (@8) or mimo-clean-v6 (@10); "
         "selects the default --manifest path when --manifest is absent",
+    )
+    build.add_argument(
+        "--reset-verify",
+        action="store_true",
+        help="reset every built row's verify to unverified instead of "
+        "preserving the existing manifest's graded values",
     )
     build.add_argument("--workers", type=int, default=8, help="parallel chain builders")
     build.set_defaults(func=_mimo_clean_command)
@@ -1351,7 +1424,7 @@ def _build_command(args, root: Path) -> int:
     sweep_path = _resolve(root, args.sweep)
     index_path = _resolve(root, args.reference_index)
     clean_version = getattr(args, "clean_version", None) or CLEAN_SET_VERSION
-    default_manifest = MANIFEST_V5_REL if clean_version == CLEAN_SET_VERSION_V5 else MANIFEST_REL
+    default_manifest = DEFAULT_MANIFEST_BY_VERSION[clean_version]
     manifest_path = _resolve(root, args.manifest or default_manifest)
     results_home = args.results_home or _default_results_home()
     primary = shared_checkout_root(root)
@@ -1470,7 +1543,19 @@ def _build_command(args, root: Path) -> int:
                         reason="snapshot task.toml category unreadable",
                     )
                 )
-    write_manifest([result.manifest_row() for result in results], manifest_path)
+    manifest_rows = [result.manifest_row() for result in results]
+    if manifest_path.is_file() and not getattr(args, "reset_verify", False):
+        # Rebuilds refresh digests (e.g. the #848 snapshot-hook fix) but
+        # must not erase census grades: keep every graded verify value.
+        preserved = {
+            row["task_id"]: row["verify"]
+            for row in load_manifest(manifest_path)
+            if row.get("verify") and row["verify"] != VERIFY_UNVERIFIED
+        }
+        for row in manifest_rows:
+            if row["status"] == STATUS_BUILT and row["task_id"] in preserved:
+                row["verify"] = preserved[row["task_id"]]
+    write_manifest(manifest_rows, manifest_path)
     built = sum(1 for result in results if result.status == STATUS_BUILT)
     print(f"built {built}/{len(results)} -> {manifest_path}")
     for result in sorted(results, key=lambda item: item.task_id):
@@ -1671,18 +1756,22 @@ __all__ = [
     "CACHE_V5_MARKER",
     "CLEAN_SET_VERSION",
     "CLEAN_SET_VERSION_V5",
+    "CLEAN_SET_VERSION_V6",
     "CREATED_BY",
+    "DEFAULT_MANIFEST_BY_VERSION",
     "LANGUAGE_CHAINS",
     "CHAIN_VERSIONS",
     "MANIFEST_COLUMNS",
     "MANIFEST_REL",
     "EXCLUDED_FROM_TRAINING",
     "MANIFEST_V5_REL",
+    "MANIFEST_V6_REL",
     "MTIME_ACTIVE_ID",
     "MTIME_ACTIVE_MARKER",
     "MTIME_ID",
     "NONPYTHON_CHAIN",
     "NONPYTHON_CHAIN_V5",
+    "NONPYTHON_CHAIN_V6",
     "NODE_FOLD_AT_RISK",
     "NODE_FOLD_REAL",
     "NODE_FOLD_TASKS",
@@ -1691,6 +1780,7 @@ __all__ = [
     "PURGE_V2_ID",
     "PYTHON_CHAIN",
     "PYTHON_CHAIN_V5",
+    "PYTHON_CHAIN_V6",
     "REFERENCE_INDEX_REL",
     "SELECTED_VERDICTS",
     "SEPARATE_V6_ID",

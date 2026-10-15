@@ -89,6 +89,24 @@ def test_trace_paired_v1_pairs_match_audit_labels() -> None:
     assert not parents & weak
 
 
+def test_trace_paired_v1_regrade_expectations_follow_labels() -> None:
+    """A valid newer grader must keep every real pass and never needs to keep a fake one:
+    no parent may expect a flip, and every expected flip is a child whose reward is not real."""
+    items, _ = _key("trace-paired-v1")
+    for item in items.values():
+        regrade = item["expected_regrade"]
+        assert regrade in ("flips", "stays", None)
+        assert item["expected_regrade_basis"]
+        if item["trace_kind"] == "oracle":
+            assert regrade == "stays"
+        if regrade == "flips":
+            assert item["role"] == "child" and item["expected_verdict"] == "fail"
+    weak = [
+        i for i in items.values() if i["role"] == "child" and i["expected_category"] == "false_positive"
+    ]
+    assert weak and all(i["expected_regrade"] == "flips" for i in weak)
+
+
 def test_trajectory_judge_400_labels_and_pairs() -> None:
     items, pairs = _key("trajectory-judge-400")
     _check_pairs(items, pairs)

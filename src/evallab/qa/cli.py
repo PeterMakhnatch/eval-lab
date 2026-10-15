@@ -20,6 +20,7 @@ def _score_command(args: argparse.Namespace, root: Path, **_: Any) -> int:
         key = resolve_answer_key(args.key, root)
         findings_dir = args.findings if args.findings.is_absolute() else root / args.findings
         findings = load_findings_dir(findings_dir)
+        print(f"loaded {len(findings)} qa.finding/v1 findings from {findings_dir}", file=sys.stderr)
         rows = score_findings(
             key,
             findings,

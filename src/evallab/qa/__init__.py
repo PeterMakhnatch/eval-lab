@@ -14,8 +14,11 @@ from evallab.qa.models import (
     Reproducer,
     Reviewer,
     dump_finding,
+    expected_root_causes,
     load_finding,
     load_findings_dir,
+    normalize_root_cause,
+    root_cause_hit,
     subject_key,
 )
 from evallab.qa.score import ScoreRow, append_scoreboard, score_findings
@@ -34,11 +37,14 @@ __all__ = [
     "ScoreRow",
     "append_scoreboard",
     "dump_finding",
+    "expected_root_causes",
     "item_id_of",
     "load_answer_key",
     "load_finding",
     "load_findings_dir",
+    "normalize_root_cause",
     "resolve_answer_key",
+    "root_cause_hit",
     "score_findings",
     "subject_key",
 ]

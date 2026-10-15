@@ -11,6 +11,7 @@ assignments are in `assignments.csv`; exposures come from `exposure.jsonl`.
 | delphik-open-defect-tb2 | 0 (0/0) | 47 (23/24) heldout | 0 / 0 | 47 | 0 |
 | envcheck-task-audit | 13 (4/9) | 26 (9/17) heldout | 0 / 0 | 39 | 0 |
 | envcheck-tb4-39 | 13 (4/9) | 26 (9/17) heldout | 0 / 0 | 39 | 0 |
+| executed-outcomes-v1 | 19 (15/4) | 37 (24/13) heldout | 0 / 3 | 46 | 0 |
 | trace-paired-v1 | 54 (42/12) | 27 (18/9) test | 42 / 18 | 19 | 0 |
 | trajectory-judge-400 | 212 (162/50) | 188 (138/50) test | 132 / 119 | 141 | 0 |
 
@@ -35,6 +36,16 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | sanitize-git-repo | breaker-bench-v1 | delphik-open-defect-tb2 |
 | sqlite-db-truncate | breaker-bench-v1 | delphik-open-defect-tb2 |
 
+## Same package bytes, different verdicts
+
+Task items whose `subject.task_digest` appears in more than one key with different
+`expected_verdict`. One label is newer evidence against the other.
+
+| task | digest | verdicts |
+|---|---|---|
+| fin-saccr-rwa | sha256:ec0ad66e5d1c | fail: executed-outcomes-v1; pass: envcheck-tb4-39 |
+| fix-git | sha256:f264d981302b | fail: executed-outcomes-v1; pass: delphik-open-defect-tb2 |
+
 ## Exposures (who was tuned on or read what)
 
 | exposure | kind | agents | key | dev items | reported items |
@@ -45,11 +56,17 @@ unless the systems differ. Names are compared without pin or benchmark prefix.
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | delphik-open-defect-tb2 | 0 | 1 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | envcheck-task-audit | 1 | 5 |
 | breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | envcheck-tb4-39 | 1 | 5 |
+| breaker-rediscovery-pilot | tuned | Breaker, QA Task from 2026-10-15 | executed-outcomes-v1 | 1 | 4 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | delphik-open-defect-tb2 | 0 | 47 |
 | qa-task-s1-heldout-read | inspected | QA Task (qa-task@*) from 2026-10-15 | envcheck-tb4-39 | 0 | 26 |
+| ref-subset-rule-iteration | tuned | QA Task, QA Trace | executed-outcomes-v1 | 2 | 1 |
 | ref-subset-rule-iteration | tuned | QA Task, QA Trace | trace-paired-v1 | 19 | 0 |
-| ref-subset-rule-iteration | | | tasks in no key | 3 | |
+| ref-subset-rule-iteration | | | tasks in no key | 1 | |
+| envcheck-867-repair-dev | tuned | EnvCheck | executed-outcomes-v1 | 11 | 18 |
 | envcheck-867-repair-dev | tuned | EnvCheck | trace-paired-v1 | 6 | 6 |
-| envcheck-867-repair-dev | | | tasks in no key | 17 | |
+| separate-verifier-10-probes | tuned | Verifier hardening | executed-outcomes-v1 | 3 | 4 |
 | separate-verifier-10-probes | tuned | Verifier hardening | trace-paired-v1 | 4 | 0 |
-| separate-verifier-10-probes | | | tasks in no key | 3 | |
+| separate-verifier-10-probes | | | tasks in no key | 2 | |
+| executed-outcomes-ref-subset | selected | QA Task, QA Trace | executed-outcomes-v1 | 8 | 16 |
+| executed-outcomes-hunt-repair | selected | EnvCheck, QA Task | executed-outcomes-v1 | 10 | 18 |
+| executed-outcomes-probe | selected | Verifier hardening, Breaker | executed-outcomes-v1 | 3 | 3 |

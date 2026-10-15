@@ -32,9 +32,9 @@ held-out outputs are read before a change.
 
 | field | contents |
 |---|---|
-| `kind` | `tuned` or `inspected` |
+| `kind` | `tuned` (developed on the items), `selected` (the items were picked or labelled by the system's own output, so its recall on them is circular), or `inspected` (held-out outputs were read) |
 | `applies_to` | List of `{agent, system_prefix?, from?}`. These match the scoreboard `agent` column, a `system` prefix, and a first `date_utc` day. |
-| item selection | One or more of `tasks` (bare names, any key), `items` (`{key: [item_id]}`), `items_file` (`{key: path}`, one item or trial id per line), `where` (`{key: {field: value}}`) |
+| item selection | One or more of `tasks` (bare names, any key), `items` (`{key: [item_id]}`), `items_file` (`{key: path}`, one item or trial id per line), `where` (`{key: {field: value}}`; a list-valued item field such as `selected_by` matches by membership) |
 | `acknowledged_rows` | Optional list of `{key_id, system_prefix, how: excluded|disclosed, reason}` |
 
 How the guard judges a scoreboard row on a reported split that contains items its

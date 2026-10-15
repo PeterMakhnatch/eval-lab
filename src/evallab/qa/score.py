@@ -6,7 +6,8 @@ Definitions (shared with the rows already on the board):
   ``measurement == "measured"`` and a ``pass``/``fail`` verdict. An
   unmeasured item is never counted as a pass: it only lowers
   ``n_measured`` (shown next to every number).
-- An item is *flagged* when a measured finding on it says ``fail``.
+- An item is *flagged* when a measured finding on it says ``fail`` and its
+  refutation is not ``refuted`` (a refuted claim is not a standing flag).
 - ``recall`` = flagged / measured positives (expected ``fail``).
 - ``false_alarm_rate`` = flagged / measured negatives (expected ``pass``).
 - ``root_cause_match`` = among flagged positives that carry a labelled
@@ -124,7 +125,11 @@ def _score_slice(
         ]
 
     def fail_findings(item: AnswerKeyItem) -> list[Finding]:
-        return [finding for finding in measured_findings(item) if finding.verdict == "fail"]
+        return [
+            finding
+            for finding in measured_findings(item)
+            if finding.verdict == "fail" and finding.refutation.status != "refuted"
+        ]
 
     def flagged(item: AnswerKeyItem) -> bool:
         return bool(fail_findings(item))

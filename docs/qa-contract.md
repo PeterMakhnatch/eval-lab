@@ -23,8 +23,9 @@ One JSON document per finding:
 - `stage` (producer-defined, e.g. `S0`/`S2`/`T1`)
 - `verdict: pass|fail|unknown`
 - `category`: `broken|reachable|tamperable|weak|reward_hacking|false_positive|false_negative|prompt_misaligned|failure_cause`
-- `severity: low|medium|high|critical`
-- `fault: agent|eval|platform`
+- `severity: low|medium|high|critical` and `fault: agent|eval|platform` —
+  required on `fail` findings; `pass`/`unknown` findings may leave them null
+- `summary` (optional one-line human summary)
 - `evidence_refs[]` (paths/URIs into retained evidence)
 - `reproducer{kind: harbor_trial|command|patch, path, expected_reward}` (optional)
 - `refutation{status: verified|refuted|unverified, by, reason}`
@@ -73,6 +74,12 @@ uv run evallab qa score --key <key_id> --findings <dir> \
   [--split dev] [--agent NAME] [--system NAME] [--status TEXT] [--notes TEXT]
 ```
 
+`--findings` is scanned recursively for `*.json` and `*.jsonl`. Only
+documents tagged `schema: qa.finding/v1` load (reports and manifests next
+to them are skipped); a tagged document that fails validation is an error;
+byte-identical copies load once. If a producer keeps several *versions* of
+a finding (raw and published), point `--findings` at one of them.
+
 One call appends rows to `research/qa-scoreboard/scoreboard.csv`: one per
 split (`all` plus each split in the key) and category (`all` plus each
 expected category). Columns: `date_utc, key_id, split, category, agent,
@@ -83,7 +90,8 @@ n_pairs_measured, status, notes`.
 - *Measured*: a finding with `measurement: measured` and a `pass`/`fail`
   verdict. Unmeasured items are never passes and never misses; they
   lower `n_measured` and set `status` to `partial: X of Y items measured`.
-- *Flagged*: a measured `fail` finding on the item.
+- *Flagged*: a measured `fail` finding on the item whose refutation is not
+  `refuted` (a refuted claim is not a standing flag).
 - `recall` = flagged / measured positives; `false_alarm_rate` = flagged /
   measured negatives.
 - `root_cause_match` = of flagged positives that carry a labelled root

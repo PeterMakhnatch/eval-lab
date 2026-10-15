@@ -13,6 +13,7 @@ from evallab.qa import (
     AnswerKeyItem,
     Finding,
     KeyPair,
+    Refutation,
     append_scoreboard,
     expected_root_causes,
     load_answer_key,
@@ -96,6 +97,48 @@ def test_finding_rejects_unknown_category() -> None:
 def test_fail_item_requires_category() -> None:
     with pytest.raises(ValidationError):
         _item("t1", verdict="fail", category=None)
+
+
+def test_fail_finding_needs_severity_and_fault_but_pass_may_omit_them() -> None:
+    base = {
+        "subject": {"kind": "task", "task_id": "t1"},
+        "stage": "S2.ref_subset",
+        "category": "weak",
+        "reviewer": {"agent": "qa"},
+        "summary": "6/16 reference lines pass the hidden tests",
+    }
+    assert Finding.model_validate({**base, "verdict": "pass"}).severity is None
+    assert Finding.model_validate({**base, "verdict": "unknown", "fault": None}).fault is None
+    with pytest.raises(ValidationError, match="severity and a fault"):
+        Finding.model_validate({**base, "verdict": "fail", "fault": "eval"})
+
+
+def test_findings_dir_loads_tagged_findings_once_and_skips_other_json(tmp_path: Path) -> None:
+    finding = _finding("t1").model_dump(by_alias=True)
+    task = tmp_path / "t1"
+    task.mkdir()
+    (task / "finding.json").write_text(json.dumps(finding), encoding="utf-8")
+    (task / "report.json").write_text(
+        json.dumps({"schema": "evallab.ref_subset.report/v1", "status": "fail"}), encoding="utf-8"
+    )
+    (tmp_path / "findings-published.jsonl").write_text(json.dumps(finding) + "\n", encoding="utf-8")
+    assert len(load_findings_dir(tmp_path)) == 1
+
+    broken = {**finding, "verdict": "fail", "severity": None}
+    (task / "broken.json").write_text(json.dumps(broken), encoding="utf-8")
+    with pytest.raises(ValidationError):
+        load_findings_dir(tmp_path)
+
+
+def test_refuted_fail_finding_is_not_a_flag() -> None:
+    items = [_item("pos"), _item("neg", verdict="pass", category=None)]
+    refuted = Refutation(status="refuted", by="reader", reason="dropped code is out of scope")
+    findings = [
+        _finding("pos").model_copy(update={"refutation": refuted}),
+        _finding("neg").model_copy(update={"refutation": refuted}),
+    ]
+    row = _row(score_findings(_key(items), findings, scored_at="t"))
+    assert (row.n_measured, row.recall, row.false_alarm_rate) == (2, 0.0, 0.0)
 
 
 def test_score_math_recall_root_cause_false_alarm_paired_cost() -> None:

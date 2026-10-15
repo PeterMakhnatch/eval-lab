@@ -2449,6 +2449,42 @@ def test_load_verify_overrides_missing_and_shaped(tmp_path: Path) -> None:
     }
 
 
+def test_unquoted_override_reason_is_refused_and_the_census_file_applies(
+    tmp_path: Path,
+) -> None:
+    import re
+
+    from evallab.mimo_census import apply_verify_overrides, load_verify_overrides
+
+    broken = tmp_path / "broken.csv"
+    broken.write_text(
+        "task_id,verify,reason,final_digest\n"
+        "format-code-task-000001,pass,reason, with a comma,sha256:abc\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="extra columns"):
+        load_verify_overrides(broken)
+
+    committed = (
+        Path(__file__).resolve().parents[1]
+        / "research/experiments/mimo-clean-v5-census/verify-overrides.csv"
+    )
+    overrides = load_verify_overrides(committed)
+    assert len(overrides) == 47
+    assert all(
+        re.fullmatch(r"sha256:[0-9a-f]{64}", row["final_digest"]) for row in overrides.values()
+    )
+    rows = [
+        {"task_id": task_id, "final_digest": row["final_digest"], "verify": "unverified"}
+        for task_id, row in overrides.items()
+    ]
+    aggregates = {
+        task_id: {"final_digest": row["final_digest"]} for task_id, row in overrides.items()
+    }
+    assert apply_verify_overrides(rows, aggregates, overrides) == 47
+    assert all(row["verify"] == overrides[row["task_id"]]["verify"] for row in rows)
+
+
 def test_apply_verify_overrides_guards() -> None:
     from evallab.mimo_census import apply_verify_overrides
 
@@ -2502,9 +2538,7 @@ def test_report_applies_verify_overrides(tmp_path: Path) -> None:
         "run_ids": "mimo-census-v1-modal-000000-oracle",
     }
     pinned_stale = {
-        **blank_row(
-            "format-code-task-000001", manifest_version="mimo-clean-v2", backend="modal"
-        ),
+        **blank_row("format-code-task-000001", manifest_version="mimo-clean-v2", backend="modal"),
         "final_digest": "sha256:ok2",
         "nop": "0",
         "oracle": "fail:0",

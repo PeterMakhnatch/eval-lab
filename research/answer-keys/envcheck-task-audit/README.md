@@ -9,6 +9,7 @@
   answer in env -> `reachable`, writable grader -> `tamperable`; primary
   pattern only, so root-cause match is coarse). `pass` = weak negative:
   no EnvCheck finding on the task, which is not proof of a clean grader.
-- Subject ids are `<task>@<tb_version>`; splits are a deterministic
-  sha256 75/25 dev/test assignment. Never tune on `test`.
+- Subject ids are `<task>@<tb_version>`. Splits (`dev`/`heldout`) are copied from
+  `envcheck-tb4-39`, the digest-bound key for the same 39 tasks, so a task has one
+  split in both keys. Never tune on `heldout`.
 - Items: 39 (13 defect, 26 weak negative).

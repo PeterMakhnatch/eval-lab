@@ -785,3 +785,159 @@ def test_build_v5_repeat_fold_tasks_use_separate_v10(tmp_path: Path) -> None:
         assert b"$M/pristine-tree" in (
             _final(tmp_path, result) / "tests" / "test.sh"
         ).read_bytes()
+
+
+def test_chains_for_version_v6() -> None:
+    from evallab.mimo_clean import (
+        CLEAN_SET_VERSION_V6,
+        DEFAULT_MANIFEST_BY_VERSION,
+        MANIFEST_V6_REL,
+        NONPYTHON_CHAIN_V6,
+        PYTHON_CHAIN_V6,
+    )
+
+    python_v6, non_v6 = chains_for_version("mimo-clean-v6")
+    assert (python_v6, non_v6) == (PYTHON_CHAIN_V6, NONPYTHON_CHAIN_V6)
+    assert python_v6[-2:] == (SEPARATE_V10_ID, AGENT_NETWORK_NONE_ID)
+    assert non_v6[-2:] == (SEPARATE_V10_ID, AGENT_NETWORK_NONE_ID)
+    assert PURGE_V2_ID in python_v6
+    assert PURGE_V2_ID not in non_v6
+    assert CLEAN_SET_VERSION_V6 == "mimo-clean-v6"
+    assert MANIFEST_V6_REL.parts[-2:] == ("mimo-clean-v6", "manifest.csv")
+    assert DEFAULT_MANIFEST_BY_VERSION[CLEAN_SET_VERSION_V6] == MANIFEST_V6_REL
+    assert DEFAULT_MANIFEST_BY_VERSION[CLEAN_SET_VERSION_V5] == MANIFEST_V5_REL
+
+
+def test_parser_accepts_clean_version_v6() -> None:
+    from evallab.cli import parser
+
+    parsed = parser().parse_args(
+        ["mimo-clean", "build", "--clean-version", "mimo-clean-v6"]
+    )
+    assert parsed.clean_version == "mimo-clean-v6"
+    assert parsed.reset_verify is False
+
+
+def test_run_cli_build_v6_writes_manifest(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from evallab.cli import run_cli
+
+    package = _write_run_package(tmp_path, TASK_ID)
+    ledger = tmp_path / "ledger.csv"
+    with ledger.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(_row(package, TASK_ID)))
+        writer.writeheader()
+        writer.writerow(_row(package, TASK_ID))
+    (tmp_path / "sweep.csv").write_text("task_id,label,fix_commit\n", encoding="utf-8")
+    assert (
+        run_cli(
+            [
+                "mimo-clean",
+                "build",
+                "--clean-version",
+                "mimo-clean-v6",
+                "--tasks",
+                TASK_ID,
+                "--ledger",
+                "ledger.csv",
+                "--sweep",
+                "sweep.csv",
+                "--manifest",
+                "out/manifest-v6.csv",
+                "--workers",
+                "1",
+            ],
+            workspace=tmp_path,
+        )
+        == 0
+    )
+    assert "built 1/1" in capsys.readouterr().out
+    loaded = load_manifest(tmp_path / "out" / "manifest-v6.csv")
+    assert loaded[0]["status"] == STATUS_BUILT
+    assert loaded[0]["chain"].endswith(f"{SEPARATE_V10_ID}>{AGENT_NETWORK_NONE_ID}")
+
+
+def test_build_v6_chain_end_to_end(tmp_path: Path, oracle: OracleInfo) -> None:
+    from evallab.mimo_clean import CLEAN_SET_VERSION_V6
+
+    package = _write_run_package(tmp_path, TASK_ID)
+    builder = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V6)
+    result = builder.build_task(TASK_ID, _row(package, TASK_ID), oracle=oracle)
+    assert result.status == STATUS_BUILT
+    assert result.chain == [
+        STRIP_ID,
+        PURGE_V2_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V10_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]
+    row = result.manifest_row()
+    assert row["chain"].endswith(f"{SEPARATE_V10_ID}>{AGENT_NETWORK_NONE_ID}")
+
+
+def test_build_v6_snapshot_chain_end_to_end(tmp_path: Path) -> None:
+    from evallab.mimo_clean import CLEAN_SET_VERSION_V6
+
+    task_id = "format-code-task-000045"
+    _write_snapshot_package(tmp_path, task_id, "JavaScript")
+    result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V6).build_task(
+        task_id, None, oracle=None
+    )
+    assert result.status == STATUS_BUILT
+    assert result.chain == [
+        STRIP_ID,
+        CACHE_ACTIVE_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V10_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]
+
+
+def test_build_v6_node_fold_task_keeps_cache_v5(tmp_path: Path) -> None:
+    from evallab.mimo_clean import CLEAN_SET_VERSION_V6
+
+    task_id = "format-code-task-000919"
+    assert task_id in NODE_FOLD_TASKS
+    _write_snapshot_package(tmp_path, task_id, "JavaScript")
+    result = _builder(tmp_path, clean_version=CLEAN_SET_VERSION_V6).build_task(
+        task_id, None, oracle=None
+    )
+    assert result.status == STATUS_BUILT
+    assert result.chain == [
+        STRIP_ID,
+        CACHE_V5_ID,
+        MTIME_ACTIVE_ID,
+        SEPARATE_V10_ID,
+        AGENT_NETWORK_NONE_ID,
+    ]
+
+
+def test_pre848_snapshot_package_is_stale(tmp_path: Path) -> None:
+    import types
+
+    builder = _builder(tmp_path)
+    slug = tmp_path / "store" / f"mimo-v2.6-rl__{TASK_ID}"
+
+    def stub(transform: str, hook: bool) -> object:
+        import shutil
+
+        shutil.rmtree(slug, ignore_errors=True)
+        package = slug / "placeholder"
+        package.mkdir(parents=True, exist_ok=True)
+        text = 'collect = "git ls-files -c -o --exclude-standard"\n' if hook else 'collect = "tar"\n'
+        (package / "task.toml").write_text(text, encoding="utf-8")
+        digest = task_directory_digest(package)
+        package.rename(slug / digest.removeprefix("sha256:")[:12])
+        return types.SimpleNamespace(transform=transform, variant_digest=digest)
+
+    stale = stub("separate-verifier@8", hook=False)
+    assert builder._materialized(TASK_ID, stale) is None  # type: ignore[arg-type]
+    assert builder._is_stale_snapshot(TASK_ID, stale)  # type: ignore[arg-type]
+    fresh = stub("separate-verifier@8", hook=True)
+    assert builder._materialized(TASK_ID, fresh) is not None  # type: ignore[arg-type]
+    legacy = stub("separate-verifier@1", hook=False)
+    assert builder._materialized(TASK_ID, legacy) is not None  # type: ignore[arg-type]
+    agent_stale = stub(AGENT_NETWORK_NONE_ID, hook=False)
+    assert builder._materialized(TASK_ID, agent_stale) is None  # type: ignore[arg-type]

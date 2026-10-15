@@ -266,6 +266,8 @@ separate `--stages exploit` probe is requested.
     never `repaired`. Other outcomes are `rejected`, `unrepairable`, `blocked`.
     Unsupported patch paths, file-mode changes and symlinks are blocked,
     not silently converted into a weaker submission.
+    Reports with surviving line-level mutations are refused: this block-replay
+    stage must not silently omit those additional passing submissions.
   - Receipts (result, expected shortcut IDs, proposal, quota when a model is
     called, usage/proposal provenance) land in `--output-dir`. Attempts are
     not overwritten; failed lineage updates remain explicit in the result.

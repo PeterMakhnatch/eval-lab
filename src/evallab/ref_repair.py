@@ -114,6 +114,14 @@ def _shortcut_id(label: str) -> str:
 
 def load_shortcuts(report: Mapping[str, Any]) -> list[Shortcut]:
     """Replay the probe's greedy removals to recover the actual passing submissions."""
+    mutants = report.get("mutants")
+    if mutants is not None:
+        if not isinstance(mutants, Mapping):
+            raise RefRepairError("invalid line-level mutation summary")
+        if mutants.get("survivors") or mutants.get("verdict") == "fail":
+            raise RefRepairError(
+                "line-level mutation survivors are not replayed by block repair"
+            )
     if report.get("verdict") != "fail":
         return []
     blocks = [b for b in report.get("blocks", []) if isinstance(b, dict)]

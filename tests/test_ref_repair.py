@@ -55,6 +55,12 @@ def test_load_shortcuts_replays_cumulative_passing_removals():
     assert by_label["drop-file:pkg/other.py"].keep == frozenset({"pkg/mod.py#0", "pkg/mod.py#1"})
 
 
+def test_load_shortcuts_refuses_unreplayed_line_mutation_survivors():
+    report = _report(mutants={"verdict": "fail", "survivors": [{"id": "line-mutant"}]})
+    with pytest.raises(ValueError):
+        load_shortcuts(report)
+
+
 def test_load_shortcuts_has_none_when_nothing_passed_or_probe_found_every_block_needed():
     report = _report()
     report["grades"] = report["grades"][:2]

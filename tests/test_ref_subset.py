@@ -180,6 +180,9 @@ def test_block_kind_by_path_and_comment_syntax() -> None:
     assert block_kind("a.py", ["// not a python comment\n"], [], tests) == "code"
     # Documentation paths are noncode whatever the lines say.
     assert block_kind("docs/x.md", ["x = 1\n"], ["x = 2\n"], tests) == "noncode"
+    # Interpreter byte-code an oracle run leaves behind is never graded code, even when opaque.
+    cache = file_change("app/__pycache__/m.cpython-311.pyc", b"\x00\xff", b"\x01\xfe", tests)
+    assert [block.kind for block in cache.blocks] == ["noncode"]
     assert block_kind("CHANGELOG.md", [], ["- fix\n"], tests) == "noncode"
     assert block_kind("docs/guide/run.py", ["x = 1\n"], ["x = 2\n"], tests) == "noncode"
     assert block_kind("recipes/examples/demo.py", [], ["x = 1\n"], tests) == "noncode"

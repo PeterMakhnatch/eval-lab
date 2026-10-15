@@ -137,22 +137,30 @@ class FileChange:
     ops: list[tuple[str, int, int, int, int, str | None]] | None = None
 
 
+def _noncode_path(path: str) -> bool:
+    """Docs, release notes, packaging and repo plumbing, and interpreter byte-code caches."""
+    pure = PurePosixPath(path)
+    name = pure.name.lower()
+    suffix = pure.suffix.lower()
+    return (
+        suffix in _DOC_SUFFIXES
+        or suffix in {".pyc", ".pyo"}
+        or (suffix == "" and name.startswith(_DOC_NAMES))
+        or name in _NONCODE_NAMES
+        or any(part.lower() in _NONCODE_DIRS for part in pure.parts[:-1])
+        or "__pycache__" in pure.parts[:-1]
+        or (len(pure.parts) > 1 and pure.parts[0].lower() in _RELEASE_NOTE_DIRS)
+    )
+
+
 def block_kind(
     path: str, removed: Sequence[str], added: Sequence[str], tests: set[str]
 ) -> BlockKind:
     if path in tests:
         return "test"
-    pure = PurePosixPath(path)
-    name = pure.name.lower()
-    suffix = pure.suffix.lower()
-    if (
-        suffix in _DOC_SUFFIXES
-        or (suffix == "" and name.startswith(_DOC_NAMES))
-        or name in _NONCODE_NAMES
-        or any(part.lower() in _NONCODE_DIRS for part in pure.parts[:-1])
-        or (len(pure.parts) > 1 and pure.parts[0].lower() in _RELEASE_NOTE_DIRS)
-    ):
+    if _noncode_path(path):
         return "noncode"
+    suffix = PurePosixPath(path).suffix.lower()
     prefixes: tuple[str, ...] = ()
     if suffix in _HASH_COMMENT:
         prefixes = ("#",)
@@ -176,7 +184,7 @@ def file_change(path: str, base: bytes | None, fixed: bytes | None, tests: set[s
     base_lines = _lines(base) if base is not None else []
     fixed_lines = _lines(fixed) if fixed is not None else []
     if base_lines is None or fixed_lines is None:
-        kind: BlockKind = "test" if path in tests else "code"
+        kind: BlockKind = "test" if path in tests else "noncode" if _noncode_path(path) else "code"
         size = 1
         change.blocks.append(Block(f"{path}#0", path, kind, 0, 0, size, size))
         return change
@@ -321,6 +329,10 @@ def unified_patch(before: dict[str, bytes | None], after: dict[str, bytes | None
 # Task packages and Docker grading
 
 
+class UnsupportedTask(ValueError):
+    """A well-formed task this probe cannot reproduce (sidecar or remapped artifacts)."""
+
+
 @dataclass(frozen=True)
 class Package:
     """A raw MiMo code package, or a Harbor task whose verifier runs separately on artifacts.
@@ -337,6 +349,10 @@ class Package:
     artifacts: tuple[str, ...] = ()
     gpus: int = 0
     verifier_timeout: float | None = None
+    oracle_network: bool = True
+    verifier_network: bool = True
+    verifier_user: str | None = None
+    verifier_env: tuple[tuple[str, str], ...] = ()
 
     @property
     def separate(self) -> bool:
@@ -376,7 +392,7 @@ class Package:
         for entry in config.get("artifacts") or []:
             if isinstance(entry, dict):
                 if entry.get("service") not in (None, "main") or entry.get("destination"):
-                    raise ValueError(
+                    raise UnsupportedTask(
                         f"{path}: artifact {entry} (sidecar or remapped) is unsupported"
                     )
                 entry = entry.get("source")
@@ -397,9 +413,17 @@ class Package:
             )
         name = str((config.get("task") or {}).get("name") or path.name)
         timeout = verifier.get("timeout_sec")
+        oracle_network = bool(environment.get("allow_internet", True))
+        verifier_environment = verifier.get("environment") or {}
+        user = verifier.get("user")
+        env = verifier.get("env") or {}
         return cls(
             path, name, "", "/", frozenset(), tuple(artifacts), int(environment.get("gpus") or 0),
-            float(timeout) if timeout else None,
+            float(timeout) if timeout else None, oracle_network,
+            bool(verifier_environment.get("allow_internet", oracle_network)),
+            None if user is None else str(user),
+            # Host-templated values (``${VAR}``) are secrets Harbor resolves on the host: skipped.
+            tuple((str(k), str(v)) for k, v in sorted(env.items()) if "${" not in str(v)),
         )  # fmt: skip
 
 
@@ -557,10 +581,17 @@ class Sandbox:
         _docker("rmi", self.snapshot)
 
 
-def _verify(name: str, label: str, kept: list[str], timeout: float, started: float) -> Grade:
+def _verify(
+    name: str,
+    label: str,
+    kept: list[str],
+    timeout: float,
+    started: float,
+    exec_options: Sequence[str] = (),
+) -> Grade:
     """Run ``/tests/test.sh`` in container ``name`` and score ``/logs/verifier/reward.txt``."""
     try:
-        result = _docker("exec", name, "bash", "/tests/test.sh", timeout=timeout)
+        result = _docker("exec", *exec_options, name, "bash", "/tests/test.sh", timeout=timeout)
     except subprocess.TimeoutExpired:
         return Grade(label, kept, None, None, time.monotonic() - started, "timeout")
     raw = _docker("exec", name, "cat", "/logs/verifier/reward.txt").stdout.decode().strip()
@@ -618,11 +649,14 @@ class SeparateSandbox:
         self.modes: dict[str, int] = {}
         self.dirs: set[str] = set()
         self.pulled: list[str] = []
+        # Artifact files the oracle left as they were: Harbor uploads them with every submission.
+        self.unchanged: dict[str, bytes] = {}
 
-    def _run(self, image: str, name: str) -> None:
+    def _run(self, image: str, name: str, *, network: bool) -> None:
         _check(
             _docker(
                 "run", "-d", "--name", name, "--memory", self.memory, "--cpus", self.cpus,
+                *(() if network else ("--network", "none")),
                 "--entrypoint", "/bin/sh", image, "-c", "exec tail -f /dev/null",
             ),
             f"docker run {image}",
@@ -680,7 +714,7 @@ class SeparateSandbox:
     def reference(self) -> tuple[dict[str, bytes | None], dict[str, bytes | None]]:
         """The artifacts before and after the task's own oracle (``solution/solve.sh``)."""
         name = f"{self.name}-oracle"
-        self._run(self.image, name)
+        self._run(self.image, name, network=self.package.oracle_network)
         try:
             before = self._read(name)
             _check(_docker("exec", name, "mkdir", "-p", "/solution"), "mkdir /solution")
@@ -697,6 +731,7 @@ class SeparateSandbox:
         finally:
             _docker("rm", "-f", name)
         paths = sorted(set(before) | set(after))
+        self.unchanged = {p: before[p] for p in paths if p in before and before[p] == after.get(p)}
         return {p: before.get(p) for p in paths}, {p: after.get(p) for p in paths}
 
     def grade(
@@ -705,10 +740,11 @@ class SeparateSandbox:
         name = f"{self.name}-g"
         started = time.monotonic()
         try:
-            self._run(self.verifier_image, name)
+            self._run(self.verifier_image, name, network=self.package.verifier_network)
+            submitted = self.unchanged | files
             present = {
                 path: (data, self.modes.get(path, 0o644))
-                for path, data in files.items()
+                for path, data in submitted.items()
                 if data is not None
             }
             emptied = [d for d in sorted(self.dirs) if any(p.startswith(f"{d}/") for p in present)]
@@ -723,7 +759,10 @@ class SeparateSandbox:
                 _check(_docker("cp", "-", f"{name}:/", input=_tar(present)), "upload artifacts")
             tests = self.package.path / "tests"
             _check(_docker("cp", f"{tests}/.", f"{name}:/tests"), "copy the tests")
-            return _verify(name, label, kept, timeout, started)
+            options = [f"--env={key}={value}" for key, value in self.package.verifier_env]
+            if self.package.verifier_user is not None:
+                options.append(f"--user={self.package.verifier_user}")
+            return _verify(name, label, kept, timeout, started, options)
         except (RuntimeError, OSError) as exc:
             return Grade(
                 label, kept, None, None, time.monotonic() - started, "error", str(exc)[-2_000:]
@@ -965,7 +1004,10 @@ def probe_task(
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     started = _now()
-    package = Package.load(package_dir)
+    try:
+        package = Package.load(package_dir)
+    except UnsupportedTask as exc:
+        return _write_skipped(package_dir.name, package_dir, out_dir, "not_applicable", str(exc))
     if package.separate == (patch_path is not None):
         raise ValueError(
             f"{package_dir}: a separate-verifier task derives its reference from its oracle (no --patch)"
@@ -994,7 +1036,14 @@ def probe_task(
             "max_grades": max_grades,
             "memory": memory,
             "grade_timeout_s": grade_timeout,
-            "network": "default" if package.separate else "none",
+            "network": (
+                {
+                    "oracle": "default" if package.oracle_network else "none",
+                    "verifier": "default" if package.verifier_network else "none",
+                }
+                if package.separate
+                else "none"
+            ),
         },
         "code_sha256": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
         "started_at": started,
@@ -1194,14 +1243,18 @@ def sweep(
         out_dir = out_root / job.task_id
         if not job.image:
             reports.append(
-                _write_skipped(job, out_dir, "unavailable", "package has no docker_image")
+                _write_skipped(
+                    job.task_id, job.package, out_dir, "unavailable", "package has no docker_image"
+                )
             )
             continue
         tests = Package.load(job.package).tests
         blocks = patch_code_blocks(job.patch.read_text(errors="replace"), tests)
         if blocks < 2:
             reason = f"{blocks} code change run(s) in the reference patch: no proper subset to try"
-            reports.append(_write_skipped(job, out_dir, "not_applicable", reason))
+            reports.append(
+                _write_skipped(job.task_id, job.package, out_dir, "not_applicable", reason)
+            )
         else:
             docker_jobs.append(job)
     log(f"ref-subset sweep: {len(docker_jobs)} need Docker, {len(reports)} recorded without it")
@@ -1213,7 +1266,9 @@ def sweep(
         error = cache.wait(job.image)
         try:
             if error:
-                return _write_skipped(job, out_dir, "unavailable", f"image pull failed: {error}")
+                return _write_skipped(
+                    job.task_id, job.package, out_dir, "unavailable", f"image pull failed: {error}"
+                )
             report = probe_task(
                 job.package, job.patch, out_dir, max_grades=max_grades, memory=memory, log=log
             )
@@ -1228,10 +1283,12 @@ def sweep(
         return reports + list(pool.map(one, docker_jobs))
 
 
-def _write_skipped(job: Job, out_dir: Path, status: Status, reason: str) -> dict[str, Any]:
+def _write_skipped(
+    task_id: str, package: Path, out_dir: Path, status: Status, reason: str
+) -> dict[str, Any]:
     out_dir.mkdir(parents=True, exist_ok=True)
     report = {
-        "schema": SCHEMA_REPORT, "task_id": job.task_id, "package": str(job.package), "status": status,
+        "schema": SCHEMA_REPORT, "task_id": task_id, "package": str(package), "status": status,
         "reason": reason, "verdict": "unknown", "severity": None, "finished_at": _now(),
     }  # fmt: skip
     (out_dir / "report.json").write_text(json.dumps(report, indent=1, sort_keys=True) + "\n")

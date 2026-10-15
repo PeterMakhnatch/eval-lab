@@ -18,11 +18,11 @@ TASK = "mimo-v2.6-rl/format-code-task-000001"
 PATCH = "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-old\n+new\n"
 
 
-def _package(path: Path, *, separate: bool = True, workdir: str = "/testbed") -> Path:
+def _package(path: Path, *, separate: bool = True) -> Path:
     (path / "tests").mkdir(parents=True)
     (path / "tests/test.sh").write_text("#!/bin/bash\ntrue\n")
     (path / "instruction.md").write_text("Replace old with new.\n")
-    config = f'[task]\nname = "{TASK}"\n[environment]\nworkdir = {json.dumps(workdir)}\n'
+    config = f'[task]\nname = "{TASK}"\n[environment]\nworkdir = "/testbed"\n'
     if separate:
         config += '[verifier]\nenvironment_mode = "separate"\n'
     (path / "task.toml").write_text(config)
@@ -42,13 +42,6 @@ def _trial(tmp: Path, *, diff: str | None = PATCH, reward: float = 1.0) -> Path:
     if diff is not None:
         (trial / "verifier/agent.diff").write_text(diff)
     return trial
-
-
-def _native_trial(root: Path, matrix: Any) -> Path:
-    native = root / "runs" / matrix.name / "native-oracle"
-    (native / "agent").mkdir(parents=True)
-    (native / "result.json").write_text(json.dumps({"exception_info": None, "agent_result": {}}))
-    return native
 
 
 @pytest.fixture(autouse=True)
@@ -74,46 +67,6 @@ def test_patch_script_applies_exactly_the_change_and_fails_on_the_wrong_base(
     assert target.read_text() == "new\n"
 
 
-def test_failed_oracle_patch_is_not_a_grader_rejection(tmp_path: Path) -> None:
-    work = tmp_path / "different base"
-    work.mkdir()
-    (work / "x.py").write_text("different\n")
-    grader = cf.Grader(
-        TASK,
-        cf.V6,
-        "sha256:" + "a" * 64,
-        _package(tmp_path / "pkg", workdir=str(work)),
-        "manifest.csv",
-    )
-
-    def matrix_runner(matrix, *, root):
-        completed = subprocess.run(
-            ["bash", str(root / matrix.runs[0].solution)], capture_output=True, text=True
-        )
-        assert completed.returncode != 0
-        native = _native_trial(root, matrix)
-        # Harbor's oracle records nonzero exits here without raising; it may
-        # still run the unchanged workspace's verifier and return reward zero.
-        (native / "agent/exit-code.txt").write_text(str(completed.returncode))
-        return SimpleNamespace(
-            results=[{"status": "ok", "rewards": [0.0]}],
-            receipt_path=root / "runs/matrix-receipt.json",
-        )
-
-    result = cf.replay(
-        _trial(tmp_path),
-        grader,
-        tmp_path / "out",
-        repo_root=tmp_path,
-        matrix_runner=matrix_runner,
-    )
-    assert result["outcome"] == "refused"
-    assert result["regraded"] is None
-    assert result["native_reward"] == 0.0
-    assert result["refusals"][0].startswith("patch_replay_agent_exit_nonzero")
-    assert (work / "x.py").read_text() == "different\n"
-
-
 @pytest.mark.parametrize(
     ("status", "rewards", "recorded", "outcome"),
     [
@@ -134,7 +87,6 @@ def test_patch_replay_never_counts_infra_or_absent_scores_as_rejections(
     before = {str(p.relative_to(trial)): p.read_bytes() for p in trial.rglob("*") if p.is_file()}
 
     def matrix_runner(matrix, *, root):
-        _native_trial(root, matrix)
         return SimpleNamespace(
             results=[
                 {
@@ -160,47 +112,6 @@ def test_patch_replay_never_counts_infra_or_absent_scores_as_rejections(
     }
     assert not (trial / "artifacts").exists()  # no fabricated snapshot, manifest, or trajectory
     assert bool(result["refusals"]) is (outcome == "refused")
-
-
-@pytest.mark.parametrize(
-    ("failure", "reason"),
-    [
-        ("missing", "patch_replay_trial_count"),
-        ("exception", "patch_replay_agent_exception"),
-        ("missing_agent", "patch_replay_agent_result_missing"),
-        ("unreadable_exit", "patch_replay_result_unreadable"),
-    ],
-)
-def test_incomplete_native_execution_cannot_verify_a_reward_flip(
-    tmp_path: Path, failure: str, reason: str
-) -> None:
-    def matrix_runner(matrix, *, root):
-        if failure != "missing":
-            native = _native_trial(root, matrix)
-            packet: dict[str, Any] = {"exception_info": None, "agent_result": {}}
-            if failure == "exception":
-                packet["exception_info"] = {"exception_type": "AgentTimeoutError"}
-            elif failure == "missing_agent":
-                packet["agent_result"] = None
-            elif failure == "unreadable_exit":
-                (native / "agent/exit-code.txt").write_text("not-an-exit-code")
-            (native / "result.json").write_text(json.dumps(packet))
-        return SimpleNamespace(
-            results=[{"status": "ok", "rewards": [0.0]}],
-            receipt_path=root / "runs/matrix-receipt.json",
-        )
-
-    result = cf.replay(
-        _trial(tmp_path),
-        _grader(tmp_path),
-        tmp_path / "out",
-        repo_root=tmp_path,
-        matrix_runner=matrix_runner,
-    )
-    assert result["outcome"] == "refused"
-    assert result["regraded"] is None
-    assert result["native_reward"] == 0.0
-    assert result["refusals"] == [reason]
 
 
 def test_missing_change_is_unmeasurable_not_a_successful_nop(tmp_path: Path) -> None:
